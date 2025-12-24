@@ -142,7 +142,9 @@ public class PBROverlayRenderer : IRenderer, IDisposable
             (float)(camPos.Z - Math.Floor(camPos.Z)));
 
         // Get sun direction from shader uniforms
-        var sunPos = capi.Render.ShaderUniforms.LightPosition3D;
+        // Use SunPosition3D for specular to match the visual sun position
+        // (LightPosition3D may blend sun/moon or have other adjustments)
+        var sunPos = capi.Render.ShaderUniforms.SunPosition3D;
 
         // Disable depth writing for fullscreen pass
         capi.Render.GLDepthMask(false);

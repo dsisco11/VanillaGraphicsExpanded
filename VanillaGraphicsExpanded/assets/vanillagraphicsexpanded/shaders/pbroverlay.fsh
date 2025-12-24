@@ -173,11 +173,12 @@ void main() {
     // PBR lighting calculation
     vec3 albedo = sceneColor.rgb;
     vec3 N = worldNormal;
-    // View direction: camera is at origin in view space, so view dir is just -viewPos normalized
-    // Or equivalently, camera world pos - world pos, where camera is at cameraOriginFloor + cameraOriginFrac
-    vec3 cameraWorldPos = cameraOriginFloor + cameraOriginFrac;
-    vec3 V = normalize(cameraWorldPos - worldPos);
-    vec3 L = normalize(sunDirection);
+    // View direction: in view space, camera is at origin, so view dir is -viewPos
+    // Transform to world space using inverse view matrix (direction, so w=0)
+    vec3 viewDirViewSpace = normalize(-viewPos);
+    vec3 V = normalize((invModelViewMatrix * vec4(viewDirViewSpace, 0.0)).xyz);
+    // sunDirection is already a normalized direction vector pointing toward the sun
+    vec3 L = sunDirection;
     vec3 H = normalize(V + L);
     
     // Calculate F0 (surface reflection at zero incidence)
