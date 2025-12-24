@@ -28,9 +28,9 @@ uniform vec3 sunDirection;
 uniform int debugMode;
 
 // PBR constants
-const float PATCH_SIZE = 0.0625; // 1/16th block
-const float ROUGHNESS_MIN = 0.3;
-const float ROUGHNESS_MAX = 0.9;
+const float PATCH_SIZE = 1f / 64f; // 1/64th block
+const float ROUGHNESS_MIN = 0.1;
+const float ROUGHNESS_MAX = 0.99;
 const float METALLIC_BASE = 0.0;
 const float PI = 3.14159265359;
 
@@ -142,7 +142,7 @@ void main() {
     
     // Second hash with offset for metallic variation (for debug visualization)
     float hashValue2 = hash(patchCoord + vec3(17.0, 31.0, 47.0));
-    float metallic = hashValue2 > 0.85 ? hashValue2 : METALLIC_BASE; // ~15% chance of metallic patches
+    float metallic = 0;//hashValue2 > 0.85 ? hashValue2 : METALLIC_BASE; // ~15% chance of metallic patches
     
     // Debug visualizations
     if (debugMode == 1) {

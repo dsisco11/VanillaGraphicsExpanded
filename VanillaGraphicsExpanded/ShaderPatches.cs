@@ -19,15 +19,15 @@ public static class ShaderPatches
     // Fragment shader code to inject - declares the MRT output at location 4
     // (locations 0-3 are used by outColor, outGlow, outGNormal, outGPosition)
     private const string NormalOutputDeclaration = @"
-// VGE G-Buffer normal output
+// VGE G-Buffer world-space normal output
 layout(location = 4) out vec4 vge_outNormal;
 ";
 
     // Code to inject before the final closing brace of main() to write the normal
-    // gnormal is already available in the chunk shader
+    // Use 'normal' (world-space) instead of 'gnormal' (view-space)
     private const string NormalOutputWrite = @"
-    // VGE: Write normal to G-buffer
-    vge_outNormal = vec4(gnormal.xyz * 0.5 + 0.5, 1.0);
+    // VGE: Write world-space normal to G-buffer
+    vge_outNormal = vec4(normal * 0.5 + 0.5, 1.0);
 ";
 
     public static void Apply(ICoreAPI api)
