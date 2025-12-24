@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded;
 /// Fullscreen overlay renderer that applies PBR-style lighting to the rendered scene
 /// using procedurally generated roughness/metallic values from world position hashing.
 /// </summary>
-public sealed class PBROverlayRenderer : IRenderer
+public class PBROverlayRenderer : IRenderer, IDisposable
 {
     #region Constants
 
@@ -20,31 +20,46 @@ public sealed class PBROverlayRenderer : IRenderer
 
     #region Fields
 
-    private readonly ICoreClientAPI capi;
-    private readonly GBufferRenderer gBufferRenderer;
-    private MeshRef? quadMeshRef;
-    private IShaderProgram? shaderProgram;
-    private readonly float[] invProjectionMatrix = new float[16];
-    private readonly float[] invModelViewMatrix = new float[16];
+    protected readonly ICoreClientAPI capi;
+    protected readonly GBufferRenderer gBufferRenderer;
+    protected MeshRef? quadMeshRef;
+    protected IShaderProgram? shaderProgram;
+    protected readonly float[] invProjectionMatrix = new float[16];
+    protected readonly float[] invModelViewMatrix = new float[16];
 
     #endregion
 
     #region IRenderer Implementation
 
-    public double RenderOrder => RENDER_ORDER;
-    public int RenderRange => RENDER_RANGE;
+    public virtual double RenderOrder => RENDER_ORDER;
+    public virtual int RenderRange => RENDER_RANGE;
 
     #endregion
 
     #region Constructor
 
     public PBROverlayRenderer(ICoreClientAPI capi, GBufferRenderer gBufferRenderer)
+        : this(capi, gBufferRenderer, -1, -1, 2, "pbroverlay")
+    {
+    }
+
+    /// <summary>
+    /// Protected constructor for subclasses to customize quad geometry and render stage name.
+    /// </summary>
+    /// <param name="capi">Client API</param>
+    /// <param name="gBufferRenderer">G-buffer renderer for normal texture access</param>
+    /// <param name="quadLeft">Left edge of quad in NDC (-1 to 1)</param>
+    /// <param name="quadBottom">Bottom edge of quad in NDC (-1 to 1)</param>
+    /// <param name="quadSize">Size of quad in NDC units</param>
+    /// <param name="renderStageName">Name for renderer registration</param>
+    protected PBROverlayRenderer(ICoreClientAPI capi, GBufferRenderer gBufferRenderer,
+        float quadLeft, float quadBottom, float quadSize, string renderStageName)
     {
         this.capi = capi;
         this.gBufferRenderer = gBufferRenderer;
 
-        // Create fullscreen quad mesh (-1,-1) to (1,1) in NDC
-        var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
+        // Create quad mesh with specified geometry
+        var quadMesh = QuadMeshUtil.GetCustomQuadModelData(quadLeft, quadBottom, 0, quadSize, quadSize);
         quadMesh.Rgba = null;
         quadMeshRef = capi.Render.UploadMesh(quadMesh);
 
@@ -53,7 +68,7 @@ public sealed class PBROverlayRenderer : IRenderer
         LoadShader();
 
         // Register renderer at AfterBlit stage
-        capi.Event.RegisterRenderer(this, EnumRenderStage.AfterBlit, "pbroverlay");
+        capi.Event.RegisterRenderer(this, EnumRenderStage.AfterBlit, renderStageName);
     }
 
     #endregion
@@ -79,11 +94,25 @@ public sealed class PBROverlayRenderer : IRenderer
 
     #endregion
 
+    #region Virtual Hooks
+
+    /// <summary>
+    /// Override to control whether rendering should occur this frame.
+    /// </summary>
+    protected virtual bool ShouldRender() => true;
+
+    /// <summary>
+    /// Override to return a debug visualization mode (0 = normal PBR output).
+    /// </summary>
+    protected virtual int GetDebugMode() => 0;
+
+    #endregion
+
     #region Rendering
 
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
-        if (shaderProgram is null || quadMeshRef is null)
+        if (shaderProgram is null || quadMeshRef is null || !ShouldRender())
         {
             return;
         }
@@ -144,8 +173,8 @@ public sealed class PBROverlayRenderer : IRenderer
         shaderProgram.Uniform("cameraOriginFrac", cameraOriginFrac);
         shaderProgram.Uniform("sunDirection", sunPos);
 
-        // Always use PBR output (debugMode=0), debug overlay handles visualization
-        shaderProgram.Uniform("debugMode", 0);
+        // Use virtual method for debug mode (0 = PBR output, subclasses can override)
+        shaderProgram.Uniform("debugMode", GetDebugMode());
 
         // Render fullscreen quad
         capi.Render.RenderMesh(quadMeshRef);
@@ -246,7 +275,7 @@ public sealed class PBROverlayRenderer : IRenderer
 
     #region IDisposable
 
-    public void Dispose()
+    public virtual void Dispose()
     {
         capi.Event.ReloadShader -= LoadShader;
 
