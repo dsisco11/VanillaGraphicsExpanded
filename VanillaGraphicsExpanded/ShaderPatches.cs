@@ -46,10 +46,9 @@ layout(location = 4) out vec4 vge_outNormal;
     /// <summary>
     /// Patches ShaderRegistry.RegisterShaderProgram to intercept chunk shader compilation.
     /// </summary>
+    [HarmonyPatch]
     public static class RegisterShaderProgramPatch
     {
-        //[HarmonyPatch(typeof(Vintagestory.Client.NoObf.ShaderRegistry), nameof(Vintagestory.Client.NoObf.ShaderRegistry.RegisterShaderProgram), [typeof(EnumShaderProgram), typeof(Vintagestory.Client.NoObf.ShaderProgram)])]
-        //static void Prefix(EnumShaderProgram defaultProgram, Vintagestory.Client.NoObf.ShaderProgram program)
         [HarmonyPatch(typeof(Vintagestory.Client.NoObf.ShaderRegistry), "LoadShaderProgram")]
         [HarmonyPostfix]
         static void LoadShaderProgram(Vintagestory.Client.NoObf.ShaderProgram program, bool useSSBOs)
@@ -71,13 +70,6 @@ layout(location = 4) out vec4 vge_outNormal;
                 string? code = fragmentShader.Code;
                 if (string.IsNullOrEmpty(code)) return;
 
-                // DEBUG: Dump the shader source to a file so we can inspect it
-                string debugPath = System.IO.Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
-                    $"vge_shader_{shaderName}_frag.glsl");
-                System.IO.File.WriteAllText(debugPath, code);
-                System.Diagnostics.Debug.WriteLine($"[VGE] Dumped {shaderName} fragment shader to {debugPath}");
-
                 // Don't inject twice
                 if (code.Contains("vge_outNormal")) return;
 
@@ -90,7 +82,6 @@ layout(location = 4) out vec4 vge_outNormal;
                 code = code.Insert(versionEnd + 1, NormalOutputDeclaration);
 
                 // Find the last closing brace of main() and insert the write before it
-                // Look for pattern like "outColor = ..." or similar final assignment, then the closing }
                 int mainEnd = code.LastIndexOf('}');
                 if (mainEnd > 0)
                 {
@@ -98,7 +89,6 @@ layout(location = 4) out vec4 vge_outNormal;
                 }
 
                 fragmentShader.Code = code;
-                
                 System.Diagnostics.Debug.WriteLine($"[VGE] Injected G-buffer output into {shaderName}");
             }
             catch (Exception ex)
