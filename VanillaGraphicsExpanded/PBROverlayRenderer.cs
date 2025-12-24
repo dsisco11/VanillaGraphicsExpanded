@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
@@ -192,85 +193,44 @@ public class PBROverlayRenderer : IRenderer, IDisposable
     #region Matrix Utilities
 
     /// <summary>
-    /// Computes the inverse of a 4x4 matrix using Gaussian elimination.
+    /// Computes the inverse of a 4x4 matrix using SIMD-accelerated System.Numerics.
     /// </summary>
     private static void ComputeInverseMatrix(float[] m, float[] result)
     {
-        // Create augmented matrix [M | I]
-        float[] aug = new float[32];
-        for (int i = 0; i < 4; i++)
+        // Convert to Matrix4x4 (row-major constructor matches OpenGL column-major layout when transposed)
+        var matrix = new Matrix4x4(
+            m[0], m[4], m[8], m[12],
+            m[1], m[5], m[9], m[13],
+            m[2], m[6], m[10], m[14],
+            m[3], m[7], m[11], m[15]);
+
+        if (!Matrix4x4.Invert(matrix, out var inverse))
         {
-            for (int j = 0; j < 4; j++)
+            // Matrix is singular, return identity
+            for (int i = 0; i < 16; i++)
             {
-                aug[i * 8 + j] = m[i * 4 + j];
-                aug[i * 8 + j + 4] = (i == j) ? 1.0f : 0.0f;
+                result[i] = (i % 5 == 0) ? 1.0f : 0.0f;
             }
+            return;
         }
 
-        // Gaussian elimination with partial pivoting
-        for (int col = 0; col < 4; col++)
-        {
-            // Find pivot
-            int maxRow = col;
-            float maxVal = Math.Abs(aug[col * 8 + col]);
-            for (int row = col + 1; row < 4; row++)
-            {
-                float val = Math.Abs(aug[row * 8 + col]);
-                if (val > maxVal)
-                {
-                    maxVal = val;
-                    maxRow = row;
-                }
-            }
-
-            // Swap rows
-            if (maxRow != col)
-            {
-                for (int j = 0; j < 8; j++)
-                {
-                    (aug[col * 8 + j], aug[maxRow * 8 + j]) = (aug[maxRow * 8 + j], aug[col * 8 + j]);
-                }
-            }
-
-            // Scale pivot row
-            float pivot = aug[col * 8 + col];
-            if (Math.Abs(pivot) < 1e-10f)
-            {
-                // Matrix is singular, return identity
-                for (int i = 0; i < 16; i++)
-                {
-                    result[i] = (i % 5 == 0) ? 1.0f : 0.0f;
-                }
-                return;
-            }
-
-            for (int j = 0; j < 8; j++)
-            {
-                aug[col * 8 + j] /= pivot;
-            }
-
-            // Eliminate column
-            for (int row = 0; row < 4; row++)
-            {
-                if (row != col)
-                {
-                    float factor = aug[row * 8 + col];
-                    for (int j = 0; j < 8; j++)
-                    {
-                        aug[row * 8 + j] -= factor * aug[col * 8 + j];
-                    }
-                }
-            }
-        }
-
-        // Extract result
-        for (int i = 0; i < 4; i++)
-        {
-            for (int j = 0; j < 4; j++)
-            {
-                result[i * 4 + j] = aug[i * 8 + j + 4];
-            }
-        }
+        // Convert back to column-major float array (OpenGL layout)
+        result[0] = inverse.M11;
+        result[1] = inverse.M21;
+        result[2] = inverse.M31;
+        result[3] = inverse.M41;
+        result[4] = inverse.M12;
+        result[5] = inverse.M22;
+        result[6] = inverse.M32;
+        result[7] = inverse.M42;
+        result[8] = inverse.M13;
+        result[9] = inverse.M23;
+        result[10] = inverse.M33;
+        result[11] = inverse.M43;
+        result[12] = inverse.M14;
+        result[13] = inverse.M24;
+        result[14] = inverse.M34;
+        result[15] = inverse.M44;
     }
 
     #endregion
