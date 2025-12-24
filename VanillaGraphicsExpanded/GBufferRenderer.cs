@@ -16,7 +16,6 @@ public sealed class GBufferRenderer : IRenderer, IDisposable
     private int lastWidth;
     private int lastHeight;
     private bool isInitialized;
-    private bool shaderInjectionAttempted;
 
     /// <summary>
     /// The OpenGL texture ID for the normal G-buffer.
@@ -32,9 +31,6 @@ public sealed class GBufferRenderer : IRenderer, IDisposable
         
         // Register at Before stage to set up MRT before chunks render
         capi.Event.RegisterRenderer(this, EnumRenderStage.Before, "gbuffer-setup");
-        
-        // Hook into shader reload to inject normal output
-        capi.Event.ReloadShader += OnReloadShaders;
     }
 
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
@@ -135,65 +131,8 @@ public sealed class GBufferRenderer : IRenderer, IDisposable
         // Don't unbind - leave it bound for subsequent rendering
     }
 
-    private bool OnReloadShaders()
-    {
-        // Try to inject normal output into chunk shaders
-        TryInjectChunkShaderNormalOutput();
-        return true;
-    }
-
-    private void TryInjectChunkShaderNormalOutput()
-    {
-        if (shaderInjectionAttempted)
-        {
-            return; // Only try once per session to avoid log spam
-        }
-        shaderInjectionAttempted = true;
-
-        // Code to inject into the fragment shader
-        // This declares a second output for MRT and outputs the normal
-        const string normalOutputCode = @"
-// VGE G-Buffer normal output
-layout(location = 1) out vec4 vge_outNormal;
-#define VGE_GBUFFER_ENABLED 1
-";
-
-        // Try various chunk shader names
-        string[] shaderNames = { "chunkopaque", "chunkliquid", "chunktopsoil" };
-
-        foreach (var shaderName in shaderNames)
-        {
-            try
-            {
-                var shader = capi.Shader.GetProgramByName(shaderName);
-                if (shader?.FragmentShader == null)
-                {
-                    capi.Logger.Debug($"[VGE] Shader '{shaderName}' not found or has no fragment shader");
-                    continue;
-                }
-
-                // Try to set PrefixCode
-                string existingPrefix = shader.FragmentShader.PrefixCode ?? "";
-                if (!existingPrefix.Contains("VGE_GBUFFER_ENABLED"))
-                {
-                    shader.FragmentShader.PrefixCode = normalOutputCode + existingPrefix;
-                    capi.Logger.Notification($"[VGE] Injected G-buffer output into '{shaderName}' fragment shader via PrefixCode");
-                    
-                    // Note: This may not take effect until shaders are recompiled
-                    // The game may need shader.Compile() called, but that might cause issues
-                }
-            }
-            catch (Exception ex)
-            {
-                capi.Logger.Warning($"[VGE] Failed to inject into '{shaderName}': {ex.Message}");
-            }
-        }
-    }
-
     public void Dispose()
     {
-        capi.Event.ReloadShader -= OnReloadShaders;
-
         // Detach from framebuffer
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primaryFb != null)

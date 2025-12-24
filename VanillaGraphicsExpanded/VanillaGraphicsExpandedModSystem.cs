@@ -8,6 +8,14 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     private GBufferRenderer? gBufferRenderer;
     private PBROverlayRenderer? pbrOverlayRenderer;
 
+    public override void StartPre(ICoreAPI api)
+    {
+        base.StartPre(api);
+        
+        // Apply Harmony patches early, before shaders are loaded
+        ShaderPatches.Apply(api);
+    }
+
     public override void StartClientSide(ICoreClientAPI api)
     {
         base.StartClientSide(api);
@@ -28,5 +36,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         
         gBufferRenderer?.Dispose();
         gBufferRenderer = null;
+        
+        ShaderPatches.Unpatch(null!);
     }
 }
