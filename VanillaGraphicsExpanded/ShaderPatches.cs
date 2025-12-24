@@ -56,7 +56,6 @@ layout(location = 4) out vec4 vge_outNormal;
             // Only inject into chunk shaders
             string shaderName = program.PassName;
             if (shaderName != "chunkopaque" &&
-                shaderName != "chunkliquid" &&
                 shaderName != "chunktopsoil")
             {
                 return;
