@@ -15,7 +15,7 @@ public sealed class PBROverlayRenderer : IRenderer
 
     private const double RENDER_ORDER = 0.95;
     private const int RENDER_RANGE = 1;
-    private const int DEBUG_MODE_COUNT = 7; // Added G-Buffer Normal debug mode
+    private const int DEBUG_MODE_COUNT = 6;
 
     #endregion
 
@@ -98,12 +98,11 @@ public sealed class PBROverlayRenderer : IRenderer
         string modeName = debugMode switch
         {
             0 => "PBR Output",
-            1 => "Normals (Depth-Derived)",
+            1 => "Normals (G-Buffer)",
             2 => "Roughness",
             3 => "Metallic",
             4 => "World Position",
             5 => "Depth",
-            6 => "G-Buffer Normals",
             _ => "Unknown"
         };
 
@@ -159,17 +158,8 @@ public sealed class PBROverlayRenderer : IRenderer
         shaderProgram.BindTexture2D("primaryScene", primaryFb.ColorTextureIds[0], 0);
         shaderProgram.BindTexture2D("primaryDepth", primaryFb.DepthTextureId, 1);
         
-        // Bind G-buffer normal texture if available
-        int gBufferNormalId = gBufferRenderer.NormalTextureId;
-        if (gBufferNormalId != 0)
-        {
-            shaderProgram.BindTexture2D("gBufferNormal", gBufferNormalId, 2);
-            shaderProgram.Uniform("hasGBufferNormal", 1);
-        }
-        else
-        {
-            shaderProgram.Uniform("hasGBufferNormal", 0);
-        }
+        // Bind G-buffer normal texture
+        shaderProgram.BindTexture2D("gBufferNormal", gBufferRenderer.NormalTextureId, 2);
 
         // Pass matrices
         shaderProgram.UniformMatrix("invProjectionMatrix", invProjectionMatrix);
