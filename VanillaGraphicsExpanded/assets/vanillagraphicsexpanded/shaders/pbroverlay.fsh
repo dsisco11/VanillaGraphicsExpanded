@@ -6,6 +6,7 @@ out vec4 outColor;
 // Textures
 uniform sampler2D primaryScene;
 uniform sampler2D primaryDepth;
+uniform sampler2D gBufferNormal; // G-buffer normal from MRT (if available)
 
 // Matrices for world position reconstruction
 uniform mat4 invProjectionMatrix;
@@ -23,8 +24,11 @@ uniform vec3 cameraOriginFloor; // Floor-aligned camera world position (mod 4096
 uniform vec3 cameraOriginFrac;  // Fractional part of camera position
 uniform vec3 sunDirection;
 
-// Debug mode: 0=PBR, 1=normals, 2=roughness, 3=metallic, 4=worldPos, 5=depth
+// Debug mode: 0=PBR, 1=normals, 2=roughness, 3=metallic, 4=worldPos, 5=depth, 6=gBufferNormal
 uniform int debugMode;
+
+// G-buffer availability
+uniform int hasGBufferNormal;
 
 // PBR constants
 const float PATCH_SIZE = 0.0625; // 1/16th block
@@ -123,14 +127,10 @@ void main() {
     vec3 viewPos = reconstructViewPos(uv, depth);
     vec3 worldPos = reconstructWorldPos(viewPos);
     
-    // Compute screen-space normals from depth derivatives
-    vec3 viewPosRight = reconstructViewPos(uv + vec2(1.0 / frameSize.x, 0.0), 
-                                            texture(primaryDepth, uv + vec2(1.0 / frameSize.x, 0.0)).r);
-    vec3 viewPosUp = reconstructViewPos(uv + vec2(0.0, 1.0 / frameSize.y), 
-                                         texture(primaryDepth, uv + vec2(0.0, 1.0 / frameSize.y)).r);
-    
-    vec3 dPdx = viewPosRight - viewPos;
-    vec3 dPdy = viewPosUp - viewPos;
+    // Compute screen-space normals using GLSL hardware derivatives
+    // This uses the GPU's 2x2 pixel quad derivatives which are more stable than manual sampling
+    vec3 dPdx = dFdx(viewPos);
+    vec3 dPdy = dFdy(viewPos);
     vec3 viewNormal = normalize(cross(dPdy, dPdx));
     
     // Transform normal to world space
@@ -170,6 +170,23 @@ void main() {
         // Use logarithmic scale for better visualization of nearby geometry
         float normalizedDepth = log(1.0 + linDepth) / log(1.0 + zFar);
         outColor = vec4(vec3(normalizedDepth), 1.0);
+        return;
+    } else if (debugMode == 6) {
+        // Visualize G-buffer normals (if available)
+        if (hasGBufferNormal == 1) {
+            vec4 gNormal = texture(gBufferNormal, uv);
+            // If alpha is 0, no normal was written (sky or unwritten)
+            if (gNormal.a > 0.0) {
+                // Normals are stored as (n * 0.5 + 0.5), so just display as-is
+                outColor = vec4(gNormal.rgb, 1.0);
+            } else {
+                // Show magenta for areas without G-buffer data
+                outColor = vec4(1.0, 0.0, 1.0, 1.0);
+            }
+        } else {
+            // Show cyan if G-buffer not available
+            outColor = vec4(0.0, 1.0, 1.0, 1.0);
+        }
         return;
     }
     

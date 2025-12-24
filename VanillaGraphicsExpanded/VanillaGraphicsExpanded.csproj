@@ -32,6 +32,14 @@
       <HintPath>$(VINTAGE_STORY)/Lib/cairo-sharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="OpenTK.Graphics">
+      <HintPath>$(VINTAGE_STORY)/Lib/OpenTK.Graphics.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenTK.Mathematics">
+      <HintPath>$(VINTAGE_STORY)/Lib/OpenTK.Mathematics.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
 
 <ItemGroup>

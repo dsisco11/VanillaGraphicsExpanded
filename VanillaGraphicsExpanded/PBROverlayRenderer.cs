@@ -1,4 +1,5 @@
 using System;
+
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 
@@ -14,13 +15,14 @@ public sealed class PBROverlayRenderer : IRenderer
 
     private const double RENDER_ORDER = 0.95;
     private const int RENDER_RANGE = 1;
-    private const int DEBUG_MODE_COUNT = 6;
+    private const int DEBUG_MODE_COUNT = 7; // Added G-Buffer Normal debug mode
 
     #endregion
 
     #region Fields
 
     private readonly ICoreClientAPI capi;
+    private readonly GBufferRenderer gBufferRenderer;
     private MeshRef? quadMeshRef;
     private IShaderProgram? shaderProgram;
     private int debugMode;
@@ -38,9 +40,10 @@ public sealed class PBROverlayRenderer : IRenderer
 
     #region Constructor
 
-    public PBROverlayRenderer(ICoreClientAPI capi)
+    public PBROverlayRenderer(ICoreClientAPI capi, GBufferRenderer gBufferRenderer)
     {
         this.capi = capi;
+        this.gBufferRenderer = gBufferRenderer;
 
         // Create fullscreen quad mesh (-1,-1) to (1,1) in NDC
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
@@ -95,11 +98,12 @@ public sealed class PBROverlayRenderer : IRenderer
         string modeName = debugMode switch
         {
             0 => "PBR Output",
-            1 => "Normals",
+            1 => "Normals (Depth-Derived)",
             2 => "Roughness",
             3 => "Metallic",
             4 => "World Position",
             5 => "Depth",
+            6 => "G-Buffer Normals",
             _ => "Unknown"
         };
 
@@ -154,6 +158,18 @@ public sealed class PBROverlayRenderer : IRenderer
         // Bind textures
         shaderProgram.BindTexture2D("primaryScene", primaryFb.ColorTextureIds[0], 0);
         shaderProgram.BindTexture2D("primaryDepth", primaryFb.DepthTextureId, 1);
+        
+        // Bind G-buffer normal texture if available
+        int gBufferNormalId = gBufferRenderer.NormalTextureId;
+        if (gBufferNormalId != 0)
+        {
+            shaderProgram.BindTexture2D("gBufferNormal", gBufferNormalId, 2);
+            shaderProgram.Uniform("hasGBufferNormal", 1);
+        }
+        else
+        {
+            shaderProgram.Uniform("hasGBufferNormal", 0);
+        }
 
         // Pass matrices
         shaderProgram.UniformMatrix("invProjectionMatrix", invProjectionMatrix);
