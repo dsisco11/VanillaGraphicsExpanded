@@ -90,11 +90,11 @@ public sealed class DebugOverlayRenderer : PBROverlayRenderer
                 5 => "Depth",
                 _ => "Unknown"
             };
-            capi.ShowChatMessage($"[VGE] Debug: {modeName}");
+            capi.TriggerIngameError(this, "vgedebug", $"Debug: {modeName}");
         }
         else
         {
-            capi.ShowChatMessage("[VGE] Debug overlay disabled");
+            capi.TriggerIngameError(this, "vgedebug", "Debug overlay disabled");
         }
 
         return true;
