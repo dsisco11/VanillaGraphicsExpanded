@@ -7,6 +7,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
 {
     private GBufferRenderer? gBufferRenderer;
     private PBROverlayRenderer? pbrOverlayRenderer;
+    private DebugOverlayRenderer? debugOverlayRenderer;
 
     public override void StartPre(ICoreAPI api)
     {
@@ -25,12 +26,18 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         
         // Create PBR overlay renderer (runs at AfterBlit stage)
         pbrOverlayRenderer = new PBROverlayRenderer(api, gBufferRenderer);
+        
+        // Create debug overlay renderer (runs after PBR overlay)
+        debugOverlayRenderer = new DebugOverlayRenderer(api, gBufferRenderer);
     }
 
     public override void Dispose()
     {
         base.Dispose();
 
+        debugOverlayRenderer?.Dispose();
+        debugOverlayRenderer = null;
+        
         pbrOverlayRenderer?.Dispose();
         pbrOverlayRenderer = null;
         

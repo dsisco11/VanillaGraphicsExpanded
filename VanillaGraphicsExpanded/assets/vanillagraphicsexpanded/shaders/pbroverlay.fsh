@@ -144,7 +144,7 @@ void main() {
     float hashValue2 = hash(patchCoord + vec3(17.0, 31.0, 47.0));
     float metallic = 0;//hashValue2 > 0.85 ? hashValue2 : METALLIC_BASE; // ~15% chance of metallic patches
     
-    // Debug visualizations
+    // Debug visualizations (used by debug overlay renderer)
     if (debugMode == 1) {
         // Visualize normals from G-buffer
         outColor = vec4(worldNormal * 0.5 + 0.5, 1.0);
