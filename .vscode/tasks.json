@@ -11,7 +11,11 @@
                 "Debug",
                 "${workspaceFolder}/VanillaGraphicsExpanded/VanillaGraphicsExpanded.csproj"
             ],
-            "problemMatcher": "$msCompile"
+            "problemMatcher": "$msCompile",
+            "presentation": {
+                "panel": "new",
+                "close": true
+            }
         },
         {
             "label": "package",
