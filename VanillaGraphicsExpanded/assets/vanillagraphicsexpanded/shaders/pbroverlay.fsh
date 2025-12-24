@@ -64,7 +64,8 @@ vec3 reconstructWorldPos(vec3 viewPos) {
     vec4 relPos = invModelViewMatrix * vec4(viewPos, 1.0);
     // relPos.xyz is relative to camera at origin
     // Add camera world position (split into floor + frac for precision)
-    return relPos.xyz + cameraOriginFrac + cameraOriginFloor;
+    // Small offset (0.001) avoids z-fighting on surfaces aligned with coordinate boundaries
+    return relPos.xyz + cameraOriginFrac + cameraOriginFloor + vec3(0.001);
 }
 
 // Fresnel-Schlick approximation
