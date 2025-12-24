@@ -124,21 +124,23 @@ public sealed class PBROverlayRenderer : IRenderer
         ComputeInverseMatrix(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
         ComputeInverseMatrix(capi.Render.CameraMatrixOriginf, invModelViewMatrix);
 
-        // Use the same player reference position that the engine uses for rendering
-        // This ensures world position reconstruction matches what was rendered
-        var refPos = capi.Render.ShaderUniforms.playerReferencePos;
-        var cameraWorldPos = new Vec3f(
-            (float)(capi.World.Player.Entity.CameraPos.X - refPos.X),
-            (float)(capi.World.Player.Entity.CameraPos.Y - refPos.Y),
-            (float)(capi.World.Player.Entity.CameraPos.Z - refPos.Z));
-
-        // Origin offset for stable world position hashing
-        // Use modulo to keep values small while maintaining spatial consistency
-        const double ModuloRange = 4096.0; // Large enough for hashing, small enough for float precision
-        var originOffset = new Vec3f(
-            (float)(refPos.X % ModuloRange),
-            (float)(refPos.Y % ModuloRange),
-            (float)(refPos.Z % ModuloRange));
+        // The inverse view matrix (CameraMatrixOriginf) gives positions relative to camera.
+        // To get world position, we need to add the camera's absolute world position.
+        // For float precision with large coordinates, use modulo and split into floor + frac.
+        var camPos = capi.World.Player.Entity.CameraPos;
+        const double ModuloRange = 4096.0;
+        
+        // Floor-aligned camera position (only changes when crossing block boundaries)
+        var cameraOriginFloor = new Vec3f(
+            (float)(Math.Floor(camPos.X) % ModuloRange),
+            (float)(Math.Floor(camPos.Y) % ModuloRange),
+            (float)(Math.Floor(camPos.Z) % ModuloRange));
+        
+        // Fractional part of camera position (sub-block offset)
+        var cameraOriginFrac = new Vec3f(
+            (float)(camPos.X - Math.Floor(camPos.X)),
+            (float)(camPos.Y - Math.Floor(camPos.Y)),
+            (float)(camPos.Z - Math.Floor(camPos.Z)));
 
         // Get sun direction from shader uniforms
         var sunPos = capi.Render.ShaderUniforms.LightPosition3D;
@@ -164,9 +166,9 @@ public sealed class PBROverlayRenderer : IRenderer
         // Pass frame size
         shaderProgram.Uniform("frameSize", new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight));
 
-        // Pass camera position, origin offset, and sun direction
-        shaderProgram.Uniform("cameraWorldPos", cameraWorldPos);
-        shaderProgram.Uniform("originOffset", originOffset);
+        // Pass camera origin for world position reconstruction and sun direction
+        shaderProgram.Uniform("cameraOriginFloor", cameraOriginFloor);
+        shaderProgram.Uniform("cameraOriginFrac", cameraOriginFrac);
         shaderProgram.Uniform("sunDirection", sunPos);
 
         // Pass debug mode

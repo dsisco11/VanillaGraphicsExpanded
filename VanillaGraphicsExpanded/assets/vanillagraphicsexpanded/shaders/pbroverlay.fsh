@@ -19,9 +19,9 @@ uniform float zFar;
 uniform vec2 frameSize;
 
 // Camera and lighting
-uniform vec3 cameraWorldPos;
+uniform vec3 cameraOriginFloor; // Floor-aligned camera world position (mod 4096)
+uniform vec3 cameraOriginFrac;  // Fractional part of camera position
 uniform vec3 sunDirection;
-uniform vec3 originOffset; // Fractional part of world origin for stable hashing
 
 // Debug mode: 0=PBR, 1=normals, 2=roughness, 3=metallic, 4=worldPos, 5=depth
 uniform int debugMode;
@@ -61,9 +61,10 @@ vec3 reconstructViewPos(vec2 texCoord, float depth) {
 
 // Reconstruct world position from view position
 vec3 reconstructWorldPos(vec3 viewPos) {
-    vec4 worldPos = invModelViewMatrix * vec4(viewPos, 1.0);
-    // worldPos.xyz is relative to camera, add origin offset for stable world coords
-    return worldPos.xyz + originOffset;
+    vec4 relPos = invModelViewMatrix * vec4(viewPos, 1.0);
+    // relPos.xyz is relative to camera at origin
+    // Add camera world position (split into floor + frac for precision)
+    return relPos.xyz + cameraOriginFrac + cameraOriginFloor;
 }
 
 // Fresnel-Schlick approximation
@@ -174,6 +175,9 @@ void main() {
     // PBR lighting calculation
     vec3 albedo = sceneColor.rgb;
     vec3 N = worldNormal;
+    // View direction: camera is at origin in view space, so view dir is just -viewPos normalized
+    // Or equivalently, camera world pos - world pos, where camera is at cameraOriginFloor + cameraOriginFrac
+    vec3 cameraWorldPos = cameraOriginFloor + cameraOriginFrac;
     vec3 V = normalize(cameraWorldPos - worldPos);
     vec3 L = normalize(sunDirection);
     vec3 H = normalize(V + L);
