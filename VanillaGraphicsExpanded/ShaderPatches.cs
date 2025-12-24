@@ -16,17 +16,18 @@ public static class ShaderPatches
     private const string HarmonyId = "vanillagraphicsexpanded.shaderpatches";
     private static Harmony? harmony;
 
-    // Fragment shader code to inject - declares the MRT output
+    // Fragment shader code to inject - declares the MRT output at location 4
+    // (locations 0-3 are used by outColor, outGlow, outGNormal, outGPosition)
     private const string NormalOutputDeclaration = @"
 // VGE G-Buffer normal output
-layout(location = 1) out vec4 vge_outNormal;
+layout(location = 4) out vec4 vge_outNormal;
 ";
 
     // Code to inject before the final closing brace of main() to write the normal
-    // This writes the gnormal variable that chunk shaders already compute
+    // gnormal is already available in the chunk shader
     private const string NormalOutputWrite = @"
     // VGE: Write normal to G-buffer
-    vge_outNormal = vec4(gnormal * 0.5 + 0.5, 1.0);
+    vge_outNormal = vec4(gnormal.xyz * 0.5 + 0.5, 1.0);
 ";
 
     public static void Apply(ICoreAPI api)
@@ -69,6 +70,13 @@ layout(location = 1) out vec4 vge_outNormal;
 
                 string? code = fragmentShader.Code;
                 if (string.IsNullOrEmpty(code)) return;
+
+                // DEBUG: Dump the shader source to a file so we can inspect it
+                string debugPath = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                    $"vge_shader_{shaderName}_frag.glsl");
+                System.IO.File.WriteAllText(debugPath, code);
+                System.Diagnostics.Debug.WriteLine($"[VGE] Dumped {shaderName} fragment shader to {debugPath}");
 
                 // Don't inject twice
                 if (code.Contains("vge_outNormal")) return;

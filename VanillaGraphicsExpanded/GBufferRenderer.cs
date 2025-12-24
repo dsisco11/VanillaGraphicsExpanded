@@ -94,10 +94,11 @@ public sealed class GBufferRenderer : IRenderer, IDisposable
         // Bind the Primary framebuffer
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
 
-        // Attach our normal texture as ColorAttachment1
+        // Attach our normal texture as ColorAttachment4
+        // (0=outColor, 1=outGlow, 2=outGNormal, 3=outGPosition are used by the game)
         GL.FramebufferTexture2D(
             FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment1,
+            FramebufferAttachment.ColorAttachment4,
             TextureTarget.Texture2D,
             normalTextureId,
             0);
@@ -110,7 +111,7 @@ public sealed class GBufferRenderer : IRenderer, IDisposable
         }
         else
         {
-            capi.Logger.Notification("[VGE] G-buffer normal texture attached to Primary framebuffer");
+            capi.Logger.Notification("[VGE] G-buffer normal texture attached to Primary framebuffer at ColorAttachment4");
         }
 
         // Unbind
@@ -120,13 +121,18 @@ public sealed class GBufferRenderer : IRenderer, IDisposable
     private void EnsureMRTActive(int fboId)
     {
         // Bind and set draw buffers each frame
+        // We need to include all attachments the game uses plus ours
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
         
+        // Include all 5 attachments: 0=color, 1=glow, 2=gnormal, 3=gposition, 4=vge_normal
         DrawBuffersEnum[] drawBuffers = { 
             DrawBuffersEnum.ColorAttachment0, 
-            DrawBuffersEnum.ColorAttachment1 
+            DrawBuffersEnum.ColorAttachment1,
+            DrawBuffersEnum.ColorAttachment2,
+            DrawBuffersEnum.ColorAttachment3,
+            DrawBuffersEnum.ColorAttachment4
         };
-        GL.DrawBuffers(2, drawBuffers);
+        GL.DrawBuffers(5, drawBuffers);
         
         // Don't unbind - leave it bound for subsequent rendering
     }
@@ -139,17 +145,20 @@ public sealed class GBufferRenderer : IRenderer, IDisposable
         {
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
 
-            // Detach our texture
+            // Detach our texture from ColorAttachment4
             GL.FramebufferTexture2D(
                 FramebufferTarget.Framebuffer,
-                FramebufferAttachment.ColorAttachment1,
+                FramebufferAttachment.ColorAttachment4,
                 TextureTarget.Texture2D,
                 0,
                 0);
 
-            // Reset draw buffers to only ColorAttachment0
-            DrawBuffersEnum[] drawBuffers = { DrawBuffersEnum.ColorAttachment0 };
-            GL.DrawBuffers(1, drawBuffers);
+            // Reset draw buffers to game defaults (depends on SSAO setting)
+            DrawBuffersEnum[] drawBuffers = { 
+                DrawBuffersEnum.ColorAttachment0,
+                DrawBuffersEnum.ColorAttachment1
+            };
+            GL.DrawBuffers(2, drawBuffers);
 
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         }
