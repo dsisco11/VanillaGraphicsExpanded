@@ -32,13 +32,13 @@ public class PBROverlayRenderer : IRenderer, IDisposable
     /// Normal blur sample count (Teardown-style): 0=off, 4, 8, 12, 16.
     /// Higher values produce smoother edges but cost more performance.
     /// </summary>
-    public int NormalQuality { get; set; } = 16;
+    public int NormalQuality { get; set; } = 6;
 
     /// <summary>
     /// Normal blur radius in pixels (typically 1.0-3.0).
     /// Larger values create more pronounced beveled edge effect.
     /// </summary>
-    public float NormalBlurRadius { get; set; } = 6.0f;
+    public float NormalBlurRadius { get; set; } = 8.0f;
 
     /// <summary>
     /// Distance (in blocks) where procedural PBR values start to fade out.
