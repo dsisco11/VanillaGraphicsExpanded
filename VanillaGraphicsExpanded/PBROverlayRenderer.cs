@@ -24,7 +24,7 @@ public class PBROverlayRenderer : IRenderer, IDisposable
     protected readonly ICoreClientAPI capi;
     protected readonly GBufferRenderer gBufferRenderer;
     protected MeshRef? quadMeshRef;
-    protected IShaderProgram? shaderProgram;
+    protected PBROverlayShaderProgram? shader;
     protected readonly float[] invProjectionMatrix = new float[16];
     protected readonly float[] invModelViewMatrix = new float[16];
 
@@ -90,19 +90,21 @@ public class PBROverlayRenderer : IRenderer, IDisposable
 
     private bool LoadShader()
     {
-        shaderProgram = capi.Shader.NewShaderProgram();
-        shaderProgram.AssetDomain = "vanillagraphicsexpanded";
-        shaderProgram.VertexShader = capi.Shader.NewShader(EnumShaderType.VertexShader);
-        shaderProgram.FragmentShader = capi.Shader.NewShader(EnumShaderType.FragmentShader);
+        shader = new PBROverlayShaderProgram();
+        shader.PassName = "pbroverlay";
+        shader.AssetDomain = "vanillagraphicsexpanded";
+        // shader.VertexShader = (Vintagestory.Client.NoObf.Shader)capi.Shader.NewShader(EnumShaderType.VertexShader);
+        // shader.FragmentShader = (Vintagestory.Client.NoObf.Shader)capi.Shader.NewShader(EnumShaderType.FragmentShader);
 
-        int programId = capi.Shader.RegisterFileShaderProgram("pbroverlay", shaderProgram);
-        var success = shaderProgram.Compile();
+        capi.Shader.RegisterFileShaderProgram("pbroverlay", shader);
+        var success = shader.Compile();
         if (!success)
         {
             capi.Logger.Error("[VanillaGraphicsExpanded] Failed to compile PBR overlay shader");
+            return false;
         }
 
-        return success;
+        return true;
     }
 
     #endregion
@@ -125,7 +127,7 @@ public class PBROverlayRenderer : IRenderer, IDisposable
 
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
-        if (shaderProgram is null || quadMeshRef is null || !ShouldRender())
+        if (shader is null || quadMeshRef is null || !ShouldRender())
         {
             return;
         }
@@ -163,42 +165,40 @@ public class PBROverlayRenderer : IRenderer, IDisposable
         capi.Render.GLDepthMask(false);
         capi.Render.GlToggleBlend(false);
 
-        shaderProgram.Use();
+        shader.Use();
 
         // Bind textures
-        shaderProgram.BindTexture2D("primaryScene", primaryFb.ColorTextureIds[0], 0);
-        shaderProgram.BindTexture2D("primaryDepth", primaryFb.DepthTextureId, 1);
-        
-        // Bind G-buffer normal texture
-        shaderProgram.BindTexture2D("gBufferNormal", gBufferRenderer.NormalTextureId, 2);
+        shader.PrimaryScene = primaryFb.ColorTextureIds[0];
+        shader.PrimaryDepth = primaryFb.DepthTextureId;
+        shader.GBufferNormal = gBufferRenderer.NormalTextureId;
 
         // Pass matrices
-        shaderProgram.UniformMatrix("invProjectionMatrix", invProjectionMatrix);
-        shaderProgram.UniformMatrix("invModelViewMatrix", invModelViewMatrix);
+        shader.InvProjectionMatrix = invProjectionMatrix;
+        shader.InvModelViewMatrix = invModelViewMatrix;
 
         // Pass z-planes
-        shaderProgram.Uniform("zNear", capi.Render.ShaderUniforms.ZNear);
-        shaderProgram.Uniform("zFar", capi.Render.ShaderUniforms.ZFar);
+        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
+        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
 
         // Pass frame size
-        shaderProgram.Uniform("frameSize", new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight));
+        shader.FrameSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
 
         // Pass camera origin for world position reconstruction and sun direction
-        shaderProgram.Uniform("cameraOriginFloor", cameraOriginFloor);
-        shaderProgram.Uniform("cameraOriginFrac", cameraOriginFrac);
-        shaderProgram.Uniform("sunDirection", sunPos);
+        shader.CameraOriginFloor = cameraOriginFloor;
+        shader.CameraOriginFrac = cameraOriginFrac;
+        shader.SunDirection = sunPos;
 
         // Use virtual method for debug mode (0 = PBR output, subclasses can override)
-        shaderProgram.Uniform("debugMode", GetDebugMode());
+        shader.DebugMode = GetDebugMode();
 
         // Normal blur settings (Teardown-style golden ratio spiral sampling)
-        shaderProgram.Uniform("normalQuality", NormalQuality);
-        shaderProgram.Uniform("normalBlurRadius", NormalBlurRadius);
+        shader.NormalQuality = NormalQuality;
+        shader.NormalBlurRadius = NormalBlurRadius;
 
         // Render fullscreen quad
         capi.Render.RenderMesh(quadMeshRef);
 
-        shaderProgram.Stop();
+        shader.Stop();
 
         // Restore state
         capi.Render.GLDepthMask(true);
@@ -263,8 +263,8 @@ public class PBROverlayRenderer : IRenderer, IDisposable
             quadMeshRef = null;
         }
 
-        shaderProgram?.Dispose();
-        shaderProgram = null;
+        shader?.Dispose();
+        shader = null;
     }
 
     #endregion
