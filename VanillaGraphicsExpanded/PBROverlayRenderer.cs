@@ -28,6 +28,18 @@ public class PBROverlayRenderer : IRenderer, IDisposable
     protected readonly float[] invProjectionMatrix = new float[16];
     protected readonly float[] invModelViewMatrix = new float[16];
 
+    /// <summary>
+    /// Normal blur sample count (Teardown-style): 0=off, 4, 8, 12, 16.
+    /// Higher values produce smoother edges but cost more performance.
+    /// </summary>
+    public int NormalQuality { get; set; } = 8;
+
+    /// <summary>
+    /// Normal blur radius in pixels (typically 1.0-3.0).
+    /// Larger values create more pronounced beveled edge effect.
+    /// </summary>
+    public float NormalBlurRadius { get; set; } = 2.0f;
+
     #endregion
 
     #region IRenderer Implementation
@@ -178,6 +190,10 @@ public class PBROverlayRenderer : IRenderer, IDisposable
 
         // Use virtual method for debug mode (0 = PBR output, subclasses can override)
         shaderProgram.Uniform("debugMode", GetDebugMode());
+
+        // Normal blur settings (Teardown-style golden ratio spiral sampling)
+        shaderProgram.Uniform("normalQuality", NormalQuality);
+        shaderProgram.Uniform("normalBlurRadius", NormalBlurRadius);
 
         // Render fullscreen quad
         capi.Render.RenderMesh(quadMeshRef);

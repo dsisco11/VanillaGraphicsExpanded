@@ -27,6 +27,10 @@ uniform vec3 sunDirection;
 // Debug mode: 0=PBR, 1=normals, 2=roughness, 3=metallic, 4=worldPos, 5=depth
 uniform int debugMode;
 
+// Normal blur settings (Teardown-style)
+uniform int normalQuality;      // Sample count: 0=off, 4, 8, 12, 16 (higher = smoother but slower)
+uniform float normalBlurRadius; // Blur radius in pixels (typically 1.0-3.0)
+
 // PBR constants
 const float PATCH_SIZE = 1f / 64f; // 1/64th block
 const float ROUGHNESS_MIN = 0.1;
@@ -45,6 +49,82 @@ float hash(vec3 p) {
 float linearizeDepth(float depth) {
     float z = depth * 2.0 - 1.0; // Back to NDC
     return (2.0 * zNear * zFar) / (zFar + zNear - z * (zFar - zNear));
+}
+
+// Golden ratio constant for spiral sampling (Teardown-style)
+const float PHI = 1.618033988749895;
+const float TAU = 6.283185307179586; // 2 * PI
+
+// Teardown-style normal blurring using golden ratio spiral sampling
+// This gives the illusion of beveled edges after shading
+// Reference: https://juandiegomontoya.github.io/teardown_breakdown.html
+vec3 sampleNormalSmooth(sampler2D normalTex, sampler2D depthTex, vec2 texCoord, vec2 texelSize, float centerDepth, int sampleCount, float blurRadius) {
+    // Sample center normal
+    vec4 centerSample = texture(normalTex, texCoord);
+    vec3 centerNormal = centerSample.rgb * 2.0 - 1.0;
+    
+    // Early out if blur is disabled or no valid normal data
+    if (sampleCount <= 0 || blurRadius <= 0.0 || centerSample.a <= 0.0) {
+        return normalize(centerNormal);
+    }
+    
+    // Linearize center depth for comparison
+    float centerLinearDepth = linearizeDepth(centerDepth);
+    
+    // Depth threshold scales with distance (relative threshold ~1%)
+    float depthThreshold = centerLinearDepth * 0.01;
+    
+    // Accumulate weighted normals
+    vec3 accumulatedNormal = centerNormal;
+    float totalWeight = 1.0;
+    
+    // Golden ratio spiral sampling pattern
+    // Each sample: angle = i * PHI * TAU, radius = sqrt(i / N) * blurRadius
+    for (int i = 1; i <= sampleCount; i++) {
+        // Calculate spiral position
+        float angle = float(i) * PHI * TAU;
+        float radius = sqrt(float(i) / float(sampleCount)) * blurRadius;
+        
+        // Offset in pixels, then convert to UV space
+        vec2 offset = vec2(cos(angle), sin(angle)) * radius * texelSize;
+        vec2 sampleUV = texCoord + offset;
+        
+        // Sample normal and depth at this location
+        vec4 sampleNormal = texture(normalTex, sampleUV);
+        float sampleDepth = texture(depthTex, sampleUV).r;
+        
+        // Skip invalid samples (no G-buffer data)
+        if (sampleNormal.a <= 0.0) continue;
+        
+        // Decode sampled normal
+        vec3 decodedNormal = sampleNormal.rgb * 2.0 - 1.0;
+        
+        // Linearize sample depth
+        float sampleLinearDepth = linearizeDepth(sampleDepth);
+        
+        // Bilateral weight: depth similarity
+        // Reject samples across large depth discontinuities (edges of objects)
+        float depthDiff = abs(sampleLinearDepth - centerLinearDepth);
+        float depthWeight = exp(-depthDiff / depthThreshold);
+        
+        // Bilateral weight: normal similarity
+        // Prevent blending vastly different surface orientations
+        float normalDot = max(0.0, dot(centerNormal, decodedNormal));
+        float normalWeight = normalDot * normalDot; // Squared for sharper falloff
+        
+        // Distance weight: samples further from center contribute less
+        float distWeight = 1.0 - (radius / blurRadius) * 0.5;
+        
+        // Combined bilateral weight
+        float weight = depthWeight * normalWeight * distWeight * sampleNormal.a;
+        
+        // Accumulate
+        accumulatedNormal += decodedNormal * weight;
+        totalWeight += weight;
+    }
+    
+    // Normalize the accumulated result
+    return normalize(accumulatedNormal / max(totalWeight, 0.001));
 }
 
 // Reconstruct view-space position from depth
@@ -132,8 +212,11 @@ void main() {
         return;
     }
     
-    // Decode normal from G-buffer (stored as n * 0.5 + 0.5)
-    vec3 worldNormal = normalize(gNormal.rgb * 2.0 - 1.0);
+    // Calculate texel size for neighbor sampling
+    vec2 texelSize = 1.0 / frameSize;
+    
+    // Get smoothed normal using Teardown-style golden ratio spiral blur
+    vec3 worldNormal = sampleNormalSmooth(gBufferNormal, primaryDepth, uv, texelSize, depth, normalQuality, normalBlurRadius);
     
     // Generate procedural roughness/metallic from world position hash
     vec3 patchCoord = floor(worldPos / PATCH_SIZE);
@@ -142,7 +225,7 @@ void main() {
     
     // Second hash with offset for metallic variation (for debug visualization)
     float hashValue2 = hash(patchCoord + vec3(17.0, 31.0, 47.0));
-    float metallic = 0;//hashValue2 > 0.85 ? hashValue2 : METALLIC_BASE; // ~15% chance of metallic patches
+    float metallic = hashValue2 > 0.85 ? hashValue2 : METALLIC_BASE; // ~15% chance of metallic patches
     
     // Debug visualizations (used by debug overlay renderer)
     if (debugMode == 1) {
