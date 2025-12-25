@@ -115,4 +115,18 @@ public class PBROverlayShaderProgram : ShaderProgram
     public float NormalBlurRadius { set => Uniform("normalBlurRadius", value); }
 
     #endregion
+
+    #region PBR Distance Falloff Settings
+
+    /// <summary>
+    /// Distance (in blocks) where procedural PBR values start to fade out.
+    /// </summary>
+    public float PbrFalloffStart { set => Uniform("pbrFalloffStart", value); }
+
+    /// <summary>
+    /// Distance (in blocks) where procedural PBR values fully fade to defaults.
+    /// </summary>
+    public float PbrFalloffEnd { set => Uniform("pbrFalloffEnd", value); }
+
+    #endregion
 }

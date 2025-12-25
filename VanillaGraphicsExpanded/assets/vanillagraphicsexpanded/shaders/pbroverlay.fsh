@@ -31,10 +31,15 @@ uniform int debugMode;
 uniform int normalQuality;      // Sample count: 0=off, 4, 8, 12, 16 (higher = smoother but slower)
 uniform float normalBlurRadius; // Blur radius in pixels (typically 1.0-3.0)
 
+// Distance falloff settings for procedural PBR values
+uniform float pbrFalloffStart;  // Distance where falloff begins (in blocks)
+uniform float pbrFalloffEnd;    // Distance where procedural values fully fade out
+
 // PBR constants
 const float PATCH_SIZE = 1f / 64f; // 1/64th block
 const float ROUGHNESS_MIN = 0.1;
 const float ROUGHNESS_MAX = 0.99;
+const float ROUGHNESS_DEFAULT = 0.5;  // Default roughness at far distance
 const float METALLIC_BASE = 0.0;
 const float PI = 3.14159265359;
 
@@ -218,14 +223,23 @@ void main() {
     // Get smoothed normal using Teardown-style golden ratio spiral blur
     vec3 worldNormal = sampleNormalSmooth(gBufferNormal, primaryDepth, uv, texelSize, depth, normalQuality, normalBlurRadius);
     
+    // Calculate distance falloff factor
+    float linearDepth = linearizeDepth(depth);
+    // Smooth falloff using smoothstep: 1.0 at pbrFalloffStart, 0.0 at pbrFalloffEnd
+    float falloffFactor = 1.0 - smoothstep(pbrFalloffStart, pbrFalloffEnd, linearDepth);
+    
     // Generate procedural roughness/metallic from world position hash
     vec3 patchCoord = floor(worldPos / PATCH_SIZE);
     float hashValue = hash(patchCoord);
-    float roughness = mix(ROUGHNESS_MIN, ROUGHNESS_MAX, hashValue);
+    float proceduralRoughness = mix(ROUGHNESS_MIN, ROUGHNESS_MAX, hashValue);
     
     // Second hash with offset for metallic variation (for debug visualization)
     float hashValue2 = hash(patchCoord + vec3(17.0, 31.0, 47.0));
-    float metallic = hashValue2 > 0.85 ? hashValue2 : METALLIC_BASE; // ~15% chance of metallic patches
+    float proceduralMetallic = hashValue2 > 0.85 ? hashValue2 : METALLIC_BASE; // ~15% chance of metallic patches
+    
+    // Apply distance falloff - fade procedural values to defaults at far distances
+    float roughness = mix(ROUGHNESS_DEFAULT, proceduralRoughness, falloffFactor);
+    float metallic = mix(METALLIC_BASE, proceduralMetallic, falloffFactor);
     
     // Debug visualizations (used by debug overlay renderer)
     if (debugMode == 1) {

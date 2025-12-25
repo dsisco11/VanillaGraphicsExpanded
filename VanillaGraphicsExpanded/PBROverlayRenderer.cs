@@ -40,6 +40,16 @@ public class PBROverlayRenderer : IRenderer, IDisposable
     /// </summary>
     public float NormalBlurRadius { get; set; } = 3.0f;
 
+    /// <summary>
+    /// Distance (in blocks) where procedural PBR values start to fade out.
+    /// </summary>
+    public float PbrFalloffStart { get; set; } = 32.0f;
+
+    /// <summary>
+    /// Distance (in blocks) where procedural PBR values fully fade to defaults.
+    /// </summary>
+    public float PbrFalloffEnd { get; set; } = 64.0f;
+
     #endregion
 
     #region IRenderer Implementation
@@ -191,6 +201,10 @@ public class PBROverlayRenderer : IRenderer, IDisposable
         // Normal blur settings (Teardown-style golden ratio spiral sampling)
         shader.NormalQuality = NormalQuality;
         shader.NormalBlurRadius = NormalBlurRadius;
+
+        // PBR distance falloff settings
+        shader.PbrFalloffStart = PbrFalloffStart;
+        shader.PbrFalloffEnd = PbrFalloffEnd;
 
         // Render fullscreen quad
         capi.Render.RenderMesh(quadMeshRef);
