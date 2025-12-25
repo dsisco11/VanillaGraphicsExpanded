@@ -24,7 +24,7 @@ uniform vec3 cameraOriginFloor; // Floor-aligned camera world position (mod 4096
 uniform vec3 cameraOriginFrac;  // Fractional part of camera position
 uniform vec3 sunDirection;
 
-// Debug mode: 0=PBR, 1=normals, 2=roughness, 3=metallic, 4=worldPos, 5=depth
+// Debug mode: 0=PBR, 1=normals (blurred), 2=roughness, 3=metallic, 4=worldPos, 5=depth, 6=normals (raw)
 uniform int debugMode;
 
 // Normal blur settings (Teardown-style)
@@ -243,7 +243,7 @@ void main() {
     
     // Debug visualizations (used by debug overlay renderer)
     if (debugMode == 1) {
-        // Visualize normals from G-buffer
+        // Visualize normals (with blur applied if enabled)
         outColor = vec4(worldNormal * 0.5 + 0.5, 1.0);
         return;
     } else if (debugMode == 2) {
@@ -264,6 +264,11 @@ void main() {
         // Use logarithmic scale for better visualization of nearby geometry
         float normalizedDepth = log(1.0 + linDepth) / log(1.0 + zFar);
         outColor = vec4(vec3(normalizedDepth), 1.0);
+        return;
+    } else if (debugMode == 6) {
+        // Visualize raw (unblurred) normals from G-buffer
+        vec3 rawNormal = normalize(gNormal.rgb * 2.0 - 1.0);
+        outColor = vec4(rawNormal * 0.5 + 0.5, 1.0);
         return;
     }
     

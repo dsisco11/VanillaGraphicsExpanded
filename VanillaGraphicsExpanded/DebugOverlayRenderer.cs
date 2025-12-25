@@ -11,7 +11,7 @@ public sealed class DebugOverlayRenderer : PBROverlayRenderer
     #region Constants
 
     private const double DEBUG_RENDER_ORDER = 0.96; // After PBR overlay
-    private const int DEBUG_MODE_COUNT = 6;
+    private const int DEBUG_MODE_COUNT = 7;
     
     // Overlay size (normalized 0-1, converted to NDC)
     private const float OVERLAY_SIZE = 0.25f; // 25% of screen
@@ -40,13 +40,21 @@ public sealed class DebugOverlayRenderer : PBROverlayRenderer
             quadSize: OVERLAY_SIZE * 2,   // Total size: 0.5 in NDC (25% of screen)
             renderStageName: "debugoverlay")
     {
-        // Register hotkey for debug mode cycling
+        // Register hotkey for debug mode cycling (F6 forward, Shift+F6 backward)
         capi.Input.RegisterHotKey(
             "vgedebugoverlay",
             "VGE Debug Overlay",
             GlKeys.F6,
             HotkeyType.DevTool);
         capi.Input.SetHotKeyHandler("vgedebugoverlay", OnDebugHotkey);
+
+        capi.Input.RegisterHotKey(
+            "vgedebugoverlayprev",
+            "VGE Debug Overlay (Previous)",
+            GlKeys.F6,
+            HotkeyType.DevTool,
+            shiftPressed: true);
+        capi.Input.SetHotKeyHandler("vgedebugoverlayprev", OnDebugHotkeyPrev);
     }
 
     #endregion
@@ -78,16 +86,44 @@ public sealed class DebugOverlayRenderer : PBROverlayRenderer
             }
         }
 
+        ShowDebugModeMessage();
+        return true;
+    }
+
+    private bool OnDebugHotkeyPrev(KeyCombination keyCombination)
+    {
+        if (!isEnabled)
+        {
+            isEnabled = true;
+            debugMode = DEBUG_MODE_COUNT - 1; // Start at last mode when cycling backwards
+        }
+        else
+        {
+            debugMode--;
+            if (debugMode < 1)
+            {
+                isEnabled = false;
+                debugMode = 1;
+            }
+        }
+
+        ShowDebugModeMessage();
+        return true;
+    }
+
+    private void ShowDebugModeMessage()
+    {
         if (isEnabled)
         {
-            // Debug modes match pbroverlay.fsh: 1=normals, 2=roughness, 3=metallic, 4=worldPos, 5=depth
+            // Debug modes match pbroverlay.fsh: 1=normals (blurred), 2=roughness, 3=metallic, 4=worldPos, 5=depth, 6=normals (raw)
             string modeName = debugMode switch
             {
-                1 => "Normals",
+                1 => "Normals (Blurred)",
                 2 => "Roughness",
                 3 => "Metallic",
                 4 => "World Position",
                 5 => "Depth",
+                6 => "Normals (Raw)",
                 _ => "Unknown"
             };
             capi.TriggerIngameError(this, "vgedebug", $"Debug: {modeName}");
@@ -96,8 +132,6 @@ public sealed class DebugOverlayRenderer : PBROverlayRenderer
         {
             capi.TriggerIngameError(this, "vgedebug", "Debug overlay disabled");
         }
-
-        return true;
     }
 
     #endregion
