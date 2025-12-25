@@ -43,12 +43,12 @@ public class PBROverlayRenderer : IRenderer, IDisposable
     /// <summary>
     /// Distance (in blocks) where procedural PBR values start to fade out.
     /// </summary>
-    public float PbrFalloffStart { get; set; } = 32.0f;
+    public float PbrFalloffStart { get; set; } = 10.0f;
 
     /// <summary>
     /// Distance (in blocks) where procedural PBR values fully fade to defaults.
     /// </summary>
-    public float PbrFalloffEnd { get; set; } = 64.0f;
+    public float PbrFalloffEnd { get; set; } = 25.0f;
 
     #endregion
 
