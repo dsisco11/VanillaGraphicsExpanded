@@ -84,20 +84,25 @@ vec3 sampleNormalSmooth(sampler2D normalTex, sampler2D depthTex, vec2 texCoord, 
     float centerLinearDepth = linearizeDepth(centerDepth);
     
     // Depth threshold: reject samples from different objects
-    // Use a relatively tight threshold to only blur within the same surface
-    // but not so tight that we can't blur across block face boundaries
-    float depthThreshold = max(0.1, centerLinearDepth * 0.02); // ~2% of depth, min 0.1 blocks
+    // More generous threshold allows smoother blending across nearby surfaces
+    float depthThreshold = max(0.15, centerLinearDepth * 0.03); // ~3% of depth, min 0.15 blocks
     
-    // Accumulate weighted normals
-    vec3 accumulatedNormal = centerNormal;
-    float totalWeight = 1.0;
+    // Accumulate weighted normals - start with lower center weight for more averaging
+    float totalWeight = 0.25;
+    vec3 accumulatedNormal = centerNormal * totalWeight;
+    
+    // Gaussian sigma for spatial falloff - larger sigma = smoother result
+    float sigma = blurRadius * 0.6; // Wider Gaussian for smoother falloff
+    float sigma2 = sigma * sigma;
     
     // Golden ratio spiral sampling pattern (Vogel disk / sunflower pattern)
     // Each sample: angle = i * GOLDEN_ANGLE, radius = sqrt(i / N) * blurRadius
     for (int i = 1; i <= sampleCount; i++) {
         // Calculate spiral position using golden angle
         float angle = float(i) * GOLDEN_ANGLE;
-        float radius = sqrt(float(i) / float(sampleCount)) * blurRadius;
+        // Use a more uniform distribution by adjusting the power
+        float t = float(i) / float(sampleCount);
+        float radius = sqrt(t) * blurRadius;
         
         // Offset in pixels, then convert to UV space
         vec2 offset = vec2(cos(angle), sin(angle)) * radius * texelSize;
@@ -116,20 +121,21 @@ vec3 sampleNormalSmooth(sampler2D normalTex, sampler2D depthTex, vec2 texCoord, 
         // Linearize sample depth
         float sampleLinearDepth = linearizeDepth(sampleDepth);
         
-        // Bilateral weight: depth similarity ONLY
-        // Reject samples across large depth discontinuities (different objects)
-        // BUT allow blending across normal discontinuities (that's the bevel effect!)
+        // Soft depth weight using smooth falloff instead of hard cutoff
+        // This creates smoother transitions at depth boundaries
         float depthDiff = abs(sampleLinearDepth - centerLinearDepth);
-        float depthWeight = depthDiff < depthThreshold ? 1.0 : 0.0; // Hard cutoff for depth
+        float depthWeight = 1.0 - smoothstep(depthThreshold * 0.5, depthThreshold, depthDiff);
         
-        // NO normal similarity weight - we WANT to blend different normals together
-        // This is what creates the bevel illusion at edges!
+        // Optional: slight normal similarity bias to maintain surface coherence
+        // but still allow significant blending across normal discontinuities
+        float normalSimilarity = dot(normalize(decodedNormal), normalize(centerNormal));
+        float normalWeight = 0.5 + 0.5 * max(normalSimilarity, 0.0); // Range: 0.5 to 1.0
         
-        // Distance weight: Gaussian falloff from center
-        float distWeight = exp(-0.5 * (radius * radius) / (blurRadius * blurRadius * 0.25));
+        // Distance weight: Gaussian falloff from center with wider sigma
+        float distWeight = exp(-0.5 * (radius * radius) / sigma2);
         
-        // Combined weight (no normal rejection!)
-        float weight = depthWeight * distWeight * sampleNormal.a;
+        // Combined weight with smooth transitions
+        float weight = depthWeight * normalWeight * distWeight * sampleNormal.a;
         
         // Accumulate
         accumulatedNormal += decodedNormal * weight;
