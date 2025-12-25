@@ -207,10 +207,10 @@ void main() {
     vec4 gNormal = texture(gBufferNormal, uv);
     
     // Early out if no G-buffer data (e.g. entities, particles)
-    if (gNormal.a <= 0.0) {
-        outColor = sceneColor;
-        return;
-    }
+    //if (gNormal.a <= 0.0) {
+    //    outColor = sceneColor;
+    //    return;
+    //}
     
     // Calculate texel size for neighbor sampling
     vec2 texelSize = 1.0 / frameSize;

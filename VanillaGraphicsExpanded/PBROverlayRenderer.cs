@@ -38,7 +38,7 @@ public class PBROverlayRenderer : IRenderer, IDisposable
     /// Normal blur radius in pixels (typically 1.0-3.0).
     /// Larger values create more pronounced beveled edge effect.
     /// </summary>
-    public float NormalBlurRadius { get; set; } = 2.0f;
+    public float NormalBlurRadius { get; set; } = 3.0f;
 
     #endregion
 
