@@ -50,6 +50,11 @@ public class PBROverlayRenderer : IRenderer, IDisposable
     /// </summary>
     public float PbrFalloffEnd { get; set; } = 30.0f;
 
+    /// <summary>
+    /// Whether the PBR overlay is enabled. Can be toggled with F7 hotkey.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
     #endregion
 
     #region IRenderer Implementation
@@ -121,7 +126,7 @@ public class PBROverlayRenderer : IRenderer, IDisposable
     /// <summary>
     /// Override to control whether rendering should occur this frame.
     /// </summary>
-    protected virtual bool ShouldRender() => true;
+    protected virtual bool ShouldRender() => Enabled;
 
     /// <summary>
     /// Override to return a debug visualization mode (0 = normal PBR output).
