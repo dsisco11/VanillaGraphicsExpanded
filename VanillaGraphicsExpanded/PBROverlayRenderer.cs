@@ -93,9 +93,6 @@ public class PBROverlayRenderer : IRenderer, IDisposable
         shader = new PBROverlayShaderProgram();
         shader.PassName = "pbroverlay";
         shader.AssetDomain = "vanillagraphicsexpanded";
-        // shader.VertexShader = (Vintagestory.Client.NoObf.Shader)capi.Shader.NewShader(EnumShaderType.VertexShader);
-        // shader.FragmentShader = (Vintagestory.Client.NoObf.Shader)capi.Shader.NewShader(EnumShaderType.FragmentShader);
-
         capi.Shader.RegisterFileShaderProgram("pbroverlay", shader);
         var success = shader.Compile();
         if (!success)
