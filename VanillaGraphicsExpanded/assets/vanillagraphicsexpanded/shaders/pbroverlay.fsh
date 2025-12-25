@@ -38,10 +38,10 @@ uniform float pbrFalloffStart;  // Distance where falloff begins (in blocks)
 uniform float pbrFalloffEnd;    // Distance where procedural values fully fade out
 
 // PBR constants
-const float PATCH_SIZE = 1f / 64f; // 1/32nd of a block
-const float ROUGHNESS_MIN = 0.5;
-const float ROUGHNESS_MAX = 0.99999;
-const float ROUGHNESS_DEFAULT = 0.9;  // Default roughness at far distance
+const float PATCH_SIZE = 1f / 32f; // 1/32nd of a block
+const float ROUGHNESS_MIN = 0.3;
+const float ROUGHNESS_MAX = 0.4;
+const float ROUGHNESS_DEFAULT = 0.8;  // Default roughness at far distance
 const float METALLIC_BASE = 0.0;
 const float PI = 3.14159265359;
 
@@ -85,8 +85,8 @@ vec3 sampleNormalSmooth(sampler2D normalTex, sampler2D depthTex, vec2 texCoord, 
     
     // Depth threshold: reject samples from different objects
     // More generous threshold allows smoother blending across nearby surfaces
-    // float depthThreshold = max(0.15, centerLinearDepth * 0.03); // ~3% of depth, min 0.15 blocks
-    float depthThreshold = (centerLinearDepth * 0.03); // ~3% of depth, min 0.15 blocks
+    float depthThreshold = max(0.05, centerLinearDepth * 0.05); // ~5% of depth, min 0.15 blocks
+    // float depthThreshold = (centerLinearDepth * 0.03); // ~3% of depth, min 0.15 blocks
     
     // Accumulate weighted normals - start with lower center weight for more averaging
     float totalWeight = 0.1;
@@ -129,7 +129,7 @@ vec3 sampleNormalSmooth(sampler2D normalTex, sampler2D depthTex, vec2 texCoord, 
         
         // Optional: slight normal similarity bias to maintain surface coherence
         // but still allow significant blending across normal discontinuities
-        float normalSimilarity = dot(normalize(decodedNormal), normalize(centerNormal));
+        // float normalSimilarity = dot(normalize(decodedNormal), normalize(centerNormal));
         float normalWeight = 0.5 + (0.5 * max(normalSimilarity, 0.0)); // Range: 0.5 to 1.0
         
         // Distance weight: Gaussian falloff from center with wider sigma
@@ -323,12 +323,14 @@ void main() {
     vec3 lightColor = rgbaLightIn;// * 2.0;// vec3(1.0, 0.95, 0.9) * 2.0;
     
     vec3 Lo = (kD * albedo / PI + specular) * lightColor * NdotL;
+    // vec3 Lo = (kD / (PI + specular)) * lightColor * NdotL;
     
     // Ambient lighting (simple approximation)
     vec3 ambient = rgbaAmbientIn * albedo;
     
     // Final color - blend with original based on PBR contribution
-    vec3 pbrColor = mix(ambient, Lo, 0.5);
+    vec3 pbrColor = ambient + Lo;
+    // vec3 pbrColor = mix(ambient, Lo, 0.5);
     
     // Blend PBR result with original scene (to preserve original lighting somewhat)
     // vec3 finalColor = mix(sceneColor.rgb, pbrColor, 0.5);
