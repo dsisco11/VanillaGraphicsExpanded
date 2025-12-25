@@ -1,6 +1,7 @@
 using HarmonyLib;
 
 using System;
+using System.Collections.Generic;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -49,14 +50,14 @@ layout(location = 4) out vec4 vge_outNormal;
     [HarmonyPatch]
     public static class RegisterShaderProgramPatch
     {
+        public static HashSet<string> PatchedShaders = ["chunkopaque", "chunktopsoil", "standard", "instanced"];
         [HarmonyPatch(typeof(Vintagestory.Client.NoObf.ShaderRegistry), "LoadShaderProgram")]
         [HarmonyPostfix]
         static void LoadShaderProgram(Vintagestory.Client.NoObf.ShaderProgram program, bool useSSBOs)
         {
             // Only inject into chunk shaders
             string shaderName = program.PassName;
-            if (shaderName != "chunkopaque" &&
-                shaderName != "chunktopsoil")
+            if (!PatchedShaders.Contains(shaderName))
             {
                 return;
             }
@@ -80,8 +81,8 @@ layout(location = 4) out vec4 vge_outNormal;
                 // Insert declaration
                 code = code.Insert(versionEnd + 1, NormalOutputDeclaration);
 
-                // Find the last closing brace of main() and insert the write before it
-                int mainEnd = code.LastIndexOf('}');
+                // Find the closing brace of main() and insert the write before it
+                int mainEnd = TextPatcher.FindMainFunctionClosingBrace(code);
                 if (mainEnd > 0)
                 {
                     code = code.Insert(mainEnd, NormalOutputWrite);

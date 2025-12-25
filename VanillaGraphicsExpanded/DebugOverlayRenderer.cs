@@ -11,7 +11,7 @@ public sealed class DebugOverlayRenderer : PBROverlayRenderer
     #region Constants
 
     private const double DEBUG_RENDER_ORDER = 0.96; // After PBR overlay
-    private const int DEBUG_MODE_COUNT = 7;
+    private const int DEBUG_MODE_COUNT = 8; // 1-7 are valid debug modes
     
     // Overlay size (normalized 0-1, converted to NDC)
     private const float OVERLAY_SIZE = 0.25f; // 25% of screen
@@ -115,15 +115,16 @@ public sealed class DebugOverlayRenderer : PBROverlayRenderer
     {
         if (isEnabled)
         {
-            // Debug modes match pbroverlay.fsh: 1=normals (blurred), 2=roughness, 3=metallic, 4=worldPos, 5=depth, 6=normals (raw)
+            // Debug modes match pbroverlay.fsh: 1=normals (blurred), 2=roughness, 3=metallic, 4=worldPos, 5=depth, 6=normals (raw), 7=blur params
             string modeName = debugMode switch
             {
-                1 => "Normals (Blurred)",
+                1 => "Normals (Blurred) - Red=diff",
                 2 => "Roughness",
                 3 => "Metallic",
                 4 => "World Position",
                 5 => "Depth",
                 6 => "Normals (Raw)",
+                7 => "Blur Params (R=quality, G=radius, B=alpha)",
                 _ => "Unknown"
             };
             capi.TriggerIngameError(this, "vgedebug", $"Debug: {modeName}");

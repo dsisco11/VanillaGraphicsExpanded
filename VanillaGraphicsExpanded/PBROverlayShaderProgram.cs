@@ -79,9 +79,11 @@ public class PBROverlayShaderProgram : ShaderProgram
     public Vec3f CameraOriginFrac { set => Uniform("cameraOriginFrac", value); }
 
     /// <summary>
-    /// Normalized direction vector pointing toward the sun.
+    /// Normalized direction vector pointing toward the light.
     /// </summary>
-    public Vec3f SunDirection { set => Uniform("sunDirection", value); }
+    public Vec3f LightDirection { set => Uniform("lightDirection", value); }
+    public Vec3f RgbaLightIn { set => Uniform("rgbaLightIn", value); }
+    public Vec3f RgbaAmbientIn { set => Uniform("rgbaAmbientIn", value); }
 
     #endregion
 

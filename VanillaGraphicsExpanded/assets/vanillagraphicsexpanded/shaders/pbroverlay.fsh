@@ -22,7 +22,9 @@ uniform vec2 frameSize;
 // Camera and lighting
 uniform vec3 cameraOriginFloor; // Floor-aligned camera world position (mod 4096)
 uniform vec3 cameraOriginFrac;  // Fractional part of camera position
-uniform vec3 sunDirection;
+uniform vec3 lightDirection;
+uniform vec3 rgbaAmbientIn;
+uniform vec3 rgbaLightIn;
 
 // Debug mode: 0=PBR, 1=normals (blurred), 2=roughness, 3=metallic, 4=worldPos, 5=depth, 6=normals (raw)
 uniform int debugMode;
@@ -36,10 +38,10 @@ uniform float pbrFalloffStart;  // Distance where falloff begins (in blocks)
 uniform float pbrFalloffEnd;    // Distance where procedural values fully fade out
 
 // PBR constants
-const float PATCH_SIZE = 1f / 64f; // 1/64th block
-const float ROUGHNESS_MIN = 0.1;
-const float ROUGHNESS_MAX = 0.99;
-const float ROUGHNESS_DEFAULT = 0.5;  // Default roughness at far distance
+const float PATCH_SIZE = 1f / 64f; // 1/32nd of a block
+const float ROUGHNESS_MIN = 0.3;
+const float ROUGHNESS_MAX = 0.99999;
+const float ROUGHNESS_DEFAULT = 0.9;  // Default roughness at far distance
 const float METALLIC_BASE = 0.0;
 const float PI = 3.14159265359;
 
@@ -59,10 +61,15 @@ float linearizeDepth(float depth) {
 // Golden ratio constant for spiral sampling (Teardown-style)
 const float PHI = 1.618033988749895;
 const float TAU = 6.283185307179586; // 2 * PI
+const float GOLDEN_ANGLE = 2.399963229728653; // TAU / PHI^2 ≈ 137.5 degrees in radians
 
 // Teardown-style normal blurring using golden ratio spiral sampling
 // This gives the illusion of beveled edges after shading
 // Reference: https://juandiegomontoya.github.io/teardown_breakdown.html
+//
+// KEY INSIGHT: Unlike typical bilateral blur that preserves edges,
+// Teardown WANTS to blur across normal discontinuities to create fake bevels.
+// We only reject samples across DEPTH discontinuities (different objects).
 vec3 sampleNormalSmooth(sampler2D normalTex, sampler2D depthTex, vec2 texCoord, vec2 texelSize, float centerDepth, int sampleCount, float blurRadius) {
     // Sample center normal
     vec4 centerSample = texture(normalTex, texCoord);
@@ -76,18 +83,20 @@ vec3 sampleNormalSmooth(sampler2D normalTex, sampler2D depthTex, vec2 texCoord, 
     // Linearize center depth for comparison
     float centerLinearDepth = linearizeDepth(centerDepth);
     
-    // Depth threshold scales with distance (relative threshold ~1%)
-    float depthThreshold = centerLinearDepth * 0.01;
+    // Depth threshold: reject samples from different objects
+    // Use a relatively tight threshold to only blur within the same surface
+    // but not so tight that we can't blur across block face boundaries
+    float depthThreshold = max(0.1, centerLinearDepth * 0.02); // ~2% of depth, min 0.1 blocks
     
     // Accumulate weighted normals
     vec3 accumulatedNormal = centerNormal;
     float totalWeight = 1.0;
     
-    // Golden ratio spiral sampling pattern
-    // Each sample: angle = i * PHI * TAU, radius = sqrt(i / N) * blurRadius
+    // Golden ratio spiral sampling pattern (Vogel disk / sunflower pattern)
+    // Each sample: angle = i * GOLDEN_ANGLE, radius = sqrt(i / N) * blurRadius
     for (int i = 1; i <= sampleCount; i++) {
-        // Calculate spiral position
-        float angle = float(i) * PHI * TAU;
+        // Calculate spiral position using golden angle
+        float angle = float(i) * GOLDEN_ANGLE;
         float radius = sqrt(float(i) / float(sampleCount)) * blurRadius;
         
         // Offset in pixels, then convert to UV space
@@ -107,21 +116,20 @@ vec3 sampleNormalSmooth(sampler2D normalTex, sampler2D depthTex, vec2 texCoord, 
         // Linearize sample depth
         float sampleLinearDepth = linearizeDepth(sampleDepth);
         
-        // Bilateral weight: depth similarity
-        // Reject samples across large depth discontinuities (edges of objects)
+        // Bilateral weight: depth similarity ONLY
+        // Reject samples across large depth discontinuities (different objects)
+        // BUT allow blending across normal discontinuities (that's the bevel effect!)
         float depthDiff = abs(sampleLinearDepth - centerLinearDepth);
-        float depthWeight = exp(-depthDiff / depthThreshold);
+        float depthWeight = depthDiff < depthThreshold ? 1.0 : 0.0; // Hard cutoff for depth
         
-        // Bilateral weight: normal similarity
-        // Prevent blending vastly different surface orientations
-        float normalDot = max(0.0, dot(centerNormal, decodedNormal));
-        float normalWeight = normalDot * normalDot; // Squared for sharper falloff
+        // NO normal similarity weight - we WANT to blend different normals together
+        // This is what creates the bevel illusion at edges!
         
-        // Distance weight: samples further from center contribute less
-        float distWeight = 1.0 - (radius / blurRadius) * 0.5;
+        // Distance weight: Gaussian falloff from center
+        float distWeight = exp(-0.5 * (radius * radius) / (blurRadius * blurRadius * 0.25));
         
-        // Combined bilateral weight
-        float weight = depthWeight * normalWeight * distWeight * sampleNormal.a;
+        // Combined weight (no normal rejection!)
+        float weight = depthWeight * distWeight * sampleNormal.a;
         
         // Accumulate
         accumulatedNormal += decodedNormal * weight;
@@ -234,12 +242,12 @@ void main() {
     float proceduralRoughness = mix(ROUGHNESS_MIN, ROUGHNESS_MAX, hashValue);
     
     // Second hash with offset for metallic variation (for debug visualization)
-    float hashValue2 = hash(patchCoord + vec3(17.0, 31.0, 47.0));
-    float proceduralMetallic = hashValue2 > 0.85 ? hashValue2 : METALLIC_BASE; // ~15% chance of metallic patches
+    // float hashValue2 = hash(patchCoord + vec3(17.0, 31.0, 47.0));
+    // float proceduralMetallic = hashValue2 > 0.85 ? hashValue2 : METALLIC_BASE; // ~15% chance of metallic patches
     
     // Apply distance falloff - fade procedural values to defaults at far distances
     float roughness = mix(ROUGHNESS_DEFAULT, proceduralRoughness, falloffFactor);
-    float metallic = mix(METALLIC_BASE, proceduralMetallic, falloffFactor);
+    float metallic = 0;//mix(METALLIC_BASE, proceduralMetallic, falloffFactor);
     
     // Debug visualizations (used by debug overlay renderer)
     if (debugMode == 1) {
@@ -270,6 +278,13 @@ void main() {
         vec3 rawNormal = normalize(gNormal.rgb * 2.0 - 1.0);
         outColor = vec4(rawNormal * 0.5 + 0.5, 1.0);
         return;
+    } else if (debugMode == 7) {
+        // Debug: show blur parameters and sample count
+        // Red = normalQuality/16, Green = normalBlurRadius/5, Blue = gNormal.a (should be 1.0 if valid)
+        float qNorm = float(normalQuality) / 16.0;
+        float rNorm = normalBlurRadius / 5.0;
+        outColor = vec4(qNorm, rNorm, gNormal.a, 1.0);
+        return;
     }
     
     // PBR lighting calculation
@@ -279,8 +294,8 @@ void main() {
     // Transform to world space using inverse view matrix (direction, so w=0)
     vec3 viewDirViewSpace = normalize(-viewPos);
     vec3 V = normalize((invModelViewMatrix * vec4(viewDirViewSpace, 0.0)).xyz);
-    // sunDirection is already a normalized direction vector pointing toward the sun
-    vec3 L = sunDirection;
+    // lightDirection is already a normalized direction vector pointing toward the sun
+    vec3 L = lightDirection;
     vec3 H = normalize(V + L);
     
     // Calculate F0 (surface reflection at zero incidence)
@@ -304,12 +319,12 @@ void main() {
     float NdotL = max(dot(N, L), 0.0);
     
     // Simple sun light color (warm white)
-    vec3 lightColor = vec3(1.0, 0.95, 0.9) * 2.0;
+    vec3 lightColor = rgbaLightIn * 2.0;// vec3(1.0, 0.95, 0.9) * 2.0;
     
     vec3 Lo = (kD * albedo / PI + specular) * lightColor * NdotL;
     
     // Ambient lighting (simple approximation)
-    vec3 ambient = vec3(0.03) * albedo;
+    vec3 ambient = rgbaAmbientIn * albedo;
     
     // Final color - blend with original based on PBR contribution
     vec3 pbrColor = ambient + Lo;

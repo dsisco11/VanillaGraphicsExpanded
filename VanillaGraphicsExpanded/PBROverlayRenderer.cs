@@ -38,7 +38,7 @@ public class PBROverlayRenderer : IRenderer, IDisposable
     /// Normal blur radius in pixels (typically 1.0-3.0).
     /// Larger values create more pronounced beveled edge effect.
     /// </summary>
-    public float NormalBlurRadius { get; set; } = 3.0f;
+    public float NormalBlurRadius { get; set; } = 11.0f;
 
     /// <summary>
     /// Distance (in blocks) where procedural PBR values start to fade out.
@@ -48,7 +48,7 @@ public class PBROverlayRenderer : IRenderer, IDisposable
     /// <summary>
     /// Distance (in blocks) where procedural PBR values fully fade to defaults.
     /// </summary>
-    public float PbrFalloffEnd { get; set; } = 25.0f;
+    public float PbrFalloffEnd { get; set; } = 30.0f;
 
     #endregion
 
@@ -193,7 +193,7 @@ public class PBROverlayRenderer : IRenderer, IDisposable
         // Pass camera origin for world position reconstruction and sun direction
         shader.CameraOriginFloor = cameraOriginFloor;
         shader.CameraOriginFrac = cameraOriginFrac;
-        shader.SunDirection = sunPos;
+        shader.LightDirection = sunPos;
 
         // Use virtual method for debug mode (0 = PBR output, subclasses can override)
         shader.DebugMode = GetDebugMode();
@@ -205,6 +205,10 @@ public class PBROverlayRenderer : IRenderer, IDisposable
         // PBR distance falloff settings
         shader.PbrFalloffStart = PbrFalloffStart;
         shader.PbrFalloffEnd = PbrFalloffEnd;
+
+        // Lighting
+        shader.RgbaLightIn = ColorUtil.WhiteArgbVec.XYZ;
+        shader.RgbaAmbientIn = capi.Render.AmbientColor;
 
         // Render fullscreen quad
         capi.Render.RenderMesh(quadMeshRef);
