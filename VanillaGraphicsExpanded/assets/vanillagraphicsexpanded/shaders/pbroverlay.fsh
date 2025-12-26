@@ -45,12 +45,8 @@ const float ROUGHNESS_DEFAULT = 0.8;  // Default roughness at far distance
 const float METALLIC_BASE = 0.0;
 const float PI = 3.14159265359;
 
-// Hash function for procedural values
-float hash(vec3 p) {
-    p = fract(p * vec3(0.1031, 0.1030, 0.0973));
-    p += dot(p, p.yxz + 33.33);
-    return fract((p.x + p.y) * p.z);
-}
+#include squirrel3.fsh
+#include pbrFunctions.fsh
 
 // Linearize depth from depth buffer
 float linearizeDepth(float depth) {
@@ -168,46 +164,6 @@ vec3 reconstructWorldPos(vec3 viewPos) {
     return relPos.xyz + cameraOriginFrac + cameraOriginFloor + vec3(0.001);
 }
 
-// Fresnel-Schlick approximation
-vec3 fresnelSchlick(float cosTheta, vec3 F0) {
-    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
-}
-
-// GGX/Trowbridge-Reitz normal distribution
-float distributionGGX(vec3 N, vec3 H, float roughness) {
-    float a = roughness * roughness;
-    float a2 = a * a;
-    float NdotH = max(dot(N, H), 0.0);
-    float NdotH2 = NdotH * NdotH;
-    
-    float num = a2;
-    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
-    denom = PI * denom * denom;
-    
-    return num / denom;
-}
-
-// Schlick-GGX geometry function
-float geometrySchlickGGX(float NdotV, float roughness) {
-    float r = (roughness + 1.0);
-    float k = (r * r) / 8.0;
-    
-    float num = NdotV;
-    float denom = NdotV * (1.0 - k) + k;
-    
-    return num / denom;
-}
-
-// Smith geometry function
-float geometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
-    float NdotV = max(dot(N, V), 0.0);
-    float NdotL = max(dot(N, L), 0.0);
-    float ggx2 = geometrySchlickGGX(NdotV, roughness);
-    float ggx1 = geometrySchlickGGX(NdotL, roughness);
-    
-    return ggx1 * ggx2;
-}
-
 void main() {
     // Sample scene color and depth
     vec4 sceneColor = texture(primaryScene, uv);
@@ -239,11 +195,11 @@ void main() {
     
     // Generate procedural roughness/metallic from world position hash
     vec3 patchCoord = floor(worldPos / PATCH_SIZE);
-    float hashValue = hash(patchCoord);
+    float hashValue = Squirrel3HashF(patchCoord);
     float proceduralRoughness = mix(ROUGHNESS_MIN, ROUGHNESS_MAX, hashValue);
     
     // Second hash with offset for metallic variation (for debug visualization)
-    // float hashValue2 = hash(patchCoord + vec3(17.0, 31.0, 47.0));
+    // float hashValue2 = Squirrel3HashF(patchCoord + vec3(17.0, 31.0, 47.0));
     // float proceduralMetallic = hashValue2 > 0.85 ? hashValue2 : METALLIC_BASE; // ~15% chance of metallic patches
     
     // Apply distance falloff - fade procedural values to defaults at far distances
@@ -304,9 +260,9 @@ void main() {
     F0 = mix(F0, albedo, metallic);
     
     // Cook-Torrance BRDF
-    float NDF = distributionGGX(N, H, roughness);
-    float G = geometrySmith(N, V, L, roughness);
-    vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
+    // float NDF = distributionGGX(N, H, roughness);
+    // float G = geometrySmith(N, V, L, roughness);
+    // vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
     
     vec3 kS = F;
     vec3 kD = vec3(1.0) - kS;
