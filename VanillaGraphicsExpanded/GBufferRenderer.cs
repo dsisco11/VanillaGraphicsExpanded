@@ -261,7 +261,35 @@ public sealed class GBufferRenderer : IRenderer, IDisposable
         };
         GL.DrawBuffers(7, drawBuffers);
         
+        // Clear only our G-buffer attachments (4, 5, 6) at the start of each frame
+        // We don't clear attachments 0-3 as VS manages those
+        ClearGBufferAttachments();
+        
         // Don't unbind - leave it bound for subsequent rendering
+    }
+
+    private void ClearGBufferAttachments()
+    {
+        // Clear our G-buffer attachments to default values
+        // We use glClearBuffer to clear individual attachments without affecting VS attachments
+        
+        // Clear normal buffer (attachment 4) to (0, 0, 0, 0) - no normal data
+        float[] clearNormal = { 0.0f, 0.0f, 0.0f, 0.0f };
+        GL.ClearBuffer(ClearBuffer.Color, 4, clearNormal);
+        
+        // Clear material buffer (attachment 5) to (0, 0, 0, 0) - no material data
+        float[] clearMaterial = { 0.0f, 0.0f, 0.0f, 0.0f };
+        GL.ClearBuffer(ClearBuffer.Color, 5, clearMaterial);
+        
+        // Clear albedo buffer (attachment 6) to (0, 0, 0, 1) - black with full alpha
+        float[] clearAlbedo = { 0.0f, 0.0f, 0.0f, 1.0f };
+        GL.ClearBuffer(ClearBuffer.Color, 6, clearAlbedo);
+        
+        // Note: Depth buffer is typically cleared by VS at frame start, 
+        // but we can clear it here if needed. Since we're replacing VS's depth attachment,
+        // we should clear it to ensure proper depth testing.
+        float clearDepth = 1.0f;
+        GL.ClearBuffer(ClearBuffer.Depth, 0, ref clearDepth);
     }
 
     public void Dispose()
