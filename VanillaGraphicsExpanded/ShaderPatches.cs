@@ -38,19 +38,19 @@ public static class ShaderPatches
 
 #region G-Buffer Injection Code
 
-    // G-Buffer output declarations (locations 4-6, after VS's 0-3)
+    // G-Buffer output declarations (locations 4-5, after VS's 0-3)
     // Location 4: World-space normals (RGBA16F)
     // Location 5: Material properties (RGBA16F) - Reflectivity, Roughness, Metallic, Emissive
-    // Location 6: Albedo (RGB8) - Base color without lighting
+    // Note: VS's ColorAttachment0 (outColor) serves as albedo
     private const string GBufferOutputDeclarations = @"
 // VGE G-Buffer outputs
 layout(location = 4) out vec4 vge_outNormal;    // World-space normal (XYZ), unused (W)
 layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Metallic, Emissive
-// layout(location = 6) out vec4 vge_outAlbedo;    // Base color RGB, Alpha
 ";
 
     // Code to inject before the final closing brace of main() to write G-buffer data
     // Uses available shader variables: normal, renderFlags, texColor/rgba
+    // Note: VS's outColor (ColorAttachment0) serves as albedo
     private const string GBufferOutputWrites = @"
     // VGE: Write G-buffer outputs
     // Normal: world-space normal packed to [0,1] range
@@ -62,9 +62,6 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
     float vge_metallic = 0.0;   // Default non-metallic
     float vge_emissive = glowLevel;
     vge_outMaterial = vec4(vge_reflectivity, vge_roughness, vge_metallic, vge_emissive);
-    
-    // Albedo: base texture color before lighting
-    // vge_outAlbedo = texColor;
 ";
 #endregion
 

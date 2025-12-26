@@ -7,10 +7,10 @@ out vec4 outColor;
 uniform sampler2D primaryScene;
 uniform sampler2D primaryDepth;
 
-// Textures - VGE G-Buffer (ColorAttachment 4-6)
+// Textures - VGE G-Buffer (ColorAttachment 4-5)
 uniform sampler2D gBufferNormal;   // Location 4: World-space normals (RGBA16F)
 uniform sampler2D gBufferMaterial; // Location 5: Reflectivity, Roughness, Metallic, Emissive (RGBA16F)
-uniform sampler2D gBufferAlbedo;   // Location 6: Base color RGB, Alpha (RGBA8)
+// Note: Albedo comes from primaryScene (VS's ColorAttachment0)
 
 // Matrices for world position reconstruction
 uniform mat4 invProjectionMatrix;
@@ -38,8 +38,7 @@ uniform vec3 rgbaLightIn;
 // 4 = Material: Roughness (G channel)
 // 5 = Material: Metallic (B channel)
 // 6 = Material: Emissive (A channel)
-// 7 = Albedo (base color)
-// 8 = Depth (linearized)
+// 7 = Depth (linearized)
 uniform int debugMode;
 
 // Normal blur settings (Teardown-style)
@@ -183,10 +182,10 @@ void main() {
     float depth = texture(primaryDepth, uv).r;
     
     // Early out for sky (depth at far plane)
-    if (depth >= 0.9999) {
-        outColor = sceneColor;
-        return;
-    }
+    // if (depth >= 0.9999) {
+    //     outColor = sceneColor;
+    //     return;
+    // }
     
     // Reconstruct positions
     vec3 viewPos = reconstructViewPos(uv, depth);
@@ -219,9 +218,8 @@ void main() {
     float roughness = mix(ROUGHNESS_DEFAULT, proceduralRoughness, falloffFactor);
     float metallic = 0;//mix(METALLIC_BASE, proceduralMetallic, falloffFactor);
     
-    // Sample G-buffer textures
+    // Sample G-buffer material texture
     vec4 gMaterial = texture(gBufferMaterial, uv);
-    vec4 gAlbedo = texture(gBufferAlbedo, uv);
     
     // Debug visualizations - G-Buffer attachments
     if (debugMode == 1) {
@@ -250,10 +248,6 @@ void main() {
         outColor = vec4(vec3(gMaterial.a), 1.0);
         return;
     } else if (debugMode == 7) {
-        // Albedo - base color from G-buffer
-        outColor = vec4(gAlbedo.rgb, 1.0);
-        return;
-    } else if (debugMode == 8) {
         // Depth (linearized, logarithmic scale for visibility)
         float linDepth = linearizeDepth(depth);
         float normalizedDepth = log(1.0 + linDepth) / log(1.0 + zFar);

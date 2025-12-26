@@ -33,12 +33,6 @@ public class PBROverlayShaderProgram : ShaderProgram
     /// </summary>
     public int GBufferMaterial { set => BindTexture2D("gBufferMaterial", value, 3); }
 
-    /// <summary>
-    /// The G-buffer albedo texture - Location 6 (texture unit 4).
-    /// Contains: Base color RGB, Alpha.
-    /// </summary>
-    public int GBufferAlbedo { set => BindTexture2D("gBufferAlbedo", value, 4); }
-
     #endregion
 
     #region Matrix Uniforms
