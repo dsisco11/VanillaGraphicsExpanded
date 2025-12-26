@@ -51,10 +51,12 @@ uniform float pbrFalloffEnd;    // Distance where procedural values fully fade o
 
 // PBR constants
 const float PATCH_SIZE = 1f / 32f; // 1/32nd of a block
-const float ROUGHNESS_MIN = 0.3;
-const float ROUGHNESS_MAX = 0.4;
+const float ROUGHNESS_MIN_DELTA = 0.0;
+const float ROUGHNESS_MAX_DELTA = 0.2;
 const float ROUGHNESS_DEFAULT = 0.8;  // Default roughness at far distance
 const float METALLIC_BASE = 0.0;
+const float METALLIC_MIN_DELTA = 0.0;
+const float METALLIC_MAX_DELTA = 0.2;
 
 #import "squirrel3.fsh"
 #import "pbrFunctions.fsh"
@@ -178,12 +180,12 @@ vec3 reconstructWorldPos(vec3 viewPos) {
 
 void main() {
     // Sample scene color and depth
-    vec4 sceneColor = texture(primaryScene, uv);
+    vec4 albedoColor = texture(primaryScene, uv);
     float depth = texture(primaryDepth, uv).r;
     
     // Early out for sky (depth at far plane)
     // if (depth >= 0.9999) {
-    //     outColor = sceneColor;
+    //     outColor = albedoColor;
     //     return;
     // }
     
@@ -207,19 +209,25 @@ void main() {
     
     // Generate procedural roughness/metallic from world position hash
     vec3 patchCoord = floor(worldPos / PATCH_SIZE);
-    float hashValue = Squirrel3HashF(patchCoord);
-    float proceduralRoughness = mix(ROUGHNESS_MIN, ROUGHNESS_MAX, hashValue);
+    float hashRoughness = Squirrel3HashF(patchCoord);
+    float randRoughness = mix(ROUGHNESS_MIN_DELTA, ROUGHNESS_MAX_DELTA, hashRoughness);
     
     // Second hash with offset for metallic variation (for debug visualization)
-    // float hashValue2 = Squirrel3HashF(patchCoord + vec3(17.0, 31.0, 47.0));
-    // float proceduralMetallic = hashValue2 > 0.85 ? hashValue2 : METALLIC_BASE; // ~15% chance of metallic patches
-    
-    // Apply distance falloff - fade procedural values to defaults at far distances
-    float roughness = mix(ROUGHNESS_DEFAULT, proceduralRoughness, falloffFactor);
-    float metallic = 0;//mix(METALLIC_BASE, proceduralMetallic, falloffFactor);
+    float hashMetallic = Squirrel3HashF(patchCoord + vec3(17.0, 31.0, 47.0));
+    float randMetallic = mix(METALLIC_MIN_DELTA, METALLIC_MAX_DELTA, hashMetallic);
     
     // Sample G-buffer material texture
     vec4 gMaterial = texture(gBufferMaterial, uv);
+    // Read roughness/metallic from G-buffer material texture
+    //  vec4(vge_reflectivity, vge_roughness, vge_metallic, vge_emissive);
+    float matReflectivity = gMaterial.r;
+    float matRoughness = gMaterial.g;
+    float matMetallic = gMaterial.b;
+    float matEmissive = gMaterial.a;
+
+    // Apply distance falloff - fade procedural values to defaults at far distances
+    float roughness = matRoughness + mix(0.0, randRoughness, falloffFactor);
+    float metallic = matMetallic + mix(0.0, randMetallic, falloffFactor);
     
     // Debug visualizations - G-Buffer attachments
     if (debugMode == 1) {
@@ -256,7 +264,7 @@ void main() {
     }
     
     // PBR lighting calculation
-    vec3 albedo = sceneColor.rgb;
+    vec3 albedo = albedoColor.rgb;
     vec3 N = worldNormal;
     // View direction: in view space, camera is at origin, so view dir is -viewPos
     // Transform to world space using inverse view matrix (direction, so w=0)
@@ -290,13 +298,9 @@ void main() {
     // Ambient lighting (simple approximation)
     vec3 ambient = rgbaAmbientIn * albedo;
     
-    // Final color - blend with original based on PBR contribution
-    vec3 pbrColor = ambient + Lo;
-    // vec3 pbrColor = mix(ambient, Lo, 0.5);
-    
-    // Blend PBR result with original scene (to preserve original lighting somewhat)
-    // vec3 finalColor = mix(sceneColor.rgb, pbrColor, 0.5);
-    
-    outColor = vec4(pbrColor, sceneColor.a);
-    // outColor = vec4(finalColor, sceneColor.a);
+    // Final color 
+    // vec3 pbrColor = ambient + Lo;
+    vec3 pbrColor = mix(ambient, Lo, 0.5);    
+    outColor = vec4(pbrColor, albedoColor.a);
+    // outColor = vec4(finalColor, albedoColor.a);
 }
