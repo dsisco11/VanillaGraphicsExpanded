@@ -57,8 +57,8 @@ const float ROUGHNESS_MAX = 0.4;
 const float ROUGHNESS_DEFAULT = 0.8;  // Default roughness at far distance
 const float METALLIC_BASE = 0.0;
 
-#include squirrel3.fsh
-#include pbrFunctions.fsh
+#include "squirrel3.fsh"
+#include "pbrFunctions.fsh"
 
 // Linearize depth from depth buffer
 float linearizeDepth(float depth) {
@@ -67,7 +67,8 @@ float linearizeDepth(float depth) {
 }
 
 // Golden ratio constant for spiral sampling (Teardown-style)
-const float PHI = 1.618033988749895;
+const float PI = 3.141592653589793;
+const float PHI = 1.618033988749895; // (1 + sqrt(5)) / 2
 const float TAU = 6.283185307179586; // 2 * PI
 const float GOLDEN_ANGLE = 2.399963229728653; // TAU / PHI^2 ≈ 137.5 degrees in radians
 
@@ -137,7 +138,7 @@ vec3 sampleNormalSmooth(sampler2D normalTex, sampler2D depthTex, vec2 texCoord, 
         
         // Optional: slight normal similarity bias to maintain surface coherence
         // but still allow significant blending across normal discontinuities
-        // float normalSimilarity = dot(normalize(decodedNormal), normalize(centerNormal));
+        float normalSimilarity = dot(normalize(decodedNormal), normalize(centerNormal));
         float normalWeight = 0.5 + (0.5 * max(normalSimilarity, 0.0)); // Range: 0.5 to 1.0
         
         // Distance weight: Gaussian falloff from center with wider sigma
