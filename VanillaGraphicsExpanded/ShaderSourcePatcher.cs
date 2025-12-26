@@ -6,6 +6,8 @@ using System.Text;
 
 using TinyTokenizer;
 
+using Vintagestory.API.Common;
+
 namespace VanillaGraphicsExpanded;
 
 /// <summary>
@@ -36,9 +38,26 @@ public class ShaderSourcePatcher
 
     #endregion
 
+    #region Accessors
+
+    public string ShaderName => _shaderName ?? "<unknown>";
+
+    #endregion
+
     #region Nested Types
 
-    private readonly record struct PendingInsertion(long Position, string Text);
+    /// <summary>
+    /// Represents a pending text insertion or replacement.
+    /// </summary>
+    /// <param name="Position">The position in the source to insert/replace at.</param>
+    /// <param name="Text">The text to insert.</param>
+    /// <param name="RemoveLength">Number of characters to remove before inserting (0 for pure insertion).</param>
+    private readonly record struct PendingInsertion(long Position, string Text, int RemoveLength = 0);
+
+    /// <summary>
+    /// Represents a found #import directive in shader source.
+    /// </summary>
+    private readonly record struct ImportDirective(long DirectiveStart, long LineEnd, string FileName);
 
     #endregion
 
@@ -209,6 +228,53 @@ public class ShaderSourcePatcher
         return this;
     }
 
+    /// <summary>
+    /// Finds all <c>#import</c> directives and queues insertions to comment them out
+    /// and inject the referenced file contents below each one.
+    /// </summary>
+    /// <param name="importsCache">Dictionary mapping import file names to their contents.</param>
+    /// <returns>This patcher instance for method chaining.</returns>
+    /// <exception cref="ShaderPatchException">Thrown if an imported file is not found in the cache.</exception>
+    public ShaderSourcePatcher ProcessImports(IReadOnlyDictionary<string, string> importsCache, ILogger? log = null)
+    {
+        ArgumentNullException.ThrowIfNull(importsCache);
+
+        var importDirectives = FindImportDirectives();
+
+        foreach (var import in importDirectives)
+        {
+            if (!importsCache.TryGetValue(import.FileName, out var importContent))
+            {
+                throw CreateException(
+                    $"Import file '{import.FileName}' not found in imports cache",
+                    import.DirectiveStart);
+            }
+
+            // Build the replacement: commented original line + newline + import contents
+            var injection = new StringBuilder();
+            injection.Append("//");  // Comment out the #import line
+            injection.Append(_source.AsSpan((int)import.DirectiveStart, (int)(import.LineEnd - import.DirectiveStart)));
+            injection.AppendLine();
+            injection.Append(importContent);
+
+            // Ensure import content ends with newline
+            if (!importContent.EndsWith('\n'))
+            {
+                injection.AppendLine();
+            }
+
+            // Queue a replacement (remove original, insert new)
+            _insertions.Add(new PendingInsertion(
+                import.DirectiveStart,
+                injection.ToString(),
+                (int)(import.LineEnd - import.DirectiveStart)));
+
+            log?.Audit($"[VGE] Processed #import '{import.FileName}' at position {import.DirectiveStart}");
+        }
+
+        return this;
+    }
+
     #endregion
 
     #region Build Method
@@ -240,6 +306,10 @@ public class ShaderSourcePatcher
 
         foreach (var insertion in sortedInsertions)
         {
+            if (insertion.RemoveLength > 0)
+            {
+                result.Remove((int)insertion.Position, insertion.RemoveLength);
+            }
             result.Insert((int)insertion.Position, insertion.Text);
         }
 
@@ -498,6 +568,109 @@ public class ShaderSourcePatcher
         return position >= 0
             ? new ShaderPatchException(message, position)
             : new ShaderPatchException(message);
+    }
+
+    /// <summary>
+    /// Finds all #import directives in the tokenized shader source.
+    /// </summary>
+    private List<ImportDirective> FindImportDirectives()
+    {
+        var imports = new List<ImportDirective>();
+
+        for (int i = 0; i < _tokens.Length; i++)
+        {
+            var token = _tokens[i];
+
+            // Look for # symbol
+            if (token is not SymbolToken { Content.Length: 1 } symbolToken ||
+                symbolToken.Content.Span[0] != '#')
+            {
+                continue;
+            }
+
+            long directiveStart = symbolToken.Position;
+
+            // Find next non-whitespace token (should be "import")
+            int nextIdx = FindNextNonWhitespace(i + 1);
+            if (nextIdx < 0 ||
+                _tokens[nextIdx] is not IdentToken identToken ||
+                !identToken.Content.Span.Equals("import".AsSpan(), StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            // Find the file name (could be in quotes or angle brackets)
+            string? fileName = ExtractImportFileName(nextIdx + 1, out int fileNameEndIdx);
+            if (fileName == null)
+            {
+                continue;
+            }
+
+            // Find end of line
+            long lineEnd = FindEndOfLine(fileNameEndIdx);
+
+            imports.Add(new ImportDirective(directiveStart, lineEnd, fileName));
+        }
+
+        return imports;
+    }
+
+    /// <summary>
+    /// Extracts the file name from an #import directive.
+    /// Handles both "filename" and &lt;filename&gt; syntax.
+    /// </summary>
+    private string? ExtractImportFileName(int startIdx, out int endIdx)
+    {
+        endIdx = startIdx;
+
+        int nextIdx = FindNextNonWhitespace(startIdx);
+        if (nextIdx < 0)
+        {
+            return null;
+        }
+
+        var token = _tokens[nextIdx];
+
+        // Check for string literal (quoted filename like "vgeshared.ash")
+        if (token is StringToken stringToken)
+        {
+            endIdx = nextIdx;
+            // Remove the quotes from the string content
+            var content = stringToken.Content.Span;
+            if (content.Length >= 2)
+            {
+                return content[1..^1].ToString();
+            }
+            return null;
+        }
+
+        // Check for angle bracket syntax (<filename>)
+        if (token is SymbolToken { Content.Length: 1 } ltSymbol && ltSymbol.Content.Span[0] == '<')
+        {
+            var fileNameBuilder = new StringBuilder();
+            int idx = nextIdx + 1;
+
+            while (idx < _tokens.Length)
+            {
+                var innerToken = _tokens[idx];
+
+                if (innerToken is SymbolToken { Content.Length: 1 } gtSymbol && gtSymbol.Content.Span[0] == '>')
+                {
+                    endIdx = idx;
+                    return fileNameBuilder.ToString();
+                }
+
+                // Don't include whitespace in filename for angle bracket syntax
+                if (innerToken is not WhitespaceToken)
+                {
+                    fileNameBuilder.Append(innerToken.Content.Span);
+                }
+
+                idx++;
+            }
+        }
+
+        return null;
     }
 
     #endregion

@@ -29,9 +29,9 @@ public static class ShaderPatches
     /// </summary>
     public static HashSet<string> AlreadyPatchedShaders = [];
     /// <summary>
-    /// Cache for included shader code snippets to avoid redundant loading.
+    /// Cache for imported shader code snippets to avoid redundant loading.
     /// </summary>
-    public static Dictionary<string, string> IncludesCache = [];
+    public static Dictionary<string, string> ImportsCache = [];
     #endregion
 
 #region G-Buffer Injection Code
@@ -82,11 +82,11 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
     }
 
     /// <summary>
-    /// Loads all shader include files from the mod's shaderincludes asset folder.
+    /// Loads all shader import files from the mod's shaderincludes asset folder.
     /// Should be called from the ModSystem's AssetsLoaded hook.
     /// </summary>
     /// <param name="api">The core API instance.</param>
-    public static void LoadShaderIncludes(ICoreAPI api)
+    public static void LoadShaderImports(ICoreAPI api)
     {
         if (api.Side != EnumAppSide.Client)
         {
@@ -94,36 +94,55 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
         }
 
         var assetManager = api.Assets;
-        var shaderIncludeAssets = assetManager.GetManyInCategory(
+        var shaderImportAssets = assetManager.GetManyInCategory(
             AssetCategory.shaderincludes.Code,
             pathBegins: "",
             domain: ModDomain,
             loadAsset: true);
 
-        if (shaderIncludeAssets.Count == 0)
+        if (shaderImportAssets.Count == 0)
         {
-            api.Logger.Debug("[VGE] No shader includes found in mod assets");
+            api.Logger.Debug("[VGE] No shader imports found in mod assets");
             return;
         }
 
-        RegisterShaderProgramPatch.IncludesCache.Clear();
+        ImportsCache.Clear();
 
-        foreach (var asset in shaderIncludeAssets)
+        foreach (var asset in shaderImportAssets)
         {
             var fileName = Path.GetFileName(asset.Location.Path);
             var code = asset.ToText();
 
             if (string.IsNullOrEmpty(code))
             {
-                api.Logger.Warning($"[VGE] Shader include '{fileName}' is empty or failed to load");
+                api.Logger.Warning($"[VGE] Shader import '{fileName}' is empty or failed to load");
                 continue;
             }
 
-            RegisterShaderProgramPatch.IncludesCache[fileName] = code;
-            api.Logger.Debug($"[VGE] Loaded shader include: {fileName} ({code.Length} chars)");
+            ImportsCache[fileName] = code;
+            api.Logger.Debug($"[VGE] Loaded shader import: {fileName} ({code.Length} chars)");
         }
 
-        api.Logger.Notification($"[VGE] Loaded {RegisterShaderProgramPatch.IncludesCache.Count} shader include(s) from mod assets");
+        api.Logger.Notification($"[VGE] Loaded {ImportsCache.Count} shader import(s) from mod assets");
+    }
+
+    /// <summary>
+    /// Processes shader source code to find and resolve <c>#import</c> directives.
+    /// Each import statement is commented out and the referenced file contents are injected below it.
+    /// </summary>
+    /// <param name="shaderCode">The shader source code to process.</param>
+    /// <param name="importsCache">Dictionary mapping import file names to their contents.</param>
+    /// <param name="shaderName">Optional shader name for error messages.</param>
+    /// <returns>The processed shader code with imports resolved.</returns>
+    /// <exception cref="ShaderPatchException">Thrown if an imported file is not found in the cache.</exception>
+    public static string ProcessShaderImports(
+        string shaderCode,
+        IReadOnlyDictionary<string, string> importsCache,
+        string? shaderName = null)
+    {
+        return new ShaderSourcePatcher(shaderCode, shaderName)
+            .ProcessImports(importsCache, _api?.Logger)
+            .Build();
     }
 
     /// <summary>
@@ -132,44 +151,41 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
     [HarmonyPatch]
     public static class RegisterShaderProgramPatch
     {
-        /// <summary>
-        /// Shaders to patch for G-buffer output injection.
-        /// </summary>
-        public static HashSet<string> TargetShaders = ["chunkopaque", "chunktopsoil", "standard", "instanced"];
         [HarmonyPatch(typeof(Vintagestory.Client.NoObf.ShaderRegistry), "LoadShaderProgram")]
         [HarmonyPostfix]
         static void LoadShaderProgram(Vintagestory.Client.NoObf.ShaderProgram program, bool useSSBOs)
         {
-            // Only inject into chunk shaders
             string shaderName = program.PassName;
-            if (!TargetShaders.Contains(shaderName))
+
+            // Don't inject twice
+            if (AlreadyPatchedShaders.Contains(shaderName))
             {
                 return;
             }
 
+            // Perform import processing for ALL shaders
             try
             {
-                var fragmentShader = program?.FragmentShader;
-                if (fragmentShader == null) return;
-
-                string? code = fragmentShader.Code;
-                if (string.IsNullOrEmpty(code)) return;
-
-                // Don't inject twice
-                if (AlreadyPatchedShaders.Contains(shaderName))
+                if (program.FragmentShader?.Code is not null)
                 {
-                    return;
+                    ShaderSourcePatcher patcher = new ShaderSourcePatcher(program.FragmentShader.Code, shaderName)
+                        .ProcessImports(ImportsCache, _api?.Logger);
+                    TryInjectGBuffersIntoShader(patcher);
+                    program.FragmentShader.Code = patcher.Build();
+                }
+                if (program.VertexShader?.Code is not null)
+                {
+                    ShaderSourcePatcher patcher = new ShaderSourcePatcher(program.VertexShader.Code, shaderName)
+                        .ProcessImports(ImportsCache, _api?.Logger);
+                    program.VertexShader.Code = patcher.Build();
                 }
 
-                // Use the fluent shader patcher to inject G-buffer outputs
-                code = new ShaderSourcePatcher(code, shaderName)
-                    .AfterVersionDirective().Insert(GBufferOutputDeclarations)
-                    .BeforeMainClose().Insert(GBufferOutputWrites)
-                    .Build();
-
-                fragmentShader.Code = code;
-                AlreadyPatchedShaders.Add(shaderName);
-                _api?.Logger.Debug($"[VGE] Injected G-buffer outputs into {shaderName}");
+                if (program.GeometryShader?.Code is not null)
+                {
+                    ShaderSourcePatcher patcher = new ShaderSourcePatcher(program.GeometryShader.Code, shaderName)
+                        .ProcessImports(ImportsCache, _api?.Logger);
+                    program.GeometryShader.Code = patcher.Build();
+                }
             }
             catch (ShaderPatchException ex)
             {
@@ -180,6 +196,31 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
                 // Log but don't crash
                 _api?.Logger.Error($"[VGE] Unexpected error patching {shaderName}: {ex.Message}");
             }
+            finally
+            {
+                AlreadyPatchedShaders.Add(shaderName);
+            }
+        }
+
+        /// <summary>
+        /// Shaders to patch for G-buffer output injection.
+        /// </summary>
+        public static HashSet<string> TargetShaders = ["chunkopaque", "chunktopsoil", "standard", "instanced"];
+        private static void TryInjectGBuffersIntoShader(ShaderSourcePatcher source)
+        {
+            // Only inject into chunk shaders
+            string shaderName = source.ShaderName;
+            if (!TargetShaders.Contains(shaderName))
+            {
+                return;
+            }
+
+            // Use the fluent shader patcher to inject G-buffer outputs
+            source
+                .AfterVersionDirective().Insert(GBufferOutputDeclarations)
+                .BeforeMainClose().Insert(GBufferOutputWrites);
+
+            _api?.Logger.Debug($"[VGE] Injected G-buffer outputs into {shaderName}");
         }
     }
 }

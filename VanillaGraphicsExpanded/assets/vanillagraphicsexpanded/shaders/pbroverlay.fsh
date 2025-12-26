@@ -57,8 +57,8 @@ const float ROUGHNESS_MAX = 0.4;
 const float ROUGHNESS_DEFAULT = 0.8;  // Default roughness at far distance
 const float METALLIC_BASE = 0.0;
 
-#include "squirrel3.fsh"
-#include "pbrFunctions.fsh"
+#import "squirrel3.fsh"
+#import "pbrFunctions.fsh"
 
 // Linearize depth from depth buffer
 float linearizeDepth(float depth) {
