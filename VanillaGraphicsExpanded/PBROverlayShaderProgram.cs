@@ -23,9 +23,21 @@ public class PBROverlayShaderProgram : ShaderProgram
     public int PrimaryDepth { set => BindTexture2D("primaryDepth", value, 1); }
 
     /// <summary>
-    /// The G-buffer normal texture from MRT (texture unit 2).
+    /// The G-buffer normal texture - Location 4 (texture unit 2).
     /// </summary>
     public int GBufferNormal { set => BindTexture2D("gBufferNormal", value, 2); }
+
+    /// <summary>
+    /// The G-buffer material texture - Location 5 (texture unit 3).
+    /// Contains: Reflectivity (R), Roughness (G), Metallic (B), Emissive (A).
+    /// </summary>
+    public int GBufferMaterial { set => BindTexture2D("gBufferMaterial", value, 3); }
+
+    /// <summary>
+    /// The G-buffer albedo texture - Location 6 (texture unit 4).
+    /// Contains: Base color RGB, Alpha.
+    /// </summary>
+    public int GBufferAlbedo { set => BindTexture2D("gBufferAlbedo", value, 4); }
 
     #endregion
 
@@ -92,11 +104,14 @@ public class PBROverlayShaderProgram : ShaderProgram
     /// <summary>
     /// Debug visualization mode:
     /// 0 = PBR output,
-    /// 1 = normals,
-    /// 2 = roughness,
-    /// 3 = metallic,
-    /// 4 = world position,
-    /// 5 = depth.
+    /// 1 = Normal (blurred),
+    /// 2 = Normal (raw),
+    /// 3 = Material: Reflectivity,
+    /// 4 = Material: Roughness,
+    /// 5 = Material: Metallic,
+    /// 6 = Material: Emissive,
+    /// 7 = Albedo,
+    /// 8 = Depth.
     /// </summary>
     public int DebugMode { set => Uniform("debugMode", value); }
 

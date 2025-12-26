@@ -3,10 +3,14 @@
 in vec2 uv;
 out vec4 outColor;
 
-// Textures
+// Textures - Scene
 uniform sampler2D primaryScene;
 uniform sampler2D primaryDepth;
-uniform sampler2D gBufferNormal; // G-buffer normal from MRT
+
+// Textures - VGE G-Buffer (ColorAttachment 4-6)
+uniform sampler2D gBufferNormal;   // Location 4: World-space normals (RGBA16F)
+uniform sampler2D gBufferMaterial; // Location 5: Reflectivity, Roughness, Metallic, Emissive (RGBA16F)
+uniform sampler2D gBufferAlbedo;   // Location 6: Base color RGB, Alpha (RGBA8)
 
 // Matrices for world position reconstruction
 uniform mat4 invProjectionMatrix;
@@ -26,7 +30,16 @@ uniform vec3 lightDirection;
 uniform vec3 rgbaAmbientIn;
 uniform vec3 rgbaLightIn;
 
-// Debug mode: 0=PBR, 1=normals (blurred), 2=roughness, 3=metallic, 4=worldPos, 5=depth, 6=normals (raw)
+// Debug mode:
+// 0 = PBR rendering
+// 1 = Normal (world-space, blurred)
+// 2 = Normal (raw from G-buffer)
+// 3 = Material: Reflectivity (R channel)
+// 4 = Material: Roughness (G channel)
+// 5 = Material: Metallic (B channel)
+// 6 = Material: Emissive (A channel)
+// 7 = Albedo (base color)
+// 8 = Depth (linearized)
 uniform int debugMode;
 
 // Normal blur settings (Teardown-style)
@@ -205,41 +218,45 @@ void main() {
     float roughness = mix(ROUGHNESS_DEFAULT, proceduralRoughness, falloffFactor);
     float metallic = 0;//mix(METALLIC_BASE, proceduralMetallic, falloffFactor);
     
-    // Debug visualizations (used by debug overlay renderer)
+    // Sample G-buffer textures
+    vec4 gMaterial = texture(gBufferMaterial, uv);
+    vec4 gAlbedo = texture(gBufferAlbedo, uv);
+    
+    // Debug visualizations - G-Buffer attachments
     if (debugMode == 1) {
-        // Visualize normals (with blur applied if enabled)
+        // Normal (blurred) - world-space normal with Teardown-style blur
         outColor = vec4(worldNormal * 0.5 + 0.5, 1.0);
         return;
     } else if (debugMode == 2) {
-        // Visualize roughness
-        outColor = vec4(vec3(roughness), 1.0);
-        return;
-    } else if (debugMode == 3) {
-        // Visualize metallic
-        outColor = vec4(vec3(metallic), 1.0);
-        return;
-    } else if (debugMode == 4) {
-        // Visualize world position (wrapped)
-        outColor = vec4(fract(worldPos), 1.0);
-        return;
-    } else if (debugMode == 5) {
-        // Visualize depth (normalized to visible range)
-        float linDepth = linearizeDepth(depth);
-        // Use logarithmic scale for better visualization of nearby geometry
-        float normalizedDepth = log(1.0 + linDepth) / log(1.0 + zFar);
-        outColor = vec4(vec3(normalizedDepth), 1.0);
-        return;
-    } else if (debugMode == 6) {
-        // Visualize raw (unblurred) normals from G-buffer
+        // Normal (raw) - direct from G-buffer without blur
         vec3 rawNormal = normalize(gNormal.rgb * 2.0 - 1.0);
         outColor = vec4(rawNormal * 0.5 + 0.5, 1.0);
         return;
+    } else if (debugMode == 3) {
+        // Material: Reflectivity (R channel)
+        outColor = vec4(vec3(gMaterial.r), 1.0);
+        return;
+    } else if (debugMode == 4) {
+        // Material: Roughness (G channel)
+        outColor = vec4(vec3(gMaterial.g), 1.0);
+        return;
+    } else if (debugMode == 5) {
+        // Material: Metallic (B channel)
+        outColor = vec4(vec3(gMaterial.b), 1.0);
+        return;
+    } else if (debugMode == 6) {
+        // Material: Emissive (A channel)
+        outColor = vec4(vec3(gMaterial.a), 1.0);
+        return;
     } else if (debugMode == 7) {
-        // Debug: show blur parameters and sample count
-        // Red = normalQuality/16, Green = normalBlurRadius/5, Blue = gNormal.a (should be 1.0 if valid)
-        float qNorm = float(normalQuality) / 16.0;
-        float rNorm = normalBlurRadius / 5.0;
-        outColor = vec4(qNorm, rNorm, gNormal.a, 1.0);
+        // Albedo - base color from G-buffer
+        outColor = vec4(gAlbedo.rgb, 1.0);
+        return;
+    } else if (debugMode == 8) {
+        // Depth (linearized, logarithmic scale for visibility)
+        float linDepth = linearizeDepth(depth);
+        float normalizedDepth = log(1.0 + linDepth) / log(1.0 + zFar);
+        outColor = vec4(vec3(normalizedDepth), 1.0);
         return;
     }
     

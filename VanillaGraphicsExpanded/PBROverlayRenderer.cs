@@ -183,6 +183,8 @@ public class PBROverlayRenderer : IRenderer, IDisposable
         shader.PrimaryScene = primaryFb.ColorTextureIds[0];
         shader.PrimaryDepth = primaryFb.DepthTextureId;
         shader.GBufferNormal = gBufferRenderer.NormalTextureId;
+        shader.GBufferMaterial = gBufferRenderer.MaterialTextureId;
+        shader.GBufferAlbedo = gBufferRenderer.AlbedoTextureId;
 
         // Pass matrices
         shader.InvProjectionMatrix = invProjectionMatrix;
