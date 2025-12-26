@@ -16,6 +16,7 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0) {
 @return Normal distribution value
 */
 float distributionGGX(vec3 N, vec3 H, float roughness) {
+    const float PI = 3.141592653589793;
     float a = roughness * roughness;
     float a2 = a * a;
     float NdotH = max(dot(N, H), 0.0);
