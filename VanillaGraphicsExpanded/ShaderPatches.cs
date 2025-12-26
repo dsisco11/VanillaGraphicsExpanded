@@ -4,6 +4,8 @@ using System.IO;
 
 using HarmonyLib;
 
+using VanillaGraphicsExpanded.Harmony;
+
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.Client.NoObf;
@@ -70,6 +72,10 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
     {
         _api = api;
         harmony = new HarmonyInstance(HarmonyId);
+        
+        // Initialize the shader includes hook with dependencies
+        ShaderIncludesHook.Initialize(api.Logger, api.Assets);
+        
         harmony.PatchAll();
         api.Logger.Notification("[VGE] Harmony shader patches applied");
     }

@@ -133,12 +133,27 @@ public class ShaderSourcePatcher
     /// </summary>
     /// <returns>This patcher instance for method chaining.</returns>
     /// <exception cref="ShaderPatchException">Thrown if <c>main()</c> function is not found.</exception>
-    public ShaderSourcePatcher BeforeMainClose()
+    public ShaderSourcePatcher BeforeMainClose() => BeforeFunctionClose("main");
+
+    /// <summary>
+    /// Sets the insertion point to immediately after the opening brace of the <c>main()</c> function.
+    /// </summary>
+    /// <returns>This patcher instance for method chaining.</returns>
+    /// <exception cref="ShaderPatchException">Thrown if <c>main()</c> function is not found.</exception>
+    public ShaderSourcePatcher AtTopOfMain() => AtTopOfFunction("main");
+
+    /// <summary>
+    /// Sets the insertion point to immediately before the closing brace of the specified function.
+    /// </summary>
+    /// <param name="functionName">The name of the function to target.</param>
+    /// <returns>This patcher instance for method chaining.</returns>
+    /// <exception cref="ShaderPatchException">Thrown if the function is not found.</exception>
+    public ShaderSourcePatcher BeforeFunctionClose(string functionName)
     {
-        var bodyBlock = FindFunctionBody("main");
+        var bodyBlock = FindFunctionBody(functionName);
         if (bodyBlock == null)
         {
-            throw CreateException("No main() function found in shader source");
+            throw CreateException($"No {functionName}() function found in shader source");
         }
 
         // Position is at the opening brace, we need to find the closing brace
@@ -149,16 +164,17 @@ public class ShaderSourcePatcher
     }
 
     /// <summary>
-    /// Sets the insertion point to immediately after the opening brace of the <c>main()</c> function.
+    /// Sets the insertion point to immediately after the opening brace of the specified function.
     /// </summary>
+    /// <param name="functionName">The name of the function to target.</param>
     /// <returns>This patcher instance for method chaining.</returns>
-    /// <exception cref="ShaderPatchException">Thrown if <c>main()</c> function is not found.</exception>
-    public ShaderSourcePatcher AtTopOfMain()
+    /// <exception cref="ShaderPatchException">Thrown if the function is not found.</exception>
+    public ShaderSourcePatcher AtTopOfFunction(string functionName)
     {
-        var bodyBlock = FindFunctionBody("main");
+        var bodyBlock = FindFunctionBody(functionName);
         if (bodyBlock == null)
         {
-            throw CreateException("No main() function found in shader source");
+            throw CreateException($"No {functionName}() function found in shader source");
         }
 
         // Position after the opening brace
