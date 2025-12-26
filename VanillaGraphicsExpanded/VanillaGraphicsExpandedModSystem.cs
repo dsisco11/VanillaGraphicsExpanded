@@ -18,6 +18,14 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         ShaderPatches.Apply(api);
     }
 
+    public override void AssetsLoaded(ICoreAPI api)
+    {
+        base.AssetsLoaded(api);
+        
+        // Load shader includes from the mod's shaderincludes asset folder
+        ShaderPatches.LoadShaderIncludes(api);
+    }
+
     public override void StartClientSide(ICoreClientAPI api)
     {
         base.StartClientSide(api);
