@@ -13,11 +13,11 @@ uint Squirrel3HashU(uint v1, uint v2, uint v3)
 
     uint mangled = v1 + (v2 * PRIMEU1) + (v3 * PRIMEU2);
     mangled = (mangled * BIT_NOISE1);
-    mangled = (mangled ^ (mangled >> 8));
+    mangled = (mangled ^ (mangled >> 8U));
     mangled = (mangled + BIT_NOISE2);
-    mangled = (mangled ^ (mangled << 8));
+    mangled = (mangled ^ (mangled << 8U));
     mangled = (mangled * BIT_NOISE3);
-    mangled = (mangled ^ (mangled >> 8));
+    mangled = (mangled ^ (mangled >> 8U));
     return mangled;
 }
 
