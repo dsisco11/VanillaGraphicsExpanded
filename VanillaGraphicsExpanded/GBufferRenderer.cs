@@ -16,7 +16,6 @@ namespace VanillaGraphicsExpanded;
 /// - ColorAttachment3: VS gposition (if SSAO enabled)
 /// - ColorAttachment4: World-space normals (RGBA16F)
 /// - ColorAttachment5: Material properties (RGBA16F) - Reflectivity, Roughness, Metallic, Emissive
-/// - ColorAttachment6: Albedo (RGB8)
 /// - DepthAttachment: Hyperbolic depth (Depth32f)
 /// </summary>
 public sealed class GBufferRenderer : IRenderer, IDisposable
@@ -26,7 +25,6 @@ public sealed class GBufferRenderer : IRenderer, IDisposable
     // Texture IDs for each G-buffer attachment
     private int normalTextureId;
     private int materialTextureId;
-    private int albedoTextureId;
     private int hyperbolicDepthTextureId;
     
     private int lastWidth;
@@ -46,16 +44,10 @@ public sealed class GBufferRenderer : IRenderer, IDisposable
     public int MaterialTextureId => materialTextureId;
 
     /// <summary>
-    /// The OpenGL texture ID for the albedo G-buffer (ColorAttachment6).
-    /// Format: RGB8 - Base color without lighting.
-    /// </summary>
-    public int AlbedoTextureId => albedoTextureId;
-
-    /// <summary>
     /// The OpenGL texture ID for the hyperbolic depth G-buffer (DepthAttachment).
     /// Format: Depth32f - Hyperbolic depth value.
     /// </summary>
-    public int HyperbolicDepthTextureId => hyperbolicDepthTextureId;
+    //public int HyperbolicDepthTextureId => hyperbolicDepthTextureId;
 
     public double RenderOrder => 0.0; // Very early
     public int RenderRange => 1;
@@ -98,15 +90,12 @@ public sealed class GBufferRenderer : IRenderer, IDisposable
         // Create Material texture (RGBA16F) - Reflectivity, Roughness, Metallic, Emissive
         materialTextureId = CreateColorTexture(width, height, PixelInternalFormat.Rgba16f, PixelFormat.Rgba, PixelType.Float);
         
-        // Create Albedo texture (RGB8)
-        albedoTextureId = CreateColorTexture(width, height, PixelInternalFormat.Rgb8, PixelFormat.Rgb, PixelType.UnsignedByte);
-        
         // Create Hyperbolic Depth texture (Depth32f)
-        hyperbolicDepthTextureId = CreateDepthTexture(width, height);
+        //hyperbolicDepthTextureId = CreateDepthTexture(width, height);
 
         isInitialized = true;
         capi.Logger.Notification($"[VGE] Created G-buffer textures: {width}x{height}");
-        capi.Logger.Notification($"[VGE]   Normal ID={normalTextureId}, Material ID={materialTextureId}, Albedo ID={albedoTextureId}, HyperbolicDepth ID={hyperbolicDepthTextureId}");
+        capi.Logger.Notification($"[VGE]   Normal ID={normalTextureId}, Material ID={materialTextureId}, HyperbolicDepth ID={hyperbolicDepthTextureId}");
     }
 
     private int CreateColorTexture(int width, int height, PixelInternalFormat internalFormat, PixelFormat format, PixelType type)
@@ -175,11 +164,6 @@ public sealed class GBufferRenderer : IRenderer, IDisposable
             GL.DeleteTexture(materialTextureId);
             materialTextureId = 0;
         }
-        if (albedoTextureId != 0)
-        {
-            GL.DeleteTexture(albedoTextureId);
-            albedoTextureId = 0;
-        }
         if (hyperbolicDepthTextureId != 0)
         {
             GL.DeleteTexture(hyperbolicDepthTextureId);
@@ -210,21 +194,13 @@ public sealed class GBufferRenderer : IRenderer, IDisposable
             materialTextureId,
             0);
 
-        // Attach albedo texture as ColorAttachment6
-        GL.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment6,
-            TextureTarget.Texture2D,
-            albedoTextureId,
-            0);
-
-        // Attach hyperbolic depth texture as DepthAttachment (replaces VS default depth)
-        GL.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.DepthAttachment,
-            TextureTarget.Texture2D,
-            hyperbolicDepthTextureId,
-            0);
+        //// Attach hyperbolic depth texture as DepthAttachment (replaces VS default depth)
+        //GL.FramebufferTexture2D(
+        //    FramebufferTarget.Framebuffer,
+        //    FramebufferAttachment.DepthAttachment,
+        //    TextureTarget.Texture2D,
+        //    hyperbolicDepthTextureId,
+        //    0);
 
         // Verify framebuffer is complete
         var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
@@ -257,11 +233,10 @@ public sealed class GBufferRenderer : IRenderer, IDisposable
             DrawBuffersEnum.ColorAttachment3,
             DrawBuffersEnum.ColorAttachment4,
             DrawBuffersEnum.ColorAttachment5,
-            DrawBuffersEnum.ColorAttachment6
         };
-        GL.DrawBuffers(7, drawBuffers);
+        GL.DrawBuffers(6, drawBuffers);
         
-        // Clear only our G-buffer attachments (4, 5, 6) at the start of each frame
+        // Clear only our G-buffer attachments (4, 5) at the start of each frame
         // We don't clear attachments 0-3 as VS manages those
         ClearGBufferAttachments();
         
@@ -281,15 +256,11 @@ public sealed class GBufferRenderer : IRenderer, IDisposable
         float[] clearMaterial = { 0.0f, 0.0f, 0.0f, 0.0f };
         GL.ClearBuffer(ClearBuffer.Color, 5, clearMaterial);
         
-        // Clear albedo buffer (attachment 6) to (0, 0, 0, 1) - black with full alpha
-        float[] clearAlbedo = { 0.0f, 0.0f, 0.0f, 1.0f };
-        GL.ClearBuffer(ClearBuffer.Color, 6, clearAlbedo);
-        
         // Note: Depth buffer is typically cleared by VS at frame start, 
         // but we can clear it here if needed. Since we're replacing VS's depth attachment,
         // we should clear it to ensure proper depth testing.
-        float clearDepth = 1.0f;
-        GL.ClearBuffer(ClearBuffer.Depth, 0, ref clearDepth);
+        //float clearDepth = 1.0f;
+        //GL.ClearBuffer(ClearBuffer.Depth, 0, ref clearDepth);
     }
 
     public void Dispose()
@@ -311,13 +282,6 @@ public sealed class GBufferRenderer : IRenderer, IDisposable
             GL.FramebufferTexture2D(
                 FramebufferTarget.Framebuffer,
                 FramebufferAttachment.ColorAttachment5,
-                TextureTarget.Texture2D,
-                0,
-                0);
-
-            GL.FramebufferTexture2D(
-                FramebufferTarget.Framebuffer,
-                FramebufferAttachment.ColorAttachment6,
                 TextureTarget.Texture2D,
                 0,
                 0);

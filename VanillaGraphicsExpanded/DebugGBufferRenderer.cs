@@ -116,9 +116,8 @@ public sealed class DebugGBufferRenderer : IRenderer, IDisposable
         {
             1 => gBufferRenderer.NormalTextureId,
             2 => gBufferRenderer.MaterialTextureId,
-            3 => gBufferRenderer.AlbedoTextureId,
-            4 => capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary].DepthTextureId,
-            5 => capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary].ColorTextureIds[0],
+            3 => capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary].DepthTextureId,
+            4 => capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary].ColorTextureIds[0],
             _ => 0
         };
     }
