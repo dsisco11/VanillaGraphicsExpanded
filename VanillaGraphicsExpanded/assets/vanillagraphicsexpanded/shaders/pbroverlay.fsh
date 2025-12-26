@@ -43,7 +43,6 @@ const float ROUGHNESS_MIN = 0.3;
 const float ROUGHNESS_MAX = 0.4;
 const float ROUGHNESS_DEFAULT = 0.8;  // Default roughness at far distance
 const float METALLIC_BASE = 0.0;
-const float PI = 3.14159265359;
 
 #include squirrel3.fsh
 #include pbrFunctions.fsh
@@ -253,24 +252,19 @@ void main() {
     vec3 V = normalize((invModelViewMatrix * vec4(viewDirViewSpace, 0.0)).xyz);
     // lightDirection is already a normalized direction vector pointing toward the sun
     vec3 L = lightDirection;
-    vec3 H = normalize(V + L);
     
     // Calculate F0 (surface reflection at zero incidence)
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, albedo, metallic);
     
-    // Cook-Torrance BRDF
-    // float NDF = distributionGGX(N, H, roughness);
-    // float G = geometrySmith(N, V, L, roughness);
-    // vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
+    // Cook-Torrance BRDF using imported PBR functions
+    vec3 H = normalize(V + L);
+    vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
+    vec3 specular = cookTorranceBRDF(N, V, L, F0, roughness);
     
     vec3 kS = F;
     vec3 kD = vec3(1.0) - kS;
     kD *= 1.0 - metallic;
-    
-    vec3 numerator = NDF * G * F;
-    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
-    vec3 specular = numerator / denominator;
     
     // Combine diffuse and specular
     float NdotL = max(dot(N, L), 0.0);
