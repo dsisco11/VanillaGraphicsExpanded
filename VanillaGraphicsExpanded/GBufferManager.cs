@@ -7,10 +7,10 @@ namespace VanillaGraphicsExpanded;
 /// <summary>
 /// Manages G-buffer attachments for the Primary framebuffer using raw OpenGL calls.
 /// This adds multiple color attachments to store deferred rendering data:
-/// - ColorAttachment0: Original primary color (managed by VS)
-/// - ColorAttachment1: World-space normals (RGBA16F)
-/// - ColorAttachment2: Material properties (RGBA16F) - Reflectivity, Roughness, Metallic, Emissive
-/// - ColorAttachment3: Albedo (RGB8)
+/// - ColorAttachment0-3: Managed by VS (outColor, outGlow, outGNormal, outGPosition)
+/// - ColorAttachment4: World-space normals (RGBA16F) - layout(location = 4)
+/// - ColorAttachment5: Material properties (RGBA16F) - layout(location = 5)
+/// - ColorAttachment6: Albedo (RGB8) - layout(location = 6)
 /// - DepthAttachment: Hyperbolic depth (Depth32f)
 /// </summary>
 public sealed class GBufferManager : IDisposable
@@ -193,26 +193,26 @@ public sealed class GBufferManager : IDisposable
         // Bind the Primary framebuffer
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
 
-        // Attach normal texture as ColorAttachment1
+        // Attach normal texture as ColorAttachment4 (matches layout(location = 4))
         GL.FramebufferTexture2D(
             FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment1,
+            FramebufferAttachment.ColorAttachment4,
             TextureTarget.Texture2D,
             normalTextureId,
             0);
 
-        // Attach material texture as ColorAttachment2
+        // Attach material texture as ColorAttachment5 (matches layout(location = 5))
         GL.FramebufferTexture2D(
             FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment2,
+            FramebufferAttachment.ColorAttachment5,
             TextureTarget.Texture2D,
             materialTextureId,
             0);
 
-        // Attach albedo texture as ColorAttachment3
+        // Attach albedo texture as ColorAttachment6 (matches layout(location = 6))
         GL.FramebufferTexture2D(
             FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment3,
+            FramebufferAttachment.ColorAttachment6,
             TextureTarget.Texture2D,
             albedoTextureId,
             0);
@@ -226,13 +226,17 @@ public sealed class GBufferManager : IDisposable
             0);
 
         // Update draw buffers to include all color attachments (depth is not included)
+        // Must include all attachments 0-6, even VS-managed ones, for MRT to work correctly
         DrawBuffersEnum[] drawBuffers = { 
-            DrawBuffersEnum.ColorAttachment0,  // Original primary color
-            DrawBuffersEnum.ColorAttachment1,  // Normal
-            DrawBuffersEnum.ColorAttachment2,  // Material
-            DrawBuffersEnum.ColorAttachment3   // Albedo
+            DrawBuffersEnum.ColorAttachment0,  // VS: outColor
+            DrawBuffersEnum.ColorAttachment1,  // VS: outGlow
+            DrawBuffersEnum.ColorAttachment2,  // VS: outGNormal (SSAO)
+            DrawBuffersEnum.ColorAttachment3,  // VS: outGPosition (SSAO)
+            DrawBuffersEnum.ColorAttachment4,  // VGE: Normal
+            DrawBuffersEnum.ColorAttachment5,  // VGE: Material
+            DrawBuffersEnum.ColorAttachment6   // VGE: Albedo
         };
-        GL.DrawBuffers(4, drawBuffers);
+        GL.DrawBuffers(7, drawBuffers);
 
         // Verify framebuffer is complete
         var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
@@ -263,24 +267,24 @@ public sealed class GBufferManager : IDisposable
         
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
 
-        // Detach all our textures
+        // Detach all our textures (ColorAttachment4-6)
         GL.FramebufferTexture2D(
             FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment1,
+            FramebufferAttachment.ColorAttachment4,
             TextureTarget.Texture2D,
             0,
             0);
 
         GL.FramebufferTexture2D(
             FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment2,
+            FramebufferAttachment.ColorAttachment5,
             TextureTarget.Texture2D,
             0,
             0);
 
         GL.FramebufferTexture2D(
             FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment3,
+            FramebufferAttachment.ColorAttachment6,
             TextureTarget.Texture2D,
             0,
             0);
@@ -288,9 +292,14 @@ public sealed class GBufferManager : IDisposable
         // Note: We don't detach DepthAttachment as VS manages the original depth buffer
         // and will need to reattach it. The depth texture will be deleted on dispose.
 
-        // Reset draw buffers to only ColorAttachment0
-        DrawBuffersEnum[] drawBuffers = { DrawBuffersEnum.ColorAttachment0 };
-        GL.DrawBuffers(1, drawBuffers);
+        // Reset draw buffers to VS defaults (0-3)
+        DrawBuffersEnum[] drawBuffers = { 
+            DrawBuffersEnum.ColorAttachment0,
+            DrawBuffersEnum.ColorAttachment1,
+            DrawBuffersEnum.ColorAttachment2,
+            DrawBuffersEnum.ColorAttachment3
+        };
+        GL.DrawBuffers(4, drawBuffers);
 
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
 
