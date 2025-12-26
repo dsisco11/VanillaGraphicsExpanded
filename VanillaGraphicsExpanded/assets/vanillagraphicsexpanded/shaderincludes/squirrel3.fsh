@@ -27,5 +27,5 @@ float Squirrel3HashF(vec3 p)
     uint y = floatBitsToUint(p.y);
     uint z = floatBitsToUint(p.z);
     uint hashed = Squirrel3HashU(x, y, z);
-    return float(hashed) / float(0xffffffffU);
+    return uintBitsToFloat(hashed) / uintBitsToFloat(0xffffffffU);
 }
