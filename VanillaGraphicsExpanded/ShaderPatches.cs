@@ -156,13 +156,6 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
         static void LoadShaderProgram(Vintagestory.Client.NoObf.ShaderProgram program, bool useSSBOs)
         {
             string shaderName = program.PassName;
-
-            // Don't inject twice
-            if (AlreadyPatchedShaders.Contains(shaderName))
-            {
-                return;
-            }
-
             // Perform import processing for ALL shaders
             try
             {
@@ -170,7 +163,12 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
                 {
                     ShaderSourcePatcher patcher = new ShaderSourcePatcher(program.FragmentShader.Code, shaderName)
                         .ProcessImports(ImportsCache, _api?.Logger);
-                    TryInjectGBuffersIntoShader(patcher);
+
+                    // Don't inject twice
+                    if (!AlreadyPatchedShaders.Contains(shaderName))
+                    {
+                        TryInjectGBuffersIntoShader(patcher);
+                    }
                     program.FragmentShader.Code = patcher.Build();
                 }
                 if (program.VertexShader?.Code is not null)
