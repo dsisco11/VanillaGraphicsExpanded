@@ -42,6 +42,10 @@
     </Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="TinyTokenizer" Version="0.2.*" />
+  </ItemGroup>
+
 <ItemGroup>
   <Content Include="modinfo.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

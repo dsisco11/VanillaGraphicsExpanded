@@ -16,23 +16,21 @@ public static class ShaderPatches
 {
     private const string HarmonyId = "vanillagraphicsexpanded.shaderpatches";
     private static Harmony? harmony;
+    private static ICoreAPI? _api;
 
     // Fragment shader code to inject - declares the MRT output at location 4
     // (locations 0-3 are used by outColor, outGlow, outGNormal, outGPosition)
-    private const string NormalOutputDeclaration = @"
-// VGE G-Buffer world-space normal output
-layout(location = 4) out vec4 vge_outNormal;
-";
+    private const string NormalOutputDeclaration =
+        "\n// VGE G-Buffer world-space normal output\nlayout(location = 4) out vec4 vge_outNormal;\n";
 
     // Code to inject before the final closing brace of main() to write the normal
     // Use 'normal' (world-space) instead of 'gnormal' (view-space)
-    private const string NormalOutputWrite = @"
-    // VGE: Write world-space normal to G-buffer
-    vge_outNormal = vec4(normal * 0.5 + 0.5, 1.0);
-";
+    private const string NormalOutputWrite =
+        "\n    // VGE: Write world-space normal to G-buffer\n    vge_outNormal = vec4(normal * 0.5 + 0.5, 1.0);\n";
 
     public static void Apply(ICoreAPI api)
     {
+        _api = api;
         harmony = new Harmony(HarmonyId);
         harmony.PatchAll();
         api.Logger.Notification("[VGE] Harmony shader patches applied");
@@ -41,6 +39,7 @@ layout(location = 4) out vec4 vge_outNormal;
     public static void Unpatch(ICoreAPI? api)
     {
         harmony?.UnpatchAll(HarmonyId);
+        _api = null;
         api?.Logger.Notification("[VGE] Harmony shader patches removed");
     }
 
@@ -51,6 +50,7 @@ layout(location = 4) out vec4 vge_outNormal;
     public static class RegisterShaderProgramPatch
     {
         public static HashSet<string> PatchedShaders = ["chunkopaque", "chunktopsoil", "standard", "instanced"];
+
         [HarmonyPatch(typeof(Vintagestory.Client.NoObf.ShaderRegistry), "LoadShaderProgram")]
         [HarmonyPostfix]
         static void LoadShaderProgram(Vintagestory.Client.NoObf.ShaderProgram program, bool useSSBOs)
@@ -73,28 +73,23 @@ layout(location = 4) out vec4 vge_outNormal;
                 // Don't inject twice
                 if (code.Contains("vge_outNormal")) return;
 
-                // Inject the output declaration after #version and any existing layout declarations
-                // Find position after #version line
-                int versionEnd = code.IndexOf('\n', code.IndexOf("#version"));
-                if (versionEnd < 0) versionEnd = 0;
-
-                // Insert declaration
-                code = code.Insert(versionEnd + 1, NormalOutputDeclaration);
-
-                // Find the closing brace of main() and insert the write before it
-                int mainEnd = TextPatcher.FindMainFunctionClosingBrace(code);
-                if (mainEnd > 0)
-                {
-                    code = code.Insert(mainEnd, NormalOutputWrite);
-                }
+                // Use the fluent shader patcher to inject G-buffer output
+                code = new ShaderSourcePatcher(code, shaderName)
+                    .AfterVersionDirective().Insert(NormalOutputDeclaration)
+                    .BeforeMainClose().Insert(NormalOutputWrite)
+                    .Build();
 
                 fragmentShader.Code = code;
-                System.Diagnostics.Debug.WriteLine($"[VGE] Injected G-buffer output into {shaderName}");
+                _api?.Logger.Debug($"[VGE] Injected G-buffer output into {shaderName}");
+            }
+            catch (ShaderPatchException ex)
+            {
+                _api?.Logger.Warning($"[VGE] Failed to patch {shaderName}: {ex.Message}");
             }
             catch (Exception ex)
             {
                 // Log but don't crash
-                System.Diagnostics.Debug.WriteLine($"[VGE] Failed to inject into {shaderName}: {ex.Message}");
+                _api?.Logger.Error($"[VGE] Unexpected error patching {shaderName}: {ex.Message}");
             }
         }
     }
