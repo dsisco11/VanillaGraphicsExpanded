@@ -5,6 +5,7 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <OutputPath>bin\$(Configuration)\Mods\mod</OutputPath>
     <Nullable>enable</Nullable>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
@@ -43,7 +44,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="TinyTokenizer" Version="0.2.*" />
+    <PackageReference Include="TinyTokenizer" Version="0.2.*">
+      <PrivateAssets>none</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
 
 <ItemGroup>
