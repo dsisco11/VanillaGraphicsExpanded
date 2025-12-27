@@ -5,6 +5,8 @@ using System.Text;
 
 using HarmonyLib;
 
+using VanillaGraphicsExpanded.PBR;
+
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.Client.NoObf;
@@ -41,7 +43,7 @@ public static class ShaderIncludesHook
     {
         if (_assetManager is null)
         {
-            _logger?.Warning("[VGE] ShaderIncludesHook: AssetManager not available");
+            _logger?.Warning("[VGE][Shaders] AssetManager not available");
             return;
         }
 
@@ -52,106 +54,38 @@ public static class ShaderIncludesHook
             domain: null,
             loadAsset: true);
         
-        _logger?.Audit($"[VGE] ShaderIncludesHook: Processing {shaderIncludes.Count} shader includes");
+        _logger?.Audit($"[VGE][Shaders] Processing {shaderIncludes.Count} shader includes");
 
         int patchedCount = 0;
         foreach (IAsset asset in shaderIncludes)
         {
-            if (TryPatchAsset(asset))
+            if (VanillaShaderPatches.TryPatchAsset(_logger, asset))
             {
                 patchedCount++;
             }
         }
 
+        _logger?.Audit($"[VGE][Shaders] Patched {patchedCount} shader include(s)");
+        // Now process the actual shader source files as well
+        patchedCount = 0;
+        _logger?.Audit($"[VGE][Shaders] Processing shader source files");
+
+        List<IAsset> shaderSources = _assetManager.GetManyInCategory(
+            AssetCategory.shaders.Code,
+            pathBegins: "",
+            domain: null,
+            loadAsset: true);
+        foreach (IAsset asset in shaderSources)
+        {
+            if (VanillaShaderPatches.TryPatchAsset(_logger, asset))
+            {
+                patchedCount++;
+            }
+        }    
+
         if (patchedCount > 0)
         {
-            _logger?.Notification($"[VGE] ShaderIncludesHook: Patched {patchedCount} shader include(s)");
+            _logger?.Notification($"[VGE][Shaders] Patched {patchedCount} shader files(s)");
         }
-    }
-
-    /// <summary>
-    /// Attempts to patch a shader asset by processing #import directives.
-    /// </summary>
-    /// <param name="asset">The shader asset to patch.</param>
-    /// <returns>True if the asset was modified, false otherwise.</returns>
-    private static bool TryPatchAsset(IAsset asset)
-    {
-        if (asset.Data is null || asset.Data.Length == 0)
-        {
-            return false;
-        }
-
-        try
-        {
-            switch (asset.Name)
-            {
-                case "fogandlight.fsh":
-                    TryPatchFogAndLight(asset);
-                    break;
-                // case "normalshading.fsh": // Note: Disabled since we don't really care to change the lighting for gui items or first-person view items.
-                //     PatchNormalshading(asset);
-                //     break;
-                default:
-                    break;
-            }
-
-            _logger?.Audit($"[VGE] Patched shader include: {asset.Name}");
-            return true;
-        }
-        catch (SourceCodePatchException ex)
-        {
-            _logger?.Warning($"[VGE] Failed to patch shader include '{asset.Name}': {ex.Message}");
-            return false;
-        }
-        catch (Exception ex)
-        {
-            _logger?.Error($"[VGE] Unexpected error patching shader include '{asset.Name}': {ex.Message}");
-            return false;
-        }
-    }
-
-    private static void TryPatchFogAndLight(IAsset asset)
-    {
-        SourceCodePatcher patcher = new(asset.ToText(), asset.Name);
-        // intercept 'applyFog' function and just return unadjusted color
-        patcher.FindFunction("applyFog").AtTop()
-            .Insert(@"return rgbaPixel;");
-
-        // intercept 'getBrightnessFromShadowMap' function and return full brightness
-        patcher.FindFunction("getBrightnessFromShadowMap").AtTop()
-            .Insert(@"return 1.0;");
-
-        // intercept 'getBrightnessFromNormal' function and return full brightness
-        patcher.FindFunction("getBrightnessFromNormal").AtTop()
-            .Insert(@"return 1.0;");
-
-        // intercept 'applyFogAndShadow' function and just return unadjusted color
-        patcher.FindFunction("applyFogAndShadow").AtTop()
-            .Insert(@"return rgbaPixel;");
-
-        // intercept 'applyFogAndShadowWithNormal' function and just return unadjusted color
-        patcher.FindFunction("applyFogAndShadowWithNormal").AtTop()
-            .Insert(@"return rgbaPixel;");
-
-        // intercept 'applyFogAndShadowFromBrightness' function and just return unadjusted color
-        patcher.FindFunction("applyFogAndShadowFromBrightness").AtTop()
-            .Insert(@"return rgbaPixel;");
-
-        // Write modified content back to the asset
-        asset.Data = Encoding.UTF8.GetBytes(patcher.Build());
-        asset.IsPatched = true;
-    }
-
-    private static void PatchNormalshading(IAsset asset)
-    {
-        SourceCodePatcher patcher = new(asset.ToText(), asset.Name);
-
-        // intercept 'getBrightnessFromNormal' function and return full brightness
-        patcher.FindFunction("getBrightnessFromNormal").AtTop()
-            .Insert(@"return 1.0;");
-
-        // Write modified content back to the asset
-        asset.Data = Encoding.UTF8.GetBytes(patcher.Build());
-        asset.IsPatched = true;
     }
 }

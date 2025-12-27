@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Harmony;
 /// Harmony patches for overriding shader program properties.
 /// </summary>
 [HarmonyPatch]
-public static class ShaderOverrides
+public static class ShaderProgramPatches
 {
     // NOTE: Currently unused, now we just patch the shader includes to universally kill normal shading.
     /// <summary>
