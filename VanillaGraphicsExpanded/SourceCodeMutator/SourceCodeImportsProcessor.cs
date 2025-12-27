@@ -155,7 +155,7 @@ public class SourceCodeImportsProcessor : SourceCodePatcher
 
             long directiveStart = taggedToken.Position;
 
-            // Find the file name (could be in quotes or angle brackets)
+            // Find the file name
             string? fileName = ExtractImportFileName(i + 1, out int fileNameEndIdx);
             if (fileName == null)
             {
@@ -173,7 +173,7 @@ public class SourceCodeImportsProcessor : SourceCodePatcher
 
     /// <summary>
     /// Extracts the file name from an @import directive.
-    /// Handles both "filename" and &lt;filename&gt; syntax.
+    /// Handles string quoted "filename" syntax.
     /// </summary>
     private string? ExtractImportFileName(int startIdx, out int endIdx)
     {
@@ -198,32 +198,6 @@ public class SourceCodeImportsProcessor : SourceCodePatcher
                 return content[1..^1].ToString();
             }
             return null;
-        }
-
-        // Check for angle bracket syntax (<filename>)
-        if (token is TinyTokenizer.SymbolToken { Symbol: '<' })
-        {
-            var fileNameBuilder = new StringBuilder();
-            int idx = nextIdx + 1;
-
-            while (idx < _tokens.Length)
-            {
-                var innerToken = _tokens[idx];
-
-                if (innerToken is TinyTokenizer.SymbolToken { Symbol: '>' })
-                {
-                    endIdx = idx;
-                    return fileNameBuilder.ToString();
-                }
-
-                // Don't include whitespace in filename for angle bracket syntax
-                if (innerToken is not TinyTokenizer.WhitespaceToken)
-                {
-                    fileNameBuilder.Append(innerToken.Content.Span);
-                }
-
-                idx++;
-            }
         }
 
         return null;
