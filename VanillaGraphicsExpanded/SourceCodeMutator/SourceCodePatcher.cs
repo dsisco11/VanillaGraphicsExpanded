@@ -53,6 +53,11 @@ public class SourceCodePatcher
     /// Gets the number of pending insertions.
     /// </summary>
     public int InsertionCount => _insertions.Count;
+
+    /// <summary>
+    /// Gets whether there are any pending changes to be applied.
+    /// </summary>
+    public bool HasChanges => _insertions.Count > 0;
     #endregion
 
     #region Nested Types
