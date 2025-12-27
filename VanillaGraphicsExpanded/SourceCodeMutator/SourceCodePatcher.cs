@@ -71,10 +71,10 @@ public class SourceCodePatcher
         _source = source ?? throw new ArgumentNullException(nameof(source));
         _sourceName = sourceName;
 
-        // Configure tokenizer for C-style languages (C-style comments, tag prefixes for preprocessor directives)
+        // Configure tokenizer for C-style languages (C-style comments, tag prefixes for preprocessor directives and imports)
         var options = TokenizerOptions.Default
             .WithCommentStyles(CommentStyle.CStyleSingleLine, CommentStyle.CStyleMultiLine)
-            .WithTagPrefixes('#');
+            .WithTagPrefixes('#', '@');
 
         _tokens = source.TokenizeToTokens(options);
 

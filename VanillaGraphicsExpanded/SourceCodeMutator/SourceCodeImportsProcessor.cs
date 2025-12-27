@@ -7,10 +7,10 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded;
 
 /// <summary>
-/// A specialized <see cref="SourceCodePatcher"/> for processing <c>#import</c> directives in shader source code.
+/// A specialized <see cref="SourceCodePatcher"/> for processing <c>@import</c> directives in shader source code.
 /// </summary>
 /// <remarks>
-/// This processor finds all <c>#import</c> directives and replaces them with the referenced file contents,
+/// This processor finds all <c>@import</c> directives and replaces them with the referenced file contents,
 /// commenting out the original directive for debugging purposes.
 /// </remarks>
 /// <example>
@@ -30,7 +30,7 @@ public class SourceCodeImportsProcessor : SourceCodePatcher
     #region Nested Types
 
     /// <summary>
-    /// Represents a found #import directive in shader source.
+    /// Represents a found @import directive in shader source.
     /// </summary>
     private readonly record struct ImportDirective(long DirectiveStart, long LineEnd, string FileName);
 
@@ -62,7 +62,7 @@ public class SourceCodeImportsProcessor : SourceCodePatcher
     #region Static Methods
 
     /// <summary>
-    /// Processes a shader source code string to resolve all <c>#import</c> directives.
+    /// Processes a shader source code string to resolve all <c>@import</c> directives.
     /// This is a convenience method for one-off import processing without additional patching.
     /// </summary>
     /// <param name="source">The source code to process.</param>
@@ -87,7 +87,7 @@ public class SourceCodeImportsProcessor : SourceCodePatcher
     #region Instance Methods
 
     /// <summary>
-    /// Finds all <c>#import</c> directives and queues insertions to comment them out
+    /// Finds all <c>@import</c> directives and queues insertions to comment them out
     /// and inject the referenced file contents below each one.
     /// </summary>
     /// <param name="logger">Optional logger for audit messages.</param>
@@ -108,7 +108,7 @@ public class SourceCodeImportsProcessor : SourceCodePatcher
 
             // Build the replacement: commented original line + newline + import contents
             var injection = new StringBuilder();
-            injection.Append("//");  // Comment out the #import line
+            injection.Append("//");  // Comment out the @import line
             injection.Append(_source.AsSpan((int)import.DirectiveStart, (int)(import.LineEnd - import.DirectiveStart)));
             injection.AppendLine();
             injection.Append(importContent);
@@ -125,7 +125,7 @@ public class SourceCodeImportsProcessor : SourceCodePatcher
                 injection.ToString(),
                 (int)(import.LineEnd - import.DirectiveStart)));
 
-            logger?.Audit($"[VGE] Processed #import '{import.FileName}' at position {import.DirectiveStart}");
+            logger?.Audit($"[VGE] Processed @import '{import.FileName}' at position {import.DirectiveStart}");
         }
 
         return this;
@@ -136,7 +136,7 @@ public class SourceCodeImportsProcessor : SourceCodePatcher
     #region Private Helper Methods
 
     /// <summary>
-    /// Finds all #import directives in the tokenized shader source.
+    /// Finds all @import directives in the tokenized shader source.
     /// </summary>
     private List<ImportDirective> FindImportDirectives()
     {
@@ -146,8 +146,8 @@ public class SourceCodeImportsProcessor : SourceCodePatcher
         {
             var token = _tokens[i];
 
-            // Look for #import tagged identifier
-            if (token is not TinyTokenizer.TaggedIdentToken { Tag: '#' } taggedToken ||
+            // Look for @import tagged identifier
+            if (token is not TinyTokenizer.TaggedIdentToken { Tag: '@' } taggedToken ||
                 !taggedToken.Content.Span.Equals("import".AsSpan(), StringComparison.Ordinal))
             {
                 continue;
@@ -172,7 +172,7 @@ public class SourceCodeImportsProcessor : SourceCodePatcher
     }
 
     /// <summary>
-    /// Extracts the file name from an #import directive.
+    /// Extracts the file name from an @import directive.
     /// Handles both "filename" and &lt;filename&gt; syntax.
     /// </summary>
     private string? ExtractImportFileName(int startIdx, out int endIdx)

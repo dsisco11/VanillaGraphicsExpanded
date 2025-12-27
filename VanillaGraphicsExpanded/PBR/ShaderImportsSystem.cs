@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.PBR;
 
 /// <summary>
 /// Singleton system responsible for loading shader import files from mod assets
-/// and inlining #import directives into shader IAsset instances.
+/// and inlining @import directives into shader IAsset instances.
 /// </summary>
 public sealed class ShaderImportsSystem
 {
@@ -105,7 +105,7 @@ public sealed class ShaderImportsSystem
     }
 
     /// <summary>
-    /// Processes all #import directives on an existing patcher.
+    /// Processes all @import directives on an existing patcher.
     /// </summary>
     /// <param name="patcher">The patcher to process imports on.</param>
     /// <param name="log">Optional logger for warnings/errors.</param>

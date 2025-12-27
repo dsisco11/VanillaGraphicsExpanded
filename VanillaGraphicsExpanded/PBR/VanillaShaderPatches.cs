@@ -54,12 +54,18 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
         {
             switch (patcher.SourceName)
             {
-                // Add pre-processing cases here as needed
-                // Example:
-                // case "someshader.fsh":
-                //     PreProcessSomeShader(patcher);
-                //     log?.Audit($"[VGE] Pre-processed shader: {patcher.SourceName}");
-                //     return true;
+                // Main shader files - inject vsFunctions import
+                case "chunkopaque.fsh":
+                case "chunktopsoil.fsh":
+                case "standard.fsh":
+                case "instanced.fsh":
+                {
+                    patcher
+                        .FindVersionDirective().After()
+                        .Insert("@import \"vsFunctions.fsh\"\n");
+                    log?.Audit($"[VGE] Applied pre-processing to shader: {patcher.SourceName}");
+                    return true;
+                }
 
                 default:
                     return false;
