@@ -61,8 +61,8 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
                 case "instanced.fsh":
                 {
                     patcher
-                        .FindVersionDirective().After()
-                        .Insert("@import \"vsFunctions.fsh\"\n");
+                        .FindFunction("main").Before()
+                        .Insert($"@import \"vsFunctions.fsh\"\n");
                     log?.Audit($"[VGE] Applied pre-processing to shader: {patcher.SourceName}");
                     return true;
                 }

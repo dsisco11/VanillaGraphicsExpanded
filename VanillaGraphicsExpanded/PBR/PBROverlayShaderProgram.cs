@@ -1,4 +1,5 @@
 using Vintagestory.API.Client;
+using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
@@ -10,6 +11,19 @@ namespace VanillaGraphicsExpanded;
 /// </summary>
 public class PBROverlayShaderProgram : ShaderProgram
 {
+    #region Static
+    public static void Register(ICoreClientAPI api)
+    {
+        var instance = new PBROverlayShaderProgram
+        {
+            PassName = "pbroverlay",
+            AssetDomain = "vanillagraphicsexpanded"
+        };
+        api.Shader.RegisterFileShaderProgram("pbroverlay", instance);
+        instance.Compile();
+    }
+    #endregion
+
     #region Texture Samplers
 
     /// <summary>

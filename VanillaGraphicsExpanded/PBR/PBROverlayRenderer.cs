@@ -3,6 +3,9 @@ using System.Numerics;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
+using Vintagestory.Client.NoObf;
+
+using static OpenTK.Graphics.OpenGL.GL;
 
 namespace VanillaGraphicsExpanded;
 
@@ -24,7 +27,6 @@ public class PBROverlayRenderer : IRenderer, IDisposable
     protected readonly ICoreClientAPI capi;
     protected readonly GBufferRenderer gBufferRenderer;
     protected MeshRef? quadMeshRef;
-    protected PBROverlayShaderProgram? shader;
     protected readonly float[] invProjectionMatrix = new float[16];
     protected readonly float[] invModelViewMatrix = new float[16];
 
@@ -91,30 +93,25 @@ public class PBROverlayRenderer : IRenderer, IDisposable
         quadMesh.Rgba = null;
         quadMeshRef = capi.Render.UploadMesh(quadMesh);
 
-        // Register for shader reload events
-        capi.Event.ReloadShader += LoadShader;
-        LoadShader();
+        // Register renderer
+        capi.Event.RegisterRenderer(this, EnumRenderStage.AfterOIT, renderStageName);
+        //capi.Event.RegisterRenderer(this, EnumRenderStage.AfterBlit, renderStageName);
 
-        // Register renderer at AfterBlit stage
-        capi.Event.RegisterRenderer(this, EnumRenderStage.AfterBlit, renderStageName);
+        // Register hotkey to toggle PBR overlay (F7)
+        capi.Input.RegisterHotKey(
+            "vgetoggle",
+            "VGE Toggle PBR Overlay",
+            GlKeys.F7,
+            HotkeyType.DevTool);
+        capi.Input.SetHotKeyHandler("vgetoggle", OnTogglePbrOverlay);
     }
 
-    #endregion
-
-    #region Shader Loading
-
-    private bool LoadShader()
+    private bool OnTogglePbrOverlay(KeyCombination keyCombination)
     {
-        shader = new PBROverlayShaderProgram();
-        shader.PassName = "pbroverlay";
-        shader.AssetDomain = "vanillagraphicsexpanded";
-        capi.Shader.RegisterFileShaderProgram("pbroverlay", shader);
-        var success = shader.Compile();
-        if (!success)
-        {
-            capi.Logger.Error("[VanillaGraphicsExpanded] Failed to compile PBR overlay shader");
-            return false;
-        }
+        this.Enabled = !this.Enabled;
+
+        string status = this.Enabled ? "enabled" : "disabled";
+        capi?.TriggerIngameError(this, "vge", $"[VGE] PBR overlay {status}");
 
         return true;
     }
@@ -139,7 +136,7 @@ public class PBROverlayRenderer : IRenderer, IDisposable
 
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
-        if (shader is null || quadMeshRef is null || !ShouldRender())
+        if (quadMeshRef is null || !ShouldRender())
         {
             return;
         }
@@ -176,6 +173,14 @@ public class PBROverlayRenderer : IRenderer, IDisposable
         // Disable depth writing for fullscreen pass
         capi.Render.GLDepthMask(false);
         capi.Render.GlToggleBlend(false);
+
+        
+        //var shader = PBROverlayShaderProgram.Instance;
+        var shader = ShaderRegistry.getProgramByName("pbroverlay") as PBROverlayShaderProgram;
+        if (shader is null)
+        {
+            return;
+        }
 
         shader.Use();
 
@@ -276,16 +281,11 @@ public class PBROverlayRenderer : IRenderer, IDisposable
 
     public virtual void Dispose()
     {
-        capi.Event.ReloadShader -= LoadShader;
-
         if (quadMeshRef is not null)
         {
             capi.Render.DeleteMesh(quadMeshRef);
             quadMeshRef = null;
         }
-
-        shader?.Dispose();
-        shader = null;
     }
 
     #endregion

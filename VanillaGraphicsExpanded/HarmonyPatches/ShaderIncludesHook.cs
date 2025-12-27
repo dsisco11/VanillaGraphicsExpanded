@@ -1,14 +1,16 @@
+using HarmonyLib;
+
 using System.Collections.Generic;
 using System.Text;
 
-using HarmonyLib;
-
 using VanillaGraphicsExpanded.PBR;
 
+using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.Client.NoObf;
+using Vintagestory.Common;
 
-namespace VanillaGraphicsExpanded.Harmony;
+namespace VanillaGraphicsExpanded.HarmonyPatches;
 
 /// <summary>
 /// Harmony patch that intercepts shader loading to apply import inlining and shader modifications.
@@ -30,13 +32,29 @@ public static class ShaderIncludesHook
         _assetManager = assetManager;
     }
 
+    [HarmonyPatch(typeof(Vintagestory.Client.NoObf.ShaderRegistry), "LoadShaderProgram")]
+    [HarmonyPostfix]
+    public static void LoadShaderProgram_Hook(Vintagestory.Client.NoObf.ShaderProgram program, bool useSSBOs)
+    {
+        if (program is null)
+        {
+            return;
+        }
+        if (_logger is null)
+        {
+            return;
+        }
+        _logger.Audit($"[VGE][Shaders] Processing shader program '{program.PassName}'");
+        ProcessShaderProgram(program);
+    }
+
     /// <summary>
     /// Prefix patch for ShaderRegistry.loadRegisteredShaderPrograms.
     /// Processes shader assets in-place before the original method compiles them.
     /// </summary>
-    [HarmonyPatch(typeof(ShaderRegistry), "loadRegisteredShaderPrograms")]
-    [HarmonyPrefix]
-    static void Prefix()
+    //[HarmonyPatch(typeof(Vintagestory.Client.NoObf.ShaderRegistry), "loadRegisteredShaderPrograms")]
+    //[HarmonyPrefix]
+    public static void loadRegisteredShaderPrograms_Hook()
     {
         if (_assetManager is null)
         {
@@ -70,6 +88,58 @@ public static class ShaderIncludesHook
         if (patchedCount > 0)
         {
             _logger?.Notification($"[VGE][Shaders] Patched {patchedCount} shader source file(s)");
+        }
+    }
+
+    private static void ProcessShaderProgram(in IShaderProgram shaderProgram)
+    {
+        // Process vertex shader
+        ProcessShader(shaderProgram.VertexShader, $"{shaderProgram.PassName}.vsh", preProcess: true, inlineImports: true, postProcess: true);
+        // Process fragment shader
+        ProcessShader(shaderProgram.FragmentShader, $"{shaderProgram.PassName}.fsh", preProcess: true, inlineImports: true, postProcess: true);
+        // Process geometry shader, if present
+        if (shaderProgram.GeometryShader is not null)
+        {
+            ProcessShader(shaderProgram.GeometryShader, $"{shaderProgram.PassName}.gsh", preProcess: true, inlineImports: true, postProcess: true);
+        }
+    }
+
+    /// <summary>
+    /// Processes a single shader asset through the full pipeline:
+    /// 1. Pre-processing (before imports)
+    /// 2. Import inlining
+    /// 3. Post-processing (after imports)
+    /// </summary>
+    private static void ProcessShader(in IShader shader, string shaderName, bool preProcess, bool inlineImports, bool postProcess)
+    {
+        // Create patcher without processing imports yet
+        var patcher = ShaderImportsSystem.Instance.CreatePatcher(shader.Code, shaderName);
+        if (patcher is null)
+        {
+            return;
+        }
+
+        bool wasMutated = false;
+        // Stage 1: Pre-processing (before imports are inlined)
+        if (preProcess)
+        {
+            wasMutated |= VanillaShaderPatches.TryApplyPreProcessing(_logger, patcher);
+        }
+        // Stage 2: Inline imports
+        if (inlineImports)
+        {
+            wasMutated |= ShaderImportsSystem.Instance.InlineImports(patcher, _logger);
+        }
+        // Stage 3: Post-processing (after imports are inlined)
+        if (postProcess)
+        {
+            wasMutated |= VanillaShaderPatches.TryApplyPatches(_logger, patcher);
+        }
+
+        if (wasMutated)
+        {
+            // Build and write back to asset
+            shader.Code = patcher.Build();
         }
     }
 

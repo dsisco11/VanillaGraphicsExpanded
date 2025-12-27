@@ -104,6 +104,15 @@ public sealed class ShaderImportsSystem
         return new SourceCodeImportsProcessor(sourceCode, _importsCache, asset.Name);
     }
 
+    public SourceCodeImportsProcessor? CreatePatcher(string sourceCode, string sourceName)
+    {
+        if (string.IsNullOrEmpty(sourceCode))
+        {
+            return null;
+        }
+        return new SourceCodeImportsProcessor(sourceCode, _importsCache, sourceName);
+    }
+
     /// <summary>
     /// Processes all @import directives on an existing patcher.
     /// </summary>
