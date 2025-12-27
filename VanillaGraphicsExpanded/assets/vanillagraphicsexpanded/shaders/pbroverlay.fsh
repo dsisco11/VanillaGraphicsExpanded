@@ -51,12 +51,10 @@ uniform float pbrFalloffEnd;    // Distance where procedural values fully fade o
 
 // PBR constants
 const float PATCH_SIZE = 1f / 32f; // 1/32nd of a block
-const float ROUGHNESS_MIN_DELTA = 0.0;
-const float ROUGHNESS_MAX_DELTA = 0.2;
-const float ROUGHNESS_DEFAULT = 0.8;  // Default roughness at far distance
-const float METALLIC_BASE = 0.0;
-const float METALLIC_MIN_DELTA = 0.0;
-const float METALLIC_MAX_DELTA = 0.2;
+const float ROUGHNESS_MIN_DELTA = 0.8;
+const float ROUGHNESS_MAX_DELTA = 1.0;
+const float METALLIC_MIN_DELTA = 0.9;
+const float METALLIC_MAX_DELTA = 1.0;
 
 #import "squirrel3.fsh"
 #import "pbrFunctions.fsh"
@@ -211,23 +209,29 @@ void main() {
     vec3 patchCoord = floor(worldPos / PATCH_SIZE);
     float hashRoughness = Squirrel3HashF(patchCoord);
     float randRoughness = mix(ROUGHNESS_MIN_DELTA, ROUGHNESS_MAX_DELTA, hashRoughness);
+    // Apply distance falloff - fade procedural values to defaults at far distances
+    float matRoughnessFactor = mix(1.0, randRoughness, falloffFactor);
     
     // Second hash with offset for metallic variation (for debug visualization)
     float hashMetallic = Squirrel3HashF(patchCoord + vec3(17.0, 31.0, 47.0));
     float randMetallic = mix(METALLIC_MIN_DELTA, METALLIC_MAX_DELTA, hashMetallic);
+    // Apply distance falloff - fade procedural values to defaults at far distances
+    float matMetallicFactor = mix(1.0, randMetallic, falloffFactor);
+
+    // Third hash with different offset for more variation
+    float hashEmissive = Squirrel3HashF(patchCoord + vec3(59.0, 83.0, 97.0));
+    float randEmissive = mix(0.7, 1.0, hashEmissive);
+    // Apply distance falloff - fade procedural values to defaults at far distances
+    float matEmissiveFactor = mix(1.0, randEmissive, falloffFactor);
     
     // Sample G-buffer material texture
     vec4 gMaterial = texture(gBufferMaterial, uv);
     // Read roughness/metallic from G-buffer material texture
     //  vec4(vge_reflectivity, vge_roughness, vge_metallic, vge_emissive);
     float matReflectivity = gMaterial.r;
-    float matRoughness = gMaterial.g;
-    float matMetallic = gMaterial.b;
-    float matEmissive = gMaterial.a;
-
-    // Apply distance falloff - fade procedural values to defaults at far distances
-    float roughness = matRoughness + mix(0.0, randRoughness, falloffFactor);
-    float metallic = matMetallic + mix(0.0, randMetallic, falloffFactor);
+    float matRoughness = gMaterial.g * matRoughnessFactor;
+    float matMetallic = gMaterial.b * matMetallicFactor;
+    float matEmissive = gMaterial.a * matEmissiveFactor;
     
     // Debug visualizations - G-Buffer attachments
     if (debugMode == 1) {
@@ -241,19 +245,19 @@ void main() {
         return;
     } else if (debugMode == 3) {
         // Material: Reflectivity (R channel)
-        outColor = vec4(vec3(gMaterial.r), 1.0);
+        outColor = vec4(vec3(matReflectivity), 1.0);
         return;
     } else if (debugMode == 4) {
         // Material: Roughness (G channel)
-        outColor = vec4(vec3(gMaterial.g), 1.0);
+        outColor = vec4(vec3(matRoughness), 1.0);
         return;
     } else if (debugMode == 5) {
         // Material: Metallic (B channel)
-        outColor = vec4(vec3(gMaterial.b), 1.0);
+        outColor = vec4(vec3(matMetallic), 1.0);
         return;
     } else if (debugMode == 6) {
         // Material: Emissive (A channel)
-        outColor = vec4(vec3(gMaterial.a), 1.0);
+        outColor = vec4(vec3(matEmissive), 1.0);
         return;
     } else if (debugMode == 7) {
         // Depth (linearized, logarithmic scale for visibility)
@@ -275,16 +279,16 @@ void main() {
     
     // Calculate F0 (surface reflection at zero incidence)
     vec3 F0 = vec3(0.04);
-    F0 = mix(F0, albedo, metallic);
+    F0 = mix(F0, albedo, matMetallic);
     
     // Cook-Torrance BRDF using imported PBR functions
     vec3 H = normalize(V + L);
     vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
-    vec3 specular = cookTorranceBRDF(N, V, L, F0, roughness);
+    vec3 specular = cookTorranceBRDF(N, V, L, F0, matRoughness);
     
     vec3 kS = F;
     vec3 kD = vec3(1.0) - kS;
-    kD *= 1.0 - metallic;
+    kD *= 1.0 - matMetallic;
     
     // Combine diffuse and specular
     float NdotL = max(dot(N, L), 0.0);
@@ -300,7 +304,12 @@ void main() {
     
     // Final color 
     // vec3 pbrColor = ambient + Lo;
-    vec3 pbrColor = mix(ambient, Lo, 0.5);    
+    vec3 pbrColor = mix(ambient, Lo, 0.5);
+    
+    // Add emissive contribution - emissive surfaces emit their own light
+    // Scale by albedo to get the emissive color, matEmissive controls intensity
+    vec3 emissive = albedo * matEmissive;
+    pbrColor += emissive;
+    
     outColor = vec4(pbrColor, albedoColor.a);
-    // outColor = vec4(finalColor, albedoColor.a);
 }

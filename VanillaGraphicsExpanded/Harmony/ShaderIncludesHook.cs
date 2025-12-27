@@ -52,7 +52,7 @@ public static class ShaderIncludesHook
             domain: null,
             loadAsset: true);
         
-        _logger?.Debug($"[VGE] ShaderIncludesHook: Processing {shaderIncludes.Count} shader includes");
+        _logger?.Audit($"[VGE] ShaderIncludesHook: Processing {shaderIncludes.Count} shader includes");
 
         int patchedCount = 0;
         foreach (IAsset asset in shaderIncludes)
@@ -95,7 +95,7 @@ public static class ShaderIncludesHook
                     break;
             }
 
-            _logger?.Debug($"[VGE] Patched shader include: {asset.Name}");
+            _logger?.Audit($"[VGE] Patched shader include: {asset.Name}");
             return true;
         }
         catch (SourceCodePatchException ex)
