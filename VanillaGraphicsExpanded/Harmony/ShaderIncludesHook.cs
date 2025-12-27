@@ -88,9 +88,9 @@ public static class ShaderIncludesHook
                 case "fogandlight.fsh":
                     TryPatchFogAndLight(asset);
                     break;
-                case "normalshading.fsh":
-                    PatchNormalshading(asset);
-                    break;
+                // case "normalshading.fsh": // Note: Disabled since we don't really care to change the lighting for gui items or first-person view items.
+                //     PatchNormalshading(asset);
+                //     break;
                 default:
                     break;
             }
