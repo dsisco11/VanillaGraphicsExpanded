@@ -6,6 +6,10 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.PBR;
 
+/// <summary>
+/// Handles WHAT modifications are applied to vanilla shader assets.
+/// Responsible for defining and applying shader code patches.
+/// </summary>
 internal static class VanillaShaderPatches
 {
     #region G-Buffer Injection Code
@@ -37,20 +41,11 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
 ";
     #endregion
 
-    #region Fields
-    /// <summary>
-    /// Tracks which shaders have already been patched to avoid double injection.
-    /// </summary>
-    public static HashSet<string> AlreadyPatchedShaders = [];
-    /// <summary>
-    /// Cache for imported shader code snippets to avoid redundant loading.
-    /// </summary>
-    public static Dictionary<string, string> ImportsCache = [];
-    #endregion
-
     /// <summary>
     /// Attempts to apply patches to the given base-game (vanilla) shader asset.
+    /// Import inlining should be done separately via ShaderImportsSystem before calling this.
     /// </summary>
+    /// <param name="log">Logger for warnings/errors.</param>
     /// <param name="asset">The shader asset to patch.</param>
     /// <returns>True if the asset was modified, false otherwise.</returns>
     internal static bool TryPatchAsset(ILogger? log, IAsset asset)
@@ -60,50 +55,74 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
             return false;
         }
 
-        var patcher = new SourceCodeImportsProcessor(asset.ToText(), ImportsCache, asset.Name)
-            .ProcessImports(log);
+        var patcher = new SourceCodePatcher(asset.ToText(), asset.Name);
 
         try
         {
+            bool patched = false;
+
             switch (asset.Name)
             {
+                // Shader includes
                 case "fogandlight.fsh":
-                    TryPatchFogAndLight(asset, patcher);
+                    PatchFogAndLight(patcher);
+                    patched = true;
                     break;
                 // case "normalshading.fsh": // Note: Disabled since we don't really care to change the lighting for gui items or first-person view items.
-                //     PatchNormalshading(asset);
+                //     PatchNormalshading(patcher);
+                //     patched = true;
                 //     break;
-                default:
+
+                // Main shader files - inject G-buffer outputs
+                case "chunkopaque.fsh":
+                case "chunktopsoil.fsh":
+                case "standard.fsh":
+                case "instanced.fsh":
+                    InjectGBufferOutputs(patcher);
+                    patched = true;
                     break;
+
+                default:
+                    return false;
             }
 
-            log?.Audit($"[VGE] Patched shader include: {asset.Name}");
-            return true;
+            if (patched)
+            {
+                // Write modified content back to the asset
+                var patchedCode = patcher.Build();
+                asset.Data = Encoding.UTF8.GetBytes(patchedCode);
+                asset.IsPatched = true;
+                log?.Audit($"[VGE] Patched shader: {asset.Name}");
+            }
+
+            return patched;
         }
         catch (SourceCodePatchException ex)
         {
-            log?.Warning($"[VGE] Failed to patch shader include '{asset.Name}': {ex.Message}");
+            log?.Warning($"[VGE] Failed to patch shader '{asset.Name}': {ex.Message}");
             return false;
         }
         catch (Exception ex)
         {
-            log?.Error($"[VGE] Unexpected error patching shader include '{asset.Name}': {ex.Message}");
+            log?.Warning($"[VGE] Unexpected error patching shader '{asset.Name}': {ex.Message}");
             return false;
         }
-        finally
-        {
-            // Write modified content back to the asset
-            var patchedCode = patcher.Build();
-            asset.Data = Encoding.UTF8.GetBytes(patchedCode);
-            asset.IsPatched = true;
-        }
+    }
+
+    /// <summary>
+    /// Injects G-buffer output declarations and writes into a main shader.
+    /// </summary>
+    private static void InjectGBufferOutputs(SourceCodePatcher patcher)
+    {
+        patcher
+            .FindVersionDirective().After().Insert(GBufferOutputDeclarations)
+            .FindFunction("main").BeforeClose().Insert(GBufferOutputWrites);
     }
 
     /// <summary>
     /// Patches the fogandlight.fsh shader to disable fog, shadow, and normal shading effects.
     /// </summary>
-    /// <param name="asset"></param>
-    private static void TryPatchFogAndLight(IAsset asset, SourceCodePatcher patcher)
+    private static void PatchFogAndLight(SourceCodePatcher patcher)
     {
         // intercept 'applyFog' function and just return unadjusted color
         patcher.FindFunction("applyFog").AtTop()
@@ -133,8 +152,7 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
     /// <summary>
     /// Patches the normalshading.fsh shader to return full brightness.
     /// </summary>
-    /// <param name="asset"></param>
-    private static void PatchNormalshading(IAsset asset, SourceCodePatcher patcher)
+    private static void PatchNormalshading(SourceCodePatcher patcher)
     {
         // intercept 'getBrightnessFromNormal' function and return full brightness
         patcher.FindFunction("getBrightnessFromNormal").AtTop()

@@ -1,4 +1,6 @@
-﻿using Vintagestory.API.Client;
+﻿using VanillaGraphicsExpanded.PBR;
+
+using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded;
@@ -22,8 +24,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     {
         base.AssetsLoaded(api);
         
-        // Load shader imports from the mod's shaderincludes asset folder
-        ShaderPatches.LoadShaderImports(api);
+        // Initialize the shader imports system to load mod's shaderincludes
+        ShaderImportsSystem.Instance.Initialize(api);
     }
 
     public override void StartClientSide(ICoreClientAPI api)
@@ -74,6 +76,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         
         gBufferRenderer?.Dispose();
         gBufferRenderer = null;
+        
+        // Clear shader imports cache
+        ShaderImportsSystem.Instance.Clear();
         
         ShaderPatches.Unpatch(null!);
     }

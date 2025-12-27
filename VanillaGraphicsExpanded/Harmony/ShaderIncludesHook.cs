@@ -14,8 +14,8 @@ using Vintagestory.Client.NoObf;
 namespace VanillaGraphicsExpanded.Harmony;
 
 /// <summary>
-/// Harmony patch to intercept shader includes loading and process custom #import directives
-/// before the base game populates its includes dictionary.
+/// Harmony patch that intercepts shader loading to apply import inlining and shader modifications.
+/// This class only defines WHERE the patch is applied, delegating WHAT to do to other systems.
 /// </summary>
 [HarmonyPatch]
 public static class ShaderIncludesHook
@@ -35,7 +35,7 @@ public static class ShaderIncludesHook
 
     /// <summary>
     /// Prefix patch for ShaderRegistry.loadRegisteredShaderPrograms.
-    /// Modifies shader asset content in-place before the original method processes them.
+    /// Processes shader assets in-place before the original method compiles them.
     /// </summary>
     [HarmonyPatch(typeof(ShaderRegistry), "loadRegisteredShaderPrograms")]
     [HarmonyPrefix]
@@ -47,7 +47,7 @@ public static class ShaderIncludesHook
             return;
         }
 
-        // Get all shader include assets - same assets the original method will iterate
+        // Process shader includes first
         List<IAsset> shaderIncludes = _assetManager.GetManyInCategory(
             AssetCategory.shaderincludes.Code,
             pathBegins: "",
@@ -59,33 +59,46 @@ public static class ShaderIncludesHook
         int patchedCount = 0;
         foreach (IAsset asset in shaderIncludes)
         {
+            // First: inline any #import directives
+            ShaderImportsSystem.Instance.InlineImports(asset, _logger);
+            
+            // Then: apply any shader modifications
             if (VanillaShaderPatches.TryPatchAsset(_logger, asset))
             {
                 patchedCount++;
             }
         }
 
-        _logger?.Audit($"[VGE][Shaders] Patched {patchedCount} shader include(s)");
-        // Now process the actual shader source files as well
-        patchedCount = 0;
-        _logger?.Audit($"[VGE][Shaders] Processing shader source files");
+        if (patchedCount > 0)
+        {
+            _logger?.Audit($"[VGE][Shaders] Patched {patchedCount} shader include(s)");
+        }
 
+        // Process main shader source files
         List<IAsset> shaderSources = _assetManager.GetManyInCategory(
             AssetCategory.shaders.Code,
             pathBegins: "",
             domain: null,
             loadAsset: true);
+        
+        _logger?.Audit($"[VGE][Shaders] Processing {shaderSources.Count} shader source files");
+
+        patchedCount = 0;
         foreach (IAsset asset in shaderSources)
         {
+            // First: inline any #import directives
+            ShaderImportsSystem.Instance.InlineImports(asset, _logger);
+            
+            // Then: apply any shader modifications
             if (VanillaShaderPatches.TryPatchAsset(_logger, asset))
             {
                 patchedCount++;
             }
-        }    
+        }
 
         if (patchedCount > 0)
         {
-            _logger?.Notification($"[VGE][Shaders] Patched {patchedCount} shader files(s)");
+            _logger?.Notification($"[VGE][Shaders] Patched {patchedCount} shader source file(s)");
         }
     }
 }
