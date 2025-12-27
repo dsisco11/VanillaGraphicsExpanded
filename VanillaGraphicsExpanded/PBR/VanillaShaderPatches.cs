@@ -33,9 +33,9 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
     vge_outNormal = vec4(normal * 0.5 + 0.5, 1.0);
     
     // Material: extract properties from renderFlags
-    float vge_reflectivity = ((renderFlags & ReflectiveBitMask) != 0) ? 1.0 : 0.0;
+    float vge_reflectivity = getMatMetallicFromRenderFlags(renderFlags); // Using same function for reflectivity for simplicity
     float vge_roughness = 0.5;  // Default roughness (could be extracted from texture)
-    float vge_metallic = 0.0;   // Default non-metallic
+    float vge_metallic = getMatMetallicFromRenderFlags(renderFlags);
     float vge_emissive = glowLevel;
     vge_outMaterial = vec4(vge_reflectivity, vge_roughness, vge_metallic, vge_emissive);
 ";
