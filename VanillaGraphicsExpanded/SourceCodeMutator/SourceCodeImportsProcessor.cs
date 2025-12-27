@@ -147,13 +147,12 @@ public class SourceCodeImportsProcessor : SourceCodePatcher
             var token = _tokens[i];
 
             // Look for @import tagged identifier
-            if (token is not TinyTokenizer.TaggedIdentToken { Tag: '@' } taggedToken ||
-                !taggedToken.Content.Span.Equals("import".AsSpan(), StringComparison.Ordinal))
+            if (!token.ContentSpan.Equals("@import", StringComparison.Ordinal))
             {
                 continue;
             }
 
-            long directiveStart = taggedToken.Position;
+            long directiveStart = token.Position;
 
             // Find the file name
             string? fileName = ExtractImportFileName(i + 1, out int fileNameEndIdx);
