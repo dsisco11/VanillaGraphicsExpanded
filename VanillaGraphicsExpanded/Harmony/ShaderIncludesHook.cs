@@ -74,7 +74,10 @@ public static class ShaderIncludesHook
     }
 
     /// <summary>
-    /// Processes a list of shader assets: creates patcher, inlines imports, applies patches, writes back.
+    /// Processes a list of shader assets through the full pipeline:
+    /// 1. Pre-processing (before imports)
+    /// 2. Import inlining
+    /// 3. Post-processing (after imports)
     /// Single tokenization pass per asset.
     /// </summary>
     private static int ProcessShaderAssets(List<IAsset> assets)
@@ -83,20 +86,26 @@ public static class ShaderIncludesHook
         
         foreach (IAsset asset in assets)
         {
-            // Create patcher and process imports in one pass
-            var patcher = ShaderImportsSystem.Instance.CreatePatcherWithImports(asset, _logger);
+            // Create patcher without processing imports yet
+            var patcher = ShaderImportsSystem.Instance.CreatePatcher(asset);
             if (patcher is null)
             {
                 continue;
             }
 
-            // Apply shader-specific patches using the same patcher instance
-            bool wasPatched = VanillaShaderPatches.TryApplyPatches(_logger, patcher);
+            // Stage 1: Pre-processing (before imports are inlined)
+            bool preProcessed = VanillaShaderPatches.TryApplyPreProcessing(_logger, patcher);
 
-            // Build and write back to asset (always, since imports may have been processed)
+            // Stage 2: Inline imports
+            ShaderImportsSystem.Instance.InlineImports(patcher, _logger);
+
+            // Stage 3: Post-processing (after imports are inlined)
+            bool postProcessed = VanillaShaderPatches.TryApplyPatches(_logger, patcher);
+
+            // Build and write back to asset
             asset.Data = Encoding.UTF8.GetBytes(patcher.Build());
             
-            if (wasPatched)
+            if (preProcessed || postProcessed)
             {
                 asset.IsPatched = true;
                 patchedCount++;

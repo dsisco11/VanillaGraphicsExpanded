@@ -88,42 +88,45 @@ public sealed class ShaderImportsSystem
     }
 
     /// <summary>
-    /// Creates a patcher for the given asset and processes all #import directives.
-    /// The returned patcher can be passed to other systems for additional modifications.
+    /// Creates a patcher for the given asset without processing imports.
+    /// Use this when you need to apply pre-processing before import inlining.
     /// </summary>
     /// <param name="asset">The shader asset to process.</param>
-    /// <param name="log">Optional logger for warnings/errors.</param>
-    /// <returns>A patcher with imports processed, or null if the asset is empty or processing failed.</returns>
-    public SourceCodeImportsProcessor? CreatePatcherWithImports(IAsset asset, ILogger? log = null)
+    /// <returns>A patcher instance, or null if the asset is empty.</returns>
+    public SourceCodeImportsProcessor? CreatePatcher(IAsset asset)
     {
         if (asset.Data is null || asset.Data.Length == 0)
         {
             return null;
         }
 
+        var sourceCode = asset.ToText();
+        return new SourceCodeImportsProcessor(sourceCode, _importsCache, asset.Name);
+    }
+
+    /// <summary>
+    /// Processes all #import directives on an existing patcher.
+    /// </summary>
+    /// <param name="patcher">The patcher to process imports on.</param>
+    /// <param name="log">Optional logger for warnings/errors.</param>
+    /// <returns>True if processing succeeded, false on failure.</returns>
+    public bool InlineImports(SourceCodeImportsProcessor patcher, ILogger? log = null)
+    {
         try
         {
-            var sourceCode = asset.ToText();
-            var patcher = new SourceCodeImportsProcessor(sourceCode, _importsCache, asset.Name);
-            
-            // Only process if imports are present
-            if (sourceCode.Contains("#import"))
-            {
-                patcher.ProcessImports(log ?? _logger);
-                log?.Debug($"[VGE] Inlined imports for: {asset.Name}");
-            }
-
-            return patcher;
+            patcher.ProcessImports(log ?? _logger);
+            log?.Debug($"[VGE] Inlined imports for: {patcher.SourceName}");
+            return true;
         }
         catch (SourceCodePatchException ex)
         {
-            (log ?? _logger)?.Warning($"[VGE] Failed to inline imports for '{asset.Name}': {ex.Message}");
-            return null;
+            (log ?? _logger)?.Warning($"[VGE] Failed to inline imports for '{patcher.SourceName}': {ex.Message}");
+            return false;
         }
         catch (Exception ex)
         {
-            (log ?? _logger)?.Warning($"[VGE] Unexpected error inlining imports for '{asset.Name}': {ex.Message}");
-            return null;
+            (log ?? _logger)?.Warning($"[VGE] Unexpected error inlining imports for '{patcher.SourceName}': {ex.Message}");
+            return false;
         }
     }
 }

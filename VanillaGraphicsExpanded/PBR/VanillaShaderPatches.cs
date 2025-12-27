@@ -42,6 +42,42 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
     #endregion
 
     /// <summary>
+    /// Attempts to apply pre-processing patches BEFORE imports are inlined.
+    /// Use this for modifications that need to happen on the raw shader source.
+    /// </summary>
+    /// <param name="log">Logger for warnings/errors.</param>
+    /// <param name="patcher">The patcher instance (imports NOT yet processed).</param>
+    /// <returns>True if pre-processing patches were applied, false otherwise.</returns>
+    internal static bool TryApplyPreProcessing(ILogger? log, SourceCodePatcher patcher)
+    {
+        try
+        {
+            switch (patcher.SourceName)
+            {
+                // Add pre-processing cases here as needed
+                // Example:
+                // case "someshader.fsh":
+                //     PreProcessSomeShader(patcher);
+                //     log?.Audit($"[VGE] Pre-processed shader: {patcher.SourceName}");
+                //     return true;
+
+                default:
+                    return false;
+            }
+        }
+        catch (SourceCodePatchException ex)
+        {
+            log?.Warning($"[VGE] Failed to pre-process shader '{patcher.SourceName}': {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            log?.Warning($"[VGE] Unexpected error pre-processing shader '{patcher.SourceName}': {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Attempts to apply patches to the given patcher based on the shader name.
     /// Does not build or write to asset - caller is responsible for that.
     /// </summary>
