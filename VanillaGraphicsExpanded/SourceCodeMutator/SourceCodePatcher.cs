@@ -28,8 +28,13 @@ public class SourceCodePatcher
 {
     #region Fields
 
-    protected readonly string _source;
-    protected readonly ImmutableArray<Token> _tokens;
+    /// <summary>
+    /// Tokenizer options configured for C-style languages (comments, preprocessor directives).
+    /// </summary>
+    protected readonly TokenizerOptions _tokenizerOptions;
+
+    protected string _source;
+    protected ImmutableArray<Token> _tokens;
     protected readonly List<PendingInsertion> _insertions = [];
     protected long _currentInsertionPoint = -1;
     protected readonly string? _sourceName;
@@ -71,12 +76,12 @@ public class SourceCodePatcher
         _source = source ?? throw new ArgumentNullException(nameof(source));
         _sourceName = sourceName;
 
-        // Configure tokenizer for C-style languages (C-style comments, tag prefixes for preprocessor directives and imports)
-        var options = TokenizerOptions.Default
+        // Configure tokenizer for C-style languages (comments, preprocessor directives, imports)
+        _tokenizerOptions = TokenizerOptions.Default
             .WithCommentStyles(CommentStyle.CStyleSingleLine, CommentStyle.CStyleMultiLine)
             .WithTagPrefixes('#', '@');
 
-        _tokens = source.TokenizeToTokens(options);
+        _tokens = source.TokenizeToTokens(_tokenizerOptions);
 
         // Check for parse errors
         if (_tokens.HasErrors())
@@ -575,6 +580,56 @@ public class SourceCodePatcher
         }
 
         _insertions.Add(new PendingInsertion(_currentInsertionPoint, text));
+        return this;
+    }
+
+    /// <summary>
+    /// Commits all pending insertions, applies them to the source, and re-tokenizes.
+    /// This enables multi-phase patching where subsequent Find operations can locate
+    /// code that was injected in earlier phases.
+    /// </summary>
+    /// <returns>This patcher instance for method chaining.</returns>
+    /// <exception cref="SourceCodePatchException">Thrown if re-tokenization produces errors.</exception>
+    /// <remarks>
+    /// After calling <see cref="Commit"/>, the insertion point is reset and all pending
+    /// insertions are cleared. The patcher is ready for a new phase of Find/Insert operations.
+    /// If no insertions are pending, this method is a no-op.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// var patched = new SourceCodePatcher(shaderCode)
+    ///     // Phase 1: Inject an import
+    ///     .FindFunction("main").Before().Insert("@import \"utils.glsl\"\n")
+    ///     .Commit()
+    ///     // Phase 2: Now we can find functions defined in the imported code
+    ///     .FindFunction("utilityFunction").BeforeClose().Insert("    // injected\n")
+    ///     .Build();
+    /// </code>
+    /// </example>
+    public SourceCodePatcher Commit()
+    {
+        if (_insertions.Count == 0)
+        {
+            return this;
+        }
+
+        // Apply all pending insertions
+        _source = Build();
+
+        // Re-tokenize the updated source
+        _tokens = _source.TokenizeToTokens(_tokenizerOptions);
+
+        // Check for parse errors in the new source
+        if (_tokens.HasErrors())
+        {
+            var firstError = _tokens.GetErrors().First();
+            throw CreateException($"Tokenization error after commit: {firstError.ErrorMessage}", firstError.Position);
+        }
+
+        // Reset state for next phase
+        _insertions.Clear();
+        _currentInsertionPoint = -1;
+
         return this;
     }
 
