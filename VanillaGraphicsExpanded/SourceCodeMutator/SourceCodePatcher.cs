@@ -116,7 +116,7 @@ public class SourceCodePatcher
 
             // Look for tagged identifier with # prefix (e.g., #version, #define)
             if (token is TaggedIdentToken { Tag: '#' } taggedToken &&
-                taggedToken.Content.Span.Equals(directive.AsSpan(), StringComparison.Ordinal))
+                taggedToken.NameSpan.Equals(directive.AsSpan(), StringComparison.Ordinal))
             {
                 // If condition specified, check it matches
                 if (condition != null)
@@ -159,7 +159,7 @@ public class SourceCodePatcher
             // Look for tagged identifier with # prefix
             if (token is TaggedIdentToken { Tag: '#' } taggedToken)
             {
-                var directiveSpan = taggedToken.Content.Span;
+                var directiveSpan = taggedToken.NameSpan;
 
                 if (directiveSpan.Equals("if".AsSpan(), StringComparison.Ordinal) ||
                     directiveSpan.Equals("ifdef".AsSpan(), StringComparison.Ordinal) ||
@@ -215,6 +215,7 @@ public class SourceCodePatcher
     public FunctionSelector FindFunction(string functionName)
     {
         BlockToken? bodyBlock = null;
+        long functionStart = -1;
 
         for (int i = 0; i < _tokens.Length; i++)
         {
@@ -234,13 +235,15 @@ public class SourceCodePatcher
                         block.OpeningDelimiter == '{')
                     {
                         bodyBlock = block;
+                        // Find the return type (identifier before function name)
+                        functionStart = FindFunctionStart(i);
                         break;
                     }
                 }
             }
         }
 
-        return new FunctionSelector(this, functionName, bodyBlock);
+        return new FunctionSelector(this, functionName, bodyBlock, functionStart);
     }
 
     /// <summary>
@@ -417,18 +420,36 @@ public class SourceCodePatcher
         private readonly SourceCodePatcher _patcher;
         private readonly string _functionName;
         private readonly BlockToken? _bodyBlock;
+        private readonly long _functionStart;
 
-        internal FunctionSelector(SourceCodePatcher patcher, string functionName, BlockToken? bodyBlock)
+        internal FunctionSelector(SourceCodePatcher patcher, string functionName, BlockToken? bodyBlock, long functionStart)
         {
             _patcher = patcher;
             _functionName = functionName;
             _bodyBlock = bodyBlock;
+            _functionStart = functionStart;
         }
 
         /// <summary>
         /// Gets whether the function was found.
         /// </summary>
         public bool Found => _bodyBlock != null;
+
+        /// <summary>
+        /// Sets the insertion point to immediately before the function declaration (before return type).
+        /// </summary>
+        /// <returns>The patcher instance for method chaining.</returns>
+        /// <exception cref="SourceCodePatchException">Thrown if the function was not found.</exception>
+        public SourceCodePatcher Before()
+        {
+            if (_bodyBlock == null)
+            {
+                throw _patcher.CreateException($"No {_functionName}() function found in source");
+            }
+
+            _patcher._currentInsertionPoint = _functionStart;
+            return _patcher;
+        }
 
         /// <summary>
         /// Sets the insertion point to immediately after the opening brace of the function body.
@@ -678,6 +699,62 @@ public class SourceCodePatcher
             sb.Append(token.Content.Span);
         }
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Finds the start position of a function declaration (including return type).
+    /// Walks backward from the function name to find the return type identifier.
+    /// </summary>
+    protected long FindFunctionStart(int functionNameIndex)
+    {
+        // Walk backward to find the return type identifier (skip whitespace/comments)
+        for (int i = functionNameIndex - 1; i >= 0; i--)
+        {
+            var token = _tokens[i];
+            if (token is IdentToken identToken)
+            {
+                // Found the return type, now check if there's a leading newline to include
+                return FindStartOfLine(i);
+            }
+            else if (token is not WhitespaceToken && token is not CommentToken)
+            {
+                // Found something else (symbol, etc.) - stop searching
+                break;
+            }
+        }
+
+        // Fallback to the function name position
+        return _tokens[functionNameIndex].Position;
+    }
+
+    /// <summary>
+    /// Finds the start of the line containing the given token index.
+    /// Returns the position after the preceding newline, or the token's position if no newline found.
+    /// </summary>
+    protected long FindStartOfLine(int tokenIndex)
+    {
+        // Look at preceding whitespace to find the last newline
+        for (int i = tokenIndex - 1; i >= 0; i--)
+        {
+            var token = _tokens[i];
+            if (token is WhitespaceToken wsToken)
+            {
+                var span = wsToken.Content.Span;
+                int lastNewline = span.LastIndexOf('\n');
+                if (lastNewline >= 0)
+                {
+                    return wsToken.Position + lastNewline + 1;
+                }
+            }
+            else if (token is not CommentToken)
+            {
+                // Found a non-whitespace, non-comment token - the line starts after it
+                break;
+            }
+        }
+
+        // No newline found, return the original token's position
+        return _tokens[tokenIndex].Position;
     }
 
     /// <summary>
