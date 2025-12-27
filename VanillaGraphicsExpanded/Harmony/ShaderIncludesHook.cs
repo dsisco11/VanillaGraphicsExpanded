@@ -98,7 +98,7 @@ public static class ShaderIncludesHook
             _logger?.Debug($"[VGE] Patched shader include: {asset.Name}");
             return true;
         }
-        catch (ShaderPatchException ex)
+        catch (SourceCodePatchException ex)
         {
             _logger?.Warning($"[VGE] Failed to patch shader include '{asset.Name}': {ex.Message}");
             return false;
@@ -112,29 +112,29 @@ public static class ShaderIncludesHook
 
     private static void TryPatchFogAndLight(IAsset asset)
     {
-        ShaderSourcePatcher patcher = new(asset.ToText(), asset.Name);
+        SourceCodePatcher patcher = new(asset.ToText(), asset.Name);
         // intercept 'applyFog' function and just return unadjusted color
-        patcher.AtTopOfFunction("applyFog")
+        patcher.FindFunction("applyFog").AtTop()
             .Insert(@"return rgbaPixel;");
 
         // intercept 'getBrightnessFromShadowMap' function and return full brightness
-        patcher.AtTopOfFunction("getBrightnessFromShadowMap")
+        patcher.FindFunction("getBrightnessFromShadowMap").AtTop()
             .Insert(@"return 1.0;");
 
         // intercept 'getBrightnessFromNormal' function and return full brightness
-        patcher.AtTopOfFunction("getBrightnessFromNormal")
+        patcher.FindFunction("getBrightnessFromNormal").AtTop()
             .Insert(@"return 1.0;");
 
         // intercept 'applyFogAndShadow' function and just return unadjusted color
-        patcher.AtTopOfFunction("applyFogAndShadow")
+        patcher.FindFunction("applyFogAndShadow").AtTop()
             .Insert(@"return rgbaPixel;");
 
         // intercept 'applyFogAndShadowWithNormal' function and just return unadjusted color
-        patcher.AtTopOfFunction("applyFogAndShadowWithNormal")
+        patcher.FindFunction("applyFogAndShadowWithNormal").AtTop()
             .Insert(@"return rgbaPixel;");
 
         // intercept 'applyFogAndShadowFromBrightness' function and just return unadjusted color
-        patcher.AtTopOfFunction("applyFogAndShadowFromBrightness")
+        patcher.FindFunction("applyFogAndShadowFromBrightness").AtTop()
             .Insert(@"return rgbaPixel;");
 
         // Write modified content back to the asset
@@ -144,10 +144,10 @@ public static class ShaderIncludesHook
 
     private static void PatchNormalshading(IAsset asset)
     {
-        ShaderSourcePatcher patcher = new(asset.ToText(), asset.Name);
+        SourceCodePatcher patcher = new(asset.ToText(), asset.Name);
 
         // intercept 'getBrightnessFromNormal' function and return full brightness
-        patcher.AtTopOfFunction("getBrightnessFromNormal")
+        patcher.FindFunction("getBrightnessFromNormal").AtTop()
             .Insert(@"return 1.0;");
 
         // Write modified content back to the asset

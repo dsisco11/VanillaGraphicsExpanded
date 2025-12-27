@@ -137,15 +137,13 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
     /// <param name="importsCache">Dictionary mapping import file names to their contents.</param>
     /// <param name="shaderName">Optional shader name for error messages.</param>
     /// <returns>The processed shader code with imports resolved.</returns>
-    /// <exception cref="ShaderPatchException">Thrown if an imported file is not found in the cache.</exception>
+    /// <exception cref="SourceCodePatchException">Thrown if an imported file is not found in the cache.</exception>
     public static string ProcessShaderImports(
         string shaderCode,
         IReadOnlyDictionary<string, string> importsCache,
         string? shaderName = null)
     {
-        return new ShaderSourcePatcher(shaderCode, shaderName)
-            .ProcessImports(importsCache, _api?.Logger)
-            .Build();
+        return SourceCodeImportsProcessor.Process(shaderCode, importsCache, shaderName, _api?.Logger);
     }
 
     /// <summary>
@@ -164,8 +162,8 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
             {
                 if (program.FragmentShader?.Code is not null)
                 {
-                    ShaderSourcePatcher patcher = new ShaderSourcePatcher(program.FragmentShader.Code, shaderName)
-                        .ProcessImports(ImportsCache, _api?.Logger);
+                    var patcher = new SourceCodeImportsProcessor(program.FragmentShader.Code, ImportsCache, shaderName)
+                        .ProcessImports(_api?.Logger);
 
                     // Don't inject twice
                     if (!AlreadyPatchedShaders.Contains(shaderName))
@@ -176,19 +174,17 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
                 }
                 if (program.VertexShader?.Code is not null)
                 {
-                    ShaderSourcePatcher patcher = new ShaderSourcePatcher(program.VertexShader.Code, shaderName)
-                        .ProcessImports(ImportsCache, _api?.Logger);
-                    program.VertexShader.Code = patcher.Build();
+                    program.VertexShader.Code = SourceCodeImportsProcessor.Process(
+                        program.VertexShader.Code, ImportsCache, shaderName, _api?.Logger);
                 }
 
                 if (program.GeometryShader?.Code is not null)
                 {
-                    ShaderSourcePatcher patcher = new ShaderSourcePatcher(program.GeometryShader.Code, shaderName)
-                        .ProcessImports(ImportsCache, _api?.Logger);
-                    program.GeometryShader.Code = patcher.Build();
+                    program.GeometryShader.Code = SourceCodeImportsProcessor.Process(
+                        program.GeometryShader.Code, ImportsCache, shaderName, _api?.Logger);
                 }
             }
-            catch (ShaderPatchException ex)
+            catch (SourceCodePatchException ex)
             {
                 _api?.Logger.Warning($"[VGE] Failed to patch {shaderName}: {ex.Message}");
             }
@@ -207,19 +203,19 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
         /// Shaders to patch for G-buffer output injection.
         /// </summary>
         public static HashSet<string> TargetShaders = ["chunkopaque", "chunktopsoil", "standard", "instanced"];
-        private static void TryInjectGBuffersIntoShader(ShaderSourcePatcher source)
+        private static void TryInjectGBuffersIntoShader(SourceCodePatcher source)
         {
             // Only inject into chunk shaders
-            string shaderName = source.ShaderName;
+            string shaderName = source.SourceName;
             if (!TargetShaders.Contains(shaderName))
             {
                 return;
             }
 
-            // Use the fluent shader patcher to inject G-buffer outputs
+            // Use the fluent patcher to inject G-buffer outputs
             source
-                .AfterVersionDirective().Insert(GBufferOutputDeclarations)
-                .BeforeMainClose().Insert(GBufferOutputWrites);
+                .FindVersionDirective().After().Insert(GBufferOutputDeclarations)
+                .FindFunction("main").BeforeClose().Insert(GBufferOutputWrites);
 
             _api?.Logger.Debug($"[VGE] Injected G-buffer outputs into {shaderName}");
         }
