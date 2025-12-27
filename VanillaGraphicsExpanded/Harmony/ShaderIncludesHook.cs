@@ -1,13 +1,10 @@
-using System;
 using System.Collections.Generic;
-using System.Reflection;
 using System.Text;
 
 using HarmonyLib;
 
 using VanillaGraphicsExpanded.PBR;
 
-using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.Client.NoObf;
 
@@ -55,20 +52,7 @@ public static class ShaderIncludesHook
             loadAsset: true);
         
         _logger?.Audit($"[VGE][Shaders] Processing {shaderIncludes.Count} shader includes");
-
-        int patchedCount = 0;
-        foreach (IAsset asset in shaderIncludes)
-        {
-            // First: inline any #import directives
-            ShaderImportsSystem.Instance.InlineImports(asset, _logger);
-            
-            // Then: apply any shader modifications
-            if (VanillaShaderPatches.TryPatchAsset(_logger, asset))
-            {
-                patchedCount++;
-            }
-        }
-
+        int patchedCount = ProcessShaderAssets(shaderIncludes);
         if (patchedCount > 0)
         {
             _logger?.Audit($"[VGE][Shaders] Patched {patchedCount} shader include(s)");
@@ -82,23 +66,43 @@ public static class ShaderIncludesHook
             loadAsset: true);
         
         _logger?.Audit($"[VGE][Shaders] Processing {shaderSources.Count} shader source files");
-
-        patchedCount = 0;
-        foreach (IAsset asset in shaderSources)
-        {
-            // First: inline any #import directives
-            ShaderImportsSystem.Instance.InlineImports(asset, _logger);
-            
-            // Then: apply any shader modifications
-            if (VanillaShaderPatches.TryPatchAsset(_logger, asset))
-            {
-                patchedCount++;
-            }
-        }
-
+        patchedCount = ProcessShaderAssets(shaderSources);
         if (patchedCount > 0)
         {
             _logger?.Notification($"[VGE][Shaders] Patched {patchedCount} shader source file(s)");
         }
+    }
+
+    /// <summary>
+    /// Processes a list of shader assets: creates patcher, inlines imports, applies patches, writes back.
+    /// Single tokenization pass per asset.
+    /// </summary>
+    private static int ProcessShaderAssets(List<IAsset> assets)
+    {
+        int patchedCount = 0;
+        
+        foreach (IAsset asset in assets)
+        {
+            // Create patcher and process imports in one pass
+            var patcher = ShaderImportsSystem.Instance.CreatePatcherWithImports(asset, _logger);
+            if (patcher is null)
+            {
+                continue;
+            }
+
+            // Apply shader-specific patches using the same patcher instance
+            bool wasPatched = VanillaShaderPatches.TryApplyPatches(_logger, patcher);
+
+            // Build and write back to asset (always, since imports may have been processed)
+            asset.Data = Encoding.UTF8.GetBytes(patcher.Build());
+            
+            if (wasPatched)
+            {
+                asset.IsPatched = true;
+                patchedCount++;
+            }
+        }
+
+        return patchedCount;
     }
 }

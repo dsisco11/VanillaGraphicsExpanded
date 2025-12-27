@@ -88,49 +88,42 @@ public sealed class ShaderImportsSystem
     }
 
     /// <summary>
-    /// Inlines all #import directives in the given shader asset's data.
-    /// Modifies the asset's Data property in-place.
+    /// Creates a patcher for the given asset and processes all #import directives.
+    /// The returned patcher can be passed to other systems for additional modifications.
     /// </summary>
     /// <param name="asset">The shader asset to process.</param>
     /// <param name="log">Optional logger for warnings/errors.</param>
-    /// <returns>True if imports were processed successfully, false on failure.</returns>
-    public bool InlineImports(IAsset asset, ILogger? log = null)
+    /// <returns>A patcher with imports processed, or null if the asset is empty or processing failed.</returns>
+    public SourceCodeImportsProcessor? CreatePatcherWithImports(IAsset asset, ILogger? log = null)
     {
         if (asset.Data is null || asset.Data.Length == 0)
         {
-            return false;
+            return null;
         }
 
         try
         {
             var sourceCode = asset.ToText();
+            var patcher = new SourceCodeImportsProcessor(sourceCode, _importsCache, asset.Name);
             
-            // Skip if no imports present
-            if (!sourceCode.Contains("#import"))
+            // Only process if imports are present
+            if (sourceCode.Contains("#import"))
             {
-                return true;
+                patcher.ProcessImports(log ?? _logger);
+                log?.Debug($"[VGE] Inlined imports for: {asset.Name}");
             }
 
-            var processedCode = SourceCodeImportsProcessor.Process(
-                sourceCode,
-                _importsCache,
-                asset.Name,
-                log ?? _logger);
-
-            asset.Data = Encoding.UTF8.GetBytes(processedCode);
-            
-            log?.Debug($"[VGE] Inlined imports for: {asset.Name}");
-            return true;
+            return patcher;
         }
         catch (SourceCodePatchException ex)
         {
             (log ?? _logger)?.Warning($"[VGE] Failed to inline imports for '{asset.Name}': {ex.Message}");
-            return false;
+            return null;
         }
         catch (Exception ex)
         {
             (log ?? _logger)?.Warning($"[VGE] Unexpected error inlining imports for '{asset.Name}': {ex.Message}");
-            return false;
+            return null;
         }
     }
 }

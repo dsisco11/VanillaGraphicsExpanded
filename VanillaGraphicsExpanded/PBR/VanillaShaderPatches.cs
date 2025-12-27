@@ -42,36 +42,26 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
     #endregion
 
     /// <summary>
-    /// Attempts to apply patches to the given base-game (vanilla) shader asset.
-    /// Import inlining should be done separately via ShaderImportsSystem before calling this.
+    /// Attempts to apply patches to the given patcher based on the shader name.
+    /// Does not build or write to asset - caller is responsible for that.
     /// </summary>
     /// <param name="log">Logger for warnings/errors.</param>
-    /// <param name="asset">The shader asset to patch.</param>
-    /// <returns>True if the asset was modified, false otherwise.</returns>
-    internal static bool TryPatchAsset(ILogger? log, IAsset asset)
+    /// <param name="patcher">The patcher instance (already has imports processed).</param>
+    /// <returns>True if patches were applied, false if no patches needed for this shader.</returns>
+    internal static bool TryApplyPatches(ILogger? log, SourceCodePatcher patcher)
     {
-        if (asset.Data is null || asset.Data.Length == 0)
-        {
-            return false;
-        }
-
-        var patcher = new SourceCodePatcher(asset.ToText(), asset.Name);
-
         try
         {
-            bool patched = false;
-
-            switch (asset.Name)
+            switch (patcher.SourceName)
             {
                 // Shader includes
                 case "fogandlight.fsh":
                     PatchFogAndLight(patcher);
-                    patched = true;
-                    break;
+                    log?.Audit($"[VGE] Applied patches to shader: {patcher.SourceName}");
+                    return true;
                 // case "normalshading.fsh": // Note: Disabled since we don't really care to change the lighting for gui items or first-person view items.
                 //     PatchNormalshading(patcher);
-                //     patched = true;
-                //     break;
+                //     return true;
 
                 // Main shader files - inject G-buffer outputs
                 case "chunkopaque.fsh":
@@ -79,32 +69,21 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
                 case "standard.fsh":
                 case "instanced.fsh":
                     InjectGBufferOutputs(patcher);
-                    patched = true;
-                    break;
+                    log?.Audit($"[VGE] Applied patches to shader: {patcher.SourceName}");
+                    return true;
 
                 default:
                     return false;
             }
-
-            if (patched)
-            {
-                // Write modified content back to the asset
-                var patchedCode = patcher.Build();
-                asset.Data = Encoding.UTF8.GetBytes(patchedCode);
-                asset.IsPatched = true;
-                log?.Audit($"[VGE] Patched shader: {asset.Name}");
-            }
-
-            return patched;
         }
         catch (SourceCodePatchException ex)
         {
-            log?.Warning($"[VGE] Failed to patch shader '{asset.Name}': {ex.Message}");
+            log?.Warning($"[VGE] Failed to patch shader '{patcher.SourceName}': {ex.Message}");
             return false;
         }
         catch (Exception ex)
         {
-            log?.Warning($"[VGE] Unexpected error patching shader '{asset.Name}': {ex.Message}");
+            log?.Warning($"[VGE] Unexpected error patching shader '{patcher.SourceName}': {ex.Message}");
             return false;
         }
     }
