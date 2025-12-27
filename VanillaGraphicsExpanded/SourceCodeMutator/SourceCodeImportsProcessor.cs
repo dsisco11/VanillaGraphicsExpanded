@@ -146,26 +146,17 @@ public class SourceCodeImportsProcessor : SourceCodePatcher
         {
             var token = _tokens[i];
 
-            // Look for # symbol
-            if (token is not TinyTokenizer.SymbolToken { Content.Length: 1 } symbolToken ||
-                symbolToken.Content.Span[0] != '#')
+            // Look for #import tagged identifier
+            if (token is not TinyTokenizer.TaggedIdentToken { Tag: '#' } taggedToken ||
+                !taggedToken.Content.Span.Equals("import".AsSpan(), StringComparison.Ordinal))
             {
                 continue;
             }
 
-            long directiveStart = symbolToken.Position;
-
-            // Find next non-whitespace token (should be "import")
-            int nextIdx = FindNextNonWhitespace(i + 1);
-            if (nextIdx < 0 ||
-                _tokens[nextIdx] is not TinyTokenizer.IdentToken identToken ||
-                !identToken.Content.Span.Equals("import".AsSpan(), StringComparison.Ordinal))
-            {
-                continue;
-            }
+            long directiveStart = taggedToken.Position;
 
             // Find the file name (could be in quotes or angle brackets)
-            string? fileName = ExtractImportFileName(nextIdx + 1, out int fileNameEndIdx);
+            string? fileName = ExtractImportFileName(i + 1, out int fileNameEndIdx);
             if (fileName == null)
             {
                 continue;
@@ -210,7 +201,7 @@ public class SourceCodeImportsProcessor : SourceCodePatcher
         }
 
         // Check for angle bracket syntax (<filename>)
-        if (token is TinyTokenizer.SymbolToken { Content.Length: 1 } ltSymbol && ltSymbol.Content.Span[0] == '<')
+        if (token is TinyTokenizer.SymbolToken { Symbol: '<' })
         {
             var fileNameBuilder = new StringBuilder();
             int idx = nextIdx + 1;
@@ -219,7 +210,7 @@ public class SourceCodeImportsProcessor : SourceCodePatcher
             {
                 var innerToken = _tokens[idx];
 
-                if (innerToken is TinyTokenizer.SymbolToken { Content.Length: 1 } gtSymbol && gtSymbol.Content.Span[0] == '>')
+                if (innerToken is TinyTokenizer.SymbolToken { Symbol: '>' })
                 {
                     endIdx = idx;
                     return fileNameBuilder.ToString();

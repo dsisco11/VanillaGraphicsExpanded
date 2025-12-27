@@ -71,9 +71,10 @@ public class SourceCodePatcher
         _source = source ?? throw new ArgumentNullException(nameof(source));
         _sourceName = sourceName;
 
-        // Configure tokenizer for C-style languages (C-style comments, relevant symbols)
+        // Configure tokenizer for C-style languages (C-style comments, tag prefixes for preprocessor directives)
         var options = TokenizerOptions.Default
-            .WithCommentStyles(CommentStyle.CStyleSingleLine, CommentStyle.CStyleMultiLine);
+            .WithCommentStyles(CommentStyle.CStyleSingleLine, CommentStyle.CStyleMultiLine)
+            .WithTagPrefixes('#');
 
         _tokens = source.TokenizeToTokens(options);
 
@@ -113,29 +114,23 @@ public class SourceCodePatcher
         {
             var token = _tokens[i];
 
-            // Look for # symbol
-            if (token is SymbolToken { Content.Length: 1 } symbolToken &&
-                symbolToken.Content.Span[0] == '#')
+            // Look for tagged identifier with # prefix (e.g., #version, #define)
+            if (token is TaggedIdentToken { Tag: '#' } taggedToken &&
+                taggedToken.Content.Span.Equals(directive.AsSpan(), StringComparison.Ordinal))
             {
-                // Next non-whitespace should be the directive name
-                var nextIdent = FindNextNonWhitespace(i + 1);
-                if (nextIdent >= 0 && _tokens[nextIdent] is IdentToken identToken &&
-                    identToken.Content.Span.Equals(directive.AsSpan(), StringComparison.Ordinal))
+                // If condition specified, check it matches
+                if (condition != null)
                 {
-                    // If condition specified, check it matches
-                    if (condition != null)
+                    var lineContent = GetRestOfLine(i + 1);
+                    if (!lineContent.Contains(condition, StringComparison.Ordinal))
                     {
-                        var lineContent = GetRestOfLine(nextIdent + 1);
-                        if (!lineContent.Contains(condition, StringComparison.Ordinal))
-                        {
-                            continue;
-                        }
+                        continue;
                     }
-
-                    directiveStart = symbolToken.Position;
-                    lineEnd = FindEndOfLine(nextIdent);
-                    break;
                 }
+
+                directiveStart = taggedToken.Position;
+                lineEnd = FindEndOfLine(i);
+                break;
             }
         }
 
@@ -161,14 +156,10 @@ public class SourceCodePatcher
         {
             var token = _tokens[i];
 
-            if (token is SymbolToken { Content.Length: 1 } symbolToken &&
-                symbolToken.Content.Span[0] == '#')
+            // Look for tagged identifier with # prefix
+            if (token is TaggedIdentToken { Tag: '#' } taggedToken)
             {
-                var nextIdent = FindNextNonWhitespace(i + 1);
-                if (nextIdent < 0 || _tokens[nextIdent] is not IdentToken identToken)
-                    continue;
-
-                var directiveSpan = identToken.Content.Span;
+                var directiveSpan = taggedToken.Content.Span;
 
                 if (directiveSpan.Equals("if".AsSpan(), StringComparison.Ordinal) ||
                     directiveSpan.Equals("ifdef".AsSpan(), StringComparison.Ordinal) ||
@@ -181,18 +172,18 @@ public class SourceCodePatcher
                         {
                             foundStart = true;
                             depth = 1;
-                            blockStart = symbolToken.Position;
-                            blockStartLineEnd = FindEndOfLine(nextIdent);
+                            blockStart = taggedToken.Position;
+                            blockStartLineEnd = FindEndOfLine(i);
                         }
                         else
                         {
-                            var lineContent = GetRestOfLine(nextIdent + 1);
+                            var lineContent = GetRestOfLine(i + 1);
                             if (lineContent.Contains(condition, StringComparison.Ordinal))
                             {
                                 foundStart = true;
                                 depth = 1;
-                                blockStart = symbolToken.Position;
-                                blockStartLineEnd = FindEndOfLine(nextIdent);
+                                blockStart = taggedToken.Position;
+                                blockStartLineEnd = FindEndOfLine(i);
                             }
                         }
                     }
@@ -206,7 +197,7 @@ public class SourceCodePatcher
                     depth--;
                     if (depth == 0)
                     {
-                        endifStart = symbolToken.Position;
+                        endifStart = taggedToken.Position;
                         break;
                     }
                 }
@@ -658,7 +649,7 @@ public class SourceCodePatcher
         for (int i = tokenIndex; i < _tokens.Length; i++)
         {
             var token = _tokens[i];
-            if (token is SymbolToken symbolToken && symbolToken.Content.Span[0] == ';')
+            if (token is SymbolToken { Symbol: ';' })
             {
                 // Find end of line after semicolon
                 return FindEndOfLine(i);
