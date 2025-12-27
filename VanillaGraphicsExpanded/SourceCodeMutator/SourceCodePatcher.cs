@@ -47,7 +47,12 @@ public class SourceCodePatcher
     /// Gets the name of the source being patched, or "&lt;unknown&gt;" if not specified.
     /// </summary>
     public string SourceName => _sourceName ?? "<unknown>";
+    public int TokenCount => _tokens.Length;
 
+    /// <summary>
+    /// Gets the number of pending insertions.
+    /// </summary>
+    public int InsertionCount => _insertions.Count;
     #endregion
 
     #region Nested Types

@@ -119,23 +119,26 @@ public static class ShaderIncludesHook
             return;
         }
 
-        bool wasMutated = false;
+        bool wasPreprocessed = false;
+        bool wasInlined = false;
+        bool wasPostprocessed = false;
         // Stage 1: Pre-processing (before imports are inlined)
         if (preProcess)
         {
-            wasMutated |= VanillaShaderPatches.TryApplyPreProcessing(_logger, patcher);
+            wasPreprocessed = VanillaShaderPatches.TryApplyPreProcessing(_logger, patcher);
         }
         // Stage 2: Inline imports
         if (inlineImports)
         {
-            wasMutated |= ShaderImportsSystem.Instance.InlineImports(patcher, _logger);
+            wasInlined = ShaderImportsSystem.Instance.InlineImports(patcher, _logger);
         }
         // Stage 3: Post-processing (after imports are inlined)
         if (postProcess)
         {
-            wasMutated |= VanillaShaderPatches.TryApplyPatches(_logger, patcher);
+            wasPostprocessed = VanillaShaderPatches.TryApplyPatches(_logger, patcher);
         }
 
+        bool wasMutated = wasInlined || wasPostprocessed;
         if (wasMutated)
         {
             // Build and write back to asset

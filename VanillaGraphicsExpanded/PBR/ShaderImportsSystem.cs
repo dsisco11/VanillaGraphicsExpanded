@@ -118,14 +118,16 @@ public sealed class ShaderImportsSystem
     /// </summary>
     /// <param name="patcher">The patcher to process imports on.</param>
     /// <param name="log">Optional logger for warnings/errors.</param>
-    /// <returns>True if processing succeeded, false on failure.</returns>
+    /// <returns>True if processing resulted in any imports being inlined, false otherwise. </returns>
     public bool InlineImports(SourceCodeImportsProcessor patcher, ILogger? log = null)
     {
         try
         {
+            // only return true if imports were actually inlined.
+            int initialInsertionCount = patcher.InsertionCount;
             patcher.ProcessImports(log ?? _logger);
             log?.Debug($"[VGE] Inlined imports for: {patcher.SourceName}");
-            return true;
+            return patcher.InsertionCount > initialInsertionCount;
         }
         catch (SourceCodePatchException ex)
         {
@@ -139,3 +141,4 @@ public sealed class ShaderImportsSystem
         }
     }
 }
+

@@ -62,7 +62,8 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
                 {
                     patcher
                         .FindFunction("main").Before()
-                        .Insert($"@import \"vsFunctions.fsh\"\n");
+                        .Insert($"@import \"vsFunctions.glsl\"\n")
+                        .Commit();
                     log?.Audit($"[VGE] Applied pre-processing to shader: {patcher.SourceName}");
                     return true;
                 }
