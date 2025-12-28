@@ -29,6 +29,26 @@
             "stopAtEntry": false
         },
         {
+            "name": "Launch Client (RenderDoc)",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${env:RENDERDOC_PATH}/renderdoccmd.exe",
+            "preLaunchTask": "build",
+            "args": [
+                "capture",
+                "--wait-for-exit",
+                "${env:VINTAGE_STORY}/Vintagestory.exe",
+                "--tracelog",
+                "--addModPath",
+                "${workspaceFolder}/VanillaGraphicsExpanded/bin/Debug/Mods",
+                "--addOrigin",
+                "${workspaceFolder}/VanillaGraphicsExpanded/assets"
+            ],
+            "cwd": "${env:VINTAGE_STORY}",
+            "console": "internalConsole",
+            "stopAtEntry": false
+        },
+        {
             "name": "Launch Server",
             "type": "coreclr",
             "request": "launch",

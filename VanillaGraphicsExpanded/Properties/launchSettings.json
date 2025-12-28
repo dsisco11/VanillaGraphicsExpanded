@@ -6,6 +6,12 @@
       "commandLineArgs": "--tracelog --addModPath \"$(ProjectDir)/bin/$(Configuration)/Mods\"",
       "workingDirectory": "$(VINTAGE_STORY)"
     },
+    "Client (RenderDoc)": {
+      "commandName": "Executable",
+      "executablePath": "$(RENDERDOC_PATH)/renderdoccmd.exe",
+      "commandLineArgs": "capture --wait-for-exit \"$(VINTAGE_STORY)/Vintagestory.exe\" --tracelog --addModPath \"$(ProjectDir)/bin/$(Configuration)/Mods\"",
+      "workingDirectory": "$(VINTAGE_STORY)"
+    },
     "Server": {
       "commandName": "Executable",
       "executablePath": "$(VINTAGE_STORY)/VintagestoryServer.exe",
