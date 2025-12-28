@@ -32,8 +32,7 @@
             "name": "Launch Client (RenderDoc)",
             "type": "coreclr",
             "request": "launch",
-            "envFile": "${workspaceFolder}/.env",
-            "program": "${env:RENDERDOC_PATH}/renderdoccmd.exe",
+            "program": "${config:vanillaGraphicsExpanded.renderdocPath}/renderdoccmd.exe",
             "preLaunchTask": "build",
             "args": [
                 "capture",

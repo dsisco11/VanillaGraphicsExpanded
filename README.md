@@ -7,17 +7,13 @@ This project includes launch configurations for debugging graphics with [RenderD
 ### Setup
 
 1. **Install RenderDoc** from <https://renderdoc.org/>
-2. **Set the `RENDERDOC_PATH` environment variable** using one of these methods:
+2. **Configure the RenderDoc path** in VS Code:
 
-   **Option A: Project-local `.env` file (recommended for VS Code)**
+   - Open `.vscode/settings.json`
+   - Set `vanillaGraphicsExpanded.renderdocPath` to your RenderDoc installation folder
+   - Default: `C:/Program Files/RenderDoc`
 
-   - Copy `.env` to `.env.local` (or edit `.env` directly if not committing)
-   - Set `RENDERDOC_PATH=C:\Program Files\RenderDoc` (adjust to your installation)
-
-   **Option B: System environment variable**
-
-   - Windows: `C:\Program Files\RenderDoc` (typical location)
-   - Add as a system or user environment variable
+   For Visual Studio, set the `RENDERDOC_PATH` system environment variable instead.
 
 ### Using the Launch Profile
 
