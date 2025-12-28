@@ -16,16 +16,13 @@ namespace VanillaGraphicsExpanded;
 public class PBROverlayRenderer : IRenderer, IDisposable
 {
     #region Constants
-
-    private const double RENDER_ORDER = 0.95;
+    private const double RENDER_ORDER = 1.0;
     private const int RENDER_RANGE = 1;
-
     #endregion
 
     #region Fields
-
     protected readonly ICoreClientAPI capi;
-    protected readonly GBufferRenderer gBufferRenderer;
+    protected readonly GBufferManager gBufferManager;
     protected MeshRef? quadMeshRef;
     protected readonly float[] invProjectionMatrix = new float[16];
     protected readonly float[] invModelViewMatrix = new float[16];
@@ -56,20 +53,17 @@ public class PBROverlayRenderer : IRenderer, IDisposable
     /// Whether the PBR overlay is enabled. Can be toggled with F7 hotkey.
     /// </summary>
     public bool Enabled { get; set; } = true;
-
     #endregion
 
     #region IRenderer Implementation
-
     public virtual double RenderOrder => RENDER_ORDER;
     public virtual int RenderRange => RENDER_RANGE;
-
     #endregion
 
     #region Constructor
 
-    public PBROverlayRenderer(ICoreClientAPI capi, GBufferRenderer gBufferRenderer)
-        : this(capi, gBufferRenderer, -1, -1, 2, "pbroverlay")
+    public PBROverlayRenderer(ICoreClientAPI capi, GBufferManager gBufferManager)
+        : this(capi, gBufferManager, -1, -1, 2, "pbroverlay")
     {
     }
 
@@ -77,16 +71,16 @@ public class PBROverlayRenderer : IRenderer, IDisposable
     /// Protected constructor for subclasses to customize quad geometry and render stage name.
     /// </summary>
     /// <param name="capi">Client API</param>
-    /// <param name="gBufferRenderer">G-buffer renderer for normal texture access</param>
+    /// <param name="gBufferManager">G-buffer manager for texture access</param>
     /// <param name="quadLeft">Left edge of quad in NDC (-1 to 1)</param>
     /// <param name="quadBottom">Bottom edge of quad in NDC (-1 to 1)</param>
     /// <param name="quadSize">Size of quad in NDC units</param>
     /// <param name="renderStageName">Name for renderer registration</param>
-    protected PBROverlayRenderer(ICoreClientAPI capi, GBufferRenderer gBufferRenderer,
+    protected PBROverlayRenderer(ICoreClientAPI capi, GBufferManager gBufferManager,
         float quadLeft, float quadBottom, float quadSize, string renderStageName)
     {
         this.capi = capi;
-        this.gBufferRenderer = gBufferRenderer;
+        this.gBufferManager = gBufferManager;
 
         // Create quad mesh with specified geometry
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(quadLeft, quadBottom, 0, quadSize, quadSize);
@@ -94,8 +88,11 @@ public class PBROverlayRenderer : IRenderer, IDisposable
         quadMeshRef = capi.Render.UploadMesh(quadMesh);
 
         // Register renderer
-        capi.Event.RegisterRenderer(this, EnumRenderStage.AfterOIT, renderStageName);
-        //capi.Event.RegisterRenderer(this, EnumRenderStage.AfterBlit, renderStageName);
+        //capi.Event.RegisterRenderer(this, EnumRenderStage.Opaque, renderStageName);
+        //capi.Event.RegisterRenderer(this, EnumRenderStage.OIT, renderStageName);
+        //capi.Event.RegisterRenderer(this, EnumRenderStage.AfterOIT, renderStageName);
+        //capi.Event.RegisterRenderer(this, EnumRenderStage.ShadowNearDone, renderStageName);
+        capi.Event.RegisterRenderer(this, EnumRenderStage.AfterBlit, renderStageName);
 
         // Register hotkey to toggle PBR overlay (F7)
         capi.Input.RegisterHotKey(
@@ -140,6 +137,12 @@ public class PBROverlayRenderer : IRenderer, IDisposable
         {
             return;
         }
+
+        //if (stage == EnumRenderStage.OIT)
+        //{// Ensure G-buffer is detatched so it doesnt get cleared by OIT renderer
+        //    gBufferRenderer.DetachGBuffer();
+        //    return;
+        //}
 
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
 
@@ -187,8 +190,8 @@ public class PBROverlayRenderer : IRenderer, IDisposable
         // Bind textures
         shader.PrimaryScene = primaryFb.ColorTextureIds[0];
         shader.PrimaryDepth = primaryFb.DepthTextureId;
-        shader.GBufferNormal = gBufferRenderer.NormalTextureId;
-        shader.GBufferMaterial = gBufferRenderer.MaterialTextureId;
+        shader.GBufferNormal = gBufferManager.NormalTextureId;
+        shader.GBufferMaterial = gBufferManager.MaterialTextureId;
 
         // Pass matrices
         shader.InvProjectionMatrix = invProjectionMatrix;

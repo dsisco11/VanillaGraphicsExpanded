@@ -10,61 +10,78 @@ namespace VanillaGraphicsExpanded;
 /// - ColorAttachment0-3: Managed by VS (outColor/Albedo, outGlow, outGNormal, outGPosition)
 /// - ColorAttachment4: World-space normals (RGBA16F) - layout(location = 4)
 /// - ColorAttachment5: Material properties (RGBA16F) - layout(location = 5)
-/// - DepthAttachment: Hyperbolic depth (Depth32f)
+/// 
+/// Integrates with VS via Harmony hooks for framebuffer lifecycle management.
 /// </summary>
 public sealed class GBufferManager : IDisposable
 {
+    #region Static Instance
+    
+    /// <summary>
+    /// Singleton instance accessible from Harmony hooks.
+    /// </summary>
+    public static GBufferManager? Instance { get; private set; }
+    
+    #endregion
+
+    #region Fields
+    
     private readonly ICoreClientAPI capi;
     
     // Texture IDs for each G-buffer attachment
     private int normalTextureId;
     private int materialTextureId;
-    private int hyperbolicDepthTextureId;
     
     private int lastWidth;
     private int lastHeight;
     private bool isInitialized;
-    private bool isAttached;
+    
+    #endregion
 
+    #region Properties
+    
     /// <summary>
-    /// The OpenGL texture ID for the normal G-buffer (ColorAttachment1).
-    /// Format: RGBA16F - World-space normals in XYZ, W unused.
+    /// The OpenGL texture ID for the normal G-buffer (ColorAttachment4).
+    /// Format: RGBA16F - World-space normals in XYZ, W = bevel strength.
     /// </summary>
     public int NormalTextureId => normalTextureId;
 
     /// <summary>
-    /// The OpenGL texture ID for the material G-buffer (ColorAttachment2).
+    /// The OpenGL texture ID for the material G-buffer (ColorAttachment5).
     /// Format: RGBA16F - (Reflectivity, Roughness, Metallic, Emissive).
     /// </summary>
     public int MaterialTextureId => materialTextureId;
 
     /// <summary>
-    /// The OpenGL texture ID for the hyperbolic depth G-buffer (DepthAttachment).
-    /// Format: Depth32f - Hyperbolic depth value.
+    /// Whether the G-buffer textures have been created and are ready for attachment.
     /// </summary>
-    public int HyperbolicDepthTextureId => hyperbolicDepthTextureId;
+    public bool IsInitialized => isInitialized;
+    
+    #endregion
 
-    /// <summary>
-    /// Whether the G-buffer is successfully attached to the Primary framebuffer.
-    /// </summary>
-    public bool IsAttached => isAttached;
+    #region Constructor / Destructor
 
     public GBufferManager(ICoreClientAPI capi)
     {
         this.capi = capi;
+        Instance = this;
     }
+    
+    #endregion
 
+    #region Harmony Hook Methods
+    
     /// <summary>
-    /// Ensures the G-buffer textures exist and are attached to the Primary framebuffer.
-    /// Call this before rendering each frame.
+    /// Called by Harmony hook when VS sets up default framebuffers.
+    /// Creates and attaches G-buffer textures to the Primary framebuffer.
     /// </summary>
-    public void EnsureAttached()
+    public void SetupGBuffers()
     {
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         int width = primaryFb.Width;
         int height = primaryFb.Height;
 
-        // Check if we need to (re)create the textures due to size change
+        // Create textures if needed or if size changed
         if (!isInitialized || width != lastWidth || height != lastHeight)
         {
             CreateGBufferTextures(width, height);
@@ -72,12 +89,82 @@ public sealed class GBufferManager : IDisposable
             lastHeight = height;
         }
 
-        // Attach to framebuffer if not already attached
-        if (!isAttached && normalTextureId != 0)
-        {
-            AttachToFramebuffer(primaryFb.FboId);
-        }
+        // Attach to the Primary framebuffer
+        AttachToFramebuffer(primaryFb.FboId);
     }
+
+    /// <summary>
+    /// Called by Harmony hook when VS loads (binds) a framebuffer.
+    /// Ensures MRT draw buffers are set correctly when Primary is loaded.
+    /// </summary>
+    /// <param name="framebuffer">The framebuffer being loaded</param>
+    public void LoadGBuffer(EnumFrameBuffer framebuffer)
+    {
+        if (framebuffer != EnumFrameBuffer.Primary || !isInitialized)
+            return;
+
+        // Set draw buffers to include our attachments
+        // VS only sets 0-3, we need to add 4-5
+        DrawBuffersEnum[] drawBuffers = { 
+            DrawBuffersEnum.ColorAttachment0,  // VS: outColor (Albedo)
+            DrawBuffersEnum.ColorAttachment1,  // VS: outGlow
+            DrawBuffersEnum.ColorAttachment2,  // VS: outGNormal (SSAO)
+            DrawBuffersEnum.ColorAttachment3,  // VS: outGPosition (SSAO)
+            DrawBuffersEnum.ColorAttachment4,  // VGE: Normal
+            DrawBuffersEnum.ColorAttachment5   // VGE: Material
+        };
+        GL.DrawBuffers(6, drawBuffers);
+        
+        // Disable blending for VGE attachments to ensure direct writes
+        GL.BlendFunc(4, BlendingFactorSrc.One, BlendingFactorDest.Zero);
+        GL.BlendFunc(5, BlendingFactorSrc.One, BlendingFactorDest.Zero);
+        GL.Disable(IndexedEnableCap.Blend, 4);
+        GL.Disable(IndexedEnableCap.Blend, 5);
+    }
+
+    /// <summary>
+    /// Called by Harmony hook when VS clears a framebuffer.
+    /// Clears our G-buffer attachments when Primary is cleared.
+    /// </summary>
+    /// <param name="framebuffer">The framebuffer being cleared</param>
+    public void ClearGBuffer(EnumFrameBuffer framebuffer)
+    {
+        if (framebuffer != EnumFrameBuffer.Primary || !isInitialized)
+            return;
+
+        // Clear our G-buffer attachments to default values
+        // Using glClearBuffer to clear individual attachments without affecting VS attachments
+        
+        // Clear normal buffer (attachment 4) to (0, 0, 0, 0) - no normal data
+        float[] clearNormal = { 0.0f, 0.0f, 0.0f, 0.0f };
+        GL.ClearBuffer(ClearBuffer.Color, 4, clearNormal);
+        
+        // Clear material buffer (attachment 5) to (0, 0, 0, 0) - no material data
+        float[] clearMaterial = { 0.0f, 0.0f, 0.0f, 0.0f };
+        GL.ClearBuffer(ClearBuffer.Color, 5, clearMaterial);
+    }
+
+    /// <summary>
+    /// Called by Harmony hook when VS unloads a framebuffer.
+    /// Detaches G-buffer textures from Primary before it's destroyed.
+    /// </summary>
+    /// <param name="framebuffer">The framebuffer being unloaded</param>
+    public void UnloadGBuffer(EnumFrameBuffer framebuffer)
+    {
+        if (framebuffer != EnumFrameBuffer.Primary || !isInitialized)
+            return;
+
+        var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
+        DetachFromFramebuffer(primaryFb.FboId);
+        DeleteTextures();
+        isInitialized = false;
+        
+        capi.Logger.Notification("[VGE] G-buffer unloaded");
+    }
+    
+    #endregion
+
+    #region Private Methods
 
     private void CreateGBufferTextures(int width, int height)
     {
@@ -89,16 +176,13 @@ public sealed class GBufferManager : IDisposable
         
         // Create Material texture (RGBA16F) - Reflectivity, Roughness, Metallic, Emissive
         materialTextureId = CreateTexture(width, height, PixelInternalFormat.Rgba16f, PixelFormat.Rgba, PixelType.Float);
-        
-        // Create Hyperbolic Depth texture (Depth32f) - actual depth attachment
-        hyperbolicDepthTextureId = CreateDepthTexture(width, height);
 
         isInitialized = true;
         capi.Logger.Notification($"[VGE] Created G-buffer textures: {width}x{height}");
-        capi.Logger.Notification($"[VGE]   Normal ID={normalTextureId}, Material ID={materialTextureId}, HyperbolicDepth ID={hyperbolicDepthTextureId}");
+        capi.Logger.Notification($"[VGE]   Normal ID={normalTextureId}, Material ID={materialTextureId}");
     }
 
-    private int CreateTexture(int width, int height, PixelInternalFormat internalFormat, PixelFormat format, PixelType type)
+    private static int CreateTexture(int width, int height, PixelInternalFormat internalFormat, PixelFormat format, PixelType type)
     {
         int textureId = GL.GenTexture();
         GL.BindTexture(TextureTarget.Texture2D, textureId);
@@ -124,34 +208,6 @@ public sealed class GBufferManager : IDisposable
         return textureId;
     }
 
-    private int CreateDepthTexture(int width, int height)
-    {
-        int textureId = GL.GenTexture();
-        GL.BindTexture(TextureTarget.Texture2D, textureId);
-
-        GL.TexImage2D(
-            TextureTarget.Texture2D,
-            0,
-            PixelInternalFormat.DepthComponent32f,
-            width,
-            height,
-            0,
-            PixelFormat.DepthComponent,
-            PixelType.Float,
-            IntPtr.Zero);
-
-        // Set filtering (nearest for depth data)
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-        // Prevent depth comparison when sampling
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureCompareMode, (int)TextureCompareMode.None);
-
-        GL.BindTexture(TextureTarget.Texture2D, 0);
-        return textureId;
-    }
-
     private void DeleteTextures()
     {
         if (normalTextureId != 0)
@@ -164,12 +220,6 @@ public sealed class GBufferManager : IDisposable
             GL.DeleteTexture(materialTextureId);
             materialTextureId = 0;
         }
-        if (hyperbolicDepthTextureId != 0)
-        {
-            GL.DeleteTexture(hyperbolicDepthTextureId);
-            hyperbolicDepthTextureId = 0;
-        }
-        isAttached = false;
     }
 
     private void AttachToFramebuffer(int fboId)
@@ -193,56 +243,32 @@ public sealed class GBufferManager : IDisposable
             materialTextureId,
             0);
 
-        // Attach hyperbolic depth texture as DepthAttachment (replaces VS default depth)
-        GL.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.DepthAttachment,
-            TextureTarget.Texture2D,
-            hyperbolicDepthTextureId,
-            0);
-
-        // Update draw buffers to include all color attachments (depth is not included)
-        // Must include all attachments 0-5, even VS-managed ones, for MRT to work correctly
-        DrawBuffersEnum[] drawBuffers = { 
-            DrawBuffersEnum.ColorAttachment0,  // VS: outColor (Albedo)
-            DrawBuffersEnum.ColorAttachment1,  // VS: outGlow
-            DrawBuffersEnum.ColorAttachment2,  // VS: outGNormal (SSAO)
-            DrawBuffersEnum.ColorAttachment3,  // VS: outGPosition (SSAO)
-            DrawBuffersEnum.ColorAttachment4,  // VGE: Normal
-            DrawBuffersEnum.ColorAttachment5   // VGE: Material
-        };
-        GL.DrawBuffers(6, drawBuffers);
+        // Disable blending for VGE attachments to ensure direct writes
+        GL.BlendFunc(4, BlendingFactorSrc.One, BlendingFactorDest.Zero);
+        GL.BlendFunc(5, BlendingFactorSrc.One, BlendingFactorDest.Zero);
+        GL.Disable(IndexedEnableCap.Blend, 4);
+        GL.Disable(IndexedEnableCap.Blend, 5);
 
         // Verify framebuffer is complete
         var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
         if (status != FramebufferErrorCode.FramebufferComplete)
         {
             capi.Logger.Error($"[VGE] Framebuffer incomplete after attaching G-buffer: {status}");
-            isAttached = false;
         }
         else
         {
-            capi.Logger.Notification("[VGE] G-buffer textures attached to Primary framebuffer (Normal, Material, HyperbolicDepth)");
-            isAttached = true;
+            capi.Logger.Notification("[VGE] G-buffer textures attached to Primary framebuffer (Normal@4, Material@5)");
         }
 
         // Unbind framebuffer
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     }
 
-    /// <summary>
-    /// Detaches all G-buffer textures from the Primary framebuffer.
-    /// Call this before disposing or when the G-buffer is no longer needed.
-    /// </summary>
-    public void Detach()
+    private void DetachFromFramebuffer(int fboId)
     {
-        if (!isAttached) return;
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
 
-        var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
-        
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
-
-        // Detach all our textures (ColorAttachment4-6)
+        // Detach our color textures (ColorAttachment4-5)
         GL.FramebufferTexture2D(
             FramebufferTarget.Framebuffer,
             FramebufferAttachment.ColorAttachment4,
@@ -257,9 +283,6 @@ public sealed class GBufferManager : IDisposable
             0,
             0);
 
-        // Note: We don't detach DepthAttachment as VS manages the original depth buffer
-        // and will need to reattach it. The depth texture will be deleted on dispose.
-
         // Reset draw buffers to VS defaults (0-3)
         DrawBuffersEnum[] drawBuffers = { 
             DrawBuffersEnum.ColorAttachment0,
@@ -270,15 +293,26 @@ public sealed class GBufferManager : IDisposable
         GL.DrawBuffers(4, drawBuffers);
 
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-
-        isAttached = false;
+        
         capi.Logger.Notification("[VGE] G-buffer detached from Primary framebuffer");
     }
+    
+    #endregion
+
+    #region IDisposable
 
     public void Dispose()
     {
-        Detach();
+        // Clean up textures (framebuffer attachment cleanup happens via UnloadGBuffer hook)
         DeleteTextures();
         isInitialized = false;
+        
+        // Clear the static instance
+        if (Instance == this)
+        {
+            Instance = null;
+        }
     }
+    
+    #endregion
 }

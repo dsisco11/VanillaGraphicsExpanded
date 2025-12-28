@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded;
 public sealed class VanillaGraphicsExpandedModSystem : ModSystem
 {
     private ICoreClientAPI? capi;
-    private GBufferRenderer? gBufferRenderer;
+    private GBufferManager? gBufferManager;
     private PBROverlayRenderer? pbrOverlayRenderer;
     private DebugOverlayRenderer? debugOverlayRenderer;
     private HarmonyLib.Harmony? harmony;
@@ -36,14 +36,14 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     {
         capi = api;
 
-        // Create G-buffer renderer first (runs at Before stage)
-        gBufferRenderer = new GBufferRenderer(api);
+        // Create G-buffer manager (Harmony hooks will call into this)
+        gBufferManager = new GBufferManager(api);
 
         // Create PBR overlay renderer (runs at AfterBlit stage)
-        pbrOverlayRenderer = new PBROverlayRenderer(api, gBufferRenderer);
+        pbrOverlayRenderer = new PBROverlayRenderer(api, gBufferManager);
 
         // Create debug overlay renderer (runs after PBR overlay)
-        debugOverlayRenderer = new DebugOverlayRenderer(api, gBufferRenderer);
+        debugOverlayRenderer = new DebugOverlayRenderer(api, gBufferManager);
         // Load custom shaders
         LoadShaders(api);
         api.Event.ReloadShader += () => LoadShaders(api);
@@ -60,8 +60,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
             pbrOverlayRenderer?.Dispose();
             pbrOverlayRenderer = null;
 
-            gBufferRenderer?.Dispose();
-            gBufferRenderer = null;
+            gBufferManager?.Dispose();
+            gBufferManager = null;
 
             // Clear shader imports cache
             ShaderImportsSystem.Instance.Clear();

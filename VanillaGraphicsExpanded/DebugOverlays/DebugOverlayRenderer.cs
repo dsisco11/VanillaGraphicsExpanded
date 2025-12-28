@@ -33,8 +33,8 @@ public sealed class DebugOverlayRenderer : PBROverlayRenderer
 
     #region Constructor
 
-    public DebugOverlayRenderer(ICoreClientAPI capi, GBufferRenderer gBufferRenderer)
-        : base(capi, gBufferRenderer,
+    public DebugOverlayRenderer(ICoreClientAPI capi, GBufferManager gBufferManager)
+        : base(capi, gBufferManager,
             quadLeft: -OVERLAY_SIZE,      // Center horizontally: -0.25 to +0.25
             quadBottom: -OVERLAY_SIZE,    // Center vertically: -0.25 to +0.25
             quadSize: OVERLAY_SIZE * 2,   // Total size: 0.5 in NDC (25% of screen)

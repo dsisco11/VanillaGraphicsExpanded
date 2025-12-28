@@ -21,7 +21,7 @@ public sealed class DebugGBufferRenderer : IRenderer, IDisposable
     #region Fields
 
     private readonly ICoreClientAPI capi;
-    private readonly GBufferRenderer gBufferRenderer;
+    private readonly GBufferManager gBufferManager;
     private MeshRef? quadMeshRef;
     private int debugMode = 1;
     private bool isEnabled;
@@ -37,10 +37,10 @@ public sealed class DebugGBufferRenderer : IRenderer, IDisposable
 
     #region Constructor
 
-    public DebugGBufferRenderer(ICoreClientAPI capi, GBufferRenderer gBufferRenderer)
+    public DebugGBufferRenderer(ICoreClientAPI capi, GBufferManager gBufferManager)
     {
         this.capi = capi;
-        this.gBufferRenderer = gBufferRenderer;
+        this.gBufferManager = gBufferManager;
 
         // Create fullscreen quad mesh (-1 to 1 in NDC)
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
@@ -114,8 +114,8 @@ public sealed class DebugGBufferRenderer : IRenderer, IDisposable
     {
         return debugMode switch
         {
-            1 => gBufferRenderer.NormalTextureId,
-            2 => gBufferRenderer.MaterialTextureId,
+            1 => gBufferManager.NormalTextureId,
+            2 => gBufferManager.MaterialTextureId,
             3 => capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary].DepthTextureId,
             4 => capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary].ColorTextureIds[0],
             _ => 0
