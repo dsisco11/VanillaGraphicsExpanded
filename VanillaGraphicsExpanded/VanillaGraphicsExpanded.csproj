@@ -44,7 +44,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="TinyTokenizer" Version="0.3.*">
+    <PackageReference Include="TinyTokenizer" Version="0.4.*">
       <PrivateAssets>none</PrivateAssets>
     </PackageReference>
   </ItemGroup>

@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
+using TinyTokenizer.Ast;
+
 using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.PBR;
@@ -88,12 +90,12 @@ public sealed class ShaderImportsSystem
     }
 
     /// <summary>
-    /// Creates a patcher for the given asset without processing imports.
-    /// Use this when you need to apply pre-processing before import inlining.
+    /// Creates a SyntaxTree for the given asset using the GLSL schema.
+    /// Use this when you need to apply patches to shader source.
     /// </summary>
     /// <param name="asset">The shader asset to process.</param>
-    /// <returns>A patcher instance, or null if the asset is empty.</returns>
-    public SourceCodeImportsProcessor? CreatePatcher(IAsset asset)
+    /// <returns>A SyntaxTree instance, or null if the asset is empty.</returns>
+    public SyntaxTree? CreateSyntaxTree(IAsset asset)
     {
         if (asset.Data is null || asset.Data.Length == 0)
         {
@@ -101,42 +103,40 @@ public sealed class ShaderImportsSystem
         }
 
         var sourceCode = asset.ToText();
-        return new SourceCodeImportsProcessor(sourceCode, _importsCache, asset.Name);
+        return SyntaxTree.Parse(sourceCode, GlslSchema.Instance);
     }
 
-    public SourceCodeImportsProcessor? CreatePatcher(string sourceCode, string sourceName)
+    /// <summary>
+    /// Creates a SyntaxTree for the given source code using the GLSL schema.
+    /// </summary>
+    /// <param name="sourceCode">The shader source code.</param>
+    /// <param name="sourceName">Optional source name for error messages.</param>
+    /// <returns>A SyntaxTree instance, or null if the source is empty.</returns>
+    public SyntaxTree? CreateSyntaxTree(string sourceCode, string sourceName)
     {
         if (string.IsNullOrEmpty(sourceCode))
         {
             return null;
         }
-        return new SourceCodeImportsProcessor(sourceCode, _importsCache, sourceName);
+        return SyntaxTree.Parse(sourceCode, GlslSchema.Instance);
     }
 
     /// <summary>
-    /// Processes all @import directives on an existing patcher.
+    /// Processes all @import directives in the given SyntaxTree by inlining imported content.
     /// </summary>
-    /// <param name="patcher">The patcher to process imports on.</param>
+    /// <param name="tree">The SyntaxTree to process.</param>
+    /// <param name="sourceName">The source name for logging.</param>
     /// <param name="log">Optional logger for warnings/errors.</param>
-    /// <returns>True if processing resulted in any imports being inlined, false otherwise. </returns>
-    public bool InlineImports(SourceCodeImportsProcessor patcher, ILogger? log = null)
+    /// <returns>True if imports were inlined, false otherwise.</returns>
+    public bool InlineImports(SyntaxTree tree, string sourceName, ILogger? log = null)
     {
         try
         {
-            // only return true if imports were actually inlined.
-            int initialInsertionCount = patcher.InsertionCount;
-            patcher.ProcessImports(log ?? _logger);
-            log?.Debug($"[VGE] Inlined imports for: {patcher.SourceName}");
-            return patcher.InsertionCount > initialInsertionCount;
-        }
-        catch (SourceCodePatchException ex)
-        {
-            (log ?? _logger)?.Warning($"[VGE] Failed to inline imports for '{patcher.SourceName}': {ex.Message}");
-            return false;
+            return SourceCodeImportsProcessor.ProcessImports(tree, _importsCache, log ?? _logger);
         }
         catch (Exception ex)
         {
-            (log ?? _logger)?.Warning($"[VGE] Unexpected error inlining imports for '{patcher.SourceName}': {ex.Message}");
+            (log ?? _logger)?.Warning($"[VGE] Failed to inline imports for '{sourceName}': {ex.Message}");
             return false;
         }
     }
