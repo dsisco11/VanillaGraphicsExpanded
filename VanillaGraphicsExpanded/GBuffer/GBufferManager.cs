@@ -146,8 +146,8 @@ public sealed class GBufferManager : IDisposable
         // Disable blending for VGE attachments to ensure direct writes
         GL.BlendFunc(normalSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
         GL.BlendFunc(materialSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
-        //GL.Disable(IndexedEnableCap.Blend, normalSlotId);
-        //GL.Disable(IndexedEnableCap.Blend, materialSlotId);
+        GL.Disable(IndexedEnableCap.Blend, normalSlotId);
+        GL.Disable(IndexedEnableCap.Blend, materialSlotId);
     }
 
     /// <summary>
