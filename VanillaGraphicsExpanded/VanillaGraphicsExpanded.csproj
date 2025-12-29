@@ -8,6 +8,11 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
+  <!-- Expose internal types to test project -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="VanillaGraphicsExpanded.Tests" />
+  </ItemGroup>
+
   <ItemGroup>
     <Reference Include="VintagestoryAPI">
       <HintPath>$(VINTAGE_STORY)/VintagestoryAPI.dll</HintPath>
@@ -44,7 +49,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="TinyTokenizer" Version="0.4.*">
+    <PackageReference Include="TinyTokenizer" Version="0.4.1">
       <PrivateAssets>none</PrivateAssets>
     </PackageReference>
   </ItemGroup>
