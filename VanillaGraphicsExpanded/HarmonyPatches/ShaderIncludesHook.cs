@@ -44,7 +44,7 @@ public static class ShaderIncludesHook
         {
             return;
         }
-        _logger.Audit($"[VGE][Shaders] Processing shader program '{program.PassName}'");
+        //_logger.Audit($"[VGE][Shaders] Processing shader program '{program.PassName}'");
         ProcessShaderProgram(program);
     }
 
@@ -52,8 +52,8 @@ public static class ShaderIncludesHook
     /// Prefix patch for ShaderRegistry.loadRegisteredShaderPrograms.
     /// Processes shader assets in-place before the original method compiles them.
     /// </summary>
-    //[HarmonyPatch(typeof(Vintagestory.Client.NoObf.ShaderRegistry), "loadRegisteredShaderPrograms")]
-    //[HarmonyPrefix]
+    [HarmonyPatch(typeof(Vintagestory.Client.NoObf.ShaderRegistry), "loadRegisteredShaderPrograms")]
+    [HarmonyPrefix]
     public static void loadRegisteredShaderPrograms_Hook()
     {
         if (_assetManager is null)
@@ -69,7 +69,7 @@ public static class ShaderIncludesHook
             domain: null,
             loadAsset: true);
         
-        _logger?.Audit($"[VGE][Shaders] Processing {shaderIncludes.Count} shader includes");
+        //_logger?.Audit($"[VGE][Shaders] Processing {shaderIncludes.Count} shader includes");
         int patchedCount = ProcessShaderAssets(shaderIncludes);
         if (patchedCount > 0)
         {
@@ -83,7 +83,7 @@ public static class ShaderIncludesHook
             domain: null,
             loadAsset: true);
         
-        _logger?.Audit($"[VGE][Shaders] Processing {shaderSources.Count} shader source files");
+        //_logger?.Audit($"[VGE][Shaders] Processing {shaderSources.Count} shader source files");
         patchedCount = ProcessShaderAssets(shaderSources);
         if (patchedCount > 0)
         {
@@ -119,27 +119,23 @@ public static class ShaderIncludesHook
             return;
         }
 
-        bool wasPreprocessed = false;
-        bool wasInlined = false;
-        bool wasPostprocessed = false;
         // Stage 1: Pre-processing (before imports are inlined)
         if (preProcess)
         {
-            wasPreprocessed = VanillaShaderPatches.TryApplyPreProcessing(_logger, patcher);
+            //VanillaShaderPatches.TryApplyPreProcessing(_logger, patcher);
         }
         // Stage 2: Inline imports
         if (inlineImports)
         {
-            wasInlined = ShaderImportsSystem.Instance.InlineImports(patcher, _logger);
+            ShaderImportsSystem.Instance.InlineImports(patcher, _logger);
         }
-        // Stage 3: Post-processing (after imports are inlined)
-        if (postProcess)
-        {
-            wasPostprocessed = VanillaShaderPatches.TryApplyPatches(_logger, patcher);
-        }
+        //// Stage 3: Post-processing (after imports are inlined)
+        //if (postProcess)
+        //{
+        //    VanillaShaderPatches.TryApplyPatches(_logger, patcher);
+        //}
 
-        bool wasMutated = wasInlined || wasPostprocessed;
-        if (wasMutated)
+        if (patcher.HasChanges)
         {
             // Build and write back to asset
             shader.Code = patcher.Build();
@@ -167,19 +163,18 @@ public static class ShaderIncludesHook
             }
 
             // Stage 1: Pre-processing (before imports are inlined)
-            bool preProcessed = VanillaShaderPatches.TryApplyPreProcessing(_logger, patcher);
+            VanillaShaderPatches.TryApplyPreProcessing(_logger, patcher);
 
             // Stage 2: Inline imports
             ShaderImportsSystem.Instance.InlineImports(patcher, _logger);
 
             // Stage 3: Post-processing (after imports are inlined)
-            bool postProcessed = VanillaShaderPatches.TryApplyPatches(_logger, patcher);
+            VanillaShaderPatches.TryApplyPatches(_logger, patcher);
 
             // Build and write back to asset
-            asset.Data = Encoding.UTF8.GetBytes(patcher.Build());
-            
-            if (preProcessed || postProcessed)
+            if (patcher.HasChanges)
             {
+                asset.Data = Encoding.UTF8.GetBytes(patcher.Build());
                 asset.IsPatched = true;
                 patchedCount++;
             }

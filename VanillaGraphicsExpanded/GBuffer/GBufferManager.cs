@@ -31,15 +31,26 @@ public sealed class GBufferManager : IDisposable
     // Texture IDs for each G-buffer attachment
     private int normalTextureId;
     private int materialTextureId;
-    
+    private int normalSlotId = 4;
+    private int materialSlotId = 5;
+    private float[] clearColor = [0f, 0f, 0f, 0f];
+
     private int lastWidth;
     private int lastHeight;
-    private bool isInitialized;
-    
+    /// <summary>
+    /// Whether the G-buffer textures have been created and are ready for attachment.
+    /// </summary>
+    private bool isInitialized = false;
+
+    /// <summary>
+    /// Whether the G-buffer textures have been injected into the framebuffer array.
+    /// </summary>
+    private bool isInjected = false;
+
     #endregion
 
     #region Properties
-    
+
     /// <summary>
     /// The OpenGL texture ID for the normal G-buffer (ColorAttachment4).
     /// Format: RGBA16F - World-space normals in XYZ, W = bevel strength.
@@ -77,7 +88,12 @@ public sealed class GBufferManager : IDisposable
     /// </summary>
     public void SetupGBuffers()
     {
-        var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
+        FrameBufferRef? primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
+        if (primaryFb is null)
+        {
+            capi.Logger.Error("[VGE] Primary framebuffer not found during G-buffer setup.");
+            return;
+        }
         int width = primaryFb.Width;
         int height = primaryFb.Height;
 
@@ -88,6 +104,11 @@ public sealed class GBufferManager : IDisposable
             lastWidth = width;
             lastHeight = height;
         }
+
+        // Inject our textures into the framebuffers array
+        // Need to expand the ColorTextureIds array to hold our attachments
+        primaryFb.ColorTextureIds = [..primaryFb.ColorTextureIds, normalTextureId, materialTextureId];
+        isInjected = true;
 
         // Attach to the Primary framebuffer
         AttachToFramebuffer(primaryFb.FboId);
@@ -100,26 +121,33 @@ public sealed class GBufferManager : IDisposable
     /// <param name="framebuffer">The framebuffer being loaded</param>
     public void LoadGBuffer(EnumFrameBuffer framebuffer)
     {
-        if (framebuffer != EnumFrameBuffer.Primary || !isInitialized)
+        if (framebuffer != EnumFrameBuffer.Primary)
+            return;
+
+        if (!isInitialized || !isInjected)
+        {
+            SetupGBuffers();
+        }
+
+        if (!isInitialized || !isInjected)
             return;
 
         // Set draw buffers to include our attachments
         // VS only sets 0-3, we need to add 4-5
-        DrawBuffersEnum[] drawBuffers = { 
+        DrawBuffersEnum[] drawBuffers = [ 
             DrawBuffersEnum.ColorAttachment0,  // VS: outColor (Albedo)
             DrawBuffersEnum.ColorAttachment1,  // VS: outGlow
             DrawBuffersEnum.ColorAttachment2,  // VS: outGNormal (SSAO)
             DrawBuffersEnum.ColorAttachment3,  // VS: outGPosition (SSAO)
             DrawBuffersEnum.ColorAttachment4,  // VGE: Normal
             DrawBuffersEnum.ColorAttachment5   // VGE: Material
-        };
-        GL.DrawBuffers(6, drawBuffers);
-        
+        ];
+        GL.DrawBuffers(6, drawBuffers);        
         // Disable blending for VGE attachments to ensure direct writes
-        GL.BlendFunc(4, BlendingFactorSrc.One, BlendingFactorDest.Zero);
-        GL.BlendFunc(5, BlendingFactorSrc.One, BlendingFactorDest.Zero);
-        GL.Disable(IndexedEnableCap.Blend, 4);
-        GL.Disable(IndexedEnableCap.Blend, 5);
+        GL.BlendFunc(normalSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
+        GL.BlendFunc(materialSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
+        //GL.Disable(IndexedEnableCap.Blend, normalSlotId);
+        //GL.Disable(IndexedEnableCap.Blend, materialSlotId);
     }
 
     /// <summary>
@@ -129,39 +157,33 @@ public sealed class GBufferManager : IDisposable
     /// <param name="framebuffer">The framebuffer being cleared</param>
     public void ClearGBuffer(EnumFrameBuffer framebuffer)
     {
-        if (framebuffer != EnumFrameBuffer.Primary || !isInitialized)
+        if (!isInitialized || !isInjected)
             return;
 
-        // Clear our G-buffer attachments to default values
-        // Using glClearBuffer to clear individual attachments without affecting VS attachments
-        
-        // Clear normal buffer (attachment 4) to (0, 0, 0, 0) - no normal data
-        float[] clearNormal = { 0.0f, 0.0f, 0.0f, 0.0f };
-        GL.ClearBuffer(ClearBuffer.Color, 4, clearNormal);
-        
-        // Clear material buffer (attachment 5) to (0, 0, 0, 0) - no material data
-        float[] clearMaterial = { 0.0f, 0.0f, 0.0f, 0.0f };
-        GL.ClearBuffer(ClearBuffer.Color, 5, clearMaterial);
+        if (framebuffer == EnumFrameBuffer.Primary)
+        {
+            // Clear our G-buffer attachments to default values
+            // Using glClearBuffer to clear individual attachments without affecting VS attachments
+            
+            // Clear normal buffer (attachment 4) to (0, 0, 0, 0) - no normal data
+            GL.ClearBuffer(ClearBuffer.Color, normalSlotId, clearColor);
+            
+            // Clear material buffer (attachment 5) to (0, 0, 0, 0) - no material data
+            GL.ClearBuffer(ClearBuffer.Color, materialSlotId, clearColor);
+        }
     }
 
     /// <summary>
     /// Called by Harmony hook when VS unloads a framebuffer.
-    /// Detaches G-buffer textures from Primary before it's destroyed.
+    /// Used for returning the GL state to default if needed.
     /// </summary>
     /// <param name="framebuffer">The framebuffer being unloaded</param>
     public void UnloadGBuffer(EnumFrameBuffer framebuffer)
     {
-        if (framebuffer != EnumFrameBuffer.Primary || !isInitialized)
-            return;
-
-        var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
-        DetachFromFramebuffer(primaryFb.FboId);
-        DeleteTextures();
-        isInitialized = false;
-        
-        capi.Logger.Notification("[VGE] G-buffer unloaded");
+        //if (framebuffer != EnumFrameBuffer.Primary || !isInitialized || !isInjected)
+        //    return;
     }
-    
+
     #endregion
 
     #region Private Methods
@@ -173,9 +195,9 @@ public sealed class GBufferManager : IDisposable
 
         // Create Normal texture (RGBA16F)
         normalTextureId = CreateTexture(width, height, PixelInternalFormat.Rgba16f, PixelFormat.Rgba, PixelType.Float);
-        
-        // Create Material texture (RGBA16F) - Reflectivity, Roughness, Metallic, Emissive
-        materialTextureId = CreateTexture(width, height, PixelInternalFormat.Rgba16f, PixelFormat.Rgba, PixelType.Float);
+
+        // Create Material texture (RGBA8) - Roughness, Metallic, Emissive, Reflectivity
+        materialTextureId = CreateTexture(width, height, PixelInternalFormat.Rgba8, PixelFormat.Rgba, PixelType.UnsignedByte);
 
         isInitialized = true;
         capi.Logger.Notification($"[VGE] Created G-buffer textures: {width}x{height}");
@@ -222,8 +244,14 @@ public sealed class GBufferManager : IDisposable
         }
     }
 
+    /// <summary>
+    /// Attaches the G-buffer textures to the specified framebuffer.
+    /// </summary>
+    /// <param name="fboId"></param>
     private void AttachToFramebuffer(int fboId)
     {
+        // stash the currently bound framebuffer
+        var prevFbo = GL.GetInteger(GetPName.FramebufferBinding);
         // Bind the Primary framebuffer
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
 
@@ -244,10 +272,10 @@ public sealed class GBufferManager : IDisposable
             0);
 
         // Disable blending for VGE attachments to ensure direct writes
-        GL.BlendFunc(4, BlendingFactorSrc.One, BlendingFactorDest.Zero);
-        GL.BlendFunc(5, BlendingFactorSrc.One, BlendingFactorDest.Zero);
-        GL.Disable(IndexedEnableCap.Blend, 4);
-        GL.Disable(IndexedEnableCap.Blend, 5);
+        GL.BlendFunc(normalSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
+        GL.BlendFunc(materialSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
+        GL.Disable(IndexedEnableCap.Blend, normalSlotId);
+        GL.Disable(IndexedEnableCap.Blend, materialSlotId);
 
         // Verify framebuffer is complete
         var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
@@ -260,10 +288,14 @@ public sealed class GBufferManager : IDisposable
             capi.Logger.Notification("[VGE] G-buffer textures attached to Primary framebuffer (Normal@4, Material@5)");
         }
 
-        // Unbind framebuffer
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        // Restore previous framebuffer binding
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
     }
 
+    /// <summary>
+    /// Detaches the G-buffer textures from the specified framebuffer.
+    /// </summary>
+    /// <param name="fboId"></param>
     private void DetachFromFramebuffer(int fboId)
     {
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
