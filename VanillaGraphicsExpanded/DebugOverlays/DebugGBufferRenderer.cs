@@ -13,7 +13,7 @@ public sealed class DebugGBufferRenderer : IRenderer, IDisposable
 {
     #region Constants
 
-    private const double DEBUG_RENDER_ORDER = 0.96; // After PBR overlay
+    private const double DEBUG_RENDER_ORDER = 1; // After PBR overlay
     private const int DEBUG_MODE_COUNT = 6; // 1-5 are valid debug modes
 
     #endregion

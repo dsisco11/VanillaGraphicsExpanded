@@ -38,5 +38,13 @@ public static class GBufferHooks
     public static void LoadFrameBuffer_Hook(EnumFrameBuffer framebuffer)
     {
         GBufferManager.Instance?.LoadGBuffer(framebuffer);
-    }    
+    }
+
+// Vintagestory.Client.NoObf.ClientPlatformWindows.GlToggleBlend(bool on, EnumBlendMode blendMode)
+    [HarmonyPatch(typeof(ClientPlatformWindows), nameof(ClientPlatformWindows.GlToggleBlend), typeof(bool), typeof(EnumBlendMode))]
+    [HarmonyPostfix]
+    public static void GlToggleBlend_Hook(bool on, EnumBlendMode blendMode)
+    {
+        GBufferManager.Instance?.ReapplyGBufferBlendState();
+    }
 }

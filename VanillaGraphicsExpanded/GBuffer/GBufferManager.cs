@@ -143,11 +143,94 @@ public sealed class GBufferManager : IDisposable
             DrawBuffersEnum.ColorAttachment5   // VGE: Material
         ];
         GL.DrawBuffers(6, drawBuffers);        
-        // Disable blending for VGE attachments to ensure direct writes
+        
+        // Note: Per-buffer blend state (GL.BlendFunc/GL.Disable indexed) gets overwritten
+        // whenever VS calls GL.BlendFunc() globally. The shader output is written 
+        // directly regardless of blend state - the blend equation src*1 + dst*0 = src
+        // means what we write is what we get. If blending is causing issues, ensure
+        // the shader outputs are correct and consider that GL state may be reset
+        // by VS between LoadGBuffer and actual draw calls.
+        //
+        // Per-buffer blend control requires GL 4.0+ / ARB_draw_buffers_blend
+        ApplyGBufferBlendState();
+
+        // Verify the blend state was actually set
+        VerifyBlendState();
+    }
+
+    /// <summary>
+    /// Applies the correct blend state for G-buffer attachments (One/Zero, disabled).
+    /// </summary>
+    private void ApplyGBufferBlendState()
+    {
         GL.BlendFunc(normalSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
         GL.BlendFunc(materialSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
         GL.Disable(IndexedEnableCap.Blend, normalSlotId);
         GL.Disable(IndexedEnableCap.Blend, materialSlotId);
+    }
+
+    /// <summary>
+    /// Called by Harmony hook after VS sets global blend state via GlToggleBlend.
+    /// Reapplies G-buffer blend state that was overwritten by global GL.BlendFunc.
+    /// </summary>
+    public void ReapplyGBufferBlendState()
+    {
+        if (!isInitialized || !isInjected)
+            return;
+
+        // Only reapply if Primary framebuffer is currently bound
+        int currentFbo = GL.GetInteger(GetPName.FramebufferBinding);
+        FrameBufferRef? primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
+        if (primaryFb is null || currentFbo != primaryFb.FboId)
+            return;
+
+        ApplyGBufferBlendState();
+    }
+
+    private bool hasLoggedBlendState = false;
+    private void VerifyBlendState()
+    {
+        if (hasLoggedBlendState) return;
+        hasLoggedBlendState = true;
+
+        // Check if blend is enabled/disabled for each buffer
+        bool blend4Enabled = GL.IsEnabled(IndexedEnableCap.Blend, normalSlotId);
+        bool blend5Enabled = GL.IsEnabled(IndexedEnableCap.Blend, materialSlotId);
+        
+        // Also check VS buffers for comparison
+        bool blend2Enabled = GL.IsEnabled(IndexedEnableCap.Blend, 2);
+        bool blend3Enabled = GL.IsEnabled(IndexedEnableCap.Blend, 3);
+
+        // Query blend func using raw GL constants
+        // GL_BLEND_SRC_RGB = 0x80C9, GL_BLEND_DST_RGB = 0x80C8
+        const int GL_BLEND_SRC_RGB = 0x80C9;
+        const int GL_BLEND_DST_RGB = 0x80C8;
+        
+        GL.GetInteger((GetIndexedPName)GL_BLEND_SRC_RGB, normalSlotId, out int srcRgb4);
+        GL.GetInteger((GetIndexedPName)GL_BLEND_DST_RGB, normalSlotId, out int dstRgb4);
+        GL.GetInteger((GetIndexedPName)GL_BLEND_SRC_RGB, materialSlotId, out int srcRgb5);
+        GL.GetInteger((GetIndexedPName)GL_BLEND_DST_RGB, materialSlotId, out int dstRgb5);
+        
+        // Compare with VS buffers
+        GL.GetInteger((GetIndexedPName)GL_BLEND_SRC_RGB, 2, out int srcRgb2);
+        GL.GetInteger((GetIndexedPName)GL_BLEND_DST_RGB, 2, out int dstRgb2);
+        GL.GetInteger((GetIndexedPName)GL_BLEND_SRC_RGB, 3, out int srcRgb3);
+        GL.GetInteger((GetIndexedPName)GL_BLEND_DST_RGB, 3, out int dstRgb3);
+
+        // GL_ONE = 1, GL_ZERO = 0
+        capi.Logger.Notification($"[VGE] Blend state verification:");
+        capi.Logger.Notification($"[VGE]   Buffer 2 (VS GNormal):   Enabled={blend2Enabled}, Src={srcRgb2}, Dst={dstRgb2}");
+        capi.Logger.Notification($"[VGE]   Buffer 3 (VS GPosition): Enabled={blend3Enabled}, Src={srcRgb3}, Dst={dstRgb3}");
+        capi.Logger.Notification($"[VGE]   Buffer 4 (VGE Normal):   Enabled={blend4Enabled}, Src={srcRgb4}, Dst={dstRgb4}");
+        capi.Logger.Notification($"[VGE]   Buffer 5 (VGE Material): Enabled={blend5Enabled}, Src={srcRgb5}, Dst={dstRgb5}");
+        capi.Logger.Notification($"[VGE]   (GL_ONE=1, GL_ZERO=0, GL_SRC_ALPHA=770, GL_ONE_MINUS_SRC_ALPHA=771)");
+        
+        // Check for GL errors
+        var error = GL.GetError();
+        if (error != ErrorCode.NoError)
+        {
+            capi.Logger.Warning($"[VGE] GL Error after blend state query: {error}");
+        }
     }
 
     /// <summary>
@@ -272,6 +355,7 @@ public sealed class GBufferManager : IDisposable
             0);
 
         // Disable blending for VGE attachments to ensure direct writes
+        // Per-buffer blend control requires GL 4.0+ / ARB_draw_buffers_blend
         GL.BlendFunc(normalSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
         GL.BlendFunc(materialSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
         GL.Disable(IndexedEnableCap.Blend, normalSlotId);

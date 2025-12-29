@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 using Vintagestory.API.Common;
 
@@ -18,7 +16,7 @@ internal static class VanillaShaderPatches
     // Location 4: World-space normals (RGBA16F)
     // Location 5: Material properties (RGBA16F) - Reflectivity, Roughness, Metallic, Emissive
     // Note: VS's ColorAttachment0 (outColor) serves as albedo
-    private const string GBufferOutputDeclarations = @"
+    private const string GBufferInputDeclarations = @"
 // VGE G-Buffer outputs
 layout(location = 4) out vec4 vge_outNormal;    // World-space normal (XYZ), unused (W)
 layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Metallic, Emissive
@@ -62,13 +60,13 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
                 case "standard.fsh":
                 case "instanced.fsh":
                     {
-                    patcher
-                        .FindFunction("main").Before()
-                        .Insert($"@import \"vsFunctions.glsl\"\n")
-                        .Commit();
-                    log?.Audit($"[VGE] Applied pre-processing to shader: {patcher.SourceName}");
-                    return true;
-                }
+                        patcher
+                            .FindFunction("main").Before()
+                            .Insert($"@import \"vsFunctions.glsl\"\n")
+                            .Commit();
+                        log?.Audit($"[VGE] Applied pre-processing to shader: {patcher.SourceName}");
+                        return true;
+                    }
 
                 default:
                     return false;
@@ -101,23 +99,33 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
             {
                 // Shader includes
                 case "fogandlight.fsh":
-                    PatchFogAndLight(patcher);
-                    log?.Audit($"[VGE] Applied patches to shader: {patcher.SourceName}");
-                    return true;
+                    {
+                        PatchFogAndLight(patcher);
+                        log?.Audit($"[VGE] Applied patches to shader: {patcher.SourceName}");
+                        return true;
+                    }
                 // case "normalshading.fsh": // Note: Disabled since we don't really care to change the lighting for gui items or first-person view items.
                 //     PatchNormalshading(patcher);
                 //     return true;
-
                 // Main shader files - inject G-buffer outputs
                 case "chunktransparent.fsh":
                 case "chunkopaque.fsh":
                 case "chunktopsoil.fsh":
                 case "standard.fsh":
                 case "instanced.fsh":
-                    InjectGBufferOutputs(patcher);
-                    log?.Audit($"[VGE] Applied patches to shader: {patcher.SourceName}");
-                    return true;
-
+                    {
+                        InjectGBufferInputs(patcher);
+                        InjectGBufferOutputs(patcher);
+                        log?.Audit($"[VGE] Applied patches to shader: {patcher.SourceName}");
+                        return true;
+                    }
+                case "sky.fsh":
+                    {
+                        InjectGBufferInputs(patcher);
+                        InjectSkyGBufferOutputs(patcher);
+                        log?.Audit($"[VGE] Applied patches to shader: {patcher.SourceName}");
+                        return true;
+                    }
                 default:
                     return false;
             }
@@ -137,11 +145,28 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
     /// <summary>
     /// Injects G-buffer output declarations and writes into a main shader.
     /// </summary>
+    private static void InjectGBufferInputs(SourceCodePatcher patcher)
+    {
+        patcher.FindVersionDirective().After().Insert(GBufferInputDeclarations);
+    }
+
+    /// <summary>
+    /// Injects G-buffer output declarations and writes into a main shader.
+    /// </summary>
     private static void InjectGBufferOutputs(SourceCodePatcher patcher)
     {
-        patcher
-            .FindVersionDirective().After().Insert(GBufferOutputDeclarations)
-            .FindFunction("main").AtTop().Insert(GBufferOutputWrites);
+        patcher.FindFunction("main").AtTop().Insert(GBufferOutputWrites);
+    }
+
+    private static void InjectSkyGBufferOutputs(SourceCodePatcher patcher)
+    {
+        // Sky shader only needs to write default values to G-buffer outputs
+        const string skyGBufferWrites = @"
+    // VGE: Write default G-buffer outputs for sky
+    vge_outNormal = vec4(0.0); // Upward normal
+    vge_outMaterial = vec4(1.0, 0.0, outGlow.g, 0.0); // Default material properties
+";
+        patcher.FindFunction("main").BeforeClose().Insert(skyGBufferWrites);
     }
 
     /// <summary>
