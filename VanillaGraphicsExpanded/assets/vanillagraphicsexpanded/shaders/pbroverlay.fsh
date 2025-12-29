@@ -93,11 +93,11 @@ vec3 sampleNormalSmooth(sampler2D normalTex, sampler2D depthTex, vec2 texCoord, 
     
     // Depth threshold: reject samples from different objects
     // More generous threshold allows smoother blending across nearby surfaces
-    float depthThreshold = max(0.05, centerLinearDepth * 0.05); // ~5% of depth, min 0.15 blocks
+    float depthThreshold = max(0.01, centerLinearDepth * 0.03); // ~3% of depth, min 0.01 blocks
     // float depthThreshold = (centerLinearDepth * 0.03); // ~3% of depth, min 0.15 blocks
     
     // Accumulate weighted normals - start with lower center weight for more averaging
-    float totalWeight = 0.1;
+    float totalWeight = 0.5;
     vec3 accumulatedNormal = centerNormal * totalWeight;
     
     // Gaussian sigma for spatial falloff - larger sigma = smoother result
@@ -227,11 +227,11 @@ void main() {
     // Sample G-buffer material texture
     vec4 gMaterial = texture(gBufferMaterial, uv);
     // Read roughness/metallic from G-buffer material texture
-    //  vec4(vge_reflectivity, vge_roughness, vge_metallic, vge_emissive);
-    float matReflectivity = gMaterial.r;
-    float matRoughness = gMaterial.g * matRoughnessFactor;
-    float matMetallic = gMaterial.b * matMetallicFactor;
-    float matEmissive = gMaterial.a * matEmissiveFactor;
+    //  vec4(vge_roughness, vge_metallic, vge_emissive, vge_reflectivity);
+    float matRoughness = gMaterial.r * matRoughnessFactor;
+    float matMetallic = gMaterial.g * matMetallicFactor;
+    float matEmissive = gMaterial.b * matEmissiveFactor;
+    float matReflectivity = gMaterial.a;
     
     // Debug visualizations - G-Buffer attachments
     if (debugMode == 1) {

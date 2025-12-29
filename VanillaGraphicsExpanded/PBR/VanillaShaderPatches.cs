@@ -28,16 +28,17 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
     // Uses available shader variables: normal, renderFlags, texColor/rgba
     // Note: VS's outColor (ColorAttachment0) serves as albedo
     private const string GBufferOutputWrites = @"
+
     // VGE: Write G-buffer outputs
     // Normal: world-space normal packed to [0,1] range
     vge_outNormal = vec4(normal * 0.5 + 0.5, 1.0);
     
     // Material: extract properties from renderFlags
-    float vge_reflectivity = getMatMetallicFromRenderFlags(renderFlags); // Using same function for reflectivity for simplicity
     float vge_roughness = 0.5;  // Default roughness (could be extracted from texture)
     float vge_metallic = getMatMetallicFromRenderFlags(renderFlags);
     float vge_emissive = glowLevel;
-    vge_outMaterial = vec4(vge_reflectivity, vge_roughness, vge_metallic, vge_emissive);
+    float vge_reflectivity = getMatMetallicFromRenderFlags(renderFlags); // Using same function for reflectivity for simplicity
+    vge_outMaterial = vec4(vge_roughness, vge_metallic, vge_emissive, vge_reflectivity);
 ";
     #endregion
 
@@ -55,11 +56,12 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
             switch (patcher.SourceName)
             {
                 // Main shader files - inject vsFunctions import
+                case "chunktransparent.fsh":
                 case "chunkopaque.fsh":
                 case "chunktopsoil.fsh":
                 case "standard.fsh":
                 case "instanced.fsh":
-                {
+                    {
                     patcher
                         .FindFunction("main").Before()
                         .Insert($"@import \"vsFunctions.glsl\"\n")
@@ -107,6 +109,7 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
                 //     return true;
 
                 // Main shader files - inject G-buffer outputs
+                case "chunktransparent.fsh":
                 case "chunkopaque.fsh":
                 case "chunktopsoil.fsh":
                 case "standard.fsh":
@@ -138,7 +141,7 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
     {
         patcher
             .FindVersionDirective().After().Insert(GBufferOutputDeclarations)
-            .FindFunction("main").BeforeClose().Insert(GBufferOutputWrites);
+            .FindFunction("main").AtTop().Insert(GBufferOutputWrites);
     }
 
     /// <summary>
@@ -148,27 +151,27 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
     {
         // intercept 'applyFog' function and just return unadjusted color
         patcher.FindFunction("applyFog").AtTop()
-            .Insert(@"return rgbaPixel;");
+            .Insert("\nreturn rgbaPixel;");
 
         // intercept 'getBrightnessFromShadowMap' function and return full brightness
         patcher.FindFunction("getBrightnessFromShadowMap").AtTop()
-            .Insert(@"return 1.0;");
+            .Insert("\nreturn 1.0;");
 
         // intercept 'getBrightnessFromNormal' function and return full brightness
         patcher.FindFunction("getBrightnessFromNormal").AtTop()
-            .Insert(@"return 1.0;");
+            .Insert("\nreturn 1.0;");
 
         // intercept 'applyFogAndShadow' function and just return unadjusted color
         patcher.FindFunction("applyFogAndShadow").AtTop()
-            .Insert(@"return rgbaPixel;");
+            .Insert("\nreturn rgbaPixel;");
 
         // intercept 'applyFogAndShadowWithNormal' function and just return unadjusted color
         patcher.FindFunction("applyFogAndShadowWithNormal").AtTop()
-            .Insert(@"return rgbaPixel;");
+            .Insert("\nreturn rgbaPixel;");
 
         // intercept 'applyFogAndShadowFromBrightness' function and just return unadjusted color
         patcher.FindFunction("applyFogAndShadowFromBrightness").AtTop()
-            .Insert(@"return rgbaPixel;");
+            .Insert("\nreturn rgbaPixel;");
     }
 
     /// <summary>
@@ -178,6 +181,6 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
     {
         // intercept 'getBrightnessFromNormal' function and return full brightness
         patcher.FindFunction("getBrightnessFromNormal").AtTop()
-            .Insert(@"return 1.0;");
+            .Insert("\nreturn 1.0;");
     }
 }
