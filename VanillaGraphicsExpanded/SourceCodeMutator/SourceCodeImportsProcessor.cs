@@ -1,115 +1,67 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+
+using TinyTokenizer.Ast;
 
 using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded;
 
 /// <summary>
-/// A specialized <see cref="SourceCodePatcher"/> for processing <c>@import</c> directives in shader source code.
+/// Processes <c>@import</c> directives in shader source code using TinyAst.
 /// </summary>
 /// <remarks>
-/// This processor finds all <c>@import</c> directives and replaces them with the referenced file contents,
-/// commenting out the original directive for debugging purposes.
+/// This processor finds all <c>@import</c> directives (matched as <see cref="GlslDirectiveSyntax"/>)
+/// and replaces them with the referenced file contents, commenting out the original directive for debugging.
 /// </remarks>
-/// <example>
-/// <code>
-/// // Instance usage with chaining
-/// var patcher = new SourceCodeImportsProcessor(shaderCode, importsCache, "myshader.fsh");
-/// patcher.ProcessImports(logger)
-///     .FindFunction("main").BeforeClose().Insert("// additional code")
-///     .Build();
-/// 
-/// // Static convenience method for one-off processing
-/// var processed = SourceCodeImportsProcessor.Process(shaderCode, importsCache, "myshader.fsh", logger);
-/// </code>
-/// </example>
-public class SourceCodeImportsProcessor : SourceCodePatcher
+public static class SourceCodeImportsProcessor
 {
-    #region Nested Types
-
     /// <summary>
-    /// Represents a found @import directive in shader source.
+    /// Processes all @import directives in the given SyntaxTree by inlining imported content.
     /// </summary>
-    private readonly record struct ImportDirective(long DirectiveStart, long LineEnd, string FileName);
-
-    #endregion
-
-    #region Fields
-
-    private readonly IReadOnlyDictionary<string, string> _importsCache;
-
-    #endregion
-
-    #region Constructors
-
-    /// <summary>
-    /// Creates a new import processor for the given source code.
-    /// </summary>
-    /// <param name="source">The source code to process.</param>
+    /// <param name="tree">The SyntaxTree to process.</param>
     /// <param name="importsCache">Dictionary mapping import file names to their contents.</param>
-    /// <param name="sourceName">Optional source name for error messages.</param>
-    /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> or <paramref name="importsCache"/> is null.</exception>
-    public SourceCodeImportsProcessor(string source, IReadOnlyDictionary<string, string> importsCache, string? sourceName = null)
-        : base(source, sourceName)
-    {
-        _importsCache = importsCache ?? throw new ArgumentNullException(nameof(importsCache));
-    }
-
-    #endregion
-
-    #region Static Methods
-
-    /// <summary>
-    /// Processes a shader source code string to resolve all <c>@import</c> directives.
-    /// This is a convenience method for one-off import processing without additional patching.
-    /// </summary>
-    /// <param name="source">The source code to process.</param>
-    /// <param name="importsCache">Dictionary mapping import file names to their contents.</param>
-    /// <param name="sourceName">Optional source name for error messages.</param>
     /// <param name="logger">Optional logger for audit messages.</param>
-    /// <returns>The processed source code with imports resolved.</returns>
-    /// <exception cref="SourceCodePatchException">Thrown if an imported file is not found in the cache.</exception>
-    public static string Process(
-        string source,
-        IReadOnlyDictionary<string, string> importsCache,
-        string? sourceName = null,
-        ILogger? logger = null)
+    /// <returns>True if any imports were processed, false if no imports found.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if an imported file is not found in the cache.</exception>
+    public static bool ProcessImports(SyntaxTree tree, IReadOnlyDictionary<string, string> importsCache, ILogger? logger = null)
     {
-        return new SourceCodeImportsProcessor(source, importsCache, sourceName)
-            .ProcessImports(logger)
-            .Build();
-    }
+        ArgumentNullException.ThrowIfNull(tree);
+        ArgumentNullException.ThrowIfNull(importsCache);
 
-    #endregion
+        // Find all @import directives using the GlslDirectiveSyntax
+        var importQuery = Query.Syntax<GlslDirectiveSyntax>().Where(d => d.Name == "import");
+        var imports = tree.Select(importQuery).Cast<GlslDirectiveSyntax>().ToList();
 
-    #region Instance Methods
-
-    /// <summary>
-    /// Finds all <c>@import</c> directives and queues insertions to comment them out
-    /// and inject the referenced file contents below each one.
-    /// </summary>
-    /// <param name="logger">Optional logger for audit messages.</param>
-    /// <returns>This processor instance for method chaining.</returns>
-    /// <exception cref="SourceCodePatchException">Thrown if an imported file is not found in the cache.</exception>
-    public SourceCodeImportsProcessor ProcessImports(ILogger? logger = null)
-    {
-        var importDirectives = FindImportDirectives();
-
-        foreach (var import in importDirectives)
+        if (imports.Count == 0)
         {
-            if (!_importsCache.TryGetValue(import.FileName, out var importContent))
+            return false;
+        }
+
+        var editor = tree.CreateEditor();
+
+        foreach (var import in imports)
+        {
+            // Extract the filename from the arguments (should be a string like "filename.glsl")
+            var fileName = ExtractFileName(import);
+            if (string.IsNullOrEmpty(fileName))
             {
-                throw CreateException(
-                    $"Import file '{import.FileName}' not found in imports cache",
-                    import.DirectiveStart);
+                logger?.Warning($"[VGE] Could not extract filename from @import directive at position {import.Position}");
+                continue;
+            }
+
+            if (!importsCache.TryGetValue(fileName, out var importContent))
+            {
+                throw new InvalidOperationException($"Import file '{fileName}' not found in imports cache");
             }
 
             // Build the replacement: commented original line + newline + import contents
+            var originalText = import.ToString();
             var injection = new StringBuilder();
             injection.Append("//");  // Comment out the @import line
-            injection.Append(_source.AsSpan((int)import.DirectiveStart, (int)(import.LineEnd - import.DirectiveStart)));
+            injection.Append(originalText.TrimEnd());
             injection.AppendLine();
             injection.Append(importContent);
 
@@ -119,88 +71,40 @@ public class SourceCodeImportsProcessor : SourceCodePatcher
                 injection.AppendLine();
             }
 
-            // Queue a replacement (remove original, insert new)
-            AddInsertion(new PendingInsertion(
-                import.DirectiveStart,
-                injection.ToString(),
-                (int)(import.LineEnd - import.DirectiveStart)));
+            // Create a query that matches this specific import by position
+            var specificImportQuery = Query.Syntax<GlslDirectiveSyntax>()
+                .Where(d => d.Position == import.Position);
 
-            logger?.Audit($"[VGE] Processed @import '{import.FileName}' at position {import.DirectiveStart}");
+            editor.Replace(specificImportQuery, injection.ToString());
+
+            logger?.Audit($"[VGE] Processed @import '{fileName}' at position {import.Position}");
         }
 
-        return this;
-    }
-
-    #endregion
-
-    #region Private Helper Methods
-
-    /// <summary>
-    /// Finds all @import directives in the tokenized shader source.
-    /// </summary>
-    private List<ImportDirective> FindImportDirectives()
-    {
-        var imports = new List<ImportDirective>();
-
-        for (int i = 0; i < _tokens.Length; i++)
-        {
-            var token = _tokens[i];
-
-            // Look for @import tagged identifier
-            if (!token.ContentSpan.Equals("@import", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            long directiveStart = token.Position;
-
-            // Find the file name
-            string? fileName = ExtractImportFileName(i + 1, out int fileNameEndIdx);
-            if (fileName == null)
-            {
-                continue;
-            }
-
-            // Find end of line
-            long lineEnd = FindEndOfLine(fileNameEndIdx);
-
-            imports.Add(new ImportDirective(directiveStart, lineEnd, fileName));
-        }
-
-        return imports;
+        editor.Commit();
+        return true;
     }
 
     /// <summary>
-    /// Extracts the file name from an @import directive.
-    /// Handles string quoted "filename" syntax.
+    /// Extracts the filename from an @import directive's arguments.
+    /// Expects the first non-whitespace argument to be a string token like "filename.glsl".
     /// </summary>
-    private string? ExtractImportFileName(int startIdx, out int endIdx)
+    private static string? ExtractFileName(GlslDirectiveSyntax import)
     {
-        endIdx = startIdx;
+        // Find the first string argument node
+        var stringArg = import.Arguments
+            .OfType<RedLeaf>()
+            .FirstOrDefault(leaf => leaf.Kind == NodeKind.String);
 
-        int nextIdx = FindNextNonWhitespace(startIdx);
-        if (nextIdx < 0)
+        if (stringArg != null)
         {
-            return null;
-        }
-
-        var token = _tokens[nextIdx];
-
-        // Check for string literal (quoted filename like "vgeshared.ash")
-        if (token is TinyTokenizer.StringToken stringToken)
-        {
-            endIdx = nextIdx;
-            // Remove the quotes from the string content
-            var content = stringToken.Content.Span;
-            if (content.Length >= 2)
+            var text = stringArg.Text;
+            // Remove surrounding quotes
+            if (text.Length >= 2 && text[0] == '"' && text[^1] == '"')
             {
-                return content[1..^1].ToString();
+                return text[1..^1];
             }
-            return null;
         }
 
         return null;
     }
-
-    #endregion
 }

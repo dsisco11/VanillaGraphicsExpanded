@@ -1,152 +1,110 @@
-using System.Collections.Immutable;
+using System.Collections.Generic;
+using System.Linq;
 
 using TinyTokenizer;
 using TinyTokenizer.Ast;
 
 namespace VanillaGraphicsExpanded;
 
+#region Custom Syntax Nodes for GLSL
+
 /// <summary>
-/// Semantic node representing a GLSL function definition: returnType functionName(params) { body }
+/// A GLSL function definition: type name(params) { body }
+/// Pattern: Ident + Ident + ParenBlock + BraceBlock
+/// Example: void main() { ... }
 /// </summary>
-public sealed class GlslFunctionNode : SemanticNode
+public sealed class GlslFunctionSyntax : SyntaxNode, INamedNode, IBlockContainerNode
 {
-    public GlslFunctionNode(NodeMatch match, NodeKind kind) : base(match, kind) { }
+    public GlslFunctionSyntax(GreenSyntaxNode green, RedNode? parent, int position)
+        : base(green, parent, position) { }
 
-    /// <summary>
-    /// Gets the return type identifier node.
-    /// </summary>
-    public RedLeaf ReturnType => (RedLeaf)Parts[0];
+    /// <summary>Return type node (e.g., "void", "vec4").</summary>
+    public RedLeaf ReturnTypeNode => GetTypedChild<RedLeaf>(0);
 
-    /// <summary>
-    /// Gets the function name identifier node.
-    /// </summary>
-    public RedLeaf NameNode => (RedLeaf)Parts[1];
+    /// <summary>Return type as text.</summary>
+    public string ReturnType => ReturnTypeNode.Text;
 
-    /// <summary>
-    /// Gets the function name as a string.
-    /// </summary>
+    /// <summary>Function name node.</summary>
+    public RedLeaf NameNode => GetTypedChild<RedLeaf>(1);
+
+    /// <summary>Function name as text.</summary>
     public string Name => NameNode.Text;
 
-    /// <summary>
-    /// Gets the parameter list block (parentheses).
-    /// </summary>
-    public RedBlock Parameters => (RedBlock)Parts[2];
+    /// <summary>Parameter list block (parentheses).</summary>
+    public RedBlock Parameters => GetTypedChild<RedBlock>(2);
 
-    /// <summary>
-    /// Gets the function body block (braces).
-    /// </summary>
-    public RedBlock Body => (RedBlock)Parts[3];
-}
+    /// <summary>Function body block (braces).</summary>
+    public RedBlock Body => GetTypedChild<RedBlock>(3);
 
-/// <summary>
-/// Semantic node representing a GLSL #version directive: #version 450
-/// </summary>
-public sealed class GlslVersionDirectiveNode : SemanticNode
-{
-    public GlslVersionDirectiveNode(NodeMatch match, NodeKind kind) : base(match, kind) { }
+    #region IBlockContainerNode
 
-    /// <summary>
-    /// Gets the #version tagged identifier node.
-    /// </summary>
-    public RedLeaf Directive => (RedLeaf)Parts[0];
+    /// <inheritdoc/>
+    public IReadOnlyList<string> BlockNames => ["body", "params"];
 
-    /// <summary>
-    /// Gets the version number node.
-    /// </summary>
-    public RedLeaf Version => (RedLeaf)Parts[1];
-
-    /// <summary>
-    /// Gets the version number as a string.
-    /// </summary>
-    public string VersionNumber => Version.Text;
-}
-
-/// <summary>
-/// Semantic node representing a GLSL @import directive: @import "filename.glsl"
-/// </summary>
-public sealed class GlslImportDirectiveNode : SemanticNode
-{
-    public GlslImportDirectiveNode(NodeMatch match, NodeKind kind) : base(match, kind) { }
-
-    /// <summary>
-    /// Gets the @import tagged identifier node.
-    /// </summary>
-    public RedLeaf Directive => (RedLeaf)Parts[0];
-
-    /// <summary>
-    /// Gets the filename string node (includes quotes).
-    /// </summary>
-    public RedLeaf FileNameNode => (RedLeaf)Parts[1];
-
-    /// <summary>
-    /// Gets the imported filename without quotes.
-    /// </summary>
-    public string FileName
+    /// <inheritdoc/>
+    public RedBlock GetBlock(string? name = null) => name switch
     {
-        get
-        {
-            var text = FileNameNode.Text;
-            // Remove surrounding quotes
-            if (text.Length >= 2 && text[0] == '"' && text[^1] == '"')
-            {
-                return text[1..^1];
-            }
-            return text;
-        }
-    }
+        "body" or null => Body,
+        "params" => Parameters,
+        _ => throw new System.ArgumentException($"Unknown block name: {name}. Valid names are: {string.Join(", ", BlockNames)}")
+    };
+
+    #endregion
 }
 
 /// <summary>
-/// Schema and semantic definitions for GLSL shader code.
+/// A GLSL tagged directive: #version, #define, etc.
+/// Pattern: TaggedIdent + rest of line
+/// </summary>
+public sealed class GlslDirectiveSyntax : SyntaxNode, INamedNode
+{
+    public GlslDirectiveSyntax(GreenSyntaxNode green, RedNode? parent, int position)
+        : base(green, parent, position) { }
+
+    /// <summary>The directive tag node (e.g., "#version").</summary>
+    public RedLeaf DirectiveNode => GetTypedChild<RedLeaf>(0);
+
+    /// <summary>The directive name without # or @ (e.g., "version", "import").</summary>
+    public string Name => DirectiveNode.Text.TrimStart('#', '@');
+
+    /// <summary>
+    /// Gets all children after the directive tag (the arguments).
+    /// </summary>
+    public IEnumerable<RedNode> Arguments => Children.Skip(1);
+
+    /// <summary>
+    /// Gets the arguments as a string.
+    /// </summary>
+    public string ArgumentsText => string.Concat(Arguments.Select(a => a.ToString()));
+}
+
+#endregion
+
+#region GLSL Schema
+
+/// <summary>
+/// Schema and syntax definitions for GLSL shader code.
 /// </summary>
 public static class GlslSchema
 {
     /// <summary>
-    /// Semantic definition for GLSL function definitions.
-    /// Pattern: returnType functionName(params) { body }
+    /// Creates the GLSL schema with function and directive recognition.
     /// </summary>
-    public static readonly SemanticNodeDefinition<GlslFunctionNode> FunctionDefinition =
-        Semantic.Define<GlslFunctionNode>("GlslFunction")
-            .Match(p => p.Ident().Ident().ParenBlock().BraceBlock())
-            .Create((match, kind) => new GlslFunctionNode(match, kind))
-            .Build();
-
-    /// <summary>
-    /// Semantic definition for #version directives.
-    /// Pattern: #version %number%
-    /// </summary>
-    public static readonly SemanticNodeDefinition<GlslVersionDirectiveNode> VersionDirective =
-        Semantic.Define<GlslVersionDirectiveNode>("GlslVersionDirective")
-            .Match(p => p.MatchQuery(Query.TaggedIdent.WithText("#version")).Numeric())
-            .Create((match, kind) => new GlslVersionDirectiveNode(match, kind))
-            .Build();
-
-    /// <summary>
-    /// Semantic definition for @import directives.
-    /// Pattern: @import "...filename..."
-    /// </summary>
-    public static readonly SemanticNodeDefinition<GlslImportDirectiveNode> ImportDirective =
-        Semantic.Define<GlslImportDirectiveNode>("GlslImportDirective")
-            .Match(p => p.MatchQuery(Query.TaggedIdent.WithText("@import")).String())
-            .Create((match, kind) => new GlslImportDirectiveNode(match, kind))
-            .Build();
-
-    /// <summary>
-    /// The GLSL schema with all semantic definitions registered.
-    /// </summary>
-    public static readonly Schema Instance = Schema.Create()
+    public static Schema Instance { get; } = Schema.Create()
         .WithCommentStyles(CommentStyle.CStyleSingleLine, CommentStyle.CStyleMultiLine)
+        .WithOperators(CommonOperators.CFamily)
         .WithTagPrefixes('#', '@')
-        .Define(FunctionDefinition)
-        .Define(VersionDirective)
-        .Define(ImportDirective)
+        // Function definition: type name(params) { body }
+        .DefineSyntax(Syntax.Define<GlslFunctionSyntax>("GlslFunction")
+            .Match(Query.AnyIdent, Query.AnyIdent, Query.ParenBlock, Query.BraceBlock)
+            .WithPriority(10)
+            .Build())
+        // Directive: #tag or @tag followed by tokens until newline
+        .DefineSyntax(Syntax.Define<GlslDirectiveSyntax>("GlslDirective")
+            .Match(Query.AnyTaggedIdent, Query.Any.Until(Query.Newline))
+            .Build())
         .Build();
-
-    /// <summary>
-    /// TokenizerOptions derived from the GLSL schema for use with SyntaxEditor.
-    /// </summary>
-    public static readonly TokenizerOptions TokenizerOptions = TokenizerOptions.Default
-        .WithCommentStyles(CommentStyle.CStyleSingleLine, CommentStyle.CStyleMultiLine)
-        .WithTagPrefixes('#', '@');
 }
+
+#endregion
 
