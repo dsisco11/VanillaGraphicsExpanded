@@ -64,7 +64,7 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
                 case "instanced.fsh":
                     {
                         // Find main function and insert @import before it
-                        var mainQuery = Query.Syntax<GlslFunctionSyntax>().Named("main");
+                        var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
 
                         tree.CreateEditor()
                             .Insert(mainQuery.Before(), "@import \"vsFunctions.glsl\"\n")
@@ -144,7 +144,7 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
     private static void InjectGBufferInputs(SyntaxTree tree)
     {
         // Find the #version directive and insert after it
-        var versionQuery = Query.Syntax<GlslDirectiveSyntax>().Named("version");
+        var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
 
         tree.CreateEditor()
             .Insert(versionQuery.After(), GBufferInputDeclarations)
@@ -157,7 +157,7 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
     private static void InjectGBufferOutputs(SyntaxTree tree)
     {
         // Find main function and insert at inner start of body
-        var mainQuery = Query.Syntax<GlslFunctionSyntax>().Named("main");
+        var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
 
         tree.CreateEditor()
             .Insert(mainQuery.InnerStart("body"), GBufferOutputWrites)
@@ -174,7 +174,7 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
 ";
 
         // Find main function and insert at inner end of body (before closing brace)
-        var mainQuery = Query.Syntax<GlslFunctionSyntax>().Named("main");
+        var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
 
         tree.CreateEditor()
             .Insert(mainQuery.InnerEnd("body"), skyGBufferWrites)
@@ -214,7 +214,7 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
     /// </summary>
     private static void InsertAtFunctionTop(SyntaxEditor editor, string functionName, string code)
     {
-        var funcQuery = Query.Syntax<GlslFunctionSyntax>().Named(functionName);
+        var funcQuery = Query.Syntax<GlFunctionNode>().Named(functionName);
         editor.Insert(funcQuery.InnerStart("body"), code);
     }
 

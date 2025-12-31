@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -13,9 +14,9 @@ namespace VanillaGraphicsExpanded;
 /// Pattern: Ident + Ident + ParenBlock + BraceBlock
 /// Example: void main() { ... }
 /// </summary>
-public sealed class GlslFunctionSyntax : SyntaxNode, INamedNode, IBlockContainerNode
+public sealed class GlFunctionNode : SyntaxNode, INamedNode, IBlockContainerNode
 {
-    public GlslFunctionSyntax(GreenSyntaxNode green, RedNode? parent, int position)
+    public GlFunctionNode(GreenSyntaxNode green, RedNode? parent, int position)
         : base(green, parent, position) { }
 
     /// <summary>Return type node (e.g., "void", "vec4").</summary>
@@ -56,16 +57,16 @@ public sealed class GlslFunctionSyntax : SyntaxNode, INamedNode, IBlockContainer
 /// A GLSL tagged directive: #version, #define, etc.
 /// Pattern: TaggedIdent + rest of line
 /// </summary>
-public sealed class GlslDirectiveSyntax : SyntaxNode, INamedNode
+public sealed class GlDirectiveNode : SyntaxNode, INamedNode
 {
-    public GlslDirectiveSyntax(GreenSyntaxNode green, RedNode? parent, int position)
+    public GlDirectiveNode(GreenSyntaxNode green, RedNode? parent, int position)
         : base(green, parent, position) { }
 
     /// <summary>The directive tag node (e.g., "#version").</summary>
     public RedLeaf DirectiveNode => GetTypedChild<RedLeaf>(0);
 
     /// <summary>The directive name without # or @ (e.g., "version", "import").</summary>
-    public string Name => DirectiveNode.Text.TrimStart('#', '@');
+    public string Name => DirectiveNode.Text.TrimStart('#');
 
     /// <summary>
     /// Gets all children after the directive tag (the arguments).
@@ -76,6 +77,25 @@ public sealed class GlslDirectiveSyntax : SyntaxNode, INamedNode
     /// Gets the arguments as a string.
     /// </summary>
     public string ArgumentsText => string.Concat(Arguments.Select(a => a.ToString()));
+}
+
+
+public sealed class GlImportNode : SyntaxNode, INamedNode
+{
+    public GlImportNode(GreenSyntaxNode green, RedNode? parent, int position)
+        : base(green, parent, position) { }
+
+    /// <summary>The directive tag node (e.g., "#version").</summary>
+    public RedLeaf DirectiveNode => GetTypedChild<RedLeaf>(0);
+
+    /// <summary>The directive name without # or @ (e.g., "version", "import").</summary>
+    public string Name => DirectiveNode.Text.AsSpan()[1..].ToString();
+
+    /// <summary>The import filename node (e.g., the string token with the filename).</summary>
+    public RedLeaf ImportStringNode => GetTypedChild<RedLeaf>(1);
+
+    /// <summary>The import filename as text.</summary>
+    public string ImportString => ImportStringNode.Text;
 }
 
 #endregion
@@ -95,13 +115,19 @@ public static class GlslSchema
         .WithOperators(CommonOperators.CFamily)
         .WithTagPrefixes('#', '@')
         // Function definition: type name(params) { body }
-        .DefineSyntax(Syntax.Define<GlslFunctionSyntax>("GlslFunction")
+        .DefineSyntax(Syntax.Define<GlFunctionNode>("glFunction")
             .Match(Query.AnyIdent, Query.AnyIdent, Query.ParenBlock, Query.BraceBlock)
             .WithPriority(10)
             .Build())
+        // Directive: #import or @import followed by tokens until newline
+        .DefineSyntax(Syntax.Define<GlImportNode>("glImport")
+            .Match(Query.TaggedIdent("import"), Query.Any.Until(Query.Newline))
+            .WithPriority(1)
+            .Build())
         // Directive: #tag or @tag followed by tokens until newline
-        .DefineSyntax(Syntax.Define<GlslDirectiveSyntax>("GlslDirective")
+        .DefineSyntax(Syntax.Define<GlDirectiveNode>("glDirective")
             .Match(Query.AnyTaggedIdent, Query.Any.Until(Query.Newline))
+            .WithPriority(2)
             .Build())
         .Build();
 }

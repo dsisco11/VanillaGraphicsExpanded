@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded;
 /// Processes <c>@import</c> directives in shader source code using TinyAst.
 /// </summary>
 /// <remarks>
-/// This processor finds all <c>@import</c> directives (matched as <see cref="GlslDirectiveSyntax"/>)
+/// This processor finds all <c>@import</c> directives (matched as <see cref="GlDirectiveNode"/>)
 /// and replaces them with the referenced file contents, commenting out the original directive for debugging.
 /// </remarks>
 public static class SourceCodeImportsProcessor
@@ -32,8 +32,7 @@ public static class SourceCodeImportsProcessor
         ArgumentNullException.ThrowIfNull(importsCache);
 
         // Find all @import directives using the GlslDirectiveSyntax
-        var importQuery = Query.Syntax<GlslDirectiveSyntax>().Where(d => d.Name == "import");
-        var imports = tree.Select(importQuery).Cast<GlslDirectiveSyntax>().ToList();
+        var imports = tree.Select(Query.Syntax<GlImportNode>()).Cast<GlImportNode>().ToList();
 
         if (imports.Count == 0)
         {
@@ -42,10 +41,10 @@ public static class SourceCodeImportsProcessor
 
         var editor = tree.CreateEditor();
 
-        foreach (var import in imports)
+        foreach (GlImportNode import in imports)
         {
             // Extract the filename from the arguments (should be a string like "filename.glsl")
-            var fileName = ExtractFileName(import);
+            var fileName = import.ImportString;
             if (string.IsNullOrEmpty(fileName))
             {
                 logger?.Warning($"[VGE] Could not extract filename from @import directive at position {import.Position}");
@@ -71,40 +70,12 @@ public static class SourceCodeImportsProcessor
                 injection.AppendLine();
             }
 
-            // Create a query that matches this specific import by position
-            var specificImportQuery = Query.Syntax<GlslDirectiveSyntax>()
-                .Where(d => d.Position == import.Position);
-
-            editor.Replace(specificImportQuery, injection.ToString());
+            editor.Replace(import, injection.ToString());
 
             logger?.Audit($"[VGE] Processed @import '{fileName}' at position {import.Position}");
         }
 
         editor.Commit();
         return true;
-    }
-
-    /// <summary>
-    /// Extracts the filename from an @import directive's arguments.
-    /// Expects the first non-whitespace argument to be a string token like "filename.glsl".
-    /// </summary>
-    private static string? ExtractFileName(GlslDirectiveSyntax import)
-    {
-        // Find the first string argument node
-        var stringArg = import.Arguments
-            .OfType<RedLeaf>()
-            .FirstOrDefault(leaf => leaf.Kind == NodeKind.String);
-
-        if (stringArg != null)
-        {
-            var text = stringArg.Text;
-            // Remove surrounding quotes
-            if (text.Length >= 2 && text[0] == '"' && text[^1] == '"')
-            {
-                return text[1..^1];
-            }
-        }
-
-        return null;
     }
 }

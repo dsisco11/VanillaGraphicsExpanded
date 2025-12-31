@@ -53,6 +53,20 @@ public class ShaderPatchingTests
         }
         """;
 
+    /// <summary>
+    /// Sample shader with @import directive inlined.
+    /// </summary>
+    private const string ShaderWithImportInlined = """
+        #version 330 core
+
+        //@import "shared.glsl"
+        // Shared code
+        float PI = 3.14159;
+
+        void main() {
+            fragColor = vec4(1.0);
+        }
+        """;
     #endregion
 
     #region GlslSchema Parsing Tests
@@ -62,8 +76,8 @@ public class ShaderPatchingTests
     {
         var tree = SyntaxTree.Parse(SampleShader, GlslSchema.Instance);
 
-        var functions = tree.Select(Query.Syntax<GlslFunctionSyntax>())
-            .Cast<GlslFunctionSyntax>()
+        var functions = tree.Select(Query.Syntax<GlFunctionNode>())
+            .Cast<GlFunctionNode>()
             .ToList();
 
         Assert.Equal(2, functions.Count);
@@ -76,13 +90,13 @@ public class ShaderPatchingTests
     {
         var tree = SyntaxTree.Parse(SampleShader, GlslSchema.Instance);
 
-        var versionDirective = tree.Select(Query.Syntax<GlslDirectiveSyntax>().Named("version"))
-            .Cast<GlslDirectiveSyntax>()
+        var versionDirective = tree.Select(Query.Syntax<GlDirectiveNode>().Named("version"))
+            .Cast<GlDirectiveNode>()
             .FirstOrDefault();
 
         Assert.NotNull(versionDirective);
         Assert.Equal("version", versionDirective.Name);
-        Assert.Contains("330", versionDirective.ArgumentsText);
+        Assert.Equal("330 core\n", NormalizeLineEndings(versionDirective.ArgumentsText));
     }
 
     [Fact]
@@ -90,12 +104,13 @@ public class ShaderPatchingTests
     {
         var tree = SyntaxTree.Parse(ShaderWithImport, GlslSchema.Instance);
 
-        var importDirective = tree.Select(Query.Syntax<GlslDirectiveSyntax>().Named("import"))
-            .Cast<GlslDirectiveSyntax>()
+        var importDirective = tree.Select(Query.Syntax<GlDirectiveNode>().Named("import"))
+            .Cast<GlDirectiveNode>()
             .FirstOrDefault();
 
         Assert.NotNull(importDirective);
         Assert.Equal("import", importDirective.Name);
+        Assert.Equal("\"shared.glsl\"\n", NormalizeLineEndings(importDirective.ArgumentsText));
     }
 
     [Fact]
@@ -103,8 +118,8 @@ public class ShaderPatchingTests
     {
         var tree = SyntaxTree.Parse(SampleShader, GlslSchema.Instance);
 
-        var mainFunc = tree.Select(Query.Syntax<GlslFunctionSyntax>().Named("main"))
-            .Cast<GlslFunctionSyntax>()
+        var mainFunc = tree.Select(Query.Syntax<GlFunctionNode>().Named("main"))
+            .Cast<GlFunctionNode>()
             .FirstOrDefault();
 
         Assert.NotNull(mainFunc);
@@ -134,11 +149,8 @@ public class ShaderPatchingTests
         var output = NormalizeLineEndings(tree.Root.ToString());
 
         // Original import should be commented out (// prefix before @import)
-        Assert.Contains("//", output);
-        Assert.Contains("@import", output);
-        // Imported content should be present
-        Assert.Contains("// Shared code", output);
-        Assert.Contains("float PI = 3.14159;", output);
+        Assert.Contains("//@import \"shared.glsl\"", output);
+        Assert.Equal(NormalizeLineEndings(ShaderWithImportInlined.Trim()), NormalizeLineEndings(output.Trim()));
     }
 
     [Fact]
@@ -204,7 +216,7 @@ public class ShaderPatchingTests
         var tree = SyntaxTree.Parse(SampleShader, GlslSchema.Instance);
 
         tree.CreateEditor()
-            .Insert(Query.Syntax<GlslFunctionSyntax>().Named("main").Before(), "// Before main\n")
+            .Insert(Query.Syntax<GlFunctionNode>().Named("main").Before(), "// Before main\n")
             .Commit();
 
         var output = NormalizeLineEndings(tree.Root.ToString());
@@ -221,7 +233,7 @@ public class ShaderPatchingTests
         var tree = SyntaxTree.Parse(SampleShader, GlslSchema.Instance);
 
         tree.CreateEditor()
-            .Insert(Query.Syntax<GlslDirectiveSyntax>().Named("version").After(), "\n// After version")
+            .Insert(Query.Syntax<GlDirectiveNode>().Named("version").After(), "\n// After version")
             .Commit();
 
         var output = NormalizeLineEndings(tree.Root.ToString());
@@ -234,7 +246,7 @@ public class ShaderPatchingTests
         var tree = SyntaxTree.Parse(SampleShader, GlslSchema.Instance);
 
         tree.CreateEditor()
-            .Insert(Query.Syntax<GlslFunctionSyntax>().Named("main").InnerStart("body"), "\n    // Body start")
+            .Insert(Query.Syntax<GlFunctionNode>().Named("main").InnerStart("body"), "\n    // Body start")
             .Commit();
 
         var output = NormalizeLineEndings(tree.Root.ToString());
@@ -247,7 +259,7 @@ public class ShaderPatchingTests
         var tree = SyntaxTree.Parse(SampleShader, GlslSchema.Instance);
 
         tree.CreateEditor()
-            .Insert(Query.Syntax<GlslFunctionSyntax>().Named("main").InnerEnd("body"), "\n    // Body end")
+            .Insert(Query.Syntax<GlFunctionNode>().Named("main").InnerEnd("body"), "\n    // Body end")
             .Commit();
 
         var output = NormalizeLineEndings(tree.Root.ToString());
@@ -263,8 +275,8 @@ public class ShaderPatchingTests
     {
         var tree = SyntaxTree.Parse(SampleShader, GlslSchema.Instance);
 
-        var mainQuery = Query.Syntax<GlslFunctionSyntax>().Named("main");
-        var versionQuery = Query.Syntax<GlslDirectiveSyntax>().Named("version");
+        var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
+        var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
 
         tree.CreateEditor()
             .Insert(versionQuery.After(), "\n// Layout declarations")
@@ -297,13 +309,13 @@ public class ShaderPatchingTests
         var tree = SyntaxTree.Parse(inputShader, GlslSchema.Instance);
 
         // Step 1: Insert G-buffer declarations after #version
-        var versionQuery = Query.Syntax<GlslDirectiveSyntax>().Named("version");
+        var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
         tree.CreateEditor()
             .Insert(versionQuery.After(), "\nlayout(location = 4) out vec4 gNormal;")
             .Commit();
 
         // Step 2: Insert G-buffer writes at function body start
-        var mainQuery = Query.Syntax<GlslFunctionSyntax>().Named("main");
+        var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
         tree.CreateEditor()
             .Insert(mainQuery.InnerStart("body"), "\n    gNormal = vec4(0.0, 1.0, 0.0, 1.0);")
             .Commit();
@@ -348,8 +360,8 @@ public class ShaderPatchingTests
 
         var tree = SyntaxTree.Parse(shaderWithComments, GlslSchema.Instance);
 
-        var functions = tree.Select(Query.Syntax<GlslFunctionSyntax>())
-            .Cast<GlslFunctionSyntax>()
+        var functions = tree.Select(Query.Syntax<GlFunctionNode>())
+            .Cast<GlFunctionNode>()
             .ToList();
 
         Assert.Single(functions);
@@ -361,8 +373,8 @@ public class ShaderPatchingTests
     {
         var tree = SyntaxTree.Parse(SampleShader, GlslSchema.Instance);
 
-        var result = tree.Select(Query.Syntax<GlslFunctionSyntax>().Named("nonexistent"))
-            .Cast<GlslFunctionSyntax>()
+        var result = tree.Select(Query.Syntax<GlFunctionNode>().Named("nonexistent"))
+            .Cast<GlFunctionNode>()
             .ToList();
 
         Assert.Empty(result);
