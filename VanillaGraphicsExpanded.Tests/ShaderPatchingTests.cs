@@ -1,6 +1,7 @@
 using TinyTokenizer.Ast;
 using VanillaGraphicsExpanded;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace VanillaGraphicsExpanded.Tests;
 
@@ -9,6 +10,13 @@ namespace VanillaGraphicsExpanded.Tests;
 /// </summary>
 public class ShaderPatchingTests
 {
+    private readonly ITestOutputHelper _output;
+
+    public ShaderPatchingTests(ITestOutputHelper output)
+    {
+        _output = output;
+    }
+
     #region Test Helpers
 
     /// <summary>
@@ -22,6 +30,15 @@ public class ShaderPatchingTests
     /// </summary>
     private const string SampleShader = """
         #version 330 core
+        #extension GL_ARB_explicit_attrib_location: enable
+        
+        layout(location = 0) out vec4 outColor;
+        layout(location = 1) out vec4 outGlow;
+        #if SSAOLEVEL > 0
+        in vec4 gnormal;
+        layout(location = 2) out vec4 outGNormal;
+        layout(location = 3) out vec4 outGPosition;
+        #endif
 
         uniform sampler2D tex;
         in vec2 uv;
@@ -43,9 +60,17 @@ public class ShaderPatchingTests
     /// </summary>
     private const string ShaderWithImport = """
         #version 330 core
+        #extension GL_ARB_explicit_attrib_location: enable
+        
+        layout(location = 0) out vec4 outColor;
+        layout(location = 1) out vec4 outGlow;
+        #if SSAOLEVEL > 0
+        in vec4 gnormal;
+        layout(location = 2) out vec4 outGNormal;
+        layout(location = 3) out vec4 outGPosition;
+        #endif
 
         @import "shared.glsl"
-
         void main() {
             fragColor = vec4(1.0);
         }
@@ -56,6 +81,15 @@ public class ShaderPatchingTests
     /// </summary>
     private const string ShaderWithImportInlined = """
         #version 330 core
+        #extension GL_ARB_explicit_attrib_location: enable
+        
+        layout(location = 0) out vec4 outColor;
+        layout(location = 1) out vec4 outGlow;
+        #if SSAOLEVEL > 0
+        in vec4 gnormal;
+        layout(location = 2) out vec4 outGNormal;
+        layout(location = 3) out vec4 outGPosition;
+        #endif
 
         /* @import "shared.glsl" */
         // Shared code
@@ -68,6 +102,13 @@ public class ShaderPatchingTests
     #endregion
 
     #region GlslSchema Parsing Tests
+    [Fact]
+    public void Diagnostic_DumpTokens()
+    {
+        var tree = SyntaxTree.Parse(SampleShader, GlslSchema.Instance);
+        var output = tree.ToString("S", null);
+        _output.WriteLine(output);
+    }
 
     [Fact]
     public void Parse_RecognizesGlslFunctions()
@@ -145,7 +186,7 @@ public class ShaderPatchingTests
 
         Assert.True(result);
 
-        var output = NormalizeLineEndings(tree.Root.ToString());
+        var output = NormalizeLineEndings(tree.ToString());
 
         // Original import should be commented out (// prefix before @import)
         Assert.Contains("/* @import \"shared.glsl\" */", output);
@@ -164,13 +205,21 @@ public class ShaderPatchingTests
     }
 
     [Fact]
-    public void ProcessImports_ThrowsOnMissingImport()
+    public void ProcessImports_AddsWarningComment_WhenImportNotFound()
     {
         var tree = SyntaxTree.Parse(ShaderWithImport, GlslSchema.Instance);
         var importsCache = new Dictionary<string, string>(); // Empty cache
 
-        Assert.Throws<InvalidOperationException>(() =>
-            SourceCodeImportsProcessor.ProcessImports(tree, importsCache));
+        var result = SourceCodeImportsProcessor.ProcessImports(tree, importsCache);
+
+        Assert.True(result);
+
+        var output = NormalizeLineEndings(tree.ToString());
+
+        // Import should be commented out
+        Assert.Contains("/* @import \"shared.glsl\" */", output);
+        // Warning comment should be added after the commented import
+        Assert.Contains("// WARNING: Import file 'shared.glsl' not found", output);
     }
 
     [Fact]
@@ -198,11 +247,9 @@ public class ShaderPatchingTests
 
         Assert.True(result);
 
-        var output = NormalizeLineEndings(tree.Root.ToString());
-        // At least one import's content should be present
-        Assert.Contains("// Utils", output);
-        // Note: Multiple imports may not all be processed due to tree mutation
-        // The important thing is that at least one import was processed
+        var output = NormalizeLineEndings(tree.ToString());
+        Assert.Contains("/* @import \"utils.glsl\" */\n// Utils\n", output);
+        Assert.Contains("/* @import \"lighting.glsl\" */\n// Lighting\n", output);
     }
 
     #endregion
@@ -218,7 +265,7 @@ public class ShaderPatchingTests
             .Insert(Query.Syntax<GlFunctionNode>().Named("main").Before(), "// Before main\n")
             .Commit();
 
-        var output = NormalizeLineEndings(tree.Root.ToString());
+        var output = NormalizeLineEndings(tree.ToString());
         // Roslyn-style: insertion goes before target's leading trivia
         // The comment should appear somewhere before the main function
         Assert.Contains("// Before main", output);
@@ -235,7 +282,7 @@ public class ShaderPatchingTests
             .Insert(Query.Syntax<GlDirectiveNode>().Named("version").After(), "\n// After version")
             .Commit();
 
-        var output = NormalizeLineEndings(tree.Root.ToString());
+        var output = NormalizeLineEndings(tree.ToString());
         Assert.Matches(@"#version 330 core\s*// After version", output);
     }
 
@@ -248,7 +295,7 @@ public class ShaderPatchingTests
             .Insert(Query.Syntax<GlFunctionNode>().Named("main").InnerStart("body"), "\n    // Body start")
             .Commit();
 
-        var output = NormalizeLineEndings(tree.Root.ToString());
+        var output = NormalizeLineEndings(tree.ToString());
         Assert.Contains("void main() {\n    // Body start", output);
     }
 
@@ -261,7 +308,7 @@ public class ShaderPatchingTests
             .Insert(Query.Syntax<GlFunctionNode>().Named("main").InnerEnd("body"), "\n    // Body end")
             .Commit();
 
-        var output = NormalizeLineEndings(tree.Root.ToString());
+        var output = NormalizeLineEndings(tree.ToString());
         Assert.Matches(@"// Body end\s*}", output);
     }
 
@@ -283,7 +330,7 @@ public class ShaderPatchingTests
             .Insert(mainQuery.InnerEnd("body"), "\n    // Cleanup code")
             .Commit();
 
-        var output = NormalizeLineEndings(tree.Root.ToString());
+        var output = NormalizeLineEndings(tree.ToString());
 
         Assert.Contains("// Layout declarations", output);
         Assert.Contains("// Init code", output);
@@ -319,7 +366,7 @@ public class ShaderPatchingTests
             .Insert(mainQuery.InnerStart("body"), "\n    gNormal = vec4(0.0, 1.0, 0.0, 1.0);")
             .Commit();
 
-        var output = NormalizeLineEndings(tree.Root.ToString());
+        var output = NormalizeLineEndings(tree.ToString());
 
         // Verify declarations appear (allowing for whitespace variations from tokenizer)
         Assert.Contains("layout", output);
@@ -339,7 +386,7 @@ public class ShaderPatchingTests
 
     /// <summary>
     /// Tests that the #version directive is preserved after processing imports
-    /// when using tree.Root.ToString() (the correct method to use).
+    /// when using tree.ToString() (the correct method to use).
     /// </summary>
     [Fact]
     public void ProcessImports_PreservesVersionDirective_WithRootToString()
@@ -366,7 +413,7 @@ public class ShaderPatchingTests
 
         Assert.True(result);
 
-        var output = NormalizeLineEndings(tree.Root.ToString());
+        var output = NormalizeLineEndings(tree.ToString());
         
         // #version directive should be at the start of the output
         Assert.StartsWith("#version 330 core", output);
@@ -410,7 +457,7 @@ public class ShaderPatchingTests
         Assert.True(result);
 
         // Must use Root.ToString() - ToFullString() returns empty string
-        var output = NormalizeLineEndings(tree.Root.ToString());
+        var output = NormalizeLineEndings(tree.ToString());
         
         // Verify #version is preserved
         Assert.StartsWith("#version 330 core", output);
@@ -439,7 +486,7 @@ public class ShaderPatchingTests
         var tree = SyntaxTree.Parse(shader, GlslSchema.Instance);
 
         // Must use Root.ToString() - ToFullString() returns empty string
-        var rootOutput = NormalizeLineEndings(tree.Root.ToString());
+        var rootOutput = NormalizeLineEndings(tree.ToString());
 
         Assert.StartsWith("#version 330 core", rootOutput);
     }

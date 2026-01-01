@@ -33,7 +33,6 @@ public static class SourceCodeImportsProcessor
 
         // Find all @import directives using the GlslDirectiveSyntax
         var imports = tree.Select(Query.Syntax<GlImportNode>()).Cast<GlImportNode>().ToList();
-
         if (imports.Count == 0)
         {
             return false;
@@ -53,27 +52,21 @@ public static class SourceCodeImportsProcessor
 
             if (!importsCache.TryGetValue(fileName, out var importContent))
             {
-                throw new InvalidOperationException($"Import file '{fileName}' not found in imports cache");
+                //throw new InvalidOperationException($"Import file '{fileName}' not found in imports cache");
+                // comment out the original import line and insert a warning comment
+                editor.Edit(import, (string str) => $"/* {str} */\n// WARNING: Import file '{fileName}' not found in imports cache");
+                logger?.Warning($"[VGE] Import file '{fileName}' not found in imports cache at position {import.Position}");
+                continue;
             }
 
-            // Build the replacement: commented original line + newline + import contents
-            // var originalText = import.ToString();
-            // var injection = new StringBuilder();
-            // injection.Append("//");  // Comment out the @import line
-            // injection.Append(originalText.TrimEnd());
-            // injection.AppendLine();
-            // injection.Append(importContent);
+            // Ensure import content ends with newline
+            if (!importContent.EndsWith('\n'))
+            {
+                importContent += "\n";
+            }
 
-            // // Ensure import content ends with newline
-            // if (!importContent.EndsWith('\n'))
-            // {
-            //     injection.AppendLine();
-            // }
-
-            // first comment out the original import line
+            // comment out the original import line and insert the import content after it.
             editor.Edit(import, (string str) => $"/* {str} */\n{importContent}");
-            // then insert the imported content after it
-            // editor.InsertAfter(import, $"{importContent}\n");
 
             logger?.Audit($"[VGE] Processed @import '{fileName}' at position {import.Position}");
         }
