@@ -54,44 +54,44 @@ public static class ShaderIncludesHook
     /// Prefix patch for ShaderRegistry.loadRegisteredShaderPrograms.
     /// Processes shader assets in-place before the original method compiles them.
     /// </summary>
-    [HarmonyPatch(typeof(Vintagestory.Client.NoObf.ShaderRegistry), "loadRegisteredShaderPrograms")]
-    [HarmonyPrefix]
-    public static void loadRegisteredShaderPrograms_Hook()
-    {
-        if (_assetManager is null)
-        {
-            _logger?.Warning("[VGE][Shaders] AssetManager not available");
-            return;
-        }
+    //[HarmonyPatch(typeof(Vintagestory.Client.NoObf.ShaderRegistry), "loadRegisteredShaderPrograms")]
+    //[HarmonyPrefix]
+    //public static void loadRegisteredShaderPrograms_Hook()
+    //{
+    //    if (_assetManager is null)
+    //    {
+    //        _logger?.Warning("[VGE][Shaders] AssetManager not available");
+    //        return;
+    //    }
 
-        // Process shader includes first
-        List<IAsset> shaderIncludes = _assetManager.GetManyInCategory(
-            AssetCategory.shaderincludes.Code,
-            pathBegins: "",
-            domain: null,
-            loadAsset: true);
+    //    // Process shader includes first
+    //    List<IAsset> shaderIncludes = _assetManager.GetManyInCategory(
+    //        AssetCategory.shaderincludes.Code,
+    //        pathBegins: "",
+    //        domain: null,
+    //        loadAsset: true);
         
-        //_logger?.Audit($"[VGE][Shaders] Processing {shaderIncludes.Count} shader includes");
-        int patchedCount = ProcessShaderAssets(shaderIncludes);
-        if (patchedCount > 0)
-        {
-            _logger?.Audit($"[VGE][Shaders] Patched {patchedCount} shader include(s)");
-        }
+    //    //_logger?.Audit($"[VGE][Shaders] Processing {shaderIncludes.Count} shader includes");
+    //    int patchedCount = ProcessShaderAssets(shaderIncludes);
+    //    if (patchedCount > 0)
+    //    {
+    //        _logger?.Audit($"[VGE][Shaders] Patched {patchedCount} shader include(s)");
+    //    }
 
-        // Process main shader source files
-        List<IAsset> shaderSources = _assetManager.GetManyInCategory(
-            AssetCategory.shaders.Code,
-            pathBegins: "",
-            domain: null,
-            loadAsset: true);
+    //    // Process main shader source files
+    //    List<IAsset> shaderSources = _assetManager.GetManyInCategory(
+    //        AssetCategory.shaders.Code,
+    //        pathBegins: "",
+    //        domain: null,
+    //        loadAsset: true);
         
-        //_logger?.Audit($"[VGE][Shaders] Processing {shaderSources.Count} shader source files");
-        patchedCount = ProcessShaderAssets(shaderSources);
-        if (patchedCount > 0)
-        {
-            _logger?.Notification($"[VGE][Shaders] Patched {patchedCount} shader source file(s)");
-        }
-    }
+    //    //_logger?.Audit($"[VGE][Shaders] Processing {shaderSources.Count} shader source files");
+    //    patchedCount = ProcessShaderAssets(shaderSources);
+    //    if (patchedCount > 0)
+    //    {
+    //        _logger?.Notification($"[VGE][Shaders] Patched {patchedCount} shader source file(s)");
+    //    }
+    //}
 
     private static void ProcessShaderProgram(in IShaderProgram shaderProgram)
     {
@@ -142,8 +142,7 @@ public static class ShaderIncludesHook
         if (hasChanges)
         {
             // Build and write back to shader
-            // Note: Must use Root.ToString() because ToFullString() returns empty string
-            shader.Code = tree.Root.ToString();
+            shader.Code = tree.ToString();
         }
     }
 
@@ -181,8 +180,7 @@ public static class ShaderIncludesHook
             // Build and write back to asset
             if (hasChanges)
             {
-                // Note: Must use Root.ToString() because ToFullString() returns empty string
-                asset.Data = Encoding.UTF8.GetBytes(tree.Root.ToString());
+                asset.Data = Encoding.UTF8.GetBytes(tree.ToString());
                 asset.IsPatched = true;
                 patchedCount++;
             }
