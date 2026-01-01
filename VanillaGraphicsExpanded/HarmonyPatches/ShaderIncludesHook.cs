@@ -126,23 +126,24 @@ public static class ShaderIncludesHook
         // Stage 1: Pre-processing (before imports are inlined)
         if (preProcess)
         {
-            //hasChanges |= VanillaShaderPatches.TryApplyPreProcessing(_logger, tree, shaderName);
+            hasChanges |= VanillaShaderPatches.TryApplyPreProcessing(_logger, tree, shaderName);
         }
         // Stage 2: Inline imports
         if (inlineImports)
         {
             hasChanges |= ShaderImportsSystem.Instance.InlineImports(tree, shaderName, _logger);
         }
-        //// Stage 3: Post-processing (after imports are inlined)
-        //if (postProcess)
-        //{
-        //    hasChanges |= VanillaShaderPatches.TryApplyPatches(_logger, tree, shaderName);
-        //}
+        // Stage 3: Post-processing (after imports are inlined)
+        if (postProcess)
+        {
+            hasChanges |= VanillaShaderPatches.TryApplyPatches(_logger, tree, shaderName);
+        }
 
         if (hasChanges)
         {
             // Build and write back to shader
-            shader.Code = tree.ToFullString();
+            // Note: Must use Root.ToString() because ToFullString() returns empty string
+            shader.Code = tree.Root.ToString();
         }
     }
 
@@ -180,7 +181,8 @@ public static class ShaderIncludesHook
             // Build and write back to asset
             if (hasChanges)
             {
-                asset.Data = Encoding.UTF8.GetBytes(tree.ToFullString());
+                // Note: Must use Root.ToString() because ToFullString() returns empty string
+                asset.Data = Encoding.UTF8.GetBytes(tree.Root.ToString());
                 asset.IsPatched = true;
                 patchedCount++;
             }

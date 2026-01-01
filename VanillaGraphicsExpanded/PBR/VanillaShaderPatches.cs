@@ -152,11 +152,12 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
     }
 
     /// <summary>
-    /// Injects G-buffer output writes at the top of main() function body.
+    /// Injects G-buffer output writes at the end of main() function body.
+    /// This ensures normal, glowLevel, and renderFlags have been computed.
     /// </summary>
     private static void InjectGBufferOutputs(SyntaxTree tree)
     {
-        // Find main function and insert at inner start of body
+        // Find main function and insert at inner end of body (before closing brace)
         var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
 
         tree.CreateEditor()

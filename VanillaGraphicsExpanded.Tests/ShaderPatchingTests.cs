@@ -335,6 +335,146 @@ public class ShaderPatchingTests
 
     #endregion
 
+    #region PBROverlay Version Preservation Tests
+
+    /// <summary>
+    /// Tests that the #version directive is preserved after processing imports
+    /// when using tree.Root.ToString() (the correct method to use).
+    /// </summary>
+    [Fact]
+    public void ProcessImports_PreservesVersionDirective_WithRootToString()
+    {
+        const string shader = """
+            #version 330 core
+
+            uniform sampler2D tex;
+            
+            @import "shared.glsl"
+
+            void main() {
+                fragColor = vec4(1.0);
+            }
+            """;
+
+        var tree = SyntaxTree.Parse(shader, GlslSchema.Instance);
+        var importsCache = new Dictionary<string, string>
+        {
+            ["shared.glsl"] = "// Shared code\nfloat PI = 3.14159;"
+        };
+
+        var result = SourceCodeImportsProcessor.ProcessImports(tree, importsCache);
+
+        Assert.True(result);
+
+        var output = NormalizeLineEndings(tree.Root.ToString());
+        
+        // #version directive should be at the start of the output
+        Assert.StartsWith("#version 330 core", output);
+        Assert.Contains("#version 330 core", output);
+    }
+
+    /// <summary>
+    /// Tests a realistic pbroverlay-like shader with imports.
+    /// This mimics the actual pbroverlay.fsh structure.
+    /// </summary>
+    [Fact]
+    public void ProcessImports_PbrOverlayLikeShader_PreservesVersionDirective()
+    {
+        const string shader = """
+            #version 330 core
+
+            in vec2 uv;
+            out vec4 outColor;
+
+            uniform sampler2D primaryScene;
+            uniform float zNear;
+            uniform float zFar;
+
+            @import "squirrel3.fsh"
+            @import "pbrFunctions.fsh"
+
+            void main() {
+                outColor = texture(primaryScene, uv);
+            }
+            """;
+
+        var tree = SyntaxTree.Parse(shader, GlslSchema.Instance);
+        var importsCache = new Dictionary<string, string>
+        {
+            ["squirrel3.fsh"] = "// Squirrel3 hash\nfloat hash(vec3 p) { return 0.5; }",
+            ["pbrFunctions.fsh"] = "// PBR functions\nvec3 fresnel(float c, vec3 f) { return f; }"
+        };
+
+        var result = SourceCodeImportsProcessor.ProcessImports(tree, importsCache);
+
+        Assert.True(result);
+
+        // Must use Root.ToString() - ToFullString() returns empty string
+        var output = NormalizeLineEndings(tree.Root.ToString());
+        
+        // Verify #version is preserved
+        Assert.StartsWith("#version 330 core", output);
+        
+        // Verify imports were processed
+        Assert.Contains("/* @import \"squirrel3.fsh\" */", output);
+        Assert.Contains("/* @import \"pbrFunctions.fsh\" */", output);
+        Assert.Contains("// Squirrel3 hash", output);
+        Assert.Contains("// PBR functions", output);
+    }
+
+    /// <summary>
+    /// Tests that parsing alone without modifications preserves the #version directive.
+    /// </summary>
+    [Fact]
+    public void Parse_PreservesVersionDirective_WithoutModifications()
+    {
+        const string shader = """
+            #version 330 core
+
+            void main() {
+                fragColor = vec4(1.0);
+            }
+            """;
+
+        var tree = SyntaxTree.Parse(shader, GlslSchema.Instance);
+
+        // Must use Root.ToString() - ToFullString() returns empty string
+        var rootOutput = NormalizeLineEndings(tree.Root.ToString());
+
+        Assert.StartsWith("#version 330 core", rootOutput);
+    }
+
+    /// <summary>
+    /// Documents the difference between ToFullString() and Root.ToString().
+    /// ToFullString() returns empty string (TinyTokenizer issue), while Root.ToString() works correctly.
+    /// </summary>
+    [Fact]
+    public void Compare_ToFullString_RootToString()
+    {
+        const string shader = """
+            #version 330 core
+
+            void main() {
+                fragColor = vec4(1.0);
+            }
+            """;
+
+        var tree = SyntaxTree.Parse(shader, GlslSchema.Instance);
+
+        var rootOutput = tree.Root.ToString();
+        var fullOutput = tree.ToFullString();
+
+        // Root.ToString() works correctly
+        Assert.Contains("#version 330 core", rootOutput);
+        
+        // ToFullString() returns empty string (known issue)
+        Assert.Empty(fullOutput);
+        
+        // Therefore we must use Root.ToString() in production code
+    }
+
+    #endregion
+
     #region Edge Cases
 
     [Fact]
