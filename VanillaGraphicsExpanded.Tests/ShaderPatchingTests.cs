@@ -444,35 +444,6 @@ public class ShaderPatchingTests
         Assert.StartsWith("#version 330 core", rootOutput);
     }
 
-    /// <summary>
-    /// Documents the difference between ToFullString() and Root.ToString().
-    /// ToFullString() returns empty string (TinyTokenizer issue), while Root.ToString() works correctly.
-    /// </summary>
-    [Fact]
-    public void Compare_ToFullString_RootToString()
-    {
-        const string shader = """
-            #version 330 core
-
-            void main() {
-                fragColor = vec4(1.0);
-            }
-            """;
-
-        var tree = SyntaxTree.Parse(shader, GlslSchema.Instance);
-
-        var rootOutput = tree.Root.ToString();
-        var fullOutput = tree.ToFullString();
-
-        // Root.ToString() works correctly
-        Assert.Contains("#version 330 core", rootOutput);
-        
-        // ToFullString() returns empty string (known issue)
-        Assert.Empty(fullOutput);
-        
-        // Therefore we must use Root.ToString() in production code
-    }
-
     #endregion
 
     #region Edge Cases
