@@ -1,7 +1,5 @@
 using TinyTokenizer.Ast;
-
 using VanillaGraphicsExpanded;
-
 using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests;
@@ -59,7 +57,7 @@ public class ShaderPatchingTests
     private const string ShaderWithImportInlined = """
         #version 330 core
 
-        //@import "shared.glsl"
+        /* @import "shared.glsl" */
         // Shared code
         float PI = 3.14159;
 
@@ -104,13 +102,14 @@ public class ShaderPatchingTests
     {
         var tree = SyntaxTree.Parse(ShaderWithImport, GlslSchema.Instance);
 
-        var importDirective = tree.Select(Query.Syntax<GlDirectiveNode>().Named("import"))
-            .Cast<GlDirectiveNode>()
+        var importDirective = tree.Select(Query.Syntax<GlImportNode>().Named("import"))
+            .Cast<GlImportNode>()
             .FirstOrDefault();
 
         Assert.NotNull(importDirective);
         Assert.Equal("import", importDirective.Name);
-        Assert.Equal("\"shared.glsl\"\n", NormalizeLineEndings(importDirective.ArgumentsText));
+        Assert.Equal("shared.glsl", NormalizeLineEndings(importDirective.ImportString));
+        Assert.Equal("\n@import \"shared.glsl\"\n", NormalizeLineEndings(importDirective.ToString()));
     }
 
     [Fact]
@@ -139,7 +138,7 @@ public class ShaderPatchingTests
         var tree = SyntaxTree.Parse(ShaderWithImport, GlslSchema.Instance);
         var importsCache = new Dictionary<string, string>
         {
-            ["shared.glsl"] = "// Shared code\nfloat PI = 3.14159;\n"
+            ["shared.glsl"] = "// Shared code\nfloat PI = 3.14159;"
         };
 
         var result = SourceCodeImportsProcessor.ProcessImports(tree, importsCache);
@@ -149,7 +148,7 @@ public class ShaderPatchingTests
         var output = NormalizeLineEndings(tree.Root.ToString());
 
         // Original import should be commented out (// prefix before @import)
-        Assert.Contains("//@import \"shared.glsl\"", output);
+        Assert.Contains("/* @import \"shared.glsl\" */", output);
         Assert.Equal(NormalizeLineEndings(ShaderWithImportInlined.Trim()), NormalizeLineEndings(output.Trim()));
     }
 

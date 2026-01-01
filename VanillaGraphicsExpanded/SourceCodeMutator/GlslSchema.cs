@@ -16,8 +16,8 @@ namespace VanillaGraphicsExpanded;
 /// </summary>
 public sealed class GlFunctionNode : SyntaxNode, INamedNode, IBlockContainerNode
 {
-    public GlFunctionNode(GreenSyntaxNode green, RedNode? parent, int position)
-        : base(green, parent, position) { }
+    protected GlFunctionNode(CreationContext context)
+        : base(context) { }
 
     /// <summary>Return type node (e.g., "void", "vec4").</summary>
     public RedLeaf ReturnTypeNode => GetTypedChild<RedLeaf>(0);
@@ -59,8 +59,8 @@ public sealed class GlFunctionNode : SyntaxNode, INamedNode, IBlockContainerNode
 /// </summary>
 public sealed class GlDirectiveNode : SyntaxNode, INamedNode
 {
-    public GlDirectiveNode(GreenSyntaxNode green, RedNode? parent, int position)
-        : base(green, parent, position) { }
+    protected GlDirectiveNode(CreationContext context)
+        : base(context) { }
 
     /// <summary>The directive tag node (e.g., "#version").</summary>
     public RedLeaf DirectiveNode => GetTypedChild<RedLeaf>(0);
@@ -82,8 +82,8 @@ public sealed class GlDirectiveNode : SyntaxNode, INamedNode
 
 public sealed class GlImportNode : SyntaxNode, INamedNode
 {
-    public GlImportNode(GreenSyntaxNode green, RedNode? parent, int position)
-        : base(green, parent, position) { }
+    protected GlImportNode(CreationContext context)
+        : base(context) { }
 
     /// <summary>The directive tag node (e.g., "#version").</summary>
     public RedLeaf DirectiveNode => GetTypedChild<RedLeaf>(0);
@@ -95,7 +95,7 @@ public sealed class GlImportNode : SyntaxNode, INamedNode
     public RedLeaf ImportStringNode => GetTypedChild<RedLeaf>(1);
 
     /// <summary>The import filename as text.</summary>
-    public string ImportString => ImportStringNode.Text;
+    public string ImportString => ImportStringNode.TextSpan[1..^1].ToString();
 }
 
 #endregion
@@ -121,13 +121,12 @@ public static class GlslSchema
             .Build())
         // Directive: #import or @import followed by tokens until newline
         .DefineSyntax(Syntax.Define<GlImportNode>("glImport")
-            .Match(Query.TaggedIdent("import"), Query.Any.Until(Query.Newline))
+            .Match(Query.TaggedIdent("@import"), Query.Any.Until(Query.Newline))
             .WithPriority(1)
             .Build())
         // Directive: #tag or @tag followed by tokens until newline
         .DefineSyntax(Syntax.Define<GlDirectiveNode>("glDirective")
             .Match(Query.AnyTaggedIdent, Query.Any.Until(Query.Newline))
-            .WithPriority(2)
             .Build())
         .Build();
 }

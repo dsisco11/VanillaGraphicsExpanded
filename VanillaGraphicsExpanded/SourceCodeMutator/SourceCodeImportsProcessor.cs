@@ -57,20 +57,23 @@ public static class SourceCodeImportsProcessor
             }
 
             // Build the replacement: commented original line + newline + import contents
-            var originalText = import.ToString();
-            var injection = new StringBuilder();
-            injection.Append("//");  // Comment out the @import line
-            injection.Append(originalText.TrimEnd());
-            injection.AppendLine();
-            injection.Append(importContent);
+            // var originalText = import.ToString();
+            // var injection = new StringBuilder();
+            // injection.Append("//");  // Comment out the @import line
+            // injection.Append(originalText.TrimEnd());
+            // injection.AppendLine();
+            // injection.Append(importContent);
 
-            // Ensure import content ends with newline
-            if (!importContent.EndsWith('\n'))
-            {
-                injection.AppendLine();
-            }
+            // // Ensure import content ends with newline
+            // if (!importContent.EndsWith('\n'))
+            // {
+            //     injection.AppendLine();
+            // }
 
-            editor.Replace(import, injection.ToString());
+            // first comment out the original import line
+            editor.Edit(import, (string str) => $"/* {str} */\n{importContent}");
+            // then insert the imported content after it
+            // editor.InsertAfter(import, $"{importContent}\n");
 
             logger?.Audit($"[VGE] Processed @import '{fileName}' at position {import.Position}");
         }
