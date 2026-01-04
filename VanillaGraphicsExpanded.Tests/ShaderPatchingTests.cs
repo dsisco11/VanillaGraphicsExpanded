@@ -143,14 +143,12 @@ public class ShaderPatchingTests
     {
         var tree = SyntaxTree.Parse(ShaderWithImport, GlslSchema.Instance);
 
-        var importDirective = tree.Select(Query.Syntax<GlImportNode>().Named("import"))
-            .Cast<GlImportNode>()
-            .FirstOrDefault();
+        var importDirective = tree.Select(Query.Syntax<GlImportNode>()).FirstOrDefault() as GlImportNode;
 
         Assert.NotNull(importDirective);
         Assert.Equal("import", importDirective.Name);
         Assert.Equal("shared.glsl", NormalizeLineEndings(importDirective.ImportString));
-        Assert.Equal("\n@import \"shared.glsl\"\n", NormalizeLineEndings(importDirective.ToString()));
+        Assert.Equal("\n@import \"shared.glsl\"\n", NormalizeLineEndings(importDirective.ToText()));
     }
 
     [Fact]
@@ -186,7 +184,7 @@ public class ShaderPatchingTests
 
         Assert.True(result);
 
-        var output = NormalizeLineEndings(tree.ToString());
+        var output = NormalizeLineEndings(tree.ToText());
 
         // Original import should be commented out (// prefix before @import)
         Assert.Contains("/* @import \"shared.glsl\" */", output);
@@ -214,7 +212,7 @@ public class ShaderPatchingTests
 
         Assert.True(result);
 
-        var output = NormalizeLineEndings(tree.ToString());
+        var output = NormalizeLineEndings(tree.ToText());
 
         // Import should be commented out
         Assert.Contains("/* @import \"shared.glsl\" */", output);
@@ -247,7 +245,7 @@ public class ShaderPatchingTests
 
         Assert.True(result);
 
-        var output = NormalizeLineEndings(tree.ToString());
+        var output = NormalizeLineEndings(tree.ToText());
         Assert.Contains("/* @import \"utils.glsl\" */\n// Utils\n", output);
         Assert.Contains("/* @import \"lighting.glsl\" */\n// Lighting\n", output);
     }
@@ -265,7 +263,7 @@ public class ShaderPatchingTests
             .Insert(Query.Syntax<GlFunctionNode>().Named("main").Before(), "// Before main\n")
             .Commit();
 
-        var output = NormalizeLineEndings(tree.ToString());
+        var output = NormalizeLineEndings(tree.ToText());
         // Roslyn-style: insertion goes before target's leading trivia
         // The comment should appear somewhere before the main function
         Assert.Contains("// Before main", output);
@@ -282,7 +280,7 @@ public class ShaderPatchingTests
             .Insert(Query.Syntax<GlDirectiveNode>().Named("version").After(), "\n// After version")
             .Commit();
 
-        var output = NormalizeLineEndings(tree.ToString());
+        var output = NormalizeLineEndings(tree.ToText());
         Assert.Matches(@"#version 330 core\s*// After version", output);
     }
 
@@ -295,7 +293,7 @@ public class ShaderPatchingTests
             .Insert(Query.Syntax<GlFunctionNode>().Named("main").InnerStart("body"), "\n    // Body start")
             .Commit();
 
-        var output = NormalizeLineEndings(tree.ToString());
+        var output = NormalizeLineEndings(tree.ToText());
         Assert.Contains("void main() {\n    // Body start", output);
     }
 
@@ -308,7 +306,7 @@ public class ShaderPatchingTests
             .Insert(Query.Syntax<GlFunctionNode>().Named("main").InnerEnd("body"), "\n    // Body end")
             .Commit();
 
-        var output = NormalizeLineEndings(tree.ToString());
+        var output = NormalizeLineEndings(tree.ToText());
         Assert.Matches(@"// Body end\s*}", output);
     }
 
@@ -330,7 +328,7 @@ public class ShaderPatchingTests
             .Insert(mainQuery.InnerEnd("body"), "\n    // Cleanup code")
             .Commit();
 
-        var output = NormalizeLineEndings(tree.ToString());
+        var output = NormalizeLineEndings(tree.ToText());
 
         Assert.Contains("// Layout declarations", output);
         Assert.Contains("// Init code", output);
@@ -366,7 +364,7 @@ public class ShaderPatchingTests
             .Insert(mainQuery.InnerStart("body"), "\n    gNormal = vec4(0.0, 1.0, 0.0, 1.0);")
             .Commit();
 
-        var output = NormalizeLineEndings(tree.ToString());
+        var output = NormalizeLineEndings(tree.ToText());
 
         // Verify declarations appear (allowing for whitespace variations from tokenizer)
         Assert.Contains("layout", output);
@@ -386,7 +384,7 @@ public class ShaderPatchingTests
 
     /// <summary>
     /// Tests that the #version directive is preserved after processing imports
-    /// when using tree.ToString() (the correct method to use).
+    /// when using tree.ToText() (the correct method to use).
     /// </summary>
     [Fact]
     public void ProcessImports_PreservesVersionDirective_WithRootToString()
@@ -413,7 +411,7 @@ public class ShaderPatchingTests
 
         Assert.True(result);
 
-        var output = NormalizeLineEndings(tree.ToString());
+        var output = NormalizeLineEndings(tree.ToText());
         
         // #version directive should be at the start of the output
         Assert.StartsWith("#version 330 core", output);
@@ -457,7 +455,7 @@ public class ShaderPatchingTests
         Assert.True(result);
 
         // Must use Root.ToString() - ToFullString() returns empty string
-        var output = NormalizeLineEndings(tree.ToString());
+        var output = NormalizeLineEndings(tree.ToText());
         
         // Verify #version is preserved
         Assert.StartsWith("#version 330 core", output);
@@ -486,7 +484,7 @@ public class ShaderPatchingTests
         var tree = SyntaxTree.Parse(shader, GlslSchema.Instance);
 
         // Must use Root.ToString() - ToFullString() returns empty string
-        var rootOutput = NormalizeLineEndings(tree.ToString());
+        var rootOutput = NormalizeLineEndings(tree.ToText());
 
         Assert.StartsWith("#version 330 core", rootOutput);
     }

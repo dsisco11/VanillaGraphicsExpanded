@@ -66,7 +66,7 @@ public sealed class GlDirectiveNode : SyntaxNode, INamedNode
     public RedLeaf DirectiveNode => GetTypedChild<RedLeaf>(0);
 
     /// <summary>The directive name without # or @ (e.g., "version", "import").</summary>
-    public string Name => DirectiveNode.Text.TrimStart('#');
+    public string Name => DirectiveNode.Text.TrimStart(['#', '@']);
 
     /// <summary>
     /// Gets all children after the directive tag (the arguments).
@@ -76,7 +76,7 @@ public sealed class GlDirectiveNode : SyntaxNode, INamedNode
     /// <summary>
     /// Gets the arguments as a string.
     /// </summary>
-    public string ArgumentsText => string.Concat(Arguments.Select(a => a.ToString()));
+    public string ArgumentsText => string.Concat(Arguments.Select(a => a.ToText()));
 }
 
 
@@ -96,6 +96,14 @@ public sealed class GlImportNode : SyntaxNode, INamedNode
 
     /// <summary>The import filename as text.</summary>
     public string ImportString => ImportStringNode.TextSpan[1..^1].ToString();
+}
+
+// statement node ending with a semicolon
+// e.g., variable declarations, function calls, etc.
+public sealed class GlStatementNode : SyntaxNode
+{
+    protected GlStatementNode(CreationContext context)
+        : base(context) { }
 }
 
 #endregion
@@ -127,7 +135,12 @@ public static class GlslSchema
         // Directive: #tag or @tag followed by tokens until newline
         .DefineSyntax(Syntax.Define<GlDirectiveNode>("glDirective")
             .Match(Query.AnyTaggedIdent, Query.Any.Until(Query.Newline))
+            .WithPriority(0)
             .Build())
+        // Statement ending with semicolon
+        // .DefineSyntax(Syntax.Define<GlStatementNode>("glStatement")
+        //     .Match(Query.Any.Until(Query.Symbol(";")), Query.Symbol(";"))
+        //     .Build())
         .Build();
 }
 

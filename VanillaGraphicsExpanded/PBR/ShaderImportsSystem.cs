@@ -132,7 +132,10 @@ public sealed class ShaderImportsSystem
     {
         try
         {
-            return SourceCodeImportsProcessor.ProcessImports(tree, _importsCache, log ?? _logger);
+            bool success = SourceCodeImportsProcessor.ProcessImports(tree, _importsCache, log ?? _logger);
+            //string originalText = tree.ToText();
+            //System.Diagnostics.Debug.WriteLine(originalText);
+            return success;
         }
         catch (Exception ex)
         {

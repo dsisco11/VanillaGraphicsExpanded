@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 
 using TinyTokenizer.Ast;
 
@@ -60,14 +61,18 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
                 case "chunktransparent.fsh":
                 case "chunkopaque.fsh":
                 case "chunktopsoil.fsh":
-                case "standard.fsh":
                 case "instanced.fsh":
+                //case "standard.fsh":
                     {
+                        // Find the location of the last glDirective at the top (after #version)
+                        var versionDirectiveQuery = Query.Syntax<GlDirectiveNode>().Named("version");
                         // Find main function and insert @import before it
                         var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
 
+                        var versionNode = tree.Select(versionDirectiveQuery).First() as GlDirectiveNode;
+
                         tree.CreateEditor()
-                            .Insert(mainQuery.Before(), "@import \"vsFunctions.glsl\"\n")
+                            .Insert(versionDirectiveQuery.After(), "@import \"vsFunctions.glsl\"\n")
                             .Commit();
 
                         log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");
@@ -112,8 +117,8 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
                 case "chunktransparent.fsh":
                 case "chunkopaque.fsh":
                 case "chunktopsoil.fsh":
-                case "standard.fsh":
                 case "instanced.fsh":
+                //case "standard.fsh":
                     {
                         InjectGBufferInputs(tree);
                         InjectGBufferOutputs(tree);

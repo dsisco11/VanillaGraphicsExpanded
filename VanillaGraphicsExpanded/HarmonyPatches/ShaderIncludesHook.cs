@@ -142,7 +142,7 @@ public static class ShaderIncludesHook
         if (hasChanges)
         {
             // Build and write back to shader
-            shader.Code = tree.ToString();
+            shader.Code = tree.ToText();
         }
     }
 
@@ -180,7 +180,7 @@ public static class ShaderIncludesHook
             // Build and write back to asset
             if (hasChanges)
             {
-                asset.Data = Encoding.UTF8.GetBytes(tree.ToString());
+                asset.Data = Encoding.UTF8.GetBytes(tree.ToText());
                 asset.IsPatched = true;
                 patchedCount++;
             }
