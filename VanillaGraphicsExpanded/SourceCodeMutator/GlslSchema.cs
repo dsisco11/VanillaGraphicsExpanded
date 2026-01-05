@@ -20,22 +20,22 @@ public sealed class GlFunctionNode : SyntaxNode, INamedNode, IBlockContainerNode
         : base(context) { }
 
     /// <summary>Return type node (e.g., "void", "vec4").</summary>
-    public RedLeaf ReturnTypeNode => GetTypedChild<RedLeaf>(0);
+    public SyntaxToken ReturnTypeNode => GetTypedChild<SyntaxToken>(0);
 
     /// <summary>Return type as text.</summary>
     public string ReturnType => ReturnTypeNode.Text;
 
     /// <summary>Function name node.</summary>
-    public RedLeaf NameNode => GetTypedChild<RedLeaf>(1);
+    public SyntaxToken NameNode => GetTypedChild<SyntaxToken>(1);
 
     /// <summary>Function name as text.</summary>
     public string Name => NameNode.Text;
 
     /// <summary>Parameter list block (parentheses).</summary>
-    public RedBlock Parameters => GetTypedChild<RedBlock>(2);
+    public SyntaxBlock Parameters => GetTypedChild<SyntaxBlock>(2);
 
     /// <summary>Function body block (braces).</summary>
-    public RedBlock Body => GetTypedChild<RedBlock>(3);
+    public SyntaxBlock Body => GetTypedChild<SyntaxBlock>(3);
 
     #region IBlockContainerNode
 
@@ -43,7 +43,7 @@ public sealed class GlFunctionNode : SyntaxNode, INamedNode, IBlockContainerNode
     public IReadOnlyList<string> BlockNames => ["body", "params"];
 
     /// <inheritdoc/>
-    public RedBlock GetBlock(string? name = null) => name switch
+    public SyntaxBlock GetBlock(string? name = null) => name switch
     {
         "body" or null => Body,
         "params" => Parameters,
@@ -63,7 +63,7 @@ public sealed class GlDirectiveNode : SyntaxNode, INamedNode
         : base(context) { }
 
     /// <summary>The directive tag node (e.g., "#version").</summary>
-    public RedLeaf DirectiveNode => GetTypedChild<RedLeaf>(0);
+    public SyntaxToken DirectiveNode => GetTypedChild<SyntaxToken>(0);
 
     /// <summary>The directive name without # or @ (e.g., "version", "import").</summary>
     public string Name => DirectiveNode.Text.TrimStart(['#', '@']);
@@ -71,12 +71,12 @@ public sealed class GlDirectiveNode : SyntaxNode, INamedNode
     /// <summary>
     /// Gets all children after the directive tag (the arguments).
     /// </summary>
-    public IEnumerable<RedNode> Arguments => Children.Skip(1);
+    public IEnumerable<SyntaxNode> Arguments => Children.Skip(1);
 
     /// <summary>
     /// Gets the arguments as a string.
     /// </summary>
-    public string ArgumentsText => string.Concat(Arguments.Select(a => a.ToText()));
+    public string ArgumentsText => string.Concat(Arguments.Select(static a => a.ToText()));
 }
 
 
@@ -86,13 +86,13 @@ public sealed class GlImportNode : SyntaxNode, INamedNode
         : base(context) { }
 
     /// <summary>The directive tag node (e.g., "#version").</summary>
-    public RedLeaf DirectiveNode => GetTypedChild<RedLeaf>(0);
+    public SyntaxToken DirectiveNode => GetTypedChild<SyntaxToken>(0);
 
     /// <summary>The directive name without # or @ (e.g., "version", "import").</summary>
     public string Name => DirectiveNode.Text.AsSpan()[1..].ToString();
 
     /// <summary>The import filename node (e.g., the string token with the filename).</summary>
-    public RedLeaf ImportStringNode => GetTypedChild<RedLeaf>(1);
+    public SyntaxToken ImportStringNode => GetTypedChild<SyntaxToken>(1);
 
     /// <summary>The import filename as text.</summary>
     public string ImportString => ImportStringNode.TextSpan[1..^1].ToString();
