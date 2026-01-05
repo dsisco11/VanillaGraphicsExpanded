@@ -65,14 +65,14 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
                 //case "standard.fsh":
                     {
                         // Find the location of the last glDirective at the top (after #version)
-                        var versionDirectiveQuery = Query.Syntax<GlDirectiveNode>().Named("version");
+                        //var versionDirectiveQuery = Query.Syntax<GlDirectiveNode>().Named("version");
                         // Find main function and insert @import before it
                         var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
 
-                        var versionNode = tree.Select(versionDirectiveQuery).First() as GlDirectiveNode;
+                        //var versionNode = tree.Select(versionDirectiveQuery).First() as GlDirectiveNode;
 
                         tree.CreateEditor()
-                            .Insert(versionDirectiveQuery.After(), "@import \"vsFunctions.glsl\"\n")
+                            .Insert(mainQuery.Before(), "@import \"vsFunctions.glsl\"\n")
                             .Commit();
 
                         log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");
