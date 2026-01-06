@@ -11,7 +11,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     private ICoreClientAPI? capi;
     private GBufferManager? gBufferManager;
     private PBROverlayRenderer? pbrOverlayRenderer;
-    private DebugOverlayRenderer? debugOverlayRenderer;
     private HarmonyLib.Harmony? harmony;
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
@@ -40,11 +39,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         gBufferManager = new GBufferManager(api);
 
         // Create PBR overlay renderer (runs at AfterBlit stage)
-        pbrOverlayRenderer = new PBROverlayRenderer(api, gBufferManager);
+        pbrOverlayRenderer = new DebugOverlayRenderer(api, gBufferManager);
 
-        // Create debug overlay renderer (runs after PBR overlay)
-        debugOverlayRenderer = new DebugOverlayRenderer(api, gBufferManager);
-        // Load custom shaders
         LoadShaders(api);
         api.Event.ReloadShader += () => LoadShaders(api);
     }
@@ -54,9 +50,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         base.Dispose();
         try
         {
-            debugOverlayRenderer?.Dispose();
-            debugOverlayRenderer = null;
-
             pbrOverlayRenderer?.Dispose();
             pbrOverlayRenderer = null;
 

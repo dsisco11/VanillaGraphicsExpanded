@@ -38,7 +38,8 @@ uniform vec3 rgbaLightIn;
 // 4 = Material: Roughness (G channel)
 // 5 = Material: Metallic (B channel)
 // 6 = Material: Emissive (A channel)
-// 7 = Depth (linearized)
+// 7 = Albedo (scene color)
+// 8 = Depth (linearized)
 uniform int debugMode;
 
 // Normal blur settings (Teardown-style)
@@ -177,6 +178,9 @@ vec3 reconstructWorldPos(vec3 viewPos) {
 }
 
 void main() {
+    // // debug 
+    // outColor = vec4(1.0, 0.0, 1.0, 1.0);
+    // return;
     // Sample scene color and depth
     vec4 albedoColor = texture(primaryScene, uv);
     float depth = texture(primaryDepth, uv).r;
@@ -260,6 +264,10 @@ void main() {
         outColor = vec4(vec3(matEmissive), 1.0);
         return;
     } else if (debugMode == 7) {
+        // Albedo (scene color)
+        outColor = vec4(albedoColor.rgb, 1.0);
+        return;
+    } else if (debugMode == 8) {
         // Depth (linearized, logarithmic scale for visibility)
         float linDepth = linearizeDepth(depth);
         float normalizedDepth = log(1.0 + linDepth) / log(1.0 + zFar);

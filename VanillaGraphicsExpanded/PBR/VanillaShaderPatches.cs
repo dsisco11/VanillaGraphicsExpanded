@@ -62,20 +62,16 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
                 case "chunkopaque.fsh":
                 case "chunktopsoil.fsh":
                 case "instanced.fsh":
-                //case "standard.fsh":
+                case "standard.fsh":
                     {
-                        // Find the location of the last glDirective at the top (after #version)
-                        //var versionDirectiveQuery = Query.Syntax<GlDirectiveNode>().Named("version");
                         // Find main function and insert @import before it
                         var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
-
-                        //var versionNode = tree.Select(versionDirectiveQuery).First() as GlDirectiveNode;
-
                         tree.CreateEditor()
                             .Insert(mainQuery.Before(), "@import \"vsFunctions.glsl\"\n")
                             .Commit();
 
                         log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");
+                        //string patchedSource = tree.ToText();
                         return true;
                     }
 
@@ -103,13 +99,6 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
         {
             switch (sourceName)
             {
-                // Shader includes
-                case "fogandlight.fsh":
-                    {
-                        PatchFogAndLight(tree);
-                        log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
-                        return true;
-                    }
                 // case "normalshading.fsh": // Note: Disabled since we don't really care to change the lighting for gui items or first-person view items.
                 //     PatchNormalshading(tree);
                 //     return true;
@@ -118,11 +107,13 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
                 case "chunkopaque.fsh":
                 case "chunktopsoil.fsh":
                 case "instanced.fsh":
-                //case "standard.fsh":
+                case "standard.fsh":
                     {
                         InjectGBufferInputs(tree);
                         InjectGBufferOutputs(tree);
+                        PatchFogAndLight(tree);
                         log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
+                        string patchedSource = tree.ToText();
                         return true;
                     }
                 case "sky.fsh":
@@ -176,7 +167,7 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
         const string skyGBufferWrites = @"
     // VGE: Write default G-buffer outputs for sky
     vge_outNormal = vec4(0.0); // Upward normal
-    vge_outMaterial = vec4(1.0, 0.0, outGlow.g, 0.0); // Default material properties
+    vge_outMaterial = vec4(0.0, 0.0, outGlow.g, 0.0); // Default material properties
 ";
 
         // Find main function and insert at inner end of body (before closing brace)
@@ -195,22 +186,22 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
         var editor = tree.CreateEditor();
 
         // intercept 'applyFog' function and just return unadjusted color
-        InsertAtFunctionTop(editor, "applyFog", "\nreturn rgbaPixel;");
+        ReplaceFunctionBody(tree, editor, "applyFog", "\nreturn rgbaPixel;");
 
         // intercept 'getBrightnessFromShadowMap' function and return full brightness
-        InsertAtFunctionTop(editor, "getBrightnessFromShadowMap", "\nreturn 1.0;");
+        ReplaceFunctionBody(tree, editor, "getBrightnessFromShadowMap", "\nreturn 1.0;");
 
         // intercept 'getBrightnessFromNormal' function and return full brightness
-        InsertAtFunctionTop(editor, "getBrightnessFromNormal", "\nreturn 1.0;");
+        ReplaceFunctionBody(tree, editor, "getBrightnessFromNormal", "\nreturn 1.0;");
 
         // intercept 'applyFogAndShadow' function and just return unadjusted color
-        InsertAtFunctionTop(editor, "applyFogAndShadow", "\nreturn rgbaPixel;");
+        ReplaceFunctionBody(tree, editor, "applyFogAndShadow", "\nreturn rgbaPixel;");
 
         // intercept 'applyFogAndShadowWithNormal' function and just return unadjusted color
-        InsertAtFunctionTop(editor, "applyFogAndShadowWithNormal", "\nreturn rgbaPixel;");
+        ReplaceFunctionBody(tree, editor, "applyFogAndShadowWithNormal", "\nreturn rgbaPixel;");
 
         // intercept 'applyFogAndShadowFromBrightness' function and just return unadjusted color
-        InsertAtFunctionTop(editor, "applyFogAndShadowFromBrightness", "\nreturn rgbaPixel;");
+        ReplaceFunctionBody(tree, editor, "applyFogAndShadowFromBrightness", "\nreturn rgbaPixel;");
 
         editor.Commit();
     }
@@ -218,10 +209,14 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
     /// <summary>
     /// Helper method to insert code at the top of a function body using the editor.
     /// </summary>
-    private static void InsertAtFunctionTop(SyntaxEditor editor, string functionName, string code)
+    private static void ReplaceFunctionBody(SyntaxTree tree, SyntaxEditor editor, string functionName, string code)
     {
         var funcQuery = Query.Syntax<GlFunctionNode>().Named(functionName);
-        editor.Insert(funcQuery.InnerStart("body"), code);
+        // select all the contents of the function body
+        GlFunctionNode? funcNode = funcQuery.Select(tree).FirstOrDefault() as GlFunctionNode;
+        SyntaxBlock body = funcNode!.GetBlock("body");
+        var start = Query.Exact(body.OpenerNode);
+        editor.Edit(start, (string original) => $"{original}\n{code}\n");
     }
 
     /// <summary>
@@ -232,7 +227,7 @@ layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Meta
         var editor = tree.CreateEditor();
 
         // intercept 'getBrightnessFromNormal' function and return full brightness
-        InsertAtFunctionTop(editor, "getBrightnessFromNormal", "\nreturn 1.0;");
+        ReplaceFunctionBody(tree, editor, "getBrightnessFromNormal", "\nreturn 1.0;");
 
         editor.Commit();
     }
