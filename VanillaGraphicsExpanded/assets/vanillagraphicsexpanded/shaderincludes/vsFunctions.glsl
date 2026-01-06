@@ -1,3 +1,5 @@
+#ifndef VGE_VSFUNCTIONS_GLSL
+#define VGE_VSFUNCTIONS_GLSL
 /*
 * Returns the metallic value based on the VintageStory render flags.
 */
@@ -15,3 +17,4 @@ float getMatMetallicFromRenderFlags(int renderFlags) {
     
     return 0.0;
 }
+#endif // VGE_VSFUNCTIONS_GLSL

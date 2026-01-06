@@ -1,3 +1,5 @@
+#ifndef VGE_SQUIRREL3_FSH
+#define VGE_SQUIRREL3_FSH
 /**
 * Squirrel3 hash function
 * https://youtu.be/LWFzPP8ZbdU?t=2674
@@ -30,3 +32,4 @@ float Squirrel3HashF(vec3 p)
     // Normalize uint to [0, 1] range by dividing by max uint value
     return float(hashed) / 4294967295.0;
 }
+#endif // VGE_SQUIRREL3_FSH

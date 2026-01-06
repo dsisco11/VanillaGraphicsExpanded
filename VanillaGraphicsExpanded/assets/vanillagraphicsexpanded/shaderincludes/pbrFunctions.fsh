@@ -1,3 +1,5 @@
+#ifndef VGE_PBRFUNCTIONS_FSH
+#define VGE_PBRFUNCTIONS_FSH
 /*
 @description Fresnel-Schlick approximation for reflectance
 @param cosTheta - Cosine of the angle between view and halfway vector
@@ -84,3 +86,4 @@ vec3 cookTorranceBRDF(vec3 N, vec3 V, vec3 L, vec3 F0, float roughness) {
     
     return specular;
 }
+#endif // VGE_PBRFUNCTIONS_FSH
