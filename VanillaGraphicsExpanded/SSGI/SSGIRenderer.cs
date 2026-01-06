@@ -104,9 +104,9 @@ public class SSGIRenderer : IRenderer, IDisposable
 
     /// <summary>
     /// Intensity multiplier for indirect lighting.
-    /// Default: 1.0.
+    /// Default: 2.0 (boosted for visibility).
     /// </summary>
-    public float Intensity { get; set; } = 1.0f;
+    public float Intensity { get; set; } = 2.0f;
 
     /// <summary>
     /// Temporal blend factor for history accumulation.
@@ -165,6 +165,15 @@ public class SSGIRenderer : IRenderer, IDisposable
             GlKeys.F8,
             HotkeyType.DevTool);
         capi.Input.SetHotKeyHandler("vgessgi", OnToggleSSGI);
+
+        // Register hotkey for SSGI debug mode cycling (Shift+F8)
+        capi.Input.RegisterHotKey(
+            "vgessgidebug",
+            "VGE Cycle SSGI Debug Mode",
+            GlKeys.F8,
+            HotkeyType.DevTool,
+            shiftPressed: true);
+        capi.Input.SetHotKeyHandler("vgessgidebug", OnCycleDebugMode);
     }
 
     private bool OnToggleSSGI(KeyCombination keyCombination)
@@ -172,6 +181,15 @@ public class SSGIRenderer : IRenderer, IDisposable
         Enabled = !Enabled;
         string status = Enabled ? "enabled" : "disabled";
         capi?.TriggerIngameError(this, "vgessgi", $"[VGE] SSGI {status}");
+        return true;
+    }
+
+    private bool OnCycleDebugMode(KeyCombination keyCombination)
+    {
+        // Cycle through debug modes: 0 (composite) -> 1 (SSGI only) -> 2 (scene only) -> 0
+        DebugMode = (DebugMode + 1) % 3;
+        string[] modeNames = { "Composite (normal)", "SSGI Only", "Scene Only (no SSGI)" };
+        capi?.TriggerIngameError(this, "vgessgidebug", $"[VGE] SSGI Debug: {modeNames[DebugMode]}");
         return true;
     }
 
@@ -302,6 +320,10 @@ public class SSGIRenderer : IRenderer, IDisposable
         // Render
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
+
+        // Restore framebuffer state for subsequent passes (HUD, etc.)
+        // The game expects the default framebuffer or proper state after AfterBlit
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     }
 
     #endregion

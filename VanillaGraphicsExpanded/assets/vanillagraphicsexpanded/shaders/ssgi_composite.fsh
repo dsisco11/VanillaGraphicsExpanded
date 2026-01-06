@@ -136,8 +136,9 @@ void main() {
     
     // Debug modes
     if (debugMode == 1) {
-        // SSGI only
-        outColor = vec4(ssgi, 1.0);
+        // SSGI only - boost for visibility
+        // This shows the raw indirect light contribution
+        outColor = vec4(ssgi * 2.0, 1.0); // Boosted 2x for visibility
         return;
     }
     else if (debugMode == 2) {
