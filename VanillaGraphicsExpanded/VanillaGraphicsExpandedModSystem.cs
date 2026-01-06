@@ -1,5 +1,6 @@
 ﻿using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.SSGI;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -10,6 +11,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
 {
     private ICoreClientAPI? capi;
     private GBufferManager? gBufferManager;
+    private SSGIBufferManager? ssgiBufferManager;
+    private SSGIRenderer? ssgiRenderer;
     private PBROverlayRenderer? pbrOverlayRenderer;
     private HarmonyLib.Harmony? harmony;
 
@@ -38,6 +41,10 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         // Create G-buffer manager (Harmony hooks will call into this)
         gBufferManager = new GBufferManager(api);
 
+        // Create SSGI buffer manager and renderer (runs before PBR overlay)
+        ssgiBufferManager = new SSGIBufferManager(api);
+        ssgiRenderer = new SSGIRenderer(api, ssgiBufferManager);
+
         // Create PBR overlay renderer (runs at AfterBlit stage)
         pbrOverlayRenderer = new DebugOverlayRenderer(api, gBufferManager);
 
@@ -52,6 +59,12 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         {
             pbrOverlayRenderer?.Dispose();
             pbrOverlayRenderer = null;
+
+            ssgiRenderer?.Dispose();
+            ssgiRenderer = null;
+
+            ssgiBufferManager?.Dispose();
+            ssgiBufferManager = null;
 
             gBufferManager?.Dispose();
             gBufferManager = null;
@@ -70,6 +83,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     private static bool LoadShaders(ICoreClientAPI api)
     {
         PBROverlayShaderProgram.Register(api);
+        SSGIShaderProgram.Register(api);
+        SSGICompositeShaderProgram.Register(api);
         return true;
     }
 }
