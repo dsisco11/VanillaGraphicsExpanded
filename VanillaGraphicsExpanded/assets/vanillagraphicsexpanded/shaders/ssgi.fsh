@@ -60,6 +60,9 @@ const float TAU = 6.283185307179586;
 const float GOLDEN_ANGLE = 2.399963229728653;
 const float PHI = 1.618033988749895;
 
+// Import Squirrel3 hash for high-quality pseudo-random jittering
+@import "squirrel3.fsh"
+
 // ============================================================================
 // Utility Functions
 // ============================================================================
@@ -85,13 +88,6 @@ vec2 projectToScreen(vec3 viewPos) {
     vec4 clipPos = projectionMatrix * vec4(viewPos, 1.0);
     vec3 ndc = clipPos.xyz / clipPos.w;
     return ndc.xy * 0.5 + 0.5;
-}
-
-// Hash function for pseudo-random jittering
-float hash(vec2 p) {
-    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-    p3 += dot(p3, p3.yzx + 33.33);
-    return fract((p3.x + p3.y) * p3.z);
 }
 
 // Cosine-weighted hemisphere sample direction
@@ -251,15 +247,19 @@ void main() {
     vec3 indirectLight = vec3(0.0);
     float totalWeight = 0.0;
     
-    // Per-pixel jitter based on screen position and frame
-    vec2 jitterSeed = fullResUV * ssgiBufferSize + vec2(float(frameIndex) * 0.618);
+    // Per-pixel jitter seed based on screen position and frame
+    // Using Squirrel3 for high-quality random distribution
+    vec2 pixelCoord = fullResUV * ssgiBufferSize;
+    float frameSeed = float(frameIndex);
     
     // Sample hemisphere using golden angle spiral pattern
     for (int i = 0; i < sampleCount; i++) {
-        // Generate pseudo-random values for this sample
-        float u1 = hash(jitterSeed + vec2(float(i) * PHI, 0.0));
-        float u2 = hash(jitterSeed + vec2(0.0, float(i) * PHI));
-        float jitter = hash(jitterSeed + vec2(float(i), float(i)));
+        // Generate pseudo-random values using Squirrel3 hash
+        // Each value uses a different Z offset for decorrelation
+        float sampleSeed = float(i) + frameSeed * PHI;
+        float u1 = Squirrel3HashF(vec3(pixelCoord, sampleSeed));
+        float u2 = Squirrel3HashF(vec3(pixelCoord, sampleSeed + 100.0));
+        float jitter = Squirrel3HashF(vec3(pixelCoord, sampleSeed + 200.0));
         
         // Sample direction on cosine-weighted hemisphere
         vec3 sampleDir = sampleHemisphere(viewNormal, u1, u2);
