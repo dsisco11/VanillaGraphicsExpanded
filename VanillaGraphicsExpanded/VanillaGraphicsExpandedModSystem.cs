@@ -85,6 +85,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         PBROverlayShaderProgram.Register(api);
         SSGIShaderProgram.Register(api);
         SSGICompositeShaderProgram.Register(api);
+        SSGIDebugShaderProgram.Register(api);
         return true;
     }
 }

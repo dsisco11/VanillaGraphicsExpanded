@@ -118,8 +118,22 @@ vec3 bilateralUpsample(vec2 fullResUV) {
 // ============================================================================
 
 void main() {
+    // Debug mode 1: Show raw SSGI buffer across entire screen (no filtering)
+    if (debugMode == 1) {
+        // Direct sample from SSGI texture - shows exactly what the SSGI pass produced
+        vec3 ssgi = texture(ssgiTexture, uv).rgb;
+        outColor = vec4(ssgi * 2.0, 1.0); // Boosted 2x for visibility
+        return;
+    }
+    
     // Sample scene color
     vec3 sceneColor = texture(primaryScene, uv).rgb;
+    
+    // Debug mode 2: Scene only (no SSGI)
+    if (debugMode == 2) {
+        outColor = vec4(sceneColor, 1.0);
+        return;
+    }
     
     // Check if this pixel has valid G-buffer data
     vec4 normalSample = texture(gBufferNormal, uv);
@@ -133,19 +147,6 @@ void main() {
     
     // Get SSGI with bilateral upscaling
     vec3 ssgi = bilateralUpsample(uv);
-    
-    // Debug modes
-    if (debugMode == 1) {
-        // SSGI only - boost for visibility
-        // This shows the raw indirect light contribution
-        outColor = vec4(ssgi * 2.0, 1.0); // Boosted 2x for visibility
-        return;
-    }
-    else if (debugMode == 2) {
-        // Scene only (no SSGI)
-        outColor = vec4(sceneColor, 1.0);
-        return;
-    }
     
     // Composite: add indirect lighting to scene
     // The SSGI term already has SSAO multiplied in, so we just add it

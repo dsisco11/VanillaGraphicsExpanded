@@ -52,7 +52,7 @@ public class SSGIRenderer : IRenderer, IDisposable
     private int frameIndex;
 
     // Resolution scale backing field
-    private float resolutionScale = 0.5f;
+    private float resolutionScale = 0.3f;
 
     #endregion
 
@@ -87,7 +87,7 @@ public class SSGIRenderer : IRenderer, IDisposable
     /// Higher values produce better quality but cost more performance.
     /// Default: 8.
     /// </summary>
-    public int SampleCount { get; set; } = 8;
+    public int SampleCount { get; set; } = 3;
 
     /// <summary>
     /// Maximum ray march distance in blocks.
@@ -100,7 +100,7 @@ public class SSGIRenderer : IRenderer, IDisposable
     /// Larger values are more tolerant but may cause light leaking.
     /// Default: 0.5.
     /// </summary>
-    public float RayThickness { get; set; } = 0.5f;
+    public float RayThickness { get; set; } = 5f;
 
     /// <summary>
     /// Intensity multiplier for indirect lighting.
@@ -221,8 +221,17 @@ public class SSGIRenderer : IRenderer, IDisposable
         // === SSGI Pass ===
         RenderSSGIPass(primaryFb);
 
-        // === Composite Pass ===
-        RenderCompositePass(primaryFb);
+        // === Debug or Composite Pass ===
+        if (DebugMode == 1)
+        {
+            // Debug mode: render SSGI buffer directly to screen
+            RenderDebugPass();
+        }
+        else
+        {
+            // Normal mode: composite SSGI into scene
+            RenderCompositePass(primaryFb);
+        }
 
         // Store current view-projection matrix for next frame
         Array.Copy(currentViewProjMatrix, prevViewProjMatrix, 16);
@@ -324,6 +333,30 @@ public class SSGIRenderer : IRenderer, IDisposable
         // Restore framebuffer state for subsequent passes (HUD, etc.)
         // The game expects the default framebuffer or proper state after AfterBlit
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+    }
+
+    private void RenderDebugPass()
+    {
+        // Render directly to the default framebuffer (screen)
+        // This completely replaces the screen with the SSGI buffer for debugging
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
+        GL.Clear(ClearBufferMask.ColorBufferBit);
+
+        var shader = ShaderRegistry.getProgramByName("ssgi_debug") as SSGIDebugShaderProgram;
+        if (shader is null)
+            return;
+
+        capi.Render.GlToggleBlend(false);
+        shader.Use();
+
+        // Bind the SSGI texture
+        shader.SSGITexture = bufferManager.CurrentSSGITextureId;
+        shader.Boost = 2.0f; // Boost for visibility
+
+        // Render fullscreen quad
+        capi.Render.RenderMesh(quadMeshRef);
+        shader.Stop();
     }
 
     #endregion
