@@ -11,6 +11,12 @@ out vec4 outColor;
 // Uses bilinear interpolation with edge-aware weighting.
 // ============================================================================
 
+// Import common utilities
+@import "lumon_common.ash"
+
+// Import SH helpers
+@import "lumon_sh.fsh"
+
 // Radiance textures (from temporal pass)
 uniform sampler2D radianceTexture0;
 uniform sampler2D radianceTexture1;
@@ -41,24 +47,6 @@ uniform float depthDiscontinuityThreshold;
 uniform float intensity;
 uniform vec3 indirectTint;
 
-// Import SH helpers
-@import "lumon_sh.fsh"
-
-// ============================================================================
-// Utility Functions
-// ============================================================================
-
-float linearizeDepth(float depth) {
-    float z = depth * 2.0 - 1.0;
-    return (2.0 * zNear * zFar) / (zFar + zNear - z * (zFar - zNear));
-}
-
-vec3 reconstructViewPos(vec2 texCoord, float depth) {
-    vec4 ndc = vec4(texCoord * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
-    vec4 viewPos = invProjectionMatrix * ndc;
-    return viewPos.xyz / viewPos.w;
-}
-
 // ============================================================================
 // Main
 // ============================================================================
@@ -72,18 +60,17 @@ void main(void)
     float pixelDepth = texture(primaryDepth, screenUV).r;
     
     // Early out for sky
-    if (pixelDepth >= 0.9999) {
+    if (lumonIsSky(pixelDepth)) {
         outColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
     
-    vec3 pixelPosVS = reconstructViewPos(screenUV, pixelDepth);
-    vec3 pixelNormal = texture(gBufferNormal, screenUV).xyz * 2.0 - 1.0;
-    pixelNormal = normalize(pixelNormal);
+    vec3 pixelPosVS = lumonReconstructViewPos(screenUV, pixelDepth, invProjectionMatrix);
+    vec3 pixelNormal = lumonDecodeNormal(texture(gBufferNormal, screenUV).xyz);
     
     // Calculate which probes surround this pixel
     vec2 screenPos = screenUV * screenSize;
-    vec2 probePos = screenPos / float(probeSpacing);
+    vec2 probePos = lumonScreenToProbePos(screenPos, float(probeSpacing));
     
     // Get the four surrounding probe coordinates
     ivec2 probe00 = ivec2(floor(probePos));
@@ -92,19 +79,20 @@ void main(void)
     ivec2 probe11 = probe00 + ivec2(1, 1);
     
     // Clamp to grid bounds
-    probe00 = clamp(probe00, ivec2(0), probeGridSize - 1);
-    probe10 = clamp(probe10, ivec2(0), probeGridSize - 1);
-    probe01 = clamp(probe01, ivec2(0), probeGridSize - 1);
-    probe11 = clamp(probe11, ivec2(0), probeGridSize - 1);
+    ivec2 gridMax = ivec2(probeGridSize) - 1;
+    probe00 = clamp(probe00, ivec2(0), gridMax);
+    probe10 = clamp(probe10, ivec2(0), gridMax);
+    probe01 = clamp(probe01, ivec2(0), gridMax);
+    probe11 = clamp(probe11, ivec2(0), gridMax);
     
     // Bilinear interpolation weights
     vec2 frac = fract(probePos);
     
     // Sample probe data
-    vec2 uv00 = (vec2(probe00) + 0.5) / vec2(probeGridSize);
-    vec2 uv10 = (vec2(probe10) + 0.5) / vec2(probeGridSize);
-    vec2 uv01 = (vec2(probe01) + 0.5) / vec2(probeGridSize);
-    vec2 uv11 = (vec2(probe11) + 0.5) / vec2(probeGridSize);
+    vec2 uv00 = lumonProbeCoordToUV(probe00, probeGridSize);
+    vec2 uv10 = lumonProbeCoordToUV(probe10, probeGridSize);
+    vec2 uv01 = lumonProbeCoordToUV(probe01, probeGridSize);
+    vec2 uv11 = lumonProbeCoordToUV(probe11, probeGridSize);
     
     // Read SH data from all four probes
     vec4 sh0_00 = texture(radianceTexture0, uv00);

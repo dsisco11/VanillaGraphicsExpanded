@@ -13,6 +13,15 @@ layout(location = 1) out vec4 outRadiance1;  // SH coefficients set 1
 // Uses screen-space ray marching with jittered ray directions per frame.
 // ============================================================================
 
+// Import common utilities
+@import "lumon_common.ash"
+
+// Import SH helpers
+@import "lumon_sh.fsh"
+
+// Import noise for ray jittering
+@import "squirrel3.fsh"
+
 // Probe anchor textures
 uniform sampler2D probeAnchorPosition;  // posVS.xyz, valid
 uniform sampler2D probeAnchorNormal;    // normalVS.xyz, reserved
@@ -48,68 +57,6 @@ uniform vec3 sunPosition;
 uniform vec3 sunColor;
 uniform vec3 ambientColor;
 
-// Import SH helpers
-@import "lumon_sh.fsh"
-
-// Import noise for ray jittering
-@import "squirrel3.fsh"
-
-// Constants
-const float PI = 3.141592653589793;
-const float TAU = 6.283185307179586;
-const float GOLDEN_ANGLE = 2.399963229728653;
-
-// ============================================================================
-// Utility Functions
-// ============================================================================
-
-float linearizeDepth(float depth) {
-    float z = depth * 2.0 - 1.0;
-    return (2.0 * zNear * zFar) / (zFar + zNear - z * (zFar - zNear));
-}
-
-vec3 reconstructViewPos(vec2 texCoord, float depth) {
-    vec4 ndc = vec4(texCoord * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
-    vec4 viewPos = invProjectionMatrix * ndc;
-    return viewPos.xyz / viewPos.w;
-}
-
-vec2 projectToScreen(vec3 viewPos) {
-    vec4 clipPos = projectionMatrix * vec4(viewPos, 1.0);
-    return (clipPos.xy / clipPos.w) * 0.5 + 0.5;
-}
-
-// Generate cosine-weighted hemisphere direction
-vec3 cosineSampleHemisphere(vec2 u, vec3 normal) {
-    // Generate uniform disk sample
-    float r = sqrt(u.x);
-    float theta = TAU * u.y;
-    float x = r * cos(theta);
-    float y = r * sin(theta);
-    float z = sqrt(max(0.0, 1.0 - u.x));
-    
-    // Build tangent frame
-    vec3 tangent = abs(normal.y) < 0.999 
-        ? normalize(cross(vec3(0.0, 1.0, 0.0), normal))
-        : normalize(cross(vec3(1.0, 0.0, 0.0), normal));
-    vec3 bitangent = cross(normal, tangent);
-    
-    // Transform to world/view space
-    return normalize(tangent * x + bitangent * y + normal * z);
-}
-
-// Get sky color for a ray direction
-vec3 getSkyColor(vec3 rayDir) {
-    float skyFactor = max(0.0, rayDir.y) * 0.5 + 0.5;
-    vec3 skyColor = ambientColor * skyFactor;
-    
-    // Add sun contribution
-    float sunDot = max(0.0, dot(rayDir, normalize(sunPosition)));
-    skyColor += sunColor * pow(sunDot, 32.0) * 0.5;
-    
-    return skyColor * skyMissWeight;
-}
-
 // ============================================================================
 // Ray Marching
 // ============================================================================
@@ -133,7 +80,7 @@ RayHit traceRay(vec3 origin, vec3 direction) {
         vec3 samplePos = origin + direction * t;
         
         // Project to screen
-        vec2 sampleUV = projectToScreen(samplePos);
+        vec2 sampleUV = lumonProjectToScreen(samplePos, projectionMatrix);
         
         // Check bounds
         if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) {
@@ -142,7 +89,7 @@ RayHit traceRay(vec3 origin, vec3 direction) {
         
         // Sample depth
         float sceneDepth = texture(primaryDepth, sampleUV).r;
-        vec3 scenePos = reconstructViewPos(sampleUV, sceneDepth);
+        vec3 scenePos = lumonReconstructViewPos(sampleUV, sceneDepth, invProjectionMatrix);
         
         // Depth test with thickness
         float depthDiff = samplePos.z - scenePos.z;
@@ -166,7 +113,7 @@ RayHit traceRay(vec3 origin, vec3 direction) {
 void main(void)
 {
     ivec2 probeCoord = ivec2(gl_FragCoord.xy);
-    vec2 probeUV = (vec2(probeCoord) + 0.5) / vec2(probeGridSize);
+    vec2 probeUV = lumonProbeCoordToUV(probeCoord, probeGridSize);
     
     // Read probe anchor
     vec4 anchorData = texture(probeAnchorPosition, probeUV);
@@ -189,7 +136,7 @@ void main(void)
     vec4 shB = vec4(0.0);
     
     // Generate seed for this probe and frame
-    uint seed = uint(probeCoord.x + probeCoord.y * probeGridSize.x + frameIndex * probeGridSize.x * probeGridSize.y);
+    uint seed = uint(probeCoord.x + probeCoord.y * int(probeGridSize.x) + frameIndex * int(probeGridSize.x * probeGridSize.y));
     
     // Trace rays
     float weightSum = 0.0;
@@ -200,7 +147,7 @@ void main(void)
         float u2 = squirrel3Float(seed + uint(i * 2 + 1));
         
         // Generate cosine-weighted ray direction
-        vec3 rayDir = cosineSampleHemisphere(vec2(u1, u2), probeNormal);
+        vec3 rayDir = lumonCosineSampleHemisphere(vec2(u1, u2), probeNormal);
         
         // Offset origin slightly to avoid self-intersection
         vec3 rayOrigin = probePos + probeNormal * 0.01;
@@ -213,7 +160,7 @@ void main(void)
             radiance = hit.color;
         } else {
             // Sky fallback
-            radiance = getSkyColor(rayDir);
+            radiance = lumonGetSkyColor(rayDir, sunPosition, sunColor, ambientColor, skyMissWeight);
         }
         
         // Accumulate into SH

@@ -11,6 +11,9 @@ out vec4 outColor;
 // Uses edge-aware filtering based on depth and normal discontinuities.
 // ============================================================================
 
+// Import common utilities
+@import "lumon_common.ash"
+
 // Half-resolution indirect diffuse
 uniform sampler2D indirectHalf;
 
@@ -31,15 +34,6 @@ uniform int denoiseEnabled;
 uniform int debugMode;
 
 // ============================================================================
-// Utility Functions
-// ============================================================================
-
-float linearizeDepth(float depth) {
-    float z = depth * 2.0 - 1.0;
-    return (2.0 * zNear * zFar) / (zFar + zNear - z * (zFar - zNear));
-}
-
-// ============================================================================
 // Main
 // ============================================================================
 
@@ -49,14 +43,13 @@ void main(void)
     float centerDepth = texture(primaryDepth, uv).r;
     
     // Early out for sky
-    if (centerDepth >= 0.9999) {
+    if (lumonIsSky(centerDepth)) {
         outColor = vec4(0.0, 0.0, 0.0, 0.0);
         return;
     }
     
-    float centerLinearDepth = linearizeDepth(centerDepth);
-    vec3 centerNormal = texture(gBufferNormal, uv).xyz * 2.0 - 1.0;
-    centerNormal = normalize(centerNormal);
+    float centerLinearDepth = lumonLinearizeDepth(centerDepth, zNear, zFar);
+    vec3 centerNormal = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
     
     // Calculate UV for half-res texture
     vec2 halfResUV = uv;
@@ -82,15 +75,14 @@ void main(void)
                 // Sample full-res depth at corresponding location
                 vec2 fullResOffset = offset * (screenSize / halfResSize);
                 float sampleDepth = texture(primaryDepth, uv + fullResOffset).r;
-                float sampleLinearDepth = linearizeDepth(sampleDepth);
+                float sampleLinearDepth = lumonLinearizeDepth(sampleDepth, zNear, zFar);
                 
                 // Depth weight
                 float depthDiff = abs(sampleLinearDepth - centerLinearDepth);
                 float depthWeight = exp(-depthDiff * 10.0);
                 
                 // Normal weight
-                vec3 sampleNormal = texture(gBufferNormal, uv + fullResOffset).xyz * 2.0 - 1.0;
-                sampleNormal = normalize(sampleNormal);
+                vec3 sampleNormal = lumonDecodeNormal(texture(gBufferNormal, uv + fullResOffset).xyz);
                 float normalWeight = max(0.0, dot(centerNormal, sampleNormal));
                 normalWeight = pow(normalWeight, 4.0);
                 
@@ -125,7 +117,7 @@ void main(void)
         result = vec3(centerLinearDepth / zFar);
     } else if (debugMode == 5) {
         // Normal visualization
-        result = centerNormal * 0.5 + 0.5;
+        result = lumonEncodeNormal(centerNormal);
     }
     
     outColor = vec4(result, 1.0);
