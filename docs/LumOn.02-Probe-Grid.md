@@ -705,8 +705,8 @@ if (probeData.a < 0.5) {
 
 ### 10.5 Testing
 
-- [ ] Verify probe grid overlay (DebugMode = 1)
-- [ ] Check valid/invalid/edge probe colors
+- [x] Verify probe grid overlay (DebugMode = 1)
+- [x] Check valid/invalid/edge probe colors
 - [ ] Test at different probe spacings (4, 8, 16)
 - [ ] Verify resize handling works
 - [x] Implement `screenToProbeCoord()` / `probeToScreenCoord()` helpers
