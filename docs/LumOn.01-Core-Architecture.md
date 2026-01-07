@@ -814,35 +814,35 @@ atomicCounterIncrement(rayMissCounter);
 
 ### 10.1 Configuration
 
-- [ ] Create `LumOnConfig.cs` with all properties
-- [ ] Add JSON serialization attributes
-- [ ] Implement config load/save in mod system
-- [ ] Add hot-reload support for runtime-changeable params
-- [ ] Create default config file on first run
-- [ ] Add `DepthDiscontinuityThreshold` property (edge detection)
+- [x] Create `LumOnConfig.cs` with all properties
+- [x] Add JSON serialization attributes
+- [x] Implement config load/save in mod system
+- [x] Add hot-reload support for runtime-changeable params
+- [x] Create default config file on first run
+- [x] Add `DepthDiscontinuityThreshold` property (edge detection)
 
 ### 10.2 Core Components
 
-- [ ] Create `LumOn/` folder structure
-- [ ] Implement `LumOnBufferManager.cs`
-- [ ] Implement `LumOnRenderer.cs` skeleton
-- [ ] Register renderer with VS event system
-- [ ] Add feature toggle (LumOn vs legacy SSGI)
-- [ ] Implement `LoadShaders()` method
-- [ ] Implement `GetSkyZenithColor()` / `GetSkyHorizonColor()` helpers
-- [ ] Implement `GetSunColor()` helper
-- [ ] Implement `RenderFullscreenQuad()` utility
+- [x] Create `LumOn/` folder structure
+- [x] Implement `LumOnBufferManager.cs`
+- [x] Implement `LumOnRenderer.cs` skeleton
+- [x] Register renderer with VS event system
+- [x] Add feature toggle (LumOn vs legacy SSGI)
+- [x] Implement `LoadShaders()` method
+- [x] Implement `GetSkyZenithColor()` / `GetSkyHorizonColor()` helpers
+- [x] Implement `GetSunColor()` helper
+- [x] Implement `RenderFullscreenQuad()` utility
 
 ### 10.3 Debug Infrastructure
 
-- [ ] Implement `LumOnDebugCounters` class
-- [ ] Add GPU timer query support
-- [ ] Create debug overlay rendering
-- [ ] Add debug mode switching (0-5)
+- [x] Implement `LumOnDebugCounters` class
+- [x] Add GPU timer query support
+- [x] Create debug overlay rendering
+- [x] Add debug mode switching (0-5)
 
 ### 10.4 Integration
 
-- [ ] Wire up G-Buffer texture access
-- [ ] Store previous frame ViewProj matrix
-- [ ] Connect to final lighting combine pass
+- [x] Wire up G-Buffer texture access
+- [x] Store previous frame ViewProj matrix
+- [x] Connect to final lighting combine pass
 - [ ] Test enable/disable toggle works correctly
