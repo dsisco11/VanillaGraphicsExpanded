@@ -152,5 +152,10 @@ public class LumOnProbeTraceShaderProgram : ShaderProgram
     /// </summary>
     public Vec3f AmbientColor { set => Uniform("ambientColor", value); }
 
+    /// <summary>
+    /// Tint applied to indirect bounced light.
+    /// </summary>
+    public Vec3f IndirectTint { set => Uniform("indirectTint", value); }
+
     #endregion
 }

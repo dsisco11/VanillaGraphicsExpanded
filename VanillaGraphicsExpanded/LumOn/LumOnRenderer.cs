@@ -357,6 +357,12 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.SunColor = capi.World.Calendar.SunColor;
         shader.AmbientColor = capi.Render.AmbientColor;
 
+        // Indirect lighting tint (from config)
+        shader.IndirectTint = new Vec3f(
+            config.IndirectTint[0], 
+            config.IndirectTint[1], 
+            config.IndirectTint[2]);
+
         // Render
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();

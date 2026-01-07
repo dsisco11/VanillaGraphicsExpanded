@@ -57,6 +57,9 @@ uniform vec3 sunPosition;
 uniform vec3 sunColor;
 uniform vec3 ambientColor;
 
+// Indirect lighting tuning
+uniform vec3 indirectTint;
+
 // ============================================================================
 // Ray Marching
 // ============================================================================
@@ -65,13 +68,23 @@ struct RayHit {
     bool hit;
     vec3 position;
     vec3 color;
+    float distance;
 };
+
+/**
+ * Distance falloff function for inverse-square attenuation.
+ * Uses an offset to avoid division by zero and provide soft falloff.
+ */
+float distanceFalloff(float dist) {
+    return 1.0 / (1.0 + dist * dist);
+}
 
 RayHit traceRay(vec3 origin, vec3 direction) {
     RayHit result;
     result.hit = false;
     result.position = vec3(0.0);
     result.color = vec3(0.0);
+    result.distance = rayMaxDistance;
     
     float stepSize = rayMaxDistance / float(raySteps);
     
@@ -82,13 +95,19 @@ RayHit traceRay(vec3 origin, vec3 direction) {
         // Project to screen
         vec2 sampleUV = lumonProjectToScreen(samplePos, projectionMatrix);
         
-        // Check bounds
+        // Check bounds - break early if ray exits screen
         if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) {
-            continue;
+            break;
         }
         
         // Sample depth
         float sceneDepth = texture(primaryDepth, sampleUV).r;
+        
+        // Skip sky regions (no valid geometry to hit)
+        if (lumonIsSky(sceneDepth)) {
+            continue;
+        }
+        
         vec3 scenePos = lumonReconstructViewPos(sampleUV, sceneDepth, invProjectionMatrix);
         
         // Depth test with thickness
@@ -99,6 +118,7 @@ RayHit traceRay(vec3 origin, vec3 direction) {
             result.hit = true;
             result.position = scenePos;
             result.color = texture(primaryColor, sampleUV).rgb;
+            result.distance = t;
             return result;
         }
     }
@@ -113,10 +133,10 @@ RayHit traceRay(vec3 origin, vec3 direction) {
 void main(void)
 {
     ivec2 probeCoord = ivec2(gl_FragCoord.xy);
-    vec2 probeUV = lumonProbeCoordToUV(probeCoord, probeGridSize);
     
-    // Read probe anchor
-    vec4 anchorData = texture(probeAnchorPosition, probeUV);
+    // Load probe anchor data using texelFetch for precise integer addressing
+    // (no interpolation, direct texel access)
+    vec4 anchorData = texelFetch(probeAnchorPosition, probeCoord, 0);
     vec3 probePos = anchorData.xyz;
     float valid = anchorData.w;
     
@@ -127,8 +147,8 @@ void main(void)
         return;
     }
     
-    // Read probe normal
-    vec3 probeNormal = texture(probeAnchorNormal, probeUV).xyz;
+    // Read and decode probe normal (stored as [0,1], need [-1,1])
+    vec3 probeNormal = lumonDecodeNormal(texelFetch(probeAnchorNormal, probeCoord, 0).xyz);
     
     // Initialize SH accumulators
     vec4 shR = vec4(0.0);
@@ -157,7 +177,8 @@ void main(void)
         
         vec3 radiance;
         if (hit.hit) {
-            radiance = hit.color;
+            // Apply indirect tint and distance falloff to bounced radiance
+            radiance = hit.color * indirectTint * distanceFalloff(hit.distance);
         } else {
             // Sky fallback
             radiance = lumonGetSkyColor(rayDir, sunPosition, sunColor, ambientColor, skyMissWeight);
@@ -176,6 +197,9 @@ void main(void)
         shG *= invWeight;
         shB *= invWeight;
     }
+    
+    // Clamp to prevent negative reconstruction
+    shClampNegative(shR, shG, shB);
     
     // Pack into output textures
     shPackToTextures(shR, shG, shB, outRadiance0, outRadiance1);

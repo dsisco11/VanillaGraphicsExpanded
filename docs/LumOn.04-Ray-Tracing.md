@@ -784,40 +784,43 @@ if (debugMode == 2) {
 
 ### 10.1 Shader Files
 
-- [ ] Create `lumon_probe_trace.vsh`
-- [ ] Create `lumon_probe_trace.fsh`
-- [ ] Import `lumon_sh.ash` for SH accumulation
-- [ ] Implement Hammersley sequence
-- [ ] Implement cosine-weighted hemisphere sampling
-- [ ] Implement `OrientHemisphere()` tangent frame
+- [x] Create `lumon_probe_trace.vsh`
+- [x] Create `lumon_probe_trace.fsh`
+- [x] Import `lumon_sh.fsh` for SH accumulation *(using .fsh convention)*
+- [x] Implement Hammersley sequence *(via Squirrel3 hash in lumon_common.fsh)*
+- [x] Implement cosine-weighted hemisphere sampling *(in lumon_common.fsh)*
+- [x] Implement `OrientHemisphere()` tangent frame *(in lumonCosineSampleHemisphere)*
+- [x] Decode probe normals from [0,1] to [-1,1] range *(added lumonDecodeNormal)*
+- [x] Add sky depth check during ray march *(lumonIsSky)*
+- [x] Early termination when ray exits screen *(break instead of continue)*
 
 ### 10.2 Shader Program Class
 
-- [ ] Create `LumOnProbeTraceShaderProgram.cs`
-- [ ] Add texture sampler properties
-- [ ] Add ray config uniform properties
-- [ ] Add sky/lighting uniform properties
-- [ ] Add indirectTint/skyMissWeight properties
-- [ ] Register shader in mod system
+- [x] Create `LumOnProbeTraceShaderProgram.cs`
+- [x] Add texture sampler properties
+- [x] Add ray config uniform properties
+- [x] Add sky/lighting uniform properties
+- [x] Add indirectTint/skyMissWeight properties
+- [x] Register shader in mod system
 
 ### 10.3 Ray Marching
 
-- [ ] Implement screen-space ray march loop
-- [ ] Add depth comparison with thickness
-- [ ] Handle off-screen ray termination
-- [ ] Add sky fallback for misses
-- [ ] Implement distance falloff function
-- [ ] Call `SHClampNegative()` after accumulation
-- [ ] Pack SH to output textures correctly
+- [x] Implement screen-space ray march loop
+- [x] Add depth comparison with thickness
+- [x] Handle off-screen ray termination
+- [x] Add sky fallback for misses
+- [x] Implement distance falloff function
+- [x] Call `shClampNegative()` after accumulation
+- [x] Pack SH to output textures correctly
 - [ ] (Optional) Implement hierarchical march with binary search
 
 ### 10.4 Render Pass
 
-- [ ] Implement `RenderProbeTracePass()` in renderer
-- [ ] Bind probe anchor textures
-- [ ] Bind scene capture texture
-- [ ] Pass sky/sun lighting uniforms from VS
-- [ ] Capture scene texture before LumOn runs
+- [x] Implement `RenderProbeTracePass()` in renderer
+- [x] Bind probe anchor textures
+- [x] Bind scene capture texture
+- [x] Pass sky/sun lighting uniforms from VS
+- [x] Capture scene texture before LumOn runs
 
 ### 10.5 Testing
 
