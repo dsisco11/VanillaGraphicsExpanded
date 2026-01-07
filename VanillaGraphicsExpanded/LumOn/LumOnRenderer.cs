@@ -473,7 +473,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ZNear = capi.Render.ShaderUniforms.ZNear;
         shader.ZFar = capi.Render.ShaderUniforms.ZFar;
         shader.DenoiseEnabled = config.DenoiseEnabled ? 1 : 0;
-        shader.DebugMode = config.DebugMode;
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);

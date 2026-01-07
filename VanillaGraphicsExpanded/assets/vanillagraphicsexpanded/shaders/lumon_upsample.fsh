@@ -31,7 +31,6 @@ uniform float zFar;
 
 // Quality
 uniform int denoiseEnabled;
-uniform int debugMode;
 
 // ============================================================================
 // Main
@@ -98,26 +97,6 @@ void main(void)
     } else {
         // Simple bilinear sample
         result = texture(indirectHalf, halfResUV).rgb;
-    }
-    
-    // Debug visualization
-    if (debugMode == 1) {
-        // Probe grid visualization
-        vec2 probePos = uv * halfResSize;
-        vec2 gridPos = fract(probePos);
-        float gridLine = step(0.95, gridPos.x) + step(0.95, gridPos.y);
-        result = mix(result, vec3(1.0, 0.0, 0.0), gridLine * 0.5);
-    } else if (debugMode == 2) {
-        // Raw radiance (already showing)
-    } else if (debugMode == 3) {
-        // Temporal weight (would need additional data)
-        result = vec3(0.5);
-    } else if (debugMode == 4) {
-        // Depth visualization
-        result = vec3(centerLinearDepth / zFar);
-    } else if (debugMode == 5) {
-        // Normal visualization
-        result = lumonEncodeNormal(centerNormal);
     }
     
     outColor = vec4(result, 1.0);

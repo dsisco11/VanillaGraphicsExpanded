@@ -24,6 +24,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     private LumOnConfig? lumOnConfig;
     private LumOnBufferManager? lumOnBufferManager;
     private LumOnRenderer? lumOnRenderer;
+    private LumOnDebugRenderer? lumOnDebugRenderer;
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
@@ -65,6 +66,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
             // LumOn path - new Screen Probe Gather system
             lumOnBufferManager = new LumOnBufferManager(api, lumOnConfig);
             lumOnRenderer = new LumOnRenderer(api, lumOnConfig, lumOnBufferManager, gBufferManager);
+            lumOnDebugRenderer = new LumOnDebugRenderer(api, lumOnConfig, lumOnBufferManager, gBufferManager);
             api.Logger.Notification("[VGE] LumOn enabled - using Screen Probe Gather");
         }
         else
@@ -92,6 +94,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
             pbrOverlayRenderer = null;
 
             // Dispose LumOn components
+            lumOnDebugRenderer?.Dispose();
+            lumOnDebugRenderer = null;
+
             lumOnRenderer?.Dispose();
             lumOnRenderer = null;
 
@@ -145,6 +150,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         LumOnTemporalShaderProgram.Register(api);
         LumOnGatherShaderProgram.Register(api);
         LumOnUpsampleShaderProgram.Register(api);
+        LumOnDebugShaderProgram.Register(api);
 
         return true;
     }

@@ -79,10 +79,5 @@ public class LumOnUpsampleShaderProgram : ShaderProgram
     /// </summary>
     public int DenoiseEnabled { set => Uniform("denoiseEnabled", value); }
 
-    /// <summary>
-    /// Debug visualization mode (0 = off).
-    /// </summary>
-    public int DebugMode { set => Uniform("debugMode", value); }
-
     #endregion
 }
