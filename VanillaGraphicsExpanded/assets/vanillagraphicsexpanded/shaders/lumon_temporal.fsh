@@ -216,12 +216,16 @@ void main(void)
             alpha *= 0.5;
         }
         
+        // Ramp up alpha as we accumulate more frames (Section 6.3)
+        // First few frames use more current data to converge faster
+        float prevAccum = texture(historyMeta, historyUV).a;
+        alpha *= min(prevAccum / 10.0, 1.0);
+        
         // Exponential moving average
         outputRad0 = mix(currentRad0, historyRad0, alpha);
         outputRad1 = mix(currentRad1, historyRad1, alpha);
         
-        // Track accumulation count from history meta
-        float prevAccum = texture(historyMeta, historyUV).a;
+        // Track accumulation count
         accumCount = min(prevAccum + 1.0, 100.0);  // Cap at 100 frames
     } else {
         // Disoccluded: use current frame only (reset)

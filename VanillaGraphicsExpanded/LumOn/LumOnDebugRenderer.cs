@@ -42,6 +42,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private readonly float[] invProjectionMatrix = new float[16];
     private readonly float[] invViewMatrix = new float[16];
     private readonly float[] prevViewProjMatrix = new float[16];
+    private readonly float[] currentViewProjMatrix = new float[16];
+    private readonly float[] tempProjectionMatrix = new float[16];
+    private readonly float[] tempModelViewMatrix = new float[16];
 
     #endregion
 
@@ -78,11 +81,21 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     /// <summary>
     /// Updates the previous view-projection matrix for temporal debug visualization.
-    /// Call this from the main renderer after storing the matrix.
+    /// Called automatically at the end of each frame.
     /// </summary>
-    public void SetPrevViewProjMatrix(float[] matrix)
+    private void StorePrevViewProjMatrix()
     {
-        Array.Copy(matrix, prevViewProjMatrix, 16);
+        Array.Copy(currentViewProjMatrix, prevViewProjMatrix, 16);
+    }
+
+    /// <summary>
+    /// Computes the current view-projection matrix.
+    /// </summary>
+    private void UpdateCurrentViewProjMatrix()
+    {
+        Array.Copy(capi.Render.CurrentProjectionMatrix, tempProjectionMatrix, 16);
+        Array.Copy(capi.Render.CameraMatrixOriginf, tempModelViewMatrix, 16);
+        MultiplyMatrices(tempProjectionMatrix, tempModelViewMatrix, currentViewProjMatrix);
     }
 
     #endregion
@@ -110,6 +123,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         // Update matrices
         ComputeInverseMatrix(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
         ComputeInverseMatrix(capi.Render.CameraMatrixOriginf, invViewMatrix);
+        UpdateCurrentViewProjMatrix();
 
         // Disable depth test for fullscreen overlay
         capi.Render.GLDepthMask(false);
@@ -149,6 +163,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         // Restore state
         GL.Enable(EnableCap.DepthTest);
         capi.Render.GLDepthMask(true);
+
+        // Store current matrix for next frame's reprojection
+        StorePrevViewProjMatrix();
     }
 
     #endregion
@@ -174,6 +191,28 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         result[4] = inverse.M12; result[5] = inverse.M22; result[6] = inverse.M32; result[7] = inverse.M42;
         result[8] = inverse.M13; result[9] = inverse.M23; result[10] = inverse.M33; result[11] = inverse.M43;
         result[12] = inverse.M14; result[13] = inverse.M24; result[14] = inverse.M34; result[15] = inverse.M44;
+    }
+
+    private static void MultiplyMatrices(float[] a, float[] b, float[] result)
+    {
+        var matA = new System.Numerics.Matrix4x4(
+            a[0], a[4], a[8], a[12],
+            a[1], a[5], a[9], a[13],
+            a[2], a[6], a[10], a[14],
+            a[3], a[7], a[11], a[15]);
+
+        var matB = new System.Numerics.Matrix4x4(
+            b[0], b[4], b[8], b[12],
+            b[1], b[5], b[9], b[13],
+            b[2], b[6], b[10], b[14],
+            b[3], b[7], b[11], b[15]);
+
+        var product = matA * matB;
+
+        result[0] = product.M11; result[1] = product.M21; result[2] = product.M31; result[3] = product.M41;
+        result[4] = product.M12; result[5] = product.M22; result[6] = product.M32; result[7] = product.M42;
+        result[8] = product.M13; result[9] = product.M23; result[10] = product.M33; result[11] = product.M43;
+        result[12] = product.M14; result[13] = product.M24; result[14] = product.M34; result[15] = product.M44;
     }
 
     #endregion

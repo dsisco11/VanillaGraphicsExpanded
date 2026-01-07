@@ -394,7 +394,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (shader is null || shader.LoadError)
             return;
 
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, bufferManager.RadianceCurrentFboId);
+        // Write to dedicated trace buffer (separate from temporal current/history)
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, bufferManager.RadianceTraceFboId);
         GL.Viewport(0, 0, bufferManager.ProbeCountX, bufferManager.ProbeCountY);
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
@@ -461,9 +462,9 @@ public class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
         shader.Use();
 
-        // Bind current frame radiance (from trace pass)
-        shader.RadianceCurrent0 = bufferManager.RadianceCurrentTexture0Id;
-        shader.RadianceCurrent1 = bufferManager.RadianceCurrentTexture1Id;
+        // Bind current frame radiance (from trace pass - dedicated trace buffer)
+        shader.RadianceCurrent0 = bufferManager.RadianceTraceTexture0Id;
+        shader.RadianceCurrent1 = bufferManager.RadianceTraceTexture1Id;
 
         // Bind history radiance (from previous frame, after last swap)
         shader.RadianceHistory0 = bufferManager.RadianceHistoryTexture0Id;
@@ -514,9 +515,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
         shader.Use();
 
-        // Bind radiance textures (from history after temporal blend)
-        shader.RadianceTexture0 = bufferManager.RadianceHistoryTexture0Id;
-        shader.RadianceTexture1 = bufferManager.RadianceHistoryTexture1Id;
+        // Bind radiance textures (from current after temporal blend)
+        // Note: Temporal pass writes to current, gather reads from current
+        shader.RadianceTexture0 = bufferManager.RadianceCurrentTexture0Id;
+        shader.RadianceTexture1 = bufferManager.RadianceCurrentTexture1Id;
 
         // Bind probe anchors
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTextureId;

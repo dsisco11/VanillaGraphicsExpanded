@@ -40,14 +40,19 @@ public sealed class LumOnBufferManager : IDisposable
     // Radiance Cache Buffers (Double-buffered for temporal)
     // ═══════════════════════════════════════════════════════════════
 
-    // Current frame radiance (write target)
+    // Trace output radiance (written by trace pass, read by temporal pass)
     // [0]: SH coeff 0 (R,G,B), coeff 1.R
     // [1]: SH coeff 1 (G,B), coeff 2 (R,G), coeff 2.B, coeff 3 (R,G,B)
+    private int radianceTraceFboId;
+    private int radianceTraceTexture0Id;
+    private int radianceTraceTexture1Id;
+
+    // Current frame radiance (written by temporal pass, read by gather)
     private int radianceCurrentFboId;
     private int radianceCurrentTexture0Id;
     private int radianceCurrentTexture1Id;
 
-    // History radiance (read source, then swap)
+    // History radiance (previous frame's current, read by temporal pass)
     private int radianceHistoryFboId;
     private int radianceHistoryTexture0Id;
     private int radianceHistoryTexture1Id;
@@ -121,6 +126,21 @@ public sealed class LumOnBufferManager : IDisposable
     /// OpenGL texture ID for probe anchor normals (normalVS.xyz, reserved).
     /// </summary>
     public int ProbeAnchorNormalTextureId => probeAnchorNormalTextureId;
+
+    /// <summary>
+    /// OpenGL FBO ID for trace pass radiance output.
+    /// </summary>
+    public int RadianceTraceFboId => radianceTraceFboId;
+
+    /// <summary>
+    /// OpenGL texture ID for trace radiance SH coefficients (set 0).
+    /// </summary>
+    public int RadianceTraceTexture0Id => radianceTraceTexture0Id;
+
+    /// <summary>
+    /// OpenGL texture ID for trace radiance SH coefficients (set 1).
+    /// </summary>
+    public int RadianceTraceTexture1Id => radianceTraceTexture1Id;
 
     /// <summary>
     /// OpenGL FBO ID for current frame radiance output.
@@ -291,12 +311,14 @@ public sealed class LumOnBufferManager : IDisposable
             temporalOutputFboId = 0;
         }
 
-        // Create MRT FBO: temporal pass writes to history buffers
-        // (after swap, these become "current" for next frame's read)
+        // Create MRT FBO: temporal pass writes to CURRENT buffers
+        // - Reads from history (previous frame's output)
+        // - Writes to current (this frame's output)
+        // After swap, current becomes history for next frame
         temporalOutputFboId = CreateFramebufferMRT([
-            radianceHistoryTexture0Id,
-            radianceHistoryTexture1Id,
-            probeMetaCurrentTextureId  // Meta writes to "current" which becomes history after swap
+            radianceCurrentTexture0Id,
+            radianceCurrentTexture1Id,
+            probeMetaCurrentTextureId
         ]);
     }
 
@@ -404,7 +426,16 @@ public sealed class LumOnBufferManager : IDisposable
             [probeAnchorPositionTextureId, probeAnchorNormalTextureId]);
 
         // ═══════════════════════════════════════════════════════════════
-        // Create Radiance Cache Buffers (Current)
+        // Create Radiance Cache Buffers (Trace output)
+        // ═══════════════════════════════════════════════════════════════
+
+        radianceTraceTexture0Id = CreateTexture(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        radianceTraceTexture1Id = CreateTexture(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        radianceTraceFboId = CreateFramebufferMRT(
+            [radianceTraceTexture0Id, radianceTraceTexture1Id]);
+
+        // ═══════════════════════════════════════════════════════════════
+        // Create Radiance Cache Buffers (Current - temporal output)
         // ═══════════════════════════════════════════════════════════════
 
         radianceCurrentTexture0Id = CreateTexture(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
@@ -549,6 +580,10 @@ public sealed class LumOnBufferManager : IDisposable
         // Delete Probe Anchor buffers
         DeleteFramebufferAndTextures(ref probeAnchorFboId,
             ref probeAnchorPositionTextureId, ref probeAnchorNormalTextureId);
+
+        // Delete Radiance Trace buffers
+        DeleteFramebufferAndTextures(ref radianceTraceFboId,
+            ref radianceTraceTexture0Id, ref radianceTraceTexture1Id);
 
         // Delete Radiance Current buffers
         DeleteFramebufferAndTextures(ref radianceCurrentFboId,

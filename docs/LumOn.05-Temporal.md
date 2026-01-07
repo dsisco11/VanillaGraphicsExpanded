@@ -419,15 +419,12 @@ uniform mat4 invViewMatrix;
 uniform mat4 prevViewProjMatrix;
 
 // Config
-uniform ivec2 probeGridSize;
+uniform vec2 probeGridSize;
 uniform float temporalAlpha;
 uniform float depthRejectThreshold;
 uniform float normalRejectThreshold;
 uniform float zNear;
 uniform float zFar;
-
-// Debug
-uniform int debugMode;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Inputs / Outputs
@@ -601,12 +598,6 @@ void main() {
         accumCount = 1.0;
     }
 
-    // Debug: show rejection mask
-    if (debugMode == 4) {
-        float rejection = validation.valid ? 0.0 : 1.0;
-        outputRad0 = vec4(rejection, 1.0 - rejection, 0.0, 1.0);
-    }
-
     outRadiance0 = outputRad0;
     outRadiance1 = outputRad1;
 
@@ -769,34 +760,43 @@ api.Event.LeaveWorld += () => {
 
 ## 10. Debug Visualization
 
-### 10.1 Debug Mode: Temporal Weight (DebugMode = 3)
+Debug visualizations for the temporal system are implemented in `lumon_debug.fsh`, not in the temporal shader itself.
+
+### 10.1 Debug Mode: Temporal Weight (DebugMode = 6)
+
+Shows how much history is being used per probe. Brighter = more history weight.
 
 ```glsl
-// Show how much history is being used
-if (debugMode == 3) {
-    float weight = validation.valid ? validation.confidence * temporalAlpha : 0.0;
-    outRadiance0 = vec4(weight, weight, weight, 1.0);  // Brighter = more history
-}
+// In lumon_debug.fsh
+float weight = validation.valid ? validation.confidence * temporalAlpha : 0.0;
+outColor = vec4(weight, weight, weight, 1.0);  // Grayscale
 ```
 
-### 10.2 Debug Mode: Rejection Mask (DebugMode = 4)
+### 10.2 Debug Mode: Rejection Mask (DebugMode = 7)
+
+Shows why history was rejected at each probe:
+
+| Color  | Meaning                                |
+| ------ | -------------------------------------- |
+| Green  | Valid history                          |
+| Red    | Out of bounds (reprojected off-screen) |
+| Yellow | Depth rejection                        |
+| Orange | Normal rejection                       |
+| Purple | No history data available              |
 
 ```glsl
-// Show where history is rejected
-if (debugMode == 4) {
-    vec3 color;
-    if (!validation.valid) {
-        if (!ValidateBounds(historyUV)) {
-            color = vec3(1.0, 0.0, 0.0);  // Red: out of bounds
-        } else if (!ValidateDepth(...)) {
-            color = vec3(1.0, 1.0, 0.0);  // Yellow: depth reject
-        } else {
-            color = vec3(1.0, 0.5, 0.0);  // Orange: normal reject
-        }
+// In lumon_debug.fsh
+vec3 color;
+if (!validation.valid) {
+    if (outOfBounds) {
+        color = vec3(1.0, 0.0, 0.0);  // Red
+    } else if (depthRejected) {
+        color = vec3(1.0, 1.0, 0.0);  // Yellow
     } else {
-        color = vec3(0.0, 1.0, 0.0);  // Green: valid
+        color = vec3(1.0, 0.5, 0.0);  // Orange (normal reject)
     }
-    outRadiance0 = vec4(color, 1.0);
+} else {
+    color = vec3(0.0, 1.0, 0.0);  // Green
 }
 ```
 
@@ -876,8 +876,8 @@ At 32K probes: ~3.5M ALU, 700K texture samples
 
 ### 13.6 Testing
 
-- [ ] Verify temporal weight visualization (DebugMode = 3)
-- [ ] Check rejection mask colors (DebugMode = 4)
+- [ ] Verify temporal weight visualization (DebugMode = 6)
+- [ ] Check rejection mask colors (DebugMode = 7)
 - [ ] Test camera rotation stability
 - [ ] Test camera translation (parallax)
 - [ ] Verify disocclusion handling
