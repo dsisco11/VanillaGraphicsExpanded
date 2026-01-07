@@ -625,14 +625,47 @@ L2 adds 5 more coefficients (9 total) for sharper features:
 
 ---
 
-## 8. Integration Checklist
+## 8. Implementation Checklist
 
-- [ ] Create `lumon_sh.ash` include file in `assets/vanillagraphicsexpanded/shaderincludes/`
-- [ ] Create simplified radiance encoding for M1
-- [ ] Update `LumOnBufferManager` with double-buffer swap
-- [ ] Add `@import "lumon_sh.ash"` to trace and gather shaders
-- [ ] Test SH evaluation produces reasonable results
-- [ ] Verify no negative radiance in reconstruction
+### 8.1 Shader Includes
+
+- [ ] Create `lumon_sh.ash` in `shaderincludes/`
+- [ ] Implement `SHBasis()` function
+- [ ] Implement `SHProject()` function
+- [ ] Implement `SHProjectCosine()` function
+- [ ] Implement `SHEvaluate()` function
+- [ ] Implement `SHEvaluateDiffuse()` function
+- [ ] Implement `SHAccumulate()` function
+- [ ] Implement `SHScale()` function
+- [ ] Implement `SHLerp()` function
+- [ ] Implement `SHBilinearEvaluate()` function
+- [ ] Implement `SHNormalize()` function
+- [ ] Implement `SHClampNegative()` function
+- [ ] Implement `SHDominantDirection()` function
+- [ ] Implement `SHAmbient()` function
+- [ ] Add pack/unpack helpers for 2-texture layout
+
+### 8.2 Buffer Management
+
+- [ ] Create ProbeRadiance framebuffers (read/write pair)
+- [ ] Each FB has 2 RGBA16F attachments
+- [ ] Implement `SwapRadianceBuffers()` method
+- [ ] Add `ClearHistory()` for first frame/teleport
+
+### 8.3 Simplified Encoding (M1)
+
+- [ ] Create `lumon_radiance_simple.ash` alternative
+- [ ] Implement `EncodeRadiance()` / `DecodeRadiance()`
+- [ ] Test with simple directional lighting
+
+### 8.4 Testing
+
+- [ ] Unit test: SH project + evaluate roundtrip
+- [ ] Verify DC term matches average radiance
+- [ ] Check no negative values in reconstruction
+- [ ] Compare SH L1 vs simplified encoding quality
+- [ ] Verify bilinear SH interpolation works correctly
+- [ ] Test SH dominant direction extraction
 
 ---
 

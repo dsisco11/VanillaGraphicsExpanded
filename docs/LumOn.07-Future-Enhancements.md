@@ -719,3 +719,48 @@ public class LumOnAdvancedConfig
 | [LumOn.05-Temporal](LumOn.05-Temporal.md) | Reprojection, accumulation |
 | [LumOn.06-Gather-Upsample](LumOn.06-Gather-Upsample.md) | Pixel gathering, output |
 | **LumOn.07-Future-Enhancements** | M4/M5, voxels, surface cache |
+
+---
+
+## 11. Implementation Checklist
+
+### 11.1 SPG-FT-001: Motion Vectors (Priority: Medium)
+
+- [ ] Add motion vector output to G-Buffer pass
+- [ ] Create `EntityTransformHistory` class
+- [ ] Store previous frame transforms per entity
+- [ ] Update temporal shader to use motion vectors
+- [ ] Add `MotionVectorsEnabled` config option
+
+### 11.2 SPG-FT-003: Emissive Injection (Priority: Low)
+
+- [ ] Sample `gMaterial.b` (emissive) at hit points
+- [ ] Add `emissiveMultiplier` config option
+- [ ] Boost contribution from emissive surfaces
+- [ ] Test with torches, lava, glowing blocks
+
+### 11.3 M4: Voxel DDA Fallback (Priority: Medium)
+
+- [ ] Create `VoxelRadianceGrid` class
+- [ ] Allocate 3D texture (128³ RGBA16F)
+- [ ] Implement voxelization geometry shader
+- [ ] Implement DDA ray marching in `lumon_voxel_trace.ash`
+- [ ] Add hybrid screen + voxel trace logic
+- [ ] Implement grid scrolling (camera follow)
+- [ ] Add `VoxelFallbackEnabled` config option
+
+### 11.4 SPG-FT-004: Specular Path (Priority: Medium)
+
+- [ ] Add roughness-based probe sampling
+- [ ] Implement SSR + probe hybrid logic
+- [ ] Add `SpecularEnabled` config option
+- [ ] Test with various roughness values
+
+### 11.5 M5: Surface Cache (Priority: Low)
+
+- [ ] Design `SurfaceCard` data structure
+- [ ] Allocate radiance atlas texture
+- [ ] Implement greedy card placement
+- [ ] Implement card update scheduling
+- [ ] Add ray hit → cache lookup
+- [ ] Add `SurfaceCacheEnabled` config option

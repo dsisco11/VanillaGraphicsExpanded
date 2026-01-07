@@ -666,3 +666,47 @@ if (probeData.a < 0.5) {
 | -------------------------------------------------------- | ------------- | ------------------------------ |
 | [LumOn.03-Radiance-Cache.md](LumOn.03-Radiance-Cache.md) | This document | SH encoding for probe radiance |
 | [LumOn.04-Ray-Tracing.md](LumOn.04-Ray-Tracing.md)       | 02, 03        | Per-probe ray marching         |
+
+---
+
+## 10. Implementation Checklist
+
+### 10.1 Shader Files
+
+- [ ] Create `lumon_probe_anchor.vsh`
+- [ ] Create `lumon_probe_anchor.fsh`
+- [ ] Implement `linearizeDepth()` helper
+- [ ] Implement `isSky()` helper
+- [ ] Add depth discontinuity detection (`hasDepthDiscontinuity()`)
+- [ ] Add sky/invalid detection
+- [ ] Encode normal to [0,1] range in output
+
+### 10.2 Shader Program Class
+
+- [ ] Create `LumOnProbeAnchorShaderProgram.cs`
+- [ ] Add all uniform property setters
+- [ ] Implement static `Register()` method
+- [ ] Register in mod system startup
+
+### 10.3 Buffer Management
+
+- [ ] Create ProbeAnchor framebuffer (2 attachments)
+- [ ] Implement grid dimension calculation
+- [ ] Handle window resize (recreate buffers)
+- [ ] Add probe count validation
+
+### 10.4 Render Pass
+
+- [ ] Implement `RenderProbeAnchorPass()` in renderer
+- [ ] Set viewport to probe grid size
+- [ ] Bind G-Buffer textures correctly
+- [ ] Restore viewport after pass
+
+### 10.5 Testing
+
+- [ ] Verify probe grid overlay (DebugMode = 1)
+- [ ] Check valid/invalid/edge probe colors
+- [ ] Test at different probe spacings (4, 8, 16)
+- [ ] Verify resize handling works
+- [ ] Test `screenToProbeCoord()` / `probeToScreenCoord()` mapping
+- [ ] Test `getEnclosingProbes()` returns correct 4 neighbors

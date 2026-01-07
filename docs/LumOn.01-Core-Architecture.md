@@ -807,3 +807,42 @@ atomicCounterIncrement(rayMissCounter);
 | [LumOn.04-Ray-Tracing.md](LumOn.04-Ray-Tracing.md)         | SPG-004: Screen-space ray marching          |
 | [LumOn.05-Temporal.md](LumOn.05-Temporal.md)               | SPG-005/006: Reprojection and accumulation  |
 | [LumOn.06-Gather-Upsample.md](LumOn.06-Gather-Upsample.md) | SPG-007/008: Pixel gathering and upsampling |
+
+---
+
+## 10. Implementation Checklist
+
+### 10.1 Configuration
+
+- [ ] Create `LumOnConfig.cs` with all properties
+- [ ] Add JSON serialization attributes
+- [ ] Implement config load/save in mod system
+- [ ] Add hot-reload support for runtime-changeable params
+- [ ] Create default config file on first run
+- [ ] Add `DepthDiscontinuityThreshold` property (edge detection)
+
+### 10.2 Core Components
+
+- [ ] Create `LumOn/` folder structure
+- [ ] Implement `LumOnBufferManager.cs`
+- [ ] Implement `LumOnRenderer.cs` skeleton
+- [ ] Register renderer with VS event system
+- [ ] Add feature toggle (LumOn vs legacy SSGI)
+- [ ] Implement `LoadShaders()` method
+- [ ] Implement `GetSkyZenithColor()` / `GetSkyHorizonColor()` helpers
+- [ ] Implement `GetSunColor()` helper
+- [ ] Implement `RenderFullscreenQuad()` utility
+
+### 10.3 Debug Infrastructure
+
+- [ ] Implement `LumOnDebugCounters` class
+- [ ] Add GPU timer query support
+- [ ] Create debug overlay rendering
+- [ ] Add debug mode switching (0-5)
+
+### 10.4 Integration
+
+- [ ] Wire up G-Buffer texture access
+- [ ] Store previous frame ViewProj matrix
+- [ ] Connect to final lighting combine pass
+- [ ] Test enable/disable toggle works correctly

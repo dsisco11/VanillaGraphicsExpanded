@@ -777,3 +777,52 @@ if (debugMode == 2) {
 | Document                                     | Dependency    | Topic                                |
 | -------------------------------------------- | ------------- | ------------------------------------ |
 | [LumOn.05-Temporal.md](LumOn.05-Temporal.md) | This document | Temporal accumulation & reprojection |
+
+---
+
+## 10. Implementation Checklist
+
+### 10.1 Shader Files
+
+- [ ] Create `lumon_probe_trace.vsh`
+- [ ] Create `lumon_probe_trace.fsh`
+- [ ] Import `lumon_sh.ash` for SH accumulation
+- [ ] Implement Hammersley sequence
+- [ ] Implement cosine-weighted hemisphere sampling
+- [ ] Implement `OrientHemisphere()` tangent frame
+
+### 10.2 Shader Program Class
+
+- [ ] Create `LumOnProbeTraceShaderProgram.cs`
+- [ ] Add texture sampler properties
+- [ ] Add ray config uniform properties
+- [ ] Add sky/lighting uniform properties
+- [ ] Add indirectTint/skyMissWeight properties
+- [ ] Register shader in mod system
+
+### 10.3 Ray Marching
+
+- [ ] Implement screen-space ray march loop
+- [ ] Add depth comparison with thickness
+- [ ] Handle off-screen ray termination
+- [ ] Add sky fallback for misses
+- [ ] Implement distance falloff function
+- [ ] Call `SHClampNegative()` after accumulation
+- [ ] Pack SH to output textures correctly
+- [ ] (Optional) Implement hierarchical march with binary search
+
+### 10.4 Render Pass
+
+- [ ] Implement `RenderProbeTracePass()` in renderer
+- [ ] Bind probe anchor textures
+- [ ] Bind scene capture texture
+- [ ] Pass sky/sun lighting uniforms from VS
+- [ ] Capture scene texture before LumOn runs
+
+### 10.5 Testing
+
+- [ ] Verify raw radiance output (DebugMode = 2)
+- [ ] Check ray directions are hemisphere-distributed
+- [ ] Test hit detection at various thicknesses
+- [ ] Profile ray march performance
+- [ ] Verify temporal jitter produces different rays each frame
