@@ -1,0 +1,496 @@
+using System;
+using System.Numerics;
+using OpenTK.Graphics.OpenGL;
+using Vintagestory.API.Client;
+using Vintagestory.API.MathTools;
+using Vintagestory.Client.NoObf;
+
+namespace VanillaGraphicsExpanded.LumOn;
+
+/// <summary>
+/// Main renderer orchestrating LumOn shader passes for Screen Probe Gather.
+/// Implements the probe-based indirect diffuse lighting pipeline:
+/// 1. Probe Anchor Pass - determine probe positions from G-buffer
+/// 2. Probe Trace Pass - ray march and accumulate radiance into SH
+/// 3. Temporal Pass - blend with history for stability
+/// 4. Gather Pass - interpolate probes to pixels
+/// 5. Upsample Pass - bilateral upsample to full resolution
+/// </summary>
+public class LumOnRenderer : IRenderer, IDisposable
+{
+    #region Constants
+
+    /// <summary>
+    /// Render order - must match legacy SSGI for feature toggle compatibility.
+    /// </summary>
+    private const double RENDER_ORDER = 0.5;
+    private const int RENDER_RANGE = 1;
+
+    #endregion
+
+    #region Fields
+
+    private readonly ICoreClientAPI capi;
+    private readonly LumOnConfig config;
+    private readonly LumOnBufferManager bufferManager;
+    private readonly GBufferManager? gBufferManager;
+
+    // Fullscreen quad mesh
+    private MeshRef? quadMeshRef;
+
+    // Matrix buffers
+    private readonly float[] invProjectionMatrix = new float[16];
+    private readonly float[] invModelViewMatrix = new float[16];
+    private readonly float[] projectionMatrix = new float[16];
+    private readonly float[] modelViewMatrix = new float[16];
+    private readonly float[] prevViewProjMatrix = new float[16];
+    private readonly float[] currentViewProjMatrix = new float[16];
+
+    // Frame counter for ray jittering
+    private int frameIndex;
+
+    // Debug counters
+    private readonly LumOnDebugCounters debugCounters = new();
+
+    #endregion
+
+    #region Properties
+
+    /// <summary>
+    /// Whether LumOn rendering is enabled.
+    /// </summary>
+    public bool Enabled => config.Enabled;
+
+    /// <summary>
+    /// Debug counters for performance monitoring.
+    /// </summary>
+    public LumOnDebugCounters DebugCounters => debugCounters;
+
+    #endregion
+
+    #region IRenderer Implementation
+
+    public double RenderOrder => RENDER_ORDER;
+    public int RenderRange => RENDER_RANGE;
+
+    #endregion
+
+    #region Constructor
+
+    public LumOnRenderer(
+        ICoreClientAPI capi,
+        LumOnConfig config,
+        LumOnBufferManager bufferManager,
+        GBufferManager? gBufferManager)
+    {
+        this.capi = capi;
+        this.config = config;
+        this.bufferManager = bufferManager;
+        this.gBufferManager = gBufferManager;
+
+        // Create fullscreen quad mesh
+        var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
+        quadMesh.Rgba = null;
+        quadMeshRef = capi.Render.UploadMesh(quadMesh);
+
+        // Register renderer
+        capi.Event.RegisterRenderer(this, EnumRenderStage.AfterPostProcessing, "lumon");
+
+        // Initialize previous frame matrix to identity
+        for (int i = 0; i < 16; i++)
+        {
+            prevViewProjMatrix[i] = (i % 5 == 0) ? 1.0f : 0.0f;
+        }
+
+        // Register debug hotkeys
+        RegisterHotkeys();
+
+        capi.Logger.Notification("[LumOn] Renderer initialized");
+    }
+
+    private void RegisterHotkeys()
+    {
+        // Register hotkey for LumOn toggle (F9)
+        capi.Input.RegisterHotKey(
+            "vgelumon",
+            "VGE Toggle LumOn",
+            GlKeys.F9,
+            HotkeyType.DevTool);
+        capi.Input.SetHotKeyHandler("vgelumon", OnToggleLumOn);
+
+        // Register hotkey for LumOn debug mode cycling (Shift+F9)
+        capi.Input.RegisterHotKey(
+            "vgelumondebug",
+            "VGE Cycle LumOn Debug Mode",
+            GlKeys.F9,
+            HotkeyType.DevTool,
+            shiftPressed: true);
+        capi.Input.SetHotKeyHandler("vgelumondebug", OnCycleDebugMode);
+    }
+
+    private bool OnToggleLumOn(KeyCombination keyCombination)
+    {
+        config.Enabled = !config.Enabled;
+        string status = config.Enabled ? "enabled" : "disabled";
+        capi.TriggerIngameError(this, "vgelumon", $"[LumOn] {status}");
+        return true;
+    }
+
+    private bool OnCycleDebugMode(KeyCombination keyCombination)
+    {
+        // Cycle through debug modes: 0-5
+        config.DebugMode = (config.DebugMode + 1) % 6;
+        string[] modeNames =
+        [
+            "Off (normal)",
+            "Probe Grid",
+            "Raw Radiance",
+            "Temporal Weight",
+            "Rejection Mask",
+            "SH Coefficients"
+        ];
+        capi.TriggerIngameError(this, "vgelumondebug", $"[LumOn] Debug: {modeNames[config.DebugMode]}");
+        return true;
+    }
+
+    #endregion
+
+    #region Rendering
+
+    public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
+    {
+        if (quadMeshRef is null || !config.Enabled)
+            return;
+
+        var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
+        if (primaryFb is null)
+            return;
+
+        // Reset debug counters
+        debugCounters.Reset();
+        debugCounters.TotalProbes = bufferManager.ProbeCountX * bufferManager.ProbeCountY;
+
+        // Ensure LumOn buffers are allocated
+        bufferManager.EnsureBuffers(capi.Render.FrameWidth, capi.Render.FrameHeight);
+
+        // Update matrices
+        UpdateMatrices();
+
+        // === Pass 1: Probe Anchor ===
+        RenderProbeAnchorPass(primaryFb);
+
+        // === Pass 2: Probe Trace ===
+        RenderProbeTracePass(primaryFb);
+
+        // === Pass 3: Temporal Accumulation ===
+        RenderTemporalPass();
+
+        // === Pass 4: Gather ===
+        RenderGatherPass(primaryFb);
+
+        // === Pass 5: Upsample ===
+        RenderUpsamplePass(primaryFb);
+
+        // Store current view-projection matrix for next frame
+        Array.Copy(currentViewProjMatrix, prevViewProjMatrix, 16);
+
+        // Swap radiance buffers for temporal accumulation
+        bufferManager.SwapRadianceBuffers();
+
+        frameIndex++;
+    }
+
+    private void UpdateMatrices()
+    {
+        // Copy current matrices
+        Array.Copy(capi.Render.CurrentProjectionMatrix, projectionMatrix, 16);
+        Array.Copy(capi.Render.CameraMatrixOriginf, modelViewMatrix, 16);
+
+        // Compute inverse matrices
+        ComputeInverseMatrix(projectionMatrix, invProjectionMatrix);
+        ComputeInverseMatrix(modelViewMatrix, invModelViewMatrix);
+
+        // Compute current view-projection matrix for next frame's reprojection
+        MultiplyMatrices(projectionMatrix, modelViewMatrix, currentViewProjMatrix);
+    }
+
+    /// <summary>
+    /// Pass 1: Build probe anchors from G-buffer depth and normals.
+    /// Output: ProbeAnchor textures with probe positions and normals.
+    /// </summary>
+    private void RenderProbeAnchorPass(FrameBufferRef primaryFb)
+    {
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, bufferManager.ProbeAnchorFboId);
+        GL.Viewport(0, 0, bufferManager.ProbeCountX, bufferManager.ProbeCountY);
+        GL.Clear(ClearBufferMask.ColorBufferBit);
+
+        var shader = ShaderRegistry.getProgramByName("lumon_probe_anchor") as LumOnProbeAnchorShaderProgram;
+        if (shader is null)
+            return;
+
+        capi.Render.GlToggleBlend(false);
+        shader.Use();
+
+        // Bind G-buffer textures
+        shader.PrimaryDepth = primaryFb.DepthTextureId;
+        shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
+
+        // Pass uniforms
+        shader.InvProjectionMatrix = invProjectionMatrix;
+        shader.ProbeSpacing = config.ProbeSpacingPx;
+        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
+        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
+        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
+        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
+
+        // Render
+        capi.Render.RenderMesh(quadMeshRef);
+        shader.Stop();
+    }
+
+    /// <summary>
+    /// Pass 2: Ray trace from each probe and accumulate radiance into SH.
+    /// Output: ProbeRadiance textures with SH coefficients.
+    /// </summary>
+    private void RenderProbeTracePass(FrameBufferRef primaryFb)
+    {
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, bufferManager.RadianceCurrentFboId);
+        GL.Viewport(0, 0, bufferManager.ProbeCountX, bufferManager.ProbeCountY);
+        GL.Clear(ClearBufferMask.ColorBufferBit);
+
+        var shader = ShaderRegistry.getProgramByName("lumon_probe_trace") as LumOnProbeTraceShaderProgram;
+        if (shader is null)
+            return;
+
+        capi.Render.GlToggleBlend(false);
+        shader.Use();
+
+        // Bind probe anchor textures
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTextureId;
+        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTextureId;
+
+        // Bind scene for radiance sampling
+        // TODO: Need captured scene texture from SSGI buffer manager or similar
+        shader.PrimaryDepth = primaryFb.DepthTextureId;
+        shader.PrimaryColor = primaryFb.ColorTextureIds[0];
+
+        // Pass matrices
+        shader.InvProjectionMatrix = invProjectionMatrix;
+        shader.ProjectionMatrix = projectionMatrix;
+        shader.ModelViewMatrix = modelViewMatrix;
+
+        // Pass uniforms
+        shader.ProbeSpacing = config.ProbeSpacingPx;
+        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
+        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
+        shader.FrameIndex = frameIndex;
+        shader.RaysPerProbe = config.RaysPerProbePerFrame;
+        shader.RaySteps = config.RaySteps;
+        shader.RayMaxDistance = config.RayMaxDistance;
+        shader.RayThickness = config.RayThickness;
+        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
+        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
+
+        // Sky fallback colors
+        shader.SkyMissWeight = config.SkyMissWeight;
+        shader.SunPosition = capi.World.Calendar.SunPositionNormalized;
+        shader.SunColor = capi.World.Calendar.SunColor;
+        shader.AmbientColor = capi.Render.AmbientColor;
+
+        // Render
+        capi.Render.RenderMesh(quadMeshRef);
+        shader.Stop();
+    }
+
+    /// <summary>
+    /// Pass 3: Blend current radiance with history for temporal stability.
+    /// Output: Updated radiance history.
+    /// </summary>
+    private void RenderTemporalPass()
+    {
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, bufferManager.RadianceHistoryFboId);
+        GL.Viewport(0, 0, bufferManager.ProbeCountX, bufferManager.ProbeCountY);
+
+        var shader = ShaderRegistry.getProgramByName("lumon_temporal") as LumOnTemporalShaderProgram;
+        if (shader is null)
+            return;
+
+        capi.Render.GlToggleBlend(false);
+        shader.Use();
+
+        // Bind current and history radiance textures
+        shader.RadianceCurrent0 = bufferManager.RadianceCurrentTexture0Id;
+        shader.RadianceCurrent1 = bufferManager.RadianceCurrentTexture1Id;
+        shader.RadianceHistory0 = bufferManager.RadianceHistoryTexture0Id;
+        shader.RadianceHistory1 = bufferManager.RadianceHistoryTexture1Id;
+
+        // Bind probe anchors for validation
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTextureId;
+
+        // Pass uniforms
+        shader.PrevViewProjMatrix = prevViewProjMatrix;
+        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
+        shader.TemporalAlpha = config.TemporalAlpha;
+        shader.DepthRejectThreshold = config.DepthRejectThreshold;
+        shader.NormalRejectThreshold = config.NormalRejectThreshold;
+
+        // Render
+        capi.Render.RenderMesh(quadMeshRef);
+        shader.Stop();
+    }
+
+    /// <summary>
+    /// Pass 4: Gather irradiance at each pixel by interpolating nearby probes.
+    /// Output: Half-resolution indirect diffuse.
+    /// </summary>
+    private void RenderGatherPass(FrameBufferRef primaryFb)
+    {
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, bufferManager.IndirectHalfFboId);
+        GL.Viewport(0, 0, bufferManager.HalfResWidth, bufferManager.HalfResHeight);
+        GL.Clear(ClearBufferMask.ColorBufferBit);
+
+        var shader = ShaderRegistry.getProgramByName("lumon_gather") as LumOnGatherShaderProgram;
+        if (shader is null)
+            return;
+
+        capi.Render.GlToggleBlend(false);
+        shader.Use();
+
+        // Bind radiance textures (from history after temporal blend)
+        shader.RadianceTexture0 = bufferManager.RadianceHistoryTexture0Id;
+        shader.RadianceTexture1 = bufferManager.RadianceHistoryTexture1Id;
+
+        // Bind probe anchors
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTextureId;
+        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTextureId;
+
+        // Bind G-buffer for pixel info
+        shader.PrimaryDepth = primaryFb.DepthTextureId;
+        shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
+
+        // Pass uniforms
+        shader.InvProjectionMatrix = invProjectionMatrix;
+        shader.ProbeSpacing = config.ProbeSpacingPx;
+        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
+        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
+        shader.HalfResSize = new Vec2f(bufferManager.HalfResWidth, bufferManager.HalfResHeight);
+        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
+        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
+        shader.DepthDiscontinuityThreshold = config.DepthDiscontinuityThreshold;
+        shader.Intensity = config.Intensity;
+        shader.IndirectTint = config.IndirectTint;
+
+        // Render
+        capi.Render.RenderMesh(quadMeshRef);
+        shader.Stop();
+    }
+
+    /// <summary>
+    /// Pass 5: Bilateral upsample from half-res to full resolution.
+    /// Output: Full-resolution indirect diffuse composited to screen.
+    /// </summary>
+    private void RenderUpsamplePass(FrameBufferRef primaryFb)
+    {
+        // Bind primary framebuffer for final composite
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
+        GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
+
+        var shader = ShaderRegistry.getProgramByName("lumon_upsample") as LumOnUpsampleShaderProgram;
+        if (shader is null)
+            return;
+
+        // Enable additive blending for indirect light contribution
+        capi.Render.GlToggleBlend(true, EnumBlendMode.Standard);
+        shader.Use();
+
+        // Bind half-res indirect diffuse
+        shader.IndirectHalf = bufferManager.IndirectHalfTextureId;
+
+        // Bind G-buffer for edge-aware upsampling
+        shader.PrimaryDepth = primaryFb.DepthTextureId;
+        shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
+
+        // Pass uniforms
+        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
+        shader.HalfResSize = new Vec2f(bufferManager.HalfResWidth, bufferManager.HalfResHeight);
+        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
+        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
+        shader.DenoiseEnabled = config.DenoiseEnabled ? 1 : 0;
+        shader.DebugMode = config.DebugMode;
+
+        // Render
+        capi.Render.RenderMesh(quadMeshRef);
+        shader.Stop();
+
+        // Restore framebuffer state
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+    }
+
+    #endregion
+
+    #region Matrix Utilities
+
+    /// <summary>
+    /// Computes the inverse of a 4x4 matrix using SIMD-accelerated System.Numerics.
+    /// </summary>
+    private static void ComputeInverseMatrix(float[] m, float[] result)
+    {
+        var matrix = new Matrix4x4(
+            m[0], m[4], m[8], m[12],
+            m[1], m[5], m[9], m[13],
+            m[2], m[6], m[10], m[14],
+            m[3], m[7], m[11], m[15]);
+
+        if (!Matrix4x4.Invert(matrix, out var inverse))
+        {
+            for (int i = 0; i < 16; i++)
+                result[i] = (i % 5 == 0) ? 1.0f : 0.0f;
+            return;
+        }
+
+        result[0] = inverse.M11; result[1] = inverse.M21; result[2] = inverse.M31; result[3] = inverse.M41;
+        result[4] = inverse.M12; result[5] = inverse.M22; result[6] = inverse.M32; result[7] = inverse.M42;
+        result[8] = inverse.M13; result[9] = inverse.M23; result[10] = inverse.M33; result[11] = inverse.M43;
+        result[12] = inverse.M14; result[13] = inverse.M24; result[14] = inverse.M34; result[15] = inverse.M44;
+    }
+
+    /// <summary>
+    /// Multiplies two 4x4 matrices (A * B) in column-major order.
+    /// </summary>
+    private static void MultiplyMatrices(float[] a, float[] b, float[] result)
+    {
+        var matA = new Matrix4x4(
+            a[0], a[4], a[8], a[12],
+            a[1], a[5], a[9], a[13],
+            a[2], a[6], a[10], a[14],
+            a[3], a[7], a[11], a[15]);
+
+        var matB = new Matrix4x4(
+            b[0], b[4], b[8], b[12],
+            b[1], b[5], b[9], b[13],
+            b[2], b[6], b[10], b[14],
+            b[3], b[7], b[11], b[15]);
+
+        var product = matA * matB;
+
+        result[0] = product.M11; result[1] = product.M21; result[2] = product.M31; result[3] = product.M41;
+        result[4] = product.M12; result[5] = product.M22; result[6] = product.M32; result[7] = product.M42;
+        result[8] = product.M13; result[9] = product.M23; result[10] = product.M33; result[11] = product.M43;
+        result[12] = product.M14; result[13] = product.M24; result[14] = product.M34; result[15] = product.M44;
+    }
+
+    #endregion
+
+    #region IDisposable
+
+    public void Dispose()
+    {
+        if (quadMeshRef is not null)
+        {
+            capi.Render.DeleteMesh(quadMeshRef);
+            quadMeshRef = null;
+        }
+    }
+
+    #endregion
+}

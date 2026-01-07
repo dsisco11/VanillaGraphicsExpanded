@@ -1,4 +1,5 @@
 ﻿using VanillaGraphicsExpanded.HarmonyPatches;
+using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.SSGI;
 
@@ -9,6 +10,8 @@ namespace VanillaGraphicsExpanded;
 
 public sealed class VanillaGraphicsExpandedModSystem : ModSystem
 {
+    private const string LumOnConfigFile = "vanillagraphicsexpanded-lumon.json";
+
     private ICoreClientAPI? capi;
     private GBufferManager? gBufferManager;
     private SSGIBufferManager? ssgiBufferManager;
@@ -16,6 +19,11 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     private SSGIRenderer? ssgiRenderer;
     private PBROverlayRenderer? pbrOverlayRenderer;
     private HarmonyLib.Harmony? harmony;
+
+    // LumOn components
+    private LumOnConfig? lumOnConfig;
+    private LumOnBufferManager? lumOnBufferManager;
+    private LumOnRenderer? lumOnRenderer;
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
@@ -42,15 +50,31 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         // Create G-buffer manager (Harmony hooks will call into this)
         gBufferManager = new GBufferManager(api);
 
-        // Create SSGI buffer manager
-        ssgiBufferManager = new SSGIBufferManager(api);
+        // Load LumOn configuration
+        lumOnConfig = api.LoadModConfig<LumOnConfig>(LumOnConfigFile);
+        if (lumOnConfig == null)
+        {
+            lumOnConfig = new LumOnConfig();
+            api.StoreModConfig(lumOnConfig, LumOnConfigFile);
+            api.Logger.Notification("[VGE] Created default LumOn config");
+        }
 
-        // Create SSGI scene capture renderer (runs at end of Opaque stage)
-        // This captures lit geometry before OIT/post-processing for SSGI to sample
-        ssgiSceneCaptureRenderer = new SSGISceneCaptureRenderer(api, ssgiBufferManager);
-
-        // Create SSGI renderer (runs at AfterBlit stage, before PBR overlay)
-        ssgiRenderer = new SSGIRenderer(api, ssgiBufferManager);
+        // Initialize LumOn or legacy SSGI based on config
+        if (lumOnConfig.Enabled)
+        {
+            // LumOn path - new Screen Probe Gather system
+            lumOnBufferManager = new LumOnBufferManager(api, lumOnConfig);
+            lumOnRenderer = new LumOnRenderer(api, lumOnConfig, lumOnBufferManager, gBufferManager);
+            api.Logger.Notification("[VGE] LumOn enabled - using Screen Probe Gather");
+        }
+        else
+        {
+            // Legacy SSGI path
+            ssgiBufferManager = new SSGIBufferManager(api);
+            ssgiSceneCaptureRenderer = new SSGISceneCaptureRenderer(api, ssgiBufferManager);
+            ssgiRenderer = new SSGIRenderer(api, ssgiBufferManager);
+            api.Logger.Notification("[VGE] LumOn disabled - using legacy SSGI");
+        }
 
         // Create PBR overlay renderer (runs at AfterBlit stage)
         pbrOverlayRenderer = new DebugOverlayRenderer(api, gBufferManager);
@@ -67,6 +91,14 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
             pbrOverlayRenderer?.Dispose();
             pbrOverlayRenderer = null;
 
+            // Dispose LumOn components
+            lumOnRenderer?.Dispose();
+            lumOnRenderer = null;
+
+            lumOnBufferManager?.Dispose();
+            lumOnBufferManager = null;
+
+            // Dispose legacy SSGI components
             ssgiRenderer?.Dispose();
             ssgiRenderer = null;
 
@@ -78,6 +110,12 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
 
             gBufferManager?.Dispose();
             gBufferManager = null;
+
+            // Save LumOn config on dispose
+            if (capi != null && lumOnConfig != null)
+            {
+                capi.StoreModConfig(lumOnConfig, LumOnConfigFile);
+            }
 
             // Clear shader imports cache
             ShaderImportsSystem.Instance.Clear();
@@ -92,11 +130,22 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
 
     private static bool LoadShaders(ICoreClientAPI api)
     {
+        // PBR overlay shader
         PBROverlayShaderProgram.Register(api);
+
+        // Legacy SSGI shaders
         SSGIShaderProgram.Register(api);
         SSGICompositeShaderProgram.Register(api);
         SSGIBlurShaderProgram.Register(api);
         SSGIDebugShaderProgram.Register(api);
+
+        // LumOn shaders
+        LumOnProbeAnchorShaderProgram.Register(api);
+        LumOnProbeTraceShaderProgram.Register(api);
+        LumOnTemporalShaderProgram.Register(api);
+        LumOnGatherShaderProgram.Register(api);
+        LumOnUpsampleShaderProgram.Register(api);
+
         return true;
     }
 }
