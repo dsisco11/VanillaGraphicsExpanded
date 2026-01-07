@@ -111,7 +111,9 @@ RayHit traceRay(vec3 origin, vec3 direction) {
         vec3 scenePos = lumonReconstructViewPos(sampleUV, sceneDepth, invProjectionMatrix);
         
         // Depth test with thickness
-        float depthDiff = samplePos.z - scenePos.z;
+        // In view-space, Z is negative (into screen). Ray behind scene when rayZ < sceneZ.
+        // depthDiff > 0 means ray is behind scene (scenePos.z is less negative = closer to camera)
+        float depthDiff = scenePos.z - samplePos.z;
         
         if (depthDiff > 0.0 && depthDiff < rayThickness) {
             // Hit!

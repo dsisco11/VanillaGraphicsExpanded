@@ -806,7 +806,7 @@ if (debugMode == 2) {
 ### 10.3 Ray Marching
 
 - [x] Implement screen-space ray march loop
-- [x] Add depth comparison with thickness
+- [x] Add depth comparison with thickness *(fixed sign: sceneZ - rayZ)*
 - [x] Handle off-screen ray termination
 - [x] Add sky fallback for misses
 - [x] Implement distance falloff function

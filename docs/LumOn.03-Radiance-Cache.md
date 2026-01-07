@@ -343,9 +343,10 @@ void SHClampNegative(inout vec4 shR, inout vec4 shG, inout vec4 shB) {
 /// Extract dominant light direction from SH L1
 vec3 SHDominantDirection(vec4 shR, vec4 shG, vec4 shB) {
     // Directional components are proportional to direction
-    vec3 dirR = shR.wzy;  // x, y, z from coefficients 3, 1, 2
-    vec3 dirG = shG.wzy;
-    vec3 dirB = shB.wzy;
+    // SH layout: (DC, Y, Z, X) -> to get (x, y, z) use indices (w, y, z)
+    vec3 dirR = vec3(shR.w, shR.y, shR.z);  // x, y, z from coefficients 3, 1, 2
+    vec3 dirG = vec3(shG.w, shG.y, shG.z);
+    vec3 dirB = vec3(shB.w, shB.y, shB.z);
 
     // Weight by luminance
     vec3 dir = dirR * 0.2126 + dirG * 0.7152 + dirB * 0.0722;

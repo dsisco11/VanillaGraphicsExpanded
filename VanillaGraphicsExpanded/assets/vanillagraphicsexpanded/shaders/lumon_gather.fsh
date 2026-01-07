@@ -88,27 +88,21 @@ void main(void)
     // Bilinear interpolation weights
     vec2 frac = fract(probePos);
     
-    // Sample probe data
-    vec2 uv00 = lumonProbeCoordToUV(probe00, probeGridSize);
-    vec2 uv10 = lumonProbeCoordToUV(probe10, probeGridSize);
-    vec2 uv01 = lumonProbeCoordToUV(probe01, probeGridSize);
-    vec2 uv11 = lumonProbeCoordToUV(probe11, probeGridSize);
+    // Read SH data from all four probes using texelFetch for precise access
+    vec4 sh0_00 = texelFetch(radianceTexture0, probe00, 0);
+    vec4 sh1_00 = texelFetch(radianceTexture1, probe00, 0);
+    vec4 sh0_10 = texelFetch(radianceTexture0, probe10, 0);
+    vec4 sh1_10 = texelFetch(radianceTexture1, probe10, 0);
+    vec4 sh0_01 = texelFetch(radianceTexture0, probe01, 0);
+    vec4 sh1_01 = texelFetch(radianceTexture1, probe01, 0);
+    vec4 sh0_11 = texelFetch(radianceTexture0, probe11, 0);
+    vec4 sh1_11 = texelFetch(radianceTexture1, probe11, 0);
     
-    // Read SH data from all four probes
-    vec4 sh0_00 = texture(radianceTexture0, uv00);
-    vec4 sh1_00 = texture(radianceTexture1, uv00);
-    vec4 sh0_10 = texture(radianceTexture0, uv10);
-    vec4 sh1_10 = texture(radianceTexture1, uv10);
-    vec4 sh0_01 = texture(radianceTexture0, uv01);
-    vec4 sh1_01 = texture(radianceTexture1, uv01);
-    vec4 sh0_11 = texture(radianceTexture0, uv11);
-    vec4 sh1_11 = texture(radianceTexture1, uv11);
-    
-    // Read probe validity
-    float valid00 = texture(probeAnchorPosition, uv00).w;
-    float valid10 = texture(probeAnchorPosition, uv10).w;
-    float valid01 = texture(probeAnchorPosition, uv01).w;
-    float valid11 = texture(probeAnchorPosition, uv11).w;
+    // Read probe validity using texelFetch
+    float valid00 = texelFetch(probeAnchorPosition, probe00, 0).w;
+    float valid10 = texelFetch(probeAnchorPosition, probe10, 0).w;
+    float valid01 = texelFetch(probeAnchorPosition, probe01, 0).w;
+    float valid11 = texelFetch(probeAnchorPosition, probe11, 0).w;
     
     // Compute bilinear weights with validity masking
     float w00 = (1.0 - frac.x) * (1.0 - frac.y) * valid00;
