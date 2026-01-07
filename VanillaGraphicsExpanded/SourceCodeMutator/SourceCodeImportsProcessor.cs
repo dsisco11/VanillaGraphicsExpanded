@@ -68,7 +68,7 @@ public static class SourceCodeImportsProcessor
             // comment out the original import line and insert the import content after it.
             editor.Edit(import, (string str) => $"/* {str} */\n{importContent}");
 
-            logger?.Audit($"[VGE] Processed @import '{fileName}' at position {import.Position}");
+            logger?.Audit($"[VGE] Processed @import '{fileName}' at position {import.Position} in {fileName}");
         }
 
         editor.Commit();

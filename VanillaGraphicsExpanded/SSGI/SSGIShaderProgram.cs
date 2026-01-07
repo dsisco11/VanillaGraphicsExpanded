@@ -28,10 +28,11 @@ public class SSGIShaderProgram : ShaderProgram
     #region Texture Samplers
 
     /// <summary>
-    /// The primary scene color texture (texture unit 0).
+    /// The captured scene color texture (texture unit 0).
+    /// Captured at the end of Opaque stage - lit geometry before post-processing.
     /// Used as the source of indirect radiance (what nearby surfaces are emitting/reflecting).
     /// </summary>
-    public int PrimaryScene { set => BindTexture2D("primaryScene", value, 0); }
+    public int CapturedScene { set => BindTexture2D("capturedScene", value, 0); }
 
     /// <summary>
     /// The primary depth texture (texture unit 1).
@@ -52,14 +53,21 @@ public class SSGIShaderProgram : ShaderProgram
     public int SSAOTexture { set => BindTexture2D("ssaoTexture", value, 3); }
 
     /// <summary>
-    /// Previous frame's SSGI accumulation buffer for temporal reprojection (texture unit 4).
+    /// The G-buffer material texture (texture unit 4).
+    /// Format: (Roughness, Metallic, Emissive, Reflectivity).
+    /// Used to identify emissive materials that bypass back-face rejection.
     /// </summary>
-    public int PreviousSSGI { set => BindTexture2D("previousSSGI", value, 4); }
+    public int GBufferMaterial { set => BindTexture2D("gBufferMaterial", value, 4); }
 
     /// <summary>
-    /// Previous frame's depth buffer for temporal reprojection (texture unit 5).
+    /// Previous frame's SSGI accumulation buffer for temporal reprojection (texture unit 5).
     /// </summary>
-    public int PreviousDepth { set => BindTexture2D("previousDepth", value, 5); }
+    public int PreviousSSGI { set => BindTexture2D("previousSSGI", value, 5); }
+
+    /// <summary>
+    /// Previous frame's depth buffer for temporal reprojection (texture unit 6).
+    /// </summary>
+    public int PreviousDepth { set => BindTexture2D("previousDepth", value, 6); }
 
     #endregion
 
@@ -166,6 +174,42 @@ public class SSGIShaderProgram : ShaderProgram
     /// Whether temporal reprojection is enabled (0 = off, 1 = on).
     /// </summary>
     public int TemporalEnabled { set => Uniform("temporalEnabled", value); }
+
+    #endregion
+
+    #region Multi-Bounce
+
+    /// <summary>
+    /// Number of light bounces (1-3).
+    /// Higher values provide more realistic indirect lighting but may increase noise.
+    /// </summary>
+    public int BounceCount { set => Uniform("bounceCount", value); }
+
+    /// <summary>
+    /// Energy loss per bounce (0.3-0.6 typical).
+    /// Lower values = more energy retained = brighter secondary bounces.
+    /// </summary>
+    public float BounceAttenuation { set => Uniform("bounceAttenuation", value); }
+
+    #endregion
+
+    #region Sky/Sun Lighting
+
+    /// <summary>
+    /// Sun direction in world space (normalized).
+    /// Used for rays that escape to the sky.
+    /// </summary>
+    public Vec3f SunPosition { set => Uniform("sunPosition", value); }
+
+    /// <summary>
+    /// Sun color and intensity.
+    /// </summary>
+    public Vec3f SunColor { set => Uniform("sunColor", value); }
+
+    /// <summary>
+    /// Ambient/sky color for indirect sky illumination.
+    /// </summary>
+    public Vec3f AmbientColor { set => Uniform("ambientColor", value); }
 
     #endregion
 }

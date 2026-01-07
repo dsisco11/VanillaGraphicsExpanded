@@ -40,16 +40,61 @@ float linearizeDepth(float depth) {
     return (2.0 * zNear * zFar) / (zFar + zNear - z * (zFar - zNear));
 }
 
-// Bilateral upscale: samples low-res SSGI using depth/normal-aware weighting
-vec3 bilateralUpsample(vec2 fullResUV) {
-    // If running at full resolution, just sample directly
-    if (resolutionScale >= 0.99) {
-        return texture(ssgiTexture, fullResUV).rgb;
+// Spatial blur with depth-aware weighting to spread SSGI samples
+// This smooths out the pinpoint samples while respecting geometry edges
+vec3 spatialBlur(vec2 uv, float centerDepth, vec3 centerNormal) {
+    vec2 texelSize = 1.0 / ssgiBufferSize;
+    float blurRadius = 2.0; // Sample radius in texels
+    
+    vec3 result = vec3(0.0);
+    float totalWeight = 0.0;
+    
+    // 3x3 blur kernel with depth/normal awareness
+    for (int x = -1; x <= 1; x++) {
+        for (int y = -1; y <= 1; y++) {
+            vec2 offset = vec2(float(x), float(y)) * texelSize * blurRadius;
+            vec2 sampleUV = uv + offset;
+            
+            // Sample SSGI
+            vec3 sampleGI = texture(ssgiTexture, sampleUV).rgb;
+            
+            // Sample depth and normal for edge detection
+            float sampleDepthRaw = texture(primaryDepth, sampleUV).r;
+            if (sampleDepthRaw >= 1.0) continue; // Skip sky
+            
+            float sampleDepth = linearizeDepth(sampleDepthRaw);
+            vec3 sampleNormal = texture(gBufferNormal, sampleUV).rgb * 2.0 - 1.0;
+            
+            // Gaussian weight based on distance
+            float dist = length(vec2(x, y));
+            float gaussWeight = exp(-dist * dist / 2.0);
+            
+            // Depth weight: reject samples with very different depth
+            float depthDiff = abs(sampleDepth - centerDepth);
+            float depthWeight = exp(-depthDiff * depthDiff / (centerDepth * 0.1));
+            
+            // Normal weight: reject samples with different facing
+            float normalDot = max(0.0, dot(normalize(sampleNormal), normalize(centerNormal)));
+            float normalWeight = pow(normalDot, 4.0);
+            
+            float weight = gaussWeight * depthWeight * normalWeight;
+            result += sampleGI * weight;
+            totalWeight += weight;
+        }
     }
     
-    // Get full-res depth and normal for reference
-    float centerDepth = linearizeDepth(texture(primaryDepth, fullResUV).r);
-    vec3 centerNormal = texture(gBufferNormal, fullResUV).rgb * 2.0 - 1.0;
+    if (totalWeight > 0.0) {
+        return result / totalWeight;
+    }
+    return texture(ssgiTexture, uv).rgb;
+}
+
+// Bilateral upscale: samples low-res SSGI using depth/normal-aware weighting
+vec3 bilateralUpsample(vec2 fullResUV, float centerDepth, vec3 centerNormal) {
+    // If running at full resolution, apply spatial blur directly
+    if (resolutionScale >= 0.99) {
+        return spatialBlur(fullResUV, centerDepth, centerNormal);
+    }
     
     // Sample offsets for bilateral filter (2x2 bilinear neighborhood in low-res)
     vec2 lowResTexelSize = 1.0 / ssgiBufferSize;
@@ -107,10 +152,12 @@ vec3 bilateralUpsample(vec2 fullResUV) {
     
     // Fallback to bilinear if all bilateral weights are zero
     if (totalWeight < 0.001) {
-        return texture(ssgiTexture, fullResUV).rgb;
+        return spatialBlur(fullResUV, centerDepth, centerNormal);
     }
     
-    return result / totalWeight;
+    // Apply spatial blur to the upsampled result for smoother appearance
+    vec3 upsampled = result / totalWeight;
+    return upsampled;
 }
 
 // ============================================================================
@@ -145,8 +192,12 @@ void main() {
         return;
     }
     
-    // Get SSGI with bilateral upscaling
-    vec3 ssgi = bilateralUpsample(uv);
+    // Prepare center depth and normal for bilateral filtering
+    float centerDepth = linearizeDepth(depth);
+    vec3 centerNormal = normalSample.rgb * 2.0 - 1.0;
+    
+    // Get SSGI with bilateral upscaling and spatial blur
+    vec3 ssgi = bilateralUpsample(uv, centerDepth, centerNormal);
     
     // Composite: add indirect lighting to scene
     // The SSGI term already has SSAO multiplied in, so we just add it

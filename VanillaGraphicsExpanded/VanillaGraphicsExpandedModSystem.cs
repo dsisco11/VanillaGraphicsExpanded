@@ -12,6 +12,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     private ICoreClientAPI? capi;
     private GBufferManager? gBufferManager;
     private SSGIBufferManager? ssgiBufferManager;
+    private SSGISceneCaptureRenderer? ssgiSceneCaptureRenderer;
     private SSGIRenderer? ssgiRenderer;
     private PBROverlayRenderer? pbrOverlayRenderer;
     private HarmonyLib.Harmony? harmony;
@@ -41,8 +42,14 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         // Create G-buffer manager (Harmony hooks will call into this)
         gBufferManager = new GBufferManager(api);
 
-        // Create SSGI buffer manager and renderer (runs before PBR overlay)
+        // Create SSGI buffer manager
         ssgiBufferManager = new SSGIBufferManager(api);
+
+        // Create SSGI scene capture renderer (runs at end of Opaque stage)
+        // This captures lit geometry before OIT/post-processing for SSGI to sample
+        ssgiSceneCaptureRenderer = new SSGISceneCaptureRenderer(api, ssgiBufferManager);
+
+        // Create SSGI renderer (runs at AfterBlit stage, before PBR overlay)
         ssgiRenderer = new SSGIRenderer(api, ssgiBufferManager);
 
         // Create PBR overlay renderer (runs at AfterBlit stage)
@@ -62,6 +69,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
 
             ssgiRenderer?.Dispose();
             ssgiRenderer = null;
+
+            ssgiSceneCaptureRenderer?.Dispose();
+            ssgiSceneCaptureRenderer = null;
 
             ssgiBufferManager?.Dispose();
             ssgiBufferManager = null;
@@ -85,6 +95,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         PBROverlayShaderProgram.Register(api);
         SSGIShaderProgram.Register(api);
         SSGICompositeShaderProgram.Register(api);
+        SSGIBlurShaderProgram.Register(api);
         SSGIDebugShaderProgram.Register(api);
         return true;
     }

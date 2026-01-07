@@ -22,7 +22,7 @@ internal static class VanillaShaderPatches
     private const string GBufferInputDeclarations = @"
 // VGE G-Buffer outputs
 layout(location = 4) out vec4 vge_outNormal;    // World-space normal (XYZ), unused (W)
-layout(location = 5) out vec4 vge_outMaterial;  // Reflectivity, Roughness, Metallic, Emissive
+layout(location = 5) out vec4 vge_outMaterial;  // Roughness, Metallic, Emissive, Reflectivity
 ";
 
     // Code to inject before the final closing brace of main() to write G-buffer data

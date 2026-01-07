@@ -18,10 +18,13 @@ out vec4 outColor;
 // ============================================================================
 
 // Scene textures
-uniform sampler2D primaryScene;    // Source of indirect radiance (what surfaces reflect)
+// capturedScene: Lit geometry captured at end of Opaque stage (before OIT/post-processing)
+// This provides raw lit colors without SSAO, bloom, or color grading
+uniform sampler2D capturedScene;   // Source of indirect radiance (what surfaces reflect)
 uniform sampler2D primaryDepth;    // Depth buffer for position reconstruction
 uniform sampler2D gBufferNormal;   // World-space normals for hemisphere orientation
 uniform sampler2D ssaoTexture;     // SSAO term in gPosition.a - multiplied into indirect
+uniform sampler2D gBufferMaterial; // PBR material: (Reflectivity, Roughness, Metallic, Emissive)
 
 // Temporal reprojection textures
 uniform sampler2D previousSSGI;    // Previous frame's SSGI result
@@ -53,6 +56,15 @@ uniform float intensity;           // Indirect lighting intensity
 // Temporal filtering
 uniform float temporalBlendFactor; // History blend weight (0.9-0.95)
 uniform int temporalEnabled;       // Whether temporal filtering is on
+
+// Multi-bounce
+uniform int bounceCount;           // Number of light bounces (1-3, default 1)
+uniform float bounceAttenuation;   // Energy loss per bounce (0.3-0.6)
+
+// Sky/Sun lighting for rays that escape to sky
+uniform vec3 sunPosition;          // Sun direction in view space (normalized)
+uniform vec3 sunColor;             // Sun color and intensity
+uniform vec3 ambientColor;         // Ambient/sky color
 
 // Constants
 const float PI = 3.141592653589793;
@@ -116,52 +128,218 @@ vec3 sampleHemisphere(vec3 normal, float u1, float u2) {
 // ============================================================================
 
 // Ray march a single direction, returns hit color or black if no hit
-vec4 rayMarch(vec3 viewOrigin, vec3 viewDir, float jitter) {
+// Uses world-space distance checks to prevent distant geometry from incorrectly contributing
+// Returns: rgb = hit color (including secondary bounces), a = hit success (1.0 or 0.0)
+vec4 rayMarch(vec3 viewOrigin, vec3 viewDir, float jitter, float originLinearDepth) {
     const int MAX_STEPS = 16;
-    float stepSize = maxDistance / float(MAX_STEPS);
     
-    // Start slightly offset to avoid self-intersection
-    vec3 rayPos = viewOrigin + viewDir * (stepSize * 0.5 + jitter * stepSize);
+    // Adaptive step sizing: start small for near-field GI, grow for distant
+    // This allows us to catch nearby objects (crates on counters) while still
+    // reaching distant surfaces
+    const float MIN_STEP = 0.1;     // Minimum step size (blocks) - catches nearby objects
+    const float STEP_GROWTH = 1.15; // Exponential growth factor per step
+    
+    // Calculate total distance covered with exponential stepping
+    // sum = MIN_STEP * (STEP_GROWTH^n - 1) / (STEP_GROWTH - 1)
+    // We scale to fit maxDistance
+    float totalGeometric = MIN_STEP * (pow(STEP_GROWTH, float(MAX_STEPS)) - 1.0) / (STEP_GROWTH - 1.0);
+    float stepScale = maxDistance / totalGeometric;
+    
+    // Start with small offset to avoid self-intersection (much smaller than before)
+    float initialOffset = MIN_STEP * stepScale * (0.5 + jitter * 0.5);
+    vec3 rayPos = viewOrigin + viewDir * initialOffset;
+    float currentStep = MIN_STEP * stepScale;
+    
+    // Track if ray actually reached sky (not just ran out of steps)
+    bool reachedSky = false;
     
     for (int i = 0; i < MAX_STEPS; i++) {
         // Project to screen space
         vec2 hitUV = projectToScreen(rayPos);
         
-        // Check bounds
-        if (hitUV.x < 0.0 || hitUV.x > 1.0 || hitUV.y < 0.0 || hitUV.y > 1.0) {
-            break; // Ray left screen
+        // Check bounds with edge fade margin
+        // Fade out near edges to reduce popping when geometry leaves screen
+        float edgeMargin = 0.02;
+        if (hitUV.x < edgeMargin || hitUV.x > (1.0 - edgeMargin) || 
+            hitUV.y < edgeMargin || hitUV.y > (1.0 - edgeMargin)) {
+            // Ray exited screen - check if pointing upward for sky
+            vec3 worldRayDir = normalize((invModelViewMatrix * vec4(viewDir, 0.0)).xyz);
+            reachedSky = worldRayDir.y > 0.0;
+            break;
         }
         
         // Sample depth at hit point
         float sampledDepth = texture(primaryDepth, hitUV).r;
+        
+        // Check for sky pixels (depth >= 0.9999)
+        if (sampledDepth >= 0.9999) {
+            // Ray hit sky in the depth buffer
+            reachedSky = true;
+            break;
+        }
+        
         float sampledLinearDepth = linearizeDepth(sampledDepth);
+        
+        // Reject samples that are extremely far (near horizon)
+        // These cause artifacts due to depth precision loss at distance
+        float maxReliableDepth = zFar * 0.8; // 80% of far plane
+        if (sampledLinearDepth > maxReliableDepth) {
+            rayPos += viewDir * currentStep;
+            currentStep *= STEP_GROWTH;
+            continue;
+        }
+        
         float rayLinearDepth = -rayPos.z; // View space Z is negative forward
         
         // Check for intersection (ray is behind surface)
         float depthDiff = rayLinearDepth - sampledLinearDepth;
         
-        if (depthDiff > 0.0 && depthDiff < rayThickness) {
-            // Hit! Sample the scene color at this point
-            vec3 hitColor = texture(primaryScene, hitUV).rgb;
+        // World-space distance check: reject hits from surfaces that are much farther
+        // than expected based on the ray's travel distance
+        // This prevents distant geometry from incorrectly contributing light
+        float expectedDepth = originLinearDepth + length(rayPos - viewOrigin);
+        float depthRatio = sampledLinearDepth / max(expectedDepth, 0.1);
+        
+        // Reject if the sampled surface is MUCH farther than we should have traveled
+        // (indicates we're looking "through" nearby geometry at distant objects)
+        // Relaxed threshold: allow up to 3x expected depth
+        if (depthRatio > 3.0) {
+            rayPos += viewDir * currentStep;
+            currentStep *= STEP_GROWTH;
+            continue;
+        }
+        
+        // Adaptive thickness: smaller for near samples, larger for far
+        float adaptiveThickness = rayThickness * (0.5 + 0.5 * (currentStep / (MIN_STEP * stepScale)));
+        
+        if (depthDiff > 0.0 && depthDiff < adaptiveThickness) {
+            // Hit! Verify this is a valid surface by checking its normal
+            vec4 hitNormalSample = texture(gBufferNormal, hitUV);
             
-            // Sample SSAO at hit point and multiply into indirect contribution
-            // SSAO is stored in gPosition.a (ColorAttachment3)
+            // Skip if no valid normal data (background/sky)
+            if (hitNormalSample.a <= 0.0) {
+                rayPos += viewDir * currentStep;
+                currentStep *= STEP_GROWTH;
+                continue;
+            }
+            
+            // Sample material properties - emissive surfaces bypass back-face rejection
+            // Material format: (Roughness, Metallic, Emissive, Reflectivity)
+            vec4 material = texture(gBufferMaterial, hitUV);
+            float emissive = material.b; // Emissive is in blue channel
+            
+            // Decode hit surface normal
+            vec3 hitWorldNormal = normalize(hitNormalSample.rgb * 2.0 - 1.0);
+            mat3 normalMatrix = mat3(modelViewMatrix);
+            vec3 hitViewNormal = normalize(normalMatrix * hitWorldNormal);
+            
+            // Emitter cosine: Lambert's law - surfaces emit proportional to cos(angle)
+            // This is NdotL at the emitting surface back toward the receiver
+            vec3 toOrigin = normalize(viewOrigin - rayPos);
+            float emitterCosine = dot(hitViewNormal, toOrigin);
+            
+            // For non-emissive surfaces: use emitter cosine (negative = back-facing = reject)
+            // For emissive surfaces: emit in all directions (cosine = 1.0)
+            float emissiveFactor = smoothstep(0.0, 0.1, emissive);
+            
+            // Back-face rejection for non-emissive
+            if (emitterCosine <= 0.0 && emissiveFactor < 0.5) {
+                rayPos += viewDir * currentStep;
+                currentStep *= STEP_GROWTH;
+                continue;
+            }
+            
+            // Apply emitter cosine for diffuse surfaces, bypass for emissive
+            // Emissive surfaces emit uniformly, non-emissive follow Lambert's law
+            float emitterWeight = mix(max(0.0, emitterCosine), 1.0, emissiveFactor);
+            
+            // Sample the captured scene color at this point (first bounce - direct lighting)
+            vec3 hitColor = texture(capturedScene, hitUV).rgb;
+            
+            // Multi-bounce: sample previous frame's SSGI at hit point for secondary bounces
+            // Only for non-emissive surfaces - emissive surfaces are primary light sources
+            // This gives us light that bounced off other surfaces in previous frames
+            if (bounceCount > 1) {
+                vec3 secondaryBounce = texture(previousSSGI, hitUV).rgb;
+                // Add secondary bounce contribution with attenuation
+                // Each bounce loses energy (typical albedo ~0.5)
+                // Reduce secondary bounce contribution for emissive surfaces (they're sources, not receivers)
+                float bounceWeight = 1.0 - emissiveFactor;
+                hitColor += secondaryBounce * bounceAttenuation * bounceWeight;
+                
+                // Third bounce (from previous frame's accumulated bounces)
+                if (bounceCount > 2) {
+                    // The previousSSGI already contains some secondary bounces,
+                    // so we add a fraction of that as tertiary contribution
+                    hitColor += secondaryBounce * bounceAttenuation * bounceAttenuation * 0.5 * bounceWeight;
+                }
+            }
+            
+            // SSAO modulation: emissive surfaces emit light and shouldn't be darkened by AO
+            // Blend between full SSAO (non-emissive) and no SSAO (emissive)
             float ssao = texture(ssaoTexture, hitUV).a;
+            float ssaoWeight = mix(ssao, 1.0, emissiveFactor);
             
-            // Distance attenuation
+            // Distance attenuation based on actual 3D distance traveled
             float dist = length(rayPos - viewOrigin);
             float attenuation = 1.0 - smoothstep(0.0, maxDistance, dist);
             
-            // Return indirect contribution with SSAO modulation
-            return vec4(hitColor * ssao * attenuation, 1.0);
+            // Depth-based attenuation: fade out samples from very distant surfaces
+            // This prevents horizon terrain from contributing indirect light
+            // Start fading at 32 blocks, fully faded by 64 blocks
+            float depthFade = 1.0 - smoothstep(32.0, 64.0, sampledLinearDepth);
+            attenuation *= depthFade;
+            
+            // Edge fade: reduce contribution near screen edges
+            float edgeFade = smoothstep(0.0, 0.1, min(hitUV.x, min(1.0 - hitUV.x, min(hitUV.y, 1.0 - hitUV.y))));
+            attenuation *= edgeFade;
+            
+            // Apply emitter cosine (Lambert's law for diffuse emission)
+            // This accounts for surfaces emitting less light at grazing angles
+            attenuation *= emitterWeight;
+            
+            // Emissive boost: light sources contribute more than regular surfaces
+            // Scale by emissive intensity for brighter lights to cast more indirect
+            float emissiveBoost = 1.0 + emissive * 2.0;
+            
+            // Return indirect contribution
+            return vec4(hitColor * ssaoWeight * attenuation * emissiveBoost, 1.0);
         }
         
-        // March forward
-        rayPos += viewDir * stepSize;
+        // March forward with adaptive step (grows each iteration)
+        rayPos += viewDir * currentStep;
+        currentStep *= STEP_GROWTH;
     }
     
-    // No hit
-    return vec4(0.0);
+    // Only sample sky if ray actually reached sky (hit sky depth or exited screen upward)
+    // Rays that just ran out of steps without reaching sky return black
+    if (!reachedSky) {
+        return vec4(0.0);
+    }
+    
+    // Sample sky/sun lighting for rays that escaped to sky
+    vec3 worldRayDir = normalize((invModelViewMatrix * vec4(viewDir, 0.0)).xyz);
+    
+    // Sky contribution: fade in based on how much ray points upward
+    float skyWeight = smoothstep(0.0, 0.3, max(0.0, worldRayDir.y)); // Gradual fade from horizon
+    vec3 skyContribution = ambientColor * skyWeight;
+    
+    // Sun contribution: directional light when ray points toward sun
+    float sunDot = max(0.0, dot(worldRayDir, sunPosition));
+    // Soft sun disk with atmospheric scattering falloff
+    float sunFactor = pow(sunDot, 16.0); // Moderate falloff
+    vec3 sunContribution = sunColor * sunFactor;
+    
+    // Combine sky and sun - HDR values are fine, will be tonemapped later
+    // Attenuate since this is indirect (bounced) light, not direct
+    vec3 skyLight = (skyContribution + sunContribution) * 0.2;
+    
+    // NaN/inf protection - if any component is invalid, return zero
+    if (any(isnan(skyLight)) || any(isinf(skyLight))) {
+        return vec4(0.0);
+    }
+    
+    return vec4(skyLight, 1.0);
 }
 
 // ============================================================================
@@ -193,26 +371,55 @@ vec3 temporalReproject(vec3 currentGI, vec2 currentUV, float currentDepth) {
         return currentGI; // Use current frame only
     }
     
-    // Sample previous frame's SSGI
-    vec3 historyGI = texture(previousSSGI, prevUV).rgb;
-    
-    // Disocclusion detection using depth comparison
+    // Disocclusion detection using depth comparison BEFORE sampling history
+    // This prevents blending with invalid/stale history data
     float prevDepth = texture(previousDepth, prevUV).r;
     float prevLinearDepth = linearizeDepth(prevDepth);
     float currentLinearDepth = linearizeDepth(currentDepth);
     
     // Reject history if depth differs too much (disocclusion)
-    float depthThreshold = currentLinearDepth * 0.05; // 5% tolerance
+    // Relaxed threshold: 10% tolerance to allow more temporal blending
+    float depthThreshold = currentLinearDepth * 0.1;
     float depthDiff = abs(prevLinearDepth - currentLinearDepth);
     
     if (depthDiff > depthThreshold) {
         return currentGI; // Disocclusion - use current frame only
     }
     
-    // Blend current and history
-    // TODO: For moving entities, we should also check velocity difference here
-    // and reduce blend factor for pixels with significant motion
-    return mix(currentGI, historyGI, temporalBlendFactor);
+    // Only sample history after validation passes
+    vec3 historyGI = texture(previousSSGI, prevUV).rgb;
+    
+    // Neighborhood clamping to reduce sparkle from outlier samples
+    // Sample neighbors to find a reasonable range for the current pixel
+    vec2 texelSize = 1.0 / ssgiBufferSize;
+    vec3 minNeighbor = currentGI;
+    vec3 maxNeighbor = currentGI;
+    
+    // Sample 4 neighbors (cross pattern for efficiency)
+    for (int i = 0; i < 4; i++) {
+        vec2 offset = vec2(
+            (i == 0) ? -texelSize.x : ((i == 1) ? texelSize.x : 0.0),
+            (i == 2) ? -texelSize.y : ((i == 3) ? texelSize.y : 0.0)
+        );
+        vec2 neighborUV = currentUV + offset;
+        
+        // Sample neighbor's current frame result (approximate via depth-based estimation)
+        // For simplicity, we just expand the min/max bounds slightly
+        float neighborDepth = texture(primaryDepth, neighborUV).r;
+        if (neighborDepth < 1.0) {
+            // Expand bounds based on current sample variance
+            vec3 variance = abs(currentGI - historyGI) * 0.5;
+            minNeighbor = min(minNeighbor, currentGI - variance);
+            maxNeighbor = max(maxNeighbor, currentGI + variance);
+        }
+    }
+    
+    // Clamp history to neighborhood bounds to reduce sparkle
+    vec3 clampedHistory = clamp(historyGI, minNeighbor, maxNeighbor);
+    
+    // Blend current and history with clamped result
+    // Use higher blend factor for smoother accumulation
+    return mix(currentGI, clampedHistory, temporalBlendFactor);
 }
 
 // ============================================================================
@@ -238,6 +445,7 @@ void main() {
     
     // Reconstruct view-space position
     vec3 viewPos = reconstructViewPos(fullResUV, depth);
+    float originLinearDepth = linearizeDepth(depth);
     
     // Transform normal to view space for hemisphere sampling
     mat3 normalMatrix = mat3(modelViewMatrix);
@@ -262,16 +470,19 @@ void main() {
         float jitter = Squirrel3HashF(vec3(pixelCoord, sampleSeed + 200.0));
         
         // Sample direction on cosine-weighted hemisphere
+        // The cosine-weighted distribution already accounts for the receiver's NdotL term
+        // (samples are distributed proportionally to cos(θ), so PDF = cos(θ)/PI)
         vec3 sampleDir = sampleHemisphere(viewNormal, u1, u2);
         
-        // Ray march this direction
-        vec4 hitResult = rayMarch(viewPos, sampleDir, jitter);
+        // Ray march this direction with world-space distance validation
+        vec4 hitResult = rayMarch(viewPos, sampleDir, jitter, originLinearDepth);
         
+        // With cosine-weighted sampling, we simply average the results
+        // The receiver cosine is implicit in the sampling distribution
+        // Only the emitter cosine needs to be applied (done in rayMarch)
         if (hitResult.a > 0.0) {
-            // Weight by cosine of angle to normal (already built into hemisphere sampling)
-            float NdotL = max(dot(viewNormal, sampleDir), 0.0);
-            indirectLight += hitResult.rgb * NdotL;
-            totalWeight += NdotL;
+            indirectLight += hitResult.rgb;
+            totalWeight += 1.0;
         }
     }
     

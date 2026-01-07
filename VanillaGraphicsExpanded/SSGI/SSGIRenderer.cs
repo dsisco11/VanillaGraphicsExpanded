@@ -52,7 +52,7 @@ public class SSGIRenderer : IRenderer, IDisposable
     private int frameIndex;
 
     // Resolution scale backing field
-    private float resolutionScale = 0.3f;
+    private float resolutionScale = 0.25f;
 
     #endregion
 
@@ -64,7 +64,7 @@ public class SSGIRenderer : IRenderer, IDisposable
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// Resolution scale for SSGI buffers (0.25 - 1.0).
+    /// Resolution scale for SSGI buffers (0.05 - 1.0).
     /// Lower values improve performance but reduce quality.
     /// Default: 0.5 (half resolution).
     /// </summary>
@@ -73,7 +73,7 @@ public class SSGIRenderer : IRenderer, IDisposable
         get => resolutionScale;
         set
         {
-            float clamped = Math.Clamp(value, 0.25f, 1.0f);
+            float clamped = Math.Clamp(value, 0.05f, 1.0f);
             if (Math.Abs(clamped - resolutionScale) > 0.001f)
             {
                 resolutionScale = clamped;
@@ -85,22 +85,22 @@ public class SSGIRenderer : IRenderer, IDisposable
     /// <summary>
     /// Number of ray march samples per pixel.
     /// Higher values produce better quality but cost more performance.
-    /// Default: 8.
+    /// Default: 6.
     /// </summary>
-    public int SampleCount { get; set; } = 3;
+    public int SampleCount { get; set; } = 12;
 
     /// <summary>
     /// Maximum ray march distance in blocks.
     /// Default: 16.0.
     /// </summary>
-    public float MaxDistance { get; set; } = 16.0f;
+    public float MaxDistance { get; set; } = 20.0f;
 
     /// <summary>
     /// Ray thickness for intersection testing in blocks.
     /// Larger values are more tolerant but may cause light leaking.
     /// Default: 0.5.
     /// </summary>
-    public float RayThickness { get; set; } = 5f;
+    public float RayThickness { get; set; } = 10f;
 
     /// <summary>
     /// Intensity multiplier for indirect lighting.
@@ -111,14 +111,55 @@ public class SSGIRenderer : IRenderer, IDisposable
     /// <summary>
     /// Temporal blend factor for history accumulation.
     /// Higher values (closer to 1.0) accumulate more history for smoother results
-    /// but may cause ghosting. Default: 0.9.
+    /// but may cause ghosting. Default: 0.95.
     /// </summary>
-    public float TemporalBlendFactor { get; set; } = 0.9f;
+    public float TemporalBlendFactor { get; set; } = 0.99999f;
 
     /// <summary>
     /// Whether temporal reprojection is enabled.
     /// </summary>
     public bool TemporalEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Number of light bounces (1-3).
+    /// Higher values provide more realistic indirect lighting.
+    /// Uses temporal accumulation - secondary bounces come from previous frame's SSGI.
+    /// Default: 2.
+    /// </summary>
+    public int BounceCount { get; set; } = 2;
+
+    /// <summary>
+    /// Energy loss per bounce (0.3-0.6 typical).
+    /// Lower values retain more energy = brighter secondary bounces.
+    /// Default: 0.5.
+    /// </summary>
+    public float BounceAttenuation { get; set; } = 0.2f;
+
+    /// <summary>
+    /// Whether spatial blur is enabled.
+    /// </summary>
+    public bool BlurEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Blur radius in pixels (1-4).
+    /// Higher values spread light more but cost performance.
+    /// Default: 2.
+    /// </summary>
+    public int BlurRadius { get; set; } = 10;
+
+    /// <summary>
+    /// Depth threshold for blur edge detection (fraction of center depth).
+    /// Lower values preserve more edges but may leave gaps.
+    /// Default: 0.05 (5% of depth).
+    /// </summary>
+    public float BlurDepthThreshold { get; set; } = 0.05f;
+
+    /// <summary>
+    /// Normal threshold for blur edge detection.
+    /// Lower values preserve more edges.
+    /// Default: 0.5.
+    /// </summary>
+    public float BlurNormalThreshold { get; set; } = 0.4f;
 
     /// <summary>
     /// Debug visualization mode:
@@ -218,8 +259,14 @@ public class SSGIRenderer : IRenderer, IDisposable
         // Compute current view-projection matrix for next frame's reprojection
         MultiplyMatrices(projectionMatrix, modelViewMatrix, currentViewProjMatrix);
 
-        // === SSGI Pass ===
+        // === SSGI Ray March Pass ===
         RenderSSGIPass(primaryFb);
+
+        // === SSGI Blur Pass (optional) ===
+        if (BlurEnabled)
+        {
+            RenderBlurPass(primaryFb);
+        }
 
         // === Debug or Composite Pass ===
         if (DebugMode == 1)
@@ -256,11 +303,12 @@ public class SSGIRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
         shader.Use();
 
-        // Bind textures
-        shader.PrimaryScene = primaryFb.ColorTextureIds[0];
+        // Bind textures - use captured scene (lit geometry before post-processing)
+        shader.CapturedScene = bufferManager.CapturedSceneTextureId;
         shader.PrimaryDepth = primaryFb.DepthTextureId;
         shader.GBufferNormal = GBufferManager.Instance?.NormalTextureId ?? 0;
         shader.SSAOTexture = primaryFb.ColorTextureIds[3]; // gPosition.a contains SSAO
+        shader.GBufferMaterial = GBufferManager.Instance?.MaterialTextureId ?? 0;
         shader.PreviousSSGI = bufferManager.PreviousSSGITextureId;
         shader.PreviousDepth = bufferManager.PreviousDepthTextureId;
 
@@ -291,12 +339,55 @@ public class SSGIRenderer : IRenderer, IDisposable
         shader.TemporalBlendFactor = TemporalBlendFactor;
         shader.TemporalEnabled = TemporalEnabled ? 1 : 0;
 
+        // Multi-bounce
+        shader.BounceCount = BounceCount;
+        shader.BounceAttenuation = BounceAttenuation;
+
+        // Sky/sun lighting for rays that escape to sky
+        var sunPos = capi.World.Calendar.SunPositionNormalized;
+        shader.SunPosition = sunPos;
+        shader.SunColor = capi.World.Calendar.SunColor;
+        shader.AmbientColor = capi.Render.AmbientColor;
+
         // Render
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
 
         // Copy current depth to history buffer for next frame's reprojection
-        bufferManager.CopyDepthToHistory(primaryFb.DepthTextureId);
+        // Pass FBO ID for blitting (handles format conversion between depth formats)
+        bufferManager.CopyDepthToHistory(primaryFb.FboId, capi.Render.FrameWidth, capi.Render.FrameHeight);
+    }
+
+    private void RenderBlurPass(FrameBufferRef primaryFb)
+    {
+        // Bind blur target framebuffer
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, bufferManager.BlurredSSGIFboId);
+        GL.Viewport(0, 0, bufferManager.SSGIWidth, bufferManager.SSGIHeight);
+        GL.Clear(ClearBufferMask.ColorBufferBit);
+
+        var shader = ShaderRegistry.getProgramByName("ssgi_blur") as SSGIBlurShaderProgram;
+        if (shader is null)
+            return;
+
+        capi.Render.GlToggleBlend(false);
+        shader.Use();
+
+        // Bind textures - use raw SSGI output as input
+        shader.SSGIInput = bufferManager.CurrentSSGITextureId;
+        shader.DepthTexture = primaryFb.DepthTextureId;
+        shader.NormalTexture = GBufferManager.Instance?.NormalTextureId ?? 0;
+
+        // Pass uniforms
+        shader.BufferSize = new Vec2f(bufferManager.SSGIWidth, bufferManager.SSGIHeight);
+        shader.BlurRadius = BlurRadius;
+        shader.DepthThreshold = BlurDepthThreshold;
+        shader.NormalThreshold = BlurNormalThreshold;
+        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
+        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
+
+        // Render
+        capi.Render.RenderMesh(quadMeshRef);
+        shader.Stop();
     }
 
     private void RenderCompositePass(FrameBufferRef primaryFb)
@@ -312,9 +403,9 @@ public class SSGIRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
         shader.Use();
 
-        // Bind textures
+        // Bind textures - use blurred SSGI if blur is enabled
         shader.PrimaryScene = primaryFb.ColorTextureIds[0];
-        shader.SSGITexture = bufferManager.CurrentSSGITextureId;
+        shader.SSGITexture = BlurEnabled ? bufferManager.BlurredSSGITextureId : bufferManager.CurrentSSGITextureId;
         shader.PrimaryDepth = primaryFb.DepthTextureId;
         shader.GBufferNormal = GBufferManager.Instance?.NormalTextureId ?? 0;
 
@@ -350,8 +441,8 @@ public class SSGIRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
         shader.Use();
 
-        // Bind the SSGI texture
-        shader.SSGITexture = bufferManager.CurrentSSGITextureId;
+        // Bind the SSGI texture - use blurred if enabled
+        shader.SSGITexture = BlurEnabled ? bufferManager.BlurredSSGITextureId : bufferManager.CurrentSSGITextureId;
         shader.Boost = 2.0f; // Boost for visibility
 
         // Render fullscreen quad
