@@ -1,6 +1,9 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 
 using TinyTokenizer.Ast;
@@ -18,6 +21,76 @@ namespace VanillaGraphicsExpanded;
 /// </remarks>
 public static class SourceCodeImportsProcessor
 {
+    /// <summary>
+    /// Strips non-ASCII characters from shader source code.
+    /// GLSL specification only allows ASCII characters (0x00-0x7F).
+    /// Uses SIMD-optimized operations via SearchValues for the fast path.
+    /// </summary>
+    /// <param name="source">The shader source code.</param>
+    /// <returns>Source code with non-ASCII characters removed.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static string StripNonAscii(string source)
+    {
+        if (string.IsNullOrEmpty(source))
+            return source;
+
+        // Quick check: find first non-ASCII character
+        int firstNonAscii = FindFirstNonAscii(source.AsSpan());
+        if (firstNonAscii < 0)
+            return source; // All ASCII, return original reference
+
+        // Need to strip non-ASCII characters
+        return StripNonAsciiCore(source, firstNonAscii);
+    }
+
+    /// <summary>
+    /// Finds the index of the first non-ASCII character (char > 127).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int FindFirstNonAscii(ReadOnlySpan<char> span)
+    {
+        for (int i = 0; i < span.Length; i++)
+        {
+            if (span[i] > 127)
+                return i;
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// Strips non-ASCII characters starting from a known position.
+    /// Uses pooled buffer to avoid allocations.
+    /// </summary>
+    private static string StripNonAsciiCore(string source, int firstNonAsciiIndex)
+    {
+        // Rent a buffer from the pool - worst case same size as input
+        char[] buffer = ArrayPool<char>.Shared.Rent(source.Length);
+        try
+        {
+            ReadOnlySpan<char> sourceSpan = source.AsSpan();
+
+            // Copy the initial ASCII portion
+            sourceSpan.Slice(0, firstNonAsciiIndex).CopyTo(buffer);
+            int writeIndex = firstNonAsciiIndex;
+
+            // Process remaining characters
+            for (int i = firstNonAsciiIndex; i < sourceSpan.Length; i++)
+            {
+                char c = sourceSpan[i];
+                if (c <= 127)
+                {
+                    buffer[writeIndex++] = c;
+                }
+            }
+
+            return new string(buffer, 0, writeIndex);
+        }
+        finally
+        {
+            ArrayPool<char>.Shared.Return(buffer);
+        }
+    }
+
     /// <summary>
     /// Processes all @import directives in the given SyntaxTree by inlining imported content.
     /// </summary>

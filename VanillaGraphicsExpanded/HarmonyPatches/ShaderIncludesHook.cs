@@ -141,8 +141,8 @@ public static class ShaderIncludesHook
 
         if (hasChanges)
         {
-            // Build and write back to shader
-            shader.Code = tree.ToText();
+            // Build, strip non-ASCII (GLSL compliance), and write back to shader
+            shader.Code = SourceCodeImportsProcessor.StripNonAscii(tree.ToText());
         }
     }
 
@@ -177,10 +177,10 @@ public static class ShaderIncludesHook
             // Stage 3: Post-processing (after imports are inlined)
             hasChanges |= VanillaShaderPatches.TryApplyPatches(_logger, tree, asset.Name);
 
-            // Build and write back to asset
+            // Build, strip non-ASCII (GLSL compliance), and write back to asset
             if (hasChanges)
             {
-                asset.Data = Encoding.UTF8.GetBytes(tree.ToText());
+                asset.Data = Encoding.UTF8.GetBytes(SourceCodeImportsProcessor.StripNonAscii(tree.ToText()));
                 asset.IsPatched = true;
                 patchedCount++;
             }
