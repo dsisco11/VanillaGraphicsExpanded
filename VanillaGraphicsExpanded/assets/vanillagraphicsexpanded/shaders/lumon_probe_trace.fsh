@@ -143,8 +143,8 @@ void main(void)
     
     for (int i = 0; i < raysPerProbe; i++) {
         // Generate jittered random values for this ray
-        float u1 = squirrel3Float(seed + uint(i * 2));
-        float u2 = squirrel3Float(seed + uint(i * 2 + 1));
+        float u1 = Squirrel3HashF(seed + uint(i * 2));
+        float u2 = Squirrel3HashF(seed + uint(i * 2 + 1));
         
         // Generate cosine-weighted ray direction
         vec3 rayDir = lumonCosineSampleHemisphere(vec2(u1, u2), probeNormal);
