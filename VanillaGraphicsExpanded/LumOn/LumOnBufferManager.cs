@@ -53,6 +53,21 @@ public sealed class LumOnBufferManager : IDisposable
     private int radianceHistoryTexture1Id;
 
     // ═══════════════════════════════════════════════════════════════
+    // Probe Metadata Buffers (for temporal validation)
+    // ═══════════════════════════════════════════════════════════════
+
+    // Current frame metadata: linearized depth, encoded normal, accumulation count
+    private int probeMetaCurrentFboId;
+    private int probeMetaCurrentTextureId;
+
+    // History metadata (swapped each frame)
+    private int probeMetaHistoryFboId;
+    private int probeMetaHistoryTextureId;
+
+    // Temporal output FBO (MRT: radiance0, radiance1, meta to current buffers)
+    private int temporalOutputFboId;
+
+    // ═══════════════════════════════════════════════════════════════
     // Indirect Diffuse Output Buffers
     // ═══════════════════════════════════════════════════════════════
 
@@ -136,6 +151,31 @@ public sealed class LumOnBufferManager : IDisposable
     /// OpenGL texture ID for history radiance SH coefficients (set 1).
     /// </summary>
     public int RadianceHistoryTexture1Id => radianceHistoryTexture1Id;
+
+    /// <summary>
+    /// OpenGL FBO ID for current frame probe metadata.
+    /// </summary>
+    public int ProbeMetaCurrentFboId => probeMetaCurrentFboId;
+
+    /// <summary>
+    /// OpenGL texture ID for current frame probe metadata (depth, normal, accumCount).
+    /// </summary>
+    public int ProbeMetaCurrentTextureId => probeMetaCurrentTextureId;
+
+    /// <summary>
+    /// OpenGL FBO ID for history probe metadata.
+    /// </summary>
+    public int ProbeMetaHistoryFboId => probeMetaHistoryFboId;
+
+    /// <summary>
+    /// OpenGL texture ID for history probe metadata.
+    /// </summary>
+    public int ProbeMetaHistoryTextureId => probeMetaHistoryTextureId;
+
+    /// <summary>
+    /// OpenGL FBO ID for temporal pass MRT output (radiance0, radiance1, meta).
+    /// </summary>
+    public int TemporalOutputFboId => temporalOutputFboId;
 
     /// <summary>
     /// OpenGL FBO ID for half-resolution indirect diffuse output.
@@ -227,7 +267,37 @@ public sealed class LumOnBufferManager : IDisposable
         // Swap texture IDs (set 1)
         (radianceCurrentTexture1Id, radianceHistoryTexture1Id) = (radianceHistoryTexture1Id, radianceCurrentTexture1Id);
 
+        // Swap metadata buffers
+        (probeMetaCurrentFboId, probeMetaHistoryFboId) = (probeMetaHistoryFboId, probeMetaCurrentFboId);
+        (probeMetaCurrentTextureId, probeMetaHistoryTextureId) = (probeMetaHistoryTextureId, probeMetaCurrentTextureId);
+
         currentBufferIndex = 1 - currentBufferIndex;
+
+        // Recreate temporal output FBO to point to the new "history" targets
+        // (which will be written to during temporal pass and become current after next swap)
+        CreateTemporalOutputFbo();
+    }
+
+    /// <summary>
+    /// Creates/recreates the temporal output FBO with MRT.
+    /// Outputs to: history radiance0, history radiance1, current meta
+    /// </summary>
+    private void CreateTemporalOutputFbo()
+    {
+        // Delete existing temporal output FBO
+        if (temporalOutputFboId != 0)
+        {
+            GL.DeleteFramebuffer(temporalOutputFboId);
+            temporalOutputFboId = 0;
+        }
+
+        // Create MRT FBO: temporal pass writes to history buffers
+        // (after swap, these become "current" for next frame's read)
+        temporalOutputFboId = CreateFramebufferMRT([
+            radianceHistoryTexture0Id,
+            radianceHistoryTexture1Id,
+            probeMetaCurrentTextureId  // Meta writes to "current" which becomes history after swap
+        ]);
     }
 
     /// <summary>
@@ -252,10 +322,23 @@ public sealed class LumOnBufferManager : IDisposable
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, radianceCurrentFboId);
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
+        // Clear metadata buffers
+        if (probeMetaHistoryFboId != 0)
+        {
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, probeMetaHistoryFboId);
+            GL.Clear(ClearBufferMask.ColorBufferBit);
+        }
+
+        if (probeMetaCurrentFboId != 0)
+        {
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, probeMetaCurrentFboId);
+            GL.Clear(ClearBufferMask.ColorBufferBit);
+        }
+
         // Restore previous framebuffer
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, previousFbo);
 
-        capi.Logger.Debug("[LumOn] Cleared radiance history buffers");
+        capi.Logger.Debug("[LumOn] Cleared radiance history and metadata buffers");
     }
 
     /// <summary>
@@ -337,6 +420,21 @@ public sealed class LumOnBufferManager : IDisposable
         radianceHistoryTexture1Id = CreateTexture(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
         radianceHistoryFboId = CreateFramebufferMRT(
             [radianceHistoryTexture0Id, radianceHistoryTexture1Id]);
+
+        // ═══════════════════════════════════════════════════════════════
+        // Create Probe Metadata Buffers (for temporal validation)
+        // ═══════════════════════════════════════════════════════════════
+
+        // Stores: linearized depth (R), encoded normal (GBA), accumulation count (A repurposed)
+        probeMetaCurrentTextureId = CreateTexture(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        probeMetaCurrentFboId = CreateFramebuffer(probeMetaCurrentTextureId);
+
+        probeMetaHistoryTextureId = CreateTexture(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        probeMetaHistoryFboId = CreateFramebuffer(probeMetaHistoryTextureId);
+
+        // Create temporal output FBO (MRT: writes to history radiance + current meta)
+        // After swap, these become the "current" buffers for next frame's read
+        CreateTemporalOutputFbo();
 
         // ═══════════════════════════════════════════════════════════════
         // Create Indirect Diffuse Output Buffers
@@ -459,6 +557,17 @@ public sealed class LumOnBufferManager : IDisposable
         // Delete Radiance History buffers
         DeleteFramebufferAndTextures(ref radianceHistoryFboId,
             ref radianceHistoryTexture0Id, ref radianceHistoryTexture1Id);
+
+        // Delete Probe Metadata buffers
+        DeleteFramebufferAndTexture(ref probeMetaCurrentFboId, ref probeMetaCurrentTextureId);
+        DeleteFramebufferAndTexture(ref probeMetaHistoryFboId, ref probeMetaHistoryTextureId);
+
+        // Delete Temporal Output FBO (textures owned by radiance/meta buffers)
+        if (temporalOutputFboId != 0)
+        {
+            GL.DeleteFramebuffer(temporalOutputFboId);
+            temporalOutputFboId = 0;
+        }
 
         // Delete Indirect Half buffer
         DeleteFramebufferAndTexture(ref indirectHalfFboId, ref indirectHalfTextureId);

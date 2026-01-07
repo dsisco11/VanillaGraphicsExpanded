@@ -16,6 +16,8 @@ out vec4 outColor;
 // 3 = Probe Normals
 // 4 = Scene Depth (linearized)
 // 5 = Scene Normals (G-buffer)
+// 6 = Temporal Weight (how much history is used)
+// 7 = Temporal Rejection Mask (why history was rejected)
 // ============================================================================
 
 // Import common utilities
@@ -31,6 +33,9 @@ uniform sampler2D probeAnchorNormal;
 uniform sampler2D radianceTexture0;
 uniform sampler2D indirectHalf;
 
+// Temporal textures
+uniform sampler2D historyMeta;          // linearized depth, normal, accumCount
+
 // Matrices
 uniform mat4 invProjectionMatrix;
 
@@ -42,6 +47,15 @@ uniform int probeSpacing;
 // Z-planes
 uniform float zNear;
 uniform float zFar;
+
+// Temporal config
+uniform float temporalAlpha;
+uniform float depthRejectThreshold;
+uniform float normalRejectThreshold;
+
+// Matrices for reprojection
+uniform mat4 invViewMatrix;
+uniform mat4 prevViewProjMatrix;
 
 // Debug mode
 uniform int debugMode;
@@ -207,6 +221,123 @@ vec4 renderSceneNormalDebug() {
 }
 
 // ============================================================================
+// Debug Mode 6: Temporal Weight
+// ============================================================================
+
+/// Reproject view-space position to previous frame UV
+vec2 reprojectToHistory(vec3 posVS) {
+    vec4 posWS = invViewMatrix * vec4(posVS, 1.0);
+    vec4 prevClip = prevViewProjMatrix * posWS;
+    vec3 prevNDC = prevClip.xyz / prevClip.w;
+    return prevNDC.xy * 0.5 + 0.5;
+}
+
+vec4 renderTemporalWeightDebug(vec2 screenPos) {
+    ivec2 probeCoord = ivec2(screenPos / float(probeSpacing));
+    probeCoord = clamp(probeCoord, ivec2(0), ivec2(probeGridSize) - 1);
+    
+    vec4 posData = texelFetch(probeAnchorPosition, probeCoord, 0);
+    float valid = posData.a;
+    
+    if (valid < 0.1) {
+        return vec4(0.0, 0.0, 0.0, 1.0);  // Black for invalid probes
+    }
+    
+    vec3 posVS = posData.xyz;
+    vec3 normalVS = normalize(texelFetch(probeAnchorNormal, probeCoord, 0).xyz * 2.0 - 1.0);
+    float currentDepthLin = -posVS.z;
+    
+    // Reproject to history UV
+    vec2 historyUV = reprojectToHistory(posVS);
+    
+    // Check bounds
+    if (historyUV.x < 0.0 || historyUV.x > 1.0 ||
+        historyUV.y < 0.0 || historyUV.y > 1.0) {
+        return vec4(0.0, 0.0, 0.0, 1.0);  // Black = out of bounds
+    }
+    
+    // Sample history metadata
+    vec4 histMeta = texture(historyMeta, historyUV);
+    float historyDepthLin = histMeta.r;
+    vec3 historyNormal = histMeta.gba * 2.0 - 1.0;
+    
+    if (historyDepthLin < 0.001) {
+        return vec4(0.0, 0.0, 0.0, 1.0);  // No valid history
+    }
+    
+    // Compute validation confidence
+    float depthDiff = abs(currentDepthLin - historyDepthLin) / max(currentDepthLin, 0.001);
+    float normalDot = dot(normalize(normalVS), normalize(historyNormal));
+    
+    if (depthDiff > depthRejectThreshold || normalDot < normalRejectThreshold) {
+        return vec4(0.0, 0.0, 0.0, 1.0);  // Rejected
+    }
+    
+    float depthConf = 1.0 - (depthDiff / depthRejectThreshold);
+    float normalConf = (normalDot - normalRejectThreshold) / (1.0 - normalRejectThreshold);
+    float confidence = clamp(min(depthConf, normalConf), 0.0, 1.0);
+    
+    float weight = temporalAlpha * confidence;
+    if (valid < 0.9) weight *= 0.5;  // Edge probe penalty
+    
+    // Grayscale: brighter = more history used
+    return vec4(weight, weight, weight, 1.0);
+}
+
+// ============================================================================
+// Debug Mode 7: Temporal Rejection Mask
+// ============================================================================
+
+vec4 renderTemporalRejectionDebug(vec2 screenPos) {
+    ivec2 probeCoord = ivec2(screenPos / float(probeSpacing));
+    probeCoord = clamp(probeCoord, ivec2(0), ivec2(probeGridSize) - 1);
+    
+    vec4 posData = texelFetch(probeAnchorPosition, probeCoord, 0);
+    float valid = posData.a;
+    
+    if (valid < 0.1) {
+        return vec4(0.2, 0.2, 0.2, 1.0);  // Dark gray for invalid probes
+    }
+    
+    vec3 posVS = posData.xyz;
+    vec3 normalVS = normalize(texelFetch(probeAnchorNormal, probeCoord, 0).xyz * 2.0 - 1.0);
+    float currentDepthLin = -posVS.z;
+    
+    // Reproject to history UV
+    vec2 historyUV = reprojectToHistory(posVS);
+    
+    // Check bounds
+    if (historyUV.x < 0.0 || historyUV.x > 1.0 ||
+        historyUV.y < 0.0 || historyUV.y > 1.0) {
+        return vec4(1.0, 0.0, 0.0, 1.0);  // Red = out of bounds
+    }
+    
+    // Sample history metadata
+    vec4 histMeta = texture(historyMeta, historyUV);
+    float historyDepthLin = histMeta.r;
+    vec3 historyNormal = histMeta.gba * 2.0 - 1.0;
+    
+    if (historyDepthLin < 0.001) {
+        return vec4(0.5, 0.0, 0.5, 1.0);  // Purple = no history data
+    }
+    
+    // Check depth rejection
+    float depthDiff = abs(currentDepthLin - historyDepthLin) / max(currentDepthLin, 0.001);
+    if (depthDiff > depthRejectThreshold) {
+        return vec4(1.0, 1.0, 0.0, 1.0);  // Yellow = depth reject
+    }
+    
+    // Check normal rejection
+    float normalDot = dot(normalize(normalVS), normalize(historyNormal));
+    if (normalDot < normalRejectThreshold) {
+        return vec4(1.0, 0.5, 0.0, 1.0);  // Orange = normal reject
+    }
+    
+    // Valid history
+    return vec4(0.0, 1.0, 0.0, 1.0);  // Green = valid
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -229,6 +360,12 @@ void main(void)
             break;
         case 5:
             outColor = renderSceneNormalDebug();
+            break;
+        case 6:
+            outColor = renderTemporalWeightDebug(screenPos);
+            break;
+        case 7:
+            outColor = renderTemporalRejectionDebug(screenPos);
             break;
         default:
             outColor = vec4(1.0, 0.0, 1.0, 1.0);  // Magenta = unknown mode

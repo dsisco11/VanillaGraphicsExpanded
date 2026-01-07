@@ -49,6 +49,15 @@ public class LumOnRenderer : IRenderer, IDisposable
     // Frame counter for ray jittering
     private int frameIndex;
 
+    // First frame detection (no valid history)
+    private bool isFirstFrame = true;
+
+    // Teleport detection
+    private double lastCameraX;
+    private double lastCameraY;
+    private double lastCameraZ;
+    private const float TeleportThreshold = 50.0f;  // meters
+
     // Debug counters
     private readonly LumOnDebugCounters debugCounters = new();
 
@@ -113,7 +122,23 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Initialize GPU timer queries
         InitializeTimerQueries();
 
+        // Register for world events (teleport, world change)
+        RegisterWorldEvents();
+
         capi.Logger.Notification("[LumOn] Renderer initialized");
+    }
+
+    private void RegisterWorldEvents()
+    {
+        // Clear history when leaving world (prevents stale data on rejoin)
+        capi.Event.LeaveWorld += OnLeaveWorld;
+    }
+
+    private void OnLeaveWorld()
+    {
+        isFirstFrame = true;
+        bufferManager?.ClearHistory();
+        capi.Logger.Debug("[LumOn] World left, cleared history");
     }
 
     private void InitializeTimerQueries()
@@ -161,16 +186,18 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     private bool OnCycleDebugMode(KeyCombination keyCombination)
     {
-        // Cycle through debug modes: 0-5
-        config.DebugMode = (config.DebugMode + 1) % 6;
+        // Cycle through debug modes: 0-7
+        config.DebugMode = (config.DebugMode + 1) % 8;
         string[] modeNames =
         [
             "Off (normal)",
             "Probe Grid",
-            "Raw Radiance",
+            "Probe Depth",
+            "Probe Normals",
+            "Scene Depth",
+            "Scene Normals",
             "Temporal Weight",
-            "Rejection Mask",
-            "SH Coefficients"
+            "Temporal Rejection"
         ];
         capi.TriggerIngameError(this, "vgelumondebug", $"[LumOn] Debug: {modeNames[config.DebugMode]}");
         return true;
@@ -208,6 +235,20 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Ensure LumOn buffers are allocated
         bufferManager.EnsureBuffers(capi.Render.FrameWidth, capi.Render.FrameHeight);
+
+        // Check for teleportation (large camera movement)
+        if (DetectTeleport())
+        {
+            bufferManager.ClearHistory();
+            isFirstFrame = true;
+        }
+
+        // Handle first frame (no valid history)
+        if (isFirstFrame)
+        {
+            bufferManager.ClearHistory();
+            isFirstFrame = false;
+        }
 
         // Capture the current scene for radiance sampling
         bufferManager.CaptureScene(primaryFb.FboId, capi.Render.FrameWidth, capi.Render.FrameHeight);
@@ -248,7 +289,41 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Swap radiance buffers for temporal accumulation
         bufferManager.SwapRadianceBuffers();
 
+        // Store camera position for teleport detection
+        StoreCameraPosition();
+
         frameIndex++;
+    }
+
+    /// <summary>
+    /// Detects large camera movements (teleportation) that invalidate history.
+    /// </summary>
+    private bool DetectTeleport()
+    {
+        var origin = capi.Render.CameraMatrixOrigin;
+        if (origin == null)
+            return false;
+
+        double dx = origin[0] - lastCameraX;
+        double dy = origin[1] - lastCameraY;
+        double dz = origin[2] - lastCameraZ;
+        double distance = Math.Sqrt(dx * dx + dy * dy + dz * dz);
+
+        return distance > TeleportThreshold;
+    }
+
+    /// <summary>
+    /// Stores current camera position for next frame's teleport detection.
+    /// </summary>
+    private void StoreCameraPosition()
+    {
+        var origin = capi.Render.CameraMatrixOrigin;
+        if (origin == null)
+            return;
+
+        lastCameraX = origin[0];
+        lastCameraY = origin[1];
+        lastCameraZ = origin[2];
     }
 
     private void UpdateMatrices()
@@ -370,7 +445,8 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     /// <summary>
     /// Pass 3: Blend current radiance with history for temporal stability.
-    /// Output: Updated radiance history.
+    /// Implements reprojection, validation, and neighborhood clamping.
+    /// Output: Updated radiance history and metadata.
     /// </summary>
     private void RenderTemporalPass()
     {
@@ -378,24 +454,40 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (shader is null || shader.LoadError)
             return;
 
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, bufferManager.RadianceHistoryFboId);
+        // Bind temporal output FBO (MRT: radiance0, radiance1, meta)
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, bufferManager.TemporalOutputFboId);
         GL.Viewport(0, 0, bufferManager.ProbeCountX, bufferManager.ProbeCountY);
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
 
-        // Bind current and history radiance textures
+        // Bind current frame radiance (from trace pass)
         shader.RadianceCurrent0 = bufferManager.RadianceCurrentTexture0Id;
         shader.RadianceCurrent1 = bufferManager.RadianceCurrentTexture1Id;
+
+        // Bind history radiance (from previous frame, after last swap)
         shader.RadianceHistory0 = bufferManager.RadianceHistoryTexture0Id;
         shader.RadianceHistory1 = bufferManager.RadianceHistoryTexture1Id;
 
-        // Bind probe anchors for validation
+        // Bind probe anchors for validation and reprojection
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTextureId;
+        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTextureId;
 
-        // Pass uniforms
+        // Bind history metadata for validation
+        shader.HistoryMeta = bufferManager.ProbeMetaHistoryTextureId;
+
+        // Pass matrices for reprojection
+        shader.InvViewMatrix = invModelViewMatrix;
         shader.PrevViewProjMatrix = prevViewProjMatrix;
+
+        // Pass probe grid size
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
+
+        // Pass depth parameters
+        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
+        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
+
+        // Pass temporal parameters
         shader.TemporalAlpha = config.TemporalAlpha;
         shader.DepthRejectThreshold = config.DepthRejectThreshold;
         shader.NormalRejectThreshold = config.NormalRejectThreshold;
@@ -603,6 +695,9 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     public void Dispose()
     {
+        // Unregister world events
+        capi.Event.LeaveWorld -= OnLeaveWorld;
+
         if (quadMeshRef is not null)
         {
             capi.Render.DeleteMesh(quadMeshRef);

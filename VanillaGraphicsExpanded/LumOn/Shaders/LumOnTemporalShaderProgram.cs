@@ -7,6 +7,8 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// <summary>
 /// Shader program for LumOn Temporal pass.
 /// Blends current radiance with history for temporal stability.
+/// Implements reprojection, validation, and neighborhood clamping.
+/// See: LumOn.05-Temporal.md
 /// </summary>
 public class LumOnTemporalShaderProgram : ShaderProgram
 {
@@ -52,9 +54,24 @@ public class LumOnTemporalShaderProgram : ShaderProgram
     /// </summary>
     public int ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 4); }
 
+    /// <summary>
+    /// Probe anchor normals for validation.
+    /// </summary>
+    public int ProbeAnchorNormal { set => BindTexture2D("probeAnchorNormal", value, 5); }
+
+    /// <summary>
+    /// History metadata texture (depth, normal, accumCount).
+    /// </summary>
+    public int HistoryMeta { set => BindTexture2D("historyMeta", value, 6); }
+
     #endregion
 
     #region Matrix Uniforms
+
+    /// <summary>
+    /// Current frame's inverse view matrix (view-space to world-space).
+    /// </summary>
+    public float[] InvViewMatrix { set => UniformMatrix("invViewMatrix", value); }
 
     /// <summary>
     /// Previous frame's view-projection matrix for reprojection.
@@ -72,6 +89,20 @@ public class LumOnTemporalShaderProgram : ShaderProgram
 
     #endregion
 
+    #region Depth Uniforms
+
+    /// <summary>
+    /// Near clip plane distance.
+    /// </summary>
+    public float ZNear { set => Uniform("zNear", value); }
+
+    /// <summary>
+    /// Far clip plane distance.
+    /// </summary>
+    public float ZFar { set => Uniform("zFar", value); }
+
+    #endregion
+
     #region Temporal Uniforms
 
     /// <summary>
@@ -80,7 +111,7 @@ public class LumOnTemporalShaderProgram : ShaderProgram
     public float TemporalAlpha { set => Uniform("temporalAlpha", value); }
 
     /// <summary>
-    /// Depth threshold for history rejection.
+    /// Depth threshold for history rejection (relative).
     /// </summary>
     public float DepthRejectThreshold { set => Uniform("depthRejectThreshold", value); }
 

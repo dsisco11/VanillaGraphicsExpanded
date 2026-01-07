@@ -57,6 +57,11 @@ public class LumOnDebugShaderProgram : ShaderProgram
     /// </summary>
     public int IndirectHalf { set => BindTexture2D("indirectHalf", value, 5); }
 
+    /// <summary>
+    /// History metadata texture (depth, normal, accumCount) for temporal debug.
+    /// </summary>
+    public int HistoryMeta { set => BindTexture2D("historyMeta", value, 6); }
+
     #endregion
 
     #region Size Uniforms
@@ -98,6 +103,35 @@ public class LumOnDebugShaderProgram : ShaderProgram
     /// Inverse projection matrix for position reconstruction.
     /// </summary>
     public float[] InvProjectionMatrix { set => UniformMatrix("invProjectionMatrix", value); }
+
+    /// <summary>
+    /// Inverse view matrix for temporal reprojection.
+    /// </summary>
+    public float[] InvViewMatrix { set => UniformMatrix("invViewMatrix", value); }
+
+    /// <summary>
+    /// Previous frame view-projection matrix for temporal reprojection.
+    /// </summary>
+    public float[] PrevViewProjMatrix { set => UniformMatrix("prevViewProjMatrix", value); }
+
+    #endregion
+
+    #region Temporal Config Uniforms
+
+    /// <summary>
+    /// Temporal blend factor.
+    /// </summary>
+    public float TemporalAlpha { set => Uniform("temporalAlpha", value); }
+
+    /// <summary>
+    /// Depth rejection threshold.
+    /// </summary>
+    public float DepthRejectThreshold { set => Uniform("depthRejectThreshold", value); }
+
+    /// <summary>
+    /// Normal rejection threshold (dot product).
+    /// </summary>
+    public float NormalRejectThreshold { set => Uniform("normalRejectThreshold", value); }
 
     #endregion
 

@@ -837,42 +837,42 @@ At 32K probes: ~3.5M ALU, 700K texture samples
 
 ### 13.1 Shader Files
 
-- [ ] Create `lumon_temporal.vsh`
-- [ ] Create `lumon_temporal.fsh`
-- [ ] Implement reprojection function
-- [ ] Implement history validation (depth/normal/bounds)
-- [ ] Implement neighborhood clamping (min/max)
+- [x] Create `lumon_temporal.vsh`
+- [x] Create `lumon_temporal.fsh`
+- [x] Implement reprojection function
+- [x] Implement history validation (depth/normal/bounds)
+- [x] Implement neighborhood clamping (min/max)
 - [ ] (Optional) Implement variance clamping alternative
-- [ ] Implement adaptive blend based on confidence
+- [x] Implement adaptive blend based on confidence
 
 ### 13.2 Shader Program Class
 
-- [ ] Create `LumOnTemporalShaderProgram.cs`
-- [ ] Add current frame texture properties
-- [ ] Add history texture properties
-- [ ] Add matrix uniform properties
-- [ ] Add config uniform properties
+- [x] Create `LumOnTemporalShaderProgram.cs`
+- [x] Add current frame texture properties
+- [x] Add history texture properties
+- [x] Add matrix uniform properties
+- [x] Add config uniform properties
 
 ### 13.3 Matrix Management
 
-- [ ] Store `prevViewMatrix` and `prevProjMatrix`
-- [ ] Compute `prevViewProjMatrix` using System.Numerics
-- [ ] Implement `ToMatrix4x4()` / `ToFloatArray()` helpers
-- [ ] Implement `GetInverseViewMatrix()`
+- [x] Store `prevViewMatrix` and `prevProjMatrix`
+- [x] Compute `prevViewProjMatrix` using System.Numerics
+- [x] Implement `ToMatrix4x4()` / `ToFloatArray()` helpers
+- [x] Implement `GetInverseViewMatrix()`
 
 ### 13.4 Buffer Management
 
-- [ ] Create ProbeMetaCurrent/History framebuffers
-- [ ] Store accumulation count per probe in meta alpha
-- [ ] Update `SwapAllBuffers()` to include meta
-- [ ] Handle first frame (no history)
-- [ ] Implement `isFirstFrame` flag handling
+- [x] Create ProbeMetaCurrent/History framebuffers
+- [x] Store accumulation count per probe in meta alpha
+- [x] Update `SwapAllBuffers()` to include meta
+- [x] Handle first frame (no history)
+- [x] Implement `isFirstFrame` flag handling
 
 ### 13.5 Special Cases
 
-- [ ] Implement teleport detection
-- [ ] Register for world unload/load events
-- [ ] Clear history on scene change
+- [x] Implement teleport detection
+- [x] Register for world unload/load events
+- [x] Clear history on scene change
 
 ### 13.6 Testing
 

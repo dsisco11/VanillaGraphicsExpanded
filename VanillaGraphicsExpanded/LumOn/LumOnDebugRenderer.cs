@@ -17,6 +17,8 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// 3 = Probe Normals (shows probe anchor normals)
 /// 4 = Scene Depth (shows linearized depth buffer)
 /// 5 = Scene Normals (shows G-buffer normals)
+/// 6 = Temporal Weight (shows how much history is used per probe)
+/// 7 = Temporal Rejection (shows why history was rejected: bounds/depth/normal)
 /// </summary>
 public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 {
@@ -36,8 +38,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     private MeshRef? quadMeshRef;
 
-    // Matrix buffer for inverse projection
+    // Matrix buffers
     private readonly float[] invProjectionMatrix = new float[16];
+    private readonly float[] invViewMatrix = new float[16];
+    private readonly float[] prevViewProjMatrix = new float[16];
 
     #endregion
 
@@ -72,6 +76,15 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         capi.Logger.Notification("[LumOn] Debug renderer initialized");
     }
 
+    /// <summary>
+    /// Updates the previous view-projection matrix for temporal debug visualization.
+    /// Call this from the main renderer after storing the matrix.
+    /// </summary>
+    public void SetPrevViewProjMatrix(float[] matrix)
+    {
+        Array.Copy(matrix, prevViewProjMatrix, 16);
+    }
+
     #endregion
 
     #region IRenderer
@@ -94,8 +107,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         if (primaryFb is null)
             return;
 
-        // Update inverse projection matrix
+        // Update matrices
         ComputeInverseMatrix(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
+        ComputeInverseMatrix(capi.Render.CameraMatrixOriginf, invViewMatrix);
 
         // Disable depth test for fullscreen overlay
         capi.Render.GLDepthMask(false);
@@ -111,6 +125,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTextureId;
         shader.RadianceTexture0 = bufferManager.RadianceHistoryTexture0Id;
         shader.IndirectHalf = bufferManager.IndirectHalfTextureId;
+        shader.HistoryMeta = bufferManager.ProbeMetaHistoryTextureId;
 
         // Pass uniforms
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
@@ -120,6 +135,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         shader.ZFar = capi.Render.ShaderUniforms.ZFar;
         shader.DebugMode = config.DebugMode;
         shader.InvProjectionMatrix = invProjectionMatrix;
+        shader.InvViewMatrix = invViewMatrix;
+        shader.PrevViewProjMatrix = prevViewProjMatrix;
+        shader.TemporalAlpha = config.TemporalAlpha;
+        shader.DepthRejectThreshold = config.DepthRejectThreshold;
+        shader.NormalRejectThreshold = config.NormalRejectThreshold;
 
         // Render fullscreen quad
         capi.Render.RenderMesh(quadMeshRef);
