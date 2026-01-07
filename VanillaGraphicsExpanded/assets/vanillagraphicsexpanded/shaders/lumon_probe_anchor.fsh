@@ -29,6 +29,7 @@ uniform sampler2D gBufferNormal;   // World-space normals
 
 // Matrices
 uniform mat4 invProjectionMatrix;  // For view-space position reconstruction
+uniform mat4 modelViewMatrix;      // For world-to-view space normal transform
 
 // Probe grid parameters
 uniform int probeSpacing;          // Pixels between probes
@@ -126,7 +127,7 @@ void main(void)
     // Reconstruct view-space position
     vec3 posVS = lumonReconstructViewPos(screenUV, depth, invProjectionMatrix);
     
-    // Sample and decode world-space normal
+    // Sample and decode world-space normal from G-buffer
     vec3 normalRaw = texture(gBufferNormal, screenUV).xyz;
     vec3 normalWS = lumonDecodeNormal(normalRaw);
     
@@ -138,13 +139,17 @@ void main(void)
         return;
     }
     
+    // Convert world-space normal to view-space for consistency with posVS
+    // This is critical: ray marching operates in view-space, so normal must match
+    vec3 normalVS = normalize(mat3(modelViewMatrix) * normalWS);
+    
     // ========================================================================
     // Output
     // ========================================================================
     
-    // Store position with validity flag
+    // Store position with validity flag (view-space)
     outPosition = vec4(posVS, valid);
     
-    // Store normal (encoded to [0,1] range for storage)
-    outNormal = vec4(lumonEncodeNormal(normalWS), 0.0);
+    // Store normal in view-space (encoded to [0,1] range for storage)
+    outNormal = vec4(lumonEncodeNormal(normalVS), 0.0);
 }

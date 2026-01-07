@@ -50,6 +50,12 @@ public class LumOnProbeAnchorShaderProgram : ShaderProgram
     /// </summary>
     public float[] InvProjectionMatrix { set => UniformMatrix("invProjectionMatrix", value); }
 
+    /// <summary>
+    /// Model-view matrix for transforming world-space normals to view-space.
+    /// Required because G-buffer normals are world-space but ray marching is view-space.
+    /// </summary>
+    public float[] ModelViewMatrix { set => UniformMatrix("modelViewMatrix", value); }
+
     #endregion
 
     #region Probe Grid Uniforms

@@ -290,8 +290,11 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.PrimaryDepth = primaryFb.DepthTextureId;
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
 
-        // Pass uniforms
+        // Pass matrices
         shader.InvProjectionMatrix = invProjectionMatrix;
+        shader.ModelViewMatrix = modelViewMatrix;  // For world-to-view space normal transform
+        
+        // Pass probe grid uniforms
         shader.ProbeSpacing = config.ProbeSpacingPx;
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);

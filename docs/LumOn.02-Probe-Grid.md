@@ -100,16 +100,20 @@ Two RGBA16F textures store probe anchor data:
 |                    | G       | posVS.y    | view-space meters                          |
 |                    | B       | posVS.z    | view-space meters (negative = into screen) |
 |                    | A       | valid      | 0.0 = invalid, 1.0 = valid                 |
-| **ProbeAnchor[1]** | R       | normalVS.x | [-1, 1]                                    |
-|                    | G       | normalVS.y | [-1, 1]                                    |
-|                    | B       | normalVS.z | [-1, 1]                                    |
+| **ProbeAnchor[1]** | R       | normalVS.x | [-1, 1] (view-space, converted from WS)    |
+|                    | G       | normalVS.y | [-1, 1] (view-space, converted from WS)    |
+|                    | B       | normalVS.z | [-1, 1] (view-space, converted from WS)    |
 |                    | A       | reserved   | future: material flags                     |
 
 ### 3.2 Why View-Space?
 
-- **Consistent with G-Buffer**: VS's `gPosition` and `gNormal` are view-space
+- **Consistent with G-Buffer**: VS's `gPosition` is view-space
 - **Simpler math**: Ray marching stays in view-space
 - **Reprojection**: World-space conversion only needed for temporal pass
+
+> **Note**: Normals from `gNormal` are stored in **world-space** in Vintage Story's G-buffer.
+> The probe anchor pass converts them to **view-space** using the model-view matrix,
+> ensuring consistency with the view-space positions for ray marching.
 
 ### 3.3 GLSL Output Declaration
 
