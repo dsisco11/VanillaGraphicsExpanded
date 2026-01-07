@@ -231,6 +231,45 @@ public sealed class LumOnBufferManager : IDisposable
     }
 
     /// <summary>
+    /// Clears the radiance history buffer to black.
+    /// Call this on first frame, after teleportation, or when history is invalidated.
+    /// Forces full recomputation of radiance cache.
+    /// </summary>
+    public void ClearHistory()
+    {
+        if (!isInitialized || radianceHistoryFboId == 0)
+            return;
+
+        // Save current framebuffer binding
+        GL.GetInteger(GetPName.FramebufferBinding, out int previousFbo);
+
+        // Bind history FBO and clear all attachments to black
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, radianceHistoryFboId);
+        GL.ClearColor(0f, 0f, 0f, 0f);
+        GL.Clear(ClearBufferMask.ColorBufferBit);
+
+        // Also clear current buffer to ensure clean start
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, radianceCurrentFboId);
+        GL.Clear(ClearBufferMask.ColorBufferBit);
+
+        // Restore previous framebuffer
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, previousFbo);
+
+        capi.Logger.Debug("[LumOn] Cleared radiance history buffers");
+    }
+
+    /// <summary>
+    /// Invalidates the radiance cache due to camera discontinuity.
+    /// Call when camera teleports or view changes significantly.
+    /// </summary>
+    /// <param name="reason">Reason for invalidation (for logging)</param>
+    public void InvalidateCache(string reason)
+    {
+        ClearHistory();
+        capi.Logger.Notification($"[LumOn] Cache invalidated: {reason}");
+    }
+
+    /// <summary>
     /// Captures the current primary framebuffer to the captured scene texture.
     /// Call this before probe tracing to have the lit scene available for radiance sampling.
     /// </summary>

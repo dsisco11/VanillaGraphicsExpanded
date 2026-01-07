@@ -461,7 +461,10 @@ void AccumulateRadiance(inout SimpleRadiance accum,
                         vec3 sampleDir, vec3 sampleRadiance,
                         float weight) {
     accum.ambient += sampleRadiance * weight;
-    accum.dominantDir += sampleDir * dot(sampleRadiance, vec3(0.333)) * weight;
+    // Use perceptual luminance weights for direction accumulation
+    // This gives better results for natural lighting scenarios
+    float lum = dot(sampleRadiance, vec3(0.2126, 0.7152, 0.0722));
+    accum.dominantDir += sampleDir * lum * weight;
     accum.intensity += weight;
 }
 
@@ -485,7 +488,10 @@ void NormalizeRadiance(inout SimpleRadiance rad) {
 SimpleRadiance LerpRadiance(SimpleRadiance a, SimpleRadiance b, float t) {
     SimpleRadiance result;
     result.ambient = mix(a.ambient, b.ambient, t);
-    result.dominantDir = normalize(mix(a.dominantDir, b.dominantDir, t));
+    // Handle zero-length direction to avoid NaN from normalize
+    vec3 mixedDir = mix(a.dominantDir, b.dominantDir, t);
+    float mixedLen = length(mixedDir);
+    result.dominantDir = mixedLen > 0.001 ? mixedDir / mixedLen : vec3(0.0, 1.0, 0.0);
     result.directionalRatio = mix(a.directionalRatio, b.directionalRatio, t);
     result.intensity = mix(a.intensity, b.intensity, t);
     return result;
@@ -629,33 +635,33 @@ L2 adds 5 more coefficients (9 total) for sharper features:
 
 ### 8.1 Shader Includes
 
-- [ ] Create `lumon_sh.ash` in `shaderincludes/`
-- [ ] Implement `SHBasis()` function
-- [ ] Implement `SHProject()` function
-- [ ] Implement `SHProjectCosine()` function
-- [ ] Implement `SHEvaluate()` function
-- [ ] Implement `SHEvaluateDiffuse()` function
-- [ ] Implement `SHAccumulate()` function
-- [ ] Implement `SHScale()` function
-- [ ] Implement `SHLerp()` function
-- [ ] Implement `SHBilinearEvaluate()` function
-- [ ] Implement `SHNormalize()` function
-- [ ] Implement `SHClampNegative()` function
-- [ ] Implement `SHDominantDirection()` function
-- [ ] Implement `SHAmbient()` function
-- [ ] Add pack/unpack helpers for 2-texture layout
+- [x] Create `lumon_sh.ash` in `shaderincludes/` *(implemented as `lumon_sh.fsh`)*
+- [x] Implement `SHBasis()` function *(implemented as `shEncode()`)*
+- [x] Implement `SHProject()` function *(implemented as `shProjectOut()` + `shProjectRGB()`)*
+- [x] Implement `SHProjectCosine()` function *(implemented as `shProjectCosineRGB()`)*
+- [x] Implement `SHEvaluate()` function *(implemented as `shEvaluate()`, `shEvaluateRGB()`)*
+- [x] Implement `SHEvaluateDiffuse()` function *(implemented as `shEvaluateDiffuseRGB()`)*
+- [x] Implement `SHAccumulate()` function *(implemented as `shAccumulate()`)*
+- [x] Implement `SHScale()` function *(implemented as `shScale()`)*
+- [x] Implement `SHLerp()` function *(implemented as `shLerp()`)*
+- [x] Implement `SHBilinearEvaluate()` function *(implemented as `shBilinearEvaluate()`)*
+- [x] Implement `SHNormalize()` function *(implemented as `shNormalize()`)*
+- [x] Implement `SHClampNegative()` function *(implemented as `shClampNegative()`)*
+- [x] Implement `SHDominantDirection()` function *(implemented as `shDominantDirection()`)*
+- [x] Implement `SHAmbient()` function *(implemented as `shAmbient()`)*
+- [x] Add pack/unpack helpers for 2-texture layout *(implemented in `lumon_sh.fsh` and `lumon_sh_pack.fsh`)*
 
 ### 8.2 Buffer Management
 
-- [ ] Create ProbeRadiance framebuffers (read/write pair)
-- [ ] Each FB has 2 RGBA16F attachments
-- [ ] Implement `SwapRadianceBuffers()` method
-- [ ] Add `ClearHistory()` for first frame/teleport
+- [x] Create ProbeRadiance framebuffers (read/write pair)
+- [x] Each FB has 2 RGBA16F attachments
+- [x] Implement `SwapRadianceBuffers()` method
+- [x] Add `ClearHistory()` for first frame/teleport *(also added `InvalidateCache()`)*
 
 ### 8.3 Simplified Encoding (M1)
 
-- [ ] Create `lumon_radiance_simple.ash` alternative
-- [ ] Implement `EncodeRadiance()` / `DecodeRadiance()`
+- [x] Create `lumon_radiance_simple.ash` alternative *(implemented as `lumon_radiance_simple.fsh`)*
+- [x] Implement `EncodeRadiance()` / `DecodeRadiance()` *(implemented as `encodeRadiance()` / `decodeRadiance()`)*
 - [ ] Test with simple directional lighting
 
 ### 8.4 Testing
