@@ -66,6 +66,13 @@ public sealed class LumOnBufferManager : IDisposable
     private int indirectFullFboId;
     private int indirectFullTextureId;
 
+    // ═══════════════════════════════════════════════════════════════
+    // Captured Scene Buffer (for radiance sampling)
+    // ═══════════════════════════════════════════════════════════════
+
+    private int capturedSceneFboId;
+    private int capturedSceneTextureId;
+
     // Double-buffer swap index (0 or 1)
     private int currentBufferIndex;
 
@@ -151,6 +158,16 @@ public sealed class LumOnBufferManager : IDisposable
     public int IndirectFullTextureId => indirectFullTextureId;
 
     /// <summary>
+    /// OpenGL FBO ID for captured scene (used for blitting).
+    /// </summary>
+    public int CapturedSceneFboId => capturedSceneFboId;
+
+    /// <summary>
+    /// OpenGL texture ID for captured scene (radiance sampling source).
+    /// </summary>
+    public int CapturedSceneTextureId => capturedSceneTextureId;
+
+    /// <summary>
     /// Half-resolution buffer width.
     /// </summary>
     public int HalfResWidth => halfResWidth;
@@ -213,6 +230,31 @@ public sealed class LumOnBufferManager : IDisposable
         currentBufferIndex = 1 - currentBufferIndex;
     }
 
+    /// <summary>
+    /// Captures the current primary framebuffer to the captured scene texture.
+    /// Call this before probe tracing to have the lit scene available for radiance sampling.
+    /// </summary>
+    /// <param name="primaryFboId">The primary framebuffer ID to blit from</param>
+    /// <param name="screenWidth">Screen width</param>
+    /// <param name="screenHeight">Screen height</param>
+    public void CaptureScene(int primaryFboId, int screenWidth, int screenHeight)
+    {
+        if (!isInitialized || capturedSceneFboId == 0)
+            return;
+
+        // Blit from primary FB to captured scene texture
+        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, primaryFboId);
+        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, capturedSceneFboId);
+
+        GL.BlitFramebuffer(
+            0, 0, screenWidth, screenHeight,
+            0, 0, screenWidth, screenHeight,
+            ClearBufferMask.ColorBufferBit,
+            BlitFramebufferFilter.Nearest);
+
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+    }
+
     #endregion
 
     #region Private Methods
@@ -267,6 +309,13 @@ public sealed class LumOnBufferManager : IDisposable
         indirectFullTextureId = CreateTexture(screenWidth, screenHeight, PixelInternalFormat.Rgba16f);
         indirectFullFboId = CreateFramebuffer(indirectFullTextureId);
 
+        // ═══════════════════════════════════════════════════════════════
+        // Create Captured Scene Buffer
+        // ═══════════════════════════════════════════════════════════════
+
+        capturedSceneTextureId = CreateTexture(screenWidth, screenHeight, PixelInternalFormat.Rgba16f, linear: true);
+        capturedSceneFboId = CreateFramebuffer(capturedSceneTextureId);
+
         isInitialized = true;
         currentBufferIndex = 0;
 
@@ -275,7 +324,7 @@ public sealed class LumOnBufferManager : IDisposable
             $"spacing={config.ProbeSpacingPx}px, halfRes={halfResWidth}x{halfResHeight}");
     }
 
-    private int CreateTexture(int width, int height, PixelInternalFormat internalFormat)
+    private int CreateTexture(int width, int height, PixelInternalFormat internalFormat, bool linear = false)
     {
         int textureId = GL.GenTexture();
         GL.BindTexture(TextureTarget.Texture2D, textureId);
@@ -291,9 +340,11 @@ public sealed class LumOnBufferManager : IDisposable
             PixelType.Float,
             IntPtr.Zero);
 
-        // Use nearest filtering for probe textures (no interpolation between probes)
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+        // Use linear filtering for scene textures, nearest for probe textures
+        var filter = linear ? TextureMinFilter.Linear : TextureMinFilter.Nearest;
+        var magFilter = linear ? TextureMagFilter.Linear : TextureMagFilter.Nearest;
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)filter);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)magFilter);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
 
@@ -375,6 +426,9 @@ public sealed class LumOnBufferManager : IDisposable
 
         // Delete Indirect Full buffer
         DeleteFramebufferAndTexture(ref indirectFullFboId, ref indirectFullTextureId);
+
+        // Delete Captured Scene buffer
+        DeleteFramebufferAndTexture(ref capturedSceneFboId, ref capturedSceneTextureId);
 
         isInitialized = false;
     }

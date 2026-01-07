@@ -52,6 +52,11 @@ public class LumOnRenderer : IRenderer, IDisposable
     // Debug counters
     private readonly LumOnDebugCounters debugCounters = new();
 
+    // GPU timer queries for performance profiling
+    private readonly int[] timerQueries = new int[5];
+    private bool timerQueriesInitialized;
+    private bool timerQueryPending;
+
     #endregion
 
     #region Properties
@@ -105,7 +110,16 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Register debug hotkeys
         RegisterHotkeys();
 
+        // Initialize GPU timer queries
+        InitializeTimerQueries();
+
         capi.Logger.Notification("[LumOn] Renderer initialized");
+    }
+
+    private void InitializeTimerQueries()
+    {
+        GL.GenQueries(timerQueries.Length, timerQueries);
+        timerQueriesInitialized = true;
     }
 
     private void RegisterHotkeys()
@@ -126,6 +140,15 @@ public class LumOnRenderer : IRenderer, IDisposable
             HotkeyType.DevTool,
             shiftPressed: true);
         capi.Input.SetHotKeyHandler("vgelumondebug", OnCycleDebugMode);
+
+        // Register hotkey for LumOn stats display (Ctrl+F9)
+        capi.Input.RegisterHotKey(
+            "vgelumonstats",
+            "VGE Show LumOn Stats",
+            GlKeys.F9,
+            HotkeyType.DevTool,
+            ctrlPressed: true);
+        capi.Input.SetHotKeyHandler("vgelumonstats", OnShowStats);
     }
 
     private bool OnToggleLumOn(KeyCombination keyCombination)
@@ -153,6 +176,16 @@ public class LumOnRenderer : IRenderer, IDisposable
         return true;
     }
 
+    private bool OnShowStats(KeyCombination keyCombination)
+    {
+        var c = debugCounters;
+        string stats = $"[LumOn] Probes: {c.TotalProbes} | " +
+                       $"Time: {c.TotalFrameMs:F2}ms (A:{c.ProbeAnchorPassMs:F2} T:{c.ProbeTracePassMs:F2} " +
+                       $"Tp:{c.TemporalPassMs:F2} G:{c.GatherPassMs:F2} U:{c.UpsamplePassMs:F2})";
+        capi.ShowChatMessage(stats);
+        return true;
+    }
+
     #endregion
 
     #region Rendering
@@ -166,6 +199,9 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (primaryFb is null)
             return;
 
+        // Collect GPU timing from previous frame (avoid stalls)
+        CollectTimerQueryResults();
+
         // Reset debug counters
         debugCounters.Reset();
         debugCounters.TotalProbes = bufferManager.ProbeCountX * bufferManager.ProbeCountY;
@@ -173,23 +209,38 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Ensure LumOn buffers are allocated
         bufferManager.EnsureBuffers(capi.Render.FrameWidth, capi.Render.FrameHeight);
 
+        // Capture the current scene for radiance sampling
+        bufferManager.CaptureScene(primaryFb.FboId, capi.Render.FrameWidth, capi.Render.FrameHeight);
+
         // Update matrices
         UpdateMatrices();
 
         // === Pass 1: Probe Anchor ===
+        BeginTimerQuery(0);
         RenderProbeAnchorPass(primaryFb);
+        EndTimerQuery();
 
         // === Pass 2: Probe Trace ===
+        BeginTimerQuery(1);
         RenderProbeTracePass(primaryFb);
+        EndTimerQuery();
 
         // === Pass 3: Temporal Accumulation ===
+        BeginTimerQuery(2);
         RenderTemporalPass();
+        EndTimerQuery();
 
         // === Pass 4: Gather ===
+        BeginTimerQuery(3);
         RenderGatherPass(primaryFb);
+        EndTimerQuery();
 
         // === Pass 5: Upsample ===
+        BeginTimerQuery(4);
         RenderUpsamplePass(primaryFb);
+        EndTimerQuery();
+
+        timerQueryPending = true;
 
         // Store current view-projection matrix for next frame
         Array.Copy(currentViewProjMatrix, prevViewProjMatrix, 16);
@@ -269,10 +320,9 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTextureId;
         shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTextureId;
 
-        // Bind scene for radiance sampling
-        // TODO: Need captured scene texture from SSGI buffer manager or similar
+        // Bind scene for radiance sampling (captured before this pass)
         shader.PrimaryDepth = primaryFb.DepthTextureId;
-        shader.PrimaryColor = primaryFb.ColorTextureIds[0];
+        shader.PrimaryColor = bufferManager.CapturedSceneTextureId;
 
         // Pass matrices
         shader.InvProjectionMatrix = invProjectionMatrix;
@@ -481,6 +531,59 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     #endregion
 
+    #region GPU Timer Queries
+
+    private void BeginTimerQuery(int passIndex)
+    {
+        if (!timerQueriesInitialized || passIndex < 0 || passIndex >= timerQueries.Length)
+            return;
+
+        GL.BeginQuery(QueryTarget.TimeElapsed, timerQueries[passIndex]);
+    }
+
+    private void EndTimerQuery()
+    {
+        GL.EndQuery(QueryTarget.TimeElapsed);
+    }
+
+    private void CollectTimerQueryResults()
+    {
+        if (!timerQueryPending || !timerQueriesInitialized)
+            return;
+
+        // Check if results are available (avoid stalls)
+        GL.GetQueryObject(timerQueries[4], GetQueryObjectParam.QueryResultAvailable, out int available);
+        if (available == 0)
+            return;
+
+        // Collect all timing results
+        for (int i = 0; i < timerQueries.Length; i++)
+        {
+            GL.GetQueryObject(timerQueries[i], GetQueryObjectParam.QueryResult, out long nanoseconds);
+            float ms = nanoseconds / 1_000_000f;
+
+            switch (i)
+            {
+                case 0: debugCounters.ProbeAnchorPassMs = ms; break;
+                case 1: debugCounters.ProbeTracePassMs = ms; break;
+                case 2: debugCounters.TemporalPassMs = ms; break;
+                case 3: debugCounters.GatherPassMs = ms; break;
+                case 4: debugCounters.UpsamplePassMs = ms; break;
+            }
+        }
+
+        debugCounters.TotalFrameMs =
+            debugCounters.ProbeAnchorPassMs +
+            debugCounters.ProbeTracePassMs +
+            debugCounters.TemporalPassMs +
+            debugCounters.GatherPassMs +
+            debugCounters.UpsamplePassMs;
+
+        timerQueryPending = false;
+    }
+
+    #endregion
+
     #region IDisposable
 
     public void Dispose()
@@ -489,6 +592,12 @@ public class LumOnRenderer : IRenderer, IDisposable
         {
             capi.Render.DeleteMesh(quadMeshRef);
             quadMeshRef = null;
+        }
+
+        if (timerQueriesInitialized)
+        {
+            GL.DeleteQueries(timerQueries.Length, timerQueries);
+            timerQueriesInitialized = false;
         }
     }
 
