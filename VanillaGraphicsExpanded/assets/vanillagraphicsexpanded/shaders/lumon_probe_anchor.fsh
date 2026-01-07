@@ -15,7 +15,7 @@ layout(location = 1) out vec4 outNormal;    // normalVS.xyz, reserved
 // ============================================================================
 
 // Import common utilities
-@import "lumon_common.ash"
+@import "lumon_common.fsh"
 
 // G-buffer textures
 uniform sampler2D primaryDepth;    // Depth buffer

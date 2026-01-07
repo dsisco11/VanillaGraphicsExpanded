@@ -14,7 +14,7 @@ layout(location = 1) out vec4 outRadiance1;  // SH coefficients set 1
 // ============================================================================
 
 // Import common utilities
-@import "lumon_common.ash"
+@import "lumon_common.fsh"
 
 // Import SH helpers
 @import "lumon_sh.fsh"

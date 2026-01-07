@@ -12,7 +12,7 @@ out vec4 outColor;
 // ============================================================================
 
 // Import common utilities
-@import "lumon_common.ash"
+@import "lumon_common.fsh"
 
 // Import SH helpers
 @import "lumon_sh.fsh"

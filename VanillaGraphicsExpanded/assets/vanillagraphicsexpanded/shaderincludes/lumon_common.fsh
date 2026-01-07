@@ -6,9 +6,7 @@
 // Shared functions used across all LumOn shader passes.
 // Include this file in any LumOn shader that needs depth/position utilities.
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Constants
-// ═══════════════════════════════════════════════════════════════════════════
+// #region Constants
 
 const float LUMON_PI = 3.141592653589793;
 const float LUMON_TAU = 6.283185307179586;
@@ -18,9 +16,9 @@ const float LUMON_PHI = 1.618033988749895;
 // Sky depth threshold (values >= this are considered sky)
 const float LUMON_SKY_DEPTH_THRESHOLD = 0.9999;
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Depth Utilities
-// ═══════════════════════════════════════════════════════════════════════════
+// #endregion
+
+// #region Depth Utilities
 
 /**
  * Linearize depth from depth buffer (non-linear to linear view-space Z).
@@ -43,9 +41,9 @@ bool lumonIsSky(float depth) {
     return depth >= LUMON_SKY_DEPTH_THRESHOLD;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Position Reconstruction
-// ═══════════════════════════════════════════════════════════════════════════
+// #endregion
+
+// #region Position Reconstruction
 
 /**
  * Reconstruct view-space position from UV and depth.
@@ -71,9 +69,9 @@ vec2 lumonProjectToScreen(vec3 viewPos, mat4 projectionMatrix) {
     return (clipPos.xy / clipPos.w) * 0.5 + 0.5;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Normal Utilities
-// ═══════════════════════════════════════════════════════════════════════════
+// #endregion
+
+// #region Normal Utilities
 
 /**
  * Decode normal from G-buffer format [0,1] to [-1,1].
@@ -93,9 +91,9 @@ vec3 lumonEncodeNormal(vec3 normal) {
     return normal * 0.5 + 0.5;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Sampling Utilities
-// ═══════════════════════════════════════════════════════════════════════════
+// #endregion
+
+// #region Sampling Utilities
 
 /**
  * Generate cosine-weighted hemisphere direction for importance sampling.
@@ -121,9 +119,9 @@ vec3 lumonCosineSampleHemisphere(vec2 u, vec3 normal) {
     return normalize(tangent * x + bitangent * y + normal * z);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Sky/Environment Utilities
-// ═══════════════════════════════════════════════════════════════════════════
+// #endregion
+
+// #region Sky/Environment Utilities
 
 /**
  * Get sky color for a ray direction (simple gradient + sun).
@@ -145,9 +143,9 @@ vec3 lumonGetSkyColor(vec3 rayDir, vec3 sunPosition, vec3 sunColor, vec3 ambient
     return skyColor * skyMissWeight;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Probe Grid Utilities
-// ═══════════════════════════════════════════════════════════════════════════
+// #endregion
+
+// #region Probe Grid Utilities
 
 /**
  * Convert probe grid coordinates to texture UV.
@@ -180,4 +178,6 @@ vec2 lumonProbeToScreenUV(ivec2 probeCoord, float probeSpacing, vec2 screenSize)
     vec2 screenPos = (vec2(probeCoord) + 0.5) * probeSpacing;
     return screenPos / screenSize;
 }
+
+// #endregion
 #endif // LUMON_COMMON_ASH
