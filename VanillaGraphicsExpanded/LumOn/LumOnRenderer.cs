@@ -268,6 +268,10 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// <summary>
     /// Pass 1: Build probe anchors from G-buffer depth and normals.
     /// Output: ProbeAnchor textures with probe positions and normals.
+    /// Implements validation from LumOn.02-Probe-Grid.md:
+    /// - Sky rejection (depth >= 0.9999)
+    /// - Edge detection via depth discontinuity (partial validity)
+    /// - Invalid normal rejection
     /// </summary>
     private void RenderProbeAnchorPass(FrameBufferRef primaryFb)
     {
@@ -293,6 +297,9 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
         shader.ZNear = capi.Render.ShaderUniforms.ZNear;
         shader.ZFar = capi.Render.ShaderUniforms.ZFar;
+
+        // Edge detection threshold for depth discontinuity
+        shader.DepthDiscontinuityThreshold = config.DepthDiscontinuityThreshold;
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);

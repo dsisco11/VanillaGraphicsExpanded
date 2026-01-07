@@ -179,5 +179,50 @@ vec2 lumonProbeToScreenUV(ivec2 probeCoord, float probeSpacing, vec2 screenSize)
     return screenPos / screenSize;
 }
 
+/**
+ * Convert screen pixel to probe grid coordinate.
+ * @param screenPixel Screen pixel coordinates
+ * @param probeSpacing Pixels per probe cell
+ * @return Probe grid coordinate (integer)
+ */
+ivec2 lumonScreenToProbeCoord(ivec2 screenPixel, int probeSpacing) {
+    return screenPixel / probeSpacing;
+}
+
+/**
+ * Convert probe grid coordinate to screen pixel (probe center).
+ * @param probeCoord Probe grid coordinate
+ * @param probeSpacing Pixels per probe cell
+ * @return Screen pixel at probe center
+ */
+ivec2 lumonProbeToScreenCoord(ivec2 probeCoord, int probeSpacing) {
+    return probeCoord * probeSpacing + probeSpacing / 2;
+}
+
+/**
+ * Get the 4 probes surrounding a pixel for bilinear interpolation.
+ * @param screenUV Screen UV coordinates [0, 1]
+ * @param probeSpacing Pixels per probe cell
+ * @param screenSize Screen dimensions in pixels
+ * @param probe00 Output: bottom-left probe coordinate
+ * @param probe10 Output: bottom-right probe coordinate
+ * @param probe01 Output: top-left probe coordinate
+ * @param probe11 Output: top-right probe coordinate
+ * @param weights Output: bilinear interpolation weights (fract of probe position)
+ */
+void lumonGetEnclosingProbes(vec2 screenUV, int probeSpacing, ivec2 screenSize,
+                             out ivec2 probe00, out ivec2 probe10,
+                             out ivec2 probe01, out ivec2 probe11,
+                             out vec2 weights) {
+    vec2 probeUV = screenUV * vec2(screenSize) / float(probeSpacing) - 0.5;
+    ivec2 baseProbe = ivec2(floor(probeUV));
+    weights = fract(probeUV);
+    
+    probe00 = baseProbe;
+    probe10 = baseProbe + ivec2(1, 0);
+    probe01 = baseProbe + ivec2(0, 1);
+    probe11 = baseProbe + ivec2(1, 1);
+}
+
 // #endregion
 #endif // LUMON_COMMON_ASH

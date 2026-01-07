@@ -7,6 +7,10 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// <summary>
 /// Shader program for LumOn Probe Anchor pass.
 /// Determines probe positions from G-buffer depth/normals.
+/// Implements validation criteria from LumOn.02-Probe-Grid.md:
+/// - Sky rejection (depth >= 0.9999)
+/// - Edge detection via depth discontinuity (reduces temporal weight)
+/// - Invalid normal rejection
 /// </summary>
 public class LumOnProbeAnchorShaderProgram : ShaderProgram
 {
@@ -78,6 +82,18 @@ public class LumOnProbeAnchorShaderProgram : ShaderProgram
     /// Far clipping plane distance.
     /// </summary>
     public float ZFar { set => Uniform("zFar", value); }
+
+    #endregion
+
+    #region Edge Detection Uniforms
+
+    /// <summary>
+    /// Threshold for depth discontinuity detection.
+    /// Probes at edges (depth discontinuities) are marked with partial validity (0.5)
+    /// for reduced temporal accumulation weight.
+    /// Recommended value: 0.1
+    /// </summary>
+    public float DepthDiscontinuityThreshold { set => Uniform("depthDiscontinuityThreshold", value); }
 
     #endregion
 }
