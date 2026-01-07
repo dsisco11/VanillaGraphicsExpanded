@@ -271,13 +271,13 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeAnchorPass(FrameBufferRef primaryFb)
     {
+        var shader = ShaderRegistry.getProgramByName("lumon_probe_anchor") as LumOnProbeAnchorShaderProgram;
+        if (shader is null || shader.LoadError)
+            return;
+
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, bufferManager.ProbeAnchorFboId);
         GL.Viewport(0, 0, bufferManager.ProbeCountX, bufferManager.ProbeCountY);
         GL.Clear(ClearBufferMask.ColorBufferBit);
-
-        var shader = ShaderRegistry.getProgramByName("lumon_probe_anchor") as LumOnProbeAnchorShaderProgram;
-        if (shader is null)
-            return;
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
@@ -305,13 +305,13 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeTracePass(FrameBufferRef primaryFb)
     {
+        var shader = ShaderRegistry.getProgramByName("lumon_probe_trace") as LumOnProbeTraceShaderProgram;
+        if (shader is null || shader.LoadError)
+            return;
+
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, bufferManager.RadianceCurrentFboId);
         GL.Viewport(0, 0, bufferManager.ProbeCountX, bufferManager.ProbeCountY);
         GL.Clear(ClearBufferMask.ColorBufferBit);
-
-        var shader = ShaderRegistry.getProgramByName("lumon_probe_trace") as LumOnProbeTraceShaderProgram;
-        if (shader is null)
-            return;
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
@@ -358,12 +358,12 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderTemporalPass()
     {
+        var shader = ShaderRegistry.getProgramByName("lumon_temporal") as LumOnTemporalShaderProgram;
+        if (shader is null || shader.LoadError)
+            return;
+
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, bufferManager.RadianceHistoryFboId);
         GL.Viewport(0, 0, bufferManager.ProbeCountX, bufferManager.ProbeCountY);
-
-        var shader = ShaderRegistry.getProgramByName("lumon_temporal") as LumOnTemporalShaderProgram;
-        if (shader is null)
-            return;
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
@@ -395,13 +395,13 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderGatherPass(FrameBufferRef primaryFb)
     {
+        var shader = ShaderRegistry.getProgramByName("lumon_gather") as LumOnGatherShaderProgram;
+        if (shader is null || shader.LoadError)
+            return;
+
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, bufferManager.IndirectHalfFboId);
         GL.Viewport(0, 0, bufferManager.HalfResWidth, bufferManager.HalfResHeight);
         GL.Clear(ClearBufferMask.ColorBufferBit);
-
-        var shader = ShaderRegistry.getProgramByName("lumon_gather") as LumOnGatherShaderProgram;
-        if (shader is null)
-            return;
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
@@ -441,13 +441,13 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderUpsamplePass(FrameBufferRef primaryFb)
     {
+        var shader = ShaderRegistry.getProgramByName("lumon_upsample") as LumOnUpsampleShaderProgram;
+        if (shader is null || shader.LoadError)
+            return;
+
         // Bind primary framebuffer for final composite
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
         GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
-
-        var shader = ShaderRegistry.getProgramByName("lumon_upsample") as LumOnUpsampleShaderProgram;
-        if (shader is null)
-            return;
 
         // Enable additive blending for indirect light contribution
         capi.Render.GlToggleBlend(true, EnumBlendMode.Standard);
@@ -472,8 +472,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
 
-        // Restore framebuffer state
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        // Restore blend state
+        capi.Render.GlToggleBlend(false);
     }
 
     #endregion
