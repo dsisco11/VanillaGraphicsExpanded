@@ -22,23 +22,23 @@ const float LUMON_SKY_DEPTH_THRESHOLD = 0.9999;
 // Depth Utilities
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// <summary>
-/// Linearize depth from depth buffer (non-linear to linear view-space Z).
-/// </summary>
-/// <param name="depth">Raw depth buffer value [0, 1]</param>
-/// <param name="zNear">Near clipping plane distance</param>
-/// <param name="zFar">Far clipping plane distance</param>
-/// <returns>Linear view-space depth</returns>
+/**
+ * Linearize depth from depth buffer (non-linear to linear view-space Z).
+ * @param depth Raw depth buffer value [0, 1]
+ * @param zNear Near clipping plane distance
+ * @param zFar Far clipping plane distance
+ * @return Linear view-space depth
+ */
 float lumonLinearizeDepth(float depth, float zNear, float zFar) {
     float z = depth * 2.0 - 1.0;
     return (2.0 * zNear * zFar) / (zFar + zNear - z * (zFar - zNear));
 }
 
-/// <summary>
-/// Check if a depth value represents sky (far plane).
-/// </summary>
-/// <param name="depth">Raw depth buffer value [0, 1]</param>
-/// <returns>True if depth is at or beyond sky threshold</returns>
+/**
+ * Check if a depth value represents sky (far plane).
+ * @param depth Raw depth buffer value [0, 1]
+ * @return True if depth is at or beyond sky threshold
+ */
 bool lumonIsSky(float depth) {
     return depth >= LUMON_SKY_DEPTH_THRESHOLD;
 }
@@ -47,25 +47,25 @@ bool lumonIsSky(float depth) {
 // Position Reconstruction
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// <summary>
-/// Reconstruct view-space position from UV and depth.
-/// </summary>
-/// <param name="texCoord">Screen-space UV coordinates [0, 1]</param>
-/// <param name="depth">Raw depth buffer value [0, 1]</param>
-/// <param name="invProjectionMatrix">Inverse projection matrix</param>
-/// <returns>View-space position</returns>
+/**
+ * Reconstruct view-space position from UV and depth.
+ * @param texCoord Screen-space UV coordinates [0, 1]
+ * @param depth Raw depth buffer value [0, 1]
+ * @param invProjectionMatrix Inverse projection matrix
+ * @return View-space position
+ */
 vec3 lumonReconstructViewPos(vec2 texCoord, float depth, mat4 invProjectionMatrix) {
     vec4 ndc = vec4(texCoord * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
     vec4 viewPos = invProjectionMatrix * ndc;
     return viewPos.xyz / viewPos.w;
 }
 
-/// <summary>
-/// Project view-space position to screen UV coordinates.
-/// </summary>
-/// <param name="viewPos">View-space position</param>
-/// <param name="projectionMatrix">Projection matrix</param>
-/// <returns>Screen-space UV coordinates [0, 1]</returns>
+/**
+ * Project view-space position to screen UV coordinates.
+ * @param viewPos View-space position
+ * @param projectionMatrix Projection matrix
+ * @return Screen-space UV coordinates [0, 1]
+ */
 vec2 lumonProjectToScreen(vec3 viewPos, mat4 projectionMatrix) {
     vec4 clipPos = projectionMatrix * vec4(viewPos, 1.0);
     return (clipPos.xy / clipPos.w) * 0.5 + 0.5;
@@ -75,20 +75,20 @@ vec2 lumonProjectToScreen(vec3 viewPos, mat4 projectionMatrix) {
 // Normal Utilities
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// <summary>
-/// Decode normal from G-buffer format [0,1] to [-1,1].
-/// </summary>
-/// <param name="encoded">G-buffer encoded normal [0, 1]</param>
-/// <returns>Decoded and normalized normal [-1, 1]</returns>
+/**
+ * Decode normal from G-buffer format [0,1] to [-1,1].
+ * @param encoded G-buffer encoded normal [0, 1]
+ * @return Decoded and normalized normal [-1, 1]
+ */
 vec3 lumonDecodeNormal(vec3 encoded) {
     return normalize(encoded * 2.0 - 1.0);
 }
 
-/// <summary>
-/// Encode normal to G-buffer format [-1,1] to [0,1].
-/// </summary>
-/// <param name="normal">World/view-space normal [-1, 1]</param>
-/// <returns>Encoded normal [0, 1]</returns>
+/**
+ * Encode normal to G-buffer format [-1,1] to [0,1].
+ * @param normal World/view-space normal [-1, 1]
+ * @return Encoded normal [0, 1]
+ */
 vec3 lumonEncodeNormal(vec3 normal) {
     return normal * 0.5 + 0.5;
 }
@@ -97,12 +97,12 @@ vec3 lumonEncodeNormal(vec3 normal) {
 // Sampling Utilities
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// <summary>
-/// Generate cosine-weighted hemisphere direction for importance sampling.
-/// </summary>
-/// <param name="u">Random values in [0, 1]</param>
-/// <param name="normal">Surface normal to orient hemisphere around</param>
-/// <returns>Cosine-weighted sample direction</returns>
+/**
+ * Generate cosine-weighted hemisphere direction for importance sampling.
+ * @param u Random values in [0, 1]
+ * @param normal Surface normal to orient hemisphere around
+ * @return Cosine-weighted sample direction
+ */
 vec3 lumonCosineSampleHemisphere(vec2 u, vec3 normal) {
     // Generate uniform disk sample
     float r = sqrt(u.x);
@@ -125,15 +125,15 @@ vec3 lumonCosineSampleHemisphere(vec2 u, vec3 normal) {
 // Sky/Environment Utilities
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// <summary>
-/// Get sky color for a ray direction (simple gradient + sun).
-/// </summary>
-/// <param name="rayDir">Ray direction (normalized)</param>
-/// <param name="sunPosition">Sun direction (normalized)</param>
-/// <param name="sunColor">Sun color and intensity</param>
-/// <param name="ambientColor">Ambient/sky base color</param>
-/// <param name="skyMissWeight">Weight multiplier for sky contribution</param>
-/// <returns>Sky radiance for the given direction</returns>
+/**
+ * Get sky color for a ray direction (simple gradient + sun).
+ * @param rayDir Ray direction (normalized)
+ * @param sunPosition Sun direction (normalized)
+ * @param sunColor Sun color and intensity
+ * @param ambientColor Ambient/sky base color
+ * @param skyMissWeight Weight multiplier for sky contribution
+ * @return Sky radiance for the given direction
+ */
 vec3 lumonGetSkyColor(vec3 rayDir, vec3 sunPosition, vec3 sunColor, vec3 ambientColor, float skyMissWeight) {
     float skyFactor = max(0.0, rayDir.y) * 0.5 + 0.5;
     vec3 skyColor = ambientColor * skyFactor;
@@ -149,33 +149,33 @@ vec3 lumonGetSkyColor(vec3 rayDir, vec3 sunPosition, vec3 sunColor, vec3 ambient
 // Probe Grid Utilities
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// <summary>
-/// Convert probe grid coordinates to texture UV.
-/// </summary>
-/// <param name="probeCoord">Integer probe grid coordinates</param>
-/// <param name="probeGridSize">Total probe grid dimensions</param>
-/// <returns>UV coordinates for sampling probe textures</returns>
+/**
+ * Convert probe grid coordinates to texture UV.
+ * @param probeCoord Integer probe grid coordinates
+ * @param probeGridSize Total probe grid dimensions
+ * @return UV coordinates for sampling probe textures
+ */
 vec2 lumonProbeCoordToUV(ivec2 probeCoord, vec2 probeGridSize) {
     return (vec2(probeCoord) + 0.5) / probeGridSize;
 }
 
-/// <summary>
-/// Convert screen position to probe grid position (fractional).
-/// </summary>
-/// <param name="screenPos">Screen position in pixels</param>
-/// <param name="probeSpacing">Pixels between probes</param>
-/// <returns>Fractional probe grid position</returns>
+/**
+ * Convert screen position to probe grid position (fractional).
+ * @param screenPos Screen position in pixels
+ * @param probeSpacing Pixels between probes
+ * @return Fractional probe grid position
+ */
 vec2 lumonScreenToProbePos(vec2 screenPos, float probeSpacing) {
     return screenPos / probeSpacing;
 }
 
-/// <summary>
-/// Get the screen UV that a probe samples (center of its cell).
-/// </summary>
-/// <param name="probeCoord">Integer probe grid coordinates</param>
-/// <param name="probeSpacing">Pixels between probes</param>
-/// <param name="screenSize">Screen dimensions in pixels</param>
-/// <returns>Screen UV coordinates [0, 1]</returns>
+/**
+ * Get the screen UV that a probe samples (center of its cell).
+ * @param probeCoord Integer probe grid coordinates
+ * @param probeSpacing Pixels between probes
+ * @param screenSize Screen dimensions in pixels
+ * @return Screen UV coordinates [0, 1]
+ */
 vec2 lumonProbeToScreenUV(ivec2 probeCoord, float probeSpacing, vec2 screenSize) {
     vec2 screenPos = (vec2(probeCoord) + 0.5) * probeSpacing;
     return screenPos / screenSize;
