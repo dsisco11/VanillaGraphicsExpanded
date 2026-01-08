@@ -82,41 +82,64 @@ public sealed class SSGIBufferManager : IDisposable
     /// </summary>
     public int SSGIHeight => ssgiHeight;
 
-    /// <summary>
-    /// OpenGL FBO ID for the current frame's SSGI buffer.
-    /// </summary>
-    public int CurrentSSGIFboId => ssgiCurrentFbo?.FboId ?? 0;
+    // ═══════════════════════════════════════════════════════════════
+    // SSGI Buffers (double-buffered for temporal)
+    // ═══════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// OpenGL texture ID for the current frame's SSGI result.
+    /// FBO for the current frame's SSGI buffer.
     /// </summary>
-    public int CurrentSSGITextureId => ssgiCurrentTex?.TextureId ?? 0;
+    public Rendering.GBuffer? CurrentSSGIFbo => ssgiCurrentFbo;
 
     /// <summary>
-    /// OpenGL texture ID for the previous frame's SSGI result (for temporal filtering).
+    /// Texture for the current frame's SSGI result.
     /// </summary>
-    public int PreviousSSGITextureId => ssgiPreviousTex?.TextureId ?? 0;
+    public DynamicTexture? CurrentSSGITex => ssgiCurrentTex;
 
     /// <summary>
-    /// OpenGL FBO ID for the blurred SSGI buffer.
+    /// FBO for the previous frame's SSGI buffer.
     /// </summary>
-    public int BlurredSSGIFboId => ssgiBlurredFbo?.FboId ?? 0;
+    public Rendering.GBuffer? PreviousSSGIFbo => ssgiPreviousFbo;
 
     /// <summary>
-    /// OpenGL texture ID for the blurred SSGI result.
+    /// Texture for the previous frame's SSGI result (for temporal filtering).
     /// </summary>
-    public int BlurredSSGITextureId => ssgiBlurredTex?.TextureId ?? 0;
+    public DynamicTexture? PreviousSSGITex => ssgiPreviousTex;
 
     /// <summary>
-    /// OpenGL texture ID for the previous frame's depth (for temporal reprojection).
+    /// FBO for the blurred SSGI buffer.
     /// </summary>
-    public int PreviousDepthTextureId => depthHistoryTex?.TextureId ?? 0;
+    public Rendering.GBuffer? BlurredSSGIFbo => ssgiBlurredFbo;
 
     /// <summary>
-    /// OpenGL texture ID for the captured scene (lit geometry before post-processing).
+    /// Texture for the blurred SSGI result.
+    /// </summary>
+    public DynamicTexture? BlurredSSGITex => ssgiBlurredTex;
+
+    // ═══════════════════════════════════════════════════════════════
+    // Depth History & Scene Capture
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// FBO for the depth history buffer.
+    /// </summary>
+    public Rendering.GBuffer? DepthHistoryFbo => depthHistoryFbo;
+
+    /// <summary>
+    /// Texture for the previous frame's depth (for temporal reprojection).
+    /// </summary>
+    public DynamicTexture? DepthHistoryTex => depthHistoryTex;
+
+    /// <summary>
+    /// FBO for the captured scene buffer.
+    /// </summary>
+    public Rendering.GBuffer? CapturedSceneFbo => capturedSceneFbo;
+
+    /// <summary>
+    /// Texture for the captured scene (lit geometry before post-processing).
     /// This is what SSGI samples for indirect radiance.
     /// </summary>
-    public int CapturedSceneTextureId => capturedSceneTex?.TextureId ?? 0;
+    public DynamicTexture? CapturedSceneTex => capturedSceneTex;
 
     /// <summary>
     /// Whether the buffers have been initialized.

@@ -135,11 +135,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         // Bind textures
         shader.PrimaryDepth = primaryFb.DepthTextureId;
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTextureId;
-        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTextureId;
-        shader.RadianceTexture0 = bufferManager.RadianceHistoryTexture0Id;
-        shader.IndirectHalf = bufferManager.IndirectHalfTextureId;
-        shader.HistoryMeta = bufferManager.ProbeMetaHistoryTextureId;
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex;
+        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex;
+        shader.RadianceTexture0 = bufferManager.RadianceHistoryTex0;
+        shader.IndirectHalf = bufferManager.IndirectHalfTex;
+        shader.HistoryMeta = bufferManager.ProbeMetaHistoryTex;
 
         // Pass uniforms
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);

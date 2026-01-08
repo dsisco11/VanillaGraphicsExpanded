@@ -354,9 +354,11 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (shader is null || shader.LoadError)
             return;
 
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, bufferManager.ProbeAnchorFboId);
-        GL.Viewport(0, 0, bufferManager.ProbeCountX, bufferManager.ProbeCountY);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
+        var fbo = bufferManager.ProbeAnchorFbo;
+        if (fbo is null) return;
+
+        fbo.BindWithViewport();
+        fbo.Clear();
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
@@ -394,21 +396,23 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (shader is null || shader.LoadError)
             return;
 
+        var fbo = bufferManager.RadianceTraceFbo;
+        if (fbo is null) return;
+
         // Write to dedicated trace buffer (separate from temporal current/history)
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, bufferManager.RadianceTraceFboId);
-        GL.Viewport(0, 0, bufferManager.ProbeCountX, bufferManager.ProbeCountY);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
+        fbo.BindWithViewport();
+        fbo.Clear();
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
 
         // Bind probe anchor textures
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTextureId;
-        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTextureId;
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex;
+        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex;
 
         // Bind scene for radiance sampling (captured before this pass)
         shader.PrimaryDepth = primaryFb.DepthTextureId;
-        shader.PrimaryColor = bufferManager.CapturedSceneTextureId;
+        shader.PrimaryColor = bufferManager.CapturedSceneTex;
 
         // Pass matrices
         shader.InvProjectionMatrix = invProjectionMatrix;
@@ -455,27 +459,29 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (shader is null || shader.LoadError)
             return;
 
+        var fbo = bufferManager.TemporalOutputFbo;
+        if (fbo is null) return;
+
         // Bind temporal output FBO (MRT: radiance0, radiance1, meta)
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, bufferManager.TemporalOutputFboId);
-        GL.Viewport(0, 0, bufferManager.ProbeCountX, bufferManager.ProbeCountY);
+        fbo.BindWithViewport();
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
 
         // Bind current frame radiance (from trace pass - dedicated trace buffer)
-        shader.RadianceCurrent0 = bufferManager.RadianceTraceTexture0Id;
-        shader.RadianceCurrent1 = bufferManager.RadianceTraceTexture1Id;
+        shader.RadianceCurrent0 = bufferManager.RadianceTraceTex0;
+        shader.RadianceCurrent1 = bufferManager.RadianceTraceTex1;
 
         // Bind history radiance (from previous frame, after last swap)
-        shader.RadianceHistory0 = bufferManager.RadianceHistoryTexture0Id;
-        shader.RadianceHistory1 = bufferManager.RadianceHistoryTexture1Id;
+        shader.RadianceHistory0 = bufferManager.RadianceHistoryTex0;
+        shader.RadianceHistory1 = bufferManager.RadianceHistoryTex1;
 
         // Bind probe anchors for validation and reprojection
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTextureId;
-        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTextureId;
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex;
+        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex;
 
         // Bind history metadata for validation
-        shader.HistoryMeta = bufferManager.ProbeMetaHistoryTextureId;
+        shader.HistoryMeta = bufferManager.ProbeMetaHistoryTex;
 
         // Pass matrices for reprojection
         shader.InvViewMatrix = invModelViewMatrix;
@@ -508,21 +514,23 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (shader is null || shader.LoadError)
             return;
 
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, bufferManager.IndirectHalfFboId);
-        GL.Viewport(0, 0, bufferManager.HalfResWidth, bufferManager.HalfResHeight);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
+        var fbo = bufferManager.IndirectHalfFbo;
+        if (fbo is null) return;
+
+        fbo.BindWithViewport();
+        fbo.Clear();
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
 
         // Bind radiance textures (from current after temporal blend)
         // Note: Temporal pass writes to current, gather reads from current
-        shader.RadianceTexture0 = bufferManager.RadianceCurrentTexture0Id;
-        shader.RadianceTexture1 = bufferManager.RadianceCurrentTexture1Id;
+        shader.RadianceTexture0 = bufferManager.RadianceCurrentTex0;
+        shader.RadianceTexture1 = bufferManager.RadianceCurrentTex1;
 
         // Bind probe anchors
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTextureId;
-        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTextureId;
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex;
+        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex;
 
         // Bind G-buffer for pixel info
         shader.PrimaryDepth = primaryFb.DepthTextureId;
@@ -555,7 +563,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (shader is null || shader.LoadError)
             return;
 
-        // Bind primary framebuffer for final composite
+        // Bind primary framebuffer for final composite (VS-managed FBO)
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
         GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
 
@@ -564,7 +572,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.Use();
 
         // Bind half-res indirect diffuse
-        shader.IndirectHalf = bufferManager.IndirectHalfTextureId;
+        shader.IndirectHalf = bufferManager.IndirectHalfTex;
 
         // Bind G-buffer for edge-aware upsampling
         shader.PrimaryDepth = primaryFb.DepthTextureId;

@@ -108,120 +108,144 @@ public sealed class LumOnBufferManager : IDisposable
     /// </summary>
     public int ProbeCountY => probeCountY;
 
-    /// <summary>
-    /// OpenGL FBO ID for probe anchor pass output.
-    /// </summary>
-    public int ProbeAnchorFboId => probeAnchorFbo?.FboId ?? 0;
+    // ═══════════════════════════════════════════════════════════════
+    // Probe Anchor Buffers
+    // ═══════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// OpenGL texture ID for probe anchor positions (posVS.xyz, valid).
+    /// FBO for probe anchor pass output (position + normal).
     /// </summary>
-    public int ProbeAnchorPositionTextureId => probeAnchorPositionTex?.TextureId ?? 0;
+    public Rendering.GBuffer? ProbeAnchorFbo => probeAnchorFbo;
 
     /// <summary>
-    /// OpenGL texture ID for probe anchor normals (normalVS.xyz, reserved).
+    /// Texture for probe anchor positions (posVS.xyz, valid).
     /// </summary>
-    public int ProbeAnchorNormalTextureId => probeAnchorNormalTex?.TextureId ?? 0;
+    public DynamicTexture? ProbeAnchorPositionTex => probeAnchorPositionTex;
 
     /// <summary>
-    /// OpenGL FBO ID for trace pass radiance output.
+    /// Texture for probe anchor normals (normalVS.xyz, reserved).
     /// </summary>
-    public int RadianceTraceFboId => radianceTraceFbo?.FboId ?? 0;
+    public DynamicTexture? ProbeAnchorNormalTex => probeAnchorNormalTex;
+
+    // ═══════════════════════════════════════════════════════════════
+    // Radiance Cache Buffers
+    // ═══════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// OpenGL texture ID for trace radiance SH coefficients (set 0).
+    /// FBO for trace pass radiance output.
     /// </summary>
-    public int RadianceTraceTexture0Id => radianceTraceTex0?.TextureId ?? 0;
+    public Rendering.GBuffer? RadianceTraceFbo => radianceTraceFbo;
 
     /// <summary>
-    /// OpenGL texture ID for trace radiance SH coefficients (set 1).
+    /// Texture for trace radiance SH coefficients (set 0).
     /// </summary>
-    public int RadianceTraceTexture1Id => radianceTraceTex1?.TextureId ?? 0;
+    public DynamicTexture? RadianceTraceTex0 => radianceTraceTex0;
 
     /// <summary>
-    /// OpenGL FBO ID for current frame radiance output.
+    /// Texture for trace radiance SH coefficients (set 1).
     /// </summary>
-    public int RadianceCurrentFboId => radianceCurrentFbo?.FboId ?? 0;
+    public DynamicTexture? RadianceTraceTex1 => radianceTraceTex1;
 
     /// <summary>
-    /// OpenGL texture ID for current radiance SH coefficients (set 0).
+    /// FBO for current frame radiance output.
     /// </summary>
-    public int RadianceCurrentTexture0Id => radianceCurrentTex0?.TextureId ?? 0;
+    public Rendering.GBuffer? RadianceCurrentFbo => radianceCurrentFbo;
 
     /// <summary>
-    /// OpenGL texture ID for current radiance SH coefficients (set 1).
+    /// Texture for current radiance SH coefficients (set 0).
     /// </summary>
-    public int RadianceCurrentTexture1Id => radianceCurrentTex1?.TextureId ?? 0;
+    public DynamicTexture? RadianceCurrentTex0 => radianceCurrentTex0;
 
     /// <summary>
-    /// OpenGL FBO ID for history radiance (read during temporal blend).
+    /// Texture for current radiance SH coefficients (set 1).
     /// </summary>
-    public int RadianceHistoryFboId => radianceHistoryFbo?.FboId ?? 0;
+    public DynamicTexture? RadianceCurrentTex1 => radianceCurrentTex1;
 
     /// <summary>
-    /// OpenGL texture ID for history radiance SH coefficients (set 0).
+    /// FBO for history radiance (read during temporal blend).
     /// </summary>
-    public int RadianceHistoryTexture0Id => radianceHistoryTex0?.TextureId ?? 0;
+    public Rendering.GBuffer? RadianceHistoryFbo => radianceHistoryFbo;
 
     /// <summary>
-    /// OpenGL texture ID for history radiance SH coefficients (set 1).
+    /// Texture for history radiance SH coefficients (set 0).
     /// </summary>
-    public int RadianceHistoryTexture1Id => radianceHistoryTex1?.TextureId ?? 0;
+    public DynamicTexture? RadianceHistoryTex0 => radianceHistoryTex0;
 
     /// <summary>
-    /// OpenGL FBO ID for current frame probe metadata.
+    /// Texture for history radiance SH coefficients (set 1).
     /// </summary>
-    public int ProbeMetaCurrentFboId => probeMetaCurrentFbo?.FboId ?? 0;
+    public DynamicTexture? RadianceHistoryTex1 => radianceHistoryTex1;
+
+    // ═══════════════════════════════════════════════════════════════
+    // Probe Metadata Buffers
+    // ═══════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// OpenGL texture ID for current frame probe metadata (depth, normal, accumCount).
+    /// FBO for current frame probe metadata.
     /// </summary>
-    public int ProbeMetaCurrentTextureId => probeMetaCurrentTex?.TextureId ?? 0;
+    public Rendering.GBuffer? ProbeMetaCurrentFbo => probeMetaCurrentFbo;
 
     /// <summary>
-    /// OpenGL FBO ID for history probe metadata.
+    /// Texture for current frame probe metadata (depth, normal, accumCount).
     /// </summary>
-    public int ProbeMetaHistoryFboId => probeMetaHistoryFbo?.FboId ?? 0;
+    public DynamicTexture? ProbeMetaCurrentTex => probeMetaCurrentTex;
 
     /// <summary>
-    /// OpenGL texture ID for history probe metadata.
+    /// FBO for history probe metadata.
     /// </summary>
-    public int ProbeMetaHistoryTextureId => probeMetaHistoryTex?.TextureId ?? 0;
+    public Rendering.GBuffer? ProbeMetaHistoryFbo => probeMetaHistoryFbo;
 
     /// <summary>
-    /// OpenGL FBO ID for temporal pass MRT output (radiance0, radiance1, meta).
+    /// Texture for history probe metadata.
     /// </summary>
-    public int TemporalOutputFboId => temporalOutputFbo?.FboId ?? 0;
+    public DynamicTexture? ProbeMetaHistoryTex => probeMetaHistoryTex;
 
     /// <summary>
-    /// OpenGL FBO ID for half-resolution indirect diffuse output.
+    /// FBO for temporal pass MRT output (radiance0, radiance1, meta).
     /// </summary>
-    public int IndirectHalfFboId => indirectHalfFbo?.FboId ?? 0;
+    public Rendering.GBuffer? TemporalOutputFbo => temporalOutputFbo;
+
+    // ═══════════════════════════════════════════════════════════════
+    // Indirect Diffuse Output Buffers
+    // ═══════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// OpenGL texture ID for half-resolution indirect diffuse.
+    /// FBO for half-resolution indirect diffuse output.
     /// </summary>
-    public int IndirectHalfTextureId => indirectHalfTex?.TextureId ?? 0;
+    public Rendering.GBuffer? IndirectHalfFbo => indirectHalfFbo;
 
     /// <summary>
-    /// OpenGL FBO ID for full-resolution indirect diffuse output.
+    /// Texture for half-resolution indirect diffuse.
     /// </summary>
-    public int IndirectFullFboId => indirectFullFbo?.FboId ?? 0;
+    public DynamicTexture? IndirectHalfTex => indirectHalfTex;
 
     /// <summary>
-    /// OpenGL texture ID for full-resolution indirect diffuse (final output).
+    /// FBO for full-resolution indirect diffuse output.
     /// </summary>
-    public int IndirectFullTextureId => indirectFullTex?.TextureId ?? 0;
+    public Rendering.GBuffer? IndirectFullFbo => indirectFullFbo;
 
     /// <summary>
-    /// OpenGL FBO ID for captured scene (used for blitting).
+    /// Texture for full-resolution indirect diffuse (final output).
     /// </summary>
-    public int CapturedSceneFboId => capturedSceneFbo?.FboId ?? 0;
+    public DynamicTexture? IndirectFullTex => indirectFullTex;
+
+    // ═══════════════════════════════════════════════════════════════
+    // Captured Scene Buffer
+    // ═══════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// OpenGL texture ID for captured scene (radiance sampling source).
+    /// FBO for captured scene (used for blitting).
     /// </summary>
-    public int CapturedSceneTextureId => capturedSceneTex?.TextureId ?? 0;
+    public Rendering.GBuffer? CapturedSceneFbo => capturedSceneFbo;
+
+    /// <summary>
+    /// Texture for captured scene (radiance sampling source).
+    /// </summary>
+    public DynamicTexture? CapturedSceneTex => capturedSceneTex;
+
+    // ═══════════════════════════════════════════════════════════════
+    // Dimensions
+    // ═══════════════════════════════════════════════════════════════
 
     /// <summary>
     /// Half-resolution buffer width.

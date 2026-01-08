@@ -291,10 +291,12 @@ public class SSGIRenderer : IRenderer, IDisposable
 
     private void RenderSSGIPass(FrameBufferRef primaryFb)
     {
+        var fbo = bufferManager.CurrentSSGIFbo;
+        if (fbo is null) return;
+
         // Bind SSGI framebuffer (current frame)
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, bufferManager.CurrentSSGIFboId);
-        GL.Viewport(0, 0, bufferManager.SSGIWidth, bufferManager.SSGIHeight);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
+        fbo.BindWithViewport();
+        fbo.Clear();
 
         var shader = ShaderRegistry.getProgramByName("ssgi") as SSGIShaderProgram;
         if (shader is null)
@@ -304,13 +306,13 @@ public class SSGIRenderer : IRenderer, IDisposable
         shader.Use();
 
         // Bind textures - use captured scene (lit geometry before post-processing)
-        shader.CapturedScene = bufferManager.CapturedSceneTextureId;
+        shader.CapturedScene = bufferManager.CapturedSceneTex;
         shader.PrimaryDepth = primaryFb.DepthTextureId;
         shader.GBufferNormal = GBufferManager.Instance?.NormalTextureId ?? 0;
         shader.SSAOTexture = primaryFb.ColorTextureIds[3]; // gPosition.a contains SSAO
         shader.GBufferMaterial = GBufferManager.Instance?.MaterialTextureId ?? 0;
-        shader.PreviousSSGI = bufferManager.PreviousSSGITextureId;
-        shader.PreviousDepth = bufferManager.PreviousDepthTextureId;
+        shader.PreviousSSGI = bufferManager.PreviousSSGITex;
+        shader.PreviousDepth = bufferManager.DepthHistoryTex;
 
         // Pass matrices
         shader.InvProjectionMatrix = invProjectionMatrix;
@@ -360,10 +362,12 @@ public class SSGIRenderer : IRenderer, IDisposable
 
     private void RenderBlurPass(FrameBufferRef primaryFb)
     {
+        var fbo = bufferManager.BlurredSSGIFbo;
+        if (fbo is null) return;
+
         // Bind blur target framebuffer
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, bufferManager.BlurredSSGIFboId);
-        GL.Viewport(0, 0, bufferManager.SSGIWidth, bufferManager.SSGIHeight);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
+        fbo.BindWithViewport();
+        fbo.Clear();
 
         var shader = ShaderRegistry.getProgramByName("ssgi_blur") as SSGIBlurShaderProgram;
         if (shader is null)
@@ -373,7 +377,7 @@ public class SSGIRenderer : IRenderer, IDisposable
         shader.Use();
 
         // Bind textures - use raw SSGI output as input
-        shader.SSGIInput = bufferManager.CurrentSSGITextureId;
+        shader.SSGIInput = bufferManager.CurrentSSGITex;
         shader.DepthTexture = primaryFb.DepthTextureId;
         shader.NormalTexture = GBufferManager.Instance?.NormalTextureId ?? 0;
 
@@ -392,7 +396,7 @@ public class SSGIRenderer : IRenderer, IDisposable
 
     private void RenderCompositePass(FrameBufferRef primaryFb)
     {
-        // Bind primary framebuffer for final composite
+        // Bind primary framebuffer for final composite (VS-managed FBO)
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
         GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
 
@@ -405,7 +409,7 @@ public class SSGIRenderer : IRenderer, IDisposable
 
         // Bind textures - use blurred SSGI if blur is enabled
         shader.PrimaryScene = primaryFb.ColorTextureIds[0];
-        shader.SSGITexture = BlurEnabled ? bufferManager.BlurredSSGITextureId : bufferManager.CurrentSSGITextureId;
+        shader.SSGITexture = BlurEnabled ? bufferManager.BlurredSSGITex : bufferManager.CurrentSSGITex;
         shader.PrimaryDepth = primaryFb.DepthTextureId;
         shader.GBufferNormal = GBufferManager.Instance?.NormalTextureId ?? 0;
 
@@ -430,7 +434,7 @@ public class SSGIRenderer : IRenderer, IDisposable
     {
         // Render directly to the default framebuffer (screen)
         // This completely replaces the screen with the SSGI buffer for debugging
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        Rendering.GBuffer.Unbind();
         GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
@@ -442,7 +446,7 @@ public class SSGIRenderer : IRenderer, IDisposable
         shader.Use();
 
         // Bind the SSGI texture - use blurred if enabled
-        shader.SSGITexture = BlurEnabled ? bufferManager.BlurredSSGITextureId : bufferManager.CurrentSSGITextureId;
+        shader.SSGITexture = BlurEnabled ? bufferManager.BlurredSSGITex : bufferManager.CurrentSSGITex;
         shader.Boost = 2.0f; // Boost for visibility
 
         // Render fullscreen quad
