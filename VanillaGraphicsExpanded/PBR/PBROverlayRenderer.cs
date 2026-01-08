@@ -4,6 +4,7 @@ using System.Numerics;
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
+using VanillaGraphicsExpanded.Rendering;
 
 using static OpenTK.Graphics.OpenGL.GL;
 
@@ -147,8 +148,8 @@ public class PBROverlayRenderer : IRenderer, IDisposable
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
 
         // Compute inverse matrices
-        ComputeInverseMatrix(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
-        ComputeInverseMatrix(capi.Render.CameraMatrixOriginf, invModelViewMatrix);
+        MatrixHelper.Invert(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
+        MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invModelViewMatrix);
 
         // The inverse view matrix (CameraMatrixOriginf) gives positions relative to camera.
         // To get world position, we need to add the camera's absolute world position.
@@ -237,46 +238,7 @@ public class PBROverlayRenderer : IRenderer, IDisposable
 
     #region Matrix Utilities
 
-    /// <summary>
-    /// Computes the inverse of a 4x4 matrix using SIMD-accelerated System.Numerics.
-    /// </summary>
-    private static void ComputeInverseMatrix(float[] m, float[] result)
-    {
-        // Convert to Matrix4x4 (row-major constructor matches OpenGL column-major layout when transposed)
-        var matrix = new Matrix4x4(
-            m[0], m[4], m[8], m[12],
-            m[1], m[5], m[9], m[13],
-            m[2], m[6], m[10], m[14],
-            m[3], m[7], m[11], m[15]);
-
-        if (!Matrix4x4.Invert(matrix, out var inverse))
-        {
-            // Matrix is singular, return identity
-            for (int i = 0; i < 16; i++)
-            {
-                result[i] = (i % 5 == 0) ? 1.0f : 0.0f;
-            }
-            return;
-        }
-
-        // Convert back to column-major float array (OpenGL layout)
-        result[0] = inverse.M11;
-        result[1] = inverse.M21;
-        result[2] = inverse.M31;
-        result[3] = inverse.M41;
-        result[4] = inverse.M12;
-        result[5] = inverse.M22;
-        result[6] = inverse.M32;
-        result[7] = inverse.M42;
-        result[8] = inverse.M13;
-        result[9] = inverse.M23;
-        result[10] = inverse.M33;
-        result[11] = inverse.M43;
-        result[12] = inverse.M14;
-        result[13] = inverse.M24;
-        result[14] = inverse.M34;
-        result[15] = inverse.M44;
-    }
+    // Matrix utilities moved to VanillaGraphicsExpanded.Rendering.MatrixHelper
 
     #endregion
 

@@ -4,6 +4,7 @@ using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
+using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -333,11 +334,11 @@ public class LumOnRenderer : IRenderer, IDisposable
         Array.Copy(capi.Render.CameraMatrixOriginf, modelViewMatrix, 16);
 
         // Compute inverse matrices
-        ComputeInverseMatrix(projectionMatrix, invProjectionMatrix);
-        ComputeInverseMatrix(modelViewMatrix, invModelViewMatrix);
+        MatrixHelper.Invert(projectionMatrix, invProjectionMatrix);
+        MatrixHelper.Invert(modelViewMatrix, invModelViewMatrix);
 
         // Compute current view-projection matrix for next frame's reprojection
-        MultiplyMatrices(projectionMatrix, modelViewMatrix, currentViewProjMatrix);
+        MatrixHelper.Multiply(projectionMatrix, modelViewMatrix, currentViewProjMatrix);
     }
 
     /// <summary>
@@ -597,54 +598,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     #region Matrix Utilities
 
-    /// <summary>
-    /// Computes the inverse of a 4x4 matrix using SIMD-accelerated System.Numerics.
-    /// </summary>
-    private static void ComputeInverseMatrix(float[] m, float[] result)
-    {
-        var matrix = new Matrix4x4(
-            m[0], m[4], m[8], m[12],
-            m[1], m[5], m[9], m[13],
-            m[2], m[6], m[10], m[14],
-            m[3], m[7], m[11], m[15]);
-
-        if (!Matrix4x4.Invert(matrix, out var inverse))
-        {
-            for (int i = 0; i < 16; i++)
-                result[i] = (i % 5 == 0) ? 1.0f : 0.0f;
-            return;
-        }
-
-        result[0] = inverse.M11; result[1] = inverse.M21; result[2] = inverse.M31; result[3] = inverse.M41;
-        result[4] = inverse.M12; result[5] = inverse.M22; result[6] = inverse.M32; result[7] = inverse.M42;
-        result[8] = inverse.M13; result[9] = inverse.M23; result[10] = inverse.M33; result[11] = inverse.M43;
-        result[12] = inverse.M14; result[13] = inverse.M24; result[14] = inverse.M34; result[15] = inverse.M44;
-    }
-
-    /// <summary>
-    /// Multiplies two 4x4 matrices (A * B) in column-major order.
-    /// </summary>
-    private static void MultiplyMatrices(float[] a, float[] b, float[] result)
-    {
-        var matA = new Matrix4x4(
-            a[0], a[4], a[8], a[12],
-            a[1], a[5], a[9], a[13],
-            a[2], a[6], a[10], a[14],
-            a[3], a[7], a[11], a[15]);
-
-        var matB = new Matrix4x4(
-            b[0], b[4], b[8], b[12],
-            b[1], b[5], b[9], b[13],
-            b[2], b[6], b[10], b[14],
-            b[3], b[7], b[11], b[15]);
-
-        var product = matA * matB;
-
-        result[0] = product.M11; result[1] = product.M21; result[2] = product.M31; result[3] = product.M41;
-        result[4] = product.M12; result[5] = product.M22; result[6] = product.M32; result[7] = product.M42;
-        result[8] = product.M13; result[9] = product.M23; result[10] = product.M33; result[11] = product.M43;
-        result[12] = product.M14; result[13] = product.M24; result[14] = product.M34; result[15] = product.M44;
-    }
+    // Matrix utilities moved to VanillaGraphicsExpanded.Rendering.MatrixHelper
 
     #endregion
 
