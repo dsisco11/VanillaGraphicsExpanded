@@ -345,14 +345,17 @@ public sealed class LumOnBufferManager : IDisposable
     /// </summary>
     /// <param name="screenWidth">Full-resolution screen width</param>
     /// <param name="screenHeight">Full-resolution screen height</param>
-    public void EnsureBuffers(int screenWidth, int screenHeight)
+    /// <returns>True if buffers are valid and ready, false if not initialized</returns>
+    public bool EnsureBuffers(int screenWidth, int screenHeight)
     {
         if (!isInitialized || screenWidth != lastScreenWidth || screenHeight != lastScreenHeight)
         {
             CreateBuffers(screenWidth, screenHeight);
             lastScreenWidth = screenWidth;
             lastScreenHeight = screenHeight;
+            return false;  // Buffers were recreated
         }
+        return true;  // No change
     }
 
     /// <summary>

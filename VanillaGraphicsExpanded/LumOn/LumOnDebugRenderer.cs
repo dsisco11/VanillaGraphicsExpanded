@@ -115,6 +115,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         if (!bufferManager.IsInitialized)
             return;
 
+        // Skip if GBufferManager textures are not ready (e.g., during resize)
+        if (gBufferManager is null || !gBufferManager.EnsureBuffers(capi.Render.FrameWidth, capi.Render.FrameHeight))
+            return;
+
         var shader = ShaderRegistry.getProgramByName("lumon_debug") as LumOnDebugShaderProgram;
         if (shader is null || shader.LoadError)
             return;

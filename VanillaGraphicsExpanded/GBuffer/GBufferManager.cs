@@ -264,6 +264,52 @@ public sealed class GBufferManager : IDisposable
 
     #endregion
 
+    #region Public Methods
+
+    /// <summary>
+    /// Ensures G-buffer textures exist and match the current screen size.
+    /// Call this before rendering to handle resize events that may have
+    /// invalidated the textures between Harmony hook calls and render time.
+    /// </summary>
+    /// <param name="screenWidth">Current screen width</param>
+    /// <param name="screenHeight">Current screen height</param>
+    /// <returns>True if textures are valid and ready to use</returns>
+    public bool EnsureBuffers(int screenWidth, int screenHeight)
+    {
+        // Check if textures need to be (re)created
+        if (!isInitialized || screenWidth != lastWidth || screenHeight != lastHeight)
+        {
+            // Get the primary framebuffer to attach to
+            FrameBufferRef? primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
+            if (primaryFb is null)
+            {
+                return false;
+            }
+
+            // Create new textures
+            CreateGBufferTextures(screenWidth, screenHeight);
+            lastWidth = screenWidth;
+            lastHeight = screenHeight;
+
+            // Re-attach to framebuffer
+            AttachToFramebuffer(primaryFb.FboId);
+            
+            // Update the ColorTextureIds array if not already done
+            if (!isInjected)
+            {
+                primaryFb.ColorTextureIds = [..primaryFb.ColorTextureIds, NormalTextureId, MaterialTextureId];
+                isInjected = true;
+            }
+
+            capi.Logger.Debug($"[VGE] EnsureBuffers: Recreated G-buffer textures for {screenWidth}x{screenHeight}");
+        }
+
+        // Return true only if we have valid texture IDs
+        return isInitialized && NormalTextureId != 0 && MaterialTextureId != 0;
+    }
+
+    #endregion
+
     #region Private Methods
 
     private void CreateGBufferTextures(int width, int height)

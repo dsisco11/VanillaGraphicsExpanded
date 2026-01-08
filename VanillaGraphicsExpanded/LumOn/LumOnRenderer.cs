@@ -220,12 +220,37 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
+        TryRenderFrame(deltaTime, stage);
+        // Restore VS's primary framebuffer and viewport to ensure we don't leave GL in a bad state
+        var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
+        GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
+    }
+
+    private bool TryRenderFrame(float deltaTime, EnumRenderStage stage)
+    {
         if (quadMeshRef is null || !config.Enabled)
-            return;
+            return false;
 
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primaryFb is null)
-            return;
+            return false;
+
+        // Ensure GBuffer textures are valid for current screen size
+        // This handles resize events that may have invalidated the textures
+        if (gBufferManager is null || !gBufferManager.EnsureBuffers(capi.Render.FrameWidth, capi.Render.FrameHeight))
+        {
+            return false;  // GBuffer not ready, skip this frame
+        }
+
+        // Ensure LumOn buffers are allocated
+        if (bufferManager is null || !bufferManager.EnsureBuffers(capi.Render.FrameWidth, capi.Render.FrameHeight))
+        {
+            // Reset temporal state since buffers are new
+            isFirstFrame = true;
+            capi.Logger.Debug($"[LumOn] Screen resized to {capi.Render.FrameWidth}x{capi.Render.FrameHeight}, skipping frame to stabilize");
+            return false;
+        }
 
         // Collect GPU timing from previous frame (avoid stalls)
         CollectTimerQueryResults();
@@ -233,9 +258,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Reset debug counters
         debugCounters.Reset();
         debugCounters.TotalProbes = bufferManager.ProbeCountX * bufferManager.ProbeCountY;
-
-        // Ensure LumOn buffers are allocated
-        bufferManager.EnsureBuffers(capi.Render.FrameWidth, capi.Render.FrameHeight);
 
         // Check for teleportation (large camera movement)
         if (DetectTeleport())
@@ -315,10 +337,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         StoreCameraPosition();
 
         frameIndex++;
-
-        // Restore VS's primary framebuffer and viewport to ensure we don't leave GL in a bad state
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
-        GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
+        return true;
     }
 
     /// <summary>
