@@ -25,6 +25,10 @@ public static class MatrixHelper
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Matrix4x4 FromColumnMajor(ReadOnlySpan<float> m)
     {
+        if (Avx2.IsSupported && m.Length >= 16)
+        {
+            return FromColumnMajorAvx2(m);
+        }
         if (Sse.IsSupported && m.Length >= 16)
         {
             return FromColumnMajorSse(m);
@@ -40,6 +44,38 @@ public static class MatrixHelper
             m[1], m[5], m[9], m[13],
             m[2], m[6], m[10], m[14],
             m[3], m[7], m[11], m[15]);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static unsafe Matrix4x4 FromColumnMajorAvx2(ReadOnlySpan<float> m)
+    {
+        fixed (float* ptr = m)
+        {
+            // Load columns in pairs: [c0,c1] and [c2,c3]
+            var v0 = Avx.LoadVector256(ptr);     // [c0.xyzw | c1.xyzw]
+            var v1 = Avx.LoadVector256(ptr + 8); // [c2.xyzw | c3.xyzw]
+
+            // Stage 1: Interleave within 128-bit lanes
+            var t0 = Avx.UnpackLow(v0, v1);   // [c0.x,c2.x,c0.y,c2.y | c1.x,c3.x,c1.y,c3.y]
+            var t1 = Avx.UnpackHigh(v0, v1);  // [c0.z,c2.z,c0.w,c2.w | c1.z,c3.z,c1.w,c3.w]
+
+            // Stage 2: Swap lanes to group even/odd columns
+            var p0 = Avx2.Permute2x128(t0, t1, 0x20); // [c0.x,c2.x,c0.y,c2.y | c0.z,c2.z,c0.w,c2.w]
+            var p1 = Avx2.Permute2x128(t0, t1, 0x31); // [c1.x,c3.x,c1.y,c3.y | c1.z,c3.z,c1.w,c3.w]
+
+            // Stage 3: Final interleave to get rows
+            var r02 = Avx.UnpackLow(p0, p1);  // [row0 | row2]
+            var r13 = Avx.UnpackHigh(p0, p1); // [row1 | row3]
+
+            // Stage 4: Permute to row order
+            var r01 = Avx2.Permute2x128(r02, r13, 0x20); // [row0 | row1]
+            var r23 = Avx2.Permute2x128(r02, r13, 0x31); // [row2 | row3]
+
+            Matrix4x4 result;
+            Avx.Store((float*)&result, r01);
+            Avx.Store((float*)&result + 8, r23);
+            return result;
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -85,7 +121,11 @@ public static class MatrixHelper
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ToColumnMajor(in Matrix4x4 matrix, Span<float> result)
     {
-        if (Sse.IsSupported && result.Length >= 16)
+        if (Avx2.IsSupported && result.Length >= 16)
+        {
+            ToColumnMajorAvx2(in matrix, result);
+        }
+        else if (Sse.IsSupported && result.Length >= 16)
         {
             ToColumnMajorSse(in matrix, result);
         }
@@ -102,6 +142,37 @@ public static class MatrixHelper
         result[4] = matrix.M12; result[5] = matrix.M22; result[6] = matrix.M32; result[7] = matrix.M42;
         result[8] = matrix.M13; result[9] = matrix.M23; result[10] = matrix.M33; result[11] = matrix.M43;
         result[12] = matrix.M14; result[13] = matrix.M24; result[14] = matrix.M34; result[15] = matrix.M44;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static unsafe void ToColumnMajorAvx2(in Matrix4x4 matrix, Span<float> result)
+    {
+        fixed (Matrix4x4* matPtr = &matrix)
+        fixed (float* resPtr = result)
+        {
+            // Load rows in pairs: [row0,row1] and [row2,row3]
+            var v0 = Avx.LoadVector256((float*)matPtr);     // [r0.xyzw | r1.xyzw]
+            var v1 = Avx.LoadVector256((float*)matPtr + 8); // [r2.xyzw | r3.xyzw]
+
+            // Stage 1: Interleave within 128-bit lanes
+            var t0 = Avx.UnpackLow(v0, v1);   // [r0.x,r2.x,r0.y,r2.y | r1.x,r3.x,r1.y,r3.y]
+            var t1 = Avx.UnpackHigh(v0, v1);  // [r0.z,r2.z,r0.w,r2.w | r1.z,r3.z,r1.w,r3.w]
+
+            // Stage 2: Swap lanes to group even/odd rows
+            var p0 = Avx2.Permute2x128(t0, t1, 0x20); // [r0.x,r2.x,r0.y,r2.y | r0.z,r2.z,r0.w,r2.w]
+            var p1 = Avx2.Permute2x128(t0, t1, 0x31); // [r1.x,r3.x,r1.y,r3.y | r1.z,r3.z,r1.w,r3.w]
+
+            // Stage 3: Final interleave to get columns
+            var c02 = Avx.UnpackLow(p0, p1);  // [col0 | col2]
+            var c13 = Avx.UnpackHigh(p0, p1); // [col1 | col3]
+
+            // Stage 4: Permute to column order
+            var c01 = Avx2.Permute2x128(c02, c13, 0x20); // [col0 | col1]
+            var c23 = Avx2.Permute2x128(c02, c13, 0x31); // [col2 | col3]
+
+            Avx.Store(resPtr, c01);
+            Avx.Store(resPtr + 8, c23);
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
