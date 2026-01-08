@@ -148,13 +148,120 @@ public class LumOnConfig
     public float SkyMissWeight { get; set; } = 0.5f;
 
     // ═══════════════════════════════════════════════════════════════
+    // Edge-Aware Gather Settings (SPG-007 Section 2.3)
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Controls depth similarity falloff for edge-aware probe weighting.
+    /// Higher values = more lenient depth matching (less edge detection).
+    /// Lower values = stricter depth matching (sharper edges).
+    /// Default: 0.5
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public float GatherDepthSigma { get; set; } = 0.5f;
+
+    /// <summary>
+    /// Controls normal similarity power for edge-aware probe weighting.
+    /// Higher values = stricter normal matching (sharper creases).
+    /// Lower values = more lenient normal matching.
+    /// Default: 8.0
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public float GatherNormalSigma { get; set; } = 8.0f;
+
+    // ═══════════════════════════════════════════════════════════════
+    // Upsample Settings (SPG-008 Section 3.1)
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Depth similarity sigma for bilateral upsample.
+    /// Controls how strictly depth differences affect upsampling.
+    /// Default: 0.1
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public float UpsampleDepthSigma { get; set; } = 0.1f;
+
+    /// <summary>
+    /// Normal similarity power for bilateral upsample.
+    /// Controls how strictly normal differences affect upsampling.
+    /// Default: 16.0
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public float UpsampleNormalSigma { get; set; } = 16.0f;
+
+    /// <summary>
+    /// Spatial kernel sigma for optional spatial denoise.
+    /// Controls blur radius of spatial filter.
+    /// Default: 1.0
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public float UpsampleSpatialSigma { get; set; } = 1.0f;
+
+    // ═══════════════════════════════════════════════════════════════
+    // Integration Settings (SPG-009)
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Whether to use the full combine pass for lighting integration.
+    /// When true: Uses lumon_combine shader with proper albedo/metallic modulation.
+    /// When false: Uses simple additive blend in upsample pass (faster, less accurate).
+    /// 
+    /// The combine pass provides:
+    /// - Proper albedo modulation (indirect * albedo)
+    /// - Metallic rejection (metals don't receive diffuse indirect)
+    /// - More control over tinting and intensity
+    /// 
+    /// Default: false (additive mode for compatibility)
+    /// Requires G-buffer albedo/material textures when enabled.
+    /// </summary>
+    [JsonProperty]
+    public bool UseCombinePass { get; set; } = false;
+
+    // ═══════════════════════════════════════════════════════════════
+    // Octahedral Gather Settings (SPG-007 Section 2.5)
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Leak prevention threshold for octahedral gather.
+    /// If probe hit distance exceeds pixel depth × (1 + threshold),
+    /// the contribution is reduced to prevent light leaking.
+    /// Default: 0.5 (50% tolerance)
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public float OctahedralLeakThreshold { get; set; } = 0.5f;
+
+    /// <summary>
+    /// Sample stride for octahedral hemisphere integration.
+    /// 1 = full quality (64 samples per probe, ~1.2ms)
+    /// 2 = performance mode (16 samples per probe, ~0.5ms)
+    /// Default: 2
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public int OctahedralSampleStride { get; set; } = 2;
+
+    // ═══════════════════════════════════════════════════════════════
     // Debug Settings
     // ═══════════════════════════════════════════════════════════════
 
     /// <summary>
     /// Debug visualization mode:
-    /// 0 = Off, 1 = Probe grid, 2 = Raw radiance, 3 = Temporal weight,
-    /// 4 = Rejection mask, 5 = SH coefficients
+    /// 0 = Off (normal rendering)
+    /// 1 = Probe grid overlay
+    /// 2 = Probe depth
+    /// 3 = Probe normals
+    /// 4 = Scene depth
+    /// 5 = Scene normals
+    /// 6 = Temporal weight
+    /// 7 = Temporal rejection
+    /// 8 = SH coefficients (DC + directional)
+    /// 9 = Interpolation weights (probe blend visualization)
     /// </summary>
     [JsonProperty]
     public int DebugMode { get; set; } = 0;

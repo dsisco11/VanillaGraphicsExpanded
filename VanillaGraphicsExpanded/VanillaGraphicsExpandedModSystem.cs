@@ -153,6 +153,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         LumOnGatherShaderProgram.Register(api);
         LumOnOctahedralGatherShaderProgram.Register(api);
         LumOnUpsampleShaderProgram.Register(api);
+        LumOnCombineShaderProgram.Register(api);
         LumOnDebugShaderProgram.Register(api);
 
         return true;

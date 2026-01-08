@@ -129,5 +129,19 @@ public class LumOnGatherShaderProgram : ShaderProgram
     /// </summary>
     public float[] IndirectTint { set => Uniform("indirectTint", new Vec3f(value[0], value[1], value[2])); }
 
+    /// <summary>
+    /// Controls depth similarity falloff for edge-aware weighting.
+    /// Higher values = more lenient depth matching.
+    /// Default: 0.5 (from SPG-007 spec Section 2.3)
+    /// </summary>
+    public float DepthSigma { set => Uniform("depthSigma", value); }
+
+    /// <summary>
+    /// Controls normal similarity power for edge-aware weighting.
+    /// Higher values = stricter normal matching.
+    /// Default: 8.0 (from SPG-007 spec Section 2.3)
+    /// </summary>
+    public float NormalSigma { set => Uniform("normalSigma", value); }
+
     #endregion
 }

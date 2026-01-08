@@ -296,6 +296,13 @@ public class LumOnRenderer : IRenderer, IDisposable
         RenderUpsamplePass(primaryFb);
         EndTimerQuery();
 
+        // === Pass 6: Combine (optional) ===
+        // Only runs when UseCombinePass is enabled for proper material modulation
+        if (config.UseCombinePass)
+        {
+            RenderCombinePass(primaryFb);
+        }
+
         timerQueryPending = true;
 
         // Store current view-projection matrix for next frame
@@ -712,6 +719,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.Intensity = config.Intensity;
         shader.IndirectTint = config.IndirectTint;
 
+        // Edge-aware weighting parameters (SPG-007 Section 2.3)
+        shader.DepthSigma = config.GatherDepthSigma;
+        shader.NormalSigma = config.GatherNormalSigma;
+
         // Render
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
@@ -764,9 +775,9 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.Intensity = config.Intensity;
         shader.IndirectTint = config.IndirectTint;
 
-        // Octahedral-specific parameters
-        shader.LeakThreshold = 0.5f;  // 50% depth tolerance for leak prevention
-        shader.SampleStride = 2;      // 16 samples (4×4 subgrid) for performance
+        // Octahedral-specific parameters (from config per Section 2.5)
+        shader.LeakThreshold = config.OctahedralLeakThreshold;
+        shader.SampleStride = config.OctahedralSampleStride;
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);
@@ -775,7 +786,9 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     /// <summary>
     /// Pass 5: Bilateral upsample from half-res to full resolution.
-    /// Output: Full-resolution indirect diffuse composited to screen.
+    /// Output depends on config.UseCombinePass:
+    /// - false: Additively blend to screen (fast path)
+    /// - true: Write to IndirectFullFB for combine pass
     /// </summary>
     private void RenderUpsamplePass(FrameBufferRef primaryFb)
     {
@@ -783,12 +796,24 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (shader is null || shader.LoadError)
             return;
 
-        // Bind primary framebuffer for final composite (VS-managed FBO)
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
-        GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
+        if (config.UseCombinePass)
+        {
+            // Write to full-res indirect buffer for combine pass
+            var fbo = bufferManager.IndirectFullFbo;
+            if (fbo is null) return;
 
-        // Enable additive blending for indirect light contribution
-        capi.Render.GlToggleBlend(true, EnumBlendMode.Standard);
+            fbo.BindWithViewport();
+            fbo.Clear();
+            capi.Render.GlToggleBlend(false);
+        }
+        else
+        {
+            // Direct additive blend to screen (fast path)
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
+            GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
+            capi.Render.GlToggleBlend(true, EnumBlendMode.Standard);
+        }
+
         shader.Use();
 
         // Bind half-res indirect diffuse
@@ -805,12 +830,70 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ZFar = capi.Render.ShaderUniforms.ZFar;
         shader.DenoiseEnabled = config.DenoiseEnabled ? 1 : 0;
 
+        // Bilateral upsample parameters (SPG-008 Section 3.1)
+        shader.UpsampleDepthSigma = config.UpsampleDepthSigma;
+        shader.UpsampleNormalSigma = config.UpsampleNormalSigma;
+        shader.UpsampleSpatialSigma = config.UpsampleSpatialSigma;
+
         // Render
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
 
         // Restore blend state
         capi.Render.GlToggleBlend(false);
+    }
+
+    /// <summary>
+    /// Pass 6 (Optional): Combine indirect diffuse with direct lighting.
+    /// Only runs when config.UseCombinePass is true.
+    /// Applies proper material modulation (albedo, metallic rejection).
+    /// </summary>
+    private void RenderCombinePass(FrameBufferRef primaryFb)
+    {
+        if (!config.UseCombinePass)
+            return;
+
+        var shader = ShaderRegistry.getProgramByName("lumon_combine") as LumOnCombineShaderProgram;
+        if (shader is null || shader.LoadError)
+            return;
+
+        var indirectFullTex = bufferManager.IndirectFullTex;
+        if (indirectFullTex is null) return;
+
+        // Render to primary framebuffer
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
+        GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
+
+        // No blending - we're replacing the scene color with combined result
+        capi.Render.GlToggleBlend(false);
+        shader.Use();
+
+        // The scene color is already in the primary framebuffer (ColorAttachment0)
+        // We need to sample it as a texture, which requires the captured scene
+        shader.SceneDirect = bufferManager.CapturedSceneTex?.TextureId ?? 0;
+
+        // Bind upsampled indirect diffuse
+        shader.IndirectDiffuse = indirectFullTex.TextureId;
+
+        // Bind G-buffer for material modulation
+        // Note: VS stores albedo in ColorAttachment0, but that's the render target
+        // For proper albedo modulation, we'd need a separate albedo G-buffer
+        // For now, we use the captured scene as a fallback
+        shader.GBufferAlbedo = bufferManager.CapturedSceneTex?.TextureId ?? 0;
+        shader.GBufferMaterial = gBufferManager?.MaterialTextureId ?? 0;
+        shader.PrimaryDepth = primaryFb.DepthTextureId;
+
+        // Pass uniforms
+        shader.IndirectIntensity = config.Intensity;
+        shader.IndirectTint = new Vec3f(
+            config.IndirectTint[0],
+            config.IndirectTint[1],
+            config.IndirectTint[2]);
+        shader.LumOnEnabled = config.Enabled ? 1 : 0;
+
+        // Render
+        capi.Render.RenderMesh(quadMeshRef);
+        shader.Stop();
     }
 
     #endregion

@@ -5,10 +5,13 @@ in vec2 uv;
 out vec4 outColor;
 
 // ============================================================================
-// LumOn Gather Pass
+// LumOn Gather Pass (SPG-007)
 // 
 // Interpolates nearby probes to compute per-pixel irradiance.
 // Uses bilinear interpolation with edge-aware weighting.
+//
+// Edge-aware weighting reduces light leaking across depth/normal discontinuities
+// by adjusting probe weights based on similarity to the pixel's geometry.
 // ============================================================================
 
 // Import common utilities
@@ -48,6 +51,91 @@ uniform float depthDiscontinuityThreshold;
 uniform float intensity;
 uniform vec3 indirectTint;
 
+// Edge-aware weighting parameters (from spec Section 2.3)
+uniform float depthSigma;   // Controls depth similarity falloff (default: 0.5)
+uniform float normalSigma;  // Controls normal similarity power (default: 8.0)
+
+// ============================================================================
+// Probe Data Structure
+// ============================================================================
+
+struct ProbeData {
+    vec4 shR, shG, shB;   // SH coefficients for RGB
+    vec3 posVS;           // View-space position
+    vec3 normalVS;        // View-space normal
+    float valid;          // Validity flag (1.0 = solid, 0.5 = edge, 0.0 = invalid)
+    float depth;          // Linear depth (positive)
+};
+
+// ============================================================================
+// Load Probe Data
+// ============================================================================
+
+ProbeData loadProbeData(ivec2 probeCoord) {
+    ProbeData p;
+    
+    // Clamp to grid bounds
+    ivec2 gridMax = ivec2(probeGridSize) - 1;
+    probeCoord = clamp(probeCoord, ivec2(0), gridMax);
+    
+    // Load anchor position and validity
+    vec4 anchorPos = texelFetch(probeAnchorPosition, probeCoord, 0);
+    p.posVS = anchorPos.xyz;
+    p.valid = anchorPos.w;
+    p.depth = -anchorPos.z;  // Convert to positive depth
+    
+    // Load anchor normal
+    vec4 anchorNormal = texelFetch(probeAnchorNormal, probeCoord, 0);
+    p.normalVS = lumonDecodeNormal(anchorNormal.xyz);
+    
+    // Load SH radiance
+    vec4 sh0 = texelFetch(radianceTexture0, probeCoord, 0);
+    vec4 sh1 = texelFetch(radianceTexture1, probeCoord, 0);
+    shUnpackFromTextures(sh0, sh1, p.shR, p.shG, p.shB);
+    
+    return p;
+}
+
+// ============================================================================
+// Edge-Aware Weight Calculation (Spec Section 2.3)
+// ============================================================================
+
+/**
+ * Compute edge-aware weight for a probe based on geometric similarity.
+ * Reduces weight for probes with significantly different depth or normal
+ * from the pixel being shaded, preventing light leaking across edges.
+ *
+ * @param bilinearWeight Base bilinear interpolation weight
+ * @param pixelDepth     Pixel's linear depth
+ * @param probeDepth     Probe's linear depth
+ * @param pixelNormal    Pixel's normal (view-space)
+ * @param probeNormal    Probe's normal (view-space)
+ * @param probeValid     Probe validity (0.0-1.0)
+ * @return Adjusted weight
+ */
+float computeEdgeAwareWeight(float bilinearWeight,
+                             float pixelDepth, float probeDepth,
+                             vec3 pixelNormal, vec3 probeNormal,
+                             float probeValid) {
+    // Invalid probes get zero weight
+    if (probeValid < 0.5) {
+        return 0.0;
+    }
+    
+    // Depth similarity - Gaussian falloff based on relative depth difference
+    float depthDiff = abs(pixelDepth - probeDepth) / max(pixelDepth, 0.01);
+    float depthWeight = exp(-depthDiff * depthDiff / (2.0 * depthSigma * depthSigma));
+    
+    // Normal similarity - power falloff based on dot product
+    float normalDot = max(dot(pixelNormal, probeNormal), 0.0);
+    float normalWeight = pow(normalDot, normalSigma);
+    
+    // Reduce weight for edge probes (validity < 1.0)
+    float edgeFactor = probeValid;
+    
+    return bilinearWeight * depthWeight * normalWeight * edgeFactor;
+}
+
 // ============================================================================
 // Main
 // ============================================================================
@@ -58,19 +146,21 @@ void main(void)
     vec2 screenUV = uv;
     
     // Sample pixel depth and normal
-    float pixelDepth = texture(primaryDepth, screenUV).r;
+    float pixelDepthRaw = texture(primaryDepth, screenUV).r;
     
     // Early out for sky
-    if (lumonIsSky(pixelDepth)) {
+    if (lumonIsSky(pixelDepthRaw)) {
         outColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
     
-    vec3 pixelPosVS = lumonReconstructViewPos(screenUV, pixelDepth, invProjectionMatrix);
-    vec3 pixelNormalWS = lumonDecodeNormal(texture(gBufferNormal, screenUV).xyz);
+    // Reconstruct pixel position and compute linear depth
+    vec3 pixelPosVS = lumonReconstructViewPos(screenUV, pixelDepthRaw, invProjectionMatrix);
+    float pixelDepth = -pixelPosVS.z;  // Positive linear depth
     
-    // Transform to view-space for SH evaluation (SH accumulated in VS directions)
-    vec3 pixelNormal = normalize(mat3(viewMatrix) * pixelNormalWS);
+    // Get pixel normal in world-space, then transform to view-space
+    vec3 pixelNormalWS = lumonDecodeNormal(texture(gBufferNormal, screenUV).xyz);
+    vec3 pixelNormalVS = normalize(mat3(viewMatrix) * pixelNormalWS);
     
     // Calculate which probes surround this pixel
     vec2 screenPos = screenUV * screenSize;
@@ -82,37 +172,24 @@ void main(void)
     ivec2 probe01 = probe00 + ivec2(0, 1);
     ivec2 probe11 = probe00 + ivec2(1, 1);
     
-    // Clamp to grid bounds
-    ivec2 gridMax = ivec2(probeGridSize) - 1;
-    probe00 = clamp(probe00, ivec2(0), gridMax);
-    probe10 = clamp(probe10, ivec2(0), gridMax);
-    probe01 = clamp(probe01, ivec2(0), gridMax);
-    probe11 = clamp(probe11, ivec2(0), gridMax);
-    
-    // Bilinear interpolation weights
+    // Calculate bilinear base weights
     vec2 frac = fract(probePos);
+    float bw00 = (1.0 - frac.x) * (1.0 - frac.y);
+    float bw10 = frac.x * (1.0 - frac.y);
+    float bw01 = (1.0 - frac.x) * frac.y;
+    float bw11 = frac.x * frac.y;
     
-    // Read SH data from all four probes using texelFetch for precise access
-    vec4 sh0_00 = texelFetch(radianceTexture0, probe00, 0);
-    vec4 sh1_00 = texelFetch(radianceTexture1, probe00, 0);
-    vec4 sh0_10 = texelFetch(radianceTexture0, probe10, 0);
-    vec4 sh1_10 = texelFetch(radianceTexture1, probe10, 0);
-    vec4 sh0_01 = texelFetch(radianceTexture0, probe01, 0);
-    vec4 sh1_01 = texelFetch(radianceTexture1, probe01, 0);
-    vec4 sh0_11 = texelFetch(radianceTexture0, probe11, 0);
-    vec4 sh1_11 = texelFetch(radianceTexture1, probe11, 0);
+    // Load probe data (position, normal, validity, SH)
+    ProbeData p00 = loadProbeData(probe00);
+    ProbeData p10 = loadProbeData(probe10);
+    ProbeData p01 = loadProbeData(probe01);
+    ProbeData p11 = loadProbeData(probe11);
     
-    // Read probe validity using texelFetch
-    float valid00 = texelFetch(probeAnchorPosition, probe00, 0).w;
-    float valid10 = texelFetch(probeAnchorPosition, probe10, 0).w;
-    float valid01 = texelFetch(probeAnchorPosition, probe01, 0).w;
-    float valid11 = texelFetch(probeAnchorPosition, probe11, 0).w;
-    
-    // Compute bilinear weights with validity masking
-    float w00 = (1.0 - frac.x) * (1.0 - frac.y) * valid00;
-    float w10 = frac.x * (1.0 - frac.y) * valid10;
-    float w01 = (1.0 - frac.x) * frac.y * valid01;
-    float w11 = frac.x * frac.y * valid11;
+    // Compute edge-aware weights (spec Section 2.3)
+    float w00 = computeEdgeAwareWeight(bw00, pixelDepth, p00.depth, pixelNormalVS, p00.normalVS, p00.valid);
+    float w10 = computeEdgeAwareWeight(bw10, pixelDepth, p10.depth, pixelNormalVS, p10.normalVS, p10.valid);
+    float w01 = computeEdgeAwareWeight(bw01, pixelDepth, p01.depth, pixelNormalVS, p01.normalVS, p01.valid);
+    float w11 = computeEdgeAwareWeight(bw11, pixelDepth, p11.depth, pixelNormalVS, p11.normalVS, p11.valid);
     
     float totalWeight = w00 + w10 + w01 + w11;
     
@@ -129,16 +206,16 @@ void main(void)
     w01 *= invWeight;
     w11 *= invWeight;
     
-    // Interpolate SH coefficients
-    vec4 sh0 = sh0_00 * w00 + sh0_10 * w10 + sh0_01 * w01 + sh0_11 * w11;
-    vec4 sh1 = sh1_00 * w00 + sh1_10 * w10 + sh1_01 * w01 + sh1_11 * w11;
+    // Interpolate SH coefficients with edge-aware weights
+    vec4 shR = p00.shR * w00 + p10.shR * w10 + p01.shR * w01 + p11.shR * w11;
+    vec4 shG = p00.shG * w00 + p10.shG * w10 + p01.shG * w01 + p11.shG * w11;
+    vec4 shB = p00.shB * w00 + p10.shB * w10 + p01.shB * w01 + p11.shB * w11;
     
-    // Unpack SH
-    vec4 shR, shG, shB;
-    shUnpackFromTextures(sh0, sh1, shR, shG, shB);
+    // Evaluate SH for pixel's normal direction (cosine-weighted diffuse)
+    vec3 irradiance = shEvaluateDiffuseRGB(shR, shG, shB, pixelNormalVS);
     
-    // Evaluate SH for pixel's normal direction
-    vec3 irradiance = shEvaluateDiffuseRGB(shR, shG, shB, pixelNormal);
+    // Clamp negative values (can occur due to SH ringing)
+    irradiance = max(irradiance, vec3(0.0));
     
     // Apply intensity and tint
     irradiance *= intensity;

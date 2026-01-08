@@ -1,0 +1,82 @@
+using Vintagestory.API.Client;
+using Vintagestory.API.MathTools;
+using Vintagestory.Client.NoObf;
+
+namespace VanillaGraphicsExpanded.LumOn;
+
+/// <summary>
+/// Shader program for LumOn Combine/Integrate pass (SPG-009).
+/// Combines indirect diffuse lighting with direct lighting and applies
+/// proper material modulation (albedo, metallic rejection).
+/// </summary>
+public class LumOnCombineShaderProgram : ShaderProgram
+{
+    #region Static
+
+    public static void Register(ICoreClientAPI api)
+    {
+        var instance = new LumOnCombineShaderProgram
+        {
+            PassName = "lumon_combine",
+            AssetDomain = "vanillagraphicsexpanded"
+        };
+        api.Shader.RegisterFileShaderProgram("lumon_combine", instance);
+        instance.Compile();
+    }
+
+    #endregion
+
+    #region Texture Samplers
+
+    /// <summary>
+    /// Scene with direct lighting only (captured before GI application).
+    /// </summary>
+    public int SceneDirect { set => BindTexture2D("sceneDirect", value, 0); }
+
+    /// <summary>
+    /// LumOn indirect diffuse output (upsampled to full resolution).
+    /// </summary>
+    public int IndirectDiffuse { set => BindTexture2D("indirectDiffuse", value, 1); }
+
+    /// <summary>
+    /// G-Buffer albedo texture for material modulation.
+    /// </summary>
+    public int GBufferAlbedo { set => BindTexture2D("gBufferAlbedo", value, 2); }
+
+    /// <summary>
+    /// G-Buffer material properties (roughness, metallic, etc.).
+    /// </summary>
+    public int GBufferMaterial { set => BindTexture2D("gBufferMaterial", value, 3); }
+
+    /// <summary>
+    /// Primary depth texture for sky detection.
+    /// </summary>
+    public int PrimaryDepth { set => BindTexture2D("primaryDepth", value, 4); }
+
+    #endregion
+
+    #region Intensity Uniforms
+
+    /// <summary>
+    /// Global intensity multiplier for indirect lighting.
+    /// Default: 1.0
+    /// </summary>
+    public float IndirectIntensity { set => Uniform("indirectIntensity", value); }
+
+    /// <summary>
+    /// RGB tint applied to indirect lighting.
+    /// </summary>
+    public Vec3f IndirectTint { set => Uniform("indirectTint", value); }
+
+    #endregion
+
+    #region Feature Toggle
+
+    /// <summary>
+    /// Whether LumOn is enabled (0 = disabled, 1 = enabled).
+    /// When disabled, passes through direct lighting unchanged.
+    /// </summary>
+    public int LumOnEnabled { set => Uniform("lumOnEnabled", value); }
+
+    #endregion
+}

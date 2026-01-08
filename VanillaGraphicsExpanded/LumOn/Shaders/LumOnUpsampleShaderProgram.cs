@@ -79,5 +79,26 @@ public class LumOnUpsampleShaderProgram : ShaderProgram
     /// </summary>
     public int DenoiseEnabled { set => Uniform("denoiseEnabled", value); }
 
+    /// <summary>
+    /// Depth similarity sigma for bilateral upsample.
+    /// Controls how strictly depth differences affect upsampling.
+    /// Default: 0.1 (from SPG-008 spec Section 3.1)
+    /// </summary>
+    public float UpsampleDepthSigma { set => Uniform("upsampleDepthSigma", value); }
+
+    /// <summary>
+    /// Normal similarity power for bilateral upsample.
+    /// Controls how strictly normal differences affect upsampling.
+    /// Default: 16.0 (from SPG-008 spec Section 3.1)
+    /// </summary>
+    public float UpsampleNormalSigma { set => Uniform("upsampleNormalSigma", value); }
+
+    /// <summary>
+    /// Spatial kernel sigma for optional spatial denoise.
+    /// Controls blur radius of spatial filter.
+    /// Default: 1.0 (from SPG-008 spec Section 3.1)
+    /// </summary>
+    public float UpsampleSpatialSigma { set => Uniform("upsampleSpatialSigma", value); }
+
     #endregion
 }
