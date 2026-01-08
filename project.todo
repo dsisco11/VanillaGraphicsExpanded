@@ -1,0 +1,62 @@
+LumOn World-Space Octahedral Radiance Cache Refactor:
+  This refactor aligns LumOn with UE5 Lumen's Screen Space Radiance Cache design:
+  - Full world-space coordinates (positions, normals, ray directions)
+  - Octahedral radiance textures instead of SH L1
+  - 3D texture storage (8×8×probeCount)
+  - Radiance + log-encoded hit-distance per texel
+  - Temporal ray distribution (subset of rays per frame)
+
+  Phase 1 - World-Space Probe Anchors:
+    ☐ Update LumOn.02-Probe-Grid.md to document world-space storage
+    ☐ Modify ProbeAnchor[0] to store posWS.xyz instead of posVS.xyz
+    ☐ Modify ProbeAnchor[1] to store normalWS.xyz instead of normalVS.xyz
+    ☐ Add inverseViewMatrix uniform to probe anchor shader
+    ☐ Update lumon_probe_anchor.fsh to transform G-buffer VS data to WS
+
+  Phase 2 - Octahedral Radiance Texture:
+    ☐ Update LumOn.03-Radiance-Cache.md to document octahedral storage
+    ☐ Remove SH L1 storage and related code
+    ☐ Create 3D texture with dimensions (8, 8, probeCount)
+    ☐ Use RGBA16F format: RGB = radiance, A = log-encoded hit-distance
+    ☐ Create lumon_octahedral.glsl include file with:
+      ☐ Direction to octahedral UV conversion
+      ☐ Octahedral UV to direction conversion
+      ☐ Bilinear-correct octahedral sampling (edge wrap handling)
+      ☐ Log-distance encode/decode helpers: log(dist + 1), exp(encoded) - 1
+
+  Phase 3 - Ray Tracing with Temporal Distribution:
+    ☐ Update LumOn.04-Ray-Tracing.md to document temporal ray distribution
+    ☐ Trace subset of rays per frame (8 of 64 directions)
+    ☐ Use frameIndex to select which octahedral texels to update
+    ☐ Add per-probe jitter to ray subset selection
+    ☐ Generate ray directions in world-space using WS normal
+    ☐ Output radiance + hit-distance to 3D octahedral texture
+    ☐ Add frameIndex uniform tracking in LumOnRenderer.cs
+
+  Phase 4 - Temporal Accumulation for Octahedral:
+    ☐ Update LumOn.05-Temporal.md to document per-texel accumulation
+    ☐ Adapt temporal blending to work per octahedral texel
+    ☐ Only blend texels that were traced this frame
+    ☐ Preserve history for non-traced texels
+    ☐ Use hit-distance delta for per-texel disocclusion detection
+    ☐ Remove SH-specific temporal logic
+
+  Phase 5 - Gather Pass with Octahedral Integration:
+    ☐ Update LumOn.06-Gather-Upsample.md to document octahedral gather
+    ☐ Replace SHEvaluateDiffuse() with hemisphere integration
+    ☐ Sample octahedral tile over hemisphere aligned to pixel WS normal
+    ☐ Apply cosine weighting for diffuse irradiance
+    ☐ Use hit-distance for distance-aware probe weighting
+    ☐ Implement leak prevention using hit-distance comparison
+
+  Phase 6 - Performance Optimizations:
+    ☐ Consider prefiltered cosine-lobe irradiance for fast diffuse gather
+    ☐ Add per-texel validity mask texture for disocclusion tracking
+    ☐ Profile and tune rays-per-frame (8 vs 16) based on convergence needs
+    ☐ Optimize hemisphere integration sample count
+
+  Documentation Updates:
+    ☐ Revise "Why View-Space?" section in LumOn.02 to explain full world-space approach (matching Lumen for temporal stability)
+    ☐ Add octahedral math reference to LumOn.03
+    ☐ Document temporal ray distribution algorithm in LumOn.04
+    ☐ Update pipeline diagrams in all affected docs
