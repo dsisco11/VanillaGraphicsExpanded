@@ -144,18 +144,9 @@ vec3 integrateHemisphere(ivec2 probeCoord, vec3 normalWS, float pixelDepthVS,
             vec3 radiance = sampleData.rgb;
             float hitDist = lumonDecodeHitDistance(sampleData.a);
             
-            // Leak prevention: reduce weight if probe sees past the pixel
-            // If probe's hit distance is much larger than pixel depth,
-            // the probe might be seeing through thin geometry
-            float leakFactor = 1.0;
-            if (hitDist > pixelDepthVS * (1.0 + leakThreshold)) {
-                leakFactor = 0.1;  // Reduce but don't eliminate
-            }
-            
-            // Accumulate with cosine weight and leak factor
-            float weight = cosWeight * leakFactor;
-            irradiance += radiance * weight;
-            totalWeight += weight;
+            // Accumulate with cosine weight
+            irradiance += radiance * cosWeight;
+            totalWeight += cosWeight;
             
             // Track hit distances for probe weighting
             hitDistSum += hitDist;
@@ -164,7 +155,7 @@ vec3 integrateHemisphere(ivec2 probeCoord, vec3 normalWS, float pixelDepthVS,
     }
     
     // Compute average hit distance
-    avgHitDist = (hitDistCount > 0) ? hitDistSum / float(hitDistCount) : 999.0;
+    avgHitDist = (hitDistCount > 0) ? hitDistSum / float(hitDistCount) : pixelDepthVS;
     
     // Normalize irradiance
     return (totalWeight > 0.001) ? irradiance / totalWeight : vec3(0.0);
@@ -208,8 +199,10 @@ float computeProbeWeight(float bilinearWeight,
 
 void main(void)
 {
-    // Calculate screen position for this half-res pixel
-    vec2 screenUV = uv;
+    // We're rendering to half-res, but need to sample full-res textures.
+    // gl_FragCoord is in half-res pixels (0 to halfResSize).
+    // To sample full-res textures correctly, we need UV in [0,1] range.
+    vec2 screenUV = gl_FragCoord.xy / halfResSize;
     
     // Sample pixel depth
     float pixelDepth = texture(primaryDepth, screenUV).r;

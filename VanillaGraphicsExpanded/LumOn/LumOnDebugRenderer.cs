@@ -141,6 +141,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         // Bind textures
         shader.PrimaryDepth = primaryFb.DepthTextureId;
+        // Use VGE's G-buffer normal (ColorAttachment4) which contains world-space normals
+        // encoded to [0,1] via the shader patching system
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex;
         shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex;

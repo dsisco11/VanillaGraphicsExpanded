@@ -834,6 +834,12 @@ public class LumOnRenderer : IRenderer, IDisposable
             // Direct additive blend to screen (fast path)
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
             GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
+            
+            // IMPORTANT: Set draw buffer to only ColorAttachment0
+            // The primary FB has multiple attachments (including VGE G-buffer on 4,5)
+            // Without this, the shader output could corrupt other attachments
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+            
             capi.Render.GlToggleBlend(true, EnumBlendMode.Standard);
         }
 
@@ -886,6 +892,11 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Render to primary framebuffer
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
         GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
+        
+        // IMPORTANT: Set draw buffer to only ColorAttachment0
+        // The primary FB has multiple attachments (including VGE G-buffer on 4,5)
+        // Without this, the shader output could corrupt other attachments
+        GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
 
         // No blending - we're replacing the scene color with combined result
         capi.Render.GlToggleBlend(false);

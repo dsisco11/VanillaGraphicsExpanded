@@ -142,8 +142,10 @@ float computeEdgeAwareWeight(float bilinearWeight,
 
 void main(void)
 {
-    // Calculate screen position for this half-res pixel
-    vec2 screenUV = uv;
+    // We're rendering to half-res, but need to sample full-res textures.
+    // gl_FragCoord is in half-res pixels (0 to halfResSize).
+    // To sample full-res textures correctly, we need UV in [0,1] range.
+    vec2 screenUV = gl_FragCoord.xy / halfResSize;
     
     // Sample pixel depth and normal
     float pixelDepthRaw = texture(primaryDepth, screenUV).r;
