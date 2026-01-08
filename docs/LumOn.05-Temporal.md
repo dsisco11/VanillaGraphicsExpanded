@@ -46,76 +46,13 @@ Temporal accumulation is critical for LumOn because:
 
 ### 2.1 Storing ViewProj Matrix
 
-```csharp
-// In LumOnRenderer.cs
+Each frame, store the current view and projection matrices (using `System.Numerics.Matrix4x4`) before rendering. Compute combined `prevViewProjMatrix = view * proj` for reprojection.
 
-using System.Numerics;
-
-private Matrix4x4 prevViewMatrix;
-private Matrix4x4 prevProjMatrix;
-private Matrix4x4 prevViewProjMatrix;
-
-private void StoreViewProjMatrix(IRenderAPI render)
-{
-    // Store current matrices for next frame
-    prevViewMatrix = ToMatrix4x4(render.CurrentModelviewMatrix);
-    prevProjMatrix = ToMatrix4x4(render.CurrentProjectionMatrix);
-
-    // Compute combined ViewProj (System.Numerics handles multiplication)
-    prevViewProjMatrix = prevViewMatrix * prevProjMatrix;
-}
-
-/// <summary>
-/// Convert VS float[16] column-major array to System.Numerics.Matrix4x4.
-/// </summary>
-private static Matrix4x4 ToMatrix4x4(float[] m)
-{
-    return new Matrix4x4(
-        m[0],  m[1],  m[2],  m[3],
-        m[4],  m[5],  m[6],  m[7],
-        m[8],  m[9],  m[10], m[11],
-        m[12], m[13], m[14], m[15]
-    );
-}
-
-/// <summary>
-/// Convert System.Numerics.Matrix4x4 to float[16] for shader uniform.
-/// </summary>
-private static float[] ToFloatArray(Matrix4x4 m)
-{
-    return new float[]
-    {
-        m.M11, m.M12, m.M13, m.M14,
-        m.M21, m.M22, m.M23, m.M24,
-        m.M31, m.M32, m.M33, m.M34,
-        m.M41, m.M42, m.M43, m.M44
-    };
-}
-```
+Provide helper functions `ToMatrix4x4(float[])` and `ToFloatArray(Matrix4x4)` to convert between VS's column-major arrays and System.Numerics format.
 
 ### 2.2 First Frame Handling
 
-```csharp
-private bool isFirstFrame = true;
-
-public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
-{
-    // ...
-
-    if (isFirstFrame)
-    {
-        // No history available, skip temporal pass
-        // Or: copy current to history directly
-        bufferManager.ClearHistory();
-        StoreViewProjMatrix(render);
-        isFirstFrame = false;
-        return;
-    }
-
-    // Normal render with temporal
-    // ...
-}
-```
+On first frame (or after teleport), clear history buffers and skip temporal blending. Use `isFirstFrame` flag to detect this state.
 
 ---
 
@@ -125,887 +62,216 @@ public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
 
 Probes store view-space positions. To reproject:
 
-1. Convert probe posVS to world-space using inverse current view matrix
-2. Transform world-space to previous clip-space using prevViewProj
-3. Sample history at previous screen UV
-
-```glsl
-// In lumon_temporal.fsh
-
-uniform mat4 invViewMatrix;      // Current frame inverse view
-uniform mat4 prevViewProjMatrix; // Previous frame view-projection
-
-// Convert current view-space position to previous screen UV
-vec2 ReprojectToHistory(vec3 posVS) {
-    // View-space to world-space
-    vec4 posWS = invViewMatrix * vec4(posVS, 1.0);
-
-    // World-space to previous clip-space
-    vec4 prevClip = prevViewProjMatrix * posWS;
-
-    // Clip to NDC
-    vec3 prevNDC = prevClip.xyz / prevClip.w;
-
-    // NDC to UV
-    return prevNDC.xy * 0.5 + 0.5;
-}
+```
+posWS = invViewMatrix * posVS
+prevClip = prevViewProjMatrix * posWS
+historyUV = (prevClip.xy / prevClip.w) * 0.5 + 0.5
 ```
 
-### 3.2 Handling Camera Translation
+### 3.2 Camera Motion Handling
 
-Camera translation causes parallax—objects at different depths move differently on screen. This is automatically handled by world-space reprojection.
-
-### 3.3 Handling Camera Rotation
-
-Pure rotation doesn't change world positions, but screen positions change drastically. Reprojection handles this correctly, but may cause many probes to fall outside previous frame bounds.
+- **Translation**: Causes parallax (depth-dependent screen motion)—handled automatically by world-space reprojection
+- **Rotation**: Screen positions change but world positions don't—may cause many probes to fall outside previous frame bounds
 
 ---
 
 ## 4. History Validation
 
-### 4.1 Depth Rejection
+History is validated with three checks, returning both validity and confidence (0-1):
 
-Reject history if the reprojected position's depth differs significantly from the stored history depth.
+### 4.1 Validation Checks
 
-```glsl
-uniform sampler2D historyDepth;  // Depth at history probe positions
-uniform float depthRejectThreshold;
+| Check  | Condition                                                                            | Threshold Example |
+| ------ | ------------------------------------------------------------------------------------ | ----------------- |
+| Bounds | `historyUV` within [0,1]²                                                            | N/A               |
+| Depth  | `relDiff < threshold` where relDiff = \|currentDepth - historyDepth\| / currentDepth | 0.1 (10%)         |
+| Normal | `dot(current, history) > threshold`                                                  | 0.8               |
 
-bool ValidateDepth(vec2 historyUV, float currentDepth) {
-    float historyDepth = texture(historyDepth, historyUV).r;
+### 4.2 Confidence Calculation
 
-    // Compare linearized depths
-    float currentLin = LinearizeDepth(currentDepth);
-    float historyLin = LinearizeDepth(historyDepth);
-
-    float relDiff = abs(currentLin - historyLin) / max(currentLin, 0.001);
-
-    return relDiff < depthRejectThreshold;
-}
+```
+depthConf = 1 - (depthDiff / depthThreshold)
+normalConf = (normalDot - normalThreshold) / (1 - normalThreshold)
+confidence = min(depthConf, normalConf)
 ```
 
-### 4.2 Normal Rejection
-
-Reject if surface normal changed significantly (e.g., camera panned to different surface).
-
-```glsl
-uniform sampler2D historyNormal;
-uniform float normalRejectThreshold;
-
-bool ValidateNormal(vec2 historyUV, vec3 currentNormal) {
-    vec3 historyNormal = texture(historyNormal, historyUV).xyz * 2.0 - 1.0;
-
-    float dotProduct = dot(currentNormal, historyNormal);
-
-    return dotProduct > normalRejectThreshold;  // e.g., > 0.8
-}
-```
-
-### 4.3 Bounds Rejection
-
-Reject if reprojected UV is outside screen bounds.
-
-```glsl
-bool ValidateBounds(vec2 historyUV) {
-    return historyUV.x >= 0.0 && historyUV.x <= 1.0 &&
-           historyUV.y >= 0.0 && historyUV.y <= 1.0;
-}
-```
-
-### 4.4 Combined Validation
-
-```glsl
-struct ValidationResult {
-    bool valid;
-    float confidence;  // 0-1, how much to trust history
-};
-
-ValidationResult ValidateHistory(vec2 historyUV, float currentDepth, vec3 currentNormal) {
-    ValidationResult result;
-    result.valid = false;
-    result.confidence = 0.0;
-
-    // Bounds check
-    if (!ValidateBounds(historyUV)) {
-        return result;
-    }
-
-    // Depth check
-    if (!ValidateDepth(historyUV, currentDepth)) {
-        return result;
-    }
-
-    // Normal check
-    if (!ValidateNormal(historyUV, currentNormal)) {
-        return result;
-    }
-
-    result.valid = true;
-
-    // Confidence based on how close to thresholds
-    float depthConf = 1.0 - (depthDiff / depthRejectThreshold);
-    float normalConf = (normalDot - normalRejectThreshold) / (1.0 - normalRejectThreshold);
-    result.confidence = min(depthConf, normalConf);
-
-    return result;
-}
-```
+Confidence scales how much history to trust—values near thresholds get reduced weight.
 
 ---
 
 ## 5. Neighborhood Clamping
 
-Even with validation, history can drift (accumulate error). Clamping keeps history within the range of current frame's local neighborhood.
+History can drift even with validation. Clamping constrains history to the range of current frame's local neighborhood.
 
 ### 5.1 Min/Max Clamping
 
-```glsl
-// Sample 3x3 neighborhood of current frame
-void GetNeighborhoodMinMax(ivec2 probeCoord, sampler2D currentRadiance,
-                           out vec4 minVal, out vec4 maxVal) {
-    minVal = vec4(1e10);
-    maxVal = vec4(-1e10);
-
-    for (int dy = -1; dy <= 1; dy++) {
-        for (int dx = -1; dx <= 1; dx++) {
-            ivec2 neighbor = probeCoord + ivec2(dx, dy);
-
-            // Clamp to grid bounds
-            neighbor = clamp(neighbor, ivec2(0), probeGridSize - 1);
-
-            vec4 sample = texelFetch(currentRadiance, neighbor, 0);
-
-            minVal = min(minVal, sample);
-            maxVal = max(maxVal, sample);
-        }
-    }
-}
-
-vec4 ClampToNeighborhood(vec4 history, vec4 minVal, vec4 maxVal) {
-    return clamp(history, minVal, maxVal);
-}
-```
+Sample 3×3 neighborhood of current frame, compute min/max per channel, clamp history to that range.
 
 ### 5.2 Variance Clamping (More Robust)
 
-```glsl
-// Compute mean and standard deviation of neighborhood
-void GetNeighborhoodStats(ivec2 probeCoord, sampler2D currentRadiance,
-                          out vec4 mean, out vec4 stdDev) {
-    vec4 sum = vec4(0.0);
-    vec4 sumSq = vec4(0.0);
-    float count = 0.0;
+Compute mean and standard deviation of neighborhood:
 
-    for (int dy = -1; dy <= 1; dy++) {
-        for (int dx = -1; dx <= 1; dx++) {
-            ivec2 neighbor = probeCoord + ivec2(dx, dy);
-            neighbor = clamp(neighbor, ivec2(0), probeGridSize - 1);
-
-            vec4 sample = texelFetch(currentRadiance, neighbor, 0);
-
-            sum += sample;
-            sumSq += sample * sample;
-            count += 1.0;
-        }
-    }
-
-    mean = sum / count;
-    vec4 variance = sumSq / count - mean * mean;
-    stdDev = sqrt(max(variance, vec4(0.0)));
-}
-
-vec4 VarianceClamp(vec4 history, vec4 mean, vec4 stdDev, float gamma) {
-    // gamma = 1.0 for tight clamping, 2.0+ for looser
-    vec4 minVal = mean - stdDev * gamma;
-    vec4 maxVal = mean + stdDev * gamma;
-    return clamp(history, minVal, maxVal);
-}
 ```
+clampedHistory = clamp(history, mean - stdDev * gamma, mean + stdDev * gamma)
+```
+
+Where `gamma` controls tightness (1.0 = tight, 2.0+ = looser).
 
 ---
 
 ## 6. Temporal Blend
 
-### 6.1 Basic Exponential Moving Average
+### 6.1 Exponential Moving Average
 
-```glsl
-uniform float temporalAlpha;  // e.g., 0.95
-
-vec4 BlendTemporal(vec4 current, vec4 history, float alpha) {
-    // alpha = 0.95 means 95% history, 5% current
-    return mix(current, history, alpha);
-}
+```
+result = mix(current, history, alpha)  // alpha=0.95 → 95% history, 5% current
 ```
 
-### 6.2 Adaptive Blend Based on Validation
+### 6.2 Adaptive Blend
 
-```glsl
-vec4 AdaptiveBlend(vec4 current, vec4 history,
-                   ValidationResult validation, float baseAlpha) {
-    if (!validation.valid) {
-        // No valid history, use current
-        return current;
-    }
+Adjust alpha based on validation:
 
-    // Reduce alpha (use more current) when confidence is low
-    float adaptedAlpha = baseAlpha * validation.confidence;
+- **Invalid history**: Use only current (full reset)
+- **Low confidence**: Reduce alpha (more current)
+- **Edge probes** (`valid < 0.9`): Reduce alpha by 50%
 
-    // Also reduce alpha for edge probes (more unstable)
-    // float valid = probeAnchor.a;
-    // if (valid < 0.9) adaptedAlpha *= 0.5;
-
-    return mix(current, history, adaptedAlpha);
-}
-```
-
-### 6.3 Handling Disocclusion
-
-When validation fails, we could:
+### 6.3 Disocclusion Handling Options
 
 1. **Hard reset**: Use only current frame (noisy but correct)
-2. **Soft reset**: Use lower alpha for a few frames
-3. **Spatial fill**: Sample nearby valid probes
+2. **Soft reset**: Track `accumCount` per probe; ramp alpha up over ~10 frames
+3. **Spatial fill**: Sample nearby valid probes (more complex)
 
-```glsl
-// Track accumulation count per probe (in alpha channel of history metadata)
-float GetAccumulationCount(vec2 historyUV) {
-    return texture(historyMeta, historyUV).a;
-}
+---
 
-vec4 DisocclusionAwareBlend(vec4 current, vec4 history,
-                            ValidationResult validation,
-                            float baseAlpha, float accumCount) {
-    if (!validation.valid) {
-        // Disoccluded: reset
-        return current;
-    }
+## 7. Temporal Shader Structure
 
-    // Ramp up alpha as we accumulate more frames
-    // First few frames use more current data
-    float rampedAlpha = baseAlpha * min(accumCount / 10.0, 1.0);
+### 7.1 SH Mode (lumon_temporal.fsh)
 
-    return mix(current, history, rampedAlpha);
-}
+**Key Uniforms:**
+
+| Category | Uniforms                                                         |
+| -------- | ---------------------------------------------------------------- |
+| Current  | `currentRadiance0/1`, `probeAnchorPos`, `probeAnchorNormal`      |
+| History  | `historyRadiance0/1`, `historyDepth`, `historyNormal`            |
+| Matrices | `invViewMatrix`, `prevViewProjMatrix`                            |
+| Config   | `temporalAlpha`, `depthRejectThreshold`, `normalRejectThreshold` |
+
+**Outputs:**
+
+- `outRadiance0/1`: Blended SH radiance
+- `outMeta`: (linearDepth, encodedNormal.xy, accumCount)
+
+**Main Loop (Pseudo Code):**
+
+```
+for each probe:
+    if invalid: pass through current
+
+    historyUV = reproject(posVS)
+    validation = validate(historyUV, depth, normal)
+
+    if validation.valid:
+        history = sampleHistory(historyUV)
+        history = clampToNeighborhood(history, 3x3 current)
+        alpha = temporalAlpha * validation.confidence
+        if edgeProbe: alpha *= 0.5
+        output = mix(current, history, alpha)
+        accumCount = prevAccum + 1
+    else:
+        output = current
+        accumCount = 1
+
+    storeMeta(depth, normal, accumCount)
 ```
 
 ---
 
-## 7. Full Temporal Shader
+## 7.2 Octahedral Temporal Accumulation
 
-### 7.1 lumon_temporal.fsh
-
-```glsl
-// lumon_temporal.fsh
-#version 330 core
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Uniforms
-// ═══════════════════════════════════════════════════════════════════════════
-
-// Current frame data
-uniform sampler2D currentRadiance0;   // SH texture 0
-uniform sampler2D currentRadiance1;   // SH texture 1
-uniform sampler2D probeAnchorPos;     // posVS.xyz, valid
-uniform sampler2D probeAnchorNormal;  // normalVS.xyz
-
-// History data
-uniform sampler2D historyRadiance0;
-uniform sampler2D historyRadiance1;
-uniform sampler2D historyDepth;       // Depth at history positions
-uniform sampler2D historyNormal;      // Normal at history positions
-
-// Matrices
-uniform mat4 invViewMatrix;
-uniform mat4 prevViewProjMatrix;
-
-// Config
-uniform vec2 probeGridSize;
-uniform float temporalAlpha;
-uniform float depthRejectThreshold;
-uniform float normalRejectThreshold;
-uniform float zNear;
-uniform float zFar;
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Inputs / Outputs
-// ═══════════════════════════════════════════════════════════════════════════
-
-in vec2 vTexCoord;
-
-layout(location = 0) out vec4 outRadiance0;
-layout(location = 1) out vec4 outRadiance1;
-layout(location = 2) out vec4 outMeta;  // Depth, normal.xy, accumCount
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Helper Functions
-// ═══════════════════════════════════════════════════════════════════════════
-
-float LinearizeDepth(float d) {
-    return zNear * zFar / (zFar - d * (zFar - zNear));
-}
-
-vec2 ReprojectToHistory(vec3 posVS) {
-    vec4 posWS = invViewMatrix * vec4(posVS, 1.0);
-    vec4 prevClip = prevViewProjMatrix * posWS;
-    vec3 prevNDC = prevClip.xyz / prevClip.w;
-    return prevNDC.xy * 0.5 + 0.5;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Validation
-// ═══════════════════════════════════════════════════════════════════════════
-
-struct ValidationResult {
-    bool valid;
-    float confidence;
-};
-
-ValidationResult ValidateHistory(vec2 historyUV, float currentDepthLin, vec3 currentNormal) {
-    ValidationResult result;
-    result.valid = false;
-    result.confidence = 0.0;
-
-    // Bounds
-    if (historyUV.x < 0.0 || historyUV.x > 1.0 ||
-        historyUV.y < 0.0 || historyUV.y > 1.0) {
-        return result;
-    }
-
-    // Depth
-    vec4 histMeta = texture(historyDepth, historyUV);
-    float historyDepthLin = histMeta.r;
-
-    float depthDiff = abs(currentDepthLin - historyDepthLin) / max(currentDepthLin, 0.001);
-    if (depthDiff > depthRejectThreshold) {
-        return result;
-    }
-
-    // Normal
-    vec3 historyNormal = texture(historyNormal, historyUV).xyz * 2.0 - 1.0;
-    float normalDot = dot(normalize(currentNormal), normalize(historyNormal));
-    if (normalDot < normalRejectThreshold) {
-        return result;
-    }
-
-    result.valid = true;
-
-    // Confidence
-    float depthConf = 1.0 - (depthDiff / depthRejectThreshold);
-    float normalConf = (normalDot - normalRejectThreshold) / (1.0 - normalRejectThreshold);
-    result.confidence = clamp(min(depthConf, normalConf), 0.0, 1.0);
-
-    return result;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Neighborhood Clamping
-// ═══════════════════════════════════════════════════════════════════════════
-
-void GetNeighborhoodMinMax(ivec2 probeCoord,
-                           out vec4 minVal0, out vec4 maxVal0,
-                           out vec4 minVal1, out vec4 maxVal1) {
-    minVal0 = vec4(1e10);
-    maxVal0 = vec4(-1e10);
-    minVal1 = vec4(1e10);
-    maxVal1 = vec4(-1e10);
-
-    for (int dy = -1; dy <= 1; dy++) {
-        for (int dx = -1; dx <= 1; dx++) {
-            ivec2 neighbor = clamp(probeCoord + ivec2(dx, dy),
-                                   ivec2(0), probeGridSize - 1);
-
-            vec4 s0 = texelFetch(currentRadiance0, neighbor, 0);
-            vec4 s1 = texelFetch(currentRadiance1, neighbor, 0);
-
-            minVal0 = min(minVal0, s0);
-            maxVal0 = max(maxVal0, s0);
-            minVal1 = min(minVal1, s1);
-            maxVal1 = max(maxVal1, s1);
-        }
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Main
-// ═══════════════════════════════════════════════════════════════════════════
-
-void main() {
-    ivec2 probeCoord = ivec2(gl_FragCoord.xy);
-
-    // Load current frame data
-    vec4 currentRad0 = texelFetch(currentRadiance0, probeCoord, 0);
-    vec4 currentRad1 = texelFetch(currentRadiance1, probeCoord, 0);
-
-    vec4 anchorPos = texelFetch(probeAnchorPos, probeCoord, 0);
-    vec4 anchorNormal = texelFetch(probeAnchorNormal, probeCoord, 0);
-
-    vec3 posVS = anchorPos.xyz;
-    float valid = anchorPos.a;
-    vec3 normalVS = normalize(anchorNormal.xyz * 2.0 - 1.0);
-
-    // Invalid probe: pass through
-    if (valid < 0.5) {
-        outRadiance0 = currentRad0;
-        outRadiance1 = currentRad1;
-        outMeta = vec4(0.0);
-        return;
-    }
-
-    // Compute linearized depth for validation
-    float currentDepthLin = -posVS.z;  // View-space Z (positive into screen)
-
-    // Reproject to history
-    vec2 historyUV = ReprojectToHistory(posVS);
-
-    // Validate history
-    ValidationResult validation = ValidateHistory(historyUV, currentDepthLin, normalVS);
-
-    vec4 outputRad0;
-    vec4 outputRad1;
-    float accumCount = 1.0;
-
-    if (validation.valid) {
-        // Sample history
-        vec4 historyRad0 = texture(historyRadiance0, historyUV);
-        vec4 historyRad1 = texture(historyRadiance1, historyUV);
-
-        // Get neighborhood bounds for clamping
-        vec4 minVal0, maxVal0, minVal1, maxVal1;
-        GetNeighborhoodMinMax(probeCoord, minVal0, maxVal0, minVal1, maxVal1);
-
-        // Clamp history to neighborhood
-        historyRad0 = clamp(historyRad0, minVal0, maxVal0);
-        historyRad1 = clamp(historyRad1, minVal1, maxVal1);
-
-        // Adaptive blend
-        float alpha = temporalAlpha * validation.confidence;
-
-        // Edge probes get less temporal accumulation
-        if (valid < 0.9) {
-            alpha *= 0.5;
-        }
-
-        outputRad0 = mix(currentRad0, historyRad0, alpha);
-        outputRad1 = mix(currentRad1, historyRad1, alpha);
-
-        // Track accumulation (from history meta)
-        float prevAccum = texture(historyDepth, historyUV).a;
-        accumCount = min(prevAccum + 1.0, 100.0);  // Cap at 100 frames
-    } else {
-        // Disoccluded: use current only
-        outputRad0 = currentRad0;
-        outputRad1 = currentRad1;
-        accumCount = 1.0;
-    }
-
-    outRadiance0 = outputRad0;
-    outRadiance1 = outputRad1;
-
-    // Store metadata for next frame
-    // r = linearized depth, gba = normal.xyz encoded, a = accumCount
-    outMeta = vec4(currentDepthLin, normalVS * 0.5 + 0.5);
-    outMeta.a = accumCount;
-}
-```
-
----
-
-## 7.2 Octahedral Temporal Accumulation (UseOctahedralCache = true)
-
-When using octahedral radiance storage, temporal accumulation works **per-texel** rather than per-probe. This is necessary because:
-
-1. **Temporal ray distribution**: Only 8 of 64 texels are traced per frame
-2. **Per-direction hit distance**: Each texel has its own hit distance for disocclusion detection
-3. **Selective blending**: Only blend texels that were traced this frame; preserve others
+When using octahedral radiance storage, temporal accumulation works **per-texel** rather than per-probe:
 
 ### 7.2.1 Key Differences from SH Temporal
 
-| Aspect              | SH Mode (per-probe)           | Octahedral Mode (per-texel)          |
-| ------------------- | ----------------------------- | ------------------------------------ |
-| Unit of operation   | Entire probe (2 SH textures)  | Individual texel (1 RGBA value)      |
-| Blend trigger       | Every frame for every probe   | Only traced texels this frame        |
-| Disocclusion signal | Probe depth/normal change     | Texel hit-distance delta             |
-| History preservation| Blend all history             | Keep non-traced texels unchanged     |
-| Neighborhood clamp  | 3×3 probe neighborhood        | 3×3 texel neighborhood within tile   |
+| Aspect               | SH Mode (per-probe)          | Octahedral Mode (per-texel)        |
+| -------------------- | ---------------------------- | ---------------------------------- |
+| Unit of operation    | Entire probe (2 SH textures) | Individual texel (1 RGBA value)    |
+| Blend trigger        | Every frame for every probe  | Only traced texels this frame      |
+| Disocclusion signal  | Probe depth/normal change    | Texel hit-distance delta           |
+| History preservation | Blend all history            | Keep non-traced texels unchanged   |
+| Neighborhood clamp   | 3×3 probe neighborhood       | 3×3 texel neighborhood within tile |
 
-### 7.2.2 Per-Texel Blend Algorithm
+### 7.2.2 Per-Texel Algorithm
 
-```glsl
-// lumon_temporal_octahedral.fsh - Per-texel temporal blending
+```
+for each atlas texel:
+    if !wasTracedThisFrame(octTexel, probeIndex):
+        output = history  // Preserve unchanged
+        return
 
-// For each texel in the octahedral atlas:
-// 1. Check if this texel was traced this frame (same logic as trace shader)
-// 2. If traced: blend with history using hit-distance validation
-// 3. If not traced: preserve history value unchanged
+    // Validate using hit distance (not probe depth)
+    historyValid = |currentDist - historyDist| / max(both) < threshold
 
-uniform int frameIndex;
-uniform int texelsPerFrame;
-
-bool wasTracedThisFrame(ivec2 octTexel, int probeIndex) {
-    int texelIndex = octTexel.y * 8 + octTexel.x;
-    int numBatches = 64 / texelsPerFrame;  // 8 batches with 8 texels/frame
-    int batch = texelIndex / texelsPerFrame;
-    int jitteredFrame = (frameIndex + probeIndex) % numBatches;
-    return batch == jitteredFrame;
-}
+    if historyValid:
+        history = clampToNeighborhood(history, 3x3 within tile)
+        output = mix(current, history, alpha)
+    else:
+        output = current  // Disoccluded
 ```
 
-### 7.2.3 Hit-Distance Based Disocclusion
+### 7.2.3 Hit-Distance Validation
 
 Unlike SH mode which uses probe depth/normal, octahedral uses **per-texel hit distance**:
 
-```glsl
-// Compare hit distances between current and history
-uniform float hitDistanceRejectThreshold;  // e.g., 0.3 = 30% relative difference
-
-bool validateHitDistance(float currentDist, float historyDist) {
-    if (historyDist < 0.001) return false;  // No valid history
-    
-    float relativeDiff = abs(currentDist - historyDist) / max(currentDist, historyDist);
-    return relativeDiff < hitDistanceRejectThreshold;
-}
-```
-
-**Why hit-distance?**
 - Each direction can see different geometry
 - A direction that previously hit a nearby wall but now sees distant sky is disoccluded
-- More granular than probe-level depth (which averages across directions)
+- More granular than probe-level depth
 
-### 7.2.4 Octahedral Temporal Shader
+The trace shader already handles the "preserve history for non-traced texels" case by copying from history when a texel isn't traced. The temporal pass then blends only the fresh texels with their history.
 
-```glsl
-// lumon_temporal_octahedral.fsh
-#version 330 core
-
-in vec2 uv;
-out vec4 outRadiance;  // RGB = blended radiance, A = blended hit distance
-
-@import "lumon_common.fsh"
-@import "lumon_octahedral.glsl"
-
-// Current frame trace output
-uniform sampler2D octahedralCurrent;  // From trace pass
-
-// History
-uniform sampler2D octahedralHistory;
-
-// Probe anchors for validation
-uniform sampler2D probeAnchorPosition;  // posWS.xyz, valid
-
-// Parameters
-uniform vec2 probeGridSize;
-uniform int frameIndex;
-uniform int texelsPerFrame;
-uniform float temporalAlpha;
-uniform float hitDistanceRejectThreshold;
-
-// Determine if this texel was traced this frame
-bool wasTracedThisFrame(ivec2 octTexel, int probeIndex) {
-    int texelIndex = octTexel.y * LUMON_OCTAHEDRAL_SIZE + octTexel.x;
-    int numBatches = (LUMON_OCTAHEDRAL_SIZE * LUMON_OCTAHEDRAL_SIZE) / texelsPerFrame;
-    int batch = texelIndex / texelsPerFrame;
-    int jitteredFrame = (frameIndex + probeIndex) % numBatches;
-    return batch == jitteredFrame;
-}
-
-void main() {
-    ivec2 atlasCoord = ivec2(gl_FragCoord.xy);
-    ivec2 probeCoord = atlasCoord / LUMON_OCTAHEDRAL_SIZE;
-    ivec2 octTexel = atlasCoord % LUMON_OCTAHEDRAL_SIZE;
-    
-    ivec2 probeGridSizeI = ivec2(probeGridSize);
-    probeCoord = clamp(probeCoord, ivec2(0), probeGridSizeI - 1);
-    int probeIndex = probeCoord.y * probeGridSizeI.x + probeCoord.x;
-    
-    // Load probe validity
-    float probeValid = texelFetch(probeAnchorPosition, probeCoord, 0).w;
-    
-    // Invalid probe: output zero
-    if (probeValid < 0.5) {
-        outRadiance = vec4(0.0);
-        return;
-    }
-    
-    // Load current and history
-    vec4 current = texelFetch(octahedralCurrent, atlasCoord, 0);
-    vec4 history = texelFetch(octahedralHistory, atlasCoord, 0);
-    
-    // Check if this texel was traced this frame
-    if (!wasTracedThisFrame(octTexel, probeIndex)) {
-        // Not traced: preserve history unchanged
-        outRadiance = history;
-        return;
-    }
-    
-    // Traced: perform temporal blending with validation
-    float currentHitDist = lumonDecodeHitDistance(current.a);
-    float historyHitDist = lumonDecodeHitDistance(history.a);
-    
-    // Validate using hit distance
-    bool historyValid = historyHitDist > 0.001;
-    if (historyValid) {
-        float relativeDiff = abs(currentHitDist - historyHitDist) / 
-                             max(currentHitDist, historyHitDist);
-        historyValid = relativeDiff < hitDistanceRejectThreshold;
-    }
-    
-    if (historyValid) {
-        // Neighborhood clamping (3×3 within the probe's tile)
-        vec4 minVal = vec4(1e10);
-        vec4 maxVal = vec4(-1e10);
-        for (int dy = -1; dy <= 1; dy++) {
-            for (int dx = -1; dx <= 1; dx++) {
-                ivec2 neighborTexel = clamp(octTexel + ivec2(dx, dy), 
-                                            ivec2(0), ivec2(7));
-                ivec2 neighborAtlas = probeCoord * LUMON_OCTAHEDRAL_SIZE + neighborTexel;
-                vec4 s = texelFetch(octahedralCurrent, neighborAtlas, 0);
-                minVal = min(minVal, s);
-                maxVal = max(maxVal, s);
-            }
-        }
-        history = clamp(history, minVal, maxVal);
-        
-        // Blend
-        outRadiance = mix(current, history, temporalAlpha);
-    } else {
-        // Disoccluded: use current only
-        outRadiance = current;
-    }
-}
-```
-
-### 7.2.5 Buffer Flow for Octahedral Temporal
+### 7.2.4 Buffer Flow
 
 ```
-Frame N:
-┌─────────────────────┐
-│ Trace Pass          │  Writes traced texels to OctahedralTrace
-│ (8 of 64 texels)    │  Copies history for non-traced texels
-└─────────────────────┘
-           │
-           ▼
-┌─────────────────────┐
-│ Temporal Pass       │  Blends traced texels with history
-│ (per-texel)         │  Preserves non-traced from trace output
-└─────────────────────┘
-           │
-           ▼
-┌─────────────────────┐
-│ Write to Current    │  Current becomes next frame's history
-│ Swap buffers        │
-└─────────────────────┘
+Trace Pass → writes traced texels, copies history for non-traced
+    ↓
+Temporal Pass → blends traced texels, passes through copied
+    ↓
+Swap Buffers → current becomes next frame's history
 ```
-
-### 7.2.6 Integration with Trace Pass
-
-The trace shader already handles the "preserve history for non-traced texels" case:
-
-```glsl
-// In lumon_probe_trace_octahedral.fsh
-if (!shouldTraceThisFrame(octTexel, probeIndex)) {
-    // Keep history value
-    vec2 atlasUV = (vec2(atlasCoord) + 0.5) / (probeGridSize * 8.0);
-    outRadiance = texture(octahedralHistory, atlasUV);
-    return;
-}
-```
-
-The temporal pass then:
-1. Receives trace output (some texels fresh, some copied from history)
-2. Blends the fresh texels with their history
-3. Passes through the copied texels unchanged
 
 ---
 
 ## 8. C# Integration
 
-### 8.1 Additional Buffer for Metadata
+The temporal pass requires:
 
-```csharp
-// In LumOnBufferManager.cs
+1. **Meta buffers**: Store (linearDepth, encodedNormal, accumCount) per probe
+2. **SwapAllBuffers()**: Swap both radiance and meta buffer pairs
 
-public FrameBufferRef ProbeMetaCurrentFB { get; private set; }
-public FrameBufferRef ProbeMetaHistoryFB { get; private set; }
+**Render pass steps:**
 
-private void CreateMetaBuffers()
-{
-    // Stores: linearized depth, encoded normal, accumulation count
-    ProbeMetaCurrentFB = CreateFramebuffer(
-        "LumOn_MetaCurrent",
-        ProbeCountX, ProbeCountY,
-        new[] { EnumTextureFormat.Rgba16f }
-    );
-
-    ProbeMetaHistoryFB = CreateFramebuffer(
-        "LumOn_MetaHistory",
-        ProbeCountX, ProbeCountY,
-        new[] { EnumTextureFormat.Rgba16f }
-    );
-}
-
-public void SwapAllBuffers()
-{
-    SwapRadianceBuffers();
-
-    // Also swap meta buffers
-    var temp = ProbeMetaCurrentFB;
-    ProbeMetaCurrentFB = ProbeMetaHistoryFB;
-    ProbeMetaHistoryFB = temp;
-}
-```
-
-### 8.2 Render Pass
-
-```csharp
-private void RenderTemporalPass(IRenderAPI render)
-{
-    // Output goes to history buffer (will become current next frame after swap)
-    render.FrameBuffer = bufferManager.ProbeRadianceWrite;
-    // Also need to output to meta buffer - use MRT
-
-    GL.Viewport(0, 0, bufferManager.ProbeCountX, bufferManager.ProbeCountY);
-
-    temporalShader.Use();
-
-    // Current frame textures
-    temporalShader.BindTexture2D("currentRadiance0",
-        bufferManager.ProbeRadianceRead.ColorTextureIds[0], 0);
-    temporalShader.BindTexture2D("currentRadiance1",
-        bufferManager.ProbeRadianceRead.ColorTextureIds[1], 1);
-    temporalShader.BindTexture2D("probeAnchorPos",
-        bufferManager.ProbeAnchorFB.ColorTextureIds[0], 2);
-    temporalShader.BindTexture2D("probeAnchorNormal",
-        bufferManager.ProbeAnchorFB.ColorTextureIds[1], 3);
-
-    // History textures (from previous frame)
-    temporalShader.BindTexture2D("historyRadiance0",
-        bufferManager.ProbeRadianceWrite.ColorTextureIds[0], 4);  // Previous write = current read
-    temporalShader.BindTexture2D("historyRadiance1",
-        bufferManager.ProbeRadianceWrite.ColorTextureIds[1], 5);
-    temporalShader.BindTexture2D("historyDepth",
-        bufferManager.ProbeMetaHistoryFB.ColorTextureIds[0], 6);
-
-    // Matrices
-    temporalShader.UniformMatrix("invViewMatrix", GetInverseViewMatrix(render));
-    temporalShader.UniformMatrix("prevViewProjMatrix", prevViewProjMatrix);
-
-    // Config
-    temporalShader.Uniform("probeGridSize",
-        new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY));
-    temporalShader.Uniform("temporalAlpha", config.TemporalAlpha);
-    temporalShader.Uniform("depthRejectThreshold", config.DepthRejectThreshold);
-    temporalShader.Uniform("normalRejectThreshold", config.NormalRejectThreshold);
-    temporalShader.Uniform("zNear", render.ShaderUniforms.ZNear);
-    temporalShader.Uniform("zFar", render.ShaderUniforms.ZFar);
-    temporalShader.Uniform("debugMode", config.DebugMode);
-
-    RenderFullscreenQuad(render);
-
-    temporalShader.Stop();
-
-    GL.Viewport(0, 0, render.FrameWidth, render.FrameHeight);
-}
-
-private float[] GetInverseViewMatrix(IRenderAPI render)
-{
-    // Invert current modelview matrix using System.Numerics
-    var view = ToMatrix4x4(render.CurrentModelviewMatrix);
-    Matrix4x4.Invert(view, out var invView);
-    return ToFloatArray(invView);
-}
-```
+1. Bind current radiance + anchor textures
+2. Bind history radiance + meta textures
+3. Set matrices (`invViewMatrix`, `prevViewProjMatrix`)
+4. Set config uniforms (`temporalAlpha`, `depthRejectThreshold`, `normalRejectThreshold`)
+5. Render fullscreen quad at probe resolution
 
 ---
 
 ## 9. Teleport/Scene Change Detection
 
-### 9.1 Detecting Large Camera Jumps
-
-```csharp
-private Vec3d lastCameraPos;
-private float teleportThreshold = 50.0f;  // meters
-
-private bool DetectTeleport(IRenderAPI render)
-{
-    Vec3d currentPos = new Vec3d(
-        render.CameraMatrixOrigin[0],
-        render.CameraMatrixOrigin[1],
-        render.CameraMatrixOrigin[2]
-    );
-
-    double distance = currentPos.DistanceTo(lastCameraPos);
-    lastCameraPos = currentPos;
-
-    return distance > teleportThreshold;
-}
-
-public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
-{
-    // ...
-
-    if (DetectTeleport(render))
-    {
-        bufferManager.ClearHistory();
-        api.Logger.Debug("[LumOn] Teleport detected, cleared history");
-    }
-
-    // ...
-}
-```
-
-### 9.2 Scene Change Events
-
-```csharp
-// Register for world unload/load events
-api.Event.LeaveWorld += () => {
-    isFirstFrame = true;
-    bufferManager?.ClearHistory();
-};
-```
+Detect large camera jumps (distance > threshold, e.g., 50m) and clear history buffers.
+Also register for world unload/load events to reset `isFirstFrame`.
 
 ---
 
 ## 10. Debug Visualization
 
-Debug visualizations for the temporal system are implemented in `lumon_debug.fsh`, not in the temporal shader itself.
+Debug visualizations implemented in `lumon_debug.fsh`:
 
-### 10.1 Debug Mode: Temporal Weight (DebugMode = 6)
-
-Shows how much history is being used per probe. Brighter = more history weight.
-
-```glsl
-// In lumon_debug.fsh
-float weight = validation.valid ? validation.confidence * temporalAlpha : 0.0;
-outColor = vec4(weight, weight, weight, 1.0);  // Grayscale
-```
-
-### 10.2 Debug Mode: Rejection Mask (DebugMode = 7)
-
-Shows why history was rejected at each probe:
-
-| Color  | Meaning                                |
-| ------ | -------------------------------------- |
-| Green  | Valid history                          |
-| Red    | Out of bounds (reprojected off-screen) |
-| Yellow | Depth rejection                        |
-| Orange | Normal rejection                       |
-| Purple | No history data available              |
-
-```glsl
-// In lumon_debug.fsh
-vec3 color;
-if (!validation.valid) {
-    if (outOfBounds) {
-        color = vec3(1.0, 0.0, 0.0);  // Red
-    } else if (depthRejected) {
-        color = vec3(1.0, 1.0, 0.0);  // Yellow
-    } else {
-        color = vec3(1.0, 0.5, 0.0);  // Orange (normal reject)
-    }
-} else {
-    color = vec3(0.0, 1.0, 0.0);  // Green
-}
-```
+| Debug Mode | Shows           | Visual                                                                    |
+| ---------- | --------------- | ------------------------------------------------------------------------- |
+| 6          | Temporal Weight | Grayscale (brighter = more history)                                       |
+| 7          | Rejection Mask  | Green=valid, Red=out-of-bounds, Yellow=depth-reject, Orange=normal-reject |
 
 ---
 
@@ -1037,56 +303,3 @@ At 32K probes: ~3.5M ALU, 700K texture samples
 | Document                                                   | Dependency    | Topic                                   |
 | ---------------------------------------------------------- | ------------- | --------------------------------------- |
 | [LumOn.06-Gather-Upsample.md](LumOn.06-Gather-Upsample.md) | This document | Probe-to-pixel gathering and upsampling |
-
----
-
-## 13. Implementation Checklist
-
-### 13.1 Shader Files
-
-- [x] Create `lumon_temporal.vsh`
-- [x] Create `lumon_temporal.fsh`
-- [x] Implement reprojection function
-- [x] Implement history validation (depth/normal/bounds)
-- [x] Implement neighborhood clamping (min/max)
-- [ ] (Optional) Implement variance clamping alternative
-- [x] Implement adaptive blend based on confidence
-
-### 13.2 Shader Program Class
-
-- [x] Create `LumOnTemporalShaderProgram.cs`
-- [x] Add current frame texture properties
-- [x] Add history texture properties
-- [x] Add matrix uniform properties
-- [x] Add config uniform properties
-
-### 13.3 Matrix Management
-
-- [x] Store `prevViewMatrix` and `prevProjMatrix`
-- [x] Compute `prevViewProjMatrix` using System.Numerics
-- [x] Implement `ToMatrix4x4()` / `ToFloatArray()` helpers
-- [x] Implement `GetInverseViewMatrix()`
-
-### 13.4 Buffer Management
-
-- [x] Create ProbeMetaCurrent/History framebuffers
-- [x] Store accumulation count per probe in meta alpha
-- [x] Update `SwapAllBuffers()` to include meta
-- [x] Handle first frame (no history)
-- [x] Implement `isFirstFrame` flag handling
-
-### 13.5 Special Cases
-
-- [x] Implement teleport detection
-- [x] Register for world unload/load events
-- [x] Clear history on scene change
-
-### 13.6 Testing
-
-- [ ] Verify temporal weight visualization (DebugMode = 6)
-- [ ] Check rejection mask colors (DebugMode = 7)
-- [ ] Test camera rotation stability
-- [ ] Test camera translation (parallax)
-- [ ] Verify disocclusion handling
-- [ ] Test accumulation count ramping
-- [ ] Verify neighborhood clamping reduces ghosting
