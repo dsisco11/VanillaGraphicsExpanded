@@ -5,14 +5,17 @@ using OpenTK.Graphics.OpenGL;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>
-/// Encapsulates an OpenGL 3D texture with lifecycle management.
+/// Encapsulates an OpenGL 3D texture or 2D texture array with lifecycle management.
 /// Used for LumOn octahedral radiance cache storage.
-/// Dimensions: (8, 8, probeCount) where each 8×8 slice is one probe's octahedral map.
+/// Dimensions: (width, height, depth/layers) where each layer is one probe's octahedral map.
 /// </summary>
 /// <remarks>
+/// For octahedral radiance cache, use Texture2DArray to avoid interpolation between probes.
+/// For volumetric data where 3D filtering is desired, use Texture3D.
+/// 
 /// Usage:
 /// <code>
-/// using var texture = DynamicTexture3D.Create(8, 8, probeCount, PixelInternalFormat.Rgba16f);
+/// using var texture = DynamicTexture3D.Create(8, 8, probeCount, PixelInternalFormat.Rgba16f, textureType: Texture3DType.Texture2DArray);
 /// texture.Bind(0); // Bind to texture unit 0
 /// // ... use texture ...
 /// </code>
@@ -36,6 +39,7 @@ public sealed class DynamicTexture3D : IDisposable
     private int depth;
     private PixelInternalFormat internalFormat;
     private TextureFilterMode filterMode;
+    private TextureTarget textureTarget;
     private bool isDisposed;
 
     #endregion
@@ -48,17 +52,17 @@ public sealed class DynamicTexture3D : IDisposable
     public int TextureId => textureId;
 
     /// <summary>
-    /// Texture width in pixels (octahedral X dimension).
+    /// Texture width in pixels.
     /// </summary>
     public int Width => width;
 
     /// <summary>
-    /// Texture height in pixels (octahedral Y dimension).
+    /// Texture height in pixels.
     /// </summary>
     public int Height => height;
 
     /// <summary>
-    /// Texture depth (number of probes/slices).
+    /// Texture depth (number of slices/layers).
     /// </summary>
     public int Depth => depth;
 
@@ -71,6 +75,11 @@ public sealed class DynamicTexture3D : IDisposable
     /// Filtering mode used for sampling.
     /// </summary>
     public TextureFilterMode FilterMode => filterMode;
+
+    /// <summary>
+    /// The OpenGL texture target (Texture3D or Texture2DArray).
+    /// </summary>
+    public TextureTarget TextureTarget => textureTarget;
 
     /// <summary>
     /// Whether this texture has been disposed.
@@ -93,20 +102,22 @@ public sealed class DynamicTexture3D : IDisposable
     #region Factory Methods
 
     /// <summary>
-    /// Creates a new 3D texture with the specified parameters.
+    /// Creates a new 3D texture or 2D texture array with the specified parameters.
     /// </summary>
     /// <param name="width">Texture width in pixels.</param>
     /// <param name="height">Texture height in pixels.</param>
-    /// <param name="depth">Texture depth (number of slices).</param>
+    /// <param name="depth">Texture depth (slices for 3D, layers for array).</param>
     /// <param name="format">Internal pixel format (e.g., Rgba16f).</param>
     /// <param name="filter">Filtering mode for sampling. Default is Linear.</param>
+    /// <param name="textureTarget">OpenGL texture target. Default is Texture2DArray (recommended for probes).</param>
     /// <returns>A new DynamicTexture3D instance.</returns>
     public static DynamicTexture3D Create(
         int width,
         int height,
         int depth,
         PixelInternalFormat format,
-        TextureFilterMode filter = TextureFilterMode.Linear)
+        TextureFilterMode filter = TextureFilterMode.Linear,
+        TextureTarget textureTarget = TextureTarget.Texture2DArray)
     {
         if (width <= 0)
         {
@@ -130,7 +141,8 @@ public sealed class DynamicTexture3D : IDisposable
             height = height,
             depth = depth,
             internalFormat = format,
-            filterMode = filter
+            filterMode = filter,
+            textureTarget = textureTarget
         };
 
         texture.AllocateGpu();
@@ -138,19 +150,21 @@ public sealed class DynamicTexture3D : IDisposable
     }
 
     /// <summary>
-    /// Creates a 3D texture sized for LumOn octahedral radiance cache.
+    /// Creates a texture sized for LumOn octahedral radiance cache.
     /// Uses 8×8 octahedral resolution per probe.
     /// </summary>
     /// <param name="probeCount">Total number of probes (probeCountX × probeCountY).</param>
     /// <param name="format">Internal pixel format. Default is Rgba16f.</param>
-    /// <param name="filter">Filtering mode. Default is Linear for smooth sampling.</param>
+    /// <param name="filter">Filtering mode. Default is Linear for smooth direction sampling.</param>
+    /// <param name="textureTarget">OpenGL texture target. Default is Texture2DArray (recommended for probes).</param>
     /// <returns>A new DynamicTexture3D instance sized for octahedral cache.</returns>
     public static DynamicTexture3D CreateOctahedralCache(
         int probeCount,
         PixelInternalFormat format = PixelInternalFormat.Rgba16f,
-        TextureFilterMode filter = TextureFilterMode.Linear)
+        TextureFilterMode filter = TextureFilterMode.Linear,
+        TextureTarget textureTarget = TextureTarget.Texture2DArray)
     {
-        return Create(OctahedralSize, OctahedralSize, probeCount, format, filter);
+        return Create(OctahedralSize, OctahedralSize, probeCount, format, filter, textureTarget);
     }
 
     #endregion
@@ -170,7 +184,7 @@ public sealed class DynamicTexture3D : IDisposable
         }
 
         GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(TextureTarget.Texture3D, textureId);
+        GL.BindTexture(textureTarget, textureId);
     }
 
     /// <summary>
@@ -180,7 +194,7 @@ public sealed class DynamicTexture3D : IDisposable
     public void Unbind(int unit)
     {
         GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(TextureTarget.Texture3D, 0);
+        GL.BindTexture(textureTarget, 0);
     }
 
     /// <summary>
@@ -188,7 +202,7 @@ public sealed class DynamicTexture3D : IDisposable
     /// </summary>
     /// <param name="newWidth">New width.</param>
     /// <param name="newHeight">New height.</param>
-    /// <param name="newDepth">New depth.</param>
+    /// <param name="newDepth">New depth/layers.</param>
     /// <returns>True if texture was reallocated, false if dimensions unchanged.</returns>
     public bool Resize(int newWidth, int newHeight, int newDepth)
     {
@@ -215,9 +229,6 @@ public sealed class DynamicTexture3D : IDisposable
         if (isDisposed || textureId == 0)
             return;
 
-        // Use glClearTexImage if available (OpenGL 4.4+)
-        // Otherwise fall back to rendering a clear quad or using compute
-        // For simplicity, we'll use a texture subimage clear
         var clearData = new float[width * height * depth * 4];
         for (int i = 0; i < clearData.Length; i += 4)
         {
@@ -227,15 +238,15 @@ public sealed class DynamicTexture3D : IDisposable
             clearData[i + 3] = a;
         }
 
-        GL.BindTexture(TextureTarget.Texture3D, textureId);
+        GL.BindTexture(textureTarget, textureId);
         GL.TexSubImage3D(
-            TextureTarget.Texture3D,
+            textureTarget,
             0, 0, 0, 0,
             width, height, depth,
             PixelFormat.Rgba,
             PixelType.Float,
             clearData);
-        GL.BindTexture(TextureTarget.Texture3D, 0);
+        GL.BindTexture(textureTarget, 0);
     }
 
     #endregion
@@ -253,11 +264,11 @@ public sealed class DynamicTexture3D : IDisposable
 
         // Generate new texture
         textureId = GL.GenTexture();
-        GL.BindTexture(TextureTarget.Texture3D, textureId);
+        GL.BindTexture(textureTarget, textureId);
 
         // Allocate storage
         GL.TexImage3D(
-            TextureTarget.Texture3D,
+            textureTarget,
             0,  // mipmap level
             internalFormat,
             width,
@@ -276,17 +287,21 @@ public sealed class DynamicTexture3D : IDisposable
             ? TextureMagFilter.Linear
             : TextureMagFilter.Nearest;
 
-        GL.TexParameter(TextureTarget.Texture3D, TextureParameterName.TextureMinFilter, (int)glFilter);
-        GL.TexParameter(TextureTarget.Texture3D, TextureParameterName.TextureMagFilter, (int)glMagFilter);
+        GL.TexParameter(textureTarget, TextureParameterName.TextureMinFilter, (int)glFilter);
+        GL.TexParameter(textureTarget, TextureParameterName.TextureMagFilter, (int)glMagFilter);
 
-        // Clamp to edge to prevent wrapping artifacts at probe boundaries
-        GL.TexParameter(TextureTarget.Texture3D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-        GL.TexParameter(TextureTarget.Texture3D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-        GL.TexParameter(TextureTarget.Texture3D, TextureParameterName.TextureWrapR, (int)TextureWrapMode.ClampToEdge);
+        // Clamp to edge
+        GL.TexParameter(textureTarget, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+        GL.TexParameter(textureTarget, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+        if (textureTarget == TextureTarget.Texture3D)
+        {
+            GL.TexParameter(textureTarget, TextureParameterName.TextureWrapR, (int)TextureWrapMode.ClampToEdge);
+        }
 
-        GL.BindTexture(TextureTarget.Texture3D, 0);
+        GL.BindTexture(textureTarget, 0);
 
-        Debug.WriteLine($"[DynamicTexture3D] Allocated {width}x{height}x{depth} {internalFormat}");
+        var typeStr = textureTarget == TextureTarget.Texture2DArray ? "2D array" : "3D";
+        Debug.WriteLine($"[DynamicTexture3D] Allocated {width}x{height}x{depth} {typeStr} {internalFormat}");
     }
 
     #endregion
