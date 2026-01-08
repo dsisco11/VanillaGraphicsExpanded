@@ -424,57 +424,7 @@ Run probe trace and temporal passes on async compute queue, overlapping with sha
 
 ---
 
-## 10. Implementation Checklist
-
-### 10.1 Gather Pass
-
-- [ ] Create `lumon_gather.vsh`
-- [ ] Create `lumon_gather.fsh`
-- [ ] Import `lumon_sh.ash` for SH evaluation
-- [ ] Implement `LoadProbe()` helper (fetch anchor + radiance)
-- [ ] Implement `UnpackSH()` helper
-- [ ] Implement bilinear probe interpolation
-- [ ] Implement `ComputeWeight()` edge-aware weight adjustment
-- [ ] Handle invalid probes (skip with weight=0)
-- [ ] Handle sky pixels (output zero)
-- [ ] Create `LumOnGatherShaderProgram.cs`
-
-### 10.2 Upsample Pass
-
-- [ ] Create `lumon_upsample.vsh`
-- [ ] Create `lumon_upsample.fsh`
-- [ ] Implement bilateral upsample
-- [ ] Add optional spatial denoise
-- [ ] Create `LumOnUpsampleShaderProgram.cs`
-
-### 10.3 Buffer Management
-
-- [ ] Create `IndirectDiffuseHalfResFB` framebuffer
-- [ ] Create `IndirectDiffuseFullResFB` framebuffer
-- [ ] Handle resolution changes
-
-### 10.4 Integration
-
-- [ ] Implement `RenderGatherPass()` in renderer
-- [ ] Implement `RenderUpsamplePass()` in renderer
-- [ ] Create `lumon_combine.fsh` for lighting integration
-- [ ] Implement `RenderCombinePass()` in renderer
-- [ ] Wire up to final composite
-- [ ] Ensure proper energy balance (avoid double-albedo)
-
-### 10.5 Testing
-
-- [ ] Verify SH evaluation output (DebugMode = 5)
-- [ ] Check interpolation weights (DebugMode = 6)
-- [ ] Test at half-res vs full-res
-- [ ] Profile gather + upsample cost
-- [ ] Check for edge leaking artifacts
-- [ ] Verify bilateral weights respect depth discontinuities
-- [ ] Test with denoiseEnabled on/off
-
----
-
-## 11. Conclusion
+## 10. Conclusion
 
 This completes the LumOn architecture documentation. The six documents together define:
 
