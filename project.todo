@@ -20,17 +20,21 @@ LumOn World-Space Octahedral Radiance Cache Refactor:
     ✔ Build and verify compilation @done
 
   Phase 2 - Octahedral Radiance Texture:
-    ☐ Update LumOn.03-Radiance-Cache.md to document octahedral storage
-    ☐ Remove SH L1 storage and related code
-    ☐ Create 3D texture with dimensions (8, 8, probeCount)
-    ☐ Use RGBA16F format: RGB = radiance, A = log-encoded hit-distance
-    ☐ Create lumon_octahedral.glsl include file with:
-      ☐ Direction to octahedral UV conversion
-      ☐ Octahedral UV to direction conversion
-      ☐ Bilinear-correct octahedral sampling (edge wrap handling)
-      ☐ Log-distance encode/decode helpers: log(dist + 1), exp(encoded) - 1
+    ✔ Update LumOn.03-Radiance-Cache.md to document octahedral storage @done
+    ☐ Remove SH L1 storage and related code (deferred to Phase 3)
+    ✔ Create 3D texture with dimensions (8, 8, probeCount) @done
+    ✔ Use RGBA16F format: RGB = radiance, A = log-encoded hit-distance @done
+    ✔ Create DynamicTexture3D class for 3D texture management @done
+    ✔ Create lumon_octahedral.glsl include file with: @done
+      ✔ Direction to octahedral UV conversion @done
+      ✔ Octahedral UV to direction conversion @done
+      ✔ Bilinear-correct octahedral sampling (edge wrap handling) @done
+      ✔ Log-distance encode/decode helpers: log(dist + 1), exp(encoded) - 1 @done
+    ✔ Add octahedral textures to LumOnBufferManager @done
+    ✔ Build and verify compilation @done
 
   Phase 3 - Ray Tracing with Temporal Distribution:
+    ☐ Remove SH L1 storage and related code
     ☐ Update LumOn.04-Ray-Tracing.md to document temporal ray distribution
     ☐ Trace subset of rays per frame (8 of 64 directions)
     ☐ Use frameIndex to select which octahedral texels to update

@@ -59,6 +59,21 @@ public sealed class LumOnBufferManager : IDisposable
     private Rendering.GBuffer? radianceHistoryFbo;
 
     // ═══════════════════════════════════════════════════════════════
+    // Octahedral Radiance Cache (3D textures for Phase 2+)
+    // Layout: (8, 8, probeCount) - each slice is one probe's octahedral map
+    // RGBA16F: RGB = radiance, A = log-encoded hit distance
+    // ═══════════════════════════════════════════════════════════════
+
+    // Trace output octahedral radiance
+    private DynamicTexture3D? octahedralTraceTex;
+
+    // Current frame octahedral radiance (after temporal blend)
+    private DynamicTexture3D? octahedralCurrentTex;
+
+    // History octahedral radiance (previous frame)
+    private DynamicTexture3D? octahedralHistoryTex;
+
+    // ═══════════════════════════════════════════════════════════════
     // Probe Metadata Buffers (for temporal validation)
     // ═══════════════════════════════════════════════════════════════
 
@@ -175,6 +190,32 @@ public sealed class LumOnBufferManager : IDisposable
     /// Texture for history radiance SH coefficients (set 1).
     /// </summary>
     public DynamicTexture? RadianceHistoryTex1 => radianceHistoryTex1;
+
+    // ═══════════════════════════════════════════════════════════════
+    // Octahedral Radiance Cache (3D textures)
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 3D texture for trace output octahedral radiance.
+    /// Layout: (8, 8, probeCount), RGBA16F (RGB=radiance, A=log hit distance).
+    /// </summary>
+    public DynamicTexture3D? OctahedralTraceTex => octahedralTraceTex;
+
+    /// <summary>
+    /// 3D texture for current frame octahedral radiance (after temporal blend).
+    /// </summary>
+    public DynamicTexture3D? OctahedralCurrentTex => octahedralCurrentTex;
+
+    /// <summary>
+    /// 3D texture for history octahedral radiance (previous frame).
+    /// </summary>
+    public DynamicTexture3D? OctahedralHistoryTex => octahedralHistoryTex;
+
+    /// <summary>
+    /// Total number of probes (probeCountX × probeCountY).
+    /// Used for 3D texture depth.
+    /// </summary>
+    public int ProbeCount => probeCountX * probeCountY;
 
     // ═══════════════════════════════════════════════════════════════
     // Probe Metadata Buffers
@@ -298,10 +339,13 @@ public sealed class LumOnBufferManager : IDisposable
     /// </summary>
     public void SwapRadianceBuffers()
     {
-        // Swap radiance textures
+        // Swap SH radiance textures (legacy, to be removed in Phase 3+)
         (radianceCurrentTex0, radianceHistoryTex0) = (radianceHistoryTex0, radianceCurrentTex0);
         (radianceCurrentTex1, radianceHistoryTex1) = (radianceHistoryTex1, radianceCurrentTex1);
         (radianceCurrentFbo, radianceHistoryFbo) = (radianceHistoryFbo, radianceCurrentFbo);
+
+        // Swap octahedral radiance textures
+        (octahedralCurrentTex, octahedralHistoryTex) = (octahedralHistoryTex, octahedralCurrentTex);
 
         // Swap metadata
         (probeMetaCurrentTex, probeMetaHistoryTex) = (probeMetaHistoryTex, probeMetaCurrentTex);
@@ -326,11 +370,16 @@ public sealed class LumOnBufferManager : IDisposable
         // Save current framebuffer binding
         int previousFbo = Rendering.GBuffer.SaveBinding();
 
-        // Clear all radiance and metadata buffers to black
+        // Clear all SH radiance and metadata buffers to black
         radianceHistoryFbo?.BindAndClear();
         radianceCurrentFbo?.BindAndClear();
         probeMetaHistoryFbo?.BindAndClear();
         probeMetaCurrentFbo?.BindAndClear();
+
+        // Clear octahedral radiance textures
+        octahedralTraceTex?.Clear();
+        octahedralCurrentTex?.Clear();
+        octahedralHistoryTex?.Clear();
 
         // Restore previous framebuffer
         Rendering.GBuffer.RestoreBinding(previousFbo);
@@ -413,6 +462,16 @@ public sealed class LumOnBufferManager : IDisposable
         radianceHistoryTex0 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
         radianceHistoryTex1 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
         radianceHistoryFbo = Rendering.GBuffer.CreateMRT(radianceHistoryTex0, radianceHistoryTex1);
+
+        // ═══════════════════════════════════════════════════════════════
+        // Create Octahedral Radiance Cache (3D textures)
+        // Layout: (8, 8, probeCount) - RGBA16F (RGB=radiance, A=log hit distance)
+        // ═══════════════════════════════════════════════════════════════
+
+        int totalProbes = probeCountX * probeCountY;
+        octahedralTraceTex = DynamicTexture3D.CreateOctahedralCache(totalProbes);
+        octahedralCurrentTex = DynamicTexture3D.CreateOctahedralCache(totalProbes);
+        octahedralHistoryTex = DynamicTexture3D.CreateOctahedralCache(totalProbes);
 
         // ═══════════════════════════════════════════════════════════════
         // Create Probe Metadata Buffers (for temporal validation)
@@ -503,7 +562,7 @@ public sealed class LumOnBufferManager : IDisposable
         indirectFullFbo = null;
         capturedSceneFbo = null;
 
-        // Dispose textures
+        // Dispose 2D textures
         probeAnchorPositionTex?.Dispose();
         probeAnchorNormalTex?.Dispose();
         radianceTraceTex0?.Dispose();
@@ -531,6 +590,15 @@ public sealed class LumOnBufferManager : IDisposable
         indirectHalfTex = null;
         indirectFullTex = null;
         capturedSceneTex = null;
+
+        // Dispose 3D octahedral textures
+        octahedralTraceTex?.Dispose();
+        octahedralCurrentTex?.Dispose();
+        octahedralHistoryTex?.Dispose();
+
+        octahedralTraceTex = null;
+        octahedralCurrentTex = null;
+        octahedralHistoryTex = null;
 
         isInitialized = false;
     }

@@ -1,4 +1,4 @@
-# LumOn Radiance Cache & SH Encoding
+# LumOn Radiance Cache
 
 > **Document**: LumOn.03-Radiance-Cache.md  
 > **Status**: Draft  
@@ -9,14 +9,168 @@
 
 ## 1. Overview
 
-The radiance cache stores incoming light (irradiance) at each probe using **Spherical Harmonics (SH)**. SH provides:
+The radiance cache stores incoming light at each probe. LumOn uses an **Octahedral Radiance Map**
+approach matching UE5 Lumen's Screen Space Radiance Cache design. Each probe stores radiance in
+64 world-space directions (8×8 octahedral map) with per-texel hit distances for temporal stability.
 
-1. **Compact storage**: 4 coefficients capture low-frequency lighting
-2. **Efficient evaluation**: Single dot product for any direction
-3. **Natural accumulation**: SH coefficients add linearly
-4. **Smooth interpolation**: Bilinear blend in coefficient space
+### 1.1 Why Octahedral Maps?
 
-### 1.1 Why SH L1?
+| Approach       | Storage per Probe | Angular Res | Temporal Stability | Complexity |
+| -------------- | ----------------- | ----------- | ------------------ | ---------- |
+| SH L1          | 8 floats (2 tex)  | ~4 dirs     | Poor               | Low        |
+| SH L2          | 18 floats         | ~9 dirs     | Poor               | Medium     |
+| **Octahedral** | 256 floats (8×8×4)| 64 dirs     | **Excellent**      | Medium     |
+
+**Octahedral chosen** because:
+
+- **Temporal stability**: World-space directions remain valid across camera rotations
+- **Hit distance**: Per-texel depth enables leak prevention and disocclusion detection
+- **Matches Lumen**: Proven approach from UE5's SIGGRAPH 2022 presentation
+- **Higher angular resolution**: 64 directions vs 4-9 for SH L1/L2
+- **Simpler accumulation**: Direct radiance storage, no SH rotation needed
+
+### 1.2 Octahedral Mapping
+
+Octahedral mapping projects a unit sphere onto a square via octahedron projection:
+
+```
+Unit Sphere → Octahedron (L1 norm) → Square [0,1]²
+```
+
+Properties:
+- **Uniform distribution**: More uniform than lat-long or cubemaps
+- **Bilinear filtering**: Works correctly with hardware filtering (within a probe)
+- **Efficient encoding**: Simple math for direction ↔ UV conversion
+
+---
+
+## 2. Texture Layout
+
+### 2.1 3D Texture Storage
+
+Octahedral radiance is stored in a 3D texture with dimensions `(8, 8, probeCount)`:
+
+| Dimension | Size       | Meaning                                   |
+| --------- | ---------- | ----------------------------------------- |
+| Width     | 8          | Octahedral U coordinate                   |
+| Height    | 8          | Octahedral V coordinate                   |
+| Depth     | probeCount | Linear probe index (Y × gridWidth + X)    |
+
+Each texel is RGBA16F:
+
+| Channel | Content                         | Range / Encoding        |
+| ------- | ------------------------------- | ----------------------- |
+| R       | Radiance red                    | HDR (linear)            |
+| G       | Radiance green                  | HDR (linear)            |
+| B       | Radiance blue                   | HDR (linear)            |
+| A       | Log-encoded hit distance        | `log(distance + 1)`     |
+
+### 2.2 Triple Buffering
+
+Three copies for temporal accumulation:
+
+| Buffer               | Written By      | Read By                   |
+| -------------------- | --------------- | ------------------------- |
+| `OctahedralTrace`    | Trace Pass      | Temporal Pass             |
+| `OctahedralCurrent`  | Temporal Pass   | Gather Pass               |
+| `OctahedralHistory`  | (Prev Current)  | Temporal Pass             |
+
+After each frame, Current and History are swapped.
+
+### 2.3 Memory Budget
+
+For a 1920×1080 screen with 8px probe spacing:
+
+```
+Probes: 240 × 135 = 32,400
+Texels per probe: 8 × 8 = 64
+Bytes per texel: 8 (RGBA16F)
+Per buffer: 32,400 × 64 × 8 = 16.6 MB
+Triple buffered: ~50 MB total
+```
+
+---
+
+## 3. Octahedral Math Reference
+
+### 3.1 Direction to UV
+
+```glsl
+vec2 lumonDirectionToOctahedralUV(vec3 dir) {
+    // Project onto octahedron (L1 norm = 1)
+    vec3 octant = dir / (abs(dir.x) + abs(dir.y) + abs(dir.z));
+    
+    // Fold lower hemisphere
+    vec2 uv;
+    if (octant.z >= 0.0) {
+        uv = octant.xy;
+    } else {
+        // Reflect across diagonal for lower hemisphere
+        uv = (1.0 - abs(octant.yx)) * sign(octant.xy);
+    }
+    
+    // Map from [-1,1] to [0,1]
+    return uv * 0.5 + 0.5;
+}
+```
+
+### 3.2 UV to Direction
+
+```glsl
+vec3 lumonOctahedralUVToDirection(vec2 uv) {
+    // Map from [0,1] to [-1,1]
+    vec2 oct = uv * 2.0 - 1.0;
+    
+    // Reconstruct Z from octahedron constraint |x| + |y| + |z| = 1
+    vec3 dir = vec3(oct.xy, 1.0 - abs(oct.x) - abs(oct.y));
+    
+    // Unfold lower hemisphere
+    if (dir.z < 0.0) {
+        dir.xy = (1.0 - abs(dir.yx)) * sign(dir.xy);
+    }
+    
+    return normalize(dir);
+}
+```
+
+### 3.3 Hit Distance Encoding
+
+Log encoding provides better precision for near distances:
+
+```glsl
+// Encode for storage
+float lumonEncodeHitDistance(float distance) {
+    return log(distance + 1.0);
+}
+
+// Decode for use
+float lumonDecodeHitDistance(float encoded) {
+    return exp(encoded) - 1.0;
+}
+```
+
+### 3.4 3D Texture Addressing
+
+```glsl
+// Sample with hardware filtering
+vec3 texCoord = vec3(octUV, (probeIndex + 0.5) / probeCount);
+vec4 radiance = texture(octahedralTex, texCoord);
+
+// Exact texel fetch (no filtering)
+ivec3 texel = ivec3(octTexel, probeIndex);
+vec4 radiance = texelFetch(octahedralTex, texel, 0);
+```
+
+---
+
+## 4. Legacy: SH L1 Encoding (Deprecated)
+
+> **Note**: The SH L1 approach is being replaced by octahedral maps.
+> This section is retained for reference during the transition.
+
+### 4.1 Why SH L1 Was Used
+
+### 4.1 Why SH L1 Was Used
 
 | SH Order     | Coefficients | Quality              | Cost    |
 | ------------ | ------------ | -------------------- | ------- |
@@ -25,14 +179,18 @@ The radiance cache stores incoming light (irradiance) at each probe using **Sphe
 | L2           | 9            | Soft shadows         | Medium  |
 | L3           | 16           | Sharp features       | High    |
 
-**L1 chosen** because:
+SH L1 was initially chosen because:
 
 - 4 coefficients fit in one RGBA16F texture (per channel)
 - Captures primary light direction + ambient
 - Sufficient for diffuse indirect lighting
-- Matches computational budget of screen-space probes
 
-### 1.2 SH L1 Basis Functions
+**However**, SH has limitations for temporal stability:
+- SH coefficients are view-dependent (require rotation on camera turn)
+- No per-direction depth information for leak prevention
+- Low angular resolution (4 effective directions)
+
+### 4.2 SH L1 Basis Functions
 
 The 4 L1 basis functions (real, normalized):
 
