@@ -189,9 +189,11 @@ vec4 renderProbeNormalDebug(vec2 screenPos) {
         return vec4(0.0, 0.0, 0.0, 1.0);  // Black for invalid
     }
     
-    vec3 probeNormal = texelFetch(probeAnchorNormal, probeCoord, 0).xyz;
-    // Normal is stored encoded [0,1], display as-is (already visualizes nicely)
-    return vec4(probeNormal, 1.0);
+    // Decode normal from [0,1] to [-1,1], then re-encode for visualization
+    vec3 probeNormalEncoded = texelFetch(probeAnchorNormal, probeCoord, 0).xyz;
+    vec3 probeNormalDecoded = lumonDecodeNormal(probeNormalEncoded);
+    // Display as color: remap [-1,1] to [0,1] so all directions are visible
+    return vec4(probeNormalDecoded * 0.5 + 0.5, 1.0);
 }
 
 // ============================================================================
@@ -222,8 +224,11 @@ vec4 renderSceneNormalDebug() {
         return vec4(0.5, 0.5, 1.0, 1.0);  // Sky blue for no geometry
     }
     
-    vec3 normal = texture(gBufferNormal, uv).xyz;
-    return vec4(normal, 1.0);  // Already encoded [0,1]
+    // Decode normal from G-buffer [0,1] to [-1,1], then re-encode for visualization
+    vec3 normalEncoded = texture(gBufferNormal, uv).xyz;
+    vec3 normalDecoded = lumonDecodeNormal(normalEncoded);
+    // Display as color: remap [-1,1] to [0,1] so all directions are visible
+    return vec4(normalDecoded * 0.5 + 0.5, 1.0);
 }
 
 // ============================================================================
@@ -250,7 +255,7 @@ vec4 renderTemporalWeightDebug(vec2 screenPos) {
     }
     
     vec3 posVS = posData.xyz;
-    vec3 normalVS = normalize(texelFetch(probeAnchorNormal, probeCoord, 0).xyz * 2.0 - 1.0);
+    vec3 normalVS = lumonDecodeNormal(texelFetch(probeAnchorNormal, probeCoord, 0).xyz);
     float currentDepthLin = -posVS.z;
     
     // Reproject to history UV
@@ -306,7 +311,7 @@ vec4 renderTemporalRejectionDebug(vec2 screenPos) {
     }
     
     vec3 posVS = posData.xyz;
-    vec3 normalVS = normalize(texelFetch(probeAnchorNormal, probeCoord, 0).xyz * 2.0 - 1.0);
+    vec3 normalVS = lumonDecodeNormal(texelFetch(probeAnchorNormal, probeCoord, 0).xyz);
     float currentDepthLin = -posVS.z;
     
     // Reproject to history UV
