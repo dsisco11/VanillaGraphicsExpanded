@@ -1,12 +1,16 @@
 using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>
 /// Helper methods for converting between VS float[] matrices and System.Numerics.Matrix4x4.
 /// VS uses column-major float[16] arrays (OpenGL convention), while System.Numerics uses row-major.
+/// Uses SIMD intrinsics for optimized transpose operations where available.
 /// </summary>
 public static class MatrixHelper
 {
@@ -14,11 +18,22 @@ public static class MatrixHelper
 
     /// <summary>
     /// Converts a VS/OpenGL column-major float[16] to Matrix4x4.
+    /// Uses SIMD transpose when SSE is available.
     /// </summary>
     /// <param name="m">Column-major float span from VS (e.g., capi.Render.CurrentProjectionMatrix)</param>
     /// <returns>Matrix4x4 representation</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Matrix4x4 FromColumnMajor(ReadOnlySpan<float> m)
+    {
+        if (Sse.IsSupported && m.Length >= 16)
+        {
+            return FromColumnMajorSse(m);
+        }
+        return FromColumnMajorScalar(m);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static Matrix4x4 FromColumnMajorScalar(ReadOnlySpan<float> m)
     {
         return new Matrix4x4(
             m[0], m[4], m[8], m[12],
@@ -27,18 +42,97 @@ public static class MatrixHelper
             m[3], m[7], m[11], m[15]);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static unsafe Matrix4x4 FromColumnMajorSse(ReadOnlySpan<float> m)
+    {
+        fixed (float* ptr = m)
+        {
+            // Load 4 columns
+            var col0 = Sse.LoadVector128(ptr);
+            var col1 = Sse.LoadVector128(ptr + 4);
+            var col2 = Sse.LoadVector128(ptr + 8);
+            var col3 = Sse.LoadVector128(ptr + 12);
+
+            // Transpose 4x4 matrix using SSE shuffles
+            // First pass: interleave pairs
+            var tmp0 = Sse.UnpackLow(col0, col1);   // [c0.x, c1.x, c0.y, c1.y]
+            var tmp1 = Sse.UnpackHigh(col0, col1);  // [c0.z, c1.z, c0.w, c1.w]
+            var tmp2 = Sse.UnpackLow(col2, col3);   // [c2.x, c3.x, c2.y, c3.y]
+            var tmp3 = Sse.UnpackHigh(col2, col3);  // [c2.z, c3.z, c2.w, c3.w]
+
+            // Second pass: move floats to final positions
+            var row0 = Sse.MoveLowToHigh(tmp0, tmp2);  // [c0.x, c1.x, c2.x, c3.x] = row0
+            var row1 = Sse.MoveHighToLow(tmp2, tmp0);  // [c0.y, c1.y, c2.y, c3.y] = row1
+            var row2 = Sse.MoveLowToHigh(tmp1, tmp3);  // [c0.z, c1.z, c2.z, c3.z] = row2
+            var row3 = Sse.MoveHighToLow(tmp3, tmp1);  // [c0.w, c1.w, c2.w, c3.w] = row3
+
+            // Store directly into Matrix4x4
+            Matrix4x4 result;
+            Sse.Store((float*)&result, row0);
+            Sse.Store((float*)&result + 4, row1);
+            Sse.Store((float*)&result + 8, row2);
+            Sse.Store((float*)&result + 12, row3);
+            return result;
+        }
+    }
+
     /// <summary>
     /// Converts a Matrix4x4 to VS/OpenGL column-major float[16].
+    /// Uses SIMD transpose when SSE is available.
     /// </summary>
     /// <param name="matrix">Matrix4x4 to convert</param>
     /// <param name="result">Pre-allocated float span (minimum 16 elements) to store the result</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ToColumnMajor(in Matrix4x4 matrix, Span<float> result)
     {
+        if (Sse.IsSupported && result.Length >= 16)
+        {
+            ToColumnMajorSse(in matrix, result);
+        }
+        else
+        {
+            ToColumnMajorScalar(in matrix, result);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void ToColumnMajorScalar(in Matrix4x4 matrix, Span<float> result)
+    {
         result[0] = matrix.M11; result[1] = matrix.M21; result[2] = matrix.M31; result[3] = matrix.M41;
         result[4] = matrix.M12; result[5] = matrix.M22; result[6] = matrix.M32; result[7] = matrix.M42;
         result[8] = matrix.M13; result[9] = matrix.M23; result[10] = matrix.M33; result[11] = matrix.M43;
         result[12] = matrix.M14; result[13] = matrix.M24; result[14] = matrix.M34; result[15] = matrix.M44;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static unsafe void ToColumnMajorSse(in Matrix4x4 matrix, Span<float> result)
+    {
+        fixed (Matrix4x4* matPtr = &matrix)
+        fixed (float* resPtr = result)
+        {
+            // Load 4 rows from Matrix4x4
+            var row0 = Sse.LoadVector128((float*)matPtr);
+            var row1 = Sse.LoadVector128((float*)matPtr + 4);
+            var row2 = Sse.LoadVector128((float*)matPtr + 8);
+            var row3 = Sse.LoadVector128((float*)matPtr + 12);
+
+            // Transpose 4x4 matrix using SSE shuffles
+            var tmp0 = Sse.UnpackLow(row0, row1);   // [r0.x, r1.x, r0.y, r1.y]
+            var tmp1 = Sse.UnpackHigh(row0, row1);  // [r0.z, r1.z, r0.w, r1.w]
+            var tmp2 = Sse.UnpackLow(row2, row3);   // [r2.x, r3.x, r2.y, r3.y]
+            var tmp3 = Sse.UnpackHigh(row2, row3);  // [r2.z, r3.z, r2.w, r3.w]
+
+            var col0 = Sse.MoveLowToHigh(tmp0, tmp2);  // [r0.x, r1.x, r2.x, r3.x] = col0
+            var col1 = Sse.MoveHighToLow(tmp2, tmp0);  // [r0.y, r1.y, r2.y, r3.y] = col1
+            var col2 = Sse.MoveLowToHigh(tmp1, tmp3);  // [r0.z, r1.z, r2.z, r3.z] = col2
+            var col3 = Sse.MoveHighToLow(tmp3, tmp1);  // [r0.w, r1.w, r2.w, r3.w] = col3
+
+            // Store transposed columns
+            Sse.Store(resPtr, col0);
+            Sse.Store(resPtr + 4, col1);
+            Sse.Store(resPtr + 8, col2);
+            Sse.Store(resPtr + 12, col3);
+        }
     }
 
     /// <summary>
@@ -50,7 +144,7 @@ public static class MatrixHelper
     public static float[] ToColumnMajor(in Matrix4x4 matrix)
     {
         var result = new float[16];
-        ToColumnMajor(matrix, result);
+        ToColumnMajor(in matrix, result);
         return result;
     }
 
@@ -73,7 +167,7 @@ public static class MatrixHelper
             SetIdentity(result);
             return false;
         }
-        ToColumnMajor(inverse, result);
+        ToColumnMajor(in inverse, result);
         return true;
     }
 
@@ -105,21 +199,73 @@ public static class MatrixHelper
         var matA = FromColumnMajor(a);
         var matB = FromColumnMajor(b);
         var product = matA * matB;
-        ToColumnMajor(product, result);
+        ToColumnMajor(in product, result);
     }
 
     /// <summary>
     /// Sets a float span to identity matrix.
+    /// Uses SIMD stores when SSE is available.
     /// </summary>
     /// <param name="result">Span to set (minimum 16 elements)</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void SetIdentity(Span<float> result)
     {
-        result[0] = 1f; result[1] = 0f; result[2] = 0f; result[3] = 0f;
-        result[4] = 0f; result[5] = 1f; result[6] = 0f; result[7] = 0f;
-        result[8] = 0f; result[9] = 0f; result[10] = 1f; result[11] = 0f;
-        result[12] = 0f; result[13] = 0f; result[14] = 0f; result[15] = 1f;
+        if (Avx.IsSupported && result.Length >= 16)
+        {
+            SetIdentityAvx(result);
+        }
+        else if (Sse.IsSupported && result.Length >= 16)
+        {
+            SetIdentitySse(result);
+        }
+        else
+        {
+            SetIdentityScalar(result);
+        }
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void SetIdentityScalar(Span<float> result)
+    {// using column-major order
+        result.Clear(); // clears 64 bytes very efficiently
+
+        // Use refs to encourage bounds-check elimination
+        ref float r = ref MemoryMarshal.GetReference(result);
+        r = 1f;
+        Unsafe.Add(ref r, 5)  = 1f;
+        Unsafe.Add(ref r, 10) = 1f;
+        Unsafe.Add(ref r, 15) = 1f;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static unsafe void SetIdentitySse(Span<float> result)
+    {
+        fixed (float* ptr = result)
+        {
+            // one = [1, 0, 0, 0] as int bits
+            var oneI = Vector128.Create(unchecked((int)0x3f800000));
+            var c0 = oneI;
+            var c1 = Sse2.ShiftLeftLogical128BitLane(oneI, 4);
+            var c2 = Sse2.ShiftLeftLogical128BitLane(oneI, 8);
+            var c3 = Sse2.ShiftLeftLogical128BitLane(oneI, 12);
+
+            Sse.Store(ptr +  0, c0.AsSingle());
+            Sse.Store(ptr +  4, c1.AsSingle());
+            Sse.Store(ptr +  8, c2.AsSingle());
+            Sse.Store(ptr + 12, c3.AsSingle());
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static unsafe void SetIdentityAvx(Span<float> result)
+    {
+        fixed (float* ptr = result)
+        {
+            Avx.Store(ptr,     Vector256.Create(1f, 0f, 0f, 0f,   0f, 1f, 0f, 0f));
+            Avx.Store(ptr + 8, Vector256.Create(0f, 0f, 1f, 0f,   0f, 0f, 0f, 1f));
+        }
+    }
+
 
     #endregion
 }
