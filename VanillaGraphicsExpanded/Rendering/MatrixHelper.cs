@@ -37,7 +37,7 @@ public static class MatrixHelper
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Matrix4x4 FromColumnMajorScalar(ReadOnlySpan<float> m)
+    internal static Matrix4x4 FromColumnMajorScalar(ReadOnlySpan<float> m)
     {
         return new Matrix4x4(
             m[0], m[4], m[8], m[12],
@@ -47,7 +47,7 @@ public static class MatrixHelper
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static unsafe Matrix4x4 FromColumnMajorAvx2(ReadOnlySpan<float> m)
+    internal static unsafe Matrix4x4 FromColumnMajorAvx2(ReadOnlySpan<float> m)
     {
         fixed (float* ptr = m)
         {
@@ -79,7 +79,7 @@ public static class MatrixHelper
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static unsafe Matrix4x4 FromColumnMajorSse(ReadOnlySpan<float> m)
+    internal static unsafe Matrix4x4 FromColumnMajorSse(ReadOnlySpan<float> m)
     {
         fixed (float* ptr = m)
         {
@@ -136,7 +136,7 @@ public static class MatrixHelper
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void ToColumnMajorScalar(in Matrix4x4 matrix, Span<float> result)
+    internal static void ToColumnMajorScalar(in Matrix4x4 matrix, Span<float> result)
     {
         result[0] = matrix.M11; result[1] = matrix.M21; result[2] = matrix.M31; result[3] = matrix.M41;
         result[4] = matrix.M12; result[5] = matrix.M22; result[6] = matrix.M32; result[7] = matrix.M42;
@@ -145,7 +145,7 @@ public static class MatrixHelper
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static unsafe void ToColumnMajorAvx2(in Matrix4x4 matrix, Span<float> result)
+    internal static unsafe void ToColumnMajorAvx2(in Matrix4x4 matrix, Span<float> result)
     {
         fixed (Matrix4x4* matPtr = &matrix)
         fixed (float* resPtr = result)
@@ -176,7 +176,7 @@ public static class MatrixHelper
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static unsafe void ToColumnMajorSse(in Matrix4x4 matrix, Span<float> result)
+    internal static unsafe void ToColumnMajorSse(in Matrix4x4 matrix, Span<float> result)
     {
         fixed (Matrix4x4* matPtr = &matrix)
         fixed (float* resPtr = result)
@@ -296,7 +296,7 @@ public static class MatrixHelper
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void SetIdentityScalar(Span<float> result)
+    internal static void SetIdentityScalar(Span<float> result)
     {// using column-major order
         result.Clear(); // clears 64 bytes very efficiently
 
@@ -309,12 +309,13 @@ public static class MatrixHelper
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static unsafe void SetIdentitySse(Span<float> result)
+    internal static unsafe void SetIdentitySse(Span<float> result)
     {
         fixed (float* ptr = result)
         {
-            // one = [1, 0, 0, 0] as int bits
-            var oneI = Vector128.Create(unchecked((int)0x3f800000));
+            // int bits for 1.0f = 0x3f800000, but only in lane 0
+            var oneI = Vector128.Create(unchecked((int)0x3f800000), 0, 0, 0);
+
             var c0 = oneI;
             var c1 = Sse2.ShiftLeftLogical128BitLane(oneI, 4);
             var c2 = Sse2.ShiftLeftLogical128BitLane(oneI, 8);
@@ -328,7 +329,7 @@ public static class MatrixHelper
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static unsafe void SetIdentityAvx(Span<float> result)
+    internal static unsafe void SetIdentityAvx(Span<float> result)
     {
         fixed (float* ptr = result)
         {
@@ -336,7 +337,5 @@ public static class MatrixHelper
             Avx.Store(ptr + 8, Vector256.Create(0f, 0f, 1f, 0f,   0f, 0f, 0f, 1f));
         }
     }
-
-
     #endregion
 }
