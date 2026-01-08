@@ -610,6 +610,213 @@ void main() {
 
 ---
 
+## 7.2 Octahedral Temporal Accumulation (UseOctahedralCache = true)
+
+When using octahedral radiance storage, temporal accumulation works **per-texel** rather than per-probe. This is necessary because:
+
+1. **Temporal ray distribution**: Only 8 of 64 texels are traced per frame
+2. **Per-direction hit distance**: Each texel has its own hit distance for disocclusion detection
+3. **Selective blending**: Only blend texels that were traced this frame; preserve others
+
+### 7.2.1 Key Differences from SH Temporal
+
+| Aspect              | SH Mode (per-probe)           | Octahedral Mode (per-texel)          |
+| ------------------- | ----------------------------- | ------------------------------------ |
+| Unit of operation   | Entire probe (2 SH textures)  | Individual texel (1 RGBA value)      |
+| Blend trigger       | Every frame for every probe   | Only traced texels this frame        |
+| Disocclusion signal | Probe depth/normal change     | Texel hit-distance delta             |
+| History preservation| Blend all history             | Keep non-traced texels unchanged     |
+| Neighborhood clamp  | 3×3 probe neighborhood        | 3×3 texel neighborhood within tile   |
+
+### 7.2.2 Per-Texel Blend Algorithm
+
+```glsl
+// lumon_temporal_octahedral.fsh - Per-texel temporal blending
+
+// For each texel in the octahedral atlas:
+// 1. Check if this texel was traced this frame (same logic as trace shader)
+// 2. If traced: blend with history using hit-distance validation
+// 3. If not traced: preserve history value unchanged
+
+uniform int frameIndex;
+uniform int texelsPerFrame;
+
+bool wasTracedThisFrame(ivec2 octTexel, int probeIndex) {
+    int texelIndex = octTexel.y * 8 + octTexel.x;
+    int numBatches = 64 / texelsPerFrame;  // 8 batches with 8 texels/frame
+    int batch = texelIndex / texelsPerFrame;
+    int jitteredFrame = (frameIndex + probeIndex) % numBatches;
+    return batch == jitteredFrame;
+}
+```
+
+### 7.2.3 Hit-Distance Based Disocclusion
+
+Unlike SH mode which uses probe depth/normal, octahedral uses **per-texel hit distance**:
+
+```glsl
+// Compare hit distances between current and history
+uniform float hitDistanceRejectThreshold;  // e.g., 0.3 = 30% relative difference
+
+bool validateHitDistance(float currentDist, float historyDist) {
+    if (historyDist < 0.001) return false;  // No valid history
+    
+    float relativeDiff = abs(currentDist - historyDist) / max(currentDist, historyDist);
+    return relativeDiff < hitDistanceRejectThreshold;
+}
+```
+
+**Why hit-distance?**
+- Each direction can see different geometry
+- A direction that previously hit a nearby wall but now sees distant sky is disoccluded
+- More granular than probe-level depth (which averages across directions)
+
+### 7.2.4 Octahedral Temporal Shader
+
+```glsl
+// lumon_temporal_octahedral.fsh
+#version 330 core
+
+in vec2 uv;
+out vec4 outRadiance;  // RGB = blended radiance, A = blended hit distance
+
+@import "lumon_common.fsh"
+@import "lumon_octahedral.glsl"
+
+// Current frame trace output
+uniform sampler2D octahedralCurrent;  // From trace pass
+
+// History
+uniform sampler2D octahedralHistory;
+
+// Probe anchors for validation
+uniform sampler2D probeAnchorPosition;  // posWS.xyz, valid
+
+// Parameters
+uniform vec2 probeGridSize;
+uniform int frameIndex;
+uniform int texelsPerFrame;
+uniform float temporalAlpha;
+uniform float hitDistanceRejectThreshold;
+
+// Determine if this texel was traced this frame
+bool wasTracedThisFrame(ivec2 octTexel, int probeIndex) {
+    int texelIndex = octTexel.y * LUMON_OCTAHEDRAL_SIZE + octTexel.x;
+    int numBatches = (LUMON_OCTAHEDRAL_SIZE * LUMON_OCTAHEDRAL_SIZE) / texelsPerFrame;
+    int batch = texelIndex / texelsPerFrame;
+    int jitteredFrame = (frameIndex + probeIndex) % numBatches;
+    return batch == jitteredFrame;
+}
+
+void main() {
+    ivec2 atlasCoord = ivec2(gl_FragCoord.xy);
+    ivec2 probeCoord = atlasCoord / LUMON_OCTAHEDRAL_SIZE;
+    ivec2 octTexel = atlasCoord % LUMON_OCTAHEDRAL_SIZE;
+    
+    ivec2 probeGridSizeI = ivec2(probeGridSize);
+    probeCoord = clamp(probeCoord, ivec2(0), probeGridSizeI - 1);
+    int probeIndex = probeCoord.y * probeGridSizeI.x + probeCoord.x;
+    
+    // Load probe validity
+    float probeValid = texelFetch(probeAnchorPosition, probeCoord, 0).w;
+    
+    // Invalid probe: output zero
+    if (probeValid < 0.5) {
+        outRadiance = vec4(0.0);
+        return;
+    }
+    
+    // Load current and history
+    vec4 current = texelFetch(octahedralCurrent, atlasCoord, 0);
+    vec4 history = texelFetch(octahedralHistory, atlasCoord, 0);
+    
+    // Check if this texel was traced this frame
+    if (!wasTracedThisFrame(octTexel, probeIndex)) {
+        // Not traced: preserve history unchanged
+        outRadiance = history;
+        return;
+    }
+    
+    // Traced: perform temporal blending with validation
+    float currentHitDist = lumonDecodeHitDistance(current.a);
+    float historyHitDist = lumonDecodeHitDistance(history.a);
+    
+    // Validate using hit distance
+    bool historyValid = historyHitDist > 0.001;
+    if (historyValid) {
+        float relativeDiff = abs(currentHitDist - historyHitDist) / 
+                             max(currentHitDist, historyHitDist);
+        historyValid = relativeDiff < hitDistanceRejectThreshold;
+    }
+    
+    if (historyValid) {
+        // Neighborhood clamping (3×3 within the probe's tile)
+        vec4 minVal = vec4(1e10);
+        vec4 maxVal = vec4(-1e10);
+        for (int dy = -1; dy <= 1; dy++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                ivec2 neighborTexel = clamp(octTexel + ivec2(dx, dy), 
+                                            ivec2(0), ivec2(7));
+                ivec2 neighborAtlas = probeCoord * LUMON_OCTAHEDRAL_SIZE + neighborTexel;
+                vec4 s = texelFetch(octahedralCurrent, neighborAtlas, 0);
+                minVal = min(minVal, s);
+                maxVal = max(maxVal, s);
+            }
+        }
+        history = clamp(history, minVal, maxVal);
+        
+        // Blend
+        outRadiance = mix(current, history, temporalAlpha);
+    } else {
+        // Disoccluded: use current only
+        outRadiance = current;
+    }
+}
+```
+
+### 7.2.5 Buffer Flow for Octahedral Temporal
+
+```
+Frame N:
+┌─────────────────────┐
+│ Trace Pass          │  Writes traced texels to OctahedralTrace
+│ (8 of 64 texels)    │  Copies history for non-traced texels
+└─────────────────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Temporal Pass       │  Blends traced texels with history
+│ (per-texel)         │  Preserves non-traced from trace output
+└─────────────────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Write to Current    │  Current becomes next frame's history
+│ Swap buffers        │
+└─────────────────────┘
+```
+
+### 7.2.6 Integration with Trace Pass
+
+The trace shader already handles the "preserve history for non-traced texels" case:
+
+```glsl
+// In lumon_probe_trace_octahedral.fsh
+if (!shouldTraceThisFrame(octTexel, probeIndex)) {
+    // Keep history value
+    vec2 atlasUV = (vec2(atlasCoord) + 0.5) / (probeGridSize * 8.0);
+    outRadiance = texture(octahedralHistory, atlasUV);
+    return;
+}
+```
+
+The temporal pass then:
+1. Receives trace output (some texels fresh, some copied from history)
+2. Blends the fresh texels with their history
+3. Passes through the copied texels unchanged
+
+---
+
 ## 8. C# Integration
 
 ### 8.1 Additional Buffer for Metadata

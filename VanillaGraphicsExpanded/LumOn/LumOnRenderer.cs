@@ -276,7 +276,14 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // === Pass 3: Temporal Accumulation ===
         BeginTimerQuery(2);
-        RenderTemporalPass();
+        if (config.UseOctahedralCache)
+        {
+            RenderOctahedralTemporalPass();
+        }
+        else
+        {
+            RenderSHTemporalPass();
+        }
         EndTimerQuery();
 
         // === Pass 4: Gather ===
@@ -531,11 +538,11 @@ public class LumOnRenderer : IRenderer, IDisposable
     }
 
     /// <summary>
-    /// Pass 3: Blend current radiance with history for temporal stability.
+    /// Pass 3 (SH mode): Blend current SH radiance with history for temporal stability.
     /// Implements reprojection, validation, and neighborhood clamping.
     /// Output: Updated radiance history and metadata.
     /// </summary>
-    private void RenderTemporalPass()
+    private void RenderSHTemporalPass()
     {
         var shader = ShaderRegistry.getProgramByName("lumon_temporal") as LumOnTemporalShaderProgram;
         if (shader is null || shader.LoadError)
@@ -581,6 +588,60 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.TemporalAlpha = config.TemporalAlpha;
         shader.DepthRejectThreshold = config.DepthRejectThreshold;
         shader.NormalRejectThreshold = config.NormalRejectThreshold;
+
+        // Render
+        capi.Render.RenderMesh(quadMeshRef);
+        shader.Stop();
+    }
+
+    /// <summary>
+    /// Pass 3 (Octahedral mode): Per-texel temporal blending for octahedral radiance.
+    /// Only blends texels that were traced this frame; preserves non-traced texels.
+    /// Uses hit-distance delta for per-texel disocclusion detection.
+    /// Output: Blended octahedral atlas to OctahedralCurrentFbo.
+    /// </summary>
+    private void RenderOctahedralTemporalPass()
+    {
+        var shader = ShaderRegistry.getProgramByName("lumon_temporal_octahedral") as LumOnOctahedralTemporalShaderProgram;
+        if (shader is null || shader.LoadError)
+            return;
+
+        var fbo = bufferManager.OctahedralCurrentFbo;
+        if (fbo is null) return;
+
+        // Render to current octahedral atlas (which will become history after swap)
+        fbo.BindWithViewport();
+
+        capi.Render.GlToggleBlend(false);
+        shader.Use();
+
+        // Bind trace output (fresh traced texels + history copies for non-traced)
+        var traceTex = bufferManager.OctahedralTraceTex;
+        if (traceTex is not null)
+        {
+            shader.OctahedralCurrent = traceTex.TextureId;
+        }
+
+        // Bind history (from previous frame, before swap)
+        var historyTex = bufferManager.OctahedralHistoryTex;
+        if (historyTex is not null)
+        {
+            shader.OctahedralHistory = historyTex.TextureId;
+        }
+
+        // Bind probe anchors for validity check
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex;
+
+        // Pass probe grid size
+        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
+
+        // Pass temporal distribution parameters (must match trace shader)
+        shader.FrameIndex = frameIndex;
+        shader.TexelsPerFrame = config.OctahedralTexelsPerFrame;
+
+        // Pass temporal blending parameters
+        shader.TemporalAlpha = config.TemporalAlpha;
+        shader.HitDistanceRejectThreshold = 0.3f;  // 30% relative difference threshold
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);

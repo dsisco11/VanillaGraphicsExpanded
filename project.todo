@@ -48,12 +48,12 @@ LumOn World-Space Octahedral Radiance Cache Refactor:
     ✔ Build and verify compilation @done
 
   Phase 4 - Temporal Accumulation for Octahedral:
-    ☐ Update LumOn.05-Temporal.md to document per-texel accumulation
-    ☐ Adapt temporal blending to work per octahedral texel
-    ☐ Only blend texels that were traced this frame
-    ☐ Preserve history for non-traced texels
-    ☐ Use hit-distance delta for per-texel disocclusion detection
-    ☐ Remove SH-specific temporal logic
+    ✔ Update LumOn.05-Temporal.md to document per-texel accumulation @done
+    ✔ Adapt temporal blending to work per octahedral texel @done
+    ✔ Only blend texels that were traced this frame @done
+    ✔ Preserve history for non-traced texels @done
+    ✔ Use hit-distance delta for per-texel disocclusion detection @done
+    ✔ Remove SH-specific temporal logic (kept as fallback with UseOctahedralCache toggle) @done
 
 
   Phase 5 - Gather Pass with Octahedral Integration:
