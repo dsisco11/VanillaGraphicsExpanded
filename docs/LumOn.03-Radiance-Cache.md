@@ -15,11 +15,11 @@ approach matching UE5 Lumen's Screen Space Radiance Cache design. Each probe sto
 
 ### 1.1 Why Octahedral Maps?
 
-| Approach       | Storage per Probe | Angular Res | Temporal Stability | Complexity |
-| -------------- | ----------------- | ----------- | ------------------ | ---------- |
-| SH L1          | 8 floats (2 tex)  | ~4 dirs     | Poor               | Low        |
-| SH L2          | 18 floats         | ~9 dirs     | Poor               | Medium     |
-| **Octahedral** | 256 floats (8×8×4)| 64 dirs     | **Excellent**      | Medium     |
+| Approach       | Storage per Probe  | Angular Res | Temporal Stability | Complexity |
+| -------------- | ------------------ | ----------- | ------------------ | ---------- |
+| SH L1          | 8 floats (2 tex)   | ~4 dirs     | Poor               | Low        |
+| SH L2          | 18 floats          | ~9 dirs     | Poor               | Medium     |
+| **Octahedral** | 256 floats (8×8×4) | 64 dirs     | **Excellent**      | Medium     |
 
 **Octahedral chosen** because:
 
@@ -38,6 +38,7 @@ Unit Sphere → Octahedron (L1 norm) → Square [0,1]²
 ```
 
 Properties:
+
 - **Uniform distribution**: More uniform than lat-long or cubemaps
 - **Bilinear filtering**: Works correctly with hardware filtering (within a probe)
 - **Efficient encoding**: Simple math for direction ↔ UV conversion
@@ -50,15 +51,16 @@ Properties:
 
 Octahedral radiance is stored in a **2D atlas texture** with dimensions `(probeCountX × 8, probeCountY × 8)`:
 
-| Dimension | Size            | Meaning                                      |
-| --------- | --------------- | -------------------------------------------- |
-| Width     | probeCountX × 8 | Probe X × octahedral U                       |
-| Height    | probeCountY × 8 | Probe Y × octahedral V                       |
+| Dimension | Size            | Meaning                |
+| --------- | --------------- | ---------------------- |
+| Width     | probeCountX × 8 | Probe X × octahedral U |
+| Height    | probeCountY × 8 | Probe Y × octahedral V |
 
 Each probe's 8×8 octahedral tile is arranged in a grid matching the screen-space probe layout.
 This approach is compatible with GL 3.3 fragment shader output without requiring geometry shaders.
 
 **Addressing**: To access texel (octU, octV) of probe (probeX, probeY):
+
 ```glsl
 ivec2 atlasCoord = ivec2(probeX * 8 + octU, probeY * 8 + octV);
 vec2 atlasUV = (vec2(atlasCoord) + 0.5) / vec2(atlasWidth, atlasHeight);
@@ -66,22 +68,22 @@ vec2 atlasUV = (vec2(atlasCoord) + 0.5) / vec2(atlasWidth, atlasHeight);
 
 Each texel is RGBA16F:
 
-| Channel | Content                         | Range / Encoding        |
-| ------- | ------------------------------- | ----------------------- |
-| R       | Radiance red                    | HDR (linear)            |
-| G       | Radiance green                  | HDR (linear)            |
-| B       | Radiance blue                   | HDR (linear)            |
-| A       | Log-encoded hit distance        | `log(distance + 1)`     |
+| Channel | Content                  | Range / Encoding    |
+| ------- | ------------------------ | ------------------- |
+| R       | Radiance red             | HDR (linear)        |
+| G       | Radiance green           | HDR (linear)        |
+| B       | Radiance blue            | HDR (linear)        |
+| A       | Log-encoded hit distance | `log(distance + 1)` |
 
 ### 2.2 Triple Buffering
 
 Three copies for temporal accumulation:
 
-| Buffer               | Written By      | Read By                   |
-| -------------------- | --------------- | ------------------------- |
-| `OctahedralTrace`    | Trace Pass      | Temporal Pass             |
-| `OctahedralCurrent`  | Temporal Pass   | Gather Pass               |
-| `OctahedralHistory`  | (Prev Current)  | Temporal Pass             |
+| Buffer              | Written By     | Read By       |
+| ------------------- | -------------- | ------------- |
+| `OctahedralTrace`   | Trace Pass     | Temporal Pass |
+| `OctahedralCurrent` | Temporal Pass  | Gather Pass   |
+| `OctahedralHistory` | (Prev Current) | Temporal Pass |
 
 After each frame, Current and History are swapped.
 
@@ -103,644 +105,151 @@ Note: The atlas dimensions conveniently match the screen resolution when using 8
 
 ## 3. Octahedral Math Reference
 
-### 3.1 Direction to UV
+### 3.1 Direction ↔ UV Conversion
 
-```glsl
-vec2 lumonDirectionToOctahedralUV(vec3 dir) {
-    // Project onto octahedron (L1 norm = 1)
-    vec3 octant = dir / (abs(dir.x) + abs(dir.y) + abs(dir.z));
-    
-    // Fold lower hemisphere
-    vec2 uv;
-    if (octant.z >= 0.0) {
-        uv = octant.xy;
-    } else {
-        // Reflect across diagonal for lower hemisphere
-        uv = (1.0 - abs(octant.yx)) * sign(octant.xy);
-    }
-    
-    // Map from [-1,1] to [0,1]
-    return uv * 0.5 + 0.5;
-}
+**Direction to UV:**
+
+```
+1. Project direction onto octahedron: octant = dir / (|x| + |y| + |z|)
+2. If lower hemisphere (z < 0): fold via diagonal reflection
+3. Map [-1,1] → [0,1]
 ```
 
-### 3.2 UV to Direction
+**UV to Direction:**
 
-```glsl
-vec3 lumonOctahedralUVToDirection(vec2 uv) {
-    // Map from [0,1] to [-1,1]
-    vec2 oct = uv * 2.0 - 1.0;
-    
-    // Reconstruct Z from octahedron constraint |x| + |y| + |z| = 1
-    vec3 dir = vec3(oct.xy, 1.0 - abs(oct.x) - abs(oct.y));
-    
-    // Unfold lower hemisphere
-    if (dir.z < 0.0) {
-        dir.xy = (1.0 - abs(dir.yx)) * sign(dir.xy);
-    }
-    
-    return normalize(dir);
-}
+```
+1. Map [0,1] → [-1,1]
+2. Reconstruct Z from constraint |x| + |y| + |z| = 1
+3. If lower hemisphere: unfold via diagonal reflection
+4. Normalize result
 ```
 
-### 3.3 Hit Distance Encoding
+### 3.2 Hit Distance Encoding
 
 Log encoding provides better precision for near distances:
 
-```glsl
-// Encode for storage
-float lumonEncodeHitDistance(float distance) {
-    return log(distance + 1.0);
-}
+- **Encode**: `log(distance + 1)`
+- **Decode**: `exp(encoded) - 1`
 
-// Decode for use
-float lumonDecodeHitDistance(float encoded) {
-    return exp(encoded) - 1.0;
-}
+### 3.3 2D Atlas Addressing
+
+```
+atlasCoord = probeCoord * 8 + octTexel
+atlasUV = (atlasCoord + 0.5) / atlasSize
 ```
 
-### 3.4 2D Atlas Addressing
-
-```glsl
-// Calculate atlas coordinates from probe and octahedral texel
-ivec2 probeCoord = ivec2(probeX, probeY);
-ivec2 octTexel = ivec2(octU, octV);  // 0-7 each
-ivec2 atlasCoord = probeCoord * LUMON_OCTAHEDRAL_SIZE + octTexel;
-
-// Sample with hardware filtering (for direction interpolation within a probe)
-vec2 atlasUV = (vec2(atlasCoord) + 0.5) / vec2(atlasWidth, atlasHeight);
-vec4 radiance = texture(octahedralAtlas, atlasUV);
-
-// Exact texel fetch (no filtering)
-vec4 radiance = texelFetch(octahedralAtlas, atlasCoord, 0);
-```
+Use `texture()` for hardware-filtered sampling within a probe, `texelFetch()` for exact texel access.
 
 ---
 
 ## 4. Legacy: SH L1 Encoding (Deprecated)
 
-> **Note**: The SH L1 approach is being replaced by octahedral maps.
-> This section is retained for reference during the transition.
+> **Note**: The SH L1 approach has been replaced by octahedral maps.
+> This section is retained as a brief reference only.
 
-### 4.1 Why SH L1 Was Used
+### 4.1 SH L1 Summary
 
-| SH Order     | Coefficients | Quality              | Cost    |
-| ------------ | ------------ | -------------------- | ------- |
-| L0 (DC only) | 1            | Flat ambient         | Minimal |
-| **L1**       | 4            | Directional gradient | Low     |
-| L2           | 9            | Soft shadows         | Medium  |
-| L3           | 16           | Sharp features       | High    |
+SH L1 uses 4 coefficients per color channel (12 floats total for RGB):
 
-SH L1 was initially chosen because:
+- **L0 (DC)**: Ambient/average radiance
+- **L1 (3 coefficients)**: Directional gradient (X, Y, Z)
 
-- 4 coefficients fit in one RGBA16F texture (per channel)
-- Captures primary light direction + ambient
-- Sufficient for diffuse indirect lighting
+**Limitations that led to deprecation:**
 
-**However**, SH has limitations for temporal stability:
-- SH coefficients are view-dependent (require rotation on camera turn)
-- No per-direction depth information for leak prevention
-- Low angular resolution (4 effective directions)
+- View-dependent coefficients require rotation on camera movement
+- No per-direction depth for leak prevention
+- Low angular resolution (~4 effective directions)
 
 ### 4.2 SH L1 Basis Functions
 
-The 4 L1 basis functions (real, normalized):
+| Index | Formula        | Interpretation |
+| ----- | -------------- | -------------- |
+| 0     | `0.282095`     | DC (ambient)   |
+| 1     | `0.488603 * y` | Y gradient     |
+| 2     | `0.488603 * z` | Z gradient     |
+| 3     | `0.488603 * x` | X gradient     |
 
-| Index | Basis Y_l^m | Formula        | Interpretation |
-| ----- | ----------- | -------------- | -------------- |
-| 0     | Y_0^0       | `0.282095`     | DC (ambient)   |
-| 1     | Y_1^{-1}    | `0.488603 * y` | Y gradient     |
-| 2     | Y_1^0       | `0.488603 * z` | Z gradient     |
-| 3     | Y_1^1       | `0.488603 * x` | X gradient     |
+### 4.3 Core Operations (Pseudo Code)
 
-Where `(x, y, z)` is a unit direction vector.
+```
+SHBasis(dir) → [C0, C1*y, C1*z, C1*x]
+
+SHProject(dir, radiance):
+    basis = SHBasis(dir)
+    return basis * radiance  // per channel
+
+SHEvaluate(shCoeffs, dir):
+    return dot(shCoeffs, SHBasis(dir))
+
+SHEvaluateDiffuse(shCoeffs, normal):
+    // Convolve with cosine lobe using zonal harmonic weights
+    // A0=π for DC, A1=2π/3 for directional terms
+    basis = SHBasis(normal) * [A0, A1, A1, A1]
+    return dot(shCoeffs, basis) / π
+```
 
 ---
 
-## 2. Texture Layout
+## 5. Texture Storage Layouts
 
-### 2.1 Storage Strategy
-
-Each probe stores SH L1 coefficients for RGB independently:
+### 5.1 Full SH L1: 3-Texture Layout
 
 ```
-Per probe: 4 coefficients × 3 channels = 12 floats
+Texture 0: [SH0_R, SH0_G, SH0_B, SH1_R]
+Texture 1: [SH1_G, SH1_B, SH2_R, SH2_G]
+Texture 2: [SH2_B, SH3_R, SH3_G, SH3_B]
 ```
 
-**Option A**: 3 textures (R, G, B), each RGBA16F storing 4 coefficients  
-**Option B**: 2 textures with packed layout (chosen)
+### 5.2 Simplified: Ambient + Dominant Direction (2 Textures)
 
-### 2.2 Chosen Layout: 2× RGBA16F
+For M1, a simpler encoding captures:
 
-| Texture              | R     | G     | B     | A     |
-| -------------------- | ----- | ----- | ----- | ----- |
-| **ProbeRadiance[0]** | SH0_R | SH0_G | SH0_B | SH1_R |
-| **ProbeRadiance[1]** | SH1_G | SH1_B | SH2_R | SH2_G |
-| **ProbeRadiance[2]** | SH2_B | SH3_R | SH3_G | SH3_B |
-
-**Note**: This requires 3 textures for complete storage. Alternative:
-
-### 2.3 Alternative: Packed into 2 Textures
-
-Use interleaved packing with reduced precision for higher indices:
-
-| Texture              | R     | G     | B                | A                |
-| -------------------- | ----- | ----- | ---------------- | ---------------- |
-| **ProbeRadiance[0]** | SH0_R | SH0_G | SH0_B            | SH1_R            |
-| **ProbeRadiance[1]** | SH1_G | SH1_B | SH2_RGB (packed) | SH3_RGB (packed) |
-
-**Final Decision**: Use 2 RGBA16F textures with this layout:
-
-| Texture              | Content                                                              |
-| -------------------- | -------------------------------------------------------------------- |
-| **ProbeRadiance[0]** | RGB: SH coefficient 0 (DC), A: luminance of SH1                      |
-| **ProbeRadiance[1]** | RGB: Dominant direction (normalized SH1-3), A: directional intensity |
-
-This simplified encoding trades full SH fidelity for fewer textures.
-
-### 2.4 Simplified Dominant-Direction Encoding
-
-For M1/M2, use a simpler encoding that captures:
-
-- **Ambient color** (SH0): Average incoming radiance
+- **Ambient color**: Average incoming radiance
 - **Dominant direction**: Primary light direction
-- **Directional intensity**: How directional vs ambient
+- **Directional ratio**: How directional vs ambient (0-1)
 
-```glsl
-struct ProbeRadiance {
-    vec3 ambient;           // SH coefficient 0 (scaled)
-    vec3 dominantDir;       // Normalized direction of maximum radiance
-    float directionalRatio; // 0 = pure ambient, 1 = fully directional
-};
+```
+Texture 0: RGB = ambient, A = directionalRatio
+Texture 1: RGB = dominantDir (encoded), A = intensity
 ```
 
-**Stored as**:
+**Evaluation:**
 
-- Texture 0: RGB = ambient color, A = directional ratio
-- Texture 1: RGB = dominant direction (encoded), A = reserved
-
-This is **not true SH** but achieves similar results with simpler math.
-
----
-
-## 3. True SH L1 Implementation
-
-For completeness, here's the full SH L1 implementation:
-
-### 3.1 GLSL Include File: lumon_sh.ash
-
-```glsl
-// lumon_sh.ash
-// Spherical Harmonics L1 helper functions for LumOn radiance cache
-
-#ifndef LUMON_SH_ASH
-#define LUMON_SH_ASH
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Constants
-// ═══════════════════════════════════════════════════════════════════════════
-
-// SH basis constants (real, orthonormalized)
-const float SH_C0 = 0.282094792;  // 1 / (2 * sqrt(pi))
-const float SH_C1 = 0.488602512;  // sqrt(3) / (2 * sqrt(pi))
-
-// Cosine lobe coefficients for diffuse BRDF convolution
-// These are the zonal harmonics coefficients for max(dot(n, l), 0)
-const float SH_COSINE_A0 = 3.141592654;        // pi
-const float SH_COSINE_A1 = 2.094395102;        // 2*pi/3
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Data Structures
-// ═══════════════════════════════════════════════════════════════════════════
-
-// SH L1 coefficients for a single color channel
-struct SH1 {
-    float c[4];  // c0 (DC), c1 (Y), c2 (Z), c3 (X)
-};
-
-// SH L1 coefficients for RGB
-struct SH1_RGB {
-    vec4 coeffs0;  // R: c0_r, G: c0_g, B: c0_b, A: c1_r
-    vec4 coeffs1;  // R: c1_g, G: c1_b, B: c2_r, A: c2_g
-    vec4 coeffs2;  // R: c2_b, G: c3_r, B: c3_g, A: c3_b
-};
-
-// Simplified: Store per-channel in vec4 (4 coefficients per channel)
-// Access as shR.x = c0, shR.y = c1, shR.z = c2, shR.w = c3
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Basis Evaluation
-// ═══════════════════════════════════════════════════════════════════════════
-
-/// Evaluate SH L1 basis functions for a direction
-/// @param dir Normalized direction vector
-/// @return vec4 containing [Y_0^0, Y_1^{-1}, Y_1^0, Y_1^1]
-vec4 SHBasis(vec3 dir) {
-    return vec4(
-        SH_C0,           // Y_0^0:   constant
-        SH_C1 * dir.y,   // Y_1^-1:  y
-        SH_C1 * dir.z,   // Y_1^0:   z
-        SH_C1 * dir.x    // Y_1^1:   x
-    );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Projection (Direction + Radiance → SH)
-// ═══════════════════════════════════════════════════════════════════════════
-
-/// Project a radiance sample onto SH L1 basis
-/// @param dir      Normalized direction the radiance came from
-/// @param radiance RGB radiance value
-/// @param shR      Output: SH coefficients for red channel
-/// @param shG      Output: SH coefficients for green channel
-/// @param shB      Output: SH coefficients for blue channel
-void SHProject(vec3 dir, vec3 radiance,
-               out vec4 shR, out vec4 shG, out vec4 shB) {
-    vec4 basis = SHBasis(dir);
-    shR = basis * radiance.r;
-    shG = basis * radiance.g;
-    shB = basis * radiance.b;
-}
-
-/// Project with cosine weighting (for hemisphere integration)
-/// Multiplies by cos(theta) = dot(normal, dir)
-void SHProjectCosine(vec3 dir, vec3 radiance, vec3 normal,
-                     out vec4 shR, out vec4 shG, out vec4 shB) {
-    float cosTheta = max(dot(normal, dir), 0.0);
-    vec3 weighted = radiance * cosTheta;
-    SHProject(dir, weighted, shR, shG, shB);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Evaluation (SH + Direction → Radiance)
-// ═══════════════════════════════════════════════════════════════════════════
-
-/// Evaluate SH at a direction (reconstruct radiance)
-/// @param shR Red channel SH coefficients
-/// @param shG Green channel SH coefficients
-/// @param shB Blue channel SH coefficients
-/// @param dir Normalized direction to evaluate
-/// @return Reconstructed RGB radiance
-vec3 SHEvaluate(vec4 shR, vec4 shG, vec4 shB, vec3 dir) {
-    vec4 basis = SHBasis(dir);
-    return vec3(
-        dot(shR, basis),
-        dot(shG, basis),
-        dot(shB, basis)
-    );
-}
-
-/// Evaluate diffuse irradiance (convolved with cosine lobe)
-/// This is what you want for Lambertian surfaces
-/// @param shR, shG, shB SH coefficients
-/// @param normal        Surface normal
-/// @return Irradiance (integrate incoming radiance * cos(theta))
-vec3 SHEvaluateDiffuse(vec4 shR, vec4 shG, vec4 shB, vec3 normal) {
-    // Convolve SH with cosine lobe (zonal harmonic)
-    // Result is: A0*c0 + A1*(c1*ny + c2*nz + c3*nx)
-    vec4 basis = SHBasis(normal);
-
-    // Apply cosine lobe convolution weights
-    vec4 cosineWeights = vec4(
-        SH_COSINE_A0,  // DC term
-        SH_COSINE_A1,  // Directional terms
-        SH_COSINE_A1,
-        SH_COSINE_A1
-    );
-
-    vec4 convolved = basis * cosineWeights;
-
-    return vec3(
-        dot(shR, convolved),
-        dot(shG, convolved),
-        dot(shB, convolved)
-    ) / 3.141592654;  // Divide by pi for diffuse BRDF
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Accumulation & Blending
-// ═══════════════════════════════════════════════════════════════════════════
-
-/// Accumulate SH coefficients (add sample to running sum)
-void SHAccumulate(inout vec4 shR, inout vec4 shG, inout vec4 shB,
-                  vec4 sampleR, vec4 sampleG, vec4 sampleB) {
-    shR += sampleR;
-    shG += sampleG;
-    shB += sampleB;
-}
-
-/// Scale SH coefficients
-void SHScale(inout vec4 shR, inout vec4 shG, inout vec4 shB, float scale) {
-    shR *= scale;
-    shG *= scale;
-    shB *= scale;
-}
-
-/// Linear interpolation of SH coefficients
-void SHLerp(vec4 shR_a, vec4 shG_a, vec4 shB_a,
-            vec4 shR_b, vec4 shG_b, vec4 shB_b,
-            float t,
-            out vec4 shR, out vec4 shG, out vec4 shB) {
-    shR = mix(shR_a, shR_b, t);
-    shG = mix(shG_a, shG_b, t);
-    shB = mix(shB_a, shB_b, t);
-}
-
-/// Bilinear interpolation of 4 SH probes
-vec3 SHBilinearEvaluate(
-    vec4 shR_00, vec4 shG_00, vec4 shB_00,  // Bottom-left
-    vec4 shR_10, vec4 shG_10, vec4 shB_10,  // Bottom-right
-    vec4 shR_01, vec4 shG_01, vec4 shB_01,  // Top-left
-    vec4 shR_11, vec4 shG_11, vec4 shB_11,  // Top-right
-    vec2 weights,                            // Bilinear weights
-    vec3 evalDir                             // Direction to evaluate
-) {
-    // Interpolate coefficients
-    vec4 shR_0 = mix(shR_00, shR_10, weights.x);
-    vec4 shG_0 = mix(shG_00, shG_10, weights.x);
-    vec4 shB_0 = mix(shB_00, shB_10, weights.x);
-
-    vec4 shR_1 = mix(shR_01, shR_11, weights.x);
-    vec4 shG_1 = mix(shG_01, shG_11, weights.x);
-    vec4 shB_1 = mix(shB_01, shB_11, weights.x);
-
-    vec4 shR = mix(shR_0, shR_1, weights.y);
-    vec4 shG = mix(shG_0, shG_1, weights.y);
-    vec4 shB = mix(shB_0, shB_1, weights.y);
-
-    // Evaluate at direction
-    return SHEvaluate(shR, shG, shB, evalDir);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Normalization & Clamping
-// ═══════════════════════════════════════════════════════════════════════════
-
-/// Normalize accumulated SH by sample count
-void SHNormalize(inout vec4 shR, inout vec4 shG, inout vec4 shB,
-                 float sampleCount) {
-    if (sampleCount > 0.0) {
-        float invCount = 1.0 / sampleCount;
-        shR *= invCount;
-        shG *= invCount;
-        shB *= invCount;
-    }
-}
-
-/// Clamp SH to prevent negative radiance reconstruction
-/// Note: L1 SH can produce negative values; this is a soft clamp
-void SHClampNegative(inout vec4 shR, inout vec4 shG, inout vec4 shB) {
-    // Ensure DC term is positive
-    shR.x = max(shR.x, 0.0);
-    shG.x = max(shG.x, 0.0);
-    shB.x = max(shB.x, 0.0);
-
-    // Limit directional terms to not exceed DC
-    // This prevents negative values in reconstruction
-    float maxDirR = shR.x * 0.5;  // Heuristic limit
-    float maxDirG = shG.x * 0.5;
-    float maxDirB = shB.x * 0.5;
-
-    shR.yzw = clamp(shR.yzw, -maxDirR, maxDirR);
-    shG.yzw = clamp(shG.yzw, -maxDirG, maxDirG);
-    shB.yzw = clamp(shB.yzw, -maxDirB, maxDirB);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Utility
-// ═══════════════════════════════════════════════════════════════════════════
-
-/// Extract dominant light direction from SH L1
-vec3 SHDominantDirection(vec4 shR, vec4 shG, vec4 shB) {
-    // Directional components are proportional to direction
-    // SH layout: (DC, Y, Z, X) -> to get (x, y, z) use indices (w, y, z)
-    vec3 dirR = vec3(shR.w, shR.y, shR.z);  // x, y, z from coefficients 3, 1, 2
-    vec3 dirG = vec3(shG.w, shG.y, shG.z);
-    vec3 dirB = vec3(shB.w, shB.y, shB.z);
-
-    // Weight by luminance
-    vec3 dir = dirR * 0.2126 + dirG * 0.7152 + dirB * 0.0722;
-
-    float len = length(dir);
-    return len > 0.001 ? dir / len : vec3(0.0, 1.0, 0.0);
-}
-
-/// Get ambient (DC) term as RGB color
-vec3 SHAmbient(vec4 shR, vec4 shG, vec4 shB) {
-    return vec3(shR.x, shG.x, shB.x);
-}
-
-#endif // LUMON_SH_ASH
+```
+dirContrib = max(dot(normal, dominantDir), 0)
+result = ambient * (1 - ratio*0.5) + ambient * dirContrib * ratio
 ```
 
 ---
 
-## 4. Texture Read/Write Helpers
+## 6. Double-Buffer Swap Logic
 
-### 4.1 Packing SH into 2 Textures
+### 6.1 Buffer Management
 
-For the 2-texture layout:
-
-```glsl
-// lumon_sh_pack.ash
-// Packing helpers for 2-texture SH storage
-
-// Pack SH RGB into 2 RGBA16F textures
-void SHPack(vec4 shR, vec4 shG, vec4 shB,
-            out vec4 tex0, out vec4 tex1) {
-    // Texture 0: DC terms + first directional R
-    tex0 = vec4(shR.x, shG.x, shB.x, shR.y);
-
-    // Texture 1: Remaining directional terms (compressed)
-    // Pack Y directions
-    tex1.r = shG.y;
-    tex1.g = shB.y;
-
-    // Pack Z and X directions (averaged for compression)
-    // This loses some precision but fits in 2 textures
-    vec3 avgZX = (vec3(shR.z, shG.z, shB.z) + vec3(shR.w, shG.w, shB.w)) * 0.5;
-    tex1.b = dot(avgZX, vec3(0.2126, 0.7152, 0.0722));  // Luminance
-    tex1.a = 0.0;  // Reserved
-}
-
-// Unpack SH RGB from 2 RGBA16F textures
-void SHUnpack(vec4 tex0, vec4 tex1,
-              out vec4 shR, out vec4 shG, out vec4 shB) {
-    // DC terms from texture 0
-    shR.x = tex0.r;
-    shG.x = tex0.g;
-    shB.x = tex0.b;
-
-    // Y directional
-    shR.y = tex0.a;
-    shG.y = tex1.r;
-    shB.y = tex1.g;
-
-    // Z and X (reconstruct from compressed luminance)
-    // This is approximate reconstruction
-    float lumZX = tex1.b;
-    shR.z = shR.w = lumZX * 0.5;
-    shG.z = shG.w = lumZX * 0.5;
-    shB.z = shB.w = lumZX * 0.5;
-}
-```
-
-### 4.2 Simplified: Ambient + Direction Encoding
-
-For M1, use the simpler encoding:
-
-```glsl
-// lumon_radiance_simple.ash
-// Simplified radiance encoding: ambient + dominant direction
-
-struct SimpleRadiance {
-    vec3 ambient;           // Average incoming radiance
-    vec3 dominantDir;       // Primary light direction (view-space)
-    float directionalRatio; // 0 = ambient only, 1 = fully directional
-    float intensity;        // Overall brightness multiplier
-};
-
-// Encode to 2 textures
-void EncodeRadiance(SimpleRadiance rad, out vec4 tex0, out vec4 tex1) {
-    tex0.rgb = rad.ambient;
-    tex0.a = rad.directionalRatio;
-
-    tex1.rgb = rad.dominantDir * 0.5 + 0.5;  // Encode [-1,1] to [0,1]
-    tex1.a = rad.intensity;
-}
-
-// Decode from 2 textures
-SimpleRadiance DecodeRadiance(vec4 tex0, vec4 tex1) {
-    SimpleRadiance rad;
-    rad.ambient = tex0.rgb;
-    rad.directionalRatio = tex0.a;
-    rad.dominantDir = tex1.rgb * 2.0 - 1.0;
-    rad.intensity = tex1.a;
-    return rad;
-}
-
-// Evaluate radiance for a surface normal
-vec3 EvaluateRadiance(SimpleRadiance rad, vec3 normal) {
-    float dirContrib = max(dot(normal, rad.dominantDir), 0.0);
-    vec3 directional = rad.ambient * dirContrib * rad.directionalRatio;
-    vec3 ambient = rad.ambient * (1.0 - rad.directionalRatio * 0.5);
-    return (ambient + directional) * rad.intensity;
-}
-
-// Accumulate radiance sample
-void AccumulateRadiance(inout SimpleRadiance accum,
-                        vec3 sampleDir, vec3 sampleRadiance,
-                        float weight) {
-    accum.ambient += sampleRadiance * weight;
-    // Use perceptual luminance weights for direction accumulation
-    // This gives better results for natural lighting scenarios
-    float lum = dot(sampleRadiance, vec3(0.2126, 0.7152, 0.0722));
-    accum.dominantDir += sampleDir * lum * weight;
-    accum.intensity += weight;
-}
-
-// Normalize after accumulation
-void NormalizeRadiance(inout SimpleRadiance rad) {
-    if (rad.intensity > 0.0) {
-        rad.ambient /= rad.intensity;
-        float dirLen = length(rad.dominantDir);
-        if (dirLen > 0.001) {
-            rad.dominantDir /= dirLen;
-            rad.directionalRatio = min(dirLen / rad.intensity, 1.0);
-        } else {
-            rad.dominantDir = vec3(0.0, 1.0, 0.0);
-            rad.directionalRatio = 0.0;
-        }
-        rad.intensity = 1.0;
-    }
-}
-
-// Lerp between two radiance values
-SimpleRadiance LerpRadiance(SimpleRadiance a, SimpleRadiance b, float t) {
-    SimpleRadiance result;
-    result.ambient = mix(a.ambient, b.ambient, t);
-    // Handle zero-length direction to avoid NaN from normalize
-    vec3 mixedDir = mix(a.dominantDir, b.dominantDir, t);
-    float mixedLen = length(mixedDir);
-    result.dominantDir = mixedLen > 0.001 ? mixedDir / mixedLen : vec3(0.0, 1.0, 0.0);
-    result.directionalRatio = mix(a.directionalRatio, b.directionalRatio, t);
-    result.intensity = mix(a.intensity, b.intensity, t);
-    return result;
-}
-```
-
----
-
-## 5. Double-Buffer Swap Logic
-
-### 5.1 Buffer Manager Implementation
-
-```csharp
-// In LumOnBufferManager.cs
-
-public class LumOnBufferManager
-{
-    // Current frame writes to "Current", reads history from "History"
-    // After temporal pass, they swap roles
-
-    private FrameBufferRef[] radianceBuffers = new FrameBufferRef[2];
-    private int writeIndex = 0;
-
-    public FrameBufferRef ProbeRadianceWrite => radianceBuffers[writeIndex];
-    public FrameBufferRef ProbeRadianceRead => radianceBuffers[1 - writeIndex];
-
-    private void CreateRadianceBuffers()
-    {
-        for (int i = 0; i < 2; i++)
-        {
-            radianceBuffers[i] = CreateFramebuffer(
-                $"LumOn_Radiance_{i}",
-                ProbeCountX, ProbeCountY,
-                new[] { EnumTextureFormat.Rgba16f, EnumTextureFormat.Rgba16f }
-            );
-        }
-    }
-
-    /// <summary>
-    /// Swap read/write radiance buffers. Call after temporal pass.
-    /// </summary>
-    public void SwapRadianceBuffers()
-    {
-        writeIndex = 1 - writeIndex;
-    }
-
-    /// <summary>
-    /// Clear history buffer (call on first frame or after teleport).
-    /// </summary>
-    public void ClearHistory()
-    {
-        // Bind history buffer and clear to black
-        // This forces full recomputation
-    }
-}
-```
-
-### 5.2 Frame Sequence
+The radiance cache uses double buffering for temporal stability:
 
 ```
 Frame N:
-  1. ProbeTrace writes to Radiance[0] (current)
-  2. Temporal reads Radiance[1] (history) + Radiance[0] (current)
-  3. Temporal writes blended result to Radiance[0]
-  4. SwapRadianceBuffers() → writeIndex becomes 1
+  1. Trace → writes to Buffer[0] (current)
+  2. Temporal → reads Buffer[1] (history) + Buffer[0], writes blended to Buffer[0]
+  3. Swap → writeIndex flips
 
 Frame N+1:
-  1. ProbeTrace writes to Radiance[1] (current)
-  2. Temporal reads Radiance[0] (history) + Radiance[1] (current)
-  3. Temporal writes blended result to Radiance[1]
-  4. SwapRadianceBuffers() → writeIndex becomes 0
+  1. Trace → writes to Buffer[1] (current)
+  2. Temporal → reads Buffer[0] (history) + Buffer[1], writes blended to Buffer[1]
+  3. Swap → writeIndex flips back
 ```
+
+**Key operations:**
+
+- `SwapRadianceBuffers()`: Toggle write index after temporal pass
+- `ClearHistory()`: Force full recomputation (first frame, teleport, etc.)
 
 ---
 
-## 6. Performance Considerations
+## 7. Performance Considerations
 
-### 6.1 Memory Usage
+### 7.1 Memory Usage
 
 | Buffer           | Size (8px spacing, 1080p) | Format     | Total       |
 | ---------------- | ------------------------- | ---------- | ----------- |
@@ -748,101 +257,22 @@ Frame N+1:
 | ProbeRadiance[1] | 240 × 135                 | 2× RGBA16F | 0.52 MB     |
 | **Total**        |                           |            | **1.04 MB** |
 
-### 6.2 Bandwidth per Frame
+### 7.2 Bandwidth & ALU
 
-| Operation                 | Data Size |
-| ------------------------- | --------- |
-| Write current radiance    | 0.52 MB   |
-| Read history radiance     | 0.52 MB   |
-| Read current for temporal | 0.52 MB   |
-| Write temporal output     | 0.52 MB   |
-| **Total**                 | **~2 MB** |
-
-### 6.3 ALU Considerations
-
-SH operations are lightweight:
-
-- `SHBasis()`: 4 multiplies, 1 normalize
-- `SHEvaluate()`: 3 dot products (12 MADs)
-- `SHAccumulate()`: 3 vector adds
+- **Bandwidth**: ~2 MB/frame (write current, read history, read current for temporal, write output)
+- **ALU**: SH operations are lightweight (~4 MADs for basis, ~12 MADs for evaluation)
 
 ---
 
-## 7. Upgrade Path to Full SH L1
+## 8. Upgrade Path
 
-For M3+, upgrade to full SH L1:
+### 8.1 Full SH L1 (3 Textures)
 
-### 7.1 Expand to 3 Textures
+For M3+, expand to 3 RGBA16F textures to store all 12 coefficients without compression losses.
 
-```glsl
-// Full SH L1 packing (3 RGBA16F textures)
-void SHPackFull(vec4 shR, vec4 shG, vec4 shB,
-                out vec4 tex0, out vec4 tex1, out vec4 tex2) {
-    tex0 = vec4(shR.x, shG.x, shB.x, shR.y);  // DC + R.y
-    tex1 = vec4(shG.y, shB.y, shR.z, shG.z);  // G.y, B.y, R.z, G.z
-    tex2 = vec4(shB.z, shR.w, shG.w, shB.w);  // B.z, R.w, G.w, B.w
-}
+### 8.2 SH L2 (Future - M5+)
 
-void SHUnpackFull(vec4 tex0, vec4 tex1, vec4 tex2,
-                  out vec4 shR, out vec4 shG, out vec4 shB) {
-    shR = vec4(tex0.r, tex0.a, tex1.b, tex2.g);
-    shG = vec4(tex0.g, tex1.r, tex1.a, tex2.b);
-    shB = vec4(tex0.b, tex1.g, tex2.r, tex2.a);
-}
-```
-
-### 7.2 Consider SH L2 (Future)
-
-L2 adds 5 more coefficients (9 total) for sharper features:
-
-- Requires 3 RGBA16F textures (12 floats, 3 unused)
-- ~3× memory and bandwidth
-- Better shadow definition
-- Consider for M5+ if quality insufficient
-
----
-
-## 8. Implementation Checklist
-
-### 8.1 Shader Includes
-
-- [x] Create `lumon_sh.ash` in `shaderincludes/` *(implemented as `lumon_sh.fsh`)*
-- [x] Implement `SHBasis()` function *(implemented as `shEncode()`)*
-- [x] Implement `SHProject()` function *(implemented as `shProjectOut()` + `shProjectRGB()`)*
-- [x] Implement `SHProjectCosine()` function *(implemented as `shProjectCosineRGB()`)*
-- [x] Implement `SHEvaluate()` function *(implemented as `shEvaluate()`, `shEvaluateRGB()`)*
-- [x] Implement `SHEvaluateDiffuse()` function *(implemented as `shEvaluateDiffuseRGB()`)*
-- [x] Implement `SHAccumulate()` function *(implemented as `shAccumulate()`)*
-- [x] Implement `SHScale()` function *(implemented as `shScale()`)*
-- [x] Implement `SHLerp()` function *(implemented as `shLerp()`)*
-- [x] Implement `SHBilinearEvaluate()` function *(implemented as `shBilinearEvaluate()`)*
-- [x] Implement `SHNormalize()` function *(implemented as `shNormalize()`)*
-- [x] Implement `SHClampNegative()` function *(implemented as `shClampNegative()`)*
-- [x] Implement `SHDominantDirection()` function *(implemented as `shDominantDirection()`)*
-- [x] Implement `SHAmbient()` function *(implemented as `shAmbient()`)*
-- [x] Add pack/unpack helpers for 2-texture layout *(implemented in `lumon_sh.fsh` and `lumon_sh_pack.fsh`)*
-
-### 8.2 Buffer Management
-
-- [x] Create ProbeRadiance framebuffers (read/write pair)
-- [x] Each FB has 2 RGBA16F attachments
-- [x] Implement `SwapRadianceBuffers()` method
-- [x] Add `ClearHistory()` for first frame/teleport *(also added `InvalidateCache()`)*
-
-### 8.3 Simplified Encoding (M1)
-
-- [x] Create `lumon_radiance_simple.ash` alternative *(implemented as `lumon_radiance_simple.fsh`)*
-- [x] Implement `EncodeRadiance()` / `DecodeRadiance()` *(implemented as `encodeRadiance()` / `decodeRadiance()`)*
-- [ ] Test with simple directional lighting
-
-### 8.4 Testing
-
-- [ ] Unit test: SH project + evaluate roundtrip
-- [ ] Verify DC term matches average radiance
-- [ ] Check no negative values in reconstruction
-- [ ] Compare SH L1 vs simplified encoding quality
-- [ ] Verify bilinear SH interpolation works correctly
-- [ ] Test SH dominant direction extraction
+9 coefficients total for sharper shadow definition. ~3× memory and bandwidth cost.
 
 ---
 
