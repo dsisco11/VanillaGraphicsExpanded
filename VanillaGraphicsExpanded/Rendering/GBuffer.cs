@@ -383,6 +383,176 @@ public sealed class GBuffer : IDisposable
         return resized;
     }
 
+    /// <summary>
+    /// Binds the framebuffer and clears it with the specified color and mask.
+    /// Restores the previous framebuffer binding after clearing.
+    /// </summary>
+    /// <param name="r">Red component (0-1).</param>
+    /// <param name="g">Green component (0-1).</param>
+    /// <param name="b">Blue component (0-1).</param>
+    /// <param name="a">Alpha component (0-1).</param>
+    /// <param name="mask">Clear buffer mask.</param>
+    public void BindAndClear(float r = 0f, float g = 0f, float b = 0f, float a = 0f, 
+        ClearBufferMask mask = ClearBufferMask.ColorBufferBit)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to bind and clear disposed or invalid framebuffer");
+            return;
+        }
+
+        Bind();
+        GL.ClearColor(r, g, b, a);
+        GL.Clear(mask);
+    }
+
+    /// <summary>
+    /// Blits (copies) from another GBuffer to this one.
+    /// Handles binding both framebuffers and restoring state.
+    /// </summary>
+    /// <param name="source">Source GBuffer to copy from.</param>
+    /// <param name="mask">Buffer mask to copy (Color, Depth, or Stencil).</param>
+    /// <param name="filter">Blit filter (Nearest or Linear).</param>
+    public void BlitFrom(GBuffer source,
+        ClearBufferMask mask = ClearBufferMask.ColorBufferBit,
+        BlitFramebufferFilter filter = BlitFramebufferFilter.Nearest)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to blit to disposed or invalid framebuffer");
+            return;
+        }
+
+        if (source == null || !source.IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to blit from null or invalid source framebuffer");
+            return;
+        }
+
+        BlitFromInternal(source.FboId, source.Width, source.Height, mask, filter);
+    }
+
+    /// <summary>
+    /// Blits (copies) from an external framebuffer ID to this one.
+    /// Use this overload for VS-managed framebuffers.
+    /// </summary>
+    /// <param name="sourceFboId">Source framebuffer ID to copy from.</param>
+    /// <param name="srcWidth">Source width.</param>
+    /// <param name="srcHeight">Source height.</param>
+    /// <param name="mask">Buffer mask to copy (Color, Depth, or Stencil).</param>
+    /// <param name="filter">Blit filter (Nearest or Linear).</param>
+    public void BlitFromExternal(int sourceFboId, int srcWidth, int srcHeight,
+        ClearBufferMask mask = ClearBufferMask.ColorBufferBit,
+        BlitFramebufferFilter filter = BlitFramebufferFilter.Nearest)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to blit to disposed or invalid framebuffer");
+            return;
+        }
+
+        BlitFromInternal(sourceFboId, srcWidth, srcHeight, mask, filter);
+    }
+
+    /// <summary>
+    /// Blits (copies) from this framebuffer to another GBuffer.
+    /// </summary>
+    /// <param name="dest">Destination GBuffer.</param>
+    /// <param name="mask">Buffer mask to copy.</param>
+    /// <param name="filter">Blit filter.</param>
+    public void BlitTo(GBuffer dest,
+        ClearBufferMask mask = ClearBufferMask.ColorBufferBit,
+        BlitFramebufferFilter filter = BlitFramebufferFilter.Nearest)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to blit from disposed or invalid framebuffer");
+            return;
+        }
+
+        if (dest == null || !dest.IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to blit to null or invalid destination framebuffer");
+            return;
+        }
+
+        BlitToInternal(dest.FboId, dest.Width, dest.Height, mask, filter);
+    }
+
+    /// <summary>
+    /// Blits (copies) from this framebuffer to an external framebuffer ID.
+    /// Use this overload for VS-managed framebuffers.
+    /// </summary>
+    /// <param name="destFboId">Destination framebuffer ID.</param>
+    /// <param name="dstWidth">Destination width.</param>
+    /// <param name="dstHeight">Destination height.</param>
+    /// <param name="mask">Buffer mask to copy.</param>
+    /// <param name="filter">Blit filter.</param>
+    public void BlitToExternal(int destFboId, int dstWidth, int dstHeight,
+        ClearBufferMask mask = ClearBufferMask.ColorBufferBit,
+        BlitFramebufferFilter filter = BlitFramebufferFilter.Nearest)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to blit from disposed or invalid framebuffer");
+            return;
+        }
+
+        BlitToInternal(destFboId, dstWidth, dstHeight, mask, filter);
+    }
+
+    private void BlitFromInternal(int sourceFboId, int srcWidth, int srcHeight,
+        ClearBufferMask mask, BlitFramebufferFilter filter)
+    {
+        int prevFbo = GL.GetInteger(GetPName.FramebufferBinding);
+
+        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, sourceFboId);
+        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, fboId);
+
+        GL.BlitFramebuffer(
+            0, 0, srcWidth, srcHeight,
+            0, 0, Width, Height,
+            mask,
+            filter);
+
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
+    }
+
+    private void BlitToInternal(int destFboId, int dstWidth, int dstHeight,
+        ClearBufferMask mask, BlitFramebufferFilter filter)
+    {
+        int prevFbo = GL.GetInteger(GetPName.FramebufferBinding);
+
+        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, fboId);
+        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, destFboId);
+
+        GL.BlitFramebuffer(
+            0, 0, Width, Height,
+            0, 0, dstWidth, dstHeight,
+            mask,
+            filter);
+
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
+    }
+
+    /// <summary>
+    /// Saves the current framebuffer binding for later restoration.
+    /// </summary>
+    /// <returns>The currently bound framebuffer ID.</returns>
+    public static int SaveBinding()
+    {
+        return GL.GetInteger(GetPName.FramebufferBinding);
+    }
+
+    /// <summary>
+    /// Restores a previously saved framebuffer binding.
+    /// </summary>
+    /// <param name="fboId">The framebuffer ID to restore.</param>
+    public static void RestoreBinding(int fboId)
+    {
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
+    }
+
     #endregion
 
     #region Private Methods

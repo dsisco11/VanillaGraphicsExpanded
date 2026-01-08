@@ -300,26 +300,16 @@ public sealed class LumOnBufferManager : IDisposable
             return;
 
         // Save current framebuffer binding
-        GL.GetInteger(GetPName.FramebufferBinding, out int previousFbo);
-        GL.ClearColor(0f, 0f, 0f, 0f);
+        int previousFbo = Rendering.GBuffer.SaveBinding();
 
-        // Clear history radiance
-        radianceHistoryFbo?.Bind();
-        GL.Clear(ClearBufferMask.ColorBufferBit);
-
-        // Clear current radiance
-        radianceCurrentFbo?.Bind();
-        GL.Clear(ClearBufferMask.ColorBufferBit);
-
-        // Clear metadata buffers
-        probeMetaHistoryFbo?.Bind();
-        GL.Clear(ClearBufferMask.ColorBufferBit);
-
-        probeMetaCurrentFbo?.Bind();
-        GL.Clear(ClearBufferMask.ColorBufferBit);
+        // Clear all radiance and metadata buffers to black
+        radianceHistoryFbo?.BindAndClear();
+        radianceCurrentFbo?.BindAndClear();
+        probeMetaHistoryFbo?.BindAndClear();
+        probeMetaCurrentFbo?.BindAndClear();
 
         // Restore previous framebuffer
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, previousFbo);
+        Rendering.GBuffer.RestoreBinding(previousFbo);
 
         capi.Logger.Debug("[LumOn] Cleared radiance history and metadata buffers");
     }
@@ -348,16 +338,7 @@ public sealed class LumOnBufferManager : IDisposable
             return;
 
         // Blit from primary FB to captured scene texture
-        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, primaryFboId);
-        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, capturedSceneFbo.FboId);
-
-        GL.BlitFramebuffer(
-            0, 0, screenWidth, screenHeight,
-            0, 0, screenWidth, screenHeight,
-            ClearBufferMask.ColorBufferBit,
-            BlitFramebufferFilter.Nearest);
-
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        capturedSceneFbo.BlitFromExternal(primaryFboId, screenWidth, screenHeight);
     }
 
     #endregion

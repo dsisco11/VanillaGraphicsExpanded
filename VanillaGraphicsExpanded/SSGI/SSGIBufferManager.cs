@@ -183,20 +183,8 @@ public sealed class SSGIBufferManager : IDisposable
         if (sourceWidth != lastFullWidth || sourceHeight != lastFullHeight)
             return;
 
-        // Store current framebuffer binding
-        int prevFbo = GL.GetInteger(GetPName.FramebufferBinding);
-
-        // Use glBlitFramebuffer to copy depth (handles format conversion)
-        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, sourceFboId);
-        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, depthHistoryFbo.FboId);
-        GL.BlitFramebuffer(
-            0, 0, sourceWidth, sourceHeight,
-            0, 0, lastFullWidth, lastFullHeight,
-            ClearBufferMask.DepthBufferBit,
-            BlitFramebufferFilter.Nearest);
-
-        // Restore framebuffer binding
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
+        // Blit depth from source to history buffer
+        depthHistoryFbo.BlitFromExternal(sourceFboId, sourceWidth, sourceHeight, ClearBufferMask.DepthBufferBit);
     }
 
     /// <summary>
@@ -216,32 +204,13 @@ public sealed class SSGIBufferManager : IDisposable
         if (sourceWidth != lastFullWidth || sourceHeight != lastFullHeight)
             return;
 
-        // Store current framebuffer binding
-        int prevFbo = GL.GetInteger(GetPName.FramebufferBinding);
-
-        // Use glBlitFramebuffer to copy scene color (handles format conversion)
-        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, sourceFboId);
-        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, capturedSceneFbo.FboId);
-        GL.BlitFramebuffer(
-            0, 0, sourceWidth, sourceHeight,
-            0, 0, lastFullWidth, lastFullHeight,
-            ClearBufferMask.ColorBufferBit,
-            BlitFramebufferFilter.Nearest);
-
-        // Restore framebuffer binding
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
+        // Blit scene color from source to captured scene buffer
+        capturedSceneFbo.BlitFromExternal(sourceFboId, sourceWidth, sourceHeight);
 
         // On first frame, initialize depth history to prevent sampling uninitialized memory
         if (isFirstFrame && depthHistoryFbo != null)
         {
-            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, sourceFboId);
-            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, depthHistoryFbo.FboId);
-            GL.BlitFramebuffer(
-                0, 0, sourceWidth, sourceHeight,
-                0, 0, lastFullWidth, lastFullHeight,
-                ClearBufferMask.DepthBufferBit,
-                BlitFramebufferFilter.Nearest);
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
+            depthHistoryFbo.BlitFromExternal(sourceFboId, sourceWidth, sourceHeight, ClearBufferMask.DepthBufferBit);
             isFirstFrame = false;
             capi.Logger.Notification("[VGE] SSGI depth history initialized on first frame");
         }
