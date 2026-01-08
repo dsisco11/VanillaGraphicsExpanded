@@ -17,17 +17,29 @@ The gather and upsample pipeline transforms probe radiance into per-pixel indire
 
 ### 1.1 Resolution Strategy
 
-| Resolution                 | Content               | Purpose             |
-| -------------------------- | --------------------- | ------------------- |
-| Probe grid (e.g., 240×135) | SH radiance per probe | Ray-traced data     |
-| Half-res (e.g., 960×540)   | Indirect diffuse RGB  | Gathered irradiance |
-| Full-res (e.g., 1920×1080) | Final indirect term   | Upsampled output    |
+| Resolution                 | Content                    | Purpose                 |
+| -------------------------- | -------------------------- | ----------------------- |
+| Probe grid (e.g., 240×135) | SH or Octahedral per probe | Ray-traced data         |
+| Octahedral atlas           | 8×8 per probe (1920×1080)  | Radiance + hit distance |
+| Half-res (e.g., 960×540)   | Indirect diffuse RGB       | Gathered irradiance     |
+| Full-res (e.g., 1920×1080) | Final indirect term        | Upsampled output        |
 
 ### 1.2 Why Half-Resolution Gather?
 
 - **Cost reduction**: 4× fewer gather operations than full-res
 - **Smooth result**: Indirect lighting is inherently low-frequency
 - **Bilateral upsample**: Preserves edges using depth/normal guides
+
+### 1.3 Two Gather Modes
+
+LumOn supports two gather modes controlled by `UseOctahedralCache`:
+
+| Mode       | Storage    | Gather Method               | Advantages                               |
+| ---------- | ---------- | --------------------------- | ---------------------------------------- |
+| SH L1      | 2 textures | `SHEvaluateDiffuse(normal)` | Compact, fast single lookup              |
+| Octahedral | 8×8 atlas  | Hemisphere integration      | Per-direction hit distance, less leaking |
+
+**Octahedral mode is recommended** for higher quality with comparable performance.
 
 ---
 
@@ -298,6 +310,201 @@ void main() {
     outIndirect = vec4(irradiance, 1.0);
 }
 ```
+
+---
+
+## 2.5 Octahedral Gather (UseOctahedralCache = true)
+
+When using octahedral radiance storage, the gather pass replaces SH evaluation with hemisphere integration over the octahedral texture. This provides:
+
+- **Per-direction hit distance**: Enables distance-aware probe weighting and leak prevention
+- **Better directional fidelity**: 64 directions vs 4 SH coefficients
+- **Temporal stability**: World-space storage eliminates view-dependent artifacts
+
+### 2.5.1 Octahedral Gather Algorithm
+
+For each half-res pixel:
+
+1. Find the 4 enclosing probes (same as SH mode)
+2. Compute bilinear weights with edge-awareness
+3. **For each probe**, integrate radiance over the upper hemisphere:
+   - Sample octahedral texels that lie in the hemisphere aligned to pixel normal
+   - Weight each sample by `cos(θ)` (cosine weighting for Lambertian diffuse)
+   - Accumulate weighted radiance
+4. Apply distance-based probe weighting using average hit distance
+5. Implement leak prevention by comparing probe hit distances to pixel depth
+6. Blend weighted contributions from all 4 probes
+
+### 2.5.2 Hemisphere Integration
+
+The key difference from SH gather is that we must sample multiple directions from each probe's octahedral tile:
+
+```
+Octahedral Tile (8×8):           Hemisphere for Normal N:
+┌──────────────────────┐         ┌──────────────────────┐
+│  ●  ●  ●  ●  ●  ●  ●  ●  │         │  ×  ×  ●  ●  ●  ×  ×  │
+│  ●  ●  ●  ●  ●  ●  ●  ●  │         │  ×  ●  ●  ●  ●  ●  ×  │
+│  ●  ●  ●  ●  ●  ●  ●  ●  │    →    │  ●  ●  ●  ●  ●  ●  ●  │
+│  ●  ●  ●  ●  ●  ●  ●  ●  │         │  ●  ●  ●  ●  ●  ●  ●  │
+│  ●  ●  ●  ●  ●  ●  ●  ●  │         │  ●  ●  ●  ●  ●  ●  ●  │
+│  ●  ●  ●  ●  ●  ●  ●  ●  │         │  ×  ●  ●  ●  ●  ●  ×  │
+│  ●  ●  ●  ●  ●  ●  ●  ●  │         │  ×  ×  ●  ●  ●  ×  ×  │
+│  ●  ●  ●  ●  ●  ●  ●  ●  │         │  ×  ×  ×  ×  ×  ×  ×  │
+└──────────────────────┘         └──────────────────────┘
+  All 64 directions              Only ~32 in upper hemi (●)
+                                 Skip lower hemisphere (×)
+```
+
+### 2.5.3 Cosine-Weighted Integration
+
+```glsl
+// Integrate over hemisphere for one probe
+vec3 integrateHemisphere(sampler2D octAtlas, ivec2 probeCoord, vec3 normalWS,
+                         ivec2 probeGridSize, out float avgHitDist) {
+    vec3 irradiance = vec3(0.0);
+    float totalWeight = 0.0;
+    float hitDistSum = 0.0;
+    int hitDistCount = 0;
+
+    // Calculate atlas offset for this probe's 8×8 tile
+    ivec2 atlasOffset = probeCoord * LUMON_OCTAHEDRAL_SIZE;
+
+    // Sample all 64 octahedral texels
+    for (int y = 0; y < LUMON_OCTAHEDRAL_SIZE; y++) {
+        for (int x = 0; x < LUMON_OCTAHEDRAL_SIZE; x++) {
+            // Convert texel to direction
+            vec2 octUV = (vec2(x, y) + 0.5) / float(LUMON_OCTAHEDRAL_SIZE);
+            vec3 dir = lumonOctahedralUVToDirection(octUV);
+
+            // Cosine weight (skip backfacing directions)
+            float cosWeight = dot(dir, normalWS);
+            if (cosWeight <= 0.0) continue;
+
+            // Sample radiance + hit distance
+            ivec2 atlasCoord = atlasOffset + ivec2(x, y);
+            vec4 sample = texelFetch(octAtlas, atlasCoord, 0);
+            vec3 radiance = sample.rgb;
+            float hitDist = lumonDecodeHitDistance(sample.a);
+
+            // Accumulate with cosine weight
+            irradiance += radiance * cosWeight;
+            totalWeight += cosWeight;
+
+            // Track hit distances for leak prevention
+            hitDistSum += hitDist;
+            hitDistCount++;
+        }
+    }
+
+    // Normalize and output average hit distance
+    avgHitDist = (hitDistCount > 0) ? hitDistSum / float(hitDistCount) : 999.0;
+    return (totalWeight > 0.001) ? irradiance / totalWeight : vec3(0.0);
+}
+```
+
+### 2.5.4 Distance-Aware Probe Weighting
+
+Hit distance enables smarter probe weighting to reduce light leaking:
+
+```glsl
+// Compute probe weight considering hit distance
+float computeProbeWeight(float bilinearWeight,
+                         float pixelDepth, float probeDepth,
+                         vec3 pixelNormal, vec3 probeNormal,
+                         float avgHitDist, float probeValid) {
+    if (probeValid < 0.5) return 0.0;
+
+    // Base geometric weights (same as SH mode)
+    float depthDiff = abs(pixelDepth - probeDepth) / max(pixelDepth, 0.01);
+    float depthWeight = exp(-depthDiff * depthDiff * 8.0);
+
+    float normalDot = max(dot(pixelNormal, probeNormal), 0.0);
+    float normalWeight = pow(normalDot, 4.0);
+
+    // Distance-based weight: prefer probes with similar scene distance
+    // If probe hits distant surfaces but pixel is close, reduce weight (potential leak)
+    float distRatio = avgHitDist / max(pixelDepth, 0.01);
+    float distWeight = exp(-abs(distRatio - 1.0) * 2.0);
+
+    return bilinearWeight * depthWeight * normalWeight * distWeight;
+}
+```
+
+### 2.5.5 Leak Prevention
+
+Light leaking occurs when a probe sees past thin geometry that occludes the pixel. Using per-direction hit distance, we can detect and mitigate leaks:
+
+```glsl
+// Check for potential leak: probe hit is much farther than pixel depth
+bool isPotentialLeak(float probeHitDist, float pixelDepth, float threshold) {
+    return probeHitDist > pixelDepth * (1.0 + threshold);
+}
+
+// In integration loop: reduce contribution from leaking directions
+float leakWeight = isPotentialLeak(hitDist, pixelDepth, 0.5) ? 0.1 : 1.0;
+irradiance += radiance * cosWeight * leakWeight;
+```
+
+### 2.5.6 Optimized Hemisphere Integration
+
+Since full 64-sample integration is expensive, we use a sparse sample pattern:
+
+```glsl
+// Sample 16 directions instead of 64 (4×4 sub-grid)
+const int SAMPLE_STRIDE = 2;  // Sample every other texel
+
+for (int y = 0; y < LUMON_OCTAHEDRAL_SIZE; y += SAMPLE_STRIDE) {
+    for (int x = 0; x < LUMON_OCTAHEDRAL_SIZE; x += SAMPLE_STRIDE) {
+        // ... integration code
+    }
+}
+// Adjust normalization for sample count
+```
+
+### 2.5.7 Octahedral Gather Shader
+
+```glsl
+// lumon_gather_octahedral.fsh - Full shader implementation
+#version 330 core
+
+in vec2 uv;
+out vec4 outColor;
+
+@import "lumon_common.fsh"
+@import "lumon_octahedral.glsl"
+
+uniform sampler2D octahedralAtlas;      // Radiance atlas (probeCountX×8, probeCountY×8)
+uniform sampler2D probeAnchorPosition;  // Probe positions + validity
+uniform sampler2D probeAnchorNormal;    // Probe normals
+uniform sampler2D primaryDepth;         // G-buffer depth
+uniform sampler2D gBufferNormal;        // G-buffer normal
+
+uniform mat4 invProjectionMatrix;
+uniform vec2 probeGridSize;
+uniform int probeSpacing;
+uniform vec2 screenSize;
+uniform float zNear, zFar;
+uniform float intensity;
+uniform vec3 indirectTint;
+
+// Leak prevention threshold
+uniform float leakThreshold;  // e.g., 0.5 = 50% depth tolerance
+
+void main() {
+    // ... (full implementation in shader file)
+}
+```
+
+### 2.5.8 Performance Considerations
+
+| Approach                 | Samples/Pixel | Quality   | Cost   |
+| ------------------------ | ------------- | --------- | ------ |
+| SH Gather                | 4 probes      | Good      | ~0.3ms |
+| Octahedral (64 samples)  | 4×64 = 256    | Excellent | ~1.2ms |
+| Octahedral (16 samples)  | 4×16 = 64     | Very Good | ~0.5ms |
+| Octahedral (prefiltered) | 4 probes      | Excellent | ~0.3ms |
+
+**Recommendation**: Use 16-sample integration (4×4 subgrid) for best quality/performance balance.
 
 ---
 

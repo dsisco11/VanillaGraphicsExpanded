@@ -590,8 +590,28 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// <summary>
     /// Pass 4: Gather irradiance at each pixel by interpolating nearby probes.
     /// Output: Half-resolution indirect diffuse.
+    /// 
+    /// Two modes:
+    /// - SH mode (UseOctahedralCache = false): Evaluate SH at pixel normal
+    /// - Octahedral mode (UseOctahedralCache = true): Integrate hemisphere from octahedral tiles
     /// </summary>
     private void RenderGatherPass(FrameBufferRef primaryFb)
+    {
+        if (config.UseOctahedralCache)
+        {
+            RenderOctahedralGatherPass(primaryFb);
+        }
+        else
+        {
+            RenderSHGatherPass(primaryFb);
+        }
+    }
+
+    /// <summary>
+    /// SH-based gather pass (legacy mode).
+    /// Evaluates SH coefficients at each pixel's normal direction.
+    /// </summary>
+    private void RenderSHGatherPass(FrameBufferRef primaryFb)
     {
         var shader = ShaderRegistry.getProgramByName("lumon_gather") as LumOnGatherShaderProgram;
         if (shader is null || shader.LoadError)
@@ -607,7 +627,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.Use();
 
         // Bind radiance textures (from current after temporal blend)
-        // Note: Temporal pass writes to current, gather reads from current
         shader.RadianceTexture0 = bufferManager.RadianceCurrentTex0;
         shader.RadianceTexture1 = bufferManager.RadianceCurrentTex1;
 
@@ -621,7 +640,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Pass uniforms
         shader.InvProjectionMatrix = invProjectionMatrix;
-        shader.ViewMatrix = modelViewMatrix;  // For WS to VS normal transform (SH in VS directions)
+        shader.ViewMatrix = modelViewMatrix;
         shader.ProbeSpacing = config.ProbeSpacingPx;
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
@@ -631,6 +650,62 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.DepthDiscontinuityThreshold = config.DepthDiscontinuityThreshold;
         shader.Intensity = config.Intensity;
         shader.IndirectTint = config.IndirectTint;
+
+        // Render
+        capi.Render.RenderMesh(quadMeshRef);
+        shader.Stop();
+    }
+
+    /// <summary>
+    /// Octahedral-based gather pass (new mode).
+    /// Integrates radiance over hemisphere from octahedral tiles for each pixel.
+    /// Provides per-direction hit distance for leak prevention.
+    /// </summary>
+    private void RenderOctahedralGatherPass(FrameBufferRef primaryFb)
+    {
+        var shader = ShaderRegistry.getProgramByName("lumon_gather_octahedral") as LumOnOctahedralGatherShaderProgram;
+        if (shader is null || shader.LoadError)
+            return;
+
+        var fbo = bufferManager.IndirectHalfFbo;
+        if (fbo is null) return;
+
+        // Use the current octahedral atlas (after temporal blend if available, otherwise from trace)
+        var octAtlas = bufferManager.OctahedralCurrentTex ?? bufferManager.OctahedralTraceTex;
+        if (octAtlas is null) return;
+
+        fbo.BindWithViewport();
+        fbo.Clear();
+
+        capi.Render.GlToggleBlend(false);
+        shader.Use();
+
+        // Bind octahedral radiance atlas
+        shader.OctahedralAtlas = octAtlas.TextureId;
+
+        // Bind probe anchors
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex;
+        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex;
+
+        // Bind G-buffer for pixel info
+        shader.PrimaryDepth = primaryFb.DepthTextureId;
+        shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
+
+        // Pass uniforms
+        shader.InvProjectionMatrix = invProjectionMatrix;
+        shader.ViewMatrix = modelViewMatrix;
+        shader.ProbeSpacing = config.ProbeSpacingPx;
+        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
+        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
+        shader.HalfResSize = new Vec2f(bufferManager.HalfResWidth, bufferManager.HalfResHeight);
+        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
+        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
+        shader.Intensity = config.Intensity;
+        shader.IndirectTint = config.IndirectTint;
+
+        // Octahedral-specific parameters
+        shader.LeakThreshold = 0.5f;  // 50% depth tolerance for leak prevention
+        shader.SampleStride = 2;      // 16 samples (4×4 subgrid) for performance
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);

@@ -57,12 +57,12 @@ LumOn World-Space Octahedral Radiance Cache Refactor:
 
 
   Phase 5 - Gather Pass with Octahedral Integration:
-    ☐ Update LumOn.06-Gather-Upsample.md to document octahedral gather
-    ☐ Replace SHEvaluateDiffuse() with hemisphere integration
-    ☐ Sample octahedral tile over hemisphere aligned to pixel WS normal
-    ☐ Apply cosine weighting for diffuse irradiance
-    ☐ Use hit-distance for distance-aware probe weighting
-    ☐ Implement leak prevention using hit-distance comparison
+    ✔ Update LumOn.06-Gather-Upsample.md to document octahedral gather @done
+    ✔ Replace SHEvaluateDiffuse() with hemisphere integration @done
+    ✔ Sample octahedral tile over hemisphere aligned to pixel WS normal @done
+    ✔ Apply cosine weighting for diffuse irradiance @done
+    ✔ Use hit-distance for distance-aware probe weighting @done
+    ✔ Implement leak prevention using hit-distance comparison @done
 
   Phase 6 - Performance Optimizations:
     ☐ Consider prefiltered cosine-lobe irradiance for fast diffuse gather
