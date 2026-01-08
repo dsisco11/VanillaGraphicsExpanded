@@ -7,6 +7,12 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// <summary>
 /// Shader program for LumOn Probe Anchor pass.
 /// Determines probe positions from G-buffer depth/normals.
+/// 
+/// Output is in WORLD-SPACE (matching UE5 Lumen's design) for temporal stability:
+/// - World-space directions remain valid across camera rotations
+/// - Radiance stored per world-space direction can be directly blended
+/// - No SH rotation or coordinate transforms needed in temporal pass
+///
 /// Implements validation criteria from LumOn.02-Probe-Grid.md:
 /// - Sky rejection (depth >= 0.9999)
 /// - Edge detection via depth discontinuity (reduces temporal weight)
@@ -51,10 +57,10 @@ public class LumOnProbeAnchorShaderProgram : ShaderProgram
     public float[] InvProjectionMatrix { set => UniformMatrix("invProjectionMatrix", value); }
 
     /// <summary>
-    /// Model-view matrix for transforming world-space normals to view-space.
-    /// Required because G-buffer normals are world-space but ray marching is view-space.
+    /// Inverse view matrix for transforming view-space positions to world-space.
+    /// Required for world-space probe output (temporal stability across camera rotations).
     /// </summary>
-    public float[] ModelViewMatrix { set => UniformMatrix("modelViewMatrix", value); }
+    public float[] InvViewMatrix { set => UniformMatrix("invViewMatrix", value); }
 
     #endregion
 

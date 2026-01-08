@@ -7,11 +7,17 @@ LumOn World-Space Octahedral Radiance Cache Refactor:
   - Temporal ray distribution (subset of rays per frame)
 
   Phase 1 - World-Space Probe Anchors:
-    ☐ Update LumOn.02-Probe-Grid.md to document world-space storage
-    ☐ Modify ProbeAnchor[0] to store posWS.xyz instead of posVS.xyz
-    ☐ Modify ProbeAnchor[1] to store normalWS.xyz instead of normalVS.xyz
-    ☐ Add inverseViewMatrix uniform to probe anchor shader
-    ☐ Update lumon_probe_anchor.fsh to transform G-buffer VS data to WS
+    ✔ Update LumOn.02-Probe-Grid.md to document world-space storage @done
+    ✔ Modify ProbeAnchor[0] to store posWS.xyz instead of posVS.xyz @done
+    ✔ Modify ProbeAnchor[1] to store normalWS.xyz instead of normalVS.xyz @done
+    ✔ Add inverseViewMatrix uniform to probe anchor shader @done
+    ✔ Update lumon_probe_anchor.fsh to transform G-buffer VS data to WS @done
+    ✔ Update lumon_probe_trace.fsh to transform WS probe data to VS for ray marching @done
+    ✔ Update lumon_temporal.fsh to use WS position for reprojection @done
+    ✔ Update lumon_gather.fsh to transform pixel normal to VS for SH evaluation @done
+    ✔ Update all shader program C# classes with new uniforms @done
+    ✔ Update LumOnRenderer.cs to pass correct matrices @done
+    ✔ Build and verify compilation @done
 
   Phase 2 - Octahedral Radiance Texture:
     ☐ Update LumOn.03-Radiance-Cache.md to document octahedral storage
@@ -41,6 +47,7 @@ LumOn World-Space Octahedral Radiance Cache Refactor:
     ☐ Use hit-distance delta for per-texel disocclusion detection
     ☐ Remove SH-specific temporal logic
 
+
   Phase 5 - Gather Pass with Octahedral Integration:
     ☐ Update LumOn.06-Gather-Upsample.md to document octahedral gather
     ☐ Replace SHEvaluateDiffuse() with hemisphere integration
@@ -56,7 +63,7 @@ LumOn World-Space Octahedral Radiance Cache Refactor:
     ☐ Optimize hemisphere integration sample count
 
   Documentation Updates:
-    ☐ Revise "Why View-Space?" section in LumOn.02 to explain full world-space approach (matching Lumen for temporal stability)
+    ✔ Revise "Why View-Space?" section in LumOn.02 to explain full world-space approach (matching Lumen for temporal stability) @done
     ☐ Add octahedral math reference to LumOn.03
     ☐ Document temporal ray distribution algorithm in LumOn.04
     ☐ Update pipeline diagrams in all affected docs

@@ -66,6 +66,12 @@ public class LumOnGatherShaderProgram : ShaderProgram
     /// </summary>
     public float[] InvProjectionMatrix { set => UniformMatrix("invProjectionMatrix", value); }
 
+    /// <summary>
+    /// View matrix for WS to VS normal transform.
+    /// SH coefficients are stored in view-space directions, so pixel normal must be transformed.
+    /// </summary>
+    public float[] ViewMatrix { set => UniformMatrix("viewMatrix", value); }
+
     #endregion
 
     #region Probe Grid Uniforms

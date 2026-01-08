@@ -3,8 +3,8 @@
 in vec2 uv;
 
 // MRT outputs
-layout(location = 0) out vec4 outPosition;  // posVS.xyz, valid
-layout(location = 1) out vec4 outNormal;    // normalVS.xyz, reserved
+layout(location = 0) out vec4 outPosition;  // posWS.xyz, valid
+layout(location = 1) out vec4 outNormal;    // normalWS.xyz, reserved
 
 // ============================================================================
 // LumOn Probe Anchor Pass
@@ -12,6 +12,11 @@ layout(location = 1) out vec4 outNormal;    // normalVS.xyz, reserved
 // Determines probe positions and normals from the G-buffer.
 // Each pixel in the probe grid corresponds to a screen-space probe.
 // Probes sample the center of their cell to determine anchor position.
+//
+// Output is in WORLD-SPACE (matching UE5 Lumen's design) for temporal stability:
+// - World-space directions remain valid across camera rotations
+// - Radiance stored per world-space direction can be directly blended
+// - No SH rotation or coordinate transforms needed in temporal pass
 //
 // Validation criteria (from LumOn.02-Probe-Grid.md):
 // - Depth >= 0.9999: invalid (sky, no surface to anchor)
@@ -29,7 +34,7 @@ uniform sampler2D gBufferNormal;   // World-space normals
 
 // Matrices
 uniform mat4 invProjectionMatrix;  // For view-space position reconstruction
-uniform mat4 modelViewMatrix;      // For world-to-view space normal transform
+uniform mat4 invViewMatrix;        // For view-space to world-space transform
 
 // Probe grid parameters
 uniform int probeSpacing;          // Pixels between probes
@@ -124,10 +129,11 @@ void main(void)
         valid = 0.5;  // Mark as edge (partial validity for reduced temporal weight)
     }
     
-    // Reconstruct view-space position
+    // Reconstruct view-space position, then transform to world-space
     vec3 posVS = lumonReconstructViewPos(screenUV, depth, invProjectionMatrix);
+    vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
     
-    // Sample and decode world-space normal from G-buffer
+    // Sample and decode world-space normal from G-buffer (already world-space)
     vec3 normalRaw = texture(gBufferNormal, screenUV).xyz;
     vec3 normalWS = lumonDecodeNormal(normalRaw);
     
@@ -139,17 +145,13 @@ void main(void)
         return;
     }
     
-    // Convert world-space normal to view-space for consistency with posVS
-    // This is critical: ray marching operates in view-space, so normal must match
-    vec3 normalVS = normalize(mat3(modelViewMatrix) * normalWS);
-    
     // ========================================================================
-    // Output
+    // Output (world-space for temporal stability)
     // ========================================================================
     
-    // Store position with validity flag (view-space)
-    outPosition = vec4(posVS, valid);
+    // Store world-space position with validity flag
+    outPosition = vec4(posWS, valid);
     
-    // Store normal in view-space (encoded to [0,1] range for storage)
-    outNormal = vec4(lumonEncodeNormal(normalVS), 0.0);
+    // Store world-space normal (encoded to [0,1] range for storage)
+    outNormal = vec4(lumonEncodeNormal(normalWS), 0.0);
 }

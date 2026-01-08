@@ -23,14 +23,15 @@ uniform sampler2D radianceCurrent1;
 uniform sampler2D radianceHistory0;
 uniform sampler2D radianceHistory1;
 
-// Probe anchor for validation
-uniform sampler2D probeAnchorPosition;
-uniform sampler2D probeAnchorNormal;
+// Probe anchor for validation (world-space for temporal stability)
+uniform sampler2D probeAnchorPosition;  // posWS.xyz, valid
+uniform sampler2D probeAnchorNormal;    // normalWS.xyz, reserved
 
 // History metadata (depth, normal, accumCount)
 uniform sampler2D historyMeta;
 
 // Matrices
+uniform mat4 viewMatrix;              // Current frame view (for WS to VS)
 uniform mat4 invViewMatrix;           // Current frame inverse view
 uniform mat4 prevViewProjMatrix;      // Previous frame view-projection
 
@@ -55,13 +56,10 @@ float LinearizeDepth(float d) {
     return zNear * zFar / (zFar - d * (zFar - zNear));
 }
 
-/// Convert view-space position to previous frame screen UV
-vec2 ReprojectToHistory(vec3 posVS) {
-    // View-space to world-space
-    vec4 posWS = invViewMatrix * vec4(posVS, 1.0);
-    
-    // World-space to previous clip-space
-    vec4 prevClip = prevViewProjMatrix * posWS;
+/// Convert world-space position to previous frame screen UV
+vec2 ReprojectToHistory(vec3 posWS) {
+    // World-space directly to previous clip-space (no VS conversion needed)
+    vec4 prevClip = prevViewProjMatrix * vec4(posWS, 1.0);
     
     // Clip to NDC (perspective divide)
     vec3 prevNDC = prevClip.xyz / prevClip.w;
@@ -165,13 +163,13 @@ void main(void)
     vec4 currentRad0 = texelFetch(radianceCurrent0, probeCoord, 0);
     vec4 currentRad1 = texelFetch(radianceCurrent1, probeCoord, 0);
     
-    // Read probe anchor data
+    // Read probe anchor data (world-space for temporal stability)
     vec4 anchorPos = texelFetch(probeAnchorPosition, probeCoord, 0);
     vec4 anchorNormal = texelFetch(probeAnchorNormal, probeCoord, 0);
     
-    vec3 posVS = anchorPos.xyz;
+    vec3 posWS = anchorPos.xyz;
     float valid = anchorPos.w;
-    vec3 normalVS = normalize(anchorNormal.xyz * 2.0 - 1.0);
+    vec3 normalWS = normalize(anchorNormal.xyz * 2.0 - 1.0);
     
     // Invalid probe: pass through current frame data
     if (valid < 0.5) {
@@ -181,12 +179,16 @@ void main(void)
         return;
     }
     
+    // Convert to view-space for depth calculation
+    vec3 posVS = (viewMatrix * vec4(posWS, 1.0)).xyz;
+    vec3 normalVS = normalize(mat3(viewMatrix) * normalWS);
+    
     // Compute linearized depth for validation
     // View-space Z is negative (looking down -Z), so negate
     float currentDepthLin = -posVS.z;
     
-    // Reproject to history UV
-    vec2 historyUV = ReprojectToHistory(posVS);
+    // Reproject to history UV (using world-space position directly)
+    vec2 historyUV = ReprojectToHistory(posWS);
     
     // Validate history sample
     ValidationResult validation = ValidateHistory(historyUV, currentDepthLin, normalVS);

@@ -22,9 +22,9 @@ layout(location = 1) out vec4 outRadiance1;  // SH coefficients set 1
 // Import noise for ray jittering
 @import "squirrel3.fsh"
 
-// Probe anchor textures
-uniform sampler2D probeAnchorPosition;  // posVS.xyz, valid
-uniform sampler2D probeAnchorNormal;    // normalVS.xyz, reserved
+// Probe anchor textures (world-space for temporal stability)
+uniform sampler2D probeAnchorPosition;  // posWS.xyz, valid
+uniform sampler2D probeAnchorNormal;    // normalWS.xyz, reserved
 
 // Scene textures for ray marching
 uniform sampler2D primaryDepth;
@@ -33,7 +33,7 @@ uniform sampler2D primaryColor;
 // Matrices
 uniform mat4 invProjectionMatrix;
 uniform mat4 projectionMatrix;
-uniform mat4 modelViewMatrix;
+uniform mat4 viewMatrix;       // For world-space to view-space transform
 
 // Probe grid parameters
 uniform int probeSpacing;
@@ -136,10 +136,9 @@ void main(void)
 {
     ivec2 probeCoord = ivec2(gl_FragCoord.xy);
     
-    // Load probe anchor data using texelFetch for precise integer addressing
-    // (no interpolation, direct texel access)
+    // Load probe anchor data (stored in world-space for temporal stability)
     vec4 anchorData = texelFetch(probeAnchorPosition, probeCoord, 0);
-    vec3 probePos = anchorData.xyz;
+    vec3 probePosWS = anchorData.xyz;
     float valid = anchorData.w;
     
     // If probe is invalid, output zero radiance
@@ -150,7 +149,12 @@ void main(void)
     }
     
     // Read and decode probe normal (stored as [0,1], need [-1,1])
-    vec3 probeNormal = lumonDecodeNormal(texelFetch(probeAnchorNormal, probeCoord, 0).xyz);
+    vec3 probeNormalWS = lumonDecodeNormal(texelFetch(probeAnchorNormal, probeCoord, 0).xyz);
+    
+    // Transform to view-space for screen-space ray marching
+    // (depth buffer comparisons require view-space coordinates)
+    vec3 probePos = (viewMatrix * vec4(probePosWS, 1.0)).xyz;
+    vec3 probeNormal = normalize(mat3(viewMatrix) * probeNormalWS);
     
     // Initialize SH accumulators
     vec4 shR = vec4(0.0);

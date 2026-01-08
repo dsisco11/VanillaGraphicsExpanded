@@ -343,7 +343,12 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     /// <summary>
     /// Pass 1: Build probe anchors from G-buffer depth and normals.
-    /// Output: ProbeAnchor textures with probe positions and normals.
+    /// Output: ProbeAnchor textures with world-space positions and normals.
+    /// 
+    /// Output is in WORLD-SPACE (matching UE5 Lumen's design) for temporal stability:
+    /// - World-space directions remain valid across camera rotations
+    /// - Radiance stored per world-space direction can be directly blended
+    /// 
     /// Implements validation from LumOn.02-Probe-Grid.md:
     /// - Sky rejection (depth >= 0.9999)
     /// - Edge detection via depth discontinuity (partial validity)
@@ -370,7 +375,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Pass matrices
         shader.InvProjectionMatrix = invProjectionMatrix;
-        shader.ModelViewMatrix = modelViewMatrix;  // For world-to-view space normal transform
+        shader.InvViewMatrix = invModelViewMatrix;  // For view-space to world-space transform
         
         // Pass probe grid uniforms
         shader.ProbeSpacing = config.ProbeSpacingPx;
@@ -418,7 +423,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Pass matrices
         shader.InvProjectionMatrix = invProjectionMatrix;
         shader.ProjectionMatrix = projectionMatrix;
-        shader.ModelViewMatrix = modelViewMatrix;
+        shader.ViewMatrix = modelViewMatrix;  // viewMatrix transforms WS probe data to VS for ray marching
 
         // Pass uniforms
         shader.ProbeSpacing = config.ProbeSpacingPx;
@@ -485,6 +490,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.HistoryMeta = bufferManager.ProbeMetaHistoryTex;
 
         // Pass matrices for reprojection
+        shader.ViewMatrix = modelViewMatrix;      // WS to VS for depth calc
         shader.InvViewMatrix = invModelViewMatrix;
         shader.PrevViewProjMatrix = prevViewProjMatrix;
 
@@ -539,6 +545,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Pass uniforms
         shader.InvProjectionMatrix = invProjectionMatrix;
+        shader.ViewMatrix = modelViewMatrix;  // For WS to VS normal transform (SH in VS directions)
         shader.ProbeSpacing = config.ProbeSpacingPx;
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);

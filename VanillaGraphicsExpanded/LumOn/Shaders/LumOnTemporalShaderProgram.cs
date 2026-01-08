@@ -69,6 +69,12 @@ public class LumOnTemporalShaderProgram : ShaderProgram
     #region Matrix Uniforms
 
     /// <summary>
+    /// Current frame's view matrix (world-space to view-space).
+    /// Needed for converting WS probe positions to VS for depth calculations.
+    /// </summary>
+    public float[] ViewMatrix { set => UniformMatrix("viewMatrix", value); }
+
+    /// <summary>
     /// Current frame's inverse view matrix (view-space to world-space).
     /// </summary>
     public float[] InvViewMatrix { set => UniformMatrix("invViewMatrix", value); }

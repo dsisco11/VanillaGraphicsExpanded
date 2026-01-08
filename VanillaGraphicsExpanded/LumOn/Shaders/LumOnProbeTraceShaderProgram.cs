@@ -28,12 +28,12 @@ public class LumOnProbeTraceShaderProgram : ShaderProgram
     #region Texture Samplers
 
     /// <summary>
-    /// Probe anchor positions (posVS.xyz, valid).
+    /// Probe anchor positions (posWS.xyz, valid) - stored in world-space for temporal stability.
     /// </summary>
     public int ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 0); }
 
     /// <summary>
-    /// Probe anchor normals (normalVS.xyz, reserved).
+    /// Probe anchor normals (normalWS.xyz, reserved) - stored in world-space for temporal stability.
     /// </summary>
     public int ProbeAnchorNormal { set => BindTexture2D("probeAnchorNormal", value, 1); }
 
@@ -62,9 +62,10 @@ public class LumOnProbeTraceShaderProgram : ShaderProgram
     public float[] ProjectionMatrix { set => UniformMatrix("projectionMatrix", value); }
 
     /// <summary>
-    /// Model-view matrix for view-space transformations.
+    /// View matrix for world-space to view-space transformation.
+    /// Probe anchors are stored in world-space, but ray marching requires view-space.
     /// </summary>
-    public float[] ModelViewMatrix { set => UniformMatrix("modelViewMatrix", value); }
+    public float[] ViewMatrix { set => UniformMatrix("viewMatrix", value); }
 
     #endregion
 

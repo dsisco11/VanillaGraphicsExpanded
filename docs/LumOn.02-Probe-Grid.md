@@ -94,33 +94,39 @@ void getEnclosingProbes(vec2 screenUV, int probeSpacing, ivec2 screenSize,
 
 Two RGBA16F textures store probe anchor data:
 
-| Attachment         | Channel | Content    | Range                                      |
-| ------------------ | ------- | ---------- | ------------------------------------------ |
-| **ProbeAnchor[0]** | R       | posVS.x    | view-space meters                          |
-|                    | G       | posVS.y    | view-space meters                          |
-|                    | B       | posVS.z    | view-space meters (negative = into screen) |
-|                    | A       | valid      | 0.0 = invalid, 1.0 = valid                 |
-| **ProbeAnchor[1]** | R       | normalVS.x | [-1, 1] (view-space, converted from WS)    |
-|                    | G       | normalVS.y | [-1, 1] (view-space, converted from WS)    |
-|                    | B       | normalVS.z | [-1, 1] (view-space, converted from WS)    |
-|                    | A       | reserved   | future: material flags                     |
+| Attachment         | Channel | Content    | Range                        |
+| ------------------ | ------- | ---------- | ---------------------------- |
+| **ProbeAnchor[0]** | R       | posWS.x    | world-space meters           |
+|                    | G       | posWS.y    | world-space meters           |
+|                    | B       | posWS.z    | world-space meters           |
+|                    | A       | valid      | 0.0 = invalid, 1.0 = valid   |
+| **ProbeAnchor[1]** | R       | normalWS.x | [-1, 1] world-space          |
+|                    | G       | normalWS.y | [-1, 1] world-space          |
+|                    | B       | normalWS.z | [-1, 1] world-space          |
+|                    | A       | reserved   | future: material flags       |
 
-### 3.2 Why View-Space?
+### 3.2 Why World-Space?
 
-- **Consistent with G-Buffer**: VS's `gPosition` is view-space
-- **Simpler math**: Ray marching stays in view-space
-- **Reprojection**: World-space conversion only needed for temporal pass
+LumOn stores probe positions and normals in **world-space**, matching UE5 Lumen's
+Screen Space Radiance Cache design. This provides critical benefits for temporal stability:
 
-> **Note**: Normals from `gNormal` are stored in **world-space** in Vintage Story's G-buffer.
-> The probe anchor pass converts them to **view-space** using the model-view matrix,
-> ensuring consistency with the view-space positions for ray marching.
+- **Temporal coherence**: World-space directions remain valid across camera rotations.
+  View-space directions would require re-tracing or SH rotation when the camera turns.
+- **Simpler temporal accumulation**: Radiance stored per world-space direction can be
+  directly blended without coordinate transforms.
+- **Matches Lumen**: UE5's SIGGRAPH 2022 presentation confirms screen-space probes
+  store radiance in world-space directions for exactly these reasons.
+
+> **Note**: Vintage Story's G-buffer stores positions in view-space and normals in world-space.
+> The probe anchor pass transforms view-space positions to world-space using `inverseViewMatrix`.
+> Normals are already world-space in the G-buffer and can be used directly.
 
 ### 3.3 GLSL Output Declaration
 
 ```glsl
 // lumon_probe_anchor.fsh
-layout(location = 0) out vec4 outProbePos;    // posVS.xyz, valid
-layout(location = 1) out vec4 outProbeNormal; // normalVS.xyz, reserved
+layout(location = 0) out vec4 outProbePos;    // posWS.xyz, valid
+layout(location = 1) out vec4 outProbeNormal; // normalWS.xyz, reserved
 ```
 
 ---
@@ -162,8 +168,10 @@ void main() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 uniform sampler2D gDepth;          // G-Buffer depth
-uniform sampler2D gNormal;         // G-Buffer view-space normals (attachment 2)
-uniform sampler2D gPosition;       // G-Buffer view-space position (attachment 3)
+uniform sampler2D gNormal;         // G-Buffer world-space normals
+uniform sampler2D gPosition;       // G-Buffer view-space position
+
+uniform mat4 inverseViewMatrix;    // Transform VS positions to WS
 
 uniform ivec2 screenSize;          // Full resolution (e.g., 1920x1080)
 uniform ivec2 probeGridSize;       // Probe grid size (e.g., 240x135)
@@ -198,11 +206,17 @@ bool isSky(float depth) {
 }
 
 // Sample G-Buffer at screen-space UV
-vec3 samplePosition(vec2 screenUV) {
+vec3 samplePositionVS(vec2 screenUV) {
     return texture(gPosition, screenUV).xyz;
 }
 
-vec3 sampleNormal(vec2 screenUV) {
+vec3 samplePositionWS(vec2 screenUV) {
+    vec3 posVS = texture(gPosition, screenUV).xyz;
+    return (inverseViewMatrix * vec4(posVS, 1.0)).xyz;
+}
+
+vec3 sampleNormalWS(vec2 screenUV) {
+    // G-buffer normals are already world-space in Vintage Story
     return normalize(texture(gNormal, screenUV).xyz * 2.0 - 1.0);
 }
 
@@ -257,10 +271,10 @@ void main() {
     // Screen-space UV for G-Buffer sampling
     vec2 screenUV = (vec2(screenPixel) + 0.5) / vec2(screenSize);
 
-    // Sample G-Buffer
+    // Sample G-Buffer and transform to world-space
     float depth = sampleDepth(screenUV);
-    vec3 posVS = samplePosition(screenUV);
-    vec3 normalVS = sampleNormal(screenUV);
+    vec3 posWS = samplePositionWS(screenUV);
+    vec3 normalWS = sampleNormalWS(screenUV);
 
     // ═══════════════════════════════════════════════════════════════════════
     // Validation
@@ -280,16 +294,16 @@ void main() {
     }
 
     // Reject invalid normals
-    if (length(normalVS) < 0.5) {
+    if (length(normalWS) < 0.5) {
         valid = 0.0;
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // Output
+    // Output (world-space for temporal stability)
     // ═══════════════════════════════════════════════════════════════════════
 
-    outProbePos = vec4(posVS, valid);
-    outProbeNormal = vec4(normalVS * 0.5 + 0.5, 0.0);  // Encode to [0,1]
+    outProbePos = vec4(posWS, valid);
+    outProbeNormal = vec4(normalWS * 0.5 + 0.5, 0.0);  // Encode to [0,1]
 }
 ```
 

@@ -31,6 +31,7 @@ uniform sampler2D gBufferNormal;
 
 // Matrices
 uniform mat4 invProjectionMatrix;
+uniform mat4 viewMatrix;  // For WS to VS normal transform (SH stored in VS directions)
 
 // Probe grid parameters
 uniform int probeSpacing;
@@ -66,7 +67,10 @@ void main(void)
     }
     
     vec3 pixelPosVS = lumonReconstructViewPos(screenUV, pixelDepth, invProjectionMatrix);
-    vec3 pixelNormal = lumonDecodeNormal(texture(gBufferNormal, screenUV).xyz);
+    vec3 pixelNormalWS = lumonDecodeNormal(texture(gBufferNormal, screenUV).xyz);
+    
+    // Transform to view-space for SH evaluation (SH accumulated in VS directions)
+    vec3 pixelNormal = normalize(mat3(viewMatrix) * pixelNormalWS);
     
     // Calculate which probes surround this pixel
     vec2 screenPos = screenUV * screenSize;
