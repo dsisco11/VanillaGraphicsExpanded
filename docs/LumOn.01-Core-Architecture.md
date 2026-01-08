@@ -37,198 +37,45 @@ LumOn is implemented as **SSGI v2** with a feature flag toggle:
 
 ## 2. Configuration System
 
-### 2.1 LumOnConfig Class
+### 2.1 LumOnConfig Properties
 
-```csharp
-using Newtonsoft.Json;
+`LumOnConfig` is a JSON-serialized class persisted to `ModConfig/vanillagraphicsexpanded-lumon.json`.
 
-namespace VanillaGraphicsExpanded.LumOn
-{
-    /// <summary>
-    /// Configuration for LumOn Screen Probe Gather system.
-    /// Persisted to: ModConfig/vanillagraphicsexpanded-lumon.json
-    /// </summary>
-    [JsonObject(MemberSerialization.OptIn)]
-    public class LumOnConfig
-    {
-        // ═══════════════════════════════════════════════════════════════
-        // Feature Toggle
-        // ═══════════════════════════════════════════════════════════════
-
-        /// <summary>
-        /// Master enable for LumOn. When false, falls back to legacy SSGI.
-        /// </summary>
-        [JsonProperty]
-        public bool Enabled { get; set; } = true;
-
-        // ═══════════════════════════════════════════════════════════════
-        // Probe Grid Settings (SPG-001)
-        // ═══════════════════════════════════════════════════════════════
-
-        /// <summary>
-        /// Spacing between probes in pixels. Lower = more probes = higher quality.
-        /// Recommended: 8 (start), 4 (high quality), 16 (performance)
-        /// Requires restart to change.
-        /// </summary>
-        [JsonProperty]
-        public int ProbeSpacingPx { get; set; } = 8;
-
-        // ═══════════════════════════════════════════════════════════════
-        // Ray Tracing Settings (SPG-004)
-        // ═══════════════════════════════════════════════════════════════
-
-        /// <summary>
-        /// Number of rays traced per probe per frame.
-        /// More rays = faster convergence but higher cost.
-        /// </summary>
-        [JsonProperty]
-        public int RaysPerProbePerFrame { get; set; } = 8;
-
-        /// <summary>
-        /// Number of steps per ray during screen-space marching.
-        /// </summary>
-        [JsonProperty]
-        public int RaySteps { get; set; } = 12;
-
-        /// <summary>
-        /// Maximum ray travel distance in world units (meters).
-        /// </summary>
-        [JsonProperty]
-        public float RayMaxDistance { get; set; } = 10.0f;
-
-        /// <summary>
-        /// Thickness of ray for depth comparison (view-space units).
-        /// </summary>
-        [JsonProperty]
-        public float RayThickness { get; set; } = 0.5f;
-
-        // ═══════════════════════════════════════════════════════════════
-        // Temporal Settings (SPG-005/006)
-        // ═══════════════════════════════════════════════════════════════
-
-        /// <summary>
-        /// Temporal blend factor. Higher = more stable but slower response.
-        /// 0.95 = 95% history, 5% new data per frame.
-        /// Hot-reloadable.
-        /// </summary>
-        [JsonProperty]
-        public float TemporalAlpha { get; set; } = 0.95f;
-
-        /// <summary>
-        /// Depth difference threshold for history rejection (view-space).
-        /// Hot-reloadable.
-        /// </summary>
-        [JsonProperty]
-        public float DepthRejectThreshold { get; set; } = 0.1f;
-
-        /// <summary>
-        /// Normal angle threshold for history rejection (dot product).
-        /// Values below this reject history. Hot-reloadable.
-        /// </summary>
-        [JsonProperty]
-        public float NormalRejectThreshold { get; set; } = 0.8f;
-
-        // ═══════════════════════════════════════════════════════════════
-        // Quality Settings (SPG-007/008)
-        // ═══════════════════════════════════════════════════════════════
-
-        /// <summary>
-        /// Run gather pass at half resolution. Recommended for performance.
-        /// Requires restart to change.
-        /// </summary>
-        [JsonProperty]
-        public bool HalfResolution { get; set; } = true;
-
-        /// <summary>
-        /// Enable edge-aware denoising during upsample.
-        /// Hot-reloadable.
-        /// </summary>
-        [JsonProperty]
-        public bool DenoiseEnabled { get; set; } = true;
-
-        /// <summary>
-        /// Intensity multiplier for final indirect diffuse output.
-        /// Hot-reloadable.
-        /// </summary>
-        [JsonProperty]
-        public float Intensity { get; set; } = 1.0f;
-
-        /// <summary>
-        /// Tint color applied to indirect bounce lighting.
-        /// Use to shift GI color tone. Hot-reloadable.
-        /// </summary>
-        [JsonProperty]
-        public float[] IndirectTint { get; set; } = new float[] { 1.0f, 1.0f, 1.0f };
-
-        /// <summary>
-        /// Weight applied to sky/miss samples during ray tracing.
-        /// Lower = less sky influence. Hot-reloadable.
-        /// </summary>
-        [JsonProperty]
-        public float SkyMissWeight { get; set; } = 0.5f;
-
-        // ═══════════════════════════════════════════════════════════════
-        // Debug Settings
-        // ═══════════════════════════════════════════════════════════════
-
-        /// <summary>
-        /// Debug visualization mode:
-        /// 0 = Off, 1 = Probe grid, 2 = Raw radiance, 3 = Temporal weight,
-        /// 4 = Rejection mask, 5 = SH coefficients
-        /// </summary>
-        [JsonProperty]
-        public int DebugMode { get; set; } = 0;
-    }
-}
-```
+| Category        | Property                | Type     | Default | Hot-Reload | Description                                           |
+| --------------- | ----------------------- | -------- | ------- | ---------- | ----------------------------------------------------- |
+| **Feature**     | `Enabled`               | bool     | true    | ✗          | Master toggle; falls back to legacy SSGI when false   |
+| **Probe Grid**  | `ProbeSpacingPx`        | int      | 8       | ✗          | Pixels between probes (4=high, 8=balanced, 16=perf)   |
+| **Ray Tracing** | `RaysPerProbePerFrame`  | int      | 8       | ✗          | Rays traced per probe per frame                       |
+|                 | `RaySteps`              | int      | 12      | ✗          | Steps per ray during screen-space march               |
+|                 | `RayMaxDistance`        | float    | 10.0    | ✗          | Max ray distance in world units                       |
+|                 | `RayThickness`          | float    | 0.5     | ✗          | Depth comparison thickness (view-space)               |
+| **Temporal**    | `TemporalAlpha`         | float    | 0.95    | ✓          | Blend factor (0.95 = 95% history)                     |
+|                 | `DepthRejectThreshold`  | float    | 0.1     | ✓          | Depth diff threshold for rejection                    |
+|                 | `NormalRejectThreshold` | float    | 0.8     | ✓          | Normal dot threshold for rejection                    |
+| **Quality**     | `HalfResolution`        | bool     | true    | ✗          | Run gather at half-res                                |
+|                 | `DenoiseEnabled`        | bool     | true    | ✓          | Edge-aware denoising on upsample                      |
+|                 | `Intensity`             | float    | 1.0     | ✓          | Output intensity multiplier                           |
+|                 | `IndirectTint`          | float[3] | [1,1,1] | ✓          | RGB tint for indirect bounce                          |
+|                 | `SkyMissWeight`         | float    | 0.5     | ✓          | Weight for sky/miss samples                           |
+| **Debug**       | `DebugMode`             | int      | 0       | ✓          | 0=Off, 1=Grid, 2=Radiance, 3=Temporal, 4=Reject, 5=SH |
 
 ### 2.2 Configuration Loading
 
-```csharp
-// In VanillaGraphicsExpandedModSystem.cs
+**Initialization Flow (pseudocode):**
 
-private LumOnConfig lumOnConfig;
-private const string LumOnConfigFile = "vanillagraphicsexpanded-lumon.json";
+```
+StartClientSide:
+    config = LoadModConfig("vanillagraphicsexpanded-lumon.json")
+    if config is null:
+        config = new LumOnConfig()  // defaults
+        StoreModConfig(config)
 
-public override void StartClientSide(ICoreClientAPI api)
-{
-    // Load or create config with defaults
-    lumOnConfig = api.LoadModConfig<LumOnConfig>(LumOnConfigFile);
-    if (lumOnConfig == null)
-    {
-        lumOnConfig = new LumOnConfig();
-        api.StoreModConfig(lumOnConfig, LumOnConfigFile);
-        api.Logger.Notification("[VGE] Created default LumOn config");
-    }
+    RegisterHotReloadWatchers()  // for runtime-changeable params
 
-    // Register hot-reload watchers for supported params
-    RegisterConfigWatchers(api);
-
-    // Initialize LumOn or legacy SSGI based on config
-    if (lumOnConfig.Enabled)
-    {
-        lumOnBufferManager = new LumOnBufferManager(api, lumOnConfig);
-        lumOnRenderer = new LumOnRenderer(api, lumOnConfig, lumOnBufferManager, gBufferManager);
-        api.Event.RegisterRenderer(lumOnRenderer, EnumRenderStage.AfterPostProcessing, "lumon");
-    }
-    else
-    {
-        // Existing SSGI path
-        ssgiRenderer = new SSGIRenderer(api, ssgiBufferManager, gBufferManager);
-        api.Event.RegisterRenderer(ssgiRenderer, EnumRenderStage.AfterPostProcessing, "ssgi");
-    }
-}
-
-private void RegisterConfigWatchers(ICoreClientAPI api)
-{
-    // Hot-reloadable parameters (no buffer resize required)
-    // These update lumOnConfig in real-time without restart
-}
-
-private void SaveConfig(ICoreClientAPI api)
-{
-    api.StoreModConfig(lumOnConfig, LumOnConfigFile);
-}
+    if config.Enabled:
+        RegisterRenderer(LumOnRenderer, AfterPostProcessing)
+    else:
+        RegisterRenderer(SSGIRenderer, AfterPostProcessing)  // legacy fallback
 ```
 
 ### 2.3 Config File Location
@@ -318,146 +165,36 @@ Example JSON:
 
 ## 4. Buffer Manager
 
-### 4.1 LumOnBufferManager Class
+### 4.1 LumOnBufferManager Overview
 
-```csharp
-using Vintagestory.API.Client;
-using Vintagestory.API.MathTools;
+Manages GPU textures for probe grid and radiance cache. Implements `IDisposable`.
 
-namespace VanillaGraphicsExpanded.LumOn
-{
-    /// <summary>
-    /// Manages GPU textures for LumOn probe grid and radiance cache.
-    /// </summary>
-    public class LumOnBufferManager : IDisposable
-    {
-        private readonly ICoreClientAPI api;
-        private readonly LumOnConfig config;
+**Key Properties:**
 
-        // Probe grid dimensions (computed from screen size and spacing)
-        public int ProbeCountX { get; private set; }
-        public int ProbeCountY { get; private set; }
+- `ProbeCountX`, `ProbeCountY` — Grid dimensions computed as `ceil(screenSize / probeSpacing)`
+- Framebuffers: `ProbeAnchorFB`, `ProbeRadianceCurrentFB`, `ProbeRadianceHistoryFB`, `IndirectDiffuseHalfResFB`, `IndirectDiffuseFullResFB`
 
-        // Framebuffers
-        public FrameBufferRef ProbeAnchorFB { get; private set; }
-        public FrameBufferRef ProbeRadianceCurrentFB { get; private set; }
-        public FrameBufferRef ProbeRadianceHistoryFB { get; private set; }
-        public FrameBufferRef IndirectDiffuseHalfResFB { get; private set; }
-        public FrameBufferRef IndirectDiffuseFullResFB { get; private set; }
+**Buffer Creation (pseudocode):**
 
-        // Double-buffer swap index (0 or 1)
-        private int currentBufferIndex = 0;
+```
+CreateBuffers:
+    probeW = ceil(screenW / probeSpacing)
+    probeH = ceil(screenH / probeSpacing)
+    halfW = HalfResolution ? screenW/2 : screenW
+    halfH = HalfResolution ? screenH/2 : screenH
 
-        public LumOnBufferManager(ICoreClientAPI api, LumOnConfig config)
-        {
-            this.api = api;
-            this.config = config;
+    ProbeAnchorFB       = CreateFB(probeW, probeH, [RGBA16F, RGBA16F])  // pos+valid, normal
+    ProbeRadianceCurrentFB  = CreateFB(probeW, probeH, [RGBA16F, RGBA16F])  // SH coeffs
+    ProbeRadianceHistoryFB  = CreateFB(probeW, probeH, [RGBA16F, RGBA16F])  // temporal history
+    IndirectDiffuseHalfResFB = CreateFB(halfW, halfH, [RGBA16F])
+    IndirectDiffuseFullResFB = CreateFB(screenW, screenH, [RGBA16F])
 
-            CreateBuffers();
+SwapRadianceBuffers:
+    swap(ProbeRadianceCurrentFB, ProbeRadianceHistoryFB)  // double-buffer for temporal
 
-            // Re-create on window resize
-            api.Event.ReloadShader += OnReloadShader;
-        }
-
-        private void CreateBuffers()
-        {
-            var platform = api.Render;
-            int screenW = platform.FrameWidth;
-            int screenH = platform.FrameHeight;
-
-            // Calculate probe grid dimensions
-            ProbeCountX = (int)Math.Ceiling((float)screenW / config.ProbeSpacingPx);
-            ProbeCountY = (int)Math.Ceiling((float)screenH / config.ProbeSpacingPx);
-
-            // Half-res dimensions for gather output
-            int halfW = config.HalfResolution ? screenW / 2 : screenW;
-            int halfH = config.HalfResolution ? screenH / 2 : screenH;
-
-            // Create probe anchor texture (posVS.xyz + valid, normal.xyz + reserved)
-            ProbeAnchorFB = CreateFramebuffer(
-                "LumOn_ProbeAnchor",
-                ProbeCountX, ProbeCountY,
-                new[] { EnumTextureFormat.Rgba16f, EnumTextureFormat.Rgba16f }
-            );
-
-            // Create radiance cache textures (SH L1 = 4 coefficients per channel)
-            // Using 2 RGBA16F textures: RGB SH coefficients 0-2 in first, coeff 3 in second
-            ProbeRadianceCurrentFB = CreateFramebuffer(
-                "LumOn_RadianceCurrent",
-                ProbeCountX, ProbeCountY,
-                new[] { EnumTextureFormat.Rgba16f, EnumTextureFormat.Rgba16f }
-            );
-
-            ProbeRadianceHistoryFB = CreateFramebuffer(
-                "LumOn_RadianceHistory",
-                ProbeCountX, ProbeCountY,
-                new[] { EnumTextureFormat.Rgba16f, EnumTextureFormat.Rgba16f }
-            );
-
-            // Indirect diffuse output buffers
-            IndirectDiffuseHalfResFB = CreateFramebuffer(
-                "LumOn_IndirectHalf",
-                halfW, halfH,
-                new[] { EnumTextureFormat.Rgba16f }
-            );
-
-            IndirectDiffuseFullResFB = CreateFramebuffer(
-                "LumOn_IndirectFull",
-                screenW, screenH,
-                new[] { EnumTextureFormat.Rgba16f }
-            );
-
-            api.Logger.Notification(
-                $"[LumOn] Created buffers: {ProbeCountX}x{ProbeCountY} probes, " +
-                $"spacing={config.ProbeSpacingPx}px"
-            );
-        }
-
-        private FrameBufferRef CreateFramebuffer(
-            string name,
-            int width,
-            int height,
-            EnumTextureFormat[] colorFormats)
-        {
-            // Implementation using VS framebuffer API
-            // Similar to existing GBufferManager/SSGIBufferManager
-            throw new NotImplementedException("See GBufferManager for pattern");
-        }
-
-        /// <summary>
-        /// Swap current/history radiance buffers for temporal accumulation.
-        /// Called after temporal pass completes.
-        /// </summary>
-        public void SwapRadianceBuffers()
-        {
-            var temp = ProbeRadianceCurrentFB;
-            ProbeRadianceCurrentFB = ProbeRadianceHistoryFB;
-            ProbeRadianceHistoryFB = temp;
-
-            currentBufferIndex = 1 - currentBufferIndex;
-        }
-
-        private void OnReloadShader(EnumShaderReloadReason reason)
-        {
-            if (reason == EnumShaderReloadReason.WindowResized)
-            {
-                DisposeBuffers();
-                CreateBuffers();
-            }
-        }
-
-        private void DisposeBuffers()
-        {
-            // Dispose all framebuffers
-        }
-
-        public void Dispose()
-        {
-            api.Event.ReloadShader -= OnReloadShader;
-            DisposeBuffers();
-        }
-    }
-}
+OnWindowResize:
+    DisposeBuffers()
+    CreateBuffers()  // recreate at new resolution
 ```
 
 ### 4.2 Texture Formats Summary
@@ -475,136 +212,31 @@ namespace VanillaGraphicsExpanded.LumOn
 
 ## 5. Renderer Implementation
 
-### 5.1 LumOnRenderer Class Skeleton
+### 5.1 LumOnRenderer Overview
 
-```csharp
-using Vintagestory.API.Client;
+Implements `IRenderer` with `RenderOrder = 0.5`, orchestrating all shader passes.
 
-namespace VanillaGraphicsExpanded.LumOn
-{
-    /// <summary>
-    /// Main renderer orchestrating LumOn shader passes.
-    /// </summary>
-    public class LumOnRenderer : IRenderer, IDisposable
-    {
-        public double RenderOrder => 0.5;
-        public int RenderRange => int.MaxValue;
+**State:**
 
-        private readonly ICoreClientAPI api;
-        private readonly LumOnConfig config;
-        private readonly LumOnBufferManager bufferManager;
-        private readonly GBufferManager gBufferManager;
+- 5 shader programs (anchor, trace, temporal, gather, upsample)
+- `prevViewProjMatrix` for temporal reprojection
+- `frameIndex` for ray jitter
 
-        // Shaders
-        private IShaderProgram probeAnchorShader;
-        private IShaderProgram probeTraceShader;
-        private IShaderProgram temporalShader;
-        private IShaderProgram gatherShader;
-        private IShaderProgram upsampleShader;
+**Render Loop (pseudocode):**
 
-        // Previous frame matrix for reprojection
-        private float[] prevViewProjMatrix = new float[16];
+```
+OnRenderFrame(AfterPostProcessing):
+    if not Enabled: return
 
-        // Frame counter for ray jittering
-        private int frameIndex = 0;
+    Pass 1 - ProbeAnchor:   G-Buffer → probe positions + normals
+    Pass 2 - ProbeTrace:    Trace rays per probe → SH radiance
+    Pass 3 - Temporal:      Blend current + history with rejection
+    Pass 4 - Gather:        Interpolate probes → half-res indirect
+    Pass 5 - Upsample:      Bilateral upsample → full-res output
 
-        public LumOnRenderer(
-            ICoreClientAPI api,
-            LumOnConfig config,
-            LumOnBufferManager bufferManager,
-            GBufferManager gBufferManager)
-        {
-            this.api = api;
-            this.config = config;
-            this.bufferManager = bufferManager;
-            this.gBufferManager = gBufferManager;
-
-            LoadShaders();
-        }
-
-        private void LoadShaders()
-        {
-            probeAnchorShader = api.Shader.NewShaderProgram();
-            // ... load from assets/vanillagraphicsexpanded/shaders/lumon_*.fsh
-        }
-
-        public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
-        {
-            if (stage != EnumRenderStage.AfterPostProcessing) return;
-            if (!config.Enabled) return;
-
-            var render = api.Render;
-
-            // Pass 1: Build probe anchors from G-Buffer
-            RenderProbeAnchorPass(render);
-
-            // Pass 2: Trace rays per probe, accumulate SH radiance
-            RenderProbeTracePass(render);
-
-            // Pass 3: Temporal accumulation with history
-            RenderTemporalPass(render);
-
-            // Pass 4: Gather probes to pixels (half-res)
-            RenderGatherPass(render);
-
-            // Pass 5: Upsample to full resolution
-            RenderUpsamplePass(render);
-
-            // Store current view-proj for next frame's reprojection
-            StoreViewProjMatrix(render);
-
-            // Swap radiance buffers for next frame
-            bufferManager.SwapRadianceBuffers();
-
-            frameIndex++;
-        }
-
-        private void RenderProbeAnchorPass(IRenderAPI render)
-        {
-            // Bind ProbeAnchorFB, render fullscreen quad sampling G-Buffer
-            // Output: probe positions and normals
-        }
-
-        private void RenderProbeTracePass(IRenderAPI render)
-        {
-            // Bind ProbeRadianceCurrentFB, render fullscreen quad
-            // Sample ProbeAnchor, trace rays, accumulate SH
-        }
-
-        private void RenderTemporalPass(IRenderAPI render)
-        {
-            // Bind ProbeRadianceHistoryFB as output
-            // Sample Current + History, blend with rejection
-        }
-
-        private void RenderGatherPass(IRenderAPI render)
-        {
-            // Bind IndirectDiffuseHalfResFB
-            // For each pixel, interpolate 4 surrounding probes
-        }
-
-        private void RenderUpsamplePass(IRenderAPI render)
-        {
-            // Bind IndirectDiffuseFullResFB
-            // Bilateral upsample from half-res
-        }
-
-        private void StoreViewProjMatrix(IRenderAPI render)
-        {
-            // Copy current view-proj to prevViewProjMatrix
-            // Used by temporal pass for reprojection
-        }
-
-        public void Dispose()
-        {
-            probeAnchorShader?.Dispose();
-            probeTraceShader?.Dispose();
-            temporalShader?.Dispose();
-            gatherShader?.Dispose();
-            upsampleShader?.Dispose();
-        }
-    }
-}
+    StoreViewProjMatrix()   // for next frame's reprojection
+    SwapRadianceBuffers()   // double-buffer swap
+    frameIndex++
 ```
 
 ---
@@ -685,116 +317,37 @@ VanillaGraphicsExpanded/
 
 ### 8.1 Performance Counters
 
-Track these metrics for profiling and debugging:
+`LumOnDebugCounters` tracks these metrics:
 
-```csharp
-// In LumOnRenderer.cs
+| Category     | Counter                  | Description                                                   |
+| ------------ | ------------------------ | ------------------------------------------------------------- |
+| **Probes**   | `TotalProbes`            | Grid size (probeW × probeH)                                   |
+|              | `ValidProbes`            | Probes marked valid this frame                                |
+|              | `EdgeProbes`             | Probes at geometry edges                                      |
+| **Rays**     | `RaysTraced`             | Total rays (validProbes × raysPerProbe)                       |
+|              | `RayHits` / `RayMisses`  | Geometry hits vs sky fallback                                 |
+|              | `HitRate`                | Computed: hits / traced × 100%                                |
+| **Temporal** | `TemporalValidProbes`    | Probes with valid history                                     |
+|              | `TemporalRejectedProbes` | Disoccluded probes                                            |
+| **Timing**   | `*PassMs`                | Per-pass GPU time (Anchor, Trace, Temporal, Gather, Upsample) |
+|              | `TotalFrameMs`           | Sum of all passes                                             |
 
-public class LumOnDebugCounters
-{
-    /// <summary>Total probes in grid (probeW × probeH)</summary>
-    public int TotalProbes { get; set; }
+### 8.2 GPU Timing
 
-    /// <summary>Probes marked valid this frame</summary>
-    public int ValidProbes { get; set; }
+Use OpenGL `GL_TIME_ELAPSED` queries to measure per-pass GPU time. Wrap each pass with `BeginQuery`/`EndQuery` and read results asynchronously to avoid stalls.
 
-    /// <summary>Probes marked as edge (partial validity)</summary>
-    public int EdgeProbes { get; set; }
+### 8.3 Debug Overlay
 
-    /// <summary>Total rays traced this frame (validProbes × raysPerProbe)</summary>
-    public int RaysTraced { get; set; }
+When `DebugMode > 0`, render a text overlay showing:
 
-    /// <summary>Rays that hit geometry</summary>
-    public int RayHits { get; set; }
+- Probe counts (valid/total, edge)
+- Ray stats (traced, hit rate)
+- Temporal stats (valid, rejected)
+- Per-pass timing breakdown
 
-    /// <summary>Rays that missed (sky fallback)</summary>
-    public int RayMisses { get; set; }
+### 8.4 GPU-Side Stats (Future)
 
-    /// <summary>Hit rate percentage (hits / traced)</summary>
-    public float HitRate => RaysTraced > 0 ? (float)RayHits / RaysTraced * 100f : 0f;
-
-    /// <summary>Probes with valid temporal history</summary>
-    public int TemporalValidProbes { get; set; }
-
-    /// <summary>Probes rejected (disoccluded)</summary>
-    public int TemporalRejectedProbes { get; set; }
-
-    /// <summary>Time spent in each pass (ms)</summary>
-    public float ProbeAnchorPassMs { get; set; }
-    public float ProbeTracePassMs { get; set; }
-    public float TemporalPassMs { get; set; }
-    public float GatherPassMs { get; set; }
-    public float UpsamplePassMs { get; set; }
-    public float TotalFrameMs { get; set; }
-
-    public void Reset()
-    {
-        ValidProbes = EdgeProbes = RaysTraced = RayHits = RayMisses = 0;
-        TemporalValidProbes = TemporalRejectedProbes = 0;
-    }
-}
-```
-
-### 8.2 GPU Query Timing
-
-```csharp
-// Use OpenGL timer queries for accurate GPU timing
-private int[] queryIds = new int[5];
-private bool queryPending = false;
-
-private void BeginTimerQuery(int passIndex)
-{
-    GL.BeginQuery(QueryTarget.TimeElapsed, queryIds[passIndex]);
-}
-
-private void EndTimerQuery()
-{
-    GL.EndQuery(QueryTarget.TimeElapsed);
-}
-
-private float GetQueryResultMs(int passIndex)
-{
-    GL.GetQueryObject(queryIds[passIndex], GetQueryObjectParam.QueryResult, out long nanoseconds);
-    return nanoseconds / 1_000_000f;
-}
-```
-
-### 8.3 Debug Overlay Display
-
-```csharp
-// Show counters in debug HUD (when DebugMode > 0)
-private void DrawDebugOverlay(IRenderAPI render)
-{
-    if (config.DebugMode == 0) return;
-
-    var lines = new[]
-    {
-        $"LumOn Probes: {counters.ValidProbes}/{counters.TotalProbes} valid, {counters.EdgeProbes} edge",
-        $"Rays: {counters.RaysTraced} traced, {counters.HitRate:F1}% hit rate",
-        $"Temporal: {counters.TemporalValidProbes} valid, {counters.TemporalRejectedProbes} rejected",
-        $"Time: {counters.TotalFrameMs:F2}ms (A:{counters.ProbeAnchorPassMs:F2} T:{counters.ProbeTracePassMs:F2} " +
-        $"Tp:{counters.TemporalPassMs:F2} G:{counters.GatherPassMs:F2} U:{counters.UpsamplePassMs:F2})"
-    };
-
-    // Render text overlay...
-}
-```
-
-### 8.4 Atomic Counter for GPU-Side Stats (Future)
-
-For accurate hit/miss counting without readback stalls:
-
-```glsl
-// In lumon_probe_trace.fsh (future enhancement)
-layout(binding = 0, offset = 0) uniform atomic_uint rayHitCounter;
-layout(binding = 0, offset = 4) uniform atomic_uint rayMissCounter;
-
-// On hit:
-atomicCounterIncrement(rayHitCounter);
-
-// On miss:
-atomicCounterIncrement(rayMissCounter);
-```
+Use GLSL atomic counters (`atomic_uint`) in the trace shader for accurate hit/miss counting without CPU readback stalls.
 
 ---
 
@@ -807,42 +360,3 @@ atomicCounterIncrement(rayMissCounter);
 | [LumOn.04-Ray-Tracing.md](LumOn.04-Ray-Tracing.md)         | SPG-004: Screen-space ray marching          |
 | [LumOn.05-Temporal.md](LumOn.05-Temporal.md)               | SPG-005/006: Reprojection and accumulation  |
 | [LumOn.06-Gather-Upsample.md](LumOn.06-Gather-Upsample.md) | SPG-007/008: Pixel gathering and upsampling |
-
----
-
-## 10. Implementation Checklist
-
-### 10.1 Configuration
-
-- [x] Create `LumOnConfig.cs` with all properties
-- [x] Add JSON serialization attributes
-- [x] Implement config load/save in mod system
-- [x] Add hot-reload support for runtime-changeable params
-- [x] Create default config file on first run
-- [x] Add `DepthDiscontinuityThreshold` property (edge detection)
-
-### 10.2 Core Components
-
-- [x] Create `LumOn/` folder structure
-- [x] Implement `LumOnBufferManager.cs`
-- [x] Implement `LumOnRenderer.cs` skeleton
-- [x] Register renderer with VS event system
-- [x] Add feature toggle (LumOn vs legacy SSGI)
-- [x] Implement `LoadShaders()` method
-- [x] Implement `GetSkyZenithColor()` / `GetSkyHorizonColor()` helpers
-- [x] Implement `GetSunColor()` helper
-- [x] Implement `RenderFullscreenQuad()` utility
-
-### 10.3 Debug Infrastructure
-
-- [x] Implement `LumOnDebugCounters` class
-- [x] Add GPU timer query support
-- [x] Create debug overlay rendering
-- [x] Add debug mode switching (0-5)
-
-### 10.4 Integration
-
-- [x] Wire up G-Buffer texture access
-- [x] Store previous frame ViewProj matrix
-- [x] Connect to final lighting combine pass
-- [ ] Test enable/disable toggle works correctly
