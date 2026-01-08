@@ -20,6 +20,8 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// 5 = Scene Normals (shows G-buffer normals)
 /// 6 = Temporal Weight (shows how much history is used per probe)
 /// 7 = Temporal Rejection (shows why history was rejected: bounds/depth/normal)
+/// 8 = SH Coefficients (shows DC + directional magnitude)
+/// 9 = Interpolation Weights (shows probe blend weights per pixel)
 /// </summary>
 public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 {
@@ -139,6 +141,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex;
         shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex;
         shader.RadianceTexture0 = bufferManager.RadianceHistoryTex0;
+        shader.RadianceTexture1 = bufferManager.RadianceHistoryTex1;
         shader.IndirectHalf = bufferManager.IndirectHalfTex;
         shader.HistoryMeta = bufferManager.ProbeMetaHistoryTex;
 

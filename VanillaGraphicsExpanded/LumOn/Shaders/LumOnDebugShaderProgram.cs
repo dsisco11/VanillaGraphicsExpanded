@@ -48,19 +48,24 @@ public class LumOnDebugShaderProgram : ShaderProgram
     public int ProbeAnchorNormal { set => BindTexture2D("probeAnchorNormal", value, 3); }
 
     /// <summary>
-    /// Radiance SH texture (for radiance debug view).
+    /// Radiance SH texture 0 (for SH debug view).
     /// </summary>
     public int RadianceTexture0 { set => BindTexture2D("radianceTexture0", value, 4); }
 
     /// <summary>
+    /// Radiance SH texture 1 (for SH debug view - second texture for full unpacking).
+    /// </summary>
+    public int RadianceTexture1 { set => BindTexture2D("radianceTexture1", value, 5); }
+
+    /// <summary>
     /// Half-resolution indirect diffuse.
     /// </summary>
-    public int IndirectHalf { set => BindTexture2D("indirectHalf", value, 5); }
+    public int IndirectHalf { set => BindTexture2D("indirectHalf", value, 6); }
 
     /// <summary>
     /// History metadata texture (depth, normal, accumCount) for temporal debug.
     /// </summary>
-    public int HistoryMeta { set => BindTexture2D("historyMeta", value, 6); }
+    public int HistoryMeta { set => BindTexture2D("historyMeta", value, 7); }
 
     #endregion
 
