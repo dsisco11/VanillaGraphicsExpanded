@@ -1,6 +1,7 @@
 using System;
 using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.Client;
+using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -26,72 +27,67 @@ public sealed class LumOnBufferManager : IDisposable
     private int probeCountX;
     private int probeCountY;
 
+    // Half-resolution dimensions
+    private int halfResWidth;
+    private int halfResHeight;
+
     // ═══════════════════════════════════════════════════════════════
     // Probe Anchor Buffers
     // ═══════════════════════════════════════════════════════════════
 
-    // ProbeAnchor[0]: posVS.xyz, valid (0/1)
-    // ProbeAnchor[1]: normalVS.xyz, reserved
-    private int probeAnchorFboId;
-    private int probeAnchorPositionTextureId;
-    private int probeAnchorNormalTextureId;
+    private DynamicTexture? probeAnchorPositionTex;
+    private DynamicTexture? probeAnchorNormalTex;
+    private Rendering.GBuffer? probeAnchorFbo;
 
     // ═══════════════════════════════════════════════════════════════
-    // Radiance Cache Buffers (Double-buffered for temporal)
+    // Radiance Cache Buffers (Triple-buffered for temporal)
     // ═══════════════════════════════════════════════════════════════
 
     // Trace output radiance (written by trace pass, read by temporal pass)
-    // [0]: SH coeff 0 (R,G,B), coeff 1.R
-    // [1]: SH coeff 1 (G,B), coeff 2 (R,G), coeff 2.B, coeff 3 (R,G,B)
-    private int radianceTraceFboId;
-    private int radianceTraceTexture0Id;
-    private int radianceTraceTexture1Id;
+    private DynamicTexture? radianceTraceTex0;
+    private DynamicTexture? radianceTraceTex1;
+    private Rendering.GBuffer? radianceTraceFbo;
 
     // Current frame radiance (written by temporal pass, read by gather)
-    private int radianceCurrentFboId;
-    private int radianceCurrentTexture0Id;
-    private int radianceCurrentTexture1Id;
+    private DynamicTexture? radianceCurrentTex0;
+    private DynamicTexture? radianceCurrentTex1;
+    private Rendering.GBuffer? radianceCurrentFbo;
 
     // History radiance (previous frame's current, read by temporal pass)
-    private int radianceHistoryFboId;
-    private int radianceHistoryTexture0Id;
-    private int radianceHistoryTexture1Id;
+    private DynamicTexture? radianceHistoryTex0;
+    private DynamicTexture? radianceHistoryTex1;
+    private Rendering.GBuffer? radianceHistoryFbo;
 
     // ═══════════════════════════════════════════════════════════════
     // Probe Metadata Buffers (for temporal validation)
     // ═══════════════════════════════════════════════════════════════
 
-    // Current frame metadata: linearized depth, encoded normal, accumulation count
-    private int probeMetaCurrentFboId;
-    private int probeMetaCurrentTextureId;
+    private DynamicTexture? probeMetaCurrentTex;
+    private Rendering.GBuffer? probeMetaCurrentFbo;
 
     // History metadata (swapped each frame)
-    private int probeMetaHistoryFboId;
-    private int probeMetaHistoryTextureId;
+    private DynamicTexture? probeMetaHistoryTex;
+    private Rendering.GBuffer? probeMetaHistoryFbo;
 
     // Temporal output FBO (MRT: radiance0, radiance1, meta to current buffers)
-    private int temporalOutputFboId;
+    private Rendering.GBuffer? temporalOutputFbo;
 
     // ═══════════════════════════════════════════════════════════════
     // Indirect Diffuse Output Buffers
     // ═══════════════════════════════════════════════════════════════
 
-    // Half-resolution gather output
-    private int indirectHalfFboId;
-    private int indirectHalfTextureId;
-    private int halfResWidth;
-    private int halfResHeight;
+    private DynamicTexture? indirectHalfTex;
+    private Rendering.GBuffer? indirectHalfFbo;
 
-    // Full-resolution upsampled output
-    private int indirectFullFboId;
-    private int indirectFullTextureId;
+    private DynamicTexture? indirectFullTex;
+    private Rendering.GBuffer? indirectFullFbo;
 
     // ═══════════════════════════════════════════════════════════════
     // Captured Scene Buffer (for radiance sampling)
     // ═══════════════════════════════════════════════════════════════
 
-    private int capturedSceneFboId;
-    private int capturedSceneTextureId;
+    private DynamicTexture? capturedSceneTex;
+    private Rendering.GBuffer? capturedSceneFbo;
 
     // Double-buffer swap index (0 or 1)
     private int currentBufferIndex;
@@ -115,117 +111,117 @@ public sealed class LumOnBufferManager : IDisposable
     /// <summary>
     /// OpenGL FBO ID for probe anchor pass output.
     /// </summary>
-    public int ProbeAnchorFboId => probeAnchorFboId;
+    public int ProbeAnchorFboId => probeAnchorFbo?.FboId ?? 0;
 
     /// <summary>
     /// OpenGL texture ID for probe anchor positions (posVS.xyz, valid).
     /// </summary>
-    public int ProbeAnchorPositionTextureId => probeAnchorPositionTextureId;
+    public int ProbeAnchorPositionTextureId => probeAnchorPositionTex?.TextureId ?? 0;
 
     /// <summary>
     /// OpenGL texture ID for probe anchor normals (normalVS.xyz, reserved).
     /// </summary>
-    public int ProbeAnchorNormalTextureId => probeAnchorNormalTextureId;
+    public int ProbeAnchorNormalTextureId => probeAnchorNormalTex?.TextureId ?? 0;
 
     /// <summary>
     /// OpenGL FBO ID for trace pass radiance output.
     /// </summary>
-    public int RadianceTraceFboId => radianceTraceFboId;
+    public int RadianceTraceFboId => radianceTraceFbo?.FboId ?? 0;
 
     /// <summary>
     /// OpenGL texture ID for trace radiance SH coefficients (set 0).
     /// </summary>
-    public int RadianceTraceTexture0Id => radianceTraceTexture0Id;
+    public int RadianceTraceTexture0Id => radianceTraceTex0?.TextureId ?? 0;
 
     /// <summary>
     /// OpenGL texture ID for trace radiance SH coefficients (set 1).
     /// </summary>
-    public int RadianceTraceTexture1Id => radianceTraceTexture1Id;
+    public int RadianceTraceTexture1Id => radianceTraceTex1?.TextureId ?? 0;
 
     /// <summary>
     /// OpenGL FBO ID for current frame radiance output.
     /// </summary>
-    public int RadianceCurrentFboId => radianceCurrentFboId;
+    public int RadianceCurrentFboId => radianceCurrentFbo?.FboId ?? 0;
 
     /// <summary>
     /// OpenGL texture ID for current radiance SH coefficients (set 0).
     /// </summary>
-    public int RadianceCurrentTexture0Id => radianceCurrentTexture0Id;
+    public int RadianceCurrentTexture0Id => radianceCurrentTex0?.TextureId ?? 0;
 
     /// <summary>
     /// OpenGL texture ID for current radiance SH coefficients (set 1).
     /// </summary>
-    public int RadianceCurrentTexture1Id => radianceCurrentTexture1Id;
+    public int RadianceCurrentTexture1Id => radianceCurrentTex1?.TextureId ?? 0;
 
     /// <summary>
     /// OpenGL FBO ID for history radiance (read during temporal blend).
     /// </summary>
-    public int RadianceHistoryFboId => radianceHistoryFboId;
+    public int RadianceHistoryFboId => radianceHistoryFbo?.FboId ?? 0;
 
     /// <summary>
     /// OpenGL texture ID for history radiance SH coefficients (set 0).
     /// </summary>
-    public int RadianceHistoryTexture0Id => radianceHistoryTexture0Id;
+    public int RadianceHistoryTexture0Id => radianceHistoryTex0?.TextureId ?? 0;
 
     /// <summary>
     /// OpenGL texture ID for history radiance SH coefficients (set 1).
     /// </summary>
-    public int RadianceHistoryTexture1Id => radianceHistoryTexture1Id;
+    public int RadianceHistoryTexture1Id => radianceHistoryTex1?.TextureId ?? 0;
 
     /// <summary>
     /// OpenGL FBO ID for current frame probe metadata.
     /// </summary>
-    public int ProbeMetaCurrentFboId => probeMetaCurrentFboId;
+    public int ProbeMetaCurrentFboId => probeMetaCurrentFbo?.FboId ?? 0;
 
     /// <summary>
     /// OpenGL texture ID for current frame probe metadata (depth, normal, accumCount).
     /// </summary>
-    public int ProbeMetaCurrentTextureId => probeMetaCurrentTextureId;
+    public int ProbeMetaCurrentTextureId => probeMetaCurrentTex?.TextureId ?? 0;
 
     /// <summary>
     /// OpenGL FBO ID for history probe metadata.
     /// </summary>
-    public int ProbeMetaHistoryFboId => probeMetaHistoryFboId;
+    public int ProbeMetaHistoryFboId => probeMetaHistoryFbo?.FboId ?? 0;
 
     /// <summary>
     /// OpenGL texture ID for history probe metadata.
     /// </summary>
-    public int ProbeMetaHistoryTextureId => probeMetaHistoryTextureId;
+    public int ProbeMetaHistoryTextureId => probeMetaHistoryTex?.TextureId ?? 0;
 
     /// <summary>
     /// OpenGL FBO ID for temporal pass MRT output (radiance0, radiance1, meta).
     /// </summary>
-    public int TemporalOutputFboId => temporalOutputFboId;
+    public int TemporalOutputFboId => temporalOutputFbo?.FboId ?? 0;
 
     /// <summary>
     /// OpenGL FBO ID for half-resolution indirect diffuse output.
     /// </summary>
-    public int IndirectHalfFboId => indirectHalfFboId;
+    public int IndirectHalfFboId => indirectHalfFbo?.FboId ?? 0;
 
     /// <summary>
     /// OpenGL texture ID for half-resolution indirect diffuse.
     /// </summary>
-    public int IndirectHalfTextureId => indirectHalfTextureId;
+    public int IndirectHalfTextureId => indirectHalfTex?.TextureId ?? 0;
 
     /// <summary>
     /// OpenGL FBO ID for full-resolution indirect diffuse output.
     /// </summary>
-    public int IndirectFullFboId => indirectFullFboId;
+    public int IndirectFullFboId => indirectFullFbo?.FboId ?? 0;
 
     /// <summary>
     /// OpenGL texture ID for full-resolution indirect diffuse (final output).
     /// </summary>
-    public int IndirectFullTextureId => indirectFullTextureId;
+    public int IndirectFullTextureId => indirectFullTex?.TextureId ?? 0;
 
     /// <summary>
     /// OpenGL FBO ID for captured scene (used for blitting).
     /// </summary>
-    public int CapturedSceneFboId => capturedSceneFboId;
+    public int CapturedSceneFboId => capturedSceneFbo?.FboId ?? 0;
 
     /// <summary>
     /// OpenGL texture ID for captured scene (radiance sampling source).
     /// </summary>
-    public int CapturedSceneTextureId => capturedSceneTextureId;
+    public int CapturedSceneTextureId => capturedSceneTex?.TextureId ?? 0;
 
     /// <summary>
     /// Half-resolution buffer width.
@@ -278,48 +274,19 @@ public sealed class LumOnBufferManager : IDisposable
     /// </summary>
     public void SwapRadianceBuffers()
     {
-        // Swap FBO IDs
-        (radianceCurrentFboId, radianceHistoryFboId) = (radianceHistoryFboId, radianceCurrentFboId);
+        // Swap radiance textures
+        (radianceCurrentTex0, radianceHistoryTex0) = (radianceHistoryTex0, radianceCurrentTex0);
+        (radianceCurrentTex1, radianceHistoryTex1) = (radianceHistoryTex1, radianceCurrentTex1);
+        (radianceCurrentFbo, radianceHistoryFbo) = (radianceHistoryFbo, radianceCurrentFbo);
 
-        // Swap texture IDs (set 0)
-        (radianceCurrentTexture0Id, radianceHistoryTexture0Id) = (radianceHistoryTexture0Id, radianceCurrentTexture0Id);
-
-        // Swap texture IDs (set 1)
-        (radianceCurrentTexture1Id, radianceHistoryTexture1Id) = (radianceHistoryTexture1Id, radianceCurrentTexture1Id);
-
-        // Swap metadata buffers
-        (probeMetaCurrentFboId, probeMetaHistoryFboId) = (probeMetaHistoryFboId, probeMetaCurrentFboId);
-        (probeMetaCurrentTextureId, probeMetaHistoryTextureId) = (probeMetaHistoryTextureId, probeMetaCurrentTextureId);
+        // Swap metadata
+        (probeMetaCurrentTex, probeMetaHistoryTex) = (probeMetaHistoryTex, probeMetaCurrentTex);
+        (probeMetaCurrentFbo, probeMetaHistoryFbo) = (probeMetaHistoryFbo, probeMetaCurrentFbo);
 
         currentBufferIndex = 1 - currentBufferIndex;
 
-        // Recreate temporal output FBO to point to the new "history" targets
-        // (which will be written to during temporal pass and become current after next swap)
+        // Recreate temporal output FBO to point to the new "current" targets
         CreateTemporalOutputFbo();
-    }
-
-    /// <summary>
-    /// Creates/recreates the temporal output FBO with MRT.
-    /// Outputs to: history radiance0, history radiance1, current meta
-    /// </summary>
-    private void CreateTemporalOutputFbo()
-    {
-        // Delete existing temporal output FBO
-        if (temporalOutputFboId != 0)
-        {
-            GL.DeleteFramebuffer(temporalOutputFboId);
-            temporalOutputFboId = 0;
-        }
-
-        // Create MRT FBO: temporal pass writes to CURRENT buffers
-        // - Reads from history (previous frame's output)
-        // - Writes to current (this frame's output)
-        // After swap, current becomes history for next frame
-        temporalOutputFboId = CreateFramebufferMRT([
-            radianceCurrentTexture0Id,
-            radianceCurrentTexture1Id,
-            probeMetaCurrentTextureId
-        ]);
     }
 
     /// <summary>
@@ -329,33 +296,27 @@ public sealed class LumOnBufferManager : IDisposable
     /// </summary>
     public void ClearHistory()
     {
-        if (!isInitialized || radianceHistoryFboId == 0)
+        if (!isInitialized)
             return;
 
         // Save current framebuffer binding
         GL.GetInteger(GetPName.FramebufferBinding, out int previousFbo);
-
-        // Bind history FBO and clear all attachments to black
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, radianceHistoryFboId);
         GL.ClearColor(0f, 0f, 0f, 0f);
+
+        // Clear history radiance
+        radianceHistoryFbo?.Bind();
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
-        // Also clear current buffer to ensure clean start
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, radianceCurrentFboId);
+        // Clear current radiance
+        radianceCurrentFbo?.Bind();
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
         // Clear metadata buffers
-        if (probeMetaHistoryFboId != 0)
-        {
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, probeMetaHistoryFboId);
-            GL.Clear(ClearBufferMask.ColorBufferBit);
-        }
+        probeMetaHistoryFbo?.Bind();
+        GL.Clear(ClearBufferMask.ColorBufferBit);
 
-        if (probeMetaCurrentFboId != 0)
-        {
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, probeMetaCurrentFboId);
-            GL.Clear(ClearBufferMask.ColorBufferBit);
-        }
+        probeMetaCurrentFbo?.Bind();
+        GL.Clear(ClearBufferMask.ColorBufferBit);
 
         // Restore previous framebuffer
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, previousFbo);
@@ -383,12 +344,12 @@ public sealed class LumOnBufferManager : IDisposable
     /// <param name="screenHeight">Screen height</param>
     public void CaptureScene(int primaryFboId, int screenWidth, int screenHeight)
     {
-        if (!isInitialized || capturedSceneFboId == 0)
+        if (!isInitialized || capturedSceneFbo == null)
             return;
 
         // Blit from primary FB to captured scene texture
         GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, primaryFboId);
-        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, capturedSceneFboId);
+        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, capturedSceneFbo.FboId);
 
         GL.BlitFramebuffer(
             0, 0, screenWidth, screenHeight,
@@ -420,69 +381,63 @@ public sealed class LumOnBufferManager : IDisposable
         // Create Probe Anchor Buffers
         // ═══════════════════════════════════════════════════════════════
 
-        probeAnchorPositionTextureId = CreateTexture(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        probeAnchorNormalTextureId = CreateTexture(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        probeAnchorFboId = CreateFramebufferMRT(
-            [probeAnchorPositionTextureId, probeAnchorNormalTextureId]);
+        probeAnchorPositionTex = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        probeAnchorNormalTex = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        probeAnchorFbo = Rendering.GBuffer.CreateMRT(probeAnchorPositionTex, probeAnchorNormalTex);
 
         // ═══════════════════════════════════════════════════════════════
         // Create Radiance Cache Buffers (Trace output)
         // ═══════════════════════════════════════════════════════════════
 
-        radianceTraceTexture0Id = CreateTexture(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        radianceTraceTexture1Id = CreateTexture(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        radianceTraceFboId = CreateFramebufferMRT(
-            [radianceTraceTexture0Id, radianceTraceTexture1Id]);
+        radianceTraceTex0 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        radianceTraceTex1 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        radianceTraceFbo = Rendering.GBuffer.CreateMRT(radianceTraceTex0, radianceTraceTex1);
 
         // ═══════════════════════════════════════════════════════════════
         // Create Radiance Cache Buffers (Current - temporal output)
         // ═══════════════════════════════════════════════════════════════
 
-        radianceCurrentTexture0Id = CreateTexture(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        radianceCurrentTexture1Id = CreateTexture(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        radianceCurrentFboId = CreateFramebufferMRT(
-            [radianceCurrentTexture0Id, radianceCurrentTexture1Id]);
+        radianceCurrentTex0 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        radianceCurrentTex1 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        radianceCurrentFbo = Rendering.GBuffer.CreateMRT(radianceCurrentTex0, radianceCurrentTex1);
 
         // ═══════════════════════════════════════════════════════════════
         // Create Radiance Cache Buffers (History)
         // ═══════════════════════════════════════════════════════════════
 
-        radianceHistoryTexture0Id = CreateTexture(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        radianceHistoryTexture1Id = CreateTexture(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        radianceHistoryFboId = CreateFramebufferMRT(
-            [radianceHistoryTexture0Id, radianceHistoryTexture1Id]);
+        radianceHistoryTex0 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        radianceHistoryTex1 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        radianceHistoryFbo = Rendering.GBuffer.CreateMRT(radianceHistoryTex0, radianceHistoryTex1);
 
         // ═══════════════════════════════════════════════════════════════
         // Create Probe Metadata Buffers (for temporal validation)
         // ═══════════════════════════════════════════════════════════════
 
-        // Stores: linearized depth (R), encoded normal (GBA), accumulation count (A repurposed)
-        probeMetaCurrentTextureId = CreateTexture(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        probeMetaCurrentFboId = CreateFramebuffer(probeMetaCurrentTextureId);
+        probeMetaCurrentTex = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        probeMetaCurrentFbo = Rendering.GBuffer.CreateSingle(probeMetaCurrentTex);
 
-        probeMetaHistoryTextureId = CreateTexture(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        probeMetaHistoryFboId = CreateFramebuffer(probeMetaHistoryTextureId);
+        probeMetaHistoryTex = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        probeMetaHistoryFbo = Rendering.GBuffer.CreateSingle(probeMetaHistoryTex);
 
-        // Create temporal output FBO (MRT: writes to history radiance + current meta)
-        // After swap, these become the "current" buffers for next frame's read
+        // Create temporal output FBO (MRT: writes to current radiance + current meta)
         CreateTemporalOutputFbo();
 
         // ═══════════════════════════════════════════════════════════════
         // Create Indirect Diffuse Output Buffers
         // ═══════════════════════════════════════════════════════════════
 
-        indirectHalfTextureId = CreateTexture(halfResWidth, halfResHeight, PixelInternalFormat.Rgba16f);
-        indirectHalfFboId = CreateFramebuffer(indirectHalfTextureId);
+        indirectHalfTex = DynamicTexture.Create(halfResWidth, halfResHeight, PixelInternalFormat.Rgba16f);
+        indirectHalfFbo = Rendering.GBuffer.CreateSingle(indirectHalfTex);
 
-        indirectFullTextureId = CreateTexture(screenWidth, screenHeight, PixelInternalFormat.Rgba16f);
-        indirectFullFboId = CreateFramebuffer(indirectFullTextureId);
+        indirectFullTex = DynamicTexture.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba16f);
+        indirectFullFbo = Rendering.GBuffer.CreateSingle(indirectFullTex);
 
         // ═══════════════════════════════════════════════════════════════
         // Create Captured Scene Buffer
         // ═══════════════════════════════════════════════════════════════
 
-        capturedSceneTextureId = CreateTexture(screenWidth, screenHeight, PixelInternalFormat.Rgba16f, linear: true);
-        capturedSceneFboId = CreateFramebuffer(capturedSceneTextureId);
+        capturedSceneTex = DynamicTexture.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear);
+        capturedSceneFbo = Rendering.GBuffer.CreateSingle(capturedSceneTex);
 
         isInitialized = true;
         currentBufferIndex = 0;
@@ -492,164 +447,87 @@ public sealed class LumOnBufferManager : IDisposable
             $"spacing={config.ProbeSpacingPx}px, halfRes={halfResWidth}x{halfResHeight}");
     }
 
-    private int CreateTexture(int width, int height, PixelInternalFormat internalFormat, bool linear = false)
+    /// <summary>
+    /// Creates/recreates the temporal output FBO with MRT.
+    /// Outputs to: current radiance0, current radiance1, current meta
+    /// </summary>
+    private void CreateTemporalOutputFbo()
     {
-        int textureId = GL.GenTexture();
-        GL.BindTexture(TextureTarget.Texture2D, textureId);
+        // Dispose existing temporal output FBO (but not the textures - they're owned by other FBOs)
+        temporalOutputFbo?.Dispose();
+        temporalOutputFbo = null;
 
-        GL.TexImage2D(
-            TextureTarget.Texture2D,
-            0,
-            internalFormat,
-            width,
-            height,
-            0,
-            PixelFormat.Rgba,
-            PixelType.Float,
-            IntPtr.Zero);
+        if (radianceCurrentTex0 == null || radianceCurrentTex1 == null || probeMetaCurrentTex == null)
+            return;
 
-        // Use linear filtering for scene textures, nearest for probe textures
-        var filter = linear ? TextureMinFilter.Linear : TextureMinFilter.Nearest;
-        var magFilter = linear ? TextureMagFilter.Linear : TextureMagFilter.Nearest;
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)filter);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)magFilter);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-
-        GL.BindTexture(TextureTarget.Texture2D, 0);
-        return textureId;
-    }
-
-    private int CreateFramebuffer(int colorTextureId)
-    {
-        int fboId = GL.GenFramebuffer();
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
-
-        GL.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment0,
-            TextureTarget.Texture2D,
-            colorTextureId,
-            0);
-
-        GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-
-        var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
-        if (status != FramebufferErrorCode.FramebufferComplete)
-        {
-            capi.Logger.Error($"[LumOn] Framebuffer incomplete: {status}");
-        }
-
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-        return fboId;
-    }
-
-    private int CreateFramebufferMRT(int[] colorTextureIds)
-    {
-        int fboId = GL.GenFramebuffer();
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
-
-        var drawBuffers = new DrawBuffersEnum[colorTextureIds.Length];
-
-        for (int i = 0; i < colorTextureIds.Length; i++)
-        {
-            var attachment = FramebufferAttachment.ColorAttachment0 + i;
-            GL.FramebufferTexture2D(
-                FramebufferTarget.Framebuffer,
-                attachment,
-                TextureTarget.Texture2D,
-                colorTextureIds[i],
-                0);
-            drawBuffers[i] = DrawBuffersEnum.ColorAttachment0 + i;
-        }
-
-        GL.DrawBuffers(colorTextureIds.Length, drawBuffers);
-
-        var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
-        if (status != FramebufferErrorCode.FramebufferComplete)
-        {
-            capi.Logger.Error($"[LumOn] MRT Framebuffer incomplete: {status}");
-        }
-
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-        return fboId;
+        // Create MRT FBO: temporal pass writes to CURRENT buffers
+        // - Reads from history (previous frame's output)
+        // - Writes to current (this frame's output)
+        // After swap, current becomes history for next frame
+        temporalOutputFbo = Rendering.GBuffer.CreateMRT(
+            [radianceCurrentTex0, radianceCurrentTex1, probeMetaCurrentTex],
+            null,
+            ownsTextures: false  // Textures owned by radianceCurrentFbo and probeMetaCurrentFbo
+        );
     }
 
     private void DeleteBuffers()
     {
-        // Delete Probe Anchor buffers
-        DeleteFramebufferAndTextures(ref probeAnchorFboId,
-            ref probeAnchorPositionTextureId, ref probeAnchorNormalTextureId);
+        // Dispose temporal output FBO first (doesn't own textures)
+        temporalOutputFbo?.Dispose();
+        temporalOutputFbo = null;
 
-        // Delete Radiance Trace buffers
-        DeleteFramebufferAndTextures(ref radianceTraceFboId,
-            ref radianceTraceTexture0Id, ref radianceTraceTexture1Id);
+        // Dispose FBOs (they don't own textures)
+        probeAnchorFbo?.Dispose();
+        radianceTraceFbo?.Dispose();
+        radianceCurrentFbo?.Dispose();
+        radianceHistoryFbo?.Dispose();
+        probeMetaCurrentFbo?.Dispose();
+        probeMetaHistoryFbo?.Dispose();
+        indirectHalfFbo?.Dispose();
+        indirectFullFbo?.Dispose();
+        capturedSceneFbo?.Dispose();
 
-        // Delete Radiance Current buffers
-        DeleteFramebufferAndTextures(ref radianceCurrentFboId,
-            ref radianceCurrentTexture0Id, ref radianceCurrentTexture1Id);
+        probeAnchorFbo = null;
+        radianceTraceFbo = null;
+        radianceCurrentFbo = null;
+        radianceHistoryFbo = null;
+        probeMetaCurrentFbo = null;
+        probeMetaHistoryFbo = null;
+        indirectHalfFbo = null;
+        indirectFullFbo = null;
+        capturedSceneFbo = null;
 
-        // Delete Radiance History buffers
-        DeleteFramebufferAndTextures(ref radianceHistoryFboId,
-            ref radianceHistoryTexture0Id, ref radianceHistoryTexture1Id);
+        // Dispose textures
+        probeAnchorPositionTex?.Dispose();
+        probeAnchorNormalTex?.Dispose();
+        radianceTraceTex0?.Dispose();
+        radianceTraceTex1?.Dispose();
+        radianceCurrentTex0?.Dispose();
+        radianceCurrentTex1?.Dispose();
+        radianceHistoryTex0?.Dispose();
+        radianceHistoryTex1?.Dispose();
+        probeMetaCurrentTex?.Dispose();
+        probeMetaHistoryTex?.Dispose();
+        indirectHalfTex?.Dispose();
+        indirectFullTex?.Dispose();
+        capturedSceneTex?.Dispose();
 
-        // Delete Probe Metadata buffers
-        DeleteFramebufferAndTexture(ref probeMetaCurrentFboId, ref probeMetaCurrentTextureId);
-        DeleteFramebufferAndTexture(ref probeMetaHistoryFboId, ref probeMetaHistoryTextureId);
-
-        // Delete Temporal Output FBO (textures owned by radiance/meta buffers)
-        if (temporalOutputFboId != 0)
-        {
-            GL.DeleteFramebuffer(temporalOutputFboId);
-            temporalOutputFboId = 0;
-        }
-
-        // Delete Indirect Half buffer
-        DeleteFramebufferAndTexture(ref indirectHalfFboId, ref indirectHalfTextureId);
-
-        // Delete Indirect Full buffer
-        DeleteFramebufferAndTexture(ref indirectFullFboId, ref indirectFullTextureId);
-
-        // Delete Captured Scene buffer
-        DeleteFramebufferAndTexture(ref capturedSceneFboId, ref capturedSceneTextureId);
+        probeAnchorPositionTex = null;
+        probeAnchorNormalTex = null;
+        radianceTraceTex0 = null;
+        radianceTraceTex1 = null;
+        radianceCurrentTex0 = null;
+        radianceCurrentTex1 = null;
+        radianceHistoryTex0 = null;
+        radianceHistoryTex1 = null;
+        probeMetaCurrentTex = null;
+        probeMetaHistoryTex = null;
+        indirectHalfTex = null;
+        indirectFullTex = null;
+        capturedSceneTex = null;
 
         isInitialized = false;
-    }
-
-    private void DeleteFramebufferAndTexture(ref int fboId, ref int textureId)
-    {
-        if (fboId != 0)
-        {
-            GL.DeleteFramebuffer(fboId);
-            fboId = 0;
-        }
-
-        if (textureId != 0)
-        {
-            GL.DeleteTexture(textureId);
-            textureId = 0;
-        }
-    }
-
-    private void DeleteFramebufferAndTextures(ref int fboId, ref int textureId0, ref int textureId1)
-    {
-        if (fboId != 0)
-        {
-            GL.DeleteFramebuffer(fboId);
-            fboId = 0;
-        }
-
-        if (textureId0 != 0)
-        {
-            GL.DeleteTexture(textureId0);
-            textureId0 = 0;
-        }
-
-        if (textureId1 != 0)
-        {
-            GL.DeleteTexture(textureId1);
-            textureId1 = 0;
-        }
     }
 
     #endregion

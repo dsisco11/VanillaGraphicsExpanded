@@ -1,6 +1,7 @@
 using System;
 using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.Client;
+using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.SSGI;
 
@@ -21,22 +22,22 @@ public sealed class SSGIBufferManager : IDisposable
     private float resolutionScale = 0.25f;
 
     // Double-buffered SSGI framebuffers for temporal accumulation
-    private int ssgiCurrentFboId;
-    private int ssgiPreviousFboId;
-    private int ssgiCurrentTextureId;
-    private int ssgiPreviousTextureId;
+    private DynamicTexture? ssgiCurrentTex;
+    private DynamicTexture? ssgiPreviousTex;
+    private Rendering.GBuffer? ssgiCurrentFbo;
+    private Rendering.GBuffer? ssgiPreviousFbo;
 
     // Blurred SSGI (after spatial blur pass)
-    private int ssgiBlurredFboId;
-    private int ssgiBlurredTextureId;
+    private DynamicTexture? ssgiBlurredTex;
+    private Rendering.GBuffer? ssgiBlurredFbo;
 
     // Depth history buffer for temporal reprojection
-    private int depthHistoryTextureId;
-    private int depthHistoryFboId; // FBO for blitting depth
+    private DynamicTexture? depthHistoryTex;
+    private Rendering.GBuffer? depthHistoryFbo;
 
     // Captured scene texture (lit geometry before post-processing)
-    private int capturedSceneTextureId;
-    private int capturedSceneFboId; // FBO for blitting to captured scene
+    private DynamicTexture? capturedSceneTex;
+    private Rendering.GBuffer? capturedSceneFbo;
 
     // Current SSGI buffer dimensions
     private int ssgiWidth;
@@ -84,38 +85,38 @@ public sealed class SSGIBufferManager : IDisposable
     /// <summary>
     /// OpenGL FBO ID for the current frame's SSGI buffer.
     /// </summary>
-    public int CurrentSSGIFboId => ssgiCurrentFboId;
+    public int CurrentSSGIFboId => ssgiCurrentFbo?.FboId ?? 0;
 
     /// <summary>
     /// OpenGL texture ID for the current frame's SSGI result.
     /// </summary>
-    public int CurrentSSGITextureId => ssgiCurrentTextureId;
+    public int CurrentSSGITextureId => ssgiCurrentTex?.TextureId ?? 0;
 
     /// <summary>
     /// OpenGL texture ID for the previous frame's SSGI result (for temporal filtering).
     /// </summary>
-    public int PreviousSSGITextureId => ssgiPreviousTextureId;
+    public int PreviousSSGITextureId => ssgiPreviousTex?.TextureId ?? 0;
 
     /// <summary>
     /// OpenGL FBO ID for the blurred SSGI buffer.
     /// </summary>
-    public int BlurredSSGIFboId => ssgiBlurredFboId;
+    public int BlurredSSGIFboId => ssgiBlurredFbo?.FboId ?? 0;
 
     /// <summary>
     /// OpenGL texture ID for the blurred SSGI result.
     /// </summary>
-    public int BlurredSSGITextureId => ssgiBlurredTextureId;
+    public int BlurredSSGITextureId => ssgiBlurredTex?.TextureId ?? 0;
 
     /// <summary>
     /// OpenGL texture ID for the previous frame's depth (for temporal reprojection).
     /// </summary>
-    public int PreviousDepthTextureId => depthHistoryTextureId;
+    public int PreviousDepthTextureId => depthHistoryTex?.TextureId ?? 0;
 
     /// <summary>
     /// OpenGL texture ID for the captured scene (lit geometry before post-processing).
     /// This is what SSGI samples for indirect radiance.
     /// </summary>
-    public int CapturedSceneTextureId => capturedSceneTextureId;
+    public int CapturedSceneTextureId => capturedSceneTex?.TextureId ?? 0;
 
     /// <summary>
     /// Whether the buffers have been initialized.
@@ -162,22 +163,20 @@ public sealed class SSGIBufferManager : IDisposable
     /// </summary>
     public void SwapBuffers()
     {
-        // Swap texture IDs
-        (ssgiCurrentTextureId, ssgiPreviousTextureId) = (ssgiPreviousTextureId, ssgiCurrentTextureId);
-        
-        // Swap FBO IDs
-        (ssgiCurrentFboId, ssgiPreviousFboId) = (ssgiPreviousFboId, ssgiCurrentFboId);
+        // Swap textures and FBOs
+        (ssgiCurrentTex, ssgiPreviousTex) = (ssgiPreviousTex, ssgiCurrentTex);
+        (ssgiCurrentFbo, ssgiPreviousFbo) = (ssgiPreviousFbo, ssgiCurrentFbo);
     }
 
     /// <summary>
     /// Copies the current frame's depth buffer to the history texture for next frame's reprojection.
     /// </summary>
-    /// <param name="sourceDepthTextureId">The current frame's depth texture ID</param>
+    /// <param name="sourceFboId">The source framebuffer ID containing depth</param>
     /// <param name="sourceWidth">Width of the source texture</param>
     /// <param name="sourceHeight">Height of the source texture</param>
     public void CopyDepthToHistory(int sourceFboId, int sourceWidth, int sourceHeight)
     {
-        if (!isInitialized || depthHistoryTextureId == 0 || depthHistoryFboId == 0)
+        if (!isInitialized || depthHistoryFbo == null)
             return;
 
         // Only copy if dimensions match to prevent crashes on resize
@@ -189,7 +188,7 @@ public sealed class SSGIBufferManager : IDisposable
 
         // Use glBlitFramebuffer to copy depth (handles format conversion)
         GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, sourceFboId);
-        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, depthHistoryFboId);
+        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, depthHistoryFbo.FboId);
         GL.BlitFramebuffer(
             0, 0, sourceWidth, sourceHeight,
             0, 0, lastFullWidth, lastFullHeight,
@@ -210,11 +209,10 @@ public sealed class SSGIBufferManager : IDisposable
     /// <param name="sourceHeight">Height of the source textures</param>
     public void CaptureScene(int sourceFboId, int sourceDepthTextureId, int sourceWidth, int sourceHeight)
     {
-        if (!isInitialized || capturedSceneTextureId == 0 || capturedSceneFboId == 0)
+        if (!isInitialized || capturedSceneFbo == null)
             return;
 
         // Only copy if dimensions match to prevent crashes on resize
-        // When window is resized, buffers will be recreated next frame
         if (sourceWidth != lastFullWidth || sourceHeight != lastFullHeight)
             return;
 
@@ -223,7 +221,7 @@ public sealed class SSGIBufferManager : IDisposable
 
         // Use glBlitFramebuffer to copy scene color (handles format conversion)
         GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, sourceFboId);
-        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, capturedSceneFboId);
+        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, capturedSceneFbo.FboId);
         GL.BlitFramebuffer(
             0, 0, sourceWidth, sourceHeight,
             0, 0, lastFullWidth, lastFullHeight,
@@ -234,10 +232,10 @@ public sealed class SSGIBufferManager : IDisposable
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
 
         // On first frame, initialize depth history to prevent sampling uninitialized memory
-        if (isFirstFrame && depthHistoryTextureId != 0 && depthHistoryFboId != 0)
+        if (isFirstFrame && depthHistoryFbo != null)
         {
             GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, sourceFboId);
-            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, depthHistoryFboId);
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, depthHistoryFbo.FboId);
             GL.BlitFramebuffer(
                 0, 0, sourceWidth, sourceHeight,
                 0, 0, lastFullWidth, lastFullHeight,
@@ -262,26 +260,26 @@ public sealed class SSGIBufferManager : IDisposable
         ssgiHeight = height;
 
         // Create current SSGI framebuffer and texture
-        ssgiCurrentTextureId = CreateTexture(width, height, PixelInternalFormat.Rgba16f, true);
-        ssgiCurrentFboId = CreateFramebuffer(ssgiCurrentTextureId);
+        ssgiCurrentTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear);
+        ssgiCurrentFbo = Rendering.GBuffer.CreateSingle(ssgiCurrentTex);
 
         // Create previous SSGI framebuffer and texture (for temporal accumulation)
-        ssgiPreviousTextureId = CreateTexture(width, height, PixelInternalFormat.Rgba16f, true);
-        ssgiPreviousFboId = CreateFramebuffer(ssgiPreviousTextureId);
+        ssgiPreviousTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear);
+        ssgiPreviousFbo = Rendering.GBuffer.CreateSingle(ssgiPreviousTex);
 
         // Create blurred SSGI framebuffer and texture (same resolution as raw SSGI)
-        ssgiBlurredTextureId = CreateTexture(width, height, PixelInternalFormat.Rgba16f, true);
-        ssgiBlurredFboId = CreateFramebuffer(ssgiBlurredTextureId);
+        ssgiBlurredTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear);
+        ssgiBlurredFbo = Rendering.GBuffer.CreateSingle(ssgiBlurredTex);
 
         // Create depth history texture at full resolution (for accurate reprojection)
         // Use Depth24Stencil8 to match VS's primary framebuffer depth format for blitting
-        depthHistoryTextureId = CreateTexture(fullWidth, fullHeight, PixelInternalFormat.Depth24Stencil8, false);
-        depthHistoryFboId = CreateDepthOnlyFramebuffer(depthHistoryTextureId);
+        depthHistoryTex = DynamicTexture.Create(fullWidth, fullHeight, PixelInternalFormat.Depth24Stencil8);
+        depthHistoryFbo = Rendering.GBuffer.CreateDepthOnly(depthHistoryTex);
 
         // Create captured scene texture at full resolution
         // This stores the lit scene before post-processing for SSGI to sample
-        capturedSceneTextureId = CreateTexture(fullWidth, fullHeight, PixelInternalFormat.Rgba16f, true);
-        capturedSceneFboId = CreateFramebuffer(capturedSceneTextureId);
+        capturedSceneTex = DynamicTexture.Create(fullWidth, fullHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear);
+        capturedSceneFbo = Rendering.GBuffer.CreateSingle(capturedSceneTex);
 
         isInitialized = true;
         isFirstFrame = true; // Reset first-frame flag for depth history initialization
@@ -289,167 +287,33 @@ public sealed class SSGIBufferManager : IDisposable
         capi.Logger.Notification($"[VGE] Created SSGI buffers: {width}x{height} (scale={resolutionScale:F2}), scene capture: {fullWidth}x{fullHeight}");
     }
 
-    private int CreateTexture(int width, int height, PixelInternalFormat internalFormat, bool isColor)
-    {
-        int textureId = GL.GenTexture();
-        GL.BindTexture(TextureTarget.Texture2D, textureId);
-
-        // Determine format and type based on internal format
-        PixelFormat format;
-        PixelType type;
-
-        if (internalFormat == PixelInternalFormat.Depth24Stencil8)
-        {
-            format = PixelFormat.DepthStencil;
-            type = PixelType.UnsignedInt248;
-        }
-        else if (!isColor)
-        {
-            format = PixelFormat.DepthComponent;
-            type = PixelType.Float;
-        }
-        else
-        {
-            format = PixelFormat.Rgba;
-            type = PixelType.Float;
-        }
-
-        GL.TexImage2D(
-            TextureTarget.Texture2D,
-            0,
-            internalFormat,
-            width,
-            height,
-            0,
-            format,
-            type,
-            IntPtr.Zero);
-
-        // Linear filtering for color, nearest for depth
-        var filterMode = isColor ? TextureMinFilter.Linear : TextureMinFilter.Nearest;
-        var magFilter = isColor ? TextureMagFilter.Linear : TextureMagFilter.Nearest;
-
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)filterMode);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)magFilter);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-
-        GL.BindTexture(TextureTarget.Texture2D, 0);
-        return textureId;
-    }
-
-    private int CreateFramebuffer(int colorTextureId)
-    {
-        int fboId = GL.GenFramebuffer();
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
-
-        GL.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment0,
-            TextureTarget.Texture2D,
-            colorTextureId,
-            0);
-
-        GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-
-        var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
-        if (status != FramebufferErrorCode.FramebufferComplete)
-        {
-            capi.Logger.Error($"[VGE] SSGI framebuffer incomplete: {status}");
-        }
-
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-        return fboId;
-    }
-
-    private int CreateDepthOnlyFramebuffer(int depthTextureId)
-    {
-        int fboId = GL.GenFramebuffer();
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
-
-        // Use DepthStencilAttachment for Depth24Stencil8 format
-        GL.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.DepthStencilAttachment,
-            TextureTarget.Texture2D,
-            depthTextureId,
-            0);
-
-        // No color buffer for depth-only FBO
-        GL.DrawBuffer(DrawBufferMode.None);
-        GL.ReadBuffer(ReadBufferMode.None);
-
-        var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
-        if (status != FramebufferErrorCode.FramebufferComplete)
-        {
-            capi.Logger.Error($"[VGE] SSGI depth history framebuffer incomplete: {status}");
-        }
-
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-        return fboId;
-    }
-
     private void DeleteBuffers()
     {
-        if (ssgiCurrentFboId != 0)
-        {
-            GL.DeleteFramebuffer(ssgiCurrentFboId);
-            ssgiCurrentFboId = 0;
-        }
+        // Dispose FBOs first
+        ssgiCurrentFbo?.Dispose();
+        ssgiPreviousFbo?.Dispose();
+        ssgiBlurredFbo?.Dispose();
+        depthHistoryFbo?.Dispose();
+        capturedSceneFbo?.Dispose();
 
-        if (ssgiPreviousFboId != 0)
-        {
-            GL.DeleteFramebuffer(ssgiPreviousFboId);
-            ssgiPreviousFboId = 0;
-        }
+        ssgiCurrentFbo = null;
+        ssgiPreviousFbo = null;
+        ssgiBlurredFbo = null;
+        depthHistoryFbo = null;
+        capturedSceneFbo = null;
 
-        if (ssgiCurrentTextureId != 0)
-        {
-            GL.DeleteTexture(ssgiCurrentTextureId);
-            ssgiCurrentTextureId = 0;
-        }
+        // Dispose textures
+        ssgiCurrentTex?.Dispose();
+        ssgiPreviousTex?.Dispose();
+        ssgiBlurredTex?.Dispose();
+        depthHistoryTex?.Dispose();
+        capturedSceneTex?.Dispose();
 
-        if (ssgiPreviousTextureId != 0)
-        {
-            GL.DeleteTexture(ssgiPreviousTextureId);
-            ssgiPreviousTextureId = 0;
-        }
-
-        if (ssgiBlurredFboId != 0)
-        {
-            GL.DeleteFramebuffer(ssgiBlurredFboId);
-            ssgiBlurredFboId = 0;
-        }
-
-        if (ssgiBlurredTextureId != 0)
-        {
-            GL.DeleteTexture(ssgiBlurredTextureId);
-            ssgiBlurredTextureId = 0;
-        }
-
-        if (depthHistoryTextureId != 0)
-        {
-            GL.DeleteTexture(depthHistoryTextureId);
-            depthHistoryTextureId = 0;
-        }
-
-        if (depthHistoryFboId != 0)
-        {
-            GL.DeleteFramebuffer(depthHistoryFboId);
-            depthHistoryFboId = 0;
-        }
-
-        if (capturedSceneTextureId != 0)
-        {
-            GL.DeleteTexture(capturedSceneTextureId);
-            capturedSceneTextureId = 0;
-        }
-
-        if (capturedSceneFboId != 0)
-        {
-            GL.DeleteFramebuffer(capturedSceneFboId);
-            capturedSceneFboId = 0;
-        }
+        ssgiCurrentTex = null;
+        ssgiPreviousTex = null;
+        ssgiBlurredTex = null;
+        depthHistoryTex = null;
+        capturedSceneTex = null;
 
         isInitialized = false;
     }

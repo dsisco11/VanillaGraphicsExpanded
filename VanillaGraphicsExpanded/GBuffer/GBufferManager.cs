@@ -1,6 +1,7 @@
 using System;
 using Vintagestory.API.Client;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded;
 
@@ -9,7 +10,7 @@ namespace VanillaGraphicsExpanded;
 /// This adds multiple color attachments to store deferred rendering data:
 /// - ColorAttachment0-3: Managed by VS (outColor/Albedo, outGlow, outGNormal, outGPosition)
 /// - ColorAttachment4: World-space normals (RGBA16F) - layout(location = 4)
-/// - ColorAttachment5: Material properties (RGBA16F) - layout(location = 5)
+/// - ColorAttachment5: Material properties (RGBA8) - layout(location = 5)
 /// 
 /// Integrates with VS via Harmony hooks for framebuffer lifecycle management.
 /// </summary>
@@ -28,24 +29,26 @@ public sealed class GBufferManager : IDisposable
     
     private readonly ICoreClientAPI capi;
     
-    // Texture IDs for each G-buffer attachment
-    private int normalTextureId;
-    private int materialTextureId;
-    private int normalSlotId = 4;
-    private int materialSlotId = 5;
-    private float[] clearColor = [0f, 0f, 0f, 0f];
+    // G-buffer textures using DynamicTexture
+    private DynamicTexture? normalTex;
+    private DynamicTexture? materialTex;
+
+    private const int NormalSlotId = 4;
+    private const int MaterialSlotId = 5;
+    private readonly float[] clearColor = [0f, 0f, 0f, 0f];
 
     private int lastWidth;
     private int lastHeight;
+    
     /// <summary>
     /// Whether the G-buffer textures have been created and are ready for attachment.
     /// </summary>
-    private bool isInitialized = false;
+    private bool isInitialized;
 
     /// <summary>
     /// Whether the G-buffer textures have been injected into the framebuffer array.
     /// </summary>
-    private bool isInjected = false;
+    private bool isInjected;
 
     #endregion
 
@@ -55,13 +58,13 @@ public sealed class GBufferManager : IDisposable
     /// The OpenGL texture ID for the normal G-buffer (ColorAttachment4).
     /// Format: RGBA16F - World-space normals in XYZ, W = bevel strength.
     /// </summary>
-    public int NormalTextureId => normalTextureId;
+    public int NormalTextureId => normalTex?.TextureId ?? 0;
 
     /// <summary>
     /// The OpenGL texture ID for the material G-buffer (ColorAttachment5).
-    /// Format: RGBA16F - (Roughness, Metallic, Emissive, Reflectivity).
+    /// Format: RGBA8 - (Roughness, Metallic, Emissive, Reflectivity).
     /// </summary>
-    public int MaterialTextureId => materialTextureId;
+    public int MaterialTextureId => materialTex?.TextureId ?? 0;
 
     /// <summary>
     /// Whether the G-buffer textures have been created and are ready for attachment.
@@ -107,7 +110,7 @@ public sealed class GBufferManager : IDisposable
 
         // Inject our textures into the framebuffers array
         // Need to expand the ColorTextureIds array to hold our attachments
-        primaryFb.ColorTextureIds = [..primaryFb.ColorTextureIds, normalTextureId, materialTextureId];
+        primaryFb.ColorTextureIds = [..primaryFb.ColorTextureIds, NormalTextureId, MaterialTextureId];
         isInjected = true;
 
         // Attach to the Primary framebuffer
@@ -144,13 +147,6 @@ public sealed class GBufferManager : IDisposable
         ];
         GL.DrawBuffers(6, drawBuffers);        
         
-        // Note: Per-buffer blend state (GL.BlendFunc/GL.Disable indexed) gets overwritten
-        // whenever VS calls GL.BlendFunc() globally. The shader output is written 
-        // directly regardless of blend state - the blend equation src*1 + dst*0 = src
-        // means what we write is what we get. If blending is causing issues, ensure
-        // the shader outputs are correct and consider that GL state may be reset
-        // by VS between LoadGBuffer and actual draw calls.
-        //
         // Per-buffer blend control requires GL 4.0+ / ARB_draw_buffers_blend
         ApplyGBufferBlendState();
 
@@ -163,10 +159,10 @@ public sealed class GBufferManager : IDisposable
     /// </summary>
     private void ApplyGBufferBlendState()
     {
-        GL.BlendFunc(normalSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
-        GL.BlendFunc(materialSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
-        GL.Disable(IndexedEnableCap.Blend, normalSlotId);
-        GL.Disable(IndexedEnableCap.Blend, materialSlotId);
+        GL.BlendFunc(NormalSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
+        GL.BlendFunc(MaterialSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
+        GL.Disable(IndexedEnableCap.Blend, NormalSlotId);
+        GL.Disable(IndexedEnableCap.Blend, MaterialSlotId);
     }
 
     /// <summary>
@@ -187,15 +183,15 @@ public sealed class GBufferManager : IDisposable
         ApplyGBufferBlendState();
     }
 
-    private bool hasLoggedBlendState = false;
+    private bool hasLoggedBlendState;
     private void VerifyBlendState()
     {
         if (hasLoggedBlendState) return;
         hasLoggedBlendState = true;
 
         // Check if blend is enabled/disabled for each buffer
-        bool blend4Enabled = GL.IsEnabled(IndexedEnableCap.Blend, normalSlotId);
-        bool blend5Enabled = GL.IsEnabled(IndexedEnableCap.Blend, materialSlotId);
+        bool blend4Enabled = GL.IsEnabled(IndexedEnableCap.Blend, NormalSlotId);
+        bool blend5Enabled = GL.IsEnabled(IndexedEnableCap.Blend, MaterialSlotId);
         
         // Also check VS buffers for comparison
         bool blend2Enabled = GL.IsEnabled(IndexedEnableCap.Blend, 2);
@@ -206,10 +202,10 @@ public sealed class GBufferManager : IDisposable
         const int GL_BLEND_SRC_RGB = 0x80C9;
         const int GL_BLEND_DST_RGB = 0x80C8;
         
-        GL.GetInteger((GetIndexedPName)GL_BLEND_SRC_RGB, normalSlotId, out int srcRgb4);
-        GL.GetInteger((GetIndexedPName)GL_BLEND_DST_RGB, normalSlotId, out int dstRgb4);
-        GL.GetInteger((GetIndexedPName)GL_BLEND_SRC_RGB, materialSlotId, out int srcRgb5);
-        GL.GetInteger((GetIndexedPName)GL_BLEND_DST_RGB, materialSlotId, out int dstRgb5);
+        GL.GetInteger((GetIndexedPName)GL_BLEND_SRC_RGB, NormalSlotId, out int srcRgb4);
+        GL.GetInteger((GetIndexedPName)GL_BLEND_DST_RGB, NormalSlotId, out int dstRgb4);
+        GL.GetInteger((GetIndexedPName)GL_BLEND_SRC_RGB, MaterialSlotId, out int srcRgb5);
+        GL.GetInteger((GetIndexedPName)GL_BLEND_DST_RGB, MaterialSlotId, out int dstRgb5);
         
         // Compare with VS buffers
         GL.GetInteger((GetIndexedPName)GL_BLEND_SRC_RGB, 2, out int srcRgb2);
@@ -249,10 +245,10 @@ public sealed class GBufferManager : IDisposable
             // Using glClearBuffer to clear individual attachments without affecting VS attachments
             
             // Clear normal buffer (attachment 4) to (0, 0, 0, 0) - no normal data
-            GL.ClearBuffer(ClearBuffer.Color, normalSlotId, clearColor);
+            GL.ClearBuffer(ClearBuffer.Color, NormalSlotId, clearColor);
             
             // Clear material buffer (attachment 5) to (0, 0, 0, 0) - no material data
-            GL.ClearBuffer(ClearBuffer.Color, materialSlotId, clearColor);
+            GL.ClearBuffer(ClearBuffer.Color, MaterialSlotId, clearColor);
         }
     }
 
@@ -263,8 +259,7 @@ public sealed class GBufferManager : IDisposable
     /// <param name="framebuffer">The framebuffer being unloaded</param>
     public void UnloadGBuffer(EnumFrameBuffer framebuffer)
     {
-        //if (framebuffer != EnumFrameBuffer.Primary || !isInitialized || !isInjected)
-        //    return;
+        // Currently no cleanup needed on unload
     }
 
     #endregion
@@ -277,60 +272,30 @@ public sealed class GBufferManager : IDisposable
         DeleteTextures();
 
         // Create Normal texture (RGBA16F)
-        normalTextureId = CreateTexture(width, height, PixelInternalFormat.Rgba16f, PixelFormat.Rgba, PixelType.Float);
+        normalTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f);
 
         // Create Material texture (RGBA8) - Roughness, Metallic, Emissive, Reflectivity
-        materialTextureId = CreateTexture(width, height, PixelInternalFormat.Rgba8, PixelFormat.Rgba, PixelType.UnsignedByte);
+        materialTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba8);
 
         isInitialized = true;
         capi.Logger.Notification($"[VGE] Created G-buffer textures: {width}x{height}");
-        capi.Logger.Notification($"[VGE]   Normal ID={normalTextureId}, Material ID={materialTextureId}");
-    }
-
-    private static int CreateTexture(int width, int height, PixelInternalFormat internalFormat, PixelFormat format, PixelType type)
-    {
-        int textureId = GL.GenTexture();
-        GL.BindTexture(TextureTarget.Texture2D, textureId);
-
-        GL.TexImage2D(
-            TextureTarget.Texture2D,
-            0,
-            internalFormat,
-            width,
-            height,
-            0,
-            format,
-            type,
-            IntPtr.Zero);
-
-        // Set filtering (nearest for G-buffer data)
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-
-        GL.BindTexture(TextureTarget.Texture2D, 0);
-        return textureId;
+        capi.Logger.Notification($"[VGE]   Normal ID={NormalTextureId}, Material ID={MaterialTextureId}");
     }
 
     private void DeleteTextures()
     {
-        if (normalTextureId != 0)
-        {
-            GL.DeleteTexture(normalTextureId);
-            normalTextureId = 0;
-        }
-        if (materialTextureId != 0)
-        {
-            GL.DeleteTexture(materialTextureId);
-            materialTextureId = 0;
-        }
+        normalTex?.Dispose();
+        materialTex?.Dispose();
+        normalTex = null;
+        materialTex = null;
+        isInitialized = false;
+        isInjected = false;
     }
 
     /// <summary>
     /// Attaches the G-buffer textures to the specified framebuffer.
     /// </summary>
-    /// <param name="fboId"></param>
+    /// <param name="fboId">The framebuffer ID to attach to</param>
     private void AttachToFramebuffer(int fboId)
     {
         // stash the currently bound framebuffer
@@ -343,7 +308,7 @@ public sealed class GBufferManager : IDisposable
             FramebufferTarget.Framebuffer,
             FramebufferAttachment.ColorAttachment4,
             TextureTarget.Texture2D,
-            normalTextureId,
+            NormalTextureId,
             0);
 
         // Attach material texture as ColorAttachment5 (matches layout(location = 5))
@@ -351,15 +316,15 @@ public sealed class GBufferManager : IDisposable
             FramebufferTarget.Framebuffer,
             FramebufferAttachment.ColorAttachment5,
             TextureTarget.Texture2D,
-            materialTextureId,
+            MaterialTextureId,
             0);
 
         // Disable blending for VGE attachments to ensure direct writes
         // Per-buffer blend control requires GL 4.0+ / ARB_draw_buffers_blend
-        GL.BlendFunc(normalSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
-        GL.BlendFunc(materialSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
-        GL.Disable(IndexedEnableCap.Blend, normalSlotId);
-        GL.Disable(IndexedEnableCap.Blend, materialSlotId);
+        GL.BlendFunc(NormalSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
+        GL.BlendFunc(MaterialSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
+        GL.Disable(IndexedEnableCap.Blend, NormalSlotId);
+        GL.Disable(IndexedEnableCap.Blend, MaterialSlotId);
 
         // Verify framebuffer is complete
         var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
@@ -379,7 +344,7 @@ public sealed class GBufferManager : IDisposable
     /// <summary>
     /// Detaches the G-buffer textures from the specified framebuffer.
     /// </summary>
-    /// <param name="fboId"></param>
+    /// <param name="fboId">The framebuffer ID to detach from</param>
     private void DetachFromFramebuffer(int fboId)
     {
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
@@ -421,7 +386,6 @@ public sealed class GBufferManager : IDisposable
     {
         // Clean up textures (framebuffer attachment cleanup happens via UnloadGBuffer hook)
         DeleteTextures();
-        isInitialized = false;
         
         // Clear the static instance
         if (Instance == this)
