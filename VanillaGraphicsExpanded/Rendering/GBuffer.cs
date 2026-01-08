@@ -1,0 +1,493 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using OpenTK.Graphics.OpenGL;
+
+namespace VanillaGraphicsExpanded.Rendering;
+
+/// <summary>
+/// Encapsulates an OpenGL framebuffer object (FBO) with lifecycle management.
+/// Supports single color attachment, multiple render targets (MRT), and depth-only configurations.
+/// </summary>
+/// <remarks>
+/// Usage:
+/// <code>
+/// // Single attachment
+/// using var colorTex = DynamicTexture.Create(1920, 1080, PixelInternalFormat.Rgba16f);
+/// using var fbo = GBuffer.CreateSingle(colorTex);
+/// 
+/// // Multiple render targets
+/// using var tex0 = DynamicTexture.Create(1920, 1080, PixelInternalFormat.Rgba16f);
+/// using var tex1 = DynamicTexture.Create(1920, 1080, PixelInternalFormat.Rgba16f);
+/// using var mrtFbo = GBuffer.CreateMRT(tex0, tex1);
+/// 
+/// fbo.Bind();
+/// // ... render ...
+/// fbo.Unbind();
+/// </code>
+/// </remarks>
+public sealed class GBuffer : IDisposable
+{
+    #region Fields
+
+    private int fboId;
+    private readonly List<DynamicTexture> colorAttachments;
+    private DynamicTexture? depthAttachment;
+    private readonly bool ownsTextures;
+    private bool isDisposed;
+
+    #endregion
+
+    #region Properties
+
+    /// <summary>
+    /// OpenGL framebuffer ID. Returns 0 if disposed or not created.
+    /// </summary>
+    public int FboId => fboId;
+
+    /// <summary>
+    /// Number of color attachments.
+    /// </summary>
+    public int ColorAttachmentCount => colorAttachments.Count;
+
+    /// <summary>
+    /// Whether this FBO has a depth attachment.
+    /// </summary>
+    public bool HasDepthAttachment => depthAttachment != null;
+
+    /// <summary>
+    /// Whether this framebuffer has been disposed.
+    /// </summary>
+    public bool IsDisposed => isDisposed;
+
+    /// <summary>
+    /// Whether this is a valid, allocated framebuffer.
+    /// </summary>
+    public bool IsValid => fboId != 0 && !isDisposed;
+
+    /// <summary>
+    /// Width of the framebuffer (from first color attachment or depth).
+    /// </summary>
+    public int Width => colorAttachments.Count > 0 
+        ? colorAttachments[0].Width 
+        : depthAttachment?.Width ?? 0;
+
+    /// <summary>
+    /// Height of the framebuffer (from first color attachment or depth).
+    /// </summary>
+    public int Height => colorAttachments.Count > 0 
+        ? colorAttachments[0].Height 
+        : depthAttachment?.Height ?? 0;
+
+    #endregion
+
+    #region Indexer
+
+    /// <summary>
+    /// Gets a color attachment by index.
+    /// </summary>
+    public DynamicTexture this[int index] => colorAttachments[index];
+
+    /// <summary>
+    /// Gets the depth attachment texture (may be null).
+    /// </summary>
+    public DynamicTexture? DepthTexture => depthAttachment;
+
+    #endregion
+
+    #region Constructor (private - use factory methods)
+
+    private GBuffer(bool ownsTextures)
+    {
+        colorAttachments = [];
+        this.ownsTextures = ownsTextures;
+    }
+
+    #endregion
+
+    #region Factory Methods
+
+    /// <summary>
+    /// Creates a framebuffer with a single color attachment.
+    /// </summary>
+    /// <param name="colorTexture">The color texture to attach.</param>
+    /// <param name="depthTexture">Optional depth texture to attach.</param>
+    /// <param name="ownsTextures">If true, textures will be disposed when the GBuffer is disposed.</param>
+    /// <returns>A new GBuffer instance.</returns>
+    public static GBuffer? CreateSingle(
+        DynamicTexture? colorTexture,
+        DynamicTexture? depthTexture = null,
+        bool ownsTextures = false)
+    {
+        if (colorTexture == null || !colorTexture.IsValid)
+        {
+            Debug.WriteLine("[GBuffer] CreateSingle called with null or invalid color texture");
+            return null;
+        }
+
+        var buffer = new GBuffer(ownsTextures);
+        buffer.colorAttachments.Add(colorTexture);
+        buffer.depthAttachment = depthTexture;
+        buffer.CreateFramebuffer();
+
+        return buffer;
+    }
+
+    /// <summary>
+    /// Creates a framebuffer with multiple render targets (MRT).
+    /// </summary>
+    /// <param name="colorTextures">Array of color textures to attach.</param>
+    /// <param name="depthTexture">Optional depth texture to attach.</param>
+    /// <param name="ownsTextures">If true, textures will be disposed when the GBuffer is disposed.</param>
+    /// <returns>A new GBuffer instance.</returns>
+    public static GBuffer? CreateMRT(
+        DynamicTexture[]? colorTextures,
+        DynamicTexture? depthTexture = null,
+        bool ownsTextures = false)
+    {
+        if (colorTextures == null || colorTextures.Length == 0)
+        {
+            Debug.WriteLine("[GBuffer] CreateMRT called with null or empty texture array");
+            return null;
+        }
+
+        // Filter out invalid textures
+        var validTextures = new List<DynamicTexture>();
+        foreach (var tex in colorTextures)
+        {
+            if (tex != null && tex.IsValid)
+                validTextures.Add(tex);
+            else
+                Debug.WriteLine("[GBuffer] CreateMRT: skipping null or invalid texture");
+        }
+
+        if (validTextures.Count == 0)
+        {
+            Debug.WriteLine("[GBuffer] CreateMRT: no valid textures provided");
+            return null;
+        }
+
+        var buffer = new GBuffer(ownsTextures);
+        buffer.colorAttachments.AddRange(validTextures);
+        buffer.depthAttachment = depthTexture;
+        buffer.CreateFramebuffer();
+
+        return buffer;
+    }
+
+    /// <summary>
+    /// Creates a framebuffer with multiple render targets (MRT) using params.
+    /// </summary>
+    /// <param name="colorTextures">Color textures to attach.</param>
+    /// <returns>A new GBuffer instance.</returns>
+    public static GBuffer? CreateMRT(params DynamicTexture[] colorTextures)
+    {
+        return CreateMRT(colorTextures, null, false);
+    }
+
+    /// <summary>
+    /// Creates a depth-only framebuffer (no color attachments).
+    /// </summary>
+    /// <param name="depthTexture">The depth texture to attach.</param>
+    /// <param name="ownsTextures">If true, texture will be disposed when the GBuffer is disposed.</param>
+    /// <returns>A new GBuffer instance.</returns>
+    public static GBuffer? CreateDepthOnly(DynamicTexture? depthTexture, bool ownsTextures = false)
+    {
+        if (depthTexture == null || !depthTexture.IsValid)
+        {
+            Debug.WriteLine("[GBuffer] CreateDepthOnly called with null or invalid depth texture");
+            return null;
+        }
+
+        if (!TextureFormatHelper.IsDepthFormat(depthTexture.InternalFormat))
+        {
+            Debug.WriteLine($"[GBuffer] CreateDepthOnly: texture format {depthTexture.InternalFormat} is not a depth format");
+            return null;
+        }
+
+        var buffer = new GBuffer(ownsTextures);
+        buffer.depthAttachment = depthTexture;
+        buffer.CreateFramebuffer();
+
+        return buffer;
+    }
+
+    /// <summary>
+    /// Creates a GBuffer by wrapping an existing OpenGL FBO ID.
+    /// Useful for working with VS-managed framebuffers.
+    /// </summary>
+    /// <param name="existingFboId">The existing FBO ID to wrap.</param>
+    /// <returns>A GBuffer wrapper (does not own the FBO).</returns>
+    public static GBuffer Wrap(int existingFboId)
+    {
+        var buffer = new GBuffer(ownsTextures: false)
+        {
+            fboId = existingFboId
+        };
+        return buffer;
+    }
+
+    #endregion
+
+    #region Public Methods
+
+    /// <summary>
+    /// Binds this framebuffer for rendering.
+    /// </summary>
+    public void Bind()
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to bind disposed or invalid framebuffer");
+            return;
+        }
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
+    }
+
+    /// <summary>
+    /// Unbinds any framebuffer, returning to the default framebuffer.
+    /// </summary>
+    public static void Unbind()
+    {
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+    }
+
+    /// <summary>
+    /// Binds this framebuffer and sets the viewport to match its dimensions.
+    /// </summary>
+    public void BindWithViewport()
+    {
+        Bind();
+        GL.Viewport(0, 0, Width, Height);
+    }
+
+    /// <summary>
+    /// Clears the framebuffer with the specified mask.
+    /// The framebuffer must be bound first.
+    /// </summary>
+    /// <param name="mask">Clear buffer mask (Color, Depth, Stencil).</param>
+    public void Clear(ClearBufferMask mask = ClearBufferMask.ColorBufferBit)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to clear disposed or invalid framebuffer");
+            return;
+        }
+        GL.Clear(mask);
+    }
+
+    /// <summary>
+    /// Sets the clear color and clears the framebuffer.
+    /// </summary>
+    public void Clear(float r, float g, float b, float a, ClearBufferMask mask = ClearBufferMask.ColorBufferBit)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to clear disposed or invalid framebuffer");
+            return;
+        }
+        GL.ClearColor(r, g, b, a);
+        GL.Clear(mask);
+    }
+
+    /// <summary>
+    /// Checks the framebuffer status and returns whether it's complete.
+    /// In release builds, always returns true without checking.
+    /// </summary>
+    /// <param name="errorMessage">Error message if incomplete.</param>
+    /// <returns>True if complete (or release build), false if incomplete.</returns>
+    public bool CheckStatus(out string? errorMessage)
+    {
+#if DEBUG
+        if (!IsValid)
+        {
+            errorMessage = "Framebuffer is disposed or invalid";
+            Debug.WriteLine($"[GBuffer] {errorMessage}");
+            return false;
+        }
+        
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
+        var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+
+        if (status != FramebufferErrorCode.FramebufferComplete)
+        {
+            errorMessage = $"Framebuffer incomplete: {status}";
+            return false;
+        }
+#endif
+        errorMessage = null;
+        return true;
+    }
+
+    /// <summary>
+    /// Gets the texture ID of a color attachment.
+    /// </summary>
+    /// <param name="index">Attachment index (0-based).</param>
+    /// <returns>OpenGL texture ID.</returns>
+    public int GetColorTextureId(int index)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to get texture from disposed or invalid framebuffer");
+            return 0;
+        }
+        if (index < 0 || index >= colorAttachments.Count)
+        {
+            Debug.WriteLine($"[GBuffer] Color attachment index {index} out of range (0-{colorAttachments.Count - 1})");
+            return 0;
+        }
+        return colorAttachments[index].TextureId;
+    }
+
+    /// <summary>
+    /// Gets the texture ID of the depth attachment.
+    /// </summary>
+    /// <returns>OpenGL texture ID, or 0 if no depth attachment.</returns>
+    public int GetDepthTextureId()
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to get depth texture from disposed or invalid framebuffer");
+            return 0;
+        }
+        return depthAttachment?.TextureId ?? 0;
+    }
+
+    /// <summary>
+    /// Resizes all attached textures.
+    /// </summary>
+    /// <param name="newWidth">New width in pixels.</param>
+    /// <param name="newHeight">New height in pixels.</param>
+    /// <returns>True if resize occurred.</returns>
+    public bool Resize(int newWidth, int newHeight)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to resize disposed or invalid framebuffer");
+            return false;
+        }
+
+        bool resized = false;
+
+        foreach (var texture in colorAttachments)
+        {
+            resized |= texture.Resize(newWidth, newHeight);
+        }
+
+        if (depthAttachment != null)
+        {
+            resized |= depthAttachment.Resize(newWidth, newHeight);
+        }
+
+        return resized;
+    }
+
+    #endregion
+
+    #region Private Methods
+
+    private void CreateFramebuffer()
+    {
+        fboId = GL.GenFramebuffer();
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
+
+        // Attach color textures
+        var drawBuffers = new DrawBuffersEnum[colorAttachments.Count];
+        for (int i = 0; i < colorAttachments.Count; i++)
+        {
+            var attachment = FramebufferAttachment.ColorAttachment0 + i;
+            GL.FramebufferTexture2D(
+                FramebufferTarget.Framebuffer,
+                attachment,
+                TextureTarget.Texture2D,
+                colorAttachments[i].TextureId,
+                0);
+            drawBuffers[i] = DrawBuffersEnum.ColorAttachment0 + i;
+        }
+
+        // Set draw buffers
+        if (colorAttachments.Count > 0)
+        {
+            GL.DrawBuffers(colorAttachments.Count, drawBuffers);
+        }
+        else
+        {
+            // Depth-only: disable color writes
+            GL.DrawBuffer(DrawBufferMode.None);
+            GL.ReadBuffer(ReadBufferMode.None);
+        }
+
+        // Attach depth texture if present
+        if (depthAttachment != null)
+        {
+            var depthAttachmentType = TextureFormatHelper.IsDepthFormat(depthAttachment.InternalFormat)
+                && depthAttachment.InternalFormat is PixelInternalFormat.Depth24Stencil8 
+                    or PixelInternalFormat.Depth32fStencil8
+                ? FramebufferAttachment.DepthStencilAttachment
+                : FramebufferAttachment.DepthAttachment;
+
+            GL.FramebufferTexture2D(
+                FramebufferTarget.Framebuffer,
+                depthAttachmentType,
+                TextureTarget.Texture2D,
+                depthAttachment.TextureId,
+                0);
+        }
+
+        // Validate in debug mode
+        if (!CheckStatus(out string? errorMessage))
+        {
+            System.Diagnostics.Debug.WriteLine($"[GBuffer] {errorMessage}");
+        }
+
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+    }
+
+    #endregion
+
+    #region IDisposable
+
+    /// <summary>
+    /// Releases the GPU framebuffer resource.
+    /// If ownsTextures was true during creation, also disposes attached textures.
+    /// </summary>
+    public void Dispose()
+    {
+        if (isDisposed)
+            return;
+
+        if (fboId != 0)
+        {
+            GL.DeleteFramebuffer(fboId);
+            fboId = 0;
+        }
+
+        if (ownsTextures)
+        {
+            foreach (var texture in colorAttachments)
+            {
+                texture.Dispose();
+            }
+            depthAttachment?.Dispose();
+        }
+
+        colorAttachments.Clear();
+        depthAttachment = null;
+        isDisposed = true;
+    }
+
+    #endregion
+
+    #region Implicit Conversion
+
+    /// <summary>
+    /// Allows implicit conversion to int for use with existing APIs expecting FBO IDs.
+    /// </summary>
+    public static implicit operator int(GBuffer buffer)
+    {
+        return buffer?.fboId ?? 0;
+    }
+
+    #endregion
+}
