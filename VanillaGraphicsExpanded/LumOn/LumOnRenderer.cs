@@ -315,6 +315,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         StoreCameraPosition();
 
         frameIndex++;
+
+        // Restore VS's primary framebuffer and viewport to ensure we don't leave GL in a bad state
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
+        GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
     }
 
     /// <summary>
