@@ -59,19 +59,22 @@ public sealed class LumOnBufferManager : IDisposable
     private Rendering.GBuffer? radianceHistoryFbo;
 
     // ═══════════════════════════════════════════════════════════════
-    // Octahedral Radiance Cache (3D textures for Phase 2+)
-    // Layout: (8, 8, probeCount) - each slice is one probe's octahedral map
+    // Octahedral Radiance Cache (2D atlas layout)
+    // Layout: (probeCountX * 8, probeCountY * 8) - tiled 8×8 per probe
     // RGBA16F: RGB = radiance, A = log-encoded hit distance
     // ═══════════════════════════════════════════════════════════════
 
-    // Trace output octahedral radiance
-    private DynamicTexture3D? octahedralTraceTex;
+    // Trace output octahedral radiance (written by trace pass, read by temporal pass)
+    private DynamicTexture? octahedralTraceTex;
+    private Rendering.GBuffer? octahedralTraceFbo;
 
-    // Current frame octahedral radiance (after temporal blend)
-    private DynamicTexture3D? octahedralCurrentTex;
+    // Current frame octahedral radiance (written by temporal pass, read by gather)
+    private DynamicTexture? octahedralCurrentTex;
+    private Rendering.GBuffer? octahedralCurrentFbo;
 
-    // History octahedral radiance (previous frame)
-    private DynamicTexture3D? octahedralHistoryTex;
+    // History octahedral radiance (previous frame's current, read by temporal pass)
+    private DynamicTexture? octahedralHistoryTex;
+    private Rendering.GBuffer? octahedralHistoryFbo;
 
     // ═══════════════════════════════════════════════════════════════
     // Probe Metadata Buffers (for temporal validation)
@@ -192,28 +195,47 @@ public sealed class LumOnBufferManager : IDisposable
     public DynamicTexture? RadianceHistoryTex1 => radianceHistoryTex1;
 
     // ═══════════════════════════════════════════════════════════════
-    // Octahedral Radiance Cache (3D textures)
+    // Octahedral Radiance Cache (2D atlas)
     // ═══════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// 3D texture for trace output octahedral radiance.
-    /// Layout: (8, 8, probeCount), RGBA16F (RGB=radiance, A=log hit distance).
+    /// 2D atlas for trace output octahedral radiance.
+    /// Layout: (probeCountX * 8, probeCountY * 8), RGBA16F.
     /// </summary>
-    public DynamicTexture3D? OctahedralTraceTex => octahedralTraceTex;
+    public DynamicTexture? OctahedralTraceTex => octahedralTraceTex;
 
     /// <summary>
-    /// 3D texture for current frame octahedral radiance (after temporal blend).
+    /// FBO for octahedral trace output.
     /// </summary>
-    public DynamicTexture3D? OctahedralCurrentTex => octahedralCurrentTex;
+    public Rendering.GBuffer? OctahedralTraceFbo => octahedralTraceFbo;
 
     /// <summary>
-    /// 3D texture for history octahedral radiance (previous frame).
+    /// 2D atlas for current frame octahedral radiance (after temporal blend).
     /// </summary>
-    public DynamicTexture3D? OctahedralHistoryTex => octahedralHistoryTex;
+    public DynamicTexture? OctahedralCurrentTex => octahedralCurrentTex;
+
+    /// <summary>
+    /// FBO for octahedral current output.
+    /// </summary>
+    public Rendering.GBuffer? OctahedralCurrentFbo => octahedralCurrentFbo;
+
+    /// <summary>
+    /// 2D atlas for history octahedral radiance (previous frame).
+    /// </summary>
+    public DynamicTexture? OctahedralHistoryTex => octahedralHistoryTex;
+
+    /// <summary>
+    /// Width of the octahedral atlas (probeCountX × 8).
+    /// </summary>
+    public int OctahedralAtlasWidth => probeCountX * 8;
+
+    /// <summary>
+    /// Height of the octahedral atlas (probeCountY × 8).
+    /// </summary>
+    public int OctahedralAtlasHeight => probeCountY * 8;
 
     /// <summary>
     /// Total number of probes (probeCountX × probeCountY).
-    /// Used for 3D texture depth.
     /// </summary>
     public int ProbeCount => probeCountX * probeCountY;
 
@@ -344,8 +366,9 @@ public sealed class LumOnBufferManager : IDisposable
         (radianceCurrentTex1, radianceHistoryTex1) = (radianceHistoryTex1, radianceCurrentTex1);
         (radianceCurrentFbo, radianceHistoryFbo) = (radianceHistoryFbo, radianceCurrentFbo);
 
-        // Swap octahedral radiance textures
+        // Swap octahedral radiance textures (2D atlas)
         (octahedralCurrentTex, octahedralHistoryTex) = (octahedralHistoryTex, octahedralCurrentTex);
+        (octahedralCurrentFbo, octahedralHistoryFbo) = (octahedralHistoryFbo, octahedralCurrentFbo);
 
         // Swap metadata
         (probeMetaCurrentTex, probeMetaHistoryTex) = (probeMetaHistoryTex, probeMetaCurrentTex);
@@ -376,10 +399,10 @@ public sealed class LumOnBufferManager : IDisposable
         probeMetaHistoryFbo?.BindAndClear();
         probeMetaCurrentFbo?.BindAndClear();
 
-        // Clear octahedral radiance textures
-        octahedralTraceTex?.Clear();
-        octahedralCurrentTex?.Clear();
-        octahedralHistoryTex?.Clear();
+        // Clear octahedral radiance textures (2D atlas)
+        octahedralTraceFbo?.BindAndClear();
+        octahedralCurrentFbo?.BindAndClear();
+        octahedralHistoryFbo?.BindAndClear();
 
         // Restore previous framebuffer
         Rendering.GBuffer.RestoreBinding(previousFbo);
@@ -464,14 +487,19 @@ public sealed class LumOnBufferManager : IDisposable
         radianceHistoryFbo = Rendering.GBuffer.CreateMRT(radianceHistoryTex0, radianceHistoryTex1);
 
         // ═══════════════════════════════════════════════════════════════
-        // Create Octahedral Radiance Cache (3D textures)
-        // Layout: (8, 8, probeCount) - RGBA16F (RGB=radiance, A=log hit distance)
+        // Create Octahedral Radiance Cache (2D atlas)
+        // Layout: (probeCountX * 8, probeCountY * 8) - tiled 8×8 per probe
+        // RGBA16F: RGB = radiance, A = log-encoded hit distance
         // ═══════════════════════════════════════════════════════════════
 
-        int totalProbes = probeCountX * probeCountY;
-        octahedralTraceTex = DynamicTexture3D.CreateOctahedralCache(totalProbes);
-        octahedralCurrentTex = DynamicTexture3D.CreateOctahedralCache(totalProbes);
-        octahedralHistoryTex = DynamicTexture3D.CreateOctahedralCache(totalProbes);
+        int atlasWidth = probeCountX * 8;
+        int atlasHeight = probeCountY * 8;
+        octahedralTraceTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f);
+        octahedralTraceFbo = Rendering.GBuffer.CreateSingle(octahedralTraceTex);
+        octahedralCurrentTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f);
+        octahedralCurrentFbo = Rendering.GBuffer.CreateSingle(octahedralCurrentTex);
+        octahedralHistoryTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f);
+        octahedralHistoryFbo = Rendering.GBuffer.CreateSingle(octahedralHistoryTex);
 
         // ═══════════════════════════════════════════════════════════════
         // Create Probe Metadata Buffers (for temporal validation)
@@ -551,6 +579,9 @@ public sealed class LumOnBufferManager : IDisposable
         indirectHalfFbo?.Dispose();
         indirectFullFbo?.Dispose();
         capturedSceneFbo?.Dispose();
+        octahedralTraceFbo?.Dispose();
+        octahedralCurrentFbo?.Dispose();
+        octahedralHistoryFbo?.Dispose();
 
         probeAnchorFbo = null;
         radianceTraceFbo = null;
@@ -561,6 +592,9 @@ public sealed class LumOnBufferManager : IDisposable
         indirectHalfFbo = null;
         indirectFullFbo = null;
         capturedSceneFbo = null;
+        octahedralTraceFbo = null;
+        octahedralCurrentFbo = null;
+        octahedralHistoryFbo = null;
 
         // Dispose 2D textures
         probeAnchorPositionTex?.Dispose();
@@ -576,6 +610,9 @@ public sealed class LumOnBufferManager : IDisposable
         indirectHalfTex?.Dispose();
         indirectFullTex?.Dispose();
         capturedSceneTex?.Dispose();
+        octahedralTraceTex?.Dispose();
+        octahedralCurrentTex?.Dispose();
+        octahedralHistoryTex?.Dispose();
 
         probeAnchorPositionTex = null;
         probeAnchorNormalTex = null;
@@ -590,12 +627,6 @@ public sealed class LumOnBufferManager : IDisposable
         indirectHalfTex = null;
         indirectFullTex = null;
         capturedSceneTex = null;
-
-        // Dispose 3D octahedral textures
-        octahedralTraceTex?.Dispose();
-        octahedralCurrentTex?.Dispose();
-        octahedralHistoryTex?.Dispose();
-
         octahedralTraceTex = null;
         octahedralCurrentTex = null;
         octahedralHistoryTex = null;

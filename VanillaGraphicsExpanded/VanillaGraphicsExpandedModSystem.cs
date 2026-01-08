@@ -147,6 +147,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         // LumOn shaders
         LumOnProbeAnchorShaderProgram.Register(api);
         LumOnProbeTraceShaderProgram.Register(api);
+        LumOnOctahedralTraceShaderProgram.Register(api);
         LumOnTemporalShaderProgram.Register(api);
         LumOnGatherShaderProgram.Register(api);
         LumOnUpsampleShaderProgram.Register(api);

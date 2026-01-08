@@ -21,7 +21,6 @@ LumOn World-Space Octahedral Radiance Cache Refactor:
 
   Phase 2 - Octahedral Radiance Texture:
     ✔ Update LumOn.03-Radiance-Cache.md to document octahedral storage @done
-    ☐ Remove SH L1 storage and related code (deferred to Phase 3)
     ✔ Create 3D texture with dimensions (8, 8, probeCount) @done
     ✔ Use RGBA16F format: RGB = radiance, A = log-encoded hit-distance @done
     ✔ Create DynamicTexture3D class for 3D texture management @done
@@ -34,14 +33,19 @@ LumOn World-Space Octahedral Radiance Cache Refactor:
     ✔ Build and verify compilation @done
 
   Phase 3 - Ray Tracing with Temporal Distribution:
-    ☐ Remove SH L1 storage and related code
-    ☐ Update LumOn.04-Ray-Tracing.md to document temporal ray distribution
-    ☐ Trace subset of rays per frame (8 of 64 directions)
-    ☐ Use frameIndex to select which octahedral texels to update
-    ☐ Add per-probe jitter to ray subset selection
-    ☐ Generate ray directions in world-space using WS normal
-    ☐ Output radiance + hit-distance to 3D octahedral texture
-    ☐ Add frameIndex uniform tracking in LumOnRenderer.cs
+    ✔ Remove SH L1 storage and related code (deferred - keep for fallback) @done(26-01-07 20:17)
+    ✔ Update LumOn.04-Ray-Tracing.md to document temporal ray distribution @done
+    ✔ Create lumon_probe_trace_octahedral.fsh shader @done
+    ✔ Create LumOnOctahedralTraceShaderProgram.cs @done
+    ✔ Trace subset of rays per frame (8 of 64 directions) @done
+    ✔ Use frameIndex to select which octahedral texels to update @done
+    ✔ Add per-probe jitter to ray subset selection @done
+    ✔ Generate ray directions in world-space using octahedral UV @done
+    ✔ Output radiance + hit-distance to 2D octahedral atlas @done
+    ✔ Add UseOctahedralCache config option @done
+    ✔ Add OctahedralTexelsPerFrame config option @done
+    ✔ Integrate RenderOctahedralTracePass in LumOnRenderer @done
+    ✔ Build and verify compilation @done
 
   Phase 4 - Temporal Accumulation for Octahedral:
     ☐ Update LumOn.05-Temporal.md to document per-texel accumulation

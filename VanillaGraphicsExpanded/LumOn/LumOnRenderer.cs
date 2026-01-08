@@ -264,7 +264,14 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // === Pass 2: Probe Trace ===
         BeginTimerQuery(1);
-        RenderProbeTracePass(primaryFb);
+        if (config.UseOctahedralCache)
+        {
+            RenderOctahedralTracePass(primaryFb);
+        }
+        else
+        {
+            RenderProbeTracePass(primaryFb);
+        }
         EndTimerQuery();
 
         // === Pass 3: Temporal Accumulation ===
@@ -447,6 +454,75 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.IndirectTint = new Vec3f(
             config.IndirectTint[0], 
             config.IndirectTint[1], 
+            config.IndirectTint[2]);
+
+        // Render
+        capi.Render.RenderMesh(quadMeshRef);
+        shader.Stop();
+    }
+
+    /// <summary>
+    /// Pass 2 (Octahedral): Ray trace from each probe and store radiance + hit distance.
+    /// Uses temporal distribution: only traces a subset of texels each frame.
+    /// Output: Octahedral atlas texture with radiance and hit distance.
+    /// </summary>
+    private void RenderOctahedralTracePass(FrameBufferRef primaryFb)
+    {
+        var shader = ShaderRegistry.getProgramByName("lumon_probe_trace_octahedral") as LumOnOctahedralTraceShaderProgram;
+        if (shader is null || shader.LoadError)
+            return;
+
+        var fbo = bufferManager.OctahedralTraceFbo;
+        if (fbo is null) return;
+
+        // Render at atlas resolution (probeCountX * 8, probeCountY * 8)
+        fbo.BindWithViewport();
+        // Don't clear - we want to preserve non-traced texels from history
+        // The shader handles history read for non-traced texels
+
+        capi.Render.GlToggleBlend(false);
+        shader.Use();
+
+        // Bind probe anchor textures
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex;
+        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex;
+
+        // Bind scene for radiance sampling
+        shader.PrimaryDepth = primaryFb.DepthTextureId;
+        shader.PrimaryColor = bufferManager.CapturedSceneTex;
+
+        // Bind history for temporal preservation
+        shader.OctahedralHistory = bufferManager.OctahedralHistoryTex;
+
+        // Pass matrices
+        shader.InvProjectionMatrix = invProjectionMatrix;
+        shader.ProjectionMatrix = projectionMatrix;
+        shader.ViewMatrix = modelViewMatrix;
+        shader.InvViewMatrix = invModelViewMatrix;
+
+        // Pass uniforms
+        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
+        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
+        shader.FrameIndex = frameIndex;
+        shader.TexelsPerFrame = config.OctahedralTexelsPerFrame;
+        shader.RaySteps = config.RaySteps;
+        shader.RayMaxDistance = config.RayMaxDistance;
+        shader.RayThickness = config.RayThickness;
+        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
+        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
+
+        // Sky fallback colors
+        shader.SkyMissWeight = config.SkyMissWeight;
+        var sunPos = capi.World.Calendar.SunPositionNormalized;
+        shader.SunPosition = new Vec3f((float)sunPos.X, (float)sunPos.Y, (float)sunPos.Z);
+        var sunCol = capi.World.Calendar.SunColor;
+        shader.SunColor = new Vec3f(sunCol.R, sunCol.G, sunCol.B);
+        shader.AmbientColor = capi.Render.AmbientColor;
+
+        // Indirect lighting tint
+        shader.IndirectTint = new Vec3f(
+            config.IndirectTint[0],
+            config.IndirectTint[1],
             config.IndirectTint[2]);
 
         // Render

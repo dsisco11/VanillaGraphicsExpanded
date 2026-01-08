@@ -9,7 +9,21 @@
 
 ## 1. Overview
 
-The ray tracing pass is the core of LumOn. For each valid probe:
+The ray tracing pass is the core of LumOn. Two modes are supported:
+
+### 1.1 Octahedral Mode (Default)
+
+For each probe's octahedral atlas tile:
+
+1. **Select** a subset of texels to trace this frame (temporal distribution)
+2. **Convert** texel coordinates to world-space ray direction
+3. **March** the ray through screen-space using depth buffer
+4. **Store** radiance + hit distance directly to the atlas texel
+5. **Preserve** non-traced texels from history
+
+### 1.2 Legacy SH Mode (Fallback)
+
+For each valid probe:
 
 1. **Generate** `N` ray directions distributed over the hemisphere
 2. **March** each ray through screen-space using depth buffer
@@ -17,20 +31,105 @@ The ray tracing pass is the core of LumOn. For each valid probe:
 4. **Accumulate** radiance into SH coefficients
 5. **Handle** misses with sky/ambient fallback
 
-### 1.1 Key Differences from Per-Pixel SSGI
+### 1.3 Key Differences from Per-Pixel SSGI
 
 | Aspect           | Per-Pixel SSGI | LumOn Probe Tracing   |
 | ---------------- | -------------- | --------------------- |
 | Rays per frame   | pixels × rays  | probes × rays         |
 | At 1080p, 8 rays | 16.6M rays     | 259K rays (64× fewer) |
-| Output           | Direct RGB     | SH coefficients       |
+| Output           | Direct RGB     | Octahedral or SH      |
 | Reuse            | Per-pixel      | Shared by ~64 pixels  |
 
 ---
 
-## 2. Ray Direction Generation
+## 2. Temporal Ray Distribution (Octahedral Mode)
 
-### 2.1 Hemisphere Distribution
+The octahedral radiance cache stores 64 directions per probe (8×8 texels). Tracing all 64
+directions every frame would be expensive. Instead, we use **temporal distribution**:
+
+### 2.1 Concept
+
+- Trace only a **subset** of directions per probe each frame
+- Over multiple frames, all 64 directions are updated
+- Non-traced texels **preserve their history value**
+- Per-probe **jitter** prevents coherent flickering
+
+### 2.2 Configuration
+
+| Parameter                  | Default  | Description                       |
+| -------------------------- | -------- | --------------------------------- |
+| `OctahedralTexelsPerFrame` | 8        | Texels traced per probe per frame |
+| Full coverage time         | 8 frames | 64 texels ÷ 8 texels/frame        |
+
+### 2.3 Batch Selection Algorithm
+
+```glsl
+// Determine if this texel should be traced this frame
+bool shouldTraceThisFrame(ivec2 octTexel, int probeIndex, int frameIndex) {
+    // Linear texel index within the probe's 8×8 tile
+    int texelIndex = octTexel.y * 8 + octTexel.x;  // 0-63
+
+    // Which "batch" does this texel belong to?
+    // With 64 texels and 8 texels/frame, there are 8 batches (0-7)
+    int numBatches = 64 / texelsPerFrame;  // 8
+    int batch = texelIndex / texelsPerFrame;
+
+    // Add per-probe jitter to avoid all probes tracing the same texels
+    int jitteredFrame = (frameIndex + probeIndex) % numBatches;
+
+    return batch == jitteredFrame;
+}
+```
+
+### 2.4 Temporal Distribution Visualization
+
+Frame progression for a single probe (8 texels/frame):
+
+```
+Frame 0: Trace texels 0-7   (batch 0)
+Frame 1: Trace texels 8-15  (batch 1)
+Frame 2: Trace texels 16-23 (batch 2)
+...
+Frame 7: Trace texels 56-63 (batch 7)
+Frame 8: Back to batch 0 (with updated radiance)
+```
+
+With per-probe jitter, neighboring probes trace different batches each frame,
+reducing temporal aliasing artifacts.
+
+### 2.5 History Preservation
+
+For non-traced texels, the shader reads from the history texture:
+
+```glsl
+if (!shouldTraceThisFrame(octTexel, probeIndex)) {
+    // Keep history value - don't trace this frame
+    outRadiance = texture(octahedralHistory, atlasUV);
+    return;
+}
+// ... proceed with ray tracing for this texel
+```
+
+---
+
+## 3. Ray Direction Generation
+
+### 3.1 Octahedral Mode: Fixed World-Space Directions
+
+In octahedral mode, ray directions are **fixed in world-space** and determined by the texel's
+position in the octahedral map:
+
+```glsl
+// Convert octahedral texel to world-space ray direction
+vec2 octUV = lumonTexelCoordToOctahedralUV(octTexel);  // [0,1]²
+vec3 rayDirWS = lumonOctahedralUVToDirection(octUV);   // Unit sphere direction
+```
+
+This provides **temporal stability**: the same texel always represents the same world-space
+direction, regardless of camera orientation. When the camera rotates, the probe's radiance
+cache remains valid—no rotation or reprojection needed.
+
+### 3.2 Legacy SH Mode: Hemisphere Distribution
 
 Rays should be distributed over the hemisphere oriented by the probe's surface normal. Requirements:
 
@@ -38,7 +137,7 @@ Rays should be distributed over the hemisphere oriented by the probe's surface n
 - **Low discrepancy**: Quasi-random for smooth convergence
 - **Temporal jitter**: Different samples each frame
 
-### 2.2 Hammersley Sequence
+### 3.3 Hammersley Sequence
 
 ```glsl
 // Low-discrepancy 2D sequence
@@ -56,7 +155,7 @@ vec2 Hammersley(uint i, uint N) {
 }
 ```
 
-### 2.3 Hemisphere Mapping (Cosine-Weighted)
+### 3.4 Hemisphere Mapping (Cosine-Weighted)
 
 ```glsl
 // Map 2D sample to cosine-weighted hemisphere direction
@@ -85,7 +184,7 @@ vec3 OrientHemisphere(vec3 localDir, vec3 normal) {
 }
 ```
 
-### 2.4 Temporal Jittering
+### 3.5 Temporal Jittering (SH Mode)
 
 ```glsl
 // Add frame-based jitter to prevent temporal patterns
@@ -103,7 +202,7 @@ vec2 JitteredHammersley(uint rayIndex, uint rayCount, uint frameIndex, uvec2 pro
 
 ---
 
-## 3. Screen-Space Ray Marching
+## 4. Screen-Space Ray Marching
 
 ### 3.1 Algorithm Overview
 
@@ -307,7 +406,7 @@ RayHit BinarySearchRefinement(vec3 start, vec3 end, int iterations) {
 
 ---
 
-## 4. Hit Shading & Fallback
+## 5. Hit Shading & Fallback
 
 ### 4.1 Hit Radiance Sampling
 
@@ -362,7 +461,7 @@ float DistanceFalloff(float distance) {
 
 ---
 
-## 5. Full Fragment Shader
+## 6. Full Fragment Shader
 
 ### 5.1 lumon_probe_trace.fsh
 
@@ -655,7 +754,7 @@ void main() {
 
 ---
 
-## 6. C# Integration
+## 7. C# Integration
 
 ### 6.1 Render Pass
 
@@ -722,7 +821,7 @@ private void RenderProbeTracePass(IRenderAPI render)
 
 ---
 
-## 7. Performance Budget
+## 8. Performance Budget
 
 ### 7.1 Cost Analysis
 
@@ -750,7 +849,7 @@ Compared to per-pixel SSGI at 1080p:
 
 ---
 
-## 8. Debug Visualization
+## 9. Debug Visualization
 
 ### 8.1 Debug Mode: Raw Radiance (DebugMode = 2)
 
@@ -772,7 +871,7 @@ if (debugMode == 2) {
 
 ---
 
-## 9. Next Steps
+## 10. Next Steps
 
 | Document                                     | Dependency    | Topic                                |
 | -------------------------------------------- | ------------- | ------------------------------------ |
@@ -780,19 +879,19 @@ if (debugMode == 2) {
 
 ---
 
-## 10. Implementation Checklist
+## 11. Implementation Checklist
 
 ### 10.1 Shader Files
 
 - [x] Create `lumon_probe_trace.vsh`
 - [x] Create `lumon_probe_trace.fsh`
-- [x] Import `lumon_sh.fsh` for SH accumulation *(using .fsh convention)*
-- [x] Implement Hammersley sequence *(via Squirrel3 hash in lumon_common.fsh)*
-- [x] Implement cosine-weighted hemisphere sampling *(in lumon_common.fsh)*
-- [x] Implement `OrientHemisphere()` tangent frame *(in lumonCosineSampleHemisphere)*
-- [x] Decode probe normals from [0,1] to [-1,1] range *(added lumonDecodeNormal)*
-- [x] Add sky depth check during ray march *(lumonIsSky)*
-- [x] Early termination when ray exits screen *(break instead of continue)*
+- [x] Import `lumon_sh.fsh` for SH accumulation _(using .fsh convention)_
+- [x] Implement Hammersley sequence _(via Squirrel3 hash in lumon_common.fsh)_
+- [x] Implement cosine-weighted hemisphere sampling _(in lumon_common.fsh)_
+- [x] Implement `OrientHemisphere()` tangent frame _(in lumonCosineSampleHemisphere)_
+- [x] Decode probe normals from [0,1] to [-1,1] range _(added lumonDecodeNormal)_
+- [x] Add sky depth check during ray march _(lumonIsSky)_
+- [x] Early termination when ray exits screen _(break instead of continue)_
 
 ### 10.2 Shader Program Class
 
@@ -806,7 +905,7 @@ if (debugMode == 2) {
 ### 10.3 Ray Marching
 
 - [x] Implement screen-space ray march loop
-- [x] Add depth comparison with thickness *(fixed sign: sceneZ - rayZ)*
+- [x] Add depth comparison with thickness _(fixed sign: sceneZ - rayZ)_
 - [x] Handle off-screen ray termination
 - [x] Add sky fallback for misses
 - [x] Implement distance falloff function

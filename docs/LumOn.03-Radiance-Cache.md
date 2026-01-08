@@ -46,15 +46,23 @@ Properties:
 
 ## 2. Texture Layout
 
-### 2.1 3D Texture Storage
+### 2.1 2D Atlas Storage
 
-Octahedral radiance is stored in a 3D texture with dimensions `(8, 8, probeCount)`:
+Octahedral radiance is stored in a **2D atlas texture** with dimensions `(probeCountX × 8, probeCountY × 8)`:
 
-| Dimension | Size       | Meaning                                   |
-| --------- | ---------- | ----------------------------------------- |
-| Width     | 8          | Octahedral U coordinate                   |
-| Height    | 8          | Octahedral V coordinate                   |
-| Depth     | probeCount | Linear probe index (Y × gridWidth + X)    |
+| Dimension | Size            | Meaning                                      |
+| --------- | --------------- | -------------------------------------------- |
+| Width     | probeCountX × 8 | Probe X × octahedral U                       |
+| Height    | probeCountY × 8 | Probe Y × octahedral V                       |
+
+Each probe's 8×8 octahedral tile is arranged in a grid matching the screen-space probe layout.
+This approach is compatible with GL 3.3 fragment shader output without requiring geometry shaders.
+
+**Addressing**: To access texel (octU, octV) of probe (probeX, probeY):
+```glsl
+ivec2 atlasCoord = ivec2(probeX * 8 + octU, probeY * 8 + octV);
+vec2 atlasUV = (vec2(atlasCoord) + 0.5) / vec2(atlasWidth, atlasHeight);
+```
 
 Each texel is RGBA16F:
 
@@ -83,11 +91,13 @@ For a 1920×1080 screen with 8px probe spacing:
 
 ```
 Probes: 240 × 135 = 32,400
-Texels per probe: 8 × 8 = 64
+Atlas size: (240 × 8) × (135 × 8) = 1920 × 1080
 Bytes per texel: 8 (RGBA16F)
-Per buffer: 32,400 × 64 × 8 = 16.6 MB
+Per buffer: 1920 × 1080 × 8 = 16.6 MB
 Triple buffered: ~50 MB total
 ```
+
+Note: The atlas dimensions conveniently match the screen resolution when using 8px probe spacing.
 
 ---
 
@@ -149,16 +159,20 @@ float lumonDecodeHitDistance(float encoded) {
 }
 ```
 
-### 3.4 3D Texture Addressing
+### 3.4 2D Atlas Addressing
 
 ```glsl
-// Sample with hardware filtering
-vec3 texCoord = vec3(octUV, (probeIndex + 0.5) / probeCount);
-vec4 radiance = texture(octahedralTex, texCoord);
+// Calculate atlas coordinates from probe and octahedral texel
+ivec2 probeCoord = ivec2(probeX, probeY);
+ivec2 octTexel = ivec2(octU, octV);  // 0-7 each
+ivec2 atlasCoord = probeCoord * LUMON_OCTAHEDRAL_SIZE + octTexel;
+
+// Sample with hardware filtering (for direction interpolation within a probe)
+vec2 atlasUV = (vec2(atlasCoord) + 0.5) / vec2(atlasWidth, atlasHeight);
+vec4 radiance = texture(octahedralAtlas, atlasUV);
 
 // Exact texel fetch (no filtering)
-ivec3 texel = ivec3(octTexel, probeIndex);
-vec4 radiance = texelFetch(octahedralTex, texel, 0);
+vec4 radiance = texelFetch(octahedralAtlas, atlasCoord, 0);
 ```
 
 ---
@@ -167,8 +181,6 @@ vec4 radiance = texelFetch(octahedralTex, texel, 0);
 
 > **Note**: The SH L1 approach is being replaced by octahedral maps.
 > This section is retained for reference during the transition.
-
-### 4.1 Why SH L1 Was Used
 
 ### 4.1 Why SH L1 Was Used
 

@@ -36,7 +36,22 @@ public class LumOnConfig
     // ═══════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// Number of rays traced per probe per frame.
+    /// Use octahedral radiance cache instead of SH L1.
+    /// Provides better temporal stability and per-direction hit distance.
+    /// </summary>
+    [JsonProperty]
+    public bool UseOctahedralCache { get; set; } = true;
+
+    /// <summary>
+    /// Number of octahedral texels to trace per probe per frame.
+    /// With 64 texels total (8×8), 8 texels/frame = full coverage in 8 frames.
+    /// Only used when UseOctahedralCache is true.
+    /// </summary>
+    [JsonProperty]
+    public int OctahedralTexelsPerFrame { get; set; } = 8;
+
+    /// <summary>
+    /// Number of rays traced per probe per frame (SH mode only).
     /// More rays = faster convergence but higher cost.
     /// </summary>
     [JsonProperty]
