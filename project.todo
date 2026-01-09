@@ -1,0 +1,187 @@
+LumOn GPU Shader Functional Tests:
+  Configuration:
+    ☐ Probe grid size: 2×2 (4 probes)
+    ☐ Octahedral atlas size: 16×16 (8 texels per probe)
+    ☐ Screen buffer size: 4×4 pixels
+    ☐ Half-res buffer size: 2×2 pixels
+    ☐ Test epsilon: 1e-4f for float comparisons
+
+  Phase 1 - Test Infrastructure:
+    ☐ Extend DynamicTexture.cs (VanillaGraphicsExpanded/Rendering/)
+      ☐ Add UploadData(float[] data) method - upload pixel data to existing texture
+      ☐ Add UploadData(float[] data, int x, int y, int w, int h) - partial upload
+      ☐ Add ReadPixels() method - readback texture contents as float[]
+      ☐ Add static CreateWithData(w, h, format, float[] data) factory method
+    ☐ Create ShaderTestFramework.cs in VanillaGraphicsExpanded.Tests/GPU/
+      ☐ RenderQuad(programId) - fullscreen triangle to bound GBuffer
+      ☐ CreateTestGBuffer(width, height, format, attachmentCount) - convenience wrapper around GBuffer.CreateMRT
+      ☐ Uses DynamicTexture.Bind(unit) for input texture binding
+      ☐ Uses DynamicTexture.ReadPixels() for output validation
+      ☐ Uses GBuffer.Bind()/Unbind() for render target management
+    ☐ Create PixelComparer.cs in VanillaGraphicsExpanded.Tests/GPU/
+      ☐ AssertPixelsMatch(float[] expected, float[] actual, float epsilon)
+      ☐ Report first N mismatches with (x, y) coordinates and delta values
+      ☐ Support per-channel epsilon for HDR tolerance
+      ☐ Format failure messages with hex color comparison
+    ☐ Create UniformValidator.cs in VanillaGraphicsExpanded.Tests/GPU/
+      ☐ ExtractUniforms(string processedSource) using GlslSchema.Instance
+      ☐ ValidateUniformsSet(uniforms, setUniformNames) - fail if missing
+      ☐ IsSamplerType(string typeName) - distinguish texture uniforms
+      ☐ Generate uniform checklist report for test setup verification
+
+  Phase 2 - Test Input Factory:
+    ☐ Create LumOnTestInputFactory.cs in VanillaGraphicsExpanded.Tests/GPU/
+      ☐ Depth buffer generators (4×4):
+        ☐ CreateDepthBufferLinearRamp() - 0.1 to 0.9 gradient
+        ☐ CreateDepthBufferUniform(float depth) - constant depth
+        ☐ CreateDepthBufferCheckerboard() - alternating near/far
+      ☐ Normal buffer generators (4×4):
+        ☐ CreateNormalBufferUpward() - all (0, 1, 0)
+        ☐ CreateNormalBufferAxisAligned() - one axis per quadrant
+        ☐ CreateNormalBufferFromDepth(float[] depth) - derive from depth discontinuities
+      ☐ Probe anchor generators (2×2):
+        ☐ CreateProbePositions() - grid at known world coords
+        ☐ CreateProbeNormals() - uniform upward
+        ☐ CreateProbeValidity() - all valid (w=1.0)
+      ☐ Radiance generators:
+        ☐ CreateRadianceAtlasSolidQuadrants() - RGBW per quadrant (16×16)
+        ☐ CreateRadianceAtlasGradient() - horizontal gradient (16×16)
+        ☐ CreateSHCoefficientsUniform(vec3 color) - L1 SH for solid color (2×2)
+      ☐ Matrix generators:
+        ☐ CreateIdentityView() - identity 4×4
+        ☐ CreateIdentityProjection() - identity 4×4
+        ☐ CreateSimplePerspective(fov, aspect, zNear, zFar)
+        ☐ CreateInverseMatrix(float[] matrix)
+      ☐ Scene input generators:
+        ☐ CreateAlbedoBuffer(vec3 color) - uniform albedo (4×4)
+        ☐ CreateDirectLightingBuffer() - simple lit scene (4×4)
+        ☐ CreateMaterialBuffer(metallic, roughness) - uniform material (4×4)
+
+  Phase 3 - Probe Anchor Tests:
+    ☐ Create LumOnProbeAnchorFunctionalTests.cs
+      ☐ Test: UniformDepth_ProducesCorrectWorldPositions
+        ☐ Input: depth=0.5 everywhere, identity matrices
+        ☐ Expected: probes at calculated world Z from linearized depth
+        ☐ Verify: outPosition.xyz matches hand-calculated values
+      ☐ Test: UniformDepth_ProducesCorrectNormals
+        ☐ Input: normals all (0,1,0) in G-buffer
+        ☐ Expected: outNormal.xyz = (0,1,0) for all probes
+      ☐ Test: ValidProbes_HaveValidityFlagSet
+        ☐ Input: valid depth, valid normals
+        ☐ Expected: outPosition.w = 1.0 for all probes
+      ☐ Test: SkyPixels_ProduceInvalidProbes
+        ☐ Input: depth=1.0 (sky/far plane)
+        ☐ Expected: outPosition.w = 0.0 (invalid)
+      ☐ Document expected value derivation in comments:
+        // depth=0.5, zNear=0.1, zFar=100
+        // linearDepth = zNear * zFar / (zFar - depth * (zFar - zNear))
+        // worldPos = invView * invProj * clipPos
+
+  Phase 4 - Probe Trace Octahedral Tests:
+    ☐ Create LumOnProbeTraceOctahedralFunctionalTests.cs
+      ☐ Test: ValidProbe_TracesRaysToAtlas
+        ☐ Input: single valid probe, simple scene color
+        ☐ Expected: 8×8 texel region filled with traced radiance
+      ☐ Test: SkyMiss_ReturnsAmbientColor
+        ☐ Input: rays that miss geometry (depth=1.0 everywhere)
+        ☐ Expected: radiance = ambientColor * skyMissWeight
+      ☐ Test: HitDistance_EncodedCorrectly
+        ☐ Input: known geometry at specific distance
+        ☐ Expected: outRadiance.a = log-encoded hit distance
+      ☐ Test: InvalidProbe_ProducesZeroRadiance
+        ☐ Input: probe with validity=0
+        ☐ Expected: all 64 texels = (0,0,0,0)
+
+  Phase 5 - Temporal Accumulation Tests:
+    ☐ Create LumOnTemporalFunctionalTests.cs
+      ☐ Single-frame tests (α=1.0 bypass):
+        ☐ Test: AlphaOne_PassthroughCurrent
+          ☐ Input: current=red, history=blue, temporalAlpha=1.0
+          ☐ Expected: output = red (current passthrough)
+        ☐ Test: AlphaOne_MetaUpdated
+          ☐ Input: new depth/normal values
+          ☐ Expected: outMeta contains current frame values
+      ☐ Two-frame blend tests (α=0.1):
+        ☐ Test: AlphaBlend_AccumulatesHistory
+          ☐ Input: current=red, history=blue, temporalAlpha=0.1
+          ☐ Expected: output = lerp(blue, red, 0.1)
+        ☐ Test: DepthRejection_DiscardsHistory
+          ☐ Input: large depth change between frames
+          ☐ Expected: output = current (history rejected)
+        ☐ Test: NormalRejection_DiscardsHistory
+          ☐ Input: large normal change between frames
+          ☐ Expected: output = current (history rejected)
+        ☐ Test: AccumCount_Increments
+          ☐ Input: valid accumulation
+          ☐ Expected: outMeta.accumCount = history.accumCount + 1
+
+  Phase 6 - Gather Pass Tests:
+    ☐ Create LumOnGatherFunctionalTests.cs
+      ☐ Test: CenterPixel_InterpolatesFourProbes
+        ☐ Input: 2×2 probes with RGBW radiance
+        ☐ Expected: center pixel = average of 4 probes
+      ☐ Test: CornerPixel_WeightedByDistance
+        ☐ Input: pixel near probe (0,0)
+        ☐ Expected: heavily weighted toward that probe's radiance
+      ☐ Test: DepthDiscontinuity_ReducesWeight
+        ☐ Input: large depth difference between pixel and probe
+        ☐ Expected: that probe contributes less
+      ☐ Test: NormalMismatch_ReducesWeight
+        ☐ Input: pixel normal opposite to probe normal
+        ☐ Expected: that probe contributes less
+      ☐ Test: IndirectTint_AppliedToOutput
+        ☐ Input: indirectTint = (2, 1, 0.5)
+        ☐ Expected: output.rgb *= indirectTint
+
+  Phase 7 - Upsample Pass Tests:
+    ☐ Create LumOnUpsampleFunctionalTests.cs
+      ☐ Test: UniformInput_BilinearUpsample
+        ☐ Input: uniform 2×2 half-res, uniform depth/normal
+        ☐ Expected: uniform 4×4 full-res (same color)
+      ☐ Test: GradientInput_SmoothUpsample
+        ☐ Input: gradient 2×2 half-res
+        ☐ Expected: interpolated 4×4 gradient
+      ☐ Test: DepthEdge_PreservesSharpness
+        ☐ Input: depth discontinuity at edge
+        ☐ Expected: bilateral filter respects edge
+      ☐ Test: DenoiseDisabled_RawBilinear
+        ☐ Input: denoiseEnabled=0
+        ☐ Expected: pure bilinear without edge-awareness
+
+  Phase 8 - Combine Pass Tests:
+    ☐ Create LumOnCombineFunctionalTests.cs
+      ☐ Test: BasicComposite_AddsIndirect
+        ☐ Input: direct=(1,0,0), indirect=(0,1,0), albedo=(1,1,1)
+        ☐ Expected: output = (1,1,0) (direct + indirect * albedo)
+      ☐ Test: AlbedoModulation_AppliedToIndirect
+        ☐ Input: indirect=(1,1,1), albedo=(1,0,0)
+        ☐ Expected: indirect contribution = (1,0,0)
+      ☐ Test: IndirectIntensity_ScalesContribution
+        ☐ Input: indirectIntensity=2.0
+        ☐ Expected: indirect contribution doubled
+      ☐ Test: LumOnDisabled_PassthroughDirect
+        ☐ Input: lumOnEnabled=0
+        ☐ Expected: output = direct (no indirect added)
+      ☐ Test: SkyPixels_NoIndirect
+        ☐ Input: depth=1.0 (sky)
+        ☐ Expected: output = direct (skip indirect for sky)
+
+  Phase 9 - Integration & CI:
+    ☐ Create base class LumOnShaderFunctionalTestBase
+      ☐ Common fixture setup (HeadlessGLFixture)
+      ☐ Shared helper methods for texture creation
+      ☐ Uniform validation integration
+      ☐ Cleanup/dispose pattern
+    ☐ Add [Trait("Category", "GPU")] to all functional tests
+    ☐ Add [SkipOnCI] attribute for tests requiring real GPU
+    ☐ Verify Mesa llvmpipe compatibility on GitHub Actions
+    ☐ Add GPU test category to CI workflow (optional separate job)
+    ☐ Document test data derivation in XML comments
+
+  Future Enhancements (Deferred):
+    ☐ Edge case: invalid probes at screen boundaries
+    ☐ Edge case: depth discontinuity threshold tuning
+    ☐ Edge case: sky pixels mixed with geometry
+    ☐ Performance benchmarks with GPU timer queries
+    ☐ Visual regression tests with image diff
+    ☐ Fuzz testing with randomized inputs
