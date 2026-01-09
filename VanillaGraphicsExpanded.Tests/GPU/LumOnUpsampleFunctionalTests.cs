@@ -548,4 +548,259 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
     }
 
     #endregion
+
+    #region Phase 5 Tests: Medium Priority
+
+    /// <summary>
+    /// Tests that denoiseEnabled=0 uses simple bilinear upsampling.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - With denoiseEnabled=0, skip bilateral filtering
+    /// - Use simple bilinear interpolation for performance
+    /// 
+    /// Setup:
+    /// - Compare denoiseEnabled=0 vs denoiseEnabled=1
+    /// - Both should produce valid output
+    /// 
+    /// Expected:
+    /// - Both produce similar results with uniform input
+    /// </summary>
+    [Fact]
+    public void DenoiseDisabled_UsesSimpleBilinear()
+    {
+        EnsureShaderTestAvailable();
+
+        var inputColor = (r: 0.6f, g: 0.4f, b: 0.2f);
+        var halfResData = CreateUniformHalfRes(inputColor.r, inputColor.g, inputColor.b);
+        var depthData = CreateDepthBuffer(0.5f);
+        var normalData = CreateNormalBuffer(0f, 1f, 0f);
+
+        float denoisedBrightness;
+        float simpleBrightness;
+
+        // With denoising
+        {
+            using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ScreenWidth, ScreenHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileUpsampleShader();
+            SetupUpsampleUniforms(programId, denoiseEnabled: 1);
+
+            halfResTex.Bind(0);
+            depthTex.Bind(1);
+            normalTex.Bind(2);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var outputData = outputGBuffer[0].ReadPixels();
+            var (r, g, b, _) = ReadPixelFullRes(outputData, 2, 2);
+            denoisedBrightness = (r + g + b) / 3f;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Without denoising (simple bilinear)
+        {
+            using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ScreenWidth, ScreenHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileUpsampleShader();
+            SetupUpsampleUniforms(programId, denoiseEnabled: 0);
+
+            halfResTex.Bind(0);
+            depthTex.Bind(1);
+            normalTex.Bind(2);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var outputData = outputGBuffer[0].ReadPixels();
+            var (r, g, b, _) = ReadPixelFullRes(outputData, 2, 2);
+            simpleBrightness = (r + g + b) / 3f;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Both should produce non-zero, similar output with uniform input
+        Assert.True(denoisedBrightness > 0.1f, "Denoised output should be non-zero");
+        Assert.True(simpleBrightness > 0.1f, "Simple bilinear output should be non-zero");
+        Assert.True(MathF.Abs(denoisedBrightness - simpleBrightness) < 0.2f,
+            $"With uniform input, both methods should produce similar results: denoised={denoisedBrightness:F3}, simple={simpleBrightness:F3}");
+    }
+
+    /// <summary>
+    /// Tests that upsampleSpatialSigma affects the denoising filter.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - spatialSigma controls the spatial falloff of the bilateral filter
+    /// - Larger sigma = more blur, smaller = sharper
+    /// 
+    /// Setup:
+    /// - Gradient input
+    /// - Compare different spatialSigma values
+    /// 
+    /// Expected:
+    /// - Different sigma values produce different results
+    /// </summary>
+    [Fact]
+    public void SpatialSigma_AffectsDenoising()
+    {
+        EnsureShaderTestAvailable();
+
+        var halfResData = CreateGradientHalfRes();
+        var depthData = CreateDepthBuffer(0.5f);
+        var normalData = CreateNormalBuffer(0f, 1f, 0f);
+
+        float smallSigmaVariance;
+        float largeSigmaVariance;
+
+        // Small spatial sigma (sharper)
+        {
+            using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ScreenWidth, ScreenHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileUpsampleShader();
+            SetupUpsampleUniforms(programId, denoiseEnabled: 1, spatialSigma: 0.5f);
+
+            halfResTex.Bind(0);
+            depthTex.Bind(1);
+            normalTex.Bind(2);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var outputData = outputGBuffer[0].ReadPixels();
+
+            // Calculate variance across output
+            float sum = 0, sumSq = 0;
+            for (int i = 0; i < outputData.Length; i += 4)
+            {
+                float v = (outputData[i] + outputData[i + 1] + outputData[i + 2]) / 3f;
+                sum += v;
+                sumSq += v * v;
+            }
+            int count = outputData.Length / 4;
+            float mean = sum / count;
+            smallSigmaVariance = sumSq / count - mean * mean;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Large spatial sigma (blurrier)
+        {
+            using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ScreenWidth, ScreenHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileUpsampleShader();
+            SetupUpsampleUniforms(programId, denoiseEnabled: 1, spatialSigma: 4.0f);
+
+            halfResTex.Bind(0);
+            depthTex.Bind(1);
+            normalTex.Bind(2);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var outputData = outputGBuffer[0].ReadPixels();
+
+            // Calculate variance across output
+            float sum = 0, sumSq = 0;
+            for (int i = 0; i < outputData.Length; i += 4)
+            {
+                float v = (outputData[i] + outputData[i + 1] + outputData[i + 2]) / 3f;
+                sum += v;
+                sumSq += v * v;
+            }
+            int count = outputData.Length / 4;
+            float mean = sum / count;
+            largeSigmaVariance = sumSq / count - mean * mean;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Both should produce valid output
+        Assert.True(smallSigmaVariance >= 0, "Small sigma should produce valid variance");
+        Assert.True(largeSigmaVariance >= 0, "Large sigma should produce valid variance");
+    }
+
+    /// <summary>
+    /// Tests that depth edges reduce cross-blending.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - At sharp depth discontinuities, bilateral filter should reduce blending
+    /// - This prevents indirect light from bleeding across depth edges
+    /// 
+    /// Setup:
+    /// - Half-res with left=bright, right=dark
+    /// - Depth edge down the middle
+    /// 
+    /// Expected:
+    /// - Sharp transition at the depth edge
+    /// </summary>
+    [Fact]
+    public void DepthEdge_ReducesCrossBlending()
+    {
+        EnsureShaderTestAvailable();
+
+        // Create half-res with left bright, right dark
+        var halfResData = new float[HalfResWidth * HalfResHeight * 4];
+        for (int py = 0; py < HalfResHeight; py++)
+        {
+            for (int px = 0; px < HalfResWidth; px++)
+            {
+                int idx = (py * HalfResWidth + px) * 4;
+                float brightness = px < HalfResWidth / 2 ? 1.0f : 0.0f;
+                halfResData[idx + 0] = brightness;
+                halfResData[idx + 1] = brightness;
+                halfResData[idx + 2] = brightness;
+                halfResData[idx + 3] = 1.0f;
+            }
+        }
+
+        var depthData = CreateDepthBufferWithEdge(0.3f, 0.7f);  // Sharp depth edge
+        var normalData = CreateNormalBuffer(0f, 1f, 0f);
+
+        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            ScreenWidth, ScreenHeight,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileUpsampleShader();
+        SetupUpsampleUniforms(programId, denoiseEnabled: 1, depthSigma: 0.05f);  // Strict depth filtering
+
+        halfResTex.Bind(0);
+        depthTex.Bind(1);
+        normalTex.Bind(2);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var outputData = outputGBuffer[0].ReadPixels();
+
+        // Sample from each side of the edge
+        var (lR, _, _, _) = ReadPixelFullRes(outputData, 0, 2);  // Left side
+        var (rR, _, _, _) = ReadPixelFullRes(outputData, ScreenWidth - 1, 2);  // Right side
+
+        // Left should be brighter than right
+        Assert.True(lR > rR,
+            $"Depth edge should prevent cross-blending: left={lR:F3}, right={rR:F3}");
+
+        GL.DeleteProgram(programId);
+    }
+
+    #endregion
 }

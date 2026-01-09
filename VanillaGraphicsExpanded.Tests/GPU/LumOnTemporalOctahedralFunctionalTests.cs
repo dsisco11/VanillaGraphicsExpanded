@@ -1150,4 +1150,122 @@ public class LumOnTemporalOctahedralFunctionalTests : LumOnShaderFunctionalTestB
     }
 
     #endregion
+
+    #region Phase 5 Tests: Medium Priority
+
+    /// <summary>
+    /// Tests that zero history hit distance is rejected as invalid.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - History with hitDistance ≈ 0 indicates invalid/stale data
+    /// - Should fall back to current frame only
+    /// 
+    /// Setup:
+    /// - Current frame with valid hit distance
+    /// - History with near-zero hit distance (encoded as 0)
+    /// 
+    /// Expected:
+    /// - Output should favor current frame
+    /// </summary>
+    [Fact]
+    public void ZeroHistoryHitDistance_RejectedAsInvalid()
+    {
+        EnsureShaderTestAvailable();
+
+        float currentHitDist = 10f;
+        var anchorPos = CreateValidProbeAnchors();
+        var currentAtlas = CreateCurrentAtlas(EncodeHitDistance(currentHitDist));
+        var historyAtlas = CreateHistoryAtlas(EncodeHitDistance(0.001f));  // Near-zero = invalid
+
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
+        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+
+        using var outputAtlas = TestFramework.CreateTestGBuffer(
+            AtlasWidth, AtlasHeight,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileOctahedralTemporalShader();
+        SetupOctahedralTemporalUniforms(
+            programId,
+            frameIndex: 0,
+            texelsPerFrame: 64,
+            temporalAlpha: 0.9f);
+
+        currentAtlasTex.Bind(0);
+        historyAtlasTex.Bind(1);
+        anchorPosTex.Bind(2);
+
+        TestFramework.RenderQuadTo(programId, outputAtlas);
+        var outputData = outputAtlas[0].ReadPixels();
+
+        // With invalid history, output should be closer to current (red) than history (blue)
+        var (r, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
+        Assert.True(r > b * 0.5f,
+            $"Zero history hit distance should favor current frame: R={r:F3}, B={b:F3}");
+
+        GL.DeleteProgram(programId);
+    }
+
+    /// <summary>
+    /// Tests that neighborhood clamping constrains history to valid bounds.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - History values far outside the current neighborhood should be clamped
+    /// - Prevents bright/dark ghost trails
+    /// 
+    /// Setup:
+    /// - Current: uniform gray (0.3)
+    /// - History: extreme value (5.0)
+    /// 
+    /// Expected:
+    /// - Output should be much less than 5.0 (clamped toward current)
+    /// </summary>
+    [Fact]
+    public void NeighborhoodClamping_ClampsToBounds()
+    {
+        EnsureShaderTestAvailable();
+
+        float hitDist = 10f;
+        var anchorPos = CreateValidProbeAnchors();
+
+        // Current = dark gray (0.3), History = very bright (5.0)
+        var currentAtlas = CreateUniformAtlas(0.3f, 0.3f, 0.3f, EncodeHitDistance(hitDist));
+        var historyAtlas = CreateUniformAtlas(5.0f, 5.0f, 5.0f, EncodeHitDistance(hitDist));
+
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
+        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+
+        using var outputAtlas = TestFramework.CreateTestGBuffer(
+            AtlasWidth, AtlasHeight,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileOctahedralTemporalShader();
+        SetupOctahedralTemporalUniforms(
+            programId,
+            frameIndex: 0,
+            texelsPerFrame: 64,
+            temporalAlpha: 0.9f);
+
+        currentAtlasTex.Bind(0);
+        historyAtlasTex.Bind(1);
+        anchorPosTex.Bind(2);
+
+        TestFramework.RenderQuadTo(programId, outputAtlas);
+        var outputData = outputAtlas[0].ReadPixels();
+
+        // Check that output is clamped - should not be near 5.0
+        // With α=0.9 and no clamping: 0.1*0.3 + 0.9*5.0 = 4.53
+        // With clamping: should be much lower
+        var (r, g, b, _) = ReadAtlasTexel(outputData, 4, 4);
+        float brightness = (r + g + b) / 3f;
+
+        Assert.True(brightness < 3.0f,
+            $"Neighborhood clamping should constrain output, got {brightness:F3}");
+
+        GL.DeleteProgram(programId);
+    }
+
+    #endregion
 }

@@ -831,4 +831,304 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
     }
 
     #endregion
+
+    #region Phase 5 Tests: Debug Shader Untested Modes
+
+    /// <summary>
+    /// Tests Mode 3 (Probe Normals) visualization.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - Renders probe normals as RGB color
+    /// - Normal (0,0,-1) should appear as blueish
+    /// 
+    /// Setup:
+    /// - Probes with forward-facing normals (0,0,-1)
+    /// 
+    /// Expected:
+    /// - Output should show normal colors (encoded 0.5,0.5,0 for forward)
+    /// </summary>
+    [Fact]
+    public void Mode3_ProbeNormals_ShowsNormalColors()
+    {
+        EnsureShaderTestAvailable();
+
+        const float probeWorldZ = -5f;
+
+        var depthData = CreateDepthBuffer(0.5f);
+        var normalData = CreateNormalBuffer(0f, 0f, -1f);
+        var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1f);
+        var anchorNormalData = CreateProbeNormals(0f, 0f, -1f);  // Forward-facing
+        var radianceData = CreateUniformSHRadiance(0.5f, 0.5f, 0.5f);
+        var historyMetaData = CreateHistoryMeta(5f, 0f, 0f, -1f, 1f);
+
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
+        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
+        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMetaData);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            ScreenWidth, ScreenHeight,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileDebugShader();
+        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        SetupDebugUniforms(programId, debugMode: MODE_PROBE_NORMAL, identity, identity, identity);
+
+        depthTex.Bind(0);
+        normalTex.Bind(1);
+        anchorPosTex.Bind(2);
+        anchorNormalTex.Bind(3);
+        radiance0Tex.Bind(4);
+        radiance1Tex.Bind(5);
+        indirectHalfTex.Bind(6);
+        historyMetaTex.Bind(7);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var outputData = outputGBuffer[0].ReadPixels();
+
+        // Check that we get non-black output for valid probes
+        int nonBlackCount = 0;
+        for (int y = 0; y < ScreenHeight; y++)
+        {
+            for (int x = 0; x < ScreenWidth; x++)
+            {
+                var (r, g, b, _) = ReadPixel(outputData, x, y, ScreenWidth);
+                if (r > 0.01f || g > 0.01f || b > 0.01f)
+                    nonBlackCount++;
+            }
+        }
+
+        Assert.True(nonBlackCount > 0,
+            "Mode 3 should show normal colors for valid probes");
+
+        GL.DeleteProgram(programId);
+    }
+
+    /// <summary>
+    /// Tests Mode 6 (Temporal Weight) visualization.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - Shows the temporal blending weight as grayscale
+    /// - Higher weight = more history influence
+    /// 
+    /// Setup:
+    /// - Valid probes with consistent history
+    /// 
+    /// Expected:
+    /// - Non-black output indicating temporal weight
+    /// </summary>
+    [Fact]
+    public void Mode6_TemporalWeight_ShowsBlendFactor()
+    {
+        EnsureShaderTestAvailable();
+
+        const float probeWorldZ = -5f;
+
+        var depthData = CreateDepthBuffer(0.5f);
+        var normalData = CreateNormalBuffer(0f, 0f, -1f);
+        var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1f);
+        var anchorNormalData = CreateProbeNormals(0f, 0f, -1f);
+        var radianceData = CreateUniformSHRadiance(0.5f, 0.5f, 0.5f);
+        var historyMetaData = CreateHistoryMeta(probeWorldZ, 0f, 0f, -1f, 0.9f);  // 0.9 temporal weight
+
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
+        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
+        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMetaData);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            ScreenWidth, ScreenHeight,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileDebugShader();
+        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        SetupDebugUniforms(programId, debugMode: MODE_TEMPORAL_WEIGHT, identity, identity, identity);
+
+        depthTex.Bind(0);
+        normalTex.Bind(1);
+        anchorPosTex.Bind(2);
+        anchorNormalTex.Bind(3);
+        radiance0Tex.Bind(4);
+        radiance1Tex.Bind(5);
+        indirectHalfTex.Bind(6);
+        historyMetaTex.Bind(7);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var outputData = outputGBuffer[0].ReadPixels();
+
+        // Check for non-black output
+        int nonBlackCount = 0;
+        for (int y = 0; y < ScreenHeight; y++)
+        {
+            for (int x = 0; x < ScreenWidth; x++)
+            {
+                var (r, g, b, _) = ReadPixel(outputData, x, y, ScreenWidth);
+                if (r > 0.01f || g > 0.01f || b > 0.01f)
+                    nonBlackCount++;
+            }
+        }
+
+        Assert.True(nonBlackCount > 0,
+            "Mode 6 should visualize temporal weights");
+
+        GL.DeleteProgram(programId);
+    }
+
+    /// <summary>
+    /// Tests Mode 7 (Temporal Rejection) visualization.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - Shows rejection mask - red = rejected, green = accepted
+    /// - Helps debug temporal stability issues
+    /// 
+    /// Setup:
+    /// - Valid probes with matching history
+    /// 
+    /// Expected:
+    /// - Non-black output showing rejection state
+    /// </summary>
+    [Fact]
+    public void Mode7_TemporalRejection_ShowsRejectionMask()
+    {
+        EnsureShaderTestAvailable();
+
+        const float probeWorldZ = -5f;
+
+        var depthData = CreateDepthBuffer(0.5f);
+        var normalData = CreateNormalBuffer(0f, 0f, -1f);
+        var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1f);
+        var anchorNormalData = CreateProbeNormals(0f, 0f, -1f);
+        var radianceData = CreateUniformSHRadiance(0.5f, 0.5f, 0.5f);
+        var historyMetaData = CreateHistoryMeta(probeWorldZ, 0f, 0f, -1f, 1f);
+
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
+        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
+        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMetaData);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            ScreenWidth, ScreenHeight,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileDebugShader();
+        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        SetupDebugUniforms(programId, debugMode: MODE_TEMPORAL_REJECTION, identity, identity, identity);
+
+        depthTex.Bind(0);
+        normalTex.Bind(1);
+        anchorPosTex.Bind(2);
+        anchorNormalTex.Bind(3);
+        radiance0Tex.Bind(4);
+        radiance1Tex.Bind(5);
+        indirectHalfTex.Bind(6);
+        historyMetaTex.Bind(7);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var outputData = outputGBuffer[0].ReadPixels();
+
+        // Check for output (rejection visualization)
+        int nonBlackCount = 0;
+        for (int y = 0; y < ScreenHeight; y++)
+        {
+            for (int x = 0; x < ScreenWidth; x++)
+            {
+                var (r, g, b, _) = ReadPixel(outputData, x, y, ScreenWidth);
+                if (r > 0.01f || g > 0.01f || b > 0.01f)
+                    nonBlackCount++;
+            }
+        }
+
+        Assert.True(nonBlackCount > 0,
+            "Mode 7 should visualize temporal rejection mask");
+
+        GL.DeleteProgram(programId);
+    }
+
+    /// <summary>
+    /// Tests Mode 9 (Interpolation Weights) visualization.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - Shows bilinear interpolation weights for probe gather
+    /// - Visualizes how much each probe contributes
+    /// 
+    /// Setup:
+    /// - Valid probe grid
+    /// 
+    /// Expected:
+    /// - Non-black output showing weight distribution
+    /// </summary>
+    [Fact]
+    public void Mode9_InterpolationWeights_ShowsProbeContributions()
+    {
+        EnsureShaderTestAvailable();
+
+        const float probeWorldZ = -5f;
+
+        var depthData = CreateDepthBuffer(0.5f);
+        var normalData = CreateNormalBuffer(0f, 0f, -1f);
+        var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1f);
+        var anchorNormalData = CreateProbeNormals(0f, 0f, -1f);
+        var radianceData = CreateUniformSHRadiance(0.5f, 0.5f, 0.5f);
+        var historyMetaData = CreateHistoryMeta(probeWorldZ, 0f, 0f, -1f, 1f);
+
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
+        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
+        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMetaData);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            ScreenWidth, ScreenHeight,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileDebugShader();
+        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        SetupDebugUniforms(programId, debugMode: MODE_INTERPOLATION_WEIGHTS, identity, identity, identity);
+
+        depthTex.Bind(0);
+        normalTex.Bind(1);
+        anchorPosTex.Bind(2);
+        anchorNormalTex.Bind(3);
+        radiance0Tex.Bind(4);
+        radiance1Tex.Bind(5);
+        indirectHalfTex.Bind(6);
+        historyMetaTex.Bind(7);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var outputData = outputGBuffer[0].ReadPixels();
+
+        // Check for output (weight visualization)
+        int nonBlackCount = 0;
+        for (int y = 0; y < ScreenHeight; y++)
+        {
+            for (int x = 0; x < ScreenWidth; x++)
+            {
+                var (r, g, b, _) = ReadPixel(outputData, x, y, ScreenWidth);
+                if (r > 0.01f || g > 0.01f || b > 0.01f)
+                    nonBlackCount++;
+            }
+        }
+
+        Assert.True(nonBlackCount > 0,
+            "Mode 9 should visualize interpolation weights");
+
+        GL.DeleteProgram(programId);
+    }
+
+    #endregion
 }

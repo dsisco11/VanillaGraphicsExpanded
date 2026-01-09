@@ -1327,4 +1327,248 @@ public class LumOnProbeTraceOctahedralFunctionalTests : LumOnShaderFunctionalTes
     }
 
     #endregion
+
+    #region Phase 5 Tests: Medium Priority
+
+    /// <summary>
+    /// Tests that frameIndex affects which texels are selected for tracing.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - Different frame indices should trace different texels
+    /// - This implements temporal distribution across frames
+    /// 
+    /// Setup:
+    /// - Same scene, different frameIndex values
+    /// - Compare which texels are updated
+    /// 
+    /// Expected:
+    /// - Different frame indices should produce different update patterns
+    /// </summary>
+    [Fact]
+    public void FrameIndex_JittersTexelSelection()
+    {
+        EnsureShaderTestAvailable();
+
+        var anchorPosData = CreateValidProbeAnchors();
+        var anchorNormalData = CreateProbeNormalsUpward();
+        var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(1.0f, channels: 1);
+        var colorData = CreateUniformSceneColor(1f, 0f, 0f);
+        var historyData = CreateZeroedHistory();
+
+        float[] frame0Output;
+        float[] frame1Output;
+
+        // Frame 0
+        {
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+            using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+
+            using var outputAtlas = TestFramework.CreateTestGBuffer(
+                AtlasWidth, AtlasHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileOctahedralTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            var invView = LumOnTestInputFactory.CreateIdentityView();
+            SetupOctahedralTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                invView: invView,
+                frameIndex: 0,
+                texelsPerFrame: 8);
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+            historyTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputAtlas);
+            frame0Output = outputAtlas[0].ReadPixels();
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Frame 1
+        {
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+            using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+
+            using var outputAtlas = TestFramework.CreateTestGBuffer(
+                AtlasWidth, AtlasHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileOctahedralTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            var invView = LumOnTestInputFactory.CreateIdentityView();
+            SetupOctahedralTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                invView: invView,
+                frameIndex: 1,
+                texelsPerFrame: 8);
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+            historyTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputAtlas);
+            frame1Output = outputAtlas[0].ReadPixels();
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Count how many texels differ between frames
+        int differentTexels = 0;
+        for (int i = 0; i < frame0Output.Length; i += 4)
+        {
+            bool frame0HasValue = frame0Output[i] > 0.01f || frame0Output[i + 1] > 0.01f || frame0Output[i + 2] > 0.01f;
+            bool frame1HasValue = frame1Output[i] > 0.01f || frame1Output[i + 1] > 0.01f || frame1Output[i + 2] > 0.01f;
+            if (frame0HasValue != frame1HasValue)
+                differentTexels++;
+        }
+
+        // Different frame indices should update different texels
+        Assert.True(differentTexels > 0,
+            "Different frame indices should trace different texels for temporal distribution");
+    }
+
+    /// <summary>
+    /// Tests that texelsPerFrame uniform controls how many texels are traced each frame.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - texelsPerFrame=8: traces 8 texels per probe per frame
+    /// - texelsPerFrame=32: traces 32 texels per probe per frame
+    /// 
+    /// Setup:
+    /// - Compare outputs with different texelsPerFrame values
+    /// - Start from zeroed history
+    /// 
+    /// Expected:
+    /// - Higher texelsPerFrame should result in more non-zero texels
+    /// </summary>
+    [Fact]
+    public void TexelsPerFrame_AffectsTemporalDistribution()
+    {
+        EnsureShaderTestAvailable();
+
+        var anchorPosData = CreateValidProbeAnchors();
+        var anchorNormalData = CreateProbeNormalsUpward();
+        var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(0.5f, channels: 1);
+        var colorData = CreateUniformSceneColor(1f, 1f, 1f);
+        var historyData = CreateZeroedHistory();
+
+        int lowTexelsNonZero;
+        int highTexelsNonZero;
+
+        // Low texels per frame (8)
+        {
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+            using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+
+            using var outputAtlas = TestFramework.CreateTestGBuffer(
+                AtlasWidth, AtlasHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileOctahedralTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            var invView = LumOnTestInputFactory.CreateIdentityView();
+            SetupOctahedralTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                invView: invView,
+                texelsPerFrame: 8);
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+            historyTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputAtlas);
+            var outputData = outputAtlas[0].ReadPixels();
+
+            lowTexelsNonZero = 0;
+            for (int i = 0; i < outputData.Length; i += 4)
+            {
+                if (outputData[i] > 0.01f || outputData[i + 1] > 0.01f || outputData[i + 2] > 0.01f)
+                    lowTexelsNonZero++;
+            }
+
+            GL.DeleteProgram(programId);
+        }
+
+        // High texels per frame (32)
+        {
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+            using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+
+            using var outputAtlas = TestFramework.CreateTestGBuffer(
+                AtlasWidth, AtlasHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileOctahedralTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            var invView = LumOnTestInputFactory.CreateIdentityView();
+            SetupOctahedralTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                invView: invView,
+                texelsPerFrame: 32);
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+            historyTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputAtlas);
+            var outputData = outputAtlas[0].ReadPixels();
+
+            highTexelsNonZero = 0;
+            for (int i = 0; i < outputData.Length; i += 4)
+            {
+                if (outputData[i] > 0.01f || outputData[i + 1] > 0.01f || outputData[i + 2] > 0.01f)
+                    highTexelsNonZero++;
+            }
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Higher texelsPerFrame should trace more texels
+        Assert.True(highTexelsNonZero >= lowTexelsNonZero,
+            $"Higher texelsPerFrame should trace more texels: low={lowTexelsNonZero}, high={highTexelsNonZero}");
+    }
+
+    #endregion
 }

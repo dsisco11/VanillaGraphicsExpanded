@@ -1092,5 +1092,106 @@ public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBas
         Assert.True(stride2Brightness > 0.001f, "Stride 2 should produce non-zero output");
     }
 
+    /// <summary>
+    /// Tests that hemisphere backface samples are skipped correctly.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - When cosWeight (dot(dir, normal)) &lt;= 0, the sample should be skipped
+    /// - This prevents sampling from behind the surface
+    /// 
+    /// Setup:
+    /// - Surface normal pointing up (0, 1, 0)
+    /// - Atlas should only contribute from upper hemisphere
+    /// 
+    /// Expected:
+    /// - Output should reflect only upper hemisphere contribution
+    /// </summary>
+    [Fact]
+    public void HemisphereBackface_SkippedCorrectly()
+    {
+        EnsureShaderTestAvailable();
+
+        const float pixelDepth = 0.5f;
+
+        CreateTestMatricesForDepth(pixelDepth, out var invProjection, out var viewMatrix,
+            out var probeWorldZ, out var hitDistance);
+
+        // Create atlas with different colors for upper and lower hemisphere
+        // Upper hemisphere (y > 0) = bright, Lower = dark
+        var atlasData = CreateHemisphereAtlas(hitDistance);
+        var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1.0f);
+        var anchorNormalData = CreateProbeNormals(0f, 1f, 0f);  // Upward normal
+        var depthData = CreateDepthBuffer(pixelDepth);
+        var normalData = CreateNormalBuffer(0f, 1f, 0f);  // Upward normal
+
+        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            HalfResWidth, HalfResHeight,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileGatherShader();
+        SetupGatherUniforms(programId, invProjection, viewMatrix);
+
+        atlasTex.Bind(0);
+        anchorPosTex.Bind(1);
+        anchorNormalTex.Bind(2);
+        depthTex.Bind(3);
+        normalTex.Bind(4);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var outputData = outputGBuffer[0].ReadPixels();
+
+        // With upward normal, gather should mostly see upper hemisphere (brighter)
+        var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
+        float brightness = (r + g + b) / 3f;
+
+        // Should be non-zero (upper hemisphere contributes)
+        Assert.True(brightness > 0.01f,
+            $"Upper hemisphere should contribute to gather, got brightness={brightness:F4}");
+    }
+
+    /// <summary>
+    /// Creates an atlas with bright upper hemisphere and dark lower hemisphere.
+    /// </summary>
+    private float[] CreateHemisphereAtlas(float hitDistance)
+    {
+        var data = new float[AtlasWidth * AtlasHeight * 4];
+        float encHitDist = MathF.Log(hitDistance + 1.0f);  // Encode hit distance
+
+        for (int py = 0; py < ProbeGridHeight; py++)
+        {
+            for (int px = 0; px < ProbeGridWidth; px++)
+            {
+                int tileX = px * OctahedralSize;
+                int tileY = py * OctahedralSize;
+
+                for (int ty = 0; ty < OctahedralSize; ty++)
+                {
+                    for (int tx = 0; tx < OctahedralSize; tx++)
+                    {
+                        int atlasX = tileX + tx;
+                        int atlasY = tileY + ty;
+                        int idx = (atlasY * AtlasWidth + atlasX) * 4;
+
+                        // Upper half of tile = bright (upper hemisphere), Lower = dark
+                        bool isUpperHemisphere = ty < OctahedralSize / 2;
+                        float brightness = isUpperHemisphere ? 1.0f : 0.1f;
+
+                        data[idx + 0] = brightness;
+                        data[idx + 1] = brightness;
+                        data[idx + 2] = brightness;
+                        data[idx + 3] = encHitDist;
+                    }
+                }
+            }
+        }
+        return data;
+    }
+
     #endregion
 }

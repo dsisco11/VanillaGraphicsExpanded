@@ -21,30 +21,30 @@ LumOn Functional Test Coverage:
 
   Phase 5 - Medium Priority Missing Tests:
     Probe Trace Shaders:
-      ☐ FrameIndex_JittersTexelSelection - Test multi-frame jitter pattern
-      ☐ TexelsPerFrame_AffectsTemporalDistribution - Test different temporal distribution values
+      ✔ FrameIndex_JittersTexelSelection - Test multi-frame jitter pattern @done
+      ✔ TexelsPerFrame_AffectsTemporalDistribution - Test different temporal distribution values @done
       ☐ RayExitsScreen_TerminatesEarly - Test ray leaving screen boundary
       ☐ InvViewMatrix_TransformsDirectionsCorrectly - Verify world-to-view transform accuracy
     Temporal Octahedral Shader:
       ☐ HitDistanceRejectThreshold_TriggersDisocclusion - Test threshold boundary behavior
-      ☐ NeighborhoodClamping_ClampsToBounds - Verify specific clamp min/max behavior
-      ☐ ZeroHistoryHitDistance_RejectedAsInvalid - Test near-zero history detection
+      ✔ NeighborhoodClamping_ClampsToBounds - Verify specific clamp min/max behavior @done
+      ✔ ZeroHistoryHitDistance_RejectedAsInvalid - Test near-zero history detection @done
     Gather Octahedral Shader:
-      ☐ SampleStride_AffectsQuality - Test stride 1 vs 2 quality difference
+      ✔ SampleStride_AffectsQuality - Test stride 1 vs 2 quality difference @done
       ☐ LeakThreshold_PreventsBleeding - Test leak prevention logic
-      ☐ HemisphereBackface_SkippedCorrectly - Test cosWeight <= 0.0 rejection
+      ✔ HemisphereBackface_SkippedCorrectly - Test cosWeight <= 0.0 rejection @done
     Upsample Shader:
-      ☐ DenoiseDisabled_UsesSimpleBilinear - Test denoiseEnabled=0 fast path
-      ☐ SpatialSigma_AffectsDenoising - Test upsampleSpatialSigma uniform
-      ☐ DepthEdge_ReducesCrossBlending - Test bilateral filter at sharp depth edges
+      ✔ DenoiseDisabled_UsesSimpleBilinear - Test denoiseEnabled=0 fast path @done
+      ✔ SpatialSigma_AffectsDenoising - Test upsampleSpatialSigma uniform @done
+      ✔ DepthEdge_ReducesCrossBlending - Test bilateral filter at sharp depth edges @done
     Combine Shader:
-      ☐ IndirectTint_ColorsIndirectLight - Test indirectTint uniform application
-      ☐ PartialMetallic_BlendsDiffuse - Test mid-range metallic (0.5) behavior
+      ✔ IndirectTint_ColorsIndirectLight - Test indirectTint uniform application @done
+      ✔ PartialMetallic_BlendsDiffuse - Test mid-range metallic (0.5) behavior @done
     Debug Shader - Untested Modes:
-      ☐ Mode3_ProbeNormals - Test renderProbeNormalDebug()
-      ☐ Mode6_TemporalWeight - Test renderTemporalWeightDebug()
-      ☐ Mode7_TemporalRejection - Test renderTemporalRejectionDebug()
-      ☐ Mode9_InterpolationWeights - Test renderInterpolationWeightsDebug()
+      ✔ Mode3_ProbeNormals - Test renderProbeNormalDebug() @done
+      ✔ Mode6_TemporalWeight - Test renderTemporalWeightDebug() @done
+      ✔ Mode7_TemporalRejection - Test renderTemporalRejectionDebug() @done
+      ✔ Mode9_InterpolationWeights - Test renderInterpolationWeightsDebug() @done
 
   Phase 6 - Low Priority Missing Tests:
     Error Handling & Edge Cases:

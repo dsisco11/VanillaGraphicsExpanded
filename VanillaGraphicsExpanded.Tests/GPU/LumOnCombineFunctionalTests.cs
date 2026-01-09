@@ -554,4 +554,207 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
     }
 
     #endregion
+
+    #region Phase 5 Tests: Medium Priority
+
+    /// <summary>
+    /// Tests that indirectTint colors the indirect lighting contribution.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - indirectTint multiplies the indirect contribution
+    /// - Allows artistic control over indirect light color
+    /// 
+    /// Setup:
+    /// - White indirect light
+    /// - Red tint (1, 0, 0)
+    /// 
+    /// Expected:
+    /// - Indirect contribution should be red-tinted
+    /// </summary>
+    [Fact]
+    public void IndirectTint_ColorsIndirectLight()
+    {
+        EnsureShaderTestAvailable();
+
+        var direct = (r: 0.0f, g: 0.0f, b: 0.0f);   // No direct
+        var indirect = (r: 1.0f, g: 1.0f, b: 1.0f); // White indirect
+        var albedo = (r: 1.0f, g: 1.0f, b: 1.0f);   // White albedo
+
+        var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+        var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f);
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);
+
+        using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, sceneDirectData);
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, albedoData);
+        using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            ScreenWidth, ScreenHeight,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileCombineShader();
+        SetupCombineUniforms(programId, indirectIntensity: 1.0f, indirectTint: (1f, 0f, 0f), lumOnEnabled: 1);  // Red tint
+
+        sceneDirectTex.Bind(0);
+        indirectTex.Bind(1);
+        albedoTex.Bind(2);
+        materialTex.Bind(3);
+        depthTex.Bind(4);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var outputData = outputGBuffer[0].ReadPixels();
+
+        // Output should be red (white indirect * red tint)
+        var (r, g, b, _) = ReadPixelScreen(outputData, 2, 2);
+        Assert.True(r > 0.5f, $"Red tint should produce red output, got R={r:F3}");
+        Assert.True(g < 0.1f, $"Red tint should suppress green, got G={g:F3}");
+        Assert.True(b < 0.1f, $"Red tint should suppress blue, got B={b:F3}");
+
+        GL.DeleteProgram(programId);
+    }
+
+    /// <summary>
+    /// Tests that partial metallic values blend diffuse correctly.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - metallic=0.5 should give diffuseWeight=0.5
+    /// - Indirect contribution should be half of full dielectric
+    /// 
+    /// Setup:
+    /// - Metallic = 0.5
+    /// - Bright indirect light
+    /// 
+    /// Expected:
+    /// - Output between full dielectric and full metal
+    /// </summary>
+    [Fact]
+    public void PartialMetallic_BlendsDiffuse()
+    {
+        EnsureShaderTestAvailable();
+
+        var direct = (r: 0.2f, g: 0.2f, b: 0.2f);
+        var indirect = (r: 1.0f, g: 1.0f, b: 1.0f);
+        var albedo = (r: 1.0f, g: 1.0f, b: 1.0f);
+
+        float dielectricBrightness;
+        float halfMetallicBrightness;
+        float fullMetallicBrightness;
+
+        // Dielectric (metallic=0)
+        {
+            var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+            var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+            var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+            var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f);
+            var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);
+
+            using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, sceneDirectData);
+            using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, indirectData);
+            using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, albedoData);
+            using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ScreenWidth, ScreenHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileCombineShader();
+            SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
+
+            sceneDirectTex.Bind(0);
+            indirectTex.Bind(1);
+            albedoTex.Bind(2);
+            materialTex.Bind(3);
+            depthTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var outputData = outputGBuffer[0].ReadPixels();
+            var (r, g, b, _) = ReadPixelScreen(outputData, 2, 2);
+            dielectricBrightness = (r + g + b) / 3f;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Half metallic (metallic=0.5)
+        {
+            var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+            var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+            var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+            var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.5f);
+            var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);
+
+            using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, sceneDirectData);
+            using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, indirectData);
+            using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, albedoData);
+            using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ScreenWidth, ScreenHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileCombineShader();
+            SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
+
+            sceneDirectTex.Bind(0);
+            indirectTex.Bind(1);
+            albedoTex.Bind(2);
+            materialTex.Bind(3);
+            depthTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var outputData = outputGBuffer[0].ReadPixels();
+            var (r, g, b, _) = ReadPixelScreen(outputData, 2, 2);
+            halfMetallicBrightness = (r + g + b) / 3f;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Full metallic (metallic=1.0)
+        {
+            var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+            var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+            var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+            var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 1.0f);
+            var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);
+
+            using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, sceneDirectData);
+            using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, indirectData);
+            using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, albedoData);
+            using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ScreenWidth, ScreenHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileCombineShader();
+            SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
+
+            sceneDirectTex.Bind(0);
+            indirectTex.Bind(1);
+            albedoTex.Bind(2);
+            materialTex.Bind(3);
+            depthTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var outputData = outputGBuffer[0].ReadPixels();
+            var (r, g, b, _) = ReadPixelScreen(outputData, 2, 2);
+            fullMetallicBrightness = (r + g + b) / 3f;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Half metallic should be between dielectric and full metallic
+        Assert.True(halfMetallicBrightness < dielectricBrightness,
+            $"Half metallic ({halfMetallicBrightness:F3}) should be darker than dielectric ({dielectricBrightness:F3})");
+        Assert.True(halfMetallicBrightness > fullMetallicBrightness,
+            $"Half metallic ({halfMetallicBrightness:F3}) should be brighter than full metallic ({fullMetallicBrightness:F3})");
+    }
+
+    #endregion
 }
