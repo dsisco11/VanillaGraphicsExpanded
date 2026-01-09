@@ -93,27 +93,27 @@ LumOn GPU Shader Functional Tests:
         ✔ Expected: all 64 texels = (0,0,0,0) @done
 
   Phase 5 - Temporal Accumulation Tests:
-    ☐ Create LumOnTemporalFunctionalTests.cs
-      ☐ Single-frame tests (α=1.0 bypass):
-        ☐ Test: AlphaOne_PassthroughCurrent
-          ☐ Input: current=red, history=blue, temporalAlpha=1.0
-          ☐ Expected: output = red (current passthrough)
-        ☐ Test: AlphaOne_MetaUpdated
-          ☐ Input: new depth/normal values
-          ☐ Expected: outMeta contains current frame values
-      ☐ Two-frame blend tests (α=0.1):
-        ☐ Test: AlphaBlend_AccumulatesHistory
-          ☐ Input: current=red, history=blue, temporalAlpha=0.1
-          ☐ Expected: output = lerp(blue, red, 0.1)
-        ☐ Test: DepthRejection_DiscardsHistory
-          ☐ Input: large depth change between frames
-          ☐ Expected: output = current (history rejected)
-        ☐ Test: NormalRejection_DiscardsHistory
-          ☐ Input: large normal change between frames
-          ☐ Expected: output = current (history rejected)
-        ☐ Test: AccumCount_Increments
-          ☐ Input: valid accumulation
-          ☐ Expected: outMeta.accumCount = history.accumCount + 1
+    ✔ Create LumOnTemporalFunctionalTests.cs @done
+      ✔ Single-frame tests (α=1.0 bypass): @done
+        ✔ Test: AlphaOne_PassthroughCurrent @done
+          ✔ Input: current=red, history=blue, temporalAlpha=1.0 @done
+          ✔ Expected: output = red (current passthrough) @done
+        ✔ Test: AlphaOne_MetaUpdated @done
+          ✔ Input: new depth/normal values @done
+          ✔ Expected: outMeta contains current frame values @done
+      ✔ Two-frame blend tests (α=0.9): @done
+        ✔ Test: AlphaBlend_AccumulatesHistory @done
+          ✔ Input: current=varied, history=gray, temporalAlpha=0.9 @done
+          ✔ Expected: output = blended (accounting for neighborhood clamping) @done
+        ✔ Test: DepthRejection_DiscardsHistory @done
+          ✔ Input: large depth change between frames @done
+          ✔ Expected: output = current (history rejected) @done
+        ✔ Test: NormalRejection_DiscardsHistory @done
+          ✔ Input: large normal change between frames @done
+          ✔ Expected: output = current (history rejected) @done
+        ✔ Test: AccumCount_Increments @done
+          ✔ Input: valid accumulation @done
+          ✔ Expected: outMeta.accumCount = history.accumCount + 1 @done
 
   Phase 6 - Gather Pass Tests:
     ☐ Create LumOnGatherFunctionalTests.cs
