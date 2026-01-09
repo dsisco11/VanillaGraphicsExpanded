@@ -5,25 +5,23 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-    <PackageReference Include="Silk.NET.OpenGL" Version="2.21.0" />
-    <!-- xUnit v3 for SkipException support -->
     <PackageReference Include="xunit.v3" Version="1.0.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.0.0" />
-    <!-- Silk.NET for headless OpenGL context -->
-    <PackageReference Include="Silk.NET.Windowing" Version="2.21.0" />
-    <PackageReference Include="Silk.NET.GLFW" Version="2.21.0" />
+    <!-- OpenTK packages for GPU testing (includes native GLFW binaries) -->
+    <PackageReference Include="OpenTK" Version="4.9.4" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\VanillaGraphicsExpanded\VanillaGraphicsExpanded.csproj" />
   </ItemGroup>
 
-  <!-- Reference VintagestoryAPI for ILogger type -->
+  <!-- Reference VintagestoryAPI from game directory -->
   <ItemGroup>
     <Reference Include="VintagestoryAPI">
       <HintPath>$(VINTAGE_STORY)/VintagestoryAPI.dll</HintPath>

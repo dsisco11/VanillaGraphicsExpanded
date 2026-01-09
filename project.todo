@@ -55,13 +55,13 @@ Headless OpenGL Shader Test Fixture:
       ✔ lumon_combine: sceneDirect, indirectDiffuse, gBufferAlbedo, gBufferMaterial, primaryDepth, indirectIntensity, indirectTint, lumOnEnabled @done
 
   Phase 5 - Render Test Infrastructure:
-    ☐ Create GPU/Fixtures/RenderTestBase.cs abstract base class
-    ☐ Use existing DynamicTexture class for RGBA16F render targets
-    ☐ Use existing GBuffer class for FBO setup
-    ☐ Implement CreateRenderTarget(int width, int height, PixelInternalFormat format) helper
-    ☐ Implement RenderFullscreenQuad(int programId) helper
-    ☐ Implement ReadPixels<T>(GBuffer fbo) helper for pixel verification
-    ☐ Add fullscreen quad VAO setup/teardown
+    ✔ Create GPU/Fixtures/RenderTestBase.cs abstract base class @done
+    ✔ Use existing DynamicTexture class for RGBA16F render targets @done
+    ✔ Use existing GBuffer class for FBO setup @done
+    ✔ Implement CreateRenderTarget(int width, int height, PixelInternalFormat format) helper @done
+    ✔ Implement RenderFullscreenQuad(int programId) helper @done
+    ✔ Implement ReadPixels<T>(GBuffer fbo) helper for pixel verification @done
+    ✔ Add fullscreen quad VAO setup/teardown @done
 
   Phase 6 - Documentation:
     ☐ Add "Testing" section to README.md

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Silk.NET.OpenGL;
+using OpenTK.Graphics.OpenGL;
 using TinyTokenizer.Ast;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -12,11 +12,10 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 /// </summary>
 public sealed class ShaderTestHelper : IDisposable
 {
-    private readonly GL _gl;
     private readonly string _shaderBasePath;
     private readonly string _includeBasePath;
-    private readonly List<uint> _allocatedShaders = [];
-    private readonly List<uint> _allocatedPrograms = [];
+    private readonly List<int> _allocatedShaders = [];
+    private readonly List<int> _allocatedPrograms = [];
     
     // Lazy-loaded imports cache
     private Dictionary<string, string>? _importsCache;
@@ -24,16 +23,13 @@ public sealed class ShaderTestHelper : IDisposable
     /// <summary>
     /// Creates a new ShaderTestHelper with explicit paths.
     /// </summary>
-    /// <param name="gl">The Silk.NET GL instance.</param>
     /// <param name="shaderBasePath">Base path for shader files (.vsh, .fsh).</param>
     /// <param name="includeBasePath">Base path for include files (shaderincludes/).</param>
-    public ShaderTestHelper(GL gl, string shaderBasePath, string includeBasePath)
+    public ShaderTestHelper(string shaderBasePath, string includeBasePath)
     {
-        ArgumentNullException.ThrowIfNull(gl);
         ArgumentException.ThrowIfNullOrWhiteSpace(shaderBasePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(includeBasePath);
 
-        _gl = gl;
         _shaderBasePath = shaderBasePath;
         _includeBasePath = includeBasePath;
 
@@ -106,17 +102,17 @@ public sealed class ShaderTestHelper : IDisposable
             }
 
             // Create and compile shader
-            uint shaderId = _gl.CreateShader(type);
+            int shaderId = GL.CreateShader(type);
             _allocatedShaders.Add(shaderId);
 
-            _gl.ShaderSource(shaderId, processedSource);
-            _gl.CompileShader(shaderId);
+            GL.ShaderSource(shaderId, processedSource);
+            GL.CompileShader(shaderId);
 
             // Check compilation status
-            _gl.GetShader(shaderId, ShaderParameterName.CompileStatus, out int status);
+            GL.GetShader(shaderId, ShaderParameter.CompileStatus, out int status);
             if (status == 0)
             {
-                var infoLog = _gl.GetShaderInfoLog(shaderId);
+                var infoLog = GL.GetShaderInfoLog(shaderId);
                 return ShaderCompileResult.Failure($"Compilation failed for {filename}:\n{infoLog}");
             }
 
@@ -134,22 +130,22 @@ public sealed class ShaderTestHelper : IDisposable
     /// <param name="vertexShaderId">Compiled vertex shader ID.</param>
     /// <param name="fragmentShaderId">Compiled fragment shader ID.</param>
     /// <returns>Result containing program ID on success, or error message on failure.</returns>
-    public ProgramLinkResult LinkProgram(uint vertexShaderId, uint fragmentShaderId)
+    public ProgramLinkResult LinkProgram(int vertexShaderId, int fragmentShaderId)
     {
         try
         {
-            uint programId = _gl.CreateProgram();
+            int programId = GL.CreateProgram();
             _allocatedPrograms.Add(programId);
 
-            _gl.AttachShader(programId, vertexShaderId);
-            _gl.AttachShader(programId, fragmentShaderId);
-            _gl.LinkProgram(programId);
+            GL.AttachShader(programId, vertexShaderId);
+            GL.AttachShader(programId, fragmentShaderId);
+            GL.LinkProgram(programId);
 
             // Check link status
-            _gl.GetProgram(programId, ProgramPropertyARB.LinkStatus, out int status);
+            GL.GetProgram(programId, GetProgramParameterName.LinkStatus, out int status);
             if (status == 0)
             {
-                var infoLog = _gl.GetProgramInfoLog(programId);
+                var infoLog = GL.GetProgramInfoLog(programId);
                 return ProgramLinkResult.Failure($"Link failed:\n{infoLog}");
             }
 
@@ -190,9 +186,9 @@ public sealed class ShaderTestHelper : IDisposable
     /// <param name="programId">The shader program ID.</param>
     /// <param name="uniformName">The name of the uniform.</param>
     /// <returns>The uniform location, or -1 if not found.</returns>
-    public int GetUniformLocation(uint programId, string uniformName)
+    public int GetUniformLocation(int programId, string uniformName)
     {
-        return _gl.GetUniformLocation(programId, uniformName);
+        return GL.GetUniformLocation(programId, uniformName);
     }
 
     /// <summary>
@@ -216,7 +212,7 @@ public sealed class ShaderTestHelper : IDisposable
         {
             if (programId != 0)
             {
-                _gl.DeleteProgram(programId);
+                GL.DeleteProgram(programId);
             }
         }
         _allocatedPrograms.Clear();
@@ -225,7 +221,7 @@ public sealed class ShaderTestHelper : IDisposable
         {
             if (shaderId != 0)
             {
-                _gl.DeleteShader(shaderId);
+                GL.DeleteShader(shaderId);
             }
         }
         _allocatedShaders.Clear();
@@ -238,17 +234,17 @@ public sealed class ShaderTestHelper : IDisposable
 public readonly struct ShaderCompileResult
 {
     public bool IsSuccess { get; }
-    public uint ShaderId { get; }
+    public int ShaderId { get; }
     public string? ErrorMessage { get; }
 
-    private ShaderCompileResult(bool success, uint shaderId, string? error)
+    private ShaderCompileResult(bool success, int shaderId, string? error)
     {
         IsSuccess = success;
         ShaderId = shaderId;
         ErrorMessage = error;
     }
 
-    public static ShaderCompileResult Success(uint shaderId) => new(true, shaderId, null);
+    public static ShaderCompileResult Success(int shaderId) => new(true, shaderId, null);
     public static ShaderCompileResult Failure(string error) => new(false, 0, error);
 }
 
@@ -258,16 +254,16 @@ public readonly struct ShaderCompileResult
 public readonly struct ProgramLinkResult
 {
     public bool IsSuccess { get; }
-    public uint ProgramId { get; }
+    public int ProgramId { get; }
     public string? ErrorMessage { get; }
 
-    private ProgramLinkResult(bool success, uint programId, string? error)
+    private ProgramLinkResult(bool success, int programId, string? error)
     {
         IsSuccess = success;
         ProgramId = programId;
         ErrorMessage = error;
     }
 
-    public static ProgramLinkResult Success(uint programId) => new(true, programId, null);
+    public static ProgramLinkResult Success(int programId) => new(true, programId, null);
     public static ProgramLinkResult Failure(string error) => new(false, 0, error);
 }

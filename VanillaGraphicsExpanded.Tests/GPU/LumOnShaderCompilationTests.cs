@@ -1,3 +1,4 @@
+using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using Xunit;
@@ -19,14 +20,14 @@ public class LumOnShaderCompilationTests : IDisposable
     {
         _fixture = fixture;
 
-        if (_fixture.IsContextValid && _fixture.GL != null)
+        if (_fixture.IsContextValid)
         {
             var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
             var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaderincludes");
 
             if (Directory.Exists(shaderPath) && Directory.Exists(includePath))
             {
-                _helper = new ShaderTestHelper(_fixture.GL, shaderPath, includePath);
+                _helper = new ShaderTestHelper(shaderPath, includePath);
             }
         }
     }
@@ -74,7 +75,7 @@ public class LumOnShaderCompilationTests : IDisposable
         _fixture.EnsureContextValid();
         Assert.SkipWhen(_helper == null, "ShaderTestHelper not available - assets may be missing");
 
-        var result = _helper!.CompileShader(vertexShader, Silk.NET.OpenGL.ShaderType.VertexShader);
+        var result = _helper!.CompileShader(vertexShader, ShaderType.VertexShader);
 
         Assert.True(result.IsSuccess, 
             $"Vertex shader compilation failed for {vertexShader}:\n{result.ErrorMessage}");
@@ -88,7 +89,7 @@ public class LumOnShaderCompilationTests : IDisposable
         _fixture.EnsureContextValid();
         Assert.SkipWhen(_helper == null, "ShaderTestHelper not available - assets may be missing");
 
-        var result = _helper!.CompileShader(fragmentShader, Silk.NET.OpenGL.ShaderType.FragmentShader);
+        var result = _helper!.CompileShader(fragmentShader, ShaderType.FragmentShader);
 
         Assert.True(result.IsSuccess, 
             $"Fragment shader compilation failed for {fragmentShader}:\n{result.ErrorMessage}");

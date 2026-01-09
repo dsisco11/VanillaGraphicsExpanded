@@ -1,18 +1,23 @@
 using System;
 using System.Threading.Tasks;
-using Silk.NET.OpenGL;
-using Silk.NET.Windowing;
+using OpenTK.Graphics.OpenGL;
+using OpenTK.Mathematics;
+using OpenTK.Windowing.Common;
+using OpenTK.Windowing.Desktop;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 /// <summary>
 /// xUnit fixture that creates a headless OpenGL 4.3 context for GPU tests.
-/// Uses Silk.NET to create a hidden window with an OpenGL context.
+/// Uses OpenTK.Windowing.Desktop to create a hidden window with an OpenGL context.
+/// This uses the same OpenTK libraries as the production code, ensuring full compatibility.
 /// </summary>
 /// <remarks>
 /// Usage:
 /// <code>
+/// [Collection("GPU")]
 /// [Trait("Category", "GPU")]
 /// public class MyGpuTests : IClassFixture&lt;HeadlessGLFixture&gt;
 /// {
@@ -27,8 +32,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// </remarks>
 public sealed class HeadlessGLFixture : IAsyncLifetime
 {
-    private IWindow? _window;
-    private GL? _gl;
+    private unsafe Window* _glfwWindow;
     private bool _contextValid;
     private string? _initializationError;
 
@@ -53,11 +57,6 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
     public string? GLRenderer { get; private set; }
 
     /// <summary>
-    /// The Silk.NET OpenGL API instance. Use this for all GL calls in tests.
-    /// </summary>
-    public GL? GL => _gl;
-
-    /// <summary>
     /// Ensures the GL context is valid; throws skip exception if not.
     /// Call this at the start of tests that require GPU.
     /// </summary>
@@ -69,46 +68,59 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
     /// <summary>
     /// Makes the OpenGL context current on this thread.
     /// </summary>
-    public void MakeCurrent()
+    public unsafe void MakeCurrent()
     {
         EnsureContextValid();
-        _window?.MakeCurrent();
+        if (_glfwWindow != null)
+        {
+            GLFW.MakeContextCurrent(_glfwWindow);
+        }
     }
 
     /// <inheritdoc />
-    public ValueTask InitializeAsync()
+    public unsafe ValueTask InitializeAsync()
     {
         try
         {
-            // Configure window options for headless rendering
-            var options = WindowOptions.Default with
+            // Initialize GLFW directly (bypasses OpenTK's thread check)
+            if (!GLFW.Init())
             {
-                Size = new Silk.NET.Maths.Vector2D<int>(1, 1), // Minimal size
-                Title = "HeadlessGLFixture",
-                WindowState = WindowState.Minimized,
-                IsVisible = false,
-                API = new GraphicsAPI(ContextAPI.OpenGL, ContextProfile.Core, ContextFlags.ForwardCompatible, new APIVersion(4, 3))
-            };
-
-            // Create the window (this also creates the GL context)
-            _window = Window.Create(options);
+                _initializationError = "Failed to initialize GLFW";
+                _contextValid = false;
+                return ValueTask.CompletedTask;
+            }
             
-            // Initialize the window (required before GL calls)
-            _window.Initialize();
-
-            // Make context current
-            _window.MakeCurrent();
-
-            // Get Silk.NET GL instance
-            _gl = GL.GetApi(_window);
-
+            // Set window hints for OpenGL 4.3 Core
+            GLFW.WindowHint(WindowHintInt.ContextVersionMajor, 4);
+            GLFW.WindowHint(WindowHintInt.ContextVersionMinor, 3);
+            GLFW.WindowHint(WindowHintOpenGlProfile.OpenGlProfile, OpenGlProfile.Core);
+            GLFW.WindowHint(WindowHintBool.OpenGLForwardCompat, true);
+            GLFW.WindowHint(WindowHintBool.Visible, false); // Hidden window
+            
+            // Create a minimal window with GL context
+            var windowHandle = GLFW.CreateWindow(1, 1, "HeadlessGLFixture", null, null);
+            if (windowHandle == null)
+            {
+                _initializationError = "Failed to create GLFW window";
+                _contextValid = false;
+                GLFW.Terminate();
+                return ValueTask.CompletedTask;
+            }
+            
+            // Make context current and load OpenGL bindings
+            GLFW.MakeContextCurrent(windowHandle);
+            GL.LoadBindings(new GLFWBindingsContext());
+            
+            // Store window handle for cleanup
+            _glfwWindow = windowHandle;
+            
             // Query OpenGL info
-            GLVersion = _gl.GetStringS(StringName.Version);
-            GLRenderer = _gl.GetStringS(StringName.Renderer);
+            GLVersion = GL.GetString(StringName.Version);
+            GLRenderer = GL.GetString(StringName.Renderer);
 
             // Verify we have at least OpenGL 4.3
-            _gl.GetInteger(GetPName.MajorVersion, out int major);
-            _gl.GetInteger(GetPName.MinorVersion, out int minor);
+            GL.GetInteger(GetPName.MajorVersion, out int major);
+            GL.GetInteger(GetPName.MinorVersion, out int minor);
 
             if (major < 4 || (major == 4 && minor < 3))
             {
@@ -130,18 +142,15 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
     }
 
     /// <inheritdoc />
-    public ValueTask DisposeAsync()
+    public unsafe ValueTask DisposeAsync()
     {
-        _gl?.Dispose();
-        _gl = null;
-
-        if (_window != null)
+        if (_glfwWindow != null)
         {
-            _window.Close();
-            _window.Dispose();
-            _window = null;
+            GLFW.DestroyWindow(_glfwWindow);
+            _glfwWindow = null;
         }
-
+        
+        GLFW.Terminate();
         _contextValid = false;
         return ValueTask.CompletedTask;
     }

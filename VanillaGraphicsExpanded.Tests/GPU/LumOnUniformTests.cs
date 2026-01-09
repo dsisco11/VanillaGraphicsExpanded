@@ -19,14 +19,14 @@ public class LumOnUniformTests : IDisposable
     {
         _fixture = fixture;
 
-        if (_fixture.IsContextValid && _fixture.GL != null)
+        if (_fixture.IsContextValid)
         {
             var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
             var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaderincludes");
 
             if (Directory.Exists(shaderPath) && Directory.Exists(includePath))
             {
-                _helper = new ShaderTestHelper(_fixture.GL, shaderPath, includePath);
+                _helper = new ShaderTestHelper(shaderPath, includePath);
             }
         }
     }

@@ -26,7 +26,6 @@ public class GpuInfrastructureTests
         Assert.NotNull(_fixture.GLVersion);
         Assert.NotNull(_fixture.GLRenderer);
         Assert.True(_fixture.IsContextValid);
-        Assert.NotNull(_fixture.GL);
     }
 
     [Fact]
@@ -41,7 +40,7 @@ public class GpuInfrastructureTests
         Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
         Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
 
-        using var helper = new ShaderTestHelper(_fixture.GL!, shaderPath, includePath);
+        using var helper = new ShaderTestHelper(shaderPath, includePath);
         Assert.NotNull(helper);
     }
 }
