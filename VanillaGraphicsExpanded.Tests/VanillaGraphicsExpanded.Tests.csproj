@@ -10,9 +10,12 @@
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-    <PackageReference Include="xunit" Version="2.9.2" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
-    <PackageReference Include="Xunit.SkippableFact" Version="1.4.13" />
+    <!-- xUnit v3 for SkipException support -->
+    <PackageReference Include="xunit.v3" Version="1.0.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.0.0" />
+    <!-- Silk.NET for headless OpenGL context -->
+    <PackageReference Include="Silk.NET.Windowing" Version="2.21.0" />
+    <PackageReference Include="Silk.NET.GLFW" Version="2.21.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -29,6 +32,18 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!-- Copy shader assets to test output directory for GPU tests -->
+  <ItemGroup>
+    <Content Include="..\VanillaGraphicsExpanded\assets\vanillagraphicsexpanded\shaders\**\*">
+      <Link>assets\shaders\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\VanillaGraphicsExpanded\assets\vanillagraphicsexpanded\shaderincludes\**\*">
+      <Link>assets\shaderincludes\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

@@ -1,6 +1,5 @@
 using VanillaGraphicsExpanded;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace VanillaGraphicsExpanded.Tests;
 

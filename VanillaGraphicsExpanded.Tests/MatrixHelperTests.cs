@@ -106,10 +106,10 @@ public class MatrixHelperTests
         AssertMatrixEqual(expected, result);
     }
 
-    [SkippableFact]
+    [Fact]
     public void FromColumnMajorSse_ReturnsCorrectMatrix()
     {
-        Skip.IfNot(Sse.IsSupported, "SSE not supported on this platform");
+        Assert.SkipWhen(!Sse.IsSupported, "SSE not supported on this platform");
 
         var colMajor = CreateTestMatrixColumnMajor();
         var expected = CreateExpectedTestMatrix4x4();
@@ -119,10 +119,10 @@ public class MatrixHelperTests
         AssertMatrixEqual(expected, result);
     }
 
-    [SkippableFact]
+    [Fact]
     public void FromColumnMajorAvx2_ReturnsCorrectMatrix()
     {
-        Skip.IfNot(Avx2.IsSupported, "AVX2 not supported on this platform");
+        Assert.SkipWhen(!Avx2.IsSupported, "AVX2 not supported on this platform");
 
         var colMajor = CreateTestMatrixColumnMajor();
         var expected = CreateExpectedTestMatrix4x4();
@@ -132,7 +132,7 @@ public class MatrixHelperTests
         AssertMatrixEqual(expected, result);
     }
 
-    [SkippableFact]
+    [Fact]
     public void FromColumnMajor_AllVariantsProduceSameResult()
     {
         var colMajor = CreateTestMatrixColumnMajor();
@@ -191,10 +191,10 @@ public class MatrixHelperTests
         AssertArrayEqual(expected, result);
     }
 
-    [SkippableFact]
+    [Fact]
     public void ToColumnMajorSse_ReturnsCorrectColumnMajor()
     {
-        Skip.IfNot(Sse.IsSupported, "SSE not supported on this platform");
+        Assert.SkipWhen(!Sse.IsSupported, "SSE not supported on this platform");
 
         var matrix = CreateExpectedTestMatrix4x4();
         var expected = CreateTestMatrixColumnMajor();
@@ -205,10 +205,10 @@ public class MatrixHelperTests
         AssertArrayEqual(expected, result);
     }
 
-    [SkippableFact]
+    [Fact]
     public void ToColumnMajorAvx2_ReturnsCorrectColumnMajor()
     {
-        Skip.IfNot(Avx2.IsSupported, "AVX2 not supported on this platform");
+        Assert.SkipWhen(!Avx2.IsSupported, "AVX2 not supported on this platform");
 
         var matrix = CreateExpectedTestMatrix4x4();
         var expected = CreateTestMatrixColumnMajor();
@@ -219,7 +219,7 @@ public class MatrixHelperTests
         AssertArrayEqual(expected, result);
     }
 
-    [SkippableFact]
+    [Fact]
     public void ToColumnMajor_AllVariantsProduceSameResult()
     {
         var matrix = CreateExpectedTestMatrix4x4();
@@ -311,10 +311,10 @@ public class MatrixHelperTests
         AssertArrayEqual(expected, result);
     }
 
-    [SkippableFact]
+    [Fact]
     public void SetIdentitySse_SetsIdentityMatrix()
     {
-        Skip.IfNot(Sse.IsSupported, "SSE not supported on this platform");
+        Assert.SkipWhen(!Sse.IsSupported, "SSE not supported on this platform");
 
         var expected = CreateIdentityColumnMajor();
         var result = new float[16];
@@ -325,10 +325,10 @@ public class MatrixHelperTests
         AssertArrayEqual(expected, result);
     }
 
-    [SkippableFact]
+    [Fact]
     public void SetIdentityAvx_SetsIdentityMatrix()
     {
-        Skip.IfNot(Avx.IsSupported, "AVX not supported on this platform");
+        Assert.SkipWhen(!Avx.IsSupported, "AVX not supported on this platform");
 
         var expected = CreateIdentityColumnMajor();
         var result = new float[16];
@@ -339,7 +339,7 @@ public class MatrixHelperTests
         AssertArrayEqual(expected, result);
     }
 
-    [SkippableFact]
+    [Fact]
     public void SetIdentity_AllVariantsProduceSameResult()
     {
         var scalar = new float[16];
