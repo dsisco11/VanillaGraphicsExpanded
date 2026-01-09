@@ -1,11 +1,59 @@
 LumOn Functional Test Coverage:
-    Phase 1 - High Priority:
-      ✔ LumOnProbeTraceFunctionalTests.cs - SH-based ray tracing (mirror octahedral variant tests) @done
-      ✔ LumOnTemporalOctahedralFunctionalTests.cs - Octahedral temporal blending @done
-    Phase 2 - Medium Priority:
-      ✔ LumOnGatherFunctionalTests.cs - SH-based gather interpolation (mirror octahedral variant tests) @done
-    Phase 3 - Low Priority:
-      ✔ LumOnDebugFunctionalTests.cs - Debug visualization pass @done
+
+  Phase 4 - High Priority Missing Tests:
+    Probe Trace Shaders (SH & Octahedral):
+      ☐ RayHit_ReturnsSceneColor - Verify actual geometry hits return scene color (not just sky miss)
+      ☐ DistanceFalloff_AppliedToHitRadiance - Test distance attenuation on hit radiance
+      ☐ RayThickness_AffectsHitDetection - Test rayThickness uniform behavior
+      ☐ RaySteps_AffectsTraceQuality - Verify step count effect on ray march quality
+      ☐ SunContribution_AddedToSkyMiss - Test sunDir/sunColor contribution to sky
+      ☐ IndirectTint_AppliedToHitRadiance - Test tint on hit radiance (not just sky)
+    Temporal Shaders (SH & Octahedral):
+      ☐ DepthRejection_TriggersAtThreshold - Test boundary at exact depthRejectThreshold
+      ☐ NormalRejection_TriggersAtThreshold - Test boundary at exact normalRejectThreshold
+      ☐ HistoryOutOfBounds_UsesCurrentFrame - Test UV reprojection bounds rejection
+      ☐ NeighborhoodClamping_PreventsGhosting - Verify clamp effect on blended result
+      ☐ InvalidProbe_OutputsCurrentWithZeroMeta - Explicit radiance passthrough for invalid probes
+    Gather Shaders (SH & Octahedral):
+      ☐ DepthSigma_AffectsWeightFalloff - Test depthSigma uniform on weight calculation
+      ☐ NormalSigma_AffectsWeightFalloff - Test normalSigma uniform on weight calculation
+      ☐ EdgeProbe_ReducedWeight - Test partial validity (0.5) weight reduction
+      ☐ AllProbesInvalid_OutputsZero - Verify totalWeight < 0.001 case
+
+  Phase 5 - Medium Priority Missing Tests:
+    Probe Trace Shaders:
+      ☐ FrameIndex_JittersTexelSelection - Test multi-frame jitter pattern
+      ☐ TexelsPerFrame_AffectsTemporalDistribution - Test different temporal distribution values
+      ☐ RayExitsScreen_TerminatesEarly - Test ray leaving screen boundary
+      ☐ InvViewMatrix_TransformsDirectionsCorrectly - Verify world-to-view transform accuracy
+    Temporal Octahedral Shader:
+      ☐ HitDistanceRejectThreshold_TriggersDisocclusion - Test threshold boundary behavior
+      ☐ NeighborhoodClamping_ClampsToBounds - Verify specific clamp min/max behavior
+      ☐ ZeroHistoryHitDistance_RejectedAsInvalid - Test near-zero history detection
+    Gather Octahedral Shader:
+      ☐ SampleStride_AffectsQuality - Test stride 1 vs 2 quality difference
+      ☐ LeakThreshold_PreventsBleeding - Test leak prevention logic
+      ☐ HemisphereBackface_SkippedCorrectly - Test cosWeight <= 0.0 rejection
+    Upsample Shader:
+      ☐ DenoiseDisabled_UsesSimpleBilinear - Test denoiseEnabled=0 fast path
+      ☐ SpatialSigma_AffectsDenoising - Test upsampleSpatialSigma uniform
+      ☐ DepthEdge_ReducesCrossBlending - Test bilateral filter at sharp depth edges
+    Combine Shader:
+      ☐ IndirectTint_ColorsIndirectLight - Test indirectTint uniform application
+      ☐ PartialMetallic_BlendsDiffuse - Test mid-range metallic (0.5) behavior
+    Debug Shader - Untested Modes:
+      ☐ Mode3_ProbeNormals - Test renderProbeNormalDebug()
+      ☐ Mode6_TemporalWeight - Test renderTemporalWeightDebug()
+      ☐ Mode7_TemporalRejection - Test renderTemporalRejectionDebug()
+      ☐ Mode9_InterpolationWeights - Test renderInterpolationWeightsDebug()
+
+  Phase 6 - Low Priority Missing Tests:
+    Error Handling & Edge Cases:
+      ☐ ZeroRaysPerProbe_HandledGracefully - Edge case: 0 rays per probe
+      ☐ ZeroTemporalAlpha_PassesThroughCurrent - Edge case: α=0 passthrough
+      ☐ ZeroBilinearWeight_HandledCorrectly - Edge case: pixel at exact grid corner
+      ☐ HalfResSmallerThanExpected_HandledGracefully - Buffer size mismatch
+      ☐ NaNInput_ProducesValidOutput - Numeric stability with NaN inputs
 
   Future Enhancements (Deferred):
     ☐ Edge case: invalid probes at screen boundaries
