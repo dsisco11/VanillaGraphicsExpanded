@@ -164,6 +164,62 @@ public class LumOnTemporalOctahedralFunctionalTests : LumOnShaderFunctionalTestB
     }
 
     /// <summary>
+    /// Creates a current atlas that is "neighborhood clamp friendly".
+    /// 
+    /// The temporal shader clamps history to the current 3×3 neighborhood min/max.
+    /// With a uniform current atlas (solid red), the neighborhood min/max collapses
+    /// to a single value and will clamp history to red, making it impossible for
+    /// tests to observe blending behavior.
+    /// 
+    /// This helper keeps the center texel of each probe tile red, but injects
+    /// a black and blue neighbor into the center's 3×3 neighborhood so that:
+    /// - min.r becomes 0 (so history.r=0 is not clamped up to 1)
+    /// - max.b becomes 1 (so history.b=1 is not clamped down to 0)
+    /// </summary>
+    private static float[] CreateClampFriendlyCurrentAtlas(float hitDistanceEncoded = 1.0f)
+    {
+        var data = CreateCurrentAtlas(hitDistanceEncoded);
+
+        // Center of an 8x8 octahedral tile is (4,4).
+        // Inject into the 3x3 neighborhood around that center.
+        const int centerX = 4;
+        const int centerY = 4;
+
+        for (int probeY = 0; probeY < ProbeGridHeight; probeY++)
+        {
+            for (int probeX = 0; probeX < ProbeGridWidth; probeX++)
+            {
+                int tileBaseX = probeX * OctahedralSize;
+                int tileBaseY = probeY * OctahedralSize;
+
+                // (centerX-1, centerY) = black
+                {
+                    int x = tileBaseX + (centerX - 1);
+                    int y = tileBaseY + centerY;
+                    int idx = (y * AtlasWidth + x) * 4;
+                    data[idx + 0] = 0.0f;
+                    data[idx + 1] = 0.0f;
+                    data[idx + 2] = 0.0f;
+                    data[idx + 3] = hitDistanceEncoded;
+                }
+
+                // (centerX+1, centerY) = blue
+                {
+                    int x = tileBaseX + (centerX + 1);
+                    int y = tileBaseY + centerY;
+                    int idx = (y * AtlasWidth + x) * 4;
+                    data[idx + 0] = 0.0f;
+                    data[idx + 1] = 0.0f;
+                    data[idx + 2] = 1.0f;
+                    data[idx + 3] = hitDistanceEncoded;
+                }
+            }
+        }
+
+        return data;
+    }
+
+    /// <summary>
     /// Creates history atlas with distinct color.
     /// </summary>
     private static float[] CreateHistoryAtlas(float hitDistanceEncoded = 1.0f)
@@ -404,7 +460,7 @@ public class LumOnTemporalOctahedralFunctionalTests : LumOnShaderFunctionalTestB
 
         float hitDist = 10f;
         var anchorPos = CreateValidProbeAnchors();
-        var currentAtlas = CreateCurrentAtlas(EncodeHitDistance(hitDist));
+        var currentAtlas = CreateClampFriendlyCurrentAtlas(EncodeHitDistance(hitDist));
         var historyAtlas = CreateHistoryAtlas(EncodeHitDistance(hitDist));
 
         using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
@@ -565,7 +621,7 @@ public class LumOnTemporalOctahedralFunctionalTests : LumOnShaderFunctionalTestB
 
         float hitDist = 10f;
         var anchorPos = CreateValidProbeAnchors();
-        var currentAtlas = CreateCurrentAtlas(EncodeHitDistance(hitDist));
+        var currentAtlas = CreateClampFriendlyCurrentAtlas(EncodeHitDistance(hitDist));
         var historyAtlas = CreateHistoryAtlas(EncodeHitDistance(hitDist));
 
         float highAlphaBlue;
@@ -662,7 +718,7 @@ public class LumOnTemporalOctahedralFunctionalTests : LumOnShaderFunctionalTestB
 
         float hitDist = 10f;
         var anchorPos = CreateValidProbeAnchors();
-        var currentAtlas = CreateCurrentAtlas(EncodeHitDistance(hitDist));
+        var currentAtlas = CreateClampFriendlyCurrentAtlas(EncodeHitDistance(hitDist));
         var historyAtlas = CreateHistoryAtlas(EncodeHitDistance(hitDist));
 
         float[] frame0Output;
@@ -771,7 +827,7 @@ public class LumOnTemporalOctahedralFunctionalTests : LumOnShaderFunctionalTestB
         float historyHitDist = 15f;  // 50% difference
 
         var anchorPos = CreateValidProbeAnchors();
-        var currentAtlas = CreateCurrentAtlas(EncodeHitDistance(currentHitDist));
+        var currentAtlas = CreateClampFriendlyCurrentAtlas(EncodeHitDistance(currentHitDist));
         var historyAtlas = CreateHistoryAtlas(EncodeHitDistance(historyHitDist));
 
         float strictThresholdBlue;
@@ -953,7 +1009,7 @@ public class LumOnTemporalOctahedralFunctionalTests : LumOnShaderFunctionalTestB
         // Below threshold (10% diff, should accept)
         {
             float historyHitDist = 11f;  // 10% diff < 30% threshold
-            var currentAtlas = CreateCurrentAtlas(EncodeHitDistance(currentHitDist));
+            var currentAtlas = CreateClampFriendlyCurrentAtlas(EncodeHitDistance(currentHitDist));
             var historyAtlas = CreateHistoryAtlas(EncodeHitDistance(historyHitDist));
 
             using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
@@ -987,7 +1043,7 @@ public class LumOnTemporalOctahedralFunctionalTests : LumOnShaderFunctionalTestB
         // Above threshold (50% diff, should reject)
         {
             float historyHitDist = 15f;  // 50% diff > 30% threshold
-            var currentAtlas = CreateCurrentAtlas(EncodeHitDistance(currentHitDist));
+            var currentAtlas = CreateClampFriendlyCurrentAtlas(EncodeHitDistance(currentHitDist));
             var historyAtlas = CreateHistoryAtlas(EncodeHitDistance(historyHitDist));
 
             using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
