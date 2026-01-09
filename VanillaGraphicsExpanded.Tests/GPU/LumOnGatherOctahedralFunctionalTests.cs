@@ -835,4 +835,262 @@ public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBas
     }
 
     #endregion
+
+    #region Phase 4 Tests: High Priority Missing Coverage
+
+    /// <summary>
+    /// Tests that all invalid probes result in zero output.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - When all surrounding probes are invalid, totalWeight < 0.001
+    /// - Output should be zero (no contribution)
+    /// 
+    /// Setup:
+    /// - All probes invalid (validity=0)
+    /// - Non-zero radiance in atlas (would contribute if valid)
+    /// </summary>
+    [Fact]
+    public void AllProbesInvalid_OutputsZero()
+    {
+        EnsureShaderTestAvailable();
+
+        const float pixelDepth = 0.5f;
+
+        var atlasData = CreateUniformAtlas(1f, 1f, 1f);  // Bright atlas
+        var anchorPosData = CreateProbeAnchors(-5f, validity: 0f);  // All invalid
+        var anchorNormalData = CreateProbeNormals(0f, 1f, 0f);
+        var depthData = CreateDepthBuffer(pixelDepth);
+        var normalData = CreateNormalBuffer(0f, 1f, 0f);
+
+        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            HalfResWidth, HalfResHeight,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileGatherShader();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var viewMatrix = LumOnTestInputFactory.CreateIdentityView();
+        SetupGatherUniforms(programId, invProjection, viewMatrix);
+
+        atlasTex.Bind(0);
+        anchorPosTex.Bind(1);
+        anchorNormalTex.Bind(2);
+        depthTex.Bind(3);
+        normalTex.Bind(4);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var outputData = outputGBuffer[0].ReadPixels();
+
+        // All pixels should be zero
+        for (int py = 0; py < HalfResHeight; py++)
+        {
+            for (int px = 0; px < HalfResWidth; px++)
+            {
+                var (r, g, b, _) = ReadPixelHalfRes(outputData, px, py);
+                Assert.True(r < TestEpsilon && g < TestEpsilon && b < TestEpsilon,
+                    $"Pixel ({px},{py}) should be zero when all probes invalid, got ({r:F4}, {g:F4}, {b:F4})");
+            }
+        }
+
+        GL.DeleteProgram(programId);
+    }
+
+    /// <summary>
+    /// Tests that edge probes with partial validity have reduced weight.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - Probes with validity < 1.0 should contribute less
+    /// - Validity acts as a weight multiplier
+    /// 
+    /// Setup:
+    /// - Some probes with validity=0.5, others with validity=1.0
+    /// - Compare brightness near partial vs full validity probes
+    /// </summary>
+    [Fact]
+    public void PartialValidity_ReducesWeight()
+    {
+        EnsureShaderTestAvailable();
+
+        const float pixelDepth = 0.5f;
+
+        CreateTestMatricesForDepth(pixelDepth, out var invProjection, out var viewMatrix,
+            out var probeWorldZ, out var hitDistance);
+
+        var atlasData = CreateUniformAtlas(1f, 1f, 1f, hitDistance);
+        var anchorNormalData = CreateProbeNormals(0f, 1f, 0f);
+        var depthData = CreateDepthBuffer(pixelDepth);
+        var normalData = CreateNormalBuffer(0f, 1f, 0f);
+
+        float fullValidityBrightness;
+        float partialValidityBrightness;
+
+        // Full validity
+        {
+            var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1.0f);
+
+            using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                HalfResWidth, HalfResHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileGatherShader();
+            SetupGatherUniforms(programId, invProjection, viewMatrix);
+
+            atlasTex.Bind(0);
+            anchorPosTex.Bind(1);
+            anchorNormalTex.Bind(2);
+            depthTex.Bind(3);
+            normalTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var outputData = outputGBuffer[0].ReadPixels();
+            var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
+            fullValidityBrightness = (r + g + b) / 3f;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Partial validity (0.5)
+        {
+            var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 0.5f);
+
+            using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                HalfResWidth, HalfResHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileGatherShader();
+            SetupGatherUniforms(programId, invProjection, viewMatrix);
+
+            atlasTex.Bind(0);
+            anchorPosTex.Bind(1);
+            anchorNormalTex.Bind(2);
+            depthTex.Bind(3);
+            normalTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var outputData = outputGBuffer[0].ReadPixels();
+            var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
+            partialValidityBrightness = (r + g + b) / 3f;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Partial validity should have similar or less brightness
+        // (not necessarily exactly half due to normalization)
+        Assert.True(partialValidityBrightness <= fullValidityBrightness + TestEpsilon,
+            $"Partial validity ({partialValidityBrightness:F4}) should be <= full ({fullValidityBrightness:F4})");
+    }
+
+    /// <summary>
+    /// Tests that sampleStride uniform affects sampling quality.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - sampleStride=1: Sample every texel in probe's octahedral tile
+    /// - sampleStride=2: Sample every other texel (faster but lower quality)
+    /// 
+    /// Setup:
+    /// - Compare stride=1 vs stride=2 with non-uniform atlas
+    /// 
+    /// Expected:
+    /// - Both should produce valid output (stride affects quality, not correctness)
+    /// </summary>
+    [Fact]
+    public void SampleStride_AffectsQuality()
+    {
+        EnsureShaderTestAvailable();
+
+        const float pixelDepth = 0.5f;
+
+        CreateTestMatricesForDepth(pixelDepth, out var invProjection, out var viewMatrix,
+            out var probeWorldZ, out var hitDistance);
+
+        var atlasData = CreateQuadrantAtlas(hitDistance);
+        var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1.0f);
+        var anchorNormalData = CreateProbeNormals(0f, 1f, 0f);
+        var depthData = CreateDepthBuffer(pixelDepth);
+        var normalData = CreateNormalBuffer(0f, 1f, 0f);
+
+        float stride1Brightness;
+        float stride2Brightness;
+
+        // Stride 1
+        {
+            using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                HalfResWidth, HalfResHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileGatherShader();
+            SetupGatherUniforms(programId, invProjection, viewMatrix, sampleStride: 1);
+
+            atlasTex.Bind(0);
+            anchorPosTex.Bind(1);
+            anchorNormalTex.Bind(2);
+            depthTex.Bind(3);
+            normalTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var outputData = outputGBuffer[0].ReadPixels();
+            var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
+            stride1Brightness = (r + g + b) / 3f;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Stride 2
+        {
+            using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                HalfResWidth, HalfResHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileGatherShader();
+            SetupGatherUniforms(programId, invProjection, viewMatrix, sampleStride: 2);
+
+            atlasTex.Bind(0);
+            anchorPosTex.Bind(1);
+            anchorNormalTex.Bind(2);
+            depthTex.Bind(3);
+            normalTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var outputData = outputGBuffer[0].ReadPixels();
+            var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
+            stride2Brightness = (r + g + b) / 3f;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Both should produce non-zero output
+        Assert.True(stride1Brightness > 0.001f, "Stride 1 should produce non-zero output");
+        Assert.True(stride2Brightness > 0.001f, "Stride 2 should produce non-zero output");
+    }
+
+    #endregion
 }

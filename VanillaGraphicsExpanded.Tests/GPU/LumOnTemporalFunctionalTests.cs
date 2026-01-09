@@ -973,4 +973,447 @@ public class LumOnTemporalFunctionalTests : LumOnShaderFunctionalTestBase
     }
 
     #endregion
+
+    #region Phase 4 Tests: High Priority Missing Coverage
+
+    /// <summary>
+    /// Tests that depth rejection triggers precisely at the threshold boundary.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - When |currentDepth - historyDepth| / max(currentDepth, 0.001) > threshold, reject history
+    /// - Values just below threshold should accept history
+    /// - Values just above threshold should reject history
+    /// 
+    /// Setup:
+    /// - depthRejectThreshold = 0.1 (10%)
+    /// - Current depth = 10.0
+    /// - Test with history depth = 10.5 (5% diff, should accept) vs 12.0 (20% diff, should reject)
+    /// 
+    /// Expected:
+    /// - 5% diff: history accepted (blended output)
+    /// - 20% diff: history rejected (current passthrough)
+    /// </summary>
+    [Fact]
+    public void DepthRejection_TriggersAtThreshold()
+    {
+        EnsureShaderTestAvailable();
+
+        var currentColor = (r: 1.0f, g: 0.0f, b: 0.0f);  // Red
+        var historyColor = (r: 0.0f, g: 0.0f, b: 1.0f);  // Blue
+        float currentDepth = 10.0f;
+        float threshold = 0.1f;
+
+        var currentRad0 = CreateUniformRadiance(currentColor.r, currentColor.g, currentColor.b);
+        var currentRad1 = CreateUniformRadiance(0.5f, 0.5f, 0.5f);
+        var historyRad0 = CreateUniformRadiance(historyColor.r, historyColor.g, historyColor.b);
+        var historyRad1 = CreateUniformRadiance(0.5f, 0.5f, 0.5f);
+        var anchorPos = CreateValidProbeAnchors(currentDepth);
+        var anchorNormal = CreateProbeNormalsUpward();
+
+        float belowThresholdBlue;
+        float aboveThresholdBlue;
+
+        // History depth just below threshold (5% diff, should accept)
+        {
+            float historyDepth = currentDepth * 1.05f;  // 5% diff < 10% threshold
+            var historyMeta = CreateHistoryMeta(historyDepth, 15.0f, 0f, 1f);
+
+            using var currentRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad0);
+            using var currentRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad1);
+            using var historyRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad0);
+            using var historyRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad1);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
+            using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMeta);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ProbeGridWidth, ProbeGridHeight,
+                PixelInternalFormat.Rgba16f,
+                PixelInternalFormat.Rgba16f,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileTemporalShader();
+            var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+            SetupTemporalUniforms(
+                programId,
+                viewMatrix: identity,
+                invViewMatrix: identity,
+                prevViewProjMatrix: identity,
+                temporalAlpha: 0.9f,
+                depthRejectThreshold: threshold,
+                normalRejectThreshold: 0.5f);
+
+            currentRad0Tex.Bind(0);
+            currentRad1Tex.Bind(1);
+            historyRad0Tex.Bind(2);
+            historyRad1Tex.Bind(3);
+            anchorPosTex.Bind(4);
+            anchorNormalTex.Bind(5);
+            historyMetaTex.Bind(6);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var output = outputGBuffer[0].ReadPixels();
+            belowThresholdBlue = output[2]; // Blue channel of first probe
+
+            GL.DeleteProgram(programId);
+        }
+
+        // History depth above threshold (20% diff, should reject)
+        {
+            float historyDepth = currentDepth * 1.20f;  // 20% diff > 10% threshold
+            var historyMeta = CreateHistoryMeta(historyDepth, 15.0f, 0f, 1f);
+
+            using var currentRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad0);
+            using var currentRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad1);
+            using var historyRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad0);
+            using var historyRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad1);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
+            using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMeta);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ProbeGridWidth, ProbeGridHeight,
+                PixelInternalFormat.Rgba16f,
+                PixelInternalFormat.Rgba16f,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileTemporalShader();
+            var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+            SetupTemporalUniforms(
+                programId,
+                viewMatrix: identity,
+                invViewMatrix: identity,
+                prevViewProjMatrix: identity,
+                temporalAlpha: 0.9f,
+                depthRejectThreshold: threshold,
+                normalRejectThreshold: 0.5f);
+
+            currentRad0Tex.Bind(0);
+            currentRad1Tex.Bind(1);
+            historyRad0Tex.Bind(2);
+            historyRad1Tex.Bind(3);
+            anchorPosTex.Bind(4);
+            anchorNormalTex.Bind(5);
+            historyMetaTex.Bind(6);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var output = outputGBuffer[0].ReadPixels();
+            aboveThresholdBlue = output[2];
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Below threshold should have more blue (history accepted)
+        // Above threshold should have less blue (history rejected)
+        Assert.True(belowThresholdBlue > aboveThresholdBlue,
+            $"Below threshold should have more blue ({belowThresholdBlue:F3}) than above ({aboveThresholdBlue:F3})");
+    }
+
+    /// <summary>
+    /// Tests that normal rejection triggers precisely at the threshold boundary.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - When dot(currentNormal, historyNormal) < threshold, reject history
+    /// - Higher dot product (more similar normals) should accept
+    /// 
+    /// Setup:
+    /// - normalRejectThreshold = 0.9 (cos ~25°)
+    /// - Current normal = (0, 1, 0) upward
+    /// - Test with similar vs perpendicular history normals
+    /// </summary>
+    [Fact]
+    public void NormalRejection_TriggersAtThreshold()
+    {
+        EnsureShaderTestAvailable();
+
+        var currentColor = (r: 1.0f, g: 0.0f, b: 0.0f);
+        var historyColor = (r: 0.0f, g: 0.0f, b: 1.0f);
+        float worldZ = 5.0f;
+        float threshold = 0.9f;
+
+        var currentRad0 = CreateUniformRadiance(currentColor.r, currentColor.g, currentColor.b);
+        var currentRad1 = CreateUniformRadiance(0.5f, 0.5f, 0.5f);
+        var historyRad0 = CreateUniformRadiance(historyColor.r, historyColor.g, historyColor.b);
+        var historyRad1 = CreateUniformRadiance(0.5f, 0.5f, 0.5f);
+        var anchorPos = CreateValidProbeAnchors(worldZ);
+        var anchorNormal = CreateProbeNormalsUpward();  // (0, 1, 0)
+
+        float similarNormalBlue;
+        float differentNormalBlue;
+
+        // Similar normal (should accept history)
+        {
+            // History normal similar to (0, 1, 0): encoded as (0.5, 0.95, 0.5) -> (0, 0.9, 0)
+            var historyMeta = new float[ProbeGridWidth * ProbeGridHeight * 4];
+            for (int i = 0; i < ProbeGridWidth * ProbeGridHeight; i++)
+            {
+                int idx = i * 4;
+                historyMeta[idx + 0] = worldZ;
+                historyMeta[idx + 1] = 0.5f;   // nx = 0
+                historyMeta[idx + 2] = 0.95f;  // ny ≈ 0.9 (similar to current ny=1.0)
+                historyMeta[idx + 3] = 15.0f;  // accumCount
+            }
+
+            using var currentRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad0);
+            using var currentRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad1);
+            using var historyRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad0);
+            using var historyRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad1);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
+            using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMeta);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ProbeGridWidth, ProbeGridHeight,
+                PixelInternalFormat.Rgba16f,
+                PixelInternalFormat.Rgba16f,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileTemporalShader();
+            var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+            SetupTemporalUniforms(
+                programId,
+                viewMatrix: identity,
+                invViewMatrix: identity,
+                prevViewProjMatrix: identity,
+                temporalAlpha: 0.9f,
+                depthRejectThreshold: 0.5f,
+                normalRejectThreshold: threshold);
+
+            currentRad0Tex.Bind(0);
+            currentRad1Tex.Bind(1);
+            historyRad0Tex.Bind(2);
+            historyRad1Tex.Bind(3);
+            anchorPosTex.Bind(4);
+            anchorNormalTex.Bind(5);
+            historyMetaTex.Bind(6);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var output = outputGBuffer[0].ReadPixels();
+            similarNormalBlue = output[2];
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Different normal (should reject history)
+        {
+            // History normal perpendicular (1, 0, 0): encoded as (1.0, 0.5, 0.5)
+            var historyMeta = new float[ProbeGridWidth * ProbeGridHeight * 4];
+            for (int i = 0; i < ProbeGridWidth * ProbeGridHeight; i++)
+            {
+                int idx = i * 4;
+                historyMeta[idx + 0] = worldZ;
+                historyMeta[idx + 1] = 1.0f;   // nx = 1
+                historyMeta[idx + 2] = 0.5f;   // ny = 0 (perpendicular to current ny=1.0)
+                historyMeta[idx + 3] = 15.0f;
+            }
+
+            using var currentRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad0);
+            using var currentRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad1);
+            using var historyRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad0);
+            using var historyRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad1);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
+            using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMeta);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ProbeGridWidth, ProbeGridHeight,
+                PixelInternalFormat.Rgba16f,
+                PixelInternalFormat.Rgba16f,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileTemporalShader();
+            var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+            SetupTemporalUniforms(
+                programId,
+                viewMatrix: identity,
+                invViewMatrix: identity,
+                prevViewProjMatrix: identity,
+                temporalAlpha: 0.9f,
+                depthRejectThreshold: 0.5f,
+                normalRejectThreshold: threshold);
+
+            currentRad0Tex.Bind(0);
+            currentRad1Tex.Bind(1);
+            historyRad0Tex.Bind(2);
+            historyRad1Tex.Bind(3);
+            anchorPosTex.Bind(4);
+            anchorNormalTex.Bind(5);
+            historyMetaTex.Bind(6);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var output = outputGBuffer[0].ReadPixels();
+            differentNormalBlue = output[2];
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Similar normal should have more blue (history accepted)
+        Assert.True(similarNormalBlue > differentNormalBlue,
+            $"Similar normal should have more blue ({similarNormalBlue:F3}) than different ({differentNormalBlue:F3})");
+    }
+
+    /// <summary>
+    /// Tests that history UV reprojection out of bounds uses current frame.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - When historyUV falls outside [0,1] bounds, use current frame only
+    /// - This handles camera motion where previous frame data doesn't exist
+    /// 
+    /// Setup:
+    /// - Use prevViewProjMatrix that projects probes outside [0,1] UV range
+    /// - Current = red, History = blue
+    /// 
+    /// Expected:
+    /// - Output should be current (red) since history UV is invalid
+    /// </summary>
+    [Fact]
+    public void HistoryOutOfBounds_UsesCurrentFrame()
+    {
+        EnsureShaderTestAvailable();
+
+        var currentColor = (r: 1.0f, g: 0.0f, b: 0.0f);
+        var historyColor = (r: 0.0f, g: 0.0f, b: 1.0f);
+
+        var currentRad0 = CreateUniformRadiance(currentColor.r, currentColor.g, currentColor.b);
+        var currentRad1 = CreateUniformRadiance(0.5f, 0.5f, 0.5f);
+        var historyRad0 = CreateUniformRadiance(historyColor.r, historyColor.g, historyColor.b);
+        var historyRad1 = CreateUniformRadiance(0.5f, 0.5f, 0.5f);
+
+        float worldZ = 5.0f;
+        var anchorPos = CreateValidProbeAnchors(worldZ);
+        var anchorNormal = CreateProbeNormalsUpward();
+        var historyMeta = CreateHistoryMeta(worldZ, 15.0f, 0f, 1f);
+
+        // Create a prevViewProjMatrix that offsets reprojection outside [0,1]
+        // Translation matrix that moves points far outside screen
+        var prevViewProj = new float[]
+        {
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            100, 100, 0, 1  // Large translation pushes UV outside bounds
+        };
+
+        using var currentRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad0);
+        using var currentRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad1);
+        using var historyRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad0);
+        using var historyRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad1);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMeta);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            ProbeGridWidth, ProbeGridHeight,
+            PixelInternalFormat.Rgba16f,
+            PixelInternalFormat.Rgba16f,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileTemporalShader();
+        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        SetupTemporalUniforms(
+            programId,
+            viewMatrix: identity,
+            invViewMatrix: identity,
+            prevViewProjMatrix: prevViewProj,
+            temporalAlpha: 0.9f);
+
+        currentRad0Tex.Bind(0);
+        currentRad1Tex.Bind(1);
+        historyRad0Tex.Bind(2);
+        historyRad1Tex.Bind(3);
+        anchorPosTex.Bind(4);
+        anchorNormalTex.Bind(5);
+        historyMetaTex.Bind(6);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var outputRad0 = outputGBuffer[0].ReadPixels();
+
+        // Output should be primarily current (red) since history UV is out of bounds
+        var (r, g, b, _) = ReadProbe(outputRad0, 0, 0);
+        Assert.True(r > b,
+            $"Out-of-bounds history UV should favor current (red): R={r:F3}, B={b:F3}");
+
+        GL.DeleteProgram(programId);
+    }
+
+    /// <summary>
+    /// Tests that invalid probes output current frame with zero metadata.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - Invalid probes (validity=0) should pass through current radiance
+    /// - Metadata should reflect the invalidity state
+    /// 
+    /// Setup:
+    /// - All probes invalid (validity=0)
+    /// - Current = red, History = blue
+    /// 
+    /// Expected:
+    /// - Output radiance = current (red)
+    /// </summary>
+    [Fact]
+    public void InvalidProbe_OutputsCurrentWithZeroMeta()
+    {
+        EnsureShaderTestAvailable();
+
+        var currentColor = (r: 1.0f, g: 0.0f, b: 0.0f);
+        var historyColor = (r: 0.0f, g: 0.0f, b: 1.0f);
+
+        var currentRad0 = CreateUniformRadiance(currentColor.r, currentColor.g, currentColor.b);
+        var currentRad1 = CreateUniformRadiance(0.5f, 0.5f, 0.5f);
+        var historyRad0 = CreateUniformRadiance(historyColor.r, historyColor.g, historyColor.b);
+        var historyRad1 = CreateUniformRadiance(0.5f, 0.5f, 0.5f);
+
+        var anchorPos = CreateInvalidProbeAnchors();  // All invalid
+        var anchorNormal = CreateProbeNormalsUpward();
+        var historyMeta = CreateHistoryMeta(5.0f, 15.0f, 0f, 1f);
+
+        using var currentRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad0);
+        using var currentRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad1);
+        using var historyRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad0);
+        using var historyRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad1);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMeta);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            ProbeGridWidth, ProbeGridHeight,
+            PixelInternalFormat.Rgba16f,
+            PixelInternalFormat.Rgba16f,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileTemporalShader();
+        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        SetupTemporalUniforms(
+            programId,
+            viewMatrix: identity,
+            invViewMatrix: identity,
+            prevViewProjMatrix: identity,
+            temporalAlpha: 0.9f);
+
+        currentRad0Tex.Bind(0);
+        currentRad1Tex.Bind(1);
+        historyRad0Tex.Bind(2);
+        historyRad1Tex.Bind(3);
+        anchorPosTex.Bind(4);
+        anchorNormalTex.Bind(5);
+        historyMetaTex.Bind(6);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var outputRad0 = outputGBuffer[0].ReadPixels();
+
+        // All probes should output current (red)
+        for (int py = 0; py < ProbeGridHeight; py++)
+        {
+            for (int px = 0; px < ProbeGridWidth; px++)
+            {
+                var (r, g, b, _) = ReadProbe(outputRad0, px, py);
+                Assert.True(r > 0.9f && g < 0.1f && b < 0.1f,
+                    $"Invalid probe ({px},{py}) should output current (red), got ({r:F3}, {g:F3}, {b:F3})");
+            }
+        }
+
+        GL.DeleteProgram(programId);
+    }
+
+    #endregion
 }

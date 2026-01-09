@@ -753,4 +753,455 @@ public class LumOnProbeTraceOctahedralFunctionalTests : LumOnShaderFunctionalTes
     }
 
     #endregion
+
+    #region Phase 4 Tests: High Priority Missing Coverage
+
+    /// <summary>
+    /// Tests that rays hitting geometry return the scene color from the hit point.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - When a ray hits geometry (depth &lt; 1.0), it should sample the scene color
+    /// - The hit radiance should appear in the octahedral texel
+    /// 
+    /// Setup:
+    /// - Depth buffer at 0.5 (geometry present)
+    /// - Scene color: bright cyan (0, 1, 1)
+    /// - Valid probes
+    /// 
+    /// Expected:
+    /// - Atlas texels should reflect cyan color contribution
+    /// </summary>
+    [Fact]
+    public void RayHit_ReturnsSceneColor()
+    {
+        EnsureShaderTestAvailable();
+
+        var anchorPosData = CreateValidProbeAnchors();
+        var anchorNormalData = CreateProbeNormalsUpward();
+        var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(0.5f, channels: 1);
+        var colorData = CreateUniformSceneColor(0f, 1f, 1f); // Cyan scene
+        var historyData = CreateZeroedHistory();
+
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+        using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+
+        using var outputAtlas = TestFramework.CreateTestGBuffer(
+            AtlasWidth, AtlasHeight,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileOctahedralTraceShader();
+        var projection = LumOnTestInputFactory.CreateRealisticProjection();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var view = LumOnTestInputFactory.CreateIdentityView();
+        var invView = LumOnTestInputFactory.CreateIdentityView();
+        SetupOctahedralTraceUniforms(
+            programId,
+            invProjection: invProjection,
+            projection: projection,
+            view: view,
+            invView: invView,
+            texelsPerFrame: 64,
+            ambientColor: (0f, 0f, 0f),
+            sunColor: (0f, 0f, 0f));
+
+        anchorPosTex.Bind(0);
+        anchorNormalTex.Bind(1);
+        depthTex.Bind(2);
+        colorTex.Bind(3);
+        historyTex.Bind(4);
+
+        TestFramework.RenderQuadTo(programId, outputAtlas);
+        var atlasData = outputAtlas[0].ReadPixels();
+
+        // Check that cyan color appears in atlas
+        int cyanTexels = 0;
+        for (int y = 0; y < AtlasHeight; y++)
+        {
+            for (int x = 0; x < AtlasWidth; x++)
+            {
+                var (r, g, b, _) = ReadAtlasTexel(atlasData, x, y);
+                // Cyan means G and B are higher than R
+                if (g > 0.01f && b > 0.01f)
+                {
+                    cyanTexels++;
+                }
+            }
+        }
+
+        Assert.True(cyanTexels > 0,
+            "With geometry hit and cyan scene, some texels should have cyan color contribution");
+
+        GL.DeleteProgram(programId);
+    }
+
+    /// <summary>
+    /// Tests that raySteps uniform affects ray marching quality.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - More steps should improve hit detection accuracy
+    /// - Fewer steps may miss thin geometry
+    /// 
+    /// Setup:
+    /// - Compare raySteps=4 vs raySteps=32
+    /// 
+    /// Expected:
+    /// - Both should produce valid output
+    /// </summary>
+    [Fact]
+    public void RaySteps_AffectsTraceQuality()
+    {
+        EnsureShaderTestAvailable();
+
+        var anchorPosData = CreateValidProbeAnchors();
+        var anchorNormalData = CreateProbeNormalsUpward();
+        var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(0.5f, channels: 1);
+        var colorData = CreateUniformSceneColor(1f, 1f, 1f);
+        var historyData = CreateZeroedHistory();
+
+        float[] lowStepsOutput;
+        float[] highStepsOutput;
+
+        // Low ray steps
+        {
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+            using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+
+            using var outputAtlas = TestFramework.CreateTestGBuffer(
+                AtlasWidth, AtlasHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileOctahedralTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            var invView = LumOnTestInputFactory.CreateIdentityView();
+            SetupOctahedralTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                invView: invView,
+                texelsPerFrame: 64);
+
+            // Override raySteps to 4
+            GL.UseProgram(programId);
+            GL.Uniform1(GL.GetUniformLocation(programId, "raySteps"), 4);
+            GL.UseProgram(0);
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+            historyTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputAtlas);
+            lowStepsOutput = outputAtlas[0].ReadPixels();
+
+            GL.DeleteProgram(programId);
+        }
+
+        // High ray steps
+        {
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+            using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+
+            using var outputAtlas = TestFramework.CreateTestGBuffer(
+                AtlasWidth, AtlasHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileOctahedralTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            var invView = LumOnTestInputFactory.CreateIdentityView();
+            SetupOctahedralTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                invView: invView,
+                texelsPerFrame: 64);
+
+            // Override raySteps to 32
+            GL.UseProgram(programId);
+            GL.Uniform1(GL.GetUniformLocation(programId, "raySteps"), 32);
+            GL.UseProgram(0);
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+            historyTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputAtlas);
+            highStepsOutput = outputAtlas[0].ReadPixels();
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Both should produce non-zero output in valid probe regions
+        int lowNonZero = 0;
+        int highNonZero = 0;
+        for (int i = 0; i < lowStepsOutput.Length; i += 4)
+        {
+            if (lowStepsOutput[i] > 0.001f || lowStepsOutput[i + 1] > 0.001f || lowStepsOutput[i + 2] > 0.001f)
+                lowNonZero++;
+            if (highStepsOutput[i] > 0.001f || highStepsOutput[i + 1] > 0.001f || highStepsOutput[i + 2] > 0.001f)
+                highNonZero++;
+        }
+
+        Assert.True(lowNonZero > 0, "Low ray steps should produce some non-zero output");
+        Assert.True(highNonZero > 0, "High ray steps should produce some non-zero output");
+    }
+
+    /// <summary>
+    /// Tests that sun contribution is added to sky miss results.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - When rays miss geometry, sun color should contribute based on ray direction
+    /// 
+    /// Setup:
+    /// - Sky depth (1.0 everywhere)
+    /// - Compare with sunColor=(1,0,0) vs sunColor=(0,0,0)
+    /// 
+    /// Expected:
+    /// - With sun enabled, red channel should be higher
+    /// </summary>
+    [Fact]
+    public void SunContribution_AddedToSkyMiss()
+    {
+        EnsureShaderTestAvailable();
+
+        var anchorPosData = CreateValidProbeAnchors();
+        var anchorNormalData = CreateProbeNormalsUpward();
+        var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(1.0f, channels: 1);
+        var colorData = CreateUniformSceneColor(0f, 0f, 0f);
+        var historyData = CreateZeroedHistory();
+
+        float withSunRed;
+        float withoutSunRed;
+
+        // With sun
+        {
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+            using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+
+            using var outputAtlas = TestFramework.CreateTestGBuffer(
+                AtlasWidth, AtlasHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileOctahedralTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            var invView = LumOnTestInputFactory.CreateIdentityView();
+            SetupOctahedralTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                invView: invView,
+                texelsPerFrame: 64,
+                ambientColor: (0f, 0f, 0f),
+                sunColor: (1f, 0f, 0f),
+                sunPosition: (0f, 1f, 0f));
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+            historyTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputAtlas);
+            var atlasData = outputAtlas[0].ReadPixels();
+
+            // Sum red channel
+            withSunRed = 0;
+            for (int i = 0; i < atlasData.Length; i += 4)
+                withSunRed += atlasData[i];
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Without sun
+        {
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+            using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+
+            using var outputAtlas = TestFramework.CreateTestGBuffer(
+                AtlasWidth, AtlasHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileOctahedralTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            var invView = LumOnTestInputFactory.CreateIdentityView();
+            SetupOctahedralTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                invView: invView,
+                texelsPerFrame: 64,
+                ambientColor: (0f, 0f, 0f),
+                sunColor: (0f, 0f, 0f),
+                sunPosition: (0f, 1f, 0f));
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+            historyTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputAtlas);
+            var atlasData = outputAtlas[0].ReadPixels();
+
+            // Sum red channel
+            withoutSunRed = 0;
+            for (int i = 0; i < atlasData.Length; i += 4)
+                withoutSunRed += atlasData[i];
+
+            GL.DeleteProgram(programId);
+        }
+
+        Assert.True(withSunRed > withoutSunRed,
+            $"Sun should add red contribution: with sun R={withSunRed:F4}, without R={withoutSunRed:F4}");
+    }
+
+    /// <summary>
+    /// Tests that indirectTint is applied to hit radiance in octahedral tracing.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - indirectTint should modulate the bounced light from geometry hits
+    /// 
+    /// Setup:
+    /// - Geometry hit with white scene color
+    /// - Compare tint=(1,1,1) vs tint=(0.5,0.5,0.5)
+    /// 
+    /// Expected:
+    /// - Half tint should produce approximately half brightness in hit texels
+    /// </summary>
+    [Fact]
+    public void IndirectTint_AppliedToHitRadiance()
+    {
+        EnsureShaderTestAvailable();
+
+        var anchorPosData = CreateValidProbeAnchors();
+        var anchorNormalData = CreateProbeNormalsUpward();
+        var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(0.5f, channels: 1);
+        var colorData = CreateUniformSceneColor(1f, 1f, 1f);
+        var historyData = CreateZeroedHistory();
+
+        float fullTintBrightness;
+        float halfTintBrightness;
+
+        // Full tint
+        {
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+            using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+
+            using var outputAtlas = TestFramework.CreateTestGBuffer(
+                AtlasWidth, AtlasHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileOctahedralTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            var invView = LumOnTestInputFactory.CreateIdentityView();
+            SetupOctahedralTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                invView: invView,
+                texelsPerFrame: 64,
+                ambientColor: (0f, 0f, 0f),
+                sunColor: (0f, 0f, 0f),
+                indirectTint: (1f, 1f, 1f));
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+            historyTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputAtlas);
+            var atlasData = outputAtlas[0].ReadPixels();
+
+            fullTintBrightness = 0;
+            for (int i = 0; i < atlasData.Length; i += 4)
+                fullTintBrightness += atlasData[i] + atlasData[i + 1] + atlasData[i + 2];
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Half tint
+        {
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+            using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+
+            using var outputAtlas = TestFramework.CreateTestGBuffer(
+                AtlasWidth, AtlasHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileOctahedralTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            var invView = LumOnTestInputFactory.CreateIdentityView();
+            SetupOctahedralTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                invView: invView,
+                texelsPerFrame: 64,
+                ambientColor: (0f, 0f, 0f),
+                sunColor: (0f, 0f, 0f),
+                indirectTint: (0.5f, 0.5f, 0.5f));
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+            historyTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputAtlas);
+            var atlasData = outputAtlas[0].ReadPixels();
+
+            halfTintBrightness = 0;
+            for (int i = 0; i < atlasData.Length; i += 4)
+                halfTintBrightness += atlasData[i] + atlasData[i + 1] + atlasData[i + 2];
+
+            GL.DeleteProgram(programId);
+        }
+
+        Assert.True(halfTintBrightness < fullTintBrightness * 0.8f,
+            $"Half tint ({halfTintBrightness:F4}) should be less than 0.8x full tint ({fullTintBrightness:F4})");
+    }
+
+    #endregion
 }

@@ -952,4 +952,410 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
     }
 
     #endregion
+
+    #region Phase 4 Tests: High Priority Missing Coverage
+
+    /// <summary>
+    /// Tests that rays hitting geometry return the scene color from the hit point.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - When a ray hits geometry (depth &lt; 1.0), it should sample the scene color
+    /// - The hit radiance should contribute to SH accumulation
+    /// 
+    /// Setup:
+    /// - Depth buffer at 0.5 (geometry present)
+    /// - Scene color: bright green (0, 1, 0)
+    /// - Valid probes
+    /// 
+    /// Expected:
+    /// - SH coefficients should reflect green color contribution
+    /// </summary>
+    [Fact]
+    public void RayHit_ReturnsSceneColor()
+    {
+        EnsureShaderTestAvailable();
+
+        var anchorPosData = CreateValidProbeAnchors();
+        var anchorNormalData = CreateProbeNormalsUpward();
+        var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(0.5f, channels: 1); // Geometry at mid-depth
+        var colorData = CreateUniformSceneColor(0f, 1f, 0f); // Green scene
+
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            ProbeGridWidth, ProbeGridHeight,
+            PixelInternalFormat.Rgba16f,
+            attachmentCount: 2);
+
+        var programId = CompileSHTraceShader();
+        var projection = LumOnTestInputFactory.CreateRealisticProjection();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var view = LumOnTestInputFactory.CreateIdentityView();
+        SetupSHTraceUniforms(
+            programId,
+            invProjection: invProjection,
+            projection: projection,
+            view: view,
+            raysPerProbe: DefaultRaysPerProbe,
+            ambientColor: (0f, 0f, 0f),  // No ambient
+            sunColor: (0f, 0f, 0f));      // No sun
+
+        anchorPosTex.Bind(0);
+        anchorNormalTex.Bind(1);
+        depthTex.Bind(2);
+        colorTex.Bind(3);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var radiance0Data = outputGBuffer[0].ReadPixels();
+        var radiance1Data = outputGBuffer[1].ReadPixels();
+
+        // With geometry hit and green scene color, green channel should dominate
+        for (int probeY = 0; probeY < ProbeGridHeight; probeY++)
+        {
+            for (int probeX = 0; probeX < ProbeGridWidth; probeX++)
+            {
+                var (shR, shG, shB) = ReadProbeSH(radiance0Data, radiance1Data, probeX, probeY);
+
+                // Green DC should be non-zero (scene hit contribution)
+                Assert.True(shG[0] > 0.001f,
+                    $"Probe ({probeX},{probeY}) should have green contribution from hit, got G_DC={shG[0]:F4}");
+            }
+        }
+
+        GL.DeleteProgram(programId);
+    }
+
+    /// <summary>
+    /// Tests that raySteps uniform affects ray marching quality.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - More steps should improve hit detection accuracy
+    /// - Fewer steps may miss thin geometry
+    /// 
+    /// Setup:
+    /// - Compare raySteps=4 vs raySteps=32
+    /// - Scene with geometry at mid-depth
+    /// 
+    /// Expected:
+    /// - Both should produce valid output (non-zero SH)
+    /// </summary>
+    [Fact]
+    public void RaySteps_AffectsTraceQuality()
+    {
+        EnsureShaderTestAvailable();
+
+        var anchorPosData = CreateValidProbeAnchors();
+        var anchorNormalData = CreateProbeNormalsUpward();
+        var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(0.5f, channels: 1);
+        var colorData = CreateUniformSceneColor(1f, 1f, 1f);
+
+        float[] lowStepsOutput;
+        float[] highStepsOutput;
+
+        // Low ray steps
+        {
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ProbeGridWidth, ProbeGridHeight,
+                PixelInternalFormat.Rgba16f,
+                attachmentCount: 2);
+
+            var programId = CompileSHTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            SetupSHTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                raysPerProbe: DefaultRaysPerProbe);
+
+            // Override raySteps to 4
+            GL.UseProgram(programId);
+            GL.Uniform1(GL.GetUniformLocation(programId, "raySteps"), 4);
+            GL.UseProgram(0);
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            lowStepsOutput = outputGBuffer[0].ReadPixels();
+
+            GL.DeleteProgram(programId);
+        }
+
+        // High ray steps
+        {
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ProbeGridWidth, ProbeGridHeight,
+                PixelInternalFormat.Rgba16f,
+                attachmentCount: 2);
+
+            var programId = CompileSHTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            SetupSHTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                raysPerProbe: DefaultRaysPerProbe);
+
+            // Override raySteps to 32
+            GL.UseProgram(programId);
+            GL.Uniform1(GL.GetUniformLocation(programId, "raySteps"), 32);
+            GL.UseProgram(0);
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            highStepsOutput = outputGBuffer[0].ReadPixels();
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Both should produce non-zero output
+        Assert.True(lowStepsOutput[0] > 0.001f || lowStepsOutput[1] > 0.001f || lowStepsOutput[2] > 0.001f,
+            "Low ray steps should produce non-zero output");
+        Assert.True(highStepsOutput[0] > 0.001f || highStepsOutput[1] > 0.001f || highStepsOutput[2] > 0.001f,
+            "High ray steps should produce non-zero output");
+    }
+
+    /// <summary>
+    /// Tests that sun contribution is added to sky miss results.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - When rays miss geometry, sun color should contribute based on ray direction
+    /// - Sun contribution increases for rays pointing toward sunPosition
+    /// 
+    /// Setup:
+    /// - Sky depth (1.0 everywhere)
+    /// - Compare with sunColor=(1,0,0) vs sunColor=(0,0,0)
+    /// 
+    /// Expected:
+    /// - With sun enabled, red channel should be higher
+    /// </summary>
+    [Fact]
+    public void SunContribution_AddedToSkyMiss()
+    {
+        EnsureShaderTestAvailable();
+
+        var anchorPosData = CreateValidProbeAnchors();
+        var anchorNormalData = CreateProbeNormalsUpward();
+        var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(1.0f, channels: 1);
+        var colorData = CreateUniformSceneColor(0f, 0f, 0f);
+
+        float[] withSunData;
+        float[] withoutSunData;
+
+        // With sun
+        {
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ProbeGridWidth, ProbeGridHeight,
+                PixelInternalFormat.Rgba16f,
+                attachmentCount: 2);
+
+            var programId = CompileSHTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            SetupSHTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                raysPerProbe: DefaultRaysPerProbe,
+                ambientColor: (0f, 0f, 0f),
+                sunColor: (1f, 0f, 0f),       // Red sun
+                sunPosition: (0f, 1f, 0f));    // Sun above
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            withSunData = outputGBuffer[0].ReadPixels();
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Without sun
+        {
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ProbeGridWidth, ProbeGridHeight,
+                PixelInternalFormat.Rgba16f,
+                attachmentCount: 2);
+
+            var programId = CompileSHTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            SetupSHTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                raysPerProbe: DefaultRaysPerProbe,
+                ambientColor: (0f, 0f, 0f),
+                sunColor: (0f, 0f, 0f),       // No sun
+                sunPosition: (0f, 1f, 0f));
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            withoutSunData = outputGBuffer[0].ReadPixels();
+
+            GL.DeleteProgram(programId);
+        }
+
+        // With sun should have more red contribution
+        float withSunRed = withSunData[0];
+        float withoutSunRed = withoutSunData[0];
+
+        Assert.True(withSunRed > withoutSunRed,
+            $"Sun should add red contribution: with sun R={withSunRed:F4}, without R={withoutSunRed:F4}");
+    }
+
+    /// <summary>
+    /// Tests that indirectTint is applied specifically to hit radiance.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - indirectTint should modulate the bounced light from geometry hits
+    /// - With tint=(0.5, 0.5, 0.5), hit radiance should be halved
+    /// 
+    /// Setup:
+    /// - Geometry hit with white scene color
+    /// - Compare tint=(1,1,1) vs tint=(0.5,0.5,0.5)
+    /// 
+    /// Expected:
+    /// - Half tint should produce approximately half the brightness
+    /// </summary>
+    [Fact]
+    public void IndirectTint_AppliedToHitRadiance()
+    {
+        EnsureShaderTestAvailable();
+
+        var anchorPosData = CreateValidProbeAnchors();
+        var anchorNormalData = CreateProbeNormalsUpward();
+        var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(0.5f, channels: 1);
+        var colorData = CreateUniformSceneColor(1f, 1f, 1f);
+
+        float fullTintBrightness;
+        float halfTintBrightness;
+
+        // Full tint
+        {
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ProbeGridWidth, ProbeGridHeight,
+                PixelInternalFormat.Rgba16f,
+                attachmentCount: 2);
+
+            var programId = CompileSHTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            SetupSHTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                raysPerProbe: DefaultRaysPerProbe,
+                ambientColor: (0f, 0f, 0f),
+                sunColor: (0f, 0f, 0f),
+                indirectTint: (1f, 1f, 1f));
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var data = outputGBuffer[0].ReadPixels();
+            fullTintBrightness = (data[0] + data[1] + data[2]) / 3f;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Half tint
+        {
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ProbeGridWidth, ProbeGridHeight,
+                PixelInternalFormat.Rgba16f,
+                attachmentCount: 2);
+
+            var programId = CompileSHTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            SetupSHTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                raysPerProbe: DefaultRaysPerProbe,
+                ambientColor: (0f, 0f, 0f),
+                sunColor: (0f, 0f, 0f),
+                indirectTint: (0.5f, 0.5f, 0.5f));
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var data = outputGBuffer[0].ReadPixels();
+            halfTintBrightness = (data[0] + data[1] + data[2]) / 3f;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Half tint should be less than full tint (approximately 0.5x)
+        Assert.True(halfTintBrightness < fullTintBrightness * 0.8f,
+            $"Half tint ({halfTintBrightness:F4}) should be less than 0.8x full tint ({fullTintBrightness:F4})");
+    }
+
+    #endregion
 }

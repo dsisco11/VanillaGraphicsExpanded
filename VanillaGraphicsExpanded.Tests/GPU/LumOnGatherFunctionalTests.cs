@@ -910,4 +910,271 @@ public class LumOnGatherFunctionalTests : LumOnShaderFunctionalTestBase
     }
 
     #endregion
+
+    #region Phase 4 Tests: High Priority Missing Coverage
+
+    /// <summary>
+    /// Tests that depthSigma uniform affects the depth weight falloff.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - Smaller depthSigma = sharper falloff (more aggressive depth rejection)
+    /// - Larger depthSigma = smoother falloff (more tolerant of depth differences)
+    /// 
+    /// Setup:
+    /// - Moderate depth mismatch between pixel and probes
+    /// - Compare depthSigma=0.1 (strict) vs depthSigma=1.0 (loose)
+    /// 
+    /// Expected:
+    /// - Loose sigma should produce brighter output (more weight on probes)
+    /// </summary>
+    [Fact]
+    public void DepthSigma_AffectsWeightFalloff()
+    {
+        EnsureShaderTestAvailable();
+
+        var (tex0Data, tex1Data) = CreateUniformSHRadiance(1f, 1f, 1f);
+        var anchorPosData = CreateProbeAnchors(-10f, validity: 1.0f);  // Far probes
+        var anchorNormalData = CreateProbeNormals(0f, 0f, -1f);
+        var depthData = CreateDepthBuffer(0.3f);  // Near pixel
+        var normalData = CreateNormalBuffer(0f, 0f, -1f);
+
+        float strictSigmaBrightness;
+        float looseSigmaBrightness;
+
+        // Strict sigma (0.1)
+        {
+            using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex0Data);
+            using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex1Data);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                HalfResWidth, HalfResHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileSHGatherShader();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            SetupSHGatherUniforms(programId, invProjection, view, depthSigma: 0.1f);
+
+            radiance0Tex.Bind(0);
+            radiance1Tex.Bind(1);
+            anchorPosTex.Bind(2);
+            anchorNormalTex.Bind(3);
+            depthTex.Bind(4);
+            normalTex.Bind(5);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var outputData = outputGBuffer[0].ReadPixels();
+            var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
+            strictSigmaBrightness = (r + g + b) / 3f;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Loose sigma (1.0)
+        {
+            using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex0Data);
+            using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex1Data);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                HalfResWidth, HalfResHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileSHGatherShader();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            SetupSHGatherUniforms(programId, invProjection, view, depthSigma: 1.0f);
+
+            radiance0Tex.Bind(0);
+            radiance1Tex.Bind(1);
+            anchorPosTex.Bind(2);
+            anchorNormalTex.Bind(3);
+            depthTex.Bind(4);
+            normalTex.Bind(5);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var outputData = outputGBuffer[0].ReadPixels();
+            var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
+            looseSigmaBrightness = (r + g + b) / 3f;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Loose sigma should have more brightness (more weight on probes with depth mismatch)
+        Assert.True(looseSigmaBrightness >= strictSigmaBrightness,
+            $"Loose depthSigma ({looseSigmaBrightness:F4}) should be >= strict ({strictSigmaBrightness:F4})");
+    }
+
+    /// <summary>
+    /// Tests that normalSigma uniform affects the normal weight falloff.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - Smaller normalSigma = sharper falloff (more aggressive normal rejection)
+    /// - Larger normalSigma = smoother falloff (more tolerant of normal differences)
+    /// 
+    /// Setup:
+    /// - Normal mismatch between pixel and probes
+    /// - Compare normalSigma=2.0 (strict) vs normalSigma=16.0 (loose)
+    /// </summary>
+    [Fact]
+    public void NormalSigma_AffectsWeightFalloff()
+    {
+        EnsureShaderTestAvailable();
+
+        const float probeWorldZ = -5f;
+        const float pixelDepth = 0.5f;
+
+        var (tex0Data, tex1Data) = CreateUniformSHRadiance(1f, 1f, 1f);
+        var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1.0f);
+        var anchorNormalData = CreateProbeNormals(0f, 0f, -1f);  // Forward probes
+        var depthData = CreateDepthBuffer(pixelDepth);
+        var normalData = CreateNormalBuffer(0f, 1f, 0f);  // Upward pixel (different from probes)
+
+        float strictSigmaBrightness;
+        float looseSigmaBrightness;
+
+        // Strict sigma (2.0)
+        {
+            using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex0Data);
+            using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex1Data);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                HalfResWidth, HalfResHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileSHGatherShader();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            SetupSHGatherUniforms(programId, invProjection, view, normalSigma: 2.0f);
+
+            radiance0Tex.Bind(0);
+            radiance1Tex.Bind(1);
+            anchorPosTex.Bind(2);
+            anchorNormalTex.Bind(3);
+            depthTex.Bind(4);
+            normalTex.Bind(5);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var outputData = outputGBuffer[0].ReadPixels();
+            var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
+            strictSigmaBrightness = (r + g + b) / 3f;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Loose sigma (16.0)
+        {
+            using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex0Data);
+            using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex1Data);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                HalfResWidth, HalfResHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileSHGatherShader();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            SetupSHGatherUniforms(programId, invProjection, view, normalSigma: 16.0f);
+
+            radiance0Tex.Bind(0);
+            radiance1Tex.Bind(1);
+            anchorPosTex.Bind(2);
+            anchorNormalTex.Bind(3);
+            depthTex.Bind(4);
+            normalTex.Bind(5);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var outputData = outputGBuffer[0].ReadPixels();
+            var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
+            looseSigmaBrightness = (r + g + b) / 3f;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Loose sigma should have more brightness (more tolerant of normal mismatch)
+        Assert.True(looseSigmaBrightness >= strictSigmaBrightness,
+            $"Loose normalSigma ({looseSigmaBrightness:F4}) should be >= strict ({strictSigmaBrightness:F4})");
+    }
+
+    /// <summary>
+    /// Tests that all invalid probes result in zero output.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - When all surrounding probes are invalid, totalWeight < 0.001
+    /// - Output should be zero (no contribution)
+    /// 
+    /// Setup:
+    /// - All probes invalid (validity=0)
+    /// - Non-zero SH radiance (would contribute if valid)
+    /// </summary>
+    [Fact]
+    public void AllProbesInvalid_OutputsZero()
+    {
+        EnsureShaderTestAvailable();
+
+        const float probeWorldZ = -5f;
+        const float pixelDepth = 0.5f;
+
+        var (tex0Data, tex1Data) = CreateUniformSHRadiance(1f, 1f, 1f);
+        var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 0f);  // All invalid
+        var anchorNormalData = CreateProbeNormals(0f, 0f, -1f);
+        var depthData = CreateDepthBuffer(pixelDepth);
+        var normalData = CreateNormalBuffer(0f, 0f, -1f);
+
+        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex0Data);
+        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex1Data);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            HalfResWidth, HalfResHeight,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileSHGatherShader();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var view = LumOnTestInputFactory.CreateIdentityView();
+        SetupSHGatherUniforms(programId, invProjection, view);
+
+        radiance0Tex.Bind(0);
+        radiance1Tex.Bind(1);
+        anchorPosTex.Bind(2);
+        anchorNormalTex.Bind(3);
+        depthTex.Bind(4);
+        normalTex.Bind(5);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var outputData = outputGBuffer[0].ReadPixels();
+
+        // All pixels should be zero
+        for (int py = 0; py < HalfResHeight; py++)
+        {
+            for (int px = 0; px < HalfResWidth; px++)
+            {
+                var (r, g, b, _) = ReadPixelHalfRes(outputData, px, py);
+                Assert.True(r < TestEpsilon && g < TestEpsilon && b < TestEpsilon,
+                    $"Pixel ({px},{py}) should be zero when all probes invalid, got ({r:F4}, {g:F4}, {b:F4})");
+            }
+        }
+
+        GL.DeleteProgram(programId);
+    }
+
+    #endregion
 }

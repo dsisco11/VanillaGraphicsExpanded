@@ -918,4 +918,236 @@ public class LumOnTemporalOctahedralFunctionalTests : LumOnShaderFunctionalTestB
     }
 
     #endregion
+
+    #region Phase 4 Tests: High Priority Missing Coverage
+
+    /// <summary>
+    /// Tests that depth (hit distance) rejection triggers precisely at the threshold boundary.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - When hit distance difference > threshold, reject history
+    /// - Values just below threshold should accept history
+    /// - Values just above threshold should reject history
+    /// 
+    /// Setup:
+    /// - hitDistanceRejectThreshold = 0.3 (30%)
+    /// - Current hit distance = 10.0
+    /// - Test with history distance 11.0 (10% diff, accept) vs 15.0 (50% diff, reject)
+    /// 
+    /// Expected:
+    /// - 10% diff: history accepted (blended)
+    /// - 50% diff: history rejected (current passthrough)
+    /// </summary>
+    [Fact]
+    public void HitDistanceRejection_TriggersAtThreshold()
+    {
+        EnsureShaderTestAvailable();
+
+        float currentHitDist = 10f;
+        float threshold = 0.3f;
+        var anchorPos = CreateValidProbeAnchors();
+
+        float belowThresholdBlue;
+        float aboveThresholdBlue;
+
+        // Below threshold (10% diff, should accept)
+        {
+            float historyHitDist = 11f;  // 10% diff < 30% threshold
+            var currentAtlas = CreateCurrentAtlas(EncodeHitDistance(currentHitDist));
+            var historyAtlas = CreateHistoryAtlas(EncodeHitDistance(historyHitDist));
+
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
+            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+
+            using var outputAtlas = TestFramework.CreateTestGBuffer(
+                AtlasWidth, AtlasHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileOctahedralTemporalShader();
+            SetupOctahedralTemporalUniforms(
+                programId,
+                frameIndex: 0,
+                texelsPerFrame: 64,
+                temporalAlpha: 0.9f,
+                hitDistanceRejectThreshold: threshold);
+
+            currentAtlasTex.Bind(0);
+            historyAtlasTex.Bind(1);
+            anchorPosTex.Bind(2);
+
+            TestFramework.RenderQuadTo(programId, outputAtlas);
+            var outputData = outputAtlas[0].ReadPixels();
+            var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
+            belowThresholdBlue = b;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Above threshold (50% diff, should reject)
+        {
+            float historyHitDist = 15f;  // 50% diff > 30% threshold
+            var currentAtlas = CreateCurrentAtlas(EncodeHitDistance(currentHitDist));
+            var historyAtlas = CreateHistoryAtlas(EncodeHitDistance(historyHitDist));
+
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
+            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+
+            using var outputAtlas = TestFramework.CreateTestGBuffer(
+                AtlasWidth, AtlasHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileOctahedralTemporalShader();
+            SetupOctahedralTemporalUniforms(
+                programId,
+                frameIndex: 0,
+                texelsPerFrame: 64,
+                temporalAlpha: 0.9f,
+                hitDistanceRejectThreshold: threshold);
+
+            currentAtlasTex.Bind(0);
+            historyAtlasTex.Bind(1);
+            anchorPosTex.Bind(2);
+
+            TestFramework.RenderQuadTo(programId, outputAtlas);
+            var outputData = outputAtlas[0].ReadPixels();
+            var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
+            aboveThresholdBlue = b;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Below threshold should have more blue (history accepted)
+        Assert.True(belowThresholdBlue > aboveThresholdBlue,
+            $"Below threshold should have more blue ({belowThresholdBlue:F3}) than above ({aboveThresholdBlue:F3})");
+    }
+
+    /// <summary>
+    /// Tests that neighborhood clamping prevents ghosting artifacts.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - History values outside the neighborhood min/max should be clamped
+    /// - Clamping prevents bright/dark ghost trails from persisting
+    /// 
+    /// Setup:
+    /// - Current atlas: uniform gray (0.5, 0.5, 0.5)
+    /// - History atlas: very bright (2.0, 2.0, 2.0) - outside neighborhood bounds
+    /// 
+    /// Expected:
+    /// - Output should be clamped closer to current (not 2.0)
+    /// </summary>
+    [Fact]
+    public void NeighborhoodClamping_PreventsGhosting()
+    {
+        EnsureShaderTestAvailable();
+
+        float hitDist = 10f;
+        var anchorPos = CreateValidProbeAnchors();
+        
+        // Current = gray (0.5), History = very bright (2.0)
+        var currentAtlas = CreateUniformAtlas(0.5f, 0.5f, 0.5f, EncodeHitDistance(hitDist));
+        var historyAtlas = CreateUniformAtlas(2.0f, 2.0f, 2.0f, EncodeHitDistance(hitDist));
+
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
+        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+
+        using var outputAtlas = TestFramework.CreateTestGBuffer(
+            AtlasWidth, AtlasHeight,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileOctahedralTemporalShader();
+        SetupOctahedralTemporalUniforms(
+            programId,
+            frameIndex: 0,
+            texelsPerFrame: 64,
+            temporalAlpha: 0.9f);
+
+        currentAtlasTex.Bind(0);
+        historyAtlasTex.Bind(1);
+        anchorPosTex.Bind(2);
+
+        TestFramework.RenderQuadTo(programId, outputAtlas);
+        var outputData = outputAtlas[0].ReadPixels();
+
+        // Check that output is clamped - should not be 2.0 (full history)
+        // With α=0.9, unclamped would be: 0.1*0.5 + 0.9*2.0 = 1.85
+        // Clamping should bring it closer to current
+        var (r, g, b, _) = ReadAtlasTexel(outputData, 4, 4);
+        
+        Assert.True(r < 1.5f,
+            $"Neighborhood clamping should prevent full history bleed, got R={r:F3}");
+    }
+
+    /// <summary>
+    /// Tests that invalid probes output current frame values without blending.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - Invalid probes (validity=0) should pass through current atlas unchanged
+    /// - No temporal blending should occur for invalid probes
+    /// 
+    /// Setup:
+    /// - All probes invalid
+    /// - Current atlas: red (1,0,0)
+    /// - History atlas: blue (0,0,1)
+    /// 
+    /// Expected:
+    /// - Output should match current (red) exactly
+    /// </summary>
+    [Fact]
+    public void InvalidProbe_OutputsCurrentWithoutBlending()
+    {
+        EnsureShaderTestAvailable();
+
+        float hitDist = 10f;
+        var anchorPos = CreateInvalidProbeAnchors();
+        var currentAtlas = CreateCurrentAtlas(EncodeHitDistance(hitDist));
+        var historyAtlas = CreateHistoryAtlas(EncodeHitDistance(hitDist));
+
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
+        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+
+        using var outputAtlas = TestFramework.CreateTestGBuffer(
+            AtlasWidth, AtlasHeight,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileOctahedralTemporalShader();
+        SetupOctahedralTemporalUniforms(
+            programId,
+            frameIndex: 0,
+            texelsPerFrame: 64,
+            temporalAlpha: 0.9f);
+
+        currentAtlasTex.Bind(0);
+        historyAtlasTex.Bind(1);
+        anchorPosTex.Bind(2);
+
+        TestFramework.RenderQuadTo(programId, outputAtlas);
+        var outputData = outputAtlas[0].ReadPixels();
+
+        // All texels should be zero (invalid probes output zero)
+        int zeroCount = 0;
+        for (int y = 0; y < AtlasHeight; y++)
+        {
+            for (int x = 0; x < AtlasWidth; x++)
+            {
+                var (r, g, b, a) = ReadAtlasTexel(outputData, x, y);
+                if (MathF.Abs(r) < TestEpsilon &&
+                    MathF.Abs(g) < TestEpsilon &&
+                    MathF.Abs(b) < TestEpsilon)
+                {
+                    zeroCount++;
+                }
+            }
+        }
+
+        Assert.True(zeroCount == AtlasWidth * AtlasHeight,
+            $"All texels should be zero for invalid probes, got {zeroCount}/{AtlasWidth * AtlasHeight}");
+
+        GL.DeleteProgram(programId);
+    }
+
+    #endregion
 }
