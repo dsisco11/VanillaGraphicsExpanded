@@ -30,32 +30,32 @@ LumOn GPU Shader Functional Tests:
       ✔ Generate uniform checklist report for test setup verification @done
 
   Phase 2 - Test Input Factory:
-    ☐ Create LumOnTestInputFactory.cs in VanillaGraphicsExpanded.Tests/GPU/
-      ☐ Depth buffer generators (4×4):
-        ☐ CreateDepthBufferLinearRamp() - 0.1 to 0.9 gradient
-        ☐ CreateDepthBufferUniform(float depth) - constant depth
-        ☐ CreateDepthBufferCheckerboard() - alternating near/far
-      ☐ Normal buffer generators (4×4):
-        ☐ CreateNormalBufferUpward() - all (0, 1, 0)
-        ☐ CreateNormalBufferAxisAligned() - one axis per quadrant
-        ☐ CreateNormalBufferFromDepth(float[] depth) - derive from depth discontinuities
-      ☐ Probe anchor generators (2×2):
-        ☐ CreateProbePositions() - grid at known world coords
-        ☐ CreateProbeNormals() - uniform upward
-        ☐ CreateProbeValidity() - all valid (w=1.0)
-      ☐ Radiance generators:
-        ☐ CreateRadianceAtlasSolidQuadrants() - RGBW per quadrant (16×16)
-        ☐ CreateRadianceAtlasGradient() - horizontal gradient (16×16)
-        ☐ CreateSHCoefficientsUniform(vec3 color) - L1 SH for solid color (2×2)
-      ☐ Matrix generators:
-        ☐ CreateIdentityView() - identity 4×4
-        ☐ CreateIdentityProjection() - identity 4×4
-        ☐ CreateSimplePerspective(fov, aspect, zNear, zFar)
-        ☐ CreateInverseMatrix(float[] matrix)
-      ☐ Scene input generators:
-        ☐ CreateAlbedoBuffer(vec3 color) - uniform albedo (4×4)
-        ☐ CreateDirectLightingBuffer() - simple lit scene (4×4)
-        ☐ CreateMaterialBuffer(metallic, roughness) - uniform material (4×4)
+    ✔ Create LumOnTestInputFactory.cs in VanillaGraphicsExpanded.Tests/GPU/Helpers/ @done
+      ✔ Depth buffer generators (4×4): @done
+        ✔ CreateDepthBufferLinearRamp() - 0.1 to 0.9 gradient @done
+        ✔ CreateDepthBufferUniform(float depth) - constant depth @done
+        ✔ CreateDepthBufferCheckerboard() - alternating near/far @done
+      ✔ Normal buffer generators (4×4): @done
+        ✔ CreateNormalBufferUpward() - all (0, 1, 0) @done
+        ✔ CreateNormalBufferAxisAligned() - one axis per quadrant @done
+        ✔ CreateNormalBufferFromDepth(float[] depth) - derive from depth discontinuities @done
+      ✔ Probe anchor generators (2×2): @done
+        ✔ CreateProbePositions() - grid at known world coords @done
+        ✔ CreateProbeNormals() - uniform upward @done
+        ✔ CreateProbeValidity() - all valid (w=1.0) @done
+      ✔ Radiance generators: @done
+        ✔ CreateRadianceAtlasSolidQuadrants() - RGBW per quadrant (16×16) @done
+        ✔ CreateRadianceAtlasGradient() - horizontal gradient (16×16) @done
+        ✔ CreateSHCoefficientsUniform(vec3 color) - L1 SH for solid color (2×2) @done
+      ✔ Matrix generators: @done
+        ✔ CreateIdentityView() - identity 4×4 @done
+        ✔ CreateIdentityProjection() - identity 4×4 @done
+        ✔ CreateSimplePerspective(fov, aspect, zNear, zFar) @done
+        ✔ CreateInverseMatrix(float[] matrix) @done
+      ✔ Scene input generators: @done
+        ✔ CreateAlbedoBuffer(vec3 color) - uniform albedo (4×4) @done
+        ✔ CreateDirectLightingBuffer() - simple lit scene (4×4) @done
+        ✔ CreateMaterialBuffer(metallic, roughness) - uniform material (4×4) @done
 
   Phase 3 - Probe Anchor Tests:
     ☐ Create LumOnProbeAnchorFunctionalTests.cs
