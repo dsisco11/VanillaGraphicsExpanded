@@ -134,6 +134,28 @@ public sealed class DynamicTexture : IDisposable
         return Create(width, height, format, TextureFilterMode.Nearest);
     }
 
+    /// <summary>
+    /// Creates a new 2D texture with initial pixel data.
+    /// </summary>
+    /// <param name="width">Texture width in pixels.</param>
+    /// <param name="height">Texture height in pixels.</param>
+    /// <param name="format">Internal pixel format (e.g., Rgba16f, Rgba8).</param>
+    /// <param name="data">Float array containing initial pixel data.</param>
+    /// <param name="filter">Filtering mode for sampling. Default is Nearest.</param>
+    /// <returns>A new DynamicTexture instance with uploaded data.</returns>
+    /// <exception cref="ArgumentException">Thrown if data array size doesn't match texture dimensions.</exception>
+    public static DynamicTexture CreateWithData(
+        int width,
+        int height,
+        PixelInternalFormat format,
+        float[] data,
+        TextureFilterMode filter = TextureFilterMode.Nearest)
+    {
+        var texture = Create(width, height, format, filter);
+        texture.UploadData(data);
+        return texture;
+    }
+
     #endregion
 
     #region Public Methods
@@ -224,6 +246,144 @@ public sealed class DynamicTexture : IDisposable
             return;
         }
         GL.Clear(ClearBufferMask.ColorBufferBit);
+    }
+
+    /// <summary>
+    /// Uploads pixel data to the texture, replacing existing contents.
+    /// Data array must match texture dimensions and format.
+    /// </summary>
+    /// <param name="data">Float array containing pixel data (RGBA order for RGBA formats).</param>
+    /// <exception cref="ArgumentException">Thrown if data array size doesn't match texture dimensions.</exception>
+    public void UploadData(float[] data)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[DynamicTexture] Attempted to upload data to disposed or invalid texture");
+            return;
+        }
+
+        int expectedSize = width * height * GetChannelCount();
+        if (data.Length != expectedSize)
+        {
+            throw new ArgumentException(
+                $"Data array size {data.Length} doesn't match expected size {expectedSize} " +
+                $"({width}×{height}×{GetChannelCount()} channels)",
+                nameof(data));
+        }
+
+        GL.BindTexture(TextureTarget.Texture2D, textureId);
+        GL.TexSubImage2D(
+            TextureTarget.Texture2D,
+            0,
+            0, 0,
+            width, height,
+            TextureFormatHelper.GetPixelFormat(internalFormat),
+            PixelType.Float,
+            data);
+        GL.BindTexture(TextureTarget.Texture2D, 0);
+    }
+
+    /// <summary>
+    /// Uploads pixel data to a sub-region of the texture.
+    /// </summary>
+    /// <param name="data">Float array containing pixel data for the sub-region.</param>
+    /// <param name="x">X offset in pixels.</param>
+    /// <param name="y">Y offset in pixels.</param>
+    /// <param name="regionWidth">Width of the sub-region in pixels.</param>
+    /// <param name="regionHeight">Height of the sub-region in pixels.</param>
+    /// <exception cref="ArgumentException">Thrown if data array size doesn't match region dimensions.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if region extends beyond texture bounds.</exception>
+    public void UploadData(float[] data, int x, int y, int regionWidth, int regionHeight)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[DynamicTexture] Attempted to upload data to disposed or invalid texture");
+            return;
+        }
+
+        if (x < 0 || y < 0 || x + regionWidth > width || y + regionHeight > height)
+        {
+            throw new ArgumentOutOfRangeException(
+                $"Region ({x}, {y}, {regionWidth}, {regionHeight}) extends beyond texture bounds ({width}×{height})");
+        }
+
+        int expectedSize = regionWidth * regionHeight * GetChannelCount();
+        if (data.Length != expectedSize)
+        {
+            throw new ArgumentException(
+                $"Data array size {data.Length} doesn't match expected size {expectedSize} " +
+                $"({regionWidth}×{regionHeight}×{GetChannelCount()} channels)",
+                nameof(data));
+        }
+
+        GL.BindTexture(TextureTarget.Texture2D, textureId);
+        GL.TexSubImage2D(
+            TextureTarget.Texture2D,
+            0,
+            x, y,
+            regionWidth, regionHeight,
+            TextureFormatHelper.GetPixelFormat(internalFormat),
+            PixelType.Float,
+            data);
+        GL.BindTexture(TextureTarget.Texture2D, 0);
+    }
+
+    /// <summary>
+    /// Reads pixel data from the texture.
+    /// Requires the texture to be bound to an FBO for readback.
+    /// </summary>
+    /// <returns>Float array containing pixel data (RGBA order for RGBA formats).</returns>
+    /// <remarks>
+    /// This method binds the texture to a temporary FBO for readback.
+    /// For frequent readback operations, consider using a persistent FBO.
+    /// </remarks>
+    public float[] ReadPixels()
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[DynamicTexture] Attempted to read pixels from disposed or invalid texture");
+            return [];
+        }
+
+        int channelCount = GetChannelCount();
+        float[] data = new float[width * height * channelCount];
+
+        // Create temporary FBO for readback
+        int tempFbo = GL.GenFramebuffer();
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, tempFbo);
+        GL.FramebufferTexture2D(
+            FramebufferTarget.Framebuffer,
+            FramebufferAttachment.ColorAttachment0,
+            TextureTarget.Texture2D,
+            textureId,
+            0);
+
+        // Read pixels
+        GL.ReadPixels(0, 0, width, height,
+            TextureFormatHelper.GetPixelFormat(internalFormat),
+            PixelType.Float,
+            data);
+
+        // Cleanup
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        GL.DeleteFramebuffer(tempFbo);
+
+        return data;
+    }
+
+    /// <summary>
+    /// Gets the number of channels for the current internal format.
+    /// </summary>
+    private int GetChannelCount()
+    {
+        return internalFormat switch
+        {
+            PixelInternalFormat.R16f or PixelInternalFormat.R32f => 1,
+            PixelInternalFormat.Rg16f or PixelInternalFormat.Rg32f => 2,
+            PixelInternalFormat.Rgb16f or PixelInternalFormat.Rgb32f or
+            PixelInternalFormat.Rgb8 or PixelInternalFormat.Rgb => 3,
+            _ => 4 // RGBA formats and default
+        };
     }
 
     #endregion

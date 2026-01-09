@@ -7,27 +7,27 @@ LumOn GPU Shader Functional Tests:
     ☐ Test epsilon: 1e-4f for float comparisons
 
   Phase 1 - Test Infrastructure:
-    ☐ Extend DynamicTexture.cs (VanillaGraphicsExpanded/Rendering/)
-      ☐ Add UploadData(float[] data) method - upload pixel data to existing texture
-      ☐ Add UploadData(float[] data, int x, int y, int w, int h) - partial upload
-      ☐ Add ReadPixels() method - readback texture contents as float[]
-      ☐ Add static CreateWithData(w, h, format, float[] data) factory method
-    ☐ Create ShaderTestFramework.cs in VanillaGraphicsExpanded.Tests/GPU/
-      ☐ RenderQuad(programId) - fullscreen triangle to bound GBuffer
-      ☐ CreateTestGBuffer(width, height, format, attachmentCount) - convenience wrapper around GBuffer.CreateMRT
-      ☐ Uses DynamicTexture.Bind(unit) for input texture binding
-      ☐ Uses DynamicTexture.ReadPixels() for output validation
-      ☐ Uses GBuffer.Bind()/Unbind() for render target management
-    ☐ Create PixelComparer.cs in VanillaGraphicsExpanded.Tests/GPU/
-      ☐ AssertPixelsMatch(float[] expected, float[] actual, float epsilon)
-      ☐ Report first N mismatches with (x, y) coordinates and delta values
-      ☐ Support per-channel epsilon for HDR tolerance
-      ☐ Format failure messages with hex color comparison
-    ☐ Create UniformValidator.cs in VanillaGraphicsExpanded.Tests/GPU/
-      ☐ ExtractUniforms(string processedSource) using GlslSchema.Instance
-      ☐ ValidateUniformsSet(uniforms, setUniformNames) - fail if missing
-      ☐ IsSamplerType(string typeName) - distinguish texture uniforms
-      ☐ Generate uniform checklist report for test setup verification
+    ✔ Extend DynamicTexture.cs (VanillaGraphicsExpanded/Rendering/) @done
+      ✔ Add UploadData(float[] data) method - upload pixel data to existing texture @done
+      ✔ Add UploadData(float[] data, int x, int y, int w, int h) - partial upload @done
+      ✔ Add ReadPixels() method - readback texture contents as float[] @done
+      ✔ Add static CreateWithData(w, h, format, float[] data) factory method @done
+    ✔ Create ShaderTestFramework.cs in VanillaGraphicsExpanded.Tests/GPU/Helpers/ @done
+      ✔ RenderQuad(programId) - fullscreen triangle to bound GBuffer @done
+      ✔ CreateTestGBuffer(width, height, format, attachmentCount) - convenience wrapper around GBuffer.CreateMRT @done
+      ✔ Uses DynamicTexture.Bind(unit) for input texture binding @done
+      ✔ Uses DynamicTexture.ReadPixels() for output validation @done
+      ✔ Uses GBuffer.Bind()/Unbind() for render target management @done
+    ✔ Create PixelComparer.cs in VanillaGraphicsExpanded.Tests/GPU/Helpers/ @done
+      ✔ AssertPixelsMatch(float[] expected, float[] actual, float epsilon) @done
+      ✔ Report first N mismatches with (x, y) coordinates and delta values @done
+      ✔ Support per-channel epsilon for HDR tolerance @done
+      ✔ Format failure messages with hex color comparison @done
+    ✔ Create UniformValidator.cs in VanillaGraphicsExpanded.Tests/GPU/Helpers/ @done
+      ✔ ExtractUniforms(string processedSource) using GlslSchema.Instance @done
+      ✔ ValidateUniformsSet(uniforms, setUniformNames) - fail if missing @done
+      ✔ IsSamplerType(string typeName) - distinguish texture uniforms @done
+      ✔ Generate uniform checklist report for test setup verification @done
 
   Phase 2 - Test Input Factory:
     ☐ Create LumOnTestInputFactory.cs in VanillaGraphicsExpanded.Tests/GPU/
