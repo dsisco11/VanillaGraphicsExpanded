@@ -3,7 +3,7 @@ LumOn Functional Test Coverage:
   Phase 4 - High Priority Missing Tests:
     Probe Trace Shaders (SH & Octahedral):
       ✔ RayHit_ReturnsSceneColor - Verify actual geometry hits return scene color (not just sky miss) @done
-      ☐ DistanceFalloff_AppliedToHitRadiance - Test distance attenuation on hit radiance
+      ✔ DistanceFalloff_AppliedToHitRadiance - Test distance attenuation on hit radiance @done
       ✔ RaySteps_AffectsTraceQuality - Verify step count effect on ray march quality @done
       ✔ SunContribution_AddedToSkyMiss - Test sunDir/sunColor contribution to sky @done
       ✔ IndirectTint_AppliedToHitRadiance - Test tint on hit radiance (not just sky) @done

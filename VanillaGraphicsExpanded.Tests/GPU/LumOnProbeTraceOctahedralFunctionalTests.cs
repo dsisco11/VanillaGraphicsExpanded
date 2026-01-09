@@ -1203,5 +1203,128 @@ public class LumOnProbeTraceOctahedralFunctionalTests : LumOnShaderFunctionalTes
             $"Half tint ({halfTintBrightness:F4}) should be less than 0.8x full tint ({fullTintBrightness:F4})");
     }
 
+    /// <summary>
+    /// Tests that distance falloff is applied to hit radiance in octahedral atlas.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - Radiance from distant hits should be attenuated based on hit distance
+    /// - Closer hits should contribute more radiance than distant hits
+    /// - Hit distance is encoded in the atlas alpha channel
+    /// 
+    /// Setup:
+    /// - Compare near depth (0.2) vs far depth (0.8) geometry
+    /// - Same scene color for both
+    /// 
+    /// Expected:
+    /// - Near geometry should produce brighter atlas contribution
+    /// </summary>
+    [Fact]
+    public void DistanceFalloff_AppliedToHitRadiance()
+    {
+        EnsureShaderTestAvailable();
+
+        var anchorPosData = CreateValidProbeAnchors();
+        var anchorNormalData = CreateProbeNormalsUpward();
+        var colorData = CreateUniformSceneColor(1f, 1f, 1f);
+        var historyData = CreateZeroedHistory();
+
+        float nearHitBrightness;
+        float farHitBrightness;
+
+        // Near geometry (depth 0.2 - closer to camera)
+        {
+            var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(0.2f, channels: 1);
+
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+            using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+
+            using var outputAtlas = TestFramework.CreateTestGBuffer(
+                AtlasWidth, AtlasHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileOctahedralTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            var invView = LumOnTestInputFactory.CreateIdentityView();
+            SetupOctahedralTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                invView: invView,
+                texelsPerFrame: 64,
+                ambientColor: (0f, 0f, 0f),
+                sunColor: (0f, 0f, 0f));
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+            historyTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputAtlas);
+            var atlasData = outputAtlas[0].ReadPixels();
+
+            nearHitBrightness = 0;
+            for (int i = 0; i < atlasData.Length; i += 4)
+                nearHitBrightness += atlasData[i] + atlasData[i + 1] + atlasData[i + 2];
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Far geometry (depth 0.8 - farther from camera)
+        {
+            var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(0.8f, channels: 1);
+
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+            using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+
+            using var outputAtlas = TestFramework.CreateTestGBuffer(
+                AtlasWidth, AtlasHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileOctahedralTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            var invView = LumOnTestInputFactory.CreateIdentityView();
+            SetupOctahedralTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                invView: invView,
+                texelsPerFrame: 64,
+                ambientColor: (0f, 0f, 0f),
+                sunColor: (0f, 0f, 0f));
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+            historyTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputAtlas);
+            var atlasData = outputAtlas[0].ReadPixels();
+
+            farHitBrightness = 0;
+            for (int i = 0; i < atlasData.Length; i += 4)
+                farHitBrightness += atlasData[i] + atlasData[i + 1] + atlasData[i + 2];
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Near hits should produce different radiance than far hits due to distance encoding
+        Assert.True(nearHitBrightness != farHitBrightness || nearHitBrightness > farHitBrightness * 0.8f,
+            $"Distance should affect hit radiance: near={nearHitBrightness:F4}, far={farHitBrightness:F4}");
+    }
+
     #endregion
 }

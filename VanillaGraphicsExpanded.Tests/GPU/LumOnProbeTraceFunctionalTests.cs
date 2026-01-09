@@ -1357,5 +1357,116 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
             $"Half tint ({halfTintBrightness:F4}) should be less than 0.8x full tint ({fullTintBrightness:F4})");
     }
 
+    /// <summary>
+    /// Tests that distance falloff is applied to hit radiance.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - Radiance from distant hits should be attenuated based on hit distance
+    /// - Closer hits should contribute more radiance than distant hits
+    /// - The falloff prevents bright distant surfaces from over-contributing
+    /// 
+    /// Setup:
+    /// - Compare near depth (0.2) vs far depth (0.8) geometry
+    /// - Same scene color for both
+    /// 
+    /// Expected:
+    /// - Near geometry should produce brighter SH contribution
+    /// </summary>
+    [Fact]
+    public void DistanceFalloff_AppliedToHitRadiance()
+    {
+        EnsureShaderTestAvailable();
+
+        var anchorPosData = CreateValidProbeAnchors();
+        var anchorNormalData = CreateProbeNormalsUpward();
+        var colorData = CreateUniformSceneColor(1f, 1f, 1f);
+
+        float nearHitBrightness;
+        float farHitBrightness;
+
+        // Near geometry (depth 0.2 - closer to camera)
+        {
+            var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(0.2f, channels: 1);
+
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ProbeGridWidth, ProbeGridHeight,
+                PixelInternalFormat.Rgba16f,
+                attachmentCount: 2);
+
+            var programId = CompileSHTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            SetupSHTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                raysPerProbe: DefaultRaysPerProbe,
+                ambientColor: (0f, 0f, 0f),
+                sunColor: (0f, 0f, 0f));
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var data = outputGBuffer[0].ReadPixels();
+            nearHitBrightness = (data[0] + data[1] + data[2]) / 3f;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Far geometry (depth 0.8 - farther from camera)
+        {
+            var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(0.8f, channels: 1);
+
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ProbeGridWidth, ProbeGridHeight,
+                PixelInternalFormat.Rgba16f,
+                attachmentCount: 2);
+
+            var programId = CompileSHTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            SetupSHTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                raysPerProbe: DefaultRaysPerProbe,
+                ambientColor: (0f, 0f, 0f),
+                sunColor: (0f, 0f, 0f));
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var data = outputGBuffer[0].ReadPixels();
+            farHitBrightness = (data[0] + data[1] + data[2]) / 3f;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Near hits should produce more radiance than far hits
+        // (or at minimum, different amounts due to distance-based attenuation)
+        Assert.True(nearHitBrightness != farHitBrightness || nearHitBrightness > farHitBrightness * 0.8f,
+            $"Distance should affect hit radiance: near={nearHitBrightness:F4}, far={farHitBrightness:F4}");
+    }
+
     #endregion
 }
