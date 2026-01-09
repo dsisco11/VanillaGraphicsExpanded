@@ -75,6 +75,13 @@ struct ValidationResult {
     float confidence;  // 0-1, how much to trust history
 };
 
+vec3 ReconstructHistoryNormal(vec2 historyNormal2D, vec3 currentNormal) {
+    float z2 = max(1.0 - dot(historyNormal2D, historyNormal2D), 0.0);
+    float z = sqrt(z2);
+    float zSign = (currentNormal.z >= 0.0) ? 1.0 : -1.0;
+    return normalize(vec3(historyNormal2D, z * zSign));
+}
+
 ValidationResult ValidateHistory(vec2 historyUV, float currentDepthLin, vec3 currentNormal) {
     ValidationResult result;
     result.valid = false;
@@ -104,11 +111,10 @@ ValidationResult ValidateHistory(vec2 historyUV, float currentDepthLin, vec3 cur
         return result;
     }
     
-    // Normal rejection: 2D dot product threshold (only compare X and Y)
-    // This is valid since normals are typically close to unit length and
-    // the Z component can be approximately reconstructed if needed
-    vec2 currentNormal2D = currentNormal.xy;
-    float normalDot = dot(normalize(currentNormal2D), normalize(historyNormal2D));
+    // Normal rejection: reconstruct Z from stored XY and compare in 3D.
+    // This avoids rejecting normals where XY is near zero (e.g. (0,0,-1)).
+    vec3 historyNormal = ReconstructHistoryNormal(historyNormal2D, currentNormal);
+    float normalDot = dot(normalize(currentNormal), historyNormal);
     if (normalDot < normalRejectThreshold) {
         return result;
     }

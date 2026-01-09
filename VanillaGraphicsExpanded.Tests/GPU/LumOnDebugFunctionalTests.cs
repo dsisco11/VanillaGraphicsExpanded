@@ -254,7 +254,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             data[idx + 0] = linearDepth;
             data[idx + 1] = nx * 0.5f + 0.5f;
             data[idx + 2] = ny * 0.5f + 0.5f;
-            data[idx + 3] = nz * 0.5f + 0.5f;  // Note: accumCount typically in different location
+            data[idx + 3] = accumCount;
         }
         return data;
     }
