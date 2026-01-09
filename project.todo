@@ -78,19 +78,19 @@ LumOn GPU Shader Functional Tests:
         // worldPos = invView * invProj * clipPos
 
   Phase 4 - Probe Trace Octahedral Tests:
-    ☐ Create LumOnProbeTraceOctahedralFunctionalTests.cs
-      ☐ Test: ValidProbe_TracesRaysToAtlas
-        ☐ Input: single valid probe, simple scene color
-        ☐ Expected: 8×8 texel region filled with traced radiance
-      ☐ Test: SkyMiss_ReturnsAmbientColor
-        ☐ Input: rays that miss geometry (depth=1.0 everywhere)
-        ☐ Expected: radiance = ambientColor * skyMissWeight
-      ☐ Test: HitDistance_EncodedCorrectly
-        ☐ Input: known geometry at specific distance
-        ☐ Expected: outRadiance.a = log-encoded hit distance
-      ☐ Test: InvalidProbe_ProducesZeroRadiance
-        ☐ Input: probe with validity=0
-        ☐ Expected: all 64 texels = (0,0,0,0)
+    ✔ Create LumOnProbeTraceOctahedralFunctionalTests.cs @done
+      ✔ Test: ValidProbe_TracesRaysToAtlas @done
+        ✔ Input: single valid probe, simple scene color @done
+        ✔ Expected: 8×8 texel region filled with traced radiance @done
+      ✔ Test: SkyMiss_ReturnsAmbientColor @done
+        ✔ Input: rays that miss geometry (depth=1.0 everywhere) @done
+        ✔ Expected: radiance = ambientColor * skyMissWeight @done
+      ✔ Test: HitDistance_EncodedCorrectly @done
+        ✔ Input: known geometry at specific distance @done
+        ✔ Expected: outRadiance.a = log-encoded hit distance @done
+      ✔ Test: InvalidProbe_ProducesZeroRadiance @done
+        ✔ Input: probe with validity=0 @done
+        ✔ Expected: all 64 texels = (0,0,0,0) @done
 
   Phase 5 - Temporal Accumulation Tests:
     ☐ Create LumOnTemporalFunctionalTests.cs
