@@ -611,12 +611,20 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
     /// <summary>
     /// Tests that probes at depth discontinuities are marked with partial validity (0.5).
     /// 
+    /// DESIRED BEHAVIOR:
+    /// - When a probe's sampling neighborhood contains significant depth discontinuities,
+    ///   the probe should be marked with partial validity (0.5) to indicate it's at an edge
+    /// - This prevents light leaking across object boundaries
+    /// 
     /// Setup:
-    /// - Depth buffer: checkerboard pattern with significant depth differences
+    /// - Depth buffer: checkerboard pattern (alternating 0.3 and 0.7 depth)
+    /// - Screen: 4×4 pixels, Probe grid: 2×2 probes (probeSpacing=2)
+    /// - Each probe samples center of its 2×2 cell, which straddles the checkerboard edge
     /// - Normals: valid upward normals (encoded)
     /// 
     /// Expected:
-    /// - Probes sampling at edge boundaries should have validity = 0.5
+    /// - ALL probes should have validity = 0.5 (partial) because each probe's 2×2 cell
+    ///   contains both near and far depth values in the checkerboard pattern
     /// </summary>
     [Fact]
     public void DepthDiscontinuity_ProducesPartialValidity()
@@ -624,7 +632,7 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
         EnsureContextValid();
         Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
 
-        // Create input textures - checkerboard creates depth edges, use encoded normals
+        // Create input textures - checkerboard creates depth edges at every probe
         var depthData = LumOnTestInputFactory.CreateDepthBufferCheckerboard(channels: 1);
         var normalData = CreateEncodedNormalBufferUniform(0f, 1f, 0f); // Upward normal encoded
 
@@ -650,9 +658,8 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
         // Read back results
         var positionData = outputGBuffer[0].ReadPixels();
 
-        // With a checkerboard pattern, probes should detect depth discontinuities
-        // At least some probes should have partial validity (0.5) due to edges
-        int partialValidityCount = 0;
+        // DESIRED: With checkerboard pattern, ALL probes should detect depth discontinuities
+        // Each probe's 2×2 cell contains alternating near/far depths
         for (int py = 0; py < ProbeGridHeight; py++)
         {
             for (int px = 0; px < ProbeGridWidth; px++)
@@ -660,20 +667,12 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
                 int idx = (py * ProbeGridWidth + px) * 4;
                 float validity = positionData[idx + 3];
 
-                // Count probes with partial validity (edge detection triggered)
-                if (validity > 0.4f && validity < 0.6f)
-                    partialValidityCount++;
-
-                // All probes should at least be partially valid (not sky)
-                Assert.True(validity >= 0.4f,
-                    $"Probe ({px},{py}) should be at least partially valid, got validity={validity}");
+                // DESIRED: Probes at depth discontinuities should have partial validity (0.5)
+                Assert.True(validity > 0.4f && validity < 0.6f,
+                    $"Probe ({px},{py}) should have partial validity (≈0.5) at depth edge, got {validity}");
             }
         }
 
-        // Due to checkerboard, we expect edge detection to trigger on at least some probes
-        // (This test validates the edge detection logic works, not that specific probes have specific values)
-        // Note: Depending on probe sampling positions and depth discontinuity threshold,
-        // the number of edge probes may vary
         GL.DeleteProgram(programId);
     }
 
@@ -684,18 +683,23 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
     /// <summary>
     /// Tests that probes with invalid normals (zero-length after decoding) are marked as invalid.
     /// 
-    /// Note: This test documents expected behavior for degenerate normals. The shader checks
-    /// `length(normalWS) &lt; 0.5` after `normalize()`. For zero-vector input, `normalize()` 
-    /// produces undefined behavior in GLSL, so different drivers may behave differently.
-    /// This test uses a very short normal that doesn't normalize to unit length.
+    /// DESIRED BEHAVIOR:
+    /// - Probes with degenerate/zero-length normals should be marked invalid (validity = 0.0)
+    /// - The shader should gracefully handle edge cases without producing NaN or undefined output
     /// 
     /// Setup:
     /// - Depth buffer: valid uniform depth
-    /// - Normals: very short vectors that don't normalize well
+    /// - Normals: encoded (0.5, 0.5, 0.5) which decodes to zero vector (0, 0, 0)
     /// 
     /// Expected:
-    /// - outPosition.w = 0.0 (invalid due to degenerate normal) - behavior may vary by driver
+    /// - outPosition.w = 0.0 (invalid due to degenerate normal)
+    /// - outPosition.xyz = (0, 0, 0) for invalid probes
     /// </summary>
+    /// <remarks>
+    /// The shader should check for degenerate normals BEFORE calling normalize() to avoid
+    /// undefined behavior. The check `length(rawNormal) &lt; epsilon` should occur on the
+    /// decoded but un-normalized value.
+    /// </remarks>
     [Fact]
     public void InvalidNormals_ProduceInvalidProbes()
     {
@@ -707,13 +711,7 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
         // Create input textures
         var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(testDepth, channels: 1);
         
-        // The shader's lumonDecodeNormal does: normalize(encoded * 2.0 - 1.0)
-        // For encoded (0.5, 0.5, 0.5) → decoded (0, 0, 0) → normalize undefined
-        // GLSL normalize() of zero vector is implementation-defined
-        // 
-        // Since this behavior is undefined, we'll document what we observe
-        // and accept that this may pass or fail depending on the GPU driver.
-        // The important thing is that the shader doesn't crash.
+        // Encoded (0.5, 0.5, 0.5) decodes to (0, 0, 0) - a zero-length normal
         var normalData = new float[ScreenWidth * ScreenHeight * 4];
         for (int i = 0; i < ScreenWidth * ScreenHeight; i++)
         {
@@ -746,30 +744,28 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
         // Read back results
         var positionData = outputGBuffer[0].ReadPixels();
 
-        // Document observed behavior - normalize() of zero vector is undefined in GLSL
-        // Different GPU drivers may return different results:
-        // - Some return NaN (which may pass or fail the < 0.5 check)
-        // - Some return the zero vector itself
-        // - Some return a default value
-        // 
-        // We verify the shader executes without errors and produces some output.
-        // The specific validity value depends on the driver's normalize() implementation.
-        bool anyProbeExists = false;
+        // DESIRED: All probes should be marked invalid due to zero-length normals
         for (int py = 0; py < ProbeGridHeight; py++)
         {
             for (int px = 0; px < ProbeGridWidth; px++)
             {
                 int idx = (py * ProbeGridWidth + px) * 4;
+                float posX = positionData[idx + 0];
+                float posY = positionData[idx + 1];
+                float posZ = positionData[idx + 2];
                 float validity = positionData[idx + 3];
                 
-                // Just verify we get a finite number (not NaN)
+                // DESIRED: No NaN values in output
                 Assert.False(float.IsNaN(validity), 
                     $"Probe ({px},{py}) validity should not be NaN");
-                anyProbeExists = true;
+                Assert.False(float.IsNaN(posX) || float.IsNaN(posY) || float.IsNaN(posZ),
+                    $"Probe ({px},{py}) position should not contain NaN");
+                
+                // DESIRED: Invalid probes due to degenerate normal
+                Assert.True(validity < 0.5f,
+                    $"Probe ({px},{py}) should be invalid (validity < 0.5) due to zero-length normal, got {validity}");
             }
         }
-
-        Assert.True(anyProbeExists, "Should have processed some probes");
 
         GL.DeleteProgram(programId);
     }
