@@ -1,3 +1,4 @@
+using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -155,43 +156,41 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
 
     /// <summary>
     /// Reconstructs view-space position from screen UV and depth.
+    /// Uses System.Numerics.Matrix4x4 and MatrixHelper for clean matrix math.
     /// This mirrors the lumonReconstructViewPos function in the shader.
     /// </summary>
-    private static (float x, float y, float z) ReconstructViewPos(
-        float u, float v, float depth, float[] invProjection)
+    private static Vector3 ReconstructViewPos(float u, float v, float depth, float[] invProjection)
     {
-        // NDC coordinates
-        float ndcX = u * 2.0f - 1.0f;
-        float ndcY = v * 2.0f - 1.0f;
-        float ndcZ = depth * 2.0f - 1.0f;
+        // Convert column-major float[] to Matrix4x4 using MatrixHelper
+        var invProjMatrix = MatrixHelper.FromColumnMajor(invProjection);
+        
+        // NDC coordinates (homogeneous)
+        var ndc = new Vector4(
+            u * 2.0f - 1.0f,
+            v * 2.0f - 1.0f,
+            depth * 2.0f - 1.0f,
+            1.0f);
 
-        // Apply inverse projection (column-major matrix)
-        float x = invProjection[0] * ndcX + invProjection[4] * ndcY + invProjection[8] * ndcZ + invProjection[12];
-        float y = invProjection[1] * ndcX + invProjection[5] * ndcY + invProjection[9] * ndcZ + invProjection[13];
-        float z = invProjection[2] * ndcX + invProjection[6] * ndcY + invProjection[10] * ndcZ + invProjection[14];
-        float w = invProjection[3] * ndcX + invProjection[7] * ndcY + invProjection[11] * ndcZ + invProjection[15];
+        // Transform by inverse projection
+        var viewPos = Vector4.Transform(ndc, invProjMatrix);
 
         // Perspective divide
-        if (MathF.Abs(w) > 1e-6f)
+        if (MathF.Abs(viewPos.W) > 1e-6f)
         {
-            x /= w;
-            y /= w;
-            z /= w;
+            return new Vector3(viewPos.X, viewPos.Y, viewPos.Z) / viewPos.W;
         }
 
-        return (x, y, z);
+        return new Vector3(viewPos.X, viewPos.Y, viewPos.Z);
     }
 
     /// <summary>
     /// Transforms a view-space position to world-space using the inverse view matrix.
+    /// Uses System.Numerics.Matrix4x4 and MatrixHelper for clean matrix math.
     /// </summary>
-    private static (float x, float y, float z) TransformToWorld(
-        float vx, float vy, float vz, float[] invView)
+    private static Vector3 TransformToWorld(Vector3 viewPos, float[] invView)
     {
-        float x = invView[0] * vx + invView[4] * vy + invView[8] * vz + invView[12];
-        float y = invView[1] * vx + invView[5] * vy + invView[9] * vz + invView[13];
-        float z = invView[2] * vx + invView[6] * vy + invView[10] * vz + invView[14];
-        return (x, y, z);
+        var invViewMatrix = MatrixHelper.FromColumnMajor(invView);
+        return Vector3.Transform(viewPos, invViewMatrix);
     }
 
     /// <summary>
@@ -352,10 +351,10 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
             {
                 int idx = (py * ProbeGridWidth + px) * 4;
 
-                // Calculate expected world position
+                // Calculate expected world position using MatrixHelper-based methods
                 var (u, v) = ProbeToScreenUV(px, py);
-                var (vx, vy, vz) = ReconstructViewPos(u, v, testDepth, invProjection);
-                var (expectedX, expectedY, expectedZ) = TransformToWorld(vx, vy, vz, invView);
+                var viewPos = ReconstructViewPos(u, v, testDepth, invProjection);
+                var expectedPos = TransformToWorld(viewPos, invView);
 
                 float actualX = positionData[idx + 0];
                 float actualY = positionData[idx + 1];
@@ -363,12 +362,12 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
                 float validity = positionData[idx + 3];
 
                 // Assert position within tolerance
-                Assert.True(MathF.Abs(actualX - expectedX) < TestEpsilon,
-                    $"Probe ({px},{py}) X mismatch: expected {expectedX}, got {actualX}");
-                Assert.True(MathF.Abs(actualY - expectedY) < TestEpsilon,
-                    $"Probe ({px},{py}) Y mismatch: expected {expectedY}, got {actualY}");
-                Assert.True(MathF.Abs(actualZ - expectedZ) < TestEpsilon,
-                    $"Probe ({px},{py}) Z mismatch: expected {expectedZ}, got {actualZ}");
+                Assert.True(MathF.Abs(actualX - expectedPos.X) < TestEpsilon,
+                    $"Probe ({px},{py}) X mismatch: expected {expectedPos.X}, got {actualX}");
+                Assert.True(MathF.Abs(actualY - expectedPos.Y) < TestEpsilon,
+                    $"Probe ({px},{py}) Y mismatch: expected {expectedPos.Y}, got {actualY}");
+                Assert.True(MathF.Abs(actualZ - expectedPos.Z) < TestEpsilon,
+                    $"Probe ({px},{py}) Z mismatch: expected {expectedPos.Z}, got {actualZ}");
 
                 // Validity should be 1.0 for uniform depth (no edges)
                 Assert.True(validity >= 0.9f,
