@@ -42,17 +42,17 @@ Headless OpenGL Shader Test Fixture:
     ✔ Assert link success with clear error messages on failure @done
 
   Phase 4 - Uniform Validation Tests:
-    ☐ Create GPU/LumOnUniformTests.cs
-    ☐ Add [Trait("Category", "GPU")] to test class
-    ☐ Use [MemberData] to provide expected uniform lists per shader
-    ☐ Verify GL.GetUniformLocation >= 0 for each expected uniform
-    ☐ Document expected uniforms per shader:
-      ☐ lumon_probe_anchor: primaryDepth, gBufferNormal, invViewMatrix, probeSpacing, screenSize, zNear, zFar
-      ☐ lumon_probe_trace: probeAnchorPosition, probeAnchorNormal, primaryDepth, primaryColor, viewMatrix, raysPerProbe, raySteps, rayMaxDistance
-      ☐ lumon_temporal: radianceCurrent0, radianceCurrent1, radianceHistory0, radianceHistory1, probeAnchorPosition, probeAnchorNormal, historyMeta, temporalAlpha, depthRejectThreshold
-      ☐ lumon_gather: radianceTexture0, radianceTexture1, probeAnchorPosition, probeAnchorNormal, primaryDepth, gBufferNormal, viewMatrix, probeGridSize, halfResSize, depthSigma, normalSigma
-      ☐ lumon_upsample: indirectHalf, primaryDepth, gBufferNormal, screenSize, halfResSize, upsampleDepthSigma, upsampleNormalSigma
-      ☐ lumon_combine: sceneDirect, indirectDiffuse, gBufferAlbedo, gBufferMaterial, primaryDepth, indirectIntensity, indirectTint
+    ✔ Create GPU/LumOnUniformTests.cs @done
+    ✔ Add [Trait("Category", "GPU")] to test class @done
+    ✔ Use [MemberData] to provide expected uniform lists per shader @done
+    ✔ Verify GL.GetUniformLocation >= 0 for each expected uniform @done
+    ✔ Document expected uniforms per shader: @done
+      ✔ lumon_probe_anchor: primaryDepth, gBufferNormal, invProjectionMatrix, invViewMatrix, probeSpacing, screenSize, zNear, zFar, depthDiscontinuityThreshold @done
+      ✔ lumon_probe_trace: probeAnchorPosition, probeAnchorNormal, primaryDepth, primaryColor, invProjectionMatrix, projectionMatrix, viewMatrix, probeGridSize, frameIndex, raysPerProbe, raySteps, rayMaxDistance, rayThickness, skyMissWeight, sunPosition, sunColor, ambientColor @done
+      ✔ lumon_temporal: radianceCurrent0, radianceCurrent1, radianceHistory0, radianceHistory1, probeAnchorPosition, probeAnchorNormal, historyMeta, viewMatrix, prevViewProjMatrix, probeGridSize, temporalAlpha, depthRejectThreshold, normalRejectThreshold @done
+      ✔ lumon_gather: radianceTexture0, radianceTexture1, probeAnchorPosition, probeAnchorNormal, primaryDepth, gBufferNormal, invProjectionMatrix, viewMatrix, probeSpacing, probeGridSize, screenSize, halfResSize, intensity, indirectTint, depthSigma, normalSigma @done
+      ✔ lumon_upsample: indirectHalf, primaryDepth, gBufferNormal, screenSize, halfResSize, zNear, zFar, denoiseEnabled, upsampleDepthSigma, upsampleNormalSigma @done
+      ✔ lumon_combine: sceneDirect, indirectDiffuse, gBufferAlbedo, gBufferMaterial, primaryDepth, indirectIntensity, indirectTint, lumOnEnabled @done
 
   Phase 5 - Render Test Infrastructure:
     ☐ Create GPU/Fixtures/RenderTestBase.cs abstract base class
