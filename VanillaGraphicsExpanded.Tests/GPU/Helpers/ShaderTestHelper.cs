@@ -1,22 +1,25 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.RegularExpressions;
 using Silk.NET.OpenGL;
+using TinyTokenizer.Ast;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 /// <summary>
 /// Helper class for compiling and linking GLSL shaders in tests.
-/// Handles include resolution using @import directives.
+/// Uses the production AST-based @import processing system.
 /// </summary>
-public sealed partial class ShaderTestHelper : IDisposable
+public sealed class ShaderTestHelper : IDisposable
 {
     private readonly GL _gl;
     private readonly string _shaderBasePath;
     private readonly string _includeBasePath;
     private readonly List<uint> _allocatedShaders = [];
     private readonly List<uint> _allocatedPrograms = [];
+    
+    // Lazy-loaded imports cache
+    private Dictionary<string, string>? _importsCache;
 
     /// <summary>
     /// Creates a new ShaderTestHelper with explicit paths.
@@ -42,6 +45,36 @@ public sealed partial class ShaderTestHelper : IDisposable
     }
 
     /// <summary>
+    /// Gets or builds the imports cache from include files.
+    /// Lazy-loaded on first shader compilation.
+    /// </summary>
+    private Dictionary<string, string> ImportsCache => _importsCache ??= BuildImportsCache();
+
+    /// <summary>
+    /// Builds the imports cache by reading all include files from the include base path.
+    /// </summary>
+    private Dictionary<string, string> BuildImportsCache()
+    {
+        var cache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        
+        // Scan for all shader include files (.fsh, .vsh, .glsl)
+        var patterns = new[] { "*.fsh", "*.vsh", "*.glsl" };
+        foreach (var pattern in patterns)
+        {
+            foreach (var filePath in Directory.EnumerateFiles(_includeBasePath, pattern, SearchOption.TopDirectoryOnly))
+            {
+                var fileName = Path.GetFileName(filePath);
+                if (!cache.ContainsKey(fileName))
+                {
+                    cache[fileName] = File.ReadAllText(filePath);
+                }
+            }
+        }
+        
+        return cache;
+    }
+
+    /// <summary>
     /// Compiles a shader from a file.
     /// </summary>
     /// <param name="filename">Shader filename (e.g., "lumon_gather.fsh").</param>
@@ -57,12 +90,14 @@ public sealed partial class ShaderTestHelper : IDisposable
 
         try
         {
-            // Read and preprocess shader source
+            // Read shader source
             var source = File.ReadAllText(filePath);
-            var processedSource = ProcessIncludes(source);
+            
+            // Process @import directives using the production AST-based system
+            var processedSource = ProcessImports(source);
 
-            // Strip non-ASCII characters (GLSL only supports ASCII)
-            processedSource = StripNonAscii(processedSource);
+            // Strip non-ASCII characters using the production SIMD-optimized method
+            processedSource = SourceCodeImportsProcessor.StripNonAscii(processedSource);
 
             // Add #version if not present (some VS shaders omit it)
             if (!processedSource.TrimStart().StartsWith("#version"))
@@ -161,46 +196,15 @@ public sealed partial class ShaderTestHelper : IDisposable
     }
 
     /// <summary>
-    /// Processes @import directives in shader source, replacing them with file contents.
+    /// Processes @import directives in shader source using the production AST-based system.
     /// </summary>
-    private string ProcessIncludes(string source)
+    /// <param name="source">The shader source code.</param>
+    /// <returns>Processed source with imports inlined.</returns>
+    private string ProcessImports(string source)
     {
-        // Match @import "filename.ext" or @import 'filename.ext'
-        return ImportRegex().Replace(source, match =>
-        {
-            var filename = match.Groups[1].Value;
-            var includePath = Path.Combine(_includeBasePath, filename);
-
-            if (File.Exists(includePath))
-            {
-                var includeContent = File.ReadAllText(includePath);
-                // Recursively process includes in the included file
-                includeContent = ProcessIncludes(includeContent);
-                return $"// [Included from {filename}]\n{includeContent}\n// [End {filename}]";
-            }
-            else
-            {
-                return $"// WARNING: Include file not found: {filename}";
-            }
-        });
-    }
-
-    /// <summary>
-    /// Strips non-ASCII characters from shader source code.
-    /// GLSL only supports ASCII (0x00-0x7F).
-    /// </summary>
-    private static string StripNonAscii(string source)
-    {
-        if (string.IsNullOrEmpty(source))
-            return source;
-
-        var sb = new System.Text.StringBuilder(source.Length);
-        foreach (char c in source)
-        {
-            if (c <= 127)
-                sb.Append(c);
-        }
-        return sb.ToString();
+        var tree = SyntaxTree.Parse(source, GlslSchema.Instance);
+        SourceCodeImportsProcessor.ProcessImports(tree, ImportsCache, logger: null);
+        return tree.ToText();
     }
 
     /// <summary>
@@ -226,9 +230,6 @@ public sealed partial class ShaderTestHelper : IDisposable
         }
         _allocatedShaders.Clear();
     }
-
-    [GeneratedRegex(@"@import\s+[""']([^""']+)[""']", RegexOptions.Compiled)]
-    private static partial Regex ImportRegex();
 }
 
 /// <summary>
