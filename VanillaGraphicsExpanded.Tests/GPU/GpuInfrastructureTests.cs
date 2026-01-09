@@ -7,8 +7,9 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>
 /// Sanity tests to verify the GPU test infrastructure works.
 /// </summary>
+[Collection("GPU")]
 [Trait("Category", "GPU")]
-public class GpuInfrastructureTests : IClassFixture<HeadlessGLFixture>
+public class GpuInfrastructureTests
 {
     private readonly HeadlessGLFixture _fixture;
 

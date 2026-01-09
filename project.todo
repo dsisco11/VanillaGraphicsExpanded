@@ -24,22 +24,22 @@ Headless OpenGL Shader Test Fixture:
       ✔ Integrate @import directive resolution for include files @done
 
   Phase 3 - Shader Compilation Tests:
-    ☐ Create GPU/LumOnShaderCompilationTests.cs
-    ☐ Add [Trait("Category", "GPU")] to test class
-    ☐ Inject HeadlessGLFixture via IClassFixture<T>
-    ☐ Add [Theory] tests for each shader pair:
-      ☐ lumon_probe_anchor.vsh / lumon_probe_anchor.fsh
-      ☐ lumon_probe_trace.vsh / lumon_probe_trace.fsh
-      ☐ lumon_probe_trace_octahedral.vsh / lumon_probe_trace_octahedral.fsh
-      ☐ lumon_temporal.vsh / lumon_temporal.fsh
-      ☐ lumon_temporal_octahedral.vsh / lumon_temporal_octahedral.fsh
-      ☐ lumon_gather.vsh / lumon_gather.fsh
-      ☐ lumon_gather_octahedral.vsh / lumon_gather_octahedral.fsh
-      ☐ lumon_upsample.vsh / lumon_upsample.fsh
-      ☐ lumon_combine.vsh / lumon_combine.fsh
-      ☐ lumon_debug.vsh / lumon_debug.fsh
-    ☐ Assert compilation success with clear error messages on failure
-    ☐ Assert link success with clear error messages on failure
+    ✔ Create GPU/LumOnShaderCompilationTests.cs @done
+    ✔ Add [Trait("Category", "GPU")] to test class @done
+    ✔ Inject HeadlessGLFixture via IClassFixture<T> @done
+    ✔ Add [Theory] tests for each shader pair: @done
+      ✔ lumon_probe_anchor.vsh / lumon_probe_anchor.fsh @done
+      ✔ lumon_probe_trace.vsh / lumon_probe_trace.fsh @done
+      ✔ lumon_probe_trace_octahedral.vsh / lumon_probe_trace_octahedral.fsh @done
+      ✔ lumon_temporal.vsh / lumon_temporal.fsh @done
+      ✔ lumon_temporal_octahedral.vsh / lumon_temporal_octahedral.fsh @done
+      ✔ lumon_gather.vsh / lumon_gather.fsh @done
+      ✔ lumon_gather_octahedral.vsh / lumon_gather_octahedral.fsh @done
+      ✔ lumon_upsample.vsh / lumon_upsample.fsh @done
+      ✔ lumon_combine.vsh / lumon_combine.fsh @done
+      ✔ lumon_debug.vsh / lumon_debug.fsh @done
+    ✔ Assert compilation success with clear error messages on failure @done
+    ✔ Assert link success with clear error messages on failure @done
 
   Phase 4 - Uniform Validation Tests:
     ☐ Create GPU/LumOnUniformTests.cs

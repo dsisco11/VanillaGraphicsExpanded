@@ -61,6 +61,9 @@ public sealed partial class ShaderTestHelper : IDisposable
             var source = File.ReadAllText(filePath);
             var processedSource = ProcessIncludes(source);
 
+            // Strip non-ASCII characters (GLSL only supports ASCII)
+            processedSource = StripNonAscii(processedSource);
+
             // Add #version if not present (some VS shaders omit it)
             if (!processedSource.TrimStart().StartsWith("#version"))
             {
@@ -180,6 +183,24 @@ public sealed partial class ShaderTestHelper : IDisposable
                 return $"// WARNING: Include file not found: {filename}";
             }
         });
+    }
+
+    /// <summary>
+    /// Strips non-ASCII characters from shader source code.
+    /// GLSL only supports ASCII (0x00-0x7F).
+    /// </summary>
+    private static string StripNonAscii(string source)
+    {
+        if (string.IsNullOrEmpty(source))
+            return source;
+
+        var sb = new System.Text.StringBuilder(source.Length);
+        foreach (char c in source)
+        {
+            if (c <= 127)
+                sb.Append(c);
+        }
+        return sb.ToString();
     }
 
     /// <summary>
