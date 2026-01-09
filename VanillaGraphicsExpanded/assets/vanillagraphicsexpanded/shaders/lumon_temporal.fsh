@@ -89,9 +89,11 @@ ValidationResult ValidateHistory(vec2 historyUV, float currentDepthLin, vec3 cur
     }
     
     // Sample history metadata
+    // Layout: R = depth, G = normal.x encoded, B = normal.y encoded, A = accumCount
+    // Note: Only 2D normal is stored (X, Y in GB channels), A contains accumCount
     vec4 histMeta = texture(historyMeta, historyUV);
     float historyDepthLin = histMeta.r;
-    vec3 historyNormal = histMeta.gba * 2.0 - 1.0;
+    vec2 historyNormal2D = histMeta.gb * 2.0 - 1.0;  // Only X and Y components
     
     // Skip validation if history has no valid data (depth = 0)
     if (historyDepthLin < 0.001) {
@@ -104,8 +106,11 @@ ValidationResult ValidateHistory(vec2 historyUV, float currentDepthLin, vec3 cur
         return result;
     }
     
-    // Normal rejection: dot product threshold
-    float normalDot = dot(normalize(currentNormal), normalize(historyNormal));
+    // Normal rejection: 2D dot product threshold (only compare X and Y)
+    // This is valid since normals are typically close to unit length and
+    // the Z component can be approximately reconstructed if needed
+    vec2 currentNormal2D = currentNormal.xy;
+    float normalDot = dot(normalize(currentNormal2D), normalize(historyNormal2D));
     if (normalDot < normalRejectThreshold) {
         return result;
     }
@@ -240,7 +245,7 @@ void main(void)
     outRadiance1 = outputRad1;
     
     // Store metadata for next frame validation
-    // r = linearized depth, gba = encoded normal (0-1)
-    outMeta = vec4(currentDepthLin, normalVS * 0.5 + 0.5);
-    outMeta.a = accumCount;
+    // Layout: R = linearized depth, G = normal.x encoded, B = normal.y encoded, A = accumCount
+    // Note: Only 2D normal stored since A is used for accumCount
+    outMeta = vec4(currentDepthLin, normalVS.xy * 0.5 + 0.5, accumCount);
 }
