@@ -228,6 +228,31 @@ public class LumOnTemporalFunctionalTests : LumOnShaderFunctionalTestBase
     }
 
     /// <summary>
+    /// Creates a current-frame radiance pattern whose 3×3 neighborhood (after edge clamping)
+    /// spans blue in [0, 1]. This avoids neighborhood clamping forcing a blue history sample to 0.
+    /// </summary>
+    private static float[] CreateCurrentRadianceWithBlueNeighborhood()
+    {
+        var data = CreateUniformRadiance(0f, 0f, 0f);
+
+        // Probe (0,0): red only (blue = 0) — this is the probe we read in tests.
+        int idx00 = 0;
+        data[idx00 + 0] = 1f;
+        data[idx00 + 1] = 0f;
+        data[idx00 + 2] = 0f;
+        data[idx00 + 3] = 1f;
+
+        // Probe (1,0): blue only (blue = 1) — ensures neighborhood max blue becomes 1.
+        int idx10 = (0 * ProbeGridWidth + 1) * 4;
+        data[idx10 + 0] = 0f;
+        data[idx10 + 1] = 0f;
+        data[idx10 + 2] = 1f;
+        data[idx10 + 3] = 1f;
+
+        return data;
+    }
+
+    /// <summary>
     /// Creates a history meta buffer with specified depth, normal, and accumulation count.
     /// 
     /// DESIRED FORMAT (what shader should use):
@@ -998,12 +1023,14 @@ public class LumOnTemporalFunctionalTests : LumOnShaderFunctionalTestBase
     {
         EnsureShaderTestAvailable();
 
-        var currentColor = (r: 1.0f, g: 0.0f, b: 0.0f);  // Red
+        // Note: The temporal shader applies neighborhood clamping.
+        // If current is uniform red and history is uniform blue, the blue channel will be clamped to 0,
+        // making history acceptance indistinguishable. Use a current pattern whose neighborhood spans blue.
         var historyColor = (r: 0.0f, g: 0.0f, b: 1.0f);  // Blue
         float currentDepth = 10.0f;
         float threshold = 0.1f;
 
-        var currentRad0 = CreateUniformRadiance(currentColor.r, currentColor.g, currentColor.b);
+        var currentRad0 = CreateCurrentRadianceWithBlueNeighborhood();
         var currentRad1 = CreateUniformRadiance(0.5f, 0.5f, 0.5f);
         var historyRad0 = CreateUniformRadiance(historyColor.r, historyColor.g, historyColor.b);
         var historyRad1 = CreateUniformRadiance(0.5f, 0.5f, 0.5f);
@@ -1126,12 +1153,12 @@ public class LumOnTemporalFunctionalTests : LumOnShaderFunctionalTestBase
     {
         EnsureShaderTestAvailable();
 
-        var currentColor = (r: 1.0f, g: 0.0f, b: 0.0f);
+        // See DepthRejection_TriggersAtThreshold for why current uses a blue-spanning neighborhood.
         var historyColor = (r: 0.0f, g: 0.0f, b: 1.0f);
         float worldZ = 5.0f;
         float threshold = 0.9f;
 
-        var currentRad0 = CreateUniformRadiance(currentColor.r, currentColor.g, currentColor.b);
+        var currentRad0 = CreateCurrentRadianceWithBlueNeighborhood();
         var currentRad1 = CreateUniformRadiance(0.5f, 0.5f, 0.5f);
         var historyRad0 = CreateUniformRadiance(historyColor.r, historyColor.g, historyColor.b);
         var historyRad1 = CreateUniformRadiance(0.5f, 0.5f, 0.5f);

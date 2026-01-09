@@ -183,13 +183,15 @@ void main(void)
     
     // Convert to view-space for depth calculation
     vec3 posVS = (viewMatrix * vec4(posWS, 1.0)).xyz;
+
+    // Convert normal to view-space for validation
     vec3 normalVS = normalize(mat3(viewMatrix) * normalWS);
     
     // Compute linearized depth for validation
     // View-space Z is negative (looking down -Z), so negate
     float currentDepthLin = -posVS.z;
     
-    // Reproject to history UV (using world-space position directly)
+    // Reproject to history UV (using world-space position)
     vec2 historyUV = ReprojectToHistory(posWS);
     
     // Validate history sample

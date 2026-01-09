@@ -933,7 +933,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1f);
         var anchorNormalData = CreateProbeNormals(0f, 0f, -1f);
         var radianceData = CreateUniformSHRadiance(0.5f, 0.5f, 0.5f);
-        var historyMetaData = CreateHistoryMeta(probeWorldZ, 0f, 0f, -1f, 0.9f);  // 0.9 temporal weight
+        var historyMetaData = CreateHistoryMeta(-probeWorldZ, 0f, 0f, -1f, 0.9f);
 
         using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
         using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
@@ -1007,7 +1007,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1f);
         var anchorNormalData = CreateProbeNormals(0f, 0f, -1f);
         var radianceData = CreateUniformSHRadiance(0.5f, 0.5f, 0.5f);
-        var historyMetaData = CreateHistoryMeta(probeWorldZ, 0f, 0f, -1f, 1f);
+        var historyMetaData = CreateHistoryMeta(-probeWorldZ, 0f, 0f, -1f, 1f);
 
         using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
         using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
@@ -1081,7 +1081,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1f);
         var anchorNormalData = CreateProbeNormals(0f, 0f, -1f);
         var radianceData = CreateUniformSHRadiance(0.5f, 0.5f, 0.5f);
-        var historyMetaData = CreateHistoryMeta(probeWorldZ, 0f, 0f, -1f, 1f);
+        var historyMetaData = CreateHistoryMeta(-probeWorldZ, 0f, 0f, -1f, 1f);
 
         using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
         using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);

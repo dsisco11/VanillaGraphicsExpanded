@@ -282,6 +282,13 @@ public class LumOnGatherFunctionalTests : LumOnShaderFunctionalTestBase
     }
 
     /// <summary>
+    /// Computes a probe Z position (view/world Z with identity view) that matches the given
+    /// depth buffer value, so depth-based weighting doesn't underflow to ~0.
+    /// </summary>
+    private static float ProbeZForDepthBuffer(float depthBufferValue)
+        => DepthBufferToViewZ(depthBufferValue);
+
+    /// <summary>
     /// Creates a normal buffer with uniform normals (encoded to 0-1 range).
     /// </summary>
     private static float[] CreateNormalBuffer(float nx, float ny, float nz)
@@ -334,13 +341,13 @@ public class LumOnGatherFunctionalTests : LumOnShaderFunctionalTestBase
     {
         EnsureShaderTestAvailable();
 
-        const float probeWorldZ = -5f;  // In front of camera
-        const float pixelDepth = 0.5f;  // Mid-depth
+        const float depthBufferValue = 0.5f;  // Mid-depth (normalized depth buffer)
+        float probeWorldZ = ProbeZForDepthBuffer(depthBufferValue);
 
         var (tex0Data, tex1Data) = CreateUniformSHRadiance(1f, 1f, 1f);
         var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1.0f);
         var anchorNormalData = CreateProbeNormals(0f, 0f, -1f);  // Facing camera
-        var depthData = CreateDepthBuffer(pixelDepth);
+        var depthData = CreateDepthBuffer(depthBufferValue);
         var normalData = CreateNormalBuffer(0f, 0f, -1f);  // Facing camera
 
         using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex0Data);
@@ -355,8 +362,7 @@ public class LumOnGatherFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileSHGatherShader();
-        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
-        var view = LumOnTestInputFactory.CreateIdentityView();
+        CreateTestMatricesForDepth(depthBufferValue, out var invProjection, out var view, out _, out _);
         SetupSHGatherUniforms(programId, invProjection, view);
 
         radiance0Tex.Bind(0);
@@ -551,13 +557,13 @@ public class LumOnGatherFunctionalTests : LumOnShaderFunctionalTestBase
     {
         EnsureShaderTestAvailable();
 
-        const float probeWorldZ = -5f;
-        const float pixelDepth = 0.5f;
+        const float depthBufferValue = 0.5f;
+        float probeWorldZ = ProbeZForDepthBuffer(depthBufferValue);
 
         var (tex0Data, tex1Data) = CreateUniformSHRadiance(1f, 1f, 1f);
         var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1.0f);
         var anchorNormalData = CreateProbeNormals(0f, 0f, -1f);
-        var depthData = CreateDepthBuffer(pixelDepth);
+        var depthData = CreateDepthBuffer(depthBufferValue);
         var normalData = CreateNormalBuffer(0f, 0f, -1f);
 
         float intensity1Brightness;
@@ -577,8 +583,7 @@ public class LumOnGatherFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileSHGatherShader();
-            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
-            var view = LumOnTestInputFactory.CreateIdentityView();
+            CreateTestMatricesForDepth(depthBufferValue, out var invProjection, out var view, out _, out _);
             SetupSHGatherUniforms(programId, invProjection, view, intensity: 1.0f);
 
             radiance0Tex.Bind(0);
@@ -611,8 +616,7 @@ public class LumOnGatherFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileSHGatherShader();
-            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
-            var view = LumOnTestInputFactory.CreateIdentityView();
+            CreateTestMatricesForDepth(depthBufferValue, out var invProjection, out var view, out _, out _);
             SetupSHGatherUniforms(programId, invProjection, view, intensity: 2.0f);
 
             radiance0Tex.Bind(0);
@@ -659,13 +663,13 @@ public class LumOnGatherFunctionalTests : LumOnShaderFunctionalTestBase
     {
         EnsureShaderTestAvailable();
 
-        const float probeWorldZ = -5f;
-        const float pixelDepth = 0.5f;
+        const float depthBufferValue = 0.5f;
+        float probeWorldZ = ProbeZForDepthBuffer(depthBufferValue);
 
         var (tex0Data, tex1Data) = CreateUniformSHRadiance(1f, 1f, 1f);
         var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1.0f);
         var anchorNormalData = CreateProbeNormals(0f, 0f, -1f);
-        var depthData = CreateDepthBuffer(pixelDepth);
+        var depthData = CreateDepthBuffer(depthBufferValue);
         var normalData = CreateNormalBuffer(0f, 0f, -1f);
 
         float redTintRed, redTintGreen, redTintBlue;
@@ -684,8 +688,7 @@ public class LumOnGatherFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileSHGatherShader();
-            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
-            var view = LumOnTestInputFactory.CreateIdentityView();
+            CreateTestMatricesForDepth(depthBufferValue, out var invProjection, out var view, out _, out _);
             SetupSHGatherUniforms(programId, invProjection, view, indirectTint: (1f, 0f, 0f));
 
             radiance0Tex.Bind(0);
@@ -735,13 +738,13 @@ public class LumOnGatherFunctionalTests : LumOnShaderFunctionalTestBase
     {
         EnsureShaderTestAvailable();
 
-        const float probeWorldZ = -5f;
-        const float pixelDepth = 0.5f;
+        const float depthBufferValue = 0.5f;
+        float probeWorldZ = ProbeZForDepthBuffer(depthBufferValue);
 
         var (tex0Data, tex1Data) = CreateQuadrantSHRadiance();
         var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1.0f);
         var anchorNormalData = CreateProbeNormals(0f, 0f, -1f);
-        var depthData = CreateDepthBuffer(pixelDepth);
+        var depthData = CreateDepthBuffer(depthBufferValue);
         var normalData = CreateNormalBuffer(0f, 0f, -1f);
 
         using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex0Data);
@@ -756,8 +759,7 @@ public class LumOnGatherFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileSHGatherShader();
-        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
-        var view = LumOnTestInputFactory.CreateIdentityView();
+        CreateTestMatricesForDepth(depthBufferValue, out var invProjection, out var view, out _, out _);
         SetupSHGatherUniforms(programId, invProjection, view);
 
         radiance0Tex.Bind(0);
@@ -824,11 +826,11 @@ public class LumOnGatherFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Matched depth
         {
-            const float probeWorldZ = -5f;
-            const float pixelDepth = 0.5f;
+            const float depthBufferValue = 0.5f;
+            float probeWorldZ = ProbeZForDepthBuffer(depthBufferValue);
 
             var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1.0f);
-            var depthData = CreateDepthBuffer(pixelDepth);
+            var depthData = CreateDepthBuffer(depthBufferValue);
 
             using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex0Data);
             using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex1Data);
@@ -842,8 +844,7 @@ public class LumOnGatherFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileSHGatherShader();
-            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
-            var view = LumOnTestInputFactory.CreateIdentityView();
+            CreateTestMatricesForDepth(depthBufferValue, out var invProjection, out var view, out _, out _);
             SetupSHGatherUniforms(programId, invProjection, view, depthSigma: 0.1f);
 
             radiance0Tex.Bind(0);
@@ -864,11 +865,11 @@ public class LumOnGatherFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Mismatched depth (probes far, pixel near)
         {
-            const float probeWorldZ = -50f;  // Far probes
-            const float pixelDepth = 0.1f;   // Near pixel
+            const float pixelDepthBufferValue = 0.5f;
+            const float probeWorldZ = -5f;  // Much farther than the pixel depth implied by 0.5
 
             var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1.0f);
-            var depthData = CreateDepthBuffer(pixelDepth);
+            var depthData = CreateDepthBuffer(pixelDepthBufferValue);
 
             using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex0Data);
             using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex1Data);
@@ -882,8 +883,7 @@ public class LumOnGatherFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileSHGatherShader();
-            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
-            var view = LumOnTestInputFactory.CreateIdentityView();
+            CreateTestMatricesForDepth(pixelDepthBufferValue, out var invProjection, out var view, out _, out _);
             SetupSHGatherUniforms(programId, invProjection, view, depthSigma: 0.1f);
 
             radiance0Tex.Bind(0);
