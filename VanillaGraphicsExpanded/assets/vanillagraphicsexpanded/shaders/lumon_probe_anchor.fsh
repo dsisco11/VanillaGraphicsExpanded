@@ -26,6 +26,9 @@ layout(location = 1) out vec4 outNormal;    // normalWS.xyz, reserved
 // Import common utilities
 @import "lumon_common.fsh"
 
+// Deterministic jitter hash (already used elsewhere in LumOn)
+@import "squirrel3.fsh"
+
 // G-buffer textures
 uniform sampler2D primaryDepth;    // Depth buffer
 uniform sampler2D gBufferNormal;   // World-space normals
@@ -38,6 +41,11 @@ uniform mat4 invViewMatrix;        // For view-space to world-space transform
 uniform int probeSpacing;          // Pixels between probes
 uniform vec2 probeGridSize;        // (probeCountX, probeCountY)
 uniform vec2 screenSize;           // Full screen dimensions
+
+// Deterministic per-frame jitter
+uniform int frameIndex;
+uniform int anchorJitterEnabled;   // 0/1
+uniform float anchorJitterScale;   // fraction of probeSpacing
 
 // Z-planes
 uniform float zNear;
@@ -92,15 +100,31 @@ void main(void)
     ivec2 probeCoord = ivec2(gl_FragCoord.xy);
     
     // Calculate the screen UV this probe samples (center of probe cell)
-    vec2 screenUV = lumonProbeToScreenUV(probeCoord, float(probeSpacing), screenSize);
+    vec2 baseUV = lumonProbeToScreenUV(probeCoord, float(probeSpacing), screenSize);
     
     // Check if probe is within screen bounds
-    if (screenUV.x >= 1.0 || screenUV.y >= 1.0 || screenUV.x < 0.0 || screenUV.y < 0.0)
+    if (baseUV.x >= 1.0 || baseUV.y >= 1.0 || baseUV.x < 0.0 || baseUV.y < 0.0)
     {
         // Invalid probe - outside screen
         outPosition = vec4(0.0, 0.0, 0.0, 0.0);  // valid = 0
         outNormal = vec4(0.5, 0.5, 1.0, 0.0);    // Encoded neutral normal
         return;
+    }
+
+    // Apply deterministic jitter within probe cell to reduce aliasing.
+    // Uses Squirrel3Hash, seeded by probeCoord + frameIndex, for stable and repeatable jitter.
+    vec2 screenUV = baseUV;
+    if (anchorJitterEnabled != 0 && anchorJitterScale > 0.0) {
+        float u1 = Squirrel3HashF(probeCoord.x, probeCoord.y, frameIndex * 2);
+        float u2 = Squirrel3HashF(probeCoord.x, probeCoord.y, frameIndex * 2 + 1);
+        vec2 jitter = vec2(u1, u2) - vec2(0.5);
+
+        float maxOffsetPx = float(probeSpacing) * anchorJitterScale;
+        vec2 jitterUV = (jitter * maxOffsetPx) / screenSize;
+
+        // Clamp to valid sampling region (half-texel padding) to avoid sampling outside textures.
+        vec2 uvPad = vec2(0.5) / screenSize;
+        screenUV = clamp(screenUV + jitterUV, uvPad, vec2(1.0) - uvPad);
     }
     
     // Sample depth at probe position

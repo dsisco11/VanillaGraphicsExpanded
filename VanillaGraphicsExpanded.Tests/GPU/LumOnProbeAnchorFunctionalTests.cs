@@ -59,6 +59,9 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         int programId, 
         float[] invProjection, 
         float[] invView,
+        int frameIndex = 0,
+        bool anchorJitterEnabled = false,
+        float anchorJitterScale = 0.0f,
         int depthUnit = 0,
         int normalUnit = 1)
     {
@@ -78,6 +81,14 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         GL.Uniform2(gridSizeLoc, (float)ProbeGridWidth, (float)ProbeGridHeight);
         GL.Uniform2(screenSizeLoc, (float)ScreenWidth, (float)ScreenHeight);
 
+        // Deterministic jitter uniforms (default off for most tests)
+        var frameIndexLoc = GL.GetUniformLocation(programId, "frameIndex");
+        var jitterEnabledLoc = GL.GetUniformLocation(programId, "anchorJitterEnabled");
+        var jitterScaleLoc = GL.GetUniformLocation(programId, "anchorJitterScale");
+        GL.Uniform1(frameIndexLoc, frameIndex);
+        GL.Uniform1(jitterEnabledLoc, anchorJitterEnabled ? 1 : 0);
+        GL.Uniform1(jitterScaleLoc, anchorJitterScale);
+
         // Z-plane uniforms
         var zNearLoc = GL.GetUniformLocation(programId, "zNear");
         var zFarLoc = GL.GetUniformLocation(programId, "zFar");
@@ -95,6 +106,71 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         GL.Uniform1(normalLoc, normalUnit);
 
         GL.UseProgram(0);
+    }
+
+    [Fact]
+    public void AnchorJitter_ChangesSampleLocation_Deterministically()
+    {
+        EnsureShaderTestAvailable();
+
+        // Depth buffer with a simple spatial gradient so different sample locations produce different outputs.
+        var depthData = new float[ScreenWidth * ScreenHeight];
+        for (int y = 0; y < ScreenHeight; y++)
+        {
+            for (int x = 0; x < ScreenWidth; x++)
+            {
+                depthData[y * ScreenWidth + x] = 0.2f + 0.01f * (y * ScreenWidth + x);
+            }
+        }
+
+        // Valid normals everywhere
+        var normalData = CreateEncodedNormalBufferUniform(0f, 1f, 0f);
+
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            ProbeGridWidth, ProbeGridHeight,
+            PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
+
+        var programId = CompileProbeAnchorShader();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var invView = LumOnTestInputFactory.CreateIdentityView();
+
+        // Enable jitter with a scale large enough to move sampling between neighboring pixels.
+        const float jitterScale = 0.49f;
+
+        // Render twice with same frameIndex: results must match (deterministic jitter).
+        SetupProbeAnchorUniforms(programId, invProjection, invView, frameIndex: 0, anchorJitterEnabled: true, anchorJitterScale: jitterScale);
+
+        depthTex.Bind(0);
+        normalTex.Bind(1);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var pos0 = outputGBuffer[0].ReadPixels();
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var pos0b = outputGBuffer[0].ReadPixels();
+
+        // Compare probe (0,0) output
+        for (int i = 0; i < 4; i++)
+        {
+            Assert.True(MathF.Abs(pos0[i] - pos0b[i]) < TestEpsilon,
+                $"Determinism mismatch at component {i}: {pos0[i]} vs {pos0b[i]}");
+        }
+
+        // Render with a different frameIndex: result should change for at least one component.
+        SetupProbeAnchorUniforms(programId, invProjection, invView, frameIndex: 1, anchorJitterEnabled: true, anchorJitterScale: jitterScale);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var pos1 = outputGBuffer[0].ReadPixels();
+
+        bool changed =
+            MathF.Abs(pos0[0] - pos1[0]) > 1e-4f ||
+            MathF.Abs(pos0[1] - pos1[1]) > 1e-4f ||
+            MathF.Abs(pos0[2] - pos1[2]) > 1e-4f;
+
+        Assert.True(changed, "Expected probe (0,0) position to change when frameIndex changes with jitter enabled.");
+
+        GL.DeleteProgram(programId);
     }
 
     /// <summary>

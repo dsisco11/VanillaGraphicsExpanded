@@ -76,12 +76,12 @@ LumOn Functional Test Coverage:
 
     Phase 7 - Pass 1: Probe Anchor Jitter
     Exit artifacts: Probe anchor pass supports jitter (frameIndex plumbing + optional config toggles); probe anchors remain MRT posWS/normalWS.
-    ☐ Add `frameIndex` uniform support to probe anchor program + plumbing from LumOnRenderer
-    ☐ Implement sub-pixel / sub-cell jitter in lumon_probe_anchor.fsh probe sample UV
-    ☐ Ensure jitter is deterministic per-frame and stable across screen resize (use existing `Squirrel3Hash` for deterministic jitter)
-    ☐ Add config toggles/params (optional): EnableAnchorJitter, JitterScale
-    ☐ Add debug visualization: show jittered sample locations (optional)
-    ☐ Add GPU functional test: AnchorJitter_ChangesSampleLocation_Deterministically
+    ✔ Add `frameIndex` uniform support to probe anchor program + plumbing from LumOnRenderer @done
+    ✔ Implement sub-pixel / sub-cell jitter in lumon_probe_anchor.fsh probe sample UV @done
+    ✔ Ensure jitter is deterministic per-frame and stable across screen resize (use existing `Squirrel3Hash` for deterministic jitter) @done
+    ✔ Add config toggles/params (optional): EnableAnchorJitter, JitterScale @done
+    ✔ Add debug visualization: show jittered sample locations (optional) @done
+    ✔ Add GPU functional test: AnchorJitter_ChangesSampleLocation_Deterministically @done
 
     Phase 8 - Pass 0 (Optional/Recommended): Depth Pyramid / HZB
     Exit artifacts: Depth pyramid textures exist per frame; octahedral tracer can consume HZB for traversal/refinement.

@@ -31,6 +31,23 @@ public class LumOnConfig
     [JsonProperty]
     public int ProbeSpacingPx { get; set; } = 4;
 
+    /// <summary>
+    /// Enables deterministic per-frame jitter of the probe anchor sample location.
+    /// This reduces structured aliasing and helps temporal accumulation converge.
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public bool AnchorJitterEnabled { get; set; } = false;
+
+    /// <summary>
+    /// Jitter amount as a fraction of probe cell size.
+    /// The maximum offset in pixels is: ProbeSpacingPx * AnchorJitterScale.
+    /// Recommended range: 0.0 .. 0.49
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public float AnchorJitterScale { get; set; } = 0.35f;
+
     // ═══════════════════════════════════════════════════════════════
     // Ray Tracing Settings (SPG-004)
     // ═══════════════════════════════════════════════════════════════

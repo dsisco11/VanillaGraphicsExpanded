@@ -451,6 +451,11 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ProbeSpacing = config.ProbeSpacingPx;
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
+
+        // Deterministic probe jitter (uses existing Squirrel3Hash in shader)
+        shader.FrameIndex = frameIndex;
+        shader.AnchorJitterEnabled = config.AnchorJitterEnabled ? 1 : 0;
+        shader.AnchorJitterScale = config.AnchorJitterScale;
         shader.ZNear = capi.Render.ShaderUniforms.ZNear;
         shader.ZFar = capi.Render.ShaderUniforms.ZFar;
 

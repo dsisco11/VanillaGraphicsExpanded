@@ -173,6 +173,9 @@ public class LumOnUniformTests : IDisposable
         { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "invViewMatrix" },
         { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "probeSpacing" },
         { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "screenSize" },
+        { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "frameIndex" },
+        { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "anchorJitterEnabled" },
+        { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "anchorJitterScale" },
 
         // lumon_probe_trace - probe data and ray-marching params
         { "lumon_probe_trace.vsh", "lumon_probe_trace.fsh", "probeAnchorPosition" },

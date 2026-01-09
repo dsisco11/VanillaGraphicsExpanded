@@ -81,6 +81,21 @@ public class LumOnProbeAnchorShaderProgram : ShaderProgram
     /// </summary>
     public Vec2f ScreenSize { set => Uniform("screenSize", value); }
 
+    /// <summary>
+    /// Current frame index for deterministic jittering.
+    /// </summary>
+    public int FrameIndex { set => Uniform("frameIndex", value); }
+
+    /// <summary>
+    /// Toggle deterministic probe anchor jitter.
+    /// </summary>
+    public int AnchorJitterEnabled { set => Uniform("anchorJitterEnabled", value); }
+
+    /// <summary>
+    /// Jitter scale as a fraction of probe spacing.
+    /// </summary>
+    public float AnchorJitterScale { set => Uniform("anchorJitterScale", value); }
+
     #endregion
 
     #region Z-Plane Uniforms
