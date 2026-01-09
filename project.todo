@@ -137,19 +137,22 @@ LumOn GPU Shader Functional Tests:
         ✔ Expected: output = (0, 0, 0) @done
 
   Phase 7 - Upsample Pass Tests:
-    ☐ Create LumOnUpsampleFunctionalTests.cs
-      ☐ Test: UniformInput_BilinearUpsample
-        ☐ Input: uniform 2×2 half-res, uniform depth/normal
-        ☐ Expected: uniform 4×4 full-res (same color)
-      ☐ Test: GradientInput_SmoothUpsample
-        ☐ Input: gradient 2×2 half-res
-        ☐ Expected: interpolated 4×4 gradient
-      ☐ Test: DepthEdge_PreservesSharpness
-        ☐ Input: depth discontinuity at edge
-        ☐ Expected: bilateral filter respects edge
-      ☐ Test: DenoiseDisabled_RawBilinear
-        ☐ Input: denoiseEnabled=0
-        ☐ Expected: pure bilinear without edge-awareness
+    ✔ Create LumOnUpsampleFunctionalTests.cs @done
+      ✔ Test: UniformInput_BilinearUpsample @done
+        ✔ Input: uniform 2×2 half-res, uniform depth/normal @done
+        ✔ Expected: uniform 4×4 full-res (same color) @done
+      ✔ Test: GradientInput_SmoothUpsample @done
+        ✔ Input: gradient 2×2 half-res @done
+        ✔ Expected: interpolated 4×4 gradient @done
+      ✔ Test: DepthEdge_PreservesSharpness @done
+        ✔ Input: depth discontinuity at edge @done
+        ✔ Expected: bilateral filter respects edge @done
+      ✔ Test: DenoiseDisabled_RawBilinear @done
+        ✔ Input: denoiseEnabled=0 @done
+        ✔ Expected: pure bilinear without edge-awareness @done
+      ✔ Test: SkyPixels_ProduceZeroOutput (bonus test) @done
+        ✔ Input: depth=1.0 (sky) @done
+        ✔ Expected: output = (0, 0, 0, 0) @done
 
   Phase 8 - Combine Pass Tests:
     ☐ Create LumOnCombineFunctionalTests.cs
