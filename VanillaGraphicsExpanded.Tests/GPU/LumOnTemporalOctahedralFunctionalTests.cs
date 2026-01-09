@@ -1267,5 +1267,105 @@ public class LumOnTemporalOctahedralFunctionalTests : LumOnShaderFunctionalTestB
         GL.DeleteProgram(programId);
     }
 
+    /// <summary>
+    /// Tests that hitDistanceRejectThreshold triggers disocclusion detection.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - When history hit distance differs by more than threshold%, reject history
+    /// - This detects disoccluded surfaces
+    /// 
+    /// Setup:
+    /// - Current hit distance = 10
+    /// - History hit distance = 20 (100% diff, should reject at 30% threshold)
+    /// - History hit distance = 11 (10% diff, should accept at 30% threshold)
+    /// 
+    /// Expected:
+    /// - Large distance difference should reject history (favor current)
+    /// </summary>
+    [Fact]
+    public void HitDistanceRejectThreshold_TriggersDisocclusion()
+    {
+        EnsureShaderTestAvailable();
+
+        float threshold = 0.3f;  // 30% threshold
+        float currentHitDist = 10f;
+        var anchorPos = CreateValidProbeAnchors();
+
+        float acceptedBlue;
+        float rejectedBlue;
+
+        // Small diff (10%) - should accept history
+        {
+            float historyHitDist = 11f;  // 10% diff < 30% threshold
+            var currentAtlas = CreateCurrentAtlas(EncodeHitDistance(currentHitDist));
+            var historyAtlas = CreateHistoryAtlas(EncodeHitDistance(historyHitDist));
+
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
+            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+
+            using var outputAtlas = TestFramework.CreateTestGBuffer(
+                AtlasWidth, AtlasHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileOctahedralTemporalShader();
+            SetupOctahedralTemporalUniforms(
+                programId,
+                frameIndex: 0,
+                texelsPerFrame: 64,
+                temporalAlpha: 0.9f,
+                hitDistanceRejectThreshold: threshold);
+
+            currentAtlasTex.Bind(0);
+            historyAtlasTex.Bind(1);
+            anchorPosTex.Bind(2);
+
+            TestFramework.RenderQuadTo(programId, outputAtlas);
+            var outputData = outputAtlas[0].ReadPixels();
+            var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
+            acceptedBlue = b;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Large diff (100%) - should reject history
+        {
+            float historyHitDist = 20f;  // 100% diff > 30% threshold
+            var currentAtlas = CreateCurrentAtlas(EncodeHitDistance(currentHitDist));
+            var historyAtlas = CreateHistoryAtlas(EncodeHitDistance(historyHitDist));
+
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
+            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+
+            using var outputAtlas = TestFramework.CreateTestGBuffer(
+                AtlasWidth, AtlasHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileOctahedralTemporalShader();
+            SetupOctahedralTemporalUniforms(
+                programId,
+                frameIndex: 0,
+                texelsPerFrame: 64,
+                temporalAlpha: 0.9f,
+                hitDistanceRejectThreshold: threshold);
+
+            currentAtlasTex.Bind(0);
+            historyAtlasTex.Bind(1);
+            anchorPosTex.Bind(2);
+
+            TestFramework.RenderQuadTo(programId, outputAtlas);
+            var outputData = outputAtlas[0].ReadPixels();
+            var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
+            rejectedBlue = b;
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Rejected case should have less blue (less history influence)
+        Assert.True(rejectedBlue <= acceptedBlue,
+            $"Large distance diff should reject more: accepted={acceptedBlue:F3}, rejected={rejectedBlue:F3}");
+    }
+
     #endregion
 }

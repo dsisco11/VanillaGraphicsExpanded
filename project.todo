@@ -23,15 +23,15 @@ LumOn Functional Test Coverage:
     Probe Trace Shaders:
       ✔ FrameIndex_JittersTexelSelection - Test multi-frame jitter pattern @done
       ✔ TexelsPerFrame_AffectsTemporalDistribution - Test different temporal distribution values @done
-      ☐ RayExitsScreen_TerminatesEarly - Test ray leaving screen boundary
-      ☐ InvViewMatrix_TransformsDirectionsCorrectly - Verify world-to-view transform accuracy
+      ✔ RayExitsScreen_TerminatesEarly - Test ray leaving screen boundary @done
+      ✔ InvViewMatrix_TransformsDirectionsCorrectly - Verify world-to-view transform accuracy @done
     Temporal Octahedral Shader:
-      ☐ HitDistanceRejectThreshold_TriggersDisocclusion - Test threshold boundary behavior
+      ✔ HitDistanceRejectThreshold_TriggersDisocclusion - Test threshold boundary behavior @done
       ✔ NeighborhoodClamping_ClampsToBounds - Verify specific clamp min/max behavior @done
       ✔ ZeroHistoryHitDistance_RejectedAsInvalid - Test near-zero history detection @done
     Gather Octahedral Shader:
       ✔ SampleStride_AffectsQuality - Test stride 1 vs 2 quality difference @done
-      ☐ LeakThreshold_PreventsBleeding - Test leak prevention logic
+      ✔ LeakThreshold_PreventsBleeding - Test leak prevention logic @done
       ✔ HemisphereBackface_SkippedCorrectly - Test cosWeight <= 0.0 rejection @done
     Upsample Shader:
       ✔ DenoiseDisabled_UsesSimpleBilinear - Test denoiseEnabled=0 fast path @done

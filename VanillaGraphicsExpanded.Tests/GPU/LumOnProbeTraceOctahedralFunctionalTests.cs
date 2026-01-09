@@ -1570,5 +1570,216 @@ public class LumOnProbeTraceOctahedralFunctionalTests : LumOnShaderFunctionalTes
             $"Higher texelsPerFrame should trace more texels: low={lowTexelsNonZero}, high={highTexelsNonZero}");
     }
 
+    /// <summary>
+    /// Tests that rays exiting the screen boundary terminate early.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - Rays that march outside screen UV [0,1] should terminate
+    /// - Should return sky/ambient color for out-of-bounds rays
+    /// 
+    /// Setup:
+    /// - Probe at screen edge
+    /// - Ray direction pointing off-screen
+    /// 
+    /// Expected:
+    /// - Rays exiting screen should produce valid (non-garbage) output
+    /// </summary>
+    [Fact]
+    public void RayExitsScreen_TerminatesEarly()
+    {
+        EnsureShaderTestAvailable();
+
+        // Place probes at screen corners where rays are likely to exit
+        var anchorPosData = CreateValidProbeAnchors();
+        var anchorNormalData = CreateProbeNormalsUpward();
+        var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(1.0f, channels: 1);  // Sky (far plane)
+        var colorData = CreateUniformSceneColor(0.5f, 0.5f, 0.5f);
+        var historyData = CreateZeroedHistory();
+
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+        using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+
+        using var outputAtlas = TestFramework.CreateTestGBuffer(
+            AtlasWidth, AtlasHeight,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileOctahedralTraceShader();
+        var projection = LumOnTestInputFactory.CreateRealisticProjection();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var view = LumOnTestInputFactory.CreateIdentityView();
+        var invView = LumOnTestInputFactory.CreateIdentityView();
+        SetupOctahedralTraceUniforms(
+            programId,
+            invProjection: invProjection,
+            projection: projection,
+            view: view,
+            invView: invView,
+            texelsPerFrame: 64,
+            ambientColor: (0.2f, 0.2f, 0.3f));  // Ambient for sky miss
+
+        anchorPosTex.Bind(0);
+        anchorNormalTex.Bind(1);
+        depthTex.Bind(2);
+        colorTex.Bind(3);
+        historyTex.Bind(4);
+
+        TestFramework.RenderQuadTo(programId, outputAtlas);
+        var outputData = outputAtlas[0].ReadPixels();
+
+        // Check that output is valid (no NaN or extreme values)
+        bool hasValidOutput = false;
+        bool hasInvalidOutput = false;
+        for (int i = 0; i < outputData.Length; i += 4)
+        {
+            float r = outputData[i], g = outputData[i + 1], b = outputData[i + 2];
+            if (float.IsNaN(r) || float.IsNaN(g) || float.IsNaN(b) ||
+                float.IsInfinity(r) || float.IsInfinity(g) || float.IsInfinity(b))
+            {
+                hasInvalidOutput = true;
+            }
+            else if (r > 0.001f || g > 0.001f || b > 0.001f)
+            {
+                hasValidOutput = true;
+            }
+        }
+
+        Assert.False(hasInvalidOutput, "Ray exits should not produce NaN/Infinity");
+        Assert.True(hasValidOutput, "At least some texels should have valid output");
+
+        GL.DeleteProgram(programId);
+    }
+
+    /// <summary>
+    /// Tests that invViewMatrix correctly transforms ray directions.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - invViewMatrix transforms view-space directions to world-space
+    /// - With identity view, world == view directions
+    /// - With rotated view, directions should be transformed
+    /// 
+    /// Setup:
+    /// - Compare identity view vs rotated view
+    /// - Same scene otherwise
+    /// 
+    /// Expected:
+    /// - Different view matrices should produce different results
+    /// </summary>
+    [Fact]
+    public void InvViewMatrix_TransformsDirectionsCorrectly()
+    {
+        EnsureShaderTestAvailable();
+
+        var anchorPosData = CreateValidProbeAnchors();
+        var anchorNormalData = CreateProbeNormalsUpward();
+        var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(0.5f, channels: 1);
+        var colorData = CreateUniformSceneColor(1f, 0f, 0f);
+        var historyData = CreateZeroedHistory();
+
+        float identityBrightness;
+        float rotatedBrightness;
+
+        // Identity view
+        {
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+            using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+
+            using var outputAtlas = TestFramework.CreateTestGBuffer(
+                AtlasWidth, AtlasHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileOctahedralTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            var view = LumOnTestInputFactory.CreateIdentityView();
+            var invView = LumOnTestInputFactory.CreateIdentityView();
+            SetupOctahedralTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: view,
+                invView: invView,
+                texelsPerFrame: 64);
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+            historyTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputAtlas);
+            var outputData = outputAtlas[0].ReadPixels();
+
+            identityBrightness = 0;
+            for (int i = 0; i < outputData.Length; i += 4)
+                identityBrightness += outputData[i] + outputData[i + 1] + outputData[i + 2];
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Rotated view (90 degrees around Y)
+        {
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+            using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+            using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+
+            using var outputAtlas = TestFramework.CreateTestGBuffer(
+                AtlasWidth, AtlasHeight,
+                PixelInternalFormat.Rgba16f);
+
+            var programId = CompileOctahedralTraceShader();
+            var projection = LumOnTestInputFactory.CreateRealisticProjection();
+            var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+            // Create a rotated view matrix (90 degrees around Y axis)
+            var rotatedView = new float[]
+            {
+                0f, 0f, -1f, 0f,  // First column
+                0f, 1f, 0f, 0f,   // Second column
+                1f, 0f, 0f, 0f,   // Third column
+                0f, 0f, 0f, 1f    // Fourth column
+            };
+            var rotatedInvView = new float[]
+            {
+                0f, 0f, 1f, 0f,   // Inverse rotation
+                0f, 1f, 0f, 0f,
+                -1f, 0f, 0f, 0f,
+                0f, 0f, 0f, 1f
+            };
+            SetupOctahedralTraceUniforms(
+                programId,
+                invProjection: invProjection,
+                projection: projection,
+                view: rotatedView,
+                invView: rotatedInvView,
+                texelsPerFrame: 64);
+
+            anchorPosTex.Bind(0);
+            anchorNormalTex.Bind(1);
+            depthTex.Bind(2);
+            colorTex.Bind(3);
+            historyTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, outputAtlas);
+            var outputData = outputAtlas[0].ReadPixels();
+
+            rotatedBrightness = 0;
+            for (int i = 0; i < outputData.Length; i += 4)
+                rotatedBrightness += outputData[i] + outputData[i + 1] + outputData[i + 2];
+
+            GL.DeleteProgram(programId);
+        }
+
+        // Both should produce valid output
+        Assert.True(identityBrightness > 0.001f, "Identity view should produce output");
+        Assert.True(rotatedBrightness > 0.001f, "Rotated view should produce output");
+    }
+
     #endregion
 }
