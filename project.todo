@@ -5,7 +5,7 @@ LumOn Functional Test Coverage:
     Phase 2 - Medium Priority:
       ✔ LumOnGatherFunctionalTests.cs - SH-based gather interpolation (mirror octahedral variant tests) @done
     Phase 3 - Low Priority:
-      ☐ LumOnDebugFunctionalTests.cs - Debug visualization pass
+      ✔ LumOnDebugFunctionalTests.cs - Debug visualization pass @done
 
   Future Enhancements (Deferred):
     ☐ Edge case: invalid probes at screen boundaries
