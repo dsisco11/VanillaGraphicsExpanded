@@ -32,7 +32,8 @@
             "problemMatcher": "$msCompile",
             "presentation": {
                 "panel": "new",
-                "close": false
+                "close": true,
+                "showReuseMessage": false
             },
             "group": "test"
         },
