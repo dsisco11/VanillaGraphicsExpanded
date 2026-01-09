@@ -1,7 +1,7 @@
 LumOn Functional Test Coverage:
     Phase 1 - High Priority:
       ✔ LumOnProbeTraceFunctionalTests.cs - SH-based ray tracing (mirror octahedral variant tests) @done
-      ☐ LumOnTemporalOctahedralFunctionalTests.cs - Octahedral temporal blending
+      ✔ LumOnTemporalOctahedralFunctionalTests.cs - Octahedral temporal blending @done
     Phase 2 - Medium Priority:
       ☐ LumOnGatherFunctionalTests.cs - SH-based gather interpolation (mirror octahedral variant tests)
     Phase 3 - Low Priority:
