@@ -109,7 +109,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         // Only render when debug mode is active
-        if (config.DebugMode == 0 || !config.Enabled || quadMeshRef is null)
+        if (config.DebugMode == LumOnDebugMode.Off || !config.Enabled || quadMeshRef is null)
             return;
 
         // Ensure buffers are initialized
@@ -158,7 +158,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         shader.ProbeSpacing = config.ProbeSpacingPx;
         shader.ZNear = capi.Render.ShaderUniforms.ZNear;
         shader.ZFar = capi.Render.ShaderUniforms.ZFar;
-        shader.DebugMode = config.DebugMode;
+        shader.DebugMode = (int)config.DebugMode;
         shader.InvProjectionMatrix = invProjectionMatrix;
         shader.InvViewMatrix = invViewMatrix;
         shader.PrevViewProjMatrix = prevViewProjMatrix;

@@ -1,5 +1,6 @@
 using System;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -35,16 +36,16 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 {
     // Debug mode constants
-    private const int MODE_PROBE_GRID = 1;
-    private const int MODE_PROBE_DEPTH = 2;
-    private const int MODE_PROBE_NORMAL = 3;
-    private const int MODE_SCENE_DEPTH = 4;
-    private const int MODE_SCENE_NORMAL = 5;
-    private const int MODE_TEMPORAL_WEIGHT = 6;
-    private const int MODE_TEMPORAL_REJECTION = 7;
-    private const int MODE_SH_COEFFICIENTS = 8;
-    private const int MODE_INTERPOLATION_WEIGHTS = 9;
-    private const int MODE_RADIANCE_OVERLAY = 10;
+    private const LumOnDebugMode MODE_PROBE_GRID = LumOnDebugMode.ProbeGrid;
+    private const LumOnDebugMode MODE_PROBE_DEPTH = LumOnDebugMode.ProbeDepth;
+    private const LumOnDebugMode MODE_PROBE_NORMAL = LumOnDebugMode.ProbeNormal;
+    private const LumOnDebugMode MODE_SCENE_DEPTH = LumOnDebugMode.SceneDepth;
+    private const LumOnDebugMode MODE_SCENE_NORMAL = LumOnDebugMode.SceneNormal;
+    private const LumOnDebugMode MODE_TEMPORAL_WEIGHT = LumOnDebugMode.TemporalWeight;
+    private const LumOnDebugMode MODE_TEMPORAL_REJECTION = LumOnDebugMode.TemporalRejection;
+    private const LumOnDebugMode MODE_SH_COEFFICIENTS = LumOnDebugMode.ShCoefficients;
+    private const LumOnDebugMode MODE_INTERPOLATION_WEIGHTS = LumOnDebugMode.InterpolationWeights;
+    private const LumOnDebugMode MODE_RADIANCE_OVERLAY = LumOnDebugMode.RadianceOverlay;
 
     public LumOnDebugFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -408,7 +409,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: MODE_PROBE_GRID, identity, identity, identity);
+        SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_GRID, identity, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -495,7 +496,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var programId = CompileDebugShader();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: MODE_SCENE_DEPTH, invProjection, identity, identity);
+        SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_DEPTH, invProjection, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -587,7 +588,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: MODE_RADIANCE_OVERLAY, identity, identity, identity);
+        SetupDebugUniforms(programId, debugMode: (int)MODE_RADIANCE_OVERLAY, identity, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -658,7 +659,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var programId = CompileDebugShader();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: MODE_SCENE_DEPTH, invProjection, identity, identity);
+        SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_DEPTH, invProjection, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -738,7 +739,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: MODE_SCENE_NORMAL, identity, identity, identity);
+        SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_NORMAL, identity, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -807,7 +808,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: MODE_SH_COEFFICIENTS, identity, identity, identity);
+        SetupDebugUniforms(programId, debugMode: (int)MODE_SH_COEFFICIENTS, identity, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -883,7 +884,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: MODE_PROBE_DEPTH, identity, identity, identity);
+        SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_DEPTH, identity, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -963,7 +964,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: MODE_PROBE_NORMAL, identity, identity, identity);
+        SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_NORMAL, identity, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -1037,7 +1038,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: MODE_TEMPORAL_WEIGHT, identity, identity, identity);
+        SetupDebugUniforms(programId, debugMode: (int)MODE_TEMPORAL_WEIGHT, identity, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -1111,7 +1112,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: MODE_TEMPORAL_REJECTION, identity, identity, identity);
+        SetupDebugUniforms(programId, debugMode: (int)MODE_TEMPORAL_REJECTION, identity, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -1185,7 +1186,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: MODE_INTERPOLATION_WEIGHTS, identity, identity, identity);
+        SetupDebugUniforms(programId, debugMode: (int)MODE_INTERPOLATION_WEIGHTS, identity, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);

@@ -252,18 +252,8 @@ public class LumOnConfig
 
     /// <summary>
     /// Debug visualization mode:
-    /// 0 = Off (normal rendering)
-    /// 1 = Probe grid overlay
-    /// 2 = Probe depth
-    /// 3 = Probe normals
-    /// 4 = Scene depth
-    /// 5 = Scene normals
-    /// 6 = Temporal weight
-    /// 7 = Temporal rejection
-    /// 8 = SH coefficients (DC + directional)
-    /// 9 = Interpolation weights (probe blend visualization)
-    /// 10 = Radiance overlay (indirect diffuse buffer)
+    /// See <see cref="LumOnDebugMode"/> for available modes.
     /// </summary>
     [JsonProperty]
-    public int DebugMode { get; set; } = 0;
+    public LumOnDebugMode DebugMode { get; set; } = LumOnDebugMode.Off;
 }

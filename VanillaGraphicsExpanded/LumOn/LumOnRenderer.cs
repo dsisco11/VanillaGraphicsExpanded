@@ -187,22 +187,46 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     private bool OnCycleDebugMode(KeyCombination keyCombination)
     {
-        // Cycle through debug modes: 0-7
-        config.DebugMode = (config.DebugMode + 1) % 8;
-        string[] modeNames =
-        [
-            "Off (normal)",
-            "Probe Grid",
-            "Probe Depth",
-            "Probe Normals",
-            "Scene Depth",
-            "Scene Normals",
-            "Temporal Weight",
-            "Temporal Rejection"
-        ];
-        capi.TriggerIngameError(this, "vgelumondebug", $"[LumOn] Debug: {modeNames[config.DebugMode]}");
+        // Cycle through debug modes in a stable, explicit order.
+        var cycle = new[]
+        {
+            LumOnDebugMode.Off,
+            LumOnDebugMode.ProbeGrid,
+            LumOnDebugMode.ProbeDepth,
+            LumOnDebugMode.ProbeNormal,
+            LumOnDebugMode.SceneDepth,
+            LumOnDebugMode.SceneNormal,
+            LumOnDebugMode.TemporalWeight,
+            LumOnDebugMode.TemporalRejection,
+            LumOnDebugMode.ShCoefficients,
+            LumOnDebugMode.InterpolationWeights,
+            LumOnDebugMode.RadianceOverlay
+        };
+
+        int currentIndex = Array.IndexOf(cycle, config.DebugMode);
+        if (currentIndex < 0) currentIndex = 0;
+        int nextIndex = (currentIndex + 1) % cycle.Length;
+        config.DebugMode = cycle[nextIndex];
+
+        capi.TriggerIngameError(this, "vgelumondebug", $"[LumOn] Debug: {GetDebugModeDisplayName(config.DebugMode)}");
         return true;
     }
+
+    private static string GetDebugModeDisplayName(LumOnDebugMode mode) => mode switch
+    {
+        LumOnDebugMode.Off => "Off (normal)",
+        LumOnDebugMode.ProbeGrid => "Probe Grid",
+        LumOnDebugMode.ProbeDepth => "Probe Depth",
+        LumOnDebugMode.ProbeNormal => "Probe Normals",
+        LumOnDebugMode.SceneDepth => "Scene Depth",
+        LumOnDebugMode.SceneNormal => "Scene Normals",
+        LumOnDebugMode.TemporalWeight => "Temporal Weight",
+        LumOnDebugMode.TemporalRejection => "Temporal Rejection",
+        LumOnDebugMode.ShCoefficients => "SH Coefficients",
+        LumOnDebugMode.InterpolationWeights => "Interpolation Weights",
+        LumOnDebugMode.RadianceOverlay => "Radiance Overlay",
+        _ => mode.ToString()
+    };
 
     private bool OnShowStats(KeyCombination keyCombination)
     {
