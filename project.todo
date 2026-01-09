@@ -8,20 +8,20 @@ Headless OpenGL Shader Test Fixture:
     ✔ Add <Content Include> directive to copy shaderincludes to test output directory @done
 
   Phase 2 - Test Infrastructure:
-    ☐ Create GPU/ subfolder in VanillaGraphicsExpanded.Tests/
-    ☐ Create GPU/Fixtures/ subfolder for test fixtures
-    ☐ Create GPU/Helpers/ subfolder for test utilities
-    ☐ Implement HeadlessGLFixture in GPU/Fixtures/HeadlessGLFixture.cs
-      ☐ Implement IAsyncLifetime interface
-      ☐ Create hidden GLFW window with OpenGL 4.3 context in InitializeAsync()
-      ☐ Throw SkipException if context creation fails (no GPU, driver issues)
-      ☐ Expose IsContextValid property
-      ☐ Dispose window in DisposeAsync()
-    ☐ Implement ShaderTestHelper in GPU/Helpers/ShaderTestHelper.cs
-      ☐ Constructor accepts explicit shaderBasePath and includeBasePath parameters
-      ☐ CompileShader(string filename, ShaderType type) method with error extraction
-      ☐ LinkProgram(int vertexShader, int fragmentShader) method with error extraction
-      ☐ Integrate GlslSourcePreProcessor.ProcessIncludes() for #include resolution
+    ✔ Create GPU/ subfolder in VanillaGraphicsExpanded.Tests/ @done
+    ✔ Create GPU/Fixtures/ subfolder for test fixtures @done
+    ✔ Create GPU/Helpers/ subfolder for test utilities @done
+    ✔ Implement HeadlessGLFixture in GPU/Fixtures/HeadlessGLFixture.cs @done
+      ✔ Implement IAsyncLifetime interface @done
+      ✔ Create hidden GLFW window with OpenGL 4.3 context in InitializeAsync() @done
+      ✔ Throw SkipException if context creation fails (no GPU, driver issues) @done
+      ✔ Expose IsContextValid property @done
+      ✔ Dispose window in DisposeAsync() @done
+    ✔ Implement ShaderTestHelper in GPU/Helpers/ShaderTestHelper.cs @done
+      ✔ Constructor accepts explicit shaderBasePath and includeBasePath parameters @done
+      ✔ CompileShader(string filename, ShaderType type) method with error extraction @done
+      ✔ LinkProgram(uint vertexShader, uint fragmentShader) method with error extraction @done
+      ✔ Integrate @import directive resolution for include files @done
 
   Phase 3 - Shader Compilation Tests:
     ☐ Create GPU/LumOnShaderCompilationTests.cs
