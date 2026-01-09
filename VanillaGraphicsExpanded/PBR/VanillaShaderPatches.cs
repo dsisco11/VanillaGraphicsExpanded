@@ -67,7 +67,7 @@ layout(location = 5) out vec4 vge_outMaterial;  // Roughness, Metallic, Emissive
                         // Find main function and insert @import before it
                         var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
                         tree.CreateEditor()
-                            .Insert(mainQuery.Before(), "@import \"vsFunctions.glsl\"\n")
+                            .InsertBefore(mainQuery, "@import \"vsFunctions.glsl\"\n")
                             .Commit();
 
                         log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");
@@ -143,7 +143,7 @@ layout(location = 5) out vec4 vge_outMaterial;  // Roughness, Metallic, Emissive
         var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
 
         tree.CreateEditor()
-            .Insert(versionQuery.After(), GBufferInputDeclarations)
+            .InsertAfter(versionQuery, GBufferInputDeclarations)
             .Commit();
     }
 
@@ -153,11 +153,11 @@ layout(location = 5) out vec4 vge_outMaterial;  // Roughness, Metallic, Emissive
     /// </summary>
     private static void InjectGBufferOutputs(SyntaxTree tree)
     {
-        // Find main function and insert at inner end of body (before closing brace)
+        // Find main function and insert at inner start of body (after opening brace)
         var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
 
         tree.CreateEditor()
-            .Insert(mainQuery.InnerStart("body"), GBufferOutputWrites)
+            .InsertAfter(mainQuery.InnerStart("body"), GBufferOutputWrites)
             .Commit();
     }
 
@@ -174,7 +174,7 @@ layout(location = 5) out vec4 vge_outMaterial;  // Roughness, Metallic, Emissive
         var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
 
         tree.CreateEditor()
-            .Insert(mainQuery.InnerEnd("body"), skyGBufferWrites)
+            .InsertBefore(mainQuery.InnerEnd("body"), skyGBufferWrites)
             .Commit();
     }
 

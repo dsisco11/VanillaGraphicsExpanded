@@ -71,23 +71,28 @@ Headless OpenGL Shader Test Fixture:
     ✔ Document LIBGL_ALWAYS_SOFTWARE=1 for Mesa llvmpipe on Linux CI @done
 
   Phase 7 - GLSL AST Uniform Extraction:
-    ☐ Extend GlslSchema to recognize GLSL data-type keywords:
-      ☐ Scalar types: float, int, uint, bool, double
-      ☐ Vector types: vec2, vec3, vec4, ivec2, ivec3, ivec4, uvec2, uvec3, uvec4, bvec2, bvec3, bvec4, dvec2, dvec3, dvec4
-      ☐ Matrix types: mat2, mat3, mat4, mat2x3, mat2x4, mat3x2, mat3x4, mat4x2, mat4x3
-      ☐ Sampler types: sampler2D, sampler3D, samplerCube, sampler2DArray, sampler2DShadow, samplerCubeShadow, isampler2D, usampler2D, etc.
-      ☐ Image types: image2D, image3D, imageCube, etc. (for compute shaders)
-    ☐ Define GlUniformNode syntax in GlslSchema:
-      ☐ Pattern: "uniform" <type> <identifier> [array-brackets]? ";"
-      ☐ Support array declarations: uniform vec4 myArray[16];
-      ☐ Extract uniform name, type, and optional array size
-    ☐ Create GlUniformNode AST node class:
-      ☐ Properties: Name (string), TypeName (string), ArraySize (int?)
-      ☐ ToString() for debugging
-    ☐ Implement UniformExtractor utility:
-      ☐ Method: ExtractUniforms(SyntaxTree tree) -> IEnumerable<GlUniformNode>
-      ☐ Query tree for all GlUniformNode instances
-      ☐ Return deduplicated list of uniform declarations
+    ✔ Upgrade to the latest TinyTokenizer package for Keywords support (0.10.0). @done
+    ✔ Extend GlslSchema to recognize GLSL data-type keywords: @done
+      ✔ Scalar types: float, int, uint, bool, double @done
+      ✔ Vector types: vec2, vec3, vec4, ivec2, ivec3, ivec4, uvec2, uvec3, uvec4, bvec2, bvec3, bvec4, dvec2, dvec3, dvec4 @done
+      ✔ Matrix types: mat2, mat3, mat4, mat2x3, mat2x4, mat3x2, mat3x4, mat4x2, mat4x3 @done
+      ✔ Sampler types: sampler2D, sampler3D, samplerCube, sampler2DArray, sampler2DShadow, samplerCubeShadow, isampler2D, usampler2D, etc. @done
+      ✔ Image types: image2D, image3D, imageCube, etc. (for compute shaders) @done
+    ✔ Define GlUniformNode syntax in GlslSchema: @done
+      ✔ Pattern: "uniform" <type> <identifier> [array-brackets]? ";" @done
+      ✔ Support array declarations: uniform vec4 myArray[16]; @done
+      ✔ Extract uniform name, type, and optional array size @done
+    ✔ Create GlUniformNode AST node class: @done
+      ✔ Properties: Name (string), TypeName (string), ArraySize (int?) @done
+      ✔ ToString() for debugging @done
+    ✔ Implement UniformExtractor utility: @done
+      ✔ Method: ExtractUniforms(SyntaxTree tree) -> IEnumerable<UniformDeclaration> @done
+      ✔ Query tree for all GlUniformNode instances @done
+      ✔ Return deduplicated list of uniform declarations @done
+    ☐ Debug Query pattern matching for uniform extraction:
+      ☐ Investigate Query.Keyword("uniform") vs Query.Ident("uniform") behavior
+      ☐ Verify keyword categories are properly registered
+      ☐ Test pattern matching in isolation
     ☐ Refactor LumOnUniformTests to use AST extraction:
       ☐ Extract expected uniforms from shader source via AST
       ☐ Compare AST-declared uniforms against GL.GetUniformLocation results

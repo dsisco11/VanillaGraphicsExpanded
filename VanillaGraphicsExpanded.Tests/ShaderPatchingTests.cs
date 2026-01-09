@@ -259,7 +259,7 @@ public class ShaderPatchingTests
         var tree = SyntaxTree.Parse(SampleShader, GlslSchema.Instance);
 
         tree.CreateEditor()
-            .Insert(Query.Syntax<GlFunctionNode>().Named("main").Before(), "// Before main\n")
+            .InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"), "// Before main\n")
             .Commit();
 
         var output = NormalizeLineEndings(tree.ToText());
@@ -276,7 +276,7 @@ public class ShaderPatchingTests
         var tree = SyntaxTree.Parse(SampleShader, GlslSchema.Instance);
 
         tree.CreateEditor()
-            .Insert(Query.Syntax<GlDirectiveNode>().Named("version").After(), "\n// After version")
+            .InsertAfter(Query.Syntax<GlDirectiveNode>().Named("version"), "\n// After version")
             .Commit();
 
         var output = NormalizeLineEndings(tree.ToText());
@@ -289,7 +289,7 @@ public class ShaderPatchingTests
         var tree = SyntaxTree.Parse(SampleShader, GlslSchema.Instance);
 
         tree.CreateEditor()
-            .Insert(Query.Syntax<GlFunctionNode>().Named("main").InnerStart("body"), "\n    // Body start")
+            .InsertAfter(Query.Syntax<GlFunctionNode>().Named("main").InnerStart("body"), "\n    // Body start")
             .Commit();
 
         var output = NormalizeLineEndings(tree.ToText());
@@ -302,7 +302,7 @@ public class ShaderPatchingTests
         var tree = SyntaxTree.Parse(SampleShader, GlslSchema.Instance);
 
         tree.CreateEditor()
-            .Insert(Query.Syntax<GlFunctionNode>().Named("main").InnerEnd("body"), "\n    // Body end")
+            .InsertBefore(Query.Syntax<GlFunctionNode>().Named("main").InnerEnd("body"), "\n    // Body end")
             .Commit();
 
         var output = NormalizeLineEndings(tree.ToText());
@@ -322,9 +322,9 @@ public class ShaderPatchingTests
         var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
 
         tree.CreateEditor()
-            .Insert(versionQuery.After(), "\n// Layout declarations")
-            .Insert(mainQuery.InnerStart("body"), "\n    // Init code")
-            .Insert(mainQuery.InnerEnd("body"), "\n    // Cleanup code")
+            .InsertAfter(versionQuery, "\n// Layout declarations")
+            .InsertAfter(mainQuery.InnerStart("body"), "\n    // Init code")
+            .InsertBefore(mainQuery.InnerEnd("body"), "\n    // Cleanup code")
             .Commit();
 
         var output = NormalizeLineEndings(tree.ToText());
@@ -354,13 +354,13 @@ public class ShaderPatchingTests
         // Step 1: Insert G-buffer declarations after #version
         var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
         tree.CreateEditor()
-            .Insert(versionQuery.After(), "\nlayout(location = 4) out vec4 gNormal;")
+            .InsertAfter(versionQuery, "\nlayout(location = 4) out vec4 gNormal;")
             .Commit();
 
         // Step 2: Insert G-buffer writes at function body start
         var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
         tree.CreateEditor()
-            .Insert(mainQuery.InnerStart("body"), "\n    gNormal = vec4(0.0, 1.0, 0.0, 1.0);")
+            .InsertAfter(mainQuery.InnerStart("body"), "\n    gNormal = vec4(0.0, 1.0, 0.0, 1.0);")
             .Commit();
 
         var output = NormalizeLineEndings(tree.ToText());
