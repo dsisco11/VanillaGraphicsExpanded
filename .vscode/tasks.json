@@ -13,30 +13,12 @@
             ],
             "problemMatcher": "$msCompile",
             "presentation": {
-                "panel": "new",
-                "close": true,
+                "panel": "shared",
+                "reveal": "never",
+                "focus": false,
+                "close": false,
                 "showReuseMessage": false
             }
-        },
-        {
-            "label": "Test",
-            "command": "dotnet",
-            "type": "process",
-            "args": [
-                "test",
-                "-c",
-                "Debug",
-                "${workspaceFolder}/VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj",
-                "-v",
-                "normal"
-            ],
-            "problemMatcher": "$msCompile",
-            "presentation": {
-                "panel": "new",
-                "close": true,
-                "showReuseMessage": false
-            },
-            "group": "test"
         },
         {
             "label": "Package",
@@ -49,8 +31,10 @@
             ],
             "problemMatcher": "$msCompile",
             "presentation": {
-                "panel": "new",
-                "close": true,
+                "panel": "shared",
+                "reveal": "never",
+                "focus": false,
+                "close": false,
                 "showReuseMessage": false
             },
         },
@@ -66,10 +50,34 @@
             ],
             "problemMatcher": "$msCompile",
             "presentation": {
-                "panel": "new",
-                "close": true,
+                "panel": "shared",
+                "reveal": "never",
+                "focus": false,
+                "close": false,
                 "showReuseMessage": false
             },
+        },
+        {
+            "label": "Test",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "test",
+                "-c",
+                "Debug",
+                "${workspaceFolder}/VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj",
+                "-v",
+                "normal"
+            ],
+            "problemMatcher": "$msCompile",
+            "presentation": {
+                "panel": "shared",
+                "reveal": "never",
+                "focus": false,
+                "close": false,
+                "showReuseMessage": false
+            },
+            "group": "test"
         }
     ]
 }
