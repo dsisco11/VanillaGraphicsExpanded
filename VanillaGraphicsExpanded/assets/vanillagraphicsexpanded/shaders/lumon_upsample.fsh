@@ -1,7 +1,5 @@
 #version 330 core
 
-in vec2 uv;
-
 out vec4 outColor;
 
 // ============================================================================
@@ -168,7 +166,7 @@ vec3 spatialDenoise(vec2 fullResUV, vec3 centerColor, float centerDepth, vec3 ce
 
 void main(void)
 {
-    vec2 fullResUV = uv;
+    vec2 fullResUV = gl_FragCoord.xy / screenSize;
     
     // Sample center depth and normal
     float centerDepthRaw = texture(primaryDepth, fullResUV).r;

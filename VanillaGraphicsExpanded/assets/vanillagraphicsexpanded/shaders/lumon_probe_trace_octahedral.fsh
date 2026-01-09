@@ -1,7 +1,5 @@
 #version 330 core
 
-in vec2 uv;
-
 // Single output to octahedral atlas
 out vec4 outRadiance;  // RGB = radiance, A = log-encoded hit distance
 

@@ -1,7 +1,5 @@
 #version 330 core
 
-in vec2 uv;
-
 // MRT outputs for SH radiance cache
 layout(location = 0) out vec4 outRadiance0;  // SH coefficients set 0
 layout(location = 1) out vec4 outRadiance1;  // SH coefficients set 1

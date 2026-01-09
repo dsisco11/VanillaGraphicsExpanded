@@ -1,6 +1,6 @@
 #version 330 core
 
-in vec2 uv;
+vec2 uv;
 
 out vec4 outColor;
 
@@ -470,6 +470,7 @@ vec4 renderInterpolationWeightsDebug(vec2 screenPos) {
 
 void main(void)
 {
+    uv = gl_FragCoord.xy / screenSize;
     vec2 screenPos = uv * screenSize;
     
     switch (debugMode) {

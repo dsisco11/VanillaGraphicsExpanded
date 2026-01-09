@@ -1,7 +1,5 @@
 #version 330 core
 
-in vec2 uv;
-
 out vec4 outRadiance;  // RGB = blended radiance, A = blended hit distance (log-encoded)
 
 // ============================================================================

@@ -1,7 +1,5 @@
 #version 330 core
 
-in vec2 uv;
-
 out vec4 outColor;
 
 // ============================================================================
@@ -51,6 +49,8 @@ uniform int lumOnEnabled;             // 0 = disabled, 1 = enabled
 
 void main(void)
 {
+    vec2 uv = gl_FragCoord.xy / vec2(textureSize(sceneDirect, 0));
+
     // Sample direct lighting (the scene before GI)
     vec3 directLight = texture(sceneDirect, uv).rgb;
     

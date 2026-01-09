@@ -1,7 +1,5 @@
 #version 330 core
 
-in vec2 uv;
-
 // MRT outputs for temporally accumulated radiance
 layout(location = 0) out vec4 outRadiance0;
 layout(location = 1) out vec4 outRadiance1;
@@ -162,7 +160,6 @@ void GetNeighborhoodMinMax(ivec2 probeCoord,
 void main(void)
 {
     ivec2 probeCoord = ivec2(gl_FragCoord.xy);
-    vec2 probeUV = uv;
     
     // Load current frame data
     vec4 currentRad0 = texelFetch(radianceCurrent0, probeCoord, 0);

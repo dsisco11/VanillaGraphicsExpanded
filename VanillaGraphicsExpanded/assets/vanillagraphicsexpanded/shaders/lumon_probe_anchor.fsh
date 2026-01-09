@@ -1,7 +1,5 @@
 #version 330 core
 
-in vec2 uv;
-
 // MRT outputs
 layout(location = 0) out vec4 outPosition;  // posWS.xyz, valid
 layout(location = 1) out vec4 outNormal;    // normalWS.xyz, reserved
