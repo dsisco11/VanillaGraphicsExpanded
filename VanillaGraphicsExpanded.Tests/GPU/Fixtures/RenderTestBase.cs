@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 
@@ -49,10 +50,14 @@ public abstract class RenderTestBase : IDisposable
 
     /// <summary>
     /// Ensures the GL context is valid; throws skip exception if not.
+    /// Also drains any leftover GL errors from previous operations.
     /// </summary>
     protected void EnsureContextValid()
     {
         _fixture.EnsureContextValid();
+        
+        // Drain any leftover GL errors so each test starts clean
+        while (GL.GetError() != ErrorCode.NoError) { }
     }
 
     #region Render Target Management
@@ -246,16 +251,24 @@ public abstract class RenderTestBase : IDisposable
 
     /// <summary>
     /// Asserts that there are no GL errors pending.
+    /// Drains all queued errors (GL can queue multiple).
     /// </summary>
     /// <param name="context">Context message for error reporting.</param>
     protected void AssertNoGLError(string context = "")
     {
-        var error = GL.GetError();
-        if (error != ErrorCode.NoError)
+        var errors = new List<ErrorCode>();
+        ErrorCode error;
+        while ((error = GL.GetError()) != ErrorCode.NoError)
         {
+            errors.Add(error);
+        }
+        
+        if (errors.Count > 0)
+        {
+            var errorList = string.Join(", ", errors);
             var message = string.IsNullOrEmpty(context) 
-                ? $"GL Error: {error}" 
-                : $"GL Error ({context}): {error}";
+                ? $"GL Error(s): {errorList}" 
+                : $"GL Error(s) ({context}): {errorList}";
             throw new InvalidOperationException(message);
         }
     }

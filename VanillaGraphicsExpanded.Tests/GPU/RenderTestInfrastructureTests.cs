@@ -117,11 +117,16 @@ public class RenderTestInfrastructureTests : RenderTestBase
         EnsureContextValid();
 
         using var gBuffer = CreateRenderTarget(64, 64, PixelInternalFormat.Rgba16f);
+        AssertNoGLError("CreateRenderTarget");
 
         gBuffer.Bind();
+        AssertNoGLError("Bind");
+        
         gBuffer.Clear(1.0f, 0.5f, 0.25f, 1.0f);
-        GBuffer.Unbind();
         AssertNoGLError("Clear");
+        
+        GBuffer.Unbind();
+        AssertNoGLError("Unbind");
 
         // Verify cleared color
         var pixels = ReadPixelsFloat(gBuffer);
