@@ -20,6 +20,7 @@ out vec4 outColor;
 // 7 = Temporal Rejection Mask (why history was rejected)
 // 8 = SH Coefficients (DC + directional magnitude)
 // 9 = Interpolation Weights (probe blend visualization)
+// 10 = Radiance Overlay (indirect diffuse buffer)
 // ============================================================================
 
 // Import common utilities
@@ -491,6 +492,26 @@ vec4 renderInterpolationWeightsDebug(vec2 screenPos) {
 }
 
 // ============================================================================
+// Debug Mode 10: Radiance Overlay
+// Shows the indirect diffuse radiance buffer (half-res) as fullscreen output.
+// ============================================================================
+
+vec4 renderRadianceOverlayDebug() {
+    float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth)) {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    // indirectHalf is a half-resolution HDR buffer. Sample in normalized UVs;
+    // the hardware sampler handles the resolution mismatch.
+    vec3 rad = texture(indirectHalf, uv).rgb;
+
+    // Simple Reinhard tone map for visualization
+    vec3 color = rad / (rad + vec3(1.0));
+    return vec4(color, 1.0);
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -526,6 +547,9 @@ void main(void)
             break;
         case 9:
             outColor = renderInterpolationWeightsDebug(screenPos);
+            break;
+        case 10:
+            outColor = renderRadianceOverlayDebug();
             break;
         default:
             outColor = vec4(1.0, 0.0, 1.0, 1.0);  // Magenta = unknown mode

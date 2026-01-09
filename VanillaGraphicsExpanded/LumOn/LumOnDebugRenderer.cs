@@ -22,6 +22,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// 7 = Temporal Rejection (shows why history was rejected: bounds/depth/normal)
 /// 8 = SH Coefficients (shows DC + directional magnitude)
 /// 9 = Interpolation Weights (shows probe blend weights per pixel)
+/// 10 = Radiance Overlay (shows indirect diffuse buffer)
 /// </summary>
 public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 {

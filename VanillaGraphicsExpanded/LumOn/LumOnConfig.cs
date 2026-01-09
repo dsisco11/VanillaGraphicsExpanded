@@ -262,6 +262,7 @@ public class LumOnConfig
     /// 7 = Temporal rejection
     /// 8 = SH coefficients (DC + directional)
     /// 9 = Interpolation weights (probe blend visualization)
+    /// 10 = Radiance overlay (indirect diffuse buffer)
     /// </summary>
     [JsonProperty]
     public int DebugMode { get; set; } = 0;

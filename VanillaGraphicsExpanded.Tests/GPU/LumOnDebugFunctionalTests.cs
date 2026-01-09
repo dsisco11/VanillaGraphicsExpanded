@@ -23,6 +23,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// 7 = Temporal Rejection Mask
 /// 8 = SH Coefficients
 /// 9 = Interpolation Weights
+/// 10 = Radiance Overlay (indirect diffuse)
 /// 
 /// Test configuration:
 /// - Screen buffer: 4×4 pixels
@@ -43,6 +44,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
     private const int MODE_TEMPORAL_REJECTION = 7;
     private const int MODE_SH_COEFFICIENTS = 8;
     private const int MODE_INTERPOLATION_WEIGHTS = 9;
+    private const int MODE_RADIANCE_OVERLAY = 10;
 
     public LumOnDebugFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -524,6 +526,91 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(coloredCount == ScreenWidth * ScreenHeight,
             $"Mode 4 should show heatmap for all non-sky pixels, got {coloredCount}/{ScreenWidth * ScreenHeight}");
+
+        GL.DeleteProgram(programId);
+    }
+
+    #endregion
+
+    #region Test: Mode10_RadianceOverlay_ShowsIndirectDiffuse
+
+    /// <summary>
+    /// Tests that Mode 10 (Radiance Overlay) outputs the indirect diffuse buffer.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - Non-sky pixels show tone-mapped indirect radiance
+    /// 
+    /// Setup:
+    /// - Depth = 0.5 (non-sky)
+    /// - indirectHalf = uniform white (1,1,1)
+    /// 
+    /// Expected:
+    /// - Output ~= Reinhard(1) = 0.5 per channel
+    /// </summary>
+    [Fact]
+    public void Mode10_RadianceOverlay_ShowsIndirectDiffuse()
+    {
+        EnsureShaderTestAvailable();
+
+        const float probeWorldZ = -5f;
+
+        var depthData = CreateDepthBuffer(0.5f);
+        var normalData = CreateNormalBuffer(0f, 0f, -1f);
+        var anchorPosData = CreateProbeAnchors(probeWorldZ);
+        var anchorNormalData = CreateProbeNormals(0f, 0f, -1f);
+        var radianceData = CreateUniformSHRadiance(1f, 1f, 1f);
+        var historyMetaData = CreateHistoryMeta(5f, 0f, 0f, -1f, 1f);
+
+        // Uniform indirect diffuse (half-res). RGBA float array.
+        var indirectData = new float[HalfResWidth * HalfResHeight * 4];
+        for (int i = 0; i < HalfResWidth * HalfResHeight; i++)
+        {
+            int idx = i * 4;
+            indirectData[idx + 0] = 1f;
+            indirectData[idx + 1] = 1f;
+            indirectData[idx + 2] = 1f;
+            indirectData[idx + 3] = 1f;
+        }
+
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
+        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
+        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, indirectData);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMetaData);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            ScreenWidth, ScreenHeight,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileDebugShader();
+        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        SetupDebugUniforms(programId, debugMode: MODE_RADIANCE_OVERLAY, identity, identity, identity);
+
+        depthTex.Bind(0);
+        normalTex.Bind(1);
+        anchorPosTex.Bind(2);
+        anchorNormalTex.Bind(3);
+        radiance0Tex.Bind(4);
+        radiance1Tex.Bind(5);
+        indirectHalfTex.Bind(6);
+        historyMetaTex.Bind(7);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var outputData = outputGBuffer[0].ReadPixels();
+
+        // Reinhard tone map: 1/(1+1) = 0.5
+        for (int y = 0; y < ScreenHeight; y++)
+        {
+            for (int x = 0; x < ScreenWidth; x++)
+            {
+                var (r, g, b, _) = ReadPixel(outputData, x, y, ScreenWidth);
+                Assert.True(ColorApprox((r, g, b), 0.5f, 0.5f, 0.5f, tolerance: 0.2f),
+                    $"Pixel ({x},{y}) expected ~0.5 gray, got ({r:F3},{g:F3},{b:F3})");
+            }
+        }
 
         GL.DeleteProgram(programId);
     }
