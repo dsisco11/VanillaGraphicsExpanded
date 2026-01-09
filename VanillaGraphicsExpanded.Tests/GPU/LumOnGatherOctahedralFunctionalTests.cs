@@ -263,15 +263,18 @@ public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBas
     {
         EnsureShaderTestAvailable();
 
-        const float probeDepthZ = -5.0f;  // World-space Z (negative = into screen)
         const float pixelDepth = 0.5f;    // Normalized depth buffer value
 
+        // Get proper matrices and matching probe depth
+        CreateTestMatricesForDepth(pixelDepth, out var invProjection, out var viewMatrix,
+            out var probeWorldZ, out var hitDistance);
+
         // Create input textures
-        // Probes with RGBW colors
-        var atlasData = CreateQuadrantAtlas();
+        // Probes with RGBW colors - use the computed hit distance
+        var atlasData = CreateQuadrantAtlas(hitDistance);
         
-        // All probes at same depth and with upward normals
-        var anchorPosData = CreateProbeAnchors(probeDepthZ, validity: 1.0f);
+        // All probes at same depth (matching pixel) and with upward normals
+        var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1.0f);
         var anchorNormalData = CreateProbeNormals(0f, 1f, 0f);  // Upward
         
         // Pixel depth and normal matching probes
@@ -290,8 +293,7 @@ public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupGatherUniforms(programId, identity, identity, intensity: 1.0f);
+        SetupGatherUniforms(programId, invProjection, viewMatrix, intensity: 1.0f);
 
         // Bind inputs
         atlasTex.Bind(0);
@@ -354,9 +356,13 @@ public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBas
 
         const float pixelDepth = 0.5f;
 
+        // Get proper matrices and matching probe depth
+        CreateTestMatricesForDepth(pixelDepth, out var invProjection, out var viewMatrix,
+            out var probeWorldZ, out var hitDistance);
+        float encodedDist = MathF.Log(hitDistance + 1.0f);
+
         // Create atlas with only probe (0,0) having color (red), others black
         var atlasData = new float[AtlasWidth * AtlasHeight * 4];
-        float encodedDist = MathF.Log(11.0f);  // log(10 + 1)
         
         // Only fill probe (0,0) with red
         for (int ty = 0; ty < OctahedralSize; ty++)
@@ -372,7 +378,7 @@ public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBas
         }
         // Other probes remain black (initialized to 0)
 
-        var anchorPosData = CreateProbeAnchors(-5.0f, validity: 1.0f);
+        var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1.0f);
         var anchorNormalData = CreateProbeNormals(0f, 1f, 0f);
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
@@ -388,8 +394,7 @@ public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupGatherUniforms(programId, identity, identity);
+        SetupGatherUniforms(programId, invProjection, viewMatrix);
 
         atlasTex.Bind(0);
         anchorPosTex.Bind(1);
@@ -440,36 +445,40 @@ public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBas
     {
         EnsureShaderTestAvailable();
 
-        // Pixel at near depth
-        const float pixelDepth = 0.3f;  // Near
+        const float pixelDepth = 0.5f;
+
+        // Get proper matrices and matching probe depth
+        CreateTestMatricesForDepth(pixelDepth, out var invProjection, out var viewMatrix,
+            out var probeWorldZ, out var hitDistance);
+        float encodedDistNear = MathF.Log(hitDistance + 1.0f);
+        float encodedDistFar = MathF.Log(hitDistance * 10f + 1.0f);  // Far probe has different hit distance
         
         // Create probes at different depths
         var anchorPosData = new float[ProbeGridWidth * ProbeGridHeight * 4];
         
-        // Probe (0,0): near depth, valid
-        anchorPosData[0] = -0.5f; anchorPosData[1] = -0.5f; anchorPosData[2] = -2.0f; anchorPosData[3] = 1.0f;
+        // Probe (0,0): at pixel depth (matching), valid - RED
+        anchorPosData[0] = -0.5f; anchorPosData[1] = -0.5f; anchorPosData[2] = probeWorldZ; anchorPosData[3] = 1.0f;
         // Probe (1,0): invalid
-        anchorPosData[4] = 0.5f; anchorPosData[5] = -0.5f; anchorPosData[6] = -2.0f; anchorPosData[7] = 0.0f;
+        anchorPosData[4] = 0.5f; anchorPosData[5] = -0.5f; anchorPosData[6] = probeWorldZ; anchorPosData[7] = 0.0f;
         // Probe (0,1): invalid
-        anchorPosData[8] = -0.5f; anchorPosData[9] = 0.5f; anchorPosData[10] = -2.0f; anchorPosData[11] = 0.0f;
-        // Probe (1,1): far depth, valid
-        anchorPosData[12] = 0.5f; anchorPosData[13] = 0.5f; anchorPosData[14] = -50.0f; anchorPosData[15] = 1.0f;
+        anchorPosData[8] = -0.5f; anchorPosData[9] = 0.5f; anchorPosData[10] = probeWorldZ; anchorPosData[11] = 0.0f;
+        // Probe (1,1): at 10x farther depth, valid - BLUE
+        anchorPosData[12] = 0.5f; anchorPosData[13] = 0.5f; anchorPosData[14] = probeWorldZ * 10f; anchorPosData[15] = 1.0f;
 
         // Create atlas: probe (0,0) = red, probe (1,1) = blue
         var atlasData = new float[AtlasWidth * AtlasHeight * 4];
-        float encodedDist = MathF.Log(11.0f);
         
-        // Probe (0,0) = red
+        // Probe (0,0) = red with near hit distance
         for (int ty = 0; ty < OctahedralSize; ty++)
         {
             for (int tx = 0; tx < OctahedralSize; tx++)
             {
                 int idx = (ty * AtlasWidth + tx) * 4;
                 atlasData[idx + 0] = 1.0f; atlasData[idx + 1] = 0.0f; atlasData[idx + 2] = 0.0f;
-                atlasData[idx + 3] = encodedDist;
+                atlasData[idx + 3] = encodedDistNear;
             }
         }
-        // Probe (1,1) = blue
+        // Probe (1,1) = blue with far hit distance
         for (int ty = 0; ty < OctahedralSize; ty++)
         {
             for (int tx = 0; tx < OctahedralSize; tx++)
@@ -478,7 +487,7 @@ public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBas
                 int atlasY = OctahedralSize + ty;
                 int idx = (atlasY * AtlasWidth + atlasX) * 4;
                 atlasData[idx + 0] = 0.0f; atlasData[idx + 1] = 0.0f; atlasData[idx + 2] = 1.0f;
-                atlasData[idx + 3] = encodedDist;
+                atlasData[idx + 3] = encodedDistFar;
             }
         }
 
@@ -497,8 +506,7 @@ public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupGatherUniforms(programId, identity, identity);
+        SetupGatherUniforms(programId, invProjection, viewMatrix);
 
         atlasTex.Bind(0);
         anchorPosTex.Bind(1);
@@ -547,6 +555,10 @@ public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBas
 
         const float pixelDepth = 0.5f;
 
+        // Get proper matrices and matching probe depth
+        CreateTestMatricesForDepth(pixelDepth, out var invProjection, out var viewMatrix,
+            out var probeWorldZ, out var hitDistance);
+
         // Create probe normals: (0,0) upward, (1,1) downward, others upward
         var anchorNormalData = new float[ProbeGridWidth * ProbeGridHeight * 4];
         // Probe (0,0): upward (0, 1, 0) encoded as (0.5, 1.0, 0.5)
@@ -560,7 +572,7 @@ public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBas
 
         // Create atlas: probe (0,0) = red, probe (1,1) = blue, others = green
         var atlasData = new float[AtlasWidth * AtlasHeight * 4];
-        float encodedDist = MathF.Log(11.0f);
+        float encodedDist = MathF.Log(hitDistance + 1.0f);
         
         // Fill entire atlas with green first
         for (int i = 0; i < AtlasWidth * AtlasHeight; i++)
@@ -591,7 +603,7 @@ public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBas
             }
         }
 
-        var anchorPosData = CreateProbeAnchors(-5.0f, validity: 1.0f);
+        var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1.0f);
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);  // Pixel normal = upward
 
@@ -606,8 +618,7 @@ public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupGatherUniforms(programId, identity, identity);
+        SetupGatherUniforms(programId, invProjection, viewMatrix);
 
         atlasTex.Bind(0);
         anchorPosTex.Bind(1);
@@ -659,9 +670,13 @@ public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBas
         const float pixelDepth = 0.5f;
         var tint = (r: 2.0f, g: 1.0f, b: 0.5f);
 
+        // Get proper matrices and matching probe depth
+        CreateTestMatricesForDepth(pixelDepth, out var invProjection, out var viewMatrix,
+            out var probeWorldZ, out var hitDistance);
+
         // Uniform white atlas
-        var atlasData = CreateUniformAtlas(1.0f, 1.0f, 1.0f);
-        var anchorPosData = CreateProbeAnchors(-5.0f, validity: 1.0f);
+        var atlasData = CreateUniformAtlas(1.0f, 1.0f, 1.0f, hitDistance);
+        var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1.0f);
         var anchorNormalData = CreateProbeNormals(0f, 1f, 0f);
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
@@ -678,8 +693,7 @@ public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupGatherUniforms(programId, identity, identity, intensity: 1.0f, indirectTint: (1f, 1f, 1f));
+        SetupGatherUniforms(programId, invProjection, viewMatrix, intensity: 1.0f, indirectTint: (1f, 1f, 1f));
 
         atlasTex.Bind(0);
         anchorPosTex.Bind(1);
@@ -695,7 +709,14 @@ public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBas
             HalfResWidth, HalfResHeight,
             PixelInternalFormat.Rgba16f);
 
-        SetupGatherUniforms(programId, identity, identity, intensity: 1.0f, indirectTint: tint);
+        SetupGatherUniforms(programId, invProjection, viewMatrix, intensity: 1.0f, indirectTint: tint);
+
+        // Re-bind textures after uniform setup
+        atlasTex.Bind(0);
+        anchorPosTex.Bind(1);
+        anchorNormalTex.Bind(2);
+        depthTex.Bind(3);
+        normalTex.Bind(4);
 
         TestFramework.RenderQuadTo(programId, tintedOutput);
         var tintedData = tintedOutput[0].ReadPixels();
