@@ -23,6 +23,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// 8 = SH Coefficients (shows DC + directional magnitude)
 /// 9 = Interpolation Weights (shows probe blend weights per pixel)
 /// 10 = Radiance Overlay (shows indirect diffuse buffer)
+/// 11 = Gather Weight (diagnostic; grayscale weight, red fallback)
 /// </summary>
 public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 {

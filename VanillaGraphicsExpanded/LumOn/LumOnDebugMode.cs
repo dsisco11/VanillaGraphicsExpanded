@@ -22,5 +22,9 @@ public enum LumOnDebugMode
     ShCoefficients = 8,
     InterpolationWeights = 9,
 
-    RadianceOverlay = 10
+    RadianceOverlay = 10,
+
+    // Visualizes gather weighting diagnostics encoded into indirectHalf alpha.
+    // Grayscale = edge-aware total weight (scaled), Red = fallback path used.
+    GatherWeight = 11
 }

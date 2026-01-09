@@ -200,7 +200,8 @@ public class LumOnRenderer : IRenderer, IDisposable
             LumOnDebugMode.TemporalRejection,
             LumOnDebugMode.ShCoefficients,
             LumOnDebugMode.InterpolationWeights,
-            LumOnDebugMode.RadianceOverlay
+            LumOnDebugMode.RadianceOverlay,
+            LumOnDebugMode.GatherWeight
         };
 
         int currentIndex = Array.IndexOf(cycle, config.DebugMode);
@@ -225,6 +226,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         LumOnDebugMode.ShCoefficients => "SH Coefficients",
         LumOnDebugMode.InterpolationWeights => "Interpolation Weights",
         LumOnDebugMode.RadianceOverlay => "Radiance Overlay",
+        LumOnDebugMode.GatherWeight => "Gather Weight (diagnostic)",
         _ => mode.ToString()
     };
 

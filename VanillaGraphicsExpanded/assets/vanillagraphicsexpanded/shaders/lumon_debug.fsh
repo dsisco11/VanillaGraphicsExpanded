@@ -21,6 +21,7 @@ out vec4 outColor;
 // 8 = SH Coefficients (DC + directional magnitude)
 // 9 = Interpolation Weights (probe blend visualization)
 // 10 = Radiance Overlay (indirect diffuse buffer)
+// 11 = Gather Weight (diagnostic; reads indirectHalf alpha)
 // ============================================================================
 
 // Import common utilities
@@ -512,6 +513,31 @@ vec4 renderRadianceOverlayDebug() {
 }
 
 // ============================================================================
+// Debug Mode 11: Gather Weight (Diagnostic)
+// Visualizes indirectHalf alpha written by gather passes:
+// - grayscale = edge-aware total weight (scaled)
+// - red = fallback path used (alpha < 0)
+// ============================================================================
+
+vec4 renderGatherWeightDebug() {
+    float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth)) {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    float a = texture(indirectHalf, uv).a;
+    float w = clamp(abs(a), 0.0, 1.0);
+    // Slight curve to make low weights more visible
+    w = sqrt(w);
+
+    if (a < 0.0) {
+        return vec4(w, 0.0, 0.0, 1.0);
+    }
+
+    return vec4(vec3(w), 1.0);
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -550,6 +576,9 @@ void main(void)
             break;
         case 10:
             outColor = renderRadianceOverlayDebug();
+            break;
+        case 11:
+            outColor = renderGatherWeightDebug();
             break;
         default:
             outColor = vec4(1.0, 0.0, 1.0, 1.0);  // Magenta = unknown mode

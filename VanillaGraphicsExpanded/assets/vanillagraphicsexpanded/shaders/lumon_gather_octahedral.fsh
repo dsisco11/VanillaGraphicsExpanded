@@ -174,17 +174,21 @@ float computeProbeWeight(float bilinearWeight,
         return 0.0;
     }
     
-    // Depth similarity - penalize probes at very different depths
-    float depthDiff = abs(pixelDepthVS - probeDepthVS) / max(pixelDepthVS, 0.01);
+    // Depth similarity - penalize probes at very different depths.
+    // IMPORTANT: Near the camera, pixelDepthVS can be very small; normalizing solely
+    // by pixelDepthVS makes depthDiff explode and collapses all weights to ~0,
+    // producing a hard black cutoff in the indirect buffer.
+    float depthDenom = max(max(pixelDepthVS, probeDepthVS), 1.0);
+    float depthDiff = abs(pixelDepthVS - probeDepthVS) / depthDenom;
     float depthWeight = exp(-depthDiff * depthDiff * 8.0);
     
     // Normal similarity - penalize probes with different surface orientation
     float normalDot = max(dot(pixelNormal, probeNormal), 0.0);
     float normalWeight = pow(normalDot, 4.0);
     
-    // Distance-based weight: prefer probes with similar scene distance
-    // This helps reduce leaking from probes that see distant geometry
-    float distRatio = avgHitDist / max(pixelDepthVS, 0.01);
+    // Distance-based weight: prefer probes with similar scene distance.
+    // Same stability concern as depthDiff: clamp denominator to avoid near-plane blowups.
+    float distRatio = avgHitDist / depthDenom;
     float distWeight = exp(-abs(distRatio - 1.0) * 2.0);
     
     // Combine all weights
@@ -272,11 +276,30 @@ void main(void)
     float w11 = computeProbeWeight(bw11, pixelDepthVS, p11.depthVS, pixelNormalWS, p11.normalWS, avgDist11, p11.valid);
     
     float totalWeight = w00 + w10 + w01 + w11;
+    float edgeTotalWeight = totalWeight;
+    bool usedFallback = false;
     
-    // Handle case where all probes are invalid
+    // If edge-aware weighting collapses (common very near the camera), fall back to
+    // bilinear weighting with normal similarity + validity (dropping depth/dist penalties)
+    // so we avoid a hard black cutoff without reintroducing obvious normal leaks.
     if (totalWeight < 0.001) {
-        outColor = vec4(0.0, 0.0, 0.0, 1.0);
-        return;
+        usedFallback = true;
+        float n00 = pow(max(dot(pixelNormalWS, p00.normalWS), 0.0), 4.0);
+        float n10 = pow(max(dot(pixelNormalWS, p10.normalWS), 0.0), 4.0);
+        float n01 = pow(max(dot(pixelNormalWS, p01.normalWS), 0.0), 4.0);
+        float n11 = pow(max(dot(pixelNormalWS, p11.normalWS), 0.0), 4.0);
+
+        w00 = bw00 * n00 * (p00.valid > 0.5 ? 1.0 : 0.0);
+        w10 = bw10 * n10 * (p10.valid > 0.5 ? 1.0 : 0.0);
+        w01 = bw01 * n01 * (p01.valid > 0.5 ? 1.0 : 0.0);
+        w11 = bw11 * n11 * (p11.valid > 0.5 ? 1.0 : 0.0);
+        totalWeight = w00 + w10 + w01 + w11;
+
+        if (totalWeight < 0.001) {
+            // alpha encodes weight diagnostics; keep it 0 for totally invalid.
+            outColor = vec4(0.0, 0.0, 0.0, 0.0);
+            return;
+        }
     }
     
     // Normalize weights
@@ -296,5 +319,11 @@ void main(void)
     // Clamp negative values (can occur due to numerical issues)
     irradiance = max(irradiance, vec3(0.0));
     
-    outColor = vec4(irradiance, 1.0);
+    // Store diagnostics in alpha for debug visualization:
+    // - magnitude = edge-aware totalWeight (scaled)
+    // - sign = negative when fallback path was used
+    float weightViz = clamp(edgeTotalWeight * 4.0, 0.0, 1.0);
+    float signedWeightViz = usedFallback ? -weightViz : weightViz;
+
+    outColor = vec4(irradiance, signedWeightViz);
 }
