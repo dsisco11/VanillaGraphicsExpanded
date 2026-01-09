@@ -116,22 +116,25 @@ LumOn GPU Shader Functional Tests:
           ✔ Expected: outMeta.accumCount = history.accumCount + 1 @done
 
   Phase 6 - Gather Pass Tests:
-    ☐ Create LumOnGatherFunctionalTests.cs
-      ☐ Test: CenterPixel_InterpolatesFourProbes
-        ☐ Input: 2×2 probes with RGBW radiance
-        ☐ Expected: center pixel = average of 4 probes
-      ☐ Test: CornerPixel_WeightedByDistance
-        ☐ Input: pixel near probe (0,0)
-        ☐ Expected: heavily weighted toward that probe's radiance
-      ☐ Test: DepthDiscontinuity_ReducesWeight
-        ☐ Input: large depth difference between pixel and probe
-        ☐ Expected: that probe contributes less
-      ☐ Test: NormalMismatch_ReducesWeight
-        ☐ Input: pixel normal opposite to probe normal
-        ☐ Expected: that probe contributes less
-      ☐ Test: IndirectTint_AppliedToOutput
-        ☐ Input: indirectTint = (2, 1, 0.5)
-        ☐ Expected: output.rgb *= indirectTint
+    ✔ Create LumOnGatherOctahedralFunctionalTests.cs @done
+      ✔ Test: CenterPixel_InterpolatesFourProbes @done
+        ✔ Input: 2×2 probes with RGBW radiance @done
+        ✔ Expected: center pixel = average of 4 probes @done
+      ✔ Test: CornerPixel_WeightedByDistance @done
+        ✔ Input: pixel near probe (0,0) @done
+        ✔ Expected: heavily weighted toward that probe's radiance @done
+      ✔ Test: DepthDiscontinuity_ReducesWeight @done
+        ✔ Input: large depth difference between pixel and probe @done
+        ✔ Expected: that probe contributes less @done
+      ✔ Test: NormalMismatch_ReducesWeight @done
+        ✔ Input: pixel normal opposite to probe normal @done
+        ✔ Expected: that probe contributes less @done
+      ✔ Test: IndirectTint_AppliedToOutput @done
+        ✔ Input: indirectTint = (2, 1, 0.5) @done
+        ✔ Expected: output.rgb *= indirectTint @done
+      ✔ Test: SkyPixels_ProduceZeroIrradiance (bonus test) @done
+        ✔ Input: depth=1.0 (sky) @done
+        ✔ Expected: output = (0, 0, 0) @done
 
   Phase 7 - Upsample Pass Tests:
     ☐ Create LumOnUpsampleFunctionalTests.cs
