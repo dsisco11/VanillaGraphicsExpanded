@@ -61,3 +61,110 @@ LumOn Functional Test Coverage:
     ☐ Performance benchmarks with GPU timer queries
     ☐ Visual regression tests with image diff
     ☐ Fuzz testing with randomized inputs
+
+
+  LumOn → Lumen Alignment Work (Screen-Space Pipeline)
+
+    Reference:
+    - docs/LumOn.08-Pipeline-Alignment-with-Lumen.md (Section 6 target pipeline)
+
+    Dependency order notes:
+    - Pass 0 (HZB) modifies the tracer, so if we do it, do it before adding confidence + temporal/filter tuning.
+    - Confidence must exist before: temporal-confidence blending, probe-space filtering, and cheaper gather projections.
+    - Probe-space filtering must exist before any gather path that assumes "stable" probe radiance.
+
+    Target pipeline:
+      0. (New) Depth pyramid / HZB (optional, recommended)
+      1. Probe Anchor (with jitter)
+      2. Octahedral Trace (radiance + hitdist + confidence)
+      3. Octahedral Temporal (expanded to use confidence)
+      3.5 (New) Probe-space filter/denoise (edge-stopped)
+      4. Gather (cheaper)
+      5. Upsample (optional spatial denoise)
+      6. Combine (optional)
+
+    Phase 7 - Pass 1: Probe Anchor Jitter
+    Exit artifacts: Probe anchor pass supports jitter (frameIndex plumbing + optional config toggles); probe anchors remain MRT posWS/normalWS.
+    ☐ Add `frameIndex` uniform support to probe anchor program + plumbing from LumOnRenderer
+    ☐ Implement sub-pixel / sub-cell jitter in lumon_probe_anchor.fsh probe sample UV
+    ☐ Ensure jitter is deterministic per-frame and stable across screen resize
+    ☐ Add config toggles/params (optional): EnableAnchorJitter, JitterScale
+    ☐ Add debug visualization: show jittered sample locations (optional)
+    ☐ Add GPU functional test: AnchorJitter_ChangesSampleLocation_Deterministically
+
+    Phase 8 - Pass 0 (Optional/Recommended): Depth Pyramid / HZB
+    Exit artifacts: Depth pyramid textures exist per frame; octahedral tracer can consume HZB for traversal/refinement.
+    ☐ Add depth pyramid builder:
+      - generate mip chain from primaryDepth each frame
+      - store as a set of textures or layered atlas
+    ☐ Update lumon_probe_trace_octahedral.fsh to use HZB for faster/more robust hits
+      - hierarchical stepping and/or binary refinement near hit
+    ☐ Add GPU functional tests:
+      - HZB_BuildProducesMonotonicDepthMips
+      - Trace_HZBMatchesBaselineHitInSimpleScene
+
+    Phase 9 - Pass 2: Octahedral Trace Confidence Output
+    Exit artifacts: Octahedral trace outputs radiance/hitdist plus confidence (new texture or packed); history preservation applies to confidence too.
+    ☐ Decide confidence storage:
+      - Option A (preferred): second atlas texture attachment (confidence or {confidence, flags})
+      - Option B: repack hit distance/confidence into RGBA (only if precision allows)
+    ☐ Update LumOnBufferManager: allocate OctahedralConfidenceTex (+ FBO attachment)
+    ☐ Update shader program bindings + renderer pass wiring (new attachment + texture binding)
+    ☐ Update lumon_probe_trace_octahedral.fsh:
+      - compute confidence for traced texels (hit vs sky, early exit, thickness margin)
+      - output confidence for traced texels
+      - preserve confidence history for non-traced texels (like radiance)
+    ☐ Add GPU functional tests:
+      - Confidence_HitHigherThanSky
+      - Confidence_RayExitsScreen_LowerConfidence
+      - Confidence_NonTracedTexels_PreserveHistory
+
+    Phase 10 - Pass 3: Octahedral Temporal Uses Confidence
+    Exit artifacts: Octahedral temporal produces confidence-aware stabilized atlases suitable for downstream filtering/gather.
+    ☐ Update lumon_temporal_octahedral.fsh to read/write confidence (if separate texture)
+    ☐ Make temporal alpha adaptive using confidence (e.g., alpha *= historyConfidence)
+    ☐ Make disocclusion/invalid-history decisions consider confidence (not just hit distance)
+    ☐ Add debug mode: Confidence / TemporalAlpha visualization
+    ☐ Add GPU functional tests:
+      - Temporal_ConfidenceReducesHistoryWeight
+      - Temporal_LowConfidence_ForcesReset
+
+    Phase 11 - Pass 3.5: Probe-Space Filter/Denoise (New)
+    Exit artifacts: Filtered atlas exists (radiance/hitdist/confidence as applicable); renderer can choose raw vs filtered as gather input.
+    ☐ Add new shader + program: lumon_octahedral_filter.fsh (edge-stopped)
+    ☐ Update LumOnBufferManager:
+      - allocate filtered atlas (radiance + hitdist + confidence as needed)
+      - create filter FBOs
+    ☐ Update LumOnRenderer orchestration: insert Pass 3.5 between temporal and gather
+    ☐ Implement filtering strategy (start simple, then expand if needed):
+      - Angular (within-tile) 3x3 or 5x5 filter with hitdist/confidence weights
+      - Optional: spatial (between-probe) filter for same oct texel across neighboring probes
+    ☐ Add GPU functional tests:
+      - Filter_ReducesNoise_PreservesEdges
+      - Filter_RespectsInvalidProbes
+      - Filter_RespectsConfidence
+
+    Phase 12 - Pass 4: Cheaper Gather Options
+    Exit artifacts: Gather has a defined “cheap” mode (stride/fewer dirs) and/or a projected-basis path (if implemented) selectable via config.
+    ☐ Decide gather simplification path:
+      - Option A (minimal): keep octahedral gather but enforce/sample lower cost by default (stride, fewer dirs)
+      - Option B (Lumen-like): add octahedral → irradiance basis conversion pass, then gather is cheap
+    ☐ Update config:
+      ☐ Select gather mode: IntegrateOctahedral vs EvaluateProjectedSH
+    ☐ If Option B:
+      ☐ Add new pass: octahedral → SH projection (per-probe SH3/SH9) after temporal+filter
+      ☐ Add per-probe SH textures + program + buffer manager allocations
+      ☐ Add gather shader variant that evaluates SH at pixel normal
+    ☐ Add GPU functional tests:
+      - OctahedralToSH_ProjectsKnownAtlasCorrectly
+      - Gather_SHFromProjected_StableVsIntegration
+
+    Phase 13 - Integration, Debug, and Performance
+    Exit artifacts: New passes are debuggable and timed; perf baselines documented; optional minimal visual regression hooks exist.
+    ☐ Add debug modes for:
+      - octahedral confidence
+      - filtered atlas visualization (probe-space)
+      - gather input selection (raw vs filtered)
+    ☐ Extend GPU timer queries to include new passes (HZB, Filter, Projection)
+    ☐ Add quick performance benchmarks and document typical costs in docs
+    ☐ Add minimal visual regression hooks (deferred if too heavy)
