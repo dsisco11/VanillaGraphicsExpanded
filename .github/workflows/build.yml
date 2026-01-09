@@ -21,8 +21,102 @@ env:
   PROJECT_NAME: 'VanillaGraphicsExpanded'
 
 jobs:
+  # ============================================================================
+  # Unit Tests (non-GPU)
+  # ============================================================================
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Cache VintageStory Server (for tests)
+      id: cache-vs-test
+      uses: actions/cache@v4
+      with:
+        path: ~/vs-server
+        key: vs-server-${{ env.VS_VERSION }}
+
+    - name: Download VintageStory Server (for tests)
+      if: steps.cache-vs-test.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p ~/vs-server
+        curl -L -o ~/vs-server.tar.gz "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_${{ env.VS_VERSION }}.tar.gz"
+        tar -xzf ~/vs-server.tar.gz -C ~/vs-server --strip-components=0
+        rm ~/vs-server.tar.gz
+
+    - name: Set VINTAGE_STORY environment variable
+      run: echo "VINTAGE_STORY=$HOME/vs-server" >> $GITHUB_ENV
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Run unit tests (excluding GPU)
+      run: dotnet test --filter "Category!=GPU" --logger "console;verbosity=normal"
+
+  # ============================================================================
+  # GPU Shader Tests (with Mesa llvmpipe software renderer)
+  # ============================================================================
+  test-gpu:
+    runs-on: ubuntu-latest
+    continue-on-error: true  # GPU tests are informational, don't block build
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Install Mesa llvmpipe (software OpenGL)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y mesa-utils libosmesa6 libgl1-mesa-dri xvfb
+
+    - name: Cache VintageStory Server
+      id: cache-vs-gpu
+      uses: actions/cache@v4
+      with:
+        path: ~/vs-server
+        key: vs-server-${{ env.VS_VERSION }}
+
+    - name: Download VintageStory Server
+      if: steps.cache-vs-gpu.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p ~/vs-server
+        curl -L -o ~/vs-server.tar.gz "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_${{ env.VS_VERSION }}.tar.gz"
+        tar -xzf ~/vs-server.tar.gz -C ~/vs-server --strip-components=0
+        rm ~/vs-server.tar.gz
+
+    - name: Set environment variables
+      run: |
+        echo "VINTAGE_STORY=$HOME/vs-server" >> $GITHUB_ENV
+        echo "LIBGL_ALWAYS_SOFTWARE=1" >> $GITHUB_ENV
+        echo "GALLIUM_DRIVER=llvmpipe" >> $GITHUB_ENV
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Run GPU shader tests (with Xvfb)
+      run: |
+        xvfb-run -a dotnet test --filter "Category=GPU" --logger "console;verbosity=normal" || true
+      env:
+        DISPLAY: ":99"
+
+  # ============================================================================
+  # Build and Package
+  # ============================================================================
   build:
     runs-on: ubuntu-latest
+    needs: [test]  # Wait for unit tests to pass
     
     steps:
     - name: Checkout repository

@@ -176,15 +176,18 @@ LumOn GPU Shader Functional Tests:
         ✔ Expected: output ≈ direct (metals block diffuse) @done
 
   Phase 9 - Integration & CI:
-    ☐ Create base class LumOnShaderFunctionalTestBase
-      ☐ Common fixture setup (HeadlessGLFixture)
-      ☐ Shared helper methods for texture creation
-      ☐ Uniform validation integration
-      ☐ Cleanup/dispose pattern
-    ☐ Add [Trait("Category", "GPU")] to all functional tests
-    ☐ Add [SkipOnCI] attribute for tests requiring real GPU
+    ✔ Create base class LumOnShaderFunctionalTestBase @done
+      ✔ Common fixture setup (HeadlessGLFixture) @done
+      ✔ Shared helper methods for texture creation @done
+      ✔ Uniform validation integration @done
+      ✔ Cleanup/dispose pattern @done
+    ✔ Add [Trait("Category", "GPU")] to all functional tests @done
+    ✔ Add [SkipOnCI] attribute for tests requiring real GPU @done
+    ✔ Add GPU test category to CI workflow (optional separate job) @done
+      ✔ Unit tests (non-GPU) run first @done
+      ✔ GPU tests run with Mesa llvmpipe + Xvfb @done
+      ✔ GPU tests are continue-on-error (informational) @done
     ☐ Verify Mesa llvmpipe compatibility on GitHub Actions
-    ☐ Add GPU test category to CI workflow (optional separate job)
     ☐ Document test data derivation in XML comments
 
   Future Enhancements (Deferred):
