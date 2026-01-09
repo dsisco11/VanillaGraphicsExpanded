@@ -325,13 +325,18 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
     /// <summary>
     /// Tests that a valid probe traces rays and fills its 8×8 region in the atlas.
     /// 
+    /// DESIRED BEHAVIOR:
+    /// - Valid probes should trace rays for ALL 64 texels in their octahedral region
+    /// - When rays miss geometry (sky), each texel should receive sky/ambient color
+    /// - No texel should remain zero when probe is valid and texelsPerFrame covers all
+    /// 
     /// Setup:
     /// - All probes valid with position at origin, normal upward
-    /// - Depth buffer: sky (depth=1.0) so rays miss
+    /// - Depth buffer: sky (depth=1.0) so all rays miss
     /// - texelsPerFrame=64 to trace all texels in one pass
     /// 
     /// Expected:
-    /// - Each probe's 8×8 region contains non-zero values (sky fallback)
+    /// - ALL 256 texels (4 probes × 64 texels) should have non-zero sky color
     /// </summary>
     [Fact]
     public void ValidProbe_TracesRaysToAtlas()
@@ -382,8 +387,9 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
         // Read back atlas
         var atlasData = outputAtlas[0].ReadPixels();
 
-        // Verify each probe's region has non-zero radiance (sky fallback)
-        int nonZeroTexels = 0;
+        // DESIRED: ALL texels should have sky color when all probes are valid
+        int totalTexels = AtlasWidth * AtlasHeight;  // 256
+        
         for (int probeY = 0; probeY < ProbeGridHeight; probeY++)
         {
             for (int probeX = 0; probeX < ProbeGridWidth; probeX++)
@@ -395,17 +401,14 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
                         var (x, y) = GetAtlasCoord(probeX, probeY, octX, octY);
                         var (r, g, b, a) = ReadAtlasTexel(atlasData, x, y);
 
-                        // At least some color channels should be non-zero (sky fallback)
-                        if (r > 0.01f || g > 0.01f || b > 0.01f)
-                            nonZeroTexels++;
+                        // DESIRED: Every texel should have non-zero sky color
+                        bool hasColor = r > 0.01f || g > 0.01f || b > 0.01f;
+                        Assert.True(hasColor,
+                            $"Probe ({probeX},{probeY}) texel ({octX},{octY}) should have sky color, got ({r:F3}, {g:F3}, {b:F3})");
                     }
                 }
             }
         }
-
-        // All 256 texels (4 probes × 64 texels) should have sky color
-        Assert.True(nonZeroTexels > 200,
-            $"Expected most texels to have sky color, got {nonZeroTexels} non-zero texels");
 
         GL.DeleteProgram(programId);
     }
@@ -477,13 +480,14 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
         var atlasData = outputAtlas[0].ReadPixels();
 
         // Check a sample of texels for sky color contribution
-        // Sky formula: skyColor = ambientColor * skyFactor * skyMissWeight
+        // DESIRED: Sky color should follow the formula:
+        // skyColor = ambientColor * skyFactor * skyMissWeight
         // skyFactor = max(0, rayDir.y) * 0.5 + 0.5 (ranges from 0.5 to 1.0)
-        // Expected range: ambient * 0.5 * skyWeight to ambient * 1.0 * skyWeight
-        float minExpected = 0.5f * skyWeight * 0.5f;  // Lower bound factor
-        float maxExpected = 1.0f * skyWeight * 1.5f;  // Upper bound with some tolerance
-
-        int validTexels = 0;
+        //
+        // For center texel (4,4) of octahedral map, ray direction depends on octahedral decode.
+        // With upward-facing probe normal, center rays point roughly upward, giving skyFactor ≈ 1.0
+        // Expected ≈ ambient * 1.0 * skyWeight = ambient * 0.5
+        
         for (int probeY = 0; probeY < ProbeGridHeight; probeY++)
         {
             for (int probeX = 0; probeX < ProbeGridWidth; probeX++)
@@ -492,18 +496,21 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
                 var (x, y) = GetAtlasCoord(probeX, probeY, 4, 4);
                 var (r, g, b, _) = ReadAtlasTexel(atlasData, x, y);
 
-                // Verify color is in expected range (sky gradient varies with direction)
-                bool inRange = r >= ambient.r * minExpected && r <= ambient.r * maxExpected &&
-                               g >= ambient.g * minExpected && g <= ambient.g * maxExpected &&
-                               b >= ambient.b * minExpected && b <= ambient.b * maxExpected;
-
-                if (inRange || (r > 0 || g > 0 || b > 0))
-                    validTexels++;
+                // DESIRED: Each channel should be approximately ambient * skyFactor * skyWeight
+                // Allow 50% tolerance for direction-dependent sky gradient
+                float tolerance = 0.5f;
+                float expectedR = ambient.r * skyWeight;  // 0.2 * 0.5 = 0.1
+                float expectedG = ambient.g * skyWeight;  // 0.4 * 0.5 = 0.2
+                float expectedB = ambient.b * skyWeight;  // 0.6 * 0.5 = 0.3
+                
+                Assert.True(r >= expectedR * (1 - tolerance) && r <= expectedR * (1 + tolerance),
+                    $"Probe ({probeX},{probeY}) R channel: expected ≈{expectedR:F2}, got {r:F3}");
+                Assert.True(g >= expectedG * (1 - tolerance) && g <= expectedG * (1 + tolerance),
+                    $"Probe ({probeX},{probeY}) G channel: expected ≈{expectedG:F2}, got {g:F3}");
+                Assert.True(b >= expectedB * (1 - tolerance) && b <= expectedB * (1 + tolerance),
+                    $"Probe ({probeX},{probeY}) B channel: expected ≈{expectedB:F2}, got {b:F3}");
             }
         }
-
-        Assert.True(validTexels >= ProbeGridWidth * ProbeGridHeight,
-            $"Expected all probe center texels to have sky color, got {validTexels}");
 
         GL.DeleteProgram(programId);
     }
@@ -566,8 +573,7 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
         // Expected encoded distance for sky miss
         float expectedEncoded = EncodeHitDistance(RayMaxDistance);
 
-        // Check alpha channel of several texels
-        int correctDistances = 0;
+        // DESIRED: ALL texels should have the correct encoded max distance when rays miss
         for (int probeY = 0; probeY < ProbeGridHeight; probeY++)
         {
             for (int probeX = 0; probeX < ProbeGridWidth; probeX++)
@@ -583,16 +589,12 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
                     // Decode and compare
                     float decodedDist = DecodeHitDistance(alpha);
 
-                    if (MathF.Abs(decodedDist - RayMaxDistance) < RayMaxDistance * 0.1f)
-                        correctDistances++;
+                    // DESIRED: Distance should match rayMaxDistance within 10% tolerance
+                    Assert.True(MathF.Abs(decodedDist - RayMaxDistance) < RayMaxDistance * 0.1f,
+                        $"Probe ({probeX},{probeY}) texel ({octX},{octY}): expected distance ≈{RayMaxDistance}, got {decodedDist:F2}");
                 }
             }
         }
-
-        // Most samples should have correct max distance
-        int totalSamples = ProbeGridWidth * ProbeGridHeight * 4;
-        Assert.True(correctDistances >= totalSamples * 0.8f,
-            $"Expected most texels to have encoded max distance, got {correctDistances}/{totalSamples}");
 
         GL.DeleteProgram(programId);
     }
@@ -767,17 +769,20 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
             }
         }
 
-        // With 4 probes × 8 texels/frame = 32 newly traced texels
-        // Remaining 4 probes × 56 texels = 224 history texels
-        // But the shader adds probe-index jitter, so counts may vary slightly
-        int expectedTraced = ProbeGridWidth * ProbeGridHeight * 8;
-        int expectedHistory = AtlasWidth * AtlasHeight - expectedTraced;
+        // DESIRED BEHAVIOR:
+        // With texelsPerFrame=8 and 4 probes, exactly 32 texels should be traced per frame
+        // Remaining 224 texels should retain history
+        //
+        // The shader should use deterministic temporal distribution without random jitter
+        // that would cause unpredictable counts.
+        int expectedTraced = ProbeGridWidth * ProbeGridHeight * 8;  // 32
+        int expectedHistory = AtlasWidth * AtlasHeight - expectedTraced;  // 224
 
-        // Allow some tolerance due to jitter
-        Assert.True(tracedTexels >= expectedTraced - 10 && tracedTexels <= expectedTraced + 10,
-            $"Expected ~{expectedTraced} traced texels, got {tracedTexels}");
-        Assert.True(historyTexels >= expectedHistory - 10,
-            $"Expected ~{expectedHistory} history texels, got {historyTexels}");
+        // DESIRED: Exact counts (allow ±2 for rounding edge cases only)
+        Assert.True(tracedTexels >= expectedTraced - 2 && tracedTexels <= expectedTraced + 2,
+            $"Expected exactly {expectedTraced} traced texels (±2), got {tracedTexels}");
+        Assert.True(historyTexels >= expectedHistory - 2 && historyTexels <= expectedHistory + 2,
+            $"Expected exactly {expectedHistory} history texels (±2), got {historyTexels}");
 
         GL.DeleteProgram(programId);
     }
