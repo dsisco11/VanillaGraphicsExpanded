@@ -48,11 +48,11 @@ LumOn Functional Test Coverage:
 
   Phase 6 - Low Priority Missing Tests:
     Error Handling & Edge Cases:
-      ☐ ZeroRaysPerProbe_HandledGracefully - Edge case: 0 rays per probe
-      ☐ ZeroTemporalAlpha_PassesThroughCurrent - Edge case: α=0 passthrough
-      ☐ ZeroBilinearWeight_HandledCorrectly - Edge case: pixel at exact grid corner
-      ☐ HalfResSmallerThanExpected_HandledGracefully - Buffer size mismatch
-      ☐ NaNInput_ProducesValidOutput - Numeric stability with NaN inputs
+      ✔ ZeroRaysPerProbe_HandledGracefully - Edge case: 0 rays per probe @done
+      ✔ ZeroTemporalAlpha_PassesThroughCurrent - Edge case: α=0 passthrough @done
+      ✔ ZeroBilinearWeight_HandledCorrectly - Edge case: pixel at exact grid corner @done
+      ✔ HalfResSmallerThanExpected_HandledGracefully - Buffer size mismatch @done
+      ✔ NaNInput_ProducesValidOutput - Numeric stability with NaN inputs @done
 
   Future Enhancements (Deferred):
     ☐ Edge case: invalid probes at screen boundaries

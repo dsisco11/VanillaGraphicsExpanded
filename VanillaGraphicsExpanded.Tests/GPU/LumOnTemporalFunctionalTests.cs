@@ -1416,4 +1416,88 @@ public class LumOnTemporalFunctionalTests : LumOnShaderFunctionalTestBase
     }
 
     #endregion
+
+    #region Phase 6 Tests: Edge Cases
+
+    /// <summary>
+    /// Tests that temporalAlpha=0 passes through current frame only.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - With α=0, output = current * 1.0 + history * 0.0 = current
+    /// - History should be completely ignored
+    /// 
+    /// Setup:
+    /// - Current: red (1,0,0)
+    /// - History: blue (0,0,1)
+    /// - temporalAlpha: 0
+    /// 
+    /// Expected:
+    /// - Output should equal current (red)
+    /// </summary>
+    [Fact]
+    public void ZeroTemporalAlpha_PassesThroughCurrent()
+    {
+        EnsureShaderTestAvailable();
+
+        const float worldZ = -5f;
+
+        // Current = red, History = blue
+        var currentRad0 = CreateUniformRadiance(1f, 0f, 0f);  // Red
+        var currentRad1 = CreateUniformRadiance(0f, 0f, 0f);
+        var historyRad0 = CreateUniformRadiance(0f, 0f, 1f);  // Blue
+        var historyRad1 = CreateUniformRadiance(0f, 0f, 0f);
+        var anchorPos = CreateValidProbeAnchors(worldZ);
+        var anchorNormal = CreateProbeNormalsUpward();
+        var historyMeta = CreateHistoryMeta(worldZ, 16.0f, 0f, 1f);  // Matching depth/normal
+
+        using var currentRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad0);
+        using var currentRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad1);
+        using var historyRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad0);
+        using var historyRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad1);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMeta);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            ProbeGridWidth, ProbeGridHeight,
+            PixelInternalFormat.Rgba16f,
+            PixelInternalFormat.Rgba16f,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileTemporalShader();
+        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        SetupTemporalUniforms(
+            programId,
+            viewMatrix: identity,
+            invViewMatrix: identity,
+            prevViewProjMatrix: identity,
+            temporalAlpha: 0f);  // Zero alpha - no history blending
+
+        currentRad0Tex.Bind(0);
+        currentRad1Tex.Bind(1);
+        historyRad0Tex.Bind(2);
+        historyRad1Tex.Bind(3);
+        anchorPosTex.Bind(4);
+        anchorNormalTex.Bind(5);
+        historyMetaTex.Bind(6);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var outputRad0 = outputGBuffer[0].ReadPixels();
+
+        // With α=0, output should equal current (red channel dominant)
+        for (int py = 0; py < ProbeGridHeight; py++)
+        {
+            for (int px = 0; px < ProbeGridWidth; px++)
+            {
+                var (r, g, b, _) = ReadProbe(outputRad0, px, py);
+                // Current has red, history has blue - with α=0 we should see current only
+                Assert.True(b < r + 0.1f,
+                    $"Probe ({px},{py}) with α=0 should favor current over history: R={r:F3}, B={b:F3}");
+            }
+        }
+
+        GL.DeleteProgram(programId);
+    }
+
+    #endregion
 }

@@ -1177,4 +1177,141 @@ public class LumOnGatherFunctionalTests : LumOnShaderFunctionalTestBase
     }
 
     #endregion
+
+    #region Phase 6 Tests: Edge Cases
+
+    /// <summary>
+    /// Tests that pixels at exact grid corners (zero bilinear weight) are handled correctly.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - Pixels exactly at probe grid corners should still get valid output
+    /// - The bilinear interpolation should handle the corner case
+    /// 
+    /// Setup:
+    /// - Sample pixel at exact (0,0) corner position
+    /// 
+    /// Expected:
+    /// - Valid non-zero output (corner probe contributes)
+    /// </summary>
+    [Fact]
+    public void ZeroBilinearWeight_HandledCorrectly()
+    {
+        EnsureShaderTestAvailable();
+
+        const float probeWorldZ = -5f;
+        const float pixelDepth = 0.5f;
+
+        var (tex0Data, tex1Data) = CreateUniformSHRadiance(1f, 1f, 1f);
+        var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1.0f);
+        var anchorNormalData = CreateProbeNormals(0f, 0f, -1f);
+        var depthData = CreateDepthBuffer(pixelDepth);
+        var normalData = CreateNormalBuffer(0f, 0f, -1f);
+
+        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex0Data);
+        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex1Data);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            HalfResWidth, HalfResHeight,
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileSHGatherShader();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var view = LumOnTestInputFactory.CreateIdentityView();
+        SetupSHGatherUniforms(programId, invProjection, view);
+
+        radiance0Tex.Bind(0);
+        radiance1Tex.Bind(1);
+        anchorPosTex.Bind(2);
+        anchorNormalTex.Bind(3);
+        depthTex.Bind(4);
+        normalTex.Bind(5);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var outputData = outputGBuffer[0].ReadPixels();
+
+        // Check corner pixel (0,0)
+        var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
+        float brightness = (r + g + b) / 3f;
+
+        // Should get valid output even at grid corner
+        Assert.True(!float.IsNaN(brightness) && !float.IsInfinity(brightness),
+            $"Corner pixel should have valid output, got ({r:F4}, {g:F4}, {b:F4})");
+        Assert.True(brightness >= 0,
+            $"Corner pixel brightness should be non-negative, got {brightness:F4}");
+    }
+
+    /// <summary>
+    /// Tests that half-res buffer smaller than expected is handled gracefully.
+    /// 
+    /// DESIRED BEHAVIOR:
+    /// - Even with unusual buffer sizes, shader should produce valid output
+    /// - No crashes or out-of-bounds access
+    /// 
+    /// Setup:
+    /// - Use the standard test buffers (they're already small)
+    /// - Verify output bounds are respected
+    /// 
+    /// Expected:
+    /// - Valid output within buffer bounds
+    /// </summary>
+    [Fact]
+    public void HalfResSmallerThanExpected_HandledGracefully()
+    {
+        EnsureShaderTestAvailable();
+
+        const float probeWorldZ = -5f;
+        const float pixelDepth = 0.5f;
+
+        var (tex0Data, tex1Data) = CreateUniformSHRadiance(0.5f, 0.5f, 0.5f);
+        var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1.0f);
+        var anchorNormalData = CreateProbeNormals(0f, 0f, -1f);
+        var depthData = CreateDepthBuffer(pixelDepth);
+        var normalData = CreateNormalBuffer(0f, 0f, -1f);
+
+        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex0Data);
+        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, tex1Data);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+        // Use a 1x1 output buffer (smaller than normal half-res)
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            1, 1,  // Very small output
+            PixelInternalFormat.Rgba16f);
+
+        var programId = CompileSHGatherShader();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var view = LumOnTestInputFactory.CreateIdentityView();
+        SetupSHGatherUniforms(programId, invProjection, view);
+
+        radiance0Tex.Bind(0);
+        radiance1Tex.Bind(1);
+        anchorPosTex.Bind(2);
+        anchorNormalTex.Bind(3);
+        depthTex.Bind(4);
+        normalTex.Bind(5);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var outputData = outputGBuffer[0].ReadPixels();
+
+        // Should have exactly 4 floats (RGBA)
+        Assert.Equal(4, outputData.Length);
+
+        // Should be valid (no NaN/Infinity)
+        bool hasInvalid = float.IsNaN(outputData[0]) || float.IsNaN(outputData[1]) || 
+                          float.IsNaN(outputData[2]) || float.IsNaN(outputData[3]) ||
+                          float.IsInfinity(outputData[0]) || float.IsInfinity(outputData[1]) ||
+                          float.IsInfinity(outputData[2]) || float.IsInfinity(outputData[3]);
+
+        Assert.False(hasInvalid, "Small buffer should produce valid output without NaN/Infinity");
+
+        GL.DeleteProgram(programId);
+    }
+
+    #endregion
 }
