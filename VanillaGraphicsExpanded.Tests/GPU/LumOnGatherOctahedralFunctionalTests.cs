@@ -804,8 +804,10 @@ public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupGatherUniforms(programId, identity, identity);
+        // Use realistic matrices for consistency (though sky pixels early-out before depth reconstruction)
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var viewMatrix = LumOnTestInputFactory.CreateIdentityView();
+        SetupGatherUniforms(programId, invProjection, viewMatrix);
 
         atlasTex.Bind(0);
         anchorPosTex.Bind(1);

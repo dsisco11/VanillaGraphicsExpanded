@@ -115,10 +115,27 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
     /// Uses System.Numerics.Matrix4x4 and MatrixHelper for clean matrix math.
     /// This mirrors the lumonReconstructViewPos function in the shader.
     /// </summary>
+    /// <remarks>
+    /// GLSL does: viewPos = invProjectionMatrix * ndc (column vector convention)
+    /// C# Vector4.Transform does: v * M (row vector convention)
+    /// 
+    /// Since the input is column-major (GLSL format), and FromColumnMajor transposes
+    /// it for System.Numerics row-major storage, we need to use the transposed matrix
+    /// with Vector4.Transform to match GLSL's post-multiplication behavior.
+    /// 
+    /// Effectively: GLSL (M * v) == C# (v * M^T)
+    /// Since FromColumnMajor gives us M (the GLSL matrix transposed), we transpose again.
+    /// </remarks>
     private static Vector3 ReconstructViewPos(float u, float v, float depth, float[] invProjection)
     {
         // Convert column-major float[] to Matrix4x4 using MatrixHelper
+        // This transposes the data for System.Numerics' row-major storage
         var invProjMatrix = MatrixHelper.FromColumnMajor(invProjection);
+        
+        // Transpose to match GLSL's post-multiplication convention
+        // GLSL: M * v == C#: v * M^T, and invProjMatrix is already transposed from column-major
+        // So we need to transpose again to get the correct result
+        var invProjForGlsl = Matrix4x4.Transpose(invProjMatrix);
         
         // NDC coordinates (homogeneous)
         var ndc = new Vector4(
@@ -127,8 +144,8 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             depth * 2.0f - 1.0f,
             1.0f);
 
-        // Transform by inverse projection
-        var viewPos = Vector4.Transform(ndc, invProjMatrix);
+        // Transform by inverse projection (now matches GLSL behavior)
+        var viewPos = Vector4.Transform(ndc, invProjForGlsl);
 
         // Perspective divide
         if (MathF.Abs(viewPos.W) > 1e-6f)
@@ -143,10 +160,14 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
     /// Transforms a view-space position to world-space using the inverse view matrix.
     /// Uses System.Numerics.Matrix4x4 and MatrixHelper for clean matrix math.
     /// </summary>
+    /// <remarks>
+    /// Uses same GLSL-compatible convention as ReconstructViewPos.
+    /// </remarks>
     private static Vector3 TransformToWorld(Vector3 viewPos, float[] invView)
     {
         var invViewMatrix = MatrixHelper.FromColumnMajor(invView);
-        return Vector3.Transform(viewPos, invViewMatrix);
+        var invViewForGlsl = Matrix4x4.Transpose(invViewMatrix);
+        return Vector3.Transform(viewPos, invViewForGlsl);
     }
 
     /// <summary>
@@ -285,10 +306,10 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
 
-        // Compile shader and set uniforms
+        // Compile shader and set uniforms - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
-        var invProjection = LumOnTestInputFactory.CreateIdentityProjection();
-        var invView = LumOnTestInputFactory.CreateIdentityView();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
 
         // Bind inputs and render
@@ -366,10 +387,10 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
 
-        // Compile and setup
+        // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
-        var invProjection = LumOnTestInputFactory.CreateIdentityProjection();
-        var invView = LumOnTestInputFactory.CreateIdentityView();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
 
         // Render
@@ -441,10 +462,10 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
 
-        // Compile and setup
+        // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
-        var invProjection = LumOnTestInputFactory.CreateIdentityProjection();
-        var invView = LumOnTestInputFactory.CreateIdentityView();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
 
         // Render
@@ -513,10 +534,10 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
 
-        // Compile and setup
+        // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
-        var invProjection = LumOnTestInputFactory.CreateIdentityProjection();
-        var invView = LumOnTestInputFactory.CreateIdentityView();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
 
         // Render
@@ -595,10 +616,10 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
 
-        // Compile and setup
+        // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
-        var invProjection = LumOnTestInputFactory.CreateIdentityProjection();
-        var invView = LumOnTestInputFactory.CreateIdentityView();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
 
         // Render
@@ -680,10 +701,10 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
 
-        // Compile and setup
+        // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
-        var invProjection = LumOnTestInputFactory.CreateIdentityProjection();
-        var invView = LumOnTestInputFactory.CreateIdentityView();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
 
         // Render
@@ -753,10 +774,10 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
 
-        // Compile and setup
+        // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
-        var invProjection = LumOnTestInputFactory.CreateIdentityProjection();
-        var invView = LumOnTestInputFactory.CreateIdentityView();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
 
         // Render

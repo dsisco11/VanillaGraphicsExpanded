@@ -525,6 +525,32 @@ public static class LumOnTestInputFactory
     public static float[] CreateIdentityProjection() => CreateIdentityMatrix();
 
     /// <summary>
+    /// Creates a realistic perspective projection matrix using default test parameters.
+    /// Use this instead of identity projection for proper depth reconstruction.
+    /// </summary>
+    /// <returns>Perspective projection matrix in column-major order.</returns>
+    public static float[] CreateRealisticProjection()
+    {
+        return CreateSimplePerspective(
+            MathF.PI / 3f,  // 60° vertical FOV
+            1.0f,           // Square aspect (4×4 screen)
+            DefaultZNear,   // 0.1
+            DefaultZFar     // 100
+        );
+    }
+
+    /// <summary>
+    /// Creates an inverse perspective projection matrix using default test parameters.
+    /// Use this for shaders that need to reconstruct view-space positions from depth.
+    /// </summary>
+    /// <returns>Inverse perspective projection matrix in column-major order.</returns>
+    public static float[] CreateRealisticInverseProjection()
+    {
+        var projection = CreateRealisticProjection();
+        return CreateInverseMatrix(projection);
+    }
+
+    /// <summary>
     /// Creates a simple perspective projection matrix.
     /// </summary>
     /// <param name="fovRadians">Vertical field of view in radians.</param>

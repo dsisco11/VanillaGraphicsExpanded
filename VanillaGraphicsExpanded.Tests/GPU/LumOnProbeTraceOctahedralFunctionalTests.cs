@@ -312,15 +312,18 @@ public class LumOnProbeTraceOctahedralFunctionalTests : LumOnShaderFunctionalTes
             AtlasWidth, AtlasHeight,
             PixelInternalFormat.Rgba16f);
 
-        // Compile and setup shader
+        // Compile and setup shader - use realistic perspective matrices
         var programId = CompileOctahedralTraceShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        var projection = LumOnTestInputFactory.CreateRealisticProjection();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var view = LumOnTestInputFactory.CreateIdentityView();
+        var invView = LumOnTestInputFactory.CreateIdentityView();  // Identity view inverse = identity
         SetupOctahedralTraceUniforms(
             programId,
-            invProjection: identity,
-            projection: identity,
-            view: identity,
-            invView: identity,
+            invProjection: invProjection,
+            projection: projection,
+            view: view,
+            invView: invView,
             texelsPerFrame: 64,  // Trace all texels
             ambientColor: (0.3f, 0.4f, 0.5f));
 
@@ -405,14 +408,18 @@ public class LumOnProbeTraceOctahedralFunctionalTests : LumOnShaderFunctionalTes
             AtlasWidth, AtlasHeight,
             PixelInternalFormat.Rgba16f);
 
+        // Use realistic perspective matrices for proper depth/ray calculations
         var programId = CompileOctahedralTraceShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        var projection = LumOnTestInputFactory.CreateRealisticProjection();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var view = LumOnTestInputFactory.CreateIdentityView();
+        var invView = LumOnTestInputFactory.CreateIdentityView();
         SetupOctahedralTraceUniforms(
             programId,
-            invProjection: identity,
-            projection: identity,
-            view: identity,
-            invView: identity,
+            invProjection: invProjection,
+            projection: projection,
+            view: view,
+            invView: invView,
             texelsPerFrame: 64,
             skyMissWeight: skyWeight,
             ambientColor: ambient,
@@ -499,14 +506,18 @@ public class LumOnProbeTraceOctahedralFunctionalTests : LumOnShaderFunctionalTes
             AtlasWidth, AtlasHeight,
             PixelInternalFormat.Rgba16f);
 
+        // Use realistic perspective matrices for proper depth/ray calculations
         var programId = CompileOctahedralTraceShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        var projection = LumOnTestInputFactory.CreateRealisticProjection();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var view = LumOnTestInputFactory.CreateIdentityView();
+        var invView = LumOnTestInputFactory.CreateIdentityView();
         SetupOctahedralTraceUniforms(
             programId,
-            invProjection: identity,
-            projection: identity,
-            view: identity,
-            invView: identity,
+            invProjection: invProjection,
+            projection: projection,
+            view: view,
+            invView: invView,
             texelsPerFrame: 64);
 
         anchorPosTex.Bind(0);
@@ -582,14 +593,18 @@ public class LumOnProbeTraceOctahedralFunctionalTests : LumOnShaderFunctionalTes
             AtlasWidth, AtlasHeight,
             PixelInternalFormat.Rgba16f);
 
+        // Use realistic perspective matrices for proper depth/ray calculations
         var programId = CompileOctahedralTraceShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        var projection = LumOnTestInputFactory.CreateRealisticProjection();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var view = LumOnTestInputFactory.CreateIdentityView();
+        var invView = LumOnTestInputFactory.CreateIdentityView();
         SetupOctahedralTraceUniforms(
             programId,
-            invProjection: identity,
-            projection: identity,
-            view: identity,
-            invView: identity,
+            invProjection: invProjection,
+            projection: projection,
+            view: view,
+            invView: invView,
             texelsPerFrame: 64);
 
         anchorPosTex.Bind(0);
@@ -674,14 +689,18 @@ public class LumOnProbeTraceOctahedralFunctionalTests : LumOnShaderFunctionalTes
             AtlasWidth, AtlasHeight,
             PixelInternalFormat.Rgba16f);
 
+        // Use realistic perspective matrices for proper depth/ray calculations
         var programId = CompileOctahedralTraceShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        var projection = LumOnTestInputFactory.CreateRealisticProjection();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var view = LumOnTestInputFactory.CreateIdentityView();
+        var invView = LumOnTestInputFactory.CreateIdentityView();
         SetupOctahedralTraceUniforms(
             programId,
-            invProjection: identity,
-            projection: identity,
-            view: identity,
-            invView: identity,
+            invProjection: invProjection,
+            projection: projection,
+            view: view,
+            invView: invView,
             frameIndex: 0,
             texelsPerFrame: 8,  // Only trace 8 texels per frame
             ambientColor: (0.5f, 0.5f, 0.5f));

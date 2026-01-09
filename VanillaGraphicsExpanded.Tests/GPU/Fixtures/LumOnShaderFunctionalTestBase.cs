@@ -368,6 +368,84 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
         probeWorldZ = viewZ;  // Negative, into screen
         hitDistance = -viewZ; // Positive distance
     }
+    
+    /// <summary>
+    /// Creates a complete set of realistic test matrices for shaders that need
+    /// projection, view, and their inverses.
+    /// </summary>
+    /// <remarks>
+    /// This is the comprehensive version for shaders like probe_trace that need
+    /// all four matrices (projection, invProjection, view, invView).
+    /// 
+    /// The matrices are consistent with each other:
+    /// - projection * invProjection = identity
+    /// - view * invView = identity
+    /// - Depth reconstruction produces valid view-space positions
+    /// </remarks>
+    /// <param name="depthBufferValue">Depth buffer value [0, 1] to calibrate for</param>
+    /// <param name="projection">Output: projection matrix</param>
+    /// <param name="invProjection">Output: inverse projection matrix</param>
+    /// <param name="viewMatrix">Output: view matrix (identity for simplicity)</param>
+    /// <param name="invViewMatrix">Output: inverse view matrix (identity)</param>
+    /// <param name="probeWorldZ">Output: world Z position for probes matching the depth</param>
+    protected static void CreateRealisticTestMatrices(
+        float depthBufferValue,
+        out float[] projection,
+        out float[] invProjection,
+        out float[] viewMatrix,
+        out float[] invViewMatrix,
+        out float probeWorldZ)
+    {
+        // Create perspective projection
+        projection = LumOnTestInputFactory.CreateSimplePerspective(
+            MathF.PI / 3f,  // 60° FOV
+            1.0f,           // Square aspect
+            ZNear,          // 0.1
+            ZFar            // 100
+        );
+        
+        invProjection = LumOnTestInputFactory.CreateInverseMatrix(projection);
+        
+        // Use identity view for simplicity (camera at origin, looking down -Z)
+        viewMatrix = LumOnTestInputFactory.CreateIdentityMatrix();
+        invViewMatrix = LumOnTestInputFactory.CreateIdentityMatrix();
+        
+        // Calculate view-space Z for the given depth buffer value
+        float A = -(ZFar + ZNear) / (ZFar - ZNear);
+        float B = -2f * ZFar * ZNear / (ZFar - ZNear);
+        float ndcZ = depthBufferValue * 2f - 1f;
+        float viewZ = B / (ndcZ - A);
+        
+        // With identity view matrix, world Z = view Z
+        probeWorldZ = viewZ;
+    }
+    
+    /// <summary>
+    /// Computes the view-space Z coordinate for a given depth buffer value.
+    /// </summary>
+    /// <param name="depthBufferValue">Normalized depth buffer value [0, 1]</param>
+    /// <returns>View-space Z coordinate (negative, into screen)</returns>
+    protected static float DepthBufferToViewZ(float depthBufferValue)
+    {
+        float A = -(ZFar + ZNear) / (ZFar - ZNear);
+        float B = -2f * ZFar * ZNear / (ZFar - ZNear);
+        float ndcZ = depthBufferValue * 2f - 1f;
+        return B / (ndcZ - A);
+    }
+    
+    /// <summary>
+    /// Computes the depth buffer value for a given view-space Z coordinate.
+    /// </summary>
+    /// <param name="viewZ">View-space Z coordinate (negative, into screen)</param>
+    /// <returns>Normalized depth buffer value [0, 1]</returns>
+    protected static float ViewZToDepthBuffer(float viewZ)
+    {
+        // Standard OpenGL depth formula: depth = (A*z + B) / z then map from [-1,1] to [0,1]
+        float A = -(ZFar + ZNear) / (ZFar - ZNear);
+        float B = -2f * ZFar * ZNear / (ZFar - ZNear);
+        float ndcZ = (A * viewZ + B) / viewZ;
+        return (ndcZ + 1f) * 0.5f;
+    }
 
     #endregion
 
