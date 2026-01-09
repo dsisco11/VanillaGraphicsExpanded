@@ -155,22 +155,25 @@ LumOn GPU Shader Functional Tests:
         ✔ Expected: output = (0, 0, 0, 0) @done
 
   Phase 8 - Combine Pass Tests:
-    ☐ Create LumOnCombineFunctionalTests.cs
-      ☐ Test: BasicComposite_AddsIndirect
-        ☐ Input: direct=(1,0,0), indirect=(0,1,0), albedo=(1,1,1)
-        ☐ Expected: output = (1,1,0) (direct + indirect * albedo)
-      ☐ Test: AlbedoModulation_AppliedToIndirect
-        ☐ Input: indirect=(1,1,1), albedo=(1,0,0)
-        ☐ Expected: indirect contribution = (1,0,0)
-      ☐ Test: IndirectIntensity_ScalesContribution
-        ☐ Input: indirectIntensity=2.0
-        ☐ Expected: indirect contribution doubled
-      ☐ Test: LumOnDisabled_PassthroughDirect
-        ☐ Input: lumOnEnabled=0
-        ☐ Expected: output = direct (no indirect added)
-      ☐ Test: SkyPixels_NoIndirect
-        ☐ Input: depth=1.0 (sky)
-        ☐ Expected: output = direct (skip indirect for sky)
+    ✔ Create LumOnCombineFunctionalTests.cs @done
+      ✔ Test: BasicComposite_AddsIndirect @done
+        ✔ Input: direct=(1,0,0), indirect=(0,1,0), albedo=(1,1,1) @done
+        ✔ Expected: output = (1,1,0) (direct + indirect * albedo) @done
+      ✔ Test: AlbedoModulation_AppliedToIndirect @done
+        ✔ Input: indirect=(1,1,1), albedo=(1,0,0) @done
+        ✔ Expected: indirect contribution = (1,0,0) @done
+      ✔ Test: IndirectIntensity_ScalesContribution @done
+        ✔ Input: indirectIntensity=2.0 @done
+        ✔ Expected: indirect contribution doubled @done
+      ✔ Test: LumOnDisabled_PassthroughDirect @done
+        ✔ Input: lumOnEnabled=0 @done
+        ✔ Expected: output = direct (no indirect added) @done
+      ✔ Test: SkyPixels_NoIndirect @done
+        ✔ Input: depth=1.0 (sky) @done
+        ✔ Expected: output = direct (skip indirect for sky) @done
+      ✔ Test: MetallicSurface_ReducesIndirect (bonus test) @done
+        ✔ Input: metallic=1.0 (full metal) @done
+        ✔ Expected: output ≈ direct (metals block diffuse) @done
 
   Phase 9 - Integration & CI:
     ☐ Create base class LumOnShaderFunctionalTestBase
