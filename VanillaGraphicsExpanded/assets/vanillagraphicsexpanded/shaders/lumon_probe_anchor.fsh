@@ -135,15 +135,20 @@ void main(void)
     
     // Sample and decode world-space normal from G-buffer (already world-space)
     vec3 normalRaw = texture(gBufferNormal, screenUV).xyz;
-    vec3 normalWS = lumonDecodeNormal(normalRaw);
     
     // Criterion 3: Reject invalid normals (degenerate G-buffer data)
-    if (length(normalWS) < 0.5)
+    // Check BEFORE normalizing to avoid normalize(vec3(0)) undefined behavior
+    vec3 normalDecoded = normalRaw * 2.0 - 1.0;
+    float normalLen = length(normalDecoded);
+    if (normalLen < 0.5)
     {
         outPosition = vec4(0.0, 0.0, 0.0, 0.0);  // valid = 0
         outNormal = vec4(0.5, 0.5, 1.0, 0.0);
         return;
     }
+    
+    // Now safe to normalize
+    vec3 normalWS = normalDecoded / normalLen;
     
     // ========================================================================
     // Output (world-space for temporal stability)
