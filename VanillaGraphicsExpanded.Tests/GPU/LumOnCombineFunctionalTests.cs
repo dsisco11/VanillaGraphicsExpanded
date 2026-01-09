@@ -1,4 +1,3 @@
-using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -31,56 +30,16 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// </remarks>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
+public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 {
-    private readonly HeadlessGLFixture _fixture;
-    private readonly ShaderTestHelper? _helper;
-    private readonly ShaderTestFramework _framework;
-    
-    // Test configuration constants
-    private const int ScreenWidth = LumOnTestInputFactory.ScreenWidth;   // 4
-    private const int ScreenHeight = LumOnTestInputFactory.ScreenHeight; // 4
-    
-    private const float TestEpsilon = 1e-2f;
-
-    public LumOnCombineFunctionalTests(HeadlessGLFixture fixture) : base(fixture)
-    {
-        _fixture = fixture;
-        _framework = new ShaderTestFramework();
-
-        if (_fixture.IsContextValid)
-        {
-            var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-            var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaderincludes");
-
-            if (Directory.Exists(shaderPath) && Directory.Exists(includePath))
-            {
-                _helper = new ShaderTestHelper(shaderPath, includePath);
-            }
-        }
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _helper?.Dispose();
-            _framework.Dispose();
-        }
-        base.Dispose(disposing);
-    }
+    public LumOnCombineFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Helper Methods
 
     /// <summary>
     /// Compiles and links the combine shader.
     /// </summary>
-    private int CompileCombineShader()
-    {
-        var result = _helper!.CompileAndLink("lumon_combine.vsh", "lumon_combine.fsh");
-        Assert.True(result.IsSuccess, $"Shader compilation failed: {result.ErrorMessage}");
-        return result.ProgramId;
-    }
+    private int CompileCombineShader() => CompileShader("lumon_combine.vsh", "lumon_combine.fsh");
 
     /// <summary>
     /// Sets up common uniforms for the combine shader.
@@ -119,57 +78,9 @@ public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
     }
 
     /// <summary>
-    /// Creates a uniform color texture (RGBA16F).
+    /// Reads a pixel from output (using ScreenWidth for stride).
     /// </summary>
-    private static float[] CreateUniformColor(float r, float g, float b, float a = 1.0f)
-    {
-        var data = new float[ScreenWidth * ScreenHeight * 4];
-        for (int i = 0; i < ScreenWidth * ScreenHeight; i++)
-        {
-            int idx = i * 4;
-            data[idx + 0] = r;
-            data[idx + 1] = g;
-            data[idx + 2] = b;
-            data[idx + 3] = a;
-        }
-        return data;
-    }
-
-    /// <summary>
-    /// Creates a material buffer with uniform roughness, metallic, emissive, reflectivity.
-    /// Layout: R=roughness, G=metallic, B=emissive, A=reflectivity
-    /// </summary>
-    private static float[] CreateMaterialBuffer(float roughness, float metallic, float emissive = 0f, float reflectivity = 0f)
-    {
-        var data = new float[ScreenWidth * ScreenHeight * 4];
-        for (int i = 0; i < ScreenWidth * ScreenHeight; i++)
-        {
-            int idx = i * 4;
-            data[idx + 0] = roughness;
-            data[idx + 1] = metallic;
-            data[idx + 2] = emissive;
-            data[idx + 3] = reflectivity;
-        }
-        return data;
-    }
-
-    /// <summary>
-    /// Creates a depth buffer with uniform depth.
-    /// </summary>
-    private static float[] CreateDepthBuffer(float depth)
-    {
-        var data = new float[ScreenWidth * ScreenHeight];
-        for (int i = 0; i < data.Length; i++)
-        {
-            data[i] = depth;
-        }
-        return data;
-    }
-
-    /// <summary>
-    /// Reads a pixel from output.
-    /// </summary>
-    private static (float r, float g, float b, float a) ReadPixel(float[] data, int x, int y)
+    private static (float r, float g, float b, float a) ReadPixelScreen(float[] data, int x, int y)
     {
         int idx = (y * ScreenWidth + x) * 4;
         return (data[idx], data[idx + 1], data[idx + 2], data[idx + 3]);
@@ -199,27 +110,26 @@ public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void BasicComposite_AddsIndirect()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         var direct = (r: 1.0f, g: 0.0f, b: 0.0f);   // Red
         var indirect = (r: 0.0f, g: 1.0f, b: 0.0f); // Green
         var albedo = (r: 1.0f, g: 1.0f, b: 1.0f);   // White
 
         // Create input textures
-        var sceneDirectData = CreateUniformColor(direct.r, direct.g, direct.b);
-        var indirectData = CreateUniformColor(indirect.r, indirect.g, indirect.b);
-        var albedoData = CreateUniformColor(albedo.r, albedo.g, albedo.b);
-        var materialData = CreateMaterialBuffer(roughness: 0.5f, metallic: 0.0f);  // Dielectric
-        var depthData = CreateDepthBuffer(0.5f);  // Valid geometry
+        var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+        var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f);  // Dielectric
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);  // Valid geometry
 
-        using var sceneDirectTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, sceneDirectData);
-        using var indirectTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, indirectData);
-        using var albedoTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, albedoData);
-        using var materialTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, sceneDirectData);
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, albedoData);
+        using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
 
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -233,7 +143,7 @@ public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
         materialTex.Bind(3);
         depthTex.Bind(4);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputData = outputGBuffer[0].ReadPixels();
 
@@ -242,7 +152,7 @@ public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
         {
             for (int px = 0; px < ScreenWidth; px++)
             {
-                var (r, g, b, _) = ReadPixel(outputData, px, py);
+                var (r, g, b, _) = ReadPixelScreen(outputData, px, py);
 
                 Assert.True(MathF.Abs(r - 1.0f) < TestEpsilon,
                     $"Pixel ({px},{py}) R should be 1.0 (direct), got {r:F3}");
@@ -279,26 +189,25 @@ public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void AlbedoModulation_AppliedToIndirect()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         var direct = (r: 0.0f, g: 0.0f, b: 0.0f);   // Black
         var indirect = (r: 1.0f, g: 1.0f, b: 1.0f); // White
         var albedo = (r: 1.0f, g: 0.0f, b: 0.0f);   // Red
 
-        var sceneDirectData = CreateUniformColor(direct.r, direct.g, direct.b);
-        var indirectData = CreateUniformColor(indirect.r, indirect.g, indirect.b);
-        var albedoData = CreateUniformColor(albedo.r, albedo.g, albedo.b);
-        var materialData = CreateMaterialBuffer(roughness: 0.5f, metallic: 0.0f);
-        var depthData = CreateDepthBuffer(0.5f);
+        var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+        var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f);
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);
 
-        using var sceneDirectTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, sceneDirectData);
-        using var indirectTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, indirectData);
-        using var albedoTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, albedoData);
-        using var materialTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, sceneDirectData);
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, albedoData);
+        using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
 
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -311,7 +220,7 @@ public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
         materialTex.Bind(3);
         depthTex.Bind(4);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputData = outputGBuffer[0].ReadPixels();
 
@@ -320,7 +229,7 @@ public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
         {
             for (int px = 0; px < ScreenWidth; px++)
             {
-                var (r, g, b, _) = ReadPixel(outputData, px, py);
+                var (r, g, b, _) = ReadPixelScreen(outputData, px, py);
 
                 Assert.True(MathF.Abs(r - 1.0f) < TestEpsilon,
                     $"Pixel ({px},{py}) R should be 1.0 (albedo filtered), got {r:F3}");
@@ -358,27 +267,26 @@ public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void IndirectIntensity_ScalesContribution()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         var direct = (r: 0.0f, g: 0.0f, b: 0.0f);
         var indirect = (r: 0.25f, g: 0.25f, b: 0.25f);
         var albedo = (r: 1.0f, g: 1.0f, b: 1.0f);
         const float intensity = 2.0f;
 
-        var sceneDirectData = CreateUniformColor(direct.r, direct.g, direct.b);
-        var indirectData = CreateUniformColor(indirect.r, indirect.g, indirect.b);
-        var albedoData = CreateUniformColor(albedo.r, albedo.g, albedo.b);
-        var materialData = CreateMaterialBuffer(roughness: 0.5f, metallic: 0.0f);
-        var depthData = CreateDepthBuffer(0.5f);
+        var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+        var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f);
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);
 
-        using var sceneDirectTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, sceneDirectData);
-        using var indirectTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, indirectData);
-        using var albedoTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, albedoData);
-        using var materialTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, sceneDirectData);
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, albedoData);
+        using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
 
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -391,7 +299,7 @@ public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
         materialTex.Bind(3);
         depthTex.Bind(4);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputData = outputGBuffer[0].ReadPixels();
 
@@ -402,7 +310,7 @@ public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
         {
             for (int px = 0; px < ScreenWidth; px++)
             {
-                var (r, g, b, _) = ReadPixel(outputData, px, py);
+                var (r, g, b, _) = ReadPixelScreen(outputData, px, py);
 
                 Assert.True(MathF.Abs(r - expectedValue) < TestEpsilon,
                     $"Pixel ({px},{py}) R should be {expectedValue:F2} (intensity scaled), got {r:F3}");
@@ -438,25 +346,24 @@ public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void LumOnDisabled_PassthroughDirect()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         var direct = (r: 0.5f, g: 0.3f, b: 0.1f);
         var indirect = (r: 1.0f, g: 1.0f, b: 1.0f);  // Should be ignored
 
-        var sceneDirectData = CreateUniformColor(direct.r, direct.g, direct.b);
-        var indirectData = CreateUniformColor(indirect.r, indirect.g, indirect.b);
-        var albedoData = CreateUniformColor(1f, 1f, 1f);
-        var materialData = CreateMaterialBuffer(roughness: 0.5f, metallic: 0.0f);
-        var depthData = CreateDepthBuffer(0.5f);
+        var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, 1f, 1f, 1f);
+        var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f);
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);
 
-        using var sceneDirectTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, sceneDirectData);
-        using var indirectTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, indirectData);
-        using var albedoTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, albedoData);
-        using var materialTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, sceneDirectData);
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, albedoData);
+        using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
 
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -470,7 +377,7 @@ public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
         materialTex.Bind(3);
         depthTex.Bind(4);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputData = outputGBuffer[0].ReadPixels();
 
@@ -479,7 +386,7 @@ public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
         {
             for (int px = 0; px < ScreenWidth; px++)
             {
-                var (r, g, b, _) = ReadPixel(outputData, px, py);
+                var (r, g, b, _) = ReadPixelScreen(outputData, px, py);
 
                 Assert.True(MathF.Abs(r - direct.r) < TestEpsilon,
                     $"Pixel ({px},{py}) R should be {direct.r:F2} (passthrough), got {r:F3}");
@@ -515,25 +422,24 @@ public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void SkyPixels_NoIndirect()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         var direct = (r: 0.3f, g: 0.5f, b: 0.8f);   // Sky blue
         var indirect = (r: 1.0f, g: 0.0f, b: 0.0f); // Red (should be ignored)
 
-        var sceneDirectData = CreateUniformColor(direct.r, direct.g, direct.b);
-        var indirectData = CreateUniformColor(indirect.r, indirect.g, indirect.b);
-        var albedoData = CreateUniformColor(1f, 1f, 1f);
-        var materialData = CreateMaterialBuffer(roughness: 0.5f, metallic: 0.0f);
-        var depthData = CreateDepthBuffer(1.0f);  // SKY
+        var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, 1f, 1f, 1f);
+        var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f);
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 1.0f);  // SKY
 
-        using var sceneDirectTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, sceneDirectData);
-        using var indirectTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, indirectData);
-        using var albedoTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, albedoData);
-        using var materialTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, sceneDirectData);
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, albedoData);
+        using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
 
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -546,7 +452,7 @@ public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
         materialTex.Bind(3);
         depthTex.Bind(4);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputData = outputGBuffer[0].ReadPixels();
 
@@ -555,7 +461,7 @@ public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
         {
             for (int px = 0; px < ScreenWidth; px++)
             {
-                var (r, g, b, _) = ReadPixel(outputData, px, py);
+                var (r, g, b, _) = ReadPixelScreen(outputData, px, py);
 
                 Assert.True(MathF.Abs(r - direct.r) < TestEpsilon,
                     $"Sky pixel ({px},{py}) R should be {direct.r:F2} (direct only), got {r:F3}");
@@ -592,26 +498,25 @@ public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void MetallicSurface_ReducesIndirect()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         var direct = (r: 0.2f, g: 0.2f, b: 0.2f);
         var indirect = (r: 1.0f, g: 1.0f, b: 1.0f);  // Should be blocked
         var albedo = (r: 1.0f, g: 1.0f, b: 1.0f);
 
-        var sceneDirectData = CreateUniformColor(direct.r, direct.g, direct.b);
-        var indirectData = CreateUniformColor(indirect.r, indirect.g, indirect.b);
-        var albedoData = CreateUniformColor(albedo.r, albedo.g, albedo.b);
-        var materialData = CreateMaterialBuffer(roughness: 0.5f, metallic: 1.0f);  // FULL METAL
-        var depthData = CreateDepthBuffer(0.5f);
+        var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+        var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 1.0f);  // FULL METAL
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);
 
-        using var sceneDirectTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, sceneDirectData);
-        using var indirectTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, indirectData);
-        using var albedoTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, albedoData);
-        using var materialTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, sceneDirectData);
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, albedoData);
+        using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
 
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -624,7 +529,7 @@ public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
         materialTex.Bind(3);
         depthTex.Bind(4);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputData = outputGBuffer[0].ReadPixels();
 
@@ -633,7 +538,7 @@ public class LumOnCombineFunctionalTests : RenderTestBase, IDisposable
         {
             for (int px = 0; px < ScreenWidth; px++)
             {
-                var (r, g, b, _) = ReadPixel(outputData, px, py);
+                var (r, g, b, _) = ReadPixelScreen(outputData, px, py);
 
                 // Output should be approximately direct (metals block diffuse)
                 Assert.True(MathF.Abs(r - direct.r) < TestEpsilon,

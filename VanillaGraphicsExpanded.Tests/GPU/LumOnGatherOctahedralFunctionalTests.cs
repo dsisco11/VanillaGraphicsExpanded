@@ -38,68 +38,16 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// </remarks>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
+public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBase
 {
-    private readonly HeadlessGLFixture _fixture;
-    private readonly ShaderTestHelper? _helper;
-    private readonly ShaderTestFramework _framework;
-    
-    // Test configuration constants
-    private const int ScreenWidth = LumOnTestInputFactory.ScreenWidth;   // 4
-    private const int ScreenHeight = LumOnTestInputFactory.ScreenHeight; // 4
-    private const int HalfResWidth = ScreenWidth / 2;   // 2
-    private const int HalfResHeight = ScreenHeight / 2; // 2
-    private const int ProbeGridWidth = LumOnTestInputFactory.ProbeGridWidth;   // 2
-    private const int ProbeGridHeight = LumOnTestInputFactory.ProbeGridHeight; // 2
-    private const int ProbeSpacing = 2;
-    
-    // Octahedral atlas constants
-    private const int OctahedralSize = 8;
-    private const int AtlasWidth = ProbeGridWidth * OctahedralSize;   // 16
-    private const int AtlasHeight = ProbeGridHeight * OctahedralSize; // 16
-    
-    private const float ZNear = LumOnTestInputFactory.DefaultZNear;  // 0.1
-    private const float ZFar = LumOnTestInputFactory.DefaultZFar;    // 100
-    private const float TestEpsilon = 1e-2f;
-
-    public LumOnGatherOctahedralFunctionalTests(HeadlessGLFixture fixture) : base(fixture)
-    {
-        _fixture = fixture;
-        _framework = new ShaderTestFramework();
-
-        if (_fixture.IsContextValid)
-        {
-            var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-            var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaderincludes");
-
-            if (Directory.Exists(shaderPath) && Directory.Exists(includePath))
-            {
-                _helper = new ShaderTestHelper(shaderPath, includePath);
-            }
-        }
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _helper?.Dispose();
-            _framework.Dispose();
-        }
-        base.Dispose(disposing);
-    }
+    public LumOnGatherOctahedralFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Helper Methods
 
     /// <summary>
     /// Compiles and links the octahedral gather shader.
     /// </summary>
-    private int CompileGatherShader()
-    {
-        var result = _helper!.CompileAndLink("lumon_gather_octahedral.vsh", "lumon_gather_octahedral.fsh");
-        Assert.True(result.IsSuccess, $"Shader compilation failed: {result.ErrorMessage}");
-        return result.ProgramId;
-    }
+    private int CompileGatherShader() => CompileShader("lumon_gather_octahedral.vsh", "lumon_gather_octahedral.fsh");
 
     /// <summary>
     /// Sets up common uniforms for the gather shader.
@@ -272,43 +220,19 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
     }
 
     /// <summary>
-    /// Creates a depth buffer with uniform depth (full-res).
+    /// Creates a depth buffer with uniform depth (full-res). Delegates to base class.
     /// </summary>
-    private static float[] CreateDepthBuffer(float depth)
-    {
-        var data = new float[ScreenWidth * ScreenHeight];
-        for (int i = 0; i < data.Length; i++)
-        {
-            data[i] = depth;
-        }
-        return data;
-    }
+    private float[] CreateDepthBuffer(float depth) => CreateUniformDepthData(ScreenWidth, ScreenHeight, depth);
 
     /// <summary>
-    /// Creates a normal buffer with uniform normals (full-res, encoded).
+    /// Creates a normal buffer with uniform normals (full-res, encoded). Delegates to base class.
     /// </summary>
-    private static float[] CreateNormalBuffer(float nx, float ny, float nz)
-    {
-        var data = new float[ScreenWidth * ScreenHeight * 4];
-        float encX = nx * 0.5f + 0.5f;
-        float encY = ny * 0.5f + 0.5f;
-        float encZ = nz * 0.5f + 0.5f;
-        
-        for (int i = 0; i < ScreenWidth * ScreenHeight; i++)
-        {
-            int idx = i * 4;
-            data[idx + 0] = encX;
-            data[idx + 1] = encY;
-            data[idx + 2] = encZ;
-            data[idx + 3] = 1.0f;
-        }
-        return data;
-    }
+    private float[] CreateNormalBuffer(float nx, float ny, float nz) => CreateUniformNormalData(ScreenWidth, ScreenHeight, nx, ny, nz);
 
     /// <summary>
     /// Reads a pixel from half-res output.
     /// </summary>
-    private static (float r, float g, float b, float a) ReadPixel(float[] data, int x, int y)
+    private static (float r, float g, float b, float a) ReadPixelHalfRes(float[] data, int x, int y)
     {
         int idx = (y * HalfResWidth + x) * 4;
         return (data[idx], data[idx + 1], data[idx + 2], data[idx + 3]);
@@ -337,8 +261,7 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void CenterPixel_InterpolatesFourProbes()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         const float probeDepthZ = -5.0f;  // World-space Z (negative = into screen)
         const float pixelDepth = 0.5f;    // Normalized depth buffer value
@@ -355,14 +278,14 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);  // Upward, matching probes
 
-        using var atlasTex = _framework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-        using var anchorPosTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
 
         // Create half-res output
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             HalfResWidth, HalfResHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -377,7 +300,7 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
         depthTex.Bind(3);
         normalTex.Bind(4);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputData = outputGBuffer[0].ReadPixels();
 
@@ -388,7 +311,7 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
         {
             for (int px = 0; px < HalfResWidth; px++)
             {
-                var (r, g, b, _) = ReadPixel(outputData, px, py);
+                var (r, g, b, _) = ReadPixelHalfRes(outputData, px, py);
                 
                 // DESIRED: Non-zero irradiance from probe interpolation
                 float brightness = (r + g + b) / 3.0f;
@@ -427,8 +350,7 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void CornerPixel_WeightedByDistance()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         const float pixelDepth = 0.5f;
 
@@ -455,13 +377,13 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
 
-        using var atlasTex = _framework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-        using var anchorPosTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
 
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             HalfResWidth, HalfResHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -475,12 +397,12 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
         depthTex.Bind(3);
         normalTex.Bind(4);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputData = outputGBuffer[0].ReadPixels();
 
         // DESIRED: Pixel (0,0) should be predominantly red since it's nearest to probe (0,0)
-        var (r00, g00, b00, _) = ReadPixel(outputData, 0, 0);
+        var (r00, g00, b00, _) = ReadPixelHalfRes(outputData, 0, 0);
         
         // Red channel should dominate
         Assert.True(r00 > g00 && r00 > b00,
@@ -516,8 +438,7 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void DepthDiscontinuity_ReducesWeight()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         // Pixel at near depth
         const float pixelDepth = 0.3f;  // Near
@@ -565,13 +486,13 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
 
-        using var atlasTex = _framework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-        using var anchorPosTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
 
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             HalfResWidth, HalfResHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -585,12 +506,12 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
         depthTex.Bind(3);
         normalTex.Bind(4);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputData = outputGBuffer[0].ReadPixels();
 
         // DESIRED: Pixel (0,0) should favor red (near probe) over blue (far probe)
-        var (r, g, b, _) = ReadPixel(outputData, 0, 0);
+        var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
         
         // Near probe (red) should have significantly more weight than far probe (blue)
         Assert.True(r > b,
@@ -622,8 +543,7 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void NormalMismatch_ReducesWeight()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         const float pixelDepth = 0.5f;
 
@@ -675,13 +595,13 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);  // Pixel normal = upward
 
-        using var atlasTex = _framework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-        using var anchorPosTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
 
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             HalfResWidth, HalfResHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -695,13 +615,13 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
         depthTex.Bind(3);
         normalTex.Bind(4);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputData = outputGBuffer[0].ReadPixels();
 
         // DESIRED: Pixel (1,1) should have very little blue contribution
         // because probe (1,1) has opposite normal (dot product ≈ -1, weight ≈ 0)
-        var (r11, g11, b11, _) = ReadPixel(outputData, 1, 1);
+        var (r11, g11, b11, _) = ReadPixelHalfRes(outputData, 1, 1);
         
         // The opposite-normal probe should have near-zero weight
         // So blue should be much less than green (other upward probes)
@@ -734,8 +654,7 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void IndirectTint_AppliedToOutput()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         const float pixelDepth = 0.5f;
         var tint = (r: 2.0f, g: 1.0f, b: 0.5f);
@@ -747,14 +666,14 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
 
-        using var atlasTex = _framework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-        using var anchorPosTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
 
         // First render without tint to get baseline
-        using var baselineOutput = _framework.CreateTestGBuffer(
+        using var baselineOutput = TestFramework.CreateTestGBuffer(
             HalfResWidth, HalfResHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -768,17 +687,17 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
         depthTex.Bind(3);
         normalTex.Bind(4);
 
-        _framework.RenderQuadTo(programId, baselineOutput);
+        TestFramework.RenderQuadTo(programId, baselineOutput);
         var baselineData = baselineOutput[0].ReadPixels();
 
         // Now render with tint
-        using var tintedOutput = _framework.CreateTestGBuffer(
+        using var tintedOutput = TestFramework.CreateTestGBuffer(
             HalfResWidth, HalfResHeight,
             PixelInternalFormat.Rgba16f);
 
         SetupGatherUniforms(programId, identity, identity, intensity: 1.0f, indirectTint: tint);
 
-        _framework.RenderQuadTo(programId, tintedOutput);
+        TestFramework.RenderQuadTo(programId, tintedOutput);
         var tintedData = tintedOutput[0].ReadPixels();
 
         // DESIRED: Tinted output should be baseline * tint per channel
@@ -786,8 +705,8 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
         {
             for (int px = 0; px < HalfResWidth; px++)
             {
-                var (baseR, baseG, baseB, _) = ReadPixel(baselineData, px, py);
-                var (tintR, tintG, tintB, _) = ReadPixel(tintedData, px, py);
+                var (baseR, baseG, baseB, _) = ReadPixelHalfRes(baselineData, px, py);
+                var (tintR, tintG, tintB, _) = ReadPixelHalfRes(tintedData, px, py);
 
                 // Skip pixels with zero baseline (would cause division issues)
                 if (baseR < 0.01f && baseG < 0.01f && baseB < 0.01f) continue;
@@ -842,8 +761,7 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void SkyPixels_ProduceZeroIrradiance()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         // Sky depth
         var depthData = CreateDepthBuffer(1.0f);
@@ -854,13 +772,13 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
         var anchorNormalData = CreateProbeNormals(0f, 1f, 0f);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
 
-        using var atlasTex = _framework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-        using var anchorPosTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
 
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             HalfResWidth, HalfResHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -874,7 +792,7 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
         depthTex.Bind(3);
         normalTex.Bind(4);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputData = outputGBuffer[0].ReadPixels();
 
@@ -883,7 +801,7 @@ public class LumOnGatherOctahedralFunctionalTests : RenderTestBase, IDisposable
         {
             for (int px = 0; px < HalfResWidth; px++)
             {
-                var (r, g, b, _) = ReadPixel(outputData, px, py);
+                var (r, g, b, _) = ReadPixelHalfRes(outputData, px, py);
                 
                 Assert.True(r < TestEpsilon && g < TestEpsilon && b < TestEpsilon,
                     $"Sky pixel ({px},{py}) should have zero irradiance, got ({r:F3}, {g:F3}, {b:F3})");

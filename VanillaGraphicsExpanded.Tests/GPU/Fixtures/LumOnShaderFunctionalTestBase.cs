@@ -204,9 +204,9 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     #region Texture Creation Helpers
 
     /// <summary>
-    /// Creates a texture with uniform color (RGBA16F).
+    /// Creates uniform color data (RGBA float array).
     /// </summary>
-    protected DynamicTexture CreateUniformColorTexture(int width, int height, float r, float g, float b, float a = 1.0f)
+    protected static float[] CreateUniformColorData(int width, int height, float r, float g, float b, float a = 1.0f)
     {
         var data = new float[width * height * 4];
         for (int i = 0; i < width * height; i++)
@@ -217,32 +217,32 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
             data[idx + 2] = b;
             data[idx + 3] = a;
         }
-        return TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba16f, data);
+        return data;
     }
 
     /// <summary>
-    /// Creates a depth texture with uniform depth (R32F).
+    /// Creates uniform depth data (R float array).
     /// </summary>
-    protected DynamicTexture CreateUniformDepthTexture(int width, int height, float depth)
+    protected static float[] CreateUniformDepthData(int width, int height, float depth)
     {
         var data = new float[width * height];
         for (int i = 0; i < data.Length; i++)
         {
             data[i] = depth;
         }
-        return TestFramework.CreateTexture(width, height, PixelInternalFormat.R32f, data);
+        return data;
     }
 
     /// <summary>
-    /// Creates a normal texture with uniform normals (RGBA16F, encoded to [0,1]).
+    /// Creates uniform normal data (RGBA float array, encoded to [0,1]).
     /// </summary>
-    protected DynamicTexture CreateUniformNormalTexture(int width, int height, float nx, float ny, float nz)
+    protected static float[] CreateUniformNormalData(int width, int height, float nx, float ny, float nz)
     {
         var data = new float[width * height * 4];
         float encX = nx * 0.5f + 0.5f;
         float encY = ny * 0.5f + 0.5f;
         float encZ = nz * 0.5f + 0.5f;
-        
+
         for (int i = 0; i < width * height; i++)
         {
             int idx = i * 4;
@@ -251,14 +251,14 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
             data[idx + 2] = encZ;
             data[idx + 3] = 1.0f;
         }
-        return TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba16f, data);
+        return data;
     }
 
     /// <summary>
-    /// Creates a material texture (RGBA16F).
+    /// Creates uniform material data (RGBA float array).
     /// Layout: R=roughness, G=metallic, B=emissive, A=reflectivity
     /// </summary>
-    protected DynamicTexture CreateMaterialTexture(int width, int height, float roughness, float metallic, float emissive = 0f, float reflectivity = 0f)
+    protected static float[] CreateUniformMaterialData(int width, int height, float roughness, float metallic, float emissive = 0f, float reflectivity = 0f)
     {
         var data = new float[width * height * 4];
         for (int i = 0; i < width * height; i++)
@@ -269,6 +269,43 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
             data[idx + 2] = emissive;
             data[idx + 3] = reflectivity;
         }
+        return data;
+    }
+
+    /// <summary>
+    /// Creates a texture with uniform color (RGBA16F).
+    /// </summary>
+    protected DynamicTexture CreateUniformColorTexture(int width, int height, float r, float g, float b, float a = 1.0f)
+    {
+        var data = CreateUniformColorData(width, height, r, g, b, a);
+        return TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba16f, data);
+    }
+
+    /// <summary>
+    /// Creates a depth texture with uniform depth (R32F).
+    /// </summary>
+    protected DynamicTexture CreateUniformDepthTexture(int width, int height, float depth)
+    {
+        var data = CreateUniformDepthData(width, height, depth);
+        return TestFramework.CreateTexture(width, height, PixelInternalFormat.R32f, data);
+    }
+
+    /// <summary>
+    /// Creates a normal texture with uniform normals (RGBA16F, encoded to [0,1]).
+    /// </summary>
+    protected DynamicTexture CreateUniformNormalTexture(int width, int height, float nx, float ny, float nz)
+    {
+        var data = CreateUniformNormalData(width, height, nx, ny, nz);
+        return TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba16f, data);
+    }
+
+    /// <summary>
+    /// Creates a material texture (RGBA16F).
+    /// Layout: R=roughness, G=metallic, B=emissive, A=reflectivity
+    /// </summary>
+    protected DynamicTexture CreateMaterialTexture(int width, int height, float roughness, float metallic, float emissive = 0f, float reflectivity = 0f)
+    {
+        var data = CreateUniformMaterialData(width, height, roughness, metallic, emissive, reflectivity);
         return TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba16f, data);
     }
 

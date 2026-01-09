@@ -43,27 +43,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// </remarks>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposable
+public class LumOnProbeTraceOctahedralFunctionalTests : LumOnShaderFunctionalTestBase
 {
-    private readonly HeadlessGLFixture _fixture;
-    private readonly ShaderTestHelper? _helper;
-    private readonly ShaderTestFramework _framework;
-    
-    // Test configuration constants
-    private const int ScreenWidth = LumOnTestInputFactory.ScreenWidth;   // 4
-    private const int ScreenHeight = LumOnTestInputFactory.ScreenHeight; // 4
-    private const int ProbeGridWidth = LumOnTestInputFactory.ProbeGridWidth;   // 2
-    private const int ProbeGridHeight = LumOnTestInputFactory.ProbeGridHeight; // 2
-    
-    // Octahedral atlas constants (must match shader's LUMON_OCTAHEDRAL_SIZE)
-    private const int OctahedralSize = 8;
-    private const int AtlasWidth = ProbeGridWidth * OctahedralSize;   // 16
-    private const int AtlasHeight = ProbeGridHeight * OctahedralSize; // 16
-    
-    private const float ZNear = LumOnTestInputFactory.DefaultZNear;  // 0.1
-    private const float ZFar = LumOnTestInputFactory.DefaultZFar;    // 100
-    private const float TestEpsilon = 1e-2f;  // Tolerance for float comparisons
-    
     // Ray tracing defaults
     private const int RaySteps = 16;
     private const float RayMaxDistance = 50f;
@@ -72,44 +53,14 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
     // Sky fallback defaults
     private const float SkyMissWeight = 1.0f;
 
-    public LumOnProbeTraceOctahedralFunctionalTests(HeadlessGLFixture fixture) : base(fixture)
-    {
-        _fixture = fixture;
-        _framework = new ShaderTestFramework();
-
-        if (_fixture.IsContextValid)
-        {
-            var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-            var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaderincludes");
-
-            if (Directory.Exists(shaderPath) && Directory.Exists(includePath))
-            {
-                _helper = new ShaderTestHelper(shaderPath, includePath);
-            }
-        }
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _helper?.Dispose();
-            _framework.Dispose();
-        }
-        base.Dispose(disposing);
-    }
+    public LumOnProbeTraceOctahedralFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Helper Methods
 
     /// <summary>
     /// Compiles and links the octahedral probe trace shader.
     /// </summary>
-    private int CompileOctahedralTraceShader()
-    {
-        var result = _helper!.CompileAndLink("lumon_probe_anchor.vsh", "lumon_probe_trace_octahedral.fsh");
-        Assert.True(result.IsSuccess, $"Shader compilation failed: {result.ErrorMessage}");
-        return result.ProgramId;
-    }
+    private int CompileOctahedralTraceShader() => CompileShader("lumon_probe_anchor.vsh", "lumon_probe_trace_octahedral.fsh");
 
     /// <summary>
     /// Sets up common uniforms for the octahedral probe trace shader.
@@ -341,8 +292,7 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
     [Fact]
     public void ValidProbe_TracesRaysToAtlas()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         // Create input textures
         var anchorPosData = CreateValidProbeAnchors();
@@ -351,14 +301,14 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
         var colorData = CreateUniformSceneColor(1f, 0f, 0f); // Red scene (won't be hit)
         var historyData = CreateZeroedHistory();
 
-        using var anchorPosTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var colorTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
-        using var historyTex = _framework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+        using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
 
         // Create output atlas buffer
-        using var outputAtlas = _framework.CreateTestGBuffer(
+        using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -382,7 +332,7 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
         historyTex.Bind(4);
 
         // Render to atlas
-        _framework.RenderQuadTo(programId, outputAtlas);
+        TestFramework.RenderQuadTo(programId, outputAtlas);
 
         // Read back atlas
         var atlasData = outputAtlas[0].ReadPixels();
@@ -433,8 +383,7 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
     [Fact]
     public void SkyMiss_ReturnsAmbientColor()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         const float skyWeight = 0.5f;
         var ambient = (r: 0.2f, g: 0.4f, b: 0.6f);
@@ -446,13 +395,13 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
         var colorData = CreateUniformSceneColor(1f, 0f, 0f);
         var historyData = CreateZeroedHistory();
 
-        using var anchorPosTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var colorTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
-        using var historyTex = _framework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+        using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
 
-        using var outputAtlas = _framework.CreateTestGBuffer(
+        using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -476,7 +425,7 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
         colorTex.Bind(3);
         historyTex.Bind(4);
 
-        _framework.RenderQuadTo(programId, outputAtlas);
+        TestFramework.RenderQuadTo(programId, outputAtlas);
         var atlasData = outputAtlas[0].ReadPixels();
 
         // Check a sample of texels for sky color contribution
@@ -531,8 +480,7 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
     [Fact]
     public void HitDistance_EncodedCorrectly()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         // Create input textures
         var anchorPosData = CreateValidProbeAnchors();
@@ -541,13 +489,13 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
         var colorData = CreateUniformSceneColor(1f, 0f, 0f);
         var historyData = CreateZeroedHistory();
 
-        using var anchorPosTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var colorTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
-        using var historyTex = _framework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+        using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
 
-        using var outputAtlas = _framework.CreateTestGBuffer(
+        using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -567,7 +515,7 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
         colorTex.Bind(3);
         historyTex.Bind(4);
 
-        _framework.RenderQuadTo(programId, outputAtlas);
+        TestFramework.RenderQuadTo(programId, outputAtlas);
         var atlasData = outputAtlas[0].ReadPixels();
 
         // Expected encoded distance for sky miss
@@ -615,8 +563,7 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
     [Fact]
     public void InvalidProbe_ProducesZeroRadiance()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         // Create input textures with INVALID probes
         var anchorPosData = CreateInvalidProbeAnchors();
@@ -625,13 +572,13 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
         var colorData = CreateUniformSceneColor(1f, 1f, 1f); // White scene
         var historyData = CreateZeroedHistory();
 
-        using var anchorPosTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var colorTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
-        using var historyTex = _framework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+        using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
 
-        using var outputAtlas = _framework.CreateTestGBuffer(
+        using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -651,7 +598,7 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
         colorTex.Bind(3);
         historyTex.Bind(4);
 
-        _framework.RenderQuadTo(programId, outputAtlas);
+        TestFramework.RenderQuadTo(programId, outputAtlas);
         var atlasData = outputAtlas[0].ReadPixels();
 
         // Verify ALL texels are zero (invalid probes should output zero)
@@ -699,8 +646,7 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
     [Fact]
     public void TemporalDistribution_OnlyTracesSubset()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         // Create history with a recognizable color (cyan)
         var historyData = new float[AtlasWidth * AtlasHeight * 4];
@@ -718,13 +664,13 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
         var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(1.0f, channels: 1);
         var colorData = CreateUniformSceneColor(1f, 0f, 0f);
 
-        using var anchorPosTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var colorTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
-        using var historyTex = _framework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+        using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
 
-        using var outputAtlas = _framework.CreateTestGBuffer(
+        using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -746,7 +692,7 @@ public class LumOnProbeTraceOctahedralFunctionalTests : RenderTestBase, IDisposa
         colorTex.Bind(3);
         historyTex.Bind(4);
 
-        _framework.RenderQuadTo(programId, outputAtlas);
+        TestFramework.RenderQuadTo(programId, outputAtlas);
         var atlasData = outputAtlas[0].ReadPixels();
 
         // Count texels that retained history (cyan) vs newly traced

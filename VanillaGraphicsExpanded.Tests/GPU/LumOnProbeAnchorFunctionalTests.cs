@@ -37,64 +37,20 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// </remarks>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
+public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 {
-    private readonly HeadlessGLFixture _fixture;
-    private readonly ShaderTestHelper? _helper;
-    private readonly ShaderTestFramework _framework;
-    
-    // Test configuration constants
-    private const int ScreenWidth = LumOnTestInputFactory.ScreenWidth;   // 4
-    private const int ScreenHeight = LumOnTestInputFactory.ScreenHeight; // 4
-    private const int ProbeGridWidth = LumOnTestInputFactory.ProbeGridWidth;   // 2
-    private const int ProbeGridHeight = LumOnTestInputFactory.ProbeGridHeight; // 2
-    private const int ProbeSpacing = 2;  // Pixels per probe cell (4÷2 = 2)
-    
-    private const float ZNear = LumOnTestInputFactory.DefaultZNear;  // 0.1
-    private const float ZFar = LumOnTestInputFactory.DefaultZFar;    // 100
-    private const float TestEpsilon = 1e-3f;  // Tolerance for float comparisons
-    
-    // Depth discontinuity threshold for edge detection
+    // Additional test-specific constants (those not in base class)
+    private new const float TestEpsilon = 1e-3f;  // Tighter tolerance for this test
     private const float DepthDiscontinuityThreshold = 0.1f;
 
-    public LumOnProbeAnchorFunctionalTests(HeadlessGLFixture fixture) : base(fixture)
-    {
-        _fixture = fixture;
-        _framework = new ShaderTestFramework();
-
-        if (_fixture.IsContextValid)
-        {
-            var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-            var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaderincludes");
-
-            if (Directory.Exists(shaderPath) && Directory.Exists(includePath))
-            {
-                _helper = new ShaderTestHelper(shaderPath, includePath);
-            }
-        }
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _helper?.Dispose();
-            _framework.Dispose();
-        }
-        base.Dispose(disposing);
-    }
+    public LumOnProbeAnchorFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Helper Methods
 
     /// <summary>
     /// Compiles and links the probe anchor shader.
     /// </summary>
-    private int CompileProbeAnchorShader()
-    {
-        var result = _helper!.CompileAndLink("lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh");
-        Assert.True(result.IsSuccess, $"Shader compilation failed: {result.ErrorMessage}");
-        return result.ProgramId;
-    }
+    private int CompileProbeAnchorShader() => CompileShader("lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh");
 
     /// <summary>
     /// Sets up common uniforms for the probe anchor shader.
@@ -313,8 +269,7 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void UniformDepth_ProducesCorrectWorldPositions()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         const float testDepth = 0.5f;
 
@@ -322,11 +277,11 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
         var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(testDepth, channels: 1);
         var normalData = CreateEncodedNormalBufferUniform(0f, 1f, 0f); // Upward normal encoded
 
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
 
         // Create output MRT GBuffer (position + normal)
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
 
@@ -339,7 +294,7 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
         // Bind inputs and render
         depthTex.Bind(0);
         normalTex.Bind(1);
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
         var positionData = outputGBuffer[0].ReadPixels();
@@ -395,8 +350,7 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void UniformDepth_ProducesCorrectNormals()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         const float testDepth = 0.5f;
 
@@ -404,11 +358,11 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
         var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(testDepth, channels: 1);
         var normalData = CreateEncodedNormalBufferUniform(0f, 1f, 0f); // Upward normal encoded
 
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
 
         // Create output MRT GBuffer
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
 
@@ -421,7 +375,7 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
         // Render
         depthTex.Bind(0);
         normalTex.Bind(1);
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back normal output (second attachment)
         var normalOutput = outputGBuffer[1].ReadPixels();
@@ -471,8 +425,7 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void ValidProbes_HaveValidityFlagSet()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         const float testDepth = 0.5f;
 
@@ -480,11 +433,11 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
         var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(testDepth, channels: 1);
         var normalData = CreateEncodedNormalBufferUniform(0f, 1f, 0f); // Upward normal encoded
 
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
 
         // Create output GBuffer
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
 
@@ -497,7 +450,7 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
         // Render
         depthTex.Bind(0);
         normalTex.Bind(1);
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
         var positionData = outputGBuffer[0].ReadPixels();
@@ -544,8 +497,7 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void SkyPixels_ProduceInvalidProbes()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         const float skyDepth = 1.0f;
 
@@ -553,11 +505,11 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
         var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(skyDepth, channels: 1);
         var normalData = CreateEncodedNormalBufferUniform(0f, 1f, 0f); // Upward normal encoded
 
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
 
         // Create output GBuffer
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
 
@@ -570,7 +522,7 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
         // Render
         depthTex.Bind(0);
         normalTex.Bind(1);
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
         var positionData = outputGBuffer[0].ReadPixels();
@@ -629,18 +581,17 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void DepthDiscontinuity_ProducesPartialValidity()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         // Create input textures - checkerboard creates depth edges at every probe
         var depthData = LumOnTestInputFactory.CreateDepthBufferCheckerboard(channels: 1);
         var normalData = CreateEncodedNormalBufferUniform(0f, 1f, 0f); // Upward normal encoded
 
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
 
         // Create output GBuffer
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
 
@@ -653,7 +604,7 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
         // Render
         depthTex.Bind(0);
         normalTex.Bind(1);
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
         var positionData = outputGBuffer[0].ReadPixels();
@@ -703,8 +654,7 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void InvalidNormals_ProduceInvalidProbes()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         const float testDepth = 0.5f;
 
@@ -722,11 +672,11 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
             normalData[idx + 3] = 1.0f;
         }
 
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
 
         // Create output GBuffer
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
 
@@ -739,7 +689,7 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
         // Render
         depthTex.Bind(0);
         normalTex.Bind(1);
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
         var positionData = outputGBuffer[0].ReadPixels();
@@ -787,8 +737,7 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void AxisAlignedNormals_ProducesCorrectOutput()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         const float testDepth = 0.5f;
 
@@ -796,11 +745,11 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
         var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(testDepth, channels: 1);
         var normalData = CreateEncodedNormalBufferAxisAligned();
 
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
 
         // Create output GBuffer
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
 
@@ -813,7 +762,7 @@ public class LumOnProbeAnchorFunctionalTests : RenderTestBase, IDisposable
         // Render
         depthTex.Bind(0);
         normalTex.Bind(1);
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back normal output
         var normalOutput = outputGBuffer[1].ReadPixels();

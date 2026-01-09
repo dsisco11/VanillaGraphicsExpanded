@@ -40,63 +40,21 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// </remarks>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public class LumOnTemporalFunctionalTests : RenderTestBase, IDisposable
+public class LumOnTemporalFunctionalTests : LumOnShaderFunctionalTestBase
 {
-    private readonly HeadlessGLFixture _fixture;
-    private readonly ShaderTestHelper? _helper;
-    private readonly ShaderTestFramework _framework;
-
-    // Test configuration constants
-    private const int ProbeGridWidth = LumOnTestInputFactory.ProbeGridWidth;   // 2
-    private const int ProbeGridHeight = LumOnTestInputFactory.ProbeGridHeight; // 2
-
-    private const float ZNear = LumOnTestInputFactory.DefaultZNear;  // 0.1
-    private const float ZFar = LumOnTestInputFactory.DefaultZFar;    // 100
-    private const float TestEpsilon = 1e-2f;  // Tolerance for float comparisons
-
     // Default temporal parameters
     private const float DefaultTemporalAlpha = 0.95f;
     private const float DefaultDepthRejectThreshold = 0.1f;   // 10% relative depth difference
     private const float DefaultNormalRejectThreshold = 0.9f;  // cos(~25°)
 
-    public LumOnTemporalFunctionalTests(HeadlessGLFixture fixture) : base(fixture)
-    {
-        _fixture = fixture;
-        _framework = new ShaderTestFramework();
-
-        if (_fixture.IsContextValid)
-        {
-            var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-            var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaderincludes");
-
-            if (Directory.Exists(shaderPath) && Directory.Exists(includePath))
-            {
-                _helper = new ShaderTestHelper(shaderPath, includePath);
-            }
-        }
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _helper?.Dispose();
-            _framework.Dispose();
-        }
-        base.Dispose(disposing);
-    }
+    public LumOnTemporalFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Helper Methods
 
     /// <summary>
     /// Compiles and links the temporal accumulation shader.
     /// </summary>
-    private int CompileTemporalShader()
-    {
-        var result = _helper!.CompileAndLink("lumon_temporal.vsh", "lumon_temporal.fsh");
-        Assert.True(result.IsSuccess, $"Shader compilation failed: {result.ErrorMessage}");
-        return result.ProgramId;
-    }
+    private int CompileTemporalShader() => CompileShader("lumon_temporal.vsh", "lumon_temporal.fsh");
 
     /// <summary>
     /// Sets up common uniforms for the temporal shader.
@@ -358,8 +316,7 @@ public class LumOnTemporalFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void AlphaOne_PassthroughCurrent()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         // Test colors
         var currentColor = (r: 1.0f, g: 0.0f, b: 0.0f);  // Red
@@ -380,16 +337,16 @@ public class LumOnTemporalFunctionalTests : RenderTestBase, IDisposable
         // When historyDepthLin < 0.001, validation fails early
         var historyMeta = CreateHistoryMeta(0.0f, 0.0f);
 
-        using var currentRad0Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad0);
-        using var currentRad1Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad1);
-        using var historyRad0Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad0);
-        using var historyRad1Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad1);
-        using var anchorPosTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-        using var anchorNormalTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
-        using var historyMetaTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMeta);
+        using var currentRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad0);
+        using var currentRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad1);
+        using var historyRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad0);
+        using var historyRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad1);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMeta);
 
         // Create MRT output: 3 attachments (radiance0, radiance1, meta)
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f,
             PixelInternalFormat.Rgba16f,
@@ -415,7 +372,7 @@ public class LumOnTemporalFunctionalTests : RenderTestBase, IDisposable
         historyMetaTex.Bind(6);
 
         // Render
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
         var outputRad0 = outputGBuffer[0].ReadPixels();
@@ -452,8 +409,7 @@ public class LumOnTemporalFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void AlphaOne_MetaUpdated()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         // Create input textures
         var currentRad0 = CreateUniformRadiance(1.0f, 0.0f, 0.0f);
@@ -469,15 +425,15 @@ public class LumOnTemporalFunctionalTests : RenderTestBase, IDisposable
         // Invalid history to ensure we get accumCount=1
         var historyMeta = CreateHistoryMeta(0.0f, 0.0f);
 
-        using var currentRad0Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad0);
-        using var currentRad1Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad1);
-        using var historyRad0Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad0);
-        using var historyRad1Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad1);
-        using var anchorPosTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-        using var anchorNormalTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
-        using var historyMetaTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMeta);
+        using var currentRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad0);
+        using var currentRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad1);
+        using var historyRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad0);
+        using var historyRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad1);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMeta);
 
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f,
             PixelInternalFormat.Rgba16f,
@@ -500,7 +456,7 @@ public class LumOnTemporalFunctionalTests : RenderTestBase, IDisposable
         anchorNormalTex.Bind(5);
         historyMetaTex.Bind(6);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read meta output (attachment 2)
         var outputMeta = outputGBuffer[2].ReadPixels();
@@ -574,8 +530,7 @@ public class LumOnTemporalFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void AlphaBlend_AccumulatesHistory()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         const float alpha = 0.9f;
         const float historyBrightness = 0.6f;
@@ -613,15 +568,15 @@ public class LumOnTemporalFunctionalTests : RenderTestBase, IDisposable
             normalX: 0f,
             normalY: 1f);
 
-        using var currentRad0Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad0);
-        using var currentRad1Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad1);
-        using var historyRad0Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad0);
-        using var historyRad1Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad1);
-        using var anchorPosTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-        using var anchorNormalTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
-        using var historyMetaTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMeta);
+        using var currentRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad0);
+        using var currentRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad1);
+        using var historyRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad0);
+        using var historyRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad1);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMeta);
 
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f,
             PixelInternalFormat.Rgba16f,
@@ -646,7 +601,7 @@ public class LumOnTemporalFunctionalTests : RenderTestBase, IDisposable
         anchorNormalTex.Bind(5);
         historyMetaTex.Bind(6);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputRad0 = outputGBuffer[0].ReadPixels();
         var outputMeta = outputGBuffer[2].ReadPixels();
@@ -697,8 +652,7 @@ public class LumOnTemporalFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void DepthRejection_DiscardsHistory()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         var currentColor = (r: 1.0f, g: 0.0f, b: 0.0f);  // Red
         var historyColor = (r: 0.0f, g: 0.0f, b: 1.0f);  // Blue
@@ -721,15 +675,15 @@ public class LumOnTemporalFunctionalTests : RenderTestBase, IDisposable
             normalX: 0f,
             normalY: 1f);
 
-        using var currentRad0Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad0);
-        using var currentRad1Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad1);
-        using var historyRad0Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad0);
-        using var historyRad1Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad1);
-        using var anchorPosTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-        using var anchorNormalTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
-        using var historyMetaTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMeta);
+        using var currentRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad0);
+        using var currentRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad1);
+        using var historyRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad0);
+        using var historyRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad1);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMeta);
 
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f,
             PixelInternalFormat.Rgba16f,
@@ -754,7 +708,7 @@ public class LumOnTemporalFunctionalTests : RenderTestBase, IDisposable
         anchorNormalTex.Bind(5);
         historyMetaTex.Bind(6);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputRad0 = outputGBuffer[0].ReadPixels();
 
@@ -790,8 +744,7 @@ public class LumOnTemporalFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void NormalRejection_DiscardsHistory()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         var currentColor = (r: 1.0f, g: 0.0f, b: 0.0f);  // Red
         var historyColor = (r: 0.0f, g: 0.0f, b: 1.0f);  // Blue
@@ -872,15 +825,15 @@ public class LumOnTemporalFunctionalTests : RenderTestBase, IDisposable
             historyMetaRight[idx + 3] = 0.5f;      // a -> nz = 0 (or accumCount - shader bug)
         }
 
-        using var currentRad0Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad0);
-        using var currentRad1Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad1);
-        using var historyRad0Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad0);
-        using var historyRad1Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad1);
-        using var anchorPosTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-        using var anchorNormalTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
-        using var historyMetaTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMetaRight);
+        using var currentRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad0);
+        using var currentRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad1);
+        using var historyRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad0);
+        using var historyRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad1);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMetaRight);
 
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f,
             PixelInternalFormat.Rgba16f,
@@ -905,7 +858,7 @@ public class LumOnTemporalFunctionalTests : RenderTestBase, IDisposable
         anchorNormalTex.Bind(5);
         historyMetaTex.Bind(6);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputRad0 = outputGBuffer[0].ReadPixels();
 
@@ -945,8 +898,7 @@ public class LumOnTemporalFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void AccumCount_Increments()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         var currentRad0 = CreateUniformRadiance(1.0f, 0.0f, 0.0f);
         var currentRad1 = CreateUniformRadiance(0.5f, 0.5f, 0.5f);
@@ -966,15 +918,15 @@ public class LumOnTemporalFunctionalTests : RenderTestBase, IDisposable
             normalX: 0f,
             normalY: 1f);
 
-        using var currentRad0Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad0);
-        using var currentRad1Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad1);
-        using var historyRad0Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad0);
-        using var historyRad1Tex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad1);
-        using var anchorPosTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-        using var anchorNormalTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
-        using var historyMetaTex = _framework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMeta);
+        using var currentRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad0);
+        using var currentRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, currentRad1);
+        using var historyRad0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad0);
+        using var historyRad1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyRad1);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMeta);
 
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f,
             PixelInternalFormat.Rgba16f,
@@ -999,7 +951,7 @@ public class LumOnTemporalFunctionalTests : RenderTestBase, IDisposable
         anchorNormalTex.Bind(5);
         historyMetaTex.Bind(6);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputMeta = outputGBuffer[2].ReadPixels();
 

@@ -31,65 +31,21 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// </remarks>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
+public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 {
-    private readonly HeadlessGLFixture _fixture;
-    private readonly ShaderTestHelper? _helper;
-    private readonly ShaderTestFramework _framework;
-    
-    // Test configuration constants
-    private const int ScreenWidth = LumOnTestInputFactory.ScreenWidth;   // 4
-    private const int ScreenHeight = LumOnTestInputFactory.ScreenHeight; // 4
-    private const int HalfResWidth = ScreenWidth / 2;   // 2
-    private const int HalfResHeight = ScreenHeight / 2; // 2
-    
-    private const float ZNear = LumOnTestInputFactory.DefaultZNear;  // 0.1
-    private const float ZFar = LumOnTestInputFactory.DefaultZFar;    // 100
-    private const float TestEpsilon = 1e-2f;
-
     // Default bilateral filter parameters
     private const float DefaultDepthSigma = 0.1f;
     private const float DefaultNormalSigma = 16.0f;
     private const float DefaultSpatialSigma = 1.0f;
 
-    public LumOnUpsampleFunctionalTests(HeadlessGLFixture fixture) : base(fixture)
-    {
-        _fixture = fixture;
-        _framework = new ShaderTestFramework();
-
-        if (_fixture.IsContextValid)
-        {
-            var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-            var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaderincludes");
-
-            if (Directory.Exists(shaderPath) && Directory.Exists(includePath))
-            {
-                _helper = new ShaderTestHelper(shaderPath, includePath);
-            }
-        }
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _helper?.Dispose();
-            _framework.Dispose();
-        }
-        base.Dispose(disposing);
-    }
+    public LumOnUpsampleFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Helper Methods
 
     /// <summary>
     /// Compiles and links the upsample shader.
     /// </summary>
-    private int CompileUpsampleShader()
-    {
-        var result = _helper!.CompileAndLink("lumon_upsample.vsh", "lumon_upsample.fsh");
-        Assert.True(result.IsSuccess, $"Shader compilation failed: {result.ErrorMessage}");
-        return result.ProgramId;
-    }
+    private int CompileUpsampleShader() => CompileShader("lumon_upsample.vsh", "lumon_upsample.fsh");
 
     /// <summary>
     /// Sets up common uniforms for the upsample shader.
@@ -176,17 +132,9 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
     }
 
     /// <summary>
-    /// Creates a full-res depth buffer with uniform depth.
+    /// Creates a full-res depth buffer with uniform depth. Delegates to base class.
     /// </summary>
-    private static float[] CreateDepthBuffer(float depth)
-    {
-        var data = new float[ScreenWidth * ScreenHeight];
-        for (int i = 0; i < data.Length; i++)
-        {
-            data[i] = depth;
-        }
-        return data;
-    }
+    private float[] CreateDepthBuffer(float depth) => CreateUniformDepthData(ScreenWidth, ScreenHeight, depth);
 
     /// <summary>
     /// Creates a full-res depth buffer with a vertical edge.
@@ -207,30 +155,14 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
     }
 
     /// <summary>
-    /// Creates a full-res normal buffer with uniform normals (encoded).
+    /// Creates a full-res normal buffer with uniform normals. Delegates to base class.
     /// </summary>
-    private static float[] CreateNormalBuffer(float nx, float ny, float nz)
-    {
-        var data = new float[ScreenWidth * ScreenHeight * 4];
-        float encX = nx * 0.5f + 0.5f;
-        float encY = ny * 0.5f + 0.5f;
-        float encZ = nz * 0.5f + 0.5f;
-        
-        for (int i = 0; i < ScreenWidth * ScreenHeight; i++)
-        {
-            int idx = i * 4;
-            data[idx + 0] = encX;
-            data[idx + 1] = encY;
-            data[idx + 2] = encZ;
-            data[idx + 3] = 1.0f;
-        }
-        return data;
-    }
+    private float[] CreateNormalBuffer(float nx, float ny, float nz) => CreateUniformNormalData(ScreenWidth, ScreenHeight, nx, ny, nz);
 
     /// <summary>
     /// Reads a pixel from full-res output.
     /// </summary>
-    private static (float r, float g, float b, float a) ReadPixel(float[] data, int x, int y)
+    private static (float r, float g, float b, float a) ReadPixelFullRes(float[] data, int x, int y)
     {
         int idx = (y * ScreenWidth + x) * 4;
         return (data[idx], data[idx + 1], data[idx + 2], data[idx + 3]);
@@ -259,8 +191,7 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void UniformInput_BilinearUpsample()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         var inputColor = (r: 0.3f, g: 0.6f, b: 0.2f);
         const float pixelDepth = 0.5f;
@@ -270,12 +201,12 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);  // Upward
 
-        using var halfResTex = _framework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
 
         // Create full-res output
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -287,7 +218,7 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
         depthTex.Bind(1);
         normalTex.Bind(2);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputData = outputGBuffer[0].ReadPixels();
 
@@ -296,7 +227,7 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
         {
             for (int px = 0; px < ScreenWidth; px++)
             {
-                var (r, g, b, _) = ReadPixel(outputData, px, py);
+                var (r, g, b, _) = ReadPixelFullRes(outputData, px, py);
 
                 Assert.True(MathF.Abs(r - inputColor.r) < TestEpsilon,
                     $"Pixel ({px},{py}) R should be {inputColor.r:F2}, got {r:F3}");
@@ -333,8 +264,7 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void GradientInput_SmoothUpsample()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         const float pixelDepth = 0.5f;
 
@@ -343,11 +273,11 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
 
-        using var halfResTex = _framework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
 
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -358,7 +288,7 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
         depthTex.Bind(1);
         normalTex.Bind(2);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputData = outputGBuffer[0].ReadPixels();
 
@@ -369,7 +299,7 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
             float prevBrightness = -1f;
             for (int px = 0; px < ScreenWidth; px++)
             {
-                var (r, g, b, _) = ReadPixel(outputData, px, py);
+                var (r, g, b, _) = ReadPixelFullRes(outputData, px, py);
                 float brightness = (r + g + b) / 3.0f;
 
                 // DESIRED: Gradient should increase left to right (allowing small tolerance)
@@ -381,8 +311,8 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
         }
 
         // DESIRED: Left edge should be darker than right edge
-        var (leftR, _, _, _) = ReadPixel(outputData, 0, ScreenHeight / 2);
-        var (rightR, _, _, _) = ReadPixel(outputData, ScreenWidth - 1, ScreenHeight / 2);
+        var (leftR, _, _, _) = ReadPixelFullRes(outputData, 0, ScreenHeight / 2);
+        var (rightR, _, _, _) = ReadPixelFullRes(outputData, ScreenWidth - 1, ScreenHeight / 2);
         Assert.True(rightR > leftR,
             $"Right edge ({rightR:F3}) should be brighter than left edge ({leftR:F3})");
 
@@ -414,8 +344,7 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void DepthEdge_PreservesSharpness()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         // Create half-res with color edge: left = red, right = blue
         var halfResData = new float[HalfResWidth * HalfResHeight * 4];
@@ -444,11 +373,11 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
         var depthData = CreateDepthBufferWithEdge(0.2f, 0.8f);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
 
-        using var halfResTex = _framework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
 
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -460,14 +389,14 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
         depthTex.Bind(1);
         normalTex.Bind(2);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputData = outputGBuffer[0].ReadPixels();
 
         // DESIRED: Left pixels (x=0,1) should be predominantly red
         for (int py = 0; py < ScreenHeight; py++)
         {
-            var (r0, g0, b0, _) = ReadPixel(outputData, 0, py);
+            var (r0, g0, b0, _) = ReadPixelFullRes(outputData, 0, py);
             Assert.True(r0 > b0,
                 $"Left edge pixel (0,{py}) should be predominantly red, got R={r0:F3}, B={b0:F3}");
         }
@@ -475,7 +404,7 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
         // DESIRED: Right pixels (x=2,3) should be predominantly blue
         for (int py = 0; py < ScreenHeight; py++)
         {
-            var (r3, g3, b3, _) = ReadPixel(outputData, ScreenWidth - 1, py);
+            var (r3, g3, b3, _) = ReadPixelFullRes(outputData, ScreenWidth - 1, py);
             Assert.True(b3 > r3,
                 $"Right edge pixel ({ScreenWidth - 1},{py}) should be predominantly blue, got R={r3:F3}, B={b3:F3}");
         }
@@ -506,8 +435,7 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void DenoiseDisabled_RawBilinear()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         var inputColor = (r: 0.5f, g: 0.25f, b: 0.75f);
         const float pixelDepth = 0.5f;
@@ -516,11 +444,11 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
 
-        using var halfResTex = _framework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
 
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -532,7 +460,7 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
         depthTex.Bind(1);
         normalTex.Bind(2);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputData = outputGBuffer[0].ReadPixels();
 
@@ -541,7 +469,7 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
         {
             for (int px = 0; px < ScreenWidth; px++)
             {
-                var (r, g, b, _) = ReadPixel(outputData, px, py);
+                var (r, g, b, _) = ReadPixelFullRes(outputData, px, py);
 
                 // Allow slightly larger tolerance for raw bilinear sampling
                 const float tolerance = 0.05f;
@@ -578,19 +506,18 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
     [Fact]
     public void SkyPixels_ProduceZeroOutput()
     {
-        EnsureContextValid();
-        Assert.SkipWhen(_helper == null, "ShaderTestHelper not available");
+        EnsureShaderTestAvailable();
 
         // Bright indirect (should be ignored for sky)
         var halfResData = CreateUniformHalfRes(1.0f, 1.0f, 1.0f);
         var depthData = CreateDepthBuffer(1.0f);  // Sky
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
 
-        using var halfResTex = _framework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
-        using var depthTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = _framework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
 
-        using var outputGBuffer = _framework.CreateTestGBuffer(
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
@@ -601,7 +528,7 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
         depthTex.Bind(1);
         normalTex.Bind(2);
 
-        _framework.RenderQuadTo(programId, outputGBuffer);
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputData = outputGBuffer[0].ReadPixels();
 
@@ -610,7 +537,7 @@ public class LumOnUpsampleFunctionalTests : RenderTestBase, IDisposable
         {
             for (int px = 0; px < ScreenWidth; px++)
             {
-                var (r, g, b, a) = ReadPixel(outputData, px, py);
+                var (r, g, b, a) = ReadPixelFullRes(outputData, px, py);
 
                 Assert.True(r < TestEpsilon && g < TestEpsilon && b < TestEpsilon,
                     $"Sky pixel ({px},{py}) should be black, got ({r:F3}, {g:F3}, {b:F3})");
