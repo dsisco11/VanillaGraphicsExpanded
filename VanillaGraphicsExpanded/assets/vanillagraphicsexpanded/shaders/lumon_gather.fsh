@@ -76,15 +76,21 @@ ProbeData loadProbeData(ivec2 probeCoord) {
     ivec2 gridMax = ivec2(probeGridSize) - 1;
     probeCoord = clamp(probeCoord, ivec2(0), gridMax);
     
-    // Load anchor position and validity
+    // Load anchor position and validity.
+    // Anchor pass stores WORLD-space position for temporal stability.
     vec4 anchorPos = texelFetch(probeAnchorPosition, probeCoord, 0);
-    p.posVS = anchorPos.xyz;
+    vec3 posWS = anchorPos.xyz;
     p.valid = anchorPos.w;
-    p.depth = -anchorPos.z;  // Convert to positive depth
+
+    // Convert to view-space for depth/SH evaluation.
+    // In view-space, forward is -Z, so linear depth is -posVS.z.
+    p.posVS = (viewMatrix * vec4(posWS, 1.0)).xyz;
+    p.depth = -p.posVS.z;
     
-    // Load anchor normal
-    vec4 anchorNormal = texelFetch(probeAnchorNormal, probeCoord, 0);
-    p.normalVS = lumonDecodeNormal(anchorNormal.xyz);
+    // Load anchor normal.
+    // Anchor pass stores WORLD-space normal (encoded). Convert to view-space.
+    vec3 normalWS = lumonDecodeNormal(texelFetch(probeAnchorNormal, probeCoord, 0).xyz);
+    p.normalVS = normalize(mat3(viewMatrix) * normalWS);
     
     // Load SH radiance
     vec4 sh0 = texelFetch(radianceTexture0, probeCoord, 0);

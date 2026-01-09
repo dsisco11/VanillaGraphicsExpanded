@@ -38,7 +38,7 @@ public class LumOnDebugShaderProgram : ShaderProgram
     public int GBufferNormal { set => BindTexture2D("gBufferNormal", value, 1); }
 
     /// <summary>
-    /// Probe anchor positions (posVS.xyz, valid).
+    /// Probe anchor positions (posWS.xyz, valid).
     /// </summary>
     public int ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 2); }
 
