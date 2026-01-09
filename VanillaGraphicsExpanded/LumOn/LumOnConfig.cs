@@ -29,7 +29,7 @@ public class LumOnConfig
     /// Requires restart to change.
     /// </summary>
     [JsonProperty]
-    public int ProbeSpacingPx { get; set; } = 8;
+    public int ProbeSpacingPx { get; set; } = 4;
 
     // ═══════════════════════════════════════════════════════════════
     // Ray Tracing Settings (SPG-004)
@@ -55,19 +55,19 @@ public class LumOnConfig
     /// More rays = faster convergence but higher cost.
     /// </summary>
     [JsonProperty]
-    public int RaysPerProbePerFrame { get; set; } = 8;
+    public int RaysPerProbePerFrame { get; set; } = 12;
 
     /// <summary>
     /// Number of steps per ray during screen-space marching.
     /// </summary>
     [JsonProperty]
-    public int RaySteps { get; set; } = 12;
+    public int RaySteps { get; set; } = 10;
 
     /// <summary>
     /// Maximum ray travel distance in world units (meters).
     /// </summary>
     [JsonProperty]
-    public float RayMaxDistance { get; set; } = 10.0f;
+    public float RayMaxDistance { get; set; } = 4.0f;
 
     /// <summary>
     /// Thickness of ray for depth comparison (view-space units).
@@ -85,7 +85,7 @@ public class LumOnConfig
     /// Hot-reloadable.
     /// </summary>
     [JsonProperty]
-    public float TemporalAlpha { get; set; } = 0.95f;
+    public float TemporalAlpha { get; set; } = 0.5f;
 
     /// <summary>
     /// Depth difference threshold for history rejection (view-space).
@@ -220,7 +220,7 @@ public class LumOnConfig
     /// Requires G-buffer albedo/material textures when enabled.
     /// </summary>
     [JsonProperty]
-    public bool UseCombinePass { get; set; } = false;
+    public bool UseCombinePass { get; set; } = true;
 
     // ═══════════════════════════════════════════════════════════════
     // Octahedral Gather Settings (SPG-007 Section 2.5)
