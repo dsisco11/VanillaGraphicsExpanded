@@ -58,21 +58,21 @@ LumOn GPU Shader Functional Tests:
         ✔ CreateMaterialBuffer(metallic, roughness) - uniform material (4×4) @done
 
   Phase 3 - Probe Anchor Tests:
-    ☐ Create LumOnProbeAnchorFunctionalTests.cs
-      ☐ Test: UniformDepth_ProducesCorrectWorldPositions
-        ☐ Input: depth=0.5 everywhere, identity matrices
-        ☐ Expected: probes at calculated world Z from linearized depth
-        ☐ Verify: outPosition.xyz matches hand-calculated values
-      ☐ Test: UniformDepth_ProducesCorrectNormals
-        ☐ Input: normals all (0,1,0) in G-buffer
-        ☐ Expected: outNormal.xyz = (0,1,0) for all probes
-      ☐ Test: ValidProbes_HaveValidityFlagSet
-        ☐ Input: valid depth, valid normals
-        ☐ Expected: outPosition.w = 1.0 for all probes
-      ☐ Test: SkyPixels_ProduceInvalidProbes
-        ☐ Input: depth=1.0 (sky/far plane)
-        ☐ Expected: outPosition.w = 0.0 (invalid)
-      ☐ Document expected value derivation in comments:
+    ✔ Create LumOnProbeAnchorFunctionalTests.cs @done
+      ✔ Test: UniformDepth_ProducesCorrectWorldPositions @done
+        ✔ Input: depth=0.5 everywhere, identity matrices @done
+        ✔ Expected: probes at calculated world Z from linearized depth @done
+        ✔ Verify: outPosition.xyz matches hand-calculated values @done
+      ✔ Test: UniformDepth_ProducesCorrectNormals @done
+        ✔ Input: normals all (0,1,0) in G-buffer @done
+        ✔ Expected: outNormal.xyz = (0,1,0) for all probes @done
+      ✔ Test: ValidProbes_HaveValidityFlagSet @done
+        ✔ Input: valid depth, valid normals @done
+        ✔ Expected: outPosition.w = 1.0 for all probes @done
+      ✔ Test: SkyPixels_ProduceInvalidProbes @done
+        ✔ Input: depth=1.0 (sky/far plane) @done
+        ✔ Expected: outPosition.w = 0.0 (invalid) @done
+      ✔ Document expected value derivation in comments: @done
         // depth=0.5, zNear=0.1, zFar=100
         // linearDepth = zNear * zFar / (zFar - depth * (zFar - zNear))
         // worldPos = invView * invProj * clipPos
