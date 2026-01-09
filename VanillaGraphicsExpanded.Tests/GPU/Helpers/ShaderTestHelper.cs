@@ -192,6 +192,38 @@ public sealed class ShaderTestHelper : IDisposable
     }
 
     /// <summary>
+    /// Gets the processed shader source with @import directives resolved.
+    /// Useful for AST-based uniform extraction and analysis.
+    /// </summary>
+    /// <param name="filename">Shader filename (e.g., "lumon_gather.fsh").</param>
+    /// <returns>Processed source with all imports inlined, or null if file not found.</returns>
+    public string? GetProcessedSource(string filename)
+    {
+        var filePath = Path.Combine(_shaderBasePath, filename);
+        if (!File.Exists(filePath))
+        {
+            return null;
+        }
+
+        var source = File.ReadAllText(filePath);
+        return ProcessImports(source);
+    }
+
+    /// <summary>
+    /// Gets the processed shader sources for both vertex and fragment shaders.
+    /// </summary>
+    /// <param name="vertexFilename">Vertex shader filename.</param>
+    /// <param name="fragmentFilename">Fragment shader filename.</param>
+    /// <returns>Tuple of (vertexSource, fragmentSource), or (null, null) if either file not found.</returns>
+    public (string? VertexSource, string? FragmentSource) GetProcessedSources(
+        string vertexFilename, string fragmentFilename)
+    {
+        var vertexSource = GetProcessedSource(vertexFilename);
+        var fragmentSource = GetProcessedSource(fragmentFilename);
+        return (vertexSource, fragmentSource);
+    }
+
+    /// <summary>
     /// Processes @import directives in shader source using the production AST-based system.
     /// </summary>
     /// <param name="source">The shader source code.</param>

@@ -65,7 +65,10 @@ public static class UniformExtractor
         ArgumentNullException.ThrowIfNull(tree);
 
         // Use Query.Syntax<T>() to find all GlUniformNode instances
-        var uniformQuery = Query.Syntax<GlUniformNode>();
+        // Note: Query.Keyword("uniform") should only match "uniform", but due to a bug
+        // it matches any keyword in the same category. Filter to ensure correctness.
+        var uniformQuery = Query.Syntax<GlUniformNode>()
+            .Where(node => node is GlUniformNode u && u.UniformKeyword.Text == "uniform");
         var uniformNodes = uniformQuery.Select(tree).OfType<GlUniformNode>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
 

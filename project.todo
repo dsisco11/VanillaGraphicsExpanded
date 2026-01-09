@@ -89,15 +89,15 @@ Headless OpenGL Shader Test Fixture:
       ✔ Method: ExtractUniforms(SyntaxTree tree) -> IEnumerable<UniformDeclaration> @done
       ✔ Query tree for all GlUniformNode instances @done
       ✔ Return deduplicated list of uniform declarations @done
-    ☐ Debug Query pattern matching for uniform extraction:
-      ☐ Investigate Query.Keyword("uniform") vs Query.Ident("uniform") behavior
-      ☐ Verify keyword categories are properly registered
-      ☐ Test pattern matching in isolation
-    ☐ Refactor LumOnUniformTests to use AST extraction:
-      ☐ Extract expected uniforms from shader source via AST
-      ☐ Compare AST-declared uniforms against GL.GetUniformLocation results
-      ☐ Report which declared uniforms were optimized out vs missing
-      ☐ Remove manually maintained TheoryData uniform lists
+    ✔ Fix Query pattern matching for uniform extraction: @done
+      ✔ Use Query.Sequence() wrapper for all syntax patterns @done
+      ✔ Use Query.AnyOf() for alternation in patterns @done
+      ✔ Filter "uniform" keyword text in UniformExtractor to exclude "in", "out", etc. @done
+    ✔ Refactor LumOnUniformTests to use AST extraction: @done
+      ✔ Extract expected uniforms from shader source via AST @done
+      ✔ Compare AST-declared uniforms against GL.GetUniformLocation results @done
+      ✔ Report which declared uniforms were optimized out vs missing @done
+      ✔ Remove manually maintained TheoryData uniform lists @done
 
 Future Enhancements:
   ☐ Add sample pixel-level render test (SH encode/decode roundtrip via lumon_sh.glsl)

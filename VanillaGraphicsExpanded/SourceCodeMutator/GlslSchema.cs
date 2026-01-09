@@ -301,27 +301,39 @@ public static class GlslSchema
         // Must match before function definition (higher priority)
         .DefineSyntax(Syntax.Define<GlUniformNode>("glUniform")
             .Match(
-                Query.Keyword("uniform"),
-                Query.AnyKeyword | Query.AnyIdent,  // Type (keyword or custom type)
-                Query.AnyIdent,                      // Name
-                Query.BracketBlock.Optional(),       // Optional array [size]
+                Query.Keyword("uniform"),                      // The "uniform" keyword
+                Query.AnyOf(Query.AnyKeyword, Query.AnyIdent), // Type (keyword or custom type)
+                Query.AnyIdent,                                // Name
+                Query.BracketBlock.Optional(),                 // Optional array [size]
                 Query.Symbol(";")
             )
             .WithPriority(15)
             .Build())
         // Function definition: type name(params) { body }
+        // Return type can be a keyword (void, float, vec3) or identifier (custom type)
         .DefineSyntax(Syntax.Define<GlFunctionNode>("glFunction")
-            .Match(Query.AnyIdent, Query.AnyIdent, Query.ParenBlock, Query.BraceBlock)
+            .Match(
+                Query.AnyOf(Query.AnyKeyword, Query.AnyIdent), // Return type
+                Query.AnyIdent,                                // Function name
+                Query.ParenBlock,                              // Parameters
+                Query.BraceBlock                               // Body
+            )
             .WithPriority(10)
             .Build())
         // Directive: #import or @import followed by tokens until newline
         .DefineSyntax(Syntax.Define<GlImportNode>("glImport")
-            .Match(Query.TaggedIdent("@import"), Query.Any.Until(Query.Newline))
+            .Match(
+                Query.TaggedIdent("@import"),
+                Query.Any.Until(Query.Newline)
+            )
             .WithPriority(1)
             .Build())
         // Directive: #tag or @tag followed by tokens until newline
         .DefineSyntax(Syntax.Define<GlDirectiveNode>("glDirective")
-            .Match(Query.AnyTaggedIdent, Query.Any.Until(Query.Newline))
+            .Match(
+                Query.AnyTaggedIdent,
+                Query.Any.Until(Query.Newline)
+            )
             .WithPriority(0)
             .Build())
         .Build();
