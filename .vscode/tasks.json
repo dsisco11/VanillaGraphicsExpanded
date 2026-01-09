@@ -14,7 +14,8 @@
             "problemMatcher": "$msCompile",
             "presentation": {
                 "panel": "new",
-                "close": true
+                "close": true,
+                "showReuseMessage": false
             }
         },
         {
@@ -46,7 +47,12 @@
                 "--project",
                 "${workspaceFolder}/CakeBuild/CakeBuild.csproj"
             ],
-            "problemMatcher": "$msCompile"
+            "problemMatcher": "$msCompile",
+            "presentation": {
+                "panel": "new",
+                "close": true,
+                "showReuseMessage": false
+            },
         },
         {
             "label": "Build (Cake)",
@@ -58,7 +64,12 @@
                 "Debug",
                 "${workspaceFolder}/CakeBuild/CakeBuild.csproj"
             ],
-            "problemMatcher": "$msCompile"
+            "problemMatcher": "$msCompile",
+            "presentation": {
+                "panel": "new",
+                "close": true,
+                "showReuseMessage": false
+            },
         }
     ]
 }
