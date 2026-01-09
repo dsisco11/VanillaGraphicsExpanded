@@ -54,15 +54,6 @@ LumOn Functional Test Coverage:
       ✔ HalfResSmallerThanExpected_HandledGracefully - Buffer size mismatch @done
       ✔ NaNInput_ProducesValidOutput - Numeric stability with NaN inputs @done
 
-  Future Enhancements (Deferred):
-    ☐ Edge case: invalid probes at screen boundaries
-    ☐ Edge case: depth discontinuity threshold tuning
-    ☐ Edge case: sky pixels mixed with geometry
-    ☐ Performance benchmarks with GPU timer queries
-    ☐ Visual regression tests with image diff
-    ☐ Fuzz testing with randomized inputs
-
-
   LumOn → Lumen Alignment Work (Screen-Space Pipeline)
 
     Reference:
@@ -87,7 +78,7 @@ LumOn Functional Test Coverage:
     Exit artifacts: Probe anchor pass supports jitter (frameIndex plumbing + optional config toggles); probe anchors remain MRT posWS/normalWS.
     ☐ Add `frameIndex` uniform support to probe anchor program + plumbing from LumOnRenderer
     ☐ Implement sub-pixel / sub-cell jitter in lumon_probe_anchor.fsh probe sample UV
-    ☐ Ensure jitter is deterministic per-frame and stable across screen resize
+    ☐ Ensure jitter is deterministic per-frame and stable across screen resize (use existing `Squirrel3Hash` for deterministic jitter)
     ☐ Add config toggles/params (optional): EnableAnchorJitter, JitterScale
     ☐ Add debug visualization: show jittered sample locations (optional)
     ☐ Add GPU functional test: AnchorJitter_ChangesSampleLocation_Deterministically
@@ -168,3 +159,30 @@ LumOn Functional Test Coverage:
     ☐ Extend GPU timer queries to include new passes (HZB, Filter, Projection)
     ☐ Add quick performance benchmarks and document typical costs in docs
     ☐ Add minimal visual regression hooks (deferred if too heavy)
+
+    Phase 14 - Screen-Space Parity/Polish (Remaining Discrepancies)
+    Depends on: Phase 9 (confidence), Phase 10 (temporal uses confidence), Phase 11 (probe-space filter).
+    Exit artifacts: Screen-space GI is more Lumen-like in stability/robustness (exposure-stable, fewer edge holes, fewer temporal fireflies), with tests/diagnostics.
+    ☐ Reprojection inputs (motion vectors / camera motion):
+      - Determine whether VS exposes motion vectors or equivalent per-pixel velocity
+      - If available: incorporate into temporal rejection/weighting for gather/upsample (and/or probe updates)
+      - If not available: implement a best-effort camera-motion heuristic path (rotation/translation gating)
+    ☐ Exposure / color space consistency:
+      - Verify whether CapturedSceneTex is pre- or post-tonemap (and whether exposure changes frame-to-frame)
+      - If exposure varies: add pre-exposure compensation or capture an untonemapped buffer if available
+      - Add a debug view to compare captured scene vs expected linear lighting space
+    ☐ Variance / moments for temporal stability:
+      - Add optional moments buffer (e.g., first/second moment of radiance) for the probe atlas or for indirectHalf
+      - Use it for variance clamp/firefly suppression in temporal and/or post-filter
+    ☐ Screen-trace hole filling strategy:
+      - Add a controlled neighborhood resolve for rays that exit screen / miss due to disocclusion
+      - Use confidence to avoid smearing across depth/normal edges
+      - Ensure this is a bounded fallback (never overrides high-confidence hits)
+    ☐ Sky visibility / sky-occlusion term (screen-space approximation):
+      - Add an optional, cheap sky-visibility estimate (screen-space only) to reduce overly bright indoor skylight
+      - Keep it explicitly marked as screen-space approximation (no world proxy)
+    ☐ Add GPU functional tests:
+      - ExposureChange_DoesNotCauseTemporalPumping (or a reduced equivalent)
+      - VarianceClamp_ReducesFireflies_PreservesMean
+      - HoleFill_OnlyAffectsLowConfidenceAreas
+      - SkyVisibility_ReducesIndoorSkylightWithoutBlackening
