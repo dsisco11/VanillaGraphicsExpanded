@@ -64,11 +64,11 @@ Headless OpenGL Shader Test Fixture:
     ✔ Add fullscreen quad VAO setup/teardown @done
 
   Phase 6 - Documentation:
-    ☐ Add "Testing" section to README.md
-    ☐ Document: dotnet test --filter "Category!=GPU" (CI without GPU)
-    ☐ Document: dotnet test --filter "Category=GPU" (GPU-only tests)
-    ☐ Document: dotnet test (all tests locally)
-    ☐ Document LIBGL_ALWAYS_SOFTWARE=1 for Mesa llvmpipe on Linux CI
+    ✔ Add "Testing" section to README.md @done
+    ✔ Document: dotnet test --filter "Category!=GPU" (CI without GPU) @done
+    ✔ Document: dotnet test --filter "Category=GPU" (GPU-only tests) @done
+    ✔ Document: dotnet test (all tests locally) @done
+    ✔ Document LIBGL_ALWAYS_SOFTWARE=1 for Mesa llvmpipe on Linux CI @done
 
   Phase 7 - GLSL AST Uniform Extraction:
     ☐ Extend GlslSchema to recognize GLSL data-type keywords:
