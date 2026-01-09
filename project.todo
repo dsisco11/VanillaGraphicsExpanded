@@ -70,6 +70,30 @@ Headless OpenGL Shader Test Fixture:
     ☐ Document: dotnet test (all tests locally)
     ☐ Document LIBGL_ALWAYS_SOFTWARE=1 for Mesa llvmpipe on Linux CI
 
+  Phase 7 - GLSL AST Uniform Extraction:
+    ☐ Extend GlslSchema to recognize GLSL data-type keywords:
+      ☐ Scalar types: float, int, uint, bool, double
+      ☐ Vector types: vec2, vec3, vec4, ivec2, ivec3, ivec4, uvec2, uvec3, uvec4, bvec2, bvec3, bvec4, dvec2, dvec3, dvec4
+      ☐ Matrix types: mat2, mat3, mat4, mat2x3, mat2x4, mat3x2, mat3x4, mat4x2, mat4x3
+      ☐ Sampler types: sampler2D, sampler3D, samplerCube, sampler2DArray, sampler2DShadow, samplerCubeShadow, isampler2D, usampler2D, etc.
+      ☐ Image types: image2D, image3D, imageCube, etc. (for compute shaders)
+    ☐ Define GlUniformNode syntax in GlslSchema:
+      ☐ Pattern: "uniform" <type> <identifier> [array-brackets]? ";"
+      ☐ Support array declarations: uniform vec4 myArray[16];
+      ☐ Extract uniform name, type, and optional array size
+    ☐ Create GlUniformNode AST node class:
+      ☐ Properties: Name (string), TypeName (string), ArraySize (int?)
+      ☐ ToString() for debugging
+    ☐ Implement UniformExtractor utility:
+      ☐ Method: ExtractUniforms(SyntaxTree tree) -> IEnumerable<GlUniformNode>
+      ☐ Query tree for all GlUniformNode instances
+      ☐ Return deduplicated list of uniform declarations
+    ☐ Refactor LumOnUniformTests to use AST extraction:
+      ☐ Extract expected uniforms from shader source via AST
+      ☐ Compare AST-declared uniforms against GL.GetUniformLocation results
+      ☐ Report which declared uniforms were optimized out vs missing
+      ☐ Remove manually maintained TheoryData uniform lists
+
 Future Enhancements:
   ☐ Add sample pixel-level render test (SH encode/decode roundtrip via lumon_sh.glsl)
   ☐ Add performance benchmarks for shader compilation
