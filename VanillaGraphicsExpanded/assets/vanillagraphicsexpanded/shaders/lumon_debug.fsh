@@ -22,6 +22,8 @@ out vec4 outColor;
 // 9 = Interpolation Weights (probe blend visualization)
 // 10 = Radiance Overlay (indirect diffuse buffer)
 // 11 = Gather Weight (diagnostic; reads indirectHalf alpha)
+// 12 = Probe-Atlas Meta Confidence (grayscale)
+// 13 = Probe-Atlas Temporal Alpha (confidence-scaled)
 // ============================================================================
 
 // Import common utilities
@@ -43,6 +45,9 @@ uniform sampler2D indirectHalf;
 
 // Temporal textures
 uniform sampler2D historyMeta;          // linearized depth, normal, accumCount
+
+// Screen-probe atlas textures
+uniform sampler2D probeAtlasMeta;       // R = confidence, G = uintBitsToFloat(flags)
 
 // Matrices
 uniform mat4 invProjectionMatrix;
@@ -67,6 +72,21 @@ uniform mat4 prevViewProjMatrix;
 
 // Debug mode
 uniform int debugMode;
+
+// ============================================================================
+// Debug Mode 12/13: Probe-Atlas Meta
+// ============================================================================
+
+vec4 renderProbeAtlasMetaConfidenceDebug() {
+    float conf = texture(probeAtlasMeta, uv).r;
+    return vec4(vec3(clamp(conf, 0.0, 1.0)), 1.0);
+}
+
+vec4 renderProbeAtlasTemporalAlphaDebug() {
+    float confHist = texture(probeAtlasMeta, uv).r;
+    float alphaEff = clamp(temporalAlpha * clamp(confHist, 0.0, 1.0), 0.0, 1.0);
+    return vec4(vec3(alphaEff), 1.0);
+}
 
 // ============================================================================
 // Color Utilities
@@ -579,6 +599,12 @@ void main(void)
             break;
         case 11:
             outColor = renderGatherWeightDebug();
+            break;
+        case 12:
+            outColor = renderProbeAtlasMetaConfidenceDebug();
+            break;
+        case 13:
+            outColor = renderProbeAtlasTemporalAlphaDebug();
             break;
         default:
             outColor = vec4(1.0, 0.0, 1.0, 1.0);  // Magenta = unknown mode

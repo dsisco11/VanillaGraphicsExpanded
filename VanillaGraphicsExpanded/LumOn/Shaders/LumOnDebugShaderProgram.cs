@@ -67,6 +67,11 @@ public class LumOnDebugShaderProgram : ShaderProgram
     /// </summary>
     public int HistoryMeta { set => BindTexture2D("historyMeta", value, 7); }
 
+    /// <summary>
+    /// Screen-probe atlas meta (confidence/flags) for probe-atlas debug modes.
+    /// </summary>
+    public int ProbeAtlasMeta { set => BindTexture2D("probeAtlasMeta", value, 8); }
+
     #endregion
 
     #region Size Uniforms

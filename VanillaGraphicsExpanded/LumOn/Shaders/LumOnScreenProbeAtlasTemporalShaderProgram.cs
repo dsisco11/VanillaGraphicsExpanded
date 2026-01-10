@@ -52,6 +52,12 @@ public class LumOnScreenProbeAtlasTemporalShaderProgram : ShaderProgram
     /// </summary>
     public int ScreenProbeAtlasMetaCurrent { set => BindTexture2D("probeAtlasMetaCurrent", value, 3); }
 
+    /// <summary>
+    /// Previous frame probe-atlas meta history (after last swap).
+    /// Used for confidence-aware temporal blending.
+    /// </summary>
+    public int ScreenProbeAtlasMetaHistory { set => BindTexture2D("probeAtlasMetaHistory", value, 4); }
+
     #endregion
 
     #region Probe Grid Uniforms

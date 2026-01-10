@@ -33,6 +33,9 @@ uniform sampler2D octahedralCurrent;
 // Current frame trace meta output (from probe-atlas trace pass)
 uniform sampler2D probeAtlasMetaCurrent;
 
+// Meta history from previous frame (after last swap)
+uniform sampler2D probeAtlasMetaHistory;
+
 // History from previous frame (after last swap)
 uniform sampler2D octahedralHistory;
 
@@ -132,8 +135,14 @@ void main(void)
     // Load current frame data (from trace pass)
     vec4 current = texelFetch(octahedralCurrent, atlasCoord, 0);
 
-    // Meta is currently pass-through from trace output (Phase 10 will make it temporal-aware)
+    // Load current + history meta
     vec2 metaCurrent = texelFetch(probeAtlasMetaCurrent, atlasCoord, 0).xy;
+    vec2 metaHistory = texelFetch(probeAtlasMetaHistory, atlasCoord, 0).xy;
+
+    float confCurrent; uint flagsCurrent;
+    float confHistory; uint flagsHistory;
+    lumonDecodeMeta(metaCurrent, confCurrent, flagsCurrent);
+    lumonDecodeMeta(metaHistory, confHistory, flagsHistory);
     
     // Load history data
     vec4 history = texelFetch(octahedralHistory, atlasCoord, 0);
@@ -157,6 +166,21 @@ void main(void)
     
     // Validate history using hit-distance comparison
     bool historyValid = historyHitDist > 0.001;  // Has valid history data?
+
+    // Reject history if history confidence is very low (invalid / unreliable)
+    // This is the simplest confidence-aware reset policy.
+    if (historyValid) {
+        historyValid = confHistory > 0.05;
+    }
+
+    // Reject history when hit/miss classification changes (more robust than hit distance alone)
+    if (historyValid) {
+        bool curHit = (flagsCurrent & LUMON_META_HIT) != 0u;
+        bool histHit = (flagsHistory & LUMON_META_HIT) != 0u;
+        if (curHit != histHit) {
+            historyValid = false;
+        }
+    }
     
     if (historyValid) {
         // Check if hit distance changed significantly (disocclusion)
@@ -168,8 +192,12 @@ void main(void)
     }
     
     vec4 result;
+    vec2 metaOut;
     
     if (historyValid) {
+        // Confidence-adaptive temporal blending
+        float alpha = clamp(temporalAlpha * confHistory, 0.0, 1.0);
+
         // Get neighborhood bounds for clamping (prevents ghosting)
         vec4 minVal, maxVal;
         getNeighborhoodMinMax(probeCoord, octTexel, minVal, maxVal);
@@ -179,12 +207,17 @@ void main(void)
         
         // Blend current with clamped history
         // Note: We blend both radiance (RGB) and hit distance (A)
-        result = mix(current, clampedHistory, temporalAlpha);
+        result = mix(current, clampedHistory, alpha);
+
+        // Meta: blend confidence (flags follow current classification)
+        float outConf = mix(confCurrent, confHistory, alpha);
+        metaOut = lumonEncodeMeta(outConf, flagsCurrent);
     } else {
         // Disoccluded: use current frame only (reset)
         result = current;
+        metaOut = lumonEncodeMeta(confCurrent, flagsCurrent);
     }
     
     outRadiance = result;
-    outMeta = metaCurrent;
+    outMeta = metaOut;
 }

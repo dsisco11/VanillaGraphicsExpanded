@@ -145,13 +145,13 @@ LumOn Functional Test Coverage:
 
     Phase 10 - Pass 3: Screen-Probe Atlas Temporal Uses Meta
     Exit artifacts: Screen-probe atlas temporal produces meta-aware stabilized atlases suitable for downstream filtering/gather.
-    ☐ Update lumon_probe_atlas_temporal.fsh (implementation detail: octahedral mapping) to read/write meta (separate texture)
-    ☐ Make temporal alpha adaptive using meta confidence (e.g., alpha *= historyConfidence)
-    ☐ Make disocclusion/invalid-history decisions consider confidence/flags (not just hit distance)
-    ☐ Add debug mode: MetaConfidence / TemporalAlpha visualization
-    ☐ Add GPU functional tests:
-      - Temporal_MetaReducesHistoryWeight
-      - Temporal_LowConfidence_ForcesReset
+    ✔ Update lumon_probe_atlas_temporal.fsh (implementation detail: octahedral mapping) to read/write meta (separate texture) @done
+    ✔ Make temporal alpha adaptive using meta confidence (e.g., alpha *= historyConfidence) @done
+    ✔ Make disocclusion/invalid-history decisions consider confidence/flags (not just hit distance) @done
+    ✔ Add debug mode: MetaConfidence / TemporalAlpha visualization @done
+    ✔ Add GPU functional tests: @done
+      - Temporal_MetaReducesHistoryWeight @done
+      - Temporal_LowConfidence_ForcesReset @done
 
     Phase 11 - Pass 3.5: Probe-Space Filter/Denoise (New)
     Exit artifacts: Filtered atlas exists (radiance/hitdist/confidence as applicable); renderer can choose raw vs filtered as gather input.

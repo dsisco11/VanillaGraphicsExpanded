@@ -201,7 +201,9 @@ public class LumOnRenderer : IRenderer, IDisposable
             LumOnDebugMode.ShCoefficients,
             LumOnDebugMode.InterpolationWeights,
             LumOnDebugMode.RadianceOverlay,
-            LumOnDebugMode.GatherWeight
+            LumOnDebugMode.GatherWeight,
+            LumOnDebugMode.ProbeAtlasMetaConfidence,
+            LumOnDebugMode.ProbeAtlasTemporalAlpha
         };
 
         int currentIndex = Array.IndexOf(cycle, config.DebugMode);
@@ -227,6 +229,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         LumOnDebugMode.InterpolationWeights => "Interpolation Weights",
         LumOnDebugMode.RadianceOverlay => "Radiance Overlay",
         LumOnDebugMode.GatherWeight => "Gather Weight (diagnostic)",
+        LumOnDebugMode.ProbeAtlasMetaConfidence => "Probe-Atlas Meta Confidence",
+        LumOnDebugMode.ProbeAtlasTemporalAlpha => "Probe-Atlas Temporal Alpha",
         _ => mode.ToString()
     };
 
@@ -758,6 +762,9 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Bind meta trace output (pass-through for now)
         shader.ScreenProbeAtlasMetaCurrent = bufferManager.ScreenProbeAtlasMetaTraceTex!;
+
+        // Bind meta history from previous frame
+        shader.ScreenProbeAtlasMetaHistory = bufferManager.ScreenProbeAtlasMetaHistoryTex!;
 
         // Pass probe grid size
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);

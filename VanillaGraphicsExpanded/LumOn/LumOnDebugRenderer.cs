@@ -153,6 +153,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         shader.IndirectHalf = bufferManager.IndirectHalfTex;
         shader.HistoryMeta = bufferManager.ProbeMetaHistoryTex;
 
+        shader.ProbeAtlasMeta = bufferManager.ScreenProbeAtlasMetaHistoryTex?.TextureId ?? 0;
+
         // Pass uniforms
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);

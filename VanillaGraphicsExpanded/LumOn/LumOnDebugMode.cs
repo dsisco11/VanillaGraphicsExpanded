@@ -26,5 +26,9 @@ public enum LumOnDebugMode
 
     // Visualizes gather weighting diagnostics encoded into indirectHalf alpha.
     // Grayscale = edge-aware total weight (scaled), Red = fallback path used.
-    GatherWeight = 11
+    GatherWeight = 11,
+
+    // Screen-probe atlas (probe-atlas mode) debug views.
+    ProbeAtlasMetaConfidence = 12,
+    ProbeAtlasTemporalAlpha = 13
 }
