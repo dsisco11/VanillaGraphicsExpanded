@@ -305,6 +305,9 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Update matrices
         UpdateMatrices();
 
+        // === Pass 0: HZB depth pyramid ===
+        BuildHzb(primaryFb);
+
         // === Pass 1: Probe Anchor ===
         BeginTimerQuery(0);
         RenderProbeAnchorPass(primaryFb);
@@ -488,12 +491,12 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.Use();
 
         // Bind probe anchor textures
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex;
-        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex;
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
+        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex!;
 
         // Bind scene for radiance sampling (captured before this pass)
         shader.PrimaryDepth = primaryFb.DepthTextureId;
-        shader.PrimaryColor = bufferManager.CapturedSceneTex;
+        shader.PrimaryColor = bufferManager.CapturedSceneTex!;
 
         // Pass matrices
         shader.InvProjectionMatrix = invProjectionMatrix;
@@ -552,15 +555,22 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.Use();
 
         // Bind probe anchor textures
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex;
-        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex;
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
+        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex!;
 
         // Bind scene for radiance sampling
         shader.PrimaryDepth = primaryFb.DepthTextureId;
-        shader.PrimaryColor = bufferManager.CapturedSceneTex;
+        shader.PrimaryColor = bufferManager.CapturedSceneTex!;
 
         // Bind history for temporal preservation
-        shader.OctahedralHistory = bufferManager.OctahedralHistoryTex;
+        shader.OctahedralHistory = bufferManager.OctahedralHistoryTex!;
+
+        // HZB depth pyramid (always on)
+        if (bufferManager.HzbDepthTex != null)
+        {
+            shader.HzbDepth = bufferManager.HzbDepthTex;
+            shader.HzbCoarseMip = Math.Clamp(config.HzbCoarseMip, 0, Math.Max(0, bufferManager.HzbDepthTex.MipLevels - 1));
+        }
 
         // Pass matrices
         shader.InvProjectionMatrix = invProjectionMatrix;
@@ -598,6 +608,58 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.Stop();
     }
 
+    private void BuildHzb(FrameBufferRef primaryFb)
+    {
+        if (bufferManager.HzbDepthTex is null || bufferManager.HzbFboId == 0)
+            return;
+
+        var copy = ShaderRegistry.getProgramByName("lumon_hzb_copy") as LumOnHzbCopyShaderProgram;
+        var down = ShaderRegistry.getProgramByName("lumon_hzb_downsample") as LumOnHzbDownsampleShaderProgram;
+        if (copy is null || down is null || copy.LoadError || down.LoadError)
+            return;
+
+        int previousFbo = Rendering.GBuffer.SaveBinding();
+
+        var hzb = bufferManager.HzbDepthTex;
+        int fboId = bufferManager.HzbFboId;
+
+        capi.Render.GlToggleBlend(false);
+
+        // Copy mip 0 from the primary depth texture.
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
+        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, hzb.TextureId, 0);
+        GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+        GL.Viewport(0, 0, hzb.Width, hzb.Height);
+
+        copy.Use();
+        copy.PrimaryDepth = primaryFb.DepthTextureId;
+        capi.Render.RenderMesh(quadMeshRef);
+        copy.Stop();
+
+        // Downsample the mip chain using MIN depth.
+        down.Use();
+        down.HzbDepth = hzb;
+
+        for (int dstMip = 1; dstMip < hzb.MipLevels; dstMip++)
+        {
+            int dstW = Math.Max(1, hzb.Width >> dstMip);
+            int dstH = Math.Max(1, hzb.Height >> dstMip);
+
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
+            GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, hzb.TextureId, dstMip);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+            GL.Viewport(0, 0, dstW, dstH);
+
+            down.SrcMip = dstMip - 1;
+            capi.Render.RenderMesh(quadMeshRef);
+        }
+
+        down.Stop();
+
+        Rendering.GBuffer.RestoreBinding(previousFbo);
+        GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
+    }
+
     /// <summary>
     /// Pass 3 (SH mode): Blend current SH radiance with history for temporal stability.
     /// Implements reprojection, validation, and neighborhood clamping.
@@ -619,19 +681,19 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.Use();
 
         // Bind current frame radiance (from trace pass - dedicated trace buffer)
-        shader.RadianceCurrent0 = bufferManager.RadianceTraceTex0;
-        shader.RadianceCurrent1 = bufferManager.RadianceTraceTex1;
+        shader.RadianceCurrent0 = bufferManager.RadianceTraceTex0!;
+        shader.RadianceCurrent1 = bufferManager.RadianceTraceTex1!;
 
         // Bind history radiance (from previous frame, after last swap)
-        shader.RadianceHistory0 = bufferManager.RadianceHistoryTex0;
-        shader.RadianceHistory1 = bufferManager.RadianceHistoryTex1;
+        shader.RadianceHistory0 = bufferManager.RadianceHistoryTex0!;
+        shader.RadianceHistory1 = bufferManager.RadianceHistoryTex1!;
 
         // Bind probe anchors for validation and reprojection
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex;
-        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex;
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
+        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex!;
 
         // Bind history metadata for validation
-        shader.HistoryMeta = bufferManager.ProbeMetaHistoryTex;
+        shader.HistoryMeta = bufferManager.ProbeMetaHistoryTex!;
 
         // Pass matrices for reprojection
         shader.ViewMatrix = modelViewMatrix;      // WS to VS for depth calc
@@ -691,7 +753,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         }
 
         // Bind probe anchors for validity check
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex;
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
 
         // Pass probe grid size
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
@@ -749,12 +811,12 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.Use();
 
         // Bind radiance textures (from current after temporal blend)
-        shader.RadianceTexture0 = bufferManager.RadianceCurrentTex0;
-        shader.RadianceTexture1 = bufferManager.RadianceCurrentTex1;
+        shader.RadianceTexture0 = bufferManager.RadianceCurrentTex0!;
+        shader.RadianceTexture1 = bufferManager.RadianceCurrentTex1!;
 
         // Bind probe anchors
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex;
-        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex;
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
+        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex!;
 
         // Bind G-buffer for pixel info
         shader.PrimaryDepth = primaryFb.DepthTextureId;
@@ -810,8 +872,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.OctahedralAtlas = octAtlas.TextureId;
 
         // Bind probe anchors
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex;
-        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex;
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
+        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex!;
 
         // Bind G-buffer for pixel info
         shader.PrimaryDepth = primaryFb.DepthTextureId;
@@ -877,7 +939,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.Use();
 
         // Bind half-res indirect diffuse
-        shader.IndirectHalf = bufferManager.IndirectHalfTex;
+        shader.IndirectHalf = bufferManager.IndirectHalfTex!;
 
         // Bind G-buffer for edge-aware upsampling
         shader.PrimaryDepth = primaryFb.DepthTextureId;

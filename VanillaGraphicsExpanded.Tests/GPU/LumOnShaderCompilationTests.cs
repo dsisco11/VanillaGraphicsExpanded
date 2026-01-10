@@ -42,6 +42,8 @@ public class LumOnShaderCompilationTests : IDisposable
     /// </summary>
     public static TheoryData<string, string> LumOnShaderPairs => new()
     {
+        { "lumon_hzb_copy.vsh", "lumon_hzb_copy.fsh" },
+        { "lumon_hzb_downsample.vsh", "lumon_hzb_downsample.fsh" },
         { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh" },
         { "lumon_probe_trace.vsh", "lumon_probe_trace.fsh" },
         { "lumon_probe_trace_octahedral.vsh", "lumon_probe_trace_octahedral.fsh" },

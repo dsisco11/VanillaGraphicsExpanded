@@ -31,6 +31,10 @@ uniform sampler2D probeAnchorNormal;    // normalWS.xyz, reserved
 uniform sampler2D primaryDepth;
 uniform sampler2D primaryColor;
 
+// Optional HZB depth pyramid
+uniform sampler2D hzbDepth;
+uniform int hzbCoarseMip;
+
 // Matrices
 uniform mat4 invProjectionMatrix;
 uniform mat4 projectionMatrix;
@@ -129,7 +133,25 @@ RayHit traceRay(vec3 originVS, vec3 directionVS) {
             break;
         }
         
-        // Sample depth
+        // HZB coarse rejection (reduces full-res depth sampling)
+        int mip = max(0, hzbCoarseMip);
+        ivec2 hzbSize = textureSize(hzbDepth, mip);
+        ivec2 hzbCoord = clamp(ivec2(sampleUV * vec2(hzbSize)), ivec2(0), hzbSize - 1);
+        float coarseDepth = texelFetch(hzbDepth, hzbCoord, mip).r;
+
+        if (!lumonIsSky(coarseDepth)) {
+            vec4 clip = projectionMatrix * vec4(samplePos, 1.0);
+            float ndcZ = clip.z / max(1e-6, clip.w);
+            float sampleDepthRaw = ndcZ * 0.5 + 0.5;
+
+            // If the ray sample is closer than the nearest depth in this region,
+            // we can skip the expensive full-res depth test for this step.
+            if (sampleDepthRaw + 1e-5 < coarseDepth) {
+                continue;
+            }
+        }
+
+        // Sample full-res depth
         float sceneDepth = texture(primaryDepth, sampleUV).r;
         
         // Skip sky regions (no valid geometry to hit)

@@ -107,6 +107,13 @@ public sealed class LumOnBufferManager : IDisposable
     private DynamicTexture? capturedSceneTex;
     private Rendering.GBuffer? capturedSceneFbo;
 
+    // ═══════════════════════════════════════════════════════════════
+    // Depth Pyramid / HZB
+    // ═══════════════════════════════════════════════════════════════
+
+    private DynamicTexture? hzbDepthTex;
+    private int hzbFboId;
+
     // Double-buffer swap index (0 or 1)
     private int currentBufferIndex;
 
@@ -305,6 +312,16 @@ public sealed class LumOnBufferManager : IDisposable
     /// Texture for captured scene (radiance sampling source).
     /// </summary>
     public DynamicTexture? CapturedSceneTex => capturedSceneTex;
+
+    /// <summary>
+    /// HZB depth pyramid texture (mipmapped R32F), mip 0 matches screen size.
+    /// </summary>
+    public DynamicTexture? HzbDepthTex => hzbDepthTex;
+
+    /// <summary>
+    /// FBO id used for rendering into HZB mip levels.
+    /// </summary>
+    public int HzbFboId => hzbFboId;
 
     // ═══════════════════════════════════════════════════════════════
     // Dimensions
@@ -534,6 +551,17 @@ public sealed class LumOnBufferManager : IDisposable
         capturedSceneTex = DynamicTexture.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear);
         capturedSceneFbo = Rendering.GBuffer.CreateSingle(capturedSceneTex);
 
+        // ═══════════════════════════════════════════════════════════════
+        // HZB Depth Pyramid (mipmapped R32F)
+        // ═══════════════════════════════════════════════════════════════
+
+        int maxDim = Math.Max(screenWidth, screenHeight);
+        int mipLevels = 1;
+        while ((maxDim >>= 1) > 0) mipLevels++;
+
+        hzbDepthTex = DynamicTexture.CreateMipmapped(screenWidth, screenHeight, PixelInternalFormat.R32f, mipLevels);
+        hzbFboId = GL.GenFramebuffer();
+
         isInitialized = true;
         currentBufferIndex = 0;
 
@@ -586,6 +614,12 @@ public sealed class LumOnBufferManager : IDisposable
         octahedralCurrentFbo?.Dispose();
         octahedralHistoryFbo?.Dispose();
 
+        if (hzbFboId != 0)
+        {
+            GL.DeleteFramebuffer(hzbFboId);
+            hzbFboId = 0;
+        }
+
         probeAnchorFbo = null;
         radianceTraceFbo = null;
         radianceCurrentFbo = null;
@@ -617,6 +651,8 @@ public sealed class LumOnBufferManager : IDisposable
         octahedralCurrentTex?.Dispose();
         octahedralHistoryTex?.Dispose();
 
+        hzbDepthTex?.Dispose();
+
         probeAnchorPositionTex = null;
         probeAnchorNormalTex = null;
         radianceTraceTex0 = null;
@@ -633,6 +669,8 @@ public sealed class LumOnBufferManager : IDisposable
         octahedralTraceTex = null;
         octahedralCurrentTex = null;
         octahedralHistoryTex = null;
+
+        hzbDepthTex = null;
 
         isInitialized = false;
     }

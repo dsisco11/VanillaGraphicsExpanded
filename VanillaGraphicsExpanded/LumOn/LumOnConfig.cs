@@ -60,6 +60,14 @@ public class LumOnConfig
     public bool UseOctahedralCache { get; set; } = true;
 
     /// <summary>
+    /// Coarse mip level used for HZB early rejection in the tracer.
+    /// 0 = full resolution, higher = coarser.
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public int HzbCoarseMip { get; set; } = 4;
+
+    /// <summary>
     /// Number of octahedral texels to trace per probe per frame.
     /// With 64 texels total (8×8), 8 texels/frame = full coverage in 8 frames.
     /// Only used when UseOctahedralCache is true.

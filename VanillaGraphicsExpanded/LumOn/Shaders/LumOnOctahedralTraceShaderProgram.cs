@@ -53,6 +53,11 @@ public class LumOnOctahedralTraceShaderProgram : ShaderProgram
     /// </summary>
     public int OctahedralHistory { set => BindTexture2D("octahedralHistory", value, 4); }
 
+    /// <summary>
+    /// Optional HZB depth pyramid (mipmapped R32F).
+    /// </summary>
+    public int HzbDepth { set => BindTexture2D("hzbDepth", value, 5); }
+
     #endregion
 
     #region Matrix Uniforms
@@ -124,6 +129,11 @@ public class LumOnOctahedralTraceShaderProgram : ShaderProgram
     /// Thickness threshold for depth test during ray marching.
     /// </summary>
     public float RayThickness { set => Uniform("rayThickness", value); }
+
+    /// <summary>
+    /// Coarse mip used for early rejection.
+    /// </summary>
+    public int HzbCoarseMip { set => Uniform("hzbCoarseMip", value); }
 
     #endregion
 

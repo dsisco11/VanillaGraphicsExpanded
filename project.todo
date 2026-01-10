@@ -85,14 +85,14 @@ LumOn Functional Test Coverage:
 
     Phase 8 - Pass 0 (Optional/Recommended): Depth Pyramid / HZB
     Exit artifacts: Depth pyramid textures exist per frame; octahedral tracer can consume HZB for traversal/refinement.
-    ☐ Add depth pyramid builder:
+    ✔ Add depth pyramid builder:
       - generate mip chain from primaryDepth each frame
-      - store as a set of textures or layered atlas
-    ☐ Update lumon_probe_trace_octahedral.fsh to use HZB for faster/more robust hits
-      - hierarchical stepping and/or binary refinement near hit
-    ☐ Add GPU functional tests:
+      - store as a set of textures or layered atlas @done
+    ✔ Update lumon_probe_trace_octahedral.fsh to use HZB for faster/more robust hits
+      - hierarchical stepping and/or binary refinement near hit @done
+    ✔ Add GPU functional tests:
       - HZB_BuildProducesMonotonicDepthMips
-      - Trace_HZBMatchesBaselineHitInSimpleScene
+      - Trace_HZBMatchesBaselineHitInSimpleScene @done
 
     Phase 9 - Pass 2: Octahedral Trace Confidence Output
     Exit artifacts: Octahedral trace outputs radiance/hitdist plus confidence (new texture or packed); history preservation applies to confidence too.

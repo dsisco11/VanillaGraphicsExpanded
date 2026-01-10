@@ -23,6 +23,7 @@ public sealed class DynamicTexture : IDisposable
     private int textureId;
     private int width;
     private int height;
+    private int mipLevels = 1;
     private PixelInternalFormat internalFormat;
     private TextureFilterMode filterMode;
     private bool isDisposed;
@@ -45,6 +46,11 @@ public sealed class DynamicTexture : IDisposable
     /// Texture height in pixels.
     /// </summary>
     public int Height => height;
+
+    /// <summary>
+    /// Number of mip levels allocated for this texture (>= 1).
+    /// </summary>
+    public int MipLevels => mipLevels;
 
     /// <summary>
     /// Internal pixel format of the texture.
@@ -105,8 +111,46 @@ public sealed class DynamicTexture : IDisposable
         {
             width = width,
             height = height,
+            mipLevels = 1,
             internalFormat = format,
             filterMode = filter
+        };
+
+        texture.AllocateTexture();
+        return texture;
+    }
+
+    /// <summary>
+    /// Creates a new 2D texture with an explicit mip chain allocated.
+    /// Intended for hierarchical buffers like HZB.
+    /// </summary>
+    public static DynamicTexture CreateMipmapped(
+        int width,
+        int height,
+        PixelInternalFormat format,
+        int mipLevels)
+    {
+        if (width <= 0)
+        {
+            Debug.WriteLine($"[DynamicTexture] Invalid width {width}, defaulting to 1");
+            width = 1;
+        }
+        if (height <= 0)
+        {
+            Debug.WriteLine($"[DynamicTexture] Invalid height {height}, defaulting to 1");
+            height = 1;
+        }
+
+        if (mipLevels < 1)
+            mipLevels = 1;
+
+        var texture = new DynamicTexture
+        {
+            width = width,
+            height = height,
+            mipLevels = mipLevels,
+            internalFormat = format,
+            filterMode = TextureFilterMode.Nearest
         };
 
         texture.AllocateTexture();
@@ -219,16 +263,41 @@ public sealed class DynamicTexture : IDisposable
 
         // Reallocate with new dimensions
         GL.BindTexture(TextureTarget.Texture2D, textureId);
-        GL.TexImage2D(
-            TextureTarget.Texture2D,
-            0,
-            internalFormat,
-            width,
-            height,
-            0,
-            TextureFormatHelper.GetPixelFormat(internalFormat),
-            TextureFormatHelper.GetPixelType(internalFormat),
-            IntPtr.Zero);
+
+        if (mipLevels <= 1)
+        {
+            GL.TexImage2D(
+                TextureTarget.Texture2D,
+                0,
+                internalFormat,
+                width,
+                height,
+                0,
+                TextureFormatHelper.GetPixelFormat(internalFormat),
+                TextureFormatHelper.GetPixelType(internalFormat),
+                IntPtr.Zero);
+        }
+        else
+        {
+            for (int level = 0; level < mipLevels; level++)
+            {
+                int lw = Math.Max(1, width >> level);
+                int lh = Math.Max(1, height >> level);
+                GL.TexImage2D(
+                    TextureTarget.Texture2D,
+                    level,
+                    internalFormat,
+                    lw,
+                    lh,
+                    0,
+                    TextureFormatHelper.GetPixelFormat(internalFormat),
+                    TextureFormatHelper.GetPixelType(internalFormat),
+                    IntPtr.Zero);
+            }
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureBaseLevel, 0);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, mipLevels - 1);
+        }
+
         GL.BindTexture(TextureTarget.Texture2D, 0);
 
         return true;
@@ -372,6 +441,45 @@ public sealed class DynamicTexture : IDisposable
     }
 
     /// <summary>
+    /// Reads pixel data from a specific mip level of the texture.
+    /// </summary>
+    public float[] ReadPixels(int mipLevel)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[DynamicTexture] Attempted to read pixels from disposed or invalid texture");
+            return [];
+        }
+
+        mipLevel = Math.Clamp(mipLevel, 0, Math.Max(0, mipLevels - 1));
+
+        int mipWidth = Math.Max(1, width >> mipLevel);
+        int mipHeight = Math.Max(1, height >> mipLevel);
+        int channelCount = GetChannelCount();
+        float[] data = new float[mipWidth * mipHeight * channelCount];
+
+        int tempFbo = GL.GenFramebuffer();
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, tempFbo);
+        GL.FramebufferTexture2D(
+            FramebufferTarget.Framebuffer,
+            FramebufferAttachment.ColorAttachment0,
+            TextureTarget.Texture2D,
+            textureId,
+            mipLevel);
+
+        GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+        GL.ReadPixels(0, 0, mipWidth, mipHeight,
+            TextureFormatHelper.GetPixelFormat(internalFormat),
+            PixelType.Float,
+            data);
+
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        GL.DeleteFramebuffer(tempFbo);
+
+        return data;
+    }
+
+    /// <summary>
     /// Gets the number of channels for the current internal format.
     /// </summary>
     private int GetChannelCount()
@@ -395,22 +503,51 @@ public sealed class DynamicTexture : IDisposable
         textureId = GL.GenTexture();
         GL.BindTexture(TextureTarget.Texture2D, textureId);
 
-        // Allocate storage
-        GL.TexImage2D(
-            TextureTarget.Texture2D,
-            0,
-            internalFormat,
-            width,
-            height,
-            0,
-            TextureFormatHelper.GetPixelFormat(internalFormat),
-            TextureFormatHelper.GetPixelType(internalFormat),
-            IntPtr.Zero);
+        if (mipLevels <= 1)
+        {
+            // Allocate storage
+            GL.TexImage2D(
+                TextureTarget.Texture2D,
+                0,
+                internalFormat,
+                width,
+                height,
+                0,
+                TextureFormatHelper.GetPixelFormat(internalFormat),
+                TextureFormatHelper.GetPixelType(internalFormat),
+                IntPtr.Zero);
 
-        // Set filtering parameters
-        int filterParam = TextureFormatHelper.GetFilterParameter(filterMode);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, filterParam);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, filterParam);
+            // Set filtering parameters
+            int filterParam = TextureFormatHelper.GetFilterParameter(filterMode);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, filterParam);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, filterParam);
+        }
+        else
+        {
+            // Allocate all mip levels explicitly
+            for (int level = 0; level < mipLevels; level++)
+            {
+                int lw = Math.Max(1, width >> level);
+                int lh = Math.Max(1, height >> level);
+                GL.TexImage2D(
+                    TextureTarget.Texture2D,
+                    level,
+                    internalFormat,
+                    lw,
+                    lh,
+                    0,
+                    TextureFormatHelper.GetPixelFormat(internalFormat),
+                    TextureFormatHelper.GetPixelType(internalFormat),
+                    IntPtr.Zero);
+            }
+
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureBaseLevel, 0);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, mipLevels - 1);
+
+            // Mipmapped sampling is explicit via texelFetch/textureLod.
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.NearestMipmapNearest);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+        }
 
         // Set wrap mode to clamp (standard for render targets)
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
