@@ -1,4 +1,5 @@
 using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -9,6 +10,19 @@ namespace VanillaGraphicsExpanded.LumOn;
 [JsonObject(MemberSerialization.OptIn)]
 public class LumOnConfig
 {
+    public enum ProbeAtlasGatherMode
+    {
+        /// <summary>
+        /// Integrate hemisphere directly from the screen-probe atlas (higher cost).
+        /// </summary>
+        IntegrateAtlas = 0,
+
+        /// <summary>
+        /// Project probe atlas to SH, then evaluate SH in gather (Option B, cheaper).
+        /// </summary>
+        EvaluateProjectedSH = 1
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // Feature Toggle
     // ═══════════════════════════════════════════════════════════════
@@ -59,6 +73,15 @@ public class LumOnConfig
     /// </summary>
     [JsonProperty]
     public bool UseProbeAtlas { get; set; } = true;
+
+    /// <summary>
+    /// Gather strategy when <see cref="UseProbeAtlas"/> is enabled.
+    /// Option B uses an atlas→SH projection pass, then runs the cheap SH gather.
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    [JsonConverter(typeof(StringEnumConverter))]
+    public ProbeAtlasGatherMode ProbeAtlasGather { get; set; } = ProbeAtlasGatherMode.EvaluateProjectedSH;
 
     /// <summary>
     /// Coarse mip level used for HZB early rejection in the tracer.

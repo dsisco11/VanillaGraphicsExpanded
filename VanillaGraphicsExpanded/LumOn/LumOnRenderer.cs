@@ -794,18 +794,111 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// 
     /// Two modes:
     /// - SH mode (UseProbeAtlas = false): Evaluate SH at pixel normal
-    /// - Probe-atlas mode (UseProbeAtlas = true): Integrate hemisphere from probe atlas tiles
+    /// - Probe-atlas mode (UseProbeAtlas = true): Either integrate atlas directly or project atlas→SH then evaluate
     /// </summary>
     private void RenderGatherPass(FrameBufferRef primaryFb)
     {
-        if (config.UseProbeAtlas)
-        {
-            RenderProbeAtlasGatherPass(primaryFb);
-        }
-        else
+        if (!config.UseProbeAtlas)
         {
             RenderSHGatherPass(primaryFb);
+            return;
         }
+
+        if (config.ProbeAtlasGather == LumOnConfig.ProbeAtlasGatherMode.EvaluateProjectedSH)
+        {
+            RenderProbeAtlasProjectSh9Pass();
+            RenderProbeSh9GatherPass(primaryFb);
+            return;
+        }
+
+        RenderProbeAtlasGatherPass(primaryFb);
+    }
+
+    /// <summary>
+    /// Phase 12 Option B: project the (filtered) probe atlas into packed SH9 coefficients per probe.
+    /// Output: writes to ProbeSh9 textures (7 MRT attachments).
+    /// </summary>
+    private void RenderProbeAtlasProjectSh9Pass()
+    {
+        var shader = ShaderRegistry.getProgramByName("lumon_probe_atlas_project_sh9") as LumOnScreenProbeAtlasProjectSh9ShaderProgram;
+        if (shader is null || shader.LoadError)
+            return;
+
+        var outFbo = bufferManager.ProbeSh9Fbo;
+        if (outFbo is null) return;
+
+        var inputAtlas = bufferManager.ScreenProbeAtlasFilteredTex
+            ?? bufferManager.ScreenProbeAtlasCurrentTex
+            ?? bufferManager.ScreenProbeAtlasTraceTex;
+        var inputMeta = bufferManager.ScreenProbeAtlasMetaFilteredTex
+            ?? bufferManager.ScreenProbeAtlasMetaCurrentTex
+            ?? bufferManager.ScreenProbeAtlasMetaTraceTex;
+
+        if (inputAtlas is null || inputMeta is null) return;
+
+        outFbo.BindWithViewport();
+        outFbo.Clear();
+        capi.Render.GlToggleBlend(false);
+
+        shader.Use();
+        shader.ScreenProbeAtlas = inputAtlas.TextureId;
+        shader.ScreenProbeAtlasMeta = inputMeta.TextureId;
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
+        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
+
+        capi.Render.RenderMesh(quadMeshRef);
+        shader.Stop();
+    }
+
+    /// <summary>
+    /// SH9 gather pass for probe-atlas projected SH mode.
+    /// Evaluates per-probe SH9 at each pixel normal and interpolates with edge-aware weights.
+    /// </summary>
+    private void RenderProbeSh9GatherPass(FrameBufferRef primaryFb)
+    {
+        var shader = ShaderRegistry.getProgramByName("lumon_probe_sh9_gather") as LumOnProbeSh9GatherShaderProgram;
+        if (shader is null || shader.LoadError)
+            return;
+
+        var fbo = bufferManager.IndirectHalfFbo;
+        if (fbo is null) return;
+
+        if (bufferManager.ProbeSh9Tex0 is null || bufferManager.ProbeSh9Tex6 is null)
+            return;
+
+        fbo.BindWithViewport();
+        fbo.Clear();
+
+        capi.Render.GlToggleBlend(false);
+        shader.Use();
+
+        shader.ProbeSh0 = bufferManager.ProbeSh9Tex0.TextureId;
+        shader.ProbeSh1 = bufferManager.ProbeSh9Tex1!.TextureId;
+        shader.ProbeSh2 = bufferManager.ProbeSh9Tex2!.TextureId;
+        shader.ProbeSh3 = bufferManager.ProbeSh9Tex3!.TextureId;
+        shader.ProbeSh4 = bufferManager.ProbeSh9Tex4!.TextureId;
+        shader.ProbeSh5 = bufferManager.ProbeSh9Tex5!.TextureId;
+        shader.ProbeSh6 = bufferManager.ProbeSh9Tex6.TextureId;
+
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
+        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex!;
+
+        shader.PrimaryDepth = primaryFb.DepthTextureId;
+        shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
+
+        shader.InvProjectionMatrix = invProjectionMatrix;
+        shader.ViewMatrix = modelViewMatrix;
+        shader.ProbeSpacing = config.ProbeSpacingPx;
+        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
+        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
+        shader.HalfResSize = new Vec2f(bufferManager.HalfResWidth, bufferManager.HalfResHeight);
+        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
+        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
+        shader.Intensity = config.Intensity;
+        shader.IndirectTint = config.IndirectTint;
+
+        capi.Render.RenderMesh(quadMeshRef);
+        shader.Stop();
     }
 
     /// <summary>

@@ -170,18 +170,17 @@ LumOn Functional Test Coverage:
 
     Phase 12 - Pass 4: Cheaper Gather Options
     Exit artifacts: Gather has a defined “cheap” mode (stride/fewer dirs) and/or a projected-basis path (if implemented) selectable via config.
-    ☐ Decide gather simplification path:
-      - Option A (minimal): keep atlas gather but enforce/sample lower cost by default (stride, fewer dirs)
-      - Option B (Lumen-like): add atlas → irradiance basis conversion pass, then gather is cheap
-    ☐ Update config:
-      ☐ Select gather mode: IntegrateAtlas vs EvaluateProjectedSH
-    ☐ If Option B:
-      ☐ Add new pass: atlas → SH projection (per-probe SH3/SH9) after temporal+filter
-      ☐ Add per-probe SH textures + program + buffer manager allocations
-      ☐ Add gather shader variant that evaluates SH at pixel normal
-    ☐ Add GPU functional tests:
-      - AtlasToSH_ProjectsKnownAtlasCorrectly
-      - Gather_SHFromProjected_StableVsIntegration
+    ✔ Decide gather simplification path: @done
+      - add atlas → irradiance basis conversion pass, then gather is cheap @done
+    ✔ Update config: @done
+      ✔ Select gather mode: IntegrateAtlas vs EvaluateProjectedSH @done
+    ✔ If Option B (implemented as SH9): @done
+      ✔ Add new pass: atlas → SH9 projection (per-probe) after temporal+filter @done
+      ✔ Add per-probe SH9 textures + program + buffer manager allocations @done
+      ✔ Add gather shader variant that evaluates SH9 at pixel normal @done
+    ✔ Add GPU functional tests: @done
+      ✔ AtlasToSH_ProjectsKnownAtlasCorrectly @done
+      ✔ Gather_SHFromProjected_StableVsIntegration @done
 
     Phase 13 - Integration, Debug, and Performance
     Exit artifacts: New passes are debuggable and timed; perf baselines documented; optional minimal visual regression hooks exist.

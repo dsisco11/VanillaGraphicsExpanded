@@ -94,6 +94,21 @@ public sealed class LumOnBufferManager : IDisposable
     private Rendering.GBuffer? screenProbeAtlasFilteredFbo;
 
     // ═══════════════════════════════════════════════════════════════
+    // Probe-Atlas → SH9 Projection Output (Option B)
+    // Stores packed SH9 coefficients per probe across 7 RGBA16F textures.
+    // Used by the cheap SH9 gather path.
+    // ═══════════════════════════════════════════════════════════════
+
+    private DynamicTexture? probeSh9Tex0;
+    private DynamicTexture? probeSh9Tex1;
+    private DynamicTexture? probeSh9Tex2;
+    private DynamicTexture? probeSh9Tex3;
+    private DynamicTexture? probeSh9Tex4;
+    private DynamicTexture? probeSh9Tex5;
+    private DynamicTexture? probeSh9Tex6;
+    private Rendering.GBuffer? probeSh9Fbo;
+
+    // ═══════════════════════════════════════════════════════════════
     // Probe Metadata Buffers (for temporal validation)
     // ═══════════════════════════════════════════════════════════════
 
@@ -263,6 +278,19 @@ public sealed class LumOnBufferManager : IDisposable
     /// FBO for probe-atlas filtered output.
     /// </summary>
     public Rendering.GBuffer? ScreenProbeAtlasFilteredFbo => screenProbeAtlasFilteredFbo;
+
+    /// <summary>
+    /// FBO for SH9 projection output (7 MRT attachments).
+    /// </summary>
+    public Rendering.GBuffer? ProbeSh9Fbo => probeSh9Fbo;
+
+    public DynamicTexture? ProbeSh9Tex0 => probeSh9Tex0;
+    public DynamicTexture? ProbeSh9Tex1 => probeSh9Tex1;
+    public DynamicTexture? ProbeSh9Tex2 => probeSh9Tex2;
+    public DynamicTexture? ProbeSh9Tex3 => probeSh9Tex3;
+    public DynamicTexture? ProbeSh9Tex4 => probeSh9Tex4;
+    public DynamicTexture? ProbeSh9Tex5 => probeSh9Tex5;
+    public DynamicTexture? ProbeSh9Tex6 => probeSh9Tex6;
 
     /// <summary>
     /// FBO for probe-atlas current output.
@@ -473,6 +501,7 @@ public sealed class LumOnBufferManager : IDisposable
         screenProbeAtlasCurrentFbo?.BindAndClear();
         screenProbeAtlasHistoryFbo?.BindAndClear();
         screenProbeAtlasFilteredFbo?.BindAndClear();
+        probeSh9Fbo?.BindAndClear();
 
         // Restore previous framebuffer
         Rendering.GBuffer.RestoreBinding(previousFbo);
@@ -582,6 +611,20 @@ public sealed class LumOnBufferManager : IDisposable
         screenProbeAtlasMetaFilteredTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f);
         screenProbeAtlasFilteredFbo = Rendering.GBuffer.CreateMRT([screenProbeAtlasFilteredTex, screenProbeAtlasMetaFilteredTex], null, ownsTextures: false);
 
+        // Probe-atlas → SH9 projection output (Option B)
+        // 7 RGBA16F attachments to pack 27 floats (9 RGB coeffs)
+        probeSh9Tex0 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        probeSh9Tex1 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        probeSh9Tex2 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        probeSh9Tex3 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        probeSh9Tex4 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        probeSh9Tex5 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        probeSh9Tex6 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        probeSh9Fbo = Rendering.GBuffer.CreateMRT(
+            [probeSh9Tex0, probeSh9Tex1, probeSh9Tex2, probeSh9Tex3, probeSh9Tex4, probeSh9Tex5, probeSh9Tex6],
+            null,
+            ownsTextures: false);
+
         // ═══════════════════════════════════════════════════════════════
         // Create Probe Metadata Buffers (for temporal validation)
         // ═══════════════════════════════════════════════════════════════
@@ -675,6 +718,7 @@ public sealed class LumOnBufferManager : IDisposable
         screenProbeAtlasCurrentFbo?.Dispose();
         screenProbeAtlasHistoryFbo?.Dispose();
         screenProbeAtlasFilteredFbo?.Dispose();
+        probeSh9Fbo?.Dispose();
 
         if (hzbFboId != 0)
         {
@@ -695,6 +739,7 @@ public sealed class LumOnBufferManager : IDisposable
         screenProbeAtlasCurrentFbo = null;
         screenProbeAtlasHistoryFbo = null;
         screenProbeAtlasFilteredFbo = null;
+        probeSh9Fbo = null;
 
         // Dispose 2D textures
         probeAnchorPositionTex?.Dispose();
@@ -719,6 +764,14 @@ public sealed class LumOnBufferManager : IDisposable
         screenProbeAtlasMetaHistoryTex?.Dispose();
         screenProbeAtlasMetaFilteredTex?.Dispose();
 
+        probeSh9Tex0?.Dispose();
+        probeSh9Tex1?.Dispose();
+        probeSh9Tex2?.Dispose();
+        probeSh9Tex3?.Dispose();
+        probeSh9Tex4?.Dispose();
+        probeSh9Tex5?.Dispose();
+        probeSh9Tex6?.Dispose();
+
         hzbDepthTex?.Dispose();
 
         probeAnchorPositionTex = null;
@@ -742,6 +795,14 @@ public sealed class LumOnBufferManager : IDisposable
         screenProbeAtlasMetaCurrentTex = null;
         screenProbeAtlasMetaHistoryTex = null;
         screenProbeAtlasMetaFilteredTex = null;
+
+        probeSh9Tex0 = null;
+        probeSh9Tex1 = null;
+        probeSh9Tex2 = null;
+        probeSh9Tex3 = null;
+        probeSh9Tex4 = null;
+        probeSh9Tex5 = null;
+        probeSh9Tex6 = null;
 
         hzbDepthTex = null;
 
