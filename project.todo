@@ -189,8 +189,6 @@ LumOn Functional Test Coverage:
       - filtered atlas visualization (probe-space)
       - gather input selection (raw vs filtered)
     ☐ Extend GPU timer queries to include new passes (HZB, Filter, Projection)
-    ☐ Add quick performance benchmarks and document typical costs in docs
-    ☐ Add minimal visual regression hooks (deferred if too heavy)
 
     Phase 14 - Screen-Space Parity/Polish (Remaining Discrepancies)
     Depends on: Phase 9 (confidence), Phase 10 (temporal uses confidence), Phase 11 (probe-space filter).
@@ -201,7 +199,7 @@ LumOn Functional Test Coverage:
       - If not available: implement a best-effort camera-motion heuristic path (rotation/translation gating)
     ☐ Exposure / color space consistency:
       - Verify whether CapturedSceneTex is pre- or post-tonemap (and whether exposure changes frame-to-frame)
-      - If exposure varies: add pre-exposure compensation or capture an untonemapped buffer if available
+          Verified: it is pre-tonemap.
       - Add a debug view to compare captured scene vs expected linear lighting space
     ☐ Variance / moments for temporal stability:
       - Add optional moments buffer (e.g., first/second moment of radiance) for the probe atlas or for indirectHalf
