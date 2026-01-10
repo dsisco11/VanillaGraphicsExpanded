@@ -58,7 +58,7 @@ directions every frame would be expensive. Instead, we use **temporal distributi
 
 | Parameter                  | Default  | Description                       |
 | -------------------------- | -------- | --------------------------------- |
-| `OctahedralTexelsPerFrame` | 8        | Texels traced per probe per frame |
+| `ProbeAtlasTexelsPerFrame` | 8        | Texels traced per probe per frame |
 | Full coverage time         | 8 frames | 64 texels ÷ 8 texels/frame        |
 
 ### 2.3 Batch Selection Algorithm

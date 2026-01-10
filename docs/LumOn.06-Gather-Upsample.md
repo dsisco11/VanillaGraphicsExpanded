@@ -32,14 +32,14 @@ The gather and upsample pipeline transforms probe radiance into per-pixel indire
 
 ### 1.3 Two Gather Modes
 
-LumOn supports two gather modes controlled by `UseOctahedralCache`:
+LumOn supports two gather modes controlled by `UseProbeAtlas`:
 
-| Mode       | Storage    | Gather Method               | Advantages                               |
-| ---------- | ---------- | --------------------------- | ---------------------------------------- |
-| SH L1      | 2 textures | `SHEvaluateDiffuse(normal)` | Compact, fast single lookup              |
-| Octahedral | 8×8 atlas  | Hemisphere integration      | Per-direction hit distance, less leaking |
+| Mode        | Storage    | Gather Method               | Advantages                               |
+| ----------- | ---------- | --------------------------- | ---------------------------------------- |
+| SH L1       | 2 textures | `SHEvaluateDiffuse(normal)` | Compact, fast single lookup              |
+| Probe Atlas | 8×8 atlas  | Hemisphere integration      | Per-direction hit distance, less leaking |
 
-**Octahedral mode is recommended** for higher quality with comparable performance.
+**Probe-atlas mode is recommended** for higher quality with comparable performance.
 
 ---
 
@@ -125,7 +125,7 @@ GatherPass(halfResPixel):
 
 ---
 
-## 2.5 Octahedral Gather (UseOctahedralCache = true)
+## 2.5 Probe-Atlas Gather (UseProbeAtlas = true)
 
 When using octahedral radiance storage, the gather pass replaces SH evaluation with hemisphere integration over the octahedral texture. This provides:
 
@@ -218,7 +218,7 @@ irradiance += radiance × cosWeight × leakWeight
 
 ### 2.5.7 Octahedral Gather Shader
 
-**Shader file**: `lumon_gather_octahedral.fsh`
+**Shader file**: `lumon_probe_atlas_gather.fsh`
 
 **Key Uniforms**:
 

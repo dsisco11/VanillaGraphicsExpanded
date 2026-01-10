@@ -315,9 +315,9 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // === Pass 2: Probe Trace ===
         BeginTimerQuery(1);
-        if (config.UseOctahedralCache)
+        if (config.UseProbeAtlas)
         {
-            RenderOctahedralTracePass(primaryFb);
+            RenderProbeAtlasTracePass(primaryFb);
         }
         else
         {
@@ -327,9 +327,9 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // === Pass 3: Temporal Accumulation ===
         BeginTimerQuery(2);
-        if (config.UseOctahedralCache)
+        if (config.UseProbeAtlas)
         {
-            RenderOctahedralTemporalPass();
+            RenderProbeAtlasTemporalPass();
         }
         else
         {
@@ -533,17 +533,17 @@ public class LumOnRenderer : IRenderer, IDisposable
     }
 
     /// <summary>
-    /// Pass 2 (Octahedral): Ray trace from each probe and store radiance + hit distance.
+    /// Pass 2 (Screen-Probe Atlas): Ray trace from each probe and store radiance + hit distance.
     /// Uses temporal distribution: only traces a subset of texels each frame.
-    /// Output: Octahedral atlas texture with radiance and hit distance.
+    /// Output: Probe atlas texture with radiance and hit distance.
     /// </summary>
-    private void RenderOctahedralTracePass(FrameBufferRef primaryFb)
+    private void RenderProbeAtlasTracePass(FrameBufferRef primaryFb)
     {
-        var shader = ShaderRegistry.getProgramByName("lumon_probe_trace_octahedral") as LumOnOctahedralTraceShaderProgram;
+        var shader = ShaderRegistry.getProgramByName("lumon_probe_atlas_trace") as LumOnScreenProbeAtlasTraceShaderProgram;
         if (shader is null || shader.LoadError)
             return;
 
-        var fbo = bufferManager.OctahedralTraceFbo;
+        var fbo = bufferManager.ScreenProbeAtlasTraceFbo;
         if (fbo is null) return;
 
         // Render at atlas resolution (probeCountX * 8, probeCountY * 8)
@@ -563,7 +563,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.PrimaryColor = bufferManager.CapturedSceneTex!;
 
         // Bind history for temporal preservation
-        shader.OctahedralHistory = bufferManager.OctahedralHistoryTex!;
+        shader.ScreenProbeAtlasHistory = bufferManager.ScreenProbeAtlasHistoryTex!;
 
         // HZB depth pyramid (always on)
         if (bufferManager.HzbDepthTex != null)
@@ -582,7 +582,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
         shader.FrameIndex = frameIndex;
-        shader.TexelsPerFrame = config.OctahedralTexelsPerFrame;
+        shader.TexelsPerFrame = config.ProbeAtlasTexelsPerFrame;
         shader.RaySteps = config.RaySteps;
         shader.RayMaxDistance = config.RayMaxDistance;
         shader.RayThickness = config.RayThickness;
@@ -718,18 +718,18 @@ public class LumOnRenderer : IRenderer, IDisposable
     }
 
     /// <summary>
-    /// Pass 3 (Octahedral mode): Per-texel temporal blending for octahedral radiance.
+    /// Pass 3 (Screen-Probe Atlas mode): Per-texel temporal blending for probe-atlas radiance.
     /// Only blends texels that were traced this frame; preserves non-traced texels.
     /// Uses hit-distance delta for per-texel disocclusion detection.
-    /// Output: Blended octahedral atlas to OctahedralCurrentFbo.
+    /// Output: Blended probe atlas to ScreenProbeAtlasCurrentFbo.
     /// </summary>
-    private void RenderOctahedralTemporalPass()
+    private void RenderProbeAtlasTemporalPass()
     {
-        var shader = ShaderRegistry.getProgramByName("lumon_temporal_octahedral") as LumOnOctahedralTemporalShaderProgram;
+        var shader = ShaderRegistry.getProgramByName("lumon_probe_atlas_temporal") as LumOnScreenProbeAtlasTemporalShaderProgram;
         if (shader is null || shader.LoadError)
             return;
 
-        var fbo = bufferManager.OctahedralCurrentFbo;
+        var fbo = bufferManager.ScreenProbeAtlasCurrentFbo;
         if (fbo is null) return;
 
         // Render to current octahedral atlas (which will become history after swap)
@@ -739,17 +739,17 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.Use();
 
         // Bind trace output (fresh traced texels + history copies for non-traced)
-        var traceTex = bufferManager.OctahedralTraceTex;
+        var traceTex = bufferManager.ScreenProbeAtlasTraceTex;
         if (traceTex is not null)
         {
-            shader.OctahedralCurrent = traceTex.TextureId;
+            shader.ScreenProbeAtlasCurrent = traceTex.TextureId;
         }
 
         // Bind history (from previous frame, before swap)
-        var historyTex = bufferManager.OctahedralHistoryTex;
+        var historyTex = bufferManager.ScreenProbeAtlasHistoryTex;
         if (historyTex is not null)
         {
-            shader.OctahedralHistory = historyTex.TextureId;
+            shader.ScreenProbeAtlasHistory = historyTex.TextureId;
         }
 
         // Bind probe anchors for validity check
@@ -760,7 +760,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Pass temporal distribution parameters (must match trace shader)
         shader.FrameIndex = frameIndex;
-        shader.TexelsPerFrame = config.OctahedralTexelsPerFrame;
+        shader.TexelsPerFrame = config.ProbeAtlasTexelsPerFrame;
 
         // Pass temporal blending parameters
         shader.TemporalAlpha = config.TemporalAlpha;
@@ -776,14 +776,14 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// Output: Half-resolution indirect diffuse.
     /// 
     /// Two modes:
-    /// - SH mode (UseOctahedralCache = false): Evaluate SH at pixel normal
-    /// - Octahedral mode (UseOctahedralCache = true): Integrate hemisphere from octahedral tiles
+    /// - SH mode (UseProbeAtlas = false): Evaluate SH at pixel normal
+    /// - Probe-atlas mode (UseProbeAtlas = true): Integrate hemisphere from probe atlas tiles
     /// </summary>
     private void RenderGatherPass(FrameBufferRef primaryFb)
     {
-        if (config.UseOctahedralCache)
+        if (config.UseProbeAtlas)
         {
-            RenderOctahedralGatherPass(primaryFb);
+            RenderProbeAtlasGatherPass(primaryFb);
         }
         else
         {
@@ -845,22 +845,22 @@ public class LumOnRenderer : IRenderer, IDisposable
     }
 
     /// <summary>
-    /// Octahedral-based gather pass (new mode).
-    /// Integrates radiance over hemisphere from octahedral tiles for each pixel.
+    /// Screen-probe atlas gather pass (new mode).
+    /// Integrates radiance over hemisphere from probe-atlas tiles for each pixel.
     /// Provides per-direction hit distance for leak prevention.
     /// </summary>
-    private void RenderOctahedralGatherPass(FrameBufferRef primaryFb)
+    private void RenderProbeAtlasGatherPass(FrameBufferRef primaryFb)
     {
-        var shader = ShaderRegistry.getProgramByName("lumon_gather_octahedral") as LumOnOctahedralGatherShaderProgram;
+        var shader = ShaderRegistry.getProgramByName("lumon_probe_atlas_gather") as LumOnScreenProbeAtlasGatherShaderProgram;
         if (shader is null || shader.LoadError)
             return;
 
         var fbo = bufferManager.IndirectHalfFbo;
         if (fbo is null) return;
 
-        // Use the current octahedral atlas (after temporal blend if available, otherwise from trace)
-        var octAtlas = bufferManager.OctahedralCurrentTex ?? bufferManager.OctahedralTraceTex;
-        if (octAtlas is null) return;
+        // Use the current probe atlas (after temporal blend if available, otherwise from trace)
+        var probeAtlas = bufferManager.ScreenProbeAtlasCurrentTex ?? bufferManager.ScreenProbeAtlasTraceTex;
+        if (probeAtlas is null) return;
 
         fbo.BindWithViewport();
         fbo.Clear();
@@ -868,8 +868,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
         shader.Use();
 
-        // Bind octahedral radiance atlas
-        shader.OctahedralAtlas = octAtlas.TextureId;
+        // Bind screen-probe atlas radiance
+        shader.ScreenProbeAtlas = probeAtlas.TextureId;
 
         // Bind probe anchors
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
@@ -891,9 +891,9 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.Intensity = config.Intensity;
         shader.IndirectTint = config.IndirectTint;
 
-        // Octahedral-specific parameters (from config per Section 2.5)
-        shader.LeakThreshold = config.OctahedralLeakThreshold;
-        shader.SampleStride = config.OctahedralSampleStride;
+        // Probe-atlas gather parameters (from config per Section 2.5)
+        shader.LeakThreshold = config.ProbeAtlasLeakThreshold;
+        shader.SampleStride = config.ProbeAtlasSampleStride;
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);

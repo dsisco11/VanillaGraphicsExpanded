@@ -5,24 +5,22 @@ using Vintagestory.Client.NoObf;
 namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>
-/// Shader program for LumOn Octahedral Gather pass.
-/// Integrates radiance from octahedral probe tiles over the hemisphere
-/// aligned to each pixel's normal for diffuse irradiance.
-/// 
-/// This replaces the SH-based gather when UseOctahedralCache is enabled.
+/// Shader program for the LumOn screen-probe atlas gather pass.
+/// Implementation detail: integrates radiance from an octahedral-mapped probe atlas.
+/// This replaces the SH-based gather when UseProbeAtlas is enabled.
 /// </summary>
-public class LumOnOctahedralGatherShaderProgram : ShaderProgram
+public class LumOnScreenProbeAtlasGatherShaderProgram : ShaderProgram
 {
     #region Static
 
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new LumOnOctahedralGatherShaderProgram
+        var instance = new LumOnScreenProbeAtlasGatherShaderProgram
         {
-            PassName = "lumon_gather_octahedral",
+            PassName = "lumon_probe_atlas_gather",
             AssetDomain = "vanillagraphicsexpanded"
         };
-        api.Shader.RegisterFileShaderProgram("lumon_gather_octahedral", instance);
+        api.Shader.RegisterFileShaderProgram("lumon_probe_atlas_gather", instance);
         instance.Compile();
     }
 
@@ -31,11 +29,12 @@ public class LumOnOctahedralGatherShaderProgram : ShaderProgram
     #region Texture Samplers
 
     /// <summary>
-    /// Octahedral radiance atlas texture.
+    /// Screen-probe atlas radiance texture.
+    /// Shader uniform name remains <c>octahedralAtlas</c> for compatibility.
     /// Layout: (probeCountX × 8, probeCountY × 8)
     /// Format: RGB = radiance, A = log-encoded hit distance
     /// </summary>
-    public int OctahedralAtlas { set => BindTexture2D("octahedralAtlas", value, 0); }
+    public int ScreenProbeAtlas { set => BindTexture2D("octahedralAtlas", value, 0); }
 
     /// <summary>
     /// Probe anchor positions (world-space).
@@ -127,7 +126,7 @@ public class LumOnOctahedralGatherShaderProgram : ShaderProgram
 
     /// <summary>
     /// Leak prevention threshold.
-    /// If probe hit distance exceeds pixel depth × (1 + threshold), 
+    /// If probe hit distance exceeds pixel depth × (1 + threshold),
     /// the contribution is reduced to prevent light leaking.
     /// Default: 0.5 (50% tolerance)
     /// </summary>

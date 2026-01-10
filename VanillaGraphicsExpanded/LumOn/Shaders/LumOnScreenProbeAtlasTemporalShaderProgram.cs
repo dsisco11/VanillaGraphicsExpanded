@@ -5,23 +5,24 @@ using Vintagestory.Client.NoObf;
 namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>
-/// Shader program for LumOn Octahedral Temporal pass.
-/// Performs per-texel temporal blending for octahedral radiance cache.
+/// Shader program for the LumOn screen-probe atlas temporal pass.
+/// Implementation detail: operates on an octahedral-mapped direction atlas.
+/// Performs per-texel temporal blending for the probe atlas.
 /// Only blends texels traced this frame; preserves non-traced texels.
 /// Uses hit-distance delta for disocclusion detection.
 /// </summary>
-public class LumOnOctahedralTemporalShaderProgram : ShaderProgram
+public class LumOnScreenProbeAtlasTemporalShaderProgram : ShaderProgram
 {
     #region Static
 
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new LumOnOctahedralTemporalShaderProgram
+        var instance = new LumOnScreenProbeAtlasTemporalShaderProgram
         {
-            PassName = "lumon_temporal_octahedral",
+            PassName = "lumon_probe_atlas_temporal",
             AssetDomain = "vanillagraphicsexpanded"
         };
-        api.Shader.RegisterFileShaderProgram("lumon_temporal_octahedral", instance);
+        api.Shader.RegisterFileShaderProgram("lumon_probe_atlas_temporal", instance);
         instance.Compile();
     }
 
@@ -30,15 +31,16 @@ public class LumOnOctahedralTemporalShaderProgram : ShaderProgram
     #region Texture Samplers
 
     /// <summary>
-    /// Current frame octahedral trace output.
-    /// Contains fresh data for traced texels, history copies for non-traced.
+    /// Current frame probe atlas trace output.
+    /// Shader uniform name remains <c>octahedralCurrent</c> for compatibility.
     /// </summary>
-    public int OctahedralCurrent { set => BindTexture2D("octahedralCurrent", value, 0); }
+    public int ScreenProbeAtlasCurrent { set => BindTexture2D("octahedralCurrent", value, 0); }
 
     /// <summary>
-    /// History octahedral atlas from previous frame.
+    /// History probe atlas from previous frame.
+    /// Shader uniform name remains <c>octahedralHistory</c> for compatibility.
     /// </summary>
-    public int OctahedralHistory { set => BindTexture2D("octahedralHistory", value, 1); }
+    public int ScreenProbeAtlasHistory { set => BindTexture2D("octahedralHistory", value, 1); }
 
     /// <summary>
     /// Probe anchor positions for validity check.
@@ -64,7 +66,7 @@ public class LumOnOctahedralTemporalShaderProgram : ShaderProgram
     public int FrameIndex { set => Uniform("frameIndex", value); }
 
     /// <summary>
-    /// Number of octahedral texels traced per probe per frame.
+    /// Number of probe-atlas texels traced per probe per frame.
     /// With 64 total texels and 8 per frame, full coverage takes 8 frames.
     /// </summary>
     public int TexelsPerFrame { set => Uniform("texelsPerFrame", value); }

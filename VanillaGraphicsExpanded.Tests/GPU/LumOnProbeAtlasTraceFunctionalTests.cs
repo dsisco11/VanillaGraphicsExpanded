@@ -8,10 +8,10 @@ using Xunit;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>
-/// Functional tests for the LumOn Octahedral Probe Trace shader pass.
+/// Functional tests for the LumOn probe-atlas trace shader pass.
 /// 
 /// These tests verify that the probe trace shader correctly:
-/// - Traces rays from valid probes and fills octahedral atlas regions
+/// - Traces rays from valid probes and fills atlas regions
 /// - Returns sky/ambient color when rays miss geometry
 /// - Encodes hit distances using log encoding
 /// - Produces zero radiance for invalid probes
@@ -43,7 +43,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// </remarks>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public class LumOnProbeTraceOctahedralFunctionalTests : LumOnShaderFunctionalTestBase
+public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 {
     // Ray tracing defaults
     private const int RaySteps = 16;
@@ -53,17 +53,17 @@ public class LumOnProbeTraceOctahedralFunctionalTests : LumOnShaderFunctionalTes
     // Sky fallback defaults
     private const float SkyMissWeight = 1.0f;
 
-    public LumOnProbeTraceOctahedralFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
+    public LumOnProbeAtlasTraceFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Helper Methods
 
     /// <summary>
-    /// Compiles and links the octahedral probe trace shader.
+    /// Compiles and links the probe-atlas trace shader.
     /// </summary>
-    private int CompileOctahedralTraceShader() => CompileShader("lumon_probe_anchor.vsh", "lumon_probe_trace_octahedral.fsh");
+    private int CompileOctahedralTraceShader() => CompileShader("lumon_probe_anchor.vsh", "lumon_probe_atlas_trace.fsh");
 
     /// <summary>
-    /// Sets up common uniforms for the octahedral probe trace shader.
+    /// Sets up common uniforms for the probe-atlas trace shader.
     /// </summary>
     private void SetupOctahedralTraceUniforms(
         int programId,
@@ -1122,7 +1122,7 @@ public class LumOnProbeTraceOctahedralFunctionalTests : LumOnShaderFunctionalTes
     /// 1. Shader compilation succeeding (uniform exists)
     /// 2. Other tests using default tint=(1,1,1) producing expected output
     /// </summary>
-    [Fact(Skip = "IndirectTint only affects geometry hits, which are difficult to reliably produce in octahedral tracing tests. Uniform binding verified by compilation.")]
+    [Fact(Skip = "IndirectTint only affects geometry hits, which are difficult to reliably produce in probe-atlas tracing tests. Uniform binding verified by compilation.")]
     public void IndirectTint_AppliedToHitRadiance()
     {
         EnsureShaderTestAvailable();
@@ -1242,7 +1242,7 @@ public class LumOnProbeTraceOctahedralFunctionalTests : LumOnShaderFunctionalTes
     /// 2. HitDistance_EncodedCorrectly test verifying distance encoding works
     /// 3. Code review of the shader's distanceFalloff() function
     /// </summary>
-    [Fact(Skip = "Distance falloff only affects geometry hits, which are difficult to reliably produce at specific distances in octahedral tracing tests.")]
+    [Fact(Skip = "Distance falloff only affects geometry hits, which are difficult to reliably produce at specific distances in probe-atlas tracing tests.")]
     public void DistanceFalloff_AppliedToHitRadiance()
     {
         EnsureShaderTestAvailable();

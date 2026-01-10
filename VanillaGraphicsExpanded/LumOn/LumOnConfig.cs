@@ -53,11 +53,12 @@ public class LumOnConfig
     // ═══════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// Use octahedral radiance cache instead of SH L1.
+    /// Use a screen-probe atlas (directional probe cache) instead of SH L1.
+    /// Implementation detail: octahedral mapping per-probe tile.
     /// Provides better temporal stability and per-direction hit distance.
     /// </summary>
     [JsonProperty]
-    public bool UseOctahedralCache { get; set; } = true;
+    public bool UseProbeAtlas { get; set; } = true;
 
     /// <summary>
     /// Coarse mip level used for HZB early rejection in the tracer.
@@ -68,12 +69,12 @@ public class LumOnConfig
     public int HzbCoarseMip { get; set; } = 4;
 
     /// <summary>
-    /// Number of octahedral texels to trace per probe per frame.
+    /// Number of probe-atlas texels to trace per probe per frame.
     /// With 64 texels total (8×8), 8 texels/frame = full coverage in 8 frames.
-    /// Only used when UseOctahedralCache is true.
+    /// Only used when <see cref="UseProbeAtlas"/> is true.
     /// </summary>
     [JsonProperty]
-    public int OctahedralTexelsPerFrame { get; set; } = 8;
+    public int ProbeAtlasTexelsPerFrame { get; set; } = 8;
 
     /// <summary>
     /// Number of rays traced per probe per frame (SH mode only).
@@ -248,28 +249,28 @@ public class LumOnConfig
     public bool UseCombinePass { get; set; } = true;
 
     // ═══════════════════════════════════════════════════════════════
-    // Octahedral Gather Settings (SPG-007 Section 2.5)
+    // Probe-Atlas Gather Settings (SPG-007 Section 2.5)
     // ═══════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// Leak prevention threshold for octahedral gather.
+    /// Leak prevention threshold for probe-atlas gather.
     /// If probe hit distance exceeds pixel depth × (1 + threshold),
     /// the contribution is reduced to prevent light leaking.
     /// Default: 0.5 (50% tolerance)
     /// Hot-reloadable.
     /// </summary>
     [JsonProperty]
-    public float OctahedralLeakThreshold { get; set; } = 0.5f;
+    public float ProbeAtlasLeakThreshold { get; set; } = 0.5f;
 
     /// <summary>
-    /// Sample stride for octahedral hemisphere integration.
+    /// Sample stride for probe-atlas hemisphere integration.
     /// 1 = full quality (64 samples per probe, ~1.2ms)
     /// 2 = performance mode (16 samples per probe, ~0.5ms)
     /// Default: 2
     /// Hot-reloadable.
     /// </summary>
     [JsonProperty]
-    public int OctahedralSampleStride { get; set; } = 2;
+    public int ProbeAtlasSampleStride { get; set; } = 2;
 
     // ═══════════════════════════════════════════════════════════════
     // Debug Settings

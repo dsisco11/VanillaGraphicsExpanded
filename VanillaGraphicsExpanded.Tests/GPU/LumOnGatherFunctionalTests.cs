@@ -25,7 +25,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// - Probe spacing: 2 pixels
 /// </summary>
 /// <remarks>
-/// Key differences from octahedral gather:
+/// Key differences from probe-atlas gather:
 /// - Inputs are SH coefficients (2 textures) instead of octahedral atlas
 /// - SH evaluation: shEvaluateDiffuseRGB(shR, shG, shB, pixelNormalVS)
 /// - No octahedral lookups - direct bilinear SH interpolation

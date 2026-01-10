@@ -142,7 +142,7 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f);
 
-        int prog = CompileShader("lumon_probe_trace_octahedral.vsh", "lumon_probe_trace_octahedral.fsh");
+        int prog = CompileShader("lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh");
 
         // Build HZB (mip0 only is enough for this equivalence test).
         using var hzb = DynamicTexture.CreateMipmapped(screenW, screenH, PixelInternalFormat.R32f, mipLevels: 1);

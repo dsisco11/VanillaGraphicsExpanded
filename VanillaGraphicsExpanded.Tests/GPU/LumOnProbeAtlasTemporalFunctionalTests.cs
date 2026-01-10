@@ -8,9 +8,9 @@ using Xunit;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>
-/// Functional tests for the LumOn Octahedral Temporal shader pass.
+/// Functional tests for the LumOn probe-atlas temporal shader pass.
 /// 
-/// These tests verify that the octahedral temporal shader correctly:
+/// These tests verify that the probe-atlas temporal shader correctly:
 /// - Blends traced texels between current and history frames
 /// - Preserves non-traced texels (temporal distribution)
 /// - Detects disocclusion via hit distance changes
@@ -45,24 +45,24 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// </remarks>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public class LumOnTemporalOctahedralFunctionalTests : LumOnShaderFunctionalTestBase
+public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestBase
 {
     // Default temporal parameters
     private const float DefaultTemporalAlpha = 0.9f;
     private const float DefaultHitDistanceRejectThreshold = 0.3f;  // 30% relative difference
     private const int DefaultTexelsPerFrame = 8;  // Trace 8 texels per probe per frame
 
-    public LumOnTemporalOctahedralFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
+    public LumOnProbeAtlasTemporalFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Helper Methods
 
     /// <summary>
-    /// Compiles and links the octahedral temporal shader.
+    /// Compiles and links the probe-atlas temporal shader.
     /// </summary>
-    private int CompileOctahedralTemporalShader() => CompileShader("lumon_temporal_octahedral.vsh", "lumon_temporal_octahedral.fsh");
+    private int CompileOctahedralTemporalShader() => CompileShader("lumon_probe_atlas_temporal.vsh", "lumon_probe_atlas_temporal.fsh");
 
     /// <summary>
-    /// Sets up common uniforms for the octahedral temporal shader.
+    /// Sets up common uniforms for the probe-atlas temporal shader.
     /// </summary>
     private void SetupOctahedralTemporalUniforms(
         int programId,

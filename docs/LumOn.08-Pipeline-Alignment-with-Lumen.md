@@ -2,16 +2,17 @@
 
 > **Document**: LumOn.08-Pipeline-Alignment-with-Lumen.md  
 > **Status**: Draft  
-> **Dependencies**:  
-> - Current pipeline + goals: [LumOn.01-Core-Architecture.md](LumOn.01-Core-Architecture.md) through [LumOn.06-Gather-Upsample.md](LumOn.06-Gather-Upsample.md)  
-> - Comparison baseline: [LumOn.07-LumOn-vs-Lumen.md](LumOn.07-LumOn-vs-Lumen.md)  
+> **Dependencies**:
+>
+> - Current pipeline + goals: [LumOn.01-Core-Architecture.md](LumOn.01-Core-Architecture.md) through [LumOn.06-Gather-Upsample.md](LumOn.06-Gather-Upsample.md)
+> - Comparison baseline: [LumOn.07-LumOn-vs-Lumen.md](LumOn.07-LumOn-vs-Lumen.md)
 > - Runtime pipeline source: `LumOnRenderer` (Pass 1–6 orchestration)
 
 ---
 
 ## 1. Goal
 
-Explain what needs to change in the **current LumOn render stages** to more closely match the *screen-space portion* of UE5 Lumen’s approach.
+Explain what needs to change in the **current LumOn render stages** to more closely match the _screen-space portion_ of UE5 Lumen’s approach.
 
 - This intentionally ignores the biggest missing Lumen systems (world-space fallback tracing + Surface Cache), except where those constraints shape what is realistic.
 - The focus is: **are we already “stage-equivalent” to Lumen SPG, or are there missing shader stages / missing data products?**
@@ -35,7 +36,7 @@ From `LumOnRenderer`:
 Two modes:
 
 - SH mode: `lumon_probe_trace.fsh` → SH coefficient textures
-- Octahedral mode: `lumon_probe_trace_octahedral.fsh`
+- Octahedral mode: `lumon_probe_atlas_trace.fsh`
   - Output: octahedral atlas texel RGBA16F where RGB=hit radiance (screen sample or sky), A=log hit distance
   - Temporal distribution: only traces a subset of texels per probe per frame
   - For non-traced texels, it copies history (`octahedralHistory`) into the trace output
@@ -45,7 +46,7 @@ Two modes:
 Two modes:
 
 - SH mode: `lumon_temporal.fsh` (reprojection + validation + neighborhood clamping)
-- Octahedral mode: `lumon_temporal_octahedral.fsh`
+- Octahedral mode: `lumon_probe_atlas_temporal.fsh`
   - Per-texel history blending only for traced texels
   - Disocclusion detection via hit-distance delta
   - Neighborhood clamping within each probe tile
@@ -55,7 +56,7 @@ Two modes:
 Two modes:
 
 - SH gather: `lumon_gather.fsh` (evaluate SH at pixel normal)
-- Octahedral gather: `lumon_gather_octahedral.fsh`
+- Octahedral gather: `lumon_probe_atlas_gather.fsh`
   - For each pixel, selects 4 probes and **integrates** each probe’s octahedral tile over the hemisphere aligned to the pixel normal
   - Uses edge-aware weighting and hit-distance heuristics
 
@@ -115,7 +116,7 @@ These are the stages Lumen-style SPG pipelines usually include (in some form) th
 
 ### 4.2 Probe-space spatial filtering (edge-stopped)
 
-**Why**: Lumen doesn’t depend on the *pixel gather* to fix noisy/unstable probe radiance. It filters in probe space.
+**Why**: Lumen doesn’t depend on the _pixel gather_ to fix noisy/unstable probe radiance. It filters in probe space.
 
 **What to implement**:
 
@@ -176,7 +177,8 @@ Right now, octahedral gather integrates directional data per pixel. Lumen-style 
 
 Two options:
 
-1. **Project the octahedral tile to low-order SH per probe** (e.g., SH2/SH3) *after temporal/filtering*, then evaluate SH per pixel.
+1. **Project the octahedral tile to low-order SH per probe** (e.g., SH2/SH3) _after temporal/filtering_, then evaluate SH per pixel.
+
    - Pros: final gather becomes cheap, stable, and similar to your SH mode.
    - Cons: requires a new “octahedral → SH” pass and new textures.
 
@@ -216,7 +218,7 @@ A realistic “Lumen-ish” screen-space target for LumOn in this repo (still wi
 1. Probe Anchor (with jitter)
 2. Octahedral Trace (screen trace; outputs radiance + hit dist + confidence)
 3. Octahedral Temporal (existing, expanded to use confidence)
-3.5 (New) Probe-space filter/denoise (edge-stopped)
+   3.5 (New) Probe-space filter/denoise (edge-stopped)
 4. Gather (ideally cheaper; either sample fewer directions or use a compact irradiance basis)
 5. Upsample (existing; optional spatial denoise enabled as needed)
 6. Combine (optional)
@@ -241,7 +243,7 @@ Without world fallback, some cases will remain fundamentally screen-space limite
 
 1. Add probe jitter in `lumon_probe_anchor.fsh` and propagate `frameIndex` uniform.
 2. Add a confidence signal to the octahedral trace output.
-3. Teach `lumon_temporal_octahedral.fsh` to blend based on confidence and/or accumulate count.
+3. Teach `lumon_probe_atlas_temporal.fsh` to blend based on confidence and/or accumulate count.
 4. Add a probe-space filtering pass (new shader + new FBO/texture).
 5. Optionally: add octahedral → SH projection pass and switch gather to SH evaluation.
 6. Optionally: add depth pyramid/HZB and update tracing.

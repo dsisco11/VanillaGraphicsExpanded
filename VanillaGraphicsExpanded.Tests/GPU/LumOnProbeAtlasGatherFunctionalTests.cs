@@ -8,7 +8,7 @@ using Xunit;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>
-/// Functional tests for the LumOn Octahedral Gather shader pass.
+/// Functional tests for the LumOn probe-atlas gather shader pass.
 /// 
 /// These tests verify that the gather shader correctly:
 /// - Interpolates irradiance from the four surrounding probes
@@ -38,16 +38,16 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// </remarks>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public class LumOnGatherOctahedralFunctionalTests : LumOnShaderFunctionalTestBase
+public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBase
 {
-    public LumOnGatherOctahedralFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
+    public LumOnProbeAtlasGatherFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Helper Methods
 
     /// <summary>
-    /// Compiles and links the octahedral gather shader.
+    /// Compiles and links the probe-atlas gather shader.
     /// </summary>
-    private int CompileGatherShader() => CompileShader("lumon_gather_octahedral.vsh", "lumon_gather_octahedral.fsh");
+    private int CompileGatherShader() => CompileShader("lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh");
 
     /// <summary>
     /// Sets up common uniforms for the gather shader.

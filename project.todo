@@ -96,20 +96,20 @@ LumOn Functional Test Coverage:
 
     Phase 9.0 - Naming/Refactor: Screen-Probe Atlas Terminology
     Exit artifacts: Public-facing names and file/class identifiers use “ScreenProbeAtlas” (or similar) instead of “Octahedral”, while octahedral remains an implementation detail for the mapping math.
-    ☐ Define naming conventions:
+    ✔ Define naming conventions: @done
       - Prefer “ScreenProbeAtlas” / “ProbeAtlas” for pipeline stages and textures
       - Keep “octahedral” only for mapping utilities (e.g., lumon_octahedral.glsl)
-    ☐ Rename C# buffer/texture identifiers in LumOnBufferManager:
+    ✔ Rename C# buffer/texture identifiers in LumOnBufferManager: @done
       - Octahedral*Tex* → ScreenProbeAtlas* (Trace/Current/History)
       - FBO fields similarly (Octahedral*Fbo → ScreenProbeAtlas*Fbo)
-    ☐ Rename C# shader program classes / properties:
+    ✔ Rename C# shader program classes / properties: @done
       - LumOnOctahedralTraceShaderProgram → LumOnScreenProbeAtlasTraceShaderProgram
       - LumOnTemporalOctahedralShaderProgram → LumOnScreenProbeAtlasTemporalShaderProgram
       - Any “OctahedralHistory/Current” uniform property names to “ProbeAtlas*” where appropriate
-    ☐ Rename renderer pass methods/labels:
+    ✔ Rename renderer pass methods/labels: @done
       - RenderOctahedralTrace / RenderOctahedralTemporal → RenderProbeAtlasTrace / RenderProbeAtlasTemporal
       - Debug mode names updated to “ProbeAtlas*”
-    ☐ Rename GPU tests (class + filenames) to match pipeline naming:
+    ✔ Rename GPU tests (class + filenames) to match pipeline naming: @done
       - *Octahedral*Tests → *ProbeAtlas*Tests (keep shader filenames unchanged initially)
     ☐ (Optional, later) Rename shader filenames after plumbing is stable:
       - lumon_probe_trace_octahedral.* → lumon_probe_atlas_trace.*
@@ -117,7 +117,7 @@ LumOn Functional Test Coverage:
       - lumon_gather_octahedral.* → lumon_probe_atlas_gather.*
       - Keep the mapping include named lumon_octahedral.glsl
     ☐ Update references/asset copy rules for renamed shader files (tests csproj content include patterns)
-    ☐ Verify: build + GPU tests still pass after renames
+    ✔ Verify: build + GPU tests still pass after renames @done
 
     Phase 9 - Pass 2: Screen-Probe Atlas Meta Output
     Exit artifacts: Screen-probe trace outputs radiance/hitdist plus meta (confidence + bitflags); history preservation applies to meta too.

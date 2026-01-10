@@ -5,22 +5,23 @@ using Vintagestory.Client.NoObf;
 namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>
-/// Shader program for LumOn Octahedral Probe Trace pass.
-/// Ray traces from each probe and stores radiance + hit distance in octahedral atlas.
+/// Shader program for the LumOn screen-probe atlas trace pass.
+/// Implementation detail: uses an octahedral-mapped direction atlas.
+/// Ray traces from each probe and stores radiance + hit distance in the probe atlas.
 /// Uses temporal distribution to trace a subset of directions each frame.
 /// </summary>
-public class LumOnOctahedralTraceShaderProgram : ShaderProgram
+public class LumOnScreenProbeAtlasTraceShaderProgram : ShaderProgram
 {
     #region Static
 
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new LumOnOctahedralTraceShaderProgram
+        var instance = new LumOnScreenProbeAtlasTraceShaderProgram
         {
-            PassName = "lumon_probe_trace_octahedral",
+            PassName = "lumon_probe_atlas_trace",
             AssetDomain = "vanillagraphicsexpanded"
         };
-        api.Shader.RegisterFileShaderProgram("lumon_probe_trace_octahedral", instance);
+        api.Shader.RegisterFileShaderProgram("lumon_probe_atlas_trace", instance);
         instance.Compile();
     }
 
@@ -49,9 +50,10 @@ public class LumOnOctahedralTraceShaderProgram : ShaderProgram
     public int PrimaryColor { set => BindTexture2D("primaryColor", value, 3); }
 
     /// <summary>
-    /// History octahedral atlas for temporal preservation.
+    /// History probe atlas (octahedral-mapped) for temporal preservation.
+    /// Shader uniform name remains <c>octahedralHistory</c> for compatibility.
     /// </summary>
-    public int OctahedralHistory { set => BindTexture2D("octahedralHistory", value, 4); }
+    public int ScreenProbeAtlasHistory { set => BindTexture2D("octahedralHistory", value, 4); }
 
     /// <summary>
     /// Optional HZB depth pyramid (mipmapped R32F).
@@ -106,7 +108,7 @@ public class LumOnOctahedralTraceShaderProgram : ShaderProgram
     public int FrameIndex { set => Uniform("frameIndex", value); }
 
     /// <summary>
-    /// Number of octahedral texels to trace per frame (default 8).
+    /// Number of probe-atlas texels to trace per frame (default 8).
     /// With 64 texels total, this means full coverage in 8 frames.
     /// </summary>
     public int TexelsPerFrame { set => Uniform("texelsPerFrame", value); }
