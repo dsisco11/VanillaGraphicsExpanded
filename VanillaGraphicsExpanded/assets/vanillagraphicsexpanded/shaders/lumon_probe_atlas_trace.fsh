@@ -1,7 +1,8 @@
 #version 330 core
 
-// Single output to octahedral atlas
-out vec4 outRadiance;  // RGB = radiance, A = log-encoded hit distance
+// MRT output to probe atlas
+layout(location = 0) out vec4 outRadiance;  // RGB = radiance, A = log-encoded hit distance
+layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFloat(flags)
 
 // ============================================================================
 // LumOn Octahedral Probe Trace Pass
@@ -19,6 +20,9 @@ out vec4 outRadiance;  // RGB = radiance, A = log-encoded hit distance
 
 // Import octahedral mapping
 @import "lumon_octahedral.glsl"
+
+// Import probe-atlas meta helpers
+@import "lumon_probe_atlas_meta.glsl"
 
 // Import noise for ray jittering
 @import "squirrel3.fsh"
@@ -70,6 +74,9 @@ uniform vec3 indirectTint;
 // History for temporal blending (read from previous frame)
 uniform sampler2D octahedralHistory;
 
+// History meta for temporal preservation (read from previous frame)
+uniform sampler2D probeAtlasMetaHistory;
+
 // ============================================================================
 // Temporal Distribution
 // ============================================================================
@@ -99,6 +106,7 @@ bool shouldTraceThisFrame(ivec2 octTexel, int probeIndex) {
 
 struct RayHit {
     bool hit;
+    bool exitedScreen;
     vec3 color;
     float distance;
 };
@@ -116,6 +124,7 @@ float distanceFalloff(float dist) {
 RayHit traceRay(vec3 originVS, vec3 directionVS) {
     RayHit result;
     result.hit = false;
+    result.exitedScreen = false;
     result.color = vec3(0.0);
     result.distance = rayMaxDistance;
     
@@ -130,6 +139,7 @@ RayHit traceRay(vec3 originVS, vec3 directionVS) {
         
         // Check bounds - break early if ray exits screen
         if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) {
+            result.exitedScreen = true;
             break;
         }
         
@@ -201,6 +211,7 @@ void main(void)
         // Keep history value - don't trace this frame
         vec2 atlasUV = (vec2(atlasCoord) + 0.5) / (probeGridSize * float(LUMON_OCTAHEDRAL_SIZE));
         outRadiance = texture(octahedralHistory, atlasUV);
+        outMeta = texture(probeAtlasMetaHistory, atlasUV).xy;
         return;
     }
     
@@ -212,6 +223,7 @@ void main(void)
     // If probe is invalid, output zero radiance
     if (valid < 0.5) {
         outRadiance = vec4(0.0, 0.0, 0.0, 0.0);
+        outMeta = lumonEncodeMeta(0.0, 0u);
         return;
     }
     
@@ -251,4 +263,22 @@ void main(void)
     
     // Output radiance + hit distance
     outRadiance = vec4(radiance, encodedHitDist);
+
+    // Output meta
+    uint flags = 0u;
+    float confidence = 0.0;
+
+    if (hit.hit) {
+        flags |= LUMON_META_HIT;
+        confidence = 1.0;
+    } else {
+        flags |= LUMON_META_SKY_MISS;
+        confidence = 0.25;
+        if (hit.exitedScreen) {
+            flags |= LUMON_META_SCREEN_EXIT;
+            confidence = 0.05;
+        }
+    }
+
+    outMeta = lumonEncodeMeta(confidence, flags);
 }

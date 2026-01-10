@@ -275,6 +275,11 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         return MathF.Exp(encoded) - 1.0f;
     }
 
+    private static float[] CreateZeroedMetaHistory()
+    {
+        return new float[AtlasWidth * AtlasHeight * 2];
+    }
+
     /// <summary>
     /// Gets the atlas coordinates for a specific probe and octahedral texel.
     /// </summary>
@@ -290,6 +295,12 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
     {
         int idx = (y * AtlasWidth + x) * 4;
         return (atlasData[idx], atlasData[idx + 1], atlasData[idx + 2], atlasData[idx + 3]);
+    }
+
+    private static (float confidence, float flagsBitsAsFloat) ReadAtlasMetaTexel(float[] metaData, int x, int y)
+    {
+        int idx = (y * AtlasWidth + x) * 2;
+        return (metaData[idx], metaData[idx + 1]);
     }
 
     #endregion
@@ -987,6 +998,255 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(lowNonZero > 0, "Low ray steps should produce some non-zero output");
         Assert.True(highNonZero > 0, "High ray steps should produce some non-zero output");
+    }
+
+    #endregion
+
+    #region Phase 9 Tests: Probe-Atlas Meta Output
+
+    [Fact]
+    public void Meta_HitHigherThanSky()
+    {
+        EnsureShaderTestAvailable();
+
+        // Depth chosen to produce a mix of hits and misses for common directions.
+        // This corresponds to a moderate linear depth (~3 units) given the test zNear/zFar.
+        var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(0.9675f, channels: 1);
+        var colorData = CreateUniformSceneColor(0.2f, 0.8f, 0.1f);
+        var historyData = CreateZeroedHistory();
+        var metaHistoryData = CreateZeroedMetaHistory();
+
+        var anchorPosData = CreateValidProbeAnchorsAtZ(0f);
+        var anchorNormalData = CreateProbeNormalsUpward();
+
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+        using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+
+        using var outputAtlas = TestFramework.CreateTestGBuffer(
+            AtlasWidth, AtlasHeight,
+            PixelInternalFormat.Rgba16f,
+            PixelInternalFormat.Rg32f);
+
+        var programId = CompileOctahedralTraceShader();
+        var projection = LumOnTestInputFactory.CreateRealisticProjection();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var view = LumOnTestInputFactory.CreateIdentityView();
+        var invView = LumOnTestInputFactory.CreateIdentityView();
+        SetupOctahedralTraceUniforms(
+            programId,
+            invProjection: invProjection,
+            projection: projection,
+            view: view,
+            invView: invView,
+            texelsPerFrame: 64,
+            sunColor: (0f, 0f, 0f));
+
+        // Bind meta history sampler (used for non-traced texels; harmless here since we trace all)
+        GL.UseProgram(programId);
+        int metaHistLoc = GL.GetUniformLocation(programId, "probeAtlasMetaHistory");
+        GL.Uniform1(metaHistLoc, 6);
+        GL.UseProgram(0);
+
+        anchorPosTex.Bind(0);
+        anchorNormalTex.Bind(1);
+        depthTex.Bind(2);
+        colorTex.Bind(3);
+        historyTex.Bind(4);
+        metaHistoryTex.Bind(6);
+
+        TestFramework.RenderQuadTo(programId, outputAtlas);
+
+        var radianceData = outputAtlas[0].ReadPixels();
+        var metaData = outputAtlas[1].ReadPixels();
+
+        // Find one "hit" texel (distance < RayMaxDistance) and one "sky" texel (distance ~= RayMaxDistance)
+        bool foundHit = false;
+        bool foundSky = false;
+        int hitX = 0, hitY = 0, skyX = 0, skyY = 0;
+
+        for (int y = 0; y < AtlasHeight; y++)
+        {
+            for (int x = 0; x < AtlasWidth; x++)
+            {
+                var (_, _, _, a) = ReadAtlasTexel(radianceData, x, y);
+                float dist = DecodeHitDistance(a);
+                if (!foundHit && dist < RayMaxDistance - 0.5f)
+                {
+                    foundHit = true;
+                    hitX = x;
+                    hitY = y;
+                }
+                if (!foundSky && dist > RayMaxDistance - 0.05f)
+                {
+                    foundSky = true;
+                    skyX = x;
+                    skyY = y;
+                }
+
+                if (foundHit && foundSky)
+                    break;
+            }
+            if (foundHit && foundSky)
+                break;
+        }
+
+        Assert.True(foundHit, "Expected at least one hit texel in the atlas");
+        Assert.True(foundSky, "Expected at least one sky-miss texel in the atlas");
+
+        var (hitConf, _) = ReadAtlasMetaTexel(metaData, hitX, hitY);
+        var (skyConf, _) = ReadAtlasMetaTexel(metaData, skyX, skyY);
+
+        Assert.True(hitConf > skyConf,
+            $"Expected hit confidence > sky confidence, got hit={hitConf:F3} sky={skyConf:F3} (hitCoord={hitX},{hitY} skyCoord={skyX},{skyY})");
+
+        GL.DeleteProgram(programId);
+    }
+
+    [Fact]
+    public void Meta_RayExitsScreen_LowerConfidence()
+    {
+        EnsureShaderTestAvailable();
+
+        var anchorPosData = CreateValidProbeAnchorsAtZ(0f);
+        var anchorNormalData = CreateProbeNormalsUpward();
+        var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(1.0f, channels: 1); // Sky everywhere
+        var colorData = CreateUniformSceneColor(1f, 0f, 0f);
+        var historyData = CreateZeroedHistory();
+        var metaHistoryData = CreateZeroedMetaHistory();
+
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+        using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+
+        using var outputAtlas = TestFramework.CreateTestGBuffer(
+            AtlasWidth, AtlasHeight,
+            PixelInternalFormat.Rgba16f,
+            PixelInternalFormat.Rg32f);
+
+        var programId = CompileOctahedralTraceShader();
+        var projection = LumOnTestInputFactory.CreateRealisticProjection();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var view = LumOnTestInputFactory.CreateIdentityView();
+        var invView = LumOnTestInputFactory.CreateIdentityView();
+        SetupOctahedralTraceUniforms(
+            programId,
+            invProjection: invProjection,
+            projection: projection,
+            view: view,
+            invView: invView,
+            texelsPerFrame: 64,
+            sunColor: (0f, 0f, 0f));
+
+        GL.UseProgram(programId);
+        int metaHistLoc = GL.GetUniformLocation(programId, "probeAtlasMetaHistory");
+        GL.Uniform1(metaHistLoc, 6);
+        GL.UseProgram(0);
+
+        anchorPosTex.Bind(0);
+        anchorNormalTex.Bind(1);
+        depthTex.Bind(2);
+        colorTex.Bind(3);
+        historyTex.Bind(4);
+        metaHistoryTex.Bind(6);
+
+        TestFramework.RenderQuadTo(programId, outputAtlas);
+        var metaData = outputAtlas[1].ReadPixels();
+
+        float minConf = float.MaxValue;
+        float maxConf = float.MinValue;
+
+        for (int y = 0; y < AtlasHeight; y++)
+        {
+            for (int x = 0; x < AtlasWidth; x++)
+            {
+                var (conf, _) = ReadAtlasMetaTexel(metaData, x, y);
+                minConf = MathF.Min(minConf, conf);
+                maxConf = MathF.Max(maxConf, conf);
+            }
+        }
+
+        Assert.True(minConf < maxConf, $"Expected some rays to exit screen (minConf={minConf:F3}, maxConf={maxConf:F3})");
+        Assert.True(minConf <= 0.06f, $"Expected exit confidence to be low (<= 0.06), got {minConf:F3}");
+        Assert.True(maxConf >= 0.20f, $"Expected non-exit sky-miss confidence to be higher (>= 0.20), got {maxConf:F3}");
+
+        GL.DeleteProgram(programId);
+    }
+
+    [Fact]
+    public void Meta_NonTracedTexels_PreserveHistory()
+    {
+        EnsureShaderTestAvailable();
+
+        // Choose a texel that is not traced for probeIndex=0 when frameIndex=0 and texelsPerFrame=8.
+        // (octX=0, octY=1) => texelIndex=8 => batch=1, while jitteredFrame=0.
+        var (x, y) = GetAtlasCoord(0, 0, 0, 1);
+
+        var anchorPosData = CreateValidProbeAnchorsAtZ(0f);
+        var anchorNormalData = CreateProbeNormalsUpward();
+        var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(1.0f, channels: 1); // Sky
+        var colorData = CreateUniformSceneColor(1f, 0f, 0f);
+        var historyData = CreateZeroedHistory();
+
+        var metaHistoryData = CreateZeroedMetaHistory();
+        int metaIdx = (y * AtlasWidth + x) * 2;
+        metaHistoryData[metaIdx + 0] = 0.77f; // confidence
+        metaHistoryData[metaIdx + 1] = 123.0f; // flags bits as float (opaque to this test)
+
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var colorTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, colorData);
+        using var historyTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+
+        using var outputAtlas = TestFramework.CreateTestGBuffer(
+            AtlasWidth, AtlasHeight,
+            PixelInternalFormat.Rgba16f,
+            PixelInternalFormat.Rg32f);
+
+        var programId = CompileOctahedralTraceShader();
+        var projection = LumOnTestInputFactory.CreateRealisticProjection();
+        var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
+        var view = LumOnTestInputFactory.CreateIdentityView();
+        var invView = LumOnTestInputFactory.CreateIdentityView();
+        SetupOctahedralTraceUniforms(
+            programId,
+            invProjection: invProjection,
+            projection: projection,
+            view: view,
+            invView: invView,
+            frameIndex: 0,
+            texelsPerFrame: 8,
+            sunColor: (0f, 0f, 0f));
+
+        GL.UseProgram(programId);
+        int metaHistLoc = GL.GetUniformLocation(programId, "probeAtlasMetaHistory");
+        GL.Uniform1(metaHistLoc, 6);
+        GL.UseProgram(0);
+
+        anchorPosTex.Bind(0);
+        anchorNormalTex.Bind(1);
+        depthTex.Bind(2);
+        colorTex.Bind(3);
+        historyTex.Bind(4);
+        metaHistoryTex.Bind(6);
+
+        TestFramework.RenderQuadTo(programId, outputAtlas);
+        var metaData = outputAtlas[1].ReadPixels();
+
+        var (conf, flagsBitsAsFloat) = ReadAtlasMetaTexel(metaData, x, y);
+        Assert.True(MathF.Abs(conf - 0.77f) < 1e-4f, $"Expected preserved meta confidence at ({x},{y}) to be 0.77, got {conf:F6}");
+        Assert.True(MathF.Abs(flagsBitsAsFloat - 123.0f) < 1e-4f,
+            $"Expected preserved meta flags bits at ({x},{y}) to match history, got {flagsBitsAsFloat:F6}");
+
+        GL.DeleteProgram(programId);
     }
 
     /// <summary>

@@ -564,6 +564,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Bind history for temporal preservation
         shader.ScreenProbeAtlasHistory = bufferManager.ScreenProbeAtlasHistoryTex!;
+        shader.ScreenProbeAtlasMetaHistory = bufferManager.ScreenProbeAtlasMetaHistoryTex!;
 
         // HZB depth pyramid (always on)
         if (bufferManager.HzbDepthTex != null)
@@ -754,6 +755,9 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Bind probe anchors for validity check
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
+
+        // Bind meta trace output (pass-through for now)
+        shader.ScreenProbeAtlasMetaCurrent = bufferManager.ScreenProbeAtlasMetaTraceTex!;
 
         // Pass probe grid size
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);

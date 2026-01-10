@@ -121,31 +121,31 @@ LumOn Functional Test Coverage:
 
     Phase 9 - Pass 2: Screen-Probe Atlas Meta Output
     Exit artifacts: Screen-probe trace outputs radiance/hitdist plus meta (confidence + bitflags); history preservation applies to meta too.
-    ☐ Decide meta storage:
+    ✔ Decide meta storage: @done
       - Add a second atlas texture attachment: RG32F (R=confidence, G=uintBitsToFloat(flags))
       - Shared include: define bit flags + pack/unpack helpers in a .glsl include (e.g., lumon_probe_atlas_meta.glsl)
-    ☐ Add shader include: lumon_probe_atlas_meta.glsl
+    ✔ Add shader include: lumon_probe_atlas_meta.glsl @done
       - const uint flags (Hit, SkyMiss, ScreenExit, EarlyTerminated, ThicknessUncertain, etc.)
       - vec2 EncodeMeta(float confidence, uint flags)
       - void DecodeMeta(vec2 meta, out float confidence, out uint flags)
-    ☐ Update LumOnBufferManager:
+    ✔ Update LumOnBufferManager: @done
       - allocate ScreenProbeAtlasMetaTraceTex (+ FBO attachment)
       - allocate ScreenProbeAtlasMetaCurrentTex / ScreenProbeAtlasMetaHistoryTex (for temporal/history)
-    ☐ Update shader program bindings + renderer pass wiring:
+    ✔ Update shader program bindings + renderer pass wiring: @done
       - trace pass writes MRT (radiance+hitdist, meta)
       - bind meta history input to trace pass so non-traced texels preserve history
-    ☐ Update lumon_probe_trace_octahedral.fsh (implementation detail: octahedral mapping):
+    ✔ Update lumon_probe_atlas_trace.fsh (implementation detail: octahedral mapping): @done
       - compute meta for traced texels (hit vs sky, early exit, thickness margin)
       - output meta for traced texels
       - preserve meta history for non-traced texels (like radiance)
-    ☐ Add GPU functional tests:
+    ✔ Add GPU functional tests: @done
       - Meta_HitHigherThanSky
       - Meta_RayExitsScreen_LowerConfidence
       - Meta_NonTracedTexels_PreserveHistory
 
     Phase 10 - Pass 3: Screen-Probe Atlas Temporal Uses Meta
     Exit artifacts: Screen-probe atlas temporal produces meta-aware stabilized atlases suitable for downstream filtering/gather.
-    ☐ Update lumon_temporal_octahedral.fsh (implementation detail: octahedral mapping) to read/write meta (separate texture)
+    ☐ Update lumon_probe_atlas_temporal.fsh (implementation detail: octahedral mapping) to read/write meta (separate texture)
     ☐ Make temporal alpha adaptive using meta confidence (e.g., alpha *= historyConfidence)
     ☐ Make disocclusion/invalid-history decisions consider confidence/flags (not just hit distance)
     ☐ Add debug mode: MetaConfidence / TemporalAlpha visualization

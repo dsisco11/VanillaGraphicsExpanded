@@ -1,6 +1,7 @@
 #version 330 core
 
-out vec4 outRadiance;  // RGB = blended radiance, A = blended hit distance (log-encoded)
+layout(location = 0) out vec4 outRadiance;  // RGB = blended radiance, A = blended hit distance (log-encoded)
+layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFloat(flags)
 
 // ============================================================================
 // LumOn Octahedral Temporal Pass
@@ -18,6 +19,9 @@ out vec4 outRadiance;  // RGB = blended radiance, A = blended hit distance (log-
 // Import octahedral mapping utilities
 @import "lumon_octahedral.glsl"
 
+// Import probe-atlas meta helpers
+@import "lumon_probe_atlas_meta.glsl"
+
 // ============================================================================
 // Uniforms
 // ============================================================================
@@ -25,6 +29,9 @@ out vec4 outRadiance;  // RGB = blended radiance, A = blended hit distance (log-
 // Current frame trace output (from octahedral trace pass)
 // Contains fresh data for traced texels, history copies for non-traced texels
 uniform sampler2D octahedralCurrent;
+
+// Current frame trace meta output (from probe-atlas trace pass)
+uniform sampler2D probeAtlasMetaCurrent;
 
 // History from previous frame (after last swap)
 uniform sampler2D octahedralHistory;
@@ -118,11 +125,15 @@ void main(void)
     // Invalid probe: output zero (no contribution)
     if (probeValid < 0.5) {
         outRadiance = vec4(0.0);
+        outMeta = lumonEncodeMeta(0.0, 0u);
         return;
     }
     
     // Load current frame data (from trace pass)
     vec4 current = texelFetch(octahedralCurrent, atlasCoord, 0);
+
+    // Meta is currently pass-through from trace output (Phase 10 will make it temporal-aware)
+    vec2 metaCurrent = texelFetch(probeAtlasMetaCurrent, atlasCoord, 0).xy;
     
     // Load history data
     vec4 history = texelFetch(octahedralHistory, atlasCoord, 0);
@@ -132,6 +143,7 @@ void main(void)
         // Not traced this frame: preserve the trace output unchanged
         // (trace shader already copied history for non-traced texels)
         outRadiance = current;
+        outMeta = metaCurrent;
         return;
     }
     
@@ -174,4 +186,5 @@ void main(void)
     }
     
     outRadiance = result;
+    outMeta = metaCurrent;
 }

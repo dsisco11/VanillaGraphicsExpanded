@@ -69,13 +69,23 @@ public sealed class LumOnBufferManager : IDisposable
     private DynamicTexture? screenProbeAtlasTraceTex;
     private Rendering.GBuffer? screenProbeAtlasTraceFbo;
 
+    // Trace output meta (written by trace pass, read by temporal pass)
+    // RG32F: R = confidence, G = uintBitsToFloat(flags)
+    private DynamicTexture? screenProbeAtlasMetaTraceTex;
+
     // Current frame probe atlas (written by temporal pass, read by gather)
     private DynamicTexture? screenProbeAtlasCurrentTex;
     private Rendering.GBuffer? screenProbeAtlasCurrentFbo;
 
+    // Current frame meta (written by temporal pass, swapped to history each frame)
+    private DynamicTexture? screenProbeAtlasMetaCurrentTex;
+
     // History probe atlas (previous frame's current, read by temporal pass)
     private DynamicTexture? screenProbeAtlasHistoryTex;
     private Rendering.GBuffer? screenProbeAtlasHistoryFbo;
+
+    // History meta (previous frame's current, read by trace/temporal passes)
+    private DynamicTexture? screenProbeAtlasMetaHistoryTex;
 
     // ═══════════════════════════════════════════════════════════════
     // Probe Metadata Buffers (for temporal validation)
@@ -213,6 +223,12 @@ public sealed class LumOnBufferManager : IDisposable
     public DynamicTexture? ScreenProbeAtlasTraceTex => screenProbeAtlasTraceTex;
 
     /// <summary>
+    /// 2D atlas for trace output probe-atlas meta.
+    /// Format: RG32F (confidence, flagsBitsAsFloat).
+    /// </summary>
+    public DynamicTexture? ScreenProbeAtlasMetaTraceTex => screenProbeAtlasMetaTraceTex;
+
+    /// <summary>
     /// FBO for probe-atlas trace output.
     /// </summary>
     public Rendering.GBuffer? ScreenProbeAtlasTraceFbo => screenProbeAtlasTraceFbo;
@@ -223,6 +239,11 @@ public sealed class LumOnBufferManager : IDisposable
     public DynamicTexture? ScreenProbeAtlasCurrentTex => screenProbeAtlasCurrentTex;
 
     /// <summary>
+    /// 2D atlas for current frame probe-atlas meta (after temporal pass).
+    /// </summary>
+    public DynamicTexture? ScreenProbeAtlasMetaCurrentTex => screenProbeAtlasMetaCurrentTex;
+
+    /// <summary>
     /// FBO for probe-atlas current output.
     /// </summary>
     public Rendering.GBuffer? ScreenProbeAtlasCurrentFbo => screenProbeAtlasCurrentFbo;
@@ -231,6 +252,11 @@ public sealed class LumOnBufferManager : IDisposable
     /// 2D atlas for history probe-atlas radiance (previous frame).
     /// </summary>
     public DynamicTexture? ScreenProbeAtlasHistoryTex => screenProbeAtlasHistoryTex;
+
+    /// <summary>
+    /// 2D atlas for history probe-atlas meta (previous frame).
+    /// </summary>
+    public DynamicTexture? ScreenProbeAtlasMetaHistoryTex => screenProbeAtlasMetaHistoryTex;
 
     /// <summary>
     /// Width of the probe atlas (probeCountX × 8).
@@ -389,6 +415,7 @@ public sealed class LumOnBufferManager : IDisposable
 
         // Swap screen-probe atlas textures (2D atlas)
         (screenProbeAtlasCurrentTex, screenProbeAtlasHistoryTex) = (screenProbeAtlasHistoryTex, screenProbeAtlasCurrentTex);
+        (screenProbeAtlasMetaCurrentTex, screenProbeAtlasMetaHistoryTex) = (screenProbeAtlasMetaHistoryTex, screenProbeAtlasMetaCurrentTex);
         (screenProbeAtlasCurrentFbo, screenProbeAtlasHistoryFbo) = (screenProbeAtlasHistoryFbo, screenProbeAtlasCurrentFbo);
 
         // Swap metadata
@@ -517,11 +544,16 @@ public sealed class LumOnBufferManager : IDisposable
         int atlasWidth = probeCountX * 8;
         int atlasHeight = probeCountY * 8;
         screenProbeAtlasTraceTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f);
-        screenProbeAtlasTraceFbo = Rendering.GBuffer.CreateSingle(screenProbeAtlasTraceTex);
+        screenProbeAtlasMetaTraceTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f);
+        screenProbeAtlasTraceFbo = Rendering.GBuffer.CreateMRT([screenProbeAtlasTraceTex, screenProbeAtlasMetaTraceTex], null, ownsTextures: false);
+
         screenProbeAtlasCurrentTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f);
-        screenProbeAtlasCurrentFbo = Rendering.GBuffer.CreateSingle(screenProbeAtlasCurrentTex);
+        screenProbeAtlasMetaCurrentTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f);
+        screenProbeAtlasCurrentFbo = Rendering.GBuffer.CreateMRT([screenProbeAtlasCurrentTex, screenProbeAtlasMetaCurrentTex], null, ownsTextures: false);
+
         screenProbeAtlasHistoryTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f);
-        screenProbeAtlasHistoryFbo = Rendering.GBuffer.CreateSingle(screenProbeAtlasHistoryTex);
+        screenProbeAtlasMetaHistoryTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f);
+        screenProbeAtlasHistoryFbo = Rendering.GBuffer.CreateMRT([screenProbeAtlasHistoryTex, screenProbeAtlasMetaHistoryTex], null, ownsTextures: false);
 
         // ═══════════════════════════════════════════════════════════════
         // Create Probe Metadata Buffers (for temporal validation)
@@ -652,6 +684,9 @@ public sealed class LumOnBufferManager : IDisposable
         screenProbeAtlasTraceTex?.Dispose();
         screenProbeAtlasCurrentTex?.Dispose();
         screenProbeAtlasHistoryTex?.Dispose();
+        screenProbeAtlasMetaTraceTex?.Dispose();
+        screenProbeAtlasMetaCurrentTex?.Dispose();
+        screenProbeAtlasMetaHistoryTex?.Dispose();
 
         hzbDepthTex?.Dispose();
 
@@ -671,6 +706,9 @@ public sealed class LumOnBufferManager : IDisposable
         screenProbeAtlasTraceTex = null;
         screenProbeAtlasCurrentTex = null;
         screenProbeAtlasHistoryTex = null;
+        screenProbeAtlasMetaTraceTex = null;
+        screenProbeAtlasMetaCurrentTex = null;
+        screenProbeAtlasMetaHistoryTex = null;
 
         hzbDepthTex = null;
 

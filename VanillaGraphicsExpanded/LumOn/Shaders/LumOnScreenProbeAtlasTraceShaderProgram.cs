@@ -56,6 +56,11 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : ShaderProgram
     public int ScreenProbeAtlasHistory { set => BindTexture2D("octahedralHistory", value, 4); }
 
     /// <summary>
+    /// History probe-atlas meta (confidence + flags) for temporal preservation.
+    /// </summary>
+    public int ScreenProbeAtlasMetaHistory { set => BindTexture2D("probeAtlasMetaHistory", value, 6); }
+
+    /// <summary>
     /// Optional HZB depth pyramid (mipmapped R32F).
     /// </summary>
     public int HzbDepth { set => BindTexture2D("hzbDepth", value, 5); }

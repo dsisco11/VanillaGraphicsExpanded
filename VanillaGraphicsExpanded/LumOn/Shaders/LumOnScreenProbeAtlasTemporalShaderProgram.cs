@@ -47,6 +47,11 @@ public class LumOnScreenProbeAtlasTemporalShaderProgram : ShaderProgram
     /// </summary>
     public int ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 2); }
 
+    /// <summary>
+    /// Current frame probe-atlas meta trace output.
+    /// </summary>
+    public int ScreenProbeAtlasMetaCurrent { set => BindTexture2D("probeAtlasMetaCurrent", value, 3); }
+
     #endregion
 
     #region Probe Grid Uniforms
