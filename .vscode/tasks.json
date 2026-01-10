@@ -13,7 +13,7 @@
             ],
             "problemMatcher": "$msCompile",
             "presentation": {
-                "panel": "shared",
+                "panel": "dedicated",
                 "reveal": "never",
                 "focus": false,
                 "close": false,
@@ -31,7 +31,7 @@
             ],
             "problemMatcher": "$msCompile",
             "presentation": {
-                "panel": "shared",
+                "panel": "dedicated",
                 "reveal": "never",
                 "focus": false,
                 "close": false,
@@ -50,7 +50,7 @@
             ],
             "problemMatcher": "$msCompile",
             "presentation": {
-                "panel": "shared",
+                "panel": "dedicated",
                 "reveal": "never",
                 "focus": false,
                 "close": false,
@@ -71,10 +71,10 @@
             ],
             "problemMatcher": "$msCompile",
             "presentation": {
-                "panel": "shared",
+                "panel": "dedicated",
                 "reveal": "never",
                 "focus": false,
-                "close": false,
+                "close": true,
                 "showReuseMessage": false
             },
             "group": "test"
