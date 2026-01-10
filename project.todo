@@ -1,19 +1,19 @@
 LumOn Functional Test Coverage:
 
   Phase 4 - High Priority Missing Tests:
-    Probe Trace Shaders (SH & Octahedral):
+    Probe Trace Shaders (SH & Screen-Probe Atlas):
       ✔ RayHit_ReturnsSceneColor - Verify actual geometry hits return scene color (not just sky miss) @done
       ✔ DistanceFalloff_AppliedToHitRadiance - Test distance attenuation on hit radiance @done
       ✔ RaySteps_AffectsTraceQuality - Verify step count effect on ray march quality @done
       ✔ SunContribution_AddedToSkyMiss - Test sunDir/sunColor contribution to sky @done
       ✔ IndirectTint_AppliedToHitRadiance - Test tint on hit radiance (not just sky) @done
-    Temporal Shaders (SH & Octahedral):
+    Temporal Shaders (SH & Screen-Probe Atlas):
       ✔ DepthRejection_TriggersAtThreshold - Test boundary at exact depthRejectThreshold @done
       ✔ NormalRejection_TriggersAtThreshold - Test boundary at exact normalRejectThreshold @done
       ✔ HistoryOutOfBounds_UsesCurrentFrame - Test UV reprojection bounds rejection @done
       ✔ NeighborhoodClamping_PreventsGhosting - Verify clamp effect on blended result @done
       ✔ InvalidProbe_OutputsCurrentWithZeroMeta - Explicit radiance passthrough for invalid probes @done
-    Gather Shaders (SH & Octahedral):
+    Gather Shaders (SH & Screen-Probe Atlas):
       ✔ DepthSigma_AffectsWeightFalloff - Test depthSigma uniform on weight calculation @done
       ✔ NormalSigma_AffectsWeightFalloff - Test normalSigma uniform on weight calculation @done
       ✔ EdgeProbe_ReducedWeight - Test partial validity (0.5) weight reduction @done
@@ -25,11 +25,11 @@ LumOn Functional Test Coverage:
       ✔ TexelsPerFrame_AffectsTemporalDistribution - Test different temporal distribution values @done
       ✔ RayExitsScreen_TerminatesEarly - Test ray leaving screen boundary @done
       ✔ InvViewMatrix_TransformsDirectionsCorrectly - Verify world-to-view transform accuracy @done
-    Temporal Octahedral Shader:
+    Temporal Screen-Probe Atlas Shader:
       ✔ HitDistanceRejectThreshold_TriggersDisocclusion - Test threshold boundary behavior @done
       ✔ NeighborhoodClamping_ClampsToBounds - Verify specific clamp min/max behavior @done
       ✔ ZeroHistoryHitDistance_RejectedAsInvalid - Test near-zero history detection @done
-    Gather Octahedral Shader:
+    Gather Screen-Probe Atlas Shader:
       ✔ SampleStride_AffectsQuality - Test stride 1 vs 2 quality difference @done
       ✔ LeakThreshold_PreventsBleeding - Test leak prevention logic @done
       ✔ HemisphereBackface_SkippedCorrectly - Test cosWeight <= 0.0 rejection @done
@@ -67,8 +67,8 @@ LumOn Functional Test Coverage:
     Target pipeline:
       0. (New) Depth pyramid / HZB (optional, recommended)
       1. Probe Anchor (with jitter)
-      2. Octahedral Trace (radiance + hitdist + confidence)
-      3. Octahedral Temporal (expanded to use confidence)
+      2. Screen-Probe Atlas Trace (radiance + hitdist + meta)
+      3. Screen-Probe Atlas Temporal (expanded to use meta)
       3.5 (New) Probe-space filter/denoise (edge-stopped)
       4. Gather (cheaper)
       5. Upsample (optional spatial denoise)
@@ -84,7 +84,7 @@ LumOn Functional Test Coverage:
     ✔ Add GPU functional test: AnchorJitter_ChangesSampleLocation_Deterministically @done
 
     Phase 8 - Pass 0 (Optional/Recommended): Depth Pyramid / HZB
-    Exit artifacts: Depth pyramid textures exist per frame; octahedral tracer can consume HZB for traversal/refinement.
+    Exit artifacts: Depth pyramid textures exist per frame; screen-probe tracer can consume HZB for traversal/refinement.
     ✔ Add depth pyramid builder:
       - generate mip chain from primaryDepth each frame
       - store as a set of textures or layered atlas @done
@@ -94,35 +94,68 @@ LumOn Functional Test Coverage:
       - HZB_BuildProducesMonotonicDepthMips
       - Trace_HZBMatchesBaselineHitInSimpleScene @done
 
-    Phase 9 - Pass 2: Octahedral Trace Confidence Output
-    Exit artifacts: Octahedral trace outputs radiance/hitdist plus confidence (new texture or packed); history preservation applies to confidence too.
-    ☐ Decide confidence storage:
-      - Option A (preferred): second atlas texture attachment (confidence or {confidence, flags})
-      - Option B: repack hit distance/confidence into RGBA (only if precision allows)
-    ☐ Update LumOnBufferManager: allocate OctahedralConfidenceTex (+ FBO attachment)
-    ☐ Update shader program bindings + renderer pass wiring (new attachment + texture binding)
-    ☐ Update lumon_probe_trace_octahedral.fsh:
-      - compute confidence for traced texels (hit vs sky, early exit, thickness margin)
-      - output confidence for traced texels
-      - preserve confidence history for non-traced texels (like radiance)
-    ☐ Add GPU functional tests:
-      - Confidence_HitHigherThanSky
-      - Confidence_RayExitsScreen_LowerConfidence
-      - Confidence_NonTracedTexels_PreserveHistory
+    Phase 9.0 - Naming/Refactor: Screen-Probe Atlas Terminology
+    Exit artifacts: Public-facing names and file/class identifiers use “ScreenProbeAtlas” (or similar) instead of “Octahedral”, while octahedral remains an implementation detail for the mapping math.
+    ☐ Define naming conventions:
+      - Prefer “ScreenProbeAtlas” / “ProbeAtlas” for pipeline stages and textures
+      - Keep “octahedral” only for mapping utilities (e.g., lumon_octahedral.glsl)
+    ☐ Rename C# buffer/texture identifiers in LumOnBufferManager:
+      - Octahedral*Tex* → ScreenProbeAtlas* (Trace/Current/History)
+      - FBO fields similarly (Octahedral*Fbo → ScreenProbeAtlas*Fbo)
+    ☐ Rename C# shader program classes / properties:
+      - LumOnOctahedralTraceShaderProgram → LumOnScreenProbeAtlasTraceShaderProgram
+      - LumOnTemporalOctahedralShaderProgram → LumOnScreenProbeAtlasTemporalShaderProgram
+      - Any “OctahedralHistory/Current” uniform property names to “ProbeAtlas*” where appropriate
+    ☐ Rename renderer pass methods/labels:
+      - RenderOctahedralTrace / RenderOctahedralTemporal → RenderProbeAtlasTrace / RenderProbeAtlasTemporal
+      - Debug mode names updated to “ProbeAtlas*”
+    ☐ Rename GPU tests (class + filenames) to match pipeline naming:
+      - *Octahedral*Tests → *ProbeAtlas*Tests (keep shader filenames unchanged initially)
+    ☐ (Optional, later) Rename shader filenames after plumbing is stable:
+      - lumon_probe_trace_octahedral.* → lumon_probe_atlas_trace.*
+      - lumon_temporal_octahedral.* → lumon_probe_atlas_temporal.*
+      - lumon_gather_octahedral.* → lumon_probe_atlas_gather.*
+      - Keep the mapping include named lumon_octahedral.glsl
+    ☐ Update references/asset copy rules for renamed shader files (tests csproj content include patterns)
+    ☐ Verify: build + GPU tests still pass after renames
 
-    Phase 10 - Pass 3: Octahedral Temporal Uses Confidence
-    Exit artifacts: Octahedral temporal produces confidence-aware stabilized atlases suitable for downstream filtering/gather.
-    ☐ Update lumon_temporal_octahedral.fsh to read/write confidence (if separate texture)
-    ☐ Make temporal alpha adaptive using confidence (e.g., alpha *= historyConfidence)
-    ☐ Make disocclusion/invalid-history decisions consider confidence (not just hit distance)
-    ☐ Add debug mode: Confidence / TemporalAlpha visualization
+    Phase 9 - Pass 2: Screen-Probe Atlas Meta Output
+    Exit artifacts: Screen-probe trace outputs radiance/hitdist plus meta (confidence + bitflags); history preservation applies to meta too.
+    ☐ Decide meta storage:
+      - Add a second atlas texture attachment: RG32F (R=confidence, G=uintBitsToFloat(flags))
+      - Shared include: define bit flags + pack/unpack helpers in a .glsl include (e.g., lumon_probe_atlas_meta.glsl)
+    ☐ Add shader include: lumon_probe_atlas_meta.glsl
+      - const uint flags (Hit, SkyMiss, ScreenExit, EarlyTerminated, ThicknessUncertain, etc.)
+      - vec2 EncodeMeta(float confidence, uint flags)
+      - void DecodeMeta(vec2 meta, out float confidence, out uint flags)
+    ☐ Update LumOnBufferManager:
+      - allocate ScreenProbeAtlasMetaTraceTex (+ FBO attachment)
+      - allocate ScreenProbeAtlasMetaCurrentTex / ScreenProbeAtlasMetaHistoryTex (for temporal/history)
+    ☐ Update shader program bindings + renderer pass wiring:
+      - trace pass writes MRT (radiance+hitdist, meta)
+      - bind meta history input to trace pass so non-traced texels preserve history
+    ☐ Update lumon_probe_trace_octahedral.fsh (implementation detail: octahedral mapping):
+      - compute meta for traced texels (hit vs sky, early exit, thickness margin)
+      - output meta for traced texels
+      - preserve meta history for non-traced texels (like radiance)
     ☐ Add GPU functional tests:
-      - Temporal_ConfidenceReducesHistoryWeight
+      - Meta_HitHigherThanSky
+      - Meta_RayExitsScreen_LowerConfidence
+      - Meta_NonTracedTexels_PreserveHistory
+
+    Phase 10 - Pass 3: Screen-Probe Atlas Temporal Uses Meta
+    Exit artifacts: Screen-probe atlas temporal produces meta-aware stabilized atlases suitable for downstream filtering/gather.
+    ☐ Update lumon_temporal_octahedral.fsh (implementation detail: octahedral mapping) to read/write meta (separate texture)
+    ☐ Make temporal alpha adaptive using meta confidence (e.g., alpha *= historyConfidence)
+    ☐ Make disocclusion/invalid-history decisions consider confidence/flags (not just hit distance)
+    ☐ Add debug mode: MetaConfidence / TemporalAlpha visualization
+    ☐ Add GPU functional tests:
+      - Temporal_MetaReducesHistoryWeight
       - Temporal_LowConfidence_ForcesReset
 
     Phase 11 - Pass 3.5: Probe-Space Filter/Denoise (New)
     Exit artifacts: Filtered atlas exists (radiance/hitdist/confidence as applicable); renderer can choose raw vs filtered as gather input.
-    ☐ Add new shader + program: lumon_octahedral_filter.fsh (edge-stopped)
+    ☐ Add new shader + program: lumon_probe_atlas_filter.fsh (edge-stopped)
     ☐ Update LumOnBufferManager:
       - allocate filtered atlas (radiance + hitdist + confidence as needed)
       - create filter FBOs
@@ -138,22 +171,22 @@ LumOn Functional Test Coverage:
     Phase 12 - Pass 4: Cheaper Gather Options
     Exit artifacts: Gather has a defined “cheap” mode (stride/fewer dirs) and/or a projected-basis path (if implemented) selectable via config.
     ☐ Decide gather simplification path:
-      - Option A (minimal): keep octahedral gather but enforce/sample lower cost by default (stride, fewer dirs)
-      - Option B (Lumen-like): add octahedral → irradiance basis conversion pass, then gather is cheap
+      - Option A (minimal): keep atlas gather but enforce/sample lower cost by default (stride, fewer dirs)
+      - Option B (Lumen-like): add atlas → irradiance basis conversion pass, then gather is cheap
     ☐ Update config:
-      ☐ Select gather mode: IntegrateOctahedral vs EvaluateProjectedSH
+      ☐ Select gather mode: IntegrateAtlas vs EvaluateProjectedSH
     ☐ If Option B:
-      ☐ Add new pass: octahedral → SH projection (per-probe SH3/SH9) after temporal+filter
+      ☐ Add new pass: atlas → SH projection (per-probe SH3/SH9) after temporal+filter
       ☐ Add per-probe SH textures + program + buffer manager allocations
       ☐ Add gather shader variant that evaluates SH at pixel normal
     ☐ Add GPU functional tests:
-      - OctahedralToSH_ProjectsKnownAtlasCorrectly
+      - AtlasToSH_ProjectsKnownAtlasCorrectly
       - Gather_SHFromProjected_StableVsIntegration
 
     Phase 13 - Integration, Debug, and Performance
     Exit artifacts: New passes are debuggable and timed; perf baselines documented; optional minimal visual regression hooks exist.
     ☐ Add debug modes for:
-      - octahedral confidence
+      - screen-probe atlas meta
       - filtered atlas visualization (probe-space)
       - gather input selection (raw vs filtered)
     ☐ Extend GPU timer queries to include new passes (HZB, Filter, Projection)
