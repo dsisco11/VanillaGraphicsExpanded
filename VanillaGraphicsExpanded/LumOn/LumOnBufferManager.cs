@@ -87,6 +87,12 @@ public sealed class LumOnBufferManager : IDisposable
     // History meta (previous frame's current, read by trace/temporal passes)
     private DynamicTexture? screenProbeAtlasMetaHistoryTex;
 
+    // Filtered probe atlas (derived from current frame's temporal output)
+    // Used as gather input when available.
+    private DynamicTexture? screenProbeAtlasFilteredTex;
+    private DynamicTexture? screenProbeAtlasMetaFilteredTex;
+    private Rendering.GBuffer? screenProbeAtlasFilteredFbo;
+
     // ═══════════════════════════════════════════════════════════════
     // Probe Metadata Buffers (for temporal validation)
     // ═══════════════════════════════════════════════════════════════
@@ -242,6 +248,21 @@ public sealed class LumOnBufferManager : IDisposable
     /// 2D atlas for current frame probe-atlas meta (after temporal pass).
     /// </summary>
     public DynamicTexture? ScreenProbeAtlasMetaCurrentTex => screenProbeAtlasMetaCurrentTex;
+
+    /// <summary>
+    /// 2D atlas for filtered probe-atlas radiance (post-temporal denoise).
+    /// </summary>
+    public DynamicTexture? ScreenProbeAtlasFilteredTex => screenProbeAtlasFilteredTex;
+
+    /// <summary>
+    /// 2D atlas for filtered probe-atlas meta (post-temporal denoise).
+    /// </summary>
+    public DynamicTexture? ScreenProbeAtlasMetaFilteredTex => screenProbeAtlasMetaFilteredTex;
+
+    /// <summary>
+    /// FBO for probe-atlas filtered output.
+    /// </summary>
+    public Rendering.GBuffer? ScreenProbeAtlasFilteredFbo => screenProbeAtlasFilteredFbo;
 
     /// <summary>
     /// FBO for probe-atlas current output.
@@ -451,6 +472,7 @@ public sealed class LumOnBufferManager : IDisposable
         screenProbeAtlasTraceFbo?.BindAndClear();
         screenProbeAtlasCurrentFbo?.BindAndClear();
         screenProbeAtlasHistoryFbo?.BindAndClear();
+        screenProbeAtlasFilteredFbo?.BindAndClear();
 
         // Restore previous framebuffer
         Rendering.GBuffer.RestoreBinding(previousFbo);
@@ -555,6 +577,11 @@ public sealed class LumOnBufferManager : IDisposable
         screenProbeAtlasMetaHistoryTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f);
         screenProbeAtlasHistoryFbo = Rendering.GBuffer.CreateMRT([screenProbeAtlasHistoryTex, screenProbeAtlasMetaHistoryTex], null, ownsTextures: false);
 
+        // Filtered atlas output (Pass 3.5): derived from temporal output each frame
+        screenProbeAtlasFilteredTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f);
+        screenProbeAtlasMetaFilteredTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f);
+        screenProbeAtlasFilteredFbo = Rendering.GBuffer.CreateMRT([screenProbeAtlasFilteredTex, screenProbeAtlasMetaFilteredTex], null, ownsTextures: false);
+
         // ═══════════════════════════════════════════════════════════════
         // Create Probe Metadata Buffers (for temporal validation)
         // ═══════════════════════════════════════════════════════════════
@@ -647,6 +674,7 @@ public sealed class LumOnBufferManager : IDisposable
         screenProbeAtlasTraceFbo?.Dispose();
         screenProbeAtlasCurrentFbo?.Dispose();
         screenProbeAtlasHistoryFbo?.Dispose();
+        screenProbeAtlasFilteredFbo?.Dispose();
 
         if (hzbFboId != 0)
         {
@@ -666,6 +694,7 @@ public sealed class LumOnBufferManager : IDisposable
         screenProbeAtlasTraceFbo = null;
         screenProbeAtlasCurrentFbo = null;
         screenProbeAtlasHistoryFbo = null;
+        screenProbeAtlasFilteredFbo = null;
 
         // Dispose 2D textures
         probeAnchorPositionTex?.Dispose();
@@ -684,9 +713,11 @@ public sealed class LumOnBufferManager : IDisposable
         screenProbeAtlasTraceTex?.Dispose();
         screenProbeAtlasCurrentTex?.Dispose();
         screenProbeAtlasHistoryTex?.Dispose();
+        screenProbeAtlasFilteredTex?.Dispose();
         screenProbeAtlasMetaTraceTex?.Dispose();
         screenProbeAtlasMetaCurrentTex?.Dispose();
         screenProbeAtlasMetaHistoryTex?.Dispose();
+        screenProbeAtlasMetaFilteredTex?.Dispose();
 
         hzbDepthTex?.Dispose();
 
@@ -706,9 +737,11 @@ public sealed class LumOnBufferManager : IDisposable
         screenProbeAtlasTraceTex = null;
         screenProbeAtlasCurrentTex = null;
         screenProbeAtlasHistoryTex = null;
+        screenProbeAtlasFilteredTex = null;
         screenProbeAtlasMetaTraceTex = null;
         screenProbeAtlasMetaCurrentTex = null;
         screenProbeAtlasMetaHistoryTex = null;
+        screenProbeAtlasMetaFilteredTex = null;
 
         hzbDepthTex = null;
 

@@ -155,18 +155,18 @@ LumOn Functional Test Coverage:
 
     Phase 11 - Pass 3.5: Probe-Space Filter/Denoise (New)
     Exit artifacts: Filtered atlas exists (radiance/hitdist/confidence as applicable); renderer can choose raw vs filtered as gather input.
-    ☐ Add new shader + program: lumon_probe_atlas_filter.fsh (edge-stopped)
-    ☐ Update LumOnBufferManager:
-      - allocate filtered atlas (radiance + hitdist + confidence as needed)
-      - create filter FBOs
-    ☐ Update LumOnRenderer orchestration: insert Pass 3.5 between temporal and gather
-    ☐ Implement filtering strategy (start simple, then expand if needed):
-      - Angular (within-tile) 3x3 or 5x5 filter with hitdist/confidence weights
+    ✔ Add new shader + program: lumon_probe_atlas_filter.fsh (edge-stopped) @done
+    ✔ Update LumOnBufferManager: @done
+      - allocate filtered atlas (radiance + hitdist + confidence as needed) @done
+      - create filter FBOs @done
+    ✔ Update LumOnRenderer orchestration: insert Pass 3.5 between temporal and gather @done
+    ✔ Implement filtering strategy (start simple, then expand if needed): @done
+      - Angular (within-tile) 3x3 or 5x5 filter with hitdist/confidence weights @done
       - Optional: spatial (between-probe) filter for same oct texel across neighboring probes
-    ☐ Add GPU functional tests:
-      - Filter_ReducesNoise_PreservesEdges
-      - Filter_RespectsInvalidProbes
-      - Filter_RespectsConfidence
+    ✔ Add GPU functional tests: @done
+      - Filter_ReducesNoise_PreservesEdges @done
+      - Filter_RespectsInvalidProbes @done
+      - Filter_RespectsConfidence @done
 
     Phase 12 - Pass 4: Cheaper Gather Options
     Exit artifacts: Gather has a defined “cheap” mode (stride/fewer dirs) and/or a projected-basis path (if implemented) selectable via config.

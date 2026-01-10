@@ -341,6 +341,12 @@ public class LumOnRenderer : IRenderer, IDisposable
         }
         EndTimerQuery();
 
+        // === Pass 3.5: Probe-Atlas Filter/Denoise (Probe-space) ===
+        if (config.UseProbeAtlas)
+        {
+            RenderProbeAtlasFilterPass();
+        }
+
         // === Pass 4: Gather ===
         BeginTimerQuery(3);
         RenderGatherPass(primaryFb);
@@ -869,8 +875,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         var fbo = bufferManager.IndirectHalfFbo;
         if (fbo is null) return;
 
-        // Use the current probe atlas (after temporal blend if available, otherwise from trace)
-        var probeAtlas = bufferManager.ScreenProbeAtlasCurrentTex ?? bufferManager.ScreenProbeAtlasTraceTex;
+        // Prefer filtered atlas (post-temporal) when available.
+        var probeAtlas = bufferManager.ScreenProbeAtlasFilteredTex
+            ?? bufferManager.ScreenProbeAtlasCurrentTex
+            ?? bufferManager.ScreenProbeAtlasTraceTex;
         if (probeAtlas is null) return;
 
         fbo.BindWithViewport();
@@ -907,6 +915,44 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.SampleStride = config.ProbeAtlasSampleStride;
 
         // Render
+        capi.Render.RenderMesh(quadMeshRef);
+        shader.Stop();
+    }
+
+    /// <summary>
+    /// Pass 3.5 (Screen-Probe Atlas mode): Probe-space filtering/denoise.
+    /// Operates within each probe's 8x8 octahedral tile with edge-stopping based on hit distance and meta.
+    /// Output: Filtered probe atlas to ScreenProbeAtlasFilteredFbo.
+    /// </summary>
+    private void RenderProbeAtlasFilterPass()
+    {
+        var shader = ShaderRegistry.getProgramByName("lumon_probe_atlas_filter") as LumOnScreenProbeAtlasFilterShaderProgram;
+        if (shader is null || shader.LoadError)
+            return;
+
+        var fbo = bufferManager.ScreenProbeAtlasFilteredFbo;
+        if (fbo is null) return;
+
+        // Filter the stabilized atlas for this frame (prefer temporal output, fallback to trace)
+        var inputAtlas = bufferManager.ScreenProbeAtlasCurrentTex ?? bufferManager.ScreenProbeAtlasTraceTex;
+        var inputMeta = bufferManager.ScreenProbeAtlasMetaCurrentTex ?? bufferManager.ScreenProbeAtlasMetaTraceTex;
+        if (inputAtlas is null || inputMeta is null) return;
+
+        fbo.BindWithViewport();
+
+        capi.Render.GlToggleBlend(false);
+        shader.Use();
+
+        shader.ScreenProbeAtlas = inputAtlas.TextureId;
+        shader.ScreenProbeAtlasMeta = inputMeta.TextureId;
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
+
+        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
+
+        // Minimal initial settings: 3x3 within-tile filter with moderate edge stopping.
+        shader.FilterRadius = 1;
+        shader.HitDistanceSigma = 1.0f;
+
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
     }
