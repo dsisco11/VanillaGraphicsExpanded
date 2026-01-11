@@ -131,7 +131,11 @@ public static class ShaderIncludesHook
         // Stage 2: Inline imports
         if (inlineImports)
         {
-            hasChanges |= ShaderImportsSystem.Instance.InlineImports(tree, shaderName, _logger);
+            if (ShaderImportsSystem.Instance.TryPreprocessImports(tree, shaderName, out var processedTree, _logger))
+            {
+                tree = processedTree;
+                hasChanges = true;
+            }
         }
         // Stage 3: Post-processing (after imports are inlined)
         if (postProcess)
@@ -172,7 +176,11 @@ public static class ShaderIncludesHook
             hasChanges |= VanillaShaderPatches.TryApplyPreProcessing(_logger, tree, asset.Name);
 
             // Stage 2: Inline imports
-            hasChanges |= ShaderImportsSystem.Instance.InlineImports(tree, asset.Name, _logger);
+            if (ShaderImportsSystem.Instance.TryPreprocessImports(tree, asset.Name, out var processedTree, _logger))
+            {
+                tree = processedTree;
+                hasChanges = true;
+            }
 
             // Stage 3: Post-processing (after imports are inlined)
             hasChanges |= VanillaShaderPatches.TryApplyPatches(_logger, tree, asset.Name);

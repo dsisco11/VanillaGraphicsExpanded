@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Text;
+using System.Linq;
+using System.Threading;
 
 using TinyTokenizer.Ast;
+
+using TinyPreprocessor.Core;
 
 using Vintagestory.API.Common;
 
@@ -23,12 +25,12 @@ public sealed class ShaderImportsSystem
     public static ShaderImportsSystem Instance { get; } = new();
 
     /// <summary>
-    /// Cache mapping import file names to their contents.
+    /// Default domain for domain-less imports.
     /// </summary>
-    public IReadOnlyDictionary<string, string> ImportsCache => _importsCache;
-    private readonly Dictionary<string, string> _importsCache = [];
+    public const string DefaultDomain = ModDomain;
 
     private ILogger? _logger;
+    private ShaderSyntaxTreePreprocessor? _preprocessor;
 
     // Private constructor for singleton pattern
     private ShaderImportsSystem() { }
@@ -47,37 +49,8 @@ public sealed class ShaderImportsSystem
 
         _logger = api.Logger;
 
-        var assetManager = api.Assets;
-        var shaderImportAssets = assetManager.GetManyInCategory(
-            AssetCategory.shaderincludes.Code,
-            pathBegins: "",
-            domain: ModDomain,
-            loadAsset: true);
-
-        if (shaderImportAssets.Count == 0)
-        {
-            _logger?.Debug("[VGE] No shader imports found in mod assets");
-            return;
-        }
-
-        _importsCache.Clear();
-
-        foreach (var asset in shaderImportAssets)
-        {
-            var fileName = Path.GetFileName(asset.Location.Path);
-            var code = asset.ToText();
-
-            if (string.IsNullOrEmpty(code))
-            {
-                _logger?.Warning($"[VGE] Shader import '{fileName}' is empty or failed to load");
-                continue;
-            }
-
-            _importsCache[fileName] = code;
-            _logger?.Debug($"[VGE] Loaded shader import: {fileName} ({code.Length} chars)");
-        }
-
-        _logger?.Notification($"[VGE] Loaded {_importsCache.Count} shader import(s) from mod assets");
+        var resolver = new AssetSyntaxTreeResourceResolver(api.Assets, DefaultDomain);
+        _preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
     }
 
     /// <summary>
@@ -85,8 +58,8 @@ public sealed class ShaderImportsSystem
     /// </summary>
     public void Clear()
     {
-        _importsCache.Clear();
         _logger = null;
+        _preprocessor = null;
     }
 
     /// <summary>
@@ -122,26 +95,51 @@ public sealed class ShaderImportsSystem
     }
 
     /// <summary>
-    /// Processes all @import directives in the given SyntaxTree by inlining imported content.
+    /// Expands all <c>@import</c> directives using <see cref="TinyAst.Preprocessor.Bridge.SyntaxTreePreprocessor{TImportNode}"/>
+    /// and the Vintage Story asset system.
     /// </summary>
     /// <param name="tree">The SyntaxTree to process.</param>
     /// <param name="sourceName">The source name for logging.</param>
     /// <param name="log">Optional logger for warnings/errors.</param>
-    /// <returns>True if imports were inlined, false otherwise.</returns>
-    public bool InlineImports(SyntaxTree tree, string sourceName, ILogger? log = null)
+    /// <param name="outputTree">The processed tree (same as input if no imports were present).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>True if preprocessing was performed (imports present), false otherwise.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when preprocessing fails (e.g., missing import).</exception>
+    public bool TryPreprocessImports(
+        SyntaxTree tree,
+        string sourceName,
+        out SyntaxTree outputTree,
+        ILogger? log = null,
+        CancellationToken ct = default)
     {
-        try
+        ArgumentNullException.ThrowIfNull(tree);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceName);
+
+        outputTree = tree;
+
+        if (_preprocessor is null)
         {
-            bool success = SourceCodeImportsProcessor.ProcessImports(tree, _importsCache, log ?? _logger);
-            //string originalText = tree.ToText();
-            //System.Diagnostics.Debug.WriteLine(originalText);
-            return success;
-        }
-        catch (Exception ex)
-        {
-            (log ?? _logger)?.Warning($"[VGE] Failed to inline imports for '{sourceName}': {ex.Message}");
             return false;
         }
+
+        bool hasImports = tree.Select(Query.Syntax<GlImportNode>()).Any();
+        if (!hasImports)
+        {
+            return false;
+        }
+
+        var rootId = new ResourceId($"{DefaultDomain}:shaders/{sourceName}");
+        var result = _preprocessor.Process(rootId, tree, context: null, options: null, ct);
+
+        if (!result.Success)
+        {
+            string diagText = string.Join("\n", result.Diagnostics.Select(static d => d.ToString()));
+            (log ?? _logger)?.Error($"[VGE] Shader import preprocessing failed for '{sourceName}':\n{diagText}");
+            throw new InvalidOperationException($"Shader import preprocessing failed for '{sourceName}'");
+        }
+
+        outputTree = result.Content;
+        return true;
     }
 }
 

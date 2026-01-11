@@ -1,6 +1,10 @@
 using TinyTokenizer.Ast;
 using VanillaGraphicsExpanded;
+using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.Tests.Helpers;
 using Xunit;
+
+using TinyPreprocessor.Core;
 
 namespace VanillaGraphicsExpanded.Tests;
 
@@ -76,27 +80,11 @@ public class ShaderPatchingTests
         """;
 
     /// <summary>
-    /// Sample shader with @import directive inlined.
+    /// Sample include file for preprocessing tests.
     /// </summary>
-    private const string ShaderWithImportInlined = """
-        #version 330 core
-        #extension GL_ARB_explicit_attrib_location: enable
-        
-        layout(location = 0) out vec4 outColor;
-        layout(location = 1) out vec4 outGlow;
-        #if SSAOLEVEL > 0
-        in vec4 gnormal;
-        layout(location = 2) out vec4 outGNormal;
-        layout(location = 3) out vec4 outGPosition;
-        #endif
-
-        /* @import "shared.glsl" */
+    private const string SharedInclude = """
         // Shared code
         float PI = 3.14159;
-
-        void main() {
-            fragColor = vec4(1.0);
-        }
         """;
     #endregion
 
@@ -171,52 +159,55 @@ public class ShaderPatchingTests
     #region Import Processing Tests
 
     [Fact]
-    public void ProcessImports_ReplacesImportWithContent()
+    public void Preprocessor_InlinesImportContent()
     {
         var tree = SyntaxTree.Parse(ShaderWithImport, GlslSchema.Instance);
-        var importsCache = new Dictionary<string, string>
+        var sources = new Dictionary<string, string>
         {
-            ["shared.glsl"] = "// Shared code\nfloat PI = 3.14159;"
+            ["shaderincludes/shared.glsl"] = SharedInclude
         };
 
-        var result = SourceCodeImportsProcessor.ProcessImports(tree, importsCache);
+        var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
+        var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
+        var result = preprocessor.Process(new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"), tree);
 
-        Assert.True(result);
+        Assert.True(result.Success);
 
-        var output = NormalizeLineEndings(tree.ToText());
+        var output = NormalizeLineEndings(result.Content.ToText());
 
-        // Original import should be commented out (// prefix before @import)
-        Assert.Contains("/* @import \"shared.glsl\" */", output);
-        Assert.Equal(NormalizeLineEndings(ShaderWithImportInlined.Trim()), NormalizeLineEndings(output.Trim()));
+        Assert.Contains("float PI = 3.14159", output);
+        Assert.DoesNotContain("@import", output);
     }
 
     [Fact]
-    public void ProcessImports_ReturnsFalse_WhenNoImports()
+    public void Preprocessor_Succeeds_WhenNoImports()
     {
         var tree = SyntaxTree.Parse(SampleShader, GlslSchema.Instance);
-        var importsCache = new Dictionary<string, string>();
+        var sources = new Dictionary<string, string>();
 
-        var result = SourceCodeImportsProcessor.ProcessImports(tree, importsCache);
+        var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
+        var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
+        var result = preprocessor.Process(new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"), tree);
 
-        Assert.False(result);
+        Assert.True(result.Success);
+        Assert.Equal(NormalizeLineEndings(tree.ToText().Trim()), NormalizeLineEndings(result.Content.ToText().Trim()));
     }
 
     [Fact]
-    public void ProcessImports_AddsWarningComment_WhenImportNotFound()
+    public void Preprocessor_Fails_WhenImportNotFound()
     {
         var tree = SyntaxTree.Parse(ShaderWithImport, GlslSchema.Instance);
-        var importsCache = new Dictionary<string, string>(); // Empty cache
+        var sources = new Dictionary<string, string>(); // Empty store
 
-        var result = SourceCodeImportsProcessor.ProcessImports(tree, importsCache);
+        var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
+        var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
+        var result = preprocessor.Process(new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"), tree);
 
-        Assert.True(result);
+        Assert.False(result.Success);
+        Assert.NotEmpty(result.Diagnostics);
 
-        var output = NormalizeLineEndings(tree.ToText());
-
-        // Import should be commented out
-        Assert.Contains("/* @import \"shared.glsl\" */", output);
-        // Warning comment should be added after the commented import
-        Assert.Contains("// WARNING: Import file 'shared.glsl' not found", output);
+        var output = string.Join("\n", result.Diagnostics);
+        Assert.Contains("shared.glsl", output);
     }
 
     [Fact]

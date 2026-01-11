@@ -1,8 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+
 using OpenTK.Graphics.OpenGL;
 using TinyTokenizer.Ast;
+
+using TinyPreprocessor.Core;
+
+using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.Tests.Helpers;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
@@ -19,6 +25,8 @@ public sealed class ShaderTestHelper : IDisposable
     
     // Lazy-loaded imports cache
     private Dictionary<string, string>? _importsCache;
+
+    private ShaderSyntaxTreePreprocessor? _preprocessor;
 
     /// <summary>
     /// Creates a new ShaderTestHelper with explicit paths.
@@ -46,6 +54,8 @@ public sealed class ShaderTestHelper : IDisposable
     /// </summary>
     private Dictionary<string, string> ImportsCache => _importsCache ??= BuildImportsCache();
 
+    private ShaderSyntaxTreePreprocessor Preprocessor => _preprocessor ??= BuildPreprocessor();
+
     /// <summary>
     /// Builds the imports cache by reading all include files from the include base path.
     /// </summary>
@@ -60,14 +70,22 @@ public sealed class ShaderTestHelper : IDisposable
             foreach (var filePath in Directory.EnumerateFiles(_includeBasePath, pattern, SearchOption.TopDirectoryOnly))
             {
                 var fileName = Path.GetFileName(filePath);
-                if (!cache.ContainsKey(fileName))
+                string key = $"shaderincludes/{fileName}";
+
+                if (!cache.ContainsKey(key))
                 {
-                    cache[fileName] = File.ReadAllText(filePath);
+                    cache[key] = File.ReadAllText(filePath);
                 }
             }
         }
         
         return cache;
+    }
+
+    private ShaderSyntaxTreePreprocessor BuildPreprocessor()
+    {
+        var resolver = new DictionarySyntaxTreeResourceResolver(ImportsCache, ShaderImportsSystem.DefaultDomain);
+        return new ShaderSyntaxTreePreprocessor(resolver);
     }
 
     /// <summary>
@@ -231,8 +249,15 @@ public sealed class ShaderTestHelper : IDisposable
     private string ProcessImports(string source)
     {
         var tree = SyntaxTree.Parse(source, GlslSchema.Instance);
-        SourceCodeImportsProcessor.ProcessImports(tree, ImportsCache, logger: null);
-        return tree.ToText();
+
+        var rootId = new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test");
+        var result = Preprocessor.Process(rootId, tree);
+        if (!result.Success)
+        {
+            throw new InvalidOperationException("Shader preprocessing failed in test helper");
+        }
+
+        return result.Content.ToText();
     }
 
     /// <summary>
