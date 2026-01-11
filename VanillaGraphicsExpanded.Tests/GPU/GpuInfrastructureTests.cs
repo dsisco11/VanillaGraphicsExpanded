@@ -34,7 +34,7 @@ public class GpuInfrastructureTests
         _fixture.EnsureContextValid();
         
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaderincludes");
+        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
         // Skip if assets not found (e.g., running from wrong directory)
         Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");

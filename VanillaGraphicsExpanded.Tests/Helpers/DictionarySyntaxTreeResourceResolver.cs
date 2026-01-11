@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -18,6 +19,7 @@ namespace VanillaGraphicsExpanded.Tests.Helpers;
 public sealed class DictionarySyntaxTreeResourceResolver : IResourceResolver<SyntaxTree>
 {
     private static readonly IReadOnlyDictionary<string, object> EmptyMetadata = new Dictionary<string, object>();
+    private static readonly string NormalizationRoot = EnsureTrailingSeparator(Path.GetFullPath(Path.Combine(Path.GetTempPath(), "vge-tests-preprocessor-root")));
 
     private readonly IReadOnlyDictionary<string, string> _sources;
     private readonly string _defaultDomain;
@@ -48,19 +50,14 @@ public sealed class DictionarySyntaxTreeResourceResolver : IResourceResolver<Syn
             return ValueTask.FromResult(ResourceResolutionResult<SyntaxTree>.Failure(diag));
         }
 
-        // The preprocessor may already qualify references (e.g. "domain:path").
-        // For lookup, we always use the path portion.
-        string key = reference;
-        int sepIndex = key.IndexOf(':');
-        if (sepIndex >= 0)
-        {
-            key = key[(sepIndex + 1)..];
-        }
+        // Resolve like production: domain:path stays absolute; everything else is relative
+        // to the importing file's directory (relativeTo).
+        (string domain, string key) = ResolveReference(reference, relativeTo);
 
-        // Mirror production: bare filenames resolve from shaderincludes/ in the default domain.
-        // Be tolerant: try both the raw key and the shaderincludes/ prefixed key.
+        // For lookup, we only use the normalized path portion.
+        // Be tolerant for legacy tests: allow looking up just the filename and the old shaderincludes/ prefix.
         string[] candidates = (!key.Contains('/'))
-            ? [key, $"shaderincludes/{key}"]
+            ? [key, $"shaders/includes/{key}", $"shaderincludes/{key}"]
             : [key];
 
         string? text = null;
@@ -87,11 +84,105 @@ public sealed class DictionarySyntaxTreeResourceResolver : IResourceResolver<Syn
             return ValueTask.FromResult(ResourceResolutionResult<SyntaxTree>.Failure(diag));
         }
 
-        var id = new ResourceId($"{_defaultDomain}:{matchedKey}");
+        var id = new ResourceId($"{domain}:{matchedKey}");
         var tree = SyntaxTree.ParseAndBind(text, GlslSchema.Instance);
         var resource = new Resource<SyntaxTree>(id, tree, EmptyMetadata);
 
         return ValueTask.FromResult(ResourceResolutionResult<SyntaxTree>.Success(resource));
+    }
+
+    private (string Domain, string Path) ResolveReference(string reference, IResource<SyntaxTree>? relativeTo)
+    {
+        reference = (reference ?? string.Empty).Trim();
+        reference = reference.Replace('\\', '/');
+
+        // Absolute reference: domain:path
+        if (reference.Contains(':'))
+        {
+            var (domain, path) = SplitDomainAndPath(reference);
+            return (domain, NormalizePathWithinDomain(path));
+        }
+
+        // Relative reference: resolve against importing file path.
+        var baseIdPath = relativeTo?.Id.Path ?? string.Empty;
+        var (baseDomain, basePath) = SplitDomainAndPath(baseIdPath);
+        var resolvedPath = ResolveRelativePath(reference, basePath);
+
+        return (baseDomain, NormalizePathWithinDomain(resolvedPath));
+    }
+
+    private (string Domain, string Path) SplitDomainAndPath(string domainAndPath)
+    {
+        if (string.IsNullOrWhiteSpace(domainAndPath))
+        {
+            return (_defaultDomain, string.Empty);
+        }
+
+        var trimmed = domainAndPath.Trim();
+        int sepIndex = trimmed.IndexOf(':');
+        if (sepIndex < 0)
+        {
+            return (_defaultDomain, trimmed.Replace('\\', '/'));
+        }
+
+        string domain = trimmed[..sepIndex];
+        string path = trimmed[(sepIndex + 1)..];
+
+        if (string.IsNullOrWhiteSpace(domain))
+        {
+            domain = _defaultDomain;
+        }
+
+        return (domain, path.Replace('\\', '/'));
+    }
+
+    private static string ResolveRelativePath(string reference, string basePath)
+    {
+        reference = (reference ?? string.Empty).Trim();
+        reference = reference.Replace('\\', '/');
+
+        // Defensive: basePath might accidentally be domain:path.
+        int sepIndex = basePath.IndexOf(':');
+        if (sepIndex >= 0)
+        {
+            basePath = basePath[(sepIndex + 1)..];
+        }
+
+        string basePathOs = (basePath ?? string.Empty).Replace('/', Path.DirectorySeparatorChar);
+        string? baseDirOs = Path.GetDirectoryName(basePathOs);
+        baseDirOs ??= string.Empty;
+
+        string relativeOs = reference.Replace('/', Path.DirectorySeparatorChar);
+
+        string combinedFull = Path.GetFullPath(Path.Combine(NormalizationRoot, baseDirOs, relativeOs));
+        string normalizedRelative = Path.GetRelativePath(NormalizationRoot, combinedFull);
+
+        return NormalizeSeparators(normalizedRelative);
+    }
+
+    private static string NormalizePathWithinDomain(string path)
+    {
+        path = (path ?? string.Empty).Replace('\\', '/');
+        string pathOs = path.Replace('/', Path.DirectorySeparatorChar);
+
+        string full = Path.GetFullPath(Path.Combine(NormalizationRoot, pathOs));
+        string rel = Path.GetRelativePath(NormalizationRoot, full);
+
+        return NormalizeSeparators(rel);
+    }
+
+    private static string NormalizeSeparators(string path)
+    {
+        return path.Replace(Path.DirectorySeparatorChar, '/');
+    }
+
+    private static string EnsureTrailingSeparator(string path)
+    {
+        if (path.EndsWith(Path.DirectorySeparatorChar))
+        {
+            return path;
+        }
+        return path + Path.DirectorySeparatorChar;
     }
 
     private static string RemoveControlChars(string value)

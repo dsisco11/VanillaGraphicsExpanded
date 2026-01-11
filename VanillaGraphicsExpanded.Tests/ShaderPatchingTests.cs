@@ -73,7 +73,7 @@ public class ShaderPatchingTests
         layout(location = 3) out vec4 outGPosition;
         #endif
 
-        @import "shared.glsl"
+        @import "./includes/shared.glsl"
         void main() {
             fragColor = vec4(1.0);
         }
@@ -134,8 +134,8 @@ public class ShaderPatchingTests
 
         Assert.NotNull(importDirective);
         Assert.Equal("import", importDirective.Name);
-        Assert.Equal("shared.glsl", NormalizeLineEndings(importDirective.ImportString));
-        Assert.Equal("\n@import \"shared.glsl\"\n", NormalizeLineEndings(importDirective.ToText()));
+        Assert.Equal("./includes/shared.glsl", NormalizeLineEndings(importDirective.ImportString));
+        Assert.Equal("\n@import \"./includes/shared.glsl\"\n", NormalizeLineEndings(importDirective.ToText()));
     }
 
     [Fact]
@@ -163,15 +163,19 @@ public class ShaderPatchingTests
     {
         var sources = new Dictionary<string, string>
         {
-            ["shaderincludes/shared.glsl"] = SharedInclude
+            ["shaders/includes/shared.glsl"] = SharedInclude
         };
 
         var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
-        var result = resolver.ResolveAsync("shared.glsl", relativeTo: null, ct: default).GetAwaiter().GetResult();
+        var baseResource = new Resource<SyntaxTree>(
+            new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"),
+            SyntaxTree.Parse("", GlslSchema.Instance),
+            new Dictionary<string, object>());
+        var result = resolver.ResolveAsync("./includes/shared.glsl", relativeTo: baseResource, ct: default).GetAwaiter().GetResult();
 
         Assert.True(result.IsSuccess, result.Error?.ToString());
         Assert.NotNull(result.Resource);
-        Assert.Equal($"{ShaderImportsSystem.DefaultDomain}:shaderincludes/shared.glsl", result.Resource.Id.Path);
+        Assert.Equal($"{ShaderImportsSystem.DefaultDomain}:shaders/includes/shared.glsl", result.Resource.Id.Path);
     }
 
     [Fact]
@@ -180,7 +184,7 @@ public class ShaderPatchingTests
         var tree = SyntaxTree.Parse(ShaderWithImport, GlslSchema.Instance);
         var sources = new Dictionary<string, string>
         {
-            ["shaderincludes/shared.glsl"] = SharedInclude
+            ["shaders/includes/shared.glsl"] = SharedInclude
         };
 
         var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
@@ -232,8 +236,8 @@ public class ShaderPatchingTests
         const string multiImportShader = """
             #version 330 core
 
-            @import "utils.glsl"
-            @import "lighting.glsl"
+            @import "./includes/utils.glsl"
+            @import "./includes/lighting.glsl"
 
             void main() {
                 fragColor = vec4(1.0);
@@ -243,8 +247,8 @@ public class ShaderPatchingTests
         var tree = SyntaxTree.Parse(multiImportShader, GlslSchema.Instance);
         var sources = new Dictionary<string, string>
         {
-            ["shaderincludes/utils.glsl"] = "// Utils\n",
-            ["shaderincludes/lighting.glsl"] = "// Lighting\n"
+            ["shaders/includes/utils.glsl"] = "// Utils\n",
+            ["shaders/includes/lighting.glsl"] = "// Lighting\n"
         };
 
         var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
@@ -403,7 +407,7 @@ public class ShaderPatchingTests
 
             uniform sampler2D tex;
             
-            @import "shared.glsl"
+            @import "./includes/shared.glsl"
 
             void main() {
                 fragColor = vec4(1.0);
@@ -413,7 +417,7 @@ public class ShaderPatchingTests
         var tree = SyntaxTree.Parse(shader, GlslSchema.Instance);
         var sources = new Dictionary<string, string>
         {
-            ["shaderincludes/shared.glsl"] = "// Shared code\nfloat PI = 3.14159;"
+            ["shaders/includes/shared.glsl"] = "// Shared code\nfloat PI = 3.14159;"
         };
 
         var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
@@ -446,8 +450,8 @@ public class ShaderPatchingTests
             uniform float zNear;
             uniform float zFar;
 
-            @import "squirrel3.fsh"
-            @import "pbrFunctions.fsh"
+            @import "./includes/squirrel3.fsh"
+            @import "./includes/pbrFunctions.fsh"
 
             void main() {
                 outColor = texture(primaryScene, uv);
@@ -457,8 +461,8 @@ public class ShaderPatchingTests
         var tree = SyntaxTree.Parse(shader, GlslSchema.Instance);
         var sources = new Dictionary<string, string>
         {
-            ["shaderincludes/squirrel3.fsh"] = "// Squirrel3 hash\nfloat hash(vec3 p) { return 0.5; }",
-            ["shaderincludes/pbrFunctions.fsh"] = "// PBR functions\nvec3 fresnel(float c, vec3 f) { return f; }"
+            ["shaders/includes/squirrel3.fsh"] = "// Squirrel3 hash\nfloat hash(vec3 p) { return 0.5; }",
+            ["shaders/includes/pbrFunctions.fsh"] = "// PBR functions\nvec3 fresnel(float c, vec3 f) { return f; }"
         };
 
         var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);

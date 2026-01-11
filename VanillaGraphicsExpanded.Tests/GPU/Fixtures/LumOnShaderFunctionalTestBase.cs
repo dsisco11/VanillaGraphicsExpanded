@@ -161,7 +161,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
             return;
 
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaderincludes");
+        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
         if (Directory.Exists(shaderPath) && Directory.Exists(includePath))
         {

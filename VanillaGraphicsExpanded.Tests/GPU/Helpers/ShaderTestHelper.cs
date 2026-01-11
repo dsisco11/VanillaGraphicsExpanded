@@ -32,7 +32,7 @@ public sealed class ShaderTestHelper : IDisposable
     /// Creates a new ShaderTestHelper with explicit paths.
     /// </summary>
     /// <param name="shaderBasePath">Base path for shader files (.vsh, .fsh).</param>
-    /// <param name="includeBasePath">Base path for include files (shaderincludes/).</param>
+    /// <param name="includeBasePath">Base path for include files (typically assets/shaders/includes).</param>
     public ShaderTestHelper(string shaderBasePath, string includeBasePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(shaderBasePath);
@@ -70,7 +70,9 @@ public sealed class ShaderTestHelper : IDisposable
             foreach (var filePath in Directory.EnumerateFiles(_includeBasePath, pattern, SearchOption.TopDirectoryOnly))
             {
                 var fileName = Path.GetFileName(filePath);
-                string key = $"shaderincludes/{fileName}";
+                // Production shaders use @import "./includes/..." resolved relative to "shaders/<file>"
+                // so the preprocessor ultimately looks up "shaders/includes/<name>".
+                string key = $"shaders/includes/{fileName}";
 
                 if (!cache.ContainsKey(key))
                 {

@@ -29,7 +29,7 @@ public class LumOnUniformTests : IDisposable
         if (_fixture.IsContextValid)
         {
             var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-            var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaderincludes");
+              var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
             if (Directory.Exists(shaderPath) && Directory.Exists(includePath))
             {
