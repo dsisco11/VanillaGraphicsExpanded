@@ -146,14 +146,37 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         // Use VGE's G-buffer normal (ColorAttachment4) which contains world-space normals
         // encoded to [0,1] via the shader patching system
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex;
-        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex;
-        shader.RadianceTexture0 = bufferManager.RadianceHistoryTex0;
-        shader.RadianceTexture1 = bufferManager.RadianceHistoryTex1;
-        shader.IndirectHalf = bufferManager.IndirectHalfTex;
-        shader.HistoryMeta = bufferManager.ProbeMetaHistoryTex;
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex?.TextureId ?? 0;
+        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex?.TextureId ?? 0;
+        shader.RadianceTexture0 = bufferManager.RadianceHistoryTex0?.TextureId ?? 0;
+        shader.RadianceTexture1 = bufferManager.RadianceHistoryTex1?.TextureId ?? 0;
+        shader.IndirectHalf = bufferManager.IndirectHalfTex?.TextureId ?? 0;
+        shader.HistoryMeta = bufferManager.ProbeMetaHistoryTex?.TextureId ?? 0;
 
         shader.ProbeAtlasMeta = bufferManager.ScreenProbeAtlasMetaHistoryTex?.TextureId ?? 0;
+
+        // Probe-atlas debug textures (raw/current/filtered + the actual gather input selection)
+        int probeAtlasTrace = bufferManager.ScreenProbeAtlasTraceTex?.TextureId ?? 0;
+        int probeAtlasCurrent = bufferManager.ScreenProbeAtlasCurrentTex?.TextureId ?? probeAtlasTrace;
+        int probeAtlasFiltered = bufferManager.ScreenProbeAtlasFilteredTex?.TextureId ?? 0;
+
+        int gatherAtlasSource = 0;
+        int gatherInput = probeAtlasTrace;
+        if (probeAtlasFiltered != 0)
+        {
+            gatherAtlasSource = 2;
+            gatherInput = probeAtlasFiltered;
+        }
+        else if (probeAtlasCurrent != 0)
+        {
+            gatherAtlasSource = 1;
+            gatherInput = probeAtlasCurrent;
+        }
+
+        shader.ProbeAtlasCurrent = probeAtlasCurrent;
+        shader.ProbeAtlasFiltered = probeAtlasFiltered;
+        shader.ProbeAtlasGatherInput = gatherInput;
+        shader.GatherAtlasSource = gatherAtlasSource;
 
         // Pass uniforms
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);

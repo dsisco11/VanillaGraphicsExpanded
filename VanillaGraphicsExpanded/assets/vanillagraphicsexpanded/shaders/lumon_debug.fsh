@@ -24,6 +24,10 @@ out vec4 outColor;
 // 11 = Gather Weight (diagnostic; reads indirectHalf alpha)
 // 12 = Probe-Atlas Meta Confidence (grayscale)
 // 13 = Probe-Atlas Temporal Alpha (confidence-scaled)
+// 14 = Probe-Atlas Meta Flags (RGB bit visualization)
+// 15 = Probe-Atlas Filtered Radiance (probe-space)
+// 16 = Probe-Atlas Filter Delta (abs(filtered - current))
+// 17 = Probe-Atlas Gather Input Source (raw vs filtered)
 // ============================================================================
 
 // Import common utilities
@@ -31,6 +35,9 @@ out vec4 outColor;
 
 // Import SH helpers for mode 8
 @import "lumon_sh.fsh"
+
+// Import probe-atlas meta helpers for mode 14
+@import "lumon_probe_atlas_meta.glsl"
 
 // G-buffer textures
 uniform sampler2D primaryDepth;
@@ -48,6 +55,9 @@ uniform sampler2D historyMeta;          // linearized depth, normal, accumCount
 
 // Screen-probe atlas textures
 uniform sampler2D probeAtlasMeta;       // R = confidence, G = uintBitsToFloat(flags)
+uniform sampler2D probeAtlasCurrent;     // RGBA16F radiance atlas (post-temporal)
+uniform sampler2D probeAtlasFiltered;    // RGBA16F radiance atlas (post-filter)
+uniform sampler2D probeAtlasGatherInput; // The atlas currently selected as gather input
 
 // Matrices
 uniform mat4 invProjectionMatrix;
@@ -73,6 +83,9 @@ uniform mat4 prevViewProjMatrix;
 // Debug mode
 uniform int debugMode;
 
+// Gather atlas selection: 0=trace, 1=current, 2=filtered
+uniform int gatherAtlasSource;
+
 // ============================================================================
 // Debug Mode 12/13: Probe-Atlas Meta
 // ============================================================================
@@ -86,6 +99,45 @@ vec4 renderProbeAtlasTemporalAlphaDebug() {
     float confHist = texture(probeAtlasMeta, uv).r;
     float alphaEff = clamp(temporalAlpha * clamp(confHist, 0.0, 1.0), 0.0, 1.0);
     return vec4(vec3(alphaEff), 1.0);
+}
+
+vec4 renderProbeAtlasMetaFlagsDebug() {
+    float conf;
+    uint flags;
+    lumonDecodeMeta(texture(probeAtlasMeta, uv).rg, conf, flags);
+
+    float hit = (flags & LUMON_META_HIT) != 0u ? 1.0 : 0.0;
+    float sky = (flags & LUMON_META_SKY_MISS) != 0u ? 1.0 : 0.0;
+    float exit = (flags & LUMON_META_SCREEN_EXIT) != 0u ? 1.0 : 0.0;
+
+    // Encode additional bits as brightness boost so they pop without hiding base flags.
+    float early = (flags & LUMON_META_EARLY_TERMINATED) != 0u ? 0.25 : 0.0;
+    float thick = (flags & LUMON_META_THICKNESS_UNCERT) != 0u ? 0.25 : 0.0;
+
+    vec3 base = vec3(hit, sky, exit);
+    base = clamp(base + vec3(early + thick), 0.0, 1.0);
+    return vec4(base, 1.0);
+}
+
+vec4 renderProbeAtlasFilteredRadianceDebug() {
+    vec3 rgb = texture(probeAtlasFiltered, uv).rgb;
+    return vec4(rgb, 1.0);
+}
+
+vec4 renderProbeAtlasFilterDeltaDebug() {
+    vec3 curr = texture(probeAtlasCurrent, uv).rgb;
+    vec3 filt = texture(probeAtlasFiltered, uv).rgb;
+    float d = length(filt - curr);
+    // Scale a bit so subtle changes show up.
+    return vec4(heatmap(clamp(d * 4.0, 0.0, 1.0)), 1.0);
+}
+
+vec4 renderProbeAtlasGatherInputSourceDebug() {
+    // Solid color to make it obvious what the renderer is feeding into gather.
+    // Red = trace/raw, Yellow = temporal/current, Green = filtered
+    if (gatherAtlasSource == 2) return vec4(0.1, 1.0, 0.1, 1.0);
+    if (gatherAtlasSource == 1) return vec4(1.0, 1.0, 0.1, 1.0);
+    return vec4(1.0, 0.1, 0.1, 1.0);
 }
 
 // ============================================================================
@@ -605,6 +657,18 @@ void main(void)
             break;
         case 13:
             outColor = renderProbeAtlasTemporalAlphaDebug();
+            break;
+        case 14:
+            outColor = renderProbeAtlasMetaFlagsDebug();
+            break;
+        case 15:
+            outColor = renderProbeAtlasFilteredRadianceDebug();
+            break;
+        case 16:
+            outColor = renderProbeAtlasFilterDeltaDebug();
+            break;
+        case 17:
+            outColor = renderProbeAtlasGatherInputSourceDebug();
             break;
         default:
             outColor = vec4(1.0, 0.0, 1.0, 1.0);  // Magenta = unknown mode

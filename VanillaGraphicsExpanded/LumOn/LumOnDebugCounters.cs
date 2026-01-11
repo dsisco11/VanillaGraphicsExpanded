@@ -33,6 +33,9 @@ public class LumOnDebugCounters
     /// <summary>Probes rejected (disoccluded)</summary>
     public int TemporalRejectedProbes { get; set; }
 
+    /// <summary>Time spent building HZB depth pyramid (ms)</summary>
+    public float HzbPassMs { get; set; }
+
     /// <summary>Time spent in probe anchor pass (ms)</summary>
     public float ProbeAnchorPassMs { get; set; }
 
@@ -41,6 +44,12 @@ public class LumOnDebugCounters
 
     /// <summary>Time spent in temporal pass (ms)</summary>
     public float TemporalPassMs { get; set; }
+
+    /// <summary>Time spent in probe-atlas filter pass (ms)</summary>
+    public float ProbeAtlasFilterPassMs { get; set; }
+
+    /// <summary>Time spent in atlas SH projection pass (ms)</summary>
+    public float ProbeAtlasProjectionPassMs { get; set; }
 
     /// <summary>Time spent in gather pass (ms)</summary>
     public float GatherPassMs { get; set; }
@@ -63,9 +72,12 @@ public class LumOnDebugCounters
         RayMisses = 0;
         TemporalValidProbes = 0;
         TemporalRejectedProbes = 0;
+        HzbPassMs = 0;
         ProbeAnchorPassMs = 0;
         ProbeTracePassMs = 0;
         TemporalPassMs = 0;
+        ProbeAtlasFilterPassMs = 0;
+        ProbeAtlasProjectionPassMs = 0;
         GatherPassMs = 0;
         UpsamplePassMs = 0;
         TotalFrameMs = 0;
@@ -81,8 +93,9 @@ public class LumOnDebugCounters
             $"LumOn Probes: {ValidProbes}/{TotalProbes} valid, {EdgeProbes} edge",
             $"Rays: {RaysTraced} traced, {HitRate:F1}% hit rate",
             $"Temporal: {TemporalValidProbes} valid, {TemporalRejectedProbes} rejected",
-            $"Time: {TotalFrameMs:F2}ms (A:{ProbeAnchorPassMs:F2} T:{ProbeTracePassMs:F2} " +
-            $"Tp:{TemporalPassMs:F2} G:{GatherPassMs:F2} U:{UpsamplePassMs:F2})"
+            $"Time: {TotalFrameMs:F2}ms (HZB:{HzbPassMs:F2} A:{ProbeAnchorPassMs:F2} T:{ProbeTracePassMs:F2} " +
+            $"Tp:{TemporalPassMs:F2} F:{ProbeAtlasFilterPassMs:F2} P:{ProbeAtlasProjectionPassMs:F2} " +
+            $"G:{GatherPassMs:F2} U:{UpsamplePassMs:F2})"
         ];
     }
 }

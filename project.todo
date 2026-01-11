@@ -184,11 +184,11 @@ LumOn Functional Test Coverage:
 
     Phase 13 - Integration, Debug, and Performance
     Exit artifacts: New passes are debuggable and timed; perf baselines documented; optional minimal visual regression hooks exist.
-    ☐ Add debug modes for:
+    ✔ Add debug modes for: @done
       - screen-probe atlas meta
       - filtered atlas visualization (probe-space)
       - gather input selection (raw vs filtered)
-    ☐ Extend GPU timer queries to include new passes (HZB, Filter, Projection)
+    ✔ Extend GPU timer queries to include new passes (HZB, Filter, Projection) @done
 
     Phase 14 - Screen-Space Parity/Polish (Remaining Discrepancies)
     Depends on: Phase 9 (confidence), Phase 10 (temporal uses confidence), Phase 11 (probe-space filter).

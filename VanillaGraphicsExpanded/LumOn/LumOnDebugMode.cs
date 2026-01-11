@@ -30,5 +30,9 @@ public enum LumOnDebugMode
 
     // Screen-probe atlas (probe-atlas mode) debug views.
     ProbeAtlasMetaConfidence = 12,
-    ProbeAtlasTemporalAlpha = 13
+    ProbeAtlasTemporalAlpha = 13,
+    ProbeAtlasMetaFlags = 14,
+    ProbeAtlasFilteredRadiance = 15,
+    ProbeAtlasFilterDelta = 16,
+    ProbeAtlasGatherInputSource = 17
 }

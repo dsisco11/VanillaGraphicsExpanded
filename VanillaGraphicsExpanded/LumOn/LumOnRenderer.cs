@@ -63,7 +63,9 @@ public class LumOnRenderer : IRenderer, IDisposable
     private readonly LumOnDebugCounters debugCounters = new();
 
     // GPU timer queries for performance profiling
-    private readonly int[] timerQueries = new int[5];
+    // Indices:
+    // 0=HZB, 1=Anchor, 2=Trace, 3=Temporal, 4=Filter, 5=Projection, 6=Gather, 7=Upsample
+    private readonly int[] timerQueries = new int[8];
     private bool timerQueriesInitialized;
     private bool timerQueryPending;
 
@@ -203,7 +205,11 @@ public class LumOnRenderer : IRenderer, IDisposable
             LumOnDebugMode.RadianceOverlay,
             LumOnDebugMode.GatherWeight,
             LumOnDebugMode.ProbeAtlasMetaConfidence,
-            LumOnDebugMode.ProbeAtlasTemporalAlpha
+            LumOnDebugMode.ProbeAtlasTemporalAlpha,
+            LumOnDebugMode.ProbeAtlasMetaFlags,
+            LumOnDebugMode.ProbeAtlasFilteredRadiance,
+            LumOnDebugMode.ProbeAtlasFilterDelta,
+            LumOnDebugMode.ProbeAtlasGatherInputSource
         };
 
         int currentIndex = Array.IndexOf(cycle, config.DebugMode);
@@ -231,6 +237,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         LumOnDebugMode.GatherWeight => "Gather Weight (diagnostic)",
         LumOnDebugMode.ProbeAtlasMetaConfidence => "Probe-Atlas Meta Confidence",
         LumOnDebugMode.ProbeAtlasTemporalAlpha => "Probe-Atlas Temporal Alpha",
+        LumOnDebugMode.ProbeAtlasMetaFlags => "Probe-Atlas Meta Flags",
+        LumOnDebugMode.ProbeAtlasFilteredRadiance => "Probe-Atlas Filtered Radiance",
+        LumOnDebugMode.ProbeAtlasFilterDelta => "Probe-Atlas Filter Delta",
+        LumOnDebugMode.ProbeAtlasGatherInputSource => "Probe-Atlas Gather Input Source",
         _ => mode.ToString()
     };
 
@@ -238,8 +248,9 @@ public class LumOnRenderer : IRenderer, IDisposable
     {
         var c = debugCounters;
         string stats = $"[LumOn] Probes: {c.TotalProbes} | " +
-                       $"Time: {c.TotalFrameMs:F2}ms (A:{c.ProbeAnchorPassMs:F2} T:{c.ProbeTracePassMs:F2} " +
-                       $"Tp:{c.TemporalPassMs:F2} G:{c.GatherPassMs:F2} U:{c.UpsamplePassMs:F2})";
+                       $"Time: {c.TotalFrameMs:F2}ms (HZB:{c.HzbPassMs:F2} A:{c.ProbeAnchorPassMs:F2} T:{c.ProbeTracePassMs:F2} " +
+                       $"Tp:{c.TemporalPassMs:F2} F:{c.ProbeAtlasFilterPassMs:F2} P:{c.ProbeAtlasProjectionPassMs:F2} " +
+                       $"G:{c.GatherPassMs:F2} U:{c.UpsamplePassMs:F2})";
         capi.ShowChatMessage(stats);
         return true;
     }
@@ -310,15 +321,17 @@ public class LumOnRenderer : IRenderer, IDisposable
         UpdateMatrices();
 
         // === Pass 0: HZB depth pyramid ===
+        BeginTimerQuery(0);
         BuildHzb(primaryFb);
+        EndTimerQuery();
 
         // === Pass 1: Probe Anchor ===
-        BeginTimerQuery(0);
+        BeginTimerQuery(1);
         RenderProbeAnchorPass(primaryFb);
         EndTimerQuery();
 
         // === Pass 2: Probe Trace ===
-        BeginTimerQuery(1);
+        BeginTimerQuery(2);
         if (config.UseProbeAtlas)
         {
             RenderProbeAtlasTracePass(primaryFb);
@@ -330,7 +343,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         EndTimerQuery();
 
         // === Pass 3: Temporal Accumulation ===
-        BeginTimerQuery(2);
+        BeginTimerQuery(3);
         if (config.UseProbeAtlas)
         {
             RenderProbeAtlasTemporalPass();
@@ -342,18 +355,28 @@ public class LumOnRenderer : IRenderer, IDisposable
         EndTimerQuery();
 
         // === Pass 3.5: Probe-Atlas Filter/Denoise (Probe-space) ===
+        BeginTimerQuery(4);
         if (config.UseProbeAtlas)
         {
             RenderProbeAtlasFilterPass();
         }
+        EndTimerQuery();
+
+        // === Pass 3.75: Probe-Atlas Projection (Option B) ===
+        BeginTimerQuery(5);
+        if (config.UseProbeAtlas && config.ProbeAtlasGather == LumOnConfig.ProbeAtlasGatherMode.EvaluateProjectedSH)
+        {
+            RenderProbeAtlasProjectSh9Pass();
+        }
+        EndTimerQuery();
 
         // === Pass 4: Gather ===
-        BeginTimerQuery(3);
+        BeginTimerQuery(6);
         RenderGatherPass(primaryFb);
         EndTimerQuery();
 
         // === Pass 5: Upsample ===
-        BeginTimerQuery(4);
+        BeginTimerQuery(7);
         RenderUpsamplePass(primaryFb);
         EndTimerQuery();
 
@@ -806,7 +829,6 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         if (config.ProbeAtlasGather == LumOnConfig.ProbeAtlasGatherMode.EvaluateProjectedSH)
         {
-            RenderProbeAtlasProjectSh9Pass();
             RenderProbeSh9GatherPass(primaryFb);
             return;
         }
@@ -1202,7 +1224,7 @@ public class LumOnRenderer : IRenderer, IDisposable
             return;
 
         // Check if results are available (avoid stalls)
-        GL.GetQueryObject(timerQueries[4], GetQueryObjectParam.QueryResultAvailable, out int available);
+        GL.GetQueryObject(timerQueries[^1], GetQueryObjectParam.QueryResultAvailable, out int available);
         if (available == 0)
             return;
 
@@ -1214,18 +1236,24 @@ public class LumOnRenderer : IRenderer, IDisposable
 
             switch (i)
             {
-                case 0: debugCounters.ProbeAnchorPassMs = ms; break;
-                case 1: debugCounters.ProbeTracePassMs = ms; break;
-                case 2: debugCounters.TemporalPassMs = ms; break;
-                case 3: debugCounters.GatherPassMs = ms; break;
-                case 4: debugCounters.UpsamplePassMs = ms; break;
+                case 0: debugCounters.HzbPassMs = ms; break;
+                case 1: debugCounters.ProbeAnchorPassMs = ms; break;
+                case 2: debugCounters.ProbeTracePassMs = ms; break;
+                case 3: debugCounters.TemporalPassMs = ms; break;
+                case 4: debugCounters.ProbeAtlasFilterPassMs = ms; break;
+                case 5: debugCounters.ProbeAtlasProjectionPassMs = ms; break;
+                case 6: debugCounters.GatherPassMs = ms; break;
+                case 7: debugCounters.UpsamplePassMs = ms; break;
             }
         }
 
         debugCounters.TotalFrameMs =
+            debugCounters.HzbPassMs +
             debugCounters.ProbeAnchorPassMs +
             debugCounters.ProbeTracePassMs +
             debugCounters.TemporalPassMs +
+            debugCounters.ProbeAtlasFilterPassMs +
+            debugCounters.ProbeAtlasProjectionPassMs +
             debugCounters.GatherPassMs +
             debugCounters.UpsamplePassMs;
 

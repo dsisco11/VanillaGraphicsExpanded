@@ -72,6 +72,21 @@ public class LumOnDebugShaderProgram : ShaderProgram
     /// </summary>
     public int ProbeAtlasMeta { set => BindTexture2D("probeAtlasMeta", value, 8); }
 
+    /// <summary>
+    /// Screen-probe atlas radiance (current/temporal output) for probe-atlas debug modes.
+    /// </summary>
+    public int ProbeAtlasCurrent { set => BindTexture2D("probeAtlasCurrent", value, 9); }
+
+    /// <summary>
+    /// Screen-probe atlas radiance (filtered output) for probe-atlas debug modes.
+    /// </summary>
+    public int ProbeAtlasFiltered { set => BindTexture2D("probeAtlasFiltered", value, 10); }
+
+    /// <summary>
+    /// The atlas texture currently selected as gather input (raw vs filtered).
+    /// </summary>
+    public int ProbeAtlasGatherInput { set => BindTexture2D("probeAtlasGatherInput", value, 11); }
+
     #endregion
 
     #region Size Uniforms
@@ -151,6 +166,12 @@ public class LumOnDebugShaderProgram : ShaderProgram
     /// Debug visualization mode.
     /// </summary>
     public int DebugMode { set => Uniform("debugMode", value); }
+
+    /// <summary>
+    /// Which atlas source is currently selected for gather input.
+    /// 0=trace, 1=current (temporal), 2=filtered.
+    /// </summary>
+    public int GatherAtlasSource { set => Uniform("gatherAtlasSource", value); }
 
     #endregion
 }
