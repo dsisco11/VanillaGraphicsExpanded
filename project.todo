@@ -216,3 +216,48 @@ LumOn Functional Test Coverage:
       - VarianceClamp_ReducesFireflies_PreservesMean
       - HoleFill_OnlyAffectsLowConfidenceAreas
       - SkyVisibility_ReducesIndoorSkylightWithoutBlackening
+
+    Phase 15 - BRDF + AO + Bent-Normal Compositing (New)
+    Goal: Replace the current “simple add” indirect integration with a physically-plausible compositing pass that
+    accounts for roughness/metallic/specular response and supports AO + bent normals for better contact and sky occlusion.
+
+    Exit artifacts: A dedicated composite stage exists (shader + program + renderer wiring) that:
+      - Computes indirect diffuse/specular using a BRDF approximation (energy-conserving) from G-buffer material inputs
+      - Applies AO and (optionally) bent-normal-based visibility for ambient/sky contribution
+      - Produces stable, debuggable outputs with tests for correctness and edge cases
+
+    Work items:
+    ☐ Define compositing inputs/outputs:
+      - Inputs: albedo/baseColor, normalWS, roughness, metallic, viewDir, indirectRadiance, (optional) hitDistance/confidence
+      - Add new optional inputs: AO (scalar), BentNormalWS (vec3) or BentCone (direction + aperture)
+      - Decide where AO/bent normal come from initially:
+        - Short-term: accept externally-provided AO/bent normal (e.g., from VS pipeline if available)
+        - Medium-term: derive cheap AO proxy from LumOn hit distance/confidence or depth neighborhood
+
+    ☐ Add shared include(s) for PBR math:
+      - Fresnel (Schlick), NDF (GGX), geometry term (Smith), diffuse (Lambert/Burley)
+      - Helper: energy compensation / split-sum approximation hooks
+      - Keep API stable for later upgrades (e.g., LTC, multi-scatter)
+
+    ☐ Implement new compositing shader/program (or upgrade existing Combine pass):
+      - Separate “IndirectDiffuse” and “IndirectSpecular” paths
+      - Use bent normal (if present) to sample indirect lobe direction for skylight/ambient visibility
+      - Apply AO consistently:
+        - AO affects diffuse strongly; specular optionally attenuated based on roughness (configurable)
+
+    ☐ Renderer plumbing:
+      - Add config toggles:
+        - EnablePbrComposite
+        - EnableAO
+        - EnableBentNormal
+        - SpecularAOStrength / DiffuseAOStrength
+      - Add debug modes:
+        - Visualize AO factor, bent normal direction, diffuse/specular split, BRDF terms
+
+    ☐ GPU functional tests:
+      - Composite_EnergyConserving_NoOverbrightForWhiteAlbedo
+      - Composite_Metallic0_UsesDiffuseDominant
+      - Composite_Metallic1_UsesSpecularDominant
+      - Composite_RoughnessIncreasesSpecularLobeWidth (proxy check via output response)
+      - Composite_AO_ReducesIndirectInCreases
+      - Composite_BentNormal_ReducesSkyOcclusionIndoors (or a minimal deterministic scene)
