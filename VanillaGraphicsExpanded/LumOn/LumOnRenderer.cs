@@ -24,7 +24,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// <summary>
     /// Render order - must match legacy SSGI for feature toggle compatibility.
     /// </summary>
-    private const double RENDER_ORDER = 0.5;
+    private const double RENDER_ORDER = 10;
     private const int RENDER_RANGE = 1;
 
     #endregion
@@ -111,7 +111,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         quadMeshRef = capi.Render.UploadMesh(quadMesh);
 
         // Register renderer
-        capi.Event.RegisterRenderer(this, EnumRenderStage.AfterPostProcessing, "lumon");
+        capi.Event.RegisterRenderer(this, EnumRenderStage.Opaque, "lumon");
+        // capi.Event.RegisterRenderer(this, EnumRenderStage.AfterPostProcessing, "lumon");
 
         // Initialize previous frame matrix to identity
         for (int i = 0; i < 16; i++)
@@ -262,9 +263,15 @@ public class LumOnRenderer : IRenderer, IDisposable
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         TryRenderFrame(deltaTime, stage);
-        // Restore VS's primary framebuffer and viewport to ensure we don't leave GL in a bad state
+
+        // Ensure VS's primary framebuffer is bound for subsequent passes.
+        // LumOn is intended to overwrite the primary color attachment so the base game's post-processing
+        // consumes the updated scene.
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
+        if (primaryFb != null)
+        {
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
+        }
         GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
     }
 
@@ -314,7 +321,9 @@ public class LumOnRenderer : IRenderer, IDisposable
             isFirstFrame = false;
         }
 
-        // Capture the current scene for radiance sampling
+        // Capture the current scene for radiance sampling.
+        // IMPORTANT: Capture from VS's primary framebuffer (ColorAttachment0), since that's what the
+        // base game's post processing consumes.
         bufferManager.CaptureScene(primaryFb.FboId, capi.Render.FrameWidth, capi.Render.FrameHeight);
 
         // Update matrices
@@ -1099,13 +1108,12 @@ public class LumOnRenderer : IRenderer, IDisposable
             // Direct additive blend to screen (fast path)
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
             GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
-            
-            // IMPORTANT: Set draw buffer to only ColorAttachment0
-            // The primary FB has multiple attachments (including VGE G-buffer on 4,5)
-            // Without this, the shader output could corrupt other attachments
+
+            // Restrict output to ColorAttachment0 so we don't accidentally write into GBuffer attachments.
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-            
-            capi.Render.GlToggleBlend(true, EnumBlendMode.Standard);
+
+            // Additive-style blend for indirect lighting
+            capi.Render.GlToggleBlend(true, EnumBlendMode.Glow);
         }
 
         shader.Use();
@@ -1154,13 +1162,11 @@ public class LumOnRenderer : IRenderer, IDisposable
         var indirectFullTex = bufferManager.IndirectFullTex;
         if (indirectFullTex is null) return;
 
-        // Render to primary framebuffer
+        // Render to VS primary framebuffer so subsequent base-game post-processing sees the combined result.
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
         GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
-        
-        // IMPORTANT: Set draw buffer to only ColorAttachment0
-        // The primary FB has multiple attachments (including VGE G-buffer on 4,5)
-        // Without this, the shader output could corrupt other attachments
+
+        // IMPORTANT: When targeting VS's primary MRT framebuffer, restrict to ColorAttachment0.
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
 
         // No blending - we're replacing the scene color with combined result
