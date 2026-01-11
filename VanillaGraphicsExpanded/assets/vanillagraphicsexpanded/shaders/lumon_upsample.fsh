@@ -188,7 +188,7 @@ void main(void)
         
         // Optional: Apply additional spatial denoise for very noisy areas
         // Uncomment if needed for specific scenarios
-        // result = spatialDenoise(fullResUV, result, centerDepth, centerNormal);
+        result = spatialDenoise(fullResUV, result, centerDepth, centerNormal);
     } else {
         // Simple bilinear sample (faster but less edge-aware)
         result = texture(indirectHalf, fullResUV).rgb;

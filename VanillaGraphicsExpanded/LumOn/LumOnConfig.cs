@@ -97,7 +97,7 @@ public class LumOnConfig
     /// Only used when <see cref="UseProbeAtlas"/> is true.
     /// </summary>
     [JsonProperty]
-    public int ProbeAtlasTexelsPerFrame { get; set; } = 8;
+    public int ProbeAtlasTexelsPerFrame { get; set; } = 16;
 
     /// <summary>
     /// Number of rays traced per probe per frame (SH mode only).
@@ -134,7 +134,7 @@ public class LumOnConfig
     /// Hot-reloadable.
     /// </summary>
     [JsonProperty]
-    public float TemporalAlpha { get; set; } = 0.5f;
+    public float TemporalAlpha { get; set; } = 0.2f;
 
     /// <summary>
     /// Depth difference threshold for history rejection (view-space).
