@@ -111,46 +111,55 @@ public sealed class AssetSyntaxTreeResourceResolver : IResourceResolver<SyntaxTr
         // Normalize separators (TinyPreprocessor paths are opaque strings; we normalize for AssetLocation compatibility)
         reference = reference.Replace('\\', '/');
 
-        // If reference is a bare filename, keep legacy behavior: resolve from shaderincludes/.
-        if (!reference.Contains('/') && !reference.Contains(':'))
-        {
-            return $"{_defaultDomain}:shaderincludes/{reference}";
-        }
-
-        // Absolute domain:path
+        // Absolute domain:path (or absolute domain-less path handled by AssetLocation)
         if (reference.Contains(':'))
         {
-            var (domain, path) = SplitDomainAndPath(reference);
+            var (domain, path) = SplitAssetDomainAndPath(reference);
             return $"{domain}:{NormalizePathWithinDomain(path)}";
         }
 
-        // Relative reference (./ or ../)
-        if ((reference.StartsWith("./", StringComparison.Ordinal) || reference.StartsWith("../", StringComparison.Ordinal))
-            && relativeTo is not null)
-        {
-            return ResolveRelativePath(reference, relativeTo.Id.Path);
-        }
+        // All non-absolute references are resolved relative to the base path.
+        // If no base is available, treat it as rooted at the domain root.
+        var baseIdPath = relativeTo?.Id.Path ?? string.Empty;
+        var (baseDomain, basePath) = SplitAssetDomainAndPath(baseIdPath);
 
-        // Domain-less explicit path (default to mod domain)
-        return $"{_defaultDomain}:{NormalizePathWithinDomain(reference)}";
+        var resolvedPath = ResolveResourcePath(reference, basePath);
+        return $"{baseDomain}:{NormalizePathWithinDomain(resolvedPath)}";
     }
 
-    private string ResolveRelativePath(string relativePath, string baseResourceIdPath)
+    /// <summary>
+    /// Resolves a domain-less (non-absolute) reference to a normalized asset path, relative to <paramref name="basePath"/>.
+    /// </summary>
+    /// <param name="reference">The reference from an @import directive.</param>
+    /// <param name="basePath">The base asset path (typically the importing file's path).</param>
+    private string ResolveResourcePath(string reference, string basePath)
     {
-        // baseResourceIdPath uses domain:path. Split and normalize relative to the base directory of the path component.
-        var (baseDomain, basePath) = SplitDomainAndPath(baseResourceIdPath, _defaultDomain);
+        reference = (reference ?? string.Empty).Trim();
+        reference = reference.Replace('\\', '/');
 
-        // Normalize separators for System.IO.Path.
-        string basePathOs = basePath.Replace('/', Path.DirectorySeparatorChar);
+        // Defensive: if a caller accidentally passes a domain:path base, split it.
+        (_, basePath) = SplitAssetDomainAndPath(basePath);
+
+        // Base directory of the importing file.
+        string basePathOs = (basePath ?? string.Empty).Replace('/', Path.DirectorySeparatorChar);
         string? baseDirOs = Path.GetDirectoryName(basePathOs);
         baseDirOs ??= string.Empty;
 
-        string relativeOs = relativePath.Replace('/', Path.DirectorySeparatorChar);
+        // Normalize separators for System.IO.Path.
+        string relativeOs = reference.Replace('/', Path.DirectorySeparatorChar);
 
         string combinedFull = Path.GetFullPath(Path.Combine(NormalizationRoot, baseDirOs, relativeOs));
         string normalizedRelative = Path.GetRelativePath(NormalizationRoot, combinedFull);
 
-        return $"{baseDomain}:{NormalizeSeparators(normalizedRelative)}";
+        return NormalizeSeparators(normalizedRelative);
+    }
+
+    private (string Domain, string Path) SplitAssetDomainAndPath(string domainAndPath)
+    {
+        // AssetLocation handles parsing domain:path and applying default domain.
+        // It also enforces Vintage Story's asset path semantics.
+        var loc = AssetLocation.Create(domainAndPath, _defaultDomain);
+        return (loc.Domain, loc.Path);
     }
 
     private static string NormalizePathWithinDomain(string path)
@@ -162,19 +171,6 @@ public sealed class AssetSyntaxTreeResourceResolver : IResourceResolver<SyntaxTr
         string rel = Path.GetRelativePath(NormalizationRoot, full);
 
         return NormalizeSeparators(rel);
-    }
-
-    private static (string Domain, string Path) SplitDomainAndPath(string domainAndPath, string? defaultDomain = null)
-    {
-        int sepIndex = domainAndPath.IndexOf(':');
-        if (sepIndex < 0)
-        {
-            return (defaultDomain ?? string.Empty, domainAndPath);
-        }
-
-        string domain = domainAndPath[..sepIndex];
-        string path = domainAndPath[(sepIndex + 1)..];
-        return (domain, path);
     }
 
     private static string NormalizeSeparators(string path)
