@@ -101,4 +101,23 @@ public class LumOnUpsampleShaderProgram : ShaderProgram
     public float UpsampleSpatialSigma { set => Uniform("upsampleSpatialSigma", value); }
 
     #endregion
+
+    #region Hole Fill Uniforms
+
+    /// <summary>
+    /// Whether low-confidence hole filling is enabled (0 or 1).
+    /// </summary>
+    public int HoleFillEnabled { set => Uniform("holeFillEnabled", value); }
+
+    /// <summary>
+    /// Neighborhood radius in half-res pixels used for hole filling.
+    /// </summary>
+    public int HoleFillRadius { set => Uniform("holeFillRadius", value); }
+
+    /// <summary>
+    /// Minimum confidence (alpha) required for a neighbor sample to contribute to hole filling.
+    /// </summary>
+    public float HoleFillMinConfidence { set => Uniform("holeFillMinConfidence", value); }
+
+    #endregion
 }

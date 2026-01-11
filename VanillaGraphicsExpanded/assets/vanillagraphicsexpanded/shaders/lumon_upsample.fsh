@@ -37,6 +37,12 @@ uniform float upsampleDepthSigma;   // e.g., 0.1
 uniform float upsampleNormalSigma;  // e.g., 16.0
 uniform float upsampleSpatialSigma; // e.g., 1.0
 
+// Hole filling (Phase 14 - bounded fallback)
+// Uses the alpha channel of indirectHalf as a confidence/quality metric.
+uniform int holeFillEnabled;
+uniform int holeFillRadius;           // half-res pixel radius (e.g., 2)
+uniform float holeFillMinConfidence;  // minimum neighbor confidence to use (e.g., 0.05)
+
 // ============================================================================
 // Bilateral Upsample
 // ============================================================================
@@ -99,6 +105,74 @@ vec3 bilateralUpsample(vec2 fullResUV, float centerDepth, vec3 centerNormal) {
     }
     
     return result;
+}
+
+// ============================================================================
+// Hole Fill (Low-Confidence Neighborhood Resolve)
+// ============================================================================
+
+/**
+ * Fills holes (low-confidence half-res samples) using a bounded, edge-aware neighborhood
+ * resolve in half-res space.
+ *
+ * This is intended as a controlled fallback for missing/invalid indirect values.
+ * It never overrides high-confidence samples.
+ */
+vec3 holeFillResolve(vec2 fullResUV, float centerDepth, vec3 centerNormal)
+{
+    ivec2 centerHalf = ivec2(fullResUV * halfResSize);
+    centerHalf = clamp(centerHalf, ivec2(0), ivec2(halfResSize) - 1);
+
+    vec3 accum = vec3(0.0);
+    float totalW = 0.0;
+
+    // Use the same spatial sigma as the optional denoise kernel.
+    float spatialSigma = max(upsampleSpatialSigma, 1e-3);
+
+    for (int dy = -8; dy <= 8; dy++)
+    {
+        if (dy < -holeFillRadius || dy > holeFillRadius) continue;
+        for (int dx = -8; dx <= 8; dx++)
+        {
+            if (dx < -holeFillRadius || dx > holeFillRadius) continue;
+
+            ivec2 sampleCoord = centerHalf + ivec2(dx, dy);
+            sampleCoord = clamp(sampleCoord, ivec2(0), ivec2(halfResSize) - 1);
+
+            vec4 halfSample = texelFetch(indirectHalf, sampleCoord, 0);
+            float conf = halfSample.a;
+            if (conf < holeFillMinConfidence) continue;
+
+            // Map half-res pixel center to full-res UV for guide sampling.
+            vec2 sampleFullResUV = (vec2(sampleCoord) * 2.0 + 1.0) / screenSize;
+
+            float sampleDepthRaw = texture(primaryDepth, sampleFullResUV).r;
+            if (lumonIsSky(sampleDepthRaw)) continue;
+
+            float sampleDepth = lumonLinearizeDepth(sampleDepthRaw, zNear, zFar);
+            vec3 sampleNormal = lumonDecodeNormal(texture(gBufferNormal, sampleFullResUV).xyz);
+
+            float dist = length(vec2(float(dx), float(dy)));
+            float spatialW = exp(-dist * dist / (2.0 * spatialSigma * spatialSigma));
+
+            float depthDiff = abs(centerDepth - sampleDepth) / max(centerDepth, 0.01);
+            float depthW = exp(-depthDiff * depthDiff / (2.0 * upsampleDepthSigma * upsampleDepthSigma));
+
+            float normalDot = max(dot(centerNormal, sampleNormal), 0.0);
+            float normalW = pow(normalDot, upsampleNormalSigma);
+
+            float w = spatialW * depthW * normalW * conf;
+            accum += halfSample.rgb * w;
+            totalW += w;
+        }
+    }
+
+    if (totalW > 1e-6)
+    {
+        return accum / totalW;
+    }
+
+    return vec3(0.0);
 }
 
 // ============================================================================
@@ -179,10 +253,19 @@ void main(void)
     
     float centerDepth = lumonLinearizeDepth(centerDepthRaw, zNear, zFar);
     vec3 centerNormal = lumonDecodeNormal(texture(gBufferNormal, fullResUV).xyz);
+
+    // Low-confidence detection comes from the half-res gather output alpha.
+    ivec2 centerHalf = ivec2(fullResUV * halfResSize);
+    centerHalf = clamp(centerHalf, ivec2(0), ivec2(halfResSize) - 1);
+    float centerConf = texelFetch(indirectHalf, centerHalf, 0).a;
     
     vec3 result;
     
-    if (denoiseEnabled == 1) {
+    if (holeFillEnabled == 1 && centerConf < holeFillMinConfidence) {
+        // Controlled fallback: only affect low-confidence pixels.
+        result = holeFillResolve(fullResUV, centerDepth, centerNormal);
+    }
+    else if (denoiseEnabled == 1) {
         // Bilateral upsample from half-res with edge-aware filtering
         result = bilateralUpsample(fullResUV, centerDepth, centerNormal);
         

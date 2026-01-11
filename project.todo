@@ -205,16 +205,16 @@ LumOn Functional Test Coverage:
       - Add optional moments buffer (e.g., first/second moment of radiance) for the probe atlas or for indirectHalf
       - Use it for variance clamp/firefly suppression in temporal and/or post-filter
     ☐ Screen-trace hole filling strategy:
-      - Add a controlled neighborhood resolve for rays that exit screen / miss due to disocclusion
-      - Use confidence to avoid smearing across depth/normal edges
-      - Ensure this is a bounded fallback (never overrides high-confidence hits)
+      ✔ Add a controlled neighborhood resolve for rays that exit screen / miss due to disocclusion @done
+      ✔ Use confidence to avoid smearing across depth/normal edges @done
+      ✔ Ensure this is a bounded fallback (never overrides high-confidence hits) @done
     ☐ Sky visibility / sky-occlusion term (screen-space approximation):
       - Add an optional, cheap sky-visibility estimate (screen-space only) to reduce overly bright indoor skylight
       - Keep it explicitly marked as screen-space approximation (no world proxy)
     ☐ Add GPU functional tests:
       - ExposureChange_DoesNotCauseTemporalPumping (or a reduced equivalent)
       - VarianceClamp_ReducesFireflies_PreservesMean
-      - HoleFill_OnlyAffectsLowConfidenceAreas
+      ✔ HoleFill_OnlyAffectsLowConfidenceAreas @done
       - SkyVisibility_ReducesIndoorSkylightWithoutBlackening
 
     Phase 15 - BRDF + AO + Bent-Normal Compositing (New)

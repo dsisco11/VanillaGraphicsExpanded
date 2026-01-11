@@ -251,6 +251,31 @@ public class LumOnConfig
     [JsonProperty]
     public float UpsampleSpatialSigma { get; set; } = 1.0f;
 
+    /// <summary>
+    /// Enables bounded hole filling during upsample for low-confidence indirect values.
+    /// Uses the alpha channel written by the gather pass as a confidence metric.
+    /// Default: true
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public bool UpsampleHoleFillEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Half-res neighborhood radius used for hole filling.
+    /// Default: 2
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public int UpsampleHoleFillRadius { get; set; } = 2;
+
+    /// <summary>
+    /// Minimum confidence required for neighbor samples to be used during hole filling.
+    /// Default: 0.05
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public float UpsampleHoleFillMinConfidence { get; set; } = 0.05f;
+
     // ═══════════════════════════════════════════════════════════════
     // Integration Settings (SPG-009)
     // ═══════════════════════════════════════════════════════════════

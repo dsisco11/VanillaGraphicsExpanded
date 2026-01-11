@@ -55,7 +55,10 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         int denoiseEnabled = 1,
         float depthSigma = DefaultDepthSigma,
         float normalSigma = DefaultNormalSigma,
-        float spatialSigma = DefaultSpatialSigma)
+        float spatialSigma = DefaultSpatialSigma,
+        int holeFillEnabled = 0,
+        int holeFillRadius = 2,
+        float holeFillMinConfidence = 0.05f)
     {
         GL.UseProgram(programId);
 
@@ -81,6 +84,14 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         GL.Uniform1(normalSigmaLoc, normalSigma);
         GL.Uniform1(spatialSigmaLoc, spatialSigma);
 
+        // Hole fill parameters
+        var holeFillEnabledLoc = GL.GetUniformLocation(programId, "holeFillEnabled");
+        var holeFillRadiusLoc = GL.GetUniformLocation(programId, "holeFillRadius");
+        var holeFillMinConfLoc = GL.GetUniformLocation(programId, "holeFillMinConfidence");
+        GL.Uniform1(holeFillEnabledLoc, holeFillEnabled);
+        GL.Uniform1(holeFillRadiusLoc, holeFillRadius);
+        GL.Uniform1(holeFillMinConfLoc, holeFillMinConfidence);
+
         // Texture sampler uniforms
         var indirectLoc = GL.GetUniformLocation(programId, "indirectHalf");
         var depthLoc = GL.GetUniformLocation(programId, "primaryDepth");
@@ -90,6 +101,34 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         GL.Uniform1(normalLoc, 2);
 
         GL.UseProgram(0);
+    }
+
+    /// <summary>
+    /// Creates a 2x2 half-res indirect buffer with custom per-pixel RGBA.
+    /// Pixel order is row-major: (0,0), (1,0), (0,1), (1,1).
+    /// </summary>
+    private static float[] CreateCustomHalfRes((float r, float g, float b, float a) p00,
+                                               (float r, float g, float b, float a) p10,
+                                               (float r, float g, float b, float a) p01,
+                                               (float r, float g, float b, float a) p11)
+    {
+        var data = new float[HalfResWidth * HalfResHeight * 4];
+
+        void Write(int x, int y, (float r, float g, float b, float a) p)
+        {
+            int idx = (y * HalfResWidth + x) * 4;
+            data[idx + 0] = p.r;
+            data[idx + 1] = p.g;
+            data[idx + 2] = p.b;
+            data[idx + 3] = p.a;
+        }
+
+        Write(0, 0, p00);
+        Write(1, 0, p10);
+        Write(0, 1, p01);
+        Write(1, 1, p11);
+
+        return data;
     }
 
     /// <summary>
@@ -240,6 +279,97 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         GL.DeleteProgram(programId);
     }
+
+    #region Test: HoleFill_OnlyAffectsLowConfidenceAreas
+
+    /// <summary>
+    /// Phase 14: Screen-trace hole filling strategy.
+    ///
+    /// DESIRED BEHAVIOR:
+    /// - Hole filling only activates for low-confidence half-res samples (alpha < threshold)
+    /// - High-confidence regions must remain unchanged
+    ///
+    /// Setup:
+    /// - Half-res indirect: top-left = red with conf=1, others = black with conf=0
+    /// - Depth/normals uniform so edge-aware weights don't block fill
+    ///
+    /// Expected:
+    /// - With holeFillEnabled=0: pixels in the bottom-right quadrant stay ~black
+    /// - With holeFillEnabled=1: pixels in the bottom-right quadrant become non-black
+    /// - A pixel in the top-left quadrant remains the same in both runs
+    /// </summary>
+    [Fact]
+    public void HoleFill_OnlyAffectsLowConfidenceAreas()
+    {
+        EnsureShaderTestAvailable();
+
+        const float pixelDepth = 0.5f;
+
+        // Half-res (2x2): only p00 is valid/confident.
+        var halfResData = CreateCustomHalfRes(
+            p00: (1.0f, 0.0f, 0.0f, 1.0f),
+            p10: (0.0f, 0.0f, 0.0f, 0.0f),
+            p01: (0.0f, 0.0f, 0.0f, 0.0f),
+            p11: (0.0f, 0.0f, 0.0f, 0.0f));
+
+        var depthData = CreateDepthBuffer(pixelDepth);
+        var normalData = CreateNormalBuffer(0f, 1f, 0f);
+
+        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
+
+        var programId = CompileUpsampleShader();
+
+        float[] Render(int holeEnabled)
+        {
+            SetupUpsampleUniforms(programId,
+                denoiseEnabled: 1,
+                holeFillEnabled: holeEnabled,
+                holeFillRadius: 2,
+                holeFillMinConfidence: 0.05f);
+
+            // Bind inputs
+            halfResTex.Bind(0);
+            depthTex.Bind(1);
+            normalTex.Bind(2);
+
+            // Render to output
+            outputGBuffer.Bind();
+            TestFramework.RenderFullscreenQuad(programId);
+            outputGBuffer.Unbind();
+
+            return outputGBuffer.ReadPixelsFloatRGBA();
+        }
+
+        var outNoFill = Render(holeEnabled: 0);
+        var outFill = Render(holeEnabled: 1);
+
+        // Pick a high-confidence region pixel (top-left quadrant)
+        var topLeftNoFill = ReadPixelFullRes(outNoFill, x: 0, y: 0);
+        var topLeftFill = ReadPixelFullRes(outFill, x: 0, y: 0);
+
+        // Pick a low-confidence region pixel (bottom-right quadrant)
+        var bottomRightNoFill = ReadPixelFullRes(outNoFill, x: 3, y: 3);
+        var bottomRightFill = ReadPixelFullRes(outFill, x: 3, y: 3);
+
+        // High-confidence region should be unchanged.
+        Assert.InRange(MathF.Abs(topLeftNoFill.r - topLeftFill.r), 0f, 1e-4f);
+        Assert.InRange(MathF.Abs(topLeftNoFill.g - topLeftFill.g), 0f, 1e-4f);
+        Assert.InRange(MathF.Abs(topLeftNoFill.b - topLeftFill.b), 0f, 1e-4f);
+
+        // Low-confidence region should change from ~black to non-black.
+        Assert.True(bottomRightNoFill.r < 1e-3f && bottomRightNoFill.g < 1e-3f && bottomRightNoFill.b < 1e-3f,
+            "Expected no-fill output to remain black in low-confidence region.");
+        Assert.True(bottomRightFill.r > 1e-3f || bottomRightFill.g > 1e-3f || bottomRightFill.b > 1e-3f,
+            "Expected hole-fill output to become non-black in low-confidence region.");
+
+        GL.DeleteProgram(programId);
+    }
+
+    #endregion
 
     #endregion
 

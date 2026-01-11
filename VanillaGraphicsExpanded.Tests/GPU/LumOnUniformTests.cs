@@ -205,6 +205,9 @@ public class LumOnUniformTests : IDisposable
         { "lumon_upsample.vsh", "lumon_upsample.fsh", "primaryDepth" },
         { "lumon_upsample.vsh", "lumon_upsample.fsh", "gBufferNormal" },
         { "lumon_upsample.vsh", "lumon_upsample.fsh", "screenSize" },
+        { "lumon_upsample.vsh", "lumon_upsample.fsh", "holeFillEnabled" },
+        { "lumon_upsample.vsh", "lumon_upsample.fsh", "holeFillRadius" },
+        { "lumon_upsample.vsh", "lumon_upsample.fsh", "holeFillMinConfidence" },
 
         // lumon_combine - final compositing
         { "lumon_combine.vsh", "lumon_combine.fsh", "sceneDirect" },

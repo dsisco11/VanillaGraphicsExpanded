@@ -1137,6 +1137,11 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.UpsampleNormalSigma = config.UpsampleNormalSigma;
         shader.UpsampleSpatialSigma = config.UpsampleSpatialSigma;
 
+        // Phase 14: bounded hole filling for low-confidence indirect values
+        shader.HoleFillEnabled = config.UpsampleHoleFillEnabled ? 1 : 0;
+        shader.HoleFillRadius = Math.Max(0, config.UpsampleHoleFillRadius);
+        shader.HoleFillMinConfidence = Math.Clamp(config.UpsampleHoleFillMinConfidence, 0f, 1f);
+
         // Render
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();

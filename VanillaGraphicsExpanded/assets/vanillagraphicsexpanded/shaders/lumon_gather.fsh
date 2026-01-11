@@ -201,9 +201,15 @@ void main(void)
     
     // Handle case where all probes are invalid
     if (totalWeight < 0.001) {
-        outColor = vec4(0.0, 0.0, 0.0, 1.0);
+        // Alpha is used as a confidence/quality measure for later passes.
+        outColor = vec4(0.0, 0.0, 0.0, 0.0);
         return;
     }
+
+    // Preserve the raw weight sum as a confidence/quality metric.
+    // Since the bilinear weights sum to 1.0 and all modifiers are <= 1.0,
+    // totalWeight is expected to be in [0, 1] for valid pixels.
+    float confidence = clamp(totalWeight, 0.0, 1.0);
     
     // Normalize weights
     float invWeight = 1.0 / totalWeight;
@@ -227,5 +233,5 @@ void main(void)
     irradiance *= intensity;
     irradiance *= indirectTint;
     
-    outColor = vec4(irradiance, 1.0);
+    outColor = vec4(irradiance, confidence);
 }
