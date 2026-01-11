@@ -14,13 +14,13 @@ layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFlo
 // ============================================================================
 
 // Import common utilities
-@import "lumon_common.fsh"
+@import "./includes/lumon_common.fsh"
 
 // Import octahedral mapping utilities
-@import "lumon_octahedral.glsl"
+@import "./includes/lumon_octahedral.glsl"
 
 // Import probe-atlas meta helpers
-@import "lumon_probe_atlas_meta.glsl"
+@import "./includes/lumon_probe_atlas_meta.glsl"
 
 // ============================================================================
 // Uniforms

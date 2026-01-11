@@ -10,7 +10,7 @@
 #ifndef VGE_LUMON_SH9_GLSL
 #define VGE_LUMON_SH9_GLSL
 
-@import "lumon_sh9_common.glsl"
+@import "./lumon_sh9_common.glsl"
 
 // ============================================================================
 // SH9 Basis Functions

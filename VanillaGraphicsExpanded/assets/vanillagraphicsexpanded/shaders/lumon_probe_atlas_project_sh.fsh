@@ -15,10 +15,10 @@ layout(location = 1) out vec4 outRadiance1;
 // - Confidence from probeAtlasMeta is used as a per-texel weight.
 // ============================================================================
 
-@import "lumon_common.fsh"
-@import "lumon_sh.fsh"
-@import "lumon_octahedral.glsl"
-@import "lumon_probe_atlas_meta.glsl"
+@import "./includes/lumon_common.fsh"
+@import "./includes/lumon_sh.fsh"
+@import "./includes/lumon_octahedral.glsl"
+@import "./includes/lumon_probe_atlas_meta.glsl"
 
 uniform sampler2D octahedralAtlas;   // RGBA16F, tiled 8x8 per probe
 uniform sampler2D probeAtlasMeta;    // RG32F, confidence + flags

@@ -13,10 +13,10 @@ out vec4 outColor;
 // ============================================================================
 
 // Import common utilities
-@import "lumon_common.fsh"
+@import "./includes/lumon_common.fsh"
 
 // Import SH helpers
-@import "lumon_sh.fsh"
+@import "./includes/lumon_sh.fsh"
 
 // Radiance textures (from temporal pass)
 uniform sampler2D radianceTexture0;

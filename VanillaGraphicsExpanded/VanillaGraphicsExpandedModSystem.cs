@@ -40,7 +40,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         // Initialize the shader includes hook with dependencies
         ShaderIncludesHook.Initialize(api.Logger, api.Assets);
 
-        // Initialize the shader imports system to load mod's shaderincludes
+        // Initialize the shader imports system to load mod shader imports (shaders/includes)
         ShaderImportsSystem.Instance.Initialize(api);
     }
 

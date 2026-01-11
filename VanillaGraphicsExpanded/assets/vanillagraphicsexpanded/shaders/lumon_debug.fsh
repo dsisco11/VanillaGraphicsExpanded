@@ -31,13 +31,13 @@ out vec4 outColor;
 // ============================================================================
 
 // Import common utilities
-@import "lumon_common.fsh"
+@import "./includes/lumon_common.fsh"
 
 // Import SH helpers for mode 8
-@import "lumon_sh.fsh"
+@import "./includes/lumon_sh.fsh"
 
 // Import probe-atlas meta helpers for mode 14
-@import "lumon_probe_atlas_meta.glsl"
+@import "./includes/lumon_probe_atlas_meta.glsl"
 
 // G-buffer textures
 uniform sampler2D primaryDepth;

@@ -15,9 +15,9 @@ layout(location = 1) out vec2 outMeta;      // R = filtered confidence, G = uint
 // Output is a filtered atlas that can be used as gather input.
 // ============================================================================
 
-@import "lumon_common.fsh"
-@import "lumon_octahedral.glsl"
-@import "lumon_probe_atlas_meta.glsl"
+@import "./includes/lumon_common.fsh"
+@import "./includes/lumon_octahedral.glsl"
+@import "./includes/lumon_probe_atlas_meta.glsl"
 
 // Input stabilized atlas (typically the temporal output for this frame)
 uniform sampler2D octahedralAtlas;

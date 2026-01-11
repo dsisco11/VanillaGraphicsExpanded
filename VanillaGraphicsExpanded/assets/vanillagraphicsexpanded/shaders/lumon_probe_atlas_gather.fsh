@@ -16,10 +16,10 @@ out vec4 outColor;
 // ============================================================================
 
 // Import common utilities
-@import "lumon_common.fsh"
+@import "./includes/lumon_common.fsh"
 
 // Import octahedral mapping utilities
-@import "lumon_octahedral.glsl"
+@import "./includes/lumon_octahedral.glsl"
 
 // ============================================================================
 // Uniforms

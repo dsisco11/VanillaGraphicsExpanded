@@ -24,10 +24,10 @@ layout(location = 1) out vec4 outNormal;    // normalWS.xyz, reserved
 // ============================================================================
 
 // Import common utilities
-@import "lumon_common.fsh"
+@import "./includes/lumon_common.fsh"
 
 // Deterministic jitter hash (already used elsewhere in LumOn)
-@import "squirrel3.fsh"
+@import "./includes/squirrel3.fsh"
 
 // G-buffer textures
 uniform sampler2D primaryDepth;    // Depth buffer

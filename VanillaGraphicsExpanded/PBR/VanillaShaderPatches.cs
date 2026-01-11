@@ -67,7 +67,7 @@ layout(location = 5) out vec4 vge_outMaterial;  // Roughness, Metallic, Emissive
                         // Find main function and insert @import before it
                         var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
                         tree.CreateEditor()
-                            .InsertBefore(mainQuery, "@import \"vsFunctions.glsl\"\n")
+                            .InsertBefore(mainQuery, "@import \"./includes/vsfunctions.glsl\"\n")
                             .Commit();
 
                         log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");

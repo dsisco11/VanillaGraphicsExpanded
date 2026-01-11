@@ -18,10 +18,10 @@ layout(location = 6) out vec4 outSH6;
 // Output is per-probe SH9 (RGB) coefficients, intended for cheap gather.
 // ============================================================================
 
-@import "lumon_common.fsh"
-@import "lumon_octahedral.glsl"
-@import "lumon_probe_atlas_meta.glsl"
-@import "lumon_sh9.glsl"
+@import "./includes/lumon_common.fsh"
+@import "./includes/lumon_octahedral.glsl"
+@import "./includes/lumon_probe_atlas_meta.glsl"
+@import "./includes/lumon_sh9.glsl"
 
 uniform sampler2D octahedralAtlas;
 uniform sampler2D probeAtlasMeta;

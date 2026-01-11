@@ -12,13 +12,13 @@ layout(location = 1) out vec4 outRadiance1;  // SH coefficients set 1
 // ============================================================================
 
 // Import common utilities
-@import "lumon_common.fsh"
+@import "./includes/lumon_common.fsh"
 
 // Import SH helpers
-@import "lumon_sh.fsh"
+@import "./includes/lumon_sh.fsh"
 
 // Import noise for ray jittering
-@import "squirrel3.fsh"
+@import "./includes/squirrel3.fsh"
 
 // Probe anchor textures (world-space for temporal stability)
 uniform sampler2D probeAnchorPosition;  // posWS.xyz, valid

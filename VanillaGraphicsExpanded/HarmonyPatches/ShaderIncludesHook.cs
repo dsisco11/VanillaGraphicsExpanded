@@ -64,10 +64,10 @@ public static class ShaderIncludesHook
     //        return;
     //    }
 
-    //    // Process shader includes first
+    //    // Process shader includes first (stored under shaders/includes/)
     //    List<IAsset> shaderIncludes = _assetManager.GetManyInCategory(
-    //        AssetCategory.shaderincludes.Code,
-    //        pathBegins: "",
+    //        AssetCategory.shaders.Code,
+    //        pathBegins: "includes",
     //        domain: null,
     //        loadAsset: true);
         
