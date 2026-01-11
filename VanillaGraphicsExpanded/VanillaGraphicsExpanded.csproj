@@ -7,6 +7,7 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <UserSecretsId>d27ba35c-e681-4545-ab59-471e15a8b36b</UserSecretsId>
   </PropertyGroup>
 
   <!-- Expose internal types to test project -->
@@ -55,7 +56,8 @@
 
   <ItemGroup>
     <PackageReference Include="TinyAst" Version="0.11.0" />
-    <PackageReference Include="TinyAst.Preprocessor" Version="0.1.0" />
+    <PackageReference Include="TinyAst.Preprocessor" Version="0.4.0" />
+    <PackageReference Include="TinyPreprocessor" Version="0.4.0" />
   </ItemGroup>
 
 <ItemGroup>
