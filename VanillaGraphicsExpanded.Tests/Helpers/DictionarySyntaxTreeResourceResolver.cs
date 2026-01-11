@@ -38,30 +38,80 @@ public sealed class DictionarySyntaxTreeResourceResolver : IResourceResolver<Syn
     {
         ct.ThrowIfCancellationRequested();
 
+        reference = (reference ?? string.Empty).Trim();
+        reference = RemoveControlChars(reference);
+        reference = reference.Replace('\\', '/');
+
         if (string.IsNullOrWhiteSpace(reference))
         {
             var diag = new ResolutionFailedDiagnostic(reference ?? string.Empty, "Empty import reference", relativeTo?.Id, null);
             return ValueTask.FromResult(ResourceResolutionResult<SyntaxTree>.Failure(diag));
         }
 
-        // Mirror production: bare filenames resolve from shaderincludes/ in the default domain.
+        // The preprocessor may already qualify references (e.g. "domain:path").
+        // For lookup, we always use the path portion.
         string key = reference;
-        if (!reference.Contains('/') && !reference.Contains(':'))
+        int sepIndex = key.IndexOf(':');
+        if (sepIndex >= 0)
         {
-            key = $"shaderincludes/{reference}";
+            key = key[(sepIndex + 1)..];
         }
 
-        if (!_sources.TryGetValue(key, out var text))
+        // Mirror production: bare filenames resolve from shaderincludes/ in the default domain.
+        // Be tolerant: try both the raw key and the shaderincludes/ prefixed key.
+        string[] candidates = (!key.Contains('/'))
+            ? [key, $"shaderincludes/{key}"]
+            : [key];
+
+        string? text = null;
+        string? matchedKey = null;
+        foreach (var candidate in candidates)
         {
-            var diag = new ResolutionFailedDiagnostic(reference, $"Test include not found: {key}", relativeTo?.Id, null);
+            if (_sources.TryGetValue(candidate, out text))
+            {
+                matchedKey = candidate;
+                break;
+            }
+        }
+
+        if (text is null || matchedKey is null)
+        {
+            string candidatesText = string.Join(", ", candidates);
+            string failure = $"Test include not found. key='{key}' candidates=[{candidatesText}]";
+
+            var diag = new ResolutionFailedDiagnostic(
+                reference,
+                failure,
+                relativeTo?.Id,
+                null);
             return ValueTask.FromResult(ResourceResolutionResult<SyntaxTree>.Failure(diag));
         }
 
-        var id = new ResourceId($"{_defaultDomain}:{key}");
-        var tree = SyntaxTree.Parse(text, GlslSchema.Instance);
+        var id = new ResourceId($"{_defaultDomain}:{matchedKey}");
+        var tree = SyntaxTree.ParseAndBind(text, GlslSchema.Instance);
         var resource = new Resource<SyntaxTree>(id, tree, EmptyMetadata);
 
         return ValueTask.FromResult(ResourceResolutionResult<SyntaxTree>.Success(resource));
+    }
+
+    private static string RemoveControlChars(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        Span<char> buffer = value.Length <= 256 ? stackalloc char[value.Length] : new char[value.Length];
+        int idx = 0;
+        foreach (char c in value)
+        {
+            if (!char.IsControl(c))
+            {
+                buffer[idx++] = c;
+            }
+        }
+
+        return new string(buffer[..idx]);
     }
 }
 

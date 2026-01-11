@@ -159,6 +159,22 @@ public class ShaderPatchingTests
     #region Import Processing Tests
 
     [Fact]
+    public void DictionaryResolver_ResolvesBareImportReference()
+    {
+        var sources = new Dictionary<string, string>
+        {
+            ["shaderincludes/shared.glsl"] = SharedInclude
+        };
+
+        var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
+        var result = resolver.ResolveAsync("shared.glsl", relativeTo: null, ct: default).GetAwaiter().GetResult();
+
+        Assert.True(result.IsSuccess, result.Error?.ToString());
+        Assert.NotNull(result.Resource);
+        Assert.Equal($"{ShaderImportsSystem.DefaultDomain}:shaderincludes/shared.glsl", result.Resource.Id.Path);
+    }
+
+    [Fact]
     public void Preprocessor_InlinesImportContent()
     {
         var tree = SyntaxTree.Parse(ShaderWithImport, GlslSchema.Instance);
@@ -225,19 +241,22 @@ public class ShaderPatchingTests
             """;
 
         var tree = SyntaxTree.Parse(multiImportShader, GlslSchema.Instance);
-        var importsCache = new Dictionary<string, string>
+        var sources = new Dictionary<string, string>
         {
-            ["utils.glsl"] = "// Utils\n",
-            ["lighting.glsl"] = "// Lighting\n"
+            ["shaderincludes/utils.glsl"] = "// Utils\n",
+            ["shaderincludes/lighting.glsl"] = "// Lighting\n"
         };
 
-        var result = SourceCodeImportsProcessor.ProcessImports(tree, importsCache);
+        var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
+        var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
+        var result = preprocessor.Process(new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"), tree);
 
-        Assert.True(result);
+        Assert.True(result.Success);
 
-        var output = NormalizeLineEndings(tree.ToText());
-        Assert.Contains("/* @import \"utils.glsl\" */\n// Utils\n", output);
-        Assert.Contains("/* @import \"lighting.glsl\" */\n// Lighting\n", output);
+        var output = NormalizeLineEndings(result.Content.ToText());
+        Assert.Contains("// Utils", output);
+        Assert.Contains("// Lighting", output);
+        Assert.DoesNotContain("@import", output);
     }
 
     #endregion
@@ -392,16 +411,18 @@ public class ShaderPatchingTests
             """;
 
         var tree = SyntaxTree.Parse(shader, GlslSchema.Instance);
-        var importsCache = new Dictionary<string, string>
+        var sources = new Dictionary<string, string>
         {
-            ["shared.glsl"] = "// Shared code\nfloat PI = 3.14159;"
+            ["shaderincludes/shared.glsl"] = "// Shared code\nfloat PI = 3.14159;"
         };
 
-        var result = SourceCodeImportsProcessor.ProcessImports(tree, importsCache);
+        var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
+        var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
+        var result = preprocessor.Process(new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"), tree);
 
-        Assert.True(result);
+        Assert.True(result.Success);
 
-        var output = NormalizeLineEndings(tree.ToText());
+        var output = NormalizeLineEndings(result.Content.ToText());
         
         // #version directive should be at the start of the output
         Assert.StartsWith("#version 330 core", output);
@@ -434,27 +455,27 @@ public class ShaderPatchingTests
             """;
 
         var tree = SyntaxTree.Parse(shader, GlslSchema.Instance);
-        var importsCache = new Dictionary<string, string>
+        var sources = new Dictionary<string, string>
         {
-            ["squirrel3.fsh"] = "// Squirrel3 hash\nfloat hash(vec3 p) { return 0.5; }",
-            ["pbrFunctions.fsh"] = "// PBR functions\nvec3 fresnel(float c, vec3 f) { return f; }"
+            ["shaderincludes/squirrel3.fsh"] = "// Squirrel3 hash\nfloat hash(vec3 p) { return 0.5; }",
+            ["shaderincludes/pbrFunctions.fsh"] = "// PBR functions\nvec3 fresnel(float c, vec3 f) { return f; }"
         };
 
-        var result = SourceCodeImportsProcessor.ProcessImports(tree, importsCache);
+        var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
+        var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
+        var result = preprocessor.Process(new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"), tree);
 
-        Assert.True(result);
+        Assert.True(result.Success);
 
-        // Must use Root.ToString() - ToFullString() returns empty string
-        var output = NormalizeLineEndings(tree.ToText());
+        var output = NormalizeLineEndings(result.Content.ToText());
         
         // Verify #version is preserved
         Assert.StartsWith("#version 330 core", output);
         
         // Verify imports were processed
-        Assert.Contains("/* @import \"squirrel3.fsh\" */", output);
-        Assert.Contains("/* @import \"pbrFunctions.fsh\" */", output);
         Assert.Contains("// Squirrel3 hash", output);
         Assert.Contains("// PBR functions", output);
+        Assert.DoesNotContain("@import", output);
     }
 
     /// <summary>

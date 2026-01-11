@@ -29,7 +29,28 @@ public sealed class ShaderSyntaxTreePreprocessor
 
         _preprocessor = new SyntaxTreePreprocessor<GlImportNode>(
             resolver,
-            static node => node.ImportString);
+            static node => SanitizeReference(node.ImportString));
+    }
+
+    private static string SanitizeReference(string reference)
+    {
+        if (string.IsNullOrEmpty(reference))
+        {
+            return string.Empty;
+        }
+
+        // Defensive: strip control characters that would break dictionary/asset lookups.
+        Span<char> buffer = reference.Length <= 256 ? stackalloc char[reference.Length] : new char[reference.Length];
+        int idx = 0;
+        foreach (char c in reference)
+        {
+            if (!char.IsControl(c))
+            {
+                buffer[idx++] = c;
+            }
+        }
+
+        return new string(buffer[..idx]).Trim();
     }
 
     /// <summary>

@@ -43,6 +43,9 @@ public sealed class AssetSyntaxTreeResourceResolver : IResourceResolver<SyntaxTr
     {
         ct.ThrowIfCancellationRequested();
 
+        reference = (reference ?? string.Empty).Trim();
+        reference = RemoveControlChars(reference);
+
         if (string.IsNullOrWhiteSpace(reference))
         {
             var diag = new ResolutionFailedDiagnostic(reference ?? string.Empty, "Empty import reference", relativeTo?.Id, null);
@@ -81,6 +84,26 @@ public sealed class AssetSyntaxTreeResourceResolver : IResourceResolver<SyntaxTr
         var resource = new Resource<SyntaxTree>(id, tree, EmptyMetadata);
 
         return ValueTask.FromResult(ResourceResolutionResult<SyntaxTree>.Success(resource));
+    }
+
+    private static string RemoveControlChars(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        Span<char> buffer = value.Length <= 256 ? stackalloc char[value.Length] : new char[value.Length];
+        int idx = 0;
+        foreach (char c in value)
+        {
+            if (!char.IsControl(c))
+            {
+                buffer[idx++] = c;
+            }
+        }
+
+        return new string(buffer[..idx]);
     }
 
     private string ResolveResourceIdPath(string reference, IResource<SyntaxTree>? relativeTo)
