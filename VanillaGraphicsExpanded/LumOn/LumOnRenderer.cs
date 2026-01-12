@@ -424,7 +424,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Deterministic probe jitter (uses existing Squirrel3Hash in shader)
         shader.FrameIndex = frameIndex;
         shader.AnchorJitterEnabled = config.AnchorJitterEnabled ? 1 : 0;
-        shader.AnchorJitterScale = config.AnchorJitterScale;
+        shader.AnchorJitterScale = config.AnchorJitterScale * 0.1f;// Scale down for subtlety
         shader.ZNear = capi.Render.ShaderUniforms.ZNear;
         shader.ZFar = capi.Render.ShaderUniforms.ZFar;
 
