@@ -17,7 +17,7 @@ internal static class VanillaShaderPatches
 
     // G-Buffer output declarations (locations 4-5, after VS's 0-3)
     // Location 4: World-space normals (RGBA16F)
-    // Location 5: Material properties (RGBA16F) - Reflectivity, Roughness, Metallic, Emissive
+    // Location 5: Material properties (RGBA16F) - Roughness, Metallic, Emissive, Reflectivity
     // Note: VS's ColorAttachment0 (outColor) serves as albedo
     private const string GBufferInputDeclarations = @"
 // VGE G-Buffer outputs

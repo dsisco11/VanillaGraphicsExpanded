@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded;
 /// This adds multiple color attachments to store deferred rendering data:
 /// - ColorAttachment0-3: Managed by VS (outColor/Albedo, outGlow, outGNormal, outGPosition)
 /// - ColorAttachment4: World-space normals (RGBA16F) - layout(location = 4)
-/// - ColorAttachment5: Material properties (RGBA8) - layout(location = 5)
+/// - ColorAttachment5: Material properties (RGBA16F) - layout(location = 5)
 /// 
 /// Integrates with VS via Harmony hooks for framebuffer lifecycle management.
 /// </summary>
@@ -62,7 +62,7 @@ public sealed class GBufferManager : IDisposable
 
     /// <summary>
     /// The OpenGL texture ID for the material G-buffer (ColorAttachment5).
-    /// Format: RGBA8 - (Roughness, Metallic, Emissive, Reflectivity).
+    /// Format: RGBA16F - (Roughness, Metallic, Emissive, Reflectivity).
     /// </summary>
     public int MaterialTextureId => materialTex?.TextureId ?? 0;
 
@@ -320,8 +320,8 @@ public sealed class GBufferManager : IDisposable
         // Create Normal texture (RGBA16F)
         normalTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f);
 
-        // Create Material texture (RGBA8) - Roughness, Metallic, Emissive, Reflectivity
-        materialTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba8);
+        // Create Material texture (RGBA16F) - Roughness, Metallic, Emissive, Reflectivity
+        materialTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f);
 
         isInitialized = true;
         capi.Logger.Notification($"[VGE] Created G-buffer textures: {width}x{height}");

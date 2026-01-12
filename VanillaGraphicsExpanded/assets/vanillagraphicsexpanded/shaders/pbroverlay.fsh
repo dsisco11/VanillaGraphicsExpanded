@@ -9,7 +9,7 @@ uniform sampler2D primaryDepth;
 
 // Textures - VGE G-Buffer (ColorAttachment 4-5)
 uniform sampler2D gBufferNormal;   // Location 4: World-space normals (RGBA16F)
-uniform sampler2D gBufferMaterial; // Location 5: Reflectivity, Roughness, Metallic, Emissive (RGBA16F)
+uniform sampler2D gBufferMaterial; // Location 5: Roughness, Metallic, Emissive, Reflectivity (RGBA16F)
 // Note: Albedo comes from primaryScene (VS's ColorAttachment0)
 
 // Matrices for world position reconstruction

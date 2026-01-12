@@ -31,19 +31,21 @@ Phase 16 - PBR Direct Lighting Pass System (Opaque @ RenderOrder = 9.0)
 
   Phase 16.1 - Buffers & FBO Plumbing
   Exit artifacts: direct outputs exist and resize correctly, with an FBO ready for rendering.
-    ☐ Add new buffer manager (or extend existing) allocations:
-      - DirectDiffuseTex (HDR)
-      - DirectSpecularTex (HDR)
-      - EmissiveTex (HDR)
-    ☐ Choose concrete texture formats (start with RGBA16F for all three)
-    ☐ Create DirectLightingFbo with MRT attachments for the three outputs
-    ☐ Handle resize lifecycle consistently with existing buffer managers
-    ☐ Add debug asserts/logs for FBO completeness
+    ✔ Add new buffer manager (or extend existing) allocations:
+      - DirectDiffuseTex (HDR) - added in DirectLightingBufferManager.cs
+      - DirectSpecularTex (HDR) - added in DirectLightingBufferManager.cs
+      - EmissiveTex (HDR) - added in DirectLightingBufferManager.cs
+    ✔ Choose concrete texture formats (RGBA16F for all three)
+    ✔ Create DirectLightingFbo with MRT attachments for the three outputs
+    ✔ Handle resize lifecycle consistently with existing buffer managers
+      - EnsureBuffers() recreates on dimension change
+    ✔ Add debug asserts/logs for FBO completeness
+      - CheckFramebufferStatus + logging in CreateBuffers()
 
-    ☐ Upgrade GBuffer MaterialTex format for precision
-      - Change MaterialTex (Attachment5) internal format to RGBA16F
-      - Update shader patch outputs to match (write full vec4)
-      - Update any shader program bindings/comments that currently assume RGBA8
+    ✔ Upgrade GBuffer MaterialTex format for precision
+      - Changed MaterialTex (Attachment5) internal format to RGBA16F
+      - Updated comments in GBufferManager, VanillaShaderPatches, PBROverlayShaderProgram, pbroverlay.fsh
+      - Confirmed shader patch outputs vec4(roughness, metallic, emissive, reflectivity)
 
   Phase 16.2 - Shader Implementation (Full Metallic/Roughness BRDF)
   Exit artifacts: a new direct-lighting shader compiles and outputs correct split buffers.

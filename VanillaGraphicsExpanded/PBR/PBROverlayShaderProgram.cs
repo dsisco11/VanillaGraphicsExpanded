@@ -43,7 +43,7 @@ public class PBROverlayShaderProgram : ShaderProgram
 
     /// <summary>
     /// The G-buffer material texture - Location 5 (texture unit 3).
-    /// Contains: Reflectivity (R), Roughness (G), Metallic (B), Emissive (A).
+    /// Contains: Roughness (R), Metallic (G), Emissive (B), Reflectivity (A).
     /// </summary>
     public int GBufferMaterial { set => BindTexture2D("gBufferMaterial", value, 3); }
 
