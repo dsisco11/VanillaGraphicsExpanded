@@ -1,0 +1,340 @@
+{
+  "version": 1,
+  "file": "vanillagraphicsexpanded-lumon.json",
+  "settings": {
+    "boolean": {
+      "ENABLED": {
+        "code": "Enabled",
+        "name": "Enabled",
+        "ingui": "vanillagraphicsexpanded:config-lumon-enabled",
+        "comment": "vanillagraphicsexpanded:config-lumon-enabled-tooltip",
+        "default": true,
+        "weight": 1.0
+      },
+      "ANCHOR_JITTER_ENABLED": {
+        "code": "AnchorJitterEnabled",
+        "name": "AnchorJitterEnabled",
+        "ingui": "vanillagraphicsexpanded:config-anchor-jitter-enabled",
+        "comment": "vanillagraphicsexpanded:config-anchor-jitter-enabled-tooltip",
+        "default": false,
+        "weight": 2.2
+      },
+      "USE_PROBE_ATLAS": {
+        "code": "UseProbeAtlas",
+        "name": "UseProbeAtlas",
+        "ingui": "vanillagraphicsexpanded:config-use-probe-atlas",
+        "comment": "vanillagraphicsexpanded:config-use-probe-atlas-tooltip",
+        "default": true,
+        "weight": 3.0
+      },
+      "HALF_RESOLUTION": {
+        "code": "HalfResolution",
+        "name": "HalfResolution",
+        "ingui": "vanillagraphicsexpanded:config-half-resolution",
+        "comment": "vanillagraphicsexpanded:config-half-resolution-tooltip",
+        "default": true,
+        "weight": 6.0
+      },
+      "DENOISE_ENABLED": {
+        "code": "DenoiseEnabled",
+        "name": "DenoiseEnabled",
+        "ingui": "vanillagraphicsexpanded:config-denoise-enabled",
+        "comment": "vanillagraphicsexpanded:config-denoise-enabled-tooltip",
+        "default": true,
+        "weight": 6.1
+      },
+      "UPSAMPLE_HOLE_FILL_ENABLED": {
+        "code": "UpsampleHoleFillEnabled",
+        "name": "UpsampleHoleFillEnabled",
+        "ingui": "vanillagraphicsexpanded:config-upsample-hole-fill-enabled",
+        "comment": "vanillagraphicsexpanded:config-upsample-hole-fill-enabled-tooltip",
+        "default": true,
+        "weight": 8.3
+      },
+      "USE_COMBINE_PASS": {
+        "code": "UseCombinePass",
+        "name": "UseCombinePass",
+        "ingui": "vanillagraphicsexpanded:config-use-combine-pass",
+        "comment": "vanillagraphicsexpanded:config-use-combine-pass-tooltip",
+        "default": true,
+        "weight": 9.0
+      },
+      "ENABLE_PBR_COMPOSITE": {
+        "code": "EnablePbrComposite",
+        "name": "EnablePbrComposite",
+        "ingui": "vanillagraphicsexpanded:config-enable-pbr-composite",
+        "comment": "vanillagraphicsexpanded:config-enable-pbr-composite-tooltip",
+        "default": true,
+        "weight": 9.1
+      },
+      "ENABLE_AO": {
+        "code": "EnableAO",
+        "name": "EnableAO",
+        "ingui": "vanillagraphicsexpanded:config-enable-ao",
+        "comment": "vanillagraphicsexpanded:config-enable-ao-tooltip",
+        "default": true,
+        "weight": 9.2
+      },
+      "ENABLE_BENT_NORMAL": {
+        "code": "EnableBentNormal",
+        "name": "EnableBentNormal",
+        "ingui": "vanillagraphicsexpanded:config-enable-bent-normal",
+        "comment": "vanillagraphicsexpanded:config-enable-bent-normal-tooltip",
+        "default": true,
+        "weight": 9.3
+      }
+    },
+    "integer": {
+      "PROBE_SPACING_PX": {
+        "code": "ProbeSpacingPx",
+        "name": "ProbeSpacingPx",
+        "ingui": "vanillagraphicsexpanded:config-probe-spacing-px",
+        "comment": "vanillagraphicsexpanded:config-probe-spacing-px-tooltip",
+        "default": 4,
+        "weight": 2.0,
+        "range": { "min": 2, "max": 32, "step": 2 }
+      },
+      "HZB_COARSE_MIP": {
+        "code": "HzbCoarseMip",
+        "name": "HzbCoarseMip",
+        "ingui": "vanillagraphicsexpanded:config-hzb-coarse-mip",
+        "comment": "vanillagraphicsexpanded:config-hzb-coarse-mip-tooltip",
+        "default": 4,
+        "weight": 3.2,
+        "range": { "min": 0, "max": 8, "step": 1 }
+      },
+      "PROBE_ATLAS_TEXELS_PER_FRAME": {
+        "code": "ProbeAtlasTexelsPerFrame",
+        "name": "ProbeAtlasTexelsPerFrame",
+        "ingui": "vanillagraphicsexpanded:config-probe-atlas-texels-per-frame",
+        "comment": "vanillagraphicsexpanded:config-probe-atlas-texels-per-frame-tooltip",
+        "default": 16,
+        "weight": 3.3,
+        "range": { "min": 1, "max": 64, "step": 1 }
+      },
+      "RAYS_PER_PROBE_PER_FRAME": {
+        "code": "RaysPerProbePerFrame",
+        "name": "RaysPerProbePerFrame",
+        "ingui": "vanillagraphicsexpanded:config-rays-per-probe-per-frame",
+        "comment": "vanillagraphicsexpanded:config-rays-per-probe-per-frame-tooltip",
+        "default": 12,
+        "weight": 3.4,
+        "range": { "min": 1, "max": 32, "step": 1 }
+      },
+      "RAY_STEPS": {
+        "code": "RaySteps",
+        "name": "RaySteps",
+        "ingui": "vanillagraphicsexpanded:config-ray-steps",
+        "comment": "vanillagraphicsexpanded:config-ray-steps-tooltip",
+        "default": 10,
+        "weight": 4.0,
+        "range": { "min": 4, "max": 32, "step": 1 }
+      },
+      "UPSAMPLE_HOLE_FILL_RADIUS": {
+        "code": "UpsampleHoleFillRadius",
+        "name": "UpsampleHoleFillRadius",
+        "ingui": "vanillagraphicsexpanded:config-upsample-hole-fill-radius",
+        "comment": "vanillagraphicsexpanded:config-upsample-hole-fill-radius-tooltip",
+        "default": 2,
+        "weight": 8.4,
+        "range": { "min": 1, "max": 8, "step": 1 }
+      },
+      "PROBE_ATLAS_SAMPLE_STRIDE": {
+        "code": "ProbeAtlasSampleStride",
+        "name": "ProbeAtlasSampleStride",
+        "ingui": "vanillagraphicsexpanded:config-probe-atlas-sample-stride",
+        "comment": "vanillagraphicsexpanded:config-probe-atlas-sample-stride-tooltip",
+        "default": 2,
+        "weight": 10.1,
+        "values": [1, 2, 4]
+      },
+      "PROBE_ATLAS_GATHER_MODE": {
+        "code": "ProbeAtlasGather",
+        "name": "ProbeAtlasGather",
+        "ingui": "vanillagraphicsexpanded:config-probe-atlas-gather",
+        "comment": "vanillagraphicsexpanded:config-probe-atlas-gather-tooltip",
+        "default": 1,
+        "weight": 3.1,
+        "mapping": {
+          "IntegrateAtlas": 0,
+          "EvaluateProjectedSH": 1
+        }
+      }
+    },
+    "float": {
+      "ANCHOR_JITTER_SCALE": {
+        "code": "AnchorJitterScale",
+        "name": "AnchorJitterScale",
+        "ingui": "vanillagraphicsexpanded:config-anchor-jitter-scale",
+        "comment": "vanillagraphicsexpanded:config-anchor-jitter-scale-tooltip",
+        "default": 0.35,
+        "weight": 2.3,
+        "range": { "min": 0.0, "max": 0.49, "step": 0.01 }
+      },
+      "RAY_MAX_DISTANCE": {
+        "code": "RayMaxDistance",
+        "name": "RayMaxDistance",
+        "ingui": "vanillagraphicsexpanded:config-ray-max-distance",
+        "comment": "vanillagraphicsexpanded:config-ray-max-distance-tooltip",
+        "default": 4.0,
+        "weight": 4.1,
+        "range": { "min": 1.0, "max": 16.0, "step": 0.5 }
+      },
+      "RAY_THICKNESS": {
+        "code": "RayThickness",
+        "name": "RayThickness",
+        "ingui": "vanillagraphicsexpanded:config-ray-thickness",
+        "comment": "vanillagraphicsexpanded:config-ray-thickness-tooltip",
+        "default": 0.5,
+        "weight": 4.2,
+        "range": { "min": 0.1, "max": 2.0, "step": 0.1 }
+      },
+      "TEMPORAL_ALPHA": {
+        "code": "TemporalAlpha",
+        "name": "TemporalAlpha",
+        "ingui": "vanillagraphicsexpanded:config-temporal-alpha",
+        "comment": "vanillagraphicsexpanded:config-temporal-alpha-tooltip",
+        "default": 0.2,
+        "weight": 5.0,
+        "range": { "min": 0.0, "max": 0.95, "step": 0.05 }
+      },
+      "DEPTH_REJECT_THRESHOLD": {
+        "code": "DepthRejectThreshold",
+        "name": "DepthRejectThreshold",
+        "ingui": "vanillagraphicsexpanded:config-depth-reject-threshold",
+        "comment": "vanillagraphicsexpanded:config-depth-reject-threshold-tooltip",
+        "default": 0.1,
+        "weight": 5.1,
+        "range": { "min": 0.01, "max": 1.0, "step": 0.01 }
+      },
+      "NORMAL_REJECT_THRESHOLD": {
+        "code": "NormalRejectThreshold",
+        "name": "NormalRejectThreshold",
+        "ingui": "vanillagraphicsexpanded:config-normal-reject-threshold",
+        "comment": "vanillagraphicsexpanded:config-normal-reject-threshold-tooltip",
+        "default": 0.8,
+        "weight": 5.2,
+        "range": { "min": 0.0, "max": 1.0, "step": 0.05 }
+      },
+      "DEPTH_DISCONTINUITY_THRESHOLD": {
+        "code": "DepthDiscontinuityThreshold",
+        "name": "DepthDiscontinuityThreshold",
+        "ingui": "vanillagraphicsexpanded:config-depth-discontinuity-threshold",
+        "comment": "vanillagraphicsexpanded:config-depth-discontinuity-threshold-tooltip",
+        "default": 0.05,
+        "weight": 5.3,
+        "range": { "min": 0.01, "max": 0.5, "step": 0.01 }
+      },
+      "INTENSITY": {
+        "code": "Intensity",
+        "name": "Intensity",
+        "ingui": "vanillagraphicsexpanded:config-intensity",
+        "comment": "vanillagraphicsexpanded:config-intensity-tooltip",
+        "default": 1.0,
+        "weight": 6.2,
+        "range": { "min": 0.0, "max": 3.0, "step": 0.1 }
+      },
+      "SKY_MISS_WEIGHT": {
+        "code": "SkyMissWeight",
+        "name": "SkyMissWeight",
+        "ingui": "vanillagraphicsexpanded:config-sky-miss-weight",
+        "comment": "vanillagraphicsexpanded:config-sky-miss-weight-tooltip",
+        "default": 0.5,
+        "weight": 6.3,
+        "range": { "min": 0.0, "max": 1.0, "step": 0.05 }
+      },
+      "GATHER_DEPTH_SIGMA": {
+        "code": "GatherDepthSigma",
+        "name": "GatherDepthSigma",
+        "ingui": "vanillagraphicsexpanded:config-gather-depth-sigma",
+        "comment": "vanillagraphicsexpanded:config-gather-depth-sigma-tooltip",
+        "default": 0.5,
+        "weight": 7.0,
+        "range": { "min": 0.1, "max": 2.0, "step": 0.1 }
+      },
+      "GATHER_NORMAL_SIGMA": {
+        "code": "GatherNormalSigma",
+        "name": "GatherNormalSigma",
+        "ingui": "vanillagraphicsexpanded:config-gather-normal-sigma",
+        "comment": "vanillagraphicsexpanded:config-gather-normal-sigma-tooltip",
+        "default": 8.0,
+        "weight": 7.1,
+        "range": { "min": 1.0, "max": 32.0, "step": 1.0 }
+      },
+      "UPSAMPLE_DEPTH_SIGMA": {
+        "code": "UpsampleDepthSigma",
+        "name": "UpsampleDepthSigma",
+        "ingui": "vanillagraphicsexpanded:config-upsample-depth-sigma",
+        "comment": "vanillagraphicsexpanded:config-upsample-depth-sigma-tooltip",
+        "default": 0.1,
+        "weight": 8.0,
+        "range": { "min": 0.01, "max": 1.0, "step": 0.01 }
+      },
+      "UPSAMPLE_NORMAL_SIGMA": {
+        "code": "UpsampleNormalSigma",
+        "name": "UpsampleNormalSigma",
+        "ingui": "vanillagraphicsexpanded:config-upsample-normal-sigma",
+        "comment": "vanillagraphicsexpanded:config-upsample-normal-sigma-tooltip",
+        "default": 16.0,
+        "weight": 8.1,
+        "range": { "min": 1.0, "max": 64.0, "step": 1.0 }
+      },
+      "UPSAMPLE_SPATIAL_SIGMA": {
+        "code": "UpsampleSpatialSigma",
+        "name": "UpsampleSpatialSigma",
+        "ingui": "vanillagraphicsexpanded:config-upsample-spatial-sigma",
+        "comment": "vanillagraphicsexpanded:config-upsample-spatial-sigma-tooltip",
+        "default": 1.0,
+        "weight": 8.2,
+        "range": { "min": 0.1, "max": 5.0, "step": 0.1 }
+      },
+      "UPSAMPLE_HOLE_FILL_MIN_CONFIDENCE": {
+        "code": "UpsampleHoleFillMinConfidence",
+        "name": "UpsampleHoleFillMinConfidence",
+        "ingui": "vanillagraphicsexpanded:config-upsample-hole-fill-min-confidence",
+        "comment": "vanillagraphicsexpanded:config-upsample-hole-fill-min-confidence-tooltip",
+        "default": 0.05,
+        "weight": 8.5,
+        "range": { "min": 0.0, "max": 0.5, "step": 0.01 }
+      },
+      "DIFFUSE_AO_STRENGTH": {
+        "code": "DiffuseAOStrength",
+        "name": "DiffuseAOStrength",
+        "ingui": "vanillagraphicsexpanded:config-diffuse-ao-strength",
+        "comment": "vanillagraphicsexpanded:config-diffuse-ao-strength-tooltip",
+        "default": 1.0,
+        "weight": 9.4,
+        "range": { "min": 0.0, "max": 1.0, "step": 0.05 }
+      },
+      "SPECULAR_AO_STRENGTH": {
+        "code": "SpecularAOStrength",
+        "name": "SpecularAOStrength",
+        "ingui": "vanillagraphicsexpanded:config-specular-ao-strength",
+        "comment": "vanillagraphicsexpanded:config-specular-ao-strength-tooltip",
+        "default": 0.5,
+        "weight": 9.5,
+        "range": { "min": 0.0, "max": 1.0, "step": 0.05 }
+      },
+      "PROBE_ATLAS_LEAK_THRESHOLD": {
+        "code": "ProbeAtlasLeakThreshold",
+        "name": "ProbeAtlasLeakThreshold",
+        "ingui": "vanillagraphicsexpanded:config-probe-atlas-leak-threshold",
+        "comment": "vanillagraphicsexpanded:config-probe-atlas-leak-threshold-tooltip",
+        "default": 0.5,
+        "weight": 10.0,
+        "range": { "min": 0.0, "max": 2.0, "step": 0.1 }
+      }
+    }
+  },
+  "formatting": [
+    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-master", "weight": 0.9 },
+    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-probe-grid", "weight": 1.9 },
+    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-ray-tracing", "weight": 2.9 },
+    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-temporal", "weight": 4.9 },
+    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-quality", "weight": 5.9 },
+    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-gather", "weight": 6.9 },
+    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-upsample", "weight": 7.9 },
+    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-integration", "weight": 8.9 },
+    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-probe-atlas-advanced", "weight": 9.9 }
+  ]
+}

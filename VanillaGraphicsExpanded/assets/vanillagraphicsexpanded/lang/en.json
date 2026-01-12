@@ -1,3 +1,121 @@
 {
-    "hello": "hello world!"
+  "hello": "hello world!",
+
+  "config-section-master": "Master Settings",
+  "config-section-probe-grid": "Probe Grid Settings",
+  "config-section-ray-tracing": "Ray Tracing Settings",
+  "config-section-temporal": "Temporal Accumulation Settings",
+  "config-section-quality": "Quality Settings",
+  "config-section-gather": "Edge-Aware Gather Settings",
+  "config-section-upsample": "Upsample Settings",
+  "config-section-integration": "Integration & Compositing Settings",
+  "config-section-probe-atlas-advanced": "Probe Atlas Advanced Settings",
+
+  "config-lumon-enabled": "Enable LumOn",
+  "config-lumon-enabled-tooltip": "Master enable for LumOn screen-space global illumination. When disabled, falls back to legacy SSGI.",
+
+  "config-probe-spacing-px": "Probe Spacing (pixels)",
+  "config-probe-spacing-px-tooltip": "Spacing between probes in pixels. Lower values = more probes = higher quality but lower performance. Recommended: 4 (high quality), 8 (balanced), 16 (performance). Requires restart.",
+
+  "config-anchor-jitter-enabled": "Enable Anchor Jitter",
+  "config-anchor-jitter-enabled-tooltip": "Enables deterministic per-frame jitter of probe anchor sample locations. Reduces structured aliasing and helps temporal accumulation converge to a cleaner result.",
+
+  "config-anchor-jitter-scale": "Anchor Jitter Scale",
+  "config-anchor-jitter-scale-tooltip": "Jitter amount as a fraction of probe cell size. Maximum offset in pixels = ProbeSpacingPx × this value. Recommended range: 0.0 to 0.49.",
+
+  "config-use-probe-atlas": "Use Probe Atlas",
+  "config-use-probe-atlas-tooltip": "Use a screen-probe atlas (directional probe cache with octahedral mapping) instead of Spherical Harmonics L1. Provides better temporal stability and per-direction hit distance tracking.",
+
+  "config-probe-atlas-gather": "Probe Atlas Gather Mode",
+  "config-probe-atlas-gather-tooltip": "Gather strategy when Probe Atlas is enabled. 'EvaluateProjectedSH' (Option B) uses an atlas→SH projection pass for cheaper gather. 'IntegrateAtlas' integrates directly from the atlas (higher cost, slightly more accurate).",
+
+  "config-hzb-coarse-mip": "HZB Coarse Mip Level",
+  "config-hzb-coarse-mip-tooltip": "Hierarchical depth buffer mip level used for early ray rejection in the tracer. 0 = full resolution, higher = coarser (faster culling but less accurate).",
+
+  "config-probe-atlas-texels-per-frame": "Probe Atlas Texels Per Frame",
+  "config-probe-atlas-texels-per-frame-tooltip": "Number of probe-atlas texels to trace per probe per frame. With 64 texels total (8×8 octahedral map), 16 texels/frame = full coverage in 4 frames. Only used when Probe Atlas is enabled.",
+
+  "config-rays-per-probe-per-frame": "Rays Per Probe Per Frame",
+  "config-rays-per-probe-per-frame-tooltip": "Number of rays traced per probe per frame (Spherical Harmonics mode only). More rays = faster convergence but higher cost per frame.",
+
+  "config-ray-steps": "Ray March Steps",
+  "config-ray-steps-tooltip": "Number of steps per ray during screen-space ray marching. More steps = longer rays can travel but higher cost.",
+
+  "config-ray-max-distance": "Ray Max Distance (meters)",
+  "config-ray-max-distance-tooltip": "Maximum ray travel distance in world units (meters). Longer rays can capture more distant lighting but may introduce noise.",
+
+  "config-ray-thickness": "Ray Thickness",
+  "config-ray-thickness-tooltip": "Thickness of ray for depth comparison in view-space units. Larger values allow rays to hit surfaces more easily but may cause light leaking.",
+
+  "config-temporal-alpha": "Temporal Blend Factor",
+  "config-temporal-alpha-tooltip": "Temporal accumulation blend factor. Higher values = more stable but slower response to lighting changes. 0.2 = 20% history + 80% new data per frame.",
+
+  "config-depth-reject-threshold": "Depth Reject Threshold",
+  "config-depth-reject-threshold-tooltip": "Depth difference threshold for history rejection in view-space units. History is rejected when depth changes exceed this threshold.",
+
+  "config-normal-reject-threshold": "Normal Reject Threshold",
+  "config-normal-reject-threshold-tooltip": "Normal angle threshold for history rejection (dot product comparison). Values below this threshold reject temporal history. 0.8 = ~36 degree tolerance.",
+
+  "config-depth-discontinuity-threshold": "Depth Discontinuity Threshold",
+  "config-depth-discontinuity-threshold-tooltip": "Depth discontinuity threshold for edge detection between probes. Used to identify geometric edges for edge-aware filtering.",
+
+  "config-half-resolution": "Half Resolution Gather",
+  "config-half-resolution-tooltip": "Run gather pass at half resolution for better performance. Recommended for most systems. Requires restart to change.",
+
+  "config-denoise-enabled": "Enable Denoising",
+  "config-denoise-enabled-tooltip": "Enable edge-aware bilateral denoising during upsample pass. Reduces noise while preserving edges.",
+
+  "config-intensity": "Intensity Multiplier",
+  "config-intensity-tooltip": "Global intensity multiplier for indirect diffuse lighting output. Use to brighten or darken the overall GI effect.",
+
+  "config-sky-miss-weight": "Sky Miss Weight",
+  "config-sky-miss-weight-tooltip": "Weight applied to sky/miss samples during ray tracing. Lower values = less sky influence on indirect lighting.",
+
+  "config-gather-depth-sigma": "Gather Depth Sigma",
+  "config-gather-depth-sigma-tooltip": "Controls depth similarity falloff for edge-aware probe weighting during gather. Higher = more lenient depth matching (softer edges), Lower = stricter matching (sharper edges).",
+
+  "config-gather-normal-sigma": "Gather Normal Sigma",
+  "config-gather-normal-sigma-tooltip": "Controls normal similarity power for edge-aware probe weighting during gather. Higher = stricter normal matching (sharper creases), Lower = more lenient matching.",
+
+  "config-upsample-depth-sigma": "Upsample Depth Sigma",
+  "config-upsample-depth-sigma-tooltip": "Depth similarity sigma for bilateral upsampling filter. Controls how strictly depth differences affect the upsample weights.",
+
+  "config-upsample-normal-sigma": "Upsample Normal Sigma",
+  "config-upsample-normal-sigma-tooltip": "Normal similarity power for bilateral upsampling filter. Controls how strictly normal differences affect the upsample weights.",
+
+  "config-upsample-spatial-sigma": "Upsample Spatial Sigma",
+  "config-upsample-spatial-sigma-tooltip": "Spatial kernel sigma for optional spatial denoising pass. Controls the blur radius of the spatial filter.",
+
+  "config-upsample-hole-fill-enabled": "Enable Hole Filling",
+  "config-upsample-hole-fill-enabled-tooltip": "Enables bounded hole filling during upsample for low-confidence indirect values. Uses the alpha channel from gather as a confidence metric.",
+
+  "config-upsample-hole-fill-radius": "Hole Fill Radius",
+  "config-upsample-hole-fill-radius-tooltip": "Half-resolution neighborhood radius used for hole filling. Larger radius fills larger holes but may blur more.",
+
+  "config-upsample-hole-fill-min-confidence": "Hole Fill Min Confidence",
+  "config-upsample-hole-fill-min-confidence-tooltip": "Minimum confidence threshold required for neighbor samples to contribute to hole filling. Higher values = only use high-confidence neighbors.",
+
+  "config-use-combine-pass": "Use Combine Pass",
+  "config-use-combine-pass-tooltip": "Use full combine pass for physically-accurate lighting integration. Provides proper albedo modulation, metallic rejection, and better control. When disabled, uses simpler additive blend (faster but less accurate).",
+
+  "config-enable-pbr-composite": "Enable PBR Composite",
+  "config-enable-pbr-composite-tooltip": "Enables physically-plausible indirect compositing with diffuse/specular split in the combine pass. When disabled, uses legacy diffuse-only modulation.",
+
+  "config-enable-ao": "Enable Ambient Occlusion",
+  "config-enable-ao-tooltip": "Enables ambient occlusion application during indirect compositing. Uses gBuffer material alpha as an AO/reflectivity channel.",
+
+  "config-enable-bent-normal": "Enable Bent Normal",
+  "config-enable-bent-normal-tooltip": "Enables bent-normal-based visibility for indirect compositing. Currently falls back to surface normal (dedicated bent-normal source not yet wired).",
+
+  "config-diffuse-ao-strength": "Diffuse AO Strength",
+  "config-diffuse-ao-strength-tooltip": "Strength of ambient occlusion applied to indirect diffuse lighting. 0 = disabled, 1 = full AO occlusion.",
+
+  "config-specular-ao-strength": "Specular AO Strength",
+  "config-specular-ao-strength-tooltip": "Strength of ambient occlusion applied to indirect specular lighting. 0 = disabled, 1 = full AO (also attenuated by material roughness).",
+
+  "config-probe-atlas-leak-threshold": "Probe Atlas Leak Threshold",
+  "config-probe-atlas-leak-threshold-tooltip": "Light leak prevention threshold for probe-atlas gather. If probe hit distance exceeds pixel depth × (1 + threshold), contribution is reduced. Higher values = more tolerant (may allow leaking).",
+
+  "config-probe-atlas-sample-stride": "Probe Atlas Sample Stride",
+  "config-probe-atlas-sample-stride-tooltip": "Sample stride for probe-atlas hemisphere integration. 1 = full quality (64 samples/probe, ~1.2ms), 2 = performance (16 samples/probe, ~0.5ms), 4 = ultra-fast (4 samples/probe)."
 }
