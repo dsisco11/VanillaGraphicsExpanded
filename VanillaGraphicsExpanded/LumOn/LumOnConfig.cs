@@ -302,7 +302,7 @@ public class LumOnConfig
     /// Hot-reloadable.
     /// </summary>
     [JsonProperty]
-    public bool EnablePbrComposite { get; set; } = false;
+    public bool EnablePbrComposite { get; set; } = true;
 
     /// <summary>
     /// Enables applying ambient occlusion during indirect compositing.
@@ -310,7 +310,7 @@ public class LumOnConfig
     /// Hot-reloadable.
     /// </summary>
     [JsonProperty]
-    public bool EnableAO { get; set; } = false;
+    public bool EnableAO { get; set; } = true;
 
     /// <summary>
     /// Enables bent-normal-based visibility for indirect compositing.
@@ -318,7 +318,7 @@ public class LumOnConfig
     /// Hot-reloadable.
     /// </summary>
     [JsonProperty]
-    public bool EnableBentNormal { get; set; } = false;
+    public bool EnableBentNormal { get; set; } = true;
 
     /// <summary>
     /// Strength of AO applied to indirect diffuse.
