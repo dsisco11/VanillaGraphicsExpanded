@@ -90,8 +90,10 @@ This section is the canonical **data contract** for Phase 16.
 
 - **Albedo / base color**: Primary `ColorAttachment0` (existing VS output).
 
-  - Assumption: linear, pre-tonemap content suitable for lighting evaluation.
-  - If this assumption changes, Phase 16 must apply the correct decode (documented explicitly in shader).
+  - Intended meaning in this repo: **unlit baseColor** suitable for deferred lighting.
+  - Rationale: `fogandlight.fsh` is patched (`VanillaShaderPatches.PatchFogAndLight`) so fog/shadow/normal shading functions become no-ops or return full brightness, preventing the vanilla forward lighting path from baking lighting into `outColor`.
+  - Encoding decision: treat `ColorAttachment0.rgb` as **linear** base color (no extra gamma decode in the direct pass).
+    - Verification note: if we later discover `ColorAttachment0` is in sRGB space for this stage, the direct-lighting shader must explicitly decode (or the attachment must be made sRGB-correct) and this doc updated.
 
 - **Depth**: Primary depth texture.
 
@@ -113,6 +115,14 @@ This section is the canonical **data contract** for Phase 16.
 “All light sources are in scope.” The direct-lighting pass must bind and use the full set of lighting-related uniforms/textures already available in the Vintage Story pipeline (sun/sky, block/point lights, shadows, fog, etc.).
 
 Implementation note: the pass should **reuse the same lighting inputs and helper includes** the vanilla pipeline uses (via the existing shader imports system) to avoid re-deriving light data on the CPU.
+
+Concrete input surface (from `DefaultShaderUniforms` / standard shader conventions):
+
+- Sun / main directional: `SunPosition3D` (direction), `SunSpecularIntensity` (scalar), plus the existing ambient/light colors used across vanilla programs (`rgbaAmbientIn`, `rgbaLightIn`).
+- Point lights: `PointLightsCount`, `PointLights3` (positions), `PointLightColors3` (colors).
+- Shadows: near/far shadow maps + matrices and ranges (`ToShadowMapSpaceMatrixNear/Far`, `ShadowRangeNear/Far`, `ShadowZExtendNear/Far`, `DropShadowIntensity`).
+- Sky/atmosphere textures: `SkyTextureId`, `GlowTextureId`, `SunLightTextureId`.
+- Fog: global fog inputs (standard program uniforms like `rgbaFogIn`, `fogMinIn`, `fogDensityIn`) plus local fog volumes (`FogSpheres`, `FogSphereQuantity`).
 
 ### 3.2 Outputs
 
@@ -182,7 +192,12 @@ Two acceptable designs:
 1. **Fog in the direct pass**: apply fog to `DirectDiffuse`, `DirectSpecular`, and `Emissive` (preferred if it matches vanilla behavior).
 2. **Fog in the final composite**: apply fog once to the summed lighting (direct + emissive + indirect), using depth.
 
-The implementation should choose one and document it explicitly in shader comments and in this doc once finalized.
+Decision (Phase 16): apply fog in the **final composite**.
+
+- The direct pass outputs **fog-free radiance** into `DirectDiffuseTex`, `DirectSpecularTex`, and `EmissiveTex`.
+- The composite stage applies fog once to the summed radiance (`DirectDiffuse + DirectSpecular + Emissive + Indirect`) using depth and the vanilla fog inputs.
+
+Reasoning: fog is fundamentally view/path-length dependent and should affect the final radiance consistently across direct, emissive, and indirect.
 
 ---
 
@@ -240,6 +255,12 @@ Tests should be deterministic and rely on minimal scenes (single light + known n
 
 ## 10. Open questions
 
-1. Exact encoding/linearization of `ColorAttachment0` (albedo) for the lighting pass.
-2. Exact mapping of “all light sources” to available VS uniforms/textures inside this stage.
-3. Whether fog is applied in direct vs composite (choose one for parity and stability).
+Resolved in this document:
+
+1. `ColorAttachment0` is treated as **linear unlit baseColor** (see Section 3.1).
+2. “All light sources” maps to `DefaultShaderUniforms` + standard shader inputs (sun/ambient, point lights arrays, shadow maps + matrices, sky textures, fog inputs) (see Section 3.1).
+3. Fog is applied in the **final composite**, not in the direct pass (see Section 5).
+
+Remaining verification items (implementation-time):
+
+- Confirm how shadow map textures are bound/accessible for a fullscreen file shader program in this stage.
