@@ -69,14 +69,6 @@ struct RayHit {
     float distance;
 };
 
-/**
- * Distance falloff function for inverse-square attenuation.
- * Uses an offset to avoid division by zero and provide soft falloff.
- */
-float distanceFalloff(float dist) {
-    return 1.0 / (1.0 + dist * dist);
-}
-
 RayHit traceRay(vec3 origin, vec3 direction) {
     RayHit result;
     result.hit = false;
@@ -181,8 +173,8 @@ void main(void)
         
         vec3 radiance;
         if (hit.hit) {
-            // Apply indirect tint and distance falloff to bounced radiance
-            radiance = hit.color * indirectTint * distanceFalloff(hit.distance);
+            // Hit radiance (no distance falloff; rayMaxDistance is the only cutoff)
+            radiance = hit.color * indirectTint;
         } else {
             // Sky fallback
             radiance = lumonGetSkyColor(rayDir, sunPosition, sunColor, ambientColor, skyMissWeight);

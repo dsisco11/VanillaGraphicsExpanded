@@ -112,13 +112,6 @@ struct RayHit {
 };
 
 /**
- * Distance falloff function for inverse-square attenuation.
- */
-float distanceFalloff(float dist) {
-    return 1.0 / (1.0 + dist * dist);
-}
-
-/**
  * Trace a ray in view-space and return hit information.
  */
 RayHit traceRay(vec3 originVS, vec3 directionVS) {
@@ -249,8 +242,8 @@ void main(void)
     float hitDistance;
     
     if (hit.hit) {
-        // Apply indirect tint and distance falloff to bounced radiance
-        radiance = hit.color * indirectTint * distanceFalloff(hit.distance);
+        // Hit radiance (no distance falloff; rayMaxDistance is the only cutoff)
+        radiance = hit.color * indirectTint;
         hitDistance = hit.distance;
     } else {
         // Sky fallback - use world-space direction for consistent sky color
