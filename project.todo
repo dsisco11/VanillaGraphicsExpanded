@@ -1,3 +1,8 @@
+Issues:
+  ☐ Composite Indirect Diffuse debug view appears black.
+  ☐ Emissive materials not participating in probe traces.
+  ☐ Unsure if hole filling is working as intended.
+
 LumOn Functional Test Coverage:
 
   Phase 4 - High Priority Missing Tests:
