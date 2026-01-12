@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 
 using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.Rendering.Profiling;
 
 using Vintagestory.API.Client;
 
@@ -11,6 +12,17 @@ public sealed class GuiDialogVgeDebugView : GuiDialog
 {
     private readonly string[] lumonValues;
     private readonly string[] lumonNames;
+
+    private readonly string[] profilerEnabledValues = ["On", "Off"];
+    private readonly string[] profilerEnabledNames = ["On", "Off"];
+
+    private readonly string[] profilerCategoryValues = ["All", "PBR", "LumOn", "Debug"];
+    private readonly string[] profilerCategoryNames = ["All", "PBR", "LumOn", "Debug"];
+
+    private readonly string[] profilerSortValues = ["Name", "LastMs", "AvgMs", "MaxMs"];
+    private readonly string[] profilerSortNames = ["Name", "Last", "Avg", "Max"];
+
+    private long profilerTickListenerId;
 
     public GuiDialogVgeDebugView(ICoreClientAPI capi)
         : base(capi)
@@ -29,8 +41,21 @@ public sealed class GuiDialogVgeDebugView : GuiDialog
         base.OnGuiOpened();
         RefreshFromRuntime();
 
+        profilerTickListenerId = capi.Event.RegisterGameTickListener(_ => RefreshProfilerText(), 200);
+
         // Ensure keyboard navigation works immediately (Up/Down cycles selection).
         SingleComposer?.FocusElement(0);
+    }
+
+    public override void OnGuiClosed()
+    {
+        base.OnGuiClosed();
+
+        if (profilerTickListenerId != 0)
+        {
+            capi.Event.UnregisterGameTickListener(profilerTickListenerId);
+            profilerTickListenerId = 0;
+        }
     }
 
     private void Compose()
@@ -52,6 +77,7 @@ public sealed class GuiDialogVgeDebugView : GuiDialog
         ElementBounds Control(double y) => ElementBounds.Fixed(labelW + 10, y, controlW, rowH);
 
         var fontLabel = CairoFont.WhiteDetailText();
+        var fontSmall = CairoFont.WhiteSmallText();
 
         SingleComposer = capi.Gui
             .CreateCompo("vge-debug-view", dialogBounds)
@@ -70,6 +96,52 @@ public sealed class GuiDialogVgeDebugView : GuiDialog
                         CairoFont.WhiteSmallText()
                     ),
                     "lumonmode")
+
+                // GPU profiler
+                .AddStaticText("GPU profiler", fontLabel, Label(rowY += 40))
+                .AddInteractiveElement(
+                    new GuiElementDropDownCycleOnArrow(
+                        capi,
+                        profilerEnabledValues,
+                        profilerEnabledNames,
+                        GlGpuProfiler.Instance.Enabled ? 0 : 1,
+                        OnProfilerEnabledChanged,
+                        Control(rowY),
+                        fontSmall
+                    ),
+                    "profilerEnabled")
+
+                .AddStaticText("GPU category", fontLabel, Label(rowY += 30))
+                .AddInteractiveElement(
+                    new GuiElementDropDownCycleOnArrow(
+                        capi,
+                        profilerCategoryValues,
+                        profilerCategoryNames,
+                        0,
+                        OnProfilerSelectionChanged,
+                        Control(rowY),
+                        fontSmall
+                    ),
+                    "profilerCategory")
+
+                .AddStaticText("GPU sort", fontLabel, Label(rowY += 30))
+                .AddInteractiveElement(
+                    new GuiElementDropDownCycleOnArrow(
+                        capi,
+                        profilerSortValues,
+                        profilerSortNames,
+                        1,
+                        OnProfilerSelectionChanged,
+                        Control(rowY),
+                        fontSmall
+                    ),
+                    "profilerSort")
+
+                .AddDynamicText(
+                    "(Profiler will populate after a few frames.)",
+                    fontSmall,
+                    ElementBounds.Fixed(0, rowY + 35, labelW + 10 + controlW, 320),
+                    "profilerText")
             .EndChildElements()
             .Compose();
 
@@ -85,6 +157,83 @@ public sealed class GuiDialogVgeDebugView : GuiDialog
 
         var current = VgeDebugViewManager.GetMode();
         SingleComposer.GetDropDown("lumonmode").SetSelectedIndex(GetLumOnSelectedIndex(lumonValues, current));
+
+        RefreshProfilerText();
+    }
+
+    private void RefreshProfilerText()
+    {
+        if (SingleComposer is null)
+        {
+            return;
+        }
+
+        var dyn = SingleComposer.GetDynamicText("profilerText");
+
+        string prefix = GetProfilerPrefix();
+        string? prefixFilter = string.IsNullOrEmpty(prefix) ? null : prefix;
+        var sort = GetProfilerSort();
+        var entries = GlGpuProfiler.Instance.GetSnapshot(sort, prefixFilter, maxEntries: 64);
+
+        string enabled = GlGpuProfiler.Instance.Enabled ? "On" : "Off";
+        int w = capi.Render.FrameWidth;
+        int h = capi.Render.FrameHeight;
+
+        if (entries.Length == 0)
+        {
+            dyn.SetNewText($"GPU profiler: {enabled} @ {w}x{h}\n(no events yet)");
+            return;
+        }
+
+        static string Ms(float v) => v <= 0f ? "-" : v.ToString("0.###");
+
+        var lines = new string[entries.Length + 2];
+        lines[0] = $"GPU profiler: {enabled} @ {w}x{h}  (showing {entries.Length})";
+        lines[1] = "Event | last ms | avg ms | min ms | max ms | n";
+
+        for (int i = 0; i < entries.Length; i++)
+        {
+            var e = entries[i];
+            var s = e.Stats;
+            lines[i + 2] = $"{e.Name} | {Ms(s.LastMs)} | {Ms(s.AvgMs)} | {Ms(s.MinMs)} | {Ms(s.MaxMs)} | {s.SampleCount}";
+        }
+
+        dyn.SetNewText(string.Join("\n", lines));
+    }
+
+    private string GetProfilerPrefix()
+    {
+        if (SingleComposer is null)
+        {
+            return string.Empty;
+        }
+
+        string? val = SingleComposer.GetDropDown("profilerCategory").SelectedValue;
+        return val switch
+        {
+            "PBR" => "PBR.",
+            "LumOn" => "LumOn.",
+            "Debug" => "Debug.",
+            _ => string.Empty
+        };
+    }
+
+    private GpuProfileSort GetProfilerSort()
+    {
+        if (SingleComposer is null)
+        {
+            return GpuProfileSort.LastMs;
+        }
+
+        string? val = SingleComposer.GetDropDown("profilerSort").SelectedValue;
+        return val switch
+        {
+            "Name" => GpuProfileSort.Name,
+            "LastMs" => GpuProfileSort.LastMs,
+            "AvgMs" => GpuProfileSort.AvgMs,
+            "MaxMs" => GpuProfileSort.MaxMs,
+            _ => GpuProfileSort.LastMs
+        };
     }
 
     private void OnTitleBarClose()
@@ -104,6 +253,27 @@ public sealed class GuiDialogVgeDebugView : GuiDialog
             // Selecting any non-Off mode implies preview on.
             VgeDebugViewManager.SetMode(mode);
         }
+    }
+
+    private void OnProfilerEnabledChanged(string code, bool selected)
+    {
+        if (!selected)
+        {
+            return;
+        }
+
+        GlGpuProfiler.Instance.Enabled = code == "On";
+        RefreshProfilerText();
+    }
+
+    private void OnProfilerSelectionChanged(string _code, bool selected)
+    {
+        if (!selected)
+        {
+            return;
+        }
+
+        RefreshProfilerText();
     }
 
     private static int GetLumOnSelectedIndex(string[] values, LumOnDebugMode current)

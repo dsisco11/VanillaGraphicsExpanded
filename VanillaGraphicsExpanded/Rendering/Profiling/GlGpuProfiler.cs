@@ -17,6 +17,8 @@ public sealed class GlGpuProfiler : IDisposable
 
     public static GlGpuProfiler Instance => LazyInstance.Value;
 
+    private readonly object gate = new();
+
     private readonly Dictionary<string, EventState> events = new(StringComparer.Ordinal);
     private readonly Stack<EventToken> stack = new();
 
@@ -31,7 +33,10 @@ public sealed class GlGpuProfiler : IDisposable
 
     public void Initialize(ICoreClientAPI capi)
     {
-        this.capi = capi;
+        lock (gate)
+        {
+            this.capi = capi;
+        }
     }
 
     public void BeginFrame(int width, int height)
@@ -41,17 +46,20 @@ public sealed class GlGpuProfiler : IDisposable
             return;
         }
 
-        this.width = width;
-        this.height = height;
-
-        Collect();
-        frameIndex++;
-
-        // Clear any leftover stack in case a renderer early-returned without disposing.
-        // This keeps the profiler resilient in dev builds.
-        if (stack.Count > 0)
+        lock (gate)
         {
-            stack.Clear();
+            this.width = width;
+            this.height = height;
+
+            CollectInternal();
+            frameIndex++;
+
+            // Clear any leftover stack in case a renderer early-returned without disposing.
+            // This keeps the profiler resilient in dev builds.
+            if (stack.Count > 0)
+            {
+                stack.Clear();
+            }
         }
     }
 
@@ -62,6 +70,14 @@ public sealed class GlGpuProfiler : IDisposable
             return;
         }
 
+        lock (gate)
+        {
+            CollectInternal();
+        }
+    }
+
+    private void CollectInternal()
+    {
         foreach (var (_, evt) in events)
         {
             evt.CollectResolvedSamples(capi);
@@ -75,12 +91,15 @@ public sealed class GlGpuProfiler : IDisposable
             return default;
         }
 
-        string fullName = stack.Count == 0
-            ? name
-            : $"{stack.Peek().Name}/{name}";
+        lock (gate)
+        {
+            string fullName = stack.Count == 0
+                ? name
+                : $"{stack.Peek().Name}/{name}";
 
-        int token = BeginEvent(fullName);
-        return new GlGpuProfilerScope(this, token);
+            int token = BeginEvent(fullName);
+            return new GlGpuProfilerScope(this, token);
+        }
     }
 
     internal int BeginEvent(string name)
@@ -147,26 +166,71 @@ public sealed class GlGpuProfiler : IDisposable
 
     public bool TryGetStats(string name, out GpuProfileStats stats)
     {
-        if (events.TryGetValue(name, out var evt))
+        lock (gate)
         {
-            stats = evt.GetStats();
-            return true;
+            if (events.TryGetValue(name, out var evt))
+            {
+                stats = evt.GetStats();
+                return true;
+            }
         }
 
         stats = default;
         return false;
     }
 
+    public GpuProfileEntry[] GetSnapshot(
+        GpuProfileSort sort = GpuProfileSort.Name,
+        string? prefix = null,
+        int maxEntries = 128)
+    {
+        lock (gate)
+        {
+            if (events.Count == 0)
+            {
+                return [];
+            }
+
+            var list = new List<GpuProfileEntry>(Math.Min(events.Count, maxEntries));
+            foreach (var (name, evt) in events)
+            {
+                if (prefix != null && !name.StartsWith(prefix, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                list.Add(new GpuProfileEntry(name, evt.GetStats()));
+                if (list.Count >= maxEntries)
+                {
+                    break;
+                }
+            }
+
+            list.Sort(sort switch
+            {
+                GpuProfileSort.LastMs => static (a, b) => b.Stats.LastMs.CompareTo(a.Stats.LastMs),
+                GpuProfileSort.AvgMs => static (a, b) => b.Stats.AvgMs.CompareTo(a.Stats.AvgMs),
+                GpuProfileSort.MaxMs => static (a, b) => b.Stats.MaxMs.CompareTo(a.Stats.MaxMs),
+                _ => static (a, b) => string.CompareOrdinal(a.Name, b.Name)
+            });
+
+            return list.ToArray();
+        }
+    }
+
     public void Dispose()
     {
-        foreach (var (_, evt) in events)
+        lock (gate)
         {
-            evt.Dispose();
-        }
+            foreach (var (_, evt) in events)
+            {
+                evt.Dispose();
+            }
 
-        events.Clear();
-        stack.Clear();
-        capi = null;
+            events.Clear();
+            stack.Clear();
+            capi = null;
+        }
     }
 
     private readonly record struct EventToken(string Name, int Slot)
