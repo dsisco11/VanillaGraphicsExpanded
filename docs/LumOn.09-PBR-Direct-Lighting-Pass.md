@@ -103,12 +103,44 @@ This section is the canonical **data contract** for Phase 16.
   - Encoding: `normalPacked = normalWS * 0.5 + 0.5` in XYZ.
 
 - **G-buffer material**: VGE `ColorAttachment5` from `GBufferManager`.
-  - Format: `RGBA8`.
+  - Format: `RGBA16F`.
   - Channels (normalized 0..1):
     - `R = Roughness`
     - `G = Metallic`
     - `B = Emissive` (scalar mask/intensity)
     - `A = Reflectivity`
+
+### 3.1.1 Exact bindings (authoritative)
+
+This section is the authoritative *C# → GLSL* binding contract for the direct lighting pass.
+
+**Texture samplers (GLSL uniform → texture unit → source):**
+
+| GLSL uniform | Unit | Source | Notes |
+|---|---:|---|---|
+| `primaryScene` | 0 | Primary FBO `ColorAttachment0` | `baseColor` in linear space |
+| `primaryDepth` | 1 | Primary FBO depth | Used for sky discard + position reconstruction |
+| `gBufferNormal` | 2 | `GBufferManager.NormalTextureId` (`Attachment4`) | Packed normalWS = `n*0.5+0.5` |
+| `gBufferMaterial` | 3 | `GBufferManager.MaterialTextureId` (`Attachment5`) | `(roughness, metallic, emissive, reflectivity)` |
+| `shadowMapNear` | 4 | `EnumFrameBuffer.ShadowmapNear` depth | Bound for future shadow sampling |
+| `shadowMapFar` | 5 | `EnumFrameBuffer.ShadowmapFar` depth | Bound for future shadow sampling |
+
+**Uniforms (GLSL uniform → source):**
+
+| GLSL uniform | Source | Notes |
+|---|---|---|
+| `invProjectionMatrix` | `capi.Render.CurrentProjectionMatrix` inverted | View-pos reconstruction |
+| `invModelViewMatrix` | `capi.Render.CameraMatrixOriginf` inverted | World-pos reconstruction (camera-relative) |
+| `cameraOriginFloor` / `cameraOriginFrac` | `capi.World.Player.Entity.CameraPos` split | Stable world reconstruction across large coords |
+| `zNear` / `zFar` | `capi.Render.ShaderUniforms.ZNear/ZFar` | Depth linearization support |
+| `lightDirection` | `capi.Render.ShaderUniforms.SunPosition3D` | Normalized direction toward sun |
+| `rgbaAmbientIn` | `capi.Render.AmbientColor` | Ambient term (currently unused in shader) |
+| `rgbaLightIn` | `ColorUtil.WhiteArgbVec.XYZ` | Directional light color |
+| `pointLightsCount` / `pointLights3[]` / `pointLightColors3[]` | `DefaultShaderUniforms.PointLights*` | Arrays sized `[100]` in shader |
+| `toShadowMapSpaceMatrixNear/Far` | `DefaultShaderUniforms.ToShadowMapSpaceMatrix*` | Bound for future shadow sampling |
+| `shadowRangeNear/Far`, `shadowZExtendNear/Far`, `dropShadowIntensity` | `DefaultShaderUniforms.*` | Bound for future shadow sampling |
+
+**Numerical stability note:** the pass clamps minimum roughness to `0.04` to avoid GGX singularities overflowing `RGBA16F` outputs.
 
 **Lighting inputs:**
 
@@ -236,6 +268,15 @@ Phase 16 should expose debug views for:
 - Optional: `DirectTotal = DirectDiffuse + DirectSpecular` (debug-only view)
 
 Additionally, GPU timing queries should include the new direct pass.
+
+### 8.1 Performance baseline (GPU timer)
+
+The direct lighting pass measures GPU time using an OpenGL `TimeElapsed` query in `DirectLightingRenderer`.
+
+- The renderer samples GPU time each frame when results become available.
+- A baseline (average/min/max over a fixed sample window) is logged once per resolution.
+
+This is intended to make Phase 16 performance regressions visible without external tooling.
 
 ---
 

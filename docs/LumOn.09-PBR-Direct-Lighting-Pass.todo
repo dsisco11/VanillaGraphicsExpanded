@@ -130,6 +130,6 @@ Phase 16 - PBR Direct Lighting Pass System (Opaque @ RenderOrder = 9.0)
 
   Phase 16.9 - Polish & Cleanup
   Exit artifacts: stable performance and clean handoff for removing overlay later.
-    ☐ Document exact uniform/sampler bindings used by the direct pass
-    ☐ Ensure no remaining runtime dependence on pbr-overlay
-    ☐ Confirm performance budget (timers) and note baseline in docs
+    ✔ Document exact uniform/sampler bindings used by the direct pass
+    ✔ Ensure no remaining runtime dependence on pbr-overlay
+    ✔ Confirm performance budget (timers) and note baseline in docs

@@ -22,6 +22,8 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
     private const double RenderOrderValue = 9.0;
     private const int RenderRangeValue = 1;
 
+    private const int BaselineSampleCount = 240;
+
     private readonly ICoreClientAPI capi;
     private readonly GBufferManager gBufferManager;
     private readonly DirectLightingBufferManager bufferManager;
@@ -32,6 +34,14 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
     private int timerQuery;
     private bool timerQueryPending;
     private float lastGpuMs;
+
+    private int baselineWidth;
+    private int baselineHeight;
+    private int baselineSamples;
+    private float baselineSumMs;
+    private float baselineMinMs = float.PositiveInfinity;
+    private float baselineMaxMs = float.NegativeInfinity;
+    private bool baselineLogged;
 
     private readonly float[] invProjectionMatrix = new float[16];
     private readonly float[] invModelViewMatrix = new float[16];
@@ -73,6 +83,18 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         if (primaryFb is null)
         {
             return;
+        }
+
+        // Reset baseline when the output resolution changes.
+        if (baselineWidth != capi.Render.FrameWidth || baselineHeight != capi.Render.FrameHeight)
+        {
+            baselineWidth = capi.Render.FrameWidth;
+            baselineHeight = capi.Render.FrameHeight;
+            baselineSamples = 0;
+            baselineSumMs = 0f;
+            baselineMinMs = float.PositiveInfinity;
+            baselineMaxMs = float.NegativeInfinity;
+            baselineLogged = false;
         }
 
         // Ensure output buffers match current screen size
@@ -238,5 +260,22 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         GL.GetQueryObject(timerQuery, GetQueryObjectParam.QueryResult, out long nanoseconds);
         lastGpuMs = nanoseconds / 1_000_000f;
         timerQueryPending = false;
+
+        if (!baselineLogged && lastGpuMs > 0f && float.IsFinite(lastGpuMs))
+        {
+            baselineSamples++;
+            baselineSumMs += lastGpuMs;
+            baselineMinMs = Math.Min(baselineMinMs, lastGpuMs);
+            baselineMaxMs = Math.Max(baselineMaxMs, lastGpuMs);
+
+            if (baselineSamples >= BaselineSampleCount)
+            {
+                float avg = baselineSumMs / Math.Max(1, baselineSamples);
+                capi.Logger.Notification(
+                    $"[VGE] DirectLighting baseline: avg={avg:0.###}ms min={baselineMinMs:0.###}ms max={baselineMaxMs:0.###}ms " +
+                    $"over {baselineSamples} frames @ {baselineWidth}x{baselineHeight}");
+                baselineLogged = true;
+            }
+        }
     }
 }
