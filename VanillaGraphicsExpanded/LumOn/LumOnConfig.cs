@@ -296,6 +296,46 @@ public class LumOnConfig
     [JsonProperty]
     public bool UseCombinePass { get; set; } = true;
 
+    /// <summary>
+    /// Enables physically-plausible indirect compositing (diffuse/spec split) in the combine pass.
+    /// When disabled, uses the legacy diffuse-only indirect modulation.
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public bool EnablePbrComposite { get; set; } = false;
+
+    /// <summary>
+    /// Enables applying ambient occlusion during indirect compositing.
+    /// Uses gBufferMaterial alpha as an AO/reflectivity channel.
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public bool EnableAO { get; set; } = false;
+
+    /// <summary>
+    /// Enables bent-normal-based visibility for indirect compositing.
+    /// Not yet wired to a dedicated bent-normal source; currently falls back to surface normal.
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public bool EnableBentNormal { get; set; } = false;
+
+    /// <summary>
+    /// Strength of AO applied to indirect diffuse.
+    /// 0 = disabled, 1 = full AO.
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public float DiffuseAOStrength { get; set; } = 1.0f;
+
+    /// <summary>
+    /// Strength of AO applied to indirect specular.
+    /// 0 = disabled, 1 = full AO (also attenuated by roughness).
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public float SpecularAOStrength { get; set; } = 0.5f;
+
     // ═══════════════════════════════════════════════════════════════
     // Probe-Atlas Gather Settings (SPG-007 Section 2.5)
     // ═══════════════════════════════════════════════════════════════

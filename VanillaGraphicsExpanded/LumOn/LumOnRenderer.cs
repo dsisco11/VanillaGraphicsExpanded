@@ -210,7 +210,12 @@ public class LumOnRenderer : IRenderer, IDisposable
             LumOnDebugMode.ProbeAtlasMetaFlags,
             LumOnDebugMode.ProbeAtlasFilteredRadiance,
             LumOnDebugMode.ProbeAtlasFilterDelta,
-            LumOnDebugMode.ProbeAtlasGatherInputSource
+            LumOnDebugMode.ProbeAtlasGatherInputSource,
+
+            LumOnDebugMode.CompositeAO,
+            LumOnDebugMode.CompositeIndirectDiffuse,
+            LumOnDebugMode.CompositeIndirectSpecular,
+            LumOnDebugMode.CompositeMaterial
         };
 
         int currentIndex = Array.IndexOf(cycle, config.DebugMode);
@@ -242,6 +247,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         LumOnDebugMode.ProbeAtlasFilteredRadiance => "Probe-Atlas Filtered Radiance",
         LumOnDebugMode.ProbeAtlasFilterDelta => "Probe-Atlas Filter Delta",
         LumOnDebugMode.ProbeAtlasGatherInputSource => "Probe-Atlas Gather Input Source",
+        LumOnDebugMode.CompositeAO => "Composite AO (Phase 15)",
+        LumOnDebugMode.CompositeIndirectDiffuse => "Composite Indirect Diffuse (Phase 15)",
+        LumOnDebugMode.CompositeIndirectSpecular => "Composite Indirect Specular (Phase 15)",
+        LumOnDebugMode.CompositeMaterial => "Composite Material (Phase 15)",
         _ => mode.ToString()
     };
 
@@ -1191,6 +1200,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         // For now, we use the captured scene as a fallback
         shader.GBufferAlbedo = bufferManager.CapturedSceneTex?.TextureId ?? 0;
         shader.GBufferMaterial = gBufferManager?.MaterialTextureId ?? 0;
+        shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
         shader.PrimaryDepth = primaryFb.DepthTextureId;
 
         // Pass uniforms
@@ -1200,6 +1210,17 @@ public class LumOnRenderer : IRenderer, IDisposable
             config.IndirectTint[1],
             config.IndirectTint[2]);
         shader.LumOnEnabled = config.Enabled ? 1 : 0;
+
+        // Phase 15: optional physically-plausible composite
+        shader.EnablePbrComposite = config.EnablePbrComposite ? 1 : 0;
+        shader.EnableAO = config.EnableAO ? 1 : 0;
+        shader.EnableBentNormal = config.EnableBentNormal ? 1 : 0;
+        shader.DiffuseAOStrength = Math.Clamp(config.DiffuseAOStrength, 0f, 1f);
+        shader.SpecularAOStrength = Math.Clamp(config.SpecularAOStrength, 0f, 1f);
+
+        // Matrices for view vector reconstruction / normal transform
+        shader.InvProjectionMatrix = invProjectionMatrix;
+        shader.ViewMatrix = modelViewMatrix;
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);

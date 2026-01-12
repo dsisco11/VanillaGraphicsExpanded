@@ -178,6 +178,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         shader.ProbeAtlasGatherInput = gatherInput;
         shader.GatherAtlasSource = gatherAtlasSource;
 
+        // Phase 15 composite debug inputs
+        shader.IndirectDiffuseFull = bufferManager.IndirectFullTex?.TextureId ?? 0;
+        shader.GBufferAlbedo = bufferManager.CapturedSceneTex?.TextureId ?? 0;
+        shader.GBufferMaterial = gBufferManager?.MaterialTextureId ?? 0;
+
         // Pass uniforms
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
@@ -191,6 +196,15 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         shader.TemporalAlpha = config.TemporalAlpha;
         shader.DepthRejectThreshold = config.DepthRejectThreshold;
         shader.NormalRejectThreshold = config.NormalRejectThreshold;
+
+        // Phase 15 composite params (to match lumon_combine)
+        shader.IndirectIntensity = config.Intensity;
+        shader.IndirectTint = new Vec3f(config.IndirectTint[0], config.IndirectTint[1], config.IndirectTint[2]);
+        shader.EnablePbrComposite = config.EnablePbrComposite ? 1 : 0;
+        shader.EnableAO = config.EnableAO ? 1 : 0;
+        shader.EnableBentNormal = config.EnableBentNormal ? 1 : 0;
+        shader.DiffuseAOStrength = Math.Clamp(config.DiffuseAOStrength, 0f, 1f);
+        shader.SpecularAOStrength = Math.Clamp(config.SpecularAOStrength, 0f, 1f);
 
         // Render fullscreen quad
         capi.Render.RenderMesh(quadMeshRef);

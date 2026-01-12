@@ -87,6 +87,21 @@ public class LumOnDebugShaderProgram : ShaderProgram
     /// </summary>
     public int ProbeAtlasGatherInput { set => BindTexture2D("probeAtlasGatherInput", value, 11); }
 
+    /// <summary>
+    /// Full-resolution indirect diffuse (upsampled) used by composite debug views.
+    /// </summary>
+    public int IndirectDiffuseFull { set => BindTexture2D("indirectDiffuseFull", value, 12); }
+
+    /// <summary>
+    /// Albedo source for composite debug views (fallback: captured scene).
+    /// </summary>
+    public int GBufferAlbedo { set => BindTexture2D("gBufferAlbedo", value, 13); }
+
+    /// <summary>
+    /// Material properties (roughness/metallic/emissive/reflectivity) for composite debug views.
+    /// </summary>
+    public int GBufferMaterial { set => BindTexture2D("gBufferMaterial", value, 14); }
+
     #endregion
 
     #region Size Uniforms
@@ -172,6 +187,24 @@ public class LumOnDebugShaderProgram : ShaderProgram
     /// 0=trace, 1=current (temporal), 2=filtered.
     /// </summary>
     public int GatherAtlasSource { set => Uniform("gatherAtlasSource", value); }
+
+    #endregion
+
+    #region Composite Debug Uniforms (Phase 15)
+
+    public float IndirectIntensity { set => Uniform("indirectIntensity", value); }
+
+    public Vec3f IndirectTint { set => Uniform("indirectTint", value); }
+
+    public int EnablePbrComposite { set => Uniform("enablePbrComposite", value); }
+
+    public int EnableAO { set => Uniform("enableAO", value); }
+
+    public int EnableBentNormal { set => Uniform("enableBentNormal", value); }
+
+    public float DiffuseAOStrength { set => Uniform("diffuseAOStrength", value); }
+
+    public float SpecularAOStrength { set => Uniform("specularAOStrength", value); }
 
     #endregion
 }

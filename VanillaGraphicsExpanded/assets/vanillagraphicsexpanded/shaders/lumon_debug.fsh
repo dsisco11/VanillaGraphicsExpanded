@@ -28,6 +28,10 @@ out vec4 outColor;
 // 15 = Probe-Atlas Filtered Radiance (probe-space)
 // 16 = Probe-Atlas Filter Delta (abs(filtered - current))
 // 17 = Probe-Atlas Gather Input Source (raw vs filtered)
+// 18 = Composite AO (Phase 15)
+// 19 = Composite Indirect Diffuse (Phase 15)
+// 20 = Composite Indirect Specular (Phase 15)
+// 21 = Composite Material (metallic, roughness, ao)
 // ============================================================================
 
 // Import common utilities
@@ -38,6 +42,9 @@ out vec4 outColor;
 
 // Import probe-atlas meta helpers for mode 14
 @import "./includes/lumon_probe_atlas_meta.glsl"
+
+// Phase 15: composite math (shared with lumon_combine)
+@import "./includes/lumon_pbr.fsh"
 
 // G-buffer textures
 uniform sampler2D primaryDepth;
@@ -58,6 +65,11 @@ uniform sampler2D probeAtlasMeta;       // R = confidence, G = uintBitsToFloat(f
 uniform sampler2D probeAtlasCurrent;     // RGBA16F radiance atlas (post-temporal)
 uniform sampler2D probeAtlasFiltered;    // RGBA16F radiance atlas (post-filter)
 uniform sampler2D probeAtlasGatherInput; // The atlas currently selected as gather input
+
+// Phase 15: compositing debug inputs
+uniform sampler2D indirectDiffuseFull;   // Upsampled indirect buffer (full-res)
+uniform sampler2D gBufferAlbedo;         // Albedo (fallback: captured scene)
+uniform sampler2D gBufferMaterial;       // Material properties (roughness/metallic/emissive/reflectivity)
 
 // Matrices
 uniform mat4 invProjectionMatrix;
@@ -85,6 +97,145 @@ uniform int debugMode;
 
 // Gather atlas selection: 0=trace, 1=current, 2=filtered
 uniform int gatherAtlasSource;
+
+// Phase 15: compositing parameters (to match lumon_combine behavior)
+uniform float indirectIntensity;
+uniform vec3 indirectTint;
+uniform int enablePbrComposite;
+uniform int enableAO;
+uniform int enableBentNormal;
+uniform float diffuseAOStrength;
+uniform float specularAOStrength;
+
+// Some GLSL compilers are picky about calling functions before definition.
+mat4 getViewMatrix();
+
+// ============================================================================
+// Debug Mode 18-21: Composite Debug Views (Phase 15)
+// ============================================================================
+
+void computeCompositeSplit(
+    out float outAo,
+    out float outRoughness,
+    out float outMetallic,
+    out vec3 outIndirectDiffuse,
+    out vec3 outIndirectSpecular)
+{
+    float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth))
+    {
+        outAo = 1.0;
+        outRoughness = 0.0;
+        outMetallic = 0.0;
+        outIndirectDiffuse = vec3(0.0);
+        outIndirectSpecular = vec3(0.0);
+        return;
+    }
+
+    vec3 indirect = texture(indirectDiffuseFull, uv).rgb;
+    indirect *= indirectIntensity;
+    indirect *= indirectTint;
+
+    vec3 albedo = lumonGetAlbedo(gBufferAlbedo, uv);
+
+    float roughness;
+    float metallic;
+    float emissive;
+    float reflectivity;
+    lumonGetMaterialProperties(gBufferMaterial, uv, roughness, metallic, emissive, reflectivity);
+
+    float ao = enableAO == 1 ? reflectivity : 1.0;
+
+    // Legacy path compatibility: if PBR composite is off, treat all indirect as diffuse.
+    if (enablePbrComposite == 0)
+    {
+        outAo = ao;
+        outRoughness = roughness;
+        outMetallic = metallic;
+        outIndirectDiffuse = indirect;
+        outIndirectSpecular = vec3(0.0);
+        return;
+    }
+
+    vec3 viewPosVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+    vec3 viewDirVS = normalize(-viewPosVS);
+
+    vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
+    vec3 normalVS = normalize((getViewMatrix() * vec4(normalWS, 0.0)).xyz);
+
+    vec3 bentNormalVS = normalVS;
+    if (enableBentNormal == 1)
+    {
+        float bend = clamp((1.0 - clamp(ao, 0.0, 1.0)) * 0.5, 0.0, 0.5);
+        bentNormalVS = normalize(mix(normalVS, vec3(0.0, 1.0, 0.0), bend));
+    }
+
+    vec3 diffuseContrib;
+    vec3 specContrib;
+
+    lumonComputeIndirectSplit(
+        indirect,
+        albedo,
+        bentNormalVS,
+        viewDirVS,
+        roughness,
+        metallic,
+        ao,
+        diffuseAOStrength,
+        specularAOStrength,
+        diffuseContrib,
+        specContrib);
+
+    outAo = ao;
+    outRoughness = roughness;
+    outMetallic = metallic;
+    outIndirectDiffuse = diffuseContrib;
+    outIndirectSpecular = specContrib;
+}
+
+vec4 renderCompositeAoDebug()
+{
+    float ao;
+    float roughness;
+    float metallic;
+    vec3 diff;
+    vec3 spec;
+    computeCompositeSplit(ao, roughness, metallic, diff, spec);
+    return vec4(vec3(clamp(ao, 0.0, 1.0)), 1.0);
+}
+
+vec4 renderCompositeIndirectDiffuseDebug()
+{
+    float ao;
+    float roughness;
+    float metallic;
+    vec3 diff;
+    vec3 spec;
+    computeCompositeSplit(ao, roughness, metallic, diff, spec);
+    return vec4(diff, 1.0);
+}
+
+vec4 renderCompositeIndirectSpecularDebug()
+{
+    float ao;
+    float roughness;
+    float metallic;
+    vec3 diff;
+    vec3 spec;
+    computeCompositeSplit(ao, roughness, metallic, diff, spec);
+    return vec4(spec, 1.0);
+}
+
+vec4 renderCompositeMaterialDebug()
+{
+    float ao;
+    float roughness;
+    float metallic;
+    vec3 diff;
+    vec3 spec;
+    computeCompositeSplit(ao, roughness, metallic, diff, spec);
+    return vec4(clamp(vec3(metallic, roughness, ao), 0.0, 1.0), 1.0);
+}
 
 // ============================================================================
 // Color Utilities
@@ -669,6 +820,18 @@ void main(void)
             break;
         case 17:
             outColor = renderProbeAtlasGatherInputSourceDebug();
+            break;
+        case 18:
+            outColor = renderCompositeAoDebug();
+            break;
+        case 19:
+            outColor = renderCompositeIndirectDiffuseDebug();
+            break;
+        case 20:
+            outColor = renderCompositeIndirectSpecularDebug();
+            break;
+        case 21:
+            outColor = renderCompositeMaterialDebug();
             break;
         default:
             outColor = vec4(1.0, 0.0, 1.0, 1.0);  // Magenta = unknown mode

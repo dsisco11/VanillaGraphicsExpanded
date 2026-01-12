@@ -11,6 +11,31 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0) {
 }
 
 /*
+@description Energy-conserving diffuse weight derived from Fresnel term.
+             Useful for splitting an incoming (already-integrated) lighting term
+             into diffuse/specular contributions.
+@param F - Fresnel term (kS)
+@param metallic - Metallic factor in [0..1]
+@return Diffuse factor kD
+*/
+vec3 pbrDiffuseFactorFromFresnel(vec3 F, float metallic)
+{
+    vec3 kS = clamp(F, 0.0, 1.0);
+    vec3 kD = (vec3(1.0) - kS) * (1.0 - clamp(metallic, 0.0, 1.0));
+    return max(kD, vec3(0.0));
+}
+
+/*
+@description Specular weight derived from Fresnel term.
+@param F - Fresnel term
+@return Specular factor kS
+*/
+vec3 pbrSpecularFactorFromFresnel(vec3 F)
+{
+    return clamp(F, 0.0, 1.0);
+}
+
+/*
 @description GGX normal distribution function
 @param N - Normal vector
 @param H - Halfway vector

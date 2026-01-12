@@ -49,9 +49,42 @@ public class LumOnCombineShaderProgram : ShaderProgram
     public int GBufferMaterial { set => BindTexture2D("gBufferMaterial", value, 3); }
 
     /// <summary>
+    /// G-Buffer world-space normals.
+    /// </summary>
+    public int GBufferNormal { set => BindTexture2D("gBufferNormal", value, 5); }
+
+    /// <summary>
     /// Primary depth texture for sky detection.
     /// </summary>
     public int PrimaryDepth { set => BindTexture2D("primaryDepth", value, 4); }
+
+    #endregion
+
+    #region Matrix Uniforms
+
+    /// <summary>
+    /// Inverse projection matrix for view-space position reconstruction.
+    /// </summary>
+    public float[] InvProjectionMatrix { set => UniformMatrix("invProjectionMatrix", value); }
+
+    /// <summary>
+    /// View matrix for transforming world-space normals into view-space.
+    /// </summary>
+    public float[] ViewMatrix { set => UniformMatrix("viewMatrix", value); }
+
+    #endregion
+
+    #region PBR Composite Uniforms (Phase 15)
+
+    public int EnablePbrComposite { set => Uniform("enablePbrComposite", value); }
+
+    public int EnableAO { set => Uniform("enableAO", value); }
+
+    public int EnableBentNormal { set => Uniform("enableBentNormal", value); }
+
+    public float DiffuseAOStrength { set => Uniform("diffuseAOStrength", value); }
+
+    public float SpecularAOStrength { set => Uniform("specularAOStrength", value); }
 
     #endregion
 

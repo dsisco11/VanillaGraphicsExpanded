@@ -1,4 +1,5 @@
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -42,13 +43,25 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
     private int CompileCombineShader() => CompileShader("lumon_combine.vsh", "lumon_combine.fsh");
 
     /// <summary>
+    /// Compiles and links the LumOn debug shader.
+    /// Used for Phase 15 composite debug views (moved out of lumon_combine).
+    /// </summary>
+    private int CompileDebugShader() => CompileShader("lumon_debug.vsh", "lumon_debug.fsh");
+
+    /// <summary>
     /// Sets up common uniforms for the combine shader.
     /// </summary>
     private void SetupCombineUniforms(
         int programId,
         float indirectIntensity = 1.0f,
         (float r, float g, float b) indirectTint = default,
-        int lumOnEnabled = 1)
+        int lumOnEnabled = 1,
+        int enablePbrComposite = 0,
+        int enableAO = 0,
+        float diffuseAOStrength = 1.0f,
+        float specularAOStrength = 0.5f,
+        float[]? invProjection = null,
+        float[]? view = null)
     {
         GL.UseProgram(programId);
 
@@ -62,17 +75,121 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         GL.Uniform3(tintLoc, tint.Item1, tint.Item2, tint.Item3);
         GL.Uniform1(enabledLoc, lumOnEnabled);
 
+        // Phase 15 composite toggles
+        var pbrLoc = GL.GetUniformLocation(programId, "enablePbrComposite");
+        var aoLoc = GL.GetUniformLocation(programId, "enableAO");
+        var bentLoc = GL.GetUniformLocation(programId, "enableBentNormal");
+        var diffAoLoc = GL.GetUniformLocation(programId, "diffuseAOStrength");
+        var specAoLoc = GL.GetUniformLocation(programId, "specularAOStrength");
+
+        GL.Uniform1(pbrLoc, enablePbrComposite);
+        GL.Uniform1(aoLoc, enableAO);
+        GL.Uniform1(bentLoc, 0);
+        GL.Uniform1(diffAoLoc, diffuseAOStrength);
+        GL.Uniform1(specAoLoc, specularAOStrength);
+
+        // Matrices (identity defaults are fine for deterministic testing)
+        var invProjLoc = GL.GetUniformLocation(programId, "invProjectionMatrix");
+        var viewLoc = GL.GetUniformLocation(programId, "viewMatrix");
+
+        var identity = new float[]
+        {
+            1,0,0,0,
+            0,1,0,0,
+            0,0,1,0,
+            0,0,0,1
+        };
+
+        GL.UniformMatrix4(invProjLoc, 1, false, invProjection ?? identity);
+        GL.UniformMatrix4(viewLoc, 1, false, view ?? identity);
+
         // Texture sampler uniforms
         var sceneDirectLoc = GL.GetUniformLocation(programId, "sceneDirect");
         var indirectLoc = GL.GetUniformLocation(programId, "indirectDiffuse");
         var albedoLoc = GL.GetUniformLocation(programId, "gBufferAlbedo");
         var materialLoc = GL.GetUniformLocation(programId, "gBufferMaterial");
+        var normalLoc = GL.GetUniformLocation(programId, "gBufferNormal");
         var depthLoc = GL.GetUniformLocation(programId, "primaryDepth");
         GL.Uniform1(sceneDirectLoc, 0);
         GL.Uniform1(indirectLoc, 1);
         GL.Uniform1(albedoLoc, 2);
         GL.Uniform1(materialLoc, 3);
         GL.Uniform1(depthLoc, 4);
+        GL.Uniform1(normalLoc, 5);
+
+        GL.UseProgram(0);
+    }
+
+    private static float[] IdentityMatrix4x4 =>
+    [
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+    ];
+
+    /// <summary>
+    /// Sets up uniforms for composite debug views in lumon_debug.fsh.
+    /// </summary>
+    private void SetupDebugCompositeUniforms(
+        int programId,
+        int debugMode,
+        float indirectIntensity,
+        (float r, float g, float b) indirectTint,
+        int enablePbrComposite,
+        int enableAO,
+        float diffuseAOStrength,
+        float specularAOStrength,
+        float[] invProjection)
+    {
+        GL.UseProgram(programId);
+
+        GL.Uniform1(GL.GetUniformLocation(programId, "debugMode"), debugMode);
+
+        // Required sizing uniforms
+        GL.Uniform2(GL.GetUniformLocation(programId, "screenSize"), (float)ScreenWidth, (float)ScreenHeight);
+        GL.Uniform2(GL.GetUniformLocation(programId, "probeGridSize"), (float)ProbeGridWidth, (float)ProbeGridHeight);
+        GL.Uniform1(GL.GetUniformLocation(programId, "probeSpacing"), ProbeSpacing);
+
+        GL.Uniform1(GL.GetUniformLocation(programId, "zNear"), ZNear);
+        GL.Uniform1(GL.GetUniformLocation(programId, "zFar"), ZFar);
+
+        GL.UniformMatrix4(GL.GetUniformLocation(programId, "invProjectionMatrix"), 1, false, invProjection);
+        GL.UniformMatrix4(GL.GetUniformLocation(programId, "invViewMatrix"), 1, false, IdentityMatrix4x4);
+        GL.UniformMatrix4(GL.GetUniformLocation(programId, "prevViewProjMatrix"), 1, false, IdentityMatrix4x4);
+
+        // Required temporal uniforms (not used by composite modes)
+        GL.Uniform1(GL.GetUniformLocation(programId, "temporalAlpha"), 0.9f);
+        GL.Uniform1(GL.GetUniformLocation(programId, "depthRejectThreshold"), 0.1f);
+        GL.Uniform1(GL.GetUniformLocation(programId, "normalRejectThreshold"), 0.9f);
+        GL.Uniform1(GL.GetUniformLocation(programId, "gatherAtlasSource"), 0);
+
+        // Composite params
+        GL.Uniform1(GL.GetUniformLocation(programId, "indirectIntensity"), indirectIntensity);
+        var tint = indirectTint == default ? (1.0f, 1.0f, 1.0f) : indirectTint;
+        GL.Uniform3(GL.GetUniformLocation(programId, "indirectTint"), tint.Item1, tint.Item2, tint.Item3);
+        GL.Uniform1(GL.GetUniformLocation(programId, "enablePbrComposite"), enablePbrComposite);
+        GL.Uniform1(GL.GetUniformLocation(programId, "enableAO"), enableAO);
+        GL.Uniform1(GL.GetUniformLocation(programId, "enableBentNormal"), 0);
+        GL.Uniform1(GL.GetUniformLocation(programId, "diffuseAOStrength"), diffuseAOStrength);
+        GL.Uniform1(GL.GetUniformLocation(programId, "specularAOStrength"), specularAOStrength);
+
+        // Sampler units (match LumOnDebugShaderProgram bindings)
+        GL.Uniform1(GL.GetUniformLocation(programId, "primaryDepth"), 0);
+        GL.Uniform1(GL.GetUniformLocation(programId, "gBufferNormal"), 1);
+        GL.Uniform1(GL.GetUniformLocation(programId, "probeAnchorPosition"), 2);
+        GL.Uniform1(GL.GetUniformLocation(programId, "probeAnchorNormal"), 3);
+        GL.Uniform1(GL.GetUniformLocation(programId, "radianceTexture0"), 4);
+        GL.Uniform1(GL.GetUniformLocation(programId, "radianceTexture1"), 5);
+        GL.Uniform1(GL.GetUniformLocation(programId, "indirectHalf"), 6);
+        GL.Uniform1(GL.GetUniformLocation(programId, "historyMeta"), 7);
+        GL.Uniform1(GL.GetUniformLocation(programId, "probeAtlasMeta"), 8);
+        GL.Uniform1(GL.GetUniformLocation(programId, "probeAtlasCurrent"), 9);
+        GL.Uniform1(GL.GetUniformLocation(programId, "probeAtlasFiltered"), 10);
+        GL.Uniform1(GL.GetUniformLocation(programId, "probeAtlasGatherInput"), 11);
+        GL.Uniform1(GL.GetUniformLocation(programId, "indirectDiffuseFull"), 12);
+        GL.Uniform1(GL.GetUniformLocation(programId, "gBufferAlbedo"), 13);
+        GL.Uniform1(GL.GetUniformLocation(programId, "gBufferMaterial"), 14);
 
         GL.UseProgram(0);
     }
@@ -84,6 +201,277 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
     {
         int idx = (y * ScreenWidth + x) * 4;
         return (data[idx], data[idx + 1], data[idx + 2], data[idx + 3]);
+    }
+
+    #endregion
+
+    #region Phase 15 Tests
+
+    [Fact]
+    public void Composite_Metallic0_UsesDiffuseDominant()
+    {
+        EnsureShaderTestAvailable();
+
+        var indirect = (r: 1.0f, g: 1.0f, b: 1.0f);
+        var albedo = (r: 1.0f, g: 0.0f, b: 0.0f);
+
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+        var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f, emissive: 0.0f, reflectivity: 1.0f);
+        var normalData = CreateUniformNormalData(ScreenWidth, ScreenHeight, 0f, 0f, 1f);
+        // Use a depth that produces a non-zero view vector with our test invProjection.
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.25f);
+
+        // Column-major diag(0, 0, 1, 1) => forces reconstructed viewPos.x/y=0.
+        var invProj = new float[]
+        {
+            0,0,0,0,
+            0,0,0,0,
+            0,0,1,0,
+            0,0,0,1
+        };
+
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, albedoData);
+        using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
+
+        // Bind required-but-unused debug shader textures
+        var dummyRgba = CreateUniformColorData(ScreenWidth, ScreenHeight, 0f, 0f, 0f, 0f);
+        using var dummyTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, dummyRgba);
+
+        var programId = CompileDebugShader();
+
+        // Diffuse debug view
+        SetupDebugCompositeUniforms(programId,
+            debugMode: (int)LumOnDebugMode.CompositeIndirectDiffuse,
+            indirectIntensity: 1.0f,
+            indirectTint: (1f, 1f, 1f),
+            enablePbrComposite: 1,
+            enableAO: 0,
+            diffuseAOStrength: 1.0f,
+            specularAOStrength: 1.0f,
+            invProjection: invProj);
+
+        depthTex.Bind(0);
+        normalTex.Bind(1);
+        dummyTex.Bind(2);
+        dummyTex.Bind(3);
+        dummyTex.Bind(4);
+        dummyTex.Bind(5);
+        dummyTex.Bind(6);
+        dummyTex.Bind(7);
+        dummyTex.Bind(8);
+        dummyTex.Bind(9);
+        dummyTex.Bind(10);
+        dummyTex.Bind(11);
+        indirectTex.Bind(12);
+        albedoTex.Bind(13);
+        materialTex.Bind(14);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var diffuseOut = outputGBuffer[0].ReadPixels();
+
+        // Specular debug view
+        SetupDebugCompositeUniforms(programId,
+            debugMode: (int)LumOnDebugMode.CompositeIndirectSpecular,
+            indirectIntensity: 1.0f,
+            indirectTint: (1f, 1f, 1f),
+            enablePbrComposite: 1,
+            enableAO: 0,
+            diffuseAOStrength: 1.0f,
+            specularAOStrength: 1.0f,
+            invProjection: invProj);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var specOut = outputGBuffer[0].ReadPixels();
+
+        // Compare at center-ish pixel for stability
+        var (dr, dg, db, _) = ReadPixelScreen(diffuseOut, 2, 2);
+        var (sr, sg, sb, _) = ReadPixelScreen(specOut, 2, 2);
+
+        float diffuseLuma = dr + dg + db;
+        float specLuma = sr + sg + sb;
+
+        Assert.True(diffuseLuma > specLuma,
+            $"Expected diffuse to dominate for metallic=0. Diffuse={diffuseLuma:F3}, Spec={specLuma:F3}");
+
+        GL.DeleteProgram(programId);
+    }
+
+    [Fact]
+    public void Composite_Metallic1_UsesSpecularDominant()
+    {
+        EnsureShaderTestAvailable();
+
+        var indirect = (r: 1.0f, g: 1.0f, b: 1.0f);
+        var albedo = (r: 0.8f, g: 0.2f, b: 0.1f);
+
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+        var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.1f, metallic: 1.0f, emissive: 0.0f, reflectivity: 1.0f);
+        var normalData = CreateUniformNormalData(ScreenWidth, ScreenHeight, 0f, 0f, 1f);
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.25f);
+
+        var invProj = new float[]
+        {
+            0,0,0,0,
+            0,0,0,0,
+            0,0,1,0,
+            0,0,0,1
+        };
+
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, albedoData);
+        using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
+
+        var dummyRgba = CreateUniformColorData(ScreenWidth, ScreenHeight, 0f, 0f, 0f, 0f);
+        using var dummyTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, dummyRgba);
+
+        var programId = CompileDebugShader();
+
+        SetupDebugCompositeUniforms(programId,
+            debugMode: (int)LumOnDebugMode.CompositeIndirectDiffuse,
+            indirectIntensity: 1.0f,
+            indirectTint: (1f, 1f, 1f),
+            enablePbrComposite: 1,
+            enableAO: 0,
+            diffuseAOStrength: 1.0f,
+            specularAOStrength: 1.0f,
+            invProjection: invProj);
+
+        depthTex.Bind(0);
+        normalTex.Bind(1);
+        dummyTex.Bind(2);
+        dummyTex.Bind(3);
+        dummyTex.Bind(4);
+        dummyTex.Bind(5);
+        dummyTex.Bind(6);
+        dummyTex.Bind(7);
+        dummyTex.Bind(8);
+        dummyTex.Bind(9);
+        dummyTex.Bind(10);
+        dummyTex.Bind(11);
+        indirectTex.Bind(12);
+        albedoTex.Bind(13);
+        materialTex.Bind(14);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var diffuseOut = outputGBuffer[0].ReadPixels();
+
+        SetupDebugCompositeUniforms(programId,
+            debugMode: (int)LumOnDebugMode.CompositeIndirectSpecular,
+            indirectIntensity: 1.0f,
+            indirectTint: (1f, 1f, 1f),
+            enablePbrComposite: 1,
+            enableAO: 0,
+            diffuseAOStrength: 1.0f,
+            specularAOStrength: 1.0f,
+            invProjection: invProj);
+
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var specOut = outputGBuffer[0].ReadPixels();
+
+        var (dr, dg, db, _) = ReadPixelScreen(diffuseOut, 2, 2);
+        var (sr, sg, sb, _) = ReadPixelScreen(specOut, 2, 2);
+
+        float diffuseLuma = dr + dg + db;
+        float specLuma = sr + sg + sb;
+
+        Assert.True(specLuma > diffuseLuma,
+            $"Expected specular to dominate for metallic=1. Diffuse={diffuseLuma:F3}, Spec={specLuma:F3}");
+
+        GL.DeleteProgram(programId);
+    }
+
+    [Fact]
+    public void Composite_AO_ReducesIndirectInCreases()
+    {
+        EnsureShaderTestAvailable();
+
+        var indirect = (r: 1.0f, g: 1.0f, b: 1.0f);
+        var albedo = (r: 1.0f, g: 1.0f, b: 1.0f);
+
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+
+        // AO comes from reflectivity channel in our current G-buffer layout.
+        var materialAo1 = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f, emissive: 0.0f, reflectivity: 1.0f);
+        var materialAo0 = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f, emissive: 0.0f, reflectivity: 0.0f);
+
+        var normalData = CreateUniformNormalData(ScreenWidth, ScreenHeight, 0f, 0f, 1f);
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.25f);
+
+        var invProj = new float[]
+        {
+            0,0,0,0,
+            0,0,0,0,
+            0,0,1,0,
+            0,0,0,1
+        };
+
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, albedoData);
+        using var materialAo1Tex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialAo1);
+        using var materialAo0Tex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, materialAo0);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
+
+        var dummyRgba = CreateUniformColorData(ScreenWidth, ScreenHeight, 0f, 0f, 0f, 0f);
+        using var dummyTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, dummyRgba);
+
+        var programId = CompileDebugShader();
+
+        float RenderWithAoTexture(DynamicTexture materialTex)
+        {
+            SetupDebugCompositeUniforms(programId,
+                debugMode: (int)LumOnDebugMode.CompositeIndirectDiffuse,
+                indirectIntensity: 1.0f,
+                indirectTint: (1f, 1f, 1f),
+                enablePbrComposite: 1,
+                enableAO: 1,
+                diffuseAOStrength: 1.0f,
+                specularAOStrength: 0.0f,
+                invProjection: invProj);
+
+            depthTex.Bind(0);
+            normalTex.Bind(1);
+            dummyTex.Bind(2);
+            dummyTex.Bind(3);
+            dummyTex.Bind(4);
+            dummyTex.Bind(5);
+            dummyTex.Bind(6);
+            dummyTex.Bind(7);
+            dummyTex.Bind(8);
+            dummyTex.Bind(9);
+            dummyTex.Bind(10);
+            dummyTex.Bind(11);
+            indirectTex.Bind(12);
+            albedoTex.Bind(13);
+            materialTex.Bind(14);
+
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            var outData = outputGBuffer[0].ReadPixels();
+            var (r, g, b, _) = ReadPixelScreen(outData, 2, 2);
+            return r + g + b;
+        }
+
+        float lumaAo1 = RenderWithAoTexture(materialAo1Tex);
+        float lumaAo0 = RenderWithAoTexture(materialAo0Tex);
+
+        Assert.True(lumaAo1 > lumaAo0,
+            $"Expected AO=0 to reduce diffuse indirect. AO1={lumaAo1:F3}, AO0={lumaAo0:F3}");
+
+        GL.DeleteProgram(programId);
     }
 
     #endregion

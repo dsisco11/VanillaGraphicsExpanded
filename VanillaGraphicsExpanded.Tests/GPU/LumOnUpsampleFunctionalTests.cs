@@ -336,12 +336,8 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             depthTex.Bind(1);
             normalTex.Bind(2);
 
-            // Render to output
-            outputGBuffer.Bind();
-            TestFramework.RenderFullscreenQuad(programId);
-            outputGBuffer.Unbind();
-
-            return outputGBuffer.ReadPixelsFloatRGBA();
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            return outputGBuffer[0].ReadPixels();
         }
 
         var outNoFill = Render(holeEnabled: 0);

@@ -34,5 +34,11 @@ public enum LumOnDebugMode
     ProbeAtlasMetaFlags = 14,
     ProbeAtlasFilteredRadiance = 15,
     ProbeAtlasFilterDelta = 16,
-    ProbeAtlasGatherInputSource = 17
+    ProbeAtlasGatherInputSource = 17,
+
+    // Phase 15 composite debug views (implemented in lumon_debug.fsh)
+    CompositeAO = 18,
+    CompositeIndirectDiffuse = 19,
+    CompositeIndirectSpecular = 20,
+    CompositeMaterial = 21
 }
