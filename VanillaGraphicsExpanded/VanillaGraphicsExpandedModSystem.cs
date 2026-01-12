@@ -1,4 +1,5 @@
 ﻿using VanillaGraphicsExpanded.HarmonyPatches;
+using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.SSGI;
@@ -25,6 +26,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     private LumOnBufferManager? lumOnBufferManager;
     private LumOnRenderer? lumOnRenderer;
     private LumOnDebugRenderer? lumOnDebugRenderer;
+
+    private DebugOverlayRenderer? debugOverlayRenderer;
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
@@ -79,7 +82,13 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         }
 
         // Create PBR overlay renderer (runs at AfterBlit stage)
-        pbrOverlayRenderer = new DebugOverlayRenderer(api, gBufferManager);
+        debugOverlayRenderer = new DebugOverlayRenderer(api, gBufferManager);
+        pbrOverlayRenderer = debugOverlayRenderer;
+
+        // Initialize the debug view manager (GUI)
+        VgeDebugViewManager.Initialize(
+            api,
+            lumOnConfig);
 
         LoadShaders(api);
         api.Event.ReloadShader += () => LoadShaders(api);
@@ -90,8 +99,11 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         base.Dispose();
         try
         {
+            VgeDebugViewManager.Dispose();
+
             pbrOverlayRenderer?.Dispose();
             pbrOverlayRenderer = null;
+            debugOverlayRenderer = null;
 
             // Dispose LumOn components
             lumOnDebugRenderer?.Dispose();

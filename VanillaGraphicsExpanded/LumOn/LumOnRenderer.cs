@@ -4,6 +4,7 @@ using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
+using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.LumOn;
@@ -164,11 +165,11 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Register hotkey for LumOn debug mode cycling (Shift+F9)
         capi.Input.RegisterHotKey(
             "vgelumondebug",
-            "VGE Cycle LumOn Debug Mode",
+            "VGE Debug View",
             GlKeys.F9,
             HotkeyType.DevTool,
             shiftPressed: true);
-        capi.Input.SetHotKeyHandler("vgelumondebug", OnCycleDebugMode);
+        capi.Input.SetHotKeyHandler("vgelumondebug", VgeDebugViewManager.ToggleDialog);
 
         // Register hotkey for LumOn stats display (Ctrl+F9)
         capi.Input.RegisterHotKey(
@@ -187,72 +188,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         capi.TriggerIngameError(this, "vgelumon", $"[LumOn] {status}");
         return true;
     }
-
-    private bool OnCycleDebugMode(KeyCombination keyCombination)
-    {
-        // Cycle through debug modes in a stable, explicit order.
-        var cycle = new[]
-        {
-            LumOnDebugMode.Off,
-            LumOnDebugMode.ProbeGrid,
-            LumOnDebugMode.ProbeDepth,
-            LumOnDebugMode.ProbeNormal,
-            LumOnDebugMode.SceneDepth,
-            LumOnDebugMode.SceneNormal,
-            LumOnDebugMode.TemporalWeight,
-            LumOnDebugMode.TemporalRejection,
-            LumOnDebugMode.ShCoefficients,
-            LumOnDebugMode.InterpolationWeights,
-            LumOnDebugMode.RadianceOverlay,
-            LumOnDebugMode.GatherWeight,
-            LumOnDebugMode.ProbeAtlasMetaConfidence,
-            LumOnDebugMode.ProbeAtlasTemporalAlpha,
-            LumOnDebugMode.ProbeAtlasMetaFlags,
-            LumOnDebugMode.ProbeAtlasFilteredRadiance,
-            LumOnDebugMode.ProbeAtlasFilterDelta,
-            LumOnDebugMode.ProbeAtlasGatherInputSource,
-
-            LumOnDebugMode.CompositeAO,
-            LumOnDebugMode.CompositeIndirectDiffuse,
-            LumOnDebugMode.CompositeIndirectSpecular,
-            LumOnDebugMode.CompositeMaterial
-        };
-
-        int currentIndex = Array.IndexOf(cycle, config.DebugMode);
-        if (currentIndex < 0) currentIndex = 0;
-        int nextIndex = (currentIndex + 1) % cycle.Length;
-        config.DebugMode = cycle[nextIndex];
-
-        capi.TriggerIngameError(this, "vgelumondebug", $"[LumOn] Debug: {GetDebugModeDisplayName(config.DebugMode)}");
-        return true;
-    }
-
-    private static string GetDebugModeDisplayName(LumOnDebugMode mode) => mode switch
-    {
-        LumOnDebugMode.Off => "Off (normal)",
-        LumOnDebugMode.ProbeGrid => "Probe Grid",
-        LumOnDebugMode.ProbeDepth => "Probe Depth",
-        LumOnDebugMode.ProbeNormal => "Probe Normals",
-        LumOnDebugMode.SceneDepth => "Scene Depth",
-        LumOnDebugMode.SceneNormal => "Scene Normals",
-        LumOnDebugMode.TemporalWeight => "Temporal Weight",
-        LumOnDebugMode.TemporalRejection => "Temporal Rejection",
-        LumOnDebugMode.ShCoefficients => "SH Coefficients",
-        LumOnDebugMode.InterpolationWeights => "Interpolation Weights",
-        LumOnDebugMode.RadianceOverlay => "Radiance Overlay",
-        LumOnDebugMode.GatherWeight => "Gather Weight (diagnostic)",
-        LumOnDebugMode.ProbeAtlasMetaConfidence => "Probe-Atlas Meta Confidence",
-        LumOnDebugMode.ProbeAtlasTemporalAlpha => "Probe-Atlas Temporal Alpha",
-        LumOnDebugMode.ProbeAtlasMetaFlags => "Probe-Atlas Meta Flags",
-        LumOnDebugMode.ProbeAtlasFilteredRadiance => "Probe-Atlas Filtered Radiance",
-        LumOnDebugMode.ProbeAtlasFilterDelta => "Probe-Atlas Filter Delta",
-        LumOnDebugMode.ProbeAtlasGatherInputSource => "Probe-Atlas Gather Input Source",
-        LumOnDebugMode.CompositeAO => "Composite AO (Phase 15)",
-        LumOnDebugMode.CompositeIndirectDiffuse => "Composite Indirect Diffuse (Phase 15)",
-        LumOnDebugMode.CompositeIndirectSpecular => "Composite Indirect Specular (Phase 15)",
-        LumOnDebugMode.CompositeMaterial => "Composite Material (Phase 15)",
-        _ => mode.ToString()
-    };
 
     private bool OnShowStats(KeyCombination keyCombination)
     {

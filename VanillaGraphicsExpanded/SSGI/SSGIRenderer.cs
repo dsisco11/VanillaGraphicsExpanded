@@ -5,6 +5,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.DebugView;
 
 namespace VanillaGraphicsExpanded.SSGI;
 
@@ -211,11 +212,11 @@ public class SSGIRenderer : IRenderer, IDisposable
         // Register hotkey for SSGI debug mode cycling (Shift+F8)
         capi.Input.RegisterHotKey(
             "vgessgidebug",
-            "VGE Cycle SSGI Debug Mode",
+            "VGE Debug View",
             GlKeys.F8,
             HotkeyType.DevTool,
             shiftPressed: true);
-        capi.Input.SetHotKeyHandler("vgessgidebug", OnCycleDebugMode);
+        capi.Input.SetHotKeyHandler("vgessgidebug", VgeDebugViewManager.ToggleDialog);
     }
 
     private bool OnToggleSSGI(KeyCombination keyCombination)
@@ -223,15 +224,6 @@ public class SSGIRenderer : IRenderer, IDisposable
         Enabled = !Enabled;
         string status = Enabled ? "enabled" : "disabled";
         capi?.TriggerIngameError(this, "vgessgi", $"[VGE] SSGI {status}");
-        return true;
-    }
-
-    private bool OnCycleDebugMode(KeyCombination keyCombination)
-    {
-        // Cycle through debug modes: 0 (composite) -> 1 (SSGI only) -> 2 (scene only) -> 0
-        DebugMode = (DebugMode + 1) % 3;
-        string[] modeNames = { "Composite (normal)", "SSGI Only", "Scene Only (no SSGI)" };
-        capi?.TriggerIngameError(this, "vgessgidebug", $"[VGE] SSGI Debug: {modeNames[DebugMode]}");
         return true;
     }
 

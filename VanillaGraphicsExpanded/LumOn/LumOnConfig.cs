@@ -368,6 +368,6 @@ public class LumOnConfig
     /// Debug visualization mode:
     /// See <see cref="LumOnDebugMode"/> for available modes.
     /// </summary>
-    [JsonProperty]
+    [JsonIgnore]
     public LumOnDebugMode DebugMode { get; set; } = LumOnDebugMode.Off;
 }
