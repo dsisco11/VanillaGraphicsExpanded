@@ -5,6 +5,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 using VanillaGraphicsExpanded.DebugView;
+using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Profiling;
 
@@ -460,9 +461,23 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
         shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex!;
 
-        // Bind scene for radiance sampling (captured before this pass)
+        // Bind scene depth for ray marching
         shader.PrimaryDepth = primaryFb.DepthTextureId;
-        shader.PrimaryColor = bufferManager.CapturedSceneTex!;
+
+        // Bind radiance sources for hit sampling.
+        // Prefer the PBR split outputs (linear, pre-tonemap HDR) when available.
+        var direct = DirectLightingBufferManager.Instance;
+        if (direct?.IsInitialized == true && direct.DirectDiffuseTex != null && direct.EmissiveTex != null)
+        {
+            shader.DirectDiffuse = direct.DirectDiffuseTex.TextureId;
+            shader.Emissive = direct.EmissiveTex.TextureId;
+        }
+        else
+        {
+            // Fallback: treat captured scene as "directDiffuse" and no emissive.
+            shader.DirectDiffuse = bufferManager.CapturedSceneTex!;
+            shader.Emissive = 0;
+        }
 
         // Pass matrices
         shader.InvProjectionMatrix = invProjectionMatrix;
@@ -524,9 +539,21 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
         shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex!;
 
-        // Bind scene for radiance sampling
+        // Bind scene depth for ray marching
         shader.PrimaryDepth = primaryFb.DepthTextureId;
-        shader.PrimaryColor = bufferManager.CapturedSceneTex!;
+
+        // Bind radiance sources for hit sampling.
+        var direct = DirectLightingBufferManager.Instance;
+        if (direct?.IsInitialized == true && direct.DirectDiffuseTex != null && direct.EmissiveTex != null)
+        {
+            shader.DirectDiffuse = direct.DirectDiffuseTex.TextureId;
+            shader.Emissive = direct.EmissiveTex.TextureId;
+        }
+        else
+        {
+            shader.DirectDiffuse = bufferManager.CapturedSceneTex!;
+            shader.Emissive = 0;
+        }
 
         // Bind history for temporal preservation
         shader.ScreenProbeAtlasHistory = bufferManager.ScreenProbeAtlasHistoryTex!;

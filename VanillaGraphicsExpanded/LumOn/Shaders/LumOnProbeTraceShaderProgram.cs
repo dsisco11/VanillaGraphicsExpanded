@@ -43,9 +43,14 @@ public class LumOnProbeTraceShaderProgram : ShaderProgram
     public int PrimaryDepth { set => BindTexture2D("primaryDepth", value, 2); }
 
     /// <summary>
-    /// Primary color texture (scene radiance source).
+    /// Direct diffuse lighting (linear, pre-tonemap HDR).
     /// </summary>
-    public int PrimaryColor { set => BindTexture2D("primaryColor", value, 3); }
+    public int DirectDiffuse { set => BindTexture2D("directDiffuse", value, 3); }
+
+    /// <summary>
+    /// Emissive radiance (linear, pre-tonemap HDR).
+    /// </summary>
+    public int Emissive { set => BindTexture2D("emissive", value, 4); }
 
     #endregion
 

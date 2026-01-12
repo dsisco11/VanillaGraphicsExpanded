@@ -45,25 +45,30 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : ShaderProgram
     public int PrimaryDepth { set => BindTexture2D("primaryDepth", value, 2); }
 
     /// <summary>
-    /// Primary color texture (scene radiance source).
+    /// Direct diffuse lighting (linear, pre-tonemap HDR).
     /// </summary>
-    public int PrimaryColor { set => BindTexture2D("primaryColor", value, 3); }
+    public int DirectDiffuse { set => BindTexture2D("directDiffuse", value, 3); }
+
+    /// <summary>
+    /// Emissive radiance (linear, pre-tonemap HDR).
+    /// </summary>
+    public int Emissive { set => BindTexture2D("emissive", value, 4); }
 
     /// <summary>
     /// History probe atlas (octahedral-mapped) for temporal preservation.
     /// Shader uniform name remains <c>octahedralHistory</c> for compatibility.
     /// </summary>
-    public int ScreenProbeAtlasHistory { set => BindTexture2D("octahedralHistory", value, 4); }
+    public int ScreenProbeAtlasHistory { set => BindTexture2D("octahedralHistory", value, 5); }
 
     /// <summary>
     /// History probe-atlas meta (confidence + flags) for temporal preservation.
     /// </summary>
-    public int ScreenProbeAtlasMetaHistory { set => BindTexture2D("probeAtlasMetaHistory", value, 6); }
+    public int ScreenProbeAtlasMetaHistory { set => BindTexture2D("probeAtlasMetaHistory", value, 7); }
 
     /// <summary>
     /// Optional HZB depth pyramid (mipmapped R32F).
     /// </summary>
-    public int HzbDepth { set => BindTexture2D("hzbDepth", value, 5); }
+    public int HzbDepth { set => BindTexture2D("hzbDepth", value, 6); }
 
     #endregion
 

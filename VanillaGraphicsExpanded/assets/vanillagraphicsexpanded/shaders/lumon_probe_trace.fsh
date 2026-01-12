@@ -26,7 +26,9 @@ uniform sampler2D probeAnchorNormal;    // normalWS.xyz, reserved
 
 // Scene textures for ray marching
 uniform sampler2D primaryDepth;
-uniform sampler2D primaryColor;
+// Radiance sources (linear, pre-tonemap HDR)
+uniform sampler2D directDiffuse;
+uniform sampler2D emissive;
 
 // Matrices
 uniform mat4 invProjectionMatrix;
@@ -109,7 +111,7 @@ RayHit traceRay(vec3 origin, vec3 direction) {
             // Hit!
             result.hit = true;
             result.position = scenePos;
-            result.color = texture(primaryColor, sampleUV).rgb;
+            result.color = texture(directDiffuse, sampleUV).rgb + texture(emissive, sampleUV).rgb;
             result.distance = t;
             return result;
         }

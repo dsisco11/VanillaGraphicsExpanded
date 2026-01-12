@@ -33,7 +33,9 @@ uniform sampler2D probeAnchorNormal;    // normalWS.xyz, reserved
 
 // Scene textures for ray marching
 uniform sampler2D primaryDepth;
-uniform sampler2D primaryColor;
+// Radiance sources (linear, pre-tonemap HDR)
+uniform sampler2D directDiffuse;
+uniform sampler2D emissive;
 
 // Optional HZB depth pyramid
 uniform sampler2D hzbDepth;
@@ -170,7 +172,7 @@ RayHit traceRay(vec3 originVS, vec3 directionVS) {
         if (depthDiff > 0.0 && depthDiff < rayThickness) {
             // Hit!
             result.hit = true;
-            result.color = texture(primaryColor, sampleUV).rgb;
+            result.color = texture(directDiffuse, sampleUV).rgb + texture(emissive, sampleUV).rgb;
             result.distance = t;
             return result;
         }
