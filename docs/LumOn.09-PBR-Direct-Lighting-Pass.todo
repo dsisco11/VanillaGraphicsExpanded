@@ -14,15 +14,20 @@ Phase 16 - PBR Direct Lighting Pass System (Opaque @ RenderOrder = 9.0)
   Phase 16.0 - Contract Verification (Pre-Implementation)
   Exit artifacts: we know what every input/output means and how it is encoded.
     ✔ ColorAttachment0 is linear baseColor at Opaque stage (confirmed)
-    ☐ Verify G-buffer encodings used by VGE
-      - NormalTex (Attachment4): RGBA16F, packed normalWS = n*0.5+0.5
-      - MaterialTex (Attachment5): upgrade to RGBA16F for accuracy (see Phase 16.1)
-    ☐ Verify shadow-map accessibility for fullscreen file shader program
-      - Near/Far shadow textures and their binding points (samplers)
-      - Matrix sources: ToShadowMapSpaceMatrixNear/Far
-    ☐ Verify point light data surface
+    ✔ Verify G-buffer encodings used by VGE
+      - NormalTex (Attachment4): currently RGBA16F, packed normalWS = n*0.5+0.5, A=1.0
+      - MaterialTex (Attachment5): currently RGBA8 with (R=roughness, G=metallic, B=emissive, A=reflectivity)
+      - Planned: upgrade MaterialTex to RGBA16F for accuracy (Phase 16.1)
+    ✔ Verify shadow-map accessibility for fullscreen file shader program
+      - Accessible via capi.Render.FrameBuffers[(int)EnumFrameBuffer.ShadowmapNear/Far]
+      - Shadow map texture id is expected to be FrameBufferRef.DepthTextureId (verify sampling conventions in Phase 16.2 when wiring the shader)
+      - Matrix sources: DefaultShaderUniforms.ToShadowMapSpaceMatrixNear/Far
+      - Range/params: ShadowRangeNear/Far, ShadowZExtendNear/Far, DropShadowIntensity
+    ✔ Verify point light data surface
       - DefaultShaderUniforms.PointLightsCount / PointLights3 / PointLightColors3
-      - Confirm any additional light sources beyond these arrays (if any)
+      - Additional lighting-related textures/uniforms available via DefaultShaderUniforms:
+        - SunPosition3D, LightPosition3D, SunSpecularIntensity
+        - SunLightTextureId, GlowTextureId, SkyTextureId
 
   Phase 16.1 - Buffers & FBO Plumbing
   Exit artifacts: direct outputs exist and resize correctly, with an FBO ready for rendering.
