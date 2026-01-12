@@ -60,7 +60,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         api.Input.RegisterHotKey(
             "vgedebugview",
             "VGE Debug View",
-            GlKeys.F6,
+            GlKeys.F8,
             HotkeyType.DevTool);
         api.Input.SetHotKeyHandler("vgedebugview", VgeDebugViewManager.ToggleDialog);
 
