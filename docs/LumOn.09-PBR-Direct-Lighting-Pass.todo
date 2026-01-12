@@ -49,26 +49,25 @@ Phase 16 - PBR Direct Lighting Pass System (Opaque @ RenderOrder = 9.0)
 
   Phase 16.2 - Shader Implementation (Full Metallic/Roughness BRDF)
   Exit artifacts: a new direct-lighting shader compiles and outputs correct split buffers.
-    ☐ Add new shader program files:
+    ✔ Add new shader program files:
       - assets/vanillagraphicsexpanded/shaders/pbr_direct_lighting.vsh
       - assets/vanillagraphicsexpanded/shaders/pbr_direct_lighting.fsh
-    ☐ Shader inputs:
+    ✔ Shader inputs:
       - primaryScene (baseColor), primaryDepth
       - gBufferNormal (Attachment4), gBufferMaterial (Attachment5)
-      - light inputs (sun/sky, point lights arrays, shadow maps, fog uniforms for composite later)
-    ☐ Implement BRDF:
+      - light inputs (directional + point lights, plus shadow-map uniforms stubbed for Phase 16.3 wiring)
+    ✔ Implement BRDF:
       - GGX NDF, Smith geometry, Schlick Fresnel
-      - Metallic workflow: F0 = mix(0.04, baseColor, metallic)
-      - Output split: directDiffuse, directSpecular
+      - Metallic workflow: F0 = mix(0.04 * reflectivity, baseColor, metallic)
+      - Output split: directDiffuse, directSpecular (MRT locations 0/1)
 
-    ☐ Shared PBR math source of truth
-      - Put common BRDF helpers in assets/vanillagraphicsexpanded/shaders/includes/pbr_common.glsl
-      - Reuse existing functions already present (fresnel/ggx/smith/cookTorranceBRDF)
-      - Add only what Phase 16 needs (avoid duplicating math in the pass shader)
-    ☐ Emissive output:
-      - Write emissive separately to EmissiveTex
-      - Do not mix emissive into diffuse/spec
-    ☐ Apply no fog in this pass (fog deferred to final composite)
+    ✔ Shared PBR math source of truth
+      - Reuses assets/vanillagraphicsexpanded/shaders/includes/pbr_common.glsl
+      - No duplicated BRDF math in the pass shader beyond orchestration
+    ✔ Emissive output:
+      - Writes emissive separately to EmissiveTex (MRT location 2)
+      - Does not mix emissive into diffuse/spec
+    ✔ Apply no fog in this pass (fog applied in final composite)
 
   Phase 16.3 - C# ShaderProgram Wrapper + Registration
   Exit artifacts: shader is loadable/compilable and uniforms are bound via typed properties.
