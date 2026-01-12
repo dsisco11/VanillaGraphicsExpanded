@@ -262,7 +262,56 @@ LumOn Functional Test Coverage:
       ✔ Composite_AO_ReducesIndirectInCreases @done
       - Composite_BentNormal_ReducesSkyOcclusionIndoors (or a minimal deterministic scene)
 
-    Phase 16 - Bent Normal Signal Generation (New)
+    Phase 16 - PBR Direct Lighting Pass System (New)
+    Goal: Create a dedicated, high-quality PBR direct-lighting pass that is independent of LumOn
+    (LumOn remains indirect lighting and can be disabled), but produces the “direct” lighting inputs
+    that LumOn consumes downstream for final compositing.
+
+    This pass system will supersede the existing pbr-overlay approach.
+
+    Exit artifacts: A direct-lighting pipeline exists that:
+      - Produces a stable, linear-space direct lighting buffer (pre-tonemap) suitable for downstream GI
+      - Uses physically-based lighting consistent with the BRDF assumptions in Phase 15
+      - Can be run with LumOn disabled (direct lighting still correct)
+      - Has clear attachment points for LumOn (capture sceneDirect, optional material buffers)
+      - Replaces pbr-overlay in both runtime behavior and debug tooling
+
+    Work items:
+    ☐ Define the direct-lighting contract:
+      - What buffer(s) are produced (sceneDirect, optional directSpecular/directDiffuse split)
+      - Color space/exposure assumptions (must be linear, pre-tonemap)
+      - Required G-buffer inputs (albedo/baseColor, normalWS, roughness, metallic, emissive, AO/reflectivity)
+      - Handling of sun, sky, point lights, emissives, and fog interactions (document what is in/out of scope)
+
+    ☐ Add a dedicated renderer stage + shader program(s):
+      - New shader pair suggestion: pbr_direct_lighting.vsh / pbr_direct_lighting.fsh
+      - Evaluate direct lighting using PBR BRDF (reuse pbrfunctions.fsh and shared material decoding)
+      - Ensure deterministic behavior and stable outputs (avoid frame-dependent randomness)
+
+    ☐ Framebuffer + texture plumbing:
+      - Allocate the direct-lighting output(s) in the appropriate buffer manager
+      - Ensure the resulting sceneDirect is the one consumed by LumOn combine/debug downstream
+      - Decide whether the base game’s direct lighting is bypassed or whether we “rebuild” direct from G-buffer
+
+    ☐ Integration with LumOn downstream:
+      - LumOn uses this pass output as sceneDirect input
+      - Ensure LumOn enable/disable only affects indirect contribution, not direct lighting
+      - Verify the final combine stage still produces correct output when LumOn is disabled
+
+    ☐ Supersede pbr-overlay:
+      - Identify what pbr-overlay currently provides (features and shortcomings)
+      - Add a config switch / migration path to turn off pbr-overlay by default when the new pass is enabled
+      - Mark pbr-overlay as deprecated in docs/README and ensure no runtime dependence remains
+
+    ☐ Debug + validation:
+      - Add debug views for direct lighting outputs (diffuse/spec split if present)
+      - Add GPU functional tests:
+        - DirectLighting_ProducesExpectedLambertForDielectric
+        - DirectLighting_MetallicShiftsEnergyToSpecular
+        - DirectLighting_StableUnderCameraMotion (no temporal artifacts)
+        - Integration_LumOnDisabled_PassesThroughDirect
+
+    Phase 17 - Bent Normal Signal Generation (New)
     Goal: Produce a stable, deterministic “bent normal” (or equivalent visibility direction) signal
     that can be fed into Phase 15 compositing, so bent-normal shading is based on real scene occlusion
     rather than a placeholder heuristic.
@@ -319,3 +368,57 @@ LumOn Functional Test Coverage:
       - BentNormal_OccluderBendsAwayFromBlockedDirections (minimal deterministic occluder)
       - BentNormal_TemporalStableUnderStaticCamera
       - BentNormal_RejectionOnDisocclusion
+
+    Phase 18 - World-Space Clipmap Probe System: Architecture Docs (New)
+    Goal: Define and document the initial architecture for a world-space clipmap-based probe system
+    (Lumen-like “world probes”) that can coexist with the current screen-space LumOn pipeline and
+    eventually feed the same compositing stage.
+
+    Exit artifacts: A set of architecture design documents exists under docs/ that:
+      - Clearly defines terms, coordinate spaces, and data layouts
+      - Describes update cadence, streaming, and stability rules
+      - Specifies GPU/CPU responsibilities and performance constraints
+      - Includes diagrams for data flow and clipmap topology
+
+    Work items:
+    ☐ Create docs/LumOn.16-World-Space-Clipmap-Probes.md (overview + goals/non-goals):
+      - Motivation vs screen-space probes
+      - Integration strategy: how world probes feed the same indirectRadiance path
+      - Constraints: VS chunking, memory budget, update bandwidth, fallback behavior
+
+    ☐ Create docs/LumOn.17-Clipmap-Topology-and-Addressing.md:
+      - Clipmap levels, voxel/probe spacing per level
+      - World-to-clipmap addressing (level selection, wrapping, origin snapping)
+      - Probe indexing and coordinate transforms (WS ↔ clipmap local)
+      - Edge behavior (seams, cross-level blending)
+
+    ☐ Create docs/LumOn.18-Probe-Data-Layout-and-Packing.md:
+      - What each probe stores initially (irradiance SH, visibility/cone, hit distance, confidence)
+      - Texture formats and packing (SH9 vs SH3, atlas vs 3D textures, oct encoding)
+      - Versioning strategy for evolving layouts
+
+    ☐ Create docs/LumOn.19-Update-Pipeline-and-Scheduling.md:
+      - Update triggers: camera movement thresholds, time slicing, per-level budgets
+      - Probe selection policy (prioritize near field, dirty regions)
+      - Temporal stabilization rules (history blending, invalidation)
+      - Interaction with dynamic geometry / lighting changes
+
+    ☐ Create docs/LumOn.20-Streaming-and-Persistence.md:
+      - CPU-side cache (what persists across sessions, if any)
+      - Region eviction and reuse when clipmap origin shifts
+      - Determinism requirements (same camera path → stable probe identity)
+
+    ☐ Create docs/LumOn.21-Shading-Integration.md:
+      - Sampling world probes at a pixel/point (trilinear, anisotropic, normal-based weighting)
+      - Combining with screen-space GI (screen-first fallback, confidence-based blending)
+      - Feeding Phase 15 compositing inputs (indirectRadiance + optional bent normal/visibility)
+
+    ☐ Diagrams (Mermaid in each doc as appropriate):
+      - System dataflow: CPU scheduling → GPU update passes → shading sample
+      - Clipmap level layout and origin snapping
+      - Probe update state machine (dirty → tracing → filtered → ready)
+
+    ☐ Open questions section in each doc:
+      - SH order choice (L1 vs L2) and memory math
+      - Trace source (hardware RT? screen-space? world BVH?) and feasibility in VS context
+      - How to represent and use visibility (cone angle vs scalar vs bent normal)
