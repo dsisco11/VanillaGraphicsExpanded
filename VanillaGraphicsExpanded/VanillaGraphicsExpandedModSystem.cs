@@ -6,6 +6,7 @@ using VanillaGraphicsExpanded.SSGI;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
+using Vintagestory.Client.NoObf;
 
 namespace VanillaGraphicsExpanded;
 
@@ -51,6 +52,14 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     {
         capi = api;
 
+        // Single, always-available debug view entry point.
+        api.Input.RegisterHotKey(
+            "vgedebugview",
+            "VGE Debug View",
+            GlKeys.F6,
+            HotkeyType.DevTool);
+        api.Input.SetHotKeyHandler("vgedebugview", VgeDebugViewManager.ToggleDialog);
+
         // Create G-buffer manager (Harmony hooks will call into this)
         gBufferManager = new GBufferManager(api);
 
@@ -70,7 +79,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         {
             lumOnBufferManager = new LumOnBufferManager(api, lumOnConfig);
             lumOnRenderer = new LumOnRenderer(api, lumOnConfig, lumOnBufferManager, gBufferManager);
-            lumOnDebugRenderer = new LumOnDebugRenderer(api, lumOnConfig, lumOnBufferManager, gBufferManager);
             api.Logger.Notification("[VGE] LumOn enabled - using Screen Probe Gather");
         }
         else
@@ -81,6 +89,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         // Create direct lighting pass buffers + renderer (Opaque @ 9.0)
         directLightingBufferManager = new DirectLightingBufferManager(api);
         directLightingRenderer = new DirectLightingRenderer(api, gBufferManager, directLightingBufferManager);
+
+        // Unified debug overlay (AfterBlit) driven by the VGE Debug View dialog.
+        lumOnDebugRenderer = new LumOnDebugRenderer(api, lumOnConfig, lumOnBufferManager, gBufferManager, directLightingBufferManager);
 
         // Final composite (Opaque @ 11.0): direct + optional indirect + fog
         pbrCompositeRenderer = new PBRCompositeRenderer(

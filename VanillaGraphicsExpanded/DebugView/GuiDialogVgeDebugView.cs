@@ -136,6 +136,10 @@ public sealed class GuiDialogVgeDebugView : GuiDialog
         LumOnDebugMode.CompositeIndirectDiffuse => "Composite Indirect Diffuse (Phase 15)",
         LumOnDebugMode.CompositeIndirectSpecular => "Composite Indirect Specular (Phase 15)",
         LumOnDebugMode.CompositeMaterial => "Composite Material (Phase 15)",
+        LumOnDebugMode.DirectDiffuse => "DirectDiffuse (Phase 16)",
+        LumOnDebugMode.DirectSpecular => "DirectSpecular (Phase 16)",
+        LumOnDebugMode.DirectEmissive => "Direct Emissive (Phase 16)",
+        LumOnDebugMode.DirectTotal => "Direct Total (diffuse+spec) (Phase 16)",
         _ => mode.ToString()
     };
 }

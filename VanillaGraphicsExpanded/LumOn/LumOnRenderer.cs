@@ -162,15 +162,6 @@ public class LumOnRenderer : IRenderer, IDisposable
             HotkeyType.DevTool);
         capi.Input.SetHotKeyHandler("vgelumon", OnToggleLumOn);
 
-        // Register hotkey for LumOn debug mode cycling (Shift+F9)
-        capi.Input.RegisterHotKey(
-            "vgelumondebug",
-            "VGE Debug View",
-            GlKeys.F9,
-            HotkeyType.DevTool,
-            shiftPressed: true);
-        capi.Input.SetHotKeyHandler("vgelumondebug", VgeDebugViewManager.ToggleDialog);
-
         // Register hotkey for LumOn stats display (Ctrl+F9)
         capi.Input.RegisterHotKey(
             "vgelumonstats",

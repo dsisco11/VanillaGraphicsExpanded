@@ -40,5 +40,11 @@ public enum LumOnDebugMode
     CompositeAO = 18,
     CompositeIndirectDiffuse = 19,
     CompositeIndirectSpecular = 20,
-    CompositeMaterial = 21
+    CompositeMaterial = 21,
+
+    // Phase 16 direct lighting debug views (implemented in lumon_debug.fsh)
+    DirectDiffuse = 22,
+    DirectSpecular = 23,
+    DirectEmissive = 24,
+    DirectTotal = 25
 }

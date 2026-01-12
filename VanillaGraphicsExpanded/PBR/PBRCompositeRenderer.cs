@@ -30,6 +30,11 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
 
     private MeshRef? quadMeshRef;
 
+    // GPU timing
+    private int timerQuery;
+    private bool timerQueryPending;
+    private float lastGpuMs;
+
     private readonly float[] invProjectionMatrix = new float[16];
     private readonly float[] viewMatrix = new float[16];
 
@@ -54,6 +59,8 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         quadMesh.Rgba = null;
         quadMeshRef = capi.Render.UploadMesh(quadMesh);
 
+        timerQuery = GL.GenQuery();
+
         capi.Event.RegisterRenderer(this, EnumRenderStage.Opaque, "pbr_composite");
 
         capi.Logger.Notification("[VGE] PBRCompositeRenderer registered (Opaque @ 11.0)");
@@ -65,6 +72,8 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         {
             return;
         }
+
+        CollectTimerQueryResult();
 
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primaryFb is null)
@@ -151,7 +160,9 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         shader.InvProjectionMatrix = invProjectionMatrix;
         shader.ViewMatrix = viewMatrix;
 
+        BeginTimerQuery();
         capi.Render.RenderMesh(quadMeshRef);
+        EndTimerQuery();
 
         shader.Stop();
 
@@ -160,6 +171,12 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
 
     public void Dispose()
     {
+        if (timerQuery != 0)
+        {
+            GL.DeleteQuery(timerQuery);
+            timerQuery = 0;
+        }
+
         if (quadMeshRef is not null)
         {
             capi.Render.DeleteMesh(quadMeshRef);
@@ -167,5 +184,44 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         }
 
         capi.Event.UnregisterRenderer(this, EnumRenderStage.Opaque);
+    }
+
+    private void BeginTimerQuery()
+    {
+        if (timerQuery == 0)
+        {
+            return;
+        }
+
+        GL.BeginQuery(QueryTarget.TimeElapsed, timerQuery);
+    }
+
+    private void EndTimerQuery()
+    {
+        if (timerQuery == 0)
+        {
+            return;
+        }
+
+        GL.EndQuery(QueryTarget.TimeElapsed);
+        timerQueryPending = true;
+    }
+
+    private void CollectTimerQueryResult()
+    {
+        if (!timerQueryPending || timerQuery == 0)
+        {
+            return;
+        }
+
+        GL.GetQueryObject(timerQuery, GetQueryObjectParam.QueryResultAvailable, out int available);
+        if (available == 0)
+        {
+            return;
+        }
+
+        GL.GetQueryObject(timerQuery, GetQueryObjectParam.QueryResult, out long nanoseconds);
+        lastGpuMs = nanoseconds / 1_000_000f;
+        timerQueryPending = false;
     }
 }

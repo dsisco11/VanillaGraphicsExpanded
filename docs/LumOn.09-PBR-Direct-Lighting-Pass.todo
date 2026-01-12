@@ -108,12 +108,12 @@ Phase 16 - PBR Direct Lighting Pass System (Opaque @ RenderOrder = 9.0)
 
   Phase 16.7 - Debug Views + Diagnostics
   Exit artifacts: new buffers are inspectable and timed.
-    ☐ Add debug modes to visualize:
+    ✔ Add debug modes to visualize:
       - DirectDiffuseTex
       - DirectSpecularTex
       - EmissiveTex
       - Optional: DirectTotal (diffuse+spec) overlay
-    ☐ Add GPU timing queries for the new direct pass
+    ✔ Add GPU timing queries for the new direct pass
 
   Phase 16.8 - GPU Functional Tests
   Exit artifacts: deterministic tests validate BRDF split and emissive separation.

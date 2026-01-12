@@ -4,6 +4,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.PBR;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -38,8 +39,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     private readonly ICoreClientAPI capi;
     private readonly LumOnConfig config;
-    private readonly LumOnBufferManager bufferManager;
+    private readonly LumOnBufferManager? bufferManager;
     private readonly GBufferManager? gBufferManager;
+    private readonly DirectLightingBufferManager? directLightingBufferManager;
 
     private MeshRef? quadMeshRef;
 
@@ -65,13 +67,15 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     public LumOnDebugRenderer(
         ICoreClientAPI capi,
         LumOnConfig config,
-        LumOnBufferManager bufferManager,
-        GBufferManager? gBufferManager)
+        LumOnBufferManager? bufferManager,
+        GBufferManager? gBufferManager,
+        DirectLightingBufferManager? directLightingBufferManager)
     {
         this.capi = capi;
         this.config = config;
         this.bufferManager = bufferManager;
         this.gBufferManager = gBufferManager;
+        this.directLightingBufferManager = directLightingBufferManager;
 
         // Create fullscreen quad mesh (-1 to 1 in NDC)
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
@@ -110,16 +114,16 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         // Only render when debug mode is active
-        if (config.DebugMode == LumOnDebugMode.Off || !config.Enabled || quadMeshRef is null)
+        if (config.DebugMode == LumOnDebugMode.Off || quadMeshRef is null)
             return;
 
-        // Ensure buffers are initialized
-        if (!bufferManager.IsInitialized)
-            return;
-
-        // Skip if GBufferManager textures are not ready (e.g., during resize)
-        if (gBufferManager is null || !gBufferManager.EnsureBuffers(capi.Render.FrameWidth, capi.Render.FrameHeight))
-            return;
+        // Most debug modes require the GBuffer to be ready.
+        // Direct lighting debug modes do not.
+        if (!IsDirectLightingMode(config.DebugMode))
+        {
+            if (gBufferManager is null || !gBufferManager.EnsureBuffers(capi.Render.FrameWidth, capi.Render.FrameHeight))
+                return;
+        }
 
         var shader = ShaderRegistry.getProgramByName("lumon_debug") as LumOnDebugShaderProgram;
         if (shader is null || shader.LoadError)
@@ -128,6 +132,24 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primaryFb is null)
             return;
+
+        // Modes that rely on LumOn internals should not render unless LumOn is enabled.
+        if (RequiresLumOnBuffers(config.DebugMode))
+        {
+            if (!config.Enabled || bufferManager is null || !bufferManager.IsInitialized)
+                return;
+        }
+
+        // Phase 16 direct lighting debug modes rely on the direct lighting MRT outputs.
+        if (IsDirectLightingMode(config.DebugMode))
+        {
+            if (directLightingBufferManager?.DirectDiffuseTex is null
+                || directLightingBufferManager.DirectSpecularTex is null
+                || directLightingBufferManager.EmissiveTex is null)
+            {
+                return;
+            }
+        }
 
         // Update matrices
         MatrixHelper.Invert(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
@@ -146,19 +168,19 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         // Use VGE's G-buffer normal (ColorAttachment4) which contains world-space normals
         // encoded to [0,1] via the shader patching system
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex?.TextureId ?? 0;
-        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex?.TextureId ?? 0;
-        shader.RadianceTexture0 = bufferManager.RadianceHistoryTex0?.TextureId ?? 0;
-        shader.RadianceTexture1 = bufferManager.RadianceHistoryTex1?.TextureId ?? 0;
-        shader.IndirectHalf = bufferManager.IndirectHalfTex?.TextureId ?? 0;
-        shader.HistoryMeta = bufferManager.ProbeMetaHistoryTex?.TextureId ?? 0;
+        shader.ProbeAnchorPosition = bufferManager?.ProbeAnchorPositionTex?.TextureId ?? 0;
+        shader.ProbeAnchorNormal = bufferManager?.ProbeAnchorNormalTex?.TextureId ?? 0;
+        shader.RadianceTexture0 = bufferManager?.RadianceHistoryTex0?.TextureId ?? 0;
+        shader.RadianceTexture1 = bufferManager?.RadianceHistoryTex1?.TextureId ?? 0;
+        shader.IndirectHalf = bufferManager?.IndirectHalfTex?.TextureId ?? 0;
+        shader.HistoryMeta = bufferManager?.ProbeMetaHistoryTex?.TextureId ?? 0;
 
-        shader.ProbeAtlasMeta = bufferManager.ScreenProbeAtlasMetaHistoryTex?.TextureId ?? 0;
+        shader.ProbeAtlasMeta = bufferManager?.ScreenProbeAtlasMetaHistoryTex?.TextureId ?? 0;
 
         // Probe-atlas debug textures (raw/current/filtered + the actual gather input selection)
-        int probeAtlasTrace = bufferManager.ScreenProbeAtlasTraceTex?.TextureId ?? 0;
-        int probeAtlasCurrent = bufferManager.ScreenProbeAtlasCurrentTex?.TextureId ?? probeAtlasTrace;
-        int probeAtlasFiltered = bufferManager.ScreenProbeAtlasFilteredTex?.TextureId ?? 0;
+        int probeAtlasTrace = bufferManager?.ScreenProbeAtlasTraceTex?.TextureId ?? 0;
+        int probeAtlasCurrent = bufferManager?.ScreenProbeAtlasCurrentTex?.TextureId ?? probeAtlasTrace;
+        int probeAtlasFiltered = bufferManager?.ScreenProbeAtlasFilteredTex?.TextureId ?? 0;
 
         int gatherAtlasSource = 0;
         int gatherInput = probeAtlasTrace;
@@ -179,13 +201,18 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         shader.GatherAtlasSource = gatherAtlasSource;
 
         // Phase 15 composite debug inputs
-        shader.IndirectDiffuseFull = bufferManager.IndirectFullTex?.TextureId ?? 0;
-        shader.GBufferAlbedo = bufferManager.CapturedSceneTex?.TextureId ?? 0;
+        shader.IndirectDiffuseFull = bufferManager?.IndirectFullTex?.TextureId ?? 0;
+        shader.GBufferAlbedo = bufferManager?.CapturedSceneTex?.TextureId ?? 0;
         shader.GBufferMaterial = gBufferManager?.MaterialTextureId ?? 0;
+
+        // Phase 16 direct lighting debug inputs
+        shader.DirectDiffuse = directLightingBufferManager?.DirectDiffuseTex?.TextureId ?? 0;
+        shader.DirectSpecular = directLightingBufferManager?.DirectSpecularTex?.TextureId ?? 0;
+        shader.Emissive = directLightingBufferManager?.EmissiveTex?.TextureId ?? 0;
 
         // Pass uniforms
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
-        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
+        shader.ProbeGridSize = new Vec2i(bufferManager?.ProbeCountX ?? 0, bufferManager?.ProbeCountY ?? 0);
         shader.ProbeSpacing = config.ProbeSpacingPx;
         shader.ZNear = capi.Render.ShaderUniforms.ZNear;
         shader.ZFar = capi.Render.ShaderUniforms.ZFar;
@@ -217,6 +244,18 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         // Store current matrix for next frame's reprojection
         StorePrevViewProjMatrix();
+    }
+
+    private static bool IsDirectLightingMode(LumOnDebugMode mode) =>
+        mode is LumOnDebugMode.DirectDiffuse
+            or LumOnDebugMode.DirectSpecular
+            or LumOnDebugMode.DirectEmissive
+            or LumOnDebugMode.DirectTotal;
+
+    private static bool RequiresLumOnBuffers(LumOnDebugMode mode)
+    {
+        // Anything involving probes/atlases/temporal/indirect assumes LumOn is enabled.
+        return mode is >= LumOnDebugMode.ProbeGrid and <= LumOnDebugMode.CompositeMaterial;
     }
 
     #endregion

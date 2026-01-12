@@ -32,6 +32,10 @@ out vec4 outColor;
 // 19 = Composite Indirect Diffuse (Phase 15)
 // 20 = Composite Indirect Specular (Phase 15)
 // 21 = Composite Material (metallic, roughness, ao)
+// 22 = Direct Diffuse (Phase 16)
+// 23 = Direct Specular (Phase 16)
+// 24 = Direct Emissive (Phase 16)
+// 25 = Direct Total (diffuse+spec) (Phase 16)
 // ============================================================================
 
 // Import common utilities
@@ -70,6 +74,11 @@ uniform sampler2D probeAtlasGatherInput; // The atlas currently selected as gath
 uniform sampler2D indirectDiffuseFull;   // Upsampled indirect buffer (full-res)
 uniform sampler2D gBufferAlbedo;         // Albedo (fallback: captured scene)
 uniform sampler2D gBufferMaterial;       // Material properties (roughness/metallic/emissive/reflectivity)
+
+// Phase 16: direct lighting debug inputs
+uniform sampler2D directDiffuse;
+uniform sampler2D directSpecular;
+uniform sampler2D emissive;
 
 // Matrices
 uniform mat4 invProjectionMatrix;
@@ -255,6 +264,30 @@ vec3 heatmap(float t) {
         c = mix(vec3(1.0, 1.0, 0.0), vec3(1.0, 0.0, 0.0), (t - 0.75) * 4.0);
     }
     return c;
+}
+
+vec3 vgeTonemapReinhard(vec3 c)
+{
+    c = max(c, vec3(0.0));
+    return c / (c + vec3(1.0));
+}
+
+vec4 renderDirectDiffuseDebug() {
+    return vec4(vgeTonemapReinhard(texture(directDiffuse, uv).rgb), 1.0);
+}
+
+vec4 renderDirectSpecularDebug() {
+    return vec4(vgeTonemapReinhard(texture(directSpecular, uv).rgb), 1.0);
+}
+
+vec4 renderDirectEmissiveDebug() {
+    return vec4(vgeTonemapReinhard(texture(emissive, uv).rgb), 1.0);
+}
+
+vec4 renderDirectTotalDebug() {
+    vec3 dd = texture(directDiffuse, uv).rgb;
+    vec3 ds = texture(directSpecular, uv).rgb;
+    return vec4(vgeTonemapReinhard(dd + ds), 1.0);
 }
 
 // ============================================================================
@@ -832,6 +865,18 @@ void main(void)
             break;
         case 21:
             outColor = renderCompositeMaterialDebug();
+            break;
+        case 22:
+            outColor = renderDirectDiffuseDebug();
+            break;
+        case 23:
+            outColor = renderDirectSpecularDebug();
+            break;
+        case 24:
+            outColor = renderDirectEmissiveDebug();
+            break;
+        case 25:
+            outColor = renderDirectTotalDebug();
             break;
         default:
             outColor = vec4(1.0, 0.0, 1.0, 1.0);  // Magenta = unknown mode

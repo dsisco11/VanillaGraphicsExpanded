@@ -102,6 +102,21 @@ public class LumOnDebugShaderProgram : ShaderProgram
     /// </summary>
     public int GBufferMaterial { set => BindTexture2D("gBufferMaterial", value, 14); }
 
+    /// <summary>
+    /// Direct diffuse radiance (Phase 16 debug views).
+    /// </summary>
+    public int DirectDiffuse { set => BindTexture2D("directDiffuse", value, 15); }
+
+    /// <summary>
+    /// Direct specular radiance (Phase 16 debug views).
+    /// </summary>
+    public int DirectSpecular { set => BindTexture2D("directSpecular", value, 16); }
+
+    /// <summary>
+    /// Emissive radiance (Phase 16 debug views).
+    /// </summary>
+    public int Emissive { set => BindTexture2D("emissive", value, 17); }
+
     #endregion
 
     #region Size Uniforms
