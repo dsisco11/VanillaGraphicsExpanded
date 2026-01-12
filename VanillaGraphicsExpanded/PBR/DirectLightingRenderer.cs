@@ -7,6 +7,7 @@ using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Profiling;
 
 namespace VanillaGraphicsExpanded.PBR;
 
@@ -22,26 +23,11 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
     private const double RenderOrderValue = 9.0;
     private const int RenderRangeValue = 1;
 
-    private const int BaselineSampleCount = 240;
-
     private readonly ICoreClientAPI capi;
     private readonly GBufferManager gBufferManager;
     private readonly DirectLightingBufferManager bufferManager;
 
     private MeshRef? quadMeshRef;
-
-    // GPU timing
-    private int timerQuery;
-    private bool timerQueryPending;
-    private float lastGpuMs;
-
-    private int baselineWidth;
-    private int baselineHeight;
-    private int baselineSamples;
-    private float baselineSumMs;
-    private float baselineMinMs = float.PositiveInfinity;
-    private float baselineMaxMs = float.NegativeInfinity;
-    private bool baselineLogged;
 
     private readonly float[] invProjectionMatrix = new float[16];
     private readonly float[] invModelViewMatrix = new float[16];
@@ -63,8 +49,6 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         quadMesh.Rgba = null;
         quadMeshRef = capi.Render.UploadMesh(quadMesh);
 
-        timerQuery = GL.GenQuery();
-
         capi.Event.RegisterRenderer(this, EnumRenderStage.Opaque, "pbr_direct_lighting");
 
         capi.Logger.Notification("[VGE] DirectLightingRenderer registered (Opaque @ 9.0)");
@@ -77,24 +61,10 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
             return;
         }
 
-        CollectTimerQueryResult();
-
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primaryFb is null)
         {
             return;
-        }
-
-        // Reset baseline when the output resolution changes.
-        if (baselineWidth != capi.Render.FrameWidth || baselineHeight != capi.Render.FrameHeight)
-        {
-            baselineWidth = capi.Render.FrameWidth;
-            baselineHeight = capi.Render.FrameHeight;
-            baselineSamples = 0;
-            baselineSumMs = 0f;
-            baselineMinMs = float.PositiveInfinity;
-            baselineMaxMs = float.NegativeInfinity;
-            baselineLogged = false;
         }
 
         // Ensure output buffers match current screen size
@@ -193,9 +163,10 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         shader.ShadowZExtendFar = capi.Render.ShaderUniforms.ShadowZExtendFar;
         shader.DropShadowIntensity = capi.Render.ShaderUniforms.DropShadowIntensity;
 
-        BeginTimerQuery();
-        capi.Render.RenderMesh(quadMeshRef);
-        EndTimerQuery();
+        using (GlGpuProfiler.Instance.Scope("PBR.DirectLighting"))
+        {
+            capi.Render.RenderMesh(quadMeshRef);
+        }
 
         shader.Stop();
 
@@ -208,12 +179,6 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
 
     public void Dispose()
     {
-        if (timerQuery != 0)
-        {
-            GL.DeleteQuery(timerQuery);
-            timerQuery = 0;
-        }
-
         if (quadMeshRef is not null)
         {
             capi.Render.DeleteMesh(quadMeshRef);
@@ -221,61 +186,5 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         }
 
         capi.Event.UnregisterRenderer(this, EnumRenderStage.Opaque);
-    }
-
-    private void BeginTimerQuery()
-    {
-        if (timerQuery == 0)
-        {
-            return;
-        }
-
-        GL.BeginQuery(QueryTarget.TimeElapsed, timerQuery);
-    }
-
-    private void EndTimerQuery()
-    {
-        if (timerQuery == 0)
-        {
-            return;
-        }
-
-        GL.EndQuery(QueryTarget.TimeElapsed);
-        timerQueryPending = true;
-    }
-
-    private void CollectTimerQueryResult()
-    {
-        if (!timerQueryPending || timerQuery == 0)
-        {
-            return;
-        }
-
-        GL.GetQueryObject(timerQuery, GetQueryObjectParam.QueryResultAvailable, out int available);
-        if (available == 0)
-        {
-            return;
-        }
-
-        GL.GetQueryObject(timerQuery, GetQueryObjectParam.QueryResult, out long nanoseconds);
-        lastGpuMs = nanoseconds / 1_000_000f;
-        timerQueryPending = false;
-
-        if (!baselineLogged && lastGpuMs > 0f && float.IsFinite(lastGpuMs))
-        {
-            baselineSamples++;
-            baselineSumMs += lastGpuMs;
-            baselineMinMs = Math.Min(baselineMinMs, lastGpuMs);
-            baselineMaxMs = Math.Max(baselineMaxMs, lastGpuMs);
-
-            if (baselineSamples >= BaselineSampleCount)
-            {
-                float avg = baselineSumMs / Math.Max(1, baselineSamples);
-                capi.Logger.Notification(
-                    $"[VGE] DirectLighting baseline: avg={avg:0.###}ms min={baselineMinMs:0.###}ms max={baselineMaxMs:0.###}ms " +
-                    $"over {baselineSamples} frames @ {baselineWidth}x{baselineHeight}");
-                baselineLogged = true;
-            }
-        }
     }
 }

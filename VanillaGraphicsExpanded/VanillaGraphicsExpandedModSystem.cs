@@ -2,6 +2,7 @@
 using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.Rendering.Profiling;
 using VanillaGraphicsExpanded.SSGI;
 
 using Vintagestory.API.Client;
@@ -22,6 +23,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     private DirectLightingBufferManager? directLightingBufferManager;
     private DirectLightingRenderer? directLightingRenderer;
     private PBRCompositeRenderer? pbrCompositeRenderer;
+    private GlGpuProfilerRenderer? gpuProfilerRenderer;
     private HarmonyLib.Harmony? harmony;
 
     // LumOn components
@@ -51,6 +53,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     public override void StartClientSide(ICoreClientAPI api)
     {
         capi = api;
+
+        GlGpuProfiler.Instance.Initialize(api);
+        gpuProfilerRenderer = new GlGpuProfilerRenderer(api);
 
         // Single, always-available debug view entry point.
         api.Input.RegisterHotKey(
@@ -116,6 +121,11 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         try
         {
             VgeDebugViewManager.Dispose();
+
+            gpuProfilerRenderer?.Dispose();
+            gpuProfilerRenderer = null;
+
+            GlGpuProfiler.Instance.Dispose();
 
             directLightingRenderer?.Dispose();
             directLightingRenderer = null;
