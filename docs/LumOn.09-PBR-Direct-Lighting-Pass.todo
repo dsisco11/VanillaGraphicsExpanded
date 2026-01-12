@@ -1,0 +1,124 @@
+Phase 16 - PBR Direct Lighting Pass System (Opaque @ RenderOrder = 9.0)
+
+  Reference design:
+    - docs/LumOn.09-PBR-Direct-Lighting-Pass.md
+
+  Core contract (decisions locked):
+    - Direct lighting is authoritative and replaces pbr-overlay (overlay disabled; removal later)
+    - Albedo/baseColor signal (Primary ColorAttachment0) is confirmed linear space
+    - Outputs are split: DirectDiffuseTex + DirectSpecularTex + EmissiveTex (linear, pre-tonemap)
+    - Fog is applied in final composite (direct pass outputs fog-free radiance)
+    - All light sources are in scope (sun/sky, point lights, shadows, fog volumes, etc.)
+    - Correct render stage: EnumRenderStage.Opaque, RenderOrder = 9.0
+
+  Phase 16.0 - Contract Verification (Pre-Implementation)
+  Exit artifacts: we know what every input/output means and how it is encoded.
+    ✔ ColorAttachment0 is linear baseColor at Opaque stage (confirmed)
+    ☐ Verify G-buffer encodings used by VGE
+      - NormalTex (Attachment4): RGBA16F, packed normalWS = n*0.5+0.5
+      - MaterialTex (Attachment5): upgrade to RGBA16F for accuracy (see Phase 16.1)
+    ☐ Verify shadow-map accessibility for fullscreen file shader program
+      - Near/Far shadow textures and their binding points (samplers)
+      - Matrix sources: ToShadowMapSpaceMatrixNear/Far
+    ☐ Verify point light data surface
+      - DefaultShaderUniforms.PointLightsCount / PointLights3 / PointLightColors3
+      - Confirm any additional light sources beyond these arrays (if any)
+
+  Phase 16.1 - Buffers & FBO Plumbing
+  Exit artifacts: direct outputs exist and resize correctly, with an FBO ready for rendering.
+    ☐ Add new buffer manager (or extend existing) allocations:
+      - DirectDiffuseTex (HDR)
+      - DirectSpecularTex (HDR)
+      - EmissiveTex (HDR)
+    ☐ Choose concrete texture formats (start with RGBA16F for all three)
+    ☐ Create DirectLightingFbo with MRT attachments for the three outputs
+    ☐ Handle resize lifecycle consistently with existing buffer managers
+    ☐ Add debug asserts/logs for FBO completeness
+
+    ☐ Upgrade GBuffer MaterialTex format for precision
+      - Change MaterialTex (Attachment5) internal format to RGBA16F
+      - Update shader patch outputs to match (write full vec4)
+      - Update any shader program bindings/comments that currently assume RGBA8
+
+  Phase 16.2 - Shader Implementation (Full Metallic/Roughness BRDF)
+  Exit artifacts: a new direct-lighting shader compiles and outputs correct split buffers.
+    ☐ Add new shader program files:
+      - assets/vanillagraphicsexpanded/shaders/pbr_direct_lighting.vsh
+      - assets/vanillagraphicsexpanded/shaders/pbr_direct_lighting.fsh
+    ☐ Shader inputs:
+      - primaryScene (baseColor), primaryDepth
+      - gBufferNormal (Attachment4), gBufferMaterial (Attachment5)
+      - light inputs (sun/sky, point lights arrays, shadow maps, fog uniforms for composite later)
+    ☐ Implement BRDF:
+      - GGX NDF, Smith geometry, Schlick Fresnel
+      - Metallic workflow: F0 = mix(0.04, baseColor, metallic)
+      - Output split: directDiffuse, directSpecular
+
+    ☐ Shared PBR math source of truth
+      - Put common BRDF helpers in assets/vanillagraphicsexpanded/shaders/includes/pbr_common.glsl
+      - Reuse existing functions already present (fresnel/ggx/smith/cookTorranceBRDF)
+      - Add only what Phase 16 needs (avoid duplicating math in the pass shader)
+    ☐ Emissive output:
+      - Write emissive separately to EmissiveTex
+      - Do not mix emissive into diffuse/spec
+    ☐ Apply no fog in this pass (fog deferred to final composite)
+
+  Phase 16.3 - C# ShaderProgram Wrapper + Registration
+  Exit artifacts: shader is loadable/compilable and uniforms are bound via typed properties.
+    ☐ Add PBR direct lighting shader program class (like PBROverlayShaderProgram)
+      - Bind required samplers and uniform sets
+      - Register in VanillaGraphicsExpandedModSystem.LoadShaders()
+    ☐ Ensure any required imports/includes are available via ShaderImportsSystem
+
+  Phase 16.4 - Renderer Stage (Opaque @ 9.0)
+  Exit artifacts: direct lighting runs every frame at the correct stage/order.
+    ☐ Implement DirectLightingRenderer : IRenderer
+      - Register at EnumRenderStage.Opaque with RenderOrder = 9.0
+      - Fullscreen quad
+      - Bind primary FBO textures + gbuffer textures
+      - Bind direct lighting FBO MRT and draw
+    ☐ Verify ordering:
+      - Runs after opaque geometry has written MRT
+      - Runs before downstream GI/combine stages
+
+  Phase 16.5 - Composite Integration (Fog + Direct/Indirect Merge)
+  Exit artifacts: final on-screen output uses new direct buffers; fog applied once.
+    ☐ Update composite stage to use:
+      - DirectDiffuseTex + DirectSpecularTex + EmissiveTex
+      - + IndirectDiffuse/IndirectSpecular (when LumOn enabled)
+    ☐ Apply fog in composite (using depth + fog uniforms)
+    ☐ Ensure LumOn disabled path still produces correct direct+emissive output
+
+  Phase 16.6 - Disable PBROverlay System
+  Exit artifacts: pbr-overlay no longer runs and hotkey toggle is inert/unregistered.
+    ☐ Stop registering PBROverlayRenderer in ModSystem
+    ☐ Stop registering/compiling pbroverlay shader program (optional, but preferred)
+    ☐ Remove hotkey handler registration for overlay toggle
+
+  Phase 16.7 - Debug Views + Diagnostics
+  Exit artifacts: new buffers are inspectable and timed.
+    ☐ Add debug modes to visualize:
+      - DirectDiffuseTex
+      - DirectSpecularTex
+      - EmissiveTex
+      - Optional: DirectTotal (diffuse+spec) overlay
+    ☐ Add GPU timing queries for the new direct pass
+
+  Phase 16.8 - GPU Functional Tests
+  Exit artifacts: deterministic tests validate BRDF split and emissive separation.
+    ☐ Add tests:
+      - DirectLighting_ProducesExpectedLambertForDielectric
+      - DirectLighting_MetallicShiftsEnergyToSpecular
+      - DirectLighting_EmissiveIsSeparateBuffer
+      - DirectLighting_StableUnderCameraMotion
+      - Integration_LumOnDisabled_PassesThroughDirect
+    ☐ Ensure tests cover edge cases:
+      - Roughness extremes (0, 1)
+      - Metallic extremes (0, 1)
+      - Emissive non-zero with no lights
+
+  Phase 16.9 - Polish & Cleanup
+  Exit artifacts: stable performance and clean handoff for removing overlay later.
+    ☐ Document exact uniform/sampler bindings used by the direct pass
+    ☐ Ensure no remaining runtime dependence on pbr-overlay
+    ☐ Confirm performance budget (timers) and note baseline in docs
