@@ -19,6 +19,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     private SSGISceneCaptureRenderer? ssgiSceneCaptureRenderer;
     private SSGIRenderer? ssgiRenderer;
     private PBROverlayRenderer? pbrOverlayRenderer;
+    private DirectLightingBufferManager? directLightingBufferManager;
+    private DirectLightingRenderer? directLightingRenderer;
     private HarmonyLib.Harmony? harmony;
 
     // LumOn components
@@ -85,6 +87,10 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         debugOverlayRenderer = new DebugOverlayRenderer(api, gBufferManager);
         pbrOverlayRenderer = debugOverlayRenderer;
 
+        // Create direct lighting pass buffers + renderer (Opaque @ 9.0)
+        directLightingBufferManager = new DirectLightingBufferManager(api);
+        directLightingRenderer = new DirectLightingRenderer(api, gBufferManager, directLightingBufferManager);
+
         // Initialize the debug view manager (GUI)
         VgeDebugViewManager.Initialize(
             api,
@@ -100,6 +106,12 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         try
         {
             VgeDebugViewManager.Dispose();
+
+            directLightingRenderer?.Dispose();
+            directLightingRenderer = null;
+
+            directLightingBufferManager?.Dispose();
+            directLightingBufferManager = null;
 
             pbrOverlayRenderer?.Dispose();
             pbrOverlayRenderer = null;

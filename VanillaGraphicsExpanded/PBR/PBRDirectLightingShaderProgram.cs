@@ -1,7 +1,10 @@
+using System;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
+
+using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.PBR;
 
@@ -14,6 +17,11 @@ namespace VanillaGraphicsExpanded.PBR;
 /// </summary>
 public sealed class PBRDirectLightingShaderProgram : ShaderProgram
 {
+    private int cachedUniformProgramId;
+    private int locPointLightsCount = -1;
+    private int locPointLights3 = -1;
+    private int locPointLightColors3 = -1;
+
     #region Static
 
     public static void Register(ICoreClientAPI api)
@@ -26,6 +34,7 @@ public sealed class PBRDirectLightingShaderProgram : ShaderProgram
 
         api.Shader.RegisterFileShaderProgram("pbr_direct_lighting", instance);
         instance.Compile();
+        instance.CacheUniformLocations();
     }
 
     #endregion
@@ -105,6 +114,75 @@ public sealed class PBRDirectLightingShaderProgram : ShaderProgram
     public Vec3f RgbaLightIn { set => Uniform("rgbaLightIn", value); }
 
     public int PointLightsCount { set => Uniform("pointLightsCount", value); }
+
+    /// <summary>
+    /// Uploads point light arrays and count to the currently-bound program.
+    /// Expects GLSL uniforms:
+    /// - int pointLightsCount
+    /// - vec3 pointLights3[100]
+    /// - vec3 pointLightColors3[100]
+    /// </summary>
+    public void SetPointLights(int count, float[]? pointLights3, float[]? pointLightColors3)
+    {
+        int clampedCount = Math.Clamp(count, 0, 100);
+
+        EnsureUniformLocations();
+
+        if (locPointLightsCount >= 0)
+        {
+            GL.Uniform1(locPointLightsCount, clampedCount);
+        }
+
+        UploadVec3ArrayUniform(locPointLights3, pointLights3, clampedCount);
+        UploadVec3ArrayUniform(locPointLightColors3, pointLightColors3, clampedCount);
+    }
+
+    #endregion
+
+    #region Helpers
+
+    private void EnsureUniformLocations()
+    {
+        // Locations are per-program; refresh if we were recompiled/reloaded.
+        if (ProgramId != 0 && cachedUniformProgramId != ProgramId)
+        {
+            CacheUniformLocations();
+        }
+    }
+
+    private void CacheUniformLocations()
+    {
+        cachedUniformProgramId = ProgramId;
+
+        if (cachedUniformProgramId == 0)
+        {
+            locPointLightsCount = -1;
+            locPointLights3 = -1;
+            locPointLightColors3 = -1;
+            return;
+        }
+
+        locPointLightsCount = GL.GetUniformLocation(cachedUniformProgramId, "pointLightsCount");
+        locPointLights3 = GL.GetUniformLocation(cachedUniformProgramId, "pointLights3");
+        locPointLightColors3 = GL.GetUniformLocation(cachedUniformProgramId, "pointLightColors3");
+    }
+
+    private static void UploadVec3ArrayUniform(int location, float[]? data, int vec3Count)
+    {
+        if (location < 0 || vec3Count <= 0 || data is null || data.Length < 3)
+        {
+            return;
+        }
+
+        int requiredFloats = vec3Count * 3;
+        if (data.Length < requiredFloats)
+        {
+            vec3Count = Math.Min(vec3Count, data.Length / 3);
+            if (vec3Count <= 0) return;
+        }
+
+        GL.Uniform3(location, vec3Count, data);
+    }
 
     #endregion
 
