@@ -282,33 +282,33 @@ LumOn Functional Test Coverage:
       - Replaces pbr-overlay in both runtime behavior and debug tooling
 
     Work items:
-    ☐ Define the direct-lighting contract:
+    ✔ Define the direct-lighting contract: @done(26-01-12 03:49)
       - What buffer(s) are produced (sceneDirect, optional directSpecular/directDiffuse split)
       - Color space/exposure assumptions (must be linear, pre-tonemap)
       - Required G-buffer inputs (albedo/baseColor, normalWS, roughness, metallic, emissive, AO/reflectivity)
       - Handling of sun, sky, point lights, emissives, and fog interactions (document what is in/out of scope)
 
-    ☐ Add a dedicated renderer stage + shader program(s):
+    ✔ Add a dedicated renderer stage + shader program(s): @done(26-01-12 03:49)
       - New shader pair suggestion: pbr_direct_lighting.vsh / pbr_direct_lighting.fsh
       - Evaluate direct lighting using PBR BRDF (reuse pbrfunctions.fsh and shared material decoding)
       - Ensure deterministic behavior and stable outputs (avoid frame-dependent randomness)
 
-    ☐ Framebuffer + texture plumbing:
+    ✔ Framebuffer + texture plumbing: @done(26-01-12 03:49)
       - Allocate the direct-lighting output(s) in the appropriate buffer manager
       - Ensure the resulting sceneDirect is the one consumed by LumOn combine/debug downstream
       - Decide whether the base game’s direct lighting is bypassed or whether we “rebuild” direct from G-buffer
 
-    ☐ Integration with LumOn downstream:
+    ✔ Integration with LumOn downstream: @done(26-01-12 03:49)
       - LumOn uses this pass output as sceneDirect input
       - Ensure LumOn enable/disable only affects indirect contribution, not direct lighting
       - Verify the final combine stage still produces correct output when LumOn is disabled
 
-    ☐ Supersede pbr-overlay:
+    ✔ Supersede pbr-overlay: @done(26-01-12 03:49)
       - Identify what pbr-overlay currently provides (features and shortcomings)
       - Add a config switch / migration path to turn off pbr-overlay by default when the new pass is enabled
       - Mark pbr-overlay as deprecated in docs/README and ensure no runtime dependence remains
 
-    ☐ Debug + validation:
+    ✔ Debug + validation: @done(26-01-12 03:49)
       - Add debug views for direct lighting outputs (diffuse/spec split if present)
       - Add GPU functional tests:
         - DirectLighting_ProducesExpectedLambertForDielectric
