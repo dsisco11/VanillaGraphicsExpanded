@@ -12,11 +12,11 @@ out vec4 outColor;
 // ============================================================================
 
 // Import common utilities
-@import "./includes/lumon_common.fsh"
+@import "./includes/lumon_common.glsl"
 
 // Import material utilities
 // Import PBR/material utilities
-@import "./includes/lumon_pbr.fsh"
+@import "./includes/lumon_pbr.glsl"
 
 // ============================================================================
 // Textures

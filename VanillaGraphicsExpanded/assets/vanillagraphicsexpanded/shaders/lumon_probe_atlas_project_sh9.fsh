@@ -18,7 +18,7 @@ layout(location = 6) out vec4 outSH6;
 // Output is per-probe SH9 (RGB) coefficients, intended for cheap gather.
 // ============================================================================
 
-@import "./includes/lumon_common.fsh"
+@import "./includes/lumon_common.glsl"
 @import "./includes/lumon_octahedral.glsl"
 @import "./includes/lumon_probe_atlas_meta.glsl"
 @import "./includes/lumon_sh9.glsl"

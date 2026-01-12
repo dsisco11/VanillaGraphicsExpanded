@@ -15,7 +15,7 @@ layout(location = 1) out vec2 outMeta;      // R = filtered confidence, G = uint
 // Output is a filtered atlas that can be used as gather input.
 // ============================================================================
 
-@import "./includes/lumon_common.fsh"
+@import "./includes/lumon_common.glsl"
 @import "./includes/lumon_octahedral.glsl"
 @import "./includes/lumon_probe_atlas_meta.glsl"
 

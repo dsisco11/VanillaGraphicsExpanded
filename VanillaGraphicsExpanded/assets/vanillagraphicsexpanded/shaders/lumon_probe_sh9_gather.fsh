@@ -13,7 +13,7 @@ out vec4 outColor;
 // - no per-pixel hemisphere integration
 // ============================================================================
 
-@import "./includes/lumon_common.fsh"
+@import "./includes/lumon_common.glsl"
 @import "./includes/lumon_sh9.glsl"
 
 // SH9 packed textures (7 MRT attachments from projection pass)

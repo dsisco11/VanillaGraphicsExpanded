@@ -14,7 +14,7 @@ out vec4 outColor;
 // ============================================================================
 
 // Import common utilities
-@import "./includes/lumon_common.fsh"
+@import "./includes/lumon_common.glsl"
 
 // Half-resolution indirect diffuse
 uniform sampler2D indirectHalf;

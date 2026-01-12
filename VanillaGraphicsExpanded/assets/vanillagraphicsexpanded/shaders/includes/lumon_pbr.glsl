@@ -6,10 +6,10 @@
 // Shared helpers for physically-plausible indirect compositing.
 
 // Pull in generic BRDF helpers that LumOn's composite logic depends on.
-@import "./pbrfunctions.fsh"
+@import "./pbrfunctions.glsl"
 
 // Pull in LumOn material sampling/F0 helpers that this file depends on.
-@import "./lumon_material.fsh"
+@import "./lumon_material.glsl"
 //
 //
 

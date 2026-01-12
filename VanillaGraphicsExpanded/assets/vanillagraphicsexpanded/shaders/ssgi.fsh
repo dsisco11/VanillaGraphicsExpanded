@@ -73,7 +73,7 @@ const float GOLDEN_ANGLE = 2.399963229728653;
 const float PHI = 1.618033988749895;
 
 // Import Squirrel3 hash for high-quality pseudo-random jittering
-@import "./includes/squirrel3.fsh"
+@import "./includes/squirrel3.glsl"
 
 // ============================================================================
 // Utility Functions

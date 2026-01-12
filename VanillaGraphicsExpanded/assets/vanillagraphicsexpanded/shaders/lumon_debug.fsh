@@ -35,16 +35,16 @@ out vec4 outColor;
 // ============================================================================
 
 // Import common utilities
-@import "./includes/lumon_common.fsh"
+@import "./includes/lumon_common.glsl"
 
 // Import SH helpers for mode 8
-@import "./includes/lumon_sh.fsh"
+@import "./includes/lumon_sh.glsl"
 
 // Import probe-atlas meta helpers for mode 14
 @import "./includes/lumon_probe_atlas_meta.glsl"
 
 // Phase 15: composite math (shared with lumon_combine)
-@import "./includes/lumon_pbr.fsh"
+@import "./includes/lumon_pbr.glsl"
 
 // G-buffer textures
 uniform sampler2D primaryDepth;

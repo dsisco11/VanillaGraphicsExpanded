@@ -15,8 +15,8 @@ layout(location = 1) out vec4 outRadiance1;
 // - Confidence from probeAtlasMeta is used as a per-texel weight.
 // ============================================================================
 
-@import "./includes/lumon_common.fsh"
-@import "./includes/lumon_sh.fsh"
+@import "./includes/lumon_common.glsl"
+@import "./includes/lumon_sh.glsl"
 @import "./includes/lumon_octahedral.glsl"
 @import "./includes/lumon_probe_atlas_meta.glsl"
 

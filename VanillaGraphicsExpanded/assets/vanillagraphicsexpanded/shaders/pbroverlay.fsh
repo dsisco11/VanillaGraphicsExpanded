@@ -57,8 +57,8 @@ const float ROUGHNESS_MAX_DELTA = 1.0;
 const float METALLIC_MIN_DELTA = 0.9;
 const float METALLIC_MAX_DELTA = 1.0;
 
-@import "./includes/squirrel3.fsh"
-@import "./includes/pbrfunctions.fsh"
+@import "./includes/squirrel3.glsl"
+@import "./includes/pbrfunctions.glsl"
 
 // Linearize depth from depth buffer
 float linearizeDepth(float depth) {

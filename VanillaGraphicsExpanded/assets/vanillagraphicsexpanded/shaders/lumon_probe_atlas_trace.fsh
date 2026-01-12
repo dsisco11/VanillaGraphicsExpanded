@@ -16,7 +16,7 @@ layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFlo
 // ============================================================================
 
 // Import common utilities
-@import "./includes/lumon_common.fsh"
+@import "./includes/lumon_common.glsl"
 
 // Import octahedral mapping
 @import "./includes/lumon_octahedral.glsl"
@@ -25,7 +25,7 @@ layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFlo
 @import "./includes/lumon_probe_atlas_meta.glsl"
 
 // Import noise for ray jittering
-@import "./includes/squirrel3.fsh"
+@import "./includes/squirrel3.glsl"
 
 // Probe anchor textures (world-space)
 uniform sampler2D probeAnchorPosition;  // posWS.xyz, valid
