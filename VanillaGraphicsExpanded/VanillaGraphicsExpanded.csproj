@@ -55,8 +55,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="TinyAst" Version="0.11.0" />
-    <PackageReference Include="TinyAst.Preprocessor" Version="0.4.0" />
+    <PackageReference Include="TinyAst" Version="0.11.1" />
+    <PackageReference Include="TinyAst.Preprocessor" Version="0.4.1" />
     <PackageReference Include="TinyPreprocessor" Version="0.4.0" />
   </ItemGroup>
 
