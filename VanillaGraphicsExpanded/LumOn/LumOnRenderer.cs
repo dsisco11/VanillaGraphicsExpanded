@@ -333,12 +333,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         RenderUpsamplePass(primaryFb);
         EndTimerQuery();
 
-        // === Pass 6: Combine (optional) ===
-        // Only runs when UseCombinePass is enabled for proper material modulation
-        if (config.UseCombinePass)
-        {
-            RenderCombinePass(primaryFb);
-        }
+        // Pass 6 (combine) is handled by PBRCompositeRenderer.
 
         timerQueryPending = true;
 
@@ -1094,73 +1089,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
     }
 
-    /// <summary>
-    /// Pass 6 (Optional): Combine indirect diffuse with direct lighting.
-    /// Only runs when config.UseCombinePass is true.
-    /// Applies proper material modulation (albedo, metallic rejection).
-    /// </summary>
-    private void RenderCombinePass(FrameBufferRef primaryFb)
-    {
-        if (!config.UseCombinePass)
-            return;
-
-        var shader = ShaderRegistry.getProgramByName("lumon_combine") as LumOnCombineShaderProgram;
-        if (shader is null || shader.LoadError)
-            return;
-
-        var indirectFullTex = bufferManager.IndirectFullTex;
-        if (indirectFullTex is null) return;
-
-        // Render to VS primary framebuffer so subsequent base-game post-processing sees the combined result.
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
-        GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
-
-        // IMPORTANT: When targeting VS's primary MRT framebuffer, restrict to ColorAttachment0.
-        GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-
-        // No blending - we're replacing the scene color with combined result
-        capi.Render.GlToggleBlend(false);
-        shader.Use();
-
-        // The scene color is already in the primary framebuffer (ColorAttachment0)
-        // We need to sample it as a texture, which requires the captured scene
-        shader.SceneDirect = bufferManager.CapturedSceneTex?.TextureId ?? 0;
-
-        // Bind upsampled indirect diffuse
-        shader.IndirectDiffuse = indirectFullTex.TextureId;
-
-        // Bind G-buffer for material modulation
-        // Note: VS stores albedo in ColorAttachment0, but that's the render target
-        // For proper albedo modulation, we'd need a separate albedo G-buffer
-        // For now, we use the captured scene as a fallback
-        shader.GBufferAlbedo = bufferManager.CapturedSceneTex?.TextureId ?? 0;
-        shader.GBufferMaterial = gBufferManager?.MaterialTextureId ?? 0;
-        shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
-        shader.PrimaryDepth = primaryFb.DepthTextureId;
-
-        // Pass uniforms
-        shader.IndirectIntensity = config.Intensity;
-        shader.IndirectTint = new Vec3f(
-            config.IndirectTint[0],
-            config.IndirectTint[1],
-            config.IndirectTint[2]);
-        shader.LumOnEnabled = config.Enabled ? 1 : 0;
-
-        // Phase 15: optional physically-plausible composite
-        shader.EnablePbrComposite = config.EnablePbrComposite ? 1 : 0;
-        shader.EnableAO = config.EnableAO ? 1 : 0;
-        shader.EnableBentNormal = config.EnableBentNormal ? 1 : 0;
-        shader.DiffuseAOStrength = Math.Clamp(config.DiffuseAOStrength, 0f, 1f);
-        shader.SpecularAOStrength = Math.Clamp(config.SpecularAOStrength, 0f, 1f);
-
-        // Matrices for view vector reconstruction / normal transform
-        shader.InvProjectionMatrix = invProjectionMatrix;
-        shader.ViewMatrix = modelViewMatrix;
-
-        // Render
-        capi.Render.RenderMesh(quadMeshRef);
-        shader.Stop();
-    }
+    // Combine pass removed: final composite is handled by PBRCompositeRenderer.
 
     #endregion
 

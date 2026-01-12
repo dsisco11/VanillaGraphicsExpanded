@@ -21,6 +21,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     private PBROverlayRenderer? pbrOverlayRenderer;
     private DirectLightingBufferManager? directLightingBufferManager;
     private DirectLightingRenderer? directLightingRenderer;
+    private PBRCompositeRenderer? pbrCompositeRenderer;
     private HarmonyLib.Harmony? harmony;
 
     // LumOn components
@@ -65,10 +66,11 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
             api.Logger.Notification("[VGE] Created default LumOn config");
         }
 
-        // Initialize LumOn or legacy SSGI based on config
+        // Initialize LumOn based on config.
+        // Note: Legacy SSGI is intentionally not initialized while the new
+        // direct-lighting + fog composite pipeline is being integrated.
         if (lumOnConfig.Enabled)
         {
-            // LumOn path - new Screen Probe Gather system
             lumOnBufferManager = new LumOnBufferManager(api, lumOnConfig);
             lumOnRenderer = new LumOnRenderer(api, lumOnConfig, lumOnBufferManager, gBufferManager);
             lumOnDebugRenderer = new LumOnDebugRenderer(api, lumOnConfig, lumOnBufferManager, gBufferManager);
@@ -76,20 +78,20 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         }
         else
         {
-            // Legacy SSGI path
-            ssgiBufferManager = new SSGIBufferManager(api);
-            ssgiSceneCaptureRenderer = new SSGISceneCaptureRenderer(api, ssgiBufferManager);
-            ssgiRenderer = new SSGIRenderer(api, ssgiBufferManager);
-            api.Logger.Notification("[VGE] LumOn disabled - using legacy SSGI");
+            api.Logger.Notification("[VGE] LumOn disabled - direct lighting only (SSGI disabled)");
         }
-
-        // Create PBR overlay renderer (runs at AfterBlit stage)
-        debugOverlayRenderer = new DebugOverlayRenderer(api, gBufferManager);
-        pbrOverlayRenderer = debugOverlayRenderer;
 
         // Create direct lighting pass buffers + renderer (Opaque @ 9.0)
         directLightingBufferManager = new DirectLightingBufferManager(api);
         directLightingRenderer = new DirectLightingRenderer(api, gBufferManager, directLightingBufferManager);
+
+        // Final composite (Opaque @ 11.0): direct + optional indirect + fog
+        pbrCompositeRenderer = new PBRCompositeRenderer(
+            api,
+            gBufferManager,
+            directLightingBufferManager,
+            lumOnConfig,
+            lumOnBufferManager);
 
         // Initialize the debug view manager (GUI)
         VgeDebugViewManager.Initialize(
@@ -112,6 +114,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
 
             directLightingBufferManager?.Dispose();
             directLightingBufferManager = null;
+
+            pbrCompositeRenderer?.Dispose();
+            pbrCompositeRenderer = null;
 
             pbrOverlayRenderer?.Dispose();
             pbrOverlayRenderer = null;
@@ -164,6 +169,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
 
         // PBR direct lighting shader
         PBRDirectLightingShaderProgram.Register(api);
+
+        // PBR final composite shader
+        PBRCompositeShaderProgram.Register(api);
 
         // Legacy SSGI shaders
         SSGIShaderProgram.Register(api);

@@ -94,11 +94,11 @@ Phase 16 - PBR Direct Lighting Pass System (Opaque @ RenderOrder = 9.0)
 
   Phase 16.5 - Composite Integration (Fog + Direct/Indirect Merge)
   Exit artifacts: final on-screen output uses new direct buffers; fog applied once.
-    ☐ Update composite stage to use:
+    ✔ Update composite stage to use:
       - DirectDiffuseTex + DirectSpecularTex + EmissiveTex
       - + IndirectDiffuse/IndirectSpecular (when LumOn enabled)
-    ☐ Apply fog in composite (using depth + fog uniforms)
-    ☐ Ensure LumOn disabled path still produces correct direct+emissive output
+    ✔ Apply fog in composite (using depth + fog uniforms)
+    ✔ Ensure LumOn disabled path still produces correct direct+emissive output
 
   Phase 16.6 - Disable PBROverlay System
   Exit artifacts: pbr-overlay no longer runs and hotkey toggle is inert/unregistered.
