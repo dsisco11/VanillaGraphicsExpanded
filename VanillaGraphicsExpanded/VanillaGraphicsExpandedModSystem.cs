@@ -1,6 +1,7 @@
 ﻿using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering.Profiling;
 using VanillaGraphicsExpanded.SSGI;
@@ -8,13 +9,12 @@ using VanillaGraphicsExpanded.SSGI;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.Client.NoObf;
+using Microsoft.VisualBasic;
 
 namespace VanillaGraphicsExpanded;
 
 public sealed class VanillaGraphicsExpandedModSystem : ModSystem
 {
-    private const string LumOnConfigFile = "vanillagraphicsexpanded-lumon.json";
-
     private ICoreClientAPI? capi;
     private GBufferManager? gBufferManager;
     private SSGIBufferManager? ssgiBufferManager;
@@ -27,7 +27,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     private HarmonyLib.Harmony? harmony;
 
     // LumOn components
-    private LumOnConfig? lumOnConfig;
     private LumOnBufferManager? lumOnBufferManager;
     private LumOnRenderer? lumOnRenderer;
     private LumOnDebugRenderer? lumOnDebugRenderer;
@@ -37,7 +36,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     public override void StartPre(ICoreAPI api)
     {
         // Apply Harmony patches as early as possible, especially before shaders are loaded.
-        harmony = new HarmonyLib.Harmony(Mod.Info.ModID);
+        harmony = new HarmonyLib.Harmony(Constants.ModId);
         harmony.PatchAll();
     }
 
@@ -68,22 +67,13 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         // Create G-buffer manager (Harmony hooks will call into this)
         gBufferManager = new GBufferManager(api);
 
-        // Load LumOn configuration
-        lumOnConfig = api.LoadModConfig<LumOnConfig>(LumOnConfigFile);
-        if (lumOnConfig == null)
-        {
-            lumOnConfig = new LumOnConfig();
-            api.StoreModConfig(lumOnConfig, LumOnConfigFile);
-            api.Logger.Notification("[VGE] Created default LumOn config");
-        }
-
-        // Initialize LumOn based on config.
+        // Initialize LumOn based on config (loaded by ConfigModSystem).
         // Note: Legacy SSGI is intentionally not initialized while the new
         // direct-lighting + fog composite pipeline is being integrated.
-        if (lumOnConfig.Enabled)
+        if (ConfigModSystem.Config.Enabled)
         {
-            lumOnBufferManager = new LumOnBufferManager(api, lumOnConfig);
-            lumOnRenderer = new LumOnRenderer(api, lumOnConfig, lumOnBufferManager, gBufferManager);
+            lumOnBufferManager = new LumOnBufferManager(api, ConfigModSystem.Config);
+            lumOnRenderer = new LumOnRenderer(api, ConfigModSystem.Config, lumOnBufferManager, gBufferManager);
             api.Logger.Notification("[VGE] LumOn enabled - using Screen Probe Gather");
         }
         else
@@ -96,20 +86,20 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         directLightingRenderer = new DirectLightingRenderer(api, gBufferManager, directLightingBufferManager);
 
         // Unified debug overlay (AfterBlit) driven by the VGE Debug View dialog.
-        lumOnDebugRenderer = new LumOnDebugRenderer(api, lumOnConfig, lumOnBufferManager, gBufferManager, directLightingBufferManager);
+        lumOnDebugRenderer = new LumOnDebugRenderer(api, ConfigModSystem.Config, lumOnBufferManager, gBufferManager, directLightingBufferManager);
 
         // Final composite (Opaque @ 11.0): direct + optional indirect + fog
         pbrCompositeRenderer = new PBRCompositeRenderer(
             api,
             gBufferManager,
             directLightingBufferManager,
-            lumOnConfig,
+            ConfigModSystem.Config,
             lumOnBufferManager);
 
         // Initialize the debug view manager (GUI)
         VgeDebugViewManager.Initialize(
             api,
-            lumOnConfig);
+            ConfigModSystem.Config);
 
         LoadShaders(api);
         api.Event.ReloadShader += () => LoadShaders(api);
@@ -159,19 +149,13 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
             gBufferManager?.Dispose();
             gBufferManager = null;
 
-            // Save LumOn config on dispose
-            if (capi != null && lumOnConfig != null)
-            {
-                capi.StoreModConfig(lumOnConfig, LumOnConfigFile);
-            }
-
             // Clear shader imports cache
             ShaderImportsSystem.Instance.Clear();
         }
         finally
         {
             // Unpatch Harmony patches
-            harmony?.UnpatchAll(Mod.Info.ModID);
+            harmony?.UnpatchAll(Constants.ModId);
             harmony = null;
         }
     }

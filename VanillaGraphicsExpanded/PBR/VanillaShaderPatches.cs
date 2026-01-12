@@ -204,6 +204,7 @@ layout(location = 5) out vec4 vge_outMaterial;  // Roughness, Metallic, Emissive
         ReplaceFunctionBody(tree, editor, "applyFogAndShadowFromBrightness", "\nreturn rgbaPixel;");
 
         editor.Commit();
+        string debugStr = tree.ToString();
     }
 
     /// <summary>
@@ -211,12 +212,15 @@ layout(location = 5) out vec4 vge_outMaterial;  // Roughness, Metallic, Emissive
     /// </summary>
     private static void ReplaceFunctionBody(SyntaxTree tree, SyntaxEditor editor, string functionName, string code)
     {
-        var funcQuery = Query.Syntax<GlFunctionNode>().Named(functionName);
+        // var funcQuery = Query.Syntax<GlFunctionNode>().Named(functionName);
         // select all the contents of the function body
-        GlFunctionNode? funcNode = funcQuery.Select(tree).FirstOrDefault() as GlFunctionNode;
-        SyntaxBlock body = funcNode!.GetBlock("body");
-        var start = Query.Exact(body.OpenerNode);
-        editor.Edit(start, (string original) => $"{original}\n{code}\n");
+        // GlFunctionNode? funcNode = funcQuery.Select(tree).FirstOrDefault() as GlFunctionNode;
+        // SyntaxBlock body = funcNode!.GetBlock("body");
+        // var start = Query.Exact(body.OpenerNode);
+        // editor.Edit(start, (string original) => $"{original}\n{code}\n");
+        var methodBody = Query.Syntax<GlFunctionNode>().Named(functionName).Block("body");
+        var bodyContents = Query.Between(methodBody.Start(), methodBody.End(), inclusive: false);
+        editor.Replace(bodyContents, code);
     }
 
     /// <summary>
