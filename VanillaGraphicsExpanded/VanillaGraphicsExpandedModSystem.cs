@@ -150,6 +150,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         // PBR overlay shader
         PBROverlayShaderProgram.Register(api);
 
+        // PBR direct lighting shader
+        PBRDirectLightingShaderProgram.Register(api);
+
         // Legacy SSGI shaders
         SSGIShaderProgram.Register(api);
         SSGICompositeShaderProgram.Register(api);

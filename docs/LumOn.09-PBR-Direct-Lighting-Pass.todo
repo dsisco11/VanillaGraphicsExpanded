@@ -71,10 +71,11 @@ Phase 16 - PBR Direct Lighting Pass System (Opaque @ RenderOrder = 9.0)
 
   Phase 16.3 - C# ShaderProgram Wrapper + Registration
   Exit artifacts: shader is loadable/compilable and uniforms are bound via typed properties.
-    ☐ Add PBR direct lighting shader program class (like PBROverlayShaderProgram)
-      - Bind required samplers and uniform sets
-      - Register in VanillaGraphicsExpandedModSystem.LoadShaders()
-    ☐ Ensure any required imports/includes are available via ShaderImportsSystem
+    ✔ Add PBR direct lighting shader program class (like PBROverlayShaderProgram)
+      - Added PBRDirectLightingShaderProgram (typed uniforms + samplers)
+      - Registered in VanillaGraphicsExpandedModSystem.LoadShaders()
+    ✔ Ensure any required imports/includes are available via ShaderImportsSystem
+      - ShaderImportsSystem is initialized in AssetsLoaded and supports @import preprocessing
 
   Phase 16.4 - Renderer Stage (Opaque @ 9.0)
   Exit artifacts: direct lighting runs every frame at the correct stage/order.
