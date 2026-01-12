@@ -126,7 +126,8 @@ void main()
     vec3 N = normalize(nPacked.rgb * 2.0 - 1.0);
 
     vec4 m = texture(gBufferMaterial, uv);
-    float roughness = clamp(m.r, 0.001, 1.0);
+    // Minimum roughness clamp: avoids GGX singularities that can overflow RGBA16F outputs.
+    float roughness = clamp(m.r, 0.04, 1.0);
     float metallic = clamp(m.g, 0.0, 1.0);
     float emissiveScalar = max(m.b, 0.0);
     float reflectivity = clamp(m.a, 0.0, 1.0);

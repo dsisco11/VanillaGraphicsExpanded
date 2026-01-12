@@ -117,13 +117,13 @@ Phase 16 - PBR Direct Lighting Pass System (Opaque @ RenderOrder = 9.0)
 
   Phase 16.8 - GPU Functional Tests
   Exit artifacts: deterministic tests validate BRDF split and emissive separation.
-    ☐ Add tests:
+    ✔ Add tests:
       - DirectLighting_ProducesExpectedLambertForDielectric
       - DirectLighting_MetallicShiftsEnergyToSpecular
       - DirectLighting_EmissiveIsSeparateBuffer
       - DirectLighting_StableUnderCameraMotion
       - Integration_LumOnDisabled_PassesThroughDirect
-    ☐ Ensure tests cover edge cases:
+    ✔ Ensure tests cover edge cases:
       - Roughness extremes (0, 1)
       - Metallic extremes (0, 1)
       - Emissive non-zero with no lights
