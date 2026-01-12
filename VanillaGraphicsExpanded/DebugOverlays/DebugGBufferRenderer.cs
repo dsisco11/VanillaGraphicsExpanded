@@ -2,6 +2,7 @@ using System;
 using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
+using VanillaGraphicsExpanded.Rendering.Profiling;
 
 namespace VanillaGraphicsExpanded;
 
@@ -101,7 +102,10 @@ public sealed class DebugGBufferRenderer : IRenderer, IDisposable
         blitShader.BindTexture2D("scene", textureId, 0);
 
         // Render fullscreen quad
-        capi.Render.RenderMesh(quadMeshRef);
+        using (GlGpuProfiler.Instance.Scope("Debug.GBufferOverlay"))
+        {
+            capi.Render.RenderMesh(quadMeshRef);
+        }
 
         blitShader.Stop();
 

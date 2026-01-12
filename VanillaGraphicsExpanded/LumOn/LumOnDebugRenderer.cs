@@ -5,6 +5,7 @@ using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.Rendering.Profiling;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -234,7 +235,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         shader.SpecularAOStrength = Math.Clamp(config.SpecularAOStrength, 0f, 1f);
 
         // Render fullscreen quad
-        capi.Render.RenderMesh(quadMeshRef);
+        using (GlGpuProfiler.Instance.Scope("Debug.LumOn"))
+        {
+            capi.Render.RenderMesh(quadMeshRef);
+        }
 
         shader.Stop();
 

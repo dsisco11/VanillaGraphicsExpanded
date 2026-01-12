@@ -6,6 +6,7 @@ using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Profiling;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -63,13 +64,6 @@ public class LumOnRenderer : IRenderer, IDisposable
     // Debug counters
     private readonly LumOnDebugCounters debugCounters = new();
 
-    // GPU timer queries for performance profiling
-    // Indices:
-    // 0=HZB, 1=Anchor, 2=Trace, 3=Temporal, 4=Filter, 5=Projection, 6=Gather, 7=Upsample
-    private readonly int[] timerQueries = new int[8];
-    private bool timerQueriesInitialized;
-    private bool timerQueryPending;
-
     #endregion
 
     #region Properties
@@ -124,9 +118,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Register debug hotkeys
         RegisterHotkeys();
 
-        // Initialize GPU timer queries
-        InitializeTimerQueries();
-
         // Register for world events (teleport, world change)
         RegisterWorldEvents();
 
@@ -144,12 +135,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         isFirstFrame = true;
         bufferManager?.ClearHistory();
         capi.Logger.Debug("[LumOn] World left, cleared history");
-    }
-
-    private void InitializeTimerQueries()
-    {
-        GL.GenQueries(timerQueries.Length, timerQueries);
-        timerQueriesInitialized = true;
     }
 
     private void RegisterHotkeys()
@@ -235,8 +220,8 @@ public class LumOnRenderer : IRenderer, IDisposable
             return false;
         }
 
-        // Collect GPU timing from previous frame (avoid stalls)
-        CollectTimerQueryResults();
+        // Update debug timing from resolved GPU profiler samples (avoid stalls)
+        UpdateGpuTimingCountersFromProfiler();
 
         // Reset debug counters
         debugCounters.Reset();
@@ -264,69 +249,78 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Update matrices
         UpdateMatrices();
 
-        // === Pass 0: HZB depth pyramid ===
-        BeginTimerQuery(0);
-        BuildHzb(primaryFb);
-        EndTimerQuery();
-
-        // === Pass 1: Probe Anchor ===
-        BeginTimerQuery(1);
-        RenderProbeAnchorPass(primaryFb);
-        EndTimerQuery();
-
-        // === Pass 2: Probe Trace ===
-        BeginTimerQuery(2);
-        if (config.UseProbeAtlas)
+        using (GlGpuProfiler.Instance.Scope("LumOn.Frame"))
         {
-            RenderProbeAtlasTracePass(primaryFb);
-        }
-        else
-        {
-            RenderProbeTracePass(primaryFb);
-        }
-        EndTimerQuery();
+            // === Pass 0: HZB depth pyramid ===
+            using (GlGpuProfiler.Instance.Scope("LumOn.HZB"))
+            {
+                BuildHzb(primaryFb);
+            }
 
-        // === Pass 3: Temporal Accumulation ===
-        BeginTimerQuery(3);
-        if (config.UseProbeAtlas)
-        {
-            RenderProbeAtlasTemporalPass();
-        }
-        else
-        {
-            RenderSHTemporalPass();
-        }
-        EndTimerQuery();
+            // === Pass 1: Probe Anchor ===
+            using (GlGpuProfiler.Instance.Scope("LumOn.Anchor"))
+            {
+                RenderProbeAnchorPass(primaryFb);
+            }
 
-        // === Pass 3.5: Probe-Atlas Filter/Denoise (Probe-space) ===
-        BeginTimerQuery(4);
-        if (config.UseProbeAtlas)
-        {
-            RenderProbeAtlasFilterPass();
-        }
-        EndTimerQuery();
+            // === Pass 2: Probe Trace ===
+            using (GlGpuProfiler.Instance.Scope("LumOn.Trace"))
+            {
+                if (config.UseProbeAtlas)
+                {
+                    RenderProbeAtlasTracePass(primaryFb);
+                }
+                else
+                {
+                    RenderProbeTracePass(primaryFb);
+                }
+            }
 
-        // === Pass 3.75: Probe-Atlas Projection (Option B) ===
-        BeginTimerQuery(5);
-        if (config.UseProbeAtlas && config.ProbeAtlasGather == LumOnConfig.ProbeAtlasGatherMode.EvaluateProjectedSH)
-        {
-            RenderProbeAtlasProjectSh9Pass();
-        }
-        EndTimerQuery();
+            // === Pass 3: Temporal Accumulation ===
+            using (GlGpuProfiler.Instance.Scope("LumOn.Temporal"))
+            {
+                if (config.UseProbeAtlas)
+                {
+                    RenderProbeAtlasTemporalPass();
+                }
+                else
+                {
+                    RenderSHTemporalPass();
+                }
+            }
 
-        // === Pass 4: Gather ===
-        BeginTimerQuery(6);
-        RenderGatherPass(primaryFb);
-        EndTimerQuery();
+            // === Pass 3.5: Probe-Atlas Filter/Denoise (Probe-space) ===
+            if (config.UseProbeAtlas)
+            {
+                using (GlGpuProfiler.Instance.Scope("LumOn.AtlasFilter"))
+                {
+                    RenderProbeAtlasFilterPass();
+                }
+            }
+
+            // === Pass 3.75: Probe-Atlas Projection (Option B) ===
+            if (config.UseProbeAtlas && config.ProbeAtlasGather == LumOnConfig.ProbeAtlasGatherMode.EvaluateProjectedSH)
+            {
+                using (GlGpuProfiler.Instance.Scope("LumOn.AtlasProjectSH9"))
+                {
+                    RenderProbeAtlasProjectSh9Pass();
+                }
+            }
+
+            // === Pass 4: Gather ===
+            using (GlGpuProfiler.Instance.Scope("LumOn.Gather"))
+            {
+                RenderGatherPass(primaryFb);
+            }
+        }
 
         // === Pass 5: Upsample ===
-        BeginTimerQuery(7);
-        RenderUpsamplePass(primaryFb);
-        EndTimerQuery();
+        using (GlGpuProfiler.Instance.Scope("LumOn.Upsample"))
+        {
+            RenderUpsamplePass(primaryFb);
+        }
 
         // Pass 6 (combine) is handled by PBRCompositeRenderer.
-
-        timerQueryPending = true;
 
         // Store current view-projection matrix for next frame
         Array.Copy(currentViewProjMatrix, prevViewProjMatrix, 16);
@@ -1090,49 +1084,20 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     #endregion
 
-    #region GPU Timer Queries
+    #region GPU Profiling
 
-    private void BeginTimerQuery(int passIndex)
+    private void UpdateGpuTimingCountersFromProfiler()
     {
-        if (!timerQueriesInitialized || passIndex < 0 || passIndex >= timerQueries.Length)
-            return;
-
-        GL.BeginQuery(QueryTarget.TimeElapsed, timerQueries[passIndex]);
-    }
-
-    private void EndTimerQuery()
-    {
-        GL.EndQuery(QueryTarget.TimeElapsed);
-    }
-
-    private void CollectTimerQueryResults()
-    {
-        if (!timerQueryPending || !timerQueriesInitialized)
-            return;
-
-        // Check if results are available (avoid stalls)
-        GL.GetQueryObject(timerQueries[^1], GetQueryObjectParam.QueryResultAvailable, out int available);
-        if (available == 0)
-            return;
-
-        // Collect all timing results
-        for (int i = 0; i < timerQueries.Length; i++)
-        {
-            GL.GetQueryObject(timerQueries[i], GetQueryObjectParam.QueryResult, out long nanoseconds);
-            float ms = nanoseconds / 1_000_000f;
-
-            switch (i)
-            {
-                case 0: debugCounters.HzbPassMs = ms; break;
-                case 1: debugCounters.ProbeAnchorPassMs = ms; break;
-                case 2: debugCounters.ProbeTracePassMs = ms; break;
-                case 3: debugCounters.TemporalPassMs = ms; break;
-                case 4: debugCounters.ProbeAtlasFilterPassMs = ms; break;
-                case 5: debugCounters.ProbeAtlasProjectionPassMs = ms; break;
-                case 6: debugCounters.GatherPassMs = ms; break;
-                case 7: debugCounters.UpsamplePassMs = ms; break;
-            }
-        }
+        // Sample resolved GPU profiler values. These typically represent a recent completed frame,
+        // matching the intent of the legacy "collect results next frame" approach.
+        UpdateCounter("LumOn.HZB", v => debugCounters.HzbPassMs = v);
+        UpdateCounter("LumOn.Anchor", v => debugCounters.ProbeAnchorPassMs = v);
+        UpdateCounter("LumOn.Trace", v => debugCounters.ProbeTracePassMs = v);
+        UpdateCounter("LumOn.Temporal", v => debugCounters.TemporalPassMs = v);
+        UpdateCounter("LumOn.AtlasFilter", v => debugCounters.ProbeAtlasFilterPassMs = v);
+        UpdateCounter("LumOn.AtlasProjectSH9", v => debugCounters.ProbeAtlasProjectionPassMs = v);
+        UpdateCounter("LumOn.Gather", v => debugCounters.GatherPassMs = v);
+        UpdateCounter("LumOn.Upsample", v => debugCounters.UpsamplePassMs = v);
 
         debugCounters.TotalFrameMs =
             debugCounters.HzbPassMs +
@@ -1143,8 +1108,14 @@ public class LumOnRenderer : IRenderer, IDisposable
             debugCounters.ProbeAtlasProjectionPassMs +
             debugCounters.GatherPassMs +
             debugCounters.UpsamplePassMs;
+    }
 
-        timerQueryPending = false;
+    private static void UpdateCounter(string name, Action<float> setter)
+    {
+        if (GlGpuProfiler.Instance.TryGetStats(name, out var stats))
+        {
+            setter(stats.LastMs);
+        }
     }
 
     #endregion
@@ -1160,12 +1131,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         {
             capi.Render.DeleteMesh(quadMeshRef);
             quadMeshRef = null;
-        }
-
-        if (timerQueriesInitialized)
-        {
-            GL.DeleteQueries(timerQueries.Length, timerQueries);
-            timerQueriesInitialized = false;
         }
     }
 
