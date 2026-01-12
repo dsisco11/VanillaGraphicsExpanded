@@ -102,9 +102,9 @@ Phase 16 - PBR Direct Lighting Pass System (Opaque @ RenderOrder = 9.0)
 
   Phase 16.6 - Disable PBROverlay System
   Exit artifacts: pbr-overlay no longer runs and hotkey toggle is inert/unregistered.
-    ☐ Stop registering PBROverlayRenderer in ModSystem
-    ☐ Stop registering/compiling pbroverlay shader program (optional, but preferred)
-    ☐ Remove hotkey handler registration for overlay toggle
+    ✔ Stop registering PBROverlayRenderer in ModSystem
+    ✔ Stop registering/compiling pbroverlay shader program (optional, but preferred)
+    ✔ Remove hotkey handler registration for overlay toggle
 
   Phase 16.7 - Debug Views + Diagnostics
   Exit artifacts: new buffers are inspectable and timed.

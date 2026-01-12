@@ -18,7 +18,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     private SSGIBufferManager? ssgiBufferManager;
     private SSGISceneCaptureRenderer? ssgiSceneCaptureRenderer;
     private SSGIRenderer? ssgiRenderer;
-    private PBROverlayRenderer? pbrOverlayRenderer;
     private DirectLightingBufferManager? directLightingBufferManager;
     private DirectLightingRenderer? directLightingRenderer;
     private PBRCompositeRenderer? pbrCompositeRenderer;
@@ -29,8 +28,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     private LumOnBufferManager? lumOnBufferManager;
     private LumOnRenderer? lumOnRenderer;
     private LumOnDebugRenderer? lumOnDebugRenderer;
-
-    private DebugOverlayRenderer? debugOverlayRenderer;
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
@@ -118,10 +115,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
             pbrCompositeRenderer?.Dispose();
             pbrCompositeRenderer = null;
 
-            pbrOverlayRenderer?.Dispose();
-            pbrOverlayRenderer = null;
-            debugOverlayRenderer = null;
-
             // Dispose LumOn components
             lumOnDebugRenderer?.Dispose();
             lumOnDebugRenderer = null;
@@ -164,9 +157,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
 
     private static bool LoadShaders(ICoreClientAPI api)
     {
-        // PBR overlay shader
-        PBROverlayShaderProgram.Register(api);
-
         // PBR direct lighting shader
         PBRDirectLightingShaderProgram.Register(api);
 
