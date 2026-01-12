@@ -261,3 +261,61 @@ LumOn Functional Test Coverage:
       - Composite_RoughnessIncreasesSpecularLobeWidth (proxy check via output response)
       ✔ Composite_AO_ReducesIndirectInCreases @done
       - Composite_BentNormal_ReducesSkyOcclusionIndoors (or a minimal deterministic scene)
+
+    Phase 16 - Bent Normal Signal Generation (New)
+    Goal: Produce a stable, deterministic “bent normal” (or equivalent visibility direction) signal
+    that can be fed into Phase 15 compositing, so bent-normal shading is based on real scene occlusion
+    rather than a placeholder heuristic.
+
+    Exit artifacts: A bent-normal signal exists per-pixel (and/or per-probe) with:
+      - Clear definition of coordinate space (WS vs VS) and encoding
+      - Stable output across frames (temporal stabilization as needed)
+      - Plumbed into the Phase 15 composite split
+      - Debug visualization modes and GPU functional tests
+
+    Work items:
+    ☐ Decide bent-normal source + representation:
+      - Option A (screen-space): per-pixel bent normal from multi-direction screen-space visibility
+        - Sample a small set of directions around the shading normal
+        - Accumulate unoccluded directions weighted by cosine/solid-angle to produce bent normal
+      - Option B (probe-derived): per-probe bent normal from Screen-Probe Atlas meta/hit distances
+        - Estimate dominant visibility direction per probe, then gather/interpolate to pixels
+      - Representation:
+        - Store bent normal as unit vector (octahedral encoding recommended) + optional cone angle
+        - Define fallback behavior when confidence is low (use geometric normal)
+
+    ☐ Add buffer(s) in LumOnBufferManager:
+      - Allocate bent normal target(s):
+        - Full-res: BentNormalTex (RGBA16F or RG16F oct-encoded)
+        - Optional half-res variant if generated alongside indirectHalf
+      - If temporal: BentNormalHistoryTex + meta to stabilize across frames
+
+    ☐ Add new shader pass (or extend an existing pass) to generate bent normals:
+      - New shader pair suggestion: lumon_bent_normal.vsh / lumon_bent_normal.fsh
+      - Inputs:
+        - primaryDepth, gBufferNormal
+        - (optional) ScreenProbeAtlas radiance/hitdist/meta and/or indirectHalf alpha weight
+      - Outputs:
+        - bentNormal (encoded)
+        - (optional) bentConeAngle or confidence
+
+    ☐ Temporal stabilization (if needed):
+      - Reproject previous bent normal using existing matrices
+      - Reject history on depth/normal mismatch (reuse thresholds)
+      - Clamp/normalize to keep unit length
+
+    ☐ Composite plumbing:
+      - Bind bent normal texture into Phase 15 composite path
+      - Replace placeholder “bend toward up” heuristic with sampled bent normal
+      - Ensure behavior is gated behind EnableBentNormal and falls back cleanly
+
+    ☐ Debug modes + visualization:
+      - BentNormalDirection (RGB visualization in view/world space)
+      - BentNormalVsGeometricNormal (difference heatmap)
+      - BentNormalConfidence / ConeAngle visualization (if implemented)
+
+    ☐ GPU functional tests:
+      - BentNormal_UnitLength_OrValidFallback
+      - BentNormal_OccluderBendsAwayFromBlockedDirections (minimal deterministic occluder)
+      - BentNormal_TemporalStableUnderStaticCamera
+      - BentNormal_RejectionOnDisocclusion
