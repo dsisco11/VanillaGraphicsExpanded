@@ -49,6 +49,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     private readonly float[] modelViewMatrix = new float[16];
     private readonly float[] prevViewProjMatrix = new float[16];
     private readonly float[] currentViewProjMatrix = new float[16];
+    private readonly float[] invCurrentViewProjMatrix = new float[16];
 
     // Frame counter for ray jittering
     private int frameIndex;
@@ -235,6 +236,10 @@ public class LumOnRenderer : IRenderer, IDisposable
             isFirstFrame = true;
         }
 
+        // History validity for this frame must be decided before we potentially clear/reset it.
+        // If history is invalid, velocity should be marked invalid regardless of matrix values.
+        bool historyValid = !isFirstFrame;
+
         // Handle first frame (no valid history)
         if (isFirstFrame)
         {
@@ -249,6 +254,10 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Update matrices
         UpdateMatrices();
+
+        // Generate velocity buffer early so downstream temporal consumers can sample it.
+        // This pass is safe even if not yet used by all temporal shaders.
+        RenderVelocityPass(primaryFb, historyValid);
 
         using (GlGpuProfiler.Instance.Scope("LumOn.Frame"))
         {
@@ -379,6 +388,34 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Compute current view-projection matrix for next frame's reprojection
         MatrixHelper.Multiply(projectionMatrix, modelViewMatrix, currentViewProjMatrix);
+
+        // Compute inverse current view-projection for depth-based reprojection.
+        MatrixHelper.Invert(currentViewProjMatrix, invCurrentViewProjMatrix);
+    }
+
+    private void RenderVelocityPass(FrameBufferRef primaryFb, bool historyValid)
+    {
+        if (bufferManager.VelocityFbo is null)
+            return;
+
+        var shader = ShaderRegistry.getProgramByName("lumon_velocity") as LumOnVelocityShaderProgram;
+        if (shader is null || shader.LoadError)
+            return;
+
+        bufferManager.VelocityFbo.BindWithViewport();
+        bufferManager.VelocityFbo.Clear();
+
+        capi.Render.GlToggleBlend(false);
+        shader.Use();
+
+        shader.PrimaryDepth = primaryFb.DepthTextureId;
+        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
+        shader.InvCurrViewProjMatrix = invCurrentViewProjMatrix;
+        shader.PrevViewProjMatrix = prevViewProjMatrix;
+        shader.HistoryValid = historyValid ? 1 : 0;
+
+        capi.Render.RenderMesh(quadMeshRef);
+        shader.Stop();
     }
 
     /// <summary>

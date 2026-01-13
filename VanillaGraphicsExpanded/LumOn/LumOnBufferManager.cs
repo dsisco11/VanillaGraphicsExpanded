@@ -140,6 +140,14 @@ public sealed class LumOnBufferManager : IDisposable
     private Rendering.GBuffer? capturedSceneFbo;
 
     // ═══════════════════════════════════════════════════════════════
+    // Reprojection Velocity Buffer (Phase 14)
+    // RGBA32F: RG = velocityUv, A = uintBitsToFloat(flags)
+    // ═══════════════════════════════════════════════════════════════
+
+    private DynamicTexture? velocityTex;
+    private Rendering.GBuffer? velocityFbo;
+
+    // ═══════════════════════════════════════════════════════════════
     // Depth Pyramid / HZB
     // ═══════════════════════════════════════════════════════════════
 
@@ -390,6 +398,16 @@ public sealed class LumOnBufferManager : IDisposable
     public DynamicTexture? CapturedSceneTex => capturedSceneTex;
 
     /// <summary>
+    /// FBO for velocity output (full resolution).
+    /// </summary>
+    public Rendering.GBuffer? VelocityFbo => velocityFbo;
+
+    /// <summary>
+    /// Velocity texture (RGBA32F): RG = velocityUv, A = packed flags.
+    /// </summary>
+    public DynamicTexture? VelocityTex => velocityTex;
+
+    /// <summary>
     /// HZB depth pyramid texture (mipmapped R32F), mip 0 matches screen size.
     /// </summary>
     public DynamicTexture? HzbDepthTex => hzbDepthTex;
@@ -502,6 +520,9 @@ public sealed class LumOnBufferManager : IDisposable
         screenProbeAtlasHistoryFbo?.BindAndClear();
         screenProbeAtlasFilteredFbo?.BindAndClear();
         probeSh9Fbo?.BindAndClear();
+
+        // Clear velocity output (debug/temporal safety on resets)
+        velocityFbo?.BindAndClear();
 
         // Restore previous framebuffer
         Rendering.GBuffer.RestoreBinding(previousFbo);
@@ -656,6 +677,15 @@ public sealed class LumOnBufferManager : IDisposable
         capturedSceneFbo = Rendering.GBuffer.CreateSingle(capturedSceneTex);
 
         // ═══════════════════════════════════════════════════════════════
+        // Velocity Buffer (Phase 14)
+        // NOTE: Packed uintBitsToFloat flags require a 32-bit float channel.
+        // We use RGBA32F for simplicity and correctness.
+        // ═══════════════════════════════════════════════════════════════
+
+        velocityTex = DynamicTexture.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba32f, TextureFilterMode.Nearest);
+        velocityFbo = Rendering.GBuffer.CreateSingle(velocityTex);
+
+        // ═══════════════════════════════════════════════════════════════
         // HZB Depth Pyramid (mipmapped R32F)
         // ═══════════════════════════════════════════════════════════════
 
@@ -714,6 +744,7 @@ public sealed class LumOnBufferManager : IDisposable
         indirectHalfFbo?.Dispose();
         indirectFullFbo?.Dispose();
         capturedSceneFbo?.Dispose();
+        velocityFbo?.Dispose();
         screenProbeAtlasTraceFbo?.Dispose();
         screenProbeAtlasCurrentFbo?.Dispose();
         screenProbeAtlasHistoryFbo?.Dispose();
@@ -735,6 +766,7 @@ public sealed class LumOnBufferManager : IDisposable
         indirectHalfFbo = null;
         indirectFullFbo = null;
         capturedSceneFbo = null;
+        velocityFbo = null;
         screenProbeAtlasTraceFbo = null;
         screenProbeAtlasCurrentFbo = null;
         screenProbeAtlasHistoryFbo = null;
@@ -755,6 +787,7 @@ public sealed class LumOnBufferManager : IDisposable
         indirectHalfTex?.Dispose();
         indirectFullTex?.Dispose();
         capturedSceneTex?.Dispose();
+        velocityTex?.Dispose();
         screenProbeAtlasTraceTex?.Dispose();
         screenProbeAtlasCurrentTex?.Dispose();
         screenProbeAtlasHistoryTex?.Dispose();
@@ -787,6 +820,7 @@ public sealed class LumOnBufferManager : IDisposable
         indirectHalfTex = null;
         indirectFullTex = null;
         capturedSceneTex = null;
+        velocityTex = null;
         screenProbeAtlasTraceTex = null;
         screenProbeAtlasCurrentTex = null;
         screenProbeAtlasHistoryTex = null;

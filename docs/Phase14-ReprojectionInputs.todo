@@ -19,12 +19,12 @@ Exit artifacts:
   - A consistent velocity convention (UV delta per frame) used across passes.
 
 Work items:
-  ☐ Identify all temporal consumers that would benefit from motion (ProbeAtlasTemporal, UpsampleTemporal if applicable).
-  ☐ Document existing reprojection inputs in each shader (prev/current matrices, depth, normals, hitdist/meta).
-  ☐ Decide velocity representation:
+  ✔ Identify all temporal consumers that would benefit from motion (ProbeAtlasTemporal, UpsampleTemporal if applicable).
+  ✔ Document existing reprojection inputs in each shader (prev/current matrices, depth, normals, hitdist/meta).
+  ✔ Decide velocity representation:
       - vec2 velocityUv (currentUV - prevUV)
       - coordinate space (UV vs NDC) and Y direction conventions
-  ☐ Define a shared include contract:
+  ✔ Define a shared include contract:
       - ComputePrevUvFromDepth(...)
       - ComputeVelocityUvFromDepth(...)
       - Helpers for bounds checks and NaN/inf safety
@@ -36,11 +36,12 @@ Exit artifacts:
   - Temporal shaders can access prev/current matrices every frame.
 
 Work items:
-  ☐ Add persistent storage for previous camera matrices in the renderer (at minimum prevViewProj).
-  ☐ Define update timing:
+  ✔ Add persistent storage for previous camera matrices in the renderer (at minimum prevViewProj).
+  ✔ Define update timing:
       - Ensure prev matrices represent the frame whose history textures were rendered.
       - Update prev matrices after completing the frame’s passes.
   ☐ Handle edge cases:
+  ✔ Handle edge cases:
       - First frame: mark history invalid / force reset
       - Resizes: force reset and/or invalidate prev matrices
       - Camera teleports / large delta: optional force reset
@@ -52,15 +53,16 @@ Exit artifacts:
   - Reasonable behavior at depth discontinuities and invalid depth.
 
 Work items:
-  ☐ Confirm depth input format for reconstruction (primary depth texture, linear vs non-linear).
-  ☐ Implement velocity reconstruction math:
+  ✔ Confirm depth input format for reconstruction (primary depth texture, linear vs non-linear).
+  ✔ Implement velocity reconstruction math:
       - Reconstruct world/view position from current depth + invCurrentViewProj
       - Project into previous clip space using prevViewProj
       - Convert to prevUV and compute velocityUv = currUV - prevUV
-  ☐ Add robustness:
+  ✔ Add robustness:
       - Guard against invalid depth (0/1 sentinel), NaN propagation
       - Clamp or mark invalid when prevW <= 0 or prevUV out of bounds
-  ☐ Decide whether to store velocity in a texture (optional) vs compute on the fly in each pass.
+  ✔ Decide whether to store velocity in a texture (optional) vs compute on the fly in each pass.
+    - Decision: allocate a dedicated velocity texture and store validity flags using uintBitsToFloat packing (like probe-atlas meta).
 
 
 Phase 14.4 - Temporal Integration (Meta-Aware)
