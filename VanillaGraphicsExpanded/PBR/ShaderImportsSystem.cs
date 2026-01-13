@@ -5,6 +5,7 @@ using System.Threading;
 
 using TinyTokenizer.Ast;
 
+using TinyPreprocessor;
 using TinyPreprocessor.Core;
 
 using Vintagestory.API.Common;
@@ -31,6 +32,8 @@ public sealed class ShaderImportsSystem
 
     private ILogger? _logger;
     private ShaderSyntaxTreePreprocessor? _preprocessor;
+
+    internal ILogger? Logger => _logger;
 
     // Private constructor for singleton pattern
     private ShaderImportsSystem() { }
@@ -140,6 +143,27 @@ public sealed class ShaderImportsSystem
 
         outputTree = result.Content;
         return true;
+    }
+
+    /// <summary>
+    /// Runs import preprocessing and returns the raw preprocessor result (diagnostics, source map, etc.).
+    /// Intended for higher-level helpers such as <see cref="GlslPreprocessor"/>.
+    /// </summary>
+    /// <remarks>
+    /// Only valid after <see cref="Initialize"/> has been called on the client.
+    /// </remarks>
+    internal PreprocessResult<SyntaxTree> ProcessImports(SyntaxTree tree, string sourceName, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(tree);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceName);
+
+        if (_preprocessor is null)
+        {
+            throw new InvalidOperationException("ShaderImportsSystem was not initialized (preprocessor unavailable)");
+        }
+
+        var rootId = new ResourceId($"{DefaultDomain}:shaders/{sourceName}");
+        return _preprocessor.Process(rootId, tree, context: null, options: null, ct);
     }
 }
 

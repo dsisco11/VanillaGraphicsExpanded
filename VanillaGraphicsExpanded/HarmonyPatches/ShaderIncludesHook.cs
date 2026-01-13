@@ -24,6 +24,9 @@ public static class ShaderIncludesHook
     private static ILogger? _logger;
     private static IAssetManager? _assetManager;
 
+    // NOTE (deferred): Once VGE shader programs inline imports themselves (VgeShaderProgram + ShaderSourceCode),
+    // this hook should likely skip VGE-owned programs to avoid double-processing.
+
     /// <summary>
     /// Initializes the hook with dependencies.
     /// Called from ShaderPatches.Apply().
@@ -131,11 +134,10 @@ public static class ShaderIncludesHook
         // Stage 2: Inline imports
         if (inlineImports)
         {
-            if (ShaderImportsSystem.Instance.TryPreprocessImports(tree, shaderName, out var processedTree, _logger))
-            {
-                tree = processedTree;
-                hasChanges = true;
-            }
+            // Import inlining is VGE-owned and safe for VGE shaders; vanilla patch injection remains separate.
+            var preprocess = GlslPreprocessor.InlineImports(tree, shaderName, _logger);
+            tree = preprocess.OutputTree;
+            hasChanges |= preprocess.HadImports;
         }
         // Stage 3: Post-processing (after imports are inlined)
         if (postProcess)

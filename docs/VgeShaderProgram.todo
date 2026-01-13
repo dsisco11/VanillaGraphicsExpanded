@@ -26,12 +26,12 @@ VGE - Unified Shader Base (VgeShaderProgram) + Source Pipeline:
 
   Phase 2 - Public Import Processing Helper:
   Exit artifacts: Import expansion logic is callable from shader code without duplicating private Harmony-hook helpers.
-  ☐ Extract a public helper/service named `GlslPreprocessor` that runs:
+  ✔ Extract a public helper/service named `GlslPreprocessor` that runs: @done
     - parse GLSL → SyntaxTree
     - preprocess imports (ShaderImportsSystem.Instance + TinyPreprocessor)
     - return (SyntaxTree, diagnostics, source map)
-  ☐ Keep vanilla patch injection logic separate and opt-in (VGE shaders will not call it)
-  ☐ Add code comment noting double-processing risk with existing Harmony hook (decision deferred)
+  ✔ Keep vanilla patch injection logic separate and opt-in (VGE shaders will not call it) @done
+  ✔ Add code comment noting double-processing risk with existing Harmony hook (decision deferred) @done
 
 
   Phase 3 - Implement `ShaderSourceCode`:
