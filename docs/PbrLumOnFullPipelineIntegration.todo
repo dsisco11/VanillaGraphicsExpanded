@@ -232,10 +232,15 @@ Exit artifacts: A definitive list of shader programs used + their required unifo
 
 Phase 2 - Add Missing GPU Shader Coverage (Only If Needed)
 Exit artifacts: All required shaders compile/link in the test harness.
-  ☐ If no existing helper exists, add compile helpers for:
+  ✔ If no existing helper exists, add compile helpers for:
     - pbr_direct_lighting
     - pbr_composite
-  ☐ Add a quick “shader compiles and links” smoke test if any program fails to compile
+    Notes:
+      - Added shared helper: VanillaGraphicsExpanded.Tests/GPU/Helpers/PbrShaderPrograms.cs
+      - Uses the same inline vertex shader approach as existing GPU tests (matches test quad layout)
+  ✔ Add a quick “shader compiles and links” smoke test if any program fails to compile
+    Notes:
+      - Not required right now: PBR compile/link is already exercised by VanillaGraphicsExpanded.Tests/GPU/PbrDirectLightingFunctionalTests.cs
 
 
 Phase 3 - Deterministic Input Scene Setup
