@@ -245,18 +245,34 @@ Exit artifacts: All required shaders compile/link in the test harness.
 
 Phase 3 - Deterministic Input Scene Setup
 Exit artifacts: Reusable deterministic textures for the entire pipeline.
-  ☐ Create deterministic primary inputs:
+  ✔ Create deterministic primary inputs:
     - primarySceneColor (RGBA16F): constant mid-gray
     - primaryDepth (R32F): constant depth (avoid sky behavior unless explicitly tested)
     - gBufferNormal (RGBA16F): constant +Z normal (encoded)
     - gBufferMaterial (RGBA16F): choose roughness/metallic/emissive/reflectivity constants
     - gBufferAlbedo (RGBA16F): constant or simple 2-color pattern
-  ☐ Create deterministic history inputs for temporal:
+    Notes:
+      - Added helper: VanillaGraphicsExpanded.Tests/GPU/Helpers/PbrLumOnPipelineInputFactory.cs
+      - Encodes normals to [0,1] to match lumonDecodeNormal + direct lighting decode
+      - gBufferMaterial layout matches pbr_direct_lighting.fsh: R=roughness, G=metallic, B=emissiveScalar, A=reflectivity
+      - Recommended baseline values for the integration test:
+        - primaryDepth=0.5 (non-sky, stable)
+        - normalWS=(0,0,1) encoded
+        - material=(roughness=0.5, metallic=0.0, emissive=0.0, reflectivity=1.0)
+        - albedo/baseColor=(0.6, 0.4, 0.2)
+  ✔ Create deterministic history inputs for temporal:
     - atlasHistoryRadiance (RGBA16F): uniform low value
     - atlasHistoryMeta (RG32F): uniform confidence/flags
     - radianceHistory (if SH path is touched): uniform
-  ☐ Lock down fixed matrices:
+    Notes:
+      - RG32F meta history generator writes (confidence, uintBitsToFloat(flags))
+      - For one-frame deterministic runs, recommended metaHistory confidence is 0.0 so temporal chooses current
+      - radianceHistory (SH) is intentionally omitted for the atlas-gather path
+  ✔ Lock down fixed matrices:
     - view / invProjection (identity or the existing deterministic matrices used in other tests)
+    Notes:
+      - Use identity view + realistic projection/invProjection from LumOnTestInputFactory
+      - Velocity uses invCurrViewProjMatrix=invProjection and prevViewProjMatrix=projection for zero motion
 
 
 Phase 4 - Allocate Intermediate Render Targets (Match Production)
