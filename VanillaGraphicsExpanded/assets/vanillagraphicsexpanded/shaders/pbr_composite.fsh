@@ -60,7 +60,10 @@ void main(void)
     // Sky: skip indirect + fog
     if (lumonIsSky(depth))
     {
-        outColor = vec4(max(finalColor, vec3(0.0)), 1.0);
+        // Direct lighting pass outputs 0 for sky/background by design.
+        // Preserve the base scene color here (sky shader output lives in gBufferAlbedo).
+        vec3 skyColor = texture(gBufferAlbedo, uv).rgb;
+        outColor = vec4(max(skyColor, vec3(0.0)), 1.0);
         return;
     }
 
