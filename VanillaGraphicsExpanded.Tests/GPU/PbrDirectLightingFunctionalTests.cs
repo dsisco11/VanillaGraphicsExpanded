@@ -100,12 +100,14 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             var dd = ReadPixelFromAttachment(output, 0);
 
             // With N=V=L and dielectric metallic=0:
-            // FresnelSchlick(1, F0) = F0, kD = (1-F0), diffuseBrdf = kD*baseColor/pi.
+            // FresnelSchlick(1, F0) = F0, kD = (1-F0), diffuseBrdf = kD*baseColor.
+            // NOTE: The shader intentionally does not apply 1/PI because the engine's light inputs
+            // are not calibrated as physical radiance.
             float F0 = 0.04f;
             float kd = 1.0f - F0;
-            float expectedR = kd * baseColor.r / MathF.PI;
-            float expectedG = kd * baseColor.g / MathF.PI;
-            float expectedB = kd * baseColor.b / MathF.PI;
+            float expectedR = kd * baseColor.r;
+            float expectedG = kd * baseColor.g;
+            float expectedB = kd * baseColor.b;
 
             AssertNear(expectedR, dd.R, 3e-2f);
             AssertNear(expectedG, dd.G, 3e-2f);
