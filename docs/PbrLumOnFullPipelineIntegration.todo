@@ -277,25 +277,30 @@ Exit artifacts: Reusable deterministic textures for the entire pipeline.
 
 Phase 4 - Allocate Intermediate Render Targets (Match Production)
 Exit artifacts: Every pass has an explicitly owned RT with correct size/format.
-  ☐ Allocate PBR Direct MRT outputs:
+  ✔ Allocate PBR Direct MRT outputs:
     - directDiffuse, directSpecular, emissive (RGBA16F)
-  ☐ Allocate velocity (RGBA32F)
-  ☐ Allocate HZB depth pyramid (R32F mip chain) + FBO for downsample writes
-  ☐ Allocate probe anchor outputs:
+  ✔ Allocate velocity (RGBA32F)
+  ✔ Allocate HZB depth pyramid (R32F mip chain) + FBO for downsample writes
+  ✔ Allocate probe anchor outputs:
     - probeAnchorPosition (RGBA16F)
     - probeAnchorNormal (RGBA16F)
-  ☐ Allocate atlas outputs:
+  ✔ Allocate atlas outputs:
     - atlasTraceRadiance (RGBA16F)
     - atlasTraceMeta (RG32F)
     - atlasCurrentRadiance (RGBA16F)
     - atlasCurrentMeta (RG32F)
     - atlasFilteredRadiance (RGBA16F)
     - atlasFilteredMeta (RG32F) (if used)
-  ☐ Allocate gather output:
+  ✔ Allocate gather output:
     - indirectHalf (RGBA16F, half-res)
-  ☐ Allocate upsample output:
+  ✔ Allocate upsample output:
     - indirectFull (RGBA16F, full-res)
-  ☐ Allocate final composite output RT (RGBA16F)
+  ✔ Allocate final composite output RT (RGBA16F)
+    Notes:
+      - Added allocators:
+        - VanillaGraphicsExpanded.Tests/GPU/Helpers/PbrLumOnPipelineTargets.cs
+        - VanillaGraphicsExpanded.Tests/GPU/Helpers/HzbTestPyramid.cs
+      - Sizes follow the spec: 4×4 screen, 2×2 half-res, 2×2 probe grid, 16×16 atlas
 
 
 Phase 5 - Execute Full Pipeline (One Frame)
