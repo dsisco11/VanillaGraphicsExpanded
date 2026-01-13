@@ -6,8 +6,9 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal static class GlDebug
 {
 #if DEBUG
-    private static bool DebugGroupsEnabled =>
-        string.Equals(Environment.GetEnvironmentVariable("VGE_GL_DEBUG_GROUPS"), "1", StringComparison.Ordinal);
+    private const bool DebugGroupsEnabled = true;
+#else
+    private const bool DebugGroupsEnabled = false;
 #endif
 
     public static void TrySuppressGroupDebugMessages()

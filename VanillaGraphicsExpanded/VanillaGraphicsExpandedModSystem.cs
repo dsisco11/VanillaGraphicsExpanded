@@ -3,6 +3,7 @@ using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Profiling;
 
@@ -51,6 +52,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         capi = api;
 
         GlDebug.TrySuppressGroupDebugMessages();
+
+        // Register GPU debug label renderers to wrap all VS render stages
+        GpuDebugLabelManager.Register(api);
 
         GlGpuProfiler.Instance.Initialize(api);
         gpuProfilerRenderer = new GlGpuProfilerRenderer(api);
@@ -111,6 +115,12 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         try
         {
             VgeDebugViewManager.Dispose();
+
+            // Unregister GPU debug label renderers
+            if (capi != null)
+            {
+                GpuDebugLabelManager.Unregister(capi);
+            }
 
             gpuProfilerRenderer?.Dispose();
             gpuProfilerRenderer = null;
