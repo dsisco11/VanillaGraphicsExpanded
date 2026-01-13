@@ -36,15 +36,15 @@ VGE - Unified Shader Base (VgeShaderProgram) + Source Pipeline:
 
   Phase 3 - Implement `ShaderSourceCode`:
   Exit artifacts: One class owns the full stage pipeline: load → parse → import inline → define inject → emit GLSL.
-  ☐ Add `ShaderSourceCode` (path + stage) with:
+  ✔ Add `ShaderSourceCode` (path + stage) with: @done
     - StageSourceName = `${shaderName}.${ext}` (canonical)
     - Load raw stage source text
     - Parse to SyntaxTree
     - Inline `@import`
     - Inject defines into AST after `#version`
     - Emit final GLSL source string
-  ☐ Store preprocessing source-map (and any boundary/location mapping data) alongside emitted GLSL
-  ☐ Note: if we run any post-string transforms (e.g., StripNonAscii), mapping offsets may drift
+  ✔ Store preprocessing source-map (and any boundary/location mapping data) alongside emitted GLSL @done
+  ✔ Note: if we run any post-string transforms (e.g., StripNonAscii), mapping offsets may drift @done
 
 
   Phase 4 - Implement `VgeShaderProgram` Base:
