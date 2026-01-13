@@ -18,10 +18,10 @@ VGE - Unified Shader Base (VgeShaderProgram) + Source Pipeline:
 
   Phase 1 - Design + API Alignment:
   Exit artifacts: We know exactly where compilation fits in the engine base class and what VGE owns vs engine owns.
-  ☐ Identify the exact engine shader base class used by current VGE shader programs (type + key methods)
-  ☐ Decide the minimal override surface for `VgeShaderProgram` (compile/link hooks, disposal, reload)
-  ☐ Confirm `ShaderSourceCode` loads stage sources via the usual AssetManager system (domain, root resource id shape)
-  ☐ Decide where `setDefine()` is allowed to be called (thread requirements; render thread safety)
+  ✔ Identify the exact engine shader base class used by current VGE shader programs: `Vintagestory.Client.NoObf.ShaderProgram` @done
+  ✔ Decide minimal override surface for `VgeShaderProgram`: no engine overrides required; expose a unified `CompileAndLink()` + optional `OnAfterCompile()` hook for derived programs needing cache refresh @done
+  ✔ Confirm `ShaderSourceCode` loads stage sources via the usual AssetManager system (`ICoreAPI.Assets`) @done
+  ✔ Decide `setDefine()` thread requirements: allow calls from any thread, but schedule recompiles onto the main thread via `ICoreClientAPI.Event.EnqueueMainThreadTask` (GL context safety) @done
 
 
   Phase 2 - Public Import Processing Helper:
