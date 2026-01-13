@@ -1,0 +1,98 @@
+VGE - Unified Shader Base (VgeShaderProgram) + Source Pipeline:
+
+  Goal:
+  Create a unified `VgeShaderProgram` base class for all VGE shaders, plus a `ShaderSourceCode` helper that:
+    - loads stage files (vsh/fsh/gsh) from assets
+    - parses into a SyntaxTree
+    - expands `@import` via ShaderImportsSystem / TinyPreprocessor
+    - injects any define statements into the SyntaxTree after the `#version` directive
+    - stashes the preprocessor source-map to enable future error remapping
+
+  Notes / Constraints:
+    - Stage source name == shader name + stage extension (e.g., `lumon_combine.fsh`)
+    - Shader debug label name == shader name (same stem as stage source names)
+    - Our VGE shaders only need import handling; no vanilla shader patch injections
+    - Defer: decide how to avoid double-processing with existing Harmony import hook (make a note in code)
+    - Define injection must be placed after `#version` directive (AST-aware, not string prepend)
+
+
+  Phase 1 - Design + API Alignment:
+  Exit artifacts: We know exactly where compilation fits in the engine base class and what VGE owns vs engine owns.
+  ☐ Identify the exact engine shader base class used by current VGE shader programs (type + key methods)
+  ☐ Decide the minimal override surface for `VgeShaderProgram` (compile/link hooks, disposal, reload)
+  ☐ Confirm `ShaderSourceCode` loads stage sources via the usual AssetManager system (domain, root resource id shape)
+  ☐ Decide where `setDefine()` is allowed to be called (thread requirements; render thread safety)
+
+
+  Phase 2 - Public Import Processing Helper:
+  Exit artifacts: Import expansion logic is callable from shader code without duplicating private Harmony-hook helpers.
+  ☐ Extract a public helper/service named `GlslPreprocessor` that runs:
+    - parse GLSL → SyntaxTree
+    - preprocess imports (ShaderImportsSystem.Instance + TinyPreprocessor)
+    - return (SyntaxTree, diagnostics, source map)
+  ☐ Keep vanilla patch injection logic separate and opt-in (VGE shaders will not call it)
+  ☐ Add code comment noting double-processing risk with existing Harmony hook (decision deferred)
+
+
+  Phase 3 - Implement `ShaderSourceCode`:
+  Exit artifacts: One class owns the full stage pipeline: load → parse → import inline → define inject → emit GLSL.
+  ☐ Add `ShaderSourceCode` (path + stage) with:
+    - StageSourceName = `${shaderName}.${ext}` (canonical)
+    - Load raw stage source text
+    - Parse to SyntaxTree
+    - Inline `@import`
+    - Inject defines into AST after `#version`
+    - Emit final GLSL source string
+  ☐ Store preprocessing source-map (and any boundary/location mapping data) alongside emitted GLSL
+  ☐ Note: if we run any post-string transforms (e.g., StripNonAscii), mapping offsets may drift
+
+
+  Phase 4 - Implement `VgeShaderProgram` Base:
+  Exit artifacts: `VgeShaderProgram` compiles/links programs and sets GPU debug labels consistently.
+  ☐ Add `VgeShaderProgram` inheriting the same engine base class as existing programs
+  ☐ Add define map + `setDefine(name, value)`:
+    - only triggers recompile when value actually changes
+    - define injection happens via `ShaderSourceCode` AST merge
+  ☐ Compile/link path:
+    - build ShaderSourceCode per stage used by the program (vsh/fsh/(gsh optional))
+    - set stage sources onto the engine program in the appropriate fields
+    - call compile + link
+  ☐ Apply GL debug label after successful link (program object)
+
+
+  Phase 5 - Migrate Existing Shaders:
+  Exit artifacts: All VGE shader programs inherit `VgeShaderProgram` and compile through the unified pipeline.
+  ☐ Update LumOn shader programs to inherit `VgeShaderProgram`
+  ☐ Update PBR shader programs to inherit `VgeShaderProgram`
+  ☐ Ensure any shader-specific post-compile work re-runs after recompile (uniform location caches, etc.)
+
+
+  Phase 6 - Reload / Recompile Behavior:
+  Exit artifacts: Recompile-on-define works and integrates cleanly with the existing shader reload event.
+  ☐ Ensure `setDefine()` recompiles safely (no GL calls off render thread)
+  ☐ Ensure shader reload event still recompiles all VGE shaders successfully
+  ☐ Confirm import inlining is not run twice for VGE shaders (decision deferred; document outcome)
+
+
+  Phase 7 - Diagnostics + Source Map Remapping (Deferred Investigation):
+  Exit artifacts: A clear path to mapping GL compiler errors back to original imported files.
+  ☐ Investigate whether we can capture per-shader GL compiler errors/info-log at runtime
+    - If only engine captures logs, explore how to hook it (if possible)
+  ☐ If we can get (line, column) from GL errors:
+    - map generated location → generated offset
+    - query preprocessor source-map → original resource + location
+    - report enriched errors with original file + line
+  ☐ Decide whether to embed `#line` directives vs maintain sidecar source maps
+
+
+  Phase 8 - Tests + Documentation:
+  Exit artifacts: The new pipeline is covered by unit tests and documented for future shader additions.
+  ☐ Add unit tests for `ShaderSourceCode`:
+    - imports expand correctly
+    - defines inserted after `#version`
+    - source-map exists for merged output
+  ☐ Add unit tests for `VgeShaderProgram` define-change detection (no recompile when unchanged)
+  ☐ Add short developer doc describing:
+    - how to add a new shader program
+    - how imports work
+    - how defines work (and constraints around `#version`)
