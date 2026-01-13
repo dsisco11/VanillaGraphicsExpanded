@@ -117,6 +117,11 @@ public class LumOnDebugShaderProgram : ShaderProgram
     /// </summary>
     public int Emissive { set => BindTexture2D("emissive", value, 17); }
 
+    /// <summary>
+    /// Full-resolution velocity texture (RGBA32F): RG = velocityUv, A = packed flags.
+    /// </summary>
+    public int VelocityTex { set => BindTexture2D("velocityTex", value, 18); }
+
     #endregion
 
     #region Size Uniforms
@@ -187,6 +192,12 @@ public class LumOnDebugShaderProgram : ShaderProgram
     /// Normal rejection threshold (dot product).
     /// </summary>
     public float NormalRejectThreshold { set => Uniform("normalRejectThreshold", value); }
+
+    /// <summary>
+    /// Velocity magnitude scale used by velocity debug views.
+    /// Typically set to config.VelocityRejectThreshold.
+    /// </summary>
+    public float VelocityRejectThreshold { set => Uniform("velocityRejectThreshold", value); }
 
     #endregion
 

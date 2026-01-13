@@ -47,6 +47,9 @@ out vec4 outColor;
 // Import probe-atlas meta helpers for mode 14
 @import "./includes/lumon_probe_atlas_meta.glsl"
 
+// Phase 14 velocity helpers
+@import "./includes/velocity_common.glsl"
+
 // Phase 15: composite math (shared with lumon_combine)
 @import "./includes/lumon_pbr.glsl"
 
@@ -80,6 +83,9 @@ uniform sampler2D directDiffuse;
 uniform sampler2D directSpecular;
 uniform sampler2D emissive;
 
+// Phase 14: velocity buffer (RGBA32F)
+uniform sampler2D velocityTex;
+
 // Matrices
 uniform mat4 invProjectionMatrix;
 
@@ -96,6 +102,9 @@ uniform float zFar;
 uniform float temporalAlpha;
 uniform float depthRejectThreshold;
 uniform float normalRejectThreshold;
+
+// Phase 14: velocity debug scaling
+uniform float velocityRejectThreshold;
 
 // Matrices for reprojection
 uniform mat4 invViewMatrix;
@@ -264,6 +273,64 @@ vec3 heatmap(float t) {
         c = mix(vec3(1.0, 1.0, 0.0), vec3(1.0, 0.0, 0.0), (t - 0.75) * 4.0);
     }
     return c;
+}
+
+// ============================================================================
+// Debug Mode 26-28: Velocity Debug Views (Phase 14)
+// ============================================================================
+
+vec4 renderVelocityMagnitudeDebug()
+{
+    vec4 velSample = texture(velocityTex, uv);
+    vec2 v = lumonVelocityDecodeUv(velSample);
+    uint flags = lumonVelocityDecodeFlags(velSample);
+
+    if (!lumonVelocityIsValid(flags))
+    {
+        // Invalid velocity: dark red.
+        return vec4(0.25, 0.0, 0.0, 1.0);
+    }
+
+    float mag = lumonVelocityMagnitude(v);
+    float denom = max(velocityRejectThreshold, 1e-6);
+    float t = clamp(mag / denom, 0.0, 1.0);
+    return vec4(heatmap(t), 1.0);
+}
+
+vec4 renderVelocityValidityDebug()
+{
+    vec4 velSample = texture(velocityTex, uv);
+    uint flags = lumonVelocityDecodeFlags(velSample);
+
+    if (lumonVelocityIsValid(flags))
+    {
+        // Valid: green
+        return vec4(0.0, 1.0, 0.0, 1.0);
+    }
+
+    // Invalid: show a reason tint when available.
+    if ((flags & LUMON_VEL_FLAG_HISTORY_INVALID) != 0u) return vec4(1.0, 0.0, 1.0, 1.0); // magenta
+    if ((flags & LUMON_VEL_FLAG_SKY_OR_INVALID_DEPTH) != 0u) return vec4(0.0, 0.5, 1.0, 1.0); // blue
+    if ((flags & LUMON_VEL_FLAG_PREV_BEHIND_CAMERA) != 0u) return vec4(1.0, 0.0, 0.0, 1.0); // red
+    if ((flags & LUMON_VEL_FLAG_PREV_OOB) != 0u) return vec4(1.0, 1.0, 0.0, 1.0); // yellow
+    if ((flags & LUMON_VEL_FLAG_NAN) != 0u) return vec4(0.0, 1.0, 1.0, 1.0); // cyan
+
+    return vec4(0.25, 0.25, 0.25, 1.0);
+}
+
+vec4 renderVelocityPrevUvDebug()
+{
+    vec4 velSample = texture(velocityTex, uv);
+    vec2 v = lumonVelocityDecodeUv(velSample);
+    uint flags = lumonVelocityDecodeFlags(velSample);
+
+    if (!lumonVelocityIsValid(flags))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    vec2 prevUv = uv - v;
+    return vec4(clamp(prevUv, 0.0, 1.0), 0.0, 1.0);
 }
 
 vec3 vgeTonemapReinhard(vec3 c)
@@ -877,6 +944,15 @@ void main(void)
             break;
         case 25:
             outColor = renderDirectTotalDebug();
+            break;
+        case 26:
+            outColor = renderVelocityMagnitudeDebug();
+            break;
+        case 27:
+            outColor = renderVelocityValidityDebug();
+            break;
+        case 28:
+            outColor = renderVelocityPrevUvDebug();
             break;
         default:
             outColor = vec4(1.0, 0.0, 1.0, 1.0);  // Magenta = unknown mode

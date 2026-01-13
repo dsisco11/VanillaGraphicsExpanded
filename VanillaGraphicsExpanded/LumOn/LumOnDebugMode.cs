@@ -46,5 +46,10 @@ public enum LumOnDebugMode
     DirectDiffuse = 22,
     DirectSpecular = 23,
     DirectEmissive = 24,
-    DirectTotal = 25
+    DirectTotal = 25,
+
+    // Phase 14 velocity debug views
+    VelocityMagnitude = 26,
+    VelocityValidity = 27,
+    VelocityPrevUv = 28
 }

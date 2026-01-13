@@ -90,10 +90,10 @@ Exit artifacts:
   - Debug visualization modes for velocity and reprojection validity.
 
 Work items:
-  ☐ Debug view: velocity magnitude heatmap (|velocityUv| scaled)
-  ☐ Debug view: reprojection validity mask (valid/invalid prevUV)
-  ☐ Debug view: “history sample UV” visualization (optional)
-  ☐ On-screen stats/logging for forced resets (resize/teleport)
+  ✔ Debug view: velocity magnitude heatmap (|velocityUv| scaled)
+  ✔ Debug view: reprojection validity mask (valid/invalid prevUV)
+  ✔ Debug view: “history sample UV” visualization (optional)
+  ✔ On-screen stats/logging for forced resets (resize/teleport)
 
 
 Phase 14.6 - GPU Functional Tests

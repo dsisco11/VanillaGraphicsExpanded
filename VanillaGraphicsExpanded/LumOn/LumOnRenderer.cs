@@ -65,6 +65,10 @@ public class LumOnRenderer : IRenderer, IDisposable
     // Debug counters
     private readonly LumOnDebugCounters debugCounters = new();
 
+    // Phase 14.5: reset diagnostics (throttle on-screen notifications)
+    private int lastHistoryResetNotifyFrameIndex = -999999;
+    private string lastHistoryResetNotifyReason = string.Empty;
+
     #endregion
 
     #region Properties
@@ -218,6 +222,9 @@ public class LumOnRenderer : IRenderer, IDisposable
             // Reset temporal state since buffers are new
             isFirstFrame = true;
             capi.Logger.Debug($"[LumOn] Screen resized to {capi.Render.FrameWidth}x{capi.Render.FrameHeight}, skipping frame to stabilize");
+
+            // Phase 14.5: on-screen notification for forced reset (throttled)
+            NotifyHistoryReset("resize");
             return false;
         }
 
@@ -231,7 +238,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Check for teleportation (large camera movement)
         if (DetectTeleport())
         {
-            bufferManager.ClearHistory();
+            bufferManager.InvalidateCache("teleport");
             isFirstFrame = true;
         }
 
@@ -342,6 +349,21 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         frameIndex++;
         return true;
+    }
+
+    private void NotifyHistoryReset(string reason)
+    {
+        // Avoid spamming when resizing window or when multiple subsystems trigger resets.
+        // Require a minimum frame gap and suppress duplicates.
+        const int minFrameGap = 30;
+
+        if (frameIndex - lastHistoryResetNotifyFrameIndex < minFrameGap && lastHistoryResetNotifyReason == reason)
+            return;
+
+        lastHistoryResetNotifyFrameIndex = frameIndex;
+        lastHistoryResetNotifyReason = reason;
+
+        capi.Logger.Notification($"[LumOn] History reset: {reason}");
     }
 
     /// <summary>

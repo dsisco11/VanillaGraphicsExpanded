@@ -211,6 +211,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         shader.DirectSpecular = directLightingBufferManager?.DirectSpecularTex?.TextureId ?? 0;
         shader.Emissive = directLightingBufferManager?.EmissiveTex?.TextureId ?? 0;
 
+        // Phase 14 velocity debug input
+        shader.VelocityTex = bufferManager?.VelocityTex?.TextureId ?? 0;
+
         // Pass uniforms
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
         shader.ProbeGridSize = new Vec2i(bufferManager?.ProbeCountX ?? 0, bufferManager?.ProbeCountY ?? 0);
@@ -224,6 +227,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         shader.TemporalAlpha = config.TemporalAlpha;
         shader.DepthRejectThreshold = config.DepthRejectThreshold;
         shader.NormalRejectThreshold = config.NormalRejectThreshold;
+        shader.VelocityRejectThreshold = config.VelocityRejectThreshold;
 
         // Phase 15 composite params (to match lumon_combine)
         shader.IndirectIntensity = config.Intensity;
@@ -259,7 +263,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private static bool RequiresLumOnBuffers(LumOnDebugMode mode)
     {
         // Anything involving probes/atlases/temporal/indirect assumes LumOn is enabled.
-        return mode is >= LumOnDebugMode.ProbeGrid and <= LumOnDebugMode.CompositeMaterial;
+        return (mode is >= LumOnDebugMode.ProbeGrid and <= LumOnDebugMode.CompositeMaterial)
+            || (mode is >= LumOnDebugMode.VelocityMagnitude and <= LumOnDebugMode.VelocityPrevUv);
     }
 
     #endregion
