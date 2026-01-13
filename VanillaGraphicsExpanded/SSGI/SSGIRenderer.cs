@@ -11,8 +11,7 @@ namespace VanillaGraphicsExpanded.SSGI;
 
 /// <summary>
 /// Renderer for Screen-Space Global Illumination (SSGI).
-/// Runs before PBROverlayRenderer to provide indirect lighting that gets composited
-/// before PBR direct lighting calculations.
+/// Legacy renderer for Screen-Space Global Illumination (SSGI).
 /// 
 /// Resolution is configurable via <see cref="ResolutionScale"/> property (0.25 - 1.0).
 /// Uses depth-only temporal reprojection for noise reduction.
@@ -29,7 +28,7 @@ public class SSGIRenderer : IRenderer, IDisposable
     #region Constants
 
     /// <summary>
-    /// Render order - must be lower than PBROverlayRenderer (1.0) to run first.
+    /// Render order for AfterBlit stage renderers.
     /// </summary>
     private const double RENDER_ORDER = 0.5;
     private const int RENDER_RANGE = 1;
@@ -192,7 +191,7 @@ public class SSGIRenderer : IRenderer, IDisposable
         quadMesh.Rgba = null;
         quadMeshRef = capi.Render.UploadMesh(quadMesh);
 
-        // Register renderer - runs before PBROverlayRenderer
+        // Register renderer (AfterBlit)
         capi.Event.RegisterRenderer(this, EnumRenderStage.AfterBlit, "ssgi");
 
         // Initialize previous frame matrix to identity

@@ -27,7 +27,7 @@ In this repo, vanilla world shaders have been patched so they primarily output *
 
 | Goal                       | Requirement                                                        |
 | -------------------------- | ------------------------------------------------------------------ |
-| Replace the pbr-overlay    | Disable the overlay path (code left temporarily, removal soon)     |
+| Remove legacy pbr-overlay  | Legacy overlay system is removed (no runtime or asset dependency)  |
 | Correct direct lighting    | New pass becomes the authoritative direct lighting producer        |
 | Full PBR from day one      | GGX + Smith + Schlick, metallic/roughness workflow                 |
 | All light sources in scope | Sun/sky, block/point lights, shadows, fog, etc.                    |
@@ -112,33 +112,33 @@ This section is the canonical **data contract** for Phase 16.
 
 ### 3.1.1 Exact bindings (authoritative)
 
-This section is the authoritative *C# → GLSL* binding contract for the direct lighting pass.
+This section is the authoritative _C# → GLSL_ binding contract for the direct lighting pass.
 
 **Texture samplers (GLSL uniform → texture unit → source):**
 
-| GLSL uniform | Unit | Source | Notes |
-|---|---:|---|---|
-| `primaryScene` | 0 | Primary FBO `ColorAttachment0` | `baseColor` in linear space |
-| `primaryDepth` | 1 | Primary FBO depth | Used for sky discard + position reconstruction |
-| `gBufferNormal` | 2 | `GBufferManager.NormalTextureId` (`Attachment4`) | Packed normalWS = `n*0.5+0.5` |
-| `gBufferMaterial` | 3 | `GBufferManager.MaterialTextureId` (`Attachment5`) | `(roughness, metallic, emissive, reflectivity)` |
-| `shadowMapNear` | 4 | `EnumFrameBuffer.ShadowmapNear` depth | Bound for future shadow sampling |
-| `shadowMapFar` | 5 | `EnumFrameBuffer.ShadowmapFar` depth | Bound for future shadow sampling |
+| GLSL uniform      | Unit | Source                                             | Notes                                           |
+| ----------------- | ---: | -------------------------------------------------- | ----------------------------------------------- |
+| `primaryScene`    |    0 | Primary FBO `ColorAttachment0`                     | `baseColor` in linear space                     |
+| `primaryDepth`    |    1 | Primary FBO depth                                  | Used for sky discard + position reconstruction  |
+| `gBufferNormal`   |    2 | `GBufferManager.NormalTextureId` (`Attachment4`)   | Packed normalWS = `n*0.5+0.5`                   |
+| `gBufferMaterial` |    3 | `GBufferManager.MaterialTextureId` (`Attachment5`) | `(roughness, metallic, emissive, reflectivity)` |
+| `shadowMapNear`   |    4 | `EnumFrameBuffer.ShadowmapNear` depth              | Bound for future shadow sampling                |
+| `shadowMapFar`    |    5 | `EnumFrameBuffer.ShadowmapFar` depth               | Bound for future shadow sampling                |
 
 **Uniforms (GLSL uniform → source):**
 
-| GLSL uniform | Source | Notes |
-|---|---|---|
-| `invProjectionMatrix` | `capi.Render.CurrentProjectionMatrix` inverted | View-pos reconstruction |
-| `invModelViewMatrix` | `capi.Render.CameraMatrixOriginf` inverted | World-pos reconstruction (camera-relative) |
-| `cameraOriginFloor` / `cameraOriginFrac` | `capi.World.Player.Entity.CameraPos` split | Stable world reconstruction across large coords |
-| `zNear` / `zFar` | `capi.Render.ShaderUniforms.ZNear/ZFar` | Depth linearization support |
-| `lightDirection` | `capi.Render.ShaderUniforms.SunPosition3D` | Normalized direction toward sun |
-| `rgbaAmbientIn` | `capi.Render.AmbientColor` | Ambient term (currently unused in shader) |
-| `rgbaLightIn` | `ColorUtil.WhiteArgbVec.XYZ` | Directional light color |
-| `pointLightsCount` / `pointLights3[]` / `pointLightColors3[]` | `DefaultShaderUniforms.PointLights*` | Arrays sized `[100]` in shader |
-| `toShadowMapSpaceMatrixNear/Far` | `DefaultShaderUniforms.ToShadowMapSpaceMatrix*` | Bound for future shadow sampling |
-| `shadowRangeNear/Far`, `shadowZExtendNear/Far`, `dropShadowIntensity` | `DefaultShaderUniforms.*` | Bound for future shadow sampling |
+| GLSL uniform                                                          | Source                                          | Notes                                           |
+| --------------------------------------------------------------------- | ----------------------------------------------- | ----------------------------------------------- |
+| `invProjectionMatrix`                                                 | `capi.Render.CurrentProjectionMatrix` inverted  | View-pos reconstruction                         |
+| `invModelViewMatrix`                                                  | `capi.Render.CameraMatrixOriginf` inverted      | World-pos reconstruction (camera-relative)      |
+| `cameraOriginFloor` / `cameraOriginFrac`                              | `capi.World.Player.Entity.CameraPos` split      | Stable world reconstruction across large coords |
+| `zNear` / `zFar`                                                      | `capi.Render.ShaderUniforms.ZNear/ZFar`         | Depth linearization support                     |
+| `lightDirection`                                                      | `capi.Render.ShaderUniforms.SunPosition3D`      | Normalized direction toward sun                 |
+| `rgbaAmbientIn`                                                       | `capi.Render.AmbientColor`                      | Ambient term (currently unused in shader)       |
+| `rgbaLightIn`                                                         | `ColorUtil.WhiteArgbVec.XYZ`                    | Directional light color                         |
+| `pointLightsCount` / `pointLights3[]` / `pointLightColors3[]`         | `DefaultShaderUniforms.PointLights*`            | Arrays sized `[100]` in shader                  |
+| `toShadowMapSpaceMatrixNear/Far`                                      | `DefaultShaderUniforms.ToShadowMapSpaceMatrix*` | Bound for future shadow sampling                |
+| `shadowRangeNear/Far`, `shadowZExtendNear/Far`, `dropShadowIntensity` | `DefaultShaderUniforms.*`                       | Bound for future shadow sampling                |
 
 **Numerical stability note:** the pass clamps minimum roughness to `0.04` to avoid GGX singularities overflowing `RGBA16F` outputs.
 
@@ -249,16 +249,7 @@ Operationally:
 
 ---
 
-## 7. Migration plan (pbr-overlay)
-
-The existing `PBROverlayRenderer` path is **disabled** once Phase 16 is active.
-
-- No migration toggle is required.
-- Overlay code is retained temporarily only to support imminent deletion.
-
----
-
-## 8. Debugging and diagnostics
+## 7. Debugging and diagnostics
 
 Phase 16 should expose debug views for:
 
@@ -269,7 +260,7 @@ Phase 16 should expose debug views for:
 
 Additionally, GPU timing queries should include the new direct pass.
 
-### 8.1 Performance baseline (GPU timer)
+### 7.1 Performance baseline (GPU timer)
 
 The direct lighting pass measures GPU time using an OpenGL `TimeElapsed` query in `DirectLightingRenderer`.
 
@@ -280,7 +271,7 @@ This is intended to make Phase 16 performance regressions visible without extern
 
 ---
 
-## 9. GPU functional tests
+## 8. GPU functional tests
 
 Minimum expected GPU tests for Phase 16 (names indicative):
 
@@ -294,7 +285,7 @@ Tests should be deterministic and rely on minimal scenes (single light + known n
 
 ---
 
-## 10. Open questions
+## 9. Open questions
 
 Resolved in this document:
 

@@ -393,7 +393,7 @@ public class ShaderPatchingTests
 
     #endregion
 
-    #region PBROverlay Version Preservation Tests
+    #region Version Preservation Tests
 
     /// <summary>
     /// Tests that the #version directive is preserved after processing imports
@@ -434,11 +434,11 @@ public class ShaderPatchingTests
     }
 
     /// <summary>
-    /// Tests a realistic pbroverlay-like shader with imports.
-    /// This mimics the actual pbroverlay.fsh structure.
+    /// Tests a realistic fullscreen shader with imports.
+    /// This mimics the structure used by file shader programs in this repo.
     /// </summary>
     [Fact]
-    public void ProcessImports_PbrOverlayLikeShader_PreservesVersionDirective()
+    public void ProcessImports_FileShaderLikeSource_PreservesVersionDirective()
     {
         const string shader = """
             #version 330 core
