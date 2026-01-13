@@ -578,33 +578,33 @@ public sealed class LumOnBufferManager : IDisposable
         // Create Probe Anchor Buffers
         // ═══════════════════════════════════════════════════════════════
 
-        probeAnchorPositionTex = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        probeAnchorNormalTex = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        probeAnchorFbo = Rendering.GBuffer.CreateMRT(probeAnchorPositionTex, probeAnchorNormalTex);
+        probeAnchorPositionTex = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeAnchorPosition");
+        probeAnchorNormalTex = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeAnchorNormal");
+        probeAnchorFbo = Rendering.GBuffer.CreateMRT("ProbeAnchorFBO", probeAnchorPositionTex, probeAnchorNormalTex);
 
         // ═══════════════════════════════════════════════════════════════
         // Create Radiance Cache Buffers (Trace output)
         // ═══════════════════════════════════════════════════════════════
 
-        radianceTraceTex0 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        radianceTraceTex1 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        radianceTraceFbo = Rendering.GBuffer.CreateMRT(radianceTraceTex0, radianceTraceTex1);
+        radianceTraceTex0 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "RadianceTrace0");
+        radianceTraceTex1 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "RadianceTrace1");
+        radianceTraceFbo = Rendering.GBuffer.CreateMRT("RadianceTraceFBO", radianceTraceTex0, radianceTraceTex1);
 
         // ═══════════════════════════════════════════════════════════════
         // Create Radiance Cache Buffers (Current - temporal output)
         // ═══════════════════════════════════════════════════════════════
 
-        radianceCurrentTex0 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        radianceCurrentTex1 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        radianceCurrentFbo = Rendering.GBuffer.CreateMRT(radianceCurrentTex0, radianceCurrentTex1);
+        radianceCurrentTex0 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "RadianceCurrent0");
+        radianceCurrentTex1 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "RadianceCurrent1");
+        radianceCurrentFbo = Rendering.GBuffer.CreateMRT("RadianceCurrentFBO", radianceCurrentTex0, radianceCurrentTex1);
 
         // ═══════════════════════════════════════════════════════════════
         // Create Radiance Cache Buffers (History)
         // ═══════════════════════════════════════════════════════════════
 
-        radianceHistoryTex0 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        radianceHistoryTex1 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        radianceHistoryFbo = Rendering.GBuffer.CreateMRT(radianceHistoryTex0, radianceHistoryTex1);
+        radianceHistoryTex0 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "RadianceHistory0");
+        radianceHistoryTex1 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "RadianceHistory1");
+        radianceHistoryFbo = Rendering.GBuffer.CreateMRT("RadianceHistoryFBO", radianceHistoryTex0, radianceHistoryTex1);
 
         // ═══════════════════════════════════════════════════════════════
         // Create Screen-Probe Atlas (2D atlas)
@@ -615,46 +615,47 @@ public sealed class LumOnBufferManager : IDisposable
 
         int atlasWidth = probeCountX * 8;
         int atlasHeight = probeCountY * 8;
-        screenProbeAtlasTraceTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f);
-        screenProbeAtlasMetaTraceTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f);
-        screenProbeAtlasTraceFbo = Rendering.GBuffer.CreateMRT([screenProbeAtlasTraceTex, screenProbeAtlasMetaTraceTex], null, ownsTextures: false);
+        screenProbeAtlasTraceTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasTrace");
+        screenProbeAtlasMetaTraceTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaTrace");
+        screenProbeAtlasTraceFbo = Rendering.GBuffer.CreateMRT([screenProbeAtlasTraceTex, screenProbeAtlasMetaTraceTex], null, ownsTextures: false, debugName: "ScreenProbeAtlasTraceFBO");
 
-        screenProbeAtlasCurrentTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f);
-        screenProbeAtlasMetaCurrentTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f);
-        screenProbeAtlasCurrentFbo = Rendering.GBuffer.CreateMRT([screenProbeAtlasCurrentTex, screenProbeAtlasMetaCurrentTex], null, ownsTextures: false);
+        screenProbeAtlasCurrentTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasCurrent");
+        screenProbeAtlasMetaCurrentTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaCurrent");
+        screenProbeAtlasCurrentFbo = Rendering.GBuffer.CreateMRT([screenProbeAtlasCurrentTex, screenProbeAtlasMetaCurrentTex], null, ownsTextures: false, debugName: "ScreenProbeAtlasCurrentFBO");
 
-        screenProbeAtlasHistoryTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f);
-        screenProbeAtlasMetaHistoryTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f);
-        screenProbeAtlasHistoryFbo = Rendering.GBuffer.CreateMRT([screenProbeAtlasHistoryTex, screenProbeAtlasMetaHistoryTex], null, ownsTextures: false);
+        screenProbeAtlasHistoryTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasHistory");
+        screenProbeAtlasMetaHistoryTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaHistory");
+        screenProbeAtlasHistoryFbo = Rendering.GBuffer.CreateMRT([screenProbeAtlasHistoryTex, screenProbeAtlasMetaHistoryTex], null, ownsTextures: false, debugName: "ScreenProbeAtlasHistoryFBO");
 
         // Filtered atlas output (Pass 3.5): derived from temporal output each frame
-        screenProbeAtlasFilteredTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f);
-        screenProbeAtlasMetaFilteredTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f);
-        screenProbeAtlasFilteredFbo = Rendering.GBuffer.CreateMRT([screenProbeAtlasFilteredTex, screenProbeAtlasMetaFilteredTex], null, ownsTextures: false);
+        screenProbeAtlasFilteredTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasFiltered");
+        screenProbeAtlasMetaFilteredTex = DynamicTexture.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaFiltered");
+        screenProbeAtlasFilteredFbo = Rendering.GBuffer.CreateMRT([screenProbeAtlasFilteredTex, screenProbeAtlasMetaFilteredTex], null, ownsTextures: false, debugName: "ScreenProbeAtlasFilteredFBO");
 
         // Probe-atlas → SH9 projection output (Option B)
         // 7 RGBA16F attachments to pack 27 floats (9 RGB coeffs)
-        probeSh9Tex0 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        probeSh9Tex1 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        probeSh9Tex2 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        probeSh9Tex3 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        probeSh9Tex4 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        probeSh9Tex5 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        probeSh9Tex6 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
+        probeSh9Tex0 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_0");
+        probeSh9Tex1 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_1");
+        probeSh9Tex2 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_2");
+        probeSh9Tex3 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_3");
+        probeSh9Tex4 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_4");
+        probeSh9Tex5 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_5");
+        probeSh9Tex6 = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_6");
         probeSh9Fbo = Rendering.GBuffer.CreateMRT(
             [probeSh9Tex0, probeSh9Tex1, probeSh9Tex2, probeSh9Tex3, probeSh9Tex4, probeSh9Tex5, probeSh9Tex6],
             null,
-            ownsTextures: false);
+            ownsTextures: false,
+            debugName: "ProbeSH9FBO");
 
         // ═══════════════════════════════════════════════════════════════
         // Create Probe Metadata Buffers (for temporal validation)
         // ═══════════════════════════════════════════════════════════════
 
-        probeMetaCurrentTex = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        probeMetaCurrentFbo = Rendering.GBuffer.CreateSingle(probeMetaCurrentTex);
+        probeMetaCurrentTex = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeMetaCurrent");
+        probeMetaCurrentFbo = Rendering.GBuffer.CreateSingle(probeMetaCurrentTex, debugName: "ProbeMetaCurrentFBO");
 
-        probeMetaHistoryTex = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f);
-        probeMetaHistoryFbo = Rendering.GBuffer.CreateSingle(probeMetaHistoryTex);
+        probeMetaHistoryTex = DynamicTexture.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeMetaHistory");
+        probeMetaHistoryFbo = Rendering.GBuffer.CreateSingle(probeMetaHistoryTex, debugName: "ProbeMetaHistoryFBO");
 
         // Create temporal output FBO (MRT: writes to current radiance + current meta)
         CreateTemporalOutputFbo();
@@ -663,18 +664,18 @@ public sealed class LumOnBufferManager : IDisposable
         // Create Indirect Diffuse Output Buffers
         // ═══════════════════════════════════════════════════════════════
 
-        indirectHalfTex = DynamicTexture.Create(halfResWidth, halfResHeight, PixelInternalFormat.Rgba16f);
-        indirectHalfFbo = Rendering.GBuffer.CreateSingle(indirectHalfTex);
+        indirectHalfTex = DynamicTexture.Create(halfResWidth, halfResHeight, PixelInternalFormat.Rgba16f, debugName: "IndirectHalf");
+        indirectHalfFbo = Rendering.GBuffer.CreateSingle(indirectHalfTex, debugName: "IndirectHalfFBO");
 
-        indirectFullTex = DynamicTexture.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba16f);
-        indirectFullFbo = Rendering.GBuffer.CreateSingle(indirectFullTex);
+        indirectFullTex = DynamicTexture.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba16f, debugName: "IndirectFull");
+        indirectFullFbo = Rendering.GBuffer.CreateSingle(indirectFullTex, debugName: "IndirectFullFBO");
 
         // ═══════════════════════════════════════════════════════════════
         // Create Captured Scene Buffer
         // ═══════════════════════════════════════════════════════════════
 
-        capturedSceneTex = DynamicTexture.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear);
-        capturedSceneFbo = Rendering.GBuffer.CreateSingle(capturedSceneTex);
+        capturedSceneTex = DynamicTexture.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear, debugName: "CapturedScene");
+        capturedSceneFbo = Rendering.GBuffer.CreateSingle(capturedSceneTex, debugName: "CapturedSceneFBO");
 
         // ═══════════════════════════════════════════════════════════════
         // Velocity Buffer (Phase 14)
@@ -682,8 +683,8 @@ public sealed class LumOnBufferManager : IDisposable
         // We use RGBA32F for simplicity and correctness.
         // ═══════════════════════════════════════════════════════════════
 
-        velocityTex = DynamicTexture.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba32f, TextureFilterMode.Nearest);
-        velocityFbo = Rendering.GBuffer.CreateSingle(velocityTex);
+        velocityTex = DynamicTexture.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba32f, TextureFilterMode.Nearest, debugName: "Velocity");
+        velocityFbo = Rendering.GBuffer.CreateSingle(velocityTex, debugName: "VelocityFBO");
 
         // ═══════════════════════════════════════════════════════════════
         // HZB Depth Pyramid (mipmapped R32F)
@@ -693,7 +694,7 @@ public sealed class LumOnBufferManager : IDisposable
         int mipLevels = 1;
         while ((maxDim >>= 1) > 0) mipLevels++;
 
-        hzbDepthTex = DynamicTexture.CreateMipmapped(screenWidth, screenHeight, PixelInternalFormat.R32f, mipLevels);
+        hzbDepthTex = DynamicTexture.CreateMipmapped(screenWidth, screenHeight, PixelInternalFormat.R32f, mipLevels, debugName: "HZBDepth");
         hzbFboId = GL.GenFramebuffer();
 
         isInitialized = true;
@@ -724,7 +725,8 @@ public sealed class LumOnBufferManager : IDisposable
         temporalOutputFbo = Rendering.GBuffer.CreateMRT(
             [radianceCurrentTex0, radianceCurrentTex1, probeMetaCurrentTex],
             null,
-            ownsTextures: false  // Textures owned by radianceCurrentFbo and probeMetaCurrentFbo
+            ownsTextures: false,  // Textures owned by radianceCurrentFbo and probeMetaCurrentFbo
+            debugName: "TemporalOutputFBO"
         );
     }
 

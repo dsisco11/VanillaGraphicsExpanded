@@ -178,9 +178,9 @@ public sealed class DirectLightingBufferManager : IDisposable
         capi.Logger.Notification($"[VGE] Creating direct lighting buffers: {width}x{height}");
 
         // Create output textures (all RGBA16F for HDR)
-        directDiffuseTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f);
-        directSpecularTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f);
-        emissiveTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f);
+        directDiffuseTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "DirectDiffuse");
+        directSpecularTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "DirectSpecular");
+        emissiveTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "Emissive");
 
         // Validate texture creation
         if (directDiffuseTex == null || !directDiffuseTex.IsValid ||
@@ -196,7 +196,8 @@ public sealed class DirectLightingBufferManager : IDisposable
         directLightingFbo = GBuffer.CreateMRT(
             [directDiffuseTex, directSpecularTex, emissiveTex],
             depthTexture: null,
-            ownsTextures: false);
+            ownsTextures: false,
+            debugName: "DirectLightingFBO");
 
         if (directLightingFbo == null || !directLightingFbo.IsValid)
         {

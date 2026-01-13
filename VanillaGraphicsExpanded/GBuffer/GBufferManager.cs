@@ -108,6 +108,9 @@ public sealed class GBufferManager : IDisposable
             lastHeight = height;
         }
 
+        // Label VS framebuffer and textures for debugging
+        LabelVintageStoryFramebuffer(primaryFb);
+
         // Inject our textures into the framebuffers array
         // Need to expand the ColorTextureIds array to hold our attachments
         primaryFb.ColorTextureIds = [..primaryFb.ColorTextureIds, NormalTextureId, MaterialTextureId];
@@ -312,16 +315,50 @@ public sealed class GBufferManager : IDisposable
 
     #region Private Methods
 
+    /// <summary>
+    /// Labels the VS primary framebuffer and its textures for easier debugging.
+    /// </summary>
+    private void LabelVintageStoryFramebuffer(FrameBufferRef fb)
+    {
+#if DEBUG
+        // Label the framebuffer itself
+        GlDebug.TryLabelFramebuffer(fb.FboId, "VS_Primary");
+
+        // Label color attachments
+        if (fb.ColorTextureIds != null)
+        {
+            for (int i = 0; i < fb.ColorTextureIds.Length && i < 4; i++)
+            {
+                string texName = i switch
+                {
+                    0 => "VS_outColor",
+                    1 => "VS_outGlow",
+                    2 => "VS_outGNormal",
+                    3 => "VS_outGPosition",
+                    _ => $"VS_Color{i}"
+                };
+                GlDebug.TryLabelTexture2D(fb.ColorTextureIds[i], texName);
+            }
+        }
+
+        // Label depth attachment
+        if (fb.DepthTextureId != 0)
+        {
+            GlDebug.TryLabelTexture2D(fb.DepthTextureId, "VS_Depth");
+        }
+#endif
+    }
+
     private void CreateGBufferTextures(int width, int height)
     {
         // Delete old textures if they exist
         DeleteTextures();
 
         // Create Normal texture (RGBA16F)
-        normalTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f);
+        normalTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "gNormal");
 
         // Create Material texture (RGBA16F) - Roughness, Metallic, Emissive, Reflectivity
-        materialTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f);
+        materialTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "gMaterial");
 
         isInitialized = true;
         capi.Logger.Notification($"[VGE] Created G-buffer textures: {width}x{height}");
