@@ -4,427 +4,371 @@ Issues:
   ☐ Unsure if hole filling is working as intended.
   ☐ All unit tests should implement cancellation tokens.
 
-LumOn Functional Test Coverage:
+LumOn → Lumen Alignment Work (Screen-Space Pipeline):
 
-  Phase 4 - High Priority Missing Tests:
-    Probe Trace Shaders (SH & Screen-Probe Atlas):
-      ✔ RayHit_ReturnsSceneColor - Verify actual geometry hits return scene color (not just sky miss) @done
-      ✔ DistanceFalloff_AppliedToHitRadiance - Test distance attenuation on hit radiance @done
-      ✔ RaySteps_AffectsTraceQuality - Verify step count effect on ray march quality @done
-      ✔ SunContribution_AddedToSkyMiss - Test sunDir/sunColor contribution to sky @done
-      ✔ IndirectTint_AppliedToHitRadiance - Test tint on hit radiance (not just sky) @done
-    Temporal Shaders (SH & Screen-Probe Atlas):
-      ✔ DepthRejection_TriggersAtThreshold - Test boundary at exact depthRejectThreshold @done
-      ✔ NormalRejection_TriggersAtThreshold - Test boundary at exact normalRejectThreshold @done
-      ✔ HistoryOutOfBounds_UsesCurrentFrame - Test UV reprojection bounds rejection @done
-      ✔ NeighborhoodClamping_PreventsGhosting - Verify clamp effect on blended result @done
-      ✔ InvalidProbe_OutputsCurrentWithZeroMeta - Explicit radiance passthrough for invalid probes @done
-    Gather Shaders (SH & Screen-Probe Atlas):
-      ✔ DepthSigma_AffectsWeightFalloff - Test depthSigma uniform on weight calculation @done
-      ✔ NormalSigma_AffectsWeightFalloff - Test normalSigma uniform on weight calculation @done
-      ✔ EdgeProbe_ReducedWeight - Test partial validity (0.5) weight reduction @done
-      ✔ AllProbesInvalid_OutputsZero - Verify totalWeight < 0.001 case @done
+  Reference:
+  - docs/LumOn.08-Pipeline-Alignment-with-Lumen.md (Section 6 target pipeline)
 
-  Phase 5 - Medium Priority Missing Tests:
-    Probe Trace Shaders:
-      ✔ FrameIndex_JittersTexelSelection - Test multi-frame jitter pattern @done
-      ✔ TexelsPerFrame_AffectsTemporalDistribution - Test different temporal distribution values @done
-      ✔ RayExitsScreen_TerminatesEarly - Test ray leaving screen boundary @done
-      ✔ InvViewMatrix_TransformsDirectionsCorrectly - Verify world-to-view transform accuracy @done
-    Temporal Screen-Probe Atlas Shader:
-      ✔ HitDistanceRejectThreshold_TriggersDisocclusion - Test threshold boundary behavior @done
-      ✔ NeighborhoodClamping_ClampsToBounds - Verify specific clamp min/max behavior @done
-      ✔ ZeroHistoryHitDistance_RejectedAsInvalid - Test near-zero history detection @done
-    Gather Screen-Probe Atlas Shader:
-      ✔ SampleStride_AffectsQuality - Test stride 1 vs 2 quality difference @done
-      ✔ LeakThreshold_PreventsBleeding - Test leak prevention logic @done
-      ✔ HemisphereBackface_SkippedCorrectly - Test cosWeight <= 0.0 rejection @done
-    Upsample Shader:
-      ✔ DenoiseDisabled_UsesSimpleBilinear - Test denoiseEnabled=0 fast path @done
-      ✔ SpatialSigma_AffectsDenoising - Test upsampleSpatialSigma uniform @done
-      ✔ DepthEdge_ReducesCrossBlending - Test bilateral filter at sharp depth edges @done
-    Combine Shader:
-      ✔ IndirectTint_ColorsIndirectLight - Test indirectTint uniform application @done
-      ✔ PartialMetallic_BlendsDiffuse - Test mid-range metallic (0.5) behavior @done
-    Debug Shader - Untested Modes:
-      ✔ Mode3_ProbeNormals - Test renderProbeNormalDebug() @done
-      ✔ Mode6_TemporalWeight - Test renderTemporalWeightDebug() @done
-      ✔ Mode7_TemporalRejection - Test renderTemporalRejectionDebug() @done
-      ✔ Mode9_InterpolationWeights - Test renderInterpolationWeightsDebug() @done
+  Dependency order notes:
+  - Pass 0 (HZB) modifies the tracer, so if we do it, do it before adding confidence + temporal/filter tuning.
+  - Confidence must exist before: temporal-confidence blending, probe-space filtering, and cheaper gather projections.
+  - Probe-space filtering must exist before any gather path that assumes "stable" probe radiance.
 
-  Phase 6 - Low Priority Missing Tests:
-    Error Handling & Edge Cases:
-      ✔ ZeroRaysPerProbe_HandledGracefully - Edge case: 0 rays per probe @done
-      ✔ ZeroTemporalAlpha_PassesThroughCurrent - Edge case: α=0 passthrough @done
-      ✔ ZeroBilinearWeight_HandledCorrectly - Edge case: pixel at exact grid corner @done
-      ✔ HalfResSmallerThanExpected_HandledGracefully - Buffer size mismatch @done
-      ✔ NaNInput_ProducesValidOutput - Numeric stability with NaN inputs @done
+  Target pipeline:
+    0. (New) Depth pyramid / HZB (optional, recommended)
+    1. Probe Anchor (with jitter)
+    2. Screen-Probe Atlas Trace (radiance + hitdist + meta)
+    3. Screen-Probe Atlas Temporal (expanded to use meta)
+    3.5 (New) Probe-space filter/denoise (edge-stopped)
+    4. Gather (cheaper)
+    5. Upsample (optional spatial denoise)
+    6. Combine (optional)
 
-  LumOn → Lumen Alignment Work (Screen-Space Pipeline)
+  Phase 7 - Pass 1: Probe Anchor Jitter
+  Exit artifacts: Probe anchor pass supports jitter (frameIndex plumbing + optional config toggles); probe anchors remain MRT posWS/normalWS.
+  ✔ Add `frameIndex` uniform support to probe anchor program + plumbing from LumOnRenderer @done
+  ✔ Implement sub-pixel / sub-cell jitter in lumon_probe_anchor.fsh probe sample UV @done
+  ✔ Ensure jitter is deterministic per-frame and stable across screen resize (use existing `Squirrel3Hash` for deterministic jitter) @done
+  ✔ Add config toggles/params (optional): EnableAnchorJitter, JitterScale @done
+  ✔ Add debug visualization: show jittered sample locations (optional) @done
+  ✔ Add GPU functional test: AnchorJitter_ChangesSampleLocation_Deterministically @done
 
-    Reference:
-    - docs/LumOn.08-Pipeline-Alignment-with-Lumen.md (Section 6 target pipeline)
+  Phase 8 - Pass 0 (Optional/Recommended): Depth Pyramid / HZB
+  Exit artifacts: Depth pyramid textures exist per frame; screen-probe tracer can consume HZB for traversal/refinement.
+  ✔ Add depth pyramid builder:
+    - generate mip chain from primaryDepth each frame
+    - store as a set of textures or layered atlas @done
+  ✔ Update lumon_probe_trace_octahedral.fsh to use HZB for faster/more robust hits
+    - hierarchical stepping and/or binary refinement near hit @done
+  ✔ Add GPU functional tests:
+    - HZB_BuildProducesMonotonicDepthMips
+    - Trace_HZBMatchesBaselineHitInSimpleScene @done
 
-    Dependency order notes:
-    - Pass 0 (HZB) modifies the tracer, so if we do it, do it before adding confidence + temporal/filter tuning.
-    - Confidence must exist before: temporal-confidence blending, probe-space filtering, and cheaper gather projections.
-    - Probe-space filtering must exist before any gather path that assumes "stable" probe radiance.
+  Phase 9.0 - Naming/Refactor: Screen-Probe Atlas Terminology
+  Exit artifacts: Public-facing names and file/class identifiers use “ScreenProbeAtlas” (or similar) instead of “Octahedral”, while octahedral remains an implementation detail for the mapping math.
+  ✔ Define naming conventions: @done
+    - Prefer “ScreenProbeAtlas” / “ProbeAtlas” for pipeline stages and textures
+    - Keep “octahedral” only for mapping utilities (e.g., lumon_octahedral.glsl)
+  ✔ Rename C# buffer/texture identifiers in LumOnBufferManager: @done
+    - Octahedral*Tex* → ScreenProbeAtlas* (Trace/Current/History)
+    - FBO fields similarly (Octahedral*Fbo → ScreenProbeAtlas*Fbo)
+  ✔ Rename C# shader program classes / properties: @done
+    - LumOnOctahedralTraceShaderProgram → LumOnScreenProbeAtlasTraceShaderProgram
+    - LumOnTemporalOctahedralShaderProgram → LumOnScreenProbeAtlasTemporalShaderProgram
+    - Any “OctahedralHistory/Current” uniform property names to “ProbeAtlas*” where appropriate
+  ✔ Rename renderer pass methods/labels: @done
+    - RenderOctahedralTrace / RenderOctahedralTemporal → RenderProbeAtlasTrace / RenderProbeAtlasTemporal
+    - Debug mode names updated to “ProbeAtlas*”
+  ✔ Rename GPU tests (class + filenames) to match pipeline naming: @done
+    - *Octahedral*Tests → *ProbeAtlas*Tests (keep shader filenames unchanged initially)
+  ✔ Rename shader filenames after plumbing is stable: @done
+    - lumon_probe_trace_octahedral.* → lumon_probe_atlas_trace.*
+    - lumon_temporal_octahedral.* → lumon_probe_atlas_temporal.*
+    - lumon_gather_octahedral.* → lumon_probe_atlas_gather.*
+    - Keep the mapping include named lumon_octahedral.glsl
+  ✔ Update references/asset copy rules for renamed shader files (tests csproj content include patterns) @done
+  ✔ Verify: build + GPU tests still pass after renames @done
 
-    Target pipeline:
-      0. (New) Depth pyramid / HZB (optional, recommended)
-      1. Probe Anchor (with jitter)
-      2. Screen-Probe Atlas Trace (radiance + hitdist + meta)
-      3. Screen-Probe Atlas Temporal (expanded to use meta)
-      3.5 (New) Probe-space filter/denoise (edge-stopped)
-      4. Gather (cheaper)
-      5. Upsample (optional spatial denoise)
-      6. Combine (optional)
+  Phase 9 - Pass 2: Screen-Probe Atlas Meta Output
+  Exit artifacts: Screen-probe trace outputs radiance/hitdist plus meta (confidence + bitflags); history preservation applies to meta too.
+  ✔ Decide meta storage: @done
+    - Add a second atlas texture attachment: RG32F (R=confidence, G=uintBitsToFloat(flags))
+    - Shared include: define bit flags + pack/unpack helpers in a .glsl include (e.g., lumon_probe_atlas_meta.glsl)
+  ✔ Add shader include: lumon_probe_atlas_meta.glsl @done
+    - const uint flags (Hit, SkyMiss, ScreenExit, EarlyTerminated, ThicknessUncertain, etc.)
+    - vec2 EncodeMeta(float confidence, uint flags)
+    - void DecodeMeta(vec2 meta, out float confidence, out uint flags)
+  ✔ Update LumOnBufferManager: @done
+    - allocate ScreenProbeAtlasMetaTraceTex (+ FBO attachment)
+    - allocate ScreenProbeAtlasMetaCurrentTex / ScreenProbeAtlasMetaHistoryTex (for temporal/history)
+  ✔ Update shader program bindings + renderer pass wiring: @done
+    - trace pass writes MRT (radiance+hitdist, meta)
+    - bind meta history input to trace pass so non-traced texels preserve history
+  ✔ Update lumon_probe_atlas_trace.fsh (implementation detail: octahedral mapping): @done
+    - compute meta for traced texels (hit vs sky, early exit, thickness margin)
+    - output meta for traced texels
+    - preserve meta history for non-traced texels (like radiance)
+  ✔ Add GPU functional tests: @done
+    - Meta_HitHigherThanSky
+    - Meta_RayExitsScreen_LowerConfidence
+    - Meta_NonTracedTexels_PreserveHistory
 
-    Phase 7 - Pass 1: Probe Anchor Jitter
-    Exit artifacts: Probe anchor pass supports jitter (frameIndex plumbing + optional config toggles); probe anchors remain MRT posWS/normalWS.
-    ✔ Add `frameIndex` uniform support to probe anchor program + plumbing from LumOnRenderer @done
-    ✔ Implement sub-pixel / sub-cell jitter in lumon_probe_anchor.fsh probe sample UV @done
-    ✔ Ensure jitter is deterministic per-frame and stable across screen resize (use existing `Squirrel3Hash` for deterministic jitter) @done
-    ✔ Add config toggles/params (optional): EnableAnchorJitter, JitterScale @done
-    ✔ Add debug visualization: show jittered sample locations (optional) @done
-    ✔ Add GPU functional test: AnchorJitter_ChangesSampleLocation_Deterministically @done
+  Phase 10 - Pass 3: Screen-Probe Atlas Temporal Uses Meta
+  Exit artifacts: Screen-probe atlas temporal produces meta-aware stabilized atlases suitable for downstream filtering/gather.
+  ✔ Update lumon_probe_atlas_temporal.fsh (implementation detail: octahedral mapping) to read/write meta (separate texture) @done
+  ✔ Make temporal alpha adaptive using meta confidence (e.g., alpha *= historyConfidence) @done
+  ✔ Make disocclusion/invalid-history decisions consider confidence/flags (not just hit distance) @done
+  ✔ Add debug mode: MetaConfidence / TemporalAlpha visualization @done
+  ✔ Add GPU functional tests: @done
+    - Temporal_MetaReducesHistoryWeight @done
+    - Temporal_LowConfidence_ForcesReset @done
 
-    Phase 8 - Pass 0 (Optional/Recommended): Depth Pyramid / HZB
-    Exit artifacts: Depth pyramid textures exist per frame; screen-probe tracer can consume HZB for traversal/refinement.
-    ✔ Add depth pyramid builder:
-      - generate mip chain from primaryDepth each frame
-      - store as a set of textures or layered atlas @done
-    ✔ Update lumon_probe_trace_octahedral.fsh to use HZB for faster/more robust hits
-      - hierarchical stepping and/or binary refinement near hit @done
-    ✔ Add GPU functional tests:
-      - HZB_BuildProducesMonotonicDepthMips
-      - Trace_HZBMatchesBaselineHitInSimpleScene @done
+  Phase 11 - Pass 3.5: Probe-Space Filter/Denoise (New)
+  Exit artifacts: Filtered atlas exists (radiance/hitdist/confidence as applicable); renderer can choose raw vs filtered as gather input.
+  ✔ Add new shader + program: lumon_probe_atlas_filter.fsh (edge-stopped) @done
+  ✔ Update LumOnBufferManager: @done
+    - allocate filtered atlas (radiance + hitdist + confidence as needed) @done
+    - create filter FBOs @done
+  ✔ Update LumOnRenderer orchestration: insert Pass 3.5 between temporal and gather @done
+  ✔ Implement filtering strategy (start simple, then expand if needed): @done
+    - Angular (within-tile) 3x3 or 5x5 filter with hitdist/confidence weights @done
+    - Optional: spatial (between-probe) filter for same oct texel across neighboring probes
+  ✔ Add GPU functional tests: @done
+    - Filter_ReducesNoise_PreservesEdges @done
+    - Filter_RespectsInvalidProbes @done
+    - Filter_RespectsConfidence @done
 
-    Phase 9.0 - Naming/Refactor: Screen-Probe Atlas Terminology
-    Exit artifacts: Public-facing names and file/class identifiers use “ScreenProbeAtlas” (or similar) instead of “Octahedral”, while octahedral remains an implementation detail for the mapping math.
-    ✔ Define naming conventions: @done
-      - Prefer “ScreenProbeAtlas” / “ProbeAtlas” for pipeline stages and textures
-      - Keep “octahedral” only for mapping utilities (e.g., lumon_octahedral.glsl)
-    ✔ Rename C# buffer/texture identifiers in LumOnBufferManager: @done
-      - Octahedral*Tex* → ScreenProbeAtlas* (Trace/Current/History)
-      - FBO fields similarly (Octahedral*Fbo → ScreenProbeAtlas*Fbo)
-    ✔ Rename C# shader program classes / properties: @done
-      - LumOnOctahedralTraceShaderProgram → LumOnScreenProbeAtlasTraceShaderProgram
-      - LumOnTemporalOctahedralShaderProgram → LumOnScreenProbeAtlasTemporalShaderProgram
-      - Any “OctahedralHistory/Current” uniform property names to “ProbeAtlas*” where appropriate
-    ✔ Rename renderer pass methods/labels: @done
-      - RenderOctahedralTrace / RenderOctahedralTemporal → RenderProbeAtlasTrace / RenderProbeAtlasTemporal
-      - Debug mode names updated to “ProbeAtlas*”
-    ✔ Rename GPU tests (class + filenames) to match pipeline naming: @done
-      - *Octahedral*Tests → *ProbeAtlas*Tests (keep shader filenames unchanged initially)
-    ✔ Rename shader filenames after plumbing is stable: @done
-      - lumon_probe_trace_octahedral.* → lumon_probe_atlas_trace.*
-      - lumon_temporal_octahedral.* → lumon_probe_atlas_temporal.*
-      - lumon_gather_octahedral.* → lumon_probe_atlas_gather.*
-      - Keep the mapping include named lumon_octahedral.glsl
-    ✔ Update references/asset copy rules for renamed shader files (tests csproj content include patterns) @done
-    ✔ Verify: build + GPU tests still pass after renames @done
+  Phase 12 - Pass 4: Cheaper Gather Options
+  Exit artifacts: Gather has a defined “cheap” mode (stride/fewer dirs) and/or a projected-basis path (if implemented) selectable via config.
+  ✔ Decide gather simplification path: @done
+    - add atlas → irradiance basis conversion pass, then gather is cheap @done
+  ✔ Update config: @done
+    ✔ Select gather mode: IntegrateAtlas vs EvaluateProjectedSH @done
+  ✔ If Option B (implemented as SH9): @done
+    ✔ Add new pass: atlas → SH9 projection (per-probe) after temporal+filter @done
+    ✔ Add per-probe SH9 textures + program + buffer manager allocations @done
+    ✔ Add gather shader variant that evaluates SH9 at pixel normal @done
+  ✔ Add GPU functional tests: @done
+    ✔ AtlasToSH_ProjectsKnownAtlasCorrectly @done
+    ✔ Gather_SHFromProjected_StableVsIntegration @done
 
-    Phase 9 - Pass 2: Screen-Probe Atlas Meta Output
-    Exit artifacts: Screen-probe trace outputs radiance/hitdist plus meta (confidence + bitflags); history preservation applies to meta too.
-    ✔ Decide meta storage: @done
-      - Add a second atlas texture attachment: RG32F (R=confidence, G=uintBitsToFloat(flags))
-      - Shared include: define bit flags + pack/unpack helpers in a .glsl include (e.g., lumon_probe_atlas_meta.glsl)
-    ✔ Add shader include: lumon_probe_atlas_meta.glsl @done
-      - const uint flags (Hit, SkyMiss, ScreenExit, EarlyTerminated, ThicknessUncertain, etc.)
-      - vec2 EncodeMeta(float confidence, uint flags)
-      - void DecodeMeta(vec2 meta, out float confidence, out uint flags)
-    ✔ Update LumOnBufferManager: @done
-      - allocate ScreenProbeAtlasMetaTraceTex (+ FBO attachment)
-      - allocate ScreenProbeAtlasMetaCurrentTex / ScreenProbeAtlasMetaHistoryTex (for temporal/history)
-    ✔ Update shader program bindings + renderer pass wiring: @done
-      - trace pass writes MRT (radiance+hitdist, meta)
-      - bind meta history input to trace pass so non-traced texels preserve history
-    ✔ Update lumon_probe_atlas_trace.fsh (implementation detail: octahedral mapping): @done
-      - compute meta for traced texels (hit vs sky, early exit, thickness margin)
-      - output meta for traced texels
-      - preserve meta history for non-traced texels (like radiance)
-    ✔ Add GPU functional tests: @done
-      - Meta_HitHigherThanSky
-      - Meta_RayExitsScreen_LowerConfidence
-      - Meta_NonTracedTexels_PreserveHistory
+  Phase 13 - Integration, Debug, and Performance
+  Exit artifacts: New passes are debuggable and timed; perf baselines documented; optional minimal visual regression hooks exist.
+  ✔ Add debug modes for: @done
+    - screen-probe atlas meta
+    - filtered atlas visualization (probe-space)
+    - gather input selection (raw vs filtered)
+  ✔ Extend GPU timer queries to include new passes (HZB, Filter, Projection) @done
 
-    Phase 10 - Pass 3: Screen-Probe Atlas Temporal Uses Meta
-    Exit artifacts: Screen-probe atlas temporal produces meta-aware stabilized atlases suitable for downstream filtering/gather.
-    ✔ Update lumon_probe_atlas_temporal.fsh (implementation detail: octahedral mapping) to read/write meta (separate texture) @done
-    ✔ Make temporal alpha adaptive using meta confidence (e.g., alpha *= historyConfidence) @done
-    ✔ Make disocclusion/invalid-history decisions consider confidence/flags (not just hit distance) @done
-    ✔ Add debug mode: MetaConfidence / TemporalAlpha visualization @done
-    ✔ Add GPU functional tests: @done
-      - Temporal_MetaReducesHistoryWeight @done
-      - Temporal_LowConfidence_ForcesReset @done
+  Phase 14 - Screen-Space Parity/Polish (Remaining Discrepancies)
+  Depends on: Phase 9 (confidence), Phase 10 (temporal uses confidence), Phase 11 (probe-space filter).
+  Exit artifacts: Screen-space GI is more Lumen-like in stability/robustness (exposure-stable, fewer edge holes, fewer temporal fireflies), with tests/diagnostics.
+  ☐ Reprojection inputs (motion vectors / camera motion):
+    - Determine whether VS exposes motion vectors or equivalent per-pixel velocity
+    - If available: incorporate into temporal rejection/weighting for gather/upsample (and/or probe updates)
+    - If not available: implement a best-effort camera-motion heuristic path (rotation/translation gating)
+  ☐ Exposure / color space consistency:
+    - Verify whether CapturedSceneTex is pre- or post-tonemap (and whether exposure changes frame-to-frame)
+        Verified: it is pre-tonemap.
+    - Add a debug view to compare captured scene vs expected linear lighting space
+  ☐ Variance / moments for temporal stability:
+    - Add optional moments buffer (e.g., first/second moment of radiance) for the probe atlas or for indirectHalf
+    - Use it for variance clamp/firefly suppression in temporal and/or post-filter
+  ☐ Screen-trace hole filling strategy:
+    ✔ Add a controlled neighborhood resolve for rays that exit screen / miss due to disocclusion @done
+    ✔ Use confidence to avoid smearing across depth/normal edges @done
+    ✔ Ensure this is a bounded fallback (never overrides high-confidence hits) @done
+  ☐ Sky visibility / sky-occlusion term (screen-space approximation):
+    - Add an optional, cheap sky-visibility estimate (screen-space only) to reduce overly bright indoor skylight
+    - Keep it explicitly marked as screen-space approximation (no world proxy)
+  ☐ Add GPU functional tests:
+    - ExposureChange_DoesNotCauseTemporalPumping (or a reduced equivalent)
+    - VarianceClamp_ReducesFireflies_PreservesMean
+    ✔ HoleFill_OnlyAffectsLowConfidenceAreas @done
+    - SkyVisibility_ReducesIndoorSkylightWithoutBlackening
 
-    Phase 11 - Pass 3.5: Probe-Space Filter/Denoise (New)
-    Exit artifacts: Filtered atlas exists (radiance/hitdist/confidence as applicable); renderer can choose raw vs filtered as gather input.
-    ✔ Add new shader + program: lumon_probe_atlas_filter.fsh (edge-stopped) @done
-    ✔ Update LumOnBufferManager: @done
-      - allocate filtered atlas (radiance + hitdist + confidence as needed) @done
-      - create filter FBOs @done
-    ✔ Update LumOnRenderer orchestration: insert Pass 3.5 between temporal and gather @done
-    ✔ Implement filtering strategy (start simple, then expand if needed): @done
-      - Angular (within-tile) 3x3 or 5x5 filter with hitdist/confidence weights @done
-      - Optional: spatial (between-probe) filter for same oct texel across neighboring probes
-    ✔ Add GPU functional tests: @done
-      - Filter_ReducesNoise_PreservesEdges @done
-      - Filter_RespectsInvalidProbes @done
-      - Filter_RespectsConfidence @done
+  Phase 15 - BRDF + AO + Bent-Normal Compositing (New)
+  Goal: Replace the current “simple add” indirect integration with a physically-plausible compositing pass that
+  accounts for roughness/metallic/specular response and supports AO + bent normals for better contact and sky occlusion.
 
-    Phase 12 - Pass 4: Cheaper Gather Options
-    Exit artifacts: Gather has a defined “cheap” mode (stride/fewer dirs) and/or a projected-basis path (if implemented) selectable via config.
-    ✔ Decide gather simplification path: @done
-      - add atlas → irradiance basis conversion pass, then gather is cheap @done
-    ✔ Update config: @done
-      ✔ Select gather mode: IntegrateAtlas vs EvaluateProjectedSH @done
-    ✔ If Option B (implemented as SH9): @done
-      ✔ Add new pass: atlas → SH9 projection (per-probe) after temporal+filter @done
-      ✔ Add per-probe SH9 textures + program + buffer manager allocations @done
-      ✔ Add gather shader variant that evaluates SH9 at pixel normal @done
-    ✔ Add GPU functional tests: @done
-      ✔ AtlasToSH_ProjectsKnownAtlasCorrectly @done
-      ✔ Gather_SHFromProjected_StableVsIntegration @done
+  Exit artifacts: A dedicated composite stage exists (shader + program + renderer wiring) that:
+    - Computes indirect diffuse/specular using a BRDF approximation (energy-conserving) from G-buffer material inputs
+    - Applies AO and (optionally) bent-normal-based visibility for ambient/sky contribution
+    - Produces stable, debuggable outputs with tests for correctness and edge cases
 
-    Phase 13 - Integration, Debug, and Performance
-    Exit artifacts: New passes are debuggable and timed; perf baselines documented; optional minimal visual regression hooks exist.
-    ✔ Add debug modes for: @done
-      - screen-probe atlas meta
-      - filtered atlas visualization (probe-space)
-      - gather input selection (raw vs filtered)
-    ✔ Extend GPU timer queries to include new passes (HZB, Filter, Projection) @done
+  Work items:
+  ✔ Define compositing inputs/outputs: @done
+    - Inputs: albedo/baseColor, normalWS, roughness, metallic, viewDir, indirectRadiance, (optional) hitDistance/confidence
+    - Add new optional inputs: AO (scalar), BentNormalWS (vec3) or BentCone (direction + aperture)
+    - Decide where AO/bent normal come from initially:
+      - Short-term: accept externally-provided AO/bent normal (e.g., from VS pipeline if available)
+      - Medium-term: derive cheap AO proxy from LumOn hit distance/confidence or depth neighborhood
 
-    Phase 14 - Screen-Space Parity/Polish (Remaining Discrepancies)
-    Depends on: Phase 9 (confidence), Phase 10 (temporal uses confidence), Phase 11 (probe-space filter).
-    Exit artifacts: Screen-space GI is more Lumen-like in stability/robustness (exposure-stable, fewer edge holes, fewer temporal fireflies), with tests/diagnostics.
-    ☐ Reprojection inputs (motion vectors / camera motion):
-      - Determine whether VS exposes motion vectors or equivalent per-pixel velocity
-      - If available: incorporate into temporal rejection/weighting for gather/upsample (and/or probe updates)
-      - If not available: implement a best-effort camera-motion heuristic path (rotation/translation gating)
-    ☐ Exposure / color space consistency:
-      - Verify whether CapturedSceneTex is pre- or post-tonemap (and whether exposure changes frame-to-frame)
-          Verified: it is pre-tonemap.
-      - Add a debug view to compare captured scene vs expected linear lighting space
-    ☐ Variance / moments for temporal stability:
-      - Add optional moments buffer (e.g., first/second moment of radiance) for the probe atlas or for indirectHalf
-      - Use it for variance clamp/firefly suppression in temporal and/or post-filter
-    ☐ Screen-trace hole filling strategy:
-      ✔ Add a controlled neighborhood resolve for rays that exit screen / miss due to disocclusion @done
-      ✔ Use confidence to avoid smearing across depth/normal edges @done
-      ✔ Ensure this is a bounded fallback (never overrides high-confidence hits) @done
-    ☐ Sky visibility / sky-occlusion term (screen-space approximation):
-      - Add an optional, cheap sky-visibility estimate (screen-space only) to reduce overly bright indoor skylight
-      - Keep it explicitly marked as screen-space approximation (no world proxy)
-    ☐ Add GPU functional tests:
-      - ExposureChange_DoesNotCauseTemporalPumping (or a reduced equivalent)
-      - VarianceClamp_ReducesFireflies_PreservesMean
-      ✔ HoleFill_OnlyAffectsLowConfidenceAreas @done
-      - SkyVisibility_ReducesIndoorSkylightWithoutBlackening
+  ✔ Add shared include(s) for PBR math: @done
+    - Fresnel (Schlick), NDF (GGX), geometry term (Smith), diffuse (Lambert/Burley)
+    - Helper: energy compensation / split-sum approximation hooks
+    - Keep API stable for later upgrades (e.g., LTC, multi-scatter)
 
-    Phase 15 - BRDF + AO + Bent-Normal Compositing (New)
-    Goal: Replace the current “simple add” indirect integration with a physically-plausible compositing pass that
-    accounts for roughness/metallic/specular response and supports AO + bent normals for better contact and sky occlusion.
+  ✔ Implement new compositing shader/program (or upgrade existing Combine pass): @done
+    - Separate “IndirectDiffuse” and “IndirectSpecular” paths
+    - Use bent normal (if present) to sample indirect lobe direction for skylight/ambient visibility
+    - Apply AO consistently:
+      - AO affects diffuse strongly; specular optionally attenuated based on roughness (configurable)
 
-    Exit artifacts: A dedicated composite stage exists (shader + program + renderer wiring) that:
-      - Computes indirect diffuse/specular using a BRDF approximation (energy-conserving) from G-buffer material inputs
-      - Applies AO and (optionally) bent-normal-based visibility for ambient/sky contribution
-      - Produces stable, debuggable outputs with tests for correctness and edge cases
+  ✔ Renderer plumbing: @done
+    - Add config toggles:
+      - EnablePbrComposite
+      - EnableAO
+      - EnableBentNormal
+      - SpecularAOStrength / DiffuseAOStrength
+    - Add debug modes:
+      - Visualize AO factor, bent normal direction, diffuse/specular split, BRDF terms
 
-    Work items:
-    ✔ Define compositing inputs/outputs: @done
-      - Inputs: albedo/baseColor, normalWS, roughness, metallic, viewDir, indirectRadiance, (optional) hitDistance/confidence
-      - Add new optional inputs: AO (scalar), BentNormalWS (vec3) or BentCone (direction + aperture)
-      - Decide where AO/bent normal come from initially:
-        - Short-term: accept externally-provided AO/bent normal (e.g., from VS pipeline if available)
-        - Medium-term: derive cheap AO proxy from LumOn hit distance/confidence or depth neighborhood
+  ☐ GPU functional tests:
+    - Composite_EnergyConserving_NoOverbrightForWhiteAlbedo
+    ✔ Composite_Metallic0_UsesDiffuseDominant @done
+    ✔ Composite_Metallic1_UsesSpecularDominant @done
+    - Composite_RoughnessIncreasesSpecularLobeWidth (proxy check via output response)
+    ✔ Composite_AO_ReducesIndirectInCreases @done
+    - Composite_BentNormal_ReducesSkyOcclusionIndoors (or a minimal deterministic scene)
 
-    ✔ Add shared include(s) for PBR math: @done
-      - Fresnel (Schlick), NDF (GGX), geometry term (Smith), diffuse (Lambert/Burley)
-      - Helper: energy compensation / split-sum approximation hooks
-      - Keep API stable for later upgrades (e.g., LTC, multi-scatter)
+  Phase 16 - PBR Direct Lighting Pass System (New)
+  Goal: Create a dedicated, high-quality PBR direct-lighting pass that is independent of LumOn
+  (LumOn remains indirect lighting and can be disabled), but produces the “direct” lighting inputs
+  that LumOn consumes downstream for final compositing.
 
-    ✔ Implement new compositing shader/program (or upgrade existing Combine pass): @done
-      - Separate “IndirectDiffuse” and “IndirectSpecular” paths
-      - Use bent normal (if present) to sample indirect lobe direction for skylight/ambient visibility
-      - Apply AO consistently:
-        - AO affects diffuse strongly; specular optionally attenuated based on roughness (configurable)
+  This pass system will supersede the existing pbr-overlay approach.
 
-    ✔ Renderer plumbing: @done
-      - Add config toggles:
-        - EnablePbrComposite
-        - EnableAO
-        - EnableBentNormal
-        - SpecularAOStrength / DiffuseAOStrength
-      - Add debug modes:
-        - Visualize AO factor, bent normal direction, diffuse/specular split, BRDF terms
+  Exit artifacts: A direct-lighting pipeline exists that:
+    - Produces a stable, linear-space direct lighting buffer (pre-tonemap) suitable for downstream GI
+    - Uses physically-based lighting consistent with the BRDF assumptions in Phase 15
+    - Can be run with LumOn disabled (direct lighting still correct)
+    - Has clear attachment points for LumOn (capture sceneDirect, optional material buffers)
+    - Replaces pbr-overlay in both runtime behavior and debug tooling
 
-    ☐ GPU functional tests:
-      - Composite_EnergyConserving_NoOverbrightForWhiteAlbedo
-      ✔ Composite_Metallic0_UsesDiffuseDominant @done
-      ✔ Composite_Metallic1_UsesSpecularDominant @done
-      - Composite_RoughnessIncreasesSpecularLobeWidth (proxy check via output response)
-      ✔ Composite_AO_ReducesIndirectInCreases @done
-      - Composite_BentNormal_ReducesSkyOcclusionIndoors (or a minimal deterministic scene)
+  Work items:
+  ✔ Define the direct-lighting contract: @done(26-01-12 03:49)
+    - What buffer(s) are produced (sceneDirect, optional directSpecular/directDiffuse split)
+    - Color space/exposure assumptions (must be linear, pre-tonemap)
+    - Required G-buffer inputs (albedo/baseColor, normalWS, roughness, metallic, emissive, AO/reflectivity)
+    - Handling of sun, sky, point lights, emissives, and fog interactions (document what is in/out of scope)
 
-    Phase 16 - PBR Direct Lighting Pass System (New)
-    Goal: Create a dedicated, high-quality PBR direct-lighting pass that is independent of LumOn
-    (LumOn remains indirect lighting and can be disabled), but produces the “direct” lighting inputs
-    that LumOn consumes downstream for final compositing.
+  ✔ Add a dedicated renderer stage + shader program(s): @done(26-01-12 03:49)
+    - New shader pair suggestion: pbr_direct_lighting.vsh / pbr_direct_lighting.fsh
+    - Evaluate direct lighting using PBR BRDF (reuse pbrfunctions.fsh and shared material decoding)
+    - Ensure deterministic behavior and stable outputs (avoid frame-dependent randomness)
 
-    This pass system will supersede the existing pbr-overlay approach.
+  ✔ Framebuffer + texture plumbing: @done(26-01-12 03:49)
+    - Allocate the direct-lighting output(s) in the appropriate buffer manager
+    - Ensure the resulting sceneDirect is the one consumed by LumOn combine/debug downstream
+    - Decide whether the base game’s direct lighting is bypassed or whether we “rebuild” direct from G-buffer
 
-    Exit artifacts: A direct-lighting pipeline exists that:
-      - Produces a stable, linear-space direct lighting buffer (pre-tonemap) suitable for downstream GI
-      - Uses physically-based lighting consistent with the BRDF assumptions in Phase 15
-      - Can be run with LumOn disabled (direct lighting still correct)
-      - Has clear attachment points for LumOn (capture sceneDirect, optional material buffers)
-      - Replaces pbr-overlay in both runtime behavior and debug tooling
+  ✔ Integration with LumOn downstream: @done(26-01-12 03:49)
+    - LumOn uses this pass output as sceneDirect input
+    - Ensure LumOn enable/disable only affects indirect contribution, not direct lighting
+    - Verify the final combine stage still produces correct output when LumOn is disabled
 
-    Work items:
-    ✔ Define the direct-lighting contract: @done(26-01-12 03:49)
-      - What buffer(s) are produced (sceneDirect, optional directSpecular/directDiffuse split)
-      - Color space/exposure assumptions (must be linear, pre-tonemap)
-      - Required G-buffer inputs (albedo/baseColor, normalWS, roughness, metallic, emissive, AO/reflectivity)
-      - Handling of sun, sky, point lights, emissives, and fog interactions (document what is in/out of scope)
+  ✔ Supersede pbr-overlay: @done(26-01-12 03:49)
+    - Identify what pbr-overlay currently provides (features and shortcomings)
+    - Add a config switch / migration path to turn off pbr-overlay by default when the new pass is enabled
+    - Mark pbr-overlay as deprecated in docs/README and ensure no runtime dependence remains
 
-    ✔ Add a dedicated renderer stage + shader program(s): @done(26-01-12 03:49)
-      - New shader pair suggestion: pbr_direct_lighting.vsh / pbr_direct_lighting.fsh
-      - Evaluate direct lighting using PBR BRDF (reuse pbrfunctions.fsh and shared material decoding)
-      - Ensure deterministic behavior and stable outputs (avoid frame-dependent randomness)
+  ✔ Debug + validation: @done(26-01-12 03:49)
+    - Add debug views for direct lighting outputs (diffuse/spec split if present)
+    - Add GPU functional tests:
+      - DirectLighting_ProducesExpectedLambertForDielectric
+      - DirectLighting_MetallicShiftsEnergyToSpecular
+      - DirectLighting_StableUnderCameraMotion (no temporal artifacts)
+      - Integration_LumOnDisabled_PassesThroughDirect
 
-    ✔ Framebuffer + texture plumbing: @done(26-01-12 03:49)
-      - Allocate the direct-lighting output(s) in the appropriate buffer manager
-      - Ensure the resulting sceneDirect is the one consumed by LumOn combine/debug downstream
-      - Decide whether the base game’s direct lighting is bypassed or whether we “rebuild” direct from G-buffer
+  Phase 17 - Bent Normal Signal Generation (New)
+  Goal: Produce a stable, deterministic “bent normal” (or equivalent visibility direction) signal
+  that can be fed into Phase 15 compositing, so bent-normal shading is based on real scene occlusion
+  rather than a placeholder heuristic.
 
-    ✔ Integration with LumOn downstream: @done(26-01-12 03:49)
-      - LumOn uses this pass output as sceneDirect input
-      - Ensure LumOn enable/disable only affects indirect contribution, not direct lighting
-      - Verify the final combine stage still produces correct output when LumOn is disabled
+  Exit artifacts: A bent-normal signal exists per-pixel (and/or per-probe) with:
+    - Clear definition of coordinate space (WS vs VS) and encoding
+    - Stable output across frames (temporal stabilization as needed)
+    - Plumbed into the Phase 15 composite split
+    - Debug visualization modes and GPU functional tests
 
-    ✔ Supersede pbr-overlay: @done(26-01-12 03:49)
-      - Identify what pbr-overlay currently provides (features and shortcomings)
-      - Add a config switch / migration path to turn off pbr-overlay by default when the new pass is enabled
-      - Mark pbr-overlay as deprecated in docs/README and ensure no runtime dependence remains
+  Work items:
+  ☐ Decide bent-normal source + representation:
+    - Option A (screen-space): per-pixel bent normal from multi-direction screen-space visibility
+      - Sample a small set of directions around the shading normal
+      - Accumulate unoccluded directions weighted by cosine/solid-angle to produce bent normal
+    - Option B (probe-derived): per-probe bent normal from Screen-Probe Atlas meta/hit distances
+      - Estimate dominant visibility direction per probe, then gather/interpolate to pixels
+    - Representation:
+      - Store bent normal as unit vector (octahedral encoding recommended) + optional cone angle
+      - Define fallback behavior when confidence is low (use geometric normal)
 
-    ✔ Debug + validation: @done(26-01-12 03:49)
-      - Add debug views for direct lighting outputs (diffuse/spec split if present)
-      - Add GPU functional tests:
-        - DirectLighting_ProducesExpectedLambertForDielectric
-        - DirectLighting_MetallicShiftsEnergyToSpecular
-        - DirectLighting_StableUnderCameraMotion (no temporal artifacts)
-        - Integration_LumOnDisabled_PassesThroughDirect
+  ☐ Add buffer(s) in LumOnBufferManager:
+    - Allocate bent normal target(s):
+      - Full-res: BentNormalTex (RGBA16F or RG16F oct-encoded)
+      - Optional half-res variant if generated alongside indirectHalf
+    - If temporal: BentNormalHistoryTex + meta to stabilize across frames
 
-    Phase 17 - Bent Normal Signal Generation (New)
-    Goal: Produce a stable, deterministic “bent normal” (or equivalent visibility direction) signal
-    that can be fed into Phase 15 compositing, so bent-normal shading is based on real scene occlusion
-    rather than a placeholder heuristic.
+  ☐ Add new shader pass (or extend an existing pass) to generate bent normals:
+    - New shader pair suggestion: lumon_bent_normal.vsh / lumon_bent_normal.fsh
+    - Inputs:
+      - primaryDepth, gBufferNormal
+      - (optional) ScreenProbeAtlas radiance/hitdist/meta and/or indirectHalf alpha weight
+    - Outputs:
+      - bentNormal (encoded)
+      - (optional) bentConeAngle or confidence
 
-    Exit artifacts: A bent-normal signal exists per-pixel (and/or per-probe) with:
-      - Clear definition of coordinate space (WS vs VS) and encoding
-      - Stable output across frames (temporal stabilization as needed)
-      - Plumbed into the Phase 15 composite split
-      - Debug visualization modes and GPU functional tests
+  ☐ Temporal stabilization (if needed):
+    - Reproject previous bent normal using existing matrices
+    - Reject history on depth/normal mismatch (reuse thresholds)
+    - Clamp/normalize to keep unit length
 
-    Work items:
-    ☐ Decide bent-normal source + representation:
-      - Option A (screen-space): per-pixel bent normal from multi-direction screen-space visibility
-        - Sample a small set of directions around the shading normal
-        - Accumulate unoccluded directions weighted by cosine/solid-angle to produce bent normal
-      - Option B (probe-derived): per-probe bent normal from Screen-Probe Atlas meta/hit distances
-        - Estimate dominant visibility direction per probe, then gather/interpolate to pixels
-      - Representation:
-        - Store bent normal as unit vector (octahedral encoding recommended) + optional cone angle
-        - Define fallback behavior when confidence is low (use geometric normal)
+  ☐ Composite plumbing:
+    - Bind bent normal texture into Phase 15 composite path
+    - Replace placeholder “bend toward up” heuristic with sampled bent normal
+    - Ensure behavior is gated behind EnableBentNormal and falls back cleanly
 
-    ☐ Add buffer(s) in LumOnBufferManager:
-      - Allocate bent normal target(s):
-        - Full-res: BentNormalTex (RGBA16F or RG16F oct-encoded)
-        - Optional half-res variant if generated alongside indirectHalf
-      - If temporal: BentNormalHistoryTex + meta to stabilize across frames
+  ☐ Debug modes + visualization:
+    - BentNormalDirection (RGB visualization in view/world space)
+    - BentNormalVsGeometricNormal (difference heatmap)
+    - BentNormalConfidence / ConeAngle visualization (if implemented)
 
-    ☐ Add new shader pass (or extend an existing pass) to generate bent normals:
-      - New shader pair suggestion: lumon_bent_normal.vsh / lumon_bent_normal.fsh
-      - Inputs:
-        - primaryDepth, gBufferNormal
-        - (optional) ScreenProbeAtlas radiance/hitdist/meta and/or indirectHalf alpha weight
-      - Outputs:
-        - bentNormal (encoded)
-        - (optional) bentConeAngle or confidence
+  ☐ GPU functional tests:
+    - BentNormal_UnitLength_OrValidFallback
+    - BentNormal_OccluderBendsAwayFromBlockedDirections (minimal deterministic occluder)
+    - BentNormal_TemporalStableUnderStaticCamera
+    - BentNormal_RejectionOnDisocclusion
 
-    ☐ Temporal stabilization (if needed):
-      - Reproject previous bent normal using existing matrices
-      - Reject history on depth/normal mismatch (reuse thresholds)
-      - Clamp/normalize to keep unit length
+  Phase 18 - World-Space Clipmap Probe System: Architecture Docs (New)
+  Goal: Define and document the initial architecture for a world-space clipmap-based probe system
+  (Lumen-like “world probes”) that can coexist with the current screen-space LumOn pipeline and
+  eventually feed the same compositing stage.
 
-    ☐ Composite plumbing:
-      - Bind bent normal texture into Phase 15 composite path
-      - Replace placeholder “bend toward up” heuristic with sampled bent normal
-      - Ensure behavior is gated behind EnableBentNormal and falls back cleanly
+  Exit artifacts: A set of architecture design documents exists under docs/ that:
+    - Clearly defines terms, coordinate spaces, and data layouts
+    - Describes update cadence, streaming, and stability rules
+    - Specifies GPU/CPU responsibilities and performance constraints
+    - Includes diagrams for data flow and clipmap topology
 
-    ☐ Debug modes + visualization:
-      - BentNormalDirection (RGB visualization in view/world space)
-      - BentNormalVsGeometricNormal (difference heatmap)
-      - BentNormalConfidence / ConeAngle visualization (if implemented)
+  Work items:
+  ☐ Create docs/LumOn.16-World-Space-Clipmap-Probes.md (overview + goals/non-goals):
+    - Motivation vs screen-space probes
+    - Integration strategy: how world probes feed the same indirectRadiance path
+    - Constraints: VS chunking, memory budget, update bandwidth, fallback behavior
 
-    ☐ GPU functional tests:
-      - BentNormal_UnitLength_OrValidFallback
-      - BentNormal_OccluderBendsAwayFromBlockedDirections (minimal deterministic occluder)
-      - BentNormal_TemporalStableUnderStaticCamera
-      - BentNormal_RejectionOnDisocclusion
+  ☐ Create docs/LumOn.17-Clipmap-Topology-and-Addressing.md:
+    - Clipmap levels, voxel/probe spacing per level
+    - World-to-clipmap addressing (level selection, wrapping, origin snapping)
+    - Probe indexing and coordinate transforms (WS ↔ clipmap local)
+    - Edge behavior (seams, cross-level blending)
 
-    Phase 18 - World-Space Clipmap Probe System: Architecture Docs (New)
-    Goal: Define and document the initial architecture for a world-space clipmap-based probe system
-    (Lumen-like “world probes”) that can coexist with the current screen-space LumOn pipeline and
-    eventually feed the same compositing stage.
+  ☐ Create docs/LumOn.18-Probe-Data-Layout-and-Packing.md:
+    - What each probe stores initially (irradiance SH, visibility/cone, hit distance, confidence)
+    - Texture formats and packing (SH9 vs SH3, atlas vs 3D textures, oct encoding)
+    - Versioning strategy for evolving layouts
 
-    Exit artifacts: A set of architecture design documents exists under docs/ that:
-      - Clearly defines terms, coordinate spaces, and data layouts
-      - Describes update cadence, streaming, and stability rules
-      - Specifies GPU/CPU responsibilities and performance constraints
-      - Includes diagrams for data flow and clipmap topology
+  ☐ Create docs/LumOn.19-Update-Pipeline-and-Scheduling.md:
+    - Update triggers: camera movement thresholds, time slicing, per-level budgets
+    - Probe selection policy (prioritize near field, dirty regions)
+    - Temporal stabilization rules (history blending, invalidation)
+    - Interaction with dynamic geometry / lighting changes
 
-    Work items:
-    ☐ Create docs/LumOn.16-World-Space-Clipmap-Probes.md (overview + goals/non-goals):
-      - Motivation vs screen-space probes
-      - Integration strategy: how world probes feed the same indirectRadiance path
-      - Constraints: VS chunking, memory budget, update bandwidth, fallback behavior
+  ☐ Create docs/LumOn.20-Streaming-and-Persistence.md:
+    - CPU-side cache (what persists across sessions, if any)
+    - Region eviction and reuse when clipmap origin shifts
+    - Determinism requirements (same camera path → stable probe identity)
 
-    ☐ Create docs/LumOn.17-Clipmap-Topology-and-Addressing.md:
-      - Clipmap levels, voxel/probe spacing per level
-      - World-to-clipmap addressing (level selection, wrapping, origin snapping)
-      - Probe indexing and coordinate transforms (WS ↔ clipmap local)
-      - Edge behavior (seams, cross-level blending)
+  ☐ Create docs/LumOn.21-Shading-Integration.md:
+    - Sampling world probes at a pixel/point (trilinear, anisotropic, normal-based weighting)
+    - Combining with screen-space GI (screen-first fallback, confidence-based blending)
+    - Feeding Phase 15 compositing inputs (indirectRadiance + optional bent normal/visibility)
 
-    ☐ Create docs/LumOn.18-Probe-Data-Layout-and-Packing.md:
-      - What each probe stores initially (irradiance SH, visibility/cone, hit distance, confidence)
-      - Texture formats and packing (SH9 vs SH3, atlas vs 3D textures, oct encoding)
-      - Versioning strategy for evolving layouts
+  ☐ Diagrams (Mermaid in each doc as appropriate):
+    - System dataflow: CPU scheduling → GPU update passes → shading sample
+    - Clipmap level layout and origin snapping
+    - Probe update state machine (dirty → tracing → filtered → ready)
 
-    ☐ Create docs/LumOn.19-Update-Pipeline-and-Scheduling.md:
-      - Update triggers: camera movement thresholds, time slicing, per-level budgets
-      - Probe selection policy (prioritize near field, dirty regions)
-      - Temporal stabilization rules (history blending, invalidation)
-      - Interaction with dynamic geometry / lighting changes
-
-    ☐ Create docs/LumOn.20-Streaming-and-Persistence.md:
-      - CPU-side cache (what persists across sessions, if any)
-      - Region eviction and reuse when clipmap origin shifts
-      - Determinism requirements (same camera path → stable probe identity)
-
-    ☐ Create docs/LumOn.21-Shading-Integration.md:
-      - Sampling world probes at a pixel/point (trilinear, anisotropic, normal-based weighting)
-      - Combining with screen-space GI (screen-first fallback, confidence-based blending)
-      - Feeding Phase 15 compositing inputs (indirectRadiance + optional bent normal/visibility)
-
-    ☐ Diagrams (Mermaid in each doc as appropriate):
-      - System dataflow: CPU scheduling → GPU update passes → shading sample
-      - Clipmap level layout and origin snapping
-      - Probe update state machine (dirty → tracing → filtered → ready)
-
-    ☐ Open questions section in each doc:
-      - SH order choice (L1 vs L2) and memory math
-      - Trace source (hardware RT? screen-space? world BVH?) and feasibility in VS context
-      - How to represent and use visibility (cone angle vs scalar vs bent normal)
+  ☐ Open questions section in each doc:
+    - SH order choice (L1 vs L2) and memory math
+    - Trace source (hardware RT? screen-space? world BVH?) and feasibility in VS context
+    - How to represent and use visibility (cone angle vs scalar vs bent normal)
