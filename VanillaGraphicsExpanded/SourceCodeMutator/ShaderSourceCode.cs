@@ -60,6 +60,11 @@ public sealed class ShaderSourceCode
     /// </summary>
     public required string EmittedSource { get; init; }
 
+    /// <summary>
+    /// When <c>#line</c> directives are injected, this maps the numeric source id used by GLSL to the underlying resource.
+    /// </summary>
+    public IReadOnlyDictionary<int, string> LineDirectiveSourceIdToResource { get; init; } = new Dictionary<int, string>();
+
     public static ShaderSourceCode Load(
         ICoreAPI api,
         string shaderName,
@@ -104,6 +109,58 @@ public sealed class ShaderSourceCode
 
         var preprocess = GlslPreprocessor.InlineImports(parsed, stageSourceName, log, ct);
 
+        IReadOnlyDictionary<int, string> lineDirectiveSourceIds = new Dictionary<int, string>();
+
+        if (preprocess.RawResult is not null)
+        {
+            var cache = new Dictionary<ResourceId, SyntaxTree>();
+
+            SyntaxTree ContentProvider(ResourceId id)
+            {
+                if (cache.TryGetValue(id, out var cached))
+                {
+                    return cached;
+                }
+
+                string idText = id.ToString();
+                string domain = ShaderImportsSystem.DefaultDomain;
+                string path = idText;
+
+                int colon = idText.IndexOf(':');
+                if (colon >= 0)
+                {
+                    domain = idText[..colon];
+                    path = idText[(colon + 1)..];
+                }
+
+                var loc = AssetLocation.Create(path, domain);
+                var asset = api.Assets.TryGet(loc, loadAsset: true);
+                string text = asset?.ToText() ?? string.Empty;
+
+                var tree = ShaderImportsSystem.Instance.CreateSyntaxTree(text, sourceName: path)
+                    ?? SyntaxTree.Parse(string.Empty, GlslSchema.Instance);
+
+                cache[id] = tree;
+                return tree;
+            }
+
+            var injected = LineDirectiveInjector.TryInject(preprocess.OutputTree, preprocess.RawResult.SourceMap, ContentProvider);
+            if (injected.Success)
+            {
+                lineDirectiveSourceIds = injected.SourceIdToResource;
+                preprocess = new GlslPreprocessor.Result
+                {
+                    SourceName = preprocess.SourceName,
+                    Tree = preprocess.Tree,
+                    HadImports = preprocess.HadImports,
+                    Success = preprocess.Success,
+                    OutputTree = injected.OutputTree,
+                    Diagnostics = preprocess.Diagnostics,
+                    RawResult = preprocess.RawResult
+                };
+            }
+        }
+
         string emittedUnstripped = preprocess.OutputTree.ToText();
         string emitted = SourceCodeImportsProcessor.StripNonAscii(emittedUnstripped);
 
@@ -117,7 +174,8 @@ public sealed class ShaderSourceCode
             Defines = defineMap,
             ImportInlining = preprocess,
             EmittedSourceUnstripped = emittedUnstripped,
-            EmittedSource = emitted
+            EmittedSource = emitted,
+            LineDirectiveSourceIdToResource = lineDirectiveSourceIds
         };
     }
 
@@ -135,6 +193,7 @@ public sealed class ShaderSourceCode
         string rawSource,
         string sourceName,
         ShaderSyntaxTreePreprocessor importPreprocessor,
+        System.Func<ResourceId, SyntaxTree>? contentProvider = null,
         IReadOnlyDictionary<string, string?>? defines = null,
         ILogger? log = null,
         CancellationToken ct = default)
@@ -195,6 +254,53 @@ public sealed class ShaderSourceCode
             RawResult = rawResult
         };
 
+        IReadOnlyDictionary<int, string> lineDirectiveSourceIds = new Dictionary<int, string>();
+
+        if (preprocess.RawResult is not null)
+        {
+            SyntaxTree ContentProvider(ResourceId id)
+            {
+                // Prefer the caller-supplied provider (tests/tooling).
+                if (contentProvider is not null)
+                {
+                    return contentProvider(id);
+                }
+
+                // Root fallback.
+                string idText = id.ToString();
+                string path = idText;
+                int colon = idText.IndexOf(':');
+                if (colon >= 0)
+                {
+                    path = idText[(colon + 1)..];
+                }
+
+                if (string.Equals(path, $"shaders/{sourceName}", StringComparison.Ordinal))
+                {
+                    return ShaderImportsSystem.Instance.CreateSyntaxTree(rawSource, sourceName)
+                        ?? SyntaxTree.Parse(string.Empty, GlslSchema.Instance);
+                }
+
+                return SyntaxTree.Parse(string.Empty, GlslSchema.Instance);
+            }
+
+            var injected = LineDirectiveInjector.TryInject(preprocess.OutputTree, preprocess.RawResult.SourceMap, ContentProvider);
+            if (injected.Success)
+            {
+                lineDirectiveSourceIds = injected.SourceIdToResource;
+                preprocess = new GlslPreprocessor.Result
+                {
+                    SourceName = preprocess.SourceName,
+                    Tree = preprocess.Tree,
+                    HadImports = preprocess.HadImports,
+                    Success = preprocess.Success,
+                    OutputTree = injected.OutputTree,
+                    Diagnostics = preprocess.Diagnostics,
+                    RawResult = preprocess.RawResult
+                };
+            }
+        }
+
         string emittedUnstripped = preprocess.OutputTree.ToText();
         string emitted = SourceCodeImportsProcessor.StripNonAscii(emittedUnstripped);
 
@@ -208,7 +314,8 @@ public sealed class ShaderSourceCode
             Defines = defineMap,
             ImportInlining = preprocess,
             EmittedSourceUnstripped = emittedUnstripped,
-            EmittedSource = emitted
+            EmittedSource = emitted,
+            LineDirectiveSourceIdToResource = lineDirectiveSourceIds
         };
     }
 

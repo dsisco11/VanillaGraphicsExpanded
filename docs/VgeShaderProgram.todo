@@ -95,5 +95,8 @@ VGE - Unified Shader Base (VgeShaderProgram) + Source Pipeline:
     - map generated location → generated offset
     - query preprocessor source-map → original resource + location
     - report enriched errors with original file + line
+    - Investigation note: GL info logs typically include line numbers (often formatted like `ERROR: 0:123: ...`), but column is not reliably reported across drivers.
+    - Practical approach: emit `#line <line> <sourceId>` directives per imported file region so GL errors include a stable sourceId; map sourceId → asset path.
+    - SourceMap exists on TinyPreprocessor results, but its mapping API is not currently consumed; using it directly would likely require pinning to TinyPreprocessor internals.
   ✔ Decide whether to embed `#line` directives vs maintain sidecar source maps @done
     - Decision: prefer emitting `#line` directives for runtime GL error remapping; keep sidecar source maps for offline tooling

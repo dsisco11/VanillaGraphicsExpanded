@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 
 using TinyPreprocessor.Core;
 
@@ -33,12 +32,34 @@ public sealed class ShaderSourceCodeTests
         var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
         var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
 
+        TinyTokenizer.Ast.SyntaxTree ContentProvider(ResourceId id)
+        {
+            // ResourceIds produced by the resolver look like `{domain}:{path}`.
+            string raw = id.ToString();
+            string path = raw;
+            int colon = raw.IndexOf(':');
+            if (colon >= 0)
+            {
+                path = raw[(colon + 1)..];
+            }
+
+            if (path == "shaders/testshader.fsh")
+            {
+                return ShaderImportsSystem.Instance.CreateSyntaxTree(shader, "testshader.fsh")!;
+            }
+
+            return sources.TryGetValue(path, out var text)
+                ? ShaderImportsSystem.Instance.CreateSyntaxTree(text, path)!
+                : TinyTokenizer.Ast.SyntaxTree.Parse(string.Empty, GlslSchema.Instance);
+        }
+
         var code = ShaderSourceCode.FromSource(
             shaderName: "testshader",
             stageExtension: "fsh",
             rawSource: shader,
             sourceName: "testshader.fsh",
             importPreprocessor: preprocessor,
+            contentProvider: ContentProvider,
             ct: TestContext.Current.CancellationToken);
 
         var emitted = NormalizeLineEndings(code.EmittedSource);
@@ -48,11 +69,12 @@ public sealed class ShaderSourceCodeTests
 
         Assert.NotNull(code.ImportResult);
 
-        // TinyPreprocessor exposes a source map on the result; use reflection to avoid tight coupling
-        // in case the type changes across versions.
-        var sourceMapProp = code.ImportResult!.GetType().GetProperty("SourceMap", BindingFlags.Public | BindingFlags.Instance);
-        Assert.NotNull(sourceMapProp);
-        Assert.NotNull(sourceMapProp!.GetValue(code.ImportResult));
+        // TinyPreprocessor exposes SourceMap as public API.
+        Assert.NotNull(code.ImportResult!.SourceMap);
+
+        // If #line injection ran, we should see directives and a non-empty id map.
+        Assert.Contains("#line ", emitted);
+        Assert.NotEmpty(code.LineDirectiveSourceIdToResource);
     }
 
     [Fact]
