@@ -131,8 +131,10 @@ public abstract class VgeShaderProgram : ShaderProgram
         FragmentShader.Code = fsh.EmittedSource;
 
         // Geometry shader is optional.
+        ShaderSourceCode? gshCode = null;
         if (TryLoadOptionalGeometryStage(capi, defineSnapshot, out var gsh))
         {
+            gshCode = gsh;
             GeometryShader ??= (Shader)capi.Shader.NewShader(EnumShaderType.GeometryShader);
             GeometryShader.Code = gsh!.EmittedSource;
         }
@@ -146,6 +148,54 @@ public abstract class VgeShaderProgram : ShaderProgram
         else
         {
             log?.Warning($"[VGE] Shader compile failed: {ShaderName}");
+
+            // Best-effort diagnostics: recompile the current sources through OpenGL directly so we can
+            // capture per-stage info logs even if the engine doesn't surface them.
+            try
+            {
+                var diag = GlslCompileDiagnostics.TryCompile(
+                    vertexSource: VertexShader.Code,
+                    fragmentSource: FragmentShader.Code,
+                    geometrySource: GeometryShader?.Code);
+
+                if (diag.HasAnyLog)
+                {
+                    if (!string.IsNullOrWhiteSpace(diag.VertexLog))
+                    {
+                        log?.Error($"[VGE][{ShaderName}] Vertex shader info log:\n{diag.VertexLog}");
+                    }
+                    if (!string.IsNullOrWhiteSpace(diag.FragmentLog))
+                    {
+                        log?.Error($"[VGE][{ShaderName}] Fragment shader info log:\n{diag.FragmentLog}");
+                    }
+                    if (!string.IsNullOrWhiteSpace(diag.GeometryLog))
+                    {
+                        log?.Error($"[VGE][{ShaderName}] Geometry shader info log:\n{diag.GeometryLog}");
+                    }
+                    if (!string.IsNullOrWhiteSpace(diag.ProgramLog))
+                    {
+                        log?.Error($"[VGE][{ShaderName}] Program link info log:\n{diag.ProgramLog}");
+                    }
+                }
+
+                // Emit some context that will matter for future remapping.
+                if (vsh.ImportInlining.HadImports)
+                {
+                    log?.Notification($"[VGE][{ShaderName}] Vertex stage had imports; source-map available={vsh.ImportResult?.GetType().GetProperty("SourceMap")?.GetValue(vsh.ImportResult) is not null}");
+                }
+                if (fsh.ImportInlining.HadImports)
+                {
+                    log?.Notification($"[VGE][{ShaderName}] Fragment stage had imports; source-map available={fsh.ImportResult?.GetType().GetProperty("SourceMap")?.GetValue(fsh.ImportResult) is not null}");
+                }
+                if (gshCode is not null && gshCode.ImportInlining.HadImports)
+                {
+                    log?.Notification($"[VGE][{ShaderName}] Geometry stage had imports; source-map available={gshCode.ImportResult?.GetType().GetProperty("SourceMap")?.GetValue(gshCode.ImportResult) is not null}");
+                }
+            }
+            catch (Exception ex)
+            {
+                log?.Warning($"[VGE][{ShaderName}] Failed to capture GL shader diagnostics: {ex}");
+            }
         }
 
         return ok;

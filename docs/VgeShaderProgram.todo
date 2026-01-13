@@ -89,10 +89,11 @@ VGE - Unified Shader Base (VgeShaderProgram) + Source Pipeline:
 
   Phase 8 - Diagnostics + Source Map Remapping (Deferred Investigation):
   Exit artifacts: A clear path to mapping GL compiler errors back to original imported files.
-  ☐ Investigate whether we can capture per-shader GL compiler errors/info-log at runtime
+  ✔ Investigate whether we can capture per-shader GL compiler errors/info-log at runtime @done
     - If only engine captures logs, explore how to hook it (if possible)
   ☐ If we can get (line, column) from GL errors:
     - map generated location → generated offset
     - query preprocessor source-map → original resource + location
     - report enriched errors with original file + line
-  ☐ Decide whether to embed `#line` directives vs maintain sidecar source maps
+  ✔ Decide whether to embed `#line` directives vs maintain sidecar source maps @done
+    - Decision: prefer emitting `#line` directives for runtime GL error remapping; keep sidecar source maps for offline tooling
