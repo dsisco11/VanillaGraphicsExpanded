@@ -1106,9 +1106,8 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     /// <summary>
     /// Pass 5: Bilateral upsample from half-res to full resolution.
-    /// Output depends on config.UseCombinePass:
-    /// - false: Additively blend to screen (fast path)
-    /// - true: Write to IndirectFullFB for combine pass
+    /// Output is written to IndirectFullFbo for consumption by the final PBR composite.
+    /// (Fallback: if IndirectFullFbo is unavailable, additively blend to Primary.)
     /// </summary>
     private void RenderUpsamplePass(FrameBufferRef primaryFb)
     {
@@ -1116,19 +1115,18 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (shader is null || shader.LoadError)
             return;
 
-        if (config.UseCombinePass)
+        // Preferred path: write to full-res indirect buffer for the final composite.
+        // This keeps the primary scene untouched until PBRCompositeRenderer merges everything.
+        var fullResFbo = bufferManager.IndirectFullFbo;
+        if (fullResFbo is not null)
         {
-            // Write to full-res indirect buffer for combine pass
-            var fbo = bufferManager.IndirectFullFbo;
-            if (fbo is null) return;
-
-            fbo.BindWithViewport();
-            fbo.Clear();
+            fullResFbo.BindWithViewport();
+            fullResFbo.Clear();
             capi.Render.GlToggleBlend(false);
         }
         else
         {
-            // Direct additive blend to screen (fast path)
+            // Fallback: direct additive blend to screen.
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
             GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
 
