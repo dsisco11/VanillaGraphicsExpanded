@@ -2,6 +2,7 @@ Issues:
   ☐ Composite Indirect Diffuse debug view appears black.
   ☐ Emissive materials not participating in probe traces.
   ☐ Unsure if hole filling is working as intended.
+  ☐ All unit tests should implement cancellation tokens.
 
 LumOn Functional Test Coverage:
 
