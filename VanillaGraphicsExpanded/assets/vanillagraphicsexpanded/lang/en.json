@@ -12,7 +12,7 @@
   "config-section-probe-atlas-advanced": "Probe Atlas Advanced Settings",
 
   "config-lumon-enabled": "Enable LumOn",
-  "config-lumon-enabled-tooltip": "Master enable for LumOn screen-space global illumination. When disabled, falls back to legacy SSGI.",
+  "config-lumon-enabled-tooltip": "Master enable for LumOn screen-space global illumination.",
 
   "config-probe-spacing-px": "Probe Spacing (pixels)",
   "config-probe-spacing-px-tooltip": "Spacing between probes in pixels. Lower values = more probes = higher quality but lower performance. Recommended: 4 (high quality), 8 (balanced), 16 (performance). Requires restart.",

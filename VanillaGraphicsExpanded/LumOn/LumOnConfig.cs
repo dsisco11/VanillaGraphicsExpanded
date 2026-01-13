@@ -28,7 +28,7 @@ public class LumOnConfig
     // ═══════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// Master enable for LumOn. When false, falls back to legacy SSGI.
+    /// Master enable for LumOn.
     /// </summary>
     [JsonProperty]
     public bool Enabled { get; set; } = true;

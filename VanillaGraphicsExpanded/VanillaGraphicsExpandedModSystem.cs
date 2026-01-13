@@ -4,7 +4,6 @@ using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering.Profiling;
-using VanillaGraphicsExpanded.SSGI;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -17,9 +16,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
 {
     private ICoreClientAPI? capi;
     private GBufferManager? gBufferManager;
-    private SSGIBufferManager? ssgiBufferManager;
-    private SSGISceneCaptureRenderer? ssgiSceneCaptureRenderer;
-    private SSGIRenderer? ssgiRenderer;
     private DirectLightingBufferManager? directLightingBufferManager;
     private DirectLightingRenderer? directLightingRenderer;
     private PBRCompositeRenderer? pbrCompositeRenderer;
@@ -68,8 +64,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         gBufferManager = new GBufferManager(api);
 
         // Initialize LumOn based on config (loaded by ConfigModSystem).
-        // Note: Legacy SSGI is intentionally not initialized while the new
-        // direct-lighting + fog composite pipeline is being integrated.
         if (ConfigModSystem.Config.Enabled)
         {
             lumOnBufferManager = new LumOnBufferManager(api, ConfigModSystem.Config);
@@ -78,7 +72,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         }
         else
         {
-            api.Logger.Notification("[VGE] LumOn disabled - direct lighting only (SSGI disabled)");
+            api.Logger.Notification("[VGE] LumOn disabled - direct lighting only");
         }
 
         // Create direct lighting pass buffers + renderer (Opaque @ 9.0)
@@ -136,16 +130,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
             lumOnBufferManager?.Dispose();
             lumOnBufferManager = null;
 
-            // Dispose legacy SSGI components
-            ssgiRenderer?.Dispose();
-            ssgiRenderer = null;
-
-            ssgiSceneCaptureRenderer?.Dispose();
-            ssgiSceneCaptureRenderer = null;
-
-            ssgiBufferManager?.Dispose();
-            ssgiBufferManager = null;
-
             gBufferManager?.Dispose();
             gBufferManager = null;
 
@@ -167,12 +151,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
 
         // PBR final composite shader
         PBRCompositeShaderProgram.Register(api);
-
-        // Legacy SSGI shaders
-        SSGIShaderProgram.Register(api);
-        SSGICompositeShaderProgram.Register(api);
-        SSGIBlurShaderProgram.Register(api);
-        SSGIDebugShaderProgram.Register(api);
 
         // LumOn shaders
         LumOnProbeAnchorShaderProgram.Register(api);

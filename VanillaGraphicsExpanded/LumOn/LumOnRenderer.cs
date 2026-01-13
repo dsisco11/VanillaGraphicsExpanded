@@ -25,7 +25,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     #region Constants
 
     /// <summary>
-    /// Render order - must match legacy SSGI for feature toggle compatibility.
+    /// Render order for the LumOn indirect pass.
     /// </summary>
     private const double RENDER_ORDER = 10;
     private const int RENDER_RANGE = 1;
