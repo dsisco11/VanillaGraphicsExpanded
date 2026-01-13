@@ -31,6 +31,9 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
 
     private MeshRef? quadMeshRef;
 
+    private GBuffer? compositeFbo;
+    private DynamicTexture? compositeColorTex;
+
     private readonly float[] invProjectionMatrix = new float[16];
     private readonly float[] viewMatrix = new float[16];
 
@@ -87,15 +90,50 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             return;
         }
 
+        // Ensure the scratch composite target exists and matches current resolution.
+        // Use existing GBuffer/DynamicTexture resize support (no custom ensure helper).
+        if (compositeFbo is null || compositeColorTex is null || !compositeFbo.IsValid || !compositeColorTex.IsValid)
+        {
+            compositeFbo?.Dispose();
+            compositeFbo = null;
+
+            compositeColorTex?.Dispose();
+            compositeColorTex = null;
+
+            compositeColorTex = DynamicTexture.Create(capi.Render.FrameWidth, capi.Render.FrameHeight, PixelInternalFormat.Rgba16f, debugName: "PBRComposite");
+            if (!compositeColorTex.IsValid)
+            {
+                compositeColorTex.Dispose();
+                compositeColorTex = null;
+                return;
+            }
+
+            compositeFbo = GBuffer.CreateSingle(compositeColorTex, depthTexture: null, ownsTextures: false, debugName: "PBRCompositeFBO");
+            if (compositeFbo is null || !compositeFbo.IsValid)
+            {
+                compositeFbo?.Dispose();
+                compositeFbo = null;
+                compositeColorTex.Dispose();
+                compositeColorTex = null;
+                return;
+            }
+        }
+        else
+        {
+            // Resizes attached textures in-place when resolution changes.
+            compositeFbo.Resize(capi.Render.FrameWidth, capi.Render.FrameHeight);
+        }
+
         // Matrices for optional PBR composite mode
         MatrixHelper.Invert(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
         Array.Copy(capi.Render.CameraMatrixOriginf, viewMatrix, 16);
 
-        // Bind primary framebuffer so subsequent base-game post-processing sees the combined result.
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
+        // Render into a scratch buffer to avoid sampling from the same texture we're writing to
+        // (Primary ColorAttachment0 is also used as gBufferAlbedo / primaryScene input).
+        compositeFbo!.Bind();
         GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
 
-        // IMPORTANT: Restrict output to ColorAttachment0.
+        // Single target output.
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
 
         capi.Render.GlToggleBlend(false);
@@ -159,7 +197,18 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
 
         shader.Stop();
 
+        // Copy composite result into Primary ColorAttachment0 so base-game post-processing sees it.
+        compositeFbo.BlitToExternal(
+            primaryFb.FboId,
+            capi.Render.FrameWidth,
+            capi.Render.FrameHeight,
+            ClearBufferMask.ColorBufferBit,
+            BlitFramebufferFilter.Nearest);
+
         // Leave primary bound for subsequent in-stage passes.
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
+        GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
+        GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
     }
 
     public void Dispose()
@@ -169,6 +218,12 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             capi.Render.DeleteMesh(quadMeshRef);
             quadMeshRef = null;
         }
+
+        compositeFbo?.Dispose();
+        compositeFbo = null;
+
+        compositeColorTex?.Dispose();
+        compositeColorTex = null;
 
         capi.Event.UnregisterRenderer(this, EnumRenderStage.Opaque);
     }
