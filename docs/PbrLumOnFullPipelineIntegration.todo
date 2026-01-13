@@ -33,12 +33,201 @@ Target output artifacts:
 
 Phase 1 - Pipeline Map + Shader Inventory
 Exit artifacts: A definitive list of shader programs used + their required uniforms/samplers.
-  ☐ Locate PBR shader filenames for direct lighting and composite in assets/shaders
-  ☐ Locate LumOn shader filenames for velocity, HZB, anchor, atlas trace, atlas temporal, atlas filter, atlas gather, upsample
-  ☐ For each shader, list:
+  ✔ Locate PBR shader filenames for direct lighting and composite in assets/shaders
+  ✔ Locate LumOn shader filenames for velocity, HZB, anchor, atlas trace, atlas temporal, atlas filter, atlas gather, upsample
+  ✔ For each shader, list:
     - required samplers (texture units + names)
     - required uniforms (screenSize, matrices, zNear/zFar, frameIndex, etc.)
     - output attachments (formats, MRT count)
+
+  Inventory (source-of-truth from shader headers):
+
+  PBR - Direct Lighting (MRT)
+    Shaders:
+      - assets/vanillagraphicsexpanded/shaders/pbr_direct_lighting.vsh
+      - assets/vanillagraphicsexpanded/shaders/pbr_direct_lighting.fsh
+    Outputs:
+      - layout(location=0) out vec4 outDirectDiffuse
+      - layout(location=1) out vec4 outDirectSpecular
+      - layout(location=2) out vec4 outEmissive
+    Samplers:
+      - primaryScene
+      - primaryDepth
+      - gBufferNormal
+      - gBufferMaterial
+      - shadowMapNear
+      - shadowMapFar
+    Uniforms:
+      - invProjectionMatrix, invModelViewMatrix
+      - zNear, zFar
+      - cameraOriginFloor, cameraOriginFrac
+      - lightDirection, rgbaAmbientIn, rgbaLightIn
+      - pointLightsCount, pointLights3[100], pointLightColors3[100]
+      - toShadowMapSpaceMatrixNear/Far, shadowRangeNear/Far, shadowZExtendNear/Far, dropShadowIntensity
+
+  LumOn - Velocity (MRT 1)
+    Shaders:
+      - assets/vanillagraphicsexpanded/shaders/lumon_velocity.vsh
+      - assets/vanillagraphicsexpanded/shaders/lumon_velocity.fsh
+    Outputs:
+      - layout(location=0) out vec4 outVelocity  (RGBA32F expected)
+    Samplers:
+      - primaryDepth
+    Uniforms:
+      - screenSize
+      - invCurrViewProjMatrix
+      - prevViewProjMatrix
+      - historyValid
+
+  LumOn - HZB (Depth Pyramid)
+    Shaders:
+      - assets/vanillagraphicsexpanded/shaders/lumon_hzb_copy.vsh
+      - assets/vanillagraphicsexpanded/shaders/lumon_hzb_copy.fsh
+      - assets/vanillagraphicsexpanded/shaders/lumon_hzb_downsample.vsh
+      - assets/vanillagraphicsexpanded/shaders/lumon_hzb_downsample.fsh
+    Outputs:
+      - hzb_copy: layout(location=0) out float outDepth  (R32F mip0)
+      - hzb_downsample: layout(location=0) out float outDepth  (R32F mipN)
+    Samplers:
+      - hzb_copy: primaryDepth
+      - hzb_downsample: hzbDepth
+    Uniforms:
+      - hzb_downsample: srcMip
+
+  LumOn - Probe Anchor (MRT)
+    Shaders:
+      - assets/vanillagraphicsexpanded/shaders/lumon_probe_anchor.vsh
+      - assets/vanillagraphicsexpanded/shaders/lumon_probe_anchor.fsh
+    Outputs:
+      - layout(location=0) out vec4 outPosition  (posWS.xyz, valid)
+      - layout(location=1) out vec4 outNormal    (encoded normalWS.xyz)
+    Samplers:
+      - primaryDepth
+      - gBufferNormal
+    Uniforms:
+      - invProjectionMatrix, invViewMatrix
+      - probeSpacing, probeGridSize, screenSize
+      - frameIndex, anchorJitterEnabled, anchorJitterScale
+      - zNear, zFar
+      - depthDiscontinuityThreshold
+
+  LumOn - Probe Atlas Trace (MRT)
+    Shaders:
+      - assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_trace.vsh
+      - assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_trace.fsh
+    Outputs:
+      - layout(location=0) out vec4 outRadiance  (RGB radiance, A hitdist encoded)
+      - layout(location=1) out vec2 outMeta      (R confidence, G flags)
+    Samplers:
+      - probeAnchorPosition
+      - probeAnchorNormal
+      - primaryDepth
+      - directDiffuse
+      - emissive
+      - hzbDepth
+      - octahedralHistory
+      - probeAtlasMetaHistory
+    Uniforms:
+      - hzbCoarseMip
+      - invProjectionMatrix, projectionMatrix, viewMatrix, invViewMatrix
+      - probeGridSize, screenSize
+      - frameIndex, texelsPerFrame
+      - raySteps, rayMaxDistance, rayThickness
+      - zNear, zFar
+      - skyMissWeight, sunPosition, sunColor, ambientColor
+      - indirectTint
+
+  LumOn - Probe Atlas Temporal (MRT)
+    Shaders:
+      - assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_temporal.vsh
+      - assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_temporal.fsh
+    Outputs:
+      - layout(location=0) out vec4 outRadiance
+      - layout(location=1) out vec2 outMeta
+    Samplers:
+      - octahedralCurrent
+      - probeAtlasMetaCurrent
+      - probeAtlasMetaHistory
+      - octahedralHistory
+      - probeAnchorPosition
+    Uniforms:
+      - probeGridSize
+      - frameIndex, texelsPerFrame
+      - temporalAlpha
+      - hitDistanceRejectThreshold
+
+  LumOn - Probe Atlas Filter (MRT)
+    Shaders:
+      - assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_filter.vsh
+      - assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_filter.fsh
+    Outputs:
+      - layout(location=0) out vec4 outRadiance
+      - layout(location=1) out vec2 outMeta
+    Samplers:
+      - octahedralAtlas
+      - probeAtlasMeta
+      - probeAnchorPosition
+    Uniforms:
+      - probeGridSize
+      - filterRadius
+      - hitDistanceSigma
+
+  LumOn - Probe Atlas Gather (Half-Res)
+    Shaders:
+      - assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_gather.vsh
+      - assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_gather.fsh
+    Outputs:
+      - out vec4 outColor  (RGB irradiance, A diagnostics/weight)
+    Samplers:
+      - octahedralAtlas
+      - probeAnchorPosition
+      - probeAnchorNormal
+      - primaryDepth
+      - gBufferNormal
+    Uniforms:
+      - invProjectionMatrix, viewMatrix
+      - probeSpacing, probeGridSize, screenSize, halfResSize
+      - zNear, zFar
+      - intensity, indirectTint
+      - leakThreshold
+      - sampleStride
+
+  LumOn - Upsample (Full-Res)
+    Shaders:
+      - assets/vanillagraphicsexpanded/shaders/lumon_upsample.vsh
+      - assets/vanillagraphicsexpanded/shaders/lumon_upsample.fsh
+    Outputs:
+      - out vec4 outColor  (RGB indirect full-res)
+    Samplers:
+      - indirectHalf
+      - primaryDepth
+      - gBufferNormal
+    Uniforms:
+      - screenSize, halfResSize
+      - zNear, zFar
+      - denoiseEnabled, upsampleDepthSigma, upsampleNormalSigma, upsampleSpatialSigma
+      - holeFillEnabled, holeFillRadius, holeFillMinConfidence
+
+  PBR - Composite (Final Merge)
+    Shaders:
+      - assets/vanillagraphicsexpanded/shaders/pbr_composite.vsh
+      - assets/vanillagraphicsexpanded/shaders/pbr_composite.fsh
+    Outputs:
+      - out vec4 outColor
+    Samplers:
+      - directDiffuse
+      - directSpecular
+      - emissive
+      - indirectDiffuse
+      - gBufferAlbedo
+      - gBufferMaterial
+      - gBufferNormal
+      - primaryDepth
+    Uniforms:
+      - rgbaFogIn, fogDensityIn, fogMinIn
+      - indirectIntensity, indirectTint, lumOnEnabled
+      - enablePbrComposite, enableAO, enableBentNormal, diffuseAOStrength, specularAOStrength
+      - invProjectionMatrix, viewMatrix
 
 
 Phase 2 - Add Missing GPU Shader Coverage (Only If Needed)
