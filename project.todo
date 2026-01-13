@@ -24,7 +24,7 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
     5. Upsample (optional spatial denoise)
     6. Combine (optional)
 
-  Phase 7 - Pass 1: Probe Anchor Jitter
+  Phase 7 - Pass 1 - Probe Anchor Jitter:
   Exit artifacts: Probe anchor pass supports jitter (frameIndex plumbing + optional config toggles); probe anchors remain MRT posWS/normalWS.
   ✔ Add `frameIndex` uniform support to probe anchor program + plumbing from LumOnRenderer @done
   ✔ Implement sub-pixel / sub-cell jitter in lumon_probe_anchor.fsh probe sample UV @done
@@ -33,7 +33,7 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
   ✔ Add debug visualization: show jittered sample locations (optional) @done
   ✔ Add GPU functional test: AnchorJitter_ChangesSampleLocation_Deterministically @done
 
-  Phase 8 - Pass 0 (Optional/Recommended): Depth Pyramid / HZB
+  Phase 8 - Pass 0 (Optional/Recommended) - Depth Pyramid / HZB:
   Exit artifacts: Depth pyramid textures exist per frame; screen-probe tracer can consume HZB for traversal/refinement.
   ✔ Add depth pyramid builder:
     - generate mip chain from primaryDepth each frame
@@ -44,7 +44,7 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
     - HZB_BuildProducesMonotonicDepthMips
     - Trace_HZBMatchesBaselineHitInSimpleScene @done
 
-  Phase 9.0 - Naming/Refactor: Screen-Probe Atlas Terminology
+  Phase 9.0 - Naming/Refactor - Screen-Probe Atlas Terminology:
   Exit artifacts: Public-facing names and file/class identifiers use “ScreenProbeAtlas” (or similar) instead of “Octahedral”, while octahedral remains an implementation detail for the mapping math.
   ✔ Define naming conventions: @done
     - Prefer “ScreenProbeAtlas” / “ProbeAtlas” for pipeline stages and textures
@@ -69,7 +69,7 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
   ✔ Update references/asset copy rules for renamed shader files (tests csproj content include patterns) @done
   ✔ Verify: build + GPU tests still pass after renames @done
 
-  Phase 9 - Pass 2: Screen-Probe Atlas Meta Output
+  Phase 9 - Pass 2 - Screen-Probe Atlas Meta Output:
   Exit artifacts: Screen-probe trace outputs radiance/hitdist plus meta (confidence + bitflags); history preservation applies to meta too.
   ✔ Decide meta storage: @done
     - Add a second atlas texture attachment: RG32F (R=confidence, G=uintBitsToFloat(flags))
@@ -93,7 +93,7 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
     - Meta_RayExitsScreen_LowerConfidence
     - Meta_NonTracedTexels_PreserveHistory
 
-  Phase 10 - Pass 3: Screen-Probe Atlas Temporal Uses Meta
+  Phase 10 - Pass 3 - Screen-Probe Atlas Temporal Uses Meta:
   Exit artifacts: Screen-probe atlas temporal produces meta-aware stabilized atlases suitable for downstream filtering/gather.
   ✔ Update lumon_probe_atlas_temporal.fsh (implementation detail: octahedral mapping) to read/write meta (separate texture) @done
   ✔ Make temporal alpha adaptive using meta confidence (e.g., alpha *= historyConfidence) @done
@@ -103,7 +103,7 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
     - Temporal_MetaReducesHistoryWeight @done
     - Temporal_LowConfidence_ForcesReset @done
 
-  Phase 11 - Pass 3.5: Probe-Space Filter/Denoise (New)
+  Phase 11 - Pass 3.5 - Probe-Space Filter/Denoise (New):
   Exit artifacts: Filtered atlas exists (radiance/hitdist/confidence as applicable); renderer can choose raw vs filtered as gather input.
   ✔ Add new shader + program: lumon_probe_atlas_filter.fsh (edge-stopped) @done
   ✔ Update LumOnBufferManager: @done
@@ -118,7 +118,7 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
     - Filter_RespectsInvalidProbes @done
     - Filter_RespectsConfidence @done
 
-  Phase 12 - Pass 4: Cheaper Gather Options
+  Phase 12 - Pass 4 - Cheaper Gather Options:
   Exit artifacts: Gather has a defined “cheap” mode (stride/fewer dirs) and/or a projected-basis path (if implemented) selectable via config.
   ✔ Decide gather simplification path: @done
     - add atlas → irradiance basis conversion pass, then gather is cheap @done
@@ -132,7 +132,7 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
     ✔ AtlasToSH_ProjectsKnownAtlasCorrectly @done
     ✔ Gather_SHFromProjected_StableVsIntegration @done
 
-  Phase 13 - Integration, Debug, and Performance
+  Phase 13 - Integration, Debug, and Performance:
   Exit artifacts: New passes are debuggable and timed; perf baselines documented; optional minimal visual regression hooks exist.
   ✔ Add debug modes for: @done
     - screen-probe atlas meta
@@ -140,7 +140,7 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
     - gather input selection (raw vs filtered)
   ✔ Extend GPU timer queries to include new passes (HZB, Filter, Projection) @done
 
-  Phase 14 - Screen-Space Parity/Polish (Remaining Discrepancies)
+  Phase 14 - Screen-Space Parity/Polish (Remaining Discrepancies):
   Depends on: Phase 9 (confidence), Phase 10 (temporal uses confidence), Phase 11 (probe-space filter).
   Exit artifacts: Screen-space GI is more Lumen-like in stability/robustness (exposure-stable, fewer edge holes, fewer temporal fireflies), with tests/diagnostics.
   ☐ Reprojection inputs (motion vectors / camera motion):
@@ -167,7 +167,7 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
     ✔ HoleFill_OnlyAffectsLowConfidenceAreas @done
     - SkyVisibility_ReducesIndoorSkylightWithoutBlackening
 
-  Phase 15 - BRDF + AO + Bent-Normal Compositing (New)
+  Phase 15 - BRDF + AO + Bent-Normal Compositing (New):
   Goal: Replace the current “simple add” indirect integration with a physically-plausible compositing pass that
   accounts for roughness/metallic/specular response and supports AO + bent normals for better contact and sky occlusion.
 
@@ -212,7 +212,7 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
     ✔ Composite_AO_ReducesIndirectInCreases @done
     - Composite_BentNormal_ReducesSkyOcclusionIndoors (or a minimal deterministic scene)
 
-  Phase 16 - PBR Direct Lighting Pass System (New)
+  Phase 16 - PBR Direct Lighting Pass System (New):
   Goal: Create a dedicated, high-quality PBR direct-lighting pass that is independent of LumOn
   (LumOn remains indirect lighting and can be disabled), but produces the “direct” lighting inputs
   that LumOn consumes downstream for final compositing.
@@ -261,7 +261,7 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
       - DirectLighting_StableUnderCameraMotion (no temporal artifacts)
       - Integration_LumOnDisabled_PassesThroughDirect
 
-  Phase 17 - Bent Normal Signal Generation (New)
+  Phase 17 - Bent Normal Signal Generation (New):
   Goal: Produce a stable, deterministic “bent normal” (or equivalent visibility direction) signal
   that can be fed into Phase 15 compositing, so bent-normal shading is based on real scene occlusion
   rather than a placeholder heuristic.
@@ -319,7 +319,7 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
     - BentNormal_TemporalStableUnderStaticCamera
     - BentNormal_RejectionOnDisocclusion
 
-  Phase 18 - World-Space Clipmap Probe System: Architecture Docs (New)
+  Phase 18 - World-Space Clipmap Probe System - Architecture Docs (New):
   Goal: Define and document the initial architecture for a world-space clipmap-based probe system
   (Lumen-like “world probes”) that can coexist with the current screen-space LumOn pipeline and
   eventually feed the same compositing stage.
