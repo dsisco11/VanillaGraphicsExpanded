@@ -49,15 +49,15 @@ VGE - Unified Shader Base (VgeShaderProgram) + Source Pipeline:
 
   Phase 4 - Implement `VgeShaderProgram` Base:
   Exit artifacts: `VgeShaderProgram` compiles/links programs and sets GPU debug labels consistently.
-  ☐ Add `VgeShaderProgram` inheriting the same engine base class as existing programs
-  ☐ Add define map + `setDefine(name, value)`:
+  ✔ Add `VgeShaderProgram` inheriting the same engine base class as existing programs @done
+  ✔ Add define map + `setDefine(name, value)` @done:
     - only triggers recompile when value actually changes
     - define injection happens via `ShaderSourceCode` AST merge
-  ☐ Compile/link path:
+  ✔ Compile/link path @done:
     - build ShaderSourceCode per stage used by the program (vsh/fsh/(gsh optional))
     - set stage sources onto the engine program in the appropriate fields
     - call compile + link
-  ☐ Apply GL debug label after successful link (program object)
+  ✔ Apply GL debug label after successful link (program object) @done
 
 
   Phase 5 - Migrate Existing Shaders:
