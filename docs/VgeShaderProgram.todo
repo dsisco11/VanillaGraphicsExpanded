@@ -74,7 +74,20 @@ VGE - Unified Shader Base (VgeShaderProgram) + Source Pipeline:
   ✔ Confirm import inlining is not run twice for VGE shaders (decision deferred; document outcome) @done
 
 
-  Phase 7 - Diagnostics + Source Map Remapping (Deferred Investigation):
+  Phase 7 - Tests + Documentation:
+  Exit artifacts: The new pipeline is covered by unit tests and documented for future shader additions.
+  ✔ Add unit tests for `ShaderSourceCode`: @done
+    - imports expand correctly
+    - defines inserted after `#version`
+    - source-map exists for merged output
+  ✔ Add unit tests for `VgeShaderProgram` define-change detection (no recompile when unchanged) @done
+  ✔ Add short developer doc describing: @done
+    - how to add a new shader program
+    - how imports work
+    - how defines work (and constraints around `#version`)
+
+
+  Phase 8 - Diagnostics + Source Map Remapping (Deferred Investigation):
   Exit artifacts: A clear path to mapping GL compiler errors back to original imported files.
   ☐ Investigate whether we can capture per-shader GL compiler errors/info-log at runtime
     - If only engine captures logs, explore how to hook it (if possible)
@@ -83,16 +96,3 @@ VGE - Unified Shader Base (VgeShaderProgram) + Source Pipeline:
     - query preprocessor source-map → original resource + location
     - report enriched errors with original file + line
   ☐ Decide whether to embed `#line` directives vs maintain sidecar source maps
-
-
-  Phase 8 - Tests + Documentation:
-  Exit artifacts: The new pipeline is covered by unit tests and documented for future shader additions.
-  ☐ Add unit tests for `ShaderSourceCode`:
-    - imports expand correctly
-    - defines inserted after `#version`
-    - source-map exists for merged output
-  ☐ Add unit tests for `VgeShaderProgram` define-change detection (no recompile when unchanged)
-  ☐ Add short developer doc describing:
-    - how to add a new shader program
-    - how imports work
-    - how defines work (and constraints around `#version`)

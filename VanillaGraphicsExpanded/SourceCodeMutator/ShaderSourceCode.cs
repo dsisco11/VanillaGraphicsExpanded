@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 
 using TinyPreprocessor;
+using TinyPreprocessor.Core;
 using TinyTokenizer.Ast;
 
 using VanillaGraphicsExpanded.PBR;
@@ -112,6 +113,97 @@ public sealed class ShaderSourceCode
             StageExtension = stageExtension,
             AssetDomain = domain,
             RawSource = raw,
+            ParsedTree = parsed,
+            Defines = defineMap,
+            ImportInlining = preprocess,
+            EmittedSourceUnstripped = emittedUnstripped,
+            EmittedSource = emitted
+        };
+    }
+
+    /// <summary>
+    /// Creates a <see cref="ShaderSourceCode"/> instance from raw shader text.
+    /// Intended for unit tests and tooling where an <see cref="ICoreAPI"/> asset manager is not available.
+    /// </summary>
+    /// <remarks>
+    /// The caller supplies a <see cref="ShaderSyntaxTreePreprocessor"/> to resolve <c>@import</c> directives.
+    /// VGE's production path uses an AssetManager-backed preprocessor via <see cref="ShaderImportsSystem"/>.
+    /// </remarks>
+    public static ShaderSourceCode FromSource(
+        string shaderName,
+        string stageExtension,
+        string rawSource,
+        string sourceName,
+        ShaderSyntaxTreePreprocessor importPreprocessor,
+        IReadOnlyDictionary<string, string?>? defines = null,
+        ILogger? log = null,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(shaderName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(stageExtension);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceName);
+        ArgumentNullException.ThrowIfNull(importPreprocessor);
+
+        if (string.IsNullOrEmpty(rawSource))
+        {
+            throw new InvalidOperationException($"Shader stage source was empty: {sourceName}");
+        }
+
+        var parsed = ShaderImportsSystem.Instance.CreateSyntaxTree(rawSource, sourceName)
+            ?? throw new InvalidOperationException($"Failed to parse GLSL for '{sourceName}'");
+
+        ct.ThrowIfCancellationRequested();
+
+        IReadOnlyDictionary<string, string?> defineMap = defines is null
+            ? new Dictionary<string, string?>()
+            : new Dictionary<string, string?>(defines);
+
+        if (defineMap.Count > 0)
+        {
+            InjectDefinesAfterVersion(parsed, defineMap);
+        }
+
+        bool hadImports = parsed.Select(Query.Syntax<GlImportNode>()).Any();
+
+        PreprocessResult<SyntaxTree>? rawResult = null;
+        SyntaxTree outputTree = parsed;
+        string[] diagnostics = Array.Empty<string>();
+
+        if (hadImports)
+        {
+            var rootId = new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/{sourceName}");
+            rawResult = importPreprocessor.Process(rootId, parsed, context: null, options: null, ct);
+            if (!rawResult.Success)
+            {
+                string diagText = string.Join("\n", rawResult.Diagnostics.Select(static d => d.ToString() ?? string.Empty));
+                log?.Error($"[VGE] GLSL preprocessing failed for '{sourceName}':\n{diagText}");
+                throw new InvalidOperationException($"GLSL preprocessing failed for '{sourceName}'");
+            }
+
+            outputTree = rawResult.Content;
+            diagnostics = rawResult.Diagnostics.Select(static d => d.ToString() ?? string.Empty).ToArray();
+        }
+
+        var preprocess = new GlslPreprocessor.Result
+        {
+            SourceName = sourceName,
+            Tree = parsed,
+            HadImports = hadImports,
+            Success = true,
+            OutputTree = outputTree,
+            Diagnostics = diagnostics,
+            RawResult = rawResult
+        };
+
+        string emittedUnstripped = preprocess.OutputTree.ToText();
+        string emitted = SourceCodeImportsProcessor.StripNonAscii(emittedUnstripped);
+
+        return new ShaderSourceCode
+        {
+            ShaderName = shaderName,
+            StageExtension = stageExtension,
+            AssetDomain = ShaderImportsSystem.DefaultDomain,
+            RawSource = rawSource,
             ParsedTree = parsed,
             Defines = defineMap,
             ImportInlining = preprocess,

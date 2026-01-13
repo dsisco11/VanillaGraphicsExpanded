@@ -151,7 +151,7 @@ public abstract class VgeShaderProgram : ShaderProgram
         return ok;
     }
 
-    private void RequestRecompile()
+    protected virtual void RequestRecompile()
     {
         var api = capi;
         if (api is null)
