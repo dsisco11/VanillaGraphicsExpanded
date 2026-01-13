@@ -21,7 +21,7 @@ public class LumOnScreenProbeAtlasProjectSh9ShaderProgram : VgeShaderProgram
             PassName = "lumon_probe_atlas_project_sh9",
             AssetDomain = "vanillagraphicsexpanded"
         };
-        api.Shader.RegisterFileShaderProgram("lumon_probe_atlas_project_sh9", instance);
+        api.Shader.RegisterMemoryShaderProgram("lumon_probe_atlas_project_sh9", instance);
         instance.Initialize(api);
         instance.CompileAndLink();
     }

@@ -22,7 +22,7 @@ public sealed class PBRCompositeShaderProgram : VgeShaderProgram
             AssetDomain = "vanillagraphicsexpanded"
         };
 
-        api.Shader.RegisterFileShaderProgram("pbr_composite", instance);
+        api.Shader.RegisterMemoryShaderProgram("pbr_composite", instance);
         instance.Initialize(api);
         instance.CompileAndLink();
     }

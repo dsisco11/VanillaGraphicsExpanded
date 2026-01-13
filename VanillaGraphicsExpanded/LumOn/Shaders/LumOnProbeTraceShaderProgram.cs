@@ -21,7 +21,7 @@ public class LumOnProbeTraceShaderProgram : VgeShaderProgram
             PassName = "lumon_probe_trace",
             AssetDomain = "vanillagraphicsexpanded"
         };
-        api.Shader.RegisterFileShaderProgram("lumon_probe_trace", instance);
+        api.Shader.RegisterMemoryShaderProgram("lumon_probe_trace", instance);
         instance.Initialize(api);
         instance.CompileAndLink();
     }

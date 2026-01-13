@@ -21,7 +21,7 @@ public class LumOnGatherShaderProgram : VgeShaderProgram
             PassName = "lumon_gather",
             AssetDomain = "vanillagraphicsexpanded"
         };
-        api.Shader.RegisterFileShaderProgram("lumon_gather", instance);
+        api.Shader.RegisterMemoryShaderProgram("lumon_gather", instance);
         instance.Initialize(api);
         instance.CompileAndLink();
     }

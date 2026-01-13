@@ -23,7 +23,7 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : VgeShaderProgram
             PassName = "lumon_probe_atlas_trace",
             AssetDomain = "vanillagraphicsexpanded"
         };
-        api.Shader.RegisterFileShaderProgram("lumon_probe_atlas_trace", instance);
+        api.Shader.RegisterMemoryShaderProgram("lumon_probe_atlas_trace", instance);
         instance.Initialize(api);
         instance.CompileAndLink();
     }

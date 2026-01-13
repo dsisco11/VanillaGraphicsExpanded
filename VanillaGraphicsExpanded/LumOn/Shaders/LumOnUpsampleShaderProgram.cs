@@ -21,7 +21,7 @@ public class LumOnUpsampleShaderProgram : VgeShaderProgram
             PassName = "lumon_upsample",
             AssetDomain = "vanillagraphicsexpanded"
         };
-        api.Shader.RegisterFileShaderProgram("lumon_upsample", instance);
+        api.Shader.RegisterMemoryShaderProgram("lumon_upsample", instance);
         instance.Initialize(api);
         instance.CompileAndLink();
     }

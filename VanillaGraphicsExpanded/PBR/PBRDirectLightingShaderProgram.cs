@@ -33,7 +33,7 @@ public sealed class PBRDirectLightingShaderProgram : VgeShaderProgram
             AssetDomain = "vanillagraphicsexpanded"
         };
 
-        api.Shader.RegisterFileShaderProgram("pbr_direct_lighting", instance);
+        api.Shader.RegisterMemoryShaderProgram("pbr_direct_lighting", instance);
         instance.Initialize(api);
         instance.CompileAndLink();
     }

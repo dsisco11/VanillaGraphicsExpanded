@@ -69,9 +69,9 @@ VGE - Unified Shader Base (VgeShaderProgram) + Source Pipeline:
 
   Phase 6 - Reload / Recompile Behavior:
   Exit artifacts: Recompile-on-define works and integrates cleanly with the existing shader reload event.
-  ☐ Ensure `setDefine()` recompiles safely (no GL calls off render thread)
-  ☐ Ensure shader reload event still recompiles all VGE shaders successfully
-  ☐ Confirm import inlining is not run twice for VGE shaders (decision deferred; document outcome)
+  ✔ Ensure `setDefine()` recompiles safely (no GL calls off render thread) @done
+  ✔ Ensure shader reload event still recompiles all VGE shaders successfully @done
+  ✔ Confirm import inlining is not run twice for VGE shaders (decision deferred; document outcome) @done
 
 
   Phase 7 - Diagnostics + Source Map Remapping (Deferred Investigation):

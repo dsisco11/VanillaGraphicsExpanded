@@ -22,7 +22,7 @@ public class LumOnCombineShaderProgram : VgeShaderProgram
             PassName = "lumon_combine",
             AssetDomain = "vanillagraphicsexpanded"
         };
-        api.Shader.RegisterFileShaderProgram("lumon_combine", instance);
+        api.Shader.RegisterMemoryShaderProgram("lumon_combine", instance);
         instance.Initialize(api);
         instance.CompileAndLink();
     }

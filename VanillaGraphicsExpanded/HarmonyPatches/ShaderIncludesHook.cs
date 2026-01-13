@@ -24,8 +24,8 @@ public static class ShaderIncludesHook
     private static ILogger? _logger;
     private static IAssetManager? _assetManager;
 
-    // NOTE (deferred): Once VGE shader programs inline imports themselves (VgeShaderProgram + ShaderSourceCode),
-    // this hook should likely skip VGE-owned programs to avoid double-processing.
+    // VGE shader programs inline imports themselves (VgeShaderProgram + ShaderSourceCode).
+    // Skip VGE-owned shader programs here to avoid double-processing and wasted tokenization.
 
     /// <summary>
     /// Initializes the hook with dependencies.
@@ -46,6 +46,13 @@ public static class ShaderIncludesHook
             return;
         }
         if (_logger is null)
+        {
+            return;
+        }
+
+        // VGE-owned shaders are compiled from already-inlined sources via ShaderSourceCode.
+        // Let the engine load/patch vanilla shaders only.
+        if (string.Equals(program.AssetDomain, Constants.ModId, System.StringComparison.OrdinalIgnoreCase))
         {
             return;
         }

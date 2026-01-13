@@ -31,7 +31,7 @@ public class LumOnProbeAnchorShaderProgram : VgeShaderProgram
             PassName = "lumon_probe_anchor",
             AssetDomain = "vanillagraphicsexpanded"
         };
-        api.Shader.RegisterFileShaderProgram("lumon_probe_anchor", instance);
+        api.Shader.RegisterMemoryShaderProgram("lumon_probe_anchor", instance);
         instance.Initialize(api);
         instance.CompileAndLink();
     }

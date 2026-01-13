@@ -22,7 +22,7 @@ public class LumOnVelocityShaderProgram : VgeShaderProgram
             AssetDomain = "vanillagraphicsexpanded"
         };
 
-        api.Shader.RegisterFileShaderProgram("lumon_velocity", instance);
+        api.Shader.RegisterMemoryShaderProgram("lumon_velocity", instance);
         instance.Initialize(api);
         instance.CompileAndLink();
     }
