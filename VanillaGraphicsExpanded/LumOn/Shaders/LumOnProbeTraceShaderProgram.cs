@@ -2,13 +2,15 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering.Shaders;
+
 namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>
 /// Shader program for LumOn Probe Trace pass.
 /// Ray marches from each probe and accumulates radiance into SH coefficients.
 /// </summary>
-public class LumOnProbeTraceShaderProgram : ShaderProgram
+public class LumOnProbeTraceShaderProgram : VgeShaderProgram
 {
     #region Static
 
@@ -20,7 +22,8 @@ public class LumOnProbeTraceShaderProgram : ShaderProgram
             AssetDomain = "vanillagraphicsexpanded"
         };
         api.Shader.RegisterFileShaderProgram("lumon_probe_trace", instance);
-        instance.Compile();
+        instance.Initialize(api);
+        instance.CompileAndLink();
     }
 
     #endregion

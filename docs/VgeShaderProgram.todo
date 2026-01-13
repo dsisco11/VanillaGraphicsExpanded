@@ -62,9 +62,9 @@ VGE - Unified Shader Base (VgeShaderProgram) + Source Pipeline:
 
   Phase 5 - Migrate Existing Shaders:
   Exit artifacts: All VGE shader programs inherit `VgeShaderProgram` and compile through the unified pipeline.
-  ☐ Update LumOn shader programs to inherit `VgeShaderProgram`
-  ☐ Update PBR shader programs to inherit `VgeShaderProgram`
-  ☐ Ensure any shader-specific post-compile work re-runs after recompile (uniform location caches, etc.)
+  ✔ Update LumOn shader programs to inherit `VgeShaderProgram` @done
+  ✔ Update PBR shader programs to inherit `VgeShaderProgram` @done
+  ✔ Ensure any shader-specific post-compile work re-runs after recompile (uniform location caches, etc.) @done
 
 
   Phase 6 - Reload / Recompile Behavior:

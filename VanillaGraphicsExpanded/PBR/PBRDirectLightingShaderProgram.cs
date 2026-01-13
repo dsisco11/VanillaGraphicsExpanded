@@ -1,4 +1,5 @@
 using System;
+using VanillaGraphicsExpanded.Rendering.Shaders;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
@@ -15,7 +16,7 @@ namespace VanillaGraphicsExpanded.PBR;
 /// - MRT1: Direct specular
 /// - MRT2: Emissive
 /// </summary>
-public sealed class PBRDirectLightingShaderProgram : ShaderProgram
+public sealed class PBRDirectLightingShaderProgram : VgeShaderProgram
 {
     private int cachedUniformProgramId;
     private int locPointLightsCount = -1;
@@ -33,11 +34,16 @@ public sealed class PBRDirectLightingShaderProgram : ShaderProgram
         };
 
         api.Shader.RegisterFileShaderProgram("pbr_direct_lighting", instance);
-        instance.Compile();
-        instance.CacheUniformLocations();
+        instance.Initialize(api);
+        instance.CompileAndLink();
     }
 
     #endregion
+
+    protected override void OnAfterCompile()
+    {
+        CacheUniformLocations();
+    }
 
     #region Texture Samplers
 

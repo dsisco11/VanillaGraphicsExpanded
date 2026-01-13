@@ -2,13 +2,15 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering.Shaders;
+
 namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>
 /// Shader program for LumOn Gather pass.
 /// Interpolates nearby probes to compute per-pixel irradiance.
 /// </summary>
-public class LumOnGatherShaderProgram : ShaderProgram
+public class LumOnGatherShaderProgram : VgeShaderProgram
 {
     #region Static
 
@@ -20,7 +22,8 @@ public class LumOnGatherShaderProgram : ShaderProgram
             AssetDomain = "vanillagraphicsexpanded"
         };
         api.Shader.RegisterFileShaderProgram("lumon_gather", instance);
-        instance.Compile();
+        instance.Initialize(api);
+        instance.CompileAndLink();
     }
 
     #endregion

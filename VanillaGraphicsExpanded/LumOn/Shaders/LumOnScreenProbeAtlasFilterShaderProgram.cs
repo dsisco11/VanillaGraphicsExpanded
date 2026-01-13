@@ -2,13 +2,15 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering.Shaders;
+
 namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>
 /// Shader program for the LumOn screen-probe atlas filter pass.
 /// Performs an edge-stopped denoise within each probe's octahedral tile.
 /// </summary>
-public class LumOnScreenProbeAtlasFilterShaderProgram : ShaderProgram
+public class LumOnScreenProbeAtlasFilterShaderProgram : VgeShaderProgram
 {
     #region Static
 
@@ -20,7 +22,8 @@ public class LumOnScreenProbeAtlasFilterShaderProgram : ShaderProgram
             AssetDomain = "vanillagraphicsexpanded"
         };
         api.Shader.RegisterFileShaderProgram("lumon_probe_atlas_filter", instance);
-        instance.Compile();
+        instance.Initialize(api);
+        instance.CompileAndLink();
     }
 
     #endregion

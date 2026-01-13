@@ -2,6 +2,8 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering.Shaders;
+
 namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>
@@ -9,7 +11,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Combines indirect diffuse lighting with direct lighting and applies
 /// proper material modulation (albedo, metallic rejection).
 /// </summary>
-public class LumOnCombineShaderProgram : ShaderProgram
+public class LumOnCombineShaderProgram : VgeShaderProgram
 {
     #region Static
 
@@ -21,7 +23,8 @@ public class LumOnCombineShaderProgram : ShaderProgram
             AssetDomain = "vanillagraphicsexpanded"
         };
         api.Shader.RegisterFileShaderProgram("lumon_combine", instance);
-        instance.Compile();
+        instance.Initialize(api);
+        instance.CompileAndLink();
     }
 
     #endregion

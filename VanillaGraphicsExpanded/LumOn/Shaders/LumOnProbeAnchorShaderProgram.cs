@@ -2,6 +2,8 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering.Shaders;
+
 namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>
@@ -18,7 +20,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// - Edge detection via depth discontinuity (reduces temporal weight)
 /// - Invalid normal rejection
 /// </summary>
-public class LumOnProbeAnchorShaderProgram : ShaderProgram
+public class LumOnProbeAnchorShaderProgram : VgeShaderProgram
 {
     #region Static
 
@@ -30,7 +32,8 @@ public class LumOnProbeAnchorShaderProgram : ShaderProgram
             AssetDomain = "vanillagraphicsexpanded"
         };
         api.Shader.RegisterFileShaderProgram("lumon_probe_anchor", instance);
-        instance.Compile();
+        instance.Initialize(api);
+        instance.CompileAndLink();
     }
 
     #endregion

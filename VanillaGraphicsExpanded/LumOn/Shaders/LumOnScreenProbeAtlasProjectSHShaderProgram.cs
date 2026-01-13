@@ -2,13 +2,15 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering.Shaders;
+
 namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>
 /// Shader program for projecting the screen-probe atlas into packed SH L1 coefficients.
 /// Used for Phase 12 Option B (cheap gather).
 /// </summary>
-public class LumOnScreenProbeAtlasProjectSHShaderProgram : ShaderProgram
+public class LumOnScreenProbeAtlasProjectSHShaderProgram : VgeShaderProgram
 {
     #region Static
 
@@ -20,7 +22,8 @@ public class LumOnScreenProbeAtlasProjectSHShaderProgram : ShaderProgram
             AssetDomain = "vanillagraphicsexpanded"
         };
         api.Shader.RegisterFileShaderProgram("lumon_probe_atlas_project_sh", instance);
-        instance.Compile();
+        instance.Initialize(api);
+        instance.CompileAndLink();
     }
 
     #endregion

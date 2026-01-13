@@ -2,13 +2,15 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering.Shaders;
+
 namespace VanillaGraphicsExpanded.PBR;
 
 /// <summary>
 /// Shader program for final compositing of PBR direct buffers + optional indirect lighting,
 /// applying fog once and writing to the primary framebuffer.
 /// </summary>
-public sealed class PBRCompositeShaderProgram : ShaderProgram
+public sealed class PBRCompositeShaderProgram : VgeShaderProgram
 {
     #region Static
 
@@ -21,7 +23,8 @@ public sealed class PBRCompositeShaderProgram : ShaderProgram
         };
 
         api.Shader.RegisterFileShaderProgram("pbr_composite", instance);
-        instance.Compile();
+        instance.Initialize(api);
+        instance.CompileAndLink();
     }
 
     #endregion

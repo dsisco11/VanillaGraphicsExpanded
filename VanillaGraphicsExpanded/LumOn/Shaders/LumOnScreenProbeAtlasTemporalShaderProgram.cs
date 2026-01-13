@@ -2,6 +2,8 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering.Shaders;
+
 namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>
@@ -11,7 +13,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Only blends texels traced this frame; preserves non-traced texels.
 /// Uses hit-distance delta for disocclusion detection.
 /// </summary>
-public class LumOnScreenProbeAtlasTemporalShaderProgram : ShaderProgram
+public class LumOnScreenProbeAtlasTemporalShaderProgram : VgeShaderProgram
 {
     #region Static
 
@@ -23,7 +25,8 @@ public class LumOnScreenProbeAtlasTemporalShaderProgram : ShaderProgram
             AssetDomain = "vanillagraphicsexpanded"
         };
         api.Shader.RegisterFileShaderProgram("lumon_probe_atlas_temporal", instance);
-        instance.Compile();
+        instance.Initialize(api);
+        instance.CompileAndLink();
     }
 
     #endregion

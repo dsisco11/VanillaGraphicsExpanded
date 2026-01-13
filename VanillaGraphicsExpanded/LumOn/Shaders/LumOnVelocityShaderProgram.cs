@@ -2,13 +2,15 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering.Shaders;
+
 namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>
 /// Shader program for LumOn velocity generation pass.
 /// Produces a per-pixel screen-space velocity (UV delta per frame) and packed reprojection flags.
 /// </summary>
-public class LumOnVelocityShaderProgram : ShaderProgram
+public class LumOnVelocityShaderProgram : VgeShaderProgram
 {
     #region Static
 
@@ -21,7 +23,8 @@ public class LumOnVelocityShaderProgram : ShaderProgram
         };
 
         api.Shader.RegisterFileShaderProgram("lumon_velocity", instance);
-        instance.Compile();
+        instance.Initialize(api);
+        instance.CompileAndLink();
     }
 
     #endregion

@@ -2,6 +2,8 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering.Shaders;
+
 namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>
@@ -10,7 +12,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Implements reprojection, validation, and neighborhood clamping.
 /// See: LumOn.05-Temporal.md
 /// </summary>
-public class LumOnTemporalShaderProgram : ShaderProgram
+public class LumOnTemporalShaderProgram : VgeShaderProgram
 {
     #region Static
 
@@ -22,7 +24,8 @@ public class LumOnTemporalShaderProgram : ShaderProgram
             AssetDomain = "vanillagraphicsexpanded"
         };
         api.Shader.RegisterFileShaderProgram("lumon_temporal", instance);
-        instance.Compile();
+        instance.Initialize(api);
+        instance.CompileAndLink();
     }
 
     #endregion

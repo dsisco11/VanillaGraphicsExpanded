@@ -2,6 +2,8 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering.Shaders;
+
 namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>
@@ -9,7 +11,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Implementation detail: integrates radiance from an octahedral-mapped probe atlas.
 /// This replaces the SH-based gather when UseProbeAtlas is enabled.
 /// </summary>
-public class LumOnScreenProbeAtlasGatherShaderProgram : ShaderProgram
+public class LumOnScreenProbeAtlasGatherShaderProgram : VgeShaderProgram
 {
     #region Static
 
@@ -21,7 +23,8 @@ public class LumOnScreenProbeAtlasGatherShaderProgram : ShaderProgram
             AssetDomain = "vanillagraphicsexpanded"
         };
         api.Shader.RegisterFileShaderProgram("lumon_probe_atlas_gather", instance);
-        instance.Compile();
+        instance.Initialize(api);
+        instance.CompileAndLink();
     }
 
     #endregion

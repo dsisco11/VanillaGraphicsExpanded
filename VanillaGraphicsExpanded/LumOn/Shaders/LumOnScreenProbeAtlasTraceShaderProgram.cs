@@ -2,6 +2,8 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering.Shaders;
+
 namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>
@@ -10,7 +12,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Ray traces from each probe and stores radiance + hit distance in the probe atlas.
 /// Uses temporal distribution to trace a subset of directions each frame.
 /// </summary>
-public class LumOnScreenProbeAtlasTraceShaderProgram : ShaderProgram
+public class LumOnScreenProbeAtlasTraceShaderProgram : VgeShaderProgram
 {
     #region Static
 
@@ -22,7 +24,8 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : ShaderProgram
             AssetDomain = "vanillagraphicsexpanded"
         };
         api.Shader.RegisterFileShaderProgram("lumon_probe_atlas_trace", instance);
-        instance.Compile();
+        instance.Initialize(api);
+        instance.CompileAndLink();
     }
 
     #endregion

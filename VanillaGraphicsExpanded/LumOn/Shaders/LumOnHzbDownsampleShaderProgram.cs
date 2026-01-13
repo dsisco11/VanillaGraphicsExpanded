@@ -1,13 +1,15 @@
 using Vintagestory.API.Client;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering.Shaders;
+
 namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>
 /// Shader program for downsampling an HZB mip level into the next mip.
 /// Uses MIN depth over a 2x2 block.
 /// </summary>
-public sealed class LumOnHzbDownsampleShaderProgram : ShaderProgram
+public sealed class LumOnHzbDownsampleShaderProgram : VgeShaderProgram
 {
     public static void Register(ICoreClientAPI api)
     {
@@ -17,7 +19,8 @@ public sealed class LumOnHzbDownsampleShaderProgram : ShaderProgram
             AssetDomain = "vanillagraphicsexpanded"
         };
         api.Shader.RegisterFileShaderProgram("lumon_hzb_downsample", instance);
-        instance.Compile();
+        instance.Initialize(api);
+        instance.CompileAndLink();
     }
 
     /// <summary>
