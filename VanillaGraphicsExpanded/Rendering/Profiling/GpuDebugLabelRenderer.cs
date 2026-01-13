@@ -15,9 +15,10 @@ namespace VanillaGraphicsExpanded.Profiling;
 /// </remarks>
 internal sealed class GpuDebugLabelRenderer : IRenderer
 {
+    private static readonly Dictionary<EnumRenderStage, GlDebug.GroupScope> ActiveScopes = new();
+    
     private readonly ICoreClientAPI capi;
     private readonly bool isEnd;
-    private GlDebug.GroupScope currentScope;
     
     public double RenderOrder { get; }
     
@@ -27,22 +28,26 @@ internal sealed class GpuDebugLabelRenderer : IRenderer
     {
         this.capi = capi;
         this.isEnd = isEnd;
-        RenderOrder = isEnd ? 1.001 : -0.001;
+        RenderOrder = isEnd ? 999.0 : -999.0;
     }
 
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         if (isEnd)
         {
-            // Pop debug group (close the scope)
-            currentScope.Dispose();
-            currentScope = default;
+            // Pop debug group (close the scope) that was stored by the begin renderer
+            if (ActiveScopes.TryGetValue(stage, out var scope))
+            {
+                scope.Dispose();
+                ActiveScopes.Remove(stage);
+            }
         }
         else
         {
-            // Push debug group for this render stage
+            // Push debug group for this render stage and store it
             string stageName = GetStageName(stage);
-            currentScope = GlDebug.Group(stageName);
+            var scope = GlDebug.Group(stageName);
+            ActiveScopes[stage] = scope;
         }
     }
 
@@ -72,7 +77,15 @@ internal sealed class GpuDebugLabelRenderer : IRenderer
 
     public void Dispose()
     {
-        currentScope.Dispose();
+        // Clean up any remaining scopes in case of early disposal
+        if (!isEnd)
+        {
+            foreach (var scope in ActiveScopes.Values)
+            {
+                scope.Dispose();
+            }
+            ActiveScopes.Clear();
+        }
     }
 }
 
