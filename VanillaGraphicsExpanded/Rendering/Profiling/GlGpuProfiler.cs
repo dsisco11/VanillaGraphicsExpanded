@@ -3,6 +3,8 @@ using System.Collections.Generic;
 
 using OpenTK.Graphics.OpenGL;
 
+using VanillaGraphicsExpanded.Rendering;
+
 using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.Rendering.Profiling;
@@ -28,6 +30,8 @@ public sealed class GlGpuProfiler : IDisposable
     private int height;
 
     public bool Enabled { get; set; } = true;
+
+    public bool EmitDebugGroups { get; set; } = true;
 
     private GlGpuProfiler() { }
 
@@ -98,7 +102,11 @@ public sealed class GlGpuProfiler : IDisposable
                 : $"{stack.Peek().Name}/{name}";
 
             int token = BeginEvent(fullName);
-            return new GlGpuProfilerScope(this, token);
+            var group = token != 0 && EmitDebugGroups
+                ? GlDebug.Group(fullName)
+                : default;
+
+            return new GlGpuProfilerScope(this, token, group);
         }
     }
 
