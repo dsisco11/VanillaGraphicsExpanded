@@ -4,6 +4,8 @@ using System.Threading;
 
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
+using StageShader = VanillaGraphicsExpanded.Rendering.Shaders.Stages.Shader;
+using VanillaGraphicsExpanded.Rendering.Shaders.Stages;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -24,6 +26,10 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 /// </summary>
 public abstract class VgeShaderProgram : ShaderProgram
 {
+    private readonly StageShader vertexStage;
+    private readonly StageShader fragmentStage;
+    private readonly StageShader geometryStage;
+
     private readonly Dictionary<string, string?> defines = new(StringComparer.Ordinal);
     private readonly object defineLock = new();
 
@@ -50,6 +56,11 @@ public abstract class VgeShaderProgram : ShaderProgram
     {
         capi = api ?? throw new ArgumentNullException(nameof(api));
         log = logger ?? api.Logger;
+
+        // Stage ownership is kept here, but stage behavior is fully encapsulated.
+        // These delegates are safe because they are only invoked after Initialize() (when capi is set).
+        // Vertex/Fragment/Geometry slots are provided by the engine ShaderProgram base.
+        
 
         // Keep AssetDomain aligned with the import system default unless a derived program explicitly overrides it.
         if (string.IsNullOrWhiteSpace(AssetDomain))
@@ -116,28 +127,17 @@ public abstract class VgeShaderProgram : ShaderProgram
             throw new InvalidOperationException("VgeShaderProgram was not initialized. Call Initialize(api) first.");
         }
 
-        EnsureStageShadersAllocated(capi);
-
         IReadOnlyDictionary<string, string?> defineSnapshot;
         lock (defineLock)
         {
             defineSnapshot = new Dictionary<string, string?>(defines, StringComparer.Ordinal);
         }
 
-        var vsh = ShaderSourceCode.Load(capi, ShaderName, "vsh", defineSnapshot, log);
-        var fsh = ShaderSourceCode.Load(capi, ShaderName, "fsh", defineSnapshot, log);
+        vertexStage.LoadAndApply(capi, ShaderName, defineSnapshot, log);
+        fragmentStage.LoadAndApply(capi, ShaderName, defineSnapshot, log);
 
-        VertexShader.Code = vsh.EmittedSource;
-        FragmentShader.Code = fsh.EmittedSource;
-
-        // Geometry shader is optional.
-        ShaderSourceCode? gshCode = null;
-        if (TryLoadOptionalGeometryStage(capi, defineSnapshot, out var gsh))
-        {
-            gshCode = gsh;
-            GeometryShader ??= (Shader)capi.Shader.NewShader(EnumShaderType.GeometryShader);
-            GeometryShader.Code = gsh!.EmittedSource;
-        }
+        // Geometry stage is optional.
+        geometryStage.TryLoadAndApplyOptional(capi, ShaderName, defineSnapshot, log);
 
         bool ok = Compile();
         if (ok)
@@ -149,56 +149,68 @@ public abstract class VgeShaderProgram : ShaderProgram
         {
             log?.Warning($"[VGE] Shader compile failed: {ShaderName}");
 
-            // Best-effort diagnostics: recompile the current sources through OpenGL directly so we can
-            // capture per-stage info logs even if the engine doesn't surface them.
-            try
-            {
-                var diag = GlslCompileDiagnostics.TryCompile(
-                    vertexSource: VertexShader.Code,
-                    fragmentSource: FragmentShader.Code,
-                    geometrySource: GeometryShader?.Code);
-
-                if (diag.HasAnyLog)
-                {
-                    if (!string.IsNullOrWhiteSpace(diag.VertexLog))
-                    {
-                        log?.Error($"[VGE][{ShaderName}] Vertex shader info log:\n{diag.VertexLog}");
-                    }
-                    if (!string.IsNullOrWhiteSpace(diag.FragmentLog))
-                    {
-                        log?.Error($"[VGE][{ShaderName}] Fragment shader info log:\n{diag.FragmentLog}");
-                    }
-                    if (!string.IsNullOrWhiteSpace(diag.GeometryLog))
-                    {
-                        log?.Error($"[VGE][{ShaderName}] Geometry shader info log:\n{diag.GeometryLog}");
-                    }
-                    if (!string.IsNullOrWhiteSpace(diag.ProgramLog))
-                    {
-                        log?.Error($"[VGE][{ShaderName}] Program link info log:\n{diag.ProgramLog}");
-                    }
-                }
-
-                // Emit some context that will matter for future remapping.
-                if (vsh.ImportInlining.HadImports)
-                {
-                    log?.Notification($"[VGE][{ShaderName}] Vertex stage had imports; source-map available={vsh.ImportResult?.GetType().GetProperty("SourceMap")?.GetValue(vsh.ImportResult) is not null}");
-                }
-                if (fsh.ImportInlining.HadImports)
-                {
-                    log?.Notification($"[VGE][{ShaderName}] Fragment stage had imports; source-map available={fsh.ImportResult?.GetType().GetProperty("SourceMap")?.GetValue(fsh.ImportResult) is not null}");
-                }
-                if (gshCode is not null && gshCode.ImportInlining.HadImports)
-                {
-                    log?.Notification($"[VGE][{ShaderName}] Geometry stage had imports; source-map available={gshCode.ImportResult?.GetType().GetProperty("SourceMap")?.GetValue(gshCode.ImportResult) is not null}");
-                }
-            }
-            catch (Exception ex)
-            {
-                log?.Warning($"[VGE][{ShaderName}] Failed to capture GL shader diagnostics: {ex}");
-            }
+            LogDiagnostics();
         }
 
         return ok;
+    }
+
+    protected virtual void LogDiagnostics()
+    {
+        // Called only on compilation failures, on the render thread.
+        // All OpenGL diagnostics are best-effort and must never throw.
+        try
+        {
+            var v = vertexStage.CompileDiagnostics();
+            var f = fragmentStage.CompileDiagnostics();
+            var g = geometryStage.EmittedSource is null ? new StageShader.StageCompileDiagnostics { Success = true, InfoLog = string.Empty, ShaderId = 0 } : geometryStage.CompileDiagnostics();
+
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(v.InfoLog))
+                {
+                    log?.Error($"[VGE][{ShaderName}] Vertex shader info log:\n{v.InfoLog}");
+                }
+                if (!string.IsNullOrWhiteSpace(f.InfoLog))
+                {
+                    log?.Error($"[VGE][{ShaderName}] Fragment shader info log:\n{f.InfoLog}");
+                }
+                if (!string.IsNullOrWhiteSpace(g.InfoLog))
+                {
+                    log?.Error($"[VGE][{ShaderName}] Geometry shader info log:\n{g.InfoLog}");
+                }
+
+                var link = ShaderProgramDiagnostics.LinkDiagnosticsOnly(v.ShaderId, f.ShaderId, g.ShaderId);
+                if (!string.IsNullOrWhiteSpace(link.ProgramInfoLog))
+                {
+                    log?.Error($"[VGE][{ShaderName}] Program link info log:\n{link.ProgramInfoLog}");
+                }
+
+                // Emit some context that will matter for future remapping.
+                if (vertexStage.SourceCode?.ImportInlining.HadImports == true)
+                {
+                    log?.Notification($"[VGE][{ShaderName}] Vertex stage had imports; source-map available={vertexStage.SourceCode.ImportResult?.GetType().GetProperty("SourceMap")?.GetValue(vertexStage.SourceCode.ImportResult) is not null}");
+                }
+                if (fragmentStage.SourceCode?.ImportInlining.HadImports == true)
+                {
+                    log?.Notification($"[VGE][{ShaderName}] Fragment stage had imports; source-map available={fragmentStage.SourceCode.ImportResult?.GetType().GetProperty("SourceMap")?.GetValue(fragmentStage.SourceCode.ImportResult) is not null}");
+                }
+                if (geometryStage.SourceCode?.ImportInlining.HadImports == true)
+                {
+                    log?.Notification($"[VGE][{ShaderName}] Geometry stage had imports; source-map available={geometryStage.SourceCode.ImportResult?.GetType().GetProperty("SourceMap")?.GetValue(geometryStage.SourceCode.ImportResult) is not null}");
+                }
+            }
+            finally
+            {
+                StageShader.DeleteDiagnosticsShader(v);
+                StageShader.DeleteDiagnosticsShader(f);
+                StageShader.DeleteDiagnosticsShader(g);
+            }
+        }
+        catch (Exception ex)
+        {
+            log?.Warning($"[VGE][{ShaderName}] Failed to capture GL shader diagnostics: {ex}");
+        }
     }
 
     protected virtual void RequestRecompile()
@@ -232,30 +244,24 @@ public abstract class VgeShaderProgram : ShaderProgram
             $"vge:recompile:{ShaderName}");
     }
 
-    private void EnsureStageShadersAllocated(ICoreClientAPI api)
+    protected VgeShaderProgram()
     {
-        VertexShader ??= (Shader)api.Shader.NewShader(EnumShaderType.VertexShader);
-        FragmentShader ??= (Shader)api.Shader.NewShader(EnumShaderType.FragmentShader);
-    }
+        vertexStage = new StageShader(
+            stageExtension: "vsh",
+            engineShaderType: EnumShaderType.VertexShader,
+            getSlot: () => VertexShader,
+            setSlot: s => VertexShader = (global::Vintagestory.Client.NoObf.Shader)s);
 
-    private bool TryLoadOptionalGeometryStage(
-        ICoreClientAPI api,
-        IReadOnlyDictionary<string, string?> defineSnapshot,
-        out ShaderSourceCode? gsh)
-    {
-        gsh = null;
+        fragmentStage = new StageShader(
+            stageExtension: "fsh",
+            engineShaderType: EnumShaderType.FragmentShader,
+            getSlot: () => FragmentShader,
+            setSlot: s => FragmentShader = (global::Vintagestory.Client.NoObf.Shader)s);
 
-        string domain = ShaderImportsSystem.DefaultDomain;
-        string stageSourceName = $"{ShaderName}.gsh";
-        string assetPath = $"shaders/{stageSourceName}";
-
-        IAsset? asset = api.Assets.TryGet(AssetLocation.Create(assetPath, domain), loadAsset: true);
-        if (asset is null)
-        {
-            return false;
-        }
-
-        gsh = ShaderSourceCode.Load(api, ShaderName, "gsh", defineSnapshot, log);
-        return true;
+        geometryStage = new StageShader(
+            stageExtension: "gsh",
+            engineShaderType: EnumShaderType.GeometryShader,
+            getSlot: () => GeometryShader,
+            setSlot: s => GeometryShader = (global::Vintagestory.Client.NoObf.Shader)s);
     }
 }
