@@ -159,7 +159,7 @@ public class ShaderPatchingTests
     #region Import Processing Tests
 
     [Fact]
-    public void DictionaryResolver_ResolvesBareImportReference()
+    public async Task DictionaryResolver_ResolvesBareImportReference()
     {
         var sources = new Dictionary<string, string>
         {
@@ -171,7 +171,10 @@ public class ShaderPatchingTests
             new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"),
             SyntaxTree.Parse("", GlslSchema.Instance),
             new Dictionary<string, object>());
-        var result = resolver.ResolveAsync("./includes/shared.glsl", relativeTo: baseResource, ct: default).GetAwaiter().GetResult();
+        var result = await resolver.ResolveAsync(
+            "./includes/shared.glsl",
+            relativeTo: baseResource,
+            ct: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, result.Error?.ToString());
         Assert.NotNull(result.Resource);
@@ -179,7 +182,7 @@ public class ShaderPatchingTests
     }
 
     [Fact]
-    public void Preprocessor_InlinesImportContent()
+    public async Task Preprocessor_InlinesImportContent()
     {
         var tree = SyntaxTree.Parse(ShaderWithImport, GlslSchema.Instance);
         var sources = new Dictionary<string, string>
@@ -189,7 +192,10 @@ public class ShaderPatchingTests
 
         var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
         var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
-        var result = preprocessor.Process(new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"), tree);
+        var result = await preprocessor.ProcessAsync(
+            new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"),
+            tree,
+            ct: TestContext.Current.CancellationToken);
 
         Assert.True(result.Success);
 
@@ -200,28 +206,34 @@ public class ShaderPatchingTests
     }
 
     [Fact]
-    public void Preprocessor_Succeeds_WhenNoImports()
+    public async Task Preprocessor_Succeeds_WhenNoImports()
     {
         var tree = SyntaxTree.Parse(SampleShader, GlslSchema.Instance);
         var sources = new Dictionary<string, string>();
 
         var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
         var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
-        var result = preprocessor.Process(new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"), tree);
+        var result = await preprocessor.ProcessAsync(
+            new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"),
+            tree,
+            ct: TestContext.Current.CancellationToken);
 
         Assert.True(result.Success);
         Assert.Equal(NormalizeLineEndings(tree.ToText().Trim()), NormalizeLineEndings(result.Content.ToText().Trim()));
     }
 
     [Fact]
-    public void Preprocessor_Fails_WhenImportNotFound()
+    public async Task Preprocessor_Fails_WhenImportNotFound()
     {
         var tree = SyntaxTree.Parse(ShaderWithImport, GlslSchema.Instance);
         var sources = new Dictionary<string, string>(); // Empty store
 
         var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
         var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
-        var result = preprocessor.Process(new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"), tree);
+        var result = await preprocessor.ProcessAsync(
+            new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"),
+            tree,
+            ct: TestContext.Current.CancellationToken);
 
         Assert.False(result.Success);
         Assert.NotEmpty(result.Diagnostics);
@@ -231,7 +243,7 @@ public class ShaderPatchingTests
     }
 
     [Fact]
-    public void ProcessImports_HandlesMultipleImports()
+    public async Task ProcessImports_HandlesMultipleImports()
     {
         const string multiImportShader = """
             #version 330 core
@@ -253,7 +265,10 @@ public class ShaderPatchingTests
 
         var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
         var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
-        var result = preprocessor.Process(new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"), tree);
+        var result = await preprocessor.ProcessAsync(
+            new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"),
+            tree,
+            ct: TestContext.Current.CancellationToken);
 
         Assert.True(result.Success);
 
@@ -400,7 +415,7 @@ public class ShaderPatchingTests
     /// when using tree.ToText() (the correct method to use).
     /// </summary>
     [Fact]
-    public void ProcessImports_PreservesVersionDirective_WithRootToString()
+    public async Task ProcessImports_PreservesVersionDirective_WithRootToString()
     {
         const string shader = """
             #version 330 core
@@ -422,7 +437,10 @@ public class ShaderPatchingTests
 
         var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
         var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
-        var result = preprocessor.Process(new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"), tree);
+        var result = await preprocessor.ProcessAsync(
+            new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"),
+            tree,
+            ct: TestContext.Current.CancellationToken);
 
         Assert.True(result.Success);
 
@@ -438,7 +456,7 @@ public class ShaderPatchingTests
     /// This mimics the structure used by file shader programs in this repo.
     /// </summary>
     [Fact]
-    public void ProcessImports_FileShaderLikeSource_PreservesVersionDirective()
+    public async Task ProcessImports_FileShaderLikeSource_PreservesVersionDirective()
     {
         const string shader = """
             #version 330 core
@@ -467,7 +485,10 @@ public class ShaderPatchingTests
 
         var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
         var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
-        var result = preprocessor.Process(new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"), tree);
+        var result = await preprocessor.ProcessAsync(
+            new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/test.fsh"),
+            tree,
+            ct: TestContext.Current.CancellationToken);
 
         Assert.True(result.Success);
 
