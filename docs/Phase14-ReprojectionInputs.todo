@@ -101,16 +101,16 @@ Exit artifacts:
   - Deterministic tests proving velocity reconstruction and temporal behavior.
 
 Work items:
-  ☐ Velocity_StaticCamera_IsZero:
+  ✔ Velocity_StaticCamera_IsZero:
       - With stable camera and scene, reconstructed velocity is ~0 in valid pixels
-  ☐ Velocity_PureTranslation_ProducesExpectedDirection:
+  ✔ Velocity_PureTranslation_ProducesExpectedDirection:
       - Translate camera right/left; verify sign/direction of velocity
-  ☐ Velocity_PureRotation_ProducesExpectedPattern:
+  ✔ Velocity_PureRotation_ProducesExpectedPattern:
       - Rotate camera yaw; verify velocity magnitude increases toward screen edges
-  ☐ Temporal_MotionImprovesHistoryStability:
-      - Under controlled camera motion, verify fewer false rejections / less ghosting vs baseline
-  ☐ Temporal_LargeDelta_ForcesReset:
-      - Teleport or extreme rotation forces history invalidation
+    ✔ Temporal_MotionImprovesHistoryStability:
+      - Under controlled motion, verify fewer false rejections (velocity on) vs baseline (velocity off)
+  ✔ Temporal_LargeDelta_ForcesReset:
+    - Large per-pixel motion (|velocityUv| > threshold) forces history invalidation
 
 
 Phase 14.7 - Fallback Path (Camera-Motion Heuristic)
