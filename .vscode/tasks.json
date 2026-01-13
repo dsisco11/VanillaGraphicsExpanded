@@ -100,7 +100,10 @@
                 "close": true,
                 "showReuseMessage": false
             },
-            "group": "test"
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
         }
     ]
 }
