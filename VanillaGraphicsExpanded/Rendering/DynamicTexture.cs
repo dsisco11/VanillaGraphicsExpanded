@@ -26,6 +26,7 @@ public sealed class DynamicTexture : IDisposable
     private int mipLevels = 1;
     private PixelInternalFormat internalFormat;
     private TextureFilterMode filterMode;
+    private string? debugName;
     private bool isDisposed;
 
     #endregion
@@ -72,6 +73,8 @@ public sealed class DynamicTexture : IDisposable
     /// </summary>
     public bool IsValid => textureId != 0 && !isDisposed;
 
+    public string? DebugName => debugName;
+
     #endregion
 
     #region Constructor (private - use factory methods)
@@ -94,7 +97,8 @@ public sealed class DynamicTexture : IDisposable
         int width,
         int height,
         PixelInternalFormat format,
-        TextureFilterMode filter = TextureFilterMode.Nearest)
+        TextureFilterMode filter = TextureFilterMode.Nearest,
+        string? debugName = null)
     {
         if (width <= 0)
         {
@@ -113,7 +117,8 @@ public sealed class DynamicTexture : IDisposable
             height = height,
             mipLevels = 1,
             internalFormat = format,
-            filterMode = filter
+            filterMode = filter,
+            debugName = debugName
         };
 
         texture.AllocateTexture();
@@ -128,7 +133,8 @@ public sealed class DynamicTexture : IDisposable
         int width,
         int height,
         PixelInternalFormat format,
-        int mipLevels)
+        int mipLevels,
+        string? debugName = null)
     {
         if (width <= 0)
         {
@@ -150,7 +156,8 @@ public sealed class DynamicTexture : IDisposable
             height = height,
             mipLevels = mipLevels,
             internalFormat = format,
-            filterMode = TextureFilterMode.Nearest
+            filterMode = TextureFilterMode.Nearest,
+            debugName = debugName
         };
 
         texture.AllocateTexture();
@@ -167,7 +174,8 @@ public sealed class DynamicTexture : IDisposable
     public static DynamicTexture CreateDepth(
         int width,
         int height,
-        PixelInternalFormat format = PixelInternalFormat.DepthComponent24)
+        PixelInternalFormat format = PixelInternalFormat.DepthComponent24,
+        string? debugName = null)
     {
         if (!TextureFormatHelper.IsDepthFormat(format))
         {
@@ -175,7 +183,7 @@ public sealed class DynamicTexture : IDisposable
             format = PixelInternalFormat.DepthComponent24;
         }
 
-        return Create(width, height, format, TextureFilterMode.Nearest);
+        return Create(width, height, format, TextureFilterMode.Nearest, debugName);
     }
 
     /// <summary>
@@ -193,9 +201,10 @@ public sealed class DynamicTexture : IDisposable
         int height,
         PixelInternalFormat format,
         float[] data,
-        TextureFilterMode filter = TextureFilterMode.Nearest)
+        TextureFilterMode filter = TextureFilterMode.Nearest,
+        string? debugName = null)
     {
-        var texture = Create(width, height, format, filter);
+        var texture = Create(width, height, format, filter, debugName);
         texture.UploadData(data);
         return texture;
     }
@@ -502,6 +511,10 @@ public sealed class DynamicTexture : IDisposable
     {
         textureId = GL.GenTexture();
         GL.BindTexture(TextureTarget.Texture2D, textureId);
+
+#if DEBUG
+        GlDebug.TryLabelTexture2D(textureId, debugName);
+#endif
 
         if (mipLevels <= 1)
         {

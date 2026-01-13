@@ -34,6 +34,7 @@ public sealed class GBuffer : IDisposable
     private readonly List<DynamicTexture> colorAttachments;
     private DynamicTexture? depthAttachment;
     private readonly bool ownsTextures;
+    private string? debugName;
     private bool isDisposed;
 
     #endregion
@@ -64,6 +65,8 @@ public sealed class GBuffer : IDisposable
     /// Whether this is a valid, allocated framebuffer.
     /// </summary>
     public bool IsValid => fboId != 0 && !isDisposed;
+
+    public string? DebugName => debugName;
 
     /// <summary>
     /// Width of the framebuffer (from first color attachment or depth).
@@ -117,7 +120,8 @@ public sealed class GBuffer : IDisposable
     public static GBuffer? CreateSingle(
         DynamicTexture? colorTexture,
         DynamicTexture? depthTexture = null,
-        bool ownsTextures = false)
+        bool ownsTextures = false,
+        string? debugName = null)
     {
         if (colorTexture == null || !colorTexture.IsValid)
         {
@@ -128,6 +132,7 @@ public sealed class GBuffer : IDisposable
         var buffer = new GBuffer(ownsTextures);
         buffer.colorAttachments.Add(colorTexture);
         buffer.depthAttachment = depthTexture;
+        buffer.debugName = debugName;
         buffer.CreateFramebuffer();
 
         return buffer;
@@ -143,7 +148,8 @@ public sealed class GBuffer : IDisposable
     public static GBuffer? CreateMRT(
         DynamicTexture[]? colorTextures,
         DynamicTexture? depthTexture = null,
-        bool ownsTextures = false)
+        bool ownsTextures = false,
+        string? debugName = null)
     {
         if (colorTextures == null || colorTextures.Length == 0)
         {
@@ -170,6 +176,7 @@ public sealed class GBuffer : IDisposable
         var buffer = new GBuffer(ownsTextures);
         buffer.colorAttachments.AddRange(validTextures);
         buffer.depthAttachment = depthTexture;
+        buffer.debugName = debugName;
         buffer.CreateFramebuffer();
 
         return buffer;
@@ -185,13 +192,21 @@ public sealed class GBuffer : IDisposable
         return CreateMRT(colorTextures, null, false);
     }
 
+    public static GBuffer? CreateMRT(string? debugName, params DynamicTexture[] colorTextures)
+    {
+        return CreateMRT(colorTextures, null, false, debugName);
+    }
+
     /// <summary>
     /// Creates a depth-only framebuffer (no color attachments).
     /// </summary>
     /// <param name="depthTexture">The depth texture to attach.</param>
     /// <param name="ownsTextures">If true, texture will be disposed when the GBuffer is disposed.</param>
     /// <returns>A new GBuffer instance.</returns>
-    public static GBuffer? CreateDepthOnly(DynamicTexture? depthTexture, bool ownsTextures = false)
+    public static GBuffer? CreateDepthOnly(
+        DynamicTexture? depthTexture,
+        bool ownsTextures = false,
+        string? debugName = null)
     {
         if (depthTexture == null || !depthTexture.IsValid)
         {
@@ -207,6 +222,7 @@ public sealed class GBuffer : IDisposable
 
         var buffer = new GBuffer(ownsTextures);
         buffer.depthAttachment = depthTexture;
+        buffer.debugName = debugName;
         buffer.CreateFramebuffer();
 
         return buffer;
@@ -218,11 +234,12 @@ public sealed class GBuffer : IDisposable
     /// </summary>
     /// <param name="existingFboId">The existing FBO ID to wrap.</param>
     /// <returns>A GBuffer wrapper (does not own the FBO).</returns>
-    public static GBuffer Wrap(int existingFboId)
+    public static GBuffer Wrap(int existingFboId, string? debugName = null)
     {
         var buffer = new GBuffer(ownsTextures: false)
         {
-            fboId = existingFboId
+            fboId = existingFboId,
+            debugName = debugName
         };
         return buffer;
     }
@@ -581,6 +598,10 @@ public sealed class GBuffer : IDisposable
     {
         fboId = GL.GenFramebuffer();
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
+
+#if DEBUG
+        GlDebug.TryLabelFramebuffer(fboId, debugName);
+#endif
 
         // Attach color textures
         var drawBuffers = new DrawBuffersEnum[colorAttachments.Count];
