@@ -1,0 +1,115 @@
+InvokeAI PBR Batch Pipeline (Headless) — TODO
+
+Context / Constraints
+- InvokeAI is already running on http://localhost:9090 (Docker). No container setup tasks here.
+- Inputs: base game textures under assets/**/textures/**/*.png.
+- Outputs (8-bit PNG):
+  - name_normal.png = Normal RGB + Height(A)
+  - name_pbr.png    = Roughness(R) + Metallic(G) + B=0 + A=255
+- Tileability rule:
+  - Any textures under **/textures/block/** are treated as tileable
+  - All other textures are treated as non-tileable
+
+Phase 0 — Conventions & Scope
+[x] Decide output root folder (recommended: Textures/out/assets/...) and confirm you do not want to overwrite base assets.
+    - Decision: write generated maps to Textures/out/assets/... (mirror the base `assets/...` tree). Do not modify the base `assets/` folder.
+[x] Confirm which domains to process first (game/survival/creative) or “all”.
+    - Decision: process all domains by default (game + survival + creative).
+    - Practical note: smoke tests should run on a small subset first (Phase 6) but the default batch target is “all”.
+[x] Decide metallic policy level:
+    [x] Default metallic = 0 for everything
+    [ ] Optional: path-pattern overrides for known metal folders
+    - Decision: ship v1 with metallic=0 everywhere (dielectric) for predictability.
+    - Follow-up: add overrides later once you list the specific metal texture families you want treated as metallic.
+[x] Decide handling for alpha textures (recommended: preserve original alpha only for albedo; generated maps remain opaque).
+    - Decision: preserve alpha only on the original albedo texture; write generated maps as fully opaque (normal A is height; pbr A=255).
+
+Phase 1 — Repo Scaffolding
+[ ] Create tooling folder structure:
+    [ ] Textures/tools/pbr/
+    [ ] Textures/out/ (generated)
+    [ ] Textures/logs/ (runner logs)
+[ ] Add a configuration file:
+    [ ] Textures/tools/pbr/config.yaml (InvokeAI base URL, concurrency, include/exclude globs, etc.)
+[ ] Add a metallic override file (optional):
+    [ ] Textures/tools/pbr/metallic-overrides.yaml (regex/path patterns -> metallic value)
+
+Phase 2 — Inventory & Path Mapping
+[ ] Implement input discovery:
+    [ ] Enumerate assets/**/textures/**/*.png
+    [ ] Skip already-generated maps (avoid processing *_normal.png and *_pbr.png if present)
+    [ ] Optional: exclude very small textures or certain categories initially (gui/icons/particle)
+[ ] Implement stable path mapping:
+    [ ] From input absolute path -> relative path under assets/
+    [ ] From relative path -> output path under Textures/out/assets/
+[ ] Implement texture classification:
+    [ ] is_block_texture := path contains /textures/block/
+    [ ] border_mode := seamless if is_block_texture else mirror
+
+Phase 3 — InvokeAI API Integration
+[ ] Implement minimal HTTP client against http://localhost:9090:
+    [ ] Health check / readiness (e.g., GET /docs or GET /openapi.json)
+    [ ] Upload image: POST /api/v1/images/upload
+    [ ] Enqueue graph batch: POST /api/v1/queue/default/enqueue_batch
+    [ ] Poll status: GET /api/v1/queue/default/i/{item_id} until completed/failed
+    [ ] Download images from returned image_url
+[ ] Build a reusable graph payload using InvokeAI `pbr_maps` invocation:
+    [ ] Inputs: uploaded albedo image
+    [ ] Params: border_mode (seamless/mirror) and tile_size (default 512)
+    [ ] Outputs: normal_map, roughness_map, displacement_map
+[ ] Implement retries:
+    [ ] Retry transient HTTP failures with backoff
+    [ ] Retry limited times on server-side failures; log failures and continue
+
+Phase 4 — Map Packing (8-bit)
+[ ] Pack *_normal.png:
+    [ ] Read normal_map RGB
+    [ ] Read displacement_map grayscale
+    [ ] Write RGBA: RGB from normal_map, A from displacement_map
+[ ] Pack *_pbr.png:
+    [ ] Read roughness_map grayscale
+    [ ] Determine metallic value (0–255):
+        [ ] Default 0
+        [ ] Optional override from metallic-overrides.yaml
+    [ ] Write RGBA: R=roughness, G=metallic, B=0, A=255
+[ ] Validate outputs are 8-bit and non-premultiplied alpha.
+
+Phase 5 — Batch Runner UX (Still Headless)
+[ ] Add command entrypoint(s):
+    [ ] PowerShell wrapper: Textures/tools/pbr/run.ps1
+    [ ] Python runner: Textures/tools/pbr/runner.py
+[ ] Add resumability:
+    [ ] Skip processing if both *_normal.png and *_pbr.png already exist
+    [ ] Maintain a manifest: Textures/out/manifest.jsonl (one line per input)
+[ ] Add progress reporting:
+    [ ] Periodic stats (processed/failed/remaining)
+    [ ] Write failures to Textures/logs/failures.csv
+[ ] Add throughput controls:
+    [ ] Concurrency limit (e.g., N in-flight jobs)
+    [ ] Optional rate-limit to avoid overwhelming the queue
+
+Phase 6 — Quality Gates
+[ ] Dry run mode (no API calls) to validate scanning + path mapping.
+[ ] Smoke test on a small subset (10–50 textures):
+    [ ] A few block textures (tileable)
+    [ ] A few non-block textures (non-tileable)
+    [ ] A few alpha textures
+[ ] Visual QA checklist:
+    [ ] Seams look correct on tileable blocks
+    [ ] Roughness range looks plausible (not all-black/all-white)
+    [ ] Height doesn’t crush to 0/255 too often
+
+Phase 7 — Full Run + Packaging
+[ ] Run full batch over selected domains.
+[ ] Produce a “mod-ready” output folder:
+    [ ] Copy or symlink Textures/out/assets/... into your mod packaging structure
+[ ] Optional: add a cleanup step to remove intermediates and keep only packed outputs.
+
+Phase 8 — Future Enhancements (Optional)
+[ ] Metallic refinements:
+    [ ] Add per-domain defaults (e.g., game/textures/block/metal/** -> 255)
+    [ ] Add explicit per-texture overrides CSV
+[ ] Better handling for small textures:
+    [ ] Auto-upscale prior to pbr_maps and downscale after packing
+[ ] CI-style runs:
+    [ ] Deterministic manifests and reproducible reruns
