@@ -21,10 +21,10 @@ public sealed class PBRCompositeShaderProgram : VgeShaderProgram
             PassName = "pbr_composite",
             AssetDomain = "vanillagraphicsexpanded"
         };
-
-        api.Shader.RegisterMemoryShaderProgram("pbr_composite", instance);
         instance.Initialize(api);
         instance.CompileAndLink();
+
+        api.Shader.RegisterMemoryShaderProgram("pbr_composite", instance);
     }
 
     #endregion

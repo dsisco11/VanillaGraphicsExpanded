@@ -18,9 +18,9 @@ public sealed class LumOnHzbCopyShaderProgram : VgeShaderProgram
             PassName = "lumon_hzb_copy",
             AssetDomain = "vanillagraphicsexpanded"
         };
-        api.Shader.RegisterMemoryShaderProgram("lumon_hzb_copy", instance);
         instance.Initialize(api);
         instance.CompileAndLink();
+        api.Shader.RegisterMemoryShaderProgram("lumon_hzb_copy", instance);
     }
 
     /// <summary>

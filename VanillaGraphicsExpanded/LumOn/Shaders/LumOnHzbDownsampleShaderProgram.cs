@@ -18,9 +18,10 @@ public sealed class LumOnHzbDownsampleShaderProgram : VgeShaderProgram
             PassName = "lumon_hzb_downsample",
             AssetDomain = "vanillagraphicsexpanded"
         };
-        api.Shader.RegisterMemoryShaderProgram("lumon_hzb_downsample", instance);
         instance.Initialize(api);
         instance.CompileAndLink();
+
+        api.Shader.RegisterMemoryShaderProgram("lumon_hzb_downsample", instance);
     }
 
     /// <summary>

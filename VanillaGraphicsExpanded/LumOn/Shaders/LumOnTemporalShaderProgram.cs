@@ -23,9 +23,9 @@ public class LumOnTemporalShaderProgram : VgeShaderProgram
             PassName = "lumon_temporal",
             AssetDomain = "vanillagraphicsexpanded"
         };
-        api.Shader.RegisterMemoryShaderProgram("lumon_temporal", instance);
         instance.Initialize(api);
         instance.CompileAndLink();
+        api.Shader.RegisterMemoryShaderProgram("lumon_temporal", instance);
     }
 
     #endregion

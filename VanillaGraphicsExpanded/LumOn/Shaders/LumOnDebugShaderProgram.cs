@@ -21,9 +21,9 @@ public class LumOnDebugShaderProgram : VgeShaderProgram
             PassName = "lumon_debug",
             AssetDomain = "vanillagraphicsexpanded"
         };
-        api.Shader.RegisterMemoryShaderProgram("lumon_debug", instance);
         instance.Initialize(api);
         instance.CompileAndLink();
+        api.Shader.RegisterMemoryShaderProgram("lumon_debug", instance);
     }
 
     #endregion

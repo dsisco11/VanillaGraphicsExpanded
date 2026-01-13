@@ -63,6 +63,12 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         // Create G-buffer manager (Harmony hooks will call into this)
         gBufferManager = new GBufferManager(api);
 
+        // Ensure all VGE memory shader programs are registered before any renderer can request them.
+        // ShaderRegistry.getProgramByName() may attempt to create/load programs on demand if missing,
+        // which can lead to engine-side NREs when stage instances are null.
+        LoadShaders(api);
+        api.Event.ReloadShader += () => LoadShaders(api);
+
         // Initialize LumOn based on config (loaded by ConfigModSystem).
         if (ConfigModSystem.Config.Enabled)
         {
@@ -94,9 +100,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         VgeDebugViewManager.Initialize(
             api,
             ConfigModSystem.Config);
-
-        LoadShaders(api);
-        api.Event.ReloadShader += () => LoadShaders(api);
     }
 
     public override void Dispose()

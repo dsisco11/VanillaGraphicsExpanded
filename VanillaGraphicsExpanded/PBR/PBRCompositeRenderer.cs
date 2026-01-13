@@ -81,7 +81,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             return;
         }
 
-        var shader = ShaderRegistry.getProgramByName("pbr_composite") as PBRCompositeShaderProgram;
+        var shader = capi.Shader.GetProgramByName("pbr_composite") as PBRCompositeShaderProgram;
         if (shader is null || shader.LoadError)
         {
             return;

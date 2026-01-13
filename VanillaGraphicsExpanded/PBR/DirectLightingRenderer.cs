@@ -92,7 +92,7 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
             (float)(camPos.Z - Math.Floor(camPos.Z)));
 
         // Shader program
-        var shader = ShaderRegistry.getProgramByName("pbr_direct_lighting") as PBRDirectLightingShaderProgram;
+        var shader = capi.Shader.GetProgramByName("pbr_direct_lighting") as PBRDirectLightingShaderProgram;
         if (shader is null)
         {
             return;

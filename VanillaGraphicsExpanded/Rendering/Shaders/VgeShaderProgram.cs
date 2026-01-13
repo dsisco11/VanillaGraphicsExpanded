@@ -67,6 +67,12 @@ public abstract class VgeShaderProgram : ShaderProgram
         {
             AssetDomain = ShaderImportsSystem.DefaultDomain;
         }
+
+        // IMPORTANT: Memory shader programs must provide stage instances themselves.
+        // The engine may attempt to compile/validate registered programs and will log "shader missing" (and may NRE)
+        // if these slots are null.
+        VertexShader ??= (global::Vintagestory.Client.NoObf.Shader)api.Shader.NewShader(EnumShaderType.VertexShader);
+        FragmentShader ??= (global::Vintagestory.Client.NoObf.Shader)api.Shader.NewShader(EnumShaderType.FragmentShader);
     }
 
     /// <summary>
@@ -127,32 +133,65 @@ public abstract class VgeShaderProgram : ShaderProgram
             throw new InvalidOperationException("VgeShaderProgram was not initialized. Call Initialize(api) first.");
         }
 
-        IReadOnlyDictionary<string, string?> defineSnapshot;
-        lock (defineLock)
+        try
         {
-            defineSnapshot = new Dictionary<string, string?>(defines, StringComparer.Ordinal);
+            // Preflight: avoid Vintage Story engine NREs by ensuring stage assets exist before we even attempt compilation.
+            // This also provides a much clearer error message than the engine's generic "shader missing" logs.
+            string domain = string.IsNullOrWhiteSpace(AssetDomain) ? ShaderImportsSystem.DefaultDomain : AssetDomain;
+
+            string vshPath = $"shaders/{ShaderName}.vsh";
+            string fshPath = $"shaders/{ShaderName}.fsh";
+
+            bool hasVsh = capi.Assets.TryGet(AssetLocation.Create(vshPath, domain), loadAsset: true) is not null;
+            bool hasFsh = capi.Assets.TryGet(AssetLocation.Create(fshPath, domain), loadAsset: true) is not null;
+
+            if (!hasVsh || !hasFsh)
+            {
+                if (!hasVsh)
+                {
+                    log?.Error($"[VGE][{ShaderName}] Missing vertex shader asset: {domain}:{vshPath}");
+                }
+                if (!hasFsh)
+                {
+                    log?.Error($"[VGE][{ShaderName}] Missing fragment shader asset: {domain}:{fshPath}");
+                }
+
+                log?.Error($"[VGE][{ShaderName}] Shader assets were not found. The engine may crash if compilation proceeds; skipping Compile().");
+                return false;
+            }
+
+            IReadOnlyDictionary<string, string?> defineSnapshot;
+            lock (defineLock)
+            {
+                defineSnapshot = new Dictionary<string, string?>(defines, StringComparer.Ordinal);
+            }
+
+            vertexStage.LoadAndApply(capi, ShaderName, defineSnapshot, log);
+            fragmentStage.LoadAndApply(capi, ShaderName, defineSnapshot, log);
+
+            // Geometry stage is optional.
+            geometryStage.TryLoadAndApplyOptional(capi, ShaderName, defineSnapshot, log);
+
+            bool ok = Compile();
+            if (ok)
+            {
+                GlDebug.TryLabel(OpenTK.Graphics.OpenGL.ObjectLabelIdentifier.Program, ProgramId, ShaderName);
+                OnAfterCompile();
+            }
+            else
+            {
+                log?.Warning($"[VGE] Shader compile failed: {ShaderName}");
+                LogDiagnostics();
+            }
+
+            return ok;
         }
-
-        vertexStage.LoadAndApply(capi, ShaderName, defineSnapshot, log);
-        fragmentStage.LoadAndApply(capi, ShaderName, defineSnapshot, log);
-
-        // Geometry stage is optional.
-        geometryStage.TryLoadAndApplyOptional(capi, ShaderName, defineSnapshot, log);
-
-        bool ok = Compile();
-        if (ok)
+        catch (Exception ex)
         {
-            GlDebug.TryLabel(OpenTK.Graphics.OpenGL.ObjectLabelIdentifier.Program, ProgramId, ShaderName);
-            OnAfterCompile();
+            // Never let shader compilation exceptions bring down the client.
+            log?.Error($"[VGE][{ShaderName}] Exception during CompileAndLink(): {ex}");
+            return false;
         }
-        else
-        {
-            log?.Warning($"[VGE] Shader compile failed: {ShaderName}");
-
-            LogDiagnostics();
-        }
-
-        return ok;
     }
 
     protected virtual void LogDiagnostics()

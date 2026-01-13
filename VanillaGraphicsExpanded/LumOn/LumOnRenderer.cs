@@ -419,7 +419,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (bufferManager.VelocityFbo is null)
             return;
 
-        var shader = ShaderRegistry.getProgramByName("lumon_velocity") as LumOnVelocityShaderProgram;
+        var shader = capi.Shader.GetProgramByName("lumon_velocity") as LumOnVelocityShaderProgram;
         if (shader is null || shader.LoadError)
             return;
 
@@ -454,7 +454,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeAnchorPass(FrameBufferRef primaryFb)
     {
-        var shader = ShaderRegistry.getProgramByName("lumon_probe_anchor") as LumOnProbeAnchorShaderProgram;
+        var shader = capi.Shader.GetProgramByName("lumon_probe_anchor") as LumOnProbeAnchorShaderProgram;
         if (shader is null || shader.LoadError)
             return;
 
@@ -501,7 +501,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeTracePass(FrameBufferRef primaryFb)
     {
-        var shader = ShaderRegistry.getProgramByName("lumon_probe_trace") as LumOnProbeTraceShaderProgram;
+        var shader = capi.Shader.GetProgramByName("lumon_probe_trace") as LumOnProbeTraceShaderProgram;
         if (shader is null || shader.LoadError)
             return;
 
@@ -578,7 +578,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeAtlasTracePass(FrameBufferRef primaryFb)
     {
-        var shader = ShaderRegistry.getProgramByName("lumon_probe_atlas_trace") as LumOnScreenProbeAtlasTraceShaderProgram;
+        var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_trace") as LumOnScreenProbeAtlasTraceShaderProgram;
         if (shader is null || shader.LoadError)
             return;
 
@@ -665,8 +665,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (bufferManager.HzbDepthTex is null || bufferManager.HzbFboId == 0)
             return;
 
-        var copy = ShaderRegistry.getProgramByName("lumon_hzb_copy") as LumOnHzbCopyShaderProgram;
-        var down = ShaderRegistry.getProgramByName("lumon_hzb_downsample") as LumOnHzbDownsampleShaderProgram;
+        var copy = capi.Shader.GetProgramByName("lumon_hzb_copy") as LumOnHzbCopyShaderProgram;
+        var down = capi.Shader.GetProgramByName("lumon_hzb_downsample") as LumOnHzbDownsampleShaderProgram;
         if (copy is null || down is null || copy.LoadError || down.LoadError)
             return;
 
@@ -719,7 +719,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderSHTemporalPass()
     {
-        var shader = ShaderRegistry.getProgramByName("lumon_temporal") as LumOnTemporalShaderProgram;
+        var shader = capi.Shader.GetProgramByName("lumon_temporal") as LumOnTemporalShaderProgram;
         if (shader is null || shader.LoadError)
             return;
 
@@ -791,7 +791,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeAtlasTemporalPass()
     {
-        var shader = ShaderRegistry.getProgramByName("lumon_probe_atlas_temporal") as LumOnScreenProbeAtlasTemporalShaderProgram;
+        var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_temporal") as LumOnScreenProbeAtlasTemporalShaderProgram;
         if (shader is null || shader.LoadError)
             return;
 
@@ -874,7 +874,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeAtlasProjectSh9Pass()
     {
-        var shader = ShaderRegistry.getProgramByName("lumon_probe_atlas_project_sh9") as LumOnScreenProbeAtlasProjectSh9ShaderProgram;
+        var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_project_sh9") as LumOnScreenProbeAtlasProjectSh9ShaderProgram;
         if (shader is null || shader.LoadError)
             return;
 
@@ -910,7 +910,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeSh9GatherPass(FrameBufferRef primaryFb)
     {
-        var shader = ShaderRegistry.getProgramByName("lumon_probe_sh9_gather") as LumOnProbeSh9GatherShaderProgram;
+        var shader = capi.Shader.GetProgramByName("lumon_probe_sh9_gather") as LumOnProbeSh9GatherShaderProgram;
         if (shader is null || shader.LoadError)
             return;
 
@@ -961,7 +961,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderSHGatherPass(FrameBufferRef primaryFb)
     {
-        var shader = ShaderRegistry.getProgramByName("lumon_gather") as LumOnGatherShaderProgram;
+        var shader = capi.Shader.GetProgramByName("lumon_gather") as LumOnGatherShaderProgram;
         if (shader is null || shader.LoadError)
             return;
 
@@ -1015,7 +1015,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeAtlasGatherPass(FrameBufferRef primaryFb)
     {
-        var shader = ShaderRegistry.getProgramByName("lumon_probe_atlas_gather") as LumOnScreenProbeAtlasGatherShaderProgram;
+        var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_gather") as LumOnScreenProbeAtlasGatherShaderProgram;
         if (shader is null || shader.LoadError)
             return;
 
@@ -1073,7 +1073,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeAtlasFilterPass()
     {
-        var shader = ShaderRegistry.getProgramByName("lumon_probe_atlas_filter") as LumOnScreenProbeAtlasFilterShaderProgram;
+        var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_filter") as LumOnScreenProbeAtlasFilterShaderProgram;
         if (shader is null || shader.LoadError)
             return;
 
@@ -1112,7 +1112,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderUpsamplePass(FrameBufferRef primaryFb)
     {
-        var shader = ShaderRegistry.getProgramByName("lumon_upsample") as LumOnUpsampleShaderProgram;
+        var shader = capi.Shader.GetProgramByName("lumon_upsample") as LumOnUpsampleShaderProgram;
         if (shader is null || shader.LoadError)
             return;
 

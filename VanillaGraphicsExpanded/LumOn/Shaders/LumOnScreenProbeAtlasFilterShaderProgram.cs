@@ -21,9 +21,9 @@ public class LumOnScreenProbeAtlasFilterShaderProgram : VgeShaderProgram
             PassName = "lumon_probe_atlas_filter",
             AssetDomain = "vanillagraphicsexpanded"
         };
-        api.Shader.RegisterMemoryShaderProgram("lumon_probe_atlas_filter", instance);
         instance.Initialize(api);
         instance.CompileAndLink();
+        api.Shader.RegisterMemoryShaderProgram("lumon_probe_atlas_filter", instance);
     }
 
     #endregion

@@ -21,10 +21,10 @@ public class LumOnVelocityShaderProgram : VgeShaderProgram
             PassName = "lumon_velocity",
             AssetDomain = "vanillagraphicsexpanded"
         };
-
-        api.Shader.RegisterMemoryShaderProgram("lumon_velocity", instance);
         instance.Initialize(api);
         instance.CompileAndLink();
+
+        api.Shader.RegisterMemoryShaderProgram("lumon_velocity", instance);
     }
 
     #endregion

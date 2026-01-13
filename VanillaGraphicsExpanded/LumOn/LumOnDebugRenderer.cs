@@ -126,7 +126,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 return;
         }
 
-        var shader = ShaderRegistry.getProgramByName("lumon_debug") as LumOnDebugShaderProgram;
+        var shader = capi.Shader.GetProgramByName("lumon_debug") as LumOnDebugShaderProgram;
         if (shader is null || shader.LoadError)
             return;
 

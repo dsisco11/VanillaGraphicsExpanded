@@ -21,9 +21,9 @@ public class LumOnProbeSh9GatherShaderProgram : VgeShaderProgram
             PassName = "lumon_probe_sh9_gather",
             AssetDomain = "vanillagraphicsexpanded"
         };
-        api.Shader.RegisterMemoryShaderProgram("lumon_probe_sh9_gather", instance);
         instance.Initialize(api);
         instance.CompileAndLink();
+        api.Shader.RegisterMemoryShaderProgram("lumon_probe_sh9_gather", instance);
     }
 
     #endregion

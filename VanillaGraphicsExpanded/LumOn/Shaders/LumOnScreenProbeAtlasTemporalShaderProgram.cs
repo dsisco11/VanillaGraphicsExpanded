@@ -24,9 +24,9 @@ public class LumOnScreenProbeAtlasTemporalShaderProgram : VgeShaderProgram
             PassName = "lumon_probe_atlas_temporal",
             AssetDomain = "vanillagraphicsexpanded"
         };
-        api.Shader.RegisterMemoryShaderProgram("lumon_probe_atlas_temporal", instance);
         instance.Initialize(api);
         instance.CompileAndLink();
+        api.Shader.RegisterMemoryShaderProgram("lumon_probe_atlas_temporal", instance);
     }
 
     #endregion
