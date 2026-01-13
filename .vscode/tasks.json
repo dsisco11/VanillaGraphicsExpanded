@@ -58,9 +58,32 @@
             },
         },
         {
+            "label": "Clean",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "clean",
+                "-c",
+                "Debug",
+                "${workspaceFolder}/VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj"
+            ],
+            "problemMatcher": "$msCompile",
+            "presentation": {
+                "panel": "new",
+                "reveal": "never",
+                "focus": false,
+                "close": true,
+                "showReuseMessage": false
+            }
+        },
+        {
             "label": "Test",
             "command": "dotnet",
             "type": "process",
+            "dependsOn": [
+                "Clean"
+            ],
+            "dependsOrder": "sequence",
             "args": [
                 "test",
                 "-c",
@@ -71,7 +94,7 @@
             ],
             "problemMatcher": "$msCompile",
             "presentation": {
-                "panel": "dedicated",
+                "panel": "new",
                 "reveal": "never",
                 "focus": false,
                 "close": true,
