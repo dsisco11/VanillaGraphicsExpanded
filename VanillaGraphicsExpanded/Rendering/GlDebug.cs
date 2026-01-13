@@ -5,6 +5,45 @@ namespace VanillaGraphicsExpanded.Rendering;
 
 internal static class GlDebug
 {
+#if DEBUG
+    private static bool DebugGroupsEnabled =>
+        string.Equals(Environment.GetEnvironmentVariable("VGE_GL_DEBUG_GROUPS"), "1", StringComparison.Ordinal);
+#endif
+
+    public static void TrySuppressGroupDebugMessages()
+    {
+        // The game can enable GL debug output and log all debug callback events.
+        // Push/Pop group messages are extremely noisy and not actionable.
+        // Opt-out for deep GPU debugging sessions.
+        if (string.Equals(Environment.GetEnvironmentVariable("VGE_GL_DEBUG_GROUP_MESSAGES"), "1", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        try
+        {
+            GL.DebugMessageControl(
+                DebugSourceControl.DontCare,
+                DebugTypeControl.DebugTypePushGroup,
+                DebugSeverityControl.DontCare,
+                0,
+                Array.Empty<int>(),
+                false);
+
+            GL.DebugMessageControl(
+                DebugSourceControl.DontCare,
+                DebugTypeControl.DebugTypePopGroup,
+                DebugSeverityControl.DontCare,
+                0,
+                Array.Empty<int>(),
+                false);
+        }
+        catch
+        {
+            // Best-effort only: depends on context + driver support.
+        }
+    }
+
     public static void TryLabel(ObjectLabelIdentifier identifier, int id, string? name)
     {
 #if DEBUG
@@ -46,7 +85,7 @@ internal static class GlDebug
         public GroupScope(string name)
         {
 #if DEBUG
-            if (string.IsNullOrWhiteSpace(name))
+            if (!DebugGroupsEnabled || string.IsNullOrWhiteSpace(name))
             {
                 active = false;
                 return;

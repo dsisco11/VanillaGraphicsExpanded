@@ -3,6 +3,7 @@ using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Profiling;
 
 using Vintagestory.API.Client;
@@ -48,6 +49,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     public override void StartClientSide(ICoreClientAPI api)
     {
         capi = api;
+
+        GlDebug.TrySuppressGroupDebugMessages();
 
         GlGpuProfiler.Instance.Initialize(api);
         gpuProfilerRenderer = new GlGpuProfilerRenderer(api);
