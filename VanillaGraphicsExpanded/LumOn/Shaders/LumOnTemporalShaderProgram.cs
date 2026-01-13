@@ -64,6 +64,11 @@ public class LumOnTemporalShaderProgram : ShaderProgram
     /// </summary>
     public int HistoryMeta { set => BindTexture2D("historyMeta", value, 6); }
 
+    /// <summary>
+    /// Full-resolution velocity texture (RGBA32F): RG = velocityUv, A = packed flags.
+    /// </summary>
+    public int VelocityTex { set => BindTexture2D("velocityTex", value, 7); }
+
     #endregion
 
     #region Matrix Uniforms
@@ -92,6 +97,35 @@ public class LumOnTemporalShaderProgram : ShaderProgram
     /// Probe grid dimensions (probeCountX, probeCountY).
     /// </summary>
     public Vec2i ProbeGridSize { set => Uniform("probeGridSize", new Vec2f(value.X, value.Y)); }
+
+    /// <summary>
+    /// Full-resolution screen size.
+    /// Used to map probe grid coords to screen UV for velocity sampling.
+    /// </summary>
+    public Vec2f ScreenSize { set => Uniform("screenSize", value); }
+
+    /// <summary>
+    /// Probe spacing in pixels.
+    /// Must match the probe anchor pass.
+    /// </summary>
+    public int ProbeSpacing { set => Uniform("probeSpacing", value); }
+
+    /// <summary>
+    /// Current frame index (used for deterministic anchor jitter replication).
+    /// </summary>
+    public int FrameIndex { set => Uniform("frameIndex", value); }
+
+    /// <summary>
+    /// Enables deterministic anchor jitter replication (0/1).
+    /// Must match the probe anchor pass.
+    /// </summary>
+    public int AnchorJitterEnabled { set => Uniform("anchorJitterEnabled", value); }
+
+    /// <summary>
+    /// Anchor jitter amount as a fraction of probe cell size.
+    /// Must match the probe anchor pass.
+    /// </summary>
+    public float AnchorJitterScale { set => Uniform("anchorJitterScale", value); }
 
     #endregion
 
@@ -125,6 +159,17 @@ public class LumOnTemporalShaderProgram : ShaderProgram
     /// Normal threshold for history rejection (dot product).
     /// </summary>
     public float NormalRejectThreshold { set => Uniform("normalRejectThreshold", value); }
+
+    /// <summary>
+    /// Enables velocity-based reprojection path (0/1).
+    /// </summary>
+    public int EnableReprojectionVelocity { set => Uniform("enableReprojectionVelocity", value); }
+
+    /// <summary>
+    /// Reject/down-weight history when |velocityUv| exceeds this threshold.
+    /// Units are UV delta per frame.
+    /// </summary>
+    public float VelocityRejectThreshold { set => Uniform("velocityRejectThreshold", value); }
 
     #endregion
 }

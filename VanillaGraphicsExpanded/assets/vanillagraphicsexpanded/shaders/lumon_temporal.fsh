@@ -28,6 +28,9 @@ uniform sampler2D probeAnchorNormal;    // normalWS.xyz, reserved
 // History metadata (depth, normal, accumCount)
 uniform sampler2D historyMeta;
 
+// Full-resolution velocity texture (RGBA32F): RG=velocityUv, A=uintBitsToFloat(flags)
+uniform sampler2D velocityTex;
+
 // Matrices
 uniform mat4 viewMatrix;              // Current frame view (for WS to VS)
 uniform mat4 invViewMatrix;           // Current frame inverse view
@@ -35,6 +38,13 @@ uniform mat4 prevViewProjMatrix;      // Previous frame view-projection
 
 // Probe grid parameters
 uniform vec2 probeGridSize;
+
+// Screen mapping + deterministic jitter replication (must match probe anchor pass)
+uniform vec2 screenSize;
+uniform int probeSpacing;
+uniform int frameIndex;
+uniform int anchorJitterEnabled;
+uniform float anchorJitterScale;
 
 // Depth parameters
 uniform float zNear;
@@ -44,6 +54,14 @@ uniform float zFar;
 uniform float temporalAlpha;           // Blend factor (0.95 typical)
 uniform float depthRejectThreshold;    // Depth discontinuity threshold
 uniform float normalRejectThreshold;   // Normal angle threshold (dot product)
+
+// Phase 14 reprojection integration
+uniform int enableReprojectionVelocity;
+uniform float velocityRejectThreshold;
+
+// Deterministic jitter hash (already used in probe anchor)
+@import "./includes/squirrel3.glsl"
+@import "./includes/velocity_common.glsl"
 
 // ============================================================================
 // Helper Functions
@@ -58,12 +76,36 @@ float LinearizeDepth(float d) {
 vec2 ReprojectToHistory(vec3 posWS) {
     // World-space directly to previous clip-space (no VS conversion needed)
     vec4 prevClip = prevViewProjMatrix * vec4(posWS, 1.0);
+
+    // Reject if behind camera (prevents invalid NDC mapping from negative w)
+    if (prevClip.w <= 1e-8) {
+        return vec2(-1.0);
+    }
     
     // Clip to NDC (perspective divide)
     vec3 prevNDC = prevClip.xyz / prevClip.w;
     
     // NDC to UV [0,1]
     return prevNDC.xy * 0.5 + 0.5;
+}
+
+vec2 ComputeProbeScreenUv(ivec2 probeCoord)
+{
+    vec2 baseUv = (vec2(probeCoord) + 0.5) * float(probeSpacing) / screenSize;
+
+    if (anchorJitterEnabled != 0 && anchorJitterScale > 0.0) {
+        float u1 = Squirrel3HashF(probeCoord.x, probeCoord.y, frameIndex * 2);
+        float u2 = Squirrel3HashF(probeCoord.x, probeCoord.y, frameIndex * 2 + 1);
+        vec2 jitter = vec2(u1, u2) - vec2(0.5);
+
+        float maxOffsetPx = float(probeSpacing) * anchorJitterScale;
+        vec2 jitterUv = (jitter * maxOffsetPx) / screenSize;
+
+        vec2 uvPad = vec2(0.5) / screenSize;
+        baseUv = clamp(baseUv + jitterUv, uvPad, vec2(1.0) - uvPad);
+    }
+
+    return baseUv;
 }
 
 // ============================================================================
@@ -197,8 +239,37 @@ void main(void)
     // View-space Z is negative (looking down -Z), so negate
     float currentDepthLin = -posVS.z;
     
-    // Reproject to history UV (using world-space position)
+    // Reproject to history UV
+    // Default: world-space anchor reprojection.
+    // Optional: velocity-based reprojection using the per-pixel velocity buffer.
     vec2 historyUV = ReprojectToHistory(posWS);
+
+    float motionWeight = 1.0;
+
+    if (enableReprojectionVelocity != 0) {
+        vec2 screenUv = ComputeProbeScreenUv(probeCoord);
+        vec4 velSample = texture(velocityTex, screenUv);
+        vec2 velocityUv = lumonVelocityDecodeUv(velSample);
+        uint velFlags = lumonVelocityDecodeFlags(velSample);
+
+        if (!lumonVelocityIsValid(velFlags)) {
+            historyUV = vec2(-1.0);
+        } else {
+            // velocityUv = currUv - prevUv  =>  prevUv = currUv - velocityUv
+            vec2 prevUv = screenUv - velocityUv;
+            historyUV = prevUv;
+
+            float velMag = lumonVelocityMagnitude(velocityUv);
+            if (velocityRejectThreshold > 0.0) {
+                // Reject history past threshold; otherwise down-weight as motion increases.
+                if (velMag > velocityRejectThreshold) {
+                    historyUV = vec2(-1.0);
+                } else {
+                    motionWeight = clamp(1.0 - velMag / velocityRejectThreshold, 0.0, 1.0);
+                }
+            }
+        }
+    }
     
     // Validate history sample
     ValidationResult validation = ValidateHistory(historyUV, currentDepthLin, normalVS);
@@ -221,7 +292,7 @@ void main(void)
         historyRad1 = clamp(historyRad1, minVal1, maxVal1);
         
         // Adaptive blend based on validation confidence
-        float alpha = temporalAlpha * validation.confidence;
+        float alpha = temporalAlpha * validation.confidence * motionWeight;
         
         // Edge probes get less temporal accumulation (more unstable)
         if (valid < 0.9) {

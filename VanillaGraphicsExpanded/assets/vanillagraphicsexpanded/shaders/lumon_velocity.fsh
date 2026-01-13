@@ -3,6 +3,7 @@
 layout(location = 0) out vec4 outVelocity;
 
 @import "./includes/lumon_common.glsl"
+@import "./includes/velocity_common.glsl"
 
 // ============================================================================
 // LumOn Velocity Pass (Phase 14)
@@ -24,23 +25,6 @@ uniform mat4 prevViewProjMatrix;
 
 // 0/1: whether previous-frame history is valid at all (first frame / resize / teleport resets)
 uniform int historyValid;
-
-const uint LUMON_VEL_FLAG_VALID                = 1u << 0;
-const uint LUMON_VEL_FLAG_HISTORY_INVALID      = 1u << 1;
-const uint LUMON_VEL_FLAG_SKY_OR_INVALID_DEPTH = 1u << 2;
-const uint LUMON_VEL_FLAG_PREV_BEHIND_CAMERA   = 1u << 3;
-const uint LUMON_VEL_FLAG_PREV_OOB             = 1u << 4;
-const uint LUMON_VEL_FLAG_NAN                  = 1u << 5;
-
-bool lumonIsNanFloat(float v)
-{
-    return !(v == v);
-}
-
-bool lumonIsNanVec2(vec2 v)
-{
-    return lumonIsNanFloat(v.x) || lumonIsNanFloat(v.y);
-}
 
 void main(void)
 {

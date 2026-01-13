@@ -71,13 +71,15 @@ Exit artifacts:
   - Reduced ghosting on camera movement vs matrix-only approximations.
 
 Work items:
+  ✔ Probe-grid Temporal (SH mode):
+    - Use velocity-based prevUV to sample history (via VelocityTex + packed flags)
+    - Improve out-of-bounds and invalid history rejection using velocity validity
+    - Optionally scale temporal alpha by motion magnitude and existing confidence/meta
   ☐ Probe Atlas Temporal:
-      - Use velocity-based prevUV to sample history
-      - Improve out-of-bounds and invalid history rejection using velocity validity
-      - Optionally scale temporal alpha by motion magnitude and existing confidence/meta
-  ☐ Any downstream temporal consumers (if present):
-      - Apply same contract/inputs for consistent behavior
-  ☐ Add config knobs (optional, but recommended):
+    - (N/A for now: atlas texels are in a stable atlas coordinate system; no screen-space reprojection)
+  ✔ Any downstream temporal consumers (if present):
+    - Apply same contract/inputs for consistent behavior
+  ✔ Add config knobs (optional, but recommended):
       - EnableReprojectionVelocity
       - VelocityRejectThreshold (UV magnitude)
       - CameraTeleportResetThreshold (translation/rotation)

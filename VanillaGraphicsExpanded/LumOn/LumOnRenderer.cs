@@ -61,7 +61,6 @@ public class LumOnRenderer : IRenderer, IDisposable
     private double lastCameraX;
     private double lastCameraY;
     private double lastCameraZ;
-    private const float TeleportThreshold = 50.0f;  // meters
 
     // Debug counters
     private readonly LumOnDebugCounters debugCounters = new();
@@ -359,7 +358,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         double dz = origin[2] - lastCameraZ;
         double distance = Math.Sqrt(dx * dx + dy * dy + dz * dz);
 
-        return distance > TeleportThreshold;
+        return distance > config.CameraTeleportResetThreshold;
     }
 
     /// <summary>
@@ -726,6 +725,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Bind history metadata for validation
         shader.HistoryMeta = bufferManager.ProbeMetaHistoryTex!;
 
+        // Bind velocity texture (full resolution)
+        // The shader will only use it when EnableReprojectionVelocity is set.
+        shader.VelocityTex = bufferManager.VelocityTex!;
+
         // Pass matrices for reprojection
         shader.ViewMatrix = modelViewMatrix;      // WS to VS for depth calc
         shader.InvViewMatrix = invModelViewMatrix;
@@ -733,6 +736,13 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Pass probe grid size
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
+
+        // Pass screen mapping + jitter params (must match anchor pass)
+        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
+        shader.ProbeSpacing = config.ProbeSpacingPx;
+        shader.FrameIndex = frameIndex;
+        shader.AnchorJitterEnabled = config.AnchorJitterEnabled ? 1 : 0;
+        shader.AnchorJitterScale = config.AnchorJitterScale;
 
         // Pass depth parameters
         shader.ZNear = capi.Render.ShaderUniforms.ZNear;
@@ -742,6 +752,9 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.TemporalAlpha = config.TemporalAlpha;
         shader.DepthRejectThreshold = config.DepthRejectThreshold;
         shader.NormalRejectThreshold = config.NormalRejectThreshold;
+
+        shader.EnableReprojectionVelocity = config.EnableReprojectionVelocity ? 1 : 0;
+        shader.VelocityRejectThreshold = config.VelocityRejectThreshold;
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);

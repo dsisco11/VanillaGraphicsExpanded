@@ -158,6 +158,33 @@ public class LumOnConfig
     public float DepthDiscontinuityThreshold { get; set; } = 0.05f;
 
     // ═══════════════════════════════════════════════════════════════
+    // Phase 14 - Reprojection / Velocity Settings
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Enables using the generated velocity texture (Phase 14) for temporal reprojection.
+    /// When disabled, temporal passes may fall back to their legacy reprojection path.
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public bool EnableReprojectionVelocity { get; set; } = true;
+
+    /// <summary>
+    /// Reject (and/or down-weight) history when the screen-space motion magnitude exceeds this threshold.
+    /// Units are UV delta per frame.
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public float VelocityRejectThreshold { get; set; } = 0.01f;
+
+    /// <summary>
+    /// Camera translation distance (in world units) beyond which temporal history is invalidated.
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public float CameraTeleportResetThreshold { get; set; } = 50.0f;
+
+    // ═══════════════════════════════════════════════════════════════
     // Quality Settings (SPG-007/008)
     // ═══════════════════════════════════════════════════════════════
 
