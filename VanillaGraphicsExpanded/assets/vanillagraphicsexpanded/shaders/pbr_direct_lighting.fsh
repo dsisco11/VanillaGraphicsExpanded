@@ -97,7 +97,11 @@ void addDirectLight(
     vec3 kD = pbrDiffuseFactorFromFresnel(F, metallic);
     vec3 kS = pbrSpecularFactorFromFresnel(F);
 
-    vec3 diffuseBrdf = kD * baseColor / PI;
+    // NOTE: VS's lighting inputs here are not calibrated as physical radiance.
+    // Using the normalized Lambert term (albedo / PI) makes this pass look far too dark
+    // compared to the game's legacy lighting model. Treat the inputs as already-integrated
+    // irradiance and do not apply 1/PI.
+    vec3 diffuseBrdf = kD * baseColor;
     vec3 specularBrdf = cookTorranceBRDF(N, V, L, F0, roughness);
 
     // Radiance split
