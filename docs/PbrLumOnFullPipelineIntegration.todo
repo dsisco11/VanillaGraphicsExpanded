@@ -305,26 +305,29 @@ Exit artifacts: Every pass has an explicitly owned RT with correct size/format.
 
 Phase 5 - Execute Full Pipeline (One Frame)
 Exit artifacts: Single test runs passes in-order and validates each stage.
-  ☐ Run PBR Direct → write MRT
+  ✔ Run PBR Direct → write MRT
     - Assert: directDiffuse not all zeros; emissive behaves as expected for emissiveScalar
-  ☐ Run LumOn Velocity
+  ✔ Run LumOn Velocity
     - Assert: velocity finite; with fixed matrices expect near-zero velocity everywhere
-  ☐ Run LumOn HZB build
+  ✔ Run LumOn HZB build
     - Assert: mip0 equals input depth; higher mips monotonic (as per existing HZB tests)
-  ☐ Run LumOn Probe Anchor
+  ✔ Run LumOn Probe Anchor
     - Assert: anchor validity not all zeros; position/normal finite
-  ☐ Run LumOn Atlas Trace
+  ✔ Run LumOn Atlas Trace
     - Assert: trace radiance finite; meta confidence in [0,1]
-  ☐ Run LumOn Atlas Temporal (fixed history)
+  ✔ Run LumOn Atlas Temporal (fixed history)
     - Assert: current differs from history when trace indicates valid; otherwise preserves history
-  ☐ Run LumOn Atlas Filter
+  ✔ Run LumOn Atlas Filter
     - Assert: filtered output finite; does not introduce NaNs
-  ☐ Run LumOn Atlas Gather
+  ✔ Run LumOn Atlas Gather
     - Assert: indirectHalf finite and non-zero (for a non-sky test depth)
-  ☐ Run LumOn Upsample
+  ✔ Run LumOn Upsample
     - Assert: indirectFull finite and non-zero at representative pixels
-  ☐ Run PBR Composite
+  ✔ Run PBR Composite
     - Assert: composite != direct-only baseline when indirect is enabled
+    Notes:
+      - Added end-to-end test: VanillaGraphicsExpanded.Tests/GPU/PbrLumOnFullPipelineIntegrationTests.cs
+      - Uses Phase 3 deterministic inputs + Phase 4 targets allocators
 
 
 Phase 6 - Assertions That Pinpoint Where It Breaks
