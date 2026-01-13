@@ -559,9 +559,21 @@ public sealed class GBuffer : IDisposable
         ClearBufferMask mask, BlitFramebufferFilter filter)
     {
         int prevFbo = GL.GetInteger(GetPName.FramebufferBinding);
+        int prevReadFbo = GL.GetInteger(GetPName.ReadFramebufferBinding);
+        int prevDrawFbo = GL.GetInteger(GetPName.DrawFramebufferBinding);
+        int prevReadBuffer = GL.GetInteger(GetPName.ReadBuffer);
+        int prevDrawBuffer = GL.GetInteger(GetPName.DrawBuffer);
 
         GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, fboId);
         GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, destFboId);
+
+        // For color blits, make sure we read/write from the expected attachment.
+        // VS primary FB is an MRT; without this, glBlitFramebuffer may copy the wrong attachment.
+        if ((mask & ClearBufferMask.ColorBufferBit) != 0)
+        {
+            GL.ReadBuffer(fboId == 0 ? ReadBufferMode.Back : ReadBufferMode.ColorAttachment0);
+            GL.DrawBuffer(destFboId == 0 ? DrawBufferMode.Back : DrawBufferMode.ColorAttachment0);
+        }
 
         GL.BlitFramebuffer(
             0, 0, Width, Height,
@@ -569,6 +581,14 @@ public sealed class GBuffer : IDisposable
             mask,
             filter);
 
+        // Restore previous bindings/state
+        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, prevReadFbo);
+        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, prevDrawFbo);
+        if ((mask & ClearBufferMask.ColorBufferBit) != 0)
+        {
+            GL.ReadBuffer((ReadBufferMode)prevReadBuffer);
+            GL.DrawBuffer((DrawBufferMode)prevDrawBuffer);
+        }
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
     }
 
