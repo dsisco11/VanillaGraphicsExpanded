@@ -113,52 +113,65 @@ VGE - PBRMaterialRegistry (Per-Mod Material Definitions + Shader Parameters)
 
   Phase 4 - Integrate With Rendering (MaterialId Source)
   Exit artifacts: renderer/shaders have a clear source of “which material applies” for a shaded fragment.
-  [ ] Confirm runtime pipeline:
-      [ ] patched base-game shaders resolve material assignment and write material values to `gMaterial`
-      [ ] VGE PBR passes read `gMaterial` (no direct registry access in those passes)
-    [x] Decision: explore Option B first (base-game already supports custom vertex attribute flags).
-      [ ] Identify existing vertex attribute flags available to shaders and how they are authored by tessellators.
-      [ ] Decide how a flag (or small bitfield) maps to `MaterialIndex` (direct index vs indirection table).
-      [ ] Determine whether base-game tessellator overrides are required to author the new attributes:
-          [ ] if yes: create a dedicated plan for tessellator override scope, compatibility, and fallback behavior
-          [ ] if no: document how flags are sourced for blocks/items and how mods opt-in
+  [x] Confirm runtime pipeline:
+            [x] patched base-game shaders resolve material assignment and write material values to `gMaterial`
+      [x] VGE PBR passes read `gMaterial` (no direct registry access in those passes)
+    [x] Known inputs / constraints:
+      [x] Block/terrain shaders use `layout(location = 3) in int renderFlagsIn;` (or `flags`) and pass it as `flat out int renderFlags`.
+      [x] Bit layout is defined in `assets/game/shaderincludes/vertexflagbits.ash` and consumes all bits 0..31 (glow/zOffset/reflective/lod0/normal/wind).
+      [x] Non-SSBO path already uses custom attribs at locations 4..6 (colormap / uv2 / waterFlags).
+      [x] SSBO terrain path exists and provides per-face data via `FaceData` (SSBO) consumed by shaders.
+      [x] Decision: do NOT pack `MaterialIndex` into `renderFlags` (no spare bits).
+  [ ] Implement material param data textures (aligned to atlas UVs):
+      [x] Decision (v1): avoid tessellator patching by storing per-texture material params in a data texture addressed by the same atlas UVs used for the albedo atlas.
+      [x] Multiple atlases are supported by creating one material-data texture per atlas texture id.
+      [x] Note: non-SSBO (classic VBO vertex attributes) path may need to be implemented later.
+      [ ] Choose data texture format:
+          [x] Noise is computed in-shader (not baked into the stored values).
+          [x] Base params texture: RGB16F storing (roughness, metallic, emissive); compute reflectivity in shader
+          [ ] Optional noise deltas texture: RGBA16F or RGB16F storing per-channel delta ranges used by shader noise
+      [ ] Build per-atlas material-data textures at client `AssetsLoaded`/`StartClientSide`:
+          [x] iterate `capi.BlockTextureAtlas.AtlasTextures` and allocate matching `DynamicTexture` (same width/height)
+          [x] for each mapped texture AssetLocation, get `TextureAtlasPosition` and fill its rectangle region with material params
+          [x] define fallback behavior for unmapped textures (defaults)
+      [ ] Bind alongside the block atlas during chunk rendering:
+          [x] patch the engine texture-binding point for `terrainTex`/`terrainTexLinear` to also bind the matching material-data texture
+          [x] inject a new `sampler2D` into patched chunk fragment shaders and sample it at `uv`
   [ ] Update vanilla shader patch injection plan:
-      [ ] inject code that produces final PBR values (including noise) and writes `vec4(roughness, metallic, emissive, reflectivity)` to `gMaterial`
+      [x] sample per-texture params from the per-atlas material data texture using the same `uv` used for `terrainTex`
+      [x] write `vec4(roughness, metallic, emissive, reflectivity)` to `gMaterial` (reflectivity computed in shader)
       [ ] ensure deterministic noise (stable seed inputs; no frame-dependent randomness unless explicitly desired)
 
 
-  Phase 5 - GPU Parameter Transport Decision (UBO vs Data Texture)
-  Exit artifacts: we pick one approach and can read per-material parameters in GLSL.
+  Phase 5 - GPU Parameter Transport Decision (Material UBO vs Data Texture)
+  Exit artifacts: we pick one approach and can read per-texture PBR parameters in GLSL.
   [ ] Decide expected scale:
       [ ] target number of materials (estimate)
       [ ] target number of unique textures mapped (estimate)
   [ ] Evaluate approaches (used by patched base-game shaders):
-      [ ] UBO (uniform block) - simplest indexing but size-limited and requires shader block definition
-      [ ] Data texture (1D/2D, texelFetch) - scales to many materials and matches existing texture-binding patterns
-  [x] Decision: use a UBO for the material parameter table.
-      [ ] Query `GL_MAX_UNIFORM_BLOCK_SIZE` at runtime and compute max supported material count for our chosen struct packing.
-      [ ] If we exceed the UBO limit in the future, add a data-texture fallback (defer until needed).
+      [ ] UBO (uniform block) - simplest indexing but size-limited and requires a stable dense `MaterialIndex`
+      [ ] Data texture (2D, sampled by atlas UV) - scales with atlas size and naturally supports multiple atlases
+  [x] Decision: use per-atlas data textures for material parameters.
+      [x] Rationale: avoids tessellator patching, supports multiple atlases, and uses the same UVs as `terrainTex`.
 
 
-  Phase 6 - Implement GPU Material Table
-  Exit artifacts: GPU resource exists with material params and is bound for PBR passes.
+  Phase 6 - Implement GPU Material Data Textures
+  Exit artifacts: GPU resource(s) exist with per-texture params and are bound for patched base-game shaders.
   [ ] Choose encoding:
-      [x] Decision: do not store `reflectivity` in the table; compute it in the patched base-game shader and write it to `gMaterial`.
-      [ ] Define UBO packing (std140-friendly), recommended:
-          [ ] `vec4 pbrParams` = (roughness, metallic, emissive, unused)
-          [ ] `vec4 noiseDeltas` = (roughDelta, metalDelta, emissiveDelta, normalDelta)
-  [ ] Assign stable numeric `MaterialIndex`:
-      [ ] build `Dictionary<string, int> MaterialIndexById`
-      [ ] build `PBRMaterialDefinition[] MaterialsByIndex`
-  [ ] Allocate/update GPU resource:
-      [ ] allocate UBO for `MaterialsByIndex` once at AssetsLoaded and on reload
-      [ ] upload UBO data (buffer subdata or orphan+upload) after registry rebuild
+      [x] Decision: do not bake noise into stored params; compute noise in shader.
+      [x] Decision: compute `reflectivity` in the patched base-game shader and write it to `gMaterial`.
+      [ ] Base params texture format: RGB16F (roughness, metallic, emissive)
+      [ ] Optional noise deltas texture format: RGB16F or RGBA16F (per-channel delta ranges)
+  [ ] Allocate/update GPU resources:
+      [ ] create one material params texture per block atlas page (`capi.BlockTextureAtlas.AtlasTextures`)
+      [ ] fill atlas rects for mapped textures using `TextureAtlasPosition` (x1..y2) and chosen defaults for unmapped
+      [ ] rebuild on shader reload and/or texture atlas reload (if available)
   [ ] Bind in shader pipeline:
-      [ ] bind material UBO + any mapping resources for patched base-game shaders (the stage that writes `gMaterial`)
-      [ ] ensure binding also works during shader reload / recompile
+      [ ] bind the correct per-atlas material params texture whenever the engine binds `terrainTex` for that atlas page
+      [ ] ensure binding survives shader reload / recompile
   [ ] Add shader helper include:
-      [ ] `vec3 ReadMaterialParams(int materialIndex)` (roughness, metallic, emissive)
-      [ ] `vec4 ApplyMaterialNoise(vec4 params, ...)` (or equivalent helper) used by patched base-game shaders
+      [ ] `vec3 ReadMaterialParams(vec2 uv)` (roughness, metallic, emissive)
+      [ ] `vec3 ApplyMaterialNoise(vec3 params, ...)` (or equivalent helper) used by patched base-game shaders
       [ ] `float ComputeReflectivity(float roughness, float metallic, ...)` used by patched base-game shaders
 
 
@@ -185,8 +198,8 @@ VGE - PBRMaterialRegistry (Per-Mod Material Definitions + Shader Parameters)
   [ ] Add unit tests for merge semantics:
       [ ] collision behavior matches policy
   [ ] Add runtime diagnostics tests (if applicable in this repo):
-      [ ] material table upload creates expected size/format
-      [ ] shader can sample table without GL errors (smoke)
+      [ ] material data textures create expected size/format per atlas page
+      [ ] shader can sample material data textures without GL errors (smoke)
 
 
   Phase 9 - Documentation + Modder UX

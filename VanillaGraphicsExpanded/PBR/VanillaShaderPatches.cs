@@ -25,20 +25,43 @@ layout(location = 4) out vec4 vge_outNormal;    // World-space normal (XYZ), unu
 layout(location = 5) out vec4 vge_outMaterial;  // Roughness, Metallic, Emissive, Reflectivity
 ";
 
+    private const string ChunkMaterialParamsSamplerDeclaration = @"
+// VGE: Per-texel material params for block atlas (RGB16F: roughness, metallic, emissive)
+uniform sampler2D vge_materialParamsTex;
+";
+
     // Code to inject before the final closing brace of main() to write G-buffer data
     // Uses available shader variables: normal, renderFlags, texColor/rgba
     // Note: VS's outColor (ColorAttachment0) serves as albedo
-    private const string GBufferOutputWrites = @"
+    private const string GBufferOutputWrites_Default = @"
 
     // VGE: Write G-buffer outputs
     // Normal: world-space normal packed to [0,1] range
     vge_outNormal = vec4(normal * 0.5 + 0.5, 1.0);
     
     // Material: extract properties from renderFlags
-    float vge_roughness = 0.5;  // Default roughness (could be extracted from texture)
+    float vge_roughness = 0.5;  // Default roughness
     float vge_metallic = getMatMetallicFromRenderFlags(renderFlags);
     float vge_emissive = glowLevel;
-    float vge_reflectivity = getMatMetallicFromRenderFlags(renderFlags); // Using same function for reflectivity for simplicity
+    float vge_reflectivity = getMatMetallicFromRenderFlags(renderFlags);
+    vge_outMaterial = vec4(vge_roughness, vge_metallic, vge_emissive, vge_reflectivity);
+";
+
+    private const string GBufferOutputWrites_Chunk = @"
+
+    // VGE: Write G-buffer outputs
+    // Normal: world-space normal packed to [0,1] range
+    vge_outNormal = vec4(normal * 0.5 + 0.5, 1.0);
+    
+    // Material: per-texel params stored in vge_materialParamsTex (RGB16F)
+    vec3 vge_params = texture(vge_materialParamsTex, uv).rgb;
+    float vge_roughness = clamp(vge_params.r, 0.0, 1.0);
+    float vge_metallic  = clamp(vge_params.g, 0.0, 1.0);
+    float vge_emissive  = clamp(vge_params.b, 0.0, 1.0);
+
+    // Reflectivity is computed in-shader. For now, treat it as metallic.
+    float vge_reflectivity = vge_metallic;
+
     vge_outMaterial = vec4(vge_roughness, vge_metallic, vge_emissive, vge_reflectivity);
 ";
     #endregion
@@ -106,14 +129,22 @@ layout(location = 5) out vec4 vge_outMaterial;  // Roughness, Metallic, Emissive
                 case "chunktransparent.fsh":
                 case "chunkopaque.fsh":
                 case "chunktopsoil.fsh":
+                    {
+                        InjectGBufferInputs(tree);
+                        InjectChunkMaterialSampler(tree);
+                        InjectGBufferOutputs(tree, GBufferOutputWrites_Chunk);
+                        PatchFogAndLight(tree);
+                        log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
+                        string patchedSource = tree.ToText();
+                        return true;
+                    }
                 case "instanced.fsh":
                 case "standard.fsh":
                     {
                         InjectGBufferInputs(tree);
-                        InjectGBufferOutputs(tree);
+                        InjectGBufferOutputs(tree, GBufferOutputWrites_Default);
                         PatchFogAndLight(tree);
                         log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
-                        string patchedSource = tree.ToText();
                         return true;
                     }
                 case "sky.fsh":
@@ -147,17 +178,26 @@ layout(location = 5) out vec4 vge_outMaterial;  // Roughness, Metallic, Emissive
             .Commit();
     }
 
+    private static void InjectChunkMaterialSampler(SyntaxTree tree)
+    {
+        var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
+
+        tree.CreateEditor()
+            .InsertAfter(versionQuery, ChunkMaterialParamsSamplerDeclaration)
+            .Commit();
+    }
+
     /// <summary>
     /// Injects G-buffer output writes at the end of main() function body.
     /// This ensures normal, glowLevel, and renderFlags have been computed.
     /// </summary>
-    private static void InjectGBufferOutputs(SyntaxTree tree)
+    private static void InjectGBufferOutputs(SyntaxTree tree, string outputWrites)
     {
         // Find main function and insert at inner start of body (after opening brace)
         var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
 
         tree.CreateEditor()
-            .InsertAfter(mainQuery.InnerStart("body"), GBufferOutputWrites)
+            .InsertAfter(mainQuery.InnerStart("body"), outputWrites)
             .Commit();
     }
 

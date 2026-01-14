@@ -19,6 +19,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
 {
     private ICoreClientAPI? capi;
     private GBufferManager? gBufferManager;
+    private PbrMaterialAtlasTextures? pbrMaterialAtlasTextures;
     private DirectLightingBufferManager? directLightingBufferManager;
     private DirectLightingRenderer? directLightingRenderer;
     private PBRCompositeRenderer? pbrCompositeRenderer;
@@ -73,6 +74,10 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
 
         // Create G-buffer manager (Harmony hooks will call into this)
         gBufferManager = new GBufferManager(api);
+
+        // Build per-atlas material parameter textures for patched vanilla chunk shaders.
+        pbrMaterialAtlasTextures = PbrMaterialAtlasTextures.Instance;
+        pbrMaterialAtlasTextures.Initialize(api);
 
         // Ensure all VGE memory shader programs are registered before any renderer can request them.
         // ShaderRegistry.getProgramByName() may attempt to create/load programs on demand if missing,
@@ -149,6 +154,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
 
             lumOnBufferManager?.Dispose();
             lumOnBufferManager = null;
+
+            pbrMaterialAtlasTextures?.Dispose();
+            pbrMaterialAtlasTextures = null;
 
             gBufferManager?.Dispose();
             gBufferManager = null;
