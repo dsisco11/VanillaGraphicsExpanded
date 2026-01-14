@@ -80,35 +80,35 @@ VGE - PBRMaterialRegistry (Per-Mod Material Definitions + Shader Parameters)
 
   Phase 3 - Registry Data Structures
   Exit artifacts: in-memory registries exist and are queryable with stable behavior.
-  [ ] Implement registry core:
-      [ ] `Dictionary<string, PBRMaterialDefinition> MaterialById`
-      [ ] `Dictionary<AssetLocation, string> MaterialIdByTexture`
-      [ ] `Dictionary<string, int> MaterialIndexById`
-      [ ] `PBRMaterialDefinition[] MaterialsByIndex`
-  [ ] Build mapping resolution:
-      [ ] apply mapping rules in decided order
-      [ ] resolve to a final `MaterialId` per texture
+  [x] Implement registry core:
+      [x] `Dictionary<string, PBRMaterialDefinition> MaterialById`
+      [x] `Dictionary<AssetLocation, string> MaterialIdByTexture`
+      [x] `Dictionary<string, int> MaterialIndexById`
+      [x] `PBRMaterialDefinition[] MaterialsByIndex`
+  [x] Build mapping resolution:
+      [x] apply mapping rules in decided order
+      [x] resolve to a final `MaterialId` per texture
       [ ] allow per-rule property overrides (optional)
-  [ ] Implement glob matching engine for texture mapping:
+  [x] Implement glob matching engine for texture mapping:
       [ ] Use standard globstar syntax only:
           [ ] `*` matches within a single path segment (does not cross `/`)
           [ ] `?` matches a single character within a segment (does not match `/`)
           [ ] `**` matches across path segments (may cross `/`)
-      [ ] normalize AssetLocation paths for matching (slash direction, case rules, extension handling)
-      [ ] translate each glob rule into a regex pattern string once (at assets load)
-      [ ] compile a `Regex` instance per rule and cache it for fast resolution
-          [ ] note: JSON-authored patterns are runtime values; `[GeneratedRegex]` is not applicable here
-          [ ] use safe options where available (e.g., `RegexOptions.NonBacktracking`) and set timeouts if needed
-      [ ] add unit tests for: exact/prefix/glob collisions, `**` behavior, and deterministic ordering
+      [x] normalize AssetLocation paths for matching (slash direction, case rules, extension handling)
+      [x] translate each glob rule into a regex pattern string once (at assets load)
+      [x] compile a `Regex` instance per rule and cache it for fast resolution
+          [x] note: JSON-authored patterns are runtime values; `[GeneratedRegex]` is not applicable here
+          [x] use safe options where available (e.g., `RegexOptions.NonBacktracking`) and set timeouts if needed
+      [x] add unit tests for: `**` behavior and deterministic ordering
   [ ] Decide caching granularity:
       [x] Decision: eagerly pre-expand glob rules into concrete AssetLocations (eager)
-          [ ] enumerate all candidate texture assets once at AssetsLoaded
-          [ ] apply mapping rules in deterministic order and materialize `MaterialIdByTexture`
-          [ ] log stats: total textures scanned, mapped, and unmapped (optional)
-  [ ] Provide query APIs:
-      [ ] `TryGetMaterial(string materialId, out PBRMaterialDefinition def)`
-      [ ] `TryGetMaterialId(AssetLocation texture, out string materialId)`
-      [ ] `TryGetMaterial(AssetLocation texture, out PBRMaterialDefinition def)`
+          [x] enumerate all candidate texture assets once at AssetsLoaded
+          [x] apply mapping rules in deterministic order and materialize `MaterialIdByTexture`
+          [x] log stats: total textures scanned, mapped, and unmapped (optional)
+  [x] Provide query APIs:
+      [x] `TryGetMaterial(string materialId, out PBRMaterialDefinition def)`
+      [x] `TryGetMaterialId(AssetLocation texture, out string materialId)`
+      [x] `TryGetMaterial(AssetLocation texture, out PBRMaterialDefinition def)`
 
 
   Phase 4 - Integrate With Rendering (MaterialId Source)
