@@ -191,15 +191,15 @@ VGE - PBRMaterialRegistry (Per-Mod Material Definitions + Shader Parameters)
 
   Phase 8 - Validation + Tests
   Exit artifacts: unit tests cover parsing/merge/mapping; runtime sanity checks exist.
-  [ ] Add unit tests for JSON parsing:
-      [ ] defaults apply correctly
-      [ ] material overrides apply correctly
-      [ ] mapping rule ordering is honored
-  [ ] Add unit tests for merge semantics:
-      [ ] collision behavior matches policy
-  [ ] Add runtime diagnostics tests (if applicable in this repo):
-      [ ] material data textures create expected size/format per atlas page
-      [ ] shader can sample material data textures without GL errors (smoke)
+  [x] Add unit tests for JSON parsing:
+      [x] defaults apply correctly
+      [x] material overrides apply correctly
+      [x] mapping rule ordering is honored
+  [x] Add unit tests for merge semantics:
+      [x] collision behavior matches policy
+  [x] Add runtime diagnostics tests (if applicable in this repo):
+      [x] material data textures create expected size/format per atlas page
+      [x] shader can sample material data textures without GL errors (smoke)
 
 
   Phase 9 - Documentation + Modder UX

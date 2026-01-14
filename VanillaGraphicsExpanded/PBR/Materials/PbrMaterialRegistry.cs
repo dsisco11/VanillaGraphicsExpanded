@@ -42,67 +42,58 @@ internal sealed class PbrMaterialRegistry
     {
         if (api == null) throw new ArgumentNullException(nameof(api));
 
+        // Intentionally load at AssetsLoaded or later.
+        List<IAsset> assets = api.Assets.GetMany("materials/pbr_material_definitions.json", domain: null, loadAsset: true);
+        List<AssetLocation> textureLocations = api.Assets.GetLocations("textures/", domain: null);
+
+        IReadOnlyList<PbrMaterialDefinitionsSource> parsedSources = ParseSources(api.Logger, assets, strict);
+
+        InitializeFromParsedSources(
+            logger: api.Logger,
+            parsedSources: parsedSources,
+            textureLocations: textureLocations,
+            strict: strict);
+    }
+
+    /// <summary>
+    /// Test seam: initializes the registry from already-parsed sources and a fixed list of texture locations.
+    /// This avoids the need for a full <see cref="ICoreAPI"/> instance in unit tests while preserving
+    /// deterministic behavior.
+    /// </summary>
+    internal void InitializeFromParsedSources(
+        ILogger logger,
+        IReadOnlyList<PbrMaterialDefinitionsSource> parsedSources,
+        IReadOnlyList<AssetLocation> textureLocations,
+        bool strict)
+    {
+        if (logger == null) throw new ArgumentNullException(nameof(logger));
+        if (parsedSources == null) throw new ArgumentNullException(nameof(parsedSources));
+        if (textureLocations == null) throw new ArgumentNullException(nameof(textureLocations));
+
         sources.Clear();
+        sources.AddRange(parsedSources);
+
         materialById.Clear();
         materialIdByTexture.Clear();
         materialIndexById.Clear();
         materialsByIndex = Array.Empty<PbrMaterialDefinition>();
         mappingRules.Clear();
 
-        // Intentionally load at AssetsLoaded or later.
-        List<IAsset> assets = api.Assets.GetMany("materials/pbr_material_definitions.json", domain: null, loadAsset: true);
-
-        var ordered = assets
-            .OrderBy(a => a.Location.Domain, StringComparer.Ordinal)
-            .ThenBy(a => a.Location.Path, StringComparer.Ordinal)
-            .ToList();
-
-        foreach (IAsset asset in ordered)
-        {
-            try
-            {
-                PbrMaterialDefinitionsJsonFile file = asset.ToObject<PbrMaterialDefinitionsJsonFile>();
-
-                if (file.Version != 1)
-                {
-                    api.Logger.Warning(
-                        "[VGE] Skipping {0}: unsupported pbr_material_definitions.json version={1}",
-                        asset.Location,
-                        file.Version);
-                    continue;
-                }
-
-                sources.Add(new PbrMaterialDefinitionsSource(asset.Location.Domain, asset.Location, file));
-            }
-            catch (Exception ex)
-            {
-                api.Logger.Error(
-                    "[VGE] Failed to parse {0} as pbr_material_definitions.json: {1}",
-                    asset.Location,
-                    ex);
-
-                if (strict)
-                {
-                    throw;
-                }
-            }
-        }
-
-        BuildMergedMaterials(api);
-        BuildMappingRules(api, strict);
-        BuildTextureMappings(api);
+        BuildMergedMaterials();
+        BuildMappingRules(logger, strict);
+        BuildTextureMappings(logger, textureLocations);
         AssignMaterialIndices();
 
         int totalMaterials = sources.Sum(s => s.File.Materials?.Count ?? 0);
         int totalMappingRules = sources.Sum(s => s.File.Mapping?.Count ?? 0);
 
-        api.Logger.Notification(
+        logger.Notification(
             "[VGE] Loaded {0} pbr_material_definitions.json file(s): {1} material(s), {2} mapping rule(s)",
             sources.Count,
             totalMaterials,
             totalMappingRules);
 
-        api.Logger.Notification(
+        logger.Notification(
             "[VGE] Material registry built: {0} merged material(s), {1} mapped texture(s), {2} rule(s)",
             materialById.Count,
             materialIdByTexture.Count,
@@ -143,21 +134,62 @@ internal sealed class PbrMaterialRegistry
         IsInitialized = false;
     }
 
-    private void BuildMergedMaterials(ICoreAPI api)
+    private static IReadOnlyList<PbrMaterialDefinitionsSource> ParseSources(ILogger logger, List<IAsset> assets, bool strict)
+    {
+        if (logger == null) throw new ArgumentNullException(nameof(logger));
+        if (assets == null) throw new ArgumentNullException(nameof(assets));
+
+        var ordered = assets
+            .OrderBy(a => a.Location.Domain, StringComparer.Ordinal)
+            .ThenBy(a => a.Location.Path, StringComparer.Ordinal)
+            .ToList();
+
+        var parsed = new List<PbrMaterialDefinitionsSource>(ordered.Count);
+
+        foreach (IAsset asset in ordered)
+        {
+            try
+            {
+                PbrMaterialDefinitionsJsonFile file = asset.ToObject<PbrMaterialDefinitionsJsonFile>();
+
+                if (file.Version != 1)
+                {
+                    logger.Warning(
+                        "[VGE] Skipping {0}: unsupported pbr_material_definitions.json version={1}",
+                        asset.Location,
+                        file.Version);
+                    continue;
+                }
+
+                parsed.Add(new PbrMaterialDefinitionsSource(asset.Location.Domain, asset.Location, file));
+            }
+            catch (Exception ex)
+            {
+                logger.Error(
+                    "[VGE] Failed to parse {0} as pbr_material_definitions.json: {1}",
+                    asset.Location,
+                    ex);
+
+                if (strict)
+                {
+                    throw;
+                }
+            }
+        }
+
+        return parsed;
+    }
+
+    private void BuildMergedMaterials()
     {
         // Deterministic merge order: stable domain/modid, then file (asset path) order.
         // For material id collisions: higher priority wins; on tie, later in deterministic load order wins.
 
-        int fileOrderIndex = 0;
         foreach (PbrMaterialDefinitionsSource source in sources)
         {
             PbrMaterialDefaults defaults = BuildDefaults(source.File);
 
-            if (source.File.Materials == null)
-            {
-                fileOrderIndex++;
-                continue;
-            }
+            if (source.File.Materials == null) continue;
 
             foreach ((string key, PbrMaterialDefinitionJson json) in source.File.Materials)
             {
@@ -189,11 +221,10 @@ internal sealed class PbrMaterialRegistry
                 }
             }
 
-            fileOrderIndex++;
         }
     }
 
-    private void BuildMappingRules(ICoreAPI api, bool strict)
+    private void BuildMappingRules(ILogger logger, bool strict)
     {
         // Deterministic merge order for rules: stable domain/modid, then file (asset path), then mapping list order.
         // Collision for a given texture: higher rule priority wins; on tie, later rule wins.
@@ -213,14 +244,14 @@ internal sealed class PbrMaterialRegistry
 
                 if (string.IsNullOrWhiteSpace(glob))
                 {
-                    api.Logger.Warning("[VGE] Skipping mapping rule in {0}: missing match.glob", source.Location);
+                    logger.Warning("[VGE] Skipping mapping rule in {0}: missing match.glob", source.Location);
                     continue;
                 }
 
                 string? materialRef = rule.Values?.Material;
                 if (string.IsNullOrWhiteSpace(materialRef))
                 {
-                    api.Logger.Warning("[VGE] Skipping mapping rule in {0}: missing values.material", source.Location);
+                    logger.Warning("[VGE] Skipping mapping rule in {0}: missing values.material", source.Location);
                     continue;
                 }
 
@@ -233,7 +264,7 @@ internal sealed class PbrMaterialRegistry
                 }
                 catch (Exception ex)
                 {
-                    api.Logger.Error("[VGE] Invalid glob pattern in {0}: '{1}' ({2})", source.Location, glob, ex.Message);
+                    logger.Error("[VGE] Invalid glob pattern in {0}: '{1}' ({2})", source.Location, glob, ex.Message);
                     if (strict) throw;
                     continue;
                 }
@@ -254,13 +285,11 @@ internal sealed class PbrMaterialRegistry
         }
     }
 
-    private void BuildTextureMappings(ICoreAPI api)
+    private void BuildTextureMappings(ILogger logger, IReadOnlyList<AssetLocation> textureLocations)
     {
         // Eagerly pre-expand all globs into concrete texture locations.
         // Candidate set: all .png assets under textures/ across all domains.
-        List<AssetLocation> textureLocations = api.Assets.GetLocations("textures/", domain: null);
-
-        textureLocations = textureLocations
+        List<AssetLocation> ordered = textureLocations
             .Where(loc => loc.Path.EndsWith(".png", StringComparison.Ordinal))
             .OrderBy(loc => loc.Domain, StringComparer.Ordinal)
             .ThenBy(loc => loc.Path, StringComparer.Ordinal)
@@ -270,7 +299,7 @@ internal sealed class PbrMaterialRegistry
         int unmapped = 0;
         int unknownMaterialRefs = 0;
 
-        foreach (AssetLocation texture in textureLocations)
+        foreach (AssetLocation texture in ordered)
         {
             string key = ToCanonicalAssetKey(texture);
             PbrMaterialMappingRule? winner = null;
@@ -310,7 +339,7 @@ internal sealed class PbrMaterialRegistry
             if (!materialById.ContainsKey(materialId))
             {
                 // Policy: warn on unknown MaterialId referenced by a mapping rule
-                api.Logger.Warning(
+                logger.Warning(
                     "[VGE] Mapping rule references unknown material '{0}' (rule '{1}', source {2})",
                     materialId,
                     winner.Value.Id ?? "(no id)",
@@ -323,9 +352,9 @@ internal sealed class PbrMaterialRegistry
             mapped++;
         }
 
-        api.Logger.Notification(
+        logger.Notification(
             "[VGE] Texture mapping scan: {0} texture(s) scanned, {1} mapped, {2} unmapped, {3} unknown material reference(s)",
-            textureLocations.Count,
+            ordered.Count,
             mapped,
             unmapped,
             unknownMaterialRefs);
