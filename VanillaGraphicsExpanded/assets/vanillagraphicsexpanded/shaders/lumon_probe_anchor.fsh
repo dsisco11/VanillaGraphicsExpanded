@@ -66,13 +66,14 @@ uniform float depthDiscontinuityThreshold;  // Recommended: 0.1
  * @return True if significant depth discontinuity exists
  */
 bool hasDepthDiscontinuity(vec2 centerUV, float centerDepth) {
-    vec2 texelSize = 1.0 / screenSize;
+    ivec2 maxFull = ivec2(screenSize) - 1;
+    ivec2 centerPx = clamp(ivec2(centerUV * screenSize), ivec2(0), maxFull);
     
-    // Sample 4 neighbors
-    float depthL = texture(primaryDepth, centerUV + vec2(-texelSize.x, 0.0)).r;
-    float depthR = texture(primaryDepth, centerUV + vec2( texelSize.x, 0.0)).r;
-    float depthU = texture(primaryDepth, centerUV + vec2(0.0,  texelSize.y)).r;
-    float depthD = texture(primaryDepth, centerUV + vec2(0.0, -texelSize.y)).r;
+    // Sample 4 neighbors (nearest) to avoid bilinear mixing at silhouettes
+    float depthL = texelFetch(primaryDepth, clamp(centerPx + ivec2(-1, 0), ivec2(0), maxFull), 0).r;
+    float depthR = texelFetch(primaryDepth, clamp(centerPx + ivec2( 1, 0), ivec2(0), maxFull), 0).r;
+    float depthU = texelFetch(primaryDepth, clamp(centerPx + ivec2(0,  1), ivec2(0), maxFull), 0).r;
+    float depthD = texelFetch(primaryDepth, clamp(centerPx + ivec2(0, -1), ivec2(0), maxFull), 0).r;
     
     // Linearize for proper comparison (non-linear depth distorts distances)
     float linCenter = lumonLinearizeDepth(centerDepth, zNear, zFar);
@@ -128,7 +129,9 @@ void main(void)
     }
     
     // Sample depth at probe position
-    float depth = texture(primaryDepth, screenUV).r;
+    ivec2 maxFull = ivec2(screenSize) - 1;
+    ivec2 centerPx = clamp(ivec2(screenUV * screenSize), ivec2(0), maxFull);
+    float depth = texelFetch(primaryDepth, centerPx, 0).r;
     
     // ========================================================================
     // Validation Logic
@@ -156,7 +159,7 @@ void main(void)
     vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
     
     // Sample and decode world-space normal from G-buffer (already world-space)
-    vec3 normalRaw = texture(gBufferNormal, screenUV).xyz;
+    vec3 normalRaw = texelFetch(gBufferNormal, centerPx, 0).xyz;
     
     // Criterion 3: Reject invalid normals (degenerate G-buffer data)
     // Check BEFORE normalizing to avoid normalize(vec3(0)) undefined behavior

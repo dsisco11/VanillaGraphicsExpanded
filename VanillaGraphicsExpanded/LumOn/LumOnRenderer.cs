@@ -1153,6 +1153,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ZFar = capi.Render.ShaderUniforms.ZFar;
         shader.DenoiseEnabled = config.DenoiseEnabled ? 1 : 0;
 
+        // Matrices for plane-weighted edge-aware filtering (UE-style)
+        shader.InvProjectionMatrix = invProjectionMatrix;
+        shader.ViewMatrix = modelViewMatrix;
+
         // Bilateral upsample parameters (SPG-008 Section 3.1)
         shader.UpsampleDepthSigma = config.UpsampleDepthSigma;
         shader.UpsampleNormalSigma = config.UpsampleNormalSigma;

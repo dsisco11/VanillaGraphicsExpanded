@@ -110,15 +110,17 @@ ProbeData loadProbeData(ivec2 probeCoord) {
  * from the pixel being shaded, preventing light leaking across edges.
  *
  * @param bilinearWeight Base bilinear interpolation weight
+ * @param pixelPosVS     Pixel's view-space position
+ * @param probePosVS     Probe's view-space position
  * @param pixelDepth     Pixel's linear depth
- * @param probeDepth     Probe's linear depth
  * @param pixelNormal    Pixel's normal (view-space)
  * @param probeNormal    Probe's normal (view-space)
  * @param probeValid     Probe validity (0.0-1.0)
  * @return Adjusted weight
  */
 float computeEdgeAwareWeight(float bilinearWeight,
-                             float pixelDepth, float probeDepth,
+                             vec3 pixelPosVS, vec3 probePosVS,
+                             float pixelDepth,
                              vec3 pixelNormal, vec3 probeNormal,
                              float probeValid) {
     // Invalid probes get zero weight
@@ -126,9 +128,12 @@ float computeEdgeAwareWeight(float bilinearWeight,
         return 0.0;
     }
     
-    // Depth similarity - Gaussian falloff based on relative depth difference
-    float depthDiff = abs(pixelDepth - probeDepth) / max(pixelDepth, 0.01);
-    float depthWeight = exp(-depthDiff * depthDiff / (2.0 * depthSigma * depthSigma));
+    // Depth/position similarity - plane distance in view space (UE-style)
+    // This is more stable at silhouettes than normalizing raw depth differences.
+    float depthDenom = max(pixelDepth, 1.0);
+    float planeDist = abs(dot(probePosVS - pixelPosVS, pixelNormal));
+    float planeDiff = planeDist / depthDenom;
+    float depthWeight = exp(-(planeDiff * planeDiff) / (2.0 * depthSigma * depthSigma));
     
     // Normal similarity - power falloff based on dot product
     float normalDot = max(dot(pixelNormal, probeNormal), 0.0);
@@ -191,10 +196,10 @@ void main(void)
     ProbeData p11 = loadProbeData(probe11);
     
     // Compute edge-aware weights (spec Section 2.3)
-    float w00 = computeEdgeAwareWeight(bw00, pixelDepth, p00.depth, pixelNormalVS, p00.normalVS, p00.valid);
-    float w10 = computeEdgeAwareWeight(bw10, pixelDepth, p10.depth, pixelNormalVS, p10.normalVS, p10.valid);
-    float w01 = computeEdgeAwareWeight(bw01, pixelDepth, p01.depth, pixelNormalVS, p01.normalVS, p01.valid);
-    float w11 = computeEdgeAwareWeight(bw11, pixelDepth, p11.depth, pixelNormalVS, p11.normalVS, p11.valid);
+    float w00 = computeEdgeAwareWeight(bw00, pixelPosVS, p00.posVS, pixelDepth, pixelNormalVS, p00.normalVS, p00.valid);
+    float w10 = computeEdgeAwareWeight(bw10, pixelPosVS, p10.posVS, pixelDepth, pixelNormalVS, p10.normalVS, p10.valid);
+    float w01 = computeEdgeAwareWeight(bw01, pixelPosVS, p01.posVS, pixelDepth, pixelNormalVS, p01.normalVS, p01.valid);
+    float w11 = computeEdgeAwareWeight(bw11, pixelPosVS, p11.posVS, pixelDepth, pixelNormalVS, p11.normalVS, p11.valid);
     
     float totalWeight = w00 + w10 + w01 + w11;
     

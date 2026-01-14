@@ -23,6 +23,10 @@ uniform sampler2D indirectHalf;
 uniform sampler2D primaryDepth;
 uniform sampler2D gBufferNormal;
 
+// Matrices
+uniform mat4 invProjectionMatrix;
+uniform mat4 viewMatrix;  // For WS->VS normal transform
+
 // Size uniforms
 uniform vec2 screenSize;
 uniform vec2 halfResSize;
@@ -52,6 +56,12 @@ uniform float holeFillMinConfidence;  // minimum neighbor confidence to use (e.g
  * Uses 2x2 kernel in half-res space with depth/normal guided weights.
  */
 vec3 bilateralUpsample(vec2 fullResUV, float centerDepth, vec3 centerNormal) {
+    // UE-style plane weighting: evaluate distance-to-plane in view space.
+    float centerDepthRaw = texture(primaryDepth, fullResUV).r;
+    vec3 centerPosVS = lumonReconstructViewPos(fullResUV, centerDepthRaw, invProjectionMatrix);
+    float centerDepthVS = max(-centerPosVS.z, 1.0);
+
+    vec3 centerNormalVS = normalize(mat3(viewMatrix) * centerNormal);
     // Map to half-res coordinates
     vec2 halfResCoord = fullResUV * halfResSize - 0.5;
     ivec2 baseCoord = ivec2(floor(halfResCoord));
@@ -78,17 +88,19 @@ vec3 bilateralUpsample(vec2 fullResUV, float centerDepth, vec3 centerNormal) {
             }
 
             float sampleDepth = lumonLinearizeDepth(sampleDepthRaw, zNear, zFar);
+
+            vec2 sampleUV = (vec2(bestFull) + 0.5) / screenSize;
+            vec3 samplePosVS = lumonReconstructViewPos(sampleUV, sampleDepthRaw, invProjectionMatrix);
             
             // Bilinear weight
             float bx = (dx == 0) ? (1.0 - fracCoord.x) : fracCoord.x;
             float by = (dy == 0) ? (1.0 - fracCoord.y) : fracCoord.y;
             float bilinearWeight = bx * by;
             
-            // Depth weight - Gaussian falloff based on relative depth difference
-            float depthDenom = max(max(centerDepth, sampleDepth), 1.0);
-            float depthDiff = abs(centerDepth - sampleDepth) / depthDenom;
-            float depthWeight = exp(-depthDiff * depthDiff / 
-                                    (2.0 * upsampleDepthSigma * upsampleDepthSigma));
+            // Plane-weighted depth similarity (more stable at silhouettes)
+            float planeDist = abs(dot(samplePosVS - centerPosVS, centerNormalVS));
+            float planeSigma = max(upsampleDepthSigma, 1e-3) * centerDepthVS;
+            float depthWeight = exp(-(planeDist * planeDist) / (2.0 * planeSigma * planeSigma));
             
             // Normal weight - power falloff based on dot product
             float normalDot = max(dot(centerNormal, sampleNormal), 0.0);
@@ -106,6 +118,9 @@ vec3 bilateralUpsample(vec2 fullResUV, float centerDepth, vec3 centerNormal) {
     
     if (totalWeight > 0.001) {
         result /= totalWeight;
+    } else {
+        // Never output black due to edge rejection; fall back to simple sampling.
+        result = texture(indirectHalf, fullResUV).rgb;
     }
     
     return result;
@@ -160,6 +175,7 @@ vec3 holeFillResolve(vec2 fullResUV, float centerDepth, vec3 centerNormal)
             float dist = length(vec2(float(dx), float(dy)));
             float spatialW = exp(-dist * dist / (2.0 * spatialSigma * spatialSigma));
 
+            // Hole-fill should be permissive: prefer a valid non-black fill over strict edge rejection.
             float depthDenom = max(max(centerDepth, sampleDepth), 1.0);
             float depthDiff = abs(centerDepth - sampleDepth) / depthDenom;
             float depthW = exp(-depthDiff * depthDiff / (2.0 * upsampleDepthSigma * upsampleDepthSigma));

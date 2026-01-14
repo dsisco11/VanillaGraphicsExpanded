@@ -28,6 +28,20 @@ public class LumOnUpsampleShaderProgram : VgeShaderProgram
 
     #endregion
 
+    #region Matrix Uniforms
+
+    /// <summary>
+    /// Inverse projection matrix for view-space position reconstruction.
+    /// </summary>
+    public float[] InvProjectionMatrix { set => UniformMatrix("invProjectionMatrix", value); }
+
+    /// <summary>
+    /// View matrix for WS to VS normal transform.
+    /// </summary>
+    public float[] ViewMatrix { set => UniformMatrix("viewMatrix", value); }
+
+    #endregion
+
     #region Texture Samplers
 
     /// <summary>
