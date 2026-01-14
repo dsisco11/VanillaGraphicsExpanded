@@ -40,45 +40,22 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 
         IBlockTextureAtlasAPI atlas = capi.BlockTextureAtlas;
 
-        // One material data texture per atlas texture id.
-        // We build full float buffers and upload once per atlas page to keep GL calls low.
-        var pixelBuffersByAtlasTexId = new Dictionary<int, float[]>(capacity: atlas.AtlasTextures.Count);
-        var sizesByAtlasTexId = new Dictionary<int, (int width, int height)>(capacity: atlas.AtlasTextures.Count);
-
-        // Defaults for unmapped textures.
-        const float defaultRoughness = 0.85f;
-        const float defaultMetallic = 0.0f;
-        const float defaultEmissive = 0.0f;
-
+        var atlasPages = new List<(int atlasTextureId, int width, int height)>(capacity: atlas.AtlasTextures.Count);
         foreach (LoadedTexture atlasPage in atlas.AtlasTextures)
         {
-            int texId = atlasPage.TextureId;
-            if (texId == 0)
+            if (atlasPage.TextureId == 0 || atlasPage.Width <= 0 || atlasPage.Height <= 0)
             {
                 continue;
             }
 
-            int width = atlasPage.Width;
-            int height = atlasPage.Height;
-            if (width <= 0 || height <= 0)
-            {
-                continue;
-            }
-
-            sizesByAtlasTexId[texId] = (width, height);
-
-            float[] pixels = new float[width * height * 3];
-            for (int i = 0; i < pixels.Length; i += 3)
-            {
-                pixels[i + 0] = defaultRoughness;
-                pixels[i + 1] = defaultMetallic;
-                pixels[i + 2] = defaultEmissive;
-            }
-
-            pixelBuffersByAtlasTexId[texId] = pixels;
+            atlasPages.Add((atlasPage.TextureId, atlasPage.Width, atlasPage.Height));
         }
 
-        int filledRects = 0;
+        // Pre-resolve atlas positions and material definitions once.
+        // The pixel builder is pure and can be unit-tested independently.
+        var texturePositions = new Dictionary<AssetLocation, TextureAtlasPosition>(capacity: PbrMaterialRegistry.Instance.MaterialIdByTexture.Count);
+        var materialsByTexture = new Dictionary<AssetLocation, PbrMaterialDefinition>(capacity: PbrMaterialRegistry.Instance.MaterialIdByTexture.Count);
+
         foreach ((AssetLocation texture, string _) in PbrMaterialRegistry.Instance.MaterialIdByTexture)
         {
             if (!PbrMaterialRegistry.Instance.TryGetMaterial(texture, out PbrMaterialDefinition definition))
@@ -101,50 +78,18 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                 continue;
             }
 
-            if (!pixelBuffersByAtlasTexId.TryGetValue(texPos.atlasTextureId, out float[]? pixels))
-            {
-                // Not in block atlas (or atlas page not tracked)
-                continue;
-            }
-
-            (int width, int height) = sizesByAtlasTexId[texPos.atlasTextureId];
-
-            // TextureAtlasPosition coordinates are normalized (0..1) in atlas UV space.
-            // Convert to integer pixel bounds.
-            int x1 = Clamp((int)Math.Floor(texPos.x1 * width), 0, width - 1);
-            int y1 = Clamp((int)Math.Floor(texPos.y1 * height), 0, height - 1);
-            int x2 = Clamp((int)Math.Ceiling(texPos.x2 * width), 0, width);
-            int y2 = Clamp((int)Math.Ceiling(texPos.y2 * height), 0, height);
-
-            int rectWidth = x2 - x1;
-            int rectHeight = y2 - y1;
-            if (rectWidth <= 0 || rectHeight <= 0)
-            {
-                continue;
-            }
-
-            float roughness = Clamp01(definition.Roughness);
-            float metallic = Clamp01(definition.Metallic);
-            float emissive = Clamp01(definition.Emissive);
-
-            for (int y = y1; y < y2; y++)
-            {
-                int rowBase = (y * width + x1) * 3;
-                for (int x = 0; x < rectWidth; x++)
-                {
-                    int idx = rowBase + x * 3;
-                    pixels[idx + 0] = roughness;
-                    pixels[idx + 1] = metallic;
-                    pixels[idx + 2] = emissive;
-                }
-            }
-
-            filledRects++;
+            texturePositions[texture] = texPos;
+            materialsByTexture[texture] = definition;
         }
 
-        foreach ((int atlasTexId, float[] pixels) in pixelBuffersByAtlasTexId)
+        var result = PbrMaterialParamsPixelBuilder.BuildRgb16fPixelBuffers(
+            atlasPages,
+            texturePositions,
+            materialsByTexture);
+
+        foreach ((int atlasTexId, float[] pixels) in result.PixelBuffersByAtlasTexId)
         {
-            (int width, int height) = sizesByAtlasTexId[atlasTexId];
+            (int width, int height) = result.SizesByAtlasTexId[atlasTexId];
 
             var tex = DynamicTexture.CreateWithData(
                 width,
@@ -160,7 +105,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         capi.Logger.Notification(
             "[VGE] Built material param atlas textures: {0} atlas page(s), {1} texture rect(s) filled",
             materialParamsTexByAtlasTexId.Count,
-            filledRects);
+            result.FilledRects);
 
         IsInitialized = materialParamsTexByAtlasTexId.Count > 0;
     }
@@ -199,17 +144,4 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         IsInitialized = false;
     }
 
-    private static int Clamp(int value, int min, int max)
-    {
-        if (value < min) return min;
-        if (value > max) return max;
-        return value;
-    }
-
-    private static float Clamp01(float value)
-    {
-        if (value < 0f) return 0f;
-        if (value > 1f) return 1f;
-        return value;
-    }
 }
