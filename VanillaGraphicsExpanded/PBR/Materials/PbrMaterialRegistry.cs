@@ -43,7 +43,7 @@ internal sealed class PbrMaterialRegistry
         if (api == null) throw new ArgumentNullException(nameof(api));
 
         // Intentionally load at AssetsLoaded or later.
-        List<IAsset> assets = api.Assets.GetMany("materials/pbr_material_definitions.json", domain: null, loadAsset: true);
+        List<IAsset> assets = api.Assets.GetManyInCategory(AssetCategory.config.Code, "vge/material_definitions.json", domain: null, loadAsset: true);
         List<AssetLocation> textureLocations = api.Assets.GetLocations("textures/", domain: null);
 
         IReadOnlyList<PbrMaterialDefinitionsSource> parsedSources = ParseSources(api.Logger, assets, strict);
