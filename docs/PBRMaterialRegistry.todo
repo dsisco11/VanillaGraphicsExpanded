@@ -145,12 +145,12 @@ VGE - PBRMaterialRegistry (Per-Mod Material Definitions + Shader Parameters)
 
   Phase 5 - GPU Parameter Transport Decision (Material UBO vs Data Texture)
   Exit artifacts: we pick one approach and can read per-texture PBR parameters in GLSL.
-  [ ] Decide expected scale:
-      [ ] target number of materials (estimate)
-      [ ] target number of unique textures mapped (estimate)
-  [ ] Evaluate approaches (used by patched base-game shaders):
-      [ ] UBO (uniform block) - simplest indexing but size-limited and requires a stable dense `MaterialIndex`
-      [ ] Data texture (2D, sampled by atlas UV) - scales with atlas size and naturally supports multiple atlases
+  [-] Decide expected scale:
+      [-] target number of materials (estimate)
+      [-] target number of unique textures mapped (estimate)
+  [-] Evaluate approaches (used by patched base-game shaders):
+      [ - UBO (uniform block) - simplest indexing but size-limited and requires a stable dense `MaterialIndex`
+      [x] Data texture (2D, sampled by atlas UV) - scales with atlas size and naturally supports multiple atlases
   [x] Decision: use per-atlas data textures for material parameters.
       [x] Rationale: avoids tessellator patching, supports multiple atlases, and uses the same UVs as `terrainTex`.
 
