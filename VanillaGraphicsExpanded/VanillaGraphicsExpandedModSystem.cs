@@ -38,6 +38,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         // Apply Harmony patches as early as possible, especially before shaders are loaded.
         harmony = new HarmonyLib.Harmony(Constants.ModId);
         harmony.PatchAll();
+
+        // Manually apply terrain material params texture binding patches (property setters).
+        TerrainMaterialParamsTextureBindingHook.ApplyPatches(harmony, api.Logger.Notification);
     }
 
     public override void AssetsLoaded(ICoreAPI api)
@@ -87,7 +90,12 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         // ShaderRegistry.getProgramByName() may attempt to create/load programs on demand if missing,
         // which can lead to engine-side NREs when stage instances are null.
         LoadShaders(api);
-        api.Event.ReloadShader += () => LoadShaders(api);
+        api.Event.ReloadShader += () =>
+        {
+            // Clear cached uniform locations before shader recompile.
+            TerrainMaterialParamsTextureBindingHook.ClearUniformCache();
+            return LoadShaders(api);
+        };
 
         // Initialize LumOn based on config (loaded by ConfigModSystem).
         if (ConfigModSystem.Config.Enabled)
