@@ -102,7 +102,7 @@
   "config-enable-pbr-composite-tooltip": "Enables physically-plausible indirect compositing with diffuse/specular split in the combine pass. When disabled, uses legacy diffuse-only modulation.",
 
   "config-enable-ao": "Enable Ambient Occlusion",
-  "config-enable-ao-tooltip": "Enables ambient occlusion application during indirect compositing. Uses gBuffer material alpha as an AO/reflectivity channel.",
+  "config-enable-ao-tooltip": "Enables ambient occlusion application during indirect compositing. NOTE: AO is currently stubbed (no-op). gBuffer material alpha is reflectivity, not AO.",
 
   "config-enable-bent-normal": "Enable Bent Normal",
   "config-enable-bent-normal-tooltip": "Enables bent-normal-based visibility for indirect compositing. Currently falls back to surface normal (dedicated bent-normal source not yet wired).",

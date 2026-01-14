@@ -228,7 +228,7 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
   ✔ Define the direct-lighting contract: @done(26-01-12 03:49)
     - What buffer(s) are produced (sceneDirect, optional directSpecular/directDiffuse split)
     - Color space/exposure assumptions (must be linear, pre-tonemap)
-    - Required G-buffer inputs (albedo/baseColor, normalWS, roughness, metallic, emissive, AO/reflectivity)
+    - Required G-buffer inputs (albedo/baseColor, normalWS, roughness, metallic, emissive, reflectivity)
     - Handling of sun, sky, point lights, emissives, and fog interactions (document what is in/out of scope)
 
   ✔ Add a dedicated renderer stage + shader program(s): @done(26-01-12 03:49)

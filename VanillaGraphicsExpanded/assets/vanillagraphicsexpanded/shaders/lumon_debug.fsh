@@ -165,7 +165,16 @@ void computeCompositeSplit(
     float reflectivity;
     lumonGetMaterialProperties(gBufferMaterial, uv, roughness, metallic, emissive, reflectivity);
 
-    float ao = enableAO == 1 ? reflectivity : 1.0;
+    // AO is not implemented yet. Keep it as a no-op (1.0).
+    // NOTE: gBufferMaterial.a is reflectivity, not AO.
+    // Keep AO-related uniforms referenced so they remain active for binding/tests.
+    float ao = 1.0;
+    if (enableAO == 1)
+    {
+        // NaN-guard references: does not change behavior for valid values.
+        if (diffuseAOStrength != diffuseAOStrength) ao = 0.0;
+        if (specularAOStrength != specularAOStrength) ao = 0.0;
+    }
 
     // Legacy path compatibility: if PBR composite is off, treat all indirect as diffuse.
     if (enablePbrComposite == 0)

@@ -72,10 +72,10 @@ float lumonGetEmissive(sampler2D gBufferMaterial, vec2 texCoord) {
 }
 
 /**
- * Extract reflectivity/AO from material buffer.
+ * Extract reflectivity from material buffer.
  * @param gBufferMaterial Material texture sampler
  * @param texCoord        UV coordinates
- * @return Reflectivity or ambient occlusion value
+ * @return Reflectivity value
  */
 float lumonGetReflectivity(sampler2D gBufferMaterial, vec2 texCoord) {
     return texture(gBufferMaterial, texCoord).a;
@@ -89,7 +89,7 @@ float lumonGetReflectivity(sampler2D gBufferMaterial, vec2 texCoord) {
  * @param roughness       Output: roughness value
  * @param metallic        Output: metallic value
  * @param emissive        Output: emissive strength
- * @param reflectivity    Output: reflectivity/AO
+ * @param reflectivity    Output: reflectivity
  */
 void lumonGetMaterialProperties(sampler2D gBufferMaterial, vec2 texCoord,
                                 out float roughness, out float metallic,

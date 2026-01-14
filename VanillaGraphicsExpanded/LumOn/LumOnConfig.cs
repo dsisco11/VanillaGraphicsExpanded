@@ -333,7 +333,7 @@ public class LumOnConfig
 
     /// <summary>
     /// Enables applying ambient occlusion during indirect compositing.
-    /// Uses gBufferMaterial alpha as an AO/reflectivity channel.
+    /// NOTE: AO is currently stubbed (no-op). gBufferMaterial.a is reflectivity, not AO.
     /// Hot-reloadable.
     /// </summary>
     [JsonProperty]

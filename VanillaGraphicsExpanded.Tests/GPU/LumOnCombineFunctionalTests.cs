@@ -402,7 +402,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
         var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
 
-        // AO comes from reflectivity channel in our current G-buffer layout.
+        // AO is currently stubbed (no-op). Reflectivity must not be treated as AO.
         var materialAo1 = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f, emissive: 0.0f, reflectivity: 1.0f);
         var materialAo0 = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f, emissive: 0.0f, reflectivity: 0.0f);
 
@@ -468,8 +468,8 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         float lumaAo1 = RenderWithAoTexture(materialAo1Tex);
         float lumaAo0 = RenderWithAoTexture(materialAo0Tex);
 
-        Assert.True(lumaAo1 > lumaAo0,
-            $"Expected AO=0 to reduce diffuse indirect. AO1={lumaAo1:F3}, AO0={lumaAo0:F3}");
+        Assert.True(MathF.Abs(lumaAo1 - lumaAo0) < 1e-3f,
+            $"AO is stubbed; reflectivity must not attenuate indirect. Reflectivity1={lumaAo1:F3}, Reflectivity0={lumaAo0:F3}");
 
         GL.DeleteProgram(programId);
     }
