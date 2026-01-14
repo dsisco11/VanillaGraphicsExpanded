@@ -1,5 +1,5 @@
 {
-  "$schema": "https://example.invalid/schemas/pbr_values.schema.json",
+  "$schema": "../../../../schemas/pbr_material_definitions.schema.json",
   "version": 1,
   "notes": [
     "All values are floats in the range [0.0, 1.0].",

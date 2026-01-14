@@ -26,34 +26,36 @@ VGE - PBRMaterialRegistry (Per-Mod Material Definitions + Shader Parameters)
   Exit artifacts: JSON schema is agreed; C# model types exist; conflict/merge semantics are documented.
     [x] Decision: MaterialIds are fully-qualified strings `"<modid>:<name>"`.
     [x] Decision: each material receives a numeric `MaterialIndex` assigned at runtime (used as the numeric ID in shaders).
-  [ ] Define `PBRMaterialDefinition` fields (initial):
-      [ ] roughness (0..1)
-      [ ] metallic (0..1)
-      [ ] emissive (0..1)
-      [ ] reflectivity/specular (0..1)
-      [ ] noise (optional): defines randomized variation mixed into PBR values by shader
+  [x] Define `PBRMaterialDefinition` fields (initial):
+      [x] roughness (0..1)
+      [x] metallic (0..1)
+      [x] emissive (0..1)
+      [x] reflectivity is computed in the patched shader (not authored/stored in definitions)
+      [x] noise (optional): defines randomized variation mixed into PBR values by shader
           [x] Decision: `noise` specifies per-channel delta ranges for (roughness, metallic, emissive, reflectivity) and also normals.
           [x] Decision: shaders use Squirrel3 noise to generate a deterministic random scalar per channel, multiply by delta-range, then apply as a delta to the channel (or normal angle).
-      [ ] optional notes/debugName
-      [ ] priority (optional): numeric priority used to order/override materials across mods
-  [ ] Define JSON schema for `materials/pbr_material_definitions.json`:
-      [ ] version
-      [ ] defaults block
-      [ ] materials map (id -> property overrides)
-      [ ] mappings list (ordered rules)
-  [ ] Decide mapping rule match types:
-      [ ] texture exact AssetLocation (domain:path)
-      [ ] texture prefix match
-      [ ] texture glob matching (document supported subset; avoid full regex unless truly needed)
-      [ ] (optional) block/item code mapping (defer to v2 unless required)
-  [ ] Allow a per-mapping `priority` value (optional) to influence deterministic ordering/override.
-  [ ] Decide conflict resolution strategy:
-      [ ] MaterialId collisions: last-wins vs error vs namespace enforcement
-      [ ] Texture mapping collisions: first-match in ordered rules vs last-match
-  [ ] Decide warning/error policy:
-      [ ] warn on unknown MaterialId referenced by mapping
-      [ ] warn on unmapped textures (optional)
-      [ ] strict mode toggle (dev-only)
+      [x] optional notes/debugName
+      [x] priority (optional): numeric priority used to order/override materials across mods
+  [x] Add schema doc: `docs/PBRMaterialDefinitions.schema.md`
+    [x] Add JSON Schema file: `schemas/pbr_material_definitions.schema.json`
+  [x] Add JSON DTO model types: `VanillaGraphicsExpanded/PBR/Materials/PbrMaterialDefinitionsModels.cs`
+  [x] Define JSON schema for `materials/pbr_material_definitions.json`:
+      [x] `version` (int)
+      [x] optional `$schema` and `notes`
+      [x] `defaults` block (values + noise)
+      [x] `materials` map (id -> property overrides; ids may be local or fully-qualified)
+      [x] `mapping` list (ordered rules)
+  [x] Decide mapping rule match types:
+      [x] v1 supports `match.glob` (standard globstar syntax) against `assets/<domain>/<path>`
+      [x] defer additional match types (exact/prefix/regex) unless proven necessary
+  [x] Allow a per-mapping `priority` value (optional) to influence deterministic ordering/override.
+  [x] Decide conflict resolution strategy:
+      [x] MaterialId collisions: higher `priority` wins; on tie use deterministic load order (stable domain/modid then file order)
+      [x] Texture mapping collisions: higher mapping `priority` wins; on tie use deterministic rule order (stable domain/modid then file order then later mapping wins)
+  [x] Decide warning/error policy:
+      [x] warn on unknown MaterialId referenced by a mapping rule
+      [x] do not warn per-texture for unmapped textures; log summary counts (optional)
+      [x] strict mode toggle (dev-only): treat unknown materials / invalid rules as errors
 
 
   Phase 2 - Asset Discovery + Load Order

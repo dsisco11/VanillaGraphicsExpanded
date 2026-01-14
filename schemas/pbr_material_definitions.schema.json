@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/vge/pbr_material_definitions.schema.json",
+  "title": "VGE PBR Material Definitions",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "defaults", "materials", "mapping"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional schema reference for editors."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Schema version. Current: 1."
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Optional informational strings; ignored at runtime."
+    },
+    "defaults": { "$ref": "#/$defs/defaults" },
+    "materials": {
+      "type": "object",
+      "description": "Map of material key -> material definition. Keys may be local (e.g. 'stone') or fully-qualified (e.g. 'mymod:stone').",
+      "additionalProperties": { "$ref": "#/$defs/material" }
+    },
+    "mapping": {
+      "type": "array",
+      "description": "Ordered mapping rules from texture glob -> material id.",
+      "items": { "$ref": "#/$defs/mappingRule" }
+    }
+  },
+  "$defs": {
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "roughness": { "$ref": "#/$defs/unitFloat" },
+        "metallic": { "$ref": "#/$defs/unitFloat" },
+        "emissive": { "$ref": "#/$defs/unitFloat" },
+        "noise": { "$ref": "#/$defs/noise" }
+      }
+    },
+    "material": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "roughness": { "$ref": "#/$defs/unitFloat" },
+        "metallic": { "$ref": "#/$defs/unitFloat" },
+        "emissive": { "$ref": "#/$defs/unitFloat" },
+        "noise": { "$ref": "#/$defs/noise" },
+        "notes": { "type": "string" },
+        "priority": { "$ref": "#/$defs/priority" }
+      }
+    },
+    "noise": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Per-channel delta-range values used by shaders to apply deterministic Squirrel3 noise.",
+      "properties": {
+        "roughness": { "$ref": "#/$defs/unitFloat" },
+        "metallic": { "$ref": "#/$defs/unitFloat" },
+        "emissive": { "$ref": "#/$defs/unitFloat" },
+        "reflectivity": { "$ref": "#/$defs/unitFloat" },
+        "normals": { "$ref": "#/$defs/unitFloat" }
+      }
+    },
+    "mappingRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["match", "values"],
+      "properties": {
+        "id": { "type": "string" },
+        "description": { "type": "string" },
+        "priority": { "$ref": "#/$defs/priority" },
+        "match": { "$ref": "#/$defs/match" },
+        "values": { "$ref": "#/$defs/mappingValues" }
+      }
+    },
+    "match": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["glob"],
+      "properties": {
+        "glob": {
+          "type": "string",
+          "description": "Globstar pattern matched against canonical asset key 'assets/<domain>/<path>'.",
+          "pattern": "^assets/"
+        }
+      }
+    },
+    "mappingValues": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["material"],
+      "properties": {
+        "material": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Material key or fully-qualified MaterialId."
+        }
+      }
+    },
+    "unitFloat": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "priority": {
+      "type": "integer",
+      "description": "Higher priority wins when resolving conflicts."
+    }
+  }
+}
