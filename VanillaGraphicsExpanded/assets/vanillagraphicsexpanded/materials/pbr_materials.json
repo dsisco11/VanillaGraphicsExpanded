@@ -1,0 +1,881 @@
+{
+  "$schema": "https://example.invalid/schemas/pbr_values.schema.json",
+  "version": 1,
+  "notes": [
+    "All values are floats in the range [0.0, 1.0].",
+    "These values are intended as deterministic defaults for generating packed *_pbr.png maps:",
+    "  R = roughness, G = metallic, B = 0, A = 1.",
+    "Per-pixel metallic is not inferred; use overrides to mark entire textures/material families as metallic.",
+    "Roughness values for: brick, concrete, glass, water, ice, snow, charcoal, office paper, and base metals were aligned to the PhysicallyBased.info materials database.",
+    "Materials not present in that database remain heuristics and may need art-direction tuning."
+  ],
+  "defaults": {
+    "roughness": 0.85,
+    "metallic": 0.0,
+    "noise": {
+      "roughness": 0.02,
+      "metallic": 0.0,
+      "normals": 0.05
+    }
+  },
+  "materials": {
+    "default_block": { "roughness": 0.85, "metallic": 0.0 },
+    "default_texture": { "roughness": 0.85, "metallic": 0.0 },
+    "block_creature": { "roughness": 0.7, "metallic": 0.0 },
+    "block_overlay": { "roughness": 0.9, "metallic": 0.0 },
+    "block_food": { "roughness": 0.65, "metallic": 0.0 },
+    "block_creative": { "roughness": 0.55, "metallic": 0.0 },
+    "block_meta": { "roughness": 0.7, "metallic": 0.0 },
+    "block_devastation": { "roughness": 0.9, "metallic": 0.0 },
+    "block_christmas": { "roughness": 0.55, "metallic": 0.0 },
+    "block_locustnest": { "roughness": 0.8, "metallic": 0.0 },
+    "block_pile": { "roughness": 0.8, "metallic": 0.0 },
+    "block_legacy": { "roughness": 0.7, "metallic": 0.0 },
+
+    "bone": { "roughness": 0.9, "metallic": 0.0 },
+    "creature_wet": { "roughness": 0.6, "metallic": 0.0 },
+    "coral": { "roughness": 0.75, "metallic": 0.0 },
+
+    "food_dairy": { "roughness": 0.35, "metallic": 0.0 },
+    "food_grain": { "roughness": 0.85, "metallic": 0.0 },
+    "food_meal": { "roughness": 0.2, "metallic": 0.0 },
+    "food_pie": { "roughness": 0.55, "metallic": 0.0 },
+
+    "christmas_bauble": { "roughness": 0.2, "metallic": 0.0 },
+    "christmas_present": { "roughness": 0.55, "metallic": 0.0 },
+
+    "dirt": { "roughness": 0.95, "metallic": 0.0 },
+    "grass": { "roughness": 0.9, "metallic": 0.0 },
+    "mud": { "roughness": 0.97, "metallic": 0.0 },
+    "clay": { "roughness": 0.9, "metallic": 0.0 },
+    "sand": { "roughness": 0.9, "metallic": 0.0 },
+    "gravel": { "roughness": 0.92, "metallic": 0.0 },
+    "stone": { "roughness": 0.92, "metallic": 0.0 },
+    "rock": { "roughness": 0.9, "metallic": 0.0 },
+    "brick": { "roughness": 0.9, "metallic": 0.0 },
+    "concrete": { "roughness": 0.5, "metallic": 0.0 },
+    "plaster": { "roughness": 0.85, "metallic": 0.0 },
+
+    "wood": { "roughness": 0.7, "metallic": 0.0 },
+    "bark": { "roughness": 0.78, "metallic": 0.0 },
+    "log": { "roughness": 0.75, "metallic": 0.0 },
+    "planks": { "roughness": 0.65, "metallic": 0.0 },
+    "wicker": { "roughness": 0.8, "metallic": 0.0 },
+    "paper": { "roughness": 0.8, "metallic": 0.0 },
+
+    "cloth": { "roughness": 0.9, "metallic": 0.0 },
+    "wool": { "roughness": 0.93, "metallic": 0.0 },
+    "leather": { "roughness": 0.75, "metallic": 0.0 },
+
+    "ceramic": { "roughness": 0.55, "metallic": 0.0 },
+    "pottery": { "roughness": 0.6, "metallic": 0.0 },
+    "terracotta": { "roughness": 0.65, "metallic": 0.0 },
+
+    "glass": { "roughness": 0.05, "metallic": 0.0 },
+    "water": { "roughness": 0.02, "metallic": 0.0 },
+    "ice": { "roughness": 0.5, "metallic": 0.0 },
+    "snow": { "roughness": 0.5, "metallic": 0.0 },
+    "lava": { "roughness": 0.1, "metallic": 0.0 },
+    "tar": { "roughness": 0.08, "metallic": 0.0 },
+    "honey": { "roughness": 0.05, "metallic": 0.0 },
+
+    "coal": { "roughness": 0.7, "metallic": 0.0 },
+    "charcoal": { "roughness": 0.9, "metallic": 0.0 },
+
+    "rust": { "roughness": 0.95, "metallic": 0.0 },
+    "painted": { "roughness": 0.6, "metallic": 0.0 },
+    "polished_stone": { "roughness": 0.35, "metallic": 0.0 },
+
+    "metal_generic": { "roughness": 0.035, "metallic": 1.0 },
+    "metal_iron": { "roughness": 0.035, "metallic": 1.0 },
+    "metal_steel": { "roughness": 0.03, "metallic": 1.0 },
+    "metal_copper": { "roughness": 0.028, "metallic": 1.0 },
+    "metal_tin": { "roughness": 0.03, "metallic": 1.0 },
+    "metal_zinc": { "roughness": 0.03, "metallic": 1.0 },
+    "metal_gold": { "roughness": 0.018, "metallic": 1.0 },
+    "metal_silver": { "roughness": 0.015, "metallic": 1.0 },
+    "metal_bronze": { "roughness": 0.025, "metallic": 1.0 }
+  },
+  "mapping": [
+    {
+      "id": "survival-metal-blocks",
+      "description": "Mark typical metal block texture families as metallic.",
+      "match": {
+        "glob": "assets/**/textures/block/**/metal/**/*.png"
+      },
+      "values": {
+        "material": "metal_generic"
+      }
+    },
+    {
+      "id": "water-liquid-blocks",
+      "description": "Water textures used for liquid blocks.",
+      "match": {
+        "glob": "assets/**/textures/block/liquid/water*.png"
+      },
+      "values": {
+        "material": "water"
+      }
+    },
+    {
+      "id": "saltwater-liquid-blocks",
+      "description": "Saltwater textures used for liquid blocks.",
+      "match": {
+        "glob": "assets/**/textures/block/liquid/saltwater*.png"
+      },
+      "values": {
+        "material": "water"
+      }
+    },
+    {
+      "id": "lava-liquid-blocks",
+      "description": "Lava textures used for liquid blocks.",
+      "match": {
+        "glob": "assets/**/textures/block/liquid/lava*.png"
+      },
+      "values": {
+        "material": "lava"
+      }
+    },
+    {
+      "id": "tar-liquid-blocks",
+      "description": "Tar textures used for liquid blocks.",
+      "match": {
+        "glob": "assets/**/textures/block/liquid/tar*.png"
+      },
+      "values": {
+        "material": "tar"
+      }
+    },
+    {
+      "id": "honey-liquid-blocks",
+      "description": "Honey textures used for liquid blocks.",
+      "match": {
+        "glob": "assets/**/textures/block/liquid/honey*.png"
+      },
+      "values": {
+        "material": "honey"
+      }
+    },
+    {
+      "id": "ice-liquid-blocks",
+      "description": "Ice/glacier textures used for liquid blocks.",
+      "match": {
+        "glob": "assets/**/textures/block/liquid/ice/**/*.png"
+      },
+      "values": {
+        "material": "ice"
+      }
+    },
+    {
+      "id": "snow-liquid-blocks",
+      "description": "Snow textures used for liquid blocks.",
+      "match": {
+        "glob": "assets/**/textures/block/liquid/snow/**/*.png"
+      },
+      "values": {
+        "material": "snow"
+      }
+    },
+    {
+      "id": "frost-liquid-blocks",
+      "description": "Frost textures used for liquid blocks (treated as ice-like).",
+      "match": {
+        "glob": "assets/**/textures/block/liquid/frost/**/*.png"
+      },
+      "values": {
+        "material": "ice"
+      }
+    },
+    {
+      "id": "other-liquid-blocks",
+      "description": "Other liquid textures (milk, beer, wine, dyes, etc.). Default to water-like surface smoothness.",
+      "match": {
+        "glob": "assets/**/textures/block/liquid/**/*.png"
+      },
+      "values": {
+        "material": "water"
+      }
+    },
+    {
+      "id": "brick-like-blocks",
+      "description": "Brick-ish textures are scattered across multiple folders; map them to the brick material.",
+      "match": {
+        "glob": "assets/**/textures/block/stone/crackedbrick/**/*.png"
+      },
+      "values": {
+        "material": "brick"
+      }
+    },
+    {
+      "id": "brick-overlays",
+      "description": "Cracked brick overlays (still best treated as brick-like roughness by default).",
+      "match": {
+        "glob": "assets/**/textures/block/overlay/crackedbrick*.png"
+      },
+      "values": {
+        "material": "brick"
+      }
+    },
+    {
+      "id": "overlay-bone",
+      "description": "Bone overlays are closer to bone than generic overlays.",
+      "match": {
+        "glob": "assets/**/textures/block/overlay/bone*.png"
+      },
+      "values": {
+        "material": "bone"
+      }
+    },
+    {
+      "id": "overlay-aquatic",
+      "description": "Aquatic bio overlays (barnacles, mussels, bacteria, etc.) are treated as wet organic.",
+      "match": {
+        "glob": "assets/**/textures/block/overlay/aquatic/**/*.png"
+      },
+      "values": {
+        "material": "creature_wet"
+      }
+    },
+    {
+      "id": "overlay-charred",
+      "description": "Charred overlays are charcoal-like.",
+      "match": {
+        "glob": "assets/**/textures/block/overlay/charred*.png"
+      },
+      "values": {
+        "material": "charcoal"
+      }
+    },
+    {
+      "id": "overlay-cracked-folder",
+      "description": "Generic cracked overlays in the cracked/ folder are stone-like.",
+      "match": {
+        "glob": "assets/**/textures/block/overlay/cracked/**/*.png"
+      },
+      "values": {
+        "material": "stone"
+      }
+    },
+    {
+      "id": "overlay-crackedcobblestone",
+      "description": "Cracked cobblestone overlays are stone-like.",
+      "match": {
+        "glob": "assets/**/textures/block/overlay/crackedcobblestone*.png"
+      },
+      "values": {
+        "material": "stone"
+      }
+    },
+    {
+      "id": "overlay-crackedrock",
+      "description": "Cracked rock overlays are stone-like.",
+      "match": {
+        "glob": "assets/**/textures/block/overlay/crackedrock*.png"
+      },
+      "values": {
+        "material": "stone"
+      }
+    },
+    {
+      "id": "overlay-damagedstone",
+      "description": "Damaged stone overlays are stone-like.",
+      "match": {
+        "glob": "assets/**/textures/block/overlay/damagedstone*.png"
+      },
+      "values": {
+        "material": "stone"
+      }
+    },
+    {
+      "id": "overlay-dirtygravel",
+      "description": "Dirty gravel overlays are gravel-like.",
+      "match": {
+        "glob": "assets/**/textures/block/overlay/dirtygravel/**/*.png"
+      },
+      "values": {
+        "material": "gravel"
+      }
+    },
+    {
+      "id": "overlay-deadfungi",
+      "description": "Dead fungi overlays are treated as rough organic matter.",
+      "match": {
+        "glob": "assets/**/textures/block/overlay/deadfungi/**/*.png"
+      },
+      "values": {
+        "material": "grass"
+      }
+    },
+    {
+      "id": "refractory-bricks",
+      "description": "Refractory bricks include bricks.png and raw-bricks*.png; treat as brick by default.",
+      "match": {
+        "glob": "assets/**/textures/block/clay/refractory/**/*.png"
+      },
+      "values": {
+        "material": "brick"
+      }
+    },
+    {
+      "id": "brickpiles",
+      "description": "Brick pile textures (burned bricks) are brick material.",
+      "match": {
+        "glob": "assets/**/textures/block/clay/brickpile/**/*.png"
+      },
+      "values": {
+        "material": "brick"
+      }
+    },
+    {
+      "id": "plaster-blocks",
+      "description": "Plaster textures live in multiple folders; map them to the plaster material.",
+      "match": {
+        "glob": "assets/**/textures/block/**/plaster/**/*.png"
+      },
+      "values": {
+        "material": "plaster"
+      }
+    },
+    {
+      "id": "soil-dirt-blocks",
+      "description": "Soil folder contains many dirt-like textures (packed dirt, podzol, forest soil, etc.).",
+      "match": {
+        "glob": "assets/**/textures/block/soil/**/*.png"
+      },
+      "values": {
+        "material": "dirt"
+      }
+    },
+    {
+      "id": "grasscoverage-blocks",
+      "description": "Grass coverage textures are under a folder name (files may not contain 'grass' in the basename).",
+      "match": {
+        "glob": "assets/**/textures/block/plant/grasscoverage/**/*.png"
+      },
+      "values": {
+        "material": "grass"
+      }
+    },
+    {
+      "id": "grass-like-blocks",
+      "description": "Grass-like plant textures (tallgrass, seagrass, muskgrass, etc.).",
+      "match": {
+        "glob": "assets/**/textures/block/plant/**/*grass*.png"
+      },
+      "values": {
+        "material": "grass"
+      }
+    },
+    {
+      "id": "devastation-grass-blocks",
+      "description": "Devastation grass textures are directly named grass*.png.",
+      "match": {
+        "glob": "assets/**/textures/block/devastation/grass*.png"
+      },
+      "values": {
+        "material": "grass"
+      }
+    },
+    {
+      "id": "devastation-rock",
+      "description": "Devastation rock textures are stone-like.",
+      "match": {
+        "glob": "assets/**/textures/block/devastation/drock/**/*.png"
+      },
+      "values": {
+        "material": "stone"
+      }
+    },
+    {
+      "id": "devastation-soil",
+      "description": "Devastation soil textures are dirt-like.",
+      "match": {
+        "glob": "assets/**/textures/block/devastation/soil/**/*.png"
+      },
+      "values": {
+        "material": "dirt"
+      }
+    },
+    {
+      "id": "survival-ore-blocks",
+      "description": "Ores are mostly rock with metallic flecks; keep metallic off by default.",
+      "match": {
+        "glob": "assets/**/textures/block/**/ore/**/*.png"
+      },
+      "values": {
+        "material": "stone"
+      }
+    },
+    {
+      "id": "wood-blocks",
+      "description": "Default wood for wood-like block families.",
+      "match": {
+        "glob": "assets/**/textures/block/**/wood/**/*.png"
+      },
+      "values": {
+        "material": "wood"
+      }
+    },
+    {
+      "id": "stone-blocks",
+      "description": "Default stone for stone-like block families.",
+      "match": {
+        "glob": "assets/**/textures/block/**/stone/**/*.png"
+      },
+      "values": {
+        "material": "stone"
+      }
+    },
+    {
+      "id": "glass-blocks",
+      "description": "Default glass for glass-like block families.",
+      "match": {
+        "glob": "assets/**/textures/block/**/glass/**/*.png"
+      },
+      "values": {
+        "material": "glass"
+      }
+    },
+    {
+      "id": "clay-blocks",
+      "description": "Clay block texture families.",
+      "match": {
+        "glob": "assets/**/textures/block/clay/**/*.png"
+      },
+      "values": {
+        "material": "clay"
+      }
+    },
+    {
+      "id": "cloth-blocks",
+      "description": "Cloth block texture families.",
+      "match": {
+        "glob": "assets/**/textures/block/cloth/**/*.png"
+      },
+      "values": {
+        "material": "cloth"
+      }
+    },
+    {
+      "id": "leather-blocks",
+      "description": "Leather block texture families.",
+      "match": {
+        "glob": "assets/**/textures/block/leather/**/*.png"
+      },
+      "values": {
+        "material": "leather"
+      }
+    },
+    {
+      "id": "coal-blocks",
+      "description": "Coal block texture families.",
+      "match": {
+        "glob": "assets/**/textures/block/coal/**/*.png"
+      },
+      "values": {
+        "material": "coal"
+      }
+    },
+    {
+      "id": "plant-blocks",
+      "description": "Plant-ish block texture families (foliage, reeds, vines).",
+      "match": {
+        "glob": "assets/**/textures/block/plant/**/*.png"
+      },
+      "values": {
+        "material": "grass"
+      }
+    },
+    {
+      "id": "reed-blocks",
+      "description": "Reed block texture families.",
+      "match": {
+        "glob": "assets/**/textures/block/reed/**/*.png"
+      },
+      "values": {
+        "material": "grass"
+      }
+    },
+    {
+      "id": "vines-blocks",
+      "description": "Vines block texture families.",
+      "match": {
+        "glob": "assets/**/textures/block/vines/**/*.png"
+      },
+      "values": {
+        "material": "grass"
+      }
+    },
+    {
+      "id": "hay-blocks",
+      "description": "Hay/straw-like block texture families.",
+      "match": {
+        "glob": "assets/**/textures/block/hay/**/*.png"
+      },
+      "values": {
+        "material": "grass"
+      }
+    },
+    {
+      "id": "wallpaper-blocks",
+      "description": "Wallpaper-like block texture families.",
+      "match": {
+        "glob": "assets/**/textures/block/wallpaper/**/*.png"
+      },
+      "values": {
+        "material": "paper"
+      }
+    },
+    {
+      "id": "painting-blocks",
+      "description": "Painting block texture families (treated as paper/canvas by default).",
+      "match": {
+        "glob": "assets/**/textures/block/painting/**/*.png"
+      },
+      "values": {
+        "material": "paper"
+      }
+    },
+    {
+      "id": "dice-blocks",
+      "description": "Dice block texture families.",
+      "match": {
+        "glob": "assets/**/textures/block/dice/**/*.png"
+      },
+      "values": {
+        "material": "wood"
+      }
+    },
+    {
+      "id": "machine-blocks",
+      "description": "Machine block texture families.",
+      "match": {
+        "glob": "assets/**/textures/block/machine/**/*.png"
+      },
+      "values": {
+        "material": "metal_generic"
+      }
+    },
+    {
+      "id": "creature-coral",
+      "description": "Coral blocks are porous/mineral-ish.",
+      "match": {
+        "glob": "assets/**/textures/block/creature/**/coral/**/*.png"
+      },
+      "values": {
+        "material": "coral"
+      }
+    },
+    {
+      "id": "creature-aquatic",
+      "description": "Aquatic creature blocks (anemones, worms, etc.) are treated as wet organic by default.",
+      "match": {
+        "glob": "assets/**/textures/block/creature/aquatic/**/*.png"
+      },
+      "values": {
+        "material": "creature_wet"
+      }
+    },
+    {
+      "id": "creature-blocks",
+      "description": "Creature block texture families (placeholder material for later tuning).",
+      "match": {
+        "glob": "assets/**/textures/block/creature/**/*.png"
+      },
+      "values": {
+        "material": "block_creature"
+      }
+    },
+    {
+      "id": "overlay-blocks",
+      "description": "Overlay block texture families (placeholder material for later tuning).",
+      "match": {
+        "glob": "assets/**/textures/block/overlay/**/*.png"
+      },
+      "values": {
+        "material": "block_overlay"
+      }
+    },
+    {
+      "id": "food-dairy",
+      "description": "Dairy textures tend to be smoother/wetter.",
+      "match": {
+        "glob": "assets/**/textures/block/food/dairy/**/*.png"
+      },
+      "values": {
+        "material": "food_dairy"
+      }
+    },
+    {
+      "id": "food-grain",
+      "description": "Grain piles are rough.",
+      "match": {
+        "glob": "assets/**/textures/block/food/grain/**/*.png"
+      },
+      "values": {
+        "material": "food_grain"
+      }
+    },
+    {
+      "id": "food-meal",
+      "description": "Meal group textures (mixed foods) are moderately rough.",
+      "match": {
+        "glob": "assets/**/textures/block/food/meal/**/*.png"
+      },
+      "values": {
+        "material": "food_meal"
+      }
+    },
+    {
+      "id": "food-pie",
+      "description": "Pie textures are moderately smooth.",
+      "match": {
+        "glob": "assets/**/textures/block/food/pie/**/*.png"
+      },
+      "values": {
+        "material": "food_pie"
+      }
+    },
+    {
+      "id": "food-blocks",
+      "description": "Food block texture families (placeholder material for later tuning).",
+      "match": {
+        "glob": "assets/**/textures/block/food/**/*.png"
+      },
+      "values": {
+        "material": "block_food"
+      }
+    },
+    {
+      "id": "creative-blocks",
+      "description": "Creative block texture families (placeholder material for later tuning).",
+      "match": {
+        "glob": "assets/**/textures/block/creative/**/*.png"
+      },
+      "values": {
+        "material": "block_creative"
+      }
+    },
+    {
+      "id": "meta-blocks",
+      "description": "Meta block texture families (placeholder material for later tuning).",
+      "match": {
+        "glob": "assets/**/textures/block/meta/**/*.png"
+      },
+      "values": {
+        "material": "block_meta"
+      }
+    },
+    {
+      "id": "devastation-blocks",
+      "description": "Devastation block texture families (placeholder material for later tuning).",
+      "match": {
+        "glob": "assets/**/textures/block/devastation/**/*.png"
+      },
+      "values": {
+        "material": "block_devastation"
+      }
+    },
+    {
+      "id": "christmas-baubles",
+      "description": "Baubles are glossy.",
+      "match": {
+        "glob": "assets/**/textures/block/christmas/bauble/**/*.png"
+      },
+      "values": {
+        "material": "christmas_bauble"
+      }
+    },
+    {
+      "id": "christmas-presents",
+      "description": "Presents are wrapped paper.",
+      "match": {
+        "glob": "assets/**/textures/block/christmas/present/**/*.png"
+      },
+      "values": {
+        "material": "christmas_present"
+      }
+    },
+    {
+      "id": "christmas-blocks",
+      "description": "Christmas block texture families (placeholder material for later tuning).",
+      "match": {
+        "glob": "assets/**/textures/block/christmas/**/*.png"
+      },
+      "values": {
+        "material": "block_christmas"
+      }
+    },
+    {
+      "id": "locustnest-metal",
+      "description": "Locust nest cages include metal parts.",
+      "match": {
+        "glob": "assets/**/textures/block/locustnest/**/metal*.png"
+      },
+      "values": {
+        "material": "metal_generic"
+      }
+    },
+    {
+      "id": "locustnest-chain",
+      "description": "Locust nest cages include chains.",
+      "match": {
+        "glob": "assets/**/textures/block/locustnest/**/*chain*.png"
+      },
+      "values": {
+        "material": "metal_generic"
+      }
+    },
+    {
+      "id": "locustnest-fabric",
+      "description": "Locust nest fabrics are cloth-like.",
+      "match": {
+        "glob": "assets/**/textures/block/locustnest/**/fabric*.png"
+      },
+      "values": {
+        "material": "cloth"
+      }
+    },
+    {
+      "id": "locustnest-rope",
+      "description": "Locust nest ropes are fiber-like.",
+      "match": {
+        "glob": "assets/**/textures/block/locustnest/**/rope*.png"
+      },
+      "values": {
+        "material": "wicker"
+      }
+    },
+    {
+      "id": "locustnest-net",
+      "description": "Locust nest nets are fiber-like.",
+      "match": {
+        "glob": "assets/**/textures/block/locustnest/**/net*.png"
+      },
+      "values": {
+        "material": "wicker"
+      }
+    },
+    {
+      "id": "locustnest-floor",
+      "description": "Locust nest floors are dirt-like.",
+      "match": {
+        "glob": "assets/**/textures/block/locustnest/**/floor.png"
+      },
+      "values": {
+        "material": "dirt"
+      }
+    },
+    {
+      "id": "locustnest-blocks",
+      "description": "Locustnest block texture families (placeholder material for later tuning).",
+      "match": {
+        "glob": "assets/**/textures/block/locustnest/**/*.png"
+      },
+      "values": {
+        "material": "block_locustnest"
+      }
+    },
+    {
+      "id": "pile-bone",
+      "description": "Bone piles are bone-like.",
+      "match": {
+        "glob": "assets/**/textures/block/pile/*bone*.png"
+      },
+      "values": {
+        "material": "bone"
+      }
+    },
+    {
+      "id": "pile-pottery",
+      "description": "Pottery piles are pottery-like.",
+      "match": {
+        "glob": "assets/**/textures/block/pile/*pottery*.png"
+      },
+      "values": {
+        "material": "pottery"
+      }
+    },
+    {
+      "id": "pile-scrap",
+      "description": "Scrap piles are metallic.",
+      "match": {
+        "glob": "assets/**/textures/block/pile/*scrap*.png"
+      },
+      "values": {
+        "material": "metal_generic"
+      }
+    },
+    {
+      "id": "pile-trash",
+      "description": "Trash piles are treated as dirt-like by default.",
+      "match": {
+        "glob": "assets/**/textures/block/pile/*trash*.png"
+      },
+      "values": {
+        "material": "dirt"
+      }
+    },
+    {
+      "id": "pile-blocks",
+      "description": "Pile block texture families (placeholder material for later tuning).",
+      "match": {
+        "glob": "assets/**/textures/block/pile/**/*.png"
+      },
+      "values": {
+        "material": "block_pile"
+      }
+    },
+    {
+      "id": "legacy-doors",
+      "description": "Legacy doors are wooden by default.",
+      "match": {
+        "glob": "assets/**/textures/block/legacy/door/**/*.png"
+      },
+      "values": {
+        "material": "wood"
+      }
+    },
+    {
+      "id": "legacy-blocks",
+      "description": "Legacy block texture families (placeholder material for later tuning).",
+      "match": {
+        "glob": "assets/**/textures/block/legacy/**/*.png"
+      },
+      "values": {
+        "material": "block_legacy"
+      }
+    },
+    {
+      "id": "root-block-files",
+      "description": "Block textures directly under block/ (no subfolder).",
+      "match": {
+        "glob": "assets/**/textures/block/*.png"
+      },
+      "values": {
+        "material": "default_block"
+      }
+    },
+    {
+      "id": "default-blocks",
+      "description": "Catch-all for block textures not matched above.",
+      "match": {
+        "glob": "assets/**/textures/block/**/*.png"
+      },
+      "values": {
+        "material": "default_block"
+      }
+    },
+    {
+      "id": "default-textures",
+      "description": "Catch-all for any other texture (items, entities, decals, UI, etc.).",
+      "match": {
+        "glob": "assets/**/textures/**/*.png"
+      },
+      "values": {
+        "material": "default_texture"
+      }
+    }
+  ]
+}
