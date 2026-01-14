@@ -30,6 +30,12 @@ uniform sampler2D primaryDepth;
 uniform sampler2D directDiffuse;
 uniform sampler2D emissive;
 
+// Emissive GI scaling (boost emissive as an indirect light source)
+// Wired via VGE's runtime define system (VgeShaderProgram.SetDefine).
+#ifndef LUMON_EMISSIVE_BOOST
+#define LUMON_EMISSIVE_BOOST 1.0
+#endif
+
 // Matrices
 uniform mat4 invProjectionMatrix;
 uniform mat4 projectionMatrix;
@@ -111,7 +117,9 @@ RayHit traceRay(vec3 origin, vec3 direction) {
             // Hit!
             result.hit = true;
             result.position = scenePos;
-            result.color = texture(directDiffuse, sampleUV).rgb + texture(emissive, sampleUV).rgb;
+            vec3 direct = texture(directDiffuse, sampleUV).rgb;
+            vec3 em = texture(emissive, sampleUV).rgb * LUMON_EMISSIVE_BOOST;
+            result.color = direct + em;
             result.distance = t;
             return result;
         }

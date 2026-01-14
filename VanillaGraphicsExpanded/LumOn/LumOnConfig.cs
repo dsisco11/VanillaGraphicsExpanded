@@ -210,6 +210,15 @@ public class LumOnConfig
     public float Intensity { get; set; } = 1.0f;
 
     /// <summary>
+    /// Additional multiplier applied to emissive when used as an indirect light source.
+    /// This does not change the direct emissive buffer (PBR composite); it only affects
+    /// probe tracing where emissive becomes radiance.
+    /// Hot-reloadable.
+    /// </summary>
+    [JsonProperty]
+    public float EmissiveGiBoost { get; set; } = 3.0f;
+
+    /// <summary>
     /// Tint color applied to indirect bounce lighting.
     /// Use to shift GI color tone. Hot-reloadable.
     /// </summary>

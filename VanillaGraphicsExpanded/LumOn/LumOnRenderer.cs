@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.Client;
@@ -427,6 +428,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         bufferManager.VelocityFbo.Clear();
 
         capi.Render.GlToggleBlend(false);
+
+        // Emissive GI scaling is a compile-time define to avoid extra uniform plumbing.
+        // Ensure we emit a float literal (e.g., 2.0) to keep GLSL typing happy.
+        shader.SetDefine("LUMON_EMISSIVE_BOOST", Math.Max(0.0f, config.EmissiveGiBoost).ToString("0.0####", CultureInfo.InvariantCulture));
         shader.Use();
 
         shader.PrimaryDepth = primaryFb.DepthTextureId;
@@ -537,6 +542,7 @@ public class LumOnRenderer : IRenderer, IDisposable
             shader.Emissive = 0;
         }
 
+
         // Pass matrices
         shader.InvProjectionMatrix = invProjectionMatrix;
         shader.ProjectionMatrix = projectionMatrix;
@@ -591,6 +597,9 @@ public class LumOnRenderer : IRenderer, IDisposable
         // The shader handles history read for non-traced texels
 
         capi.Render.GlToggleBlend(false);
+
+        // Emissive GI scaling is a compile-time define to avoid extra uniform plumbing.
+        shader.SetDefine("LUMON_EMISSIVE_BOOST", Math.Max(0.0f, config.EmissiveGiBoost).ToString("0.0####", CultureInfo.InvariantCulture));
         shader.Use();
 
         // Bind probe anchor textures
@@ -612,6 +621,7 @@ public class LumOnRenderer : IRenderer, IDisposable
             shader.DirectDiffuse = bufferManager.CapturedSceneTex!;
             shader.Emissive = 0;
         }
+
 
         // Bind history for temporal preservation
         shader.ScreenProbeAtlasHistory = bufferManager.ScreenProbeAtlasHistoryTex!;

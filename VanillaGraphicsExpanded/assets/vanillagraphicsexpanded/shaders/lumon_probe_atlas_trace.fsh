@@ -37,6 +37,12 @@ uniform sampler2D primaryDepth;
 uniform sampler2D directDiffuse;
 uniform sampler2D emissive;
 
+// Emissive GI scaling (boost emissive as an indirect light source)
+// Wired via VGE's runtime define system (VgeShaderProgram.SetDefine).
+#ifndef LUMON_EMISSIVE_BOOST
+#define LUMON_EMISSIVE_BOOST 1.0
+#endif
+
 // Optional HZB depth pyramid
 uniform sampler2D hzbDepth;
 uniform int hzbCoarseMip;
@@ -172,7 +178,9 @@ RayHit traceRay(vec3 originVS, vec3 directionVS) {
         if (depthDiff > 0.0 && depthDiff < rayThickness) {
             // Hit!
             result.hit = true;
-            result.color = texture(directDiffuse, sampleUV).rgb + texture(emissive, sampleUV).rgb;
+            vec3 direct = texture(directDiffuse, sampleUV).rgb;
+            vec3 em = texture(emissive, sampleUV).rgb * LUMON_EMISSIVE_BOOST;
+            result.color = direct + em;
             result.distance = t;
             return result;
         }
