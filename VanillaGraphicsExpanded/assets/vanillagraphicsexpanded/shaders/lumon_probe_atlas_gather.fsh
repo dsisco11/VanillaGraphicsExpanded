@@ -50,7 +50,6 @@ uniform vec2 halfResSize;
 // Z-planes
 uniform float zNear;
 uniform float zFar;
-
 // Quality parameters
 uniform float intensity;
 uniform vec3 indirectTint;
@@ -201,26 +200,22 @@ float computeProbeWeight(float bilinearWeight,
 
 void main(void)
 {
-    // We're rendering to half-res, but need to sample full-res textures.
-    // gl_FragCoord is in half-res pixels (0 to halfResSize).
-    // To sample full-res textures correctly, we need UV in [0,1] range.
-    vec2 screenUV = gl_FragCoord.xy / halfResSize;
-    
-    // Sample pixel depth
-    float pixelDepth = texture(primaryDepth, screenUV).r;
-    
-    // Early out for sky
-    if (lumonIsSky(pixelDepth)) {
-        outColor = vec4(0.0, 0.0, 0.0, 1.0);
+    ivec2 bestFull;
+    float pixelDepth;
+    vec3 pixelNormalWS;
+    if (!lumonSelectGuidesForHalfResCoord(ivec2(gl_FragCoord.xy), primaryDepth, gBufferNormal, ivec2(screenSize), bestFull, pixelDepth, pixelNormalWS))
+    {
+        outColor = vec4(0.0, 0.0, 0.0, 0.0);
         return;
     }
+
+    vec2 screenUV = (vec2(bestFull) + 0.5) / screenSize;
     
     // Reconstruct pixel position and get normal
     vec3 pixelPosVS = lumonReconstructViewPos(screenUV, pixelDepth, invProjectionMatrix);
     float pixelDepthVS = -pixelPosVS.z;  // Positive depth
     
-    // Decode pixel normal (stored in world-space in our G-buffer)
-    vec3 pixelNormalWS = lumonDecodeNormal(texture(gBufferNormal, screenUV).xyz);
+    // pixelNormalWS already selected from full-res G-buffer (see helper)
     
     // Calculate which probes surround this pixel
     vec2 screenPos = screenUV * screenSize;

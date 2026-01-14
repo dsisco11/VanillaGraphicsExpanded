@@ -110,19 +110,21 @@ vec3 evaluateProbeIrradiance(ivec2 probeCoord, vec3 normalWS)
 
 void main(void)
 {
-    vec2 screenUV = gl_FragCoord.xy / halfResSize;
-
-    float pixelDepth = texture(primaryDepth, screenUV).r;
-    if (lumonIsSky(pixelDepth))
+    ivec2 bestFull;
+    float pixelDepth;
+    vec3 pixelNormalWS;
+    if (!lumonSelectGuidesForHalfResCoord(ivec2(gl_FragCoord.xy), primaryDepth, gBufferNormal, ivec2(screenSize), bestFull, pixelDepth, pixelNormalWS))
     {
-        outColor = vec4(0.0, 0.0, 0.0, 1.0);
+        outColor = vec4(0.0, 0.0, 0.0, 0.0);
         return;
     }
+
+    vec2 screenUV = (vec2(bestFull) + 0.5) / screenSize;
 
     vec3 pixelPosVS = lumonReconstructViewPos(screenUV, pixelDepth, invProjectionMatrix);
     float pixelDepthVS = -pixelPosVS.z;
 
-    vec3 pixelNormalWS = lumonDecodeNormal(texture(gBufferNormal, screenUV).xyz);
+    // pixelNormalWS already selected from full-res G-buffer (see helper)
 
     vec2 screenPos = screenUV * screenSize;
     vec2 probePos = lumonScreenToProbePos(screenPos, float(probeSpacing));

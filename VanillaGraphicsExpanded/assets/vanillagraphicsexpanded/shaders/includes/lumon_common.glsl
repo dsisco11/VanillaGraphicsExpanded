@@ -121,6 +121,64 @@ vec3 lumonCosineSampleHemisphere(vec2 u, vec3 normal) {
 
 // #endregion
 
+// #region Guide Sampling Utilities
+
+/**
+ * Select the closest (minimum depth) full-res sample within the 2x2 block that
+ * corresponds to a half-res pixel.
+ *
+ * This is used to avoid bilinear depth/normal sampling artifacts at silhouettes
+ * when shading at half resolution.
+ */
+bool lumonSelectGuidesForHalfResCoord(
+    ivec2 halfCoord,
+    sampler2D depthTex,
+    sampler2D normalTex,
+    ivec2 screenSizeI,
+    out ivec2 outBestFullCoord,
+    out float outDepthRaw,
+    out vec3 outNormal)
+{
+    ivec2 baseFull = halfCoord * 2;
+    ivec2 maxFull = screenSizeI - 1;
+
+    bool found = false;
+    float bestDepthRaw = 1.0;
+    ivec2 bestFull = clamp(baseFull, ivec2(0), maxFull);
+
+    for (int dy = 0; dy <= 1; dy++)
+    {
+        for (int dx = 0; dx <= 1; dx++)
+        {
+            ivec2 fullCoord = clamp(baseFull + ivec2(dx, dy), ivec2(0), maxFull);
+            float d = texelFetch(depthTex, fullCoord, 0).r;
+            if (lumonIsSky(d)) continue;
+
+            if (!found || d < bestDepthRaw)
+            {
+                found = true;
+                bestDepthRaw = d;
+                bestFull = fullCoord;
+            }
+        }
+    }
+
+    if (!found)
+    {
+        outBestFullCoord = clamp(baseFull, ivec2(0), maxFull);
+        outDepthRaw = 1.0;
+        outNormal = vec3(0.0, 0.0, 1.0);
+        return false;
+    }
+
+    outBestFullCoord = bestFull;
+    outDepthRaw = bestDepthRaw;
+    outNormal = lumonDecodeNormal(texelFetch(normalTex, bestFull, 0).xyz);
+    return true;
+}
+
+// #endregion
+
 // #region Sky/Environment Utilities
 
 /**

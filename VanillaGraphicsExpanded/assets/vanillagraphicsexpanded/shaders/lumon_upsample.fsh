@@ -67,14 +67,17 @@ vec3 bilateralUpsample(vec2 fullResUV, float centerDepth, vec3 centerNormal) {
             
             // Clamp to bounds
             sampleCoord = clamp(sampleCoord, ivec2(0), ivec2(halfResSize) - 1);
-            
-            // Map back to full-res for guide sampling
-            vec2 sampleFullResUV = (vec2(sampleCoord) * 2.0 + 1.0) / screenSize;
-            
-            // Sample guides at corresponding full-res location
-            float sampleDepthRaw = texture(primaryDepth, sampleFullResUV).r;
+
+            // Sample guides at corresponding full-res location (robust 2x2 selection)
+            ivec2 bestFull;
+            float sampleDepthRaw;
+            vec3 sampleNormal;
+            if (!lumonSelectGuidesForHalfResCoord(sampleCoord, primaryDepth, gBufferNormal, ivec2(screenSize), bestFull, sampleDepthRaw, sampleNormal))
+            {
+                continue;
+            }
+
             float sampleDepth = lumonLinearizeDepth(sampleDepthRaw, zNear, zFar);
-            vec3 sampleNormal = lumonDecodeNormal(texture(gBufferNormal, sampleFullResUV).xyz);
             
             // Bilinear weight
             float bx = (dx == 0) ? (1.0 - fracCoord.x) : fracCoord.x;
@@ -82,7 +85,8 @@ vec3 bilateralUpsample(vec2 fullResUV, float centerDepth, vec3 centerNormal) {
             float bilinearWeight = bx * by;
             
             // Depth weight - Gaussian falloff based on relative depth difference
-            float depthDiff = abs(centerDepth - sampleDepth) / max(centerDepth, 0.01);
+            float depthDenom = max(max(centerDepth, sampleDepth), 1.0);
+            float depthDiff = abs(centerDepth - sampleDepth) / depthDenom;
             float depthWeight = exp(-depthDiff * depthDiff / 
                                     (2.0 * upsampleDepthSigma * upsampleDepthSigma));
             
@@ -143,19 +147,21 @@ vec3 holeFillResolve(vec2 fullResUV, float centerDepth, vec3 centerNormal)
             float conf = halfSample.a;
             if (conf < holeFillMinConfidence) continue;
 
-            // Map half-res pixel center to full-res UV for guide sampling.
-            vec2 sampleFullResUV = (vec2(sampleCoord) * 2.0 + 1.0) / screenSize;
-
-            float sampleDepthRaw = texture(primaryDepth, sampleFullResUV).r;
-            if (lumonIsSky(sampleDepthRaw)) continue;
+            ivec2 bestFull;
+            float sampleDepthRaw;
+            vec3 sampleNormal;
+            if (!lumonSelectGuidesForHalfResCoord(sampleCoord, primaryDepth, gBufferNormal, ivec2(screenSize), bestFull, sampleDepthRaw, sampleNormal))
+            {
+                continue;
+            }
 
             float sampleDepth = lumonLinearizeDepth(sampleDepthRaw, zNear, zFar);
-            vec3 sampleNormal = lumonDecodeNormal(texture(gBufferNormal, sampleFullResUV).xyz);
 
             float dist = length(vec2(float(dx), float(dy)));
             float spatialW = exp(-dist * dist / (2.0 * spatialSigma * spatialSigma));
 
-            float depthDiff = abs(centerDepth - sampleDepth) / max(centerDepth, 0.01);
+            float depthDenom = max(max(centerDepth, sampleDepth), 1.0);
+            float depthDiff = abs(centerDepth - sampleDepth) / depthDenom;
             float depthW = exp(-depthDiff * depthDiff / (2.0 * upsampleDepthSigma * upsampleDepthSigma));
 
             float normalDot = max(dot(centerNormal, sampleNormal), 0.0);
@@ -172,7 +178,9 @@ vec3 holeFillResolve(vec2 fullResUV, float centerDepth, vec3 centerNormal)
         return accum / totalW;
     }
 
-    return vec3(0.0);
+    // If we couldn't find any valid neighbors (e.g., very thin silhouettes),
+    // fall back to the standard bilateral upsample instead of returning black.
+    return bilateralUpsample(fullResUV, centerDepth, centerNormal);
 }
 
 // ============================================================================

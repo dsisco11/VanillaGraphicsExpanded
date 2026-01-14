@@ -146,26 +146,25 @@ float computeEdgeAwareWeight(float bilinearWeight,
 
 void main(void)
 {
-    // We're rendering to half-res, but need to sample full-res textures.
-    // gl_FragCoord is in half-res pixels (0 to halfResSize).
-    // To sample full-res textures correctly, we need UV in [0,1] range.
-    vec2 screenUV = gl_FragCoord.xy / halfResSize;
-    
-    // Sample pixel depth and normal
-    float pixelDepthRaw = texture(primaryDepth, screenUV).r;
-    
-    // Early out for sky
-    if (lumonIsSky(pixelDepthRaw)) {
-        outColor = vec4(0.0, 0.0, 0.0, 1.0);
+    // We're rendering at half-res, but sample full-res depth/normal guides.
+    // Use a robust 2x2 selection to avoid silhouette artifacts.
+    ivec2 bestFull;
+    float pixelDepthRaw;
+    vec3 pixelNormalWS;
+    if (!lumonSelectGuidesForHalfResCoord(ivec2(gl_FragCoord.xy), primaryDepth, gBufferNormal, ivec2(screenSize), bestFull, pixelDepthRaw, pixelNormalWS))
+    {
+        // Treat sky as low-confidence so it never becomes "trusted black".
+        outColor = vec4(0.0, 0.0, 0.0, 0.0);
         return;
     }
+
+    vec2 screenUV = (vec2(bestFull) + 0.5) / screenSize;
     
     // Reconstruct pixel position and compute linear depth
     vec3 pixelPosVS = lumonReconstructViewPos(screenUV, pixelDepthRaw, invProjectionMatrix);
     float pixelDepth = -pixelPosVS.z;  // Positive linear depth
     
     // Get pixel normal in world-space, then transform to view-space
-    vec3 pixelNormalWS = lumonDecodeNormal(texture(gBufferNormal, screenUV).xyz);
     vec3 pixelNormalVS = normalize(mat3(viewMatrix) * pixelNormalWS);
     
     // Calculate which probes surround this pixel
