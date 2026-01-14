@@ -39,8 +39,8 @@ uniform vec3 pointLights3[100];
 uniform vec3 pointLightColors3[100];
 
 // Shadows (wired in Phase 16.3/16.4; shader defines the surface now)
-uniform sampler2D shadowMapNear;
-uniform sampler2D shadowMapFar;
+uniform sampler2DShadow shadowMapNear;
+uniform sampler2DShadow shadowMapFar;
 uniform mat4 toShadowMapSpaceMatrixNear;
 uniform mat4 toShadowMapSpaceMatrixFar;
 uniform float shadowRangeNear;
@@ -50,8 +50,10 @@ uniform float shadowZExtendFar;
 uniform float dropShadowIntensity;
 
 @import "./includes/pbr_common.glsl"
+@import "./includes/pbr_shadowmaps.glsl"
 
 const float PI = 3.141592653589793;
+
 
 float linearizeDepth(float depth)
 {
@@ -65,12 +67,6 @@ vec3 reconstructViewPos(vec2 texCoord, float depth)
     vec4 viewPos = invProjectionMatrix * ndc;
     viewPos /= viewPos.w;
     return viewPos.xyz;
-}
-
-vec3 reconstructWorldPos(vec3 viewPos)
-{
-    vec4 relPos = invModelViewMatrix * vec4(viewPos, 1.0);
-    return relPos.xyz + cameraOriginFrac + cameraOriginFloor;
 }
 
 void addDirectLight(
@@ -124,7 +120,12 @@ void main()
     }
 
     vec3 viewPos = reconstructViewPos(uv, depth);
-    vec3 worldPos = reconstructWorldPos(viewPos);
+
+    // Camera-relative world position (matches vanilla shader 'worldPos' space)
+    vec3 worldPosRel = (invModelViewMatrix * vec4(viewPos, 1.0)).xyz;
+
+    // Absolute world position (used for point light positions which are in world space)
+    vec3 worldPos = worldPosRel + cameraOriginFrac + cameraOriginFloor;
 
     vec4 nPacked = texture(gBufferNormal, uv);
     vec3 N = normalize(nPacked.rgb * 2.0 - 1.0);
@@ -147,12 +148,13 @@ void main()
 
     // Directional (sun)
     vec3 Lsun = normalize(lightDirection);
+    float sunVis = pbrComputeSunShadowVisibility(worldPosRel);
     addDirectLight(
         baseColor,
         N,
         V,
         Lsun,
-        rgbaLightIn,
+        rgbaLightIn * sunVis,
         roughness,
         metallic,
         reflectivity,
