@@ -80,12 +80,10 @@ uniform sampler2D vge_materialParamsTex;
         {
             switch (sourceName)
             {
-                // Main shader files - inject vsFunctions import
+                // Chunk shaders - inject vsFunctions AND vge_material imports
                 case "chunktransparent.fsh":
                 case "chunkopaque.fsh":
                 case "chunktopsoil.fsh":
-                case "instanced.fsh":
-                case "standard.fsh":
                     {
                         // Find main function and insert @import before it
                         var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
@@ -95,7 +93,19 @@ uniform sampler2D vge_materialParamsTex;
                             .Commit();
 
                         log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");
-                        //string patchedSource = tree.ToText();
+                        return true;
+                    }
+
+                // Entity/item shaders - inject vsFunctions only (no per-texel material params)
+                case "instanced.fsh":
+                case "standard.fsh":
+                    {
+                        var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
+                        tree.CreateEditor()
+                            .InsertBefore(mainQuery, "@import \"./includes/vsfunctions.glsl\"\n")
+                            .Commit();
+
+                        log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");
                         return true;
                     }
 
