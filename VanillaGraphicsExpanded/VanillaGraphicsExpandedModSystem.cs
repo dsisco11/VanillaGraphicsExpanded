@@ -79,6 +79,10 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         pbrMaterialAtlasTextures = PbrMaterialAtlasTextures.Instance;
         pbrMaterialAtlasTextures.Initialize(api);
 
+        // Rebuild on atlas/texture lifecycle events.
+        api.Event.BlockTexturesLoaded += () => pbrMaterialAtlasTextures.Initialize(api);
+        // api.Event.ReloadTextures += () => pbrMaterialAtlasTextures.Initialize(api);// NOTE: We DONT want to rebuild on full texture reloads, only atlas changes.
+
         // Ensure all VGE memory shader programs are registered before any renderer can request them.
         // ShaderRegistry.getProgramByName() may attempt to create/load programs on demand if missing,
         // which can lead to engine-side NREs when stage instances are null.

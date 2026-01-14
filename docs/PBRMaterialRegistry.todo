@@ -157,22 +157,22 @@ VGE - PBRMaterialRegistry (Per-Mod Material Definitions + Shader Parameters)
 
   Phase 6 - Implement GPU Material Data Textures
   Exit artifacts: GPU resource(s) exist with per-texture params and are bound for patched base-game shaders.
-  [ ] Choose encoding:
+  [x] Choose encoding:
       [x] Decision: do not bake noise into stored params; compute noise in shader.
       [x] Decision: compute `reflectivity` in the patched base-game shader and write it to `gMaterial`.
-      [ ] Base params texture format: RGB16F (roughness, metallic, emissive)
+      [x] Base params texture format: RGB16F (roughness, metallic, emissive)
       [ ] Optional noise deltas texture format: RGB16F or RGBA16F (per-channel delta ranges)
-  [ ] Allocate/update GPU resources:
-      [ ] create one material params texture per block atlas page (`capi.BlockTextureAtlas.AtlasTextures`)
-      [ ] fill atlas rects for mapped textures using `TextureAtlasPosition` (x1..y2) and chosen defaults for unmapped
-      [ ] rebuild on shader reload and/or texture atlas reload (if available)
-  [ ] Bind in shader pipeline:
-      [ ] bind the correct per-atlas material params texture whenever the engine binds `terrainTex` for that atlas page
-      [ ] ensure binding survives shader reload / recompile
-  [ ] Add shader helper include:
-      [ ] `vec3 ReadMaterialParams(vec2 uv)` (roughness, metallic, emissive)
-      [ ] `vec3 ApplyMaterialNoise(vec3 params, ...)` (or equivalent helper) used by patched base-game shaders
-      [ ] `float ComputeReflectivity(float roughness, float metallic, ...)` used by patched base-game shaders
+  [x] Allocate/update GPU resources:
+      [x] create one material params texture per block atlas page (`capi.BlockTextureAtlas.AtlasTextures`)
+      [x] fill atlas rects for mapped textures using `TextureAtlasPosition` (x1..y2) and chosen defaults for unmapped
+      [x] rebuild on shader reload and/or texture atlas reload (if available)
+  [x] Bind in shader pipeline:
+      [x] bind the correct per-atlas material params texture whenever the engine binds `terrainTex` for that atlas page
+      [x] ensure binding survives shader reload / recompile
+  [x] Add shader helper include:
+      [x] `vec3 ReadMaterialParams(vec2 uv)` (roughness, metallic, emissive)
+      [x] `vec3 ApplyMaterialNoise(vec3 params, ...)` (or equivalent helper) used by patched base-game shaders
+      [x] `float ComputeReflectivity(float roughness, float metallic, ...)` used by patched base-game shaders
 
 
   Phase 7 - Shader/G-Buffer Plumbing

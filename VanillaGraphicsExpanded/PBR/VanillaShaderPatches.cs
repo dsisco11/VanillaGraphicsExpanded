@@ -54,13 +54,13 @@ uniform sampler2D vge_materialParamsTex;
     vge_outNormal = vec4(normal * 0.5 + 0.5, 1.0);
     
     // Material: per-texel params stored in vge_materialParamsTex (RGB16F)
-    vec3 vge_params = texture(vge_materialParamsTex, uv).rgb;
+    vec3 vge_params = ReadMaterialParams(uv);
+    vge_params = ApplyMaterialNoise(vge_params, uv, renderFlags);
     float vge_roughness = clamp(vge_params.r, 0.0, 1.0);
     float vge_metallic  = clamp(vge_params.g, 0.0, 1.0);
     float vge_emissive  = clamp(vge_params.b, 0.0, 1.0);
 
-    // Reflectivity is computed in-shader. For now, treat it as metallic.
-    float vge_reflectivity = vge_metallic;
+    float vge_reflectivity = ComputeReflectivity(vge_roughness, vge_metallic);
 
     vge_outMaterial = vec4(vge_roughness, vge_metallic, vge_emissive, vge_reflectivity);
 ";
@@ -91,6 +91,7 @@ uniform sampler2D vge_materialParamsTex;
                         var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
                         tree.CreateEditor()
                             .InsertBefore(mainQuery, "@import \"./includes/vsfunctions.glsl\"\n")
+                            .InsertBefore(mainQuery, "@import \"./includes/vge_material.glsl\"\n")
                             .Commit();
 
                         log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");
