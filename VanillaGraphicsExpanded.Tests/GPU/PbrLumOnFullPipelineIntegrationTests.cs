@@ -141,6 +141,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             shadowFar.Bind(5);
 
             TestFramework.RenderQuadTo(pbrDirectProg, targets.DirectLightingMrt);
+            AssertNoGLError("Stage: PBR Direct");
 
             var directDiffusePixels = targets.DirectLightingMrt[0].ReadPixels();
             var directSpecularPixels = targets.DirectLightingMrt[1].ReadPixels();
@@ -165,6 +166,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
             primaryDepth.Bind(0);
             TestFramework.RenderQuadTo(velocityProg, targets.Velocity);
+            AssertNoGLError("Stage: Velocity");
 
             var velocityPixels = targets.Velocity[0].ReadPixels();
             AssertAllFinite(velocityPixels, "Stage: Velocity");
@@ -186,6 +188,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             SetSampler(hzbCopyProg, "primaryDepth", 0);
             TestFramework.RenderQuad(hzbCopyProg);
             targets.Hzb.Unbind();
+            AssertNoGLError("Stage: HZB Copy");
 
             // Downsample mip0->mip1 and mip1->mip2
             for (int dstMip = 1; dstMip <= 2; dstMip++)
@@ -199,6 +202,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 SetInt(hzbDownProg, "srcMip", srcMip);
                 TestFramework.RenderQuad(hzbDownProg);
                 targets.Hzb.Unbind();
+                AssertNoGLError($"Stage: HZB Downsample mip{dstMip}");
             }
 
             var hzbMip0 = targets.Hzb.Texture.ReadPixels(mipLevel: 0);
@@ -237,6 +241,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             gBufferNormal.Bind(1);
 
             TestFramework.RenderQuadTo(anchorProg, targets.ProbeAnchor);
+            AssertNoGLError("Stage: Probe Anchor");
 
             var anchorPosPixels = targets.ProbeAnchor[0].ReadPixels();
             var anchorNormalPixels = targets.ProbeAnchor[1].ReadPixels();
@@ -309,6 +314,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             historyMeta.Bind(7);
 
             TestFramework.RenderQuadTo(traceProg, targets.AtlasTrace);
+            AssertNoGLError("Stage: Atlas Trace");
 
             var traceRadiance = targets.AtlasTrace[0].ReadPixels();
             var traceMeta = targets.AtlasTrace[1].ReadPixels();
@@ -347,6 +353,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             historyMeta.Bind(4);
 
             TestFramework.RenderQuadTo(temporalProg, targets.AtlasTemporal);
+            AssertNoGLError("Stage: Atlas Temporal");
 
             var temporalRadiance = targets.AtlasTemporal[0].ReadPixels();
             AssertAllFinite(temporalRadiance, "Stage: Atlas Temporal (radiance)");
@@ -370,6 +377,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             targets.ProbeAnchor[0].Bind(2);
 
             TestFramework.RenderQuadTo(filterProg, targets.AtlasFiltered);
+            AssertNoGLError("Stage: Atlas Filter");
 
             var filteredRadiance = targets.AtlasFiltered[0].ReadPixels();
             AssertAllFinite(filteredRadiance, "Stage: Atlas Filter (radiance)");
@@ -408,6 +416,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             gBufferNormal.Bind(4);
 
             TestFramework.RenderQuadTo(gatherProg, targets.IndirectHalf);
+            AssertNoGLError("Stage: Gather");
 
             var indirectHalf = targets.IndirectHalf[0].ReadPixels();
             AssertAllFinite(indirectHalf, "Stage: Gather (indirectHalf)");
@@ -442,6 +451,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             gBufferNormal.Bind(2);
 
             TestFramework.RenderQuadTo(upsampleProg, targets.IndirectFull);
+            AssertNoGLError("Stage: Upsample");
 
             var indirectFull = targets.IndirectFull[0].ReadPixels();
             AssertAllFinite(indirectFull, "Stage: Upsample (indirectFull)");
@@ -463,6 +473,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             primaryDepth.Bind(7);
 
             TestFramework.RenderQuadTo(pbrCompositeProg, targets.Composite);
+            AssertNoGLError("Stage: Composite (full)");
 
             var compositeFull = targets.Composite[0].ReadPixels();
             AssertAllFinite(compositeFull, "Stage: Composite (full)");
@@ -480,6 +491,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             primaryDepth.Bind(7);
 
             TestFramework.RenderQuadTo(pbrCompositeProg, baselineComposite);
+            AssertNoGLError("Stage: Composite (baseline)");
 
             var compositeBaselinePixels = baselineComposite[0].ReadPixels();
             AssertAllFinite(compositeBaselinePixels, "Stage: Composite (baseline)");
@@ -507,6 +519,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             primaryDepth.Bind(7);
 
             TestFramework.RenderQuadTo(pbrCompositeProg, injectedComposite);
+            AssertNoGLError("Stage: Composite (injected)");
 
             var injectedCompositePixels = injectedComposite[0].ReadPixels();
             AssertAllFinite(injectedCompositePixels, "Stage: Composite (injected-indirect)");
@@ -524,6 +537,9 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             }
 
             Assert.True(maxDelta > 1e-4f, $"Composite did not change with indirect enabled (maxDelta={maxDelta})");
+
+            // Final hygiene checkpoint: no GL errors should remain queued for subsequent tests.
+            AssertNoGLError("PbrLumOnFullPipelineIntegrationTests end");
         }
         finally
         {

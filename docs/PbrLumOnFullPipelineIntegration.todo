@@ -346,10 +346,13 @@ Exit artifacts: Failures identify the first broken stage with clear messages.
 
 Phase 7 - Test Hygiene + Reliability
 Exit artifacts: Stable local runs; safe defaults for CI.
-  ☐ Ensure the test is [Collection("GPU")] and [Trait("Category","GPU")]
-  ☐ Use existing GPU skip patterns (if present) to avoid CI hard failures
-  ☐ Keep resolution tiny to minimize runtime
-  ☐ Ensure all GL resources are disposed/deleted to prevent cross-test leakage
+  ✔ Ensure the test is [Collection("GPU")] and [Trait("Category","GPU")]
+  ✔ Use existing GPU skip patterns (if present) to avoid CI hard failures
+  ✔ Keep resolution tiny to minimize runtime
+  ✔ Ensure all GL resources are disposed/deleted to prevent cross-test leakage
+    Notes:
+      - Integration test uses EnsureShaderTestAvailable() (HeadlessGLFixture + shader-path skips)
+      - Added AssertNoGLError checkpoints in the integration test to prevent queued GL errors leaking into subsequent GPU tests
 
 
 Phase 8 - Optional Follow-ups (If the bug persists)
