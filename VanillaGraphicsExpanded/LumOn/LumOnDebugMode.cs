@@ -51,5 +51,8 @@ public enum LumOnDebugMode
     // Phase 14 velocity debug views
     VelocityMagnitude = 26,
     VelocityValidity = 27,
-    VelocityPrevUv = 28
+    VelocityPrevUv = 28,
+   
+    // Phase 7: pseudo material-id visualization (hash of gBufferMaterial)
+    MaterialBands = 29,
 }

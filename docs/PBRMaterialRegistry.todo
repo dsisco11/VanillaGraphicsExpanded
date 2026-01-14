@@ -178,15 +178,15 @@ VGE - PBRMaterialRegistry (Per-Mod Material Definitions + Shader Parameters)
   Phase 7 - Shader/G-Buffer Plumbing
   Exit artifacts: shaders can obtain a material index/params per pixel, consistent with G-buffer layout.
     [x] Decision: `gMaterial` layout does not change; it stores params directly (roughness/metallic/emissive/reflectivity).
-  [ ] Implement chosen option:
-      [ ] Update vanilla shader patch injection codepaths
-      [ ] Update PBR direct lighting shader reads
-      [ ] Update composite shader reads
+  [x] Implement chosen option:
+      [x] Update vanilla shader patch injection codepaths
+      [x] Update PBR direct lighting shader reads
+      [x] Update composite shader reads
   [ ] Ensure noise behavior is testable/diagnosable:
       [ ] add debug toggles: disable noise, visualize noise contribution per channel
-  [ ] Add debug visualization mode(s):
-      [ ] show materialIndex as color bands
-      [ ] show roughness/metallic channels
+  [x] Add debug visualization mode(s):
+      [x] show materialIndex as color bands (via MaterialBands hash proxy)
+      [x] show roughness/metallic channels
 
 
   Phase 8 - Validation + Tests

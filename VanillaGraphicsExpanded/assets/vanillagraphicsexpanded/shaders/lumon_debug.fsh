@@ -53,6 +53,9 @@ out vec4 outColor;
 // Phase 15: composite math (shared with lumon_combine)
 @import "./includes/lumon_pbr.glsl"
 
+// Shared hash helpers
+@import "./includes/squirrel3.glsl"
+
 // G-buffer textures
 uniform sampler2D primaryDepth;
 uniform sampler2D gBufferNormal;
@@ -253,6 +256,36 @@ vec4 renderCompositeMaterialDebug()
     vec3 spec;
     computeCompositeSplit(ao, roughness, metallic, diff, spec);
     return vec4(clamp(vec3(metallic, roughness, ao), 0.0, 1.0), 1.0);
+}
+
+// ============================================================================
+// Debug Mode 29: Material Bands (Phase 7)
+//
+// Vintage Story's terrain path doesn't have a per-pixel MaterialIndex.
+// This mode approximates a "material id" visualization by hashing the
+// gBufferMaterial values (roughness/metallic/emissive/reflectivity) into
+// stable color bands.
+// ============================================================================
+
+vec4 renderMaterialBandsDebug()
+{
+    vec4 m = clamp(texture(gBufferMaterial, uv), 0.0, 1.0);
+
+    // Quantize to 8-bit per channel before hashing to make the visualization stable.
+    uvec4 q = uvec4(m * 255.0 + 0.5);
+
+    uint key = (q.r) | (q.g << 8) | (q.b << 16) | (q.a << 24);
+    uint h = Squirrel3HashU(key);
+
+    vec3 c = vec3(
+        float((h) & 255u) / 255.0,
+        float((h >> 8) & 255u) / 255.0,
+        float((h >> 16) & 255u) / 255.0);
+
+    // Snap to visible bands (reduces noisy gradients).
+    c = floor(c * 6.0 + 0.5) / 6.0;
+
+    return vec4(c, 1.0);
 }
 
 // ============================================================================
@@ -953,6 +986,9 @@ void main(void)
             break;
         case 28:
             outColor = renderVelocityPrevUvDebug();
+            break;
+        case 29:
+            outColor = renderMaterialBandsDebug();
             break;
         default:
             outColor = vec4(1.0, 0.0, 1.0, 1.0);  // Magenta = unknown mode
