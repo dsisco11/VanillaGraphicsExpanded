@@ -90,7 +90,8 @@ If two mods define the same `MaterialId`:
 If multiple mapping rules match the same texture:
 
 - Higher `mapping.priority` wins.
-- On ties, later rule wins (deterministic domain/modid order, then file order, then rule order).
+- On ties, the first matching rule wins (deterministic domain/modid order, then file order, then rule order).
+  Put broad catch-all rules last.
 
 ## Best practices
 

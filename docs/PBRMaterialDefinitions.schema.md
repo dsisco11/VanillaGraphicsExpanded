@@ -152,7 +152,8 @@ Supported keys (all optional):
 ### Rule ordering / priority
 
 - Higher `priority` overrides lower `priority` when multiple rules match the same texture.
-- If priorities tie, tie-break uses a deterministic merge order (domain/modid order, then file order, then mapping order).
+- If priorities tie, the first matching rule wins (deterministic domain/modid order, then file order, then mapping order).
+  Put broad catch-all rules last.
 
 ### match
 

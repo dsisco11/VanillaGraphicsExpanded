@@ -35,9 +35,9 @@ public sealed class PbrGlobstarTests
     }
 
     [Fact]
-    public void TieBreak_LaterRuleWins_WhenPriorityEqual()
+    public void TieBreak_FirstRuleWins_WhenPriorityEqual()
     {
-        // Higher OrderIndex should win when priority ties.
+        // First matching rule should win when priority ties.
         var early = new PbrMaterialMappingRule(
             OrderIndex: 1,
             Priority: 0,
@@ -69,14 +69,13 @@ public sealed class PbrGlobstarTests
                 continue;
             }
 
-            if (rule.Priority > winner.Value.Priority ||
-                (rule.Priority == winner.Value.Priority && rule.OrderIndex > winner.Value.OrderIndex))
+            if (rule.Priority > winner.Value.Priority)
             {
                 winner = rule;
             }
         }
 
         Assert.NotNull(winner);
-        Assert.Equal("later", winner?.Id);
+        Assert.Equal("early", winner?.Id);
     }
 }

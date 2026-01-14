@@ -288,9 +288,9 @@ internal sealed class PbrMaterialRegistry
     private void BuildTextureMappings(ILogger logger, IReadOnlyList<AssetLocation> textureLocations)
     {
         // Eagerly pre-expand all globs into concrete texture locations.
-        // Candidate set: all .png assets under textures/ across all domains.
+        // Candidate set: all assets under textures/ across all domains.
         List<AssetLocation> ordered = textureLocations
-            .Where(loc => loc.Path.EndsWith(".png", StringComparison.Ordinal))
+            .Select(NormalizeTextureLocation)
             .OrderBy(loc => loc.Domain, StringComparer.Ordinal)
             .ThenBy(loc => loc.Path, StringComparer.Ordinal)
             .ToList();
@@ -322,11 +322,9 @@ internal sealed class PbrMaterialRegistry
                     winner = rule;
                     continue;
                 }
-
-                if (rule.Priority == winner.Value.Priority && rule.OrderIndex > winner.Value.OrderIndex)
-                {
-                    winner = rule;
-                }
+                // Tie-break: keep the first matching rule when priorities tie.
+                // This allows authors to place broad catch-all rules at the end without overriding
+                // more specific earlier rules.
             }
 
             if (winner == null)
@@ -358,6 +356,24 @@ internal sealed class PbrMaterialRegistry
             mapped,
             unmapped,
             unknownMaterialRefs);
+    }
+
+    private static AssetLocation NormalizeTextureLocation(AssetLocation location)
+    {
+        // Depending on engine call site, AssetManager.GetLocations("textures/") may return either:
+        // - "textures/..." (full path), or
+        // - "..." relative to the requested base path.
+        // We normalize so mapping rules can reliably target "assets/<domain>/textures/...".
+
+        string domain = location.Domain.ToLowerInvariant();
+
+        string path = location.Path.Replace('\\', '/').ToLowerInvariant();
+        if (!path.StartsWith("textures/", StringComparison.Ordinal))
+        {
+            path = "textures/" + path.TrimStart('/');
+        }
+
+        return new AssetLocation(domain, path);
     }
 
     private void AssignMaterialIndices()

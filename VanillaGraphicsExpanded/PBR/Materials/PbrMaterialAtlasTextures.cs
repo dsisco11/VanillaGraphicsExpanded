@@ -56,6 +56,18 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         var texturePositions = new Dictionary<AssetLocation, TextureAtlasPosition>(capacity: PbrMaterialRegistry.Instance.MaterialIdByTexture.Count);
         var materialsByTexture = new Dictionary<AssetLocation, PbrMaterialDefinition>(capacity: PbrMaterialRegistry.Instance.MaterialIdByTexture.Count);
 
+        TextureAtlasPosition? TryGetAtlasPosition(AssetLocation loc)
+        {
+            try
+            {
+                return atlas[loc];
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         foreach ((AssetLocation texture, string _) in PbrMaterialRegistry.Instance.MaterialIdByTexture)
         {
             if (!PbrMaterialRegistry.Instance.TryGetMaterial(texture, out PbrMaterialDefinition definition))
@@ -63,17 +75,8 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                 continue;
             }
 
-            TextureAtlasPosition texPos;
-            try
-            {
-                texPos = atlas[texture];
-            }
-            catch
-            {
-                continue;
-            }
-
-            if (texPos is null)
+            if (!PbrMaterialAtlasPositionResolver.TryResolve(TryGetAtlasPosition, texture, out TextureAtlasPosition? texPos)
+                || texPos is null)
             {
                 continue;
             }
@@ -86,6 +89,12 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
             atlasPages,
             texturePositions,
             materialsByTexture);
+
+        if (result.FilledRects == 0 && materialsByTexture.Count > 0)
+        {
+            capi.Logger.Warning(
+                "[VGE] Built material param atlas textures but filled 0 rects. This usually means atlas key mismatch (e.g. textures/...png vs block/...) or textures not in block atlas.");
+        }
 
         foreach ((int atlasTexId, float[] pixels) in result.PixelBuffersByAtlasTexId)
         {
