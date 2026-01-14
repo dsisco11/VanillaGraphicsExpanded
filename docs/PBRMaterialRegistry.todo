@@ -204,20 +204,10 @@ VGE - PBRMaterialRegistry (Per-Mod Material Definitions + Shader Parameters)
 
   Phase 9 - Documentation + Modder UX
   Exit artifacts: modders can author the file correctly; troubleshooting guidance exists.
-  [ ] Add a short doc:
-      [ ] schema reference + examples
-      [ ] how to map textures
-      [ ] conflict resolution + best practices
-  [ ] Confirm the existing VGE reference `pbr_material_definitions.json` is up to date with the schema and serves as the canonical example.
-  [ ] Add logging guidance:
-      [ ] how to enable debug output
-      [ ] common errors and fixes
-
-
-  Phase 10 - Future Enhancements (Optional)
-  [ ] Support block/item code mappings (semantic assignment instead of texture-based)
-  [ ] Support per-variant/seasonal textures
-  [ ] Support hot reload of registry without restart
-  [ ] Support authoring-time tooling to validate mappings and report unmapped textures
+  [x] Add a short doc:
+      [x] schema reference + examples
+      [x] how to map textures
+      [x] conflict resolution + best practices
+  [x] Confirm the existing VGE reference `pbr_material_definitions.json` is up to date with the schema and serves as the canonical example.
 
 ```
