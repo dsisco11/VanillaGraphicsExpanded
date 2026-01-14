@@ -51,6 +51,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         var historyMetaData = PbrLumOnPipelineInputFactory.CreateProbeAtlasHistoryMetaUniform(confidence: 0.0f, flags: 0);
 
         var zeroIndirectFullData = CreateUniformColorData(ScreenWidth, ScreenHeight, 0f, 0f, 0f, 1f);
+        var injectedIndirectFullData = CreateUniformColorData(ScreenWidth, ScreenHeight, 0.2f, 0.2f, 0.2f, 1f);
 
         using var primaryScene = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, primarySceneData);
         using var primaryDepth = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, primaryDepthData);
@@ -65,9 +66,11 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         using var historyMeta = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, historyMetaData);
 
         using var zeroIndirectFull = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, zeroIndirectFullData);
+        using var injectedIndirectFull = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, injectedIndirectFullData);
 
         using var targets = new PbrLumOnPipelineTargets();
         using var baselineComposite = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
+        using var injectedComposite = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
 
         int pbrDirectProg = 0;
         int velocityProg = 0;
@@ -140,10 +143,12 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             TestFramework.RenderQuadTo(pbrDirectProg, targets.DirectLightingMrt);
 
             var directDiffusePixels = targets.DirectLightingMrt[0].ReadPixels();
+            var directSpecularPixels = targets.DirectLightingMrt[1].ReadPixels();
             var emissivePixels = targets.DirectLightingMrt[2].ReadPixels();
 
-            Assert.True(AnyRgbAbove(directDiffusePixels, 1e-4f), "Stage: PBR Direct → directDiffuse.rgb unexpectedly all zero");
-            Assert.True(AnyRgbAbove(emissivePixels, 1e-4f), "Stage: PBR Direct → emissive.rgb unexpectedly all zero");
+            AssertStageHasRgbEnergy(directDiffusePixels, 1e-4f, "Stage: PBR Direct → directDiffuse");
+            AssertAllFinite(directSpecularPixels, "Stage: PBR Direct (directSpecular)");
+            AssertStageHasRgbEnergy(emissivePixels, 1e-4f, "Stage: PBR Direct → emissive");
             AssertAllFinite(directDiffusePixels, "Stage: PBR Direct (directDiffuse)");
             AssertAllFinite(emissivePixels, "Stage: PBR Direct (emissive)");
 
@@ -316,7 +321,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 Assert.InRange(traceMeta[i + 0], 0.0f, 1.0f);
             }
 
-            Assert.True(AnyRgbAbove(traceRadiance, 1e-6f), "Stage: Atlas Trace → radiance.rgb unexpectedly all zero");
+            AssertStageHasRgbEnergy(traceRadiance, 1e-6f, "Stage: Atlas Trace → radiance");
 
             // -----------------------------------------------------------------
             // Stage: LumOn Atlas Temporal
@@ -345,7 +350,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
             var temporalRadiance = targets.AtlasTemporal[0].ReadPixels();
             AssertAllFinite(temporalRadiance, "Stage: Atlas Temporal (radiance)");
-            Assert.True(AnyRgbAbove(temporalRadiance, 1e-6f), "Stage: Atlas Temporal → radiance.rgb unexpectedly all zero");
+            AssertStageHasRgbEnergy(temporalRadiance, 1e-6f, "Stage: Atlas Temporal → radiance");
 
             // -----------------------------------------------------------------
             // Stage: LumOn Atlas Filter
@@ -406,7 +411,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
             var indirectHalf = targets.IndirectHalf[0].ReadPixels();
             AssertAllFinite(indirectHalf, "Stage: Gather (indirectHalf)");
-            Assert.True(AnyRgbAbove(indirectHalf, 1e-6f), "Stage: Gather → indirectHalf.rgb unexpectedly all zero");
+            AssertStageHasRgbEnergy(indirectHalf, 1e-6f, "Stage: Gather → indirectHalf");
 
             // -----------------------------------------------------------------
             // Stage: LumOn Upsample (full-res)
@@ -440,7 +445,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
             var indirectFull = targets.IndirectFull[0].ReadPixels();
             AssertAllFinite(indirectFull, "Stage: Upsample (indirectFull)");
-            Assert.True(AnyRgbAbove(indirectFull, 1e-6f), "Stage: Upsample → indirectFull.rgb unexpectedly all zero");
+            AssertStageHasRgbEnergy(indirectFull, 1e-6f, "Stage: Upsample → indirectFull");
 
             // -----------------------------------------------------------------
             // Stage: PBR Composite
@@ -478,6 +483,38 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
             var compositeBaselinePixels = baselineComposite[0].ReadPixels();
             AssertAllFinite(compositeBaselinePixels, "Stage: Composite (baseline)");
+
+            // Baseline must match "direct-only" expectation (fog disabled, indirect=0):
+            // composite.rgb == directDiffuse + directSpecular + emissive.
+            AssertCompositeMatchesDirectOnly(
+                compositeBaselinePixels,
+                directDiffusePixels,
+                directSpecularPixels,
+                emissivePixels,
+                epsilon: 2e-3f);
+
+            // Indirect-injected sanity: bypass LumOn, bind a known constant indirect and prove
+            // composite brightens vs baseline. This isolates composite binding/uniform logic.
+            SetupPbrCompositeUniforms(pbrCompositeProg, invProj, identity, lumOnEnabled: 1);
+
+            targets.DirectLightingMrt[0].Bind(0);
+            targets.DirectLightingMrt[1].Bind(1);
+            targets.DirectLightingMrt[2].Bind(2);
+            injectedIndirectFull.Bind(3);
+            gBufferAlbedo.Bind(4);
+            gBufferMaterial.Bind(5);
+            gBufferNormal.Bind(6);
+            primaryDepth.Bind(7);
+
+            TestFramework.RenderQuadTo(pbrCompositeProg, injectedComposite);
+
+            var injectedCompositePixels = injectedComposite[0].ReadPixels();
+            AssertAllFinite(injectedCompositePixels, "Stage: Composite (injected-indirect)");
+
+            float baselineLuma = ComputeAverageLuminance(compositeBaselinePixels);
+            float injectedLuma = ComputeAverageLuminance(injectedCompositePixels);
+            Assert.True(injectedLuma > baselineLuma + 1e-4f,
+                $"Composite did not brighten with injected indirect (baselineLuma={baselineLuma}, injectedLuma={injectedLuma})");
 
             // Require that the pipeline's composite is measurably different from direct-only baseline.
             float maxDelta = 0f;
@@ -524,6 +561,78 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         }
 
         return false;
+    }
+
+    private static void AssertStageHasRgbEnergy(float[] rgba, float threshold, string stage)
+    {
+        if (AnyRgbAbove(rgba, threshold))
+        {
+            return;
+        }
+
+        (float min, float max) = GetMinMax(rgba);
+        Assert.Fail($"{stage} unexpectedly has no RGB energy (threshold={threshold}, min={min}, max={max})");
+    }
+
+    private static (float min, float max) GetMinMax(float[] values)
+    {
+        if (values.Length == 0)
+        {
+            return (0f, 0f);
+        }
+
+        float min = float.PositiveInfinity;
+        float max = float.NegativeInfinity;
+        for (int i = 0; i < values.Length; i++)
+        {
+            float v = values[i];
+            if (v < min) min = v;
+            if (v > max) max = v;
+        }
+
+        return (min, max);
+    }
+
+    private static void AssertCompositeMatchesDirectOnly(
+        float[] compositeRgba,
+        float[] directDiffuseRgba,
+        float[] directSpecularRgba,
+        float[] emissiveRgba,
+        float epsilon)
+    {
+        Assert.Equal(directDiffuseRgba.Length, compositeRgba.Length);
+        Assert.Equal(directSpecularRgba.Length, compositeRgba.Length);
+        Assert.Equal(emissiveRgba.Length, compositeRgba.Length);
+
+        for (int i = 0; i + 3 < compositeRgba.Length; i += 4)
+        {
+            for (int c = 0; c < 3; c++)
+            {
+                float expected = directDiffuseRgba[i + c] + directSpecularRgba[i + c] + emissiveRgba[i + c];
+                float actual = compositeRgba[i + c];
+                float delta = MathF.Abs(actual - expected);
+                Assert.True(delta <= epsilon,
+                    $"Stage: Composite baseline mismatch at idx {i / 4} channel {c} (expected={expected}, actual={actual}, delta={delta}, eps={epsilon})");
+            }
+        }
+    }
+
+    private static float ComputeAverageLuminance(float[] rgba)
+    {
+        // Rec.709 luma for quick scalar compare.
+        const float wr = 0.2126f;
+        const float wg = 0.7152f;
+        const float wb = 0.0722f;
+
+        float sum = 0f;
+        int count = 0;
+        for (int i = 0; i + 2 < rgba.Length; i += 4)
+        {
+            sum += rgba[i + 0] * wr + rgba[i + 1] * wg + rgba[i + 2] * wb;
+            count++;
+        }
+
+        return count == 0 ? 0f : sum / count;
     }
 
     private static void SetSampler(int programId, string name, int unit)

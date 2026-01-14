@@ -332,14 +332,16 @@ Exit artifacts: Single test runs passes in-order and validates each stage.
 
 Phase 6 - Assertions That Pinpoint Where It Breaks
 Exit artifacts: Failures identify the first broken stage with clear messages.
-  ☐ Add per-stage “checkpoint” asserts with labeled failure messages:
+  ✔ Add per-stage “checkpoint” asserts with labeled failure messages:
     - e.g., "Stage: Upsample → IndirectFull unexpectedly zero"
-  ☐ Add a direct-only baseline path:
+  ✔ Add a direct-only baseline path:
     - run composite with indirectFull bound to zeros (or indirect disabled uniform)
     - assert baseline matches expected direct output within epsilon
-  ☐ Add an indirect-injected sanity path:
+  ✔ Add an indirect-injected sanity path:
     - bypass LumOn, bind a known constant indirectFull texture
     - assert composite brightens as expected (proves composite binding logic)
+    Notes:
+      - Implemented in VanillaGraphicsExpanded.Tests/GPU/PbrLumOnFullPipelineIntegrationTests.cs
 
 
 Phase 7 - Test Hygiene + Reliability
