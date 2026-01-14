@@ -10,7 +10,7 @@
 //   R = Roughness (0 = smooth, 1 = rough)
 //   G = Metallic (0 = dielectric, 1 = metal)
 //   B = Emissive strength
-//   A = Reflectivity / AO
+//   A = Reflectivity
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════

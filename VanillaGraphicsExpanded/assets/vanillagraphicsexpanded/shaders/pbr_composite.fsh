@@ -94,7 +94,11 @@ void main(void)
             vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
             vec3 normalVS = normalize((viewMatrix * vec4(normalWS, 0.0)).xyz);
 
-            float ao = enableAO == 1 ? reflectivity : 1.0;
+            // AO is intentionally a no-op for now.
+            // In Vintage Story content, gBufferMaterial.a is reflectivity (not AO), so using it
+            // as an occlusion term can incorrectly attenuate/wipe indirect lighting.
+            // TODO: When LumOn provides a dedicated short-range AO signal, wire it here.
+            float ao = 1.0;
 
             vec3 bentNormalVS = normalVS;
             if (enableBentNormal == 1)
