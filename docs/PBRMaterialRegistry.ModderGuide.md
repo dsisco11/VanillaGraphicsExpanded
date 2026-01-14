@@ -6,7 +6,7 @@ This feature lets you define PBR-like material parameters (roughness/metallic/em
 
 Create this file in your mod assets:
 
-- `assets/<yourmodid>/materials/pbr_material_definitions.json`
+- `assets/<yourmodid>/config/vge/material_definitions.json`
 
 VGE discovers this file in all loaded mods and merges them deterministically.
 
@@ -109,4 +109,4 @@ If multiple mapping rules match the same texture:
 ## References
 
 - Schema reference: [docs/PBRMaterialDefinitions.schema.md](PBRMaterialDefinitions.schema.md)
-- Canonical example shipped with VGE: [VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/materials/pbr_material_definitions.json](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/materials/pbr_material_definitions.json)
+- Canonical example shipped with VGE: [VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/config/vge/material_definitions.json](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/config/vge/material_definitions.json)
