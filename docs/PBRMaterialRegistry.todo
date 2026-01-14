@@ -1,0 +1,208 @@
+```todo
+VGE - PBRMaterialRegistry (Per-Mod Material Definitions + Shader Parameters)
+
+  Goal:
+  Create a `PBRMaterialRegistry` system that:
+    - discovers and loads `materials/pbr_material_definitions.json` from any mod that provides it
+    - builds mapping dictionaries:
+        1) MaterialId -> PBRMaterialDefinition
+        2) Texture AssetLocation -> MaterialId
+        - enables patched base-game shaders to resolve materials and write the resulting values into the `gMaterial` buffer
+
+  Context / Known Constraints:
+    - VGE already has a custom GLSL `@import` preprocessor pipeline and shader patch hook.
+    - The G-buffer already has a “material” attachment (currently expected layout: roughness, metallic, emissive, reflectivity).
+    - Avoid expensive per-frame work: definitions/mappings should be built once on asset load and reused.
+    - Must be deterministic across clients/servers for visuals; for now assume client-side only unless later needed for gameplay.
+        - VGE already ships a reference `materials/pbr_material_definitions.json` describing base-game PBR values; use it as the schema exemplar.
+
+  Non-goals (v1):
+    - Automatically generating *_pbr.png maps at runtime (offline pipeline exists separately).
+    - Supporting arbitrary shader graph or per-block runtime authored materials.
+        - Passing material parameters directly to VGE-owned shader programs (material values are written by patched base-game shaders into `gMaterial`).
+
+
+  Phase 1 - Schema + API Design
+  Exit artifacts: JSON schema is agreed; C# model types exist; conflict/merge semantics are documented.
+    [x] Decision: MaterialIds are fully-qualified strings `"<modid>:<name>"`.
+    [x] Decision: each material receives a numeric `MaterialIndex` assigned at runtime (used as the numeric ID in shaders).
+  [ ] Define `PBRMaterialDefinition` fields (initial):
+      [ ] roughness (0..1)
+      [ ] metallic (0..1)
+      [ ] emissive (0..1)
+      [ ] reflectivity/specular (0..1)
+      [ ] noise (optional): defines randomized variation mixed into PBR values by shader
+          [x] Decision: `noise` specifies per-channel delta ranges for (roughness, metallic, emissive, reflectivity) and also normals.
+          [x] Decision: shaders use Squirrel3 noise to generate a deterministic random scalar per channel, multiply by delta-range, then apply as a delta to the channel (or normal angle).
+      [ ] optional notes/debugName
+      [ ] priority (optional): numeric priority used to order/override materials across mods
+  [ ] Define JSON schema for `materials/pbr_material_definitions.json`:
+      [ ] version
+      [ ] defaults block
+      [ ] materials map (id -> property overrides)
+      [ ] mappings list (ordered rules)
+  [ ] Decide mapping rule match types:
+      [ ] texture exact AssetLocation (domain:path)
+      [ ] texture prefix match
+      [ ] texture glob matching (document supported subset; avoid full regex unless truly needed)
+      [ ] (optional) block/item code mapping (defer to v2 unless required)
+  [ ] Allow a per-mapping `priority` value (optional) to influence deterministic ordering/override.
+  [ ] Decide conflict resolution strategy:
+      [ ] MaterialId collisions: last-wins vs error vs namespace enforcement
+      [ ] Texture mapping collisions: first-match in ordered rules vs last-match
+  [ ] Decide warning/error policy:
+      [ ] warn on unknown MaterialId referenced by mapping
+      [ ] warn on unmapped textures (optional)
+      [ ] strict mode toggle (dev-only)
+
+
+  Phase 2 - Asset Discovery + Load Order
+  Exit artifacts: registry can enumerate all mods and load all available definitions deterministically.
+  [ ] Choose load timing:
+      [ ] build registry at `AssetsLoaded` (recommended)
+      [ ] rebuild on asset reload event (if supported)
+  [ ] Implement asset discovery across all domains:
+      [ ] search for asset path `materials/pbr_material_definitions.json` in every domain
+      [ ] load as text and parse JSON
+  [ ] Decide deterministic merge order:
+      [ ] stable sort by domain/modid
+      [x] Decision: do not support an explicit `priority` field; ordering is derived from stable domain/modid rules
+      [x] Decision: allow per-material and per-mapping `priority` (not per-file) and define the exact sort/override rules:
+          [ ] higher priority wins when multiple rules assign the same texture
+          [ ] when priorities tie: stable domain/modid order, then file order, then mapping order
+  [ ] Add basic diagnostics:
+      [ ] log how many definition files found
+      [ ] log how many materials + mapping rules loaded
+      [ ] log collisions (and how resolved)
+
+
+  Phase 3 - Registry Data Structures
+  Exit artifacts: in-memory registries exist and are queryable with stable behavior.
+  [ ] Implement registry core:
+      [ ] `Dictionary<string, PBRMaterialDefinition> MaterialById`
+      [ ] `Dictionary<AssetLocation, string> MaterialIdByTexture`
+      [ ] `Dictionary<string, int> MaterialIndexById`
+      [ ] `PBRMaterialDefinition[] MaterialsByIndex`
+  [ ] Build mapping resolution:
+      [ ] apply mapping rules in decided order
+      [ ] resolve to a final `MaterialId` per texture
+      [ ] allow per-rule property overrides (optional)
+  [ ] Implement glob matching engine for texture mapping:
+      [ ] Use standard globstar syntax only:
+          [ ] `*` matches within a single path segment (does not cross `/`)
+          [ ] `?` matches a single character within a segment (does not match `/`)
+          [ ] `**` matches across path segments (may cross `/`)
+      [ ] normalize AssetLocation paths for matching (slash direction, case rules, extension handling)
+      [ ] translate each glob rule into a regex pattern string once (at assets load)
+      [ ] compile a `Regex` instance per rule and cache it for fast resolution
+          [ ] note: JSON-authored patterns are runtime values; `[GeneratedRegex]` is not applicable here
+          [ ] use safe options where available (e.g., `RegexOptions.NonBacktracking`) and set timeouts if needed
+      [ ] add unit tests for: exact/prefix/glob collisions, `**` behavior, and deterministic ordering
+  [ ] Decide caching granularity:
+      [x] Decision: eagerly pre-expand glob rules into concrete AssetLocations (eager)
+          [ ] enumerate all candidate texture assets once at AssetsLoaded
+          [ ] apply mapping rules in deterministic order and materialize `MaterialIdByTexture`
+          [ ] log stats: total textures scanned, mapped, and unmapped (optional)
+  [ ] Provide query APIs:
+      [ ] `TryGetMaterial(string materialId, out PBRMaterialDefinition def)`
+      [ ] `TryGetMaterialId(AssetLocation texture, out string materialId)`
+      [ ] `TryGetMaterial(AssetLocation texture, out PBRMaterialDefinition def)`
+
+
+  Phase 4 - Integrate With Rendering (MaterialId Source)
+  Exit artifacts: renderer/shaders have a clear source of “which material applies” for a shaded fragment.
+  [ ] Confirm runtime pipeline:
+      [ ] patched base-game shaders resolve material assignment and write material values to `gMaterial`
+      [ ] VGE PBR passes read `gMaterial` (no direct registry access in those passes)
+    [x] Decision: explore Option B first (base-game already supports custom vertex attribute flags).
+      [ ] Identify existing vertex attribute flags available to shaders and how they are authored by tessellators.
+      [ ] Decide how a flag (or small bitfield) maps to `MaterialIndex` (direct index vs indirection table).
+      [ ] Determine whether base-game tessellator overrides are required to author the new attributes:
+          [ ] if yes: create a dedicated plan for tessellator override scope, compatibility, and fallback behavior
+          [ ] if no: document how flags are sourced for blocks/items and how mods opt-in
+  [ ] Update vanilla shader patch injection plan:
+      [ ] inject code that produces final PBR values (including noise) and writes `vec4(roughness, metallic, emissive, reflectivity)` to `gMaterial`
+      [ ] ensure deterministic noise (stable seed inputs; no frame-dependent randomness unless explicitly desired)
+
+
+  Phase 5 - GPU Parameter Transport Decision (UBO vs Data Texture)
+  Exit artifacts: we pick one approach and can read per-material parameters in GLSL.
+  [ ] Decide expected scale:
+      [ ] target number of materials (estimate)
+      [ ] target number of unique textures mapped (estimate)
+  [ ] Evaluate approaches (used by patched base-game shaders):
+      [ ] UBO (uniform block) - simplest indexing but size-limited and requires shader block definition
+      [ ] Data texture (1D/2D, texelFetch) - scales to many materials and matches existing texture-binding patterns
+  [x] Decision: use a UBO for the material parameter table.
+      [ ] Query `GL_MAX_UNIFORM_BLOCK_SIZE` at runtime and compute max supported material count for our chosen struct packing.
+      [ ] If we exceed the UBO limit in the future, add a data-texture fallback (defer until needed).
+
+
+  Phase 6 - Implement GPU Material Table
+  Exit artifacts: GPU resource exists with material params and is bound for PBR passes.
+  [ ] Choose encoding:
+      [x] Decision: do not store `reflectivity` in the table; compute it in the patched base-game shader and write it to `gMaterial`.
+      [ ] Define UBO packing (std140-friendly), recommended:
+          [ ] `vec4 pbrParams` = (roughness, metallic, emissive, unused)
+          [ ] `vec4 noiseDeltas` = (roughDelta, metalDelta, emissiveDelta, normalDelta)
+  [ ] Assign stable numeric `MaterialIndex`:
+      [ ] build `Dictionary<string, int> MaterialIndexById`
+      [ ] build `PBRMaterialDefinition[] MaterialsByIndex`
+  [ ] Allocate/update GPU resource:
+      [ ] allocate UBO for `MaterialsByIndex` once at AssetsLoaded and on reload
+      [ ] upload UBO data (buffer subdata or orphan+upload) after registry rebuild
+  [ ] Bind in shader pipeline:
+      [ ] bind material UBO + any mapping resources for patched base-game shaders (the stage that writes `gMaterial`)
+      [ ] ensure binding also works during shader reload / recompile
+  [ ] Add shader helper include:
+      [ ] `vec3 ReadMaterialParams(int materialIndex)` (roughness, metallic, emissive)
+      [ ] `vec4 ApplyMaterialNoise(vec4 params, ...)` (or equivalent helper) used by patched base-game shaders
+      [ ] `float ComputeReflectivity(float roughness, float metallic, ...)` used by patched base-game shaders
+
+
+  Phase 7 - Shader/G-Buffer Plumbing
+  Exit artifacts: shaders can obtain a material index/params per pixel, consistent with G-buffer layout.
+    [x] Decision: `gMaterial` layout does not change; it stores params directly (roughness/metallic/emissive/reflectivity).
+  [ ] Implement chosen option:
+      [ ] Update vanilla shader patch injection codepaths
+      [ ] Update PBR direct lighting shader reads
+      [ ] Update composite shader reads
+  [ ] Ensure noise behavior is testable/diagnosable:
+      [ ] add debug toggles: disable noise, visualize noise contribution per channel
+  [ ] Add debug visualization mode(s):
+      [ ] show materialIndex as color bands
+      [ ] show roughness/metallic channels
+
+
+  Phase 8 - Validation + Tests
+  Exit artifacts: unit tests cover parsing/merge/mapping; runtime sanity checks exist.
+  [ ] Add unit tests for JSON parsing:
+      [ ] defaults apply correctly
+      [ ] material overrides apply correctly
+      [ ] mapping rule ordering is honored
+  [ ] Add unit tests for merge semantics:
+      [ ] collision behavior matches policy
+  [ ] Add runtime diagnostics tests (if applicable in this repo):
+      [ ] material table upload creates expected size/format
+      [ ] shader can sample table without GL errors (smoke)
+
+
+  Phase 9 - Documentation + Modder UX
+  Exit artifacts: modders can author the file correctly; troubleshooting guidance exists.
+  [ ] Add a short doc:
+      [ ] schema reference + examples
+      [ ] how to map textures
+      [ ] conflict resolution + best practices
+  [ ] Confirm the existing VGE reference `pbr_material_definitions.json` is up to date with the schema and serves as the canonical example.
+  [ ] Add logging guidance:
+      [ ] how to enable debug output
+      [ ] common errors and fixes
+
+
+  Phase 10 - Future Enhancements (Optional)
+  [ ] Support block/item code mappings (semantic assignment instead of texture-based)
+  [ ] Support per-variant/seasonal textures
+  [ ] Support hot reload of registry without restart
+  [ ] Support authoring-time tooling to validate mappings and report unmapped textures
+
+```
