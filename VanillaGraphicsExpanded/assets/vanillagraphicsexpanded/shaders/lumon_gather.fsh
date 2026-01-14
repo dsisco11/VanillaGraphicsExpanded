@@ -122,7 +122,8 @@ float computeEdgeAwareWeight(float bilinearWeight,
                              vec3 pixelPosVS, vec3 probePosVS,
                              float pixelDepth,
                              vec3 pixelNormal, vec3 probeNormal,
-                             float probeValid) {
+                             float probeValid,
+                             float maxNeighborValid) {
     // Invalid probes get zero weight
     if (probeValid < 0.5) {
         return 0.0;
@@ -139,8 +140,9 @@ float computeEdgeAwareWeight(float bilinearWeight,
     float normalDot = max(dot(pixelNormal, probeNormal), 0.0);
     float normalWeight = pow(normalDot, normalSigma);
     
-    // Reduce weight for edge probes (validity < 1.0)
-    float edgeFactor = probeValid;
+    // Reduce weight for edge probes (validity < 1.0), but normalize relative to
+    // the best neighbor so an all-edge region (all 0.5) doesn't collapse to black.
+    float edgeFactor = (maxNeighborValid > 0.0) ? clamp(probeValid / maxNeighborValid, 0.0, 1.0) : 0.0;
     
     return bilinearWeight * depthWeight * normalWeight * edgeFactor;
 }
@@ -196,10 +198,12 @@ void main(void)
     ProbeData p11 = loadProbeData(probe11);
     
     // Compute edge-aware weights (spec Section 2.3)
-    float w00 = computeEdgeAwareWeight(bw00, pixelPosVS, p00.posVS, pixelDepth, pixelNormalVS, p00.normalVS, p00.valid);
-    float w10 = computeEdgeAwareWeight(bw10, pixelPosVS, p10.posVS, pixelDepth, pixelNormalVS, p10.normalVS, p10.valid);
-    float w01 = computeEdgeAwareWeight(bw01, pixelPosVS, p01.posVS, pixelDepth, pixelNormalVS, p01.normalVS, p01.valid);
-    float w11 = computeEdgeAwareWeight(bw11, pixelPosVS, p11.posVS, pixelDepth, pixelNormalVS, p11.normalVS, p11.valid);
+    float maxNeighborValid = max(max(p00.valid, p10.valid), max(p01.valid, p11.valid));
+
+    float w00 = computeEdgeAwareWeight(bw00, pixelPosVS, p00.posVS, pixelDepth, pixelNormalVS, p00.normalVS, p00.valid, maxNeighborValid);
+    float w10 = computeEdgeAwareWeight(bw10, pixelPosVS, p10.posVS, pixelDepth, pixelNormalVS, p10.normalVS, p10.valid, maxNeighborValid);
+    float w01 = computeEdgeAwareWeight(bw01, pixelPosVS, p01.posVS, pixelDepth, pixelNormalVS, p01.normalVS, p01.valid, maxNeighborValid);
+    float w11 = computeEdgeAwareWeight(bw11, pixelPosVS, p11.posVS, pixelDepth, pixelNormalVS, p11.normalVS, p11.valid, maxNeighborValid);
     
     float totalWeight = w00 + w10 + w01 + w11;
     

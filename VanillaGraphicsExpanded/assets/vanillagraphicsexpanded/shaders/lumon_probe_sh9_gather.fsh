@@ -163,10 +163,10 @@ void main(void)
         float n01 = pow(max(dot(pixelNormalWS, p01.normalWS), 0.0), 4.0);
         float n11 = pow(max(dot(pixelNormalWS, p11.normalWS), 0.0), 4.0);
 
-        w00 = bw00 * n00 * (p00.valid > 0.5 ? 1.0 : 0.0);
-        w10 = bw10 * n10 * (p10.valid > 0.5 ? 1.0 : 0.0);
-        w01 = bw01 * n01 * (p01.valid > 0.5 ? 1.0 : 0.0);
-        w11 = bw11 * n11 * (p11.valid > 0.5 ? 1.0 : 0.0);
+        w00 = bw00 * n00 * (p00.valid >= 0.5 ? 1.0 : 0.0);
+        w10 = bw10 * n10 * (p10.valid >= 0.5 ? 1.0 : 0.0);
+        w01 = bw01 * n01 * (p01.valid >= 0.5 ? 1.0 : 0.0);
+        w11 = bw11 * n11 * (p11.valid >= 0.5 ? 1.0 : 0.0);
         totalWeight = w00 + w10 + w01 + w11;
 
         if (totalWeight < 0.001)
@@ -182,10 +182,10 @@ void main(void)
     w01 *= invW;
     w11 *= invW;
 
-    vec3 irr00 = (p00.valid > 0.5) ? evaluateProbeIrradiance(clamp(probe00, ivec2(0), probeGridSizeI - 1), pixelNormalWS) : vec3(0.0);
-    vec3 irr10 = (p10.valid > 0.5) ? evaluateProbeIrradiance(clamp(probe10, ivec2(0), probeGridSizeI - 1), pixelNormalWS) : vec3(0.0);
-    vec3 irr01 = (p01.valid > 0.5) ? evaluateProbeIrradiance(clamp(probe01, ivec2(0), probeGridSizeI - 1), pixelNormalWS) : vec3(0.0);
-    vec3 irr11 = (p11.valid > 0.5) ? evaluateProbeIrradiance(clamp(probe11, ivec2(0), probeGridSizeI - 1), pixelNormalWS) : vec3(0.0);
+    vec3 irr00 = (p00.valid >= 0.5) ? evaluateProbeIrradiance(clamp(probe00, ivec2(0), probeGridSizeI - 1), pixelNormalWS) : vec3(0.0);
+    vec3 irr10 = (p10.valid >= 0.5) ? evaluateProbeIrradiance(clamp(probe10, ivec2(0), probeGridSizeI - 1), pixelNormalWS) : vec3(0.0);
+    vec3 irr01 = (p01.valid >= 0.5) ? evaluateProbeIrradiance(clamp(probe01, ivec2(0), probeGridSizeI - 1), pixelNormalWS) : vec3(0.0);
+    vec3 irr11 = (p11.valid >= 0.5) ? evaluateProbeIrradiance(clamp(probe11, ivec2(0), probeGridSizeI - 1), pixelNormalWS) : vec3(0.0);
 
     vec3 irradiance = irr00 * w00 + irr10 * w10 + irr01 * w01 + irr11 * w11;
 

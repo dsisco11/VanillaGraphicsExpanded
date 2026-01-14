@@ -245,16 +245,16 @@ void main(void)
     // Integrate hemisphere for each valid probe
     float avgDist00, avgDist10, avgDist01, avgDist11;
     
-    vec3 irr00 = (p00.valid > 0.5) 
+    vec3 irr00 = (p00.valid >= 0.5) 
         ? integrateHemisphere(probe00, pixelNormalWS, pixelDepthVS, probeGridSizeI, avgDist00)
         : vec3(0.0);
-    vec3 irr10 = (p10.valid > 0.5)
+    vec3 irr10 = (p10.valid >= 0.5)
         ? integrateHemisphere(probe10, pixelNormalWS, pixelDepthVS, probeGridSizeI, avgDist10)
         : vec3(0.0);
-    vec3 irr01 = (p01.valid > 0.5)
+    vec3 irr01 = (p01.valid >= 0.5)
         ? integrateHemisphere(probe01, pixelNormalWS, pixelDepthVS, probeGridSizeI, avgDist01)
         : vec3(0.0);
-    vec3 irr11 = (p11.valid > 0.5)
+    vec3 irr11 = (p11.valid >= 0.5)
         ? integrateHemisphere(probe11, pixelNormalWS, pixelDepthVS, probeGridSizeI, avgDist11)
         : vec3(0.0);
     
@@ -284,10 +284,10 @@ void main(void)
         float n01 = pow(max(dot(pixelNormalWS, p01.normalWS), 0.0), 4.0);
         float n11 = pow(max(dot(pixelNormalWS, p11.normalWS), 0.0), 4.0);
 
-        w00 = bw00 * n00 * (p00.valid > 0.5 ? 1.0 : 0.0);
-        w10 = bw10 * n10 * (p10.valid > 0.5 ? 1.0 : 0.0);
-        w01 = bw01 * n01 * (p01.valid > 0.5 ? 1.0 : 0.0);
-        w11 = bw11 * n11 * (p11.valid > 0.5 ? 1.0 : 0.0);
+        w00 = bw00 * n00 * (p00.valid >= 0.5 ? 1.0 : 0.0);
+        w10 = bw10 * n10 * (p10.valid >= 0.5 ? 1.0 : 0.0);
+        w01 = bw01 * n01 * (p01.valid >= 0.5 ? 1.0 : 0.0);
+        w11 = bw11 * n11 * (p11.valid >= 0.5 ? 1.0 : 0.0);
         totalWeight = w00 + w10 + w01 + w11;
 
         if (totalWeight < 0.001) {
