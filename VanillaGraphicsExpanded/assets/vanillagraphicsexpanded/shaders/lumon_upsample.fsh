@@ -57,7 +57,9 @@ uniform float holeFillMinConfidence;  // minimum neighbor confidence to use (e.g
  */
 vec3 bilateralUpsample(vec2 fullResUV, float centerDepth, vec3 centerNormal) {
     // UE-style plane weighting: evaluate distance-to-plane in view space.
-    float centerDepthRaw = texture(primaryDepth, fullResUV).r;
+    ivec2 maxFull = ivec2(screenSize) - 1;
+    ivec2 centerPx = clamp(ivec2(fullResUV * screenSize), ivec2(0), maxFull);
+    float centerDepthRaw = texelFetch(primaryDepth, centerPx, 0).r;
     vec3 centerPosVS = lumonReconstructViewPos(fullResUV, centerDepthRaw, invProjectionMatrix);
     float centerDepthVS = max(-centerPosVS.z, 1.0);
 
@@ -213,6 +215,7 @@ vec3 spatialDenoise(vec2 fullResUV, vec3 centerColor, float centerDepth, vec3 ce
     
     // 3x3 kernel
     vec2 texelSize = 1.0 / screenSize;
+    ivec2 maxFull = ivec2(screenSize) - 1;
     
     for (int dy = -1; dy <= 1; dy++) {
         for (int dx = -1; dx <= 1; dx++) {
@@ -226,9 +229,10 @@ vec3 spatialDenoise(vec2 fullResUV, vec3 centerColor, float centerDepth, vec3 ce
                 continue;
             }
             
-            float sampleDepthRaw = texture(primaryDepth, sampleUV).r;
+            ivec2 samplePx = clamp(ivec2(sampleUV * screenSize), ivec2(0), maxFull);
+            float sampleDepthRaw = texelFetch(primaryDepth, samplePx, 0).r;
             float sampleDepth = lumonLinearizeDepth(sampleDepthRaw, zNear, zFar);
-            vec3 sampleNormal = lumonDecodeNormal(texture(gBufferNormal, sampleUV).xyz);
+            vec3 sampleNormal = lumonDecodeNormal(texelFetch(gBufferNormal, samplePx, 0).xyz);
             
             // Spatial weight (Gaussian)
             float dist = length(vec2(float(dx), float(dy)));
@@ -267,7 +271,9 @@ void main(void)
     vec2 fullResUV = gl_FragCoord.xy / screenSize;
     
     // Sample center depth and normal
-    float centerDepthRaw = texture(primaryDepth, fullResUV).r;
+    ivec2 maxFull = ivec2(screenSize) - 1;
+    ivec2 centerPx = clamp(ivec2(gl_FragCoord.xy), ivec2(0), maxFull);
+    float centerDepthRaw = texelFetch(primaryDepth, centerPx, 0).r;
     
     // Early out for sky
     if (lumonIsSky(centerDepthRaw)) {
@@ -276,7 +282,7 @@ void main(void)
     }
     
     float centerDepth = lumonLinearizeDepth(centerDepthRaw, zNear, zFar);
-    vec3 centerNormal = lumonDecodeNormal(texture(gBufferNormal, fullResUV).xyz);
+    vec3 centerNormal = lumonDecodeNormal(texelFetch(gBufferNormal, centerPx, 0).xyz);
 
     // Low-confidence detection comes from the half-res gather output alpha.
     ivec2 centerHalf = ivec2(fullResUV * halfResSize);
