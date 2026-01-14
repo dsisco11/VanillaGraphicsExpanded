@@ -60,21 +60,21 @@ VGE - PBRMaterialRegistry (Per-Mod Material Definitions + Shader Parameters)
 
   Phase 2 - Asset Discovery + Load Order
   Exit artifacts: registry can enumerate all mods and load all available definitions deterministically.
-  [ ] Choose load timing:
-      [ ] build registry at `AssetsLoaded` (recommended)
+  [x] Choose load timing:
+      [x] build registry at `AssetsLoaded`
       [ ] rebuild on asset reload event (if supported)
-  [ ] Implement asset discovery across all domains:
-      [ ] search for asset path `materials/pbr_material_definitions.json` in every domain
-      [ ] load as text and parse JSON
-  [ ] Decide deterministic merge order:
-      [ ] stable sort by domain/modid
+  [x] Implement asset discovery across all domains:
+      [x] search for asset path `materials/pbr_material_definitions.json` in every domain
+      [x] parse JSON into DTOs (via `IAsset.ToObject<T>()`)
+  [x] Decide deterministic merge order:
+      [x] stable sort by domain/modid
       [x] Decision: do not support an explicit `priority` field; ordering is derived from stable domain/modid rules
       [x] Decision: allow per-material and per-mapping `priority` (not per-file) and define the exact sort/override rules:
           [ ] higher priority wins when multiple rules assign the same texture
           [ ] when priorities tie: stable domain/modid order, then file order, then mapping order
-  [ ] Add basic diagnostics:
-      [ ] log how many definition files found
-      [ ] log how many materials + mapping rules loaded
+  [x] Add basic diagnostics:
+      [x] log how many definition files found
+      [x] log how many materials + mapping rules loaded
       [ ] log collisions (and how resolved)
 
 
