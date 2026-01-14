@@ -1,5 +1,6 @@
 Issues:
   ☐ Unsure if hole filling is working as intended.
+  ☐ Metallic materials show up as full white in "Composite AO" debug mode.
 
 LumOn → Lumen Alignment Work (Screen-Space Pipeline):
 
