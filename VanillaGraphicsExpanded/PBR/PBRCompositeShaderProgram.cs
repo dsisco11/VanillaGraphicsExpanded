@@ -73,13 +73,13 @@ public sealed class PBRCompositeShaderProgram : VgeShaderProgram
 
     public Vec3f IndirectTint { set => Uniform("indirectTint", value); }
 
-    public bool LumOnEnabled { set => SetDefine("VGE_LUMON_ENABLED", value ? "1" : "0"); }
+    public bool LumOnEnabled { set => SetDefine(VgeShaderDefines.LumOnEnabled, value ? "1" : "0"); }
 
-    public bool EnablePbrComposite { set => SetDefine("VGE_LUMON_PBR_COMPOSITE", value ? "1" : "0"); }
+    public bool EnablePbrComposite { set => SetDefine(VgeShaderDefines.LumOnPbrComposite, value ? "1" : "0"); }
 
-    public bool EnableAO { set => SetDefine("VGE_LUMON_ENABLE_AO", value ? "1" : "0"); }
+    public bool EnableAO { set => SetDefine(VgeShaderDefines.LumOnEnableAo, value ? "1" : "0"); }
 
-    public bool EnableBentNormal { set => SetDefine("VGE_LUMON_ENABLE_BENT_NORMAL", value ? "1" : "0"); }
+    public bool EnableBentNormal { set => SetDefine(VgeShaderDefines.LumOnEnableBentNormal, value ? "1" : "0"); }
 
     public float DiffuseAOStrength { set => Uniform("diffuseAOStrength", value); }
 

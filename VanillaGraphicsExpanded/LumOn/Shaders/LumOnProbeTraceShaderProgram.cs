@@ -109,25 +109,25 @@ public class LumOnProbeTraceShaderProgram : VgeShaderProgram
     /// Number of rays per probe per frame.
     /// Compile-time define for loop bounds.
     /// </summary>
-    public int RaysPerProbe { set => SetDefine("VGE_LUMON_RAYS_PER_PROBE", value.ToString(CultureInfo.InvariantCulture)); }
+    public int RaysPerProbe { set => SetDefine(VgeShaderDefines.LumOnRaysPerProbe, value.ToString(CultureInfo.InvariantCulture)); }
 
     /// <summary>
     /// Number of steps per ray.
     /// Compile-time define for loop bounds.
     /// </summary>
-    public int RaySteps { set => SetDefine("VGE_LUMON_RAY_STEPS", value.ToString(CultureInfo.InvariantCulture)); }
+    public int RaySteps { set => SetDefine(VgeShaderDefines.LumOnRaySteps, value.ToString(CultureInfo.InvariantCulture)); }
 
     /// <summary>
     /// Maximum ray distance in world units.
     /// Compile-time define for trace distance.
     /// </summary>
-    public float RayMaxDistance { set => SetDefine("VGE_LUMON_RAY_MAX_DISTANCE", value.ToString(CultureInfo.InvariantCulture)); }
+    public float RayMaxDistance { set => SetDefine(VgeShaderDefines.LumOnRayMaxDistance, value.ToString(CultureInfo.InvariantCulture)); }
 
     /// <summary>
     /// Ray thickness for depth comparison.
     /// Compile-time define for hit threshold.
     /// </summary>
-    public float RayThickness { set => SetDefine("VGE_LUMON_RAY_THICKNESS", value.ToString(CultureInfo.InvariantCulture)); }
+    public float RayThickness { set => SetDefine(VgeShaderDefines.LumOnRayThickness, value.ToString(CultureInfo.InvariantCulture)); }
 
     #endregion
 
@@ -151,7 +151,7 @@ public class LumOnProbeTraceShaderProgram : VgeShaderProgram
     /// Weight applied to sky miss samples.
     /// Compile-time define for sky contribution.
     /// </summary>
-    public float SkyMissWeight { set => SetDefine("VGE_LUMON_SKY_MISS_WEIGHT", value.ToString(CultureInfo.InvariantCulture)); }
+    public float SkyMissWeight { set => SetDefine(VgeShaderDefines.LumOnSkyMissWeight, value.ToString(CultureInfo.InvariantCulture)); }
 
     /// <summary>
     /// Sun direction in world space.

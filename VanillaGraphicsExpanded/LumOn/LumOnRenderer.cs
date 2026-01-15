@@ -8,6 +8,7 @@ using Vintagestory.Client.NoObf;
 using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.Rendering.Profiling;
 
 namespace VanillaGraphicsExpanded.LumOn;
@@ -431,7 +432,8 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Emissive GI scaling is a compile-time define to avoid extra uniform plumbing.
         // Ensure we emit a float literal (e.g., 2.0) to keep GLSL typing happy.
-        shader.SetDefine("LUMON_EMISSIVE_BOOST", Math.Max(0.0f, config.EmissiveGiBoost).ToString("0.0####", CultureInfo.InvariantCulture));
+        shader.SetDefine(VgeShaderDefines.LumOnEmissiveBoost, Math.Max(0.0f, config.EmissiveGiBoost).ToString("0.0####", CultureInfo.InvariantCulture));
+
         shader.Use();
 
         shader.PrimaryDepth = primaryFb.DepthTextureId;
@@ -553,15 +555,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
         shader.FrameIndex = frameIndex;
-        shader.RaysPerProbe = config.RaysPerProbePerFrame;
-        shader.RaySteps = config.RaySteps;
-        shader.RayMaxDistance = config.RayMaxDistance;
-        shader.RayThickness = config.RayThickness;
         shader.ZNear = capi.Render.ShaderUniforms.ZNear;
         shader.ZFar = capi.Render.ShaderUniforms.ZFar;
 
         // Sky fallback colors
-        shader.SkyMissWeight = config.SkyMissWeight;
         shader.SunPosition = capi.World.Calendar.SunPositionNormalized;
         shader.SunColor = capi.World.Calendar.SunColor;
         shader.AmbientColor = capi.Render.AmbientColor;
@@ -598,8 +595,19 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         capi.Render.GlToggleBlend(false);
 
-        // Emissive GI scaling is a compile-time define to avoid extra uniform plumbing.
-        shader.SetDefine("LUMON_EMISSIVE_BOOST", Math.Max(0.0f, config.EmissiveGiBoost).ToString("0.0####", CultureInfo.InvariantCulture));
+        // Define-backed knobs must be set before Use() so the correct variant is bound.
+        shader.SetDefine(VgeShaderDefines.LumOnEmissiveBoost, Math.Max(0.0f, config.EmissiveGiBoost).ToString("0.0####", CultureInfo.InvariantCulture));
+        shader.TexelsPerFrame = config.ProbeAtlasTexelsPerFrame;
+        shader.RaySteps = config.RaySteps;
+        shader.RayMaxDistance = config.RayMaxDistance;
+        shader.RayThickness = config.RayThickness;
+        shader.SkyMissWeight = config.SkyMissWeight;
+
+        if (bufferManager.HzbDepthTex != null)
+        {
+            shader.HzbCoarseMip = Math.Clamp(config.HzbCoarseMip, 0, Math.Max(0, bufferManager.HzbDepthTex.MipLevels - 1));
+        }
+
         shader.Use();
 
         // Bind probe anchor textures
@@ -631,7 +639,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (bufferManager.HzbDepthTex != null)
         {
             shader.HzbDepth = bufferManager.HzbDepthTex;
-            shader.HzbCoarseMip = Math.Clamp(config.HzbCoarseMip, 0, Math.Max(0, bufferManager.HzbDepthTex.MipLevels - 1));
         }
 
         // Pass matrices
@@ -644,15 +651,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
         shader.FrameIndex = frameIndex;
-        shader.TexelsPerFrame = config.ProbeAtlasTexelsPerFrame;
-        shader.RaySteps = config.RaySteps;
-        shader.RayMaxDistance = config.RayMaxDistance;
-        shader.RayThickness = config.RayThickness;
         shader.ZNear = capi.Render.ShaderUniforms.ZNear;
         shader.ZFar = capi.Render.ShaderUniforms.ZFar;
 
         // Sky fallback colors
-        shader.SkyMissWeight = config.SkyMissWeight;
         var sunPos = capi.World.Calendar.SunPositionNormalized;
         shader.SunPosition = new Vec3f((float)sunPos.X, (float)sunPos.Y, (float)sunPos.Z);
         var sunCol = capi.World.Calendar.SunColor;
@@ -740,6 +742,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         fbo.BindWithViewport();
 
         capi.Render.GlToggleBlend(false);
+
+        // Define-backed knobs must be set before Use() so the correct variant is bound.
+        shader.EnableReprojectionVelocity = config.EnableReprojectionVelocity;
+
         shader.Use();
 
         // Bind current frame radiance (from trace pass - dedicated trace buffer)
@@ -785,7 +791,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.DepthRejectThreshold = config.DepthRejectThreshold;
         shader.NormalRejectThreshold = config.NormalRejectThreshold;
 
-        shader.EnableReprojectionVelocity = config.EnableReprojectionVelocity;
         shader.VelocityRejectThreshold = config.VelocityRejectThreshold;
 
         // Render
@@ -812,6 +817,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         fbo.BindWithViewport();
 
         capi.Render.GlToggleBlend(false);
+
+        // Define-backed knobs must be set before Use() so the correct variant is bound.
+        shader.TexelsPerFrame = config.ProbeAtlasTexelsPerFrame;
+
         shader.Use();
 
         // Bind trace output (fresh traced texels + history copies for non-traced)
@@ -842,7 +851,6 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Pass temporal distribution parameters (must match trace shader)
         shader.FrameIndex = frameIndex;
-        shader.TexelsPerFrame = config.ProbeAtlasTexelsPerFrame;
 
         // Pass temporal blending parameters
         shader.TemporalAlpha = config.TemporalAlpha;
@@ -1161,7 +1169,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.HalfResSize = new Vec2f(bufferManager.HalfResWidth, bufferManager.HalfResHeight);
         shader.ZNear = capi.Render.ShaderUniforms.ZNear;
         shader.ZFar = capi.Render.ShaderUniforms.ZFar;
-        shader.DenoiseEnabled = config.DenoiseEnabled;
 
         // Matrices for plane-weighted edge-aware filtering (UE-style)
         shader.InvProjectionMatrix = invProjectionMatrix;
@@ -1173,7 +1180,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.UpsampleSpatialSigma = config.UpsampleSpatialSigma;
 
         // Phase 14: bounded hole filling for low-confidence indirect values
-        shader.HoleFillEnabled = config.UpsampleHoleFillEnabled;
         shader.HoleFillRadius = Math.Max(0, config.UpsampleHoleFillRadius);
         shader.HoleFillMinConfidence = Math.Clamp(config.UpsampleHoleFillMinConfidence, 0f, 1f);
 

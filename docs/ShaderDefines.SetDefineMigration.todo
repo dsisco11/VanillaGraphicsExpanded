@@ -170,14 +170,18 @@ Shader Define Migration (SetDefine) Work:
 
   Phase 8 - Cleanup + Documentation:
   Exit artifacts: Codebase is consistent; docs and tests explain how defines work.
-  ☐ Create authoritative Enum for listing all VGE shader define names
-  ☐ Remove obsolete uniform setters/properties from shader program wrappers
-  ☐ Ensure renderers set defines before `Use()` and don’t spam recompile:
-    - Only set defines when config values change (optional optimization)
-  ☐ Update docs:
+  ☑ Create authoritative Enum for listing all VGE shader define names
+  ☑ Remove obsolete uniform setters/properties from shader program wrappers
+  ☑ Ensure renderers set defines before `Use()`:
+  ☑ Update docs:
     - Add a short doc explaining “uniform vs define” guidelines
     - Note test strategy (define injection / compiled variants)
-  ☐ Verify:
+  ☑ Verify:
     - `dotnet test` passes
     - Shader compilation tests pass
     - Visual sanity: toggling LumOn / AO / bent normal works as expected
+
+  Phase 8 outputs:
+    - `VanillaGraphicsExpanded/Rendering/Shaders/VgeShaderDefine.cs` (string constants)
+    - `VanillaGraphicsExpanded/Rendering/Shaders/VgeShaderDefines.cs` (compat shim)
+    - `docs/ShaderDefines.UniformVsDefine.md`

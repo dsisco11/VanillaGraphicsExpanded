@@ -95,7 +95,7 @@ public class LumOnUpsampleShaderProgram : VgeShaderProgram
     /// Whether edge-aware denoising is enabled.
     /// Compile-time define for better performance.
     /// </summary>
-    public bool DenoiseEnabled { set => SetDefine("VGE_LUMON_UPSAMPLE_DENOISE", value ? "1" : "0"); }
+    public bool DenoiseEnabled { set => SetDefine(VgeShaderDefines.LumOnUpsampleDenoise, value ? "1" : "0"); }
 
     /// <summary>
     /// Depth similarity sigma for bilateral upsample.
@@ -126,7 +126,7 @@ public class LumOnUpsampleShaderProgram : VgeShaderProgram
     /// Whether low-confidence hole filling is enabled.
     /// Compile-time define for better performance.
     /// </summary>
-    public bool HoleFillEnabled { set => SetDefine("VGE_LUMON_UPSAMPLE_HOLEFILL", value ? "1" : "0"); }
+    public bool HoleFillEnabled { set => SetDefine(VgeShaderDefines.LumOnUpsampleHoleFill, value ? "1" : "0"); }
 
     /// <summary>
     /// Neighborhood radius in half-res pixels used for hole filling.

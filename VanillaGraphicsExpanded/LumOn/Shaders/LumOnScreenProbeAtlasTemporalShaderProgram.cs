@@ -86,7 +86,7 @@ public class LumOnScreenProbeAtlasTemporalShaderProgram : VgeShaderProgram
     /// With 64 total texels and 8 per frame, full coverage takes 8 frames.
     /// Compile-time define for temporal distribution.
     /// </summary>
-    public int TexelsPerFrame { set => SetDefine("VGE_LUMON_ATLAS_TEXELS_PER_FRAME", value.ToString(CultureInfo.InvariantCulture)); }
+    public int TexelsPerFrame { set => SetDefine(VgeShaderDefines.LumOnAtlasTexelsPerFrame, value.ToString(CultureInfo.InvariantCulture)); }
 
     #endregion
 

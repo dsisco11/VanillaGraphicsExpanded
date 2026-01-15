@@ -162,6 +162,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         GL.Disable(EnableCap.DepthTest);
         capi.Render.GlToggleBlend(false);
 
+        // Define-backed toggles must be set before Use() so the correct variant is bound.
+        shader.EnablePbrComposite = config.EnablePbrComposite;
+        shader.EnableAO = config.EnableAO;
+        shader.EnableBentNormal = config.EnableBentNormal;
+
         shader.Use();
 
         // Bind textures
@@ -232,9 +237,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         // Phase 15 composite params (now compile-time defines)
         shader.IndirectIntensity = config.Intensity;
         shader.IndirectTint = new Vec3f(config.IndirectTint[0], config.IndirectTint[1], config.IndirectTint[2]);
-        shader.EnablePbrComposite = config.EnablePbrComposite;
-        shader.EnableAO = config.EnableAO;
-        shader.EnableBentNormal = config.EnableBentNormal;
         shader.DiffuseAOStrength = Math.Clamp(config.DiffuseAOStrength, 0f, 1f);
         shader.SpecularAOStrength = Math.Clamp(config.SpecularAOStrength, 0f, 1f);
 

@@ -127,7 +127,7 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : VgeShaderProgram
     /// With 64 texels total, this means full coverage in 8 frames.
     /// Compile-time define for temporal distribution.
     /// </summary>
-    public int TexelsPerFrame { set => SetDefine("VGE_LUMON_ATLAS_TEXELS_PER_FRAME", value.ToString(CultureInfo.InvariantCulture)); }
+    public int TexelsPerFrame { set => SetDefine(VgeShaderDefines.LumOnAtlasTexelsPerFrame, value.ToString(CultureInfo.InvariantCulture)); }
 
     #endregion
 
@@ -137,25 +137,25 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : VgeShaderProgram
     /// Number of ray march steps.
     /// Compile-time define for loop bounds.
     /// </summary>
-    public int RaySteps { set => SetDefine("VGE_LUMON_RAY_STEPS", value.ToString(CultureInfo.InvariantCulture)); }
+    public int RaySteps { set => SetDefine(VgeShaderDefines.LumOnRaySteps, value.ToString(CultureInfo.InvariantCulture)); }
 
     /// <summary>
     /// Maximum ray march distance in view-space units.
     /// Compile-time define for trace distance.
     /// </summary>
-    public float RayMaxDistance { set => SetDefine("VGE_LUMON_RAY_MAX_DISTANCE", value.ToString(CultureInfo.InvariantCulture)); }
+    public float RayMaxDistance { set => SetDefine(VgeShaderDefines.LumOnRayMaxDistance, value.ToString(CultureInfo.InvariantCulture)); }
 
     /// <summary>
     /// Thickness threshold for depth test during ray marching.
     /// Compile-time define for hit threshold.
     /// </summary>
-    public float RayThickness { set => SetDefine("VGE_LUMON_RAY_THICKNESS", value.ToString(CultureInfo.InvariantCulture)); }
+    public float RayThickness { set => SetDefine(VgeShaderDefines.LumOnRayThickness, value.ToString(CultureInfo.InvariantCulture)); }
 
     /// <summary>
     /// Coarse mip used for early rejection.
     /// Compile-time define for HZB mip selection.
     /// </summary>
-    public int HzbCoarseMip { set => SetDefine("VGE_LUMON_HZB_COARSE_MIP", value.ToString(CultureInfo.InvariantCulture)); }
+    public int HzbCoarseMip { set => SetDefine(VgeShaderDefines.LumOnHzbCoarseMip, value.ToString(CultureInfo.InvariantCulture)); }
 
     #endregion
 
@@ -179,7 +179,7 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : VgeShaderProgram
     /// Weight for sky color when ray misses (0 = black, 1 = full sky).
     /// Compile-time define for sky contribution.
     /// </summary>
-    public float SkyMissWeight { set => SetDefine("VGE_LUMON_SKY_MISS_WEIGHT", value.ToString(CultureInfo.InvariantCulture)); }
+    public float SkyMissWeight { set => SetDefine(VgeShaderDefines.LumOnSkyMissWeight, value.ToString(CultureInfo.InvariantCulture)); }
 
     /// <summary>
     /// Normalized sun direction for sky fallback.

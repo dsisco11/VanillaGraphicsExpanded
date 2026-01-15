@@ -138,14 +138,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
 
         capi.Render.GlToggleBlend(false);
 
-        shader.Use();
-
-        // Direct lighting radiance buffers (linear, fog-free)
-        shader.DirectDiffuse = directLightingBuffers.DirectDiffuseTex.TextureId;
-        shader.DirectSpecular = directLightingBuffers.DirectSpecularTex.TextureId;
-        shader.Emissive = directLightingBuffers.EmissiveTex.TextureId;
-
-        // Indirect diffuse (LumOn) - optional
+        // Define-backed toggles must be set before Use() so the correct variant is bound.
         int lumOnEnabled = 0;
         int indirectTexId = 0;
         if (lumOnConfig?.Enabled == true && lumOnBuffers?.IndirectFullTex is not null)
@@ -153,6 +146,20 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             lumOnEnabled = 1;
             indirectTexId = lumOnBuffers.IndirectFullTex.TextureId;
         }
+
+        shader.LumOnEnabled = lumOnEnabled == 1;
+
+        // Phase 15 knobs (now compile-time defines)
+        shader.EnablePbrComposite = lumOnConfig?.EnablePbrComposite ?? true;
+        shader.EnableAO = lumOnConfig?.EnableAO ?? true;
+        shader.EnableBentNormal = lumOnConfig?.EnableBentNormal ?? true;
+
+        shader.Use();
+
+        // Direct lighting radiance buffers (linear, fog-free)
+        shader.DirectDiffuse = directLightingBuffers.DirectDiffuseTex.TextureId;
+        shader.DirectSpecular = directLightingBuffers.DirectSpecularTex.TextureId;
+        shader.Emissive = directLightingBuffers.EmissiveTex.TextureId;
 
         shader.IndirectDiffuse = indirectTexId;
 
@@ -178,12 +185,6 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             shader.IndirectTint = new Vec3f(1, 1, 1);
         }
 
-        shader.LumOnEnabled = lumOnEnabled == 1;
-
-        // Phase 15 knobs (now compile-time defines)
-        shader.EnablePbrComposite = lumOnConfig?.EnablePbrComposite ?? true;
-        shader.EnableAO = lumOnConfig?.EnableAO ?? true;
-        shader.EnableBentNormal = lumOnConfig?.EnableBentNormal ?? true;
         shader.DiffuseAOStrength = Math.Clamp(lumOnConfig?.DiffuseAOStrength ?? 1.0f, 0f, 1f);
         shader.SpecularAOStrength = Math.Clamp(lumOnConfig?.SpecularAOStrength ?? 1.0f, 0f, 1f);
 

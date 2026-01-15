@@ -101,6 +101,7 @@ public abstract class VgeShaderProgram : ShaderProgram
         return changed;
     }
 
+
     /// <summary>
     /// Removes a define and schedules a recompile if it existed.
     /// </summary>

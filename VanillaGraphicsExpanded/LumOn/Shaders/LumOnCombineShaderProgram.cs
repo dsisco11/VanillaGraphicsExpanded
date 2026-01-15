@@ -80,11 +80,11 @@ public class LumOnCombineShaderProgram : VgeShaderProgram
 
     #region PBR Composite Defines (Phase 15 → SetDefine migration)
 
-    public bool EnablePbrComposite { set => SetDefine("VGE_LUMON_PBR_COMPOSITE", value ? "1" : "0"); }
+    public bool EnablePbrComposite { set => SetDefine(VgeShaderDefines.LumOnPbrComposite, value ? "1" : "0"); }
 
-    public bool EnableAO { set => SetDefine("VGE_LUMON_ENABLE_AO", value ? "1" : "0"); }
+    public bool EnableAO { set => SetDefine(VgeShaderDefines.LumOnEnableAo, value ? "1" : "0"); }
 
-    public bool EnableBentNormal { set => SetDefine("VGE_LUMON_ENABLE_BENT_NORMAL", value ? "1" : "0"); }
+    public bool EnableBentNormal { set => SetDefine(VgeShaderDefines.LumOnEnableBentNormal, value ? "1" : "0"); }
 
     public float DiffuseAOStrength { set => Uniform("diffuseAOStrength", value); }
 
@@ -113,7 +113,7 @@ public class LumOnCombineShaderProgram : VgeShaderProgram
     /// Whether LumOn is enabled.
     /// When disabled, passes through direct lighting unchanged.
     /// </summary>
-    public bool LumOnEnabled { set => SetDefine("VGE_LUMON_ENABLED", value ? "1" : "0"); }
+    public bool LumOnEnabled { set => SetDefine(VgeShaderDefines.LumOnEnabled, value ? "1" : "0"); }
 
     #endregion
 }
