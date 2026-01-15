@@ -59,13 +59,13 @@ PBR Normal+Depth Sidecar Atlas (GPU Bake Plumbing):
 
   Phase 4 - Shader Include + Injection:
   Exit artifacts: Chunk shaders compile with a new uniform + include, but behavior is unchanged unless used.
-  ☐ Add include file: assets/.../shaders/includes/vge_normaldepth.glsl
+  ✔ Add include file: assets/.../shaders/includes/vge_normaldepth.glsl
     - Define ReadNormalDepth(uv) and any tiny helpers
     - Keep it stable and minimal
-  ☐ Extend shader patcher to inject:
+  ✔ Extend shader patcher to inject:
     - `@import "./includes/vge_normaldepth.glsl"` for chunk shaders
     - `uniform sampler2D vge_normalDepthTex;` near existing VGE sampler injections
-  ☐ Keep it safe for non-chunk shaders:
+  ✔ Keep it safe for non-chunk shaders:
     - Only inject into relevant terrain chunk shader programs
 
   Phase 5 - Runtime Binding Hook (Mirror Existing Pattern):

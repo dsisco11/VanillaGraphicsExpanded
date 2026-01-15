@@ -28,6 +28,8 @@ layout(location = 5) out vec4 vge_outMaterial;  // Roughness, Metallic, Emissive
     private const string ChunkMaterialParamsSamplerDeclaration = @"
 // VGE: Per-texel material params for block atlas (RGB16F: roughness, metallic, emissive)
 uniform sampler2D vge_materialParamsTex;
+// VGE: Per-texel normal+depth for block atlas (RGBA16F: normalXYZ_packed01, depth01)
+uniform sampler2D vge_normalDepthTex;
 ";
 
     // Code to inject before the final closing brace of main() to write G-buffer data
@@ -90,6 +92,7 @@ uniform sampler2D vge_materialParamsTex;
                         tree.CreateEditor()
                             .InsertBefore(mainQuery, "@import \"./includes/vsfunctions.glsl\"\n")
                             .InsertBefore(mainQuery, "@import \"./includes/vge_material.glsl\"\n")
+                            .InsertBefore(mainQuery, "@import \"./includes/vge_normaldepth.glsl\"\n")
                             .Commit();
 
                         log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");
