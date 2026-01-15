@@ -19,6 +19,7 @@ namespace VanillaGraphicsExpanded.HarmonyPatches;
 /// </summary>
 internal static class TerrainMaterialParamsTextureBindingHook
 {
+    private const int NormalDepthTextureUnit = 14;
     private const int MaterialTextureUnit = 15;
 
     /// <summary>
@@ -41,9 +42,19 @@ internal static class TerrainMaterialParamsTextureBindingHook
     private const string MaterialSamplerUniform = "vge_materialParamsTex";
 
     /// <summary>
+    /// Uniform name for the normal+depth sampler we inject into patched chunk shaders.
+    /// </summary>
+    private const string NormalDepthSamplerUniform = "vge_normalDepthTex";
+
+    /// <summary>
     /// Cached uniform location per shader program id (-1 means "not present" or not queried yet).
     /// </summary>
     private static readonly Dictionary<int, int> uniformLocationCache = new();
+
+    /// <summary>
+    /// Cached uniform location per shader program id for the normal+depth sampler.
+    /// </summary>
+    private static readonly Dictionary<int, int> normalDepthUniformLocationCache = new();
 
     /// <summary>
     /// Called from VgeModSystem to apply patches manually via Harmony.
@@ -109,29 +120,47 @@ internal static class TerrainMaterialParamsTextureBindingHook
             return;
         }
 
-        if (!PbrMaterialAtlasTextures.Instance.TryGetMaterialParamsTextureId(value, out int materialTexId))
+        bool hasMaterialParams = PbrMaterialAtlasTextures.Instance.TryGetMaterialParamsTextureId(value, out int materialTexId);
+        bool hasNormalDepth = PbrMaterialAtlasTextures.Instance.TryGetNormalDepthTextureId(value, out int normalDepthTexId);
+
+        if (!hasMaterialParams && !hasNormalDepth)
         {
             return;
         }
 
         try
         {
-            if (!uniformLocationCache.TryGetValue(programId, out int uniformLoc))
+            if (hasMaterialParams)
             {
-                uniformLoc = GL.GetUniformLocation(programId, MaterialSamplerUniform);
-                uniformLocationCache[programId] = uniformLoc;
+                if (!uniformLocationCache.TryGetValue(programId, out int materialUniformLoc))
+                {
+                    materialUniformLoc = GL.GetUniformLocation(programId, MaterialSamplerUniform);
+                    uniformLocationCache[programId] = materialUniformLoc;
+                }
+
+                if (materialUniformLoc >= 0)
+                {
+                    GL.ActiveTexture(TextureUnit.Texture0 + MaterialTextureUnit);
+                    GL.BindTexture(TextureTarget.Texture2D, materialTexId);
+                    GL.Uniform1(materialUniformLoc, MaterialTextureUnit);
+                }
             }
 
-            if (uniformLoc < 0)
+            if (hasNormalDepth)
             {
-                // Shader doesn't have the uniform (not patched or stripped).
-                return;
-            }
+                if (!normalDepthUniformLocationCache.TryGetValue(programId, out int normalDepthUniformLoc))
+                {
+                    normalDepthUniformLoc = GL.GetUniformLocation(programId, NormalDepthSamplerUniform);
+                    normalDepthUniformLocationCache[programId] = normalDepthUniformLoc;
+                }
 
-            // Bind our material params texture to the dedicated unit and set the sampler uniform.
-            GL.ActiveTexture(TextureUnit.Texture0 + MaterialTextureUnit);
-            GL.BindTexture(TextureTarget.Texture2D, materialTexId);
-            GL.Uniform1(uniformLoc, MaterialTextureUnit);
+                if (normalDepthUniformLoc >= 0)
+                {
+                    GL.ActiveTexture(TextureUnit.Texture0 + NormalDepthTextureUnit);
+                    GL.BindTexture(TextureTarget.Texture2D, normalDepthTexId);
+                    GL.Uniform1(normalDepthUniformLoc, NormalDepthTextureUnit);
+                }
+            }
         }
         catch
         {
@@ -145,6 +174,7 @@ internal static class TerrainMaterialParamsTextureBindingHook
     public static void ClearUniformCache()
     {
         uniformLocationCache.Clear();
+        normalDepthUniformLocationCache.Clear();
     }
 }
 

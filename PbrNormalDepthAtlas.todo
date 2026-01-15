@@ -70,12 +70,12 @@ PBR Normal+Depth Sidecar Atlas (GPU Bake Plumbing):
 
   Phase 5 - Runtime Binding Hook (Mirror Existing Pattern):
   Exit artifacts: When the engine binds a base terrain atlas page, the matching normal+depth sidecar page is bound too.
-  ☐ Add a new binding hook (parallel to TerrainMaterialParamsTextureBindingHook):
-    - Patch the same shader setter(s) the params hook uses (TerrainTex2D, TerrainTex2DLinear, etc.)
+  ✔ Extend the existing binding hook (TerrainMaterialParamsTextureBindingHook):
+    - Patch the same shader setter(s) (TerrainTex2D, TerrainTex2DLinear, etc.)
     - Look up sidecar textures by base page GL id
-  ☐ Bind to the reserved texture unit and set the `vge_normalDepthTex` uniform
-  ☐ Cache uniform locations per shader program id, clear cache on ReloadShader
-  ☐ Validate no-op behavior:
+  ✔ Bind to the reserved texture unit and set the `vge_normalDepthTex` uniform
+  ✔ Cache uniform locations per shader program id, clear cache on ReloadShader
+  ✔ Validate no-op behavior:
     - Uniform missing -> do nothing
     - Sidecar missing -> do nothing
 
