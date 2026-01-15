@@ -27,18 +27,22 @@ Shader Define Migration (SetDefine) Work:
 
   Phase 1 - Define Naming Conventions + Global Include:
   Exit artifacts: A stable naming scheme and a shared include for defaults/conventions.
-  ☐ Decide naming conventions:
+  ☑ Decide naming conventions:
     - Prefer `VGE_*` prefix for new global defines
     - Decide whether to keep or rename existing `LUMON_EMISSIVE_BOOST` (avoid churn unless needed)
-  ☐ Add a global defines include (new):
+  ☑ Add a global defines include (new):
     - `assets/vanillagraphicsexpanded/shaders/includes/vge_global_defines.glsl`
     - Contains: shared `#ifndef/#define` defaults for cross-pass toggles
-  ☐ Decide which defines are “global” vs feature-specific:
+  ☑ Decide which defines are “global” vs feature-specific:
     - Global: used by multiple shaders (LumOn + PBR composite)
     - Feature-specific: used by exactly one stage or one shader family
-  ☐ Document usage pattern:
+  ☑ Document usage pattern:
     - How to write shader code: `#if VGE_FOO` / `#ifdef VGE_FOO`
     - How to wire in C#: property setter calls `setDefine("VGE_FOO", "1")`
+
+  Phase 1 outputs:
+    - `VanillaGraphicsExpanded/VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/vge_global_defines.glsl`
+    - `docs/ShaderDefines.SetDefineMigration.Phase1.md`
 
   Phase 2 - Test Infrastructure: Define Injection Support:
   Exit artifacts: GPU tests can compile shader variants with defines without relying on uniforms.
