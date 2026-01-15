@@ -2,7 +2,8 @@
 #define VGE_NORMALDEPTH_GLSL
 
 // Requires: `uniform sampler2D vge_normalDepthTex;`
-// Provisional encoding (plumbing stage): RGBA16F = (normalXYZ_packed01, depth01)
+// Encoding: RGBA16F = (normalXYZ_packed01, signedHeight)
+// Height is generated from albedo during loading (tileable per texture rect).
 
 vec4 ReadNormalDepth(vec2 uv)
 {

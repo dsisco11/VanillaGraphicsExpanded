@@ -114,3 +114,9 @@ The GPU test infrastructure includes:
 - **HeadlessGLFixture** - Creates a hidden GLFW window with OpenGL 4.3 context; throws `SkipException` if context creation fails
 - **ShaderTestHelper** - Compiles shaders with `@import` directive resolution and extracts compilation errors
 - **RenderTestBase** - Abstract base class for render tests with FBO setup and pixel readback utilities
+
+## Normal/Height Sidecar Bake
+
+VGE can bake a tileable height field (and derived normals) from albedo into a sidecar atlas during loading.
+
+See [docs/NormalDepthBake.md](docs/NormalDepthBake.md) for details and tuning.

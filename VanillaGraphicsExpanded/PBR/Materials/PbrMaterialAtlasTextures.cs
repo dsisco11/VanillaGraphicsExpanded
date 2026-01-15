@@ -123,12 +123,15 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                     TextureFilterMode.Nearest,
                     debugName: $"vge_normalDepth_atlas_{atlasTexId}");
 
-                // Phase 3 plumbing: bake placeholder content on the GPU.
-                PbrNormalDepthAtlasGpuBaker.Bake(
+                // Bake per-texture tileable height (and normals) into the atlas sidecar.
+                // Runs during loading / atlas build time.
+                PbrNormalDepthAtlasGpuBaker.BakePerTexture(
+                    capi,
                     baseAlbedoAtlasPageTexId: atlasTexId,
                     destNormalDepthTexId: normalDepthTex.TextureId,
-                    width: width,
-                    height: height);
+                    atlasWidth: width,
+                    atlasHeight: height,
+                    texturePositions: texturePositions.Values);
             }
 
             pageTexturesByAtlasTexId[atlasTexId] = new PbrMaterialAtlasPageTextures(materialParamsTex, normalDepthTex);

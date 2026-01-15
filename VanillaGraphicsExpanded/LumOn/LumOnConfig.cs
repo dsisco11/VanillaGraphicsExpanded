@@ -23,6 +23,83 @@ public class LumOnConfig
         EvaluateProjectedSH = 1
     }
 
+    [JsonObject(MemberSerialization.OptIn)]
+    public sealed class NormalDepthBakeConfig
+    {
+        // ───────────────────────────────────────────────────────────
+        // Band-pass detail extraction
+        // ───────────────────────────────────────────────────────────
+
+        [JsonProperty]
+        public float SigmaBig { get; set; } = 16f;
+
+        [JsonProperty]
+        public float Sigma1 { get; set; } = 0.75f;
+
+        [JsonProperty]
+        public float Sigma2 { get; set; } = 1.75f;
+
+        [JsonProperty]
+        public float Sigma3 { get; set; } = 3.5f;
+
+        [JsonProperty]
+        public float Sigma4 { get; set; } = 7.0f;
+
+        [JsonProperty]
+        public float W1 { get; set; } = 1.00f;
+
+        [JsonProperty]
+        public float W2 { get; set; } = 0.65f;
+
+        [JsonProperty]
+        public float W3 { get; set; } = 0.25f;
+
+        // ───────────────────────────────────────────────────────────
+        // Desired slope field
+        // ───────────────────────────────────────────────────────────
+
+        [JsonProperty]
+        public float Gain { get; set; } = 1.25f;
+
+        [JsonProperty]
+        public float MaxSlope { get; set; } = 1.0f;
+
+        [JsonProperty]
+        public float EdgeT0 { get; set; } = 0.01f;
+
+        [JsonProperty]
+        public float EdgeT1 { get; set; } = 0.05f;
+
+        // ───────────────────────────────────────────────────────────
+        // Poisson solve (multigrid)
+        // ───────────────────────────────────────────────────────────
+
+        [JsonProperty]
+        public int MultigridVCycles { get; set; } = 5;
+
+        [JsonProperty]
+        public int MultigridPreSmooth { get; set; } = 6;
+
+        [JsonProperty]
+        public int MultigridPostSmooth { get; set; } = 6;
+
+        [JsonProperty]
+        public int MultigridCoarsestIters { get; set; } = 40;
+
+        // ───────────────────────────────────────────────────────────
+        // Post
+        // ───────────────────────────────────────────────────────────
+
+        [JsonProperty]
+        public float HeightStrength { get; set; } = 1.0f;
+
+        [JsonProperty]
+        public float Gamma { get; set; } = 1.0f;
+
+        [JsonProperty]
+        public float NormalStrength { get; set; } = 2.0f;
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // Feature Toggle
     // ═══════════════════════════════════════════════════════════════
@@ -39,11 +116,18 @@ public class LumOnConfig
 
     /// <summary>
     /// Enables building and binding the VGE normal+depth sidecar atlas.
-    /// This is the plumbing stage; pixels are currently placeholder output until the bake algorithm is implemented.
+    /// Pixels are generated during loading from tileable albedo textures (per texture rect).
     /// Requires restart / re-entering the world to fully apply.
     /// </summary>
     [JsonProperty]
     public bool EnableNormalDepthAtlas { get; set; } = false;
+
+    /// <summary>
+    /// Parameters for generating a tileable height/normal field from albedo.
+    /// Applied during loading when <see cref="EnableNormalDepthAtlas"/> is enabled.
+    /// </summary>
+    [JsonProperty]
+    public NormalDepthBakeConfig NormalDepthBake { get; set; } = new();
 
     /// <summary>
     /// Enables additional debug logging for normal+depth atlas build/bind plumbing.
