@@ -8,23 +8,24 @@ PBR Material Noise Pre-Bake (Squirrel3, SIMD):
   - Squirrel3 is implemented as a reusable class.
 
   Notes / Constraints:
-  - Current atlas is RGB16F and stores at least: R=roughness, G=metalness.
+  - Current atlas is RGB16F and stores: R=roughness, G=metalness, B=emissive.
   - Material noise config currently includes more fields (e.g., normal-related noise), but they do not map to the params atlas used in this scope.
     - Treat those as follow-up work unless/until atlas format expands (RGBA16F) or a second atlas is introduced.
 
   Phase 1 - Spec + Integration Points:
   Exit artifacts: A clear mapping from NoiseParams -> atlas channels exists; seed scheme chosen; integration site identified.
-  ☐ Confirm channel mapping for noise:
+  ✔ Confirm channel mapping for noise:
     - RoughnessNoise -> atlas R
     - MetalnessNoise -> atlas G
-  ☐ Confirm what to do with noise fields not representable in RGB params atlas:
-    - NormalStrengthNoise (not stored here) => ignore for now OR plan 2nd atlas / normal atlas bake
-  ☐ Choose deterministic seeding scheme (stable across atlas repacks):
-    - Seed = Hash(textureKey) or Hash(textureKey + domain + variant)
+    - EmissiveNoise -> atlas B
+  ✔ Confirm what to do with noise fields not representable in this atlas:
+    - NormalStrengthNoise (not stored in the params atlas) => ignore for now; track under Phase 7 (normal pipeline)
+  ✔ Choose deterministic seeding scheme (stable across atlas repacks):
+    - Seed = stable 32-bit hash of texture key (AssetLocation domain:path, normalized)
     - Coordinates = localRectX/localRectY (not absolute atlas coords)
-    - Optional: separate channel salt to decorrelate R/G
-  ☐ Identify implementation hook in CPU atlas builder:
-    - Apply noise while filling each texture-rect in the atlas (not as a post-pass over the whole atlas).
+    - Channel salt: three fixed uint constants to decorrelate roughness vs metallic vs emissive
+  ✔ Identify implementation hook in CPU atlas builder:
+    - Apply noise while filling each mapped texture-rect in PbrMaterialParamsPixelBuilder.BuildRgb16fPixelBuffers
 
   Phase 2 - Squirrel3 Port (Scalar):
   Exit artifacts: Reusable C# Squirrel3 implementation matches GLSL outputs bit-for-bit for scalar inputs.
@@ -64,7 +65,7 @@ PBR Material Noise Pre-Bake (Squirrel3, SIMD):
     - Vector256 hash equals scalar lane-by-lane for multiple test vectors
 
   Phase 5 - Apply Noise While Baking Atlas (Scalar + SIMD):
-  Exit artifacts: The atlas bake writes noisy roughness/metalness in RGB16F; output is deterministic.
+  Exit artifacts: The atlas bake writes noisy roughness/metalness/emissive in RGB16F; output is deterministic.
   ☐ Extend PBR material params pixel builder to apply noise per-texel:
     - Base value comes from mapped material params
     - Noise applied per-channel using amplitude from NoiseParams
