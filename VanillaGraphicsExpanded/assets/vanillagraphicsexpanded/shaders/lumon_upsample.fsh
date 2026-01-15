@@ -16,6 +16,9 @@ out vec4 outColor;
 // Import common utilities
 @import "./includes/lumon_common.glsl"
 
+// Import global defines (feature toggles with defaults)
+@import "./includes/vge_global_defines.glsl"
+
 // Half-resolution indirect diffuse
 uniform sampler2D indirectHalf;
 
@@ -36,14 +39,12 @@ uniform float zNear;
 uniform float zFar;
 
 // Quality parameters (from spec Section 3.1)
-uniform int denoiseEnabled;
 uniform float upsampleDepthSigma;   // e.g., 0.1
 uniform float upsampleNormalSigma;  // e.g., 16.0
 uniform float upsampleSpatialSigma; // e.g., 1.0
 
 // Hole filling (Phase 14 - bounded fallback)
 // Uses the alpha channel of indirectHalf as a confidence/quality metric.
-uniform int holeFillEnabled;
 uniform int holeFillRadius;           // half-res pixel radius (e.g., 2)
 uniform float holeFillMinConfidence;  // minimum neighbor confidence to use (e.g., 0.05)
 
@@ -290,22 +291,29 @@ void main(void)
     float centerConf = texelFetch(indirectHalf, centerHalf, 0).a;
     
     vec3 result;
-    
-    if (holeFillEnabled == 1 && centerConf < holeFillMinConfidence) {
+
+#if VGE_LUMON_UPSAMPLE_HOLEFILL
+    if (centerConf < holeFillMinConfidence) {
         // Controlled fallback: only affect low-confidence pixels.
         result = holeFillResolve(fullResUV, centerDepth, centerNormal);
     }
-    else if (denoiseEnabled == 1) {
+    else
+#endif
+#if VGE_LUMON_UPSAMPLE_DENOISE
+    {
         // Bilateral upsample from half-res with edge-aware filtering
         result = bilateralUpsample(fullResUV, centerDepth, centerNormal);
         
         // Optional: Apply additional spatial denoise for very noisy areas
         // Uncomment if needed for specific scenarios
         result = spatialDenoise(fullResUV, result, centerDepth, centerNormal);
-    } else {
+    }
+#else
+    {
         // Simple bilinear sample (faster but less edge-aware)
         result = texture(indirectHalf, fullResUV).rgb;
     }
+#endif
     
     outColor = vec4(result, 1.0);
 }

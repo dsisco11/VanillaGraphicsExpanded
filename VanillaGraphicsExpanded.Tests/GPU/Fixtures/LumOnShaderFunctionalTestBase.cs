@@ -199,6 +199,21 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
         return result.ProgramId;
     }
 
+    /// <summary>
+    /// Compiles and links a shader program with custom defines injected.
+    /// </summary>
+    /// <param name="vertexShader">Vertex shader filename (in shaders directory).</param>
+    /// <param name="fragmentShader">Fragment shader filename (in shaders directory).</param>
+    /// <param name="defines">Dictionary of define name to value (null value removes the define).</param>
+    /// <returns>The linked program ID.</returns>
+    /// <exception cref="Xunit.Sdk.XunitException">If compilation fails.</exception>
+    protected int CompileShaderWithDefines(string vertexShader, string fragmentShader, Dictionary<string, string?> defines)
+    {
+        var result = ShaderHelper.CompileAndLink(vertexShader, fragmentShader, defines);
+        Assert.True(result.IsSuccess, $"Shader compilation failed: {result.ErrorMessage}");
+        return result.ProgramId;
+    }
+
     #endregion
 
     #region Texture Creation Helpers

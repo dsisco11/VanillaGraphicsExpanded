@@ -22,3 +22,12 @@
 #ifndef VGE_LUMON_ENABLE_BENT_NORMAL
   #define VGE_LUMON_ENABLE_BENT_NORMAL 1
 #endif
+
+// Phase 4: Upsample toggles
+#ifndef VGE_LUMON_UPSAMPLE_DENOISE
+  #define VGE_LUMON_UPSAMPLE_DENOISE 1
+#endif
+
+#ifndef VGE_LUMON_UPSAMPLE_HOLEFILL
+  #define VGE_LUMON_UPSAMPLE_HOLEFILL 1
+#endif

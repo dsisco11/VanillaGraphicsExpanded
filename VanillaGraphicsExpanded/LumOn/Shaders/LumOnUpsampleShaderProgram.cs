@@ -89,12 +89,13 @@ public class LumOnUpsampleShaderProgram : VgeShaderProgram
 
     #endregion
 
-    #region Quality Uniforms
+    #region Quality Uniforms / Defines
 
     /// <summary>
-    /// Whether edge-aware denoising is enabled (0 or 1).
+    /// Whether edge-aware denoising is enabled.
+    /// Compile-time define for better performance.
     /// </summary>
-    public int DenoiseEnabled { set => Uniform("denoiseEnabled", value); }
+    public bool DenoiseEnabled { set => SetDefine("VGE_LUMON_UPSAMPLE_DENOISE", value ? "1" : "0"); }
 
     /// <summary>
     /// Depth similarity sigma for bilateral upsample.
@@ -119,15 +120,17 @@ public class LumOnUpsampleShaderProgram : VgeShaderProgram
 
     #endregion
 
-    #region Hole Fill Uniforms
+    #region Hole Fill Uniforms / Defines
 
     /// <summary>
-    /// Whether low-confidence hole filling is enabled (0 or 1).
+    /// Whether low-confidence hole filling is enabled.
+    /// Compile-time define for better performance.
     /// </summary>
-    public int HoleFillEnabled { set => Uniform("holeFillEnabled", value); }
+    public bool HoleFillEnabled { set => SetDefine("VGE_LUMON_UPSAMPLE_HOLEFILL", value ? "1" : "0"); }
 
     /// <summary>
     /// Neighborhood radius in half-res pixels used for hole filling.
+    /// Kept as uniform since it controls loop iteration bounds at runtime.
     /// </summary>
     public int HoleFillRadius { set => Uniform("holeFillRadius", value); }
 

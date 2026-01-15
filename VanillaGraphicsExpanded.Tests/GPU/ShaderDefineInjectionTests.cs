@@ -178,4 +178,32 @@ public class ShaderDefineInjectionTests
         var result = helper.CompileAndLink("pbr_composite.vsh", "pbr_composite.fsh", defines);
         Assert.True(result.IsSuccess, result.ErrorMessage);
     }
+
+    [Theory]
+    [InlineData("0", "0")]
+    [InlineData("0", "1")]
+    [InlineData("1", "0")]
+    [InlineData("1", "1")]
+    public void LumOnUpsample_Compiles_WithToggleVariants(
+        string denoiseEnabled, string holeFillEnabled)
+    {
+        _fixture.EnsureContextValid();
+
+        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
+        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
+
+        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+
+        using var helper = new ShaderTestHelper(shaderPath, includePath);
+
+        var defines = new Dictionary<string, string?>
+        {
+            ["VGE_LUMON_UPSAMPLE_DENOISE"] = denoiseEnabled,
+            ["VGE_LUMON_UPSAMPLE_HOLEFILL"] = holeFillEnabled,
+        };
+
+        var result = helper.CompileAndLink("lumon_upsample.vsh", "lumon_upsample.fsh", defines);
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+    }
 }

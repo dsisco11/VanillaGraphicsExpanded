@@ -49,14 +49,14 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Sets up common uniforms for the upsample shader.
+    /// Note: denoiseEnabled and holeFillEnabled are now compile-time defines,
+    /// so they are not set as uniforms here. Use CompileShaderWithDefines() instead.
     /// </summary>
     private void SetupUpsampleUniforms(
         int programId,
-        int denoiseEnabled = 1,
         float depthSigma = DefaultDepthSigma,
         float normalSigma = DefaultNormalSigma,
         float spatialSigma = DefaultSpatialSigma,
-        int holeFillEnabled = 0,
         int holeFillRadius = 2,
         float holeFillMinConfidence = 0.05f)
     {
@@ -74,21 +74,17 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         GL.Uniform1(zNearLoc, ZNear);
         GL.Uniform1(zFarLoc, ZFar);
 
-        // Quality parameters
-        var denoiseLoc = GL.GetUniformLocation(programId, "denoiseEnabled");
+        // Quality parameters (denoiseEnabled is now a compile-time define)
         var depthSigmaLoc = GL.GetUniformLocation(programId, "upsampleDepthSigma");
         var normalSigmaLoc = GL.GetUniformLocation(programId, "upsampleNormalSigma");
         var spatialSigmaLoc = GL.GetUniformLocation(programId, "upsampleSpatialSigma");
-        GL.Uniform1(denoiseLoc, denoiseEnabled);
         GL.Uniform1(depthSigmaLoc, depthSigma);
         GL.Uniform1(normalSigmaLoc, normalSigma);
         GL.Uniform1(spatialSigmaLoc, spatialSigma);
 
-        // Hole fill parameters
-        var holeFillEnabledLoc = GL.GetUniformLocation(programId, "holeFillEnabled");
+        // Hole fill parameters (holeFillEnabled is now a compile-time define)
         var holeFillRadiusLoc = GL.GetUniformLocation(programId, "holeFillRadius");
         var holeFillMinConfLoc = GL.GetUniformLocation(programId, "holeFillMinConfidence");
-        GL.Uniform1(holeFillEnabledLoc, holeFillEnabled);
         GL.Uniform1(holeFillRadiusLoc, holeFillRadius);
         GL.Uniform1(holeFillMinConfLoc, holeFillMinConfidence);
 
@@ -250,7 +246,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileUpsampleShader();
-        SetupUpsampleUniforms(programId, denoiseEnabled: 1);
+        SetupUpsampleUniforms(programId);
 
         // Bind inputs
         halfResTex.Bind(0);
@@ -294,8 +290,8 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
     /// - Depth/normals uniform so edge-aware weights don't block fill
     ///
     /// Expected:
-    /// - With holeFillEnabled=0: pixels in the bottom-right quadrant stay ~black
-    /// - With holeFillEnabled=1: pixels in the bottom-right quadrant become non-black
+    /// - With VGE_LUMON_UPSAMPLE_HOLEFILL=0: pixels in the bottom-right quadrant stay ~black
+    /// - With VGE_LUMON_UPSAMPLE_HOLEFILL=1: pixels in the bottom-right quadrant become non-black
     /// - A pixel in the top-left quadrant remains the same in both runs
     /// </summary>
     [Fact]
@@ -321,13 +317,20 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
 
-        var programId = CompileUpsampleShader();
+        // Compile two shader variants: one with hole fill disabled, one with it enabled
+        var programIdNoFill = CompileShaderWithDefines(
+            "lumon_upsample.vsh",
+            "lumon_upsample.fsh",
+            new Dictionary<string, string?> { ["VGE_LUMON_UPSAMPLE_HOLEFILL"] = "0" });
 
-        float[] Render(int holeEnabled)
+        var programIdFill = CompileShaderWithDefines(
+            "lumon_upsample.vsh",
+            "lumon_upsample.fsh",
+            new Dictionary<string, string?> { ["VGE_LUMON_UPSAMPLE_HOLEFILL"] = "1" });
+
+        float[] Render(int programId)
         {
             SetupUpsampleUniforms(programId,
-                denoiseEnabled: 1,
-                holeFillEnabled: holeEnabled,
                 holeFillRadius: 2,
                 holeFillMinConfidence: 0.05f);
 
@@ -340,8 +343,8 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             return outputGBuffer[0].ReadPixels();
         }
 
-        var outNoFill = Render(holeEnabled: 0);
-        var outFill = Render(holeEnabled: 1);
+        var outNoFill = Render(programIdNoFill);
+        var outFill = Render(programIdFill);
 
         // Pick a high-confidence region pixel (top-left quadrant)
         var topLeftNoFill = ReadPixelFullRes(outNoFill, x: 0, y: 0);
@@ -362,7 +365,8 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(bottomRightFill.r > 1e-3f || bottomRightFill.g > 1e-3f || bottomRightFill.b > 1e-3f,
             "Expected hole-fill output to become non-black in low-confidence region.");
 
-        GL.DeleteProgram(programId);
+        GL.DeleteProgram(programIdNoFill);
+        GL.DeleteProgram(programIdFill);
     }
 
     #endregion
@@ -408,7 +412,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileUpsampleShader();
-        SetupUpsampleUniforms(programId, denoiseEnabled: 1);
+        SetupUpsampleUniforms(programId);
 
         halfResTex.Bind(0);
         depthTex.Bind(1);
@@ -509,7 +513,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileUpsampleShader();
         // Use standard sigma values for edge-aware filtering
-        SetupUpsampleUniforms(programId, denoiseEnabled: 1, depthSigma: 0.1f);
+        SetupUpsampleUniforms(programId, depthSigma: 0.1f);
 
         halfResTex.Bind(0);
         depthTex.Bind(1);
@@ -543,16 +547,16 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
     #region Test: DenoiseDisabled_RawBilinear
 
     /// <summary>
-    /// Tests that with denoiseEnabled=0, simple bilinear sampling is used.
+    /// Tests that with VGE_LUMON_UPSAMPLE_DENOISE=0, simple bilinear sampling is used.
     /// 
     /// DESIRED BEHAVIOR:
-    /// - When denoiseEnabled=0, the shader should use simple texture() sampling
+    /// - When denoise is disabled, the shader should use simple texture() sampling
     /// - This is faster but doesn't preserve edges
     /// - Result should still be a valid upsample, just without edge-awareness
     /// 
     /// Setup:
     /// - Same as UniformInput test
-    /// - denoiseEnabled = 0
+    /// - VGE_LUMON_UPSAMPLE_DENOISE = 0 (compile-time)
     /// 
     /// Expected:
     /// - Output should still match input color (uniform case)
@@ -578,9 +582,12 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
-        var programId = CompileUpsampleShader();
-        // DISABLE edge-aware filtering
-        SetupUpsampleUniforms(programId, denoiseEnabled: 0);
+        // Compile with denoising DISABLED (compile-time define)
+        var programId = CompileShaderWithDefines(
+            "lumon_upsample.vsh",
+            "lumon_upsample.fsh",
+            new Dictionary<string, string?> { ["VGE_LUMON_UPSAMPLE_DENOISE"] = "0" });
+        SetupUpsampleUniforms(programId);
 
         halfResTex.Bind(0);
         depthTex.Bind(1);
@@ -648,7 +655,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileUpsampleShader();
-        SetupUpsampleUniforms(programId, denoiseEnabled: 1);
+        SetupUpsampleUniforms(programId);
 
         halfResTex.Bind(0);
         depthTex.Bind(1);
@@ -715,7 +722,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileUpsampleShader();
-            SetupUpsampleUniforms(programId, denoiseEnabled: 1);
+            SetupUpsampleUniforms(programId);
 
             halfResTex.Bind(0);
             depthTex.Bind(1);
@@ -729,7 +736,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             GL.DeleteProgram(programId);
         }
 
-        // Without denoising (simple bilinear)
+        // Without denoising (simple bilinear) - compile with DENOISE=0
         {
             using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
             using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
@@ -739,8 +746,11 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
                 ScreenWidth, ScreenHeight,
                 PixelInternalFormat.Rgba16f);
 
-            var programId = CompileUpsampleShader();
-            SetupUpsampleUniforms(programId, denoiseEnabled: 0);
+            var programId = CompileShaderWithDefines(
+                "lumon_upsample.vsh",
+                "lumon_upsample.fsh",
+                new Dictionary<string, string?> { ["VGE_LUMON_UPSAMPLE_DENOISE"] = "0" });
+            SetupUpsampleUniforms(programId);
 
             halfResTex.Bind(0);
             depthTex.Bind(1);
@@ -798,7 +808,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileUpsampleShader();
-            SetupUpsampleUniforms(programId, denoiseEnabled: 1, spatialSigma: 0.5f);
+            SetupUpsampleUniforms(programId, spatialSigma: 0.5f);
 
             halfResTex.Bind(0);
             depthTex.Bind(1);
@@ -833,7 +843,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileUpsampleShader();
-            SetupUpsampleUniforms(programId, denoiseEnabled: 1, spatialSigma: 4.0f);
+            SetupUpsampleUniforms(programId, spatialSigma: 4.0f);
 
             halfResTex.Bind(0);
             depthTex.Bind(1);
@@ -908,7 +918,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileUpsampleShader();
-        SetupUpsampleUniforms(programId, denoiseEnabled: 1, depthSigma: 0.05f);  // Strict depth filtering
+        SetupUpsampleUniforms(programId, depthSigma: 0.05f);  // Strict depth filtering
 
         halfResTex.Bind(0);
         depthTex.Bind(1);

@@ -1161,7 +1161,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.HalfResSize = new Vec2f(bufferManager.HalfResWidth, bufferManager.HalfResHeight);
         shader.ZNear = capi.Render.ShaderUniforms.ZNear;
         shader.ZFar = capi.Render.ShaderUniforms.ZFar;
-        shader.DenoiseEnabled = config.DenoiseEnabled ? 1 : 0;
+        shader.DenoiseEnabled = config.DenoiseEnabled;
 
         // Matrices for plane-weighted edge-aware filtering (UE-style)
         shader.InvProjectionMatrix = invProjectionMatrix;
@@ -1173,7 +1173,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.UpsampleSpatialSigma = config.UpsampleSpatialSigma;
 
         // Phase 14: bounded hole filling for low-confidence indirect values
-        shader.HoleFillEnabled = config.UpsampleHoleFillEnabled ? 1 : 0;
+        shader.HoleFillEnabled = config.UpsampleHoleFillEnabled;
         shader.HoleFillRadius = Math.Max(0, config.UpsampleHoleFillRadius);
         shader.HoleFillMinConfidence = Math.Clamp(config.UpsampleHoleFillMinConfidence, 0f, 1f);
 

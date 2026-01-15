@@ -88,12 +88,24 @@ Shader Define Migration (SetDefine) Work:
 
   Phase 4 - Convert LumOn Upsample Toggles:
   Exit artifacts: Upsample denoise/holefill switches are defines, and tests cover both paths via compiled variants.
-  ☐ Convert `denoiseEnabled` to `VGE_LUMON_UPSAMPLE_DENOISE`
-  ☐ Convert `holeFillEnabled` to `VGE_LUMON_UPSAMPLE_HOLEFILL`
-  ☐ Decide whether `holeFillRadius` becomes a define:
-    - Only if loop bounds are refactored to depend on it (otherwise keep uniform)
-  ☐ Update `LumOnUpsampleFunctionalTests`:
+  ☑ Convert `denoiseEnabled` to `VGE_LUMON_UPSAMPLE_DENOISE`
+  ☑ Convert `holeFillEnabled` to `VGE_LUMON_UPSAMPLE_HOLEFILL`
+  ☑ Decide whether `holeFillRadius` becomes a define:
+    - Decision: Keep as uniform. The loop uses hardcoded bounds (-8..8) with early-continue,
+      so the loop structure is fixed. Changing bounds would require refactoring the loop.
+  ☑ Update `LumOnUpsampleFunctionalTests`:
     - Build variants and validate behavior
+    - Updated HoleFill_OnlyAffectsLowConfidenceAreas to compile two shader variants
+    - Updated DenoiseDisabled_RawBilinear to use VGE_LUMON_UPSAMPLE_DENOISE=0 define
+
+  Phase 4 outputs:
+    - `assets/vanillagraphicsexpanded/shaders/lumon_upsample.fsh` (import vge_global_defines.glsl, #if branches)
+    - `assets/vanillagraphicsexpanded/shaders/includes/vge_global_defines.glsl` (added UPSAMPLE defines)
+    - `LumOnUpsampleShaderProgram.cs` (SetDefine wiring for bool properties)
+    - `LumOnRenderer.cs` (bool-typed callers)
+    - `LumOnUpsampleFunctionalTests.cs` (updated to use CompileShaderWithDefines)
+    - `LumOnShaderFunctionalTestBase.cs` (added CompileShaderWithDefines helper)
+    - `ShaderDefineInjectionTests.cs` (added LumOnUpsample variant compilation tests)
 
   Phase 5 - Convert Temporal/Reprojection Mode Toggles:
   Exit artifacts: Temporal velocity reprojection selection is a define; tests validate both modes.
