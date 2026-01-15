@@ -29,39 +29,39 @@ PBR Material Noise Pre-Bake (Squirrel3, SIMD):
 
   Phase 2 - Squirrel3 Port (Scalar):
   Exit artifacts: Reusable C# Squirrel3 implementation matches GLSL outputs bit-for-bit for scalar inputs.
-  ☐ Add reusable class: Squirrel3Noise
+  ✔ Add reusable class: Squirrel3Noise
     - HashU(uint v)                (matches Squirrel3HashU)
     - HashU(uint v1, uint v2)      (matches Squirrel3HashU(v1, v2))
     - HashU(uint v1, uint v2, uint v3) (matches Squirrel3HashU(v1, v2, v3))
-  ☐ Match GLSL constants exactly:
+  ✔ Match GLSL constants exactly:
     - BIT_NOISE1/2/3 and PRIMEU1/2 (+ PRIMEU3 declared in GLSL)
-  ☐ Provide scalar float helpers:
+  ✔ Provide scalar float helpers:
     - Noise01(uint|...) => float(hash) / 4294967295.0f (preserve GLSL behavior)
     - Optional: NoiseSigned1(...) => (Noise01 * 2 - 1)
-  ☐ Add basic scalar unit tests:
+  ✔ Add basic scalar unit tests:
     - Known input vectors produce expected uint outputs
     - Noise01 uses correct normalization edge cases (0 and 0xFFFFFFFF)
 
   Phase 3 - SIMD Implementation (Vector128):
   Exit artifacts: Dedicated Vector128 method exists, guarded by ISA checks, and tested to match scalar.
-  ☐ Implement dedicated method(s) on Squirrel3Noise:
+  ✔ Implement dedicated method(s) on Squirrel3Noise:
     - HashU_Vector128_U32(Vector128<uint> v)
     - (optional) HashU_Vector128_U32(Vector128<uint> v1, v2) / (v1, v2, v3)
-  ☐ Use intrinsics where supported:
+  ✔ Use intrinsics where supported:
     - Prefer Sse2/Sse41 for xor/shift/add
     - Prefer Avx2 for multiply (or use per-lane fallback if needed)
-  ☐ Scalar fallback path inside the Vector128 method when unsupported
-  ☐ Unit tests:
+  ✔ Scalar fallback path inside the Vector128 method when unsupported
+  ✔ Unit tests:
     - Vector128 hash equals scalar lane-by-lane for multiple test vectors
     - Determinism across runs
 
   Phase 4 - SIMD Implementation (Vector256):
   Exit artifacts: Dedicated Vector256 method exists, guarded by ISA checks, and tested to match scalar.
-  ☐ Implement dedicated method(s) on Squirrel3Noise:
+  ✔ Implement dedicated method(s) on Squirrel3Noise:
     - HashU_Vector256_U32(Vector256<uint> v)
     - (optional) HashU_Vector256_U32(Vector256<uint> v1, v2) / (v1, v2, v3)
-  ☐ Use Avx2 intrinsics when supported; scalar fallback when unsupported
-  ☐ Unit tests:
+  ✔ Use Avx2 intrinsics when supported; scalar fallback when unsupported
+  ✔ Unit tests:
     - Vector256 hash equals scalar lane-by-lane for multiple test vectors
 
   Phase 5 - Apply Noise While Baking Atlas (Scalar + SIMD):
