@@ -90,7 +90,7 @@ PBR Normal+Depth Sidecar Atlas (GPU Bake Plumbing):
 
   Phase 7 - Tests + Validation:
   Exit artifacts: Plumbing regressions are caught (even without final bake algorithm).
-  ☐ Unit-style tests (where feasible):
+  ✔ Unit-style tests (where feasible):
     - Page key mapping is consistent (base page id -> sidecar)
     - Uniform-location cache invalidation works on reload
   ☐ Runtime sanity checks:
