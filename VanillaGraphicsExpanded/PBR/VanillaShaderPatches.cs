@@ -53,7 +53,10 @@ uniform sampler2D vge_normalDepthTex;
 
     // VGE: Write G-buffer outputs
     // Normal: world-space normal packed to [0,1] range
-    vge_outNormal = vec4(normal * 0.5 + 0.5, 1.0);
+    // Also sample the per-texel normal+depth atlas so the sampler uniform stays live.
+    // We store signed height in the otherwise-unused W channel for optional debugging.
+    vec4 vge_normalDepth = ReadNormalDepth(uv);
+    vge_outNormal = vec4(normal * 0.5 + 0.5, vge_normalDepth.w);
     
     // Material: per-texel params stored in vge_materialParamsTex (RGB16F)
     vec3 vge_params = ReadMaterialParams(uv);
