@@ -206,4 +206,28 @@ public class ShaderDefineInjectionTests
         var result = helper.CompileAndLink("lumon_upsample.vsh", "lumon_upsample.fsh", defines);
         Assert.True(result.IsSuccess, result.ErrorMessage);
     }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("1")]
+    public void LumOnTemporal_Compiles_WithVelocityReprojectionVariants(string velocityReprojection)
+    {
+        _fixture.EnsureContextValid();
+
+        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
+        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
+
+        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+
+        using var helper = new ShaderTestHelper(shaderPath, includePath);
+
+        var defines = new Dictionary<string, string?>
+        {
+            ["VGE_LUMON_TEMPORAL_USE_VELOCITY_REPROJECTION"] = velocityReprojection,
+        };
+
+        var result = helper.CompileAndLink("lumon_temporal.vsh", "lumon_temporal.fsh", defines);
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+    }
 }

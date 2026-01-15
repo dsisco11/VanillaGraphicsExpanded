@@ -55,13 +55,15 @@ uniform float temporalAlpha;           // Blend factor (0.95 typical)
 uniform float depthRejectThreshold;    // Depth discontinuity threshold
 uniform float normalRejectThreshold;   // Normal angle threshold (dot product)
 
-// Phase 14 reprojection integration
-uniform int enableReprojectionVelocity;
+// Phase 14 velocity-based reprojection parameters
 uniform float velocityRejectThreshold;
 
 // Deterministic jitter hash (already used in probe anchor)
 @import "./includes/squirrel3.glsl"
 @import "./includes/velocity_common.glsl"
+
+// Import global defines (feature toggles with defaults)
+@import "./includes/vge_global_defines.glsl"
 
 // ============================================================================
 // Helper Functions
@@ -246,7 +248,8 @@ void main(void)
 
     float motionWeight = 1.0;
 
-    if (enableReprojectionVelocity != 0) {
+#if VGE_LUMON_TEMPORAL_USE_VELOCITY_REPROJECTION
+    {
         vec2 screenUv = ComputeProbeScreenUv(probeCoord);
         vec4 velSample = texture(velocityTex, screenUv);
         vec2 velocityUv = lumonVelocityDecodeUv(velSample);
@@ -270,6 +273,7 @@ void main(void)
             }
         }
     }
+#endif
     
     // Validate history sample
     ValidationResult validation = ValidateHistory(historyUV, currentDepthLin, normalVS);

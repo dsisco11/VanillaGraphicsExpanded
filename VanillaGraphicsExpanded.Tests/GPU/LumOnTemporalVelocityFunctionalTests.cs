@@ -24,13 +24,26 @@ public class LumOnTemporalVelocityFunctionalTests : LumOnShaderFunctionalTestBas
 
     private int CompileTemporalShader() => CompileShader("lumon_temporal.vsh", "lumon_temporal.fsh");
 
+    /// <summary>
+    /// Compiles the temporal shader with velocity reprojection enabled or disabled.
+    /// </summary>
+    private int CompileTemporalShaderWithVelocity(bool enabled) =>
+        CompileShaderWithDefines(
+            "lumon_temporal.vsh",
+            "lumon_temporal.fsh",
+            new Dictionary<string, string?> { ["VGE_LUMON_TEMPORAL_USE_VELOCITY_REPROJECTION"] = enabled ? "1" : "0" });
+
     private static float PackFlags(uint flags) => BitConverter.UInt32BitsToSingle(flags);
 
+    /// <summary>
+    /// Sets up common uniforms for the temporal shader.
+    /// Note: enableReprojectionVelocity is now a compile-time define, not a uniform.
+    /// Use CompileTemporalShaderWithVelocity() to select the mode.
+    /// </summary>
     private void SetupTemporalVelocityUniforms(
         int programId,
         float temporalAlpha,
         float velocityRejectThreshold,
-        int enableReprojectionVelocity,
         float[]? prevViewProjMatrix = null,
         int frameIndex = 0,
         int anchorJitterEnabled = 0,
@@ -56,8 +69,7 @@ public class LumOnTemporalVelocityFunctionalTests : LumOnShaderFunctionalTestBas
         GL.Uniform1(GL.GetUniformLocation(programId, "depthRejectThreshold"), 0.1f);
         GL.Uniform1(GL.GetUniformLocation(programId, "normalRejectThreshold"), 0.9f);
 
-        // Velocity integration params
-        GL.Uniform1(GL.GetUniformLocation(programId, "enableReprojectionVelocity"), enableReprojectionVelocity);
+        // Velocity reject threshold (still a uniform)
         GL.Uniform1(GL.GetUniformLocation(programId, "velocityRejectThreshold"), velocityRejectThreshold);
 
         // Screen mapping uniforms for probe->screen UV
@@ -99,7 +111,8 @@ public class LumOnTemporalVelocityFunctionalTests : LumOnShaderFunctionalTestBas
     {
         EnsureShaderTestAvailable();
 
-        int programId = CompileTemporalShader();
+        // Compile with velocity reprojection enabled
+        int programId = CompileTemporalShaderWithVelocity(enabled: true);
 
         // Current radiance varies across probes so neighborhood clamping doesn't crush history.
         // Probe order in texelFetch uses probeCoord = gl_FragCoord.xy.
@@ -144,7 +157,7 @@ public class LumOnTemporalVelocityFunctionalTests : LumOnShaderFunctionalTestBas
         const float temporalAlpha = 0.5f;
         const float rejectThreshold = 0.01f;
 
-        SetupTemporalVelocityUniforms(programId, temporalAlpha, rejectThreshold, enableReprojectionVelocity: 1);
+        SetupTemporalVelocityUniforms(programId, temporalAlpha, rejectThreshold);
 
         texCurrent0.Bind(0);
         texCurrent1.Bind(1);
@@ -177,7 +190,8 @@ public class LumOnTemporalVelocityFunctionalTests : LumOnShaderFunctionalTestBas
     {
         EnsureShaderTestAvailable();
 
-        int programId = CompileTemporalShader();
+        // Compile with velocity reprojection enabled (default)
+        int programId = CompileTemporalShaderWithVelocity(enabled: true);
 
         // Current radiance for probe (0,0) = 0.25, others = 0.25.
         float[] current0 = CreateUniformRgba(ProbeGridWidth, ProbeGridHeight, 0.25f, 0.25f, 0.25f, 1f);
@@ -210,7 +224,7 @@ public class LumOnTemporalVelocityFunctionalTests : LumOnShaderFunctionalTestBas
         using var outRt = TestFramework.CreateTestGBuffer(ProbeGridWidth, ProbeGridHeight,
             PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
 
-        SetupTemporalVelocityUniforms(programId, temporalAlpha: 0.95f, velocityRejectThreshold: rejectThreshold, enableReprojectionVelocity: 1);
+        SetupTemporalVelocityUniforms(programId, temporalAlpha: 0.95f, velocityRejectThreshold: rejectThreshold);
 
         texCurrent0.Bind(0);
         texCurrent1.Bind(1);
@@ -233,12 +247,19 @@ public class LumOnTemporalVelocityFunctionalTests : LumOnShaderFunctionalTestBas
         GL.DeleteProgram(programId);
     }
 
+    /// <summary>
+    /// Tests that velocity-based reprojection improves history stability compared to
+    /// world-space reprojection when camera motion causes out-of-bounds reprojection.
+    /// Compiles two shader variants: one with velocity enabled, one disabled.
+    /// </summary>
     [Fact]
     public void Temporal_MotionImprovesHistoryStability()
     {
         EnsureShaderTestAvailable();
 
-        int programId = CompileTemporalShader();
+        // Compile two shader variants
+        int programIdNoVel = CompileTemporalShaderWithVelocity(enabled: false);
+        int programIdWithVel = CompileTemporalShaderWithVelocity(enabled: true);
 
         // Current radiance varies across probes so neighborhood clamping doesn't crush history.
         float[] current0 =
@@ -287,30 +308,29 @@ public class LumOnTemporalVelocityFunctionalTests : LumOnShaderFunctionalTestBas
         texVel.Bind(7);
 
         // Case A: velocity disabled -> history rejected -> output = current (0 for probe 0,0)
-        SetupTemporalVelocityUniforms(programId,
+        SetupTemporalVelocityUniforms(programIdNoVel,
             temporalAlpha: temporalAlpha,
             velocityRejectThreshold: 0.01f,
-            enableReprojectionVelocity: 0,
             prevViewProjMatrix: prevViewProjOob);
 
-        TestFramework.RenderQuadTo(programId, outRt);
+        TestFramework.RenderQuadTo(programIdNoVel, outRt);
         var pixelsA = ReadPixelsFloat(outRt);
         float outA = pixelsA[0];
 
         // Case B: velocity enabled -> uses velocity-based prevUv (in-bounds) -> blends toward history
-        SetupTemporalVelocityUniforms(programId,
+        SetupTemporalVelocityUniforms(programIdWithVel,
             temporalAlpha: temporalAlpha,
             velocityRejectThreshold: 0.01f,
-            enableReprojectionVelocity: 1,
             prevViewProjMatrix: prevViewProjOob);
 
-        TestFramework.RenderQuadTo(programId, outRt);
+        TestFramework.RenderQuadTo(programIdWithVel, outRt);
         var pixelsB = ReadPixelsFloat(outRt);
         float outB = pixelsB[0];
 
         Assert.InRange(outA, 0f - TestEpsilon, 0f + TestEpsilon);
         Assert.InRange(outB, temporalAlpha - TestEpsilon, temporalAlpha + TestEpsilon);
 
-        GL.DeleteProgram(programId);
+        GL.DeleteProgram(programIdNoVel);
+        GL.DeleteProgram(programIdWithVel);
     }
 }

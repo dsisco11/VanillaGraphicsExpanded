@@ -785,7 +785,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.DepthRejectThreshold = config.DepthRejectThreshold;
         shader.NormalRejectThreshold = config.NormalRejectThreshold;
 
-        shader.EnableReprojectionVelocity = config.EnableReprojectionVelocity ? 1 : 0;
+        shader.EnableReprojectionVelocity = config.EnableReprojectionVelocity;
         shader.VelocityRejectThreshold = config.VelocityRejectThreshold;
 
         // Render

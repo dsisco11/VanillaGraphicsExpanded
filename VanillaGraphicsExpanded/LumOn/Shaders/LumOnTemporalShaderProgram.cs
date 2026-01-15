@@ -164,9 +164,10 @@ public class LumOnTemporalShaderProgram : VgeShaderProgram
     public float NormalRejectThreshold { set => Uniform("normalRejectThreshold", value); }
 
     /// <summary>
-    /// Enables velocity-based reprojection path (0/1).
+    /// Enables velocity-based reprojection path.
+    /// Compile-time define for better performance.
     /// </summary>
-    public int EnableReprojectionVelocity { set => Uniform("enableReprojectionVelocity", value); }
+    public bool EnableReprojectionVelocity { set => SetDefine("VGE_LUMON_TEMPORAL_USE_VELOCITY_REPROJECTION", value ? "1" : "0"); }
 
     /// <summary>
     /// Reject/down-weight history when |velocityUv| exceeds this threshold.

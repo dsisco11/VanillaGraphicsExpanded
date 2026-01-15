@@ -109,9 +109,20 @@ Shader Define Migration (SetDefine) Work:
 
   Phase 5 - Convert Temporal/Reprojection Mode Toggles:
   Exit artifacts: Temporal velocity reprojection selection is a define; tests validate both modes.
-  ☐ Convert `EnableReprojectionVelocity` to `VGE_LUMON_TEMPORAL_USE_VELOCITY_REPROJECTION`
-  ☐ Update temporal shader(s) to compile both paths cleanly
-  ☐ Update relevant GPU tests to compile both variants and validate history rejection behavior
+  ☑ Convert `EnableReprojectionVelocity` to `VGE_LUMON_TEMPORAL_USE_VELOCITY_REPROJECTION`
+  ☑ Update temporal shader(s) to compile both paths cleanly
+  ☑ Update relevant GPU tests to compile both variants and validate history rejection behavior
+    - LumOnTemporalFunctionalTests now compile with VGE_LUMON_TEMPORAL_USE_VELOCITY_REPROJECTION=0 (core temporal logic)
+    - LumOnTemporalVelocityFunctionalTests compile with velocity enabled/disabled variants
+
+  Phase 5 outputs:
+    - `assets/vanillagraphicsexpanded/shaders/lumon_temporal.fsh` (import vge_global_defines.glsl, #if branch)
+    - `assets/vanillagraphicsexpanded/shaders/includes/vge_global_defines.glsl` (added TEMPORAL define)
+    - `LumOnTemporalShaderProgram.cs` (SetDefine wiring for bool property)
+    - `LumOnRenderer.cs` (bool-typed caller)
+    - `LumOnTemporalFunctionalTests.cs` (compile with velocity disabled)
+    - `LumOnTemporalVelocityFunctionalTests.cs` (compile variants, updated helper methods)
+    - `ShaderDefineInjectionTests.cs` (added LumOnTemporal variant compilation tests)
 
   Phase 6 - Convert Rare Loop-Bound Knobs (Optional / Careful):
   Exit artifacts: Loop-bound parameters that materially change shader structure are defines (only if we accept compile-time variants).

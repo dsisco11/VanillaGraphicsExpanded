@@ -53,8 +53,14 @@ public class LumOnTemporalFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Compiles and links the temporal accumulation shader.
+    /// Velocity reprojection is disabled for these core temporal tests.
+    /// See LumOnTemporalVelocityFunctionalTests for velocity-specific tests.
     /// </summary>
-    private int CompileTemporalShader() => CompileShader("lumon_temporal.vsh", "lumon_temporal.fsh");
+    private int CompileTemporalShader() =>
+        CompileShaderWithDefines(
+            "lumon_temporal.vsh",
+            "lumon_temporal.fsh",
+            new Dictionary<string, string?> { ["VGE_LUMON_TEMPORAL_USE_VELOCITY_REPROJECTION"] = "0" });
 
     /// <summary>
     /// Sets up common uniforms for the temporal shader.
