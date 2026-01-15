@@ -279,6 +279,90 @@ public sealed class GBuffer : IDisposable
     }
 
     /// <summary>
+    /// Attaches a color texture to this framebuffer at the given color attachment index.
+    /// Useful for reusing a single FBO as a scratch target.
+    /// </summary>
+    /// <remarks>
+    /// This updates the framebuffer attachment in OpenGL. It does not take ownership of the texture.
+    /// </remarks>
+    public void AttachColor(DynamicTexture texture, int attachmentIndex = 0, int mipLevel = 0)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to attach color texture to disposed or invalid framebuffer");
+            return;
+        }
+
+        if (texture is null || !texture.IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to attach null/invalid color texture");
+            return;
+        }
+
+        if (attachmentIndex < 0 || attachmentIndex > 15)
+        {
+            Debug.WriteLine("[GBuffer] Invalid color attachment index (0..15)");
+            return;
+        }
+
+        Bind();
+        var attachment = FramebufferAttachment.ColorAttachment0 + attachmentIndex;
+        GL.FramebufferTexture2D(
+            FramebufferTarget.Framebuffer,
+            attachment,
+            TextureTarget.Texture2D,
+            texture.TextureId,
+            mipLevel);
+
+        // Ensure the active draw buffer matches the attachment we write to.
+        GL.DrawBuffer(DrawBufferMode.ColorAttachment0 + attachmentIndex);
+
+        // Keep a best-effort record of attachments for convenience (does not imply ownership).
+        while (colorAttachments.Count <= attachmentIndex)
+        {
+            // Placeholder; will be replaced by the actual attachment for this index.
+            colorAttachments.Add(texture);
+        }
+
+        colorAttachments[attachmentIndex] = texture;
+    }
+
+    /// <summary>
+    /// Attaches an existing OpenGL texture id as a color attachment.
+    /// Intended for interop with engine-owned textures.
+    /// </summary>
+    public void AttachColorTextureId(int textureId, int attachmentIndex = 0, int mipLevel = 0)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to attach color texture id to disposed or invalid framebuffer");
+            return;
+        }
+
+        if (textureId == 0)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to attach invalid color texture id");
+            return;
+        }
+
+        if (attachmentIndex < 0 || attachmentIndex > 15)
+        {
+            Debug.WriteLine("[GBuffer] Invalid color attachment index (0..15)");
+            return;
+        }
+
+        Bind();
+        var attachment = FramebufferAttachment.ColorAttachment0 + attachmentIndex;
+        GL.FramebufferTexture2D(
+            FramebufferTarget.Framebuffer,
+            attachment,
+            TextureTarget.Texture2D,
+            textureId,
+            mipLevel);
+        GL.DrawBuffer(DrawBufferMode.ColorAttachment0 + attachmentIndex);
+    }
+
+    /// <summary>
     /// Clears the framebuffer with the specified mask.
     /// The framebuffer must be bound first.
     /// </summary>

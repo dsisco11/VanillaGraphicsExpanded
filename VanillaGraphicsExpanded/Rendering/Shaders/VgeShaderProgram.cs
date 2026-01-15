@@ -39,10 +39,28 @@ public abstract class VgeShaderProgram : ShaderProgram
     private int recompileQueued;
 
     /// <summary>
-    /// Shader name used for stage source naming and GL debug labels.
-    /// Stage source names are always <c>{ShaderName}.vsh/.fsh/.gsh</c>.
+    /// Shader name used for GL debug labels and as the default stage source base-name.
+    /// Stage source base-names can be overridden per-stage.
     /// </summary>
     protected string ShaderName => PassName;
+
+    /// <summary>
+    /// Base name for the vertex stage source (without extension).
+    /// Defaults to <see cref="ShaderName"/>.
+    /// </summary>
+    protected virtual string VertexStageShaderName => ShaderName;
+
+    /// <summary>
+    /// Base name for the fragment stage source (without extension).
+    /// Defaults to <see cref="ShaderName"/>.
+    /// </summary>
+    protected virtual string FragmentStageShaderName => ShaderName;
+
+    /// <summary>
+    /// Base name for the geometry stage source (without extension).
+    /// Defaults to <see cref="ShaderName"/>.
+    /// </summary>
+    protected virtual string GeometryStageShaderName => ShaderName;
 
     /// <summary>
     /// Optional hook for derived programs that need to refresh caches after (re)compile.
@@ -140,8 +158,8 @@ public abstract class VgeShaderProgram : ShaderProgram
             // This also provides a much clearer error message than the engine's generic "shader missing" logs.
             string domain = string.IsNullOrWhiteSpace(AssetDomain) ? ShaderImportsSystem.DefaultDomain : AssetDomain;
 
-            string vshPath = $"shaders/{ShaderName}.vsh";
-            string fshPath = $"shaders/{ShaderName}.fsh";
+            string vshPath = $"shaders/{VertexStageShaderName}.vsh";
+            string fshPath = $"shaders/{FragmentStageShaderName}.fsh";
 
             bool hasVsh = capi.Assets.TryGet(AssetLocation.Create(vshPath, domain), loadAsset: true) is not null;
             bool hasFsh = capi.Assets.TryGet(AssetLocation.Create(fshPath, domain), loadAsset: true) is not null;
@@ -167,11 +185,11 @@ public abstract class VgeShaderProgram : ShaderProgram
                 defineSnapshot = new Dictionary<string, string?>(defines, StringComparer.Ordinal);
             }
 
-            vertexStage.LoadAndApply(capi, ShaderName, defineSnapshot, log);
-            fragmentStage.LoadAndApply(capi, ShaderName, defineSnapshot, log);
+            vertexStage.LoadAndApply(capi, VertexStageShaderName, defineSnapshot, log);
+            fragmentStage.LoadAndApply(capi, FragmentStageShaderName, defineSnapshot, log);
 
             // Geometry stage is optional.
-            geometryStage.TryLoadAndApplyOptional(capi, ShaderName, defineSnapshot, log);
+            geometryStage.TryLoadAndApplyOptional(capi, GeometryStageShaderName, defineSnapshot, log);
 
             bool ok = Compile();
             if (ok)

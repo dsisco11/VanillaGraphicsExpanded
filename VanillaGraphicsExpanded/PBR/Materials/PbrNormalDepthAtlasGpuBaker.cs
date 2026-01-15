@@ -7,6 +7,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Shaders;
 
 using Vintagestory.API.Client;
 
@@ -49,21 +50,21 @@ internal static class PbrNormalDepthAtlasGpuBaker
 
     private static bool initialized;
     private static int vao;
-    private static int fbo;
+    private static GBuffer? scratchFbo;
 
-    private static int progLuminance;
-    private static int progGauss1D;
-    private static int progSub;
-    private static int progCombine;
-    private static int progGradient;
-    private static int progDivergence;
-    private static int progJacobi;
-    private static int progResidual;
-    private static int progRestrict;
-    private static int progProlongateAdd;
-    private static int progNormalize;
-    private static int progPackToAtlas;
-    private static int progCopy;
+    private static VgeStageNamedShaderProgram? progLuminance;
+    private static VgeStageNamedShaderProgram? progGauss1D;
+    private static VgeStageNamedShaderProgram? progSub;
+    private static VgeStageNamedShaderProgram? progCombine;
+    private static VgeStageNamedShaderProgram? progGradient;
+    private static VgeStageNamedShaderProgram? progDivergence;
+    private static VgeStageNamedShaderProgram? progJacobi;
+    private static VgeStageNamedShaderProgram? progResidual;
+    private static VgeStageNamedShaderProgram? progRestrict;
+    private static VgeStageNamedShaderProgram? progProlongateAdd;
+    private static VgeStageNamedShaderProgram? progNormalize;
+    private static VgeStageNamedShaderProgram? progPackToAtlas;
+    private static VgeStageNamedShaderProgram? progCopy;
 
     // Intermediate textures are reused and resized per tile.
     private static TileResources? tile;
@@ -105,7 +106,7 @@ internal static class PbrNormalDepthAtlasGpuBaker
         // Save minimal GL state.
         int[] prevViewport = new int[4];
         GL.GetInteger(GetPName.Viewport, prevViewport);
-        GL.GetInteger(GetPName.FramebufferBinding, out int prevFbo);
+        int prevFbo = GBuffer.SaveBinding();
         GL.GetInteger(GetPName.VertexArrayBinding, out int prevVao);
         GL.GetInteger(GetPName.CurrentProgram, out int prevProgram);
         GL.GetInteger(GetPName.ActiveTexture, out int prevActiveTex);
@@ -113,11 +114,11 @@ internal static class PbrNormalDepthAtlasGpuBaker
 
         try
         {
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, fbo);
+            scratchFbo!.Bind();
             GL.BindVertexArray(vao);
 
             // Clear entire atlas sidecar first (deterministic baseline).
-            AttachAndViewport(destNormalDepthTexId, 0, 0, atlasWidth, atlasHeight);
+            BindAtlasTarget(destNormalDepthTexId, 0, 0, atlasWidth, atlasHeight);
             GL.ClearColor(0.5f, 0.5f, 1.0f, 0.0f);
             GL.Clear(ClearBufferMask.ColorBufferBit);
 
@@ -182,7 +183,7 @@ internal static class PbrNormalDepthAtlasGpuBaker
                     viewportOriginPx: (rx, ry),
                     tileSizePx: (rw, rh),
                     solverSizePx: (solverW, solverH),
-                    heightTexId: tile.Hn.TextureId,
+                    heightTex: tile.Hn,
                     normalStrength: bake.NormalStrength);
             }
         }
@@ -194,7 +195,7 @@ internal static class PbrNormalDepthAtlasGpuBaker
         {
             GL.UseProgram(prevProgram);
             GL.BindVertexArray(prevVao);
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
+                GBuffer.RestoreBinding(prevFbo);
             GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
 
             GL.ActiveTexture((TextureUnit)prevActiveTex);
@@ -211,79 +212,61 @@ internal static class PbrNormalDepthAtlasGpuBaker
 
         // Minimal GL objects.
         vao = GL.GenVertexArray();
-        fbo = GL.GenFramebuffer();
+        scratchFbo = GBuffer.Wrap(GL.GenFramebuffer(), debugName: "vge_bake_scratch");
 
-        // Compile all programs from assets.
-        progLuminance = CompileProgramFromAssets(capi, Vsh, FshLuminance);
-        progGauss1D = CompileProgramFromAssets(capi, Vsh, FshGauss1D);
-        progSub = CompileProgramFromAssets(capi, Vsh, FshSub);
-        progCombine = CompileProgramFromAssets(capi, Vsh, FshCombine);
-        progGradient = CompileProgramFromAssets(capi, Vsh, FshGradient);
-        progDivergence = CompileProgramFromAssets(capi, Vsh, FshDivergence);
-        progJacobi = CompileProgramFromAssets(capi, Vsh, FshJacobi);
-        progResidual = CompileProgramFromAssets(capi, Vsh, FshResidual);
-        progRestrict = CompileProgramFromAssets(capi, Vsh, FshRestrict);
-        progProlongateAdd = CompileProgramFromAssets(capi, Vsh, FshProlongateAdd);
-        progNormalize = CompileProgramFromAssets(capi, Vsh, FshNormalize);
-        progPackToAtlas = CompileProgramFromAssets(capi, Vsh, FshPackToAtlas);
-        progCopy = CompileProgramFromAssets(capi, Vsh, FshCopy);
+        // Compile all programs using VGE's shader pipeline (imports, diagnostics, debug labels).
+        // Each pass shares the same fullscreen vertex stage, but has its own fragment stage.
+        progLuminance = new VgeStageNamedShaderProgram(FshLuminance, Vsh, FshLuminance, Domain);
+        progGauss1D = new VgeStageNamedShaderProgram(FshGauss1D, Vsh, FshGauss1D, Domain);
+        progSub = new VgeStageNamedShaderProgram(FshSub, Vsh, FshSub, Domain);
+        progCombine = new VgeStageNamedShaderProgram(FshCombine, Vsh, FshCombine, Domain);
+        progGradient = new VgeStageNamedShaderProgram(FshGradient, Vsh, FshGradient, Domain);
+        progDivergence = new VgeStageNamedShaderProgram(FshDivergence, Vsh, FshDivergence, Domain);
+        progJacobi = new VgeStageNamedShaderProgram(FshJacobi, Vsh, FshJacobi, Domain);
+        progResidual = new VgeStageNamedShaderProgram(FshResidual, Vsh, FshResidual, Domain);
+        progRestrict = new VgeStageNamedShaderProgram(FshRestrict, Vsh, FshRestrict, Domain);
+        progProlongateAdd = new VgeStageNamedShaderProgram(FshProlongateAdd, Vsh, FshProlongateAdd, Domain);
+        progNormalize = new VgeStageNamedShaderProgram(FshNormalize, Vsh, FshNormalize, Domain);
+        progPackToAtlas = new VgeStageNamedShaderProgram(FshPackToAtlas, Vsh, FshPackToAtlas, Domain);
+        progCopy = new VgeStageNamedShaderProgram(FshCopy, Vsh, FshCopy, Domain);
+
+        progLuminance.Initialize(capi);
+        progGauss1D.Initialize(capi);
+        progSub.Initialize(capi);
+        progCombine.Initialize(capi);
+        progGradient.Initialize(capi);
+        progDivergence.Initialize(capi);
+        progJacobi.Initialize(capi);
+        progResidual.Initialize(capi);
+        progRestrict.Initialize(capi);
+        progProlongateAdd.Initialize(capi);
+        progNormalize.Initialize(capi);
+        progPackToAtlas.Initialize(capi);
+        progCopy.Initialize(capi);
+
+        CompileOrThrow(progLuminance);
+        CompileOrThrow(progGauss1D);
+        CompileOrThrow(progSub);
+        CompileOrThrow(progCombine);
+        CompileOrThrow(progGradient);
+        CompileOrThrow(progDivergence);
+        CompileOrThrow(progJacobi);
+        CompileOrThrow(progResidual);
+        CompileOrThrow(progRestrict);
+        CompileOrThrow(progProlongateAdd);
+        CompileOrThrow(progNormalize);
+        CompileOrThrow(progPackToAtlas);
+        CompileOrThrow(progCopy);
 
         initialized = true;
     }
 
-    private static int CompileProgramFromAssets(ICoreClientAPI capi, string vshName, string fshName)
+    private static void CompileOrThrow(VgeStageNamedShaderProgram program)
     {
-        string vsh = LoadTextAsset(capi, $"shaders/{vshName}.vsh");
-        string fsh = LoadTextAsset(capi, $"shaders/{fshName}.fsh");
-
-        int vs = CompileShader(ShaderType.VertexShader, vsh, vshName);
-        int fs = CompileShader(ShaderType.FragmentShader, fsh, fshName);
-
-        int prog = GL.CreateProgram();
-        GL.AttachShader(prog, vs);
-        GL.AttachShader(prog, fs);
-        GL.LinkProgram(prog);
-        GL.GetProgram(prog, GetProgramParameterName.LinkStatus, out int ok);
-        string log = GL.GetProgramInfoLog(prog) ?? string.Empty;
-        GL.DetachShader(prog, vs);
-        GL.DetachShader(prog, fs);
-        GL.DeleteShader(vs);
-        GL.DeleteShader(fs);
-
-        if (ok == 0)
+        if (!program.CompileAndLink())
         {
-            GL.DeleteProgram(prog);
-            throw new InvalidOperationException($"[VGE] Failed to link bake program '{vshName}+{fshName}':\n{log}");
+            throw new InvalidOperationException($"[VGE] Failed to compile/link bake shader program '{program.PassName}'");
         }
-
-        return prog;
-    }
-
-    private static int CompileShader(ShaderType type, string src, string name)
-    {
-        int shader = GL.CreateShader(type);
-        GL.ShaderSource(shader, src);
-        GL.CompileShader(shader);
-        GL.GetShader(shader, ShaderParameter.CompileStatus, out int ok);
-        string log = GL.GetShaderInfoLog(shader) ?? string.Empty;
-        if (ok == 0)
-        {
-            GL.DeleteShader(shader);
-            throw new InvalidOperationException($"[VGE] Failed to compile bake shader '{name}' ({type}):\n{log}");
-        }
-        return shader;
-    }
-
-    private static string LoadTextAsset(ICoreClientAPI capi, string path)
-    {
-        var asset = capi.Assets.TryGet(Vintagestory.API.Common.AssetLocation.Create(path, Domain), loadAsset: true);
-        if (asset is null)
-        {
-            throw new InvalidOperationException($"[VGE] Missing bake shader asset: {Domain}:{path}");
-        }
-
-        // IAsset exposes ToText(); avoid encoding issues.
-        return asset.ToText();
     }
 
     private static bool TryGetRectPx(TextureAtlasPosition pos, int atlasWidth, int atlasHeight, out int x, out int y, out int w, out int h)
@@ -303,34 +286,31 @@ internal static class PbrNormalDepthAtlasGpuBaker
 
     private static int Clamp(int v, int lo, int hi) => v < lo ? lo : (v > hi ? hi : v);
 
-    private static void AttachAndViewport(int texId, int x, int y, int w, int h)
-    {
-        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, texId, 0);
-        GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-        GL.Viewport(x, y, w, h);
-    }
-
     private static void DrawFullscreenTriangle()
     {
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
     }
 
-    private static void BindTex(int unit, int texId)
+    private static void BindTarget(DynamicTexture dst)
     {
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(TextureTarget.Texture2D, texId);
+        scratchFbo!.AttachColor(dst);
+        GL.Viewport(0, 0, dst.Width, dst.Height);
+    }
+
+    private static void BindAtlasTarget(int atlasTexId, int x, int y, int w, int h)
+    {
+        scratchFbo!.AttachColorTextureId(atlasTexId);
+        GL.Viewport(x, y, w, h);
     }
 
     private static void RunLuminancePass(int atlasTexId, (int x, int y, int w, int h) atlasRectPx, DynamicTexture dst)
     {
-        AttachAndViewport(dst.TextureId, 0, 0, dst.Width, dst.Height);
+        BindTarget(dst);
 
-        GL.UseProgram(progLuminance);
-        BindTex(0, atlasTexId);
-
-        GL.Uniform1(GL.GetUniformLocation(progLuminance, "u_atlas"), 0);
-        GL.Uniform4(GL.GetUniformLocation(progLuminance, "u_atlasRectPx"), atlasRectPx.x, atlasRectPx.y, atlasRectPx.w, atlasRectPx.h);
-        GL.Uniform2(GL.GetUniformLocation(progLuminance, "u_outSize"), dst.Width, dst.Height);
+        progLuminance!.Use();
+        progLuminance.BindTexture2D("u_atlas", atlasTexId, 0);
+        progLuminance.Uniform4i("u_atlasRectPx", atlasRectPx.x, atlasRectPx.y, atlasRectPx.w, atlasRectPx.h);
+        progLuminance.Uniform2i("u_outSize", dst.Width, dst.Height);
 
         DrawFullscreenTriangle();
     }
@@ -353,100 +333,88 @@ internal static class PbrNormalDepthAtlasGpuBaker
         var weights = BuildGaussianWeights(sigma, radius);
 
         // Horizontal
-        AttachAndViewport(tmp.TextureId, 0, 0, tmp.Width, tmp.Height);
-        GL.UseProgram(progGauss1D);
-        BindTex(0, src.TextureId);
-        GL.Uniform1(GL.GetUniformLocation(progGauss1D, "u_src"), 0);
-        GL.Uniform2(GL.GetUniformLocation(progGauss1D, "u_size"), src.Width, src.Height);
-        GL.Uniform2(GL.GetUniformLocation(progGauss1D, "u_dir"), 1, 0);
-        GL.Uniform1(GL.GetUniformLocation(progGauss1D, "u_radius"), radius);
-        UploadWeights(progGauss1D, weights);
+        BindTarget(tmp);
+        progGauss1D!.Use();
+        progGauss1D.BindTexture2D("u_src", src.TextureId, 0);
+        progGauss1D.Uniform2i("u_size", src.Width, src.Height);
+        progGauss1D.Uniform2i("u_dir", 1, 0);
+        progGauss1D.Uniform("u_radius", radius);
+        progGauss1D.Uniform1fv("u_weights", weights);
         DrawFullscreenTriangle();
 
         // Vertical
-        AttachAndViewport(dst.TextureId, 0, 0, dst.Width, dst.Height);
-        GL.UseProgram(progGauss1D);
-        BindTex(0, tmp.TextureId);
-        GL.Uniform1(GL.GetUniformLocation(progGauss1D, "u_src"), 0);
-        GL.Uniform2(GL.GetUniformLocation(progGauss1D, "u_size"), dst.Width, dst.Height);
-        GL.Uniform2(GL.GetUniformLocation(progGauss1D, "u_dir"), 0, 1);
-        GL.Uniform1(GL.GetUniformLocation(progGauss1D, "u_radius"), radius);
-        UploadWeights(progGauss1D, weights);
+        BindTarget(dst);
+        progGauss1D!.Use();
+        progGauss1D.BindTexture2D("u_src", tmp.TextureId, 0);
+        progGauss1D.Uniform2i("u_size", dst.Width, dst.Height);
+        progGauss1D.Uniform2i("u_dir", 0, 1);
+        progGauss1D.Uniform("u_radius", radius);
+        progGauss1D.Uniform1fv("u_weights", weights);
         DrawFullscreenTriangle();
     }
 
     private static void RunSub(DynamicTexture a, DynamicTexture b, DynamicTexture dst)
     {
-        AttachAndViewport(dst.TextureId, 0, 0, dst.Width, dst.Height);
-        GL.UseProgram(progSub);
-        BindTex(0, a.TextureId);
-        BindTex(1, b.TextureId);
-        GL.Uniform1(GL.GetUniformLocation(progSub, "u_a"), 0);
-        GL.Uniform1(GL.GetUniformLocation(progSub, "u_b"), 1);
-        GL.Uniform2(GL.GetUniformLocation(progSub, "u_size"), dst.Width, dst.Height);
+        BindTarget(dst);
+        progSub!.Use();
+        progSub.BindTexture2D("u_a", a.TextureId, 0);
+        progSub.BindTexture2D("u_b", b.TextureId, 1);
+        progSub.Uniform2i("u_size", dst.Width, dst.Height);
         DrawFullscreenTriangle();
     }
 
     private static void RunCopy(DynamicTexture src, DynamicTexture dst)
     {
-        AttachAndViewport(dst.TextureId, 0, 0, dst.Width, dst.Height);
-        GL.UseProgram(progCopy);
-        BindTex(0, src.TextureId);
-        GL.Uniform1(GL.GetUniformLocation(progCopy, "u_src"), 0);
-        GL.Uniform2(GL.GetUniformLocation(progCopy, "u_size"), dst.Width, dst.Height);
+        BindTarget(dst);
+        progCopy!.Use();
+        progCopy.BindTexture2D("u_src", src.TextureId, 0);
+        progCopy.Uniform2i("u_size", dst.Width, dst.Height);
         DrawFullscreenTriangle();
     }
 
     private static void RunCombine(DynamicTexture g1, DynamicTexture g2, DynamicTexture g3, DynamicTexture g4, DynamicTexture dst, float w1, float w2, float w3)
     {
-        AttachAndViewport(dst.TextureId, 0, 0, dst.Width, dst.Height);
-        GL.UseProgram(progCombine);
-        BindTex(0, g1.TextureId);
-        BindTex(1, g2.TextureId);
-        BindTex(2, g3.TextureId);
-        BindTex(3, g4.TextureId);
-        GL.Uniform1(GL.GetUniformLocation(progCombine, "u_g1"), 0);
-        GL.Uniform1(GL.GetUniformLocation(progCombine, "u_g2"), 1);
-        GL.Uniform1(GL.GetUniformLocation(progCombine, "u_g3"), 2);
-        GL.Uniform1(GL.GetUniformLocation(progCombine, "u_g4"), 3);
-        GL.Uniform3(GL.GetUniformLocation(progCombine, "u_w"), w1, w2, w3);
-        GL.Uniform2(GL.GetUniformLocation(progCombine, "u_size"), dst.Width, dst.Height);
+        BindTarget(dst);
+        progCombine!.Use();
+        progCombine.BindTexture2D("u_g1", g1.TextureId, 0);
+        progCombine.BindTexture2D("u_g2", g2.TextureId, 1);
+        progCombine.BindTexture2D("u_g3", g3.TextureId, 2);
+        progCombine.BindTexture2D("u_g4", g4.TextureId, 3);
+        progCombine.Uniform3f("u_w", w1, w2, w3);
+        progCombine.Uniform2i("u_size", dst.Width, dst.Height);
         DrawFullscreenTriangle();
     }
 
     private static void RunGradient(DynamicTexture d, DynamicTexture dstG, LumOnConfig.NormalDepthBakeConfig bake)
     {
-        AttachAndViewport(dstG.TextureId, 0, 0, dstG.Width, dstG.Height);
-        GL.UseProgram(progGradient);
-        BindTex(0, d.TextureId);
-        GL.Uniform1(GL.GetUniformLocation(progGradient, "u_d"), 0);
-        GL.Uniform2(GL.GetUniformLocation(progGradient, "u_size"), d.Width, d.Height);
-        GL.Uniform1(GL.GetUniformLocation(progGradient, "u_gain"), bake.Gain);
-        GL.Uniform1(GL.GetUniformLocation(progGradient, "u_maxSlope"), bake.MaxSlope);
-        GL.Uniform2(GL.GetUniformLocation(progGradient, "u_edgeT"), bake.EdgeT0, bake.EdgeT1);
+        BindTarget(dstG);
+        progGradient!.Use();
+        progGradient.BindTexture2D("u_d", d.TextureId, 0);
+        progGradient.Uniform2i("u_size", d.Width, d.Height);
+        progGradient.Uniform("u_gain", bake.Gain);
+        progGradient.Uniform("u_maxSlope", bake.MaxSlope);
+        progGradient.Uniform2f("u_edgeT", bake.EdgeT0, bake.EdgeT1);
         DrawFullscreenTriangle();
     }
 
     private static void RunDivergence(DynamicTexture g, DynamicTexture dstDiv)
     {
-        AttachAndViewport(dstDiv.TextureId, 0, 0, dstDiv.Width, dstDiv.Height);
-        GL.UseProgram(progDivergence);
-        BindTex(0, g.TextureId);
-        GL.Uniform1(GL.GetUniformLocation(progDivergence, "u_g"), 0);
-        GL.Uniform2(GL.GetUniformLocation(progDivergence, "u_size"), dstDiv.Width, dstDiv.Height);
+        BindTarget(dstDiv);
+        progDivergence!.Use();
+        progDivergence.BindTexture2D("u_g", g.TextureId, 0);
+        progDivergence.Uniform2i("u_size", dstDiv.Width, dstDiv.Height);
         DrawFullscreenTriangle();
     }
 
     private static void RunNormalize(DynamicTexture h, DynamicTexture dst, float mean, float heightStrength, float gamma)
     {
-        AttachAndViewport(dst.TextureId, 0, 0, dst.Width, dst.Height);
-        GL.UseProgram(progNormalize);
-        BindTex(0, h.TextureId);
-        GL.Uniform1(GL.GetUniformLocation(progNormalize, "u_h"), 0);
-        GL.Uniform2(GL.GetUniformLocation(progNormalize, "u_size"), dst.Width, dst.Height);
-        GL.Uniform1(GL.GetUniformLocation(progNormalize, "u_mean"), mean);
-        GL.Uniform1(GL.GetUniformLocation(progNormalize, "u_heightStrength"), heightStrength);
-        GL.Uniform1(GL.GetUniformLocation(progNormalize, "u_gamma"), gamma);
+        BindTarget(dst);
+        progNormalize!.Use();
+        progNormalize.BindTexture2D("u_h", h.TextureId, 0);
+        progNormalize.Uniform2i("u_size", dst.Width, dst.Height);
+        progNormalize.Uniform("u_mean", mean);
+        progNormalize.Uniform("u_heightStrength", heightStrength);
+        progNormalize.Uniform("u_gamma", gamma);
         DrawFullscreenTriangle();
     }
 
@@ -455,18 +423,17 @@ internal static class PbrNormalDepthAtlasGpuBaker
         (int x, int y) viewportOriginPx,
         (int w, int h) tileSizePx,
         (int w, int h) solverSizePx,
-        int heightTexId,
+        DynamicTexture heightTex,
         float normalStrength)
     {
         // Render into atlas sidecar, restricting to this tile rect via viewport.
-        AttachAndViewport(dstAtlasTexId, viewportOriginPx.x, viewportOriginPx.y, tileSizePx.w, tileSizePx.h);
-        GL.UseProgram(progPackToAtlas);
-        BindTex(0, heightTexId);
-        GL.Uniform1(GL.GetUniformLocation(progPackToAtlas, "u_height"), 0);
-        GL.Uniform2(GL.GetUniformLocation(progPackToAtlas, "u_solverSize"), solverSizePx.w, solverSizePx.h);
-        GL.Uniform2(GL.GetUniformLocation(progPackToAtlas, "u_tileSize"), tileSizePx.w, tileSizePx.h);
-        GL.Uniform2(GL.GetUniformLocation(progPackToAtlas, "u_viewportOrigin"), viewportOriginPx.x, viewportOriginPx.y);
-        GL.Uniform1(GL.GetUniformLocation(progPackToAtlas, "u_normalStrength"), normalStrength);
+        BindAtlasTarget(dstAtlasTexId, viewportOriginPx.x, viewportOriginPx.y, tileSizePx.w, tileSizePx.h);
+        progPackToAtlas!.Use();
+        progPackToAtlas.BindTexture2D("u_height", heightTex.TextureId, 0);
+        progPackToAtlas.Uniform2i("u_solverSize", solverSizePx.w, solverSizePx.h);
+        progPackToAtlas.Uniform2i("u_tileSize", tileSizePx.w, tileSizePx.h);
+        progPackToAtlas.Uniform2i("u_viewportOrigin", viewportOriginPx.x, viewportOriginPx.y);
+        progPackToAtlas.Uniform("u_normalStrength", normalStrength);
         DrawFullscreenTriangle();
     }
 
@@ -499,13 +466,6 @@ internal static class PbrNormalDepthAtlasGpuBaker
         }
 
         return w;
-    }
-
-    private static void UploadWeights(int program, float[] weights)
-    {
-        int loc = GL.GetUniformLocation(program, "u_weights");
-        if (loc < 0) return;
-        GL.Uniform1(loc, weights.Length, weights);
     }
 
     private static float ComputeMeanR32f(DynamicTexture tex)
@@ -686,7 +646,7 @@ internal static class PbrNormalDepthAtlasGpuBaker
 
         private static void ClearR32f(DynamicTexture tex, float v)
         {
-            AttachAndViewport(tex.TextureId, 0, 0, tex.Width, tex.Height);
+            BindTarget(tex);
             GL.ClearColor(v, 0f, 0f, 0f);
             GL.Clear(ClearBufferMask.ColorBufferBit);
         }
@@ -695,49 +655,42 @@ internal static class PbrNormalDepthAtlasGpuBaker
 
         private static void RunJacobi(DynamicTexture h, DynamicTexture b, DynamicTexture dst)
         {
-            AttachAndViewport(dst.TextureId, 0, 0, dst.Width, dst.Height);
-            GL.UseProgram(progJacobi);
-            BindTex(0, h.TextureId);
-            BindTex(1, b.TextureId);
-            GL.Uniform1(GL.GetUniformLocation(progJacobi, "u_h"), 0);
-            GL.Uniform1(GL.GetUniformLocation(progJacobi, "u_b"), 1);
-            GL.Uniform2(GL.GetUniformLocation(progJacobi, "u_size"), dst.Width, dst.Height);
+            BindTarget(dst);
+            progJacobi!.Use();
+            progJacobi.BindTexture2D("u_h", h.TextureId, 0);
+            progJacobi.BindTexture2D("u_b", b.TextureId, 1);
+            progJacobi.Uniform2i("u_size", dst.Width, dst.Height);
             DrawFullscreenTriangle();
         }
 
         private static void RunResidual(DynamicTexture h, DynamicTexture b, DynamicTexture dst)
         {
-            AttachAndViewport(dst.TextureId, 0, 0, dst.Width, dst.Height);
-            GL.UseProgram(progResidual);
-            BindTex(0, h.TextureId);
-            BindTex(1, b.TextureId);
-            GL.Uniform1(GL.GetUniformLocation(progResidual, "u_h"), 0);
-            GL.Uniform1(GL.GetUniformLocation(progResidual, "u_b"), 1);
-            GL.Uniform2(GL.GetUniformLocation(progResidual, "u_size"), dst.Width, dst.Height);
+            BindTarget(dst);
+            progResidual!.Use();
+            progResidual.BindTexture2D("u_h", h.TextureId, 0);
+            progResidual.BindTexture2D("u_b", b.TextureId, 1);
+            progResidual.Uniform2i("u_size", dst.Width, dst.Height);
             DrawFullscreenTriangle();
         }
 
         private static void RunRestrict(DynamicTexture fine, DynamicTexture coarse)
         {
-            AttachAndViewport(coarse.TextureId, 0, 0, coarse.Width, coarse.Height);
-            GL.UseProgram(progRestrict);
-            BindTex(0, fine.TextureId);
-            GL.Uniform1(GL.GetUniformLocation(progRestrict, "u_fine"), 0);
-            GL.Uniform2(GL.GetUniformLocation(progRestrict, "u_fineSize"), fine.Width, fine.Height);
-            GL.Uniform2(GL.GetUniformLocation(progRestrict, "u_coarseSize"), coarse.Width, coarse.Height);
+            BindTarget(coarse);
+            progRestrict!.Use();
+            progRestrict.BindTexture2D("u_fine", fine.TextureId, 0);
+            progRestrict.Uniform2i("u_fineSize", fine.Width, fine.Height);
+            progRestrict.Uniform2i("u_coarseSize", coarse.Width, coarse.Height);
             DrawFullscreenTriangle();
         }
 
         private static void RunProlongateAdd(DynamicTexture fineH, DynamicTexture coarseE, DynamicTexture dst)
         {
-            AttachAndViewport(dst.TextureId, 0, 0, dst.Width, dst.Height);
-            GL.UseProgram(progProlongateAdd);
-            BindTex(0, fineH.TextureId);
-            BindTex(1, coarseE.TextureId);
-            GL.Uniform1(GL.GetUniformLocation(progProlongateAdd, "u_fineH"), 0);
-            GL.Uniform1(GL.GetUniformLocation(progProlongateAdd, "u_coarseE"), 1);
-            GL.Uniform2(GL.GetUniformLocation(progProlongateAdd, "u_fineSize"), fineH.Width, fineH.Height);
-            GL.Uniform2(GL.GetUniformLocation(progProlongateAdd, "u_coarseSize"), coarseE.Width, coarseE.Height);
+            BindTarget(dst);
+            progProlongateAdd!.Use();
+            progProlongateAdd.BindTexture2D("u_fineH", fineH.TextureId, 0);
+            progProlongateAdd.BindTexture2D("u_coarseE", coarseE.TextureId, 1);
+            progProlongateAdd.Uniform2i("u_fineSize", fineH.Width, fineH.Height);
+            progProlongateAdd.Uniform2i("u_coarseSize", coarseE.Width, coarseE.Height);
             DrawFullscreenTriangle();
         }
 
