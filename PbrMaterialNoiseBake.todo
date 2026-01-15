@@ -79,10 +79,10 @@ PBR Material Noise Pre-Bake (Squirrel3, SIMD):
 
   Phase 6 - Correctness + Regression Tests:
   Exit artifacts: Tests prove scalar/SIMD equivalence and lock in deterministic atlas noise.
-  ☐ Add unit tests for noise application:
+  ✔ Add unit tests for noise application:
     - Given a small synthetic rect and fixed seed, output matches a known snapshot
     - Scalar and SIMD code paths produce identical float results
-  ☐ Add integration-style test for atlas bake (if feasible in existing test harness):
+  ✔ Add integration-style test for atlas bake (if feasible in existing test harness):
     - Bake atlas for a tiny set of textures, verify deterministic checksum
 
   Phase 7 - Optional Follow-Ups (Extra Params / Normal Pipeline):

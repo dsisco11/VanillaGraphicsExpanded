@@ -8,6 +8,33 @@ namespace VanillaGraphicsExpanded.Tests;
 
 public sealed class PbrMaterialParamsPixelBuilderNoiseTests
 {
+    private static uint Fnv1a32(ReadOnlySpan<int> values)
+    {
+        const uint offset = 2_166_136_261u;
+        const uint prime = 16_777_619u;
+
+        uint hash = offset;
+        foreach (int v in values)
+        {
+            unchecked
+            {
+                hash ^= (uint)v;
+                hash *= prime;
+            }
+        }
+        return hash;
+    }
+
+    private static uint HashFloatBits(ReadOnlySpan<float> values)
+    {
+        Span<int> bits = values.Length <= 512 ? stackalloc int[values.Length] : new int[values.Length];
+        for (int i = 0; i < values.Length; i++)
+        {
+            bits[i] = BitConverter.SingleToInt32Bits(values[i]);
+        }
+        return Fnv1a32(bits);
+    }
+
     [Fact]
     public void ApplyNoiseRow_DeterministicAcrossCalls()
     {
@@ -22,6 +49,32 @@ public sealed class PbrMaterialParamsPixelBuilderNoiseTests
         PbrMaterialParamsPixelBuilder.ApplyNoiseRowScalar(b, pixelCount, seed: 123u, localY: 7u, baseR: 0.5f, baseG: 0.5f, baseB: 0.5f, ampR: 0.2f, ampG: 0.1f, ampB: 0.05f);
 
         Assert.True(a.SequenceEqual(b));
+    }
+
+    [Fact]
+    public void ApplyNoiseRow_SnapshotChecksum_IsStable()
+    {
+        const int pixelCount = 17;
+        Span<float> row = stackalloc float[pixelCount * 3];
+        PbrMaterialParamsPixelBuilder.FillRgbTripletsScalar(row, 0.5f, 0.25f, 0.75f);
+
+        PbrMaterialParamsPixelBuilder.ApplyNoiseRowScalar(
+            row,
+            pixelCount,
+            seed: 123u,
+            localY: 7u,
+            baseR: 0.5f,
+            baseG: 0.25f,
+            baseB: 0.75f,
+            ampR: 0.2f,
+            ampG: 0.1f,
+            ampB: 0.05f);
+
+        uint actual = HashFloatBits(row);
+
+        // Snapshot: if this changes, noise output changed.
+        const uint expected = 2_087_666_905u;
+        Assert.Equal(expected, actual);
     }
 
     [Fact]
@@ -120,5 +173,54 @@ public sealed class PbrMaterialParamsPixelBuilderNoiseTests
             || pixels1[p00 + 2] != pixels1[p77 + 2];
 
         Assert.True(different);
+    }
+
+    [Fact]
+    public void BuildRgb16fPixelBuffers_SnapshotChecksum_IsStable()
+    {
+        var atlasPages = new[] { (atlasTextureId: 1, width: 16, height: 16) };
+
+        var tex = new AssetLocation("game", "block/test");
+
+        var pos = new TextureAtlasPosition
+        {
+            atlasTextureId = 1,
+            x1 = 0f,
+            y1 = 0f,
+            x2 = 0.5f,
+            y2 = 0.5f
+        };
+
+        var texturePositions = new Dictionary<AssetLocation, TextureAtlasPosition>
+        {
+            [tex] = pos
+        };
+
+        var def = new PbrMaterialDefinition
+        {
+            Roughness = 0.5f,
+            Metallic = 0.2f,
+            Emissive = 0.1f,
+            Noise = new PbrMaterialNoise
+            {
+                Roughness = 0.25f,
+                Metallic = 0.15f,
+                Emissive = 0.4f
+            }
+        };
+
+        var materialsByTexture = new Dictionary<AssetLocation, PbrMaterialDefinition>
+        {
+            [tex] = def
+        };
+
+        var r = PbrMaterialParamsPixelBuilder.BuildRgb16fPixelBuffers(atlasPages, texturePositions, materialsByTexture);
+        float[] pixels = r.PixelBuffersByAtlasTexId[1];
+
+        uint actual = HashFloatBits(pixels);
+
+        // Snapshot: if this changes, bake output changed.
+        const uint expected = 3_572_877_435u;
+        Assert.Equal(expected, actual);
     }
 }
