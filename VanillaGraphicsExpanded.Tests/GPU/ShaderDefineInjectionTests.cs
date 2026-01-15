@@ -95,4 +95,87 @@ public class ShaderDefineInjectionTests
         Assert.True(result.IsSuccess, result.ErrorMessage);
         Assert.True(result.ProgramId > 0, "Program ID should be valid");
     }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("1")]
+    public void LumOnCombine_Compiles_WithVGE_LUMON_ENABLED_Variant(string enabledValue)
+    {
+        _fixture.EnsureContextValid();
+
+        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
+        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
+
+        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+
+        using var helper = new ShaderTestHelper(shaderPath, includePath);
+
+        var defines = new Dictionary<string, string?>
+        {
+            ["VGE_LUMON_ENABLED"] = enabledValue,
+        };
+
+        var result = helper.CompileAndLink("lumon_combine.vsh", "lumon_combine.fsh", defines);
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+    }
+
+    [Theory]
+    [InlineData("0", "0", "0")]
+    [InlineData("1", "0", "0")]
+    [InlineData("1", "1", "0")]
+    [InlineData("1", "1", "1")]
+    public void LumOnCombine_Compiles_WithPbrCompositeVariants(
+        string pbrComposite, string enableAO, string enableBentNormal)
+    {
+        _fixture.EnsureContextValid();
+
+        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
+        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
+
+        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+
+        using var helper = new ShaderTestHelper(shaderPath, includePath);
+
+        var defines = new Dictionary<string, string?>
+        {
+            ["VGE_LUMON_ENABLED"] = "1",
+            ["VGE_LUMON_PBR_COMPOSITE"] = pbrComposite,
+            ["VGE_LUMON_ENABLE_AO"] = enableAO,
+            ["VGE_LUMON_ENABLE_BENT_NORMAL"] = enableBentNormal,
+        };
+
+        var result = helper.CompileAndLink("lumon_combine.vsh", "lumon_combine.fsh", defines);
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+    }
+
+    [Theory]
+    [InlineData("0", "0", "0")]
+    [InlineData("1", "0", "0")]
+    [InlineData("1", "1", "0")]
+    [InlineData("1", "1", "1")]
+    public void PbrComposite_Compiles_WithToggleVariants(
+        string lumOnEnabled, string pbrComposite, string enableBentNormal)
+    {
+        _fixture.EnsureContextValid();
+
+        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
+        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
+
+        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+
+        using var helper = new ShaderTestHelper(shaderPath, includePath);
+
+        var defines = new Dictionary<string, string?>
+        {
+            ["VGE_LUMON_ENABLED"] = lumOnEnabled,
+            ["VGE_LUMON_PBR_COMPOSITE"] = pbrComposite,
+            ["VGE_LUMON_ENABLE_BENT_NORMAL"] = enableBentNormal,
+        };
+
+        var result = helper.CompileAndLink("pbr_composite.vsh", "pbr_composite.fsh", defines);
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+    }
 }

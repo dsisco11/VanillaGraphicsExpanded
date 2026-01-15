@@ -178,12 +178,12 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             shader.IndirectTint = new Vec3f(1, 1, 1);
         }
 
-        shader.LumOnEnabled = lumOnEnabled;
+        shader.LumOnEnabled = lumOnEnabled == 1;
 
-        // Phase 15 knobs (keep existing behavior)
-        shader.EnablePbrComposite = lumOnConfig?.EnablePbrComposite == true ? 1 : 0;
-        shader.EnableAO = lumOnConfig?.EnableAO == true ? 1 : 0;
-        shader.EnableBentNormal = lumOnConfig?.EnableBentNormal == true ? 1 : 0;
+        // Phase 15 knobs (now compile-time defines)
+        shader.EnablePbrComposite = lumOnConfig?.EnablePbrComposite ?? true;
+        shader.EnableAO = lumOnConfig?.EnableAO ?? true;
+        shader.EnableBentNormal = lumOnConfig?.EnableBentNormal ?? true;
         shader.DiffuseAOStrength = Math.Clamp(lumOnConfig?.DiffuseAOStrength ?? 1.0f, 0f, 1f);
         shader.SpecularAOStrength = Math.Clamp(lumOnConfig?.SpecularAOStrength ?? 1.0f, 0f, 1f);
 

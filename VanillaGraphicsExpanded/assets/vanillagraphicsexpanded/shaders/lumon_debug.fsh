@@ -53,6 +53,9 @@ out vec4 outColor;
 // Phase 15: composite math (shared with lumon_combine)
 @import "./includes/lumon_pbr.glsl"
 
+// Import global defines (feature toggles with defaults)
+@import "./includes/vge_global_defines.glsl"
+
 // Shared hash helpers
 @import "./includes/squirrel3.glsl"
 
@@ -122,9 +125,6 @@ uniform int gatherAtlasSource;
 // Phase 15: compositing parameters (to match lumon_combine behavior)
 uniform float indirectIntensity;
 uniform vec3 indirectTint;
-uniform int enablePbrComposite;
-uniform int enableAO;
-uniform int enableBentNormal;
 uniform float diffuseAOStrength;
 uniform float specularAOStrength;
 
@@ -167,25 +167,22 @@ void computeCompositeSplit(
 
     // AO is not implemented yet. Keep it as a no-op (1.0).
     // NOTE: gBufferMaterial.a is reflectivity, not AO.
-    // Keep AO-related uniforms referenced so they remain active for binding/tests.
     float ao = 1.0;
-    if (enableAO == 1)
-    {
-        // NaN-guard references: does not change behavior for valid values.
-        if (diffuseAOStrength != diffuseAOStrength) ao = 0.0;
-        if (specularAOStrength != specularAOStrength) ao = 0.0;
-    }
+#if VGE_LUMON_ENABLE_AO
+    // NaN-guard references: does not change behavior for valid values.
+    if (diffuseAOStrength != diffuseAOStrength) ao = 0.0;
+    if (specularAOStrength != specularAOStrength) ao = 0.0;
+#endif
 
     // Legacy path compatibility: if PBR composite is off, treat all indirect as diffuse.
-    if (enablePbrComposite == 0)
-    {
-        outAo = ao;
-        outRoughness = roughness;
-        outMetallic = metallic;
-        outIndirectDiffuse = indirect;
-        outIndirectSpecular = vec3(0.0);
-        return;
-    }
+#if !VGE_LUMON_PBR_COMPOSITE
+    outAo = ao;
+    outRoughness = roughness;
+    outMetallic = metallic;
+    outIndirectDiffuse = indirect;
+    outIndirectSpecular = vec3(0.0);
+    return;
+#else
 
     vec3 viewPosVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
     vec3 viewDirVS = normalize(-viewPosVS);
@@ -194,11 +191,10 @@ void computeCompositeSplit(
     vec3 normalVS = normalize((getViewMatrix() * vec4(normalWS, 0.0)).xyz);
 
     vec3 bentNormalVS = normalVS;
-    if (enableBentNormal == 1)
-    {
-        float bend = clamp((1.0 - clamp(ao, 0.0, 1.0)) * 0.5, 0.0, 0.5);
-        bentNormalVS = normalize(mix(normalVS, vec3(0.0, 1.0, 0.0), bend));
-    }
+#if VGE_LUMON_ENABLE_BENT_NORMAL
+    float bend = clamp((1.0 - clamp(ao, 0.0, 1.0)) * 0.5, 0.0, 0.5);
+    bentNormalVS = normalize(mix(normalVS, vec3(0.0, 1.0, 0.0), bend));
+#endif
 
     vec3 diffuseContrib;
     vec3 specContrib;
@@ -221,6 +217,7 @@ void computeCompositeSplit(
     outMetallic = metallic;
     outIndirectDiffuse = diffuseContrib;
     outIndirectSpecular = specContrib;
+#endif // VGE_LUMON_PBR_COMPOSITE
 }
 
 vec4 renderCompositeAoDebug()

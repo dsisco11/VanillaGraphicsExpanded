@@ -219,17 +219,17 @@ public class LumOnDebugShaderProgram : VgeShaderProgram
 
     #endregion
 
-    #region Composite Debug Uniforms (Phase 15)
+    #region Composite Debug Defines (Phase 15 → SetDefine migration)
 
     public float IndirectIntensity { set => Uniform("indirectIntensity", value); }
 
     public Vec3f IndirectTint { set => Uniform("indirectTint", value); }
 
-    public int EnablePbrComposite { set => Uniform("enablePbrComposite", value); }
+    public bool EnablePbrComposite { set => SetDefine("VGE_LUMON_PBR_COMPOSITE", value ? "1" : "0"); }
 
-    public int EnableAO { set => Uniform("enableAO", value); }
+    public bool EnableAO { set => SetDefine("VGE_LUMON_ENABLE_AO", value ? "1" : "0"); }
 
-    public int EnableBentNormal { set => Uniform("enableBentNormal", value); }
+    public bool EnableBentNormal { set => SetDefine("VGE_LUMON_ENABLE_BENT_NORMAL", value ? "1" : "0"); }
 
     public float DiffuseAOStrength { set => Uniform("diffuseAOStrength", value); }
 

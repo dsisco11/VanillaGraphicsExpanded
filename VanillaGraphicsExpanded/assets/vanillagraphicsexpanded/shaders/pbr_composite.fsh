@@ -13,6 +13,9 @@ out vec4 outColor;
 @import "./includes/lumon_common.glsl"
 @import "./includes/lumon_pbr.glsl"
 
+// Import global defines (feature toggles with defaults)
+@import "./includes/vge_global_defines.glsl"
+
 // Direct buffers (linear, fog-free)
 uniform sampler2D directDiffuse;
 uniform sampler2D directSpecular;
@@ -35,12 +38,8 @@ uniform float fogMinIn;
 // Indirect controls
 uniform float indirectIntensity;
 uniform vec3 indirectTint;
-uniform int lumOnEnabled;
 
-// Phase 15 toggles
-uniform int enablePbrComposite;
-uniform int enableAO;
-uniform int enableBentNormal;
+// Phase 15 AO strength (kept as uniforms since they're float tuning values)
 uniform float diffuseAOStrength;
 uniform float specularAOStrength;
 
@@ -67,9 +66,8 @@ void main(void)
         return;
     }
 
-    if (lumOnEnabled == 1)
-    {
-        vec3 indirect = texture(indirectDiffuse, uv).rgb;
+#if VGE_LUMON_ENABLED
+    vec3 indirect = texture(indirectDiffuse, uv).rgb;
 
         vec3 albedo = lumonGetAlbedo(gBufferAlbedo, uv);
         float roughness;
@@ -81,31 +79,27 @@ void main(void)
         indirect *= indirectIntensity;
         indirect *= indirectTint;
 
-        if (enablePbrComposite == 0)
-        {
-            vec3 combined = lumonCombineLighting(directLight, indirect, albedo, metallic, 1.0, vec3(1.0));
-            finalColor = combined + emissiveLight;
-        }
-        else
-        {
-            vec3 viewPosVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
-            vec3 viewDirVS = normalize(-viewPosVS);
+#if !VGE_LUMON_PBR_COMPOSITE
+        vec3 combined = lumonCombineLighting(directLight, indirect, albedo, metallic, 1.0, vec3(1.0));
+        finalColor = combined + emissiveLight;
+#else
+        vec3 viewPosVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+        vec3 viewDirVS = normalize(-viewPosVS);
 
-            vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
-            vec3 normalVS = normalize((viewMatrix * vec4(normalWS, 0.0)).xyz);
+        vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
+        vec3 normalVS = normalize((viewMatrix * vec4(normalWS, 0.0)).xyz);
 
-            // AO is intentionally a no-op for now.
-            // In Vintage Story content, gBufferMaterial.a is reflectivity (not AO), so using it
-            // as an occlusion term can incorrectly attenuate/wipe indirect lighting.
-            // TODO: When LumOn provides a dedicated short-range AO signal, wire it here.
-            float ao = 1.0;
+        // AO is intentionally a no-op for now.
+        // In Vintage Story content, gBufferMaterial.a is reflectivity (not AO), so using it
+        // as an occlusion term can incorrectly attenuate/wipe indirect lighting.
+        // TODO: When LumOn provides a dedicated short-range AO signal, wire it here.
+        float ao = 1.0;
 
-            vec3 bentNormalVS = normalVS;
-            if (enableBentNormal == 1)
-            {
-                float bend = clamp((1.0 - clamp(ao, 0.0, 1.0)) * 0.5, 0.0, 0.5);
-                bentNormalVS = normalize(mix(normalVS, vec3(0.0, 1.0, 0.0), bend));
-            }
+        vec3 bentNormalVS = normalVS;
+#if VGE_LUMON_ENABLE_BENT_NORMAL
+        float bend = clamp((1.0 - clamp(ao, 0.0, 1.0)) * 0.5, 0.0, 0.5);
+        bentNormalVS = normalize(mix(normalVS, vec3(0.0, 1.0, 0.0), bend));
+#endif
 
             vec3 indirectDiffuseContrib;
             vec3 indirectSpecularContrib;
@@ -124,8 +118,8 @@ void main(void)
                 indirectSpecularContrib);
 
             finalColor = directLight + emissiveLight + indirectDiffuseContrib + indirectSpecularContrib;
-        }
-    }
+#endif // VGE_LUMON_PBR_COMPOSITE
+#endif // VGE_LUMON_ENABLED
 
     finalColor = max(finalColor, vec3(0.0));
 

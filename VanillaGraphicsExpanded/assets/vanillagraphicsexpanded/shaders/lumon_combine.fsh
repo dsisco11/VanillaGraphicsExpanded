@@ -14,6 +14,9 @@ out vec4 outColor;
 // Import common utilities
 @import "./includes/lumon_common.glsl"
 
+// Import global defines (feature toggles with defaults)
+@import "./includes/vge_global_defines.glsl"
+
 // Import material utilities
 // Import PBR/material utilities
 @import "./includes/lumon_pbr.glsl"
@@ -42,13 +45,7 @@ uniform sampler2D primaryDepth;       // Depth for sky detection
 uniform float indirectIntensity;      // Global multiplier (default: 1.0)
 uniform vec3 indirectTint;            // RGB tint applied to indirect light
 
-// Feature toggle
-uniform int lumOnEnabled;             // 0 = disabled, 1 = enabled
-
-// Phase 15: Physically-plausible compositing (optional)
-uniform int enablePbrComposite;
-uniform int enableAO;
-uniform int enableBentNormal;
+// Phase 15 AO strength (kept as uniforms since they're float tuning values)
 uniform float diffuseAOStrength;
 uniform float specularAOStrength;
 
@@ -66,12 +63,12 @@ void main(void)
 
     // Sample direct lighting (the scene before GI)
     vec3 directLight = texture(sceneDirect, uv).rgb;
-    
+
+#if !VGE_LUMON_ENABLED
     // If LumOn is disabled, pass through direct lighting unchanged
-    if (lumOnEnabled == 0) {
-        outColor = vec4(directLight, 1.0);
-        return;
-    }
+    outColor = vec4(directLight, 1.0);
+    return;
+#else
     
     // Check for sky - no indirect lighting contribution
     float depth = texture(primaryDepth, uv).r;
@@ -97,42 +94,36 @@ void main(void)
     
     vec3 finalColor;
 
-    if (enablePbrComposite == 0)
-    {
-        // Legacy path: diffuse-only indirect (kept for backwards compatibility)
-        finalColor = lumonCombineLighting(directLight, indirect, albedo, metallic,
-                                          1.0, vec3(1.0));
-    }
-    else
-    {
-        // Reconstruct view direction in view-space
-        vec3 viewPosVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
-        vec3 viewDirVS = normalize(-viewPosVS);
+#if !VGE_LUMON_PBR_COMPOSITE
+    // Legacy path: diffuse-only indirect (kept for backwards compatibility)
+    finalColor = lumonCombineLighting(directLight, indirect, albedo, metallic,
+                                      1.0, vec3(1.0));
+#else
+    // Reconstruct view direction in view-space
+    vec3 viewPosVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+    vec3 viewDirVS = normalize(-viewPosVS);
 
-        // Normal comes in as world-space; convert to view-space for consistent dot products
-        vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
-        vec3 normalVS = normalize((viewMatrix * vec4(normalWS, 0.0)).xyz);
+    // Normal comes in as world-space; convert to view-space for consistent dot products
+    vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
+    vec3 normalVS = normalize((viewMatrix * vec4(normalWS, 0.0)).xyz);
 
-        // AO is not implemented yet. Keep it as a no-op (1.0).
-        // NOTE: gBufferMaterial.a is reflectivity, not AO.
-        // Keep AO-related uniforms referenced so they remain active for binding/tests.
-        float ao = 1.0;
-        if (enableAO == 1)
-        {
-            // NaN-guard references: does not change behavior for valid values.
-            if (diffuseAOStrength != diffuseAOStrength) ao = 0.0;
-            if (specularAOStrength != specularAOStrength) ao = 0.0;
-        }
+    // AO is not implemented yet. Keep it as a no-op (1.0).
+    // NOTE: gBufferMaterial.a is reflectivity, not AO.
+    float ao = 1.0;
+#if VGE_LUMON_ENABLE_AO
+    // NaN-guard references: does not change behavior for valid values.
+    if (diffuseAOStrength != diffuseAOStrength) ao = 0.0;
+    if (specularAOStrength != specularAOStrength) ao = 0.0;
+#endif
 
-        // Bent normal: when enabled, apply a cheap approximation that bends the
-        // normal toward +Y (view-up) as AO decreases. This provides a usable
-        // visibility-ish signal without requiring a dedicated bent-normal buffer.
-        vec3 bentNormalVS = normalVS;
-        if (enableBentNormal == 1)
-        {
-            float bend = clamp((1.0 - clamp(ao, 0.0, 1.0)) * 0.5, 0.0, 0.5);
-            bentNormalVS = normalize(mix(normalVS, vec3(0.0, 1.0, 0.0), bend));
-        }
+    // Bent normal: when enabled, apply a cheap approximation that bends the
+    // normal toward +Y (view-up) as AO decreases. This provides a usable
+    // visibility-ish signal without requiring a dedicated bent-normal buffer.
+    vec3 bentNormalVS = normalVS;
+#if VGE_LUMON_ENABLE_BENT_NORMAL
+    float bend = clamp((1.0 - clamp(ao, 0.0, 1.0)) * 0.5, 0.0, 0.5);
+    bentNormalVS = normalize(mix(normalVS, vec3(0.0, 1.0, 0.0), bend));
+#endif
 
         vec3 indirectDiffuseContrib;
         vec3 indirectSpecularContrib;
@@ -150,11 +141,12 @@ void main(void)
             indirectDiffuseContrib,
             indirectSpecularContrib);
 
-        finalColor = directLight + indirectDiffuseContrib + indirectSpecularContrib;
-    }
+    finalColor = directLight + indirectDiffuseContrib + indirectSpecularContrib;
+#endif // VGE_LUMON_PBR_COMPOSITE
     
     // Clamp to prevent negative values (shouldn't happen, but safety)
     finalColor = max(finalColor, vec3(0.0));
     
     outColor = vec4(finalColor, 1.0);
+#endif // VGE_LUMON_ENABLED
 }

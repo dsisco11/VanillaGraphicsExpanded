@@ -66,17 +66,25 @@ Shader Define Migration (SetDefine) Work:
 
   Phase 3 - Convert Cross-Pass Toggles (LumOn + PBR Composite):
   Exit artifacts: Common toggles are defines and share defaults in the global include.
-  ☐ Convert `lumOnEnabled`:
+  ☑ Convert `lumOnEnabled`:
     - `lumon_combine.fsh` and `pbr_composite.fsh` use `#if VGE_LUMON_ENABLED`
     - Update shader program wrappers and renderers to call `SetDefine()`
-  ☐ Convert `enablePbrComposite`, `enableAO`, `enableBentNormal`:
+  ☑ Convert `enablePbrComposite`, `enableAO`, `enableBentNormal`:
     - Define names:
       - `VGE_LUMON_PBR_COMPOSITE`
       - `VGE_LUMON_ENABLE_AO`
       - `VGE_LUMON_ENABLE_BENT_NORMAL`
     - Ensure defaults match existing behavior
-  ☐ Update GPU integration tests that flip these toggles:
+  ☑ Update GPU integration tests that flip these toggles:
     - Compile two variants (define=0 vs define=1) and compare expected outputs
+
+  Phase 3 outputs:
+    - `assets/vanillagraphicsexpanded/shaders/lumon_combine.fsh` (import vge_global_defines.glsl, #if branches)
+    - `assets/vanillagraphicsexpanded/shaders/pbr_composite.fsh` (import vge_global_defines.glsl, #if branches)
+    - `assets/vanillagraphicsexpanded/shaders/lumon_debug.fsh` (import vge_global_defines.glsl, #if branches)
+    - `LumOnCombineShaderProgram.cs`, `PBRCompositeShaderProgram.cs`, `LumOnDebugShaderProgram.cs` (SetDefine wiring)
+    - `PBRCompositeRenderer.cs`, `LumOnDebugRenderer.cs` (bool-typed callers)
+    - `ShaderDefineInjectionTests.cs` (variant compile tests)
 
   Phase 4 - Convert LumOn Upsample Toggles:
   Exit artifacts: Upsample denoise/holefill switches are defines, and tests cover both paths via compiled variants.

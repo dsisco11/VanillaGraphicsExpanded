@@ -229,12 +229,12 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         shader.NormalRejectThreshold = config.NormalRejectThreshold;
         shader.VelocityRejectThreshold = config.VelocityRejectThreshold;
 
-        // Phase 15 composite params (to match lumon_combine)
+        // Phase 15 composite params (now compile-time defines)
         shader.IndirectIntensity = config.Intensity;
         shader.IndirectTint = new Vec3f(config.IndirectTint[0], config.IndirectTint[1], config.IndirectTint[2]);
-        shader.EnablePbrComposite = config.EnablePbrComposite ? 1 : 0;
-        shader.EnableAO = config.EnableAO ? 1 : 0;
-        shader.EnableBentNormal = config.EnableBentNormal ? 1 : 0;
+        shader.EnablePbrComposite = config.EnablePbrComposite;
+        shader.EnableAO = config.EnableAO;
+        shader.EnableBentNormal = config.EnableBentNormal;
         shader.DiffuseAOStrength = Math.Clamp(config.DiffuseAOStrength, 0f, 1f);
         shader.SpecularAOStrength = Math.Clamp(config.SpecularAOStrength, 0f, 1f);
 
