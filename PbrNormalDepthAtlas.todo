@@ -45,17 +45,17 @@ PBR Normal+Depth Sidecar Atlas (GPU Bake Plumbing):
 
   Phase 3 - Normal+Depth Bake Plumbing (Stubbed GPU Builder):
   Exit artifacts: A callable GPU bake path exists, but can return placeholder output until algorithm is implemented.
-  ☐ Add a new builder entrypoint (GPU) that is invoked per atlas page:
+  ✔ Add a new builder entrypoint (GPU) that is invoked per atlas page:
     - Inputs:
       - baseAlbedoAtlasPageTexId (GL id)
       - destNormalDepthTexId (GL id)
       - atlas page dimensions
     - Output:
       - writes into destNormalDepthTexId
-  ☐ Implement a temporary placeholder output (until algorithm exists):
+  ✔ Implement a temporary placeholder output (until algorithm exists):
     - Option A: write constant normal (0.5, 0.5, 1.0) + depth 0
     - Option B: copy albedo luminance into depth channel and set normal constant
-  ☐ Wire builder into PbrMaterialAtlasTextures.Rebuild() for each atlas page
+  ✔ Wire builder into PbrMaterialAtlasTextures.Rebuild() for each atlas page
 
   Phase 4 - Shader Include + Injection:
   Exit artifacts: Chunk shaders compile with a new uniform + include, but behavior is unchanged unless used.
