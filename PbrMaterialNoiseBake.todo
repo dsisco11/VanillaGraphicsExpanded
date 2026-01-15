@@ -66,16 +66,16 @@ PBR Material Noise Pre-Bake (Squirrel3, SIMD):
 
   Phase 5 - Apply Noise While Baking Atlas (Scalar + SIMD):
   Exit artifacts: The atlas bake writes noisy roughness/metalness/emissive in RGB16F; output is deterministic.
-  ☐ Extend PBR material params pixel builder to apply noise per-texel:
+  ✔ Extend PBR material params pixel builder to apply noise per-texel:
     - Base value comes from mapped material params
     - Noise applied per-channel using amplitude from NoiseParams
     - Clamp final values to [0, 1]
-  ☐ Implement separate, testable per-width routines:
+  ✔ Implement separate, testable per-width routines:
     - ApplyNoise_Vector128(...)
     - ApplyNoise_Vector256(...)
     - ApplyNoise_Scalar(...)
-  ☐ Ensure SIMD is used only when supported (and doesn’t change results)
-  ☐ Ensure noise uses stable per-texture seed + local coords
+  ✔ Ensure SIMD is used only when supported (and doesn’t change results)
+  ✔ Ensure noise uses stable per-texture seed + local coords
 
   Phase 6 - Correctness + Regression Tests:
   Exit artifacts: Tests prove scalar/SIMD equivalence and lock in deterministic atlas noise.
