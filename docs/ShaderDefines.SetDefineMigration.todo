@@ -165,6 +165,7 @@ Shader Define Migration (SetDefine) Work:
 
   Phase 8 - Cleanup + Documentation:
   Exit artifacts: Codebase is consistent; docs and tests explain how defines work.
+  ☐ Create authoritative Enum for listing all VGE shader define names
   ☐ Remove obsolete uniform setters/properties from shader program wrappers
   ☐ Ensure renderers set defines before `Use()` and don’t spam recompile:
     - Only set defines when config values change (optional optimization)
