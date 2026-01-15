@@ -155,9 +155,56 @@ public class LumOnUniformTests : IDisposable
             $"Failed to compile/link {vertexShader} + {fragmentShader}: {linkResult.ErrorMessage}");
 
         int location = _helper.GetUniformLocation(linkResult.ProgramId, uniformName);
+
+        if (location >= 0)
+        {
+            return;
+        }
+
+        // Some "critical" switches are being migrated from uniforms to compile-time defines.
+        // During/after migration, these may no longer appear as active uniforms.
+        if (TryGetMigratedDefineName(uniformName, out var defineName))
+        {
+            var (vsrc, fsrc) = _helper.GetProcessedSources(vertexShader, fragmentShader);
+            Assert.SkipWhen(vsrc == null || fsrc == null,
+                $"Could not read shader sources for {vertexShader}/{fragmentShader}");
+
+            string combined = vsrc + "\n" + fsrc;
+            Assert.True(
+                combined.Contains(defineName, StringComparison.Ordinal),
+                $"Critical switch '{uniformName}' was not found as an active uniform and the expected define '{defineName}' " +
+                $"was not found in processed shader source for {vertexShader}/{fragmentShader}.");
+
+            // If the define is present (and should be defaulted via #ifndef/#define), compilation is sufficient here.
+            return;
+        }
+
         Assert.True(location >= 0,
             $"Critical uniform '{uniformName}' not found in {vertexShader}/{fragmentShader}. " +
             $"Location: {location}. This uniform is required for the shader to work correctly.");
+    }
+
+    private static bool TryGetMigratedDefineName(string uniformName, out string defineName)
+    {
+        defineName = uniformName switch
+        {
+            // Phase 3: cross-pass toggles
+            "lumOnEnabled" => "VGE_LUMON_ENABLED",
+            "enablePbrComposite" => "VGE_LUMON_PBR_COMPOSITE",
+            "enableAO" => "VGE_LUMON_ENABLE_AO",
+            "enableBentNormal" => "VGE_LUMON_ENABLE_BENT_NORMAL",
+
+            // Phase 4: upsample toggles
+            "denoiseEnabled" => "VGE_LUMON_UPSAMPLE_DENOISE",
+            "holeFillEnabled" => "VGE_LUMON_UPSAMPLE_HOLEFILL",
+
+            // Phase 5: temporal toggle
+            "enableReprojectionVelocity" => "VGE_LUMON_TEMPORAL_USE_VELOCITY_REPROJECTION",
+
+            _ => string.Empty
+        };
+
+        return defineName.Length > 0;
     }
 
     /// <summary>

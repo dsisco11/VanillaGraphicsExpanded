@@ -46,17 +46,23 @@ Shader Define Migration (SetDefine) Work:
 
   Phase 2 - Test Infrastructure: Define Injection Support:
   Exit artifacts: GPU tests can compile shader variants with defines without relying on uniforms.
-  ☐ Add define injection support to the GPU shader compile helper:
+  ☑ Add define injection support to the GPU shader compile helper:
     - Update `VanillaGraphicsExpanded.Tests/GPU/Helpers/ShaderTestHelper.cs` (or equivalent)
     - Inject `#define` lines immediately after `#version` in the fully-processed source
-  ☐ Add a small helper API for tests:
+  ☑ Add a small helper API for tests:
     - e.g., `CompileShaderWithDefines(vsh, fsh, Dictionary<string,string>)`
-  ☐ Decide standard define serialization for tests:
+  ☑ Decide standard define serialization for tests:
     - ints as `"0"/"1"` or literal numbers
     - floats must be invariant literals (e.g., `"2.0"`)
-  ☐ Update “uniform presence” tests:
+  ☑ Update “uniform presence” tests:
     - `LumOnUniformTests` should stop asserting uniforms that become defines
     - Add a new test category: “critical defines present + defaulted” (shader compiles without injected defines)
+
+  Phase 2 outputs:
+    - `VanillaGraphicsExpanded.Tests/GPU/Helpers/ShaderTestHelper.cs`
+    - `VanillaGraphicsExpanded.Tests/GPU/ShaderDefineInjectionTests.cs`
+    - `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/tests/vge_global_defines_smoke.vsh`
+    - `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/tests/vge_global_defines_smoke.fsh`
 
   Phase 3 - Convert Cross-Pass Toggles (LumOn + PBR Composite):
   Exit artifacts: Common toggles are defines and share defaults in the global include.

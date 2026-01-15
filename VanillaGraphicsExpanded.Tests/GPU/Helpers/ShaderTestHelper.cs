@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 using OpenTK.Graphics.OpenGL;
 using TinyTokenizer.Ast;
@@ -98,6 +99,19 @@ public sealed class ShaderTestHelper : IDisposable
     /// <returns>Result containing shader ID on success, or error message on failure.</returns>
     public ShaderCompileResult CompileShader(string filename, ShaderType type)
     {
+        return CompileShader(filename, type, defines: null);
+    }
+
+    /// <summary>
+    /// Compiles a shader from a file with optional compile-time defines injected.
+    /// Defines are inserted immediately after the first <c>#version</c> directive
+    /// in the fully-processed source.
+    /// </summary>
+    public ShaderCompileResult CompileShader(
+        string filename,
+        ShaderType type,
+        IReadOnlyDictionary<string, string?>? defines)
+    {
         var filePath = Path.Combine(_shaderBasePath, filename);
         if (!File.Exists(filePath))
         {
@@ -106,20 +120,8 @@ public sealed class ShaderTestHelper : IDisposable
 
         try
         {
-            // Read shader source
             var source = File.ReadAllText(filePath);
-            
-            // Process @import directives using the production AST-based system
-            var processedSource = ProcessImports(source);
-
-            // Strip non-ASCII characters using the production SIMD-optimized method
-            processedSource = SourceCodeImportsProcessor.StripNonAscii(processedSource);
-
-            // Add #version if not present (some VS shaders omit it)
-            if (!processedSource.TrimStart().StartsWith("#version"))
-            {
-                processedSource = "#version 330 core\n" + processedSource;
-            }
+            var processedSource = BuildProcessedSource(source, defines);
 
             // Create and compile shader
             int shaderId = GL.CreateShader(type);
@@ -142,6 +144,37 @@ public sealed class ShaderTestHelper : IDisposable
         {
             return ShaderCompileResult.Failure($"Exception compiling {filename}: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Compiles and links a shader program from vertex and fragment shader files.
+    /// </summary>
+    public ProgramLinkResult CompileAndLink(string vertexFilename, string fragmentFilename)
+    {
+        return CompileAndLink(vertexFilename, fragmentFilename, defines: null);
+    }
+
+    /// <summary>
+    /// Compiles and links a shader program from vertex and fragment shader files with optional defines.
+    /// </summary>
+    public ProgramLinkResult CompileAndLink(
+        string vertexFilename,
+        string fragmentFilename,
+        IReadOnlyDictionary<string, string?>? defines)
+    {
+        var vertexResult = CompileShader(vertexFilename, ShaderType.VertexShader, defines);
+        if (!vertexResult.IsSuccess)
+        {
+            return ProgramLinkResult.Failure($"Vertex shader error: {vertexResult.ErrorMessage}");
+        }
+
+        var fragmentResult = CompileShader(fragmentFilename, ShaderType.FragmentShader, defines);
+        if (!fragmentResult.IsSuccess)
+        {
+            return ProgramLinkResult.Failure($"Fragment shader error: {fragmentResult.ErrorMessage}");
+        }
+
+        return LinkProgram(vertexResult.ShaderId, fragmentResult.ShaderId);
     }
 
     /// <summary>
@@ -178,29 +211,6 @@ public sealed class ShaderTestHelper : IDisposable
     }
 
     /// <summary>
-    /// Compiles and links a shader program from vertex and fragment shader files.
-    /// </summary>
-    /// <param name="vertexFilename">Vertex shader filename.</param>
-    /// <param name="fragmentFilename">Fragment shader filename.</param>
-    /// <returns>Result containing program ID on success, or error message on failure.</returns>
-    public ProgramLinkResult CompileAndLink(string vertexFilename, string fragmentFilename)
-    {
-        var vertexResult = CompileShader(vertexFilename, ShaderType.VertexShader);
-        if (!vertexResult.IsSuccess)
-        {
-            return ProgramLinkResult.Failure($"Vertex shader error: {vertexResult.ErrorMessage}");
-        }
-
-        var fragmentResult = CompileShader(fragmentFilename, ShaderType.FragmentShader);
-        if (!fragmentResult.IsSuccess)
-        {
-            return ProgramLinkResult.Failure($"Fragment shader error: {fragmentResult.ErrorMessage}");
-        }
-
-        return LinkProgram(vertexResult.ShaderId, fragmentResult.ShaderId);
-    }
-
-    /// <summary>
     /// Gets the location of a uniform variable in a shader program.
     /// </summary>
     /// <param name="programId">The shader program ID.</param>
@@ -219,6 +229,15 @@ public sealed class ShaderTestHelper : IDisposable
     /// <returns>Processed source with all imports inlined, or null if file not found.</returns>
     public string? GetProcessedSource(string filename)
     {
+        return GetProcessedSource(filename, defines: null);
+    }
+
+    /// <summary>
+    /// Gets the processed shader source with @import directives resolved and optional defines injected.
+    /// Defines are inserted immediately after the first <c>#version</c> directive.
+    /// </summary>
+    public string? GetProcessedSource(string filename, IReadOnlyDictionary<string, string?>? defines)
+    {
         var filePath = Path.Combine(_shaderBasePath, filename);
         if (!File.Exists(filePath))
         {
@@ -226,7 +245,7 @@ public sealed class ShaderTestHelper : IDisposable
         }
 
         var source = File.ReadAllText(filePath);
-        return ProcessImports(source);
+        return BuildProcessedSource(source, defines);
     }
 
     /// <summary>
@@ -238,9 +257,97 @@ public sealed class ShaderTestHelper : IDisposable
     public (string? VertexSource, string? FragmentSource) GetProcessedSources(
         string vertexFilename, string fragmentFilename)
     {
-        var vertexSource = GetProcessedSource(vertexFilename);
-        var fragmentSource = GetProcessedSource(fragmentFilename);
+        var vertexSource = GetProcessedSource(vertexFilename, defines: null);
+        var fragmentSource = GetProcessedSource(fragmentFilename, defines: null);
         return (vertexSource, fragmentSource);
+    }
+
+    /// <summary>
+    /// Gets the processed shader sources for both vertex and fragment shaders with optional defines injected.
+    /// </summary>
+    public (string? VertexSource, string? FragmentSource) GetProcessedSources(
+        string vertexFilename,
+        string fragmentFilename,
+        IReadOnlyDictionary<string, string?>? defines)
+    {
+        var vertexSource = GetProcessedSource(vertexFilename, defines);
+        var fragmentSource = GetProcessedSource(fragmentFilename, defines);
+        return (vertexSource, fragmentSource);
+    }
+
+    private string BuildProcessedSource(string source, IReadOnlyDictionary<string, string?>? defines)
+    {
+        // Process @import directives using the production AST-based system
+        var processedSource = ProcessImports(source);
+
+        // Strip non-ASCII characters using the production SIMD-optimized method
+        processedSource = SourceCodeImportsProcessor.StripNonAscii(processedSource);
+
+        // Add #version if not present (some VS shaders omit it)
+        if (!processedSource.TrimStart().StartsWith("#version", StringComparison.Ordinal))
+        {
+            processedSource = "#version 330 core\n" + processedSource;
+        }
+
+        // Inject compile-time defines immediately after #version.
+        processedSource = InjectDefinesAfterVersion(processedSource, defines);
+
+        return processedSource;
+    }
+
+    private static string InjectDefinesAfterVersion(
+        string source,
+        IReadOnlyDictionary<string, string?>? defines)
+    {
+        if (defines == null || defines.Count == 0)
+        {
+            return source;
+        }
+
+        // Find the first #version line.
+        int versionIndex = source.IndexOf("#version", StringComparison.Ordinal);
+        if (versionIndex < 0)
+        {
+            // Should not happen because we add #version above, but fail safe.
+            return source;
+        }
+
+        int lineEnd = source.IndexOf('\n', versionIndex);
+        if (lineEnd < 0)
+        {
+            // Single-line source; append newline so we can inject.
+            lineEnd = source.Length;
+            source += "\n";
+        }
+        else
+        {
+            lineEnd += 1; // include the newline
+        }
+
+        var ordered = defines.OrderBy(kvp => kvp.Key, StringComparer.Ordinal);
+
+        var injected = new System.Text.StringBuilder();
+        foreach (var (name, value) in ordered)
+        {
+            if (string.IsNullOrWhiteSpace(name)) continue;
+
+            // Allow both '#define FOO' and '#define FOO 1.0' styles.
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                injected.Append("#define ").Append(name.Trim()).Append('\n');
+            }
+            else
+            {
+                injected.Append("#define ").Append(name.Trim()).Append(' ').Append(value.Trim()).Append('\n');
+            }
+        }
+
+        if (injected.Length == 0)
+        {
+            return source;
+        }
+
+        return source.Insert(lineEnd, injected.ToString());
     }
 
     /// <summary>
