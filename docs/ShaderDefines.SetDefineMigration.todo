@@ -157,11 +157,16 @@ Shader Define Migration (SetDefine) Work:
 
   Phase 7 - Refactor “Common Values” Includes:
   Exit artifacts: Shared constants/defaults live in centralized includes, reducing duplication across shaders.
-  ☐ Create/extend common include files:
+  ☑ Create/extend common include files:
     - `global_defines.glsl` (defines)
-    - Consider `common_constants.glsl` (math/limits)
-  ☐ Move duplicated constants out of per-pass shaders:
+    - `common_constants.glsl` (math/limits)
+  ☑ Move duplicated constants out of per-pass shaders:
     - Avoid putting frequently tuned values in global includes
+
+  Phase 7 outputs:
+    - `assets/vanillagraphicsexpanded/shaders/includes/common_constants.glsl`
+    - `assets/vanillagraphicsexpanded/shaders/includes/normal_smoothing.glsl` (uses shared constants)
+    - `assets/vanillagraphicsexpanded/shaders/includes/pbr_common.glsl` (uses shared constants)
 
   Phase 8 - Cleanup + Documentation:
   Exit artifacts: Codebase is consistent; docs and tests explain how defines work.

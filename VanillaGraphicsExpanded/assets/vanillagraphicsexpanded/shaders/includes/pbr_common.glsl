@@ -1,5 +1,7 @@
 #ifndef VGE_PBRFUNCTIONS_FSH
 #define VGE_PBRFUNCTIONS_FSH
+
+@import "./common_constants.glsl"
 /*
 @description Fresnel-Schlick approximation for reflectance
 @param cosTheta - Cosine of the angle between view and halfway vector
@@ -43,7 +45,6 @@ vec3 pbrSpecularFactorFromFresnel(vec3 F)
 @return Normal distribution value
 */
 float distributionGGX(vec3 N, vec3 H, float roughness) {
-    const float PI = 3.141592653589793;
     float a = roughness * roughness;
     float a2 = a * a;
     float NdotH = max(dot(N, H), 0.0);
@@ -51,7 +52,7 @@ float distributionGGX(vec3 N, vec3 H, float roughness) {
     
     float num = a2;
     float denom = (NdotH2 * (a2 - 1.0) + 1.0);
-    denom = PI * denom * denom;
+    denom = VGE_PI * denom * denom;
     
     return num / denom;
 }

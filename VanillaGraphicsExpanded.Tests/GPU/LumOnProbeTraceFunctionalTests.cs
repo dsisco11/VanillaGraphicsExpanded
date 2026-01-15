@@ -418,7 +418,7 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f,
             attachmentCount: 2);
 
-        var programId = CompileSHTraceShader();
+        var programId = CompileSHTraceShader(skyMissWeight: skyWeight);
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();

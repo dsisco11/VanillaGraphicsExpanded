@@ -1,15 +1,14 @@
 #ifndef VGE_NORMAL_SMOOTHING_GLSL
 #define VGE_NORMAL_SMOOTHING_GLSL
 
+@import "./common_constants.glsl"
+
 // Teardown-style normal blurring using golden ratio spiral sampling
 // This gives the illusion of beveled edges after shading
 // Reference: https://juandiegomontoya.github.io/teardown_breakdown.html
 vec3 sampleNormalSmooth(sampler2D normalTex, sampler2D depthTex, vec2 texCoord, vec2 texelSize, float centerDepth, int sampleCount, float blurRadius) {
     // Golden ratio constant for spiral sampling (Teardown-style)
-    const float PI = 3.141592653589793;
-    const float PHI = 1.618033988749895; // (1 + sqrt(5)) / 2
-    const float TAU = 6.283185307179586; // 2 * PI
-    const float GOLDEN_ANGLE = 2.399963229728653; // TAU / PHI^2 ≈ 137.5 degrees in radians
+    const float GOLDEN_ANGLE = VGE_GOLDEN_ANGLE;
     // Sample center normal
     vec4 centerSample = texture(normalTex, texCoord);
     vec3 centerNormal = (centerSample.rgb * 2.0) - 1.0;
