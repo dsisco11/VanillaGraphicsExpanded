@@ -20,16 +20,17 @@ PBR Normal+Depth Sidecar Atlas (GPU Bake Plumbing):
 
   Phase 1 - Spec + ABI Surface:
   Exit artifacts: Uniform/include/function names agreed; texture unit reserved; the feature can be toggled/disabled without breaking shaders.
-  ☐ Choose naming (stable ABI):
+  ✔ Choose naming (stable ABI):
     - Uniform sampler: vge_normalDepthTex
     - Include file: includes/vge_normaldepth.glsl
-    - Shader helper: ReadNormalDepth(vec2 uv) -> vec4 (exact packing TBD)
-  ☐ Choose a texture unit allocation:
+    - Shader helper: ReadNormalDepth(vec2 uv) -> vec4
+  ✔ Choose a texture unit allocation:
     - Existing material params uses unit 15
-    - Pick normal+depth unit (e.g., 14 or 16) and document it
-  ☐ Decide minimal format contract (no algorithm yet):
-    - Treat as opaque vec4 until packing is defined
-    - Shader-side helper should hide packing details
+    - Normal+depth uses unit 14
+  ✔ Decide minimal format contract (no algorithm yet):
+    - Provisional packing: vec4(normalXYZ_packed01, depth01)
+    - Treat the texture as RGBA16F for plumbing (allows future packing changes)
+    - Shader-side helper owns the decode contract so callers don't depend on packing
 
   Phase 2 - Atlas Ownership: Extend Existing Owner to Hold Two Sidecars:
   Exit artifacts: PbrMaterialAtlasTextures owns a per-page bundle with both params and normal+depth textures.
