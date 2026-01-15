@@ -2,7 +2,7 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Build",
+            "label": "build",
             "command": "dotnet",
             "type": "process",
             "args": [
@@ -21,7 +21,7 @@
             }
         },
         {
-            "label": "Package",
+            "label": "package",
             "command": "dotnet",
             "type": "process",
             "args": [
@@ -39,7 +39,7 @@
             }
         },
         {
-            "label": "Build (Cake)",
+            "label": "build (Cake)",
             "command": "dotnet",
             "type": "process",
             "args": [
@@ -58,7 +58,7 @@
             }
         },
         {
-            "label": "Clean",
+            "label": "clean",
             "command": "dotnet",
             "type": "process",
             "args": [
