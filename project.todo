@@ -1,5 +1,7 @@
 Issues:
   ☐ Mod settings not live reloading properly.
+  ☐ Add generated normal/depth maps for PBR mapped textures.
+  ☐ Bake PBR material noise into material/normal textures.
 
 LumOn → Lumen Alignment Work (Screen-Space Pipeline):
 
