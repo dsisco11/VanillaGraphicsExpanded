@@ -1,0 +1,93 @@
+PBR Material Noise Pre-Bake (Squirrel3, SIMD):
+
+  Goal:
+  - Pre-bake deterministic material noise into the PBR material params texture atlas (CPU side).
+  - Noise algorithm must match Squirrel3 (as implemented in shaders/includes/squirrel3.glsl).
+  - Implement SIMD/AVX paths using System.Runtime.Intrinsics (Vector128/Vector256), with scalar fallback.
+  - Each SIMD width (128/256) has its own testable method.
+  - Squirrel3 is implemented as a reusable class.
+
+  Notes / Constraints:
+  - Current atlas is RGB16F and stores at least: R=roughness, G=metalness.
+  - Material noise config currently includes more fields (e.g., normal-related noise), but they do not map to the params atlas used in this scope.
+    - Treat those as follow-up work unless/until atlas format expands (RGBA16F) or a second atlas is introduced.
+
+  Phase 1 - Spec + Integration Points:
+  Exit artifacts: A clear mapping from NoiseParams -> atlas channels exists; seed scheme chosen; integration site identified.
+  ☐ Confirm channel mapping for noise:
+    - RoughnessNoise -> atlas R
+    - MetalnessNoise -> atlas G
+  ☐ Confirm what to do with noise fields not representable in RGB params atlas:
+    - NormalStrengthNoise (not stored here) => ignore for now OR plan 2nd atlas / normal atlas bake
+  ☐ Choose deterministic seeding scheme (stable across atlas repacks):
+    - Seed = Hash(textureKey) or Hash(textureKey + domain + variant)
+    - Coordinates = localRectX/localRectY (not absolute atlas coords)
+    - Optional: separate channel salt to decorrelate R/G
+  ☐ Identify implementation hook in CPU atlas builder:
+    - Apply noise while filling each texture-rect in the atlas (not as a post-pass over the whole atlas).
+
+  Phase 2 - Squirrel3 Port (Scalar):
+  Exit artifacts: Reusable C# Squirrel3 implementation matches GLSL outputs bit-for-bit for scalar inputs.
+  ☐ Add reusable class: Squirrel3Noise
+    - HashU(uint v)                (matches Squirrel3HashU)
+    - HashU(uint v1, uint v2)      (matches Squirrel3HashU(v1, v2))
+    - HashU(uint v1, uint v2, uint v3) (matches Squirrel3HashU(v1, v2, v3))
+  ☐ Match GLSL constants exactly:
+    - BIT_NOISE1/2/3 and PRIMEU1/2 (+ PRIMEU3 declared in GLSL)
+  ☐ Provide scalar float helpers:
+    - Noise01(uint|...) => float(hash) / 4294967295.0f (preserve GLSL behavior)
+    - Optional: NoiseSigned1(...) => (Noise01 * 2 - 1)
+  ☐ Add basic scalar unit tests:
+    - Known input vectors produce expected uint outputs
+    - Noise01 uses correct normalization edge cases (0 and 0xFFFFFFFF)
+
+  Phase 3 - SIMD Implementation (Vector128):
+  Exit artifacts: Dedicated Vector128 method exists, guarded by ISA checks, and tested to match scalar.
+  ☐ Implement dedicated method(s) on Squirrel3Noise:
+    - HashU_Vector128_U32(Vector128<uint> v)
+    - (optional) HashU_Vector128_U32(Vector128<uint> v1, v2) / (v1, v2, v3)
+  ☐ Use intrinsics where supported:
+    - Prefer Sse2/Sse41 for xor/shift/add
+    - Prefer Avx2 for multiply (or use per-lane fallback if needed)
+  ☐ Scalar fallback path inside the Vector128 method when unsupported
+  ☐ Unit tests:
+    - Vector128 hash equals scalar lane-by-lane for multiple test vectors
+    - Determinism across runs
+
+  Phase 4 - SIMD Implementation (Vector256):
+  Exit artifacts: Dedicated Vector256 method exists, guarded by ISA checks, and tested to match scalar.
+  ☐ Implement dedicated method(s) on Squirrel3Noise:
+    - HashU_Vector256_U32(Vector256<uint> v)
+    - (optional) HashU_Vector256_U32(Vector256<uint> v1, v2) / (v1, v2, v3)
+  ☐ Use Avx2 intrinsics when supported; scalar fallback when unsupported
+  ☐ Unit tests:
+    - Vector256 hash equals scalar lane-by-lane for multiple test vectors
+
+  Phase 5 - Apply Noise While Baking Atlas (Scalar + SIMD):
+  Exit artifacts: The atlas bake writes noisy roughness/metalness in RGB16F; output is deterministic.
+  ☐ Extend PBR material params pixel builder to apply noise per-texel:
+    - Base value comes from mapped material params
+    - Noise applied per-channel using amplitude from NoiseParams
+    - Clamp final values to [0, 1]
+  ☐ Implement separate, testable per-width routines:
+    - ApplyNoise_Vector128(...)
+    - ApplyNoise_Vector256(...)
+    - ApplyNoise_Scalar(...)
+  ☐ Ensure SIMD is used only when supported (and doesn’t change results)
+  ☐ Ensure noise uses stable per-texture seed + local coords
+
+  Phase 6 - Correctness + Regression Tests:
+  Exit artifacts: Tests prove scalar/SIMD equivalence and lock in deterministic atlas noise.
+  ☐ Add unit tests for noise application:
+    - Given a small synthetic rect and fixed seed, output matches a known snapshot
+    - Scalar and SIMD code paths produce identical float results
+  ☐ Add integration-style test for atlas bake (if feasible in existing test harness):
+    - Bake atlas for a tiny set of textures, verify deterministic checksum
+
+  Phase 7 - Optional Follow-Ups (Extra Params / Normal Pipeline):
+  Exit artifacts: Clear path (or implementation) for normal-related noise if desired.
+  ☐ Option A: Expand params storage (RGBA16F or a second params atlas texture)
+    - Define what extra params are needed and where they are consumed
+    - Update binding hook + shader decode
+  ☐ Option B: Bake noise into normal/height textures (separate pipeline)
+    - Requires clear definition of how “normal strength noise” is represented
