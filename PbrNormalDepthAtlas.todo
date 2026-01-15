@@ -34,14 +34,14 @@ PBR Normal+Depth Sidecar Atlas (GPU Bake Plumbing):
 
   Phase 2 - Atlas Ownership: Extend Existing Owner to Hold Two Sidecars:
   Exit artifacts: PbrMaterialAtlasTextures owns a per-page bundle with both params and normal+depth textures.
-  ☐ Refactor per-page dictionary value in PbrMaterialAtlasTextures:
+  ✔ Refactor per-page dictionary value in PbrMaterialAtlasTextures:
     - Replace Dictionary<int, DynamicTexture> with Dictionary<int, PageTextures>
     - PageTextures contains:
       - MaterialParamsTex (existing)
       - NormalDepthTex (new)
-  ☐ Ensure rebuild is atomic:
+  ✔ Ensure rebuild is atomic:
     - Rebuild() disposes old textures then rebuilds both sidecars per page
-  ☐ Ensure Dispose() releases both textures and clears dictionaries
+  ✔ Ensure Dispose() releases both textures and clears dictionaries
 
   Phase 3 - Normal+Depth Bake Plumbing (Stubbed GPU Builder):
   Exit artifacts: A callable GPU bake path exists, but can return placeholder output until algorithm is implemented.
