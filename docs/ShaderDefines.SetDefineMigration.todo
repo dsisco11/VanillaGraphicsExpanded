@@ -12,16 +12,18 @@ Shader Define Migration (SetDefine) Work:
 
   Phase 0 - Audit / Inventory:
   Exit artifacts: A complete list of shader “constant-like” uniforms and a decision log of which become defines vs stay uniforms.
-  ☐ Inventory all shader wrapper properties:
+  ☑ Inventory all shader wrapper properties:
     - Scan `VanillaGraphicsExpanded/VanillaGraphicsExpanded/**/Shaders/*.cs`
     - Record uniform name, type, usage frequency (per-frame vs rare), and shaders affected
-  ☐ Inventory all GLSL uniforms and their usage sites:
+  ☑ Inventory all GLSL uniforms and their usage sites:
     - Scan `VanillaGraphicsExpanded/VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/**/*.fsh/.vsh/.glsl`
     - Tag candidates: `int/bool` logic gates and values used as loop bounds
-  ☐ Produce a “define candidate table” (source of truth):
+  ☑ Produce a “define candidate table” (source of truth):
     - C# property → GLSL uniform → shader files → proposed define name/value shape
-  ☐ Produce a “must remain uniform” list (source of truth):
+  ☑ Produce a “must remain uniform” list (source of truth):
     - Matrices, textures, screenSize, frameIndex, fog, point lights, etc.
+
+  Phase 0 output: `docs/ShaderDefines.SetDefineMigration.Phase0.md`
 
   Phase 1 - Define Naming Conventions + Global Include:
   Exit artifacts: A stable naming scheme and a shared include for defaults/conventions.
