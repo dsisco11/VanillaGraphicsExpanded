@@ -1,0 +1,116 @@
+Shader Define Migration (SetDefine) Work:
+
+  Goal:
+  Convert “constant-like” shader uniforms into compile-time defines using VGE’s `VgeShaderProgram.SetDefine()`
+  so we reduce per-fragment branching, remove dead uniform plumbing, and centralize common feature gates.
+
+  Notes:
+  - Prefer defines for: feature toggles (0/1), rarely-changed mode switches, and loop bounds.
+  - Keep runtime uniforms for: matrices, frameIndex/time, screen sizes, textures/samplers, fog, lighting arrays.
+  - Any uniform → define change must include shader-side defaults via `#ifndef NAME` / `#define NAME <default>`.
+  - When defines change at runtime, `SetDefine()` triggers a shader recompile (only on changes).
+
+  Phase 0 - Audit / Inventory:
+  Exit artifacts: A complete list of shader “constant-like” uniforms and a decision log of which become defines vs stay uniforms.
+  ☐ Inventory all shader wrapper properties:
+    - Scan `VanillaGraphicsExpanded/VanillaGraphicsExpanded/**/Shaders/*.cs`
+    - Record uniform name, type, usage frequency (per-frame vs rare), and shaders affected
+  ☐ Inventory all GLSL uniforms and their usage sites:
+    - Scan `VanillaGraphicsExpanded/VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/**/*.fsh/.vsh/.glsl`
+    - Tag candidates: `int/bool` logic gates and values used as loop bounds
+  ☐ Produce a “define candidate table” (source of truth):
+    - C# property → GLSL uniform → shader files → proposed define name/value shape
+  ☐ Produce a “must remain uniform” list (source of truth):
+    - Matrices, textures, screenSize, frameIndex, fog, point lights, etc.
+
+  Phase 1 - Define Naming Conventions + Global Include:
+  Exit artifacts: A stable naming scheme and a shared include for defaults/conventions.
+  ☐ Decide naming conventions:
+    - Prefer `VGE_*` prefix for new global defines
+    - Decide whether to keep or rename existing `LUMON_EMISSIVE_BOOST` (avoid churn unless needed)
+  ☐ Add a global defines include (new):
+    - `assets/vanillagraphicsexpanded/shaders/includes/vge_global_defines.glsl`
+    - Contains: shared `#ifndef/#define` defaults for cross-pass toggles
+  ☐ Decide which defines are “global” vs feature-specific:
+    - Global: used by multiple shaders (LumOn + PBR composite)
+    - Feature-specific: used by exactly one stage or one shader family
+  ☐ Document usage pattern:
+    - How to write shader code: `#if VGE_FOO` / `#ifdef VGE_FOO`
+    - How to wire in C#: property setter calls `setDefine("VGE_FOO", "1")`
+
+  Phase 2 - Test Infrastructure: Define Injection Support:
+  Exit artifacts: GPU tests can compile shader variants with defines without relying on uniforms.
+  ☐ Add define injection support to the GPU shader compile helper:
+    - Update `VanillaGraphicsExpanded.Tests/GPU/Helpers/ShaderTestHelper.cs` (or equivalent)
+    - Inject `#define` lines immediately after `#version` in the fully-processed source
+  ☐ Add a small helper API for tests:
+    - e.g., `CompileShaderWithDefines(vsh, fsh, Dictionary<string,string>)`
+  ☐ Decide standard define serialization for tests:
+    - ints as `"0"/"1"` or literal numbers
+    - floats must be invariant literals (e.g., `"2.0"`)
+  ☐ Update “uniform presence” tests:
+    - `LumOnUniformTests` should stop asserting uniforms that become defines
+    - Add a new test category: “critical defines present + defaulted” (shader compiles without injected defines)
+
+  Phase 3 - Convert Cross-Pass Toggles (LumOn + PBR Composite):
+  Exit artifacts: Common toggles are defines and share defaults in the global include.
+  ☐ Convert `lumOnEnabled`:
+    - `lumon_combine.fsh` and `pbr_composite.fsh` use `#if VGE_LUMON_ENABLED`
+    - Update shader program wrappers and renderers to call `SetDefine()`
+  ☐ Convert `enablePbrComposite`, `enableAO`, `enableBentNormal`:
+    - Define names:
+      - `VGE_LUMON_PBR_COMPOSITE`
+      - `VGE_LUMON_ENABLE_AO`
+      - `VGE_LUMON_ENABLE_BENT_NORMAL`
+    - Ensure defaults match existing behavior
+  ☐ Update GPU integration tests that flip these toggles:
+    - Compile two variants (define=0 vs define=1) and compare expected outputs
+
+  Phase 4 - Convert LumOn Upsample Toggles:
+  Exit artifacts: Upsample denoise/holefill switches are defines, and tests cover both paths via compiled variants.
+  ☐ Convert `denoiseEnabled` to `VGE_LUMON_UPSAMPLE_DENOISE`
+  ☐ Convert `holeFillEnabled` to `VGE_LUMON_UPSAMPLE_HOLEFILL`
+  ☐ Decide whether `holeFillRadius` becomes a define:
+    - Only if loop bounds are refactored to depend on it (otherwise keep uniform)
+  ☐ Update `LumOnUpsampleFunctionalTests`:
+    - Build variants and validate behavior
+
+  Phase 5 - Convert Temporal/Reprojection Mode Toggles:
+  Exit artifacts: Temporal velocity reprojection selection is a define; tests validate both modes.
+  ☐ Convert `EnableReprojectionVelocity` to `VGE_LUMON_TEMPORAL_USE_VELOCITY_REPROJECTION`
+  ☐ Update temporal shader(s) to compile both paths cleanly
+  ☐ Update relevant GPU tests to compile both variants and validate history rejection behavior
+
+  Phase 6 - Convert Rare Loop-Bound Knobs (Optional / Careful):
+  Exit artifacts: Loop-bound parameters that materially change shader structure are defines (only if we accept compile-time variants).
+  ☐ Decide policy for loop-bound settings:
+    - If they are restart-only or “rarely changed”, promote to define
+    - If they are hot-reloadable, keep uniforms unless recompile cost is acceptable
+  ☐ Candidate conversions:
+    - `RaysPerProbePerFrame` → `VGE_LUMON_RAYS_PER_PROBE` (SH tracer)
+    - `RaySteps` → `VGE_LUMON_RAY_STEPS`
+    - `ProbeAtlasTexelsPerFrame` → `VGE_LUMON_ATLAS_TEXELS_PER_FRAME`
+    - `HzbCoarseMip` likely stays uniform (debug/tuning)
+  ☐ Update tests that currently vary these at runtime:
+    - Switch to compiling multiple shader programs per setting
+
+  Phase 7 - Refactor “Common Values” Includes:
+  Exit artifacts: Shared constants/defaults live in centralized includes, reducing duplication across shaders.
+  ☐ Create/extend common include files:
+    - `vge_global_defines.glsl` (defines)
+    - Consider `vge_common_constants.glsl` (math/limits), if needed
+  ☐ Move duplicated constants out of per-pass shaders:
+    - Avoid putting frequently tuned values in global includes
+
+  Phase 8 - Cleanup + Documentation:
+  Exit artifacts: Codebase is consistent; docs and tests explain how defines work.
+  ☐ Remove obsolete uniform setters/properties from shader program wrappers
+  ☐ Ensure renderers set defines before `Use()` and don’t spam recompile:
+    - Only set defines when config values change (optional optimization)
+  ☐ Update docs:
+    - Add a short doc explaining “uniform vs define” guidelines
+    - Note test strategy (define injection / compiled variants)
+  ☐ Verify:
+    - `dotnet test` passes
+    - Shader compilation tests pass
+    - Visual sanity: toggling LumOn / AO / bent normal works as expected
