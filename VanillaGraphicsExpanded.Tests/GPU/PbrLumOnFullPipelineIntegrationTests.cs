@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Collections.Generic;
 
 using OpenTK.Graphics.OpenGL;
 
@@ -96,8 +97,25 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             hzbCopyProg = CompileShader("lumon_hzb_copy.vsh", "lumon_hzb_copy.fsh");
             hzbDownProg = CompileShader("lumon_hzb_downsample.vsh", "lumon_hzb_downsample.fsh");
             anchorProg = CompileShader("lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh");
-            traceProg = CompileShader("lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh");
-            temporalProg = CompileShader("lumon_probe_atlas_temporal.vsh", "lumon_probe_atlas_temporal.fsh");
+                traceProg = CompileShaderWithDefines(
+                    "lumon_probe_atlas_trace.vsh",
+                    "lumon_probe_atlas_trace.fsh",
+                    new Dictionary<string, string?>
+                    {
+                        ["VGE_LUMON_ATLAS_TEXELS_PER_FRAME"] = "64",
+                        ["VGE_LUMON_RAY_STEPS"] = "8",
+                        ["VGE_LUMON_RAY_MAX_DISTANCE"] = "2.0",
+                        ["VGE_LUMON_RAY_THICKNESS"] = "0.5",
+                        ["VGE_LUMON_HZB_COARSE_MIP"] = "0",
+                        ["VGE_LUMON_SKY_MISS_WEIGHT"] = "1.0"
+                    });
+                temporalProg = CompileShaderWithDefines(
+                    "lumon_probe_atlas_temporal.vsh",
+                    "lumon_probe_atlas_temporal.fsh",
+                    new Dictionary<string, string?>
+                    {
+                        ["VGE_LUMON_ATLAS_TEXELS_PER_FRAME"] = "64"
+                    });
             filterProg = CompileShader("lumon_probe_atlas_filter.vsh", "lumon_probe_atlas_filter.fsh");
             gatherProg = CompileShader("lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh");
             upsampleProg = CompileShader("lumon_upsample.vsh", "lumon_upsample.fsh");
@@ -303,7 +321,6 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Stage: LumOn Atlas Trace
             // -----------------------------------------------------------------
-            const int texelsPerFrame = 64; // trace all texels per probe this frame
 
             GL.UseProgram(traceProg);
             SetSampler(traceProg, "probeAnchorPosition", 0);
@@ -315,7 +332,6 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             SetSampler(traceProg, "octahedralHistory", 6);
             SetSampler(traceProg, "probeAtlasMetaHistory", 7);
 
-            SetInt(traceProg, "hzbCoarseMip", 0);
 
             SetMat4(traceProg, "invProjectionMatrix", invProj);
             SetMat4(traceProg, "projectionMatrix", proj);
@@ -326,18 +342,12 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             SetVec2(traceProg, "screenSize", ScreenWidth, ScreenHeight);
 
             SetInt(traceProg, "frameIndex", 0);
-            SetInt(traceProg, "texelsPerFrame", texelsPerFrame);
-
-            SetInt(traceProg, "raySteps", 8);
-            SetFloat(traceProg, "rayMaxDistance", 2.0f);
-            SetFloat(traceProg, "rayThickness", 0.5f);
 
             SetFloat(traceProg, "zNear", ZNear);
             SetFloat(traceProg, "zFar", ZFar);
 
             // Deterministic non-zero indirect: allow sky miss fallback to contribute.
             // This makes the one-frame integration test robust even if ray hits are rare.
-            SetFloat(traceProg, "skyMissWeight", 1.0f);
             SetVec3(traceProg, "sunPosition", 0f, 1f, 0f);
             SetVec3(traceProg, "sunColor", 0.2f, 0.2f, 0.2f);
             SetVec3(traceProg, "ambientColor", 0.1f, 0.1f, 0.1f);
@@ -386,7 +396,6 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             GL.UseProgram(temporalProg);
             SetVec2(temporalProg, "probeGridSize", ProbeGridWidth, ProbeGridHeight);
             SetInt(temporalProg, "frameIndex", 0);
-            SetInt(temporalProg, "texelsPerFrame", texelsPerFrame);
             SetFloat(temporalProg, "temporalAlpha", 0.9f);
             SetFloat(temporalProg, "hitDistanceRejectThreshold", 0.3f);
 

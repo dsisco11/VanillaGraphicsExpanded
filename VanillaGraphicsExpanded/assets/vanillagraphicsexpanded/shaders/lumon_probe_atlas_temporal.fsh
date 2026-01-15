@@ -16,6 +16,9 @@ layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFlo
 // Import common utilities
 @import "./includes/lumon_common.glsl"
 
+// Import global defines (loop-bound knobs)
+@import "./includes/vge_global_defines.glsl"
+
 // Import octahedral mapping utilities
 @import "./includes/lumon_octahedral.glsl"
 
@@ -47,7 +50,6 @@ uniform vec2 probeGridSize;
 
 // Temporal distribution parameters
 uniform int frameIndex;
-uniform int texelsPerFrame;  // How many texels traced per probe per frame (default 8)
 
 // Temporal blending parameters
 uniform float temporalAlpha;              // Base blend factor (e.g., 0.9)
@@ -66,8 +68,8 @@ bool wasTracedThisFrame(ivec2 octTexel, int probeIndex) {
     int texelIndex = octTexel.y * LUMON_OCTAHEDRAL_SIZE + octTexel.x;
     
     // Number of batches (with 64 texels and 8 texels/frame = 8 batches)
-    int numBatches = (LUMON_OCTAHEDRAL_SIZE * LUMON_OCTAHEDRAL_SIZE) / texelsPerFrame;
-    int batch = texelIndex / texelsPerFrame;
+    int numBatches = (LUMON_OCTAHEDRAL_SIZE * LUMON_OCTAHEDRAL_SIZE) / VGE_LUMON_ATLAS_TEXELS_PER_FRAME;
+    int batch = texelIndex / VGE_LUMON_ATLAS_TEXELS_PER_FRAME;
     
     // Per-probe jitter to avoid all probes tracing same texels
     int jitteredFrame = (frameIndex + probeIndex) % numBatches;

@@ -36,3 +36,33 @@
 #ifndef VGE_LUMON_TEMPORAL_USE_VELOCITY_REPROJECTION
   #define VGE_LUMON_TEMPORAL_USE_VELOCITY_REPROJECTION 1
 #endif
+
+// Phase 6: Loop-bound knobs (compile-time)
+#ifndef VGE_LUMON_RAYS_PER_PROBE
+  #define VGE_LUMON_RAYS_PER_PROBE 12
+#endif
+
+#ifndef VGE_LUMON_RAY_STEPS
+  #define VGE_LUMON_RAY_STEPS 10
+#endif
+
+#ifndef VGE_LUMON_ATLAS_TEXELS_PER_FRAME
+  #define VGE_LUMON_ATLAS_TEXELS_PER_FRAME 16
+#endif
+
+// Phase 6: Ray/trace tuning knobs (compile-time)
+#ifndef VGE_LUMON_RAY_MAX_DISTANCE
+  #define VGE_LUMON_RAY_MAX_DISTANCE 4.0
+#endif
+
+#ifndef VGE_LUMON_RAY_THICKNESS
+  #define VGE_LUMON_RAY_THICKNESS 0.5
+#endif
+
+#ifndef VGE_LUMON_HZB_COARSE_MIP
+  #define VGE_LUMON_HZB_COARSE_MIP 4
+#endif
+
+#ifndef VGE_LUMON_SKY_MISS_WEIGHT
+  #define VGE_LUMON_SKY_MISS_WEIGHT 0.5
+#endif

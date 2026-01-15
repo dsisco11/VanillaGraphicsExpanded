@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -142,7 +144,30 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f);
 
-        int prog = CompileShader("lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh");
+        int progMip0 = CompileShaderWithDefines(
+            "lumon_probe_atlas_trace.vsh",
+            "lumon_probe_atlas_trace.fsh",
+            new Dictionary<string, string?>
+            {
+                ["VGE_LUMON_ATLAS_TEXELS_PER_FRAME"] = "64",
+                ["VGE_LUMON_RAY_STEPS"] = "8",
+                ["VGE_LUMON_RAY_MAX_DISTANCE"] = "2.0",
+                ["VGE_LUMON_RAY_THICKNESS"] = "0.5",
+                ["VGE_LUMON_SKY_MISS_WEIGHT"] = "0.0",
+                ["VGE_LUMON_HZB_COARSE_MIP"] = "0"
+            });
+        int progMip1 = CompileShaderWithDefines(
+            "lumon_probe_atlas_trace.vsh",
+            "lumon_probe_atlas_trace.fsh",
+            new Dictionary<string, string?>
+            {
+                ["VGE_LUMON_ATLAS_TEXELS_PER_FRAME"] = "64",
+                ["VGE_LUMON_RAY_STEPS"] = "8",
+                ["VGE_LUMON_RAY_MAX_DISTANCE"] = "2.0",
+                ["VGE_LUMON_RAY_THICKNESS"] = "0.5",
+                ["VGE_LUMON_SKY_MISS_WEIGHT"] = "0.0",
+                ["VGE_LUMON_HZB_COARSE_MIP"] = "1"
+            });
 
         // Build HZB (mip0 only is enough for this equivalence test).
         using var hzb = DynamicTexture.CreateMipmapped(screenW, screenH, PixelInternalFormat.R32f, mipLevels: 1);
@@ -164,7 +189,7 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         float[] invView = LumOnTestInputFactory.CreateIdentityView();
 
         // Render with coarse mip 0
-        GL.UseProgram(prog);
+        GL.UseProgram(progMip0);
         probePos.Bind(0);
         probeNorm.Bind(1);
         primaryDepth.Bind(2);
@@ -172,55 +197,82 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         history.Bind(4);
         hzb.Bind(5);
 
-        GL.Uniform1(GL.GetUniformLocation(prog, "probeAnchorPosition"), 0);
-        GL.Uniform1(GL.GetUniformLocation(prog, "probeAnchorNormal"), 1);
-        GL.Uniform1(GL.GetUniformLocation(prog, "primaryDepth"), 2);
-        GL.Uniform1(GL.GetUniformLocation(prog, "primaryColor"), 3);
-        GL.Uniform1(GL.GetUniformLocation(prog, "octahedralHistory"), 4);
-        GL.Uniform1(GL.GetUniformLocation(prog, "hzbDepth"), 5);
+        GL.Uniform1(GL.GetUniformLocation(progMip0, "probeAnchorPosition"), 0);
+        GL.Uniform1(GL.GetUniformLocation(progMip0, "probeAnchorNormal"), 1);
+        GL.Uniform1(GL.GetUniformLocation(progMip0, "primaryDepth"), 2);
+        GL.Uniform1(GL.GetUniformLocation(progMip0, "primaryColor"), 3);
+        GL.Uniform1(GL.GetUniformLocation(progMip0, "octahedralHistory"), 4);
+        GL.Uniform1(GL.GetUniformLocation(progMip0, "hzbDepth"), 5);
 
-        GL.UniformMatrix4(GL.GetUniformLocation(prog, "invProjectionMatrix"), 1, false, invProj);
-        GL.UniformMatrix4(GL.GetUniformLocation(prog, "projectionMatrix"), 1, false, proj);
-        GL.UniformMatrix4(GL.GetUniformLocation(prog, "viewMatrix"), 1, false, view);
-        GL.UniformMatrix4(GL.GetUniformLocation(prog, "invViewMatrix"), 1, false, invView);
+        GL.UniformMatrix4(GL.GetUniformLocation(progMip0, "invProjectionMatrix"), 1, false, invProj);
+        GL.UniformMatrix4(GL.GetUniformLocation(progMip0, "projectionMatrix"), 1, false, proj);
+        GL.UniformMatrix4(GL.GetUniformLocation(progMip0, "viewMatrix"), 1, false, view);
+        GL.UniformMatrix4(GL.GetUniformLocation(progMip0, "invViewMatrix"), 1, false, invView);
 
-        GL.Uniform2(GL.GetUniformLocation(prog, "probeGridSize"), (float)ProbeGridWidth, (float)ProbeGridHeight);
-        GL.Uniform2(GL.GetUniformLocation(prog, "screenSize"), (float)screenW, (float)screenH);
-        GL.Uniform1(GL.GetUniformLocation(prog, "frameIndex"), 0);
-        GL.Uniform1(GL.GetUniformLocation(prog, "texelsPerFrame"), 64);
-        GL.Uniform1(GL.GetUniformLocation(prog, "raySteps"), 8);
-        GL.Uniform1(GL.GetUniformLocation(prog, "rayMaxDistance"), 2.0f);
-        GL.Uniform1(GL.GetUniformLocation(prog, "rayThickness"), 0.5f);
-        GL.Uniform1(GL.GetUniformLocation(prog, "zNear"), 0.1f);
-        GL.Uniform1(GL.GetUniformLocation(prog, "zFar"), 100f);
-        GL.Uniform1(GL.GetUniformLocation(prog, "skyMissWeight"), 0f);
-        GL.Uniform3(GL.GetUniformLocation(prog, "sunPosition"), 0f, 1f, 0f);
-        GL.Uniform3(GL.GetUniformLocation(prog, "sunColor"), 1f, 1f, 1f);
-        GL.Uniform3(GL.GetUniformLocation(prog, "ambientColor"), 0f, 0f, 0f);
-        GL.Uniform3(GL.GetUniformLocation(prog, "indirectTint"), 1f, 1f, 1f);
+        GL.Uniform2(GL.GetUniformLocation(progMip0, "probeGridSize"), (float)ProbeGridWidth, (float)ProbeGridHeight);
+        GL.Uniform2(GL.GetUniformLocation(progMip0, "screenSize"), (float)screenW, (float)screenH);
+        GL.Uniform1(GL.GetUniformLocation(progMip0, "frameIndex"), 0);
+        GL.Uniform1(GL.GetUniformLocation(progMip0, "zNear"), 0.1f);
+        GL.Uniform1(GL.GetUniformLocation(progMip0, "zFar"), 100f);
+        GL.Uniform3(GL.GetUniformLocation(progMip0, "sunPosition"), 0f, 1f, 0f);
+        GL.Uniform3(GL.GetUniformLocation(progMip0, "sunColor"), 1f, 1f, 1f);
+        GL.Uniform3(GL.GetUniformLocation(progMip0, "ambientColor"), 0f, 0f, 0f);
+        GL.Uniform3(GL.GetUniformLocation(progMip0, "indirectTint"), 1f, 1f, 1f);
 
-        TestFramework.RenderQuadTo(prog, outputAtlas);
-        GL.Uniform1(GL.GetUniformLocation(prog, "hzbCoarseMip"), 0);
+        TestFramework.RenderQuadTo(progMip0, outputAtlas);
         var mip0 = outputAtlas[0].ReadPixels();
 
-        TestFramework.RenderQuadTo(prog, outputAtlas);
+        TestFramework.RenderQuadTo(progMip0, outputAtlas);
         var outMip0 = outputAtlas[0].ReadPixels();
 
         // Render with a coarser mip (still uniform depth, should match)
-        GL.Uniform1(GL.GetUniformLocation(prog, "hzbCoarseMip"), 0);
-        TestFramework.RenderQuadTo(prog, outputAtlas);
+        TestFramework.RenderQuadTo(progMip0, outputAtlas);
         var outMip0Second = outputAtlas[0].ReadPixels();
 
         // If the environment supports only 1 mip, this is equivalent; otherwise compare with mip 0 again.
         // In a uniform depth scene, using a coarser mip should not change results.
-        int coarseMip = 0;
+        float[] outCoarse;
         if (hzb.MipLevels > 1)
         {
-            coarseMip = 1;
-            GL.Uniform1(GL.GetUniformLocation(prog, "hzbCoarseMip"), 1);
-            TestFramework.RenderQuadTo(prog, outputAtlas);
+            GL.UseProgram(progMip1);
+            probePos.Bind(0);
+            probeNorm.Bind(1);
+            primaryDepth.Bind(2);
+            primaryColor.Bind(3);
+            history.Bind(4);
+            hzb.Bind(5);
+
+            GL.Uniform1(GL.GetUniformLocation(progMip1, "probeAnchorPosition"), 0);
+            GL.Uniform1(GL.GetUniformLocation(progMip1, "probeAnchorNormal"), 1);
+            GL.Uniform1(GL.GetUniformLocation(progMip1, "primaryDepth"), 2);
+            GL.Uniform1(GL.GetUniformLocation(progMip1, "primaryColor"), 3);
+            GL.Uniform1(GL.GetUniformLocation(progMip1, "octahedralHistory"), 4);
+            GL.Uniform1(GL.GetUniformLocation(progMip1, "hzbDepth"), 5);
+
+            GL.UniformMatrix4(GL.GetUniformLocation(progMip1, "invProjectionMatrix"), 1, false, invProj);
+            GL.UniformMatrix4(GL.GetUniformLocation(progMip1, "projectionMatrix"), 1, false, proj);
+            GL.UniformMatrix4(GL.GetUniformLocation(progMip1, "viewMatrix"), 1, false, view);
+            GL.UniformMatrix4(GL.GetUniformLocation(progMip1, "invViewMatrix"), 1, false, invView);
+
+            GL.Uniform2(GL.GetUniformLocation(progMip1, "probeGridSize"), (float)ProbeGridWidth, (float)ProbeGridHeight);
+            GL.Uniform2(GL.GetUniformLocation(progMip1, "screenSize"), (float)screenW, (float)screenH);
+            GL.Uniform1(GL.GetUniformLocation(progMip1, "frameIndex"), 0);
+            GL.Uniform1(GL.GetUniformLocation(progMip1, "zNear"), 0.1f);
+            GL.Uniform1(GL.GetUniformLocation(progMip1, "zFar"), 100f);
+            GL.Uniform3(GL.GetUniformLocation(progMip1, "sunPosition"), 0f, 1f, 0f);
+            GL.Uniform3(GL.GetUniformLocation(progMip1, "sunColor"), 1f, 1f, 1f);
+            GL.Uniform3(GL.GetUniformLocation(progMip1, "ambientColor"), 0f, 0f, 0f);
+            GL.Uniform3(GL.GetUniformLocation(progMip1, "indirectTint"), 1f, 1f, 1f);
+
+            TestFramework.RenderQuadTo(progMip1, outputAtlas);
+            outCoarse = outputAtlas[0].ReadPixels();
         }
-        var outCoarse = outputAtlas[0].ReadPixels();
+        else
+        {
+            outCoarse = outMip0;
+        }
+
+        int coarseMip = hzb.MipLevels > 1 ? 1 : 0;
 
         // Compare a single texel (center-ish of atlas)
         int idx = (8 * AtlasWidth + 8) * 4;
@@ -234,7 +286,8 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
                 $"Mismatch channel {c} (coarseMip={coarseMip}): {outMip0[idx + c]} vs {outCoarse[idx + c]}");
         }
 
-        GL.DeleteProgram(prog);
+        GL.DeleteProgram(progMip0);
+        GL.DeleteProgram(progMip1);
         GL.DeleteProgram(copyProg);
         GL.DeleteFramebuffer(fbo);
     }

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Globalization;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -60,7 +62,23 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
     /// <summary>
     /// Compiles and links the SH probe trace shader.
     /// </summary>
-    private int CompileSHTraceShader() => CompileShader("lumon_probe_anchor.vsh", "lumon_probe_trace.fsh");
+    private int CompileSHTraceShader(
+        int raysPerProbe = DefaultRaysPerProbe,
+        int raySteps = RaySteps,
+        float rayMaxDistance = RayMaxDistance,
+        float rayThickness = RayThickness,
+        float skyMissWeight = SkyMissWeight) =>
+        CompileShaderWithDefines(
+            "lumon_probe_anchor.vsh",
+            "lumon_probe_trace.fsh",
+            new Dictionary<string, string?>
+            {
+                ["VGE_LUMON_RAYS_PER_PROBE"] = raysPerProbe.ToString(),
+                ["VGE_LUMON_RAY_STEPS"] = raySteps.ToString(),
+                ["VGE_LUMON_RAY_MAX_DISTANCE"] = rayMaxDistance.ToString(CultureInfo.InvariantCulture),
+                ["VGE_LUMON_RAY_THICKNESS"] = rayThickness.ToString(CultureInfo.InvariantCulture),
+                ["VGE_LUMON_SKY_MISS_WEIGHT"] = skyMissWeight.ToString(CultureInfo.InvariantCulture)
+            });
 
     /// <summary>
     /// Sets up common uniforms for the SH probe trace shader.
@@ -72,7 +90,6 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
         float[] view,
         int frameIndex = 0,
         int raysPerProbe = DefaultRaysPerProbe,
-        float skyMissWeight = SkyMissWeight,
         (float r, float g, float b)? ambientColor = null,
         (float r, float g, float b)? sunColor = null,
         (float x, float y, float z)? sunPosition = null,
@@ -96,17 +113,7 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         // SH ray parameters
         var frameIndexLoc = GL.GetUniformLocation(programId, "frameIndex");
-        var raysPerProbeLoc = GL.GetUniformLocation(programId, "raysPerProbe");
         GL.Uniform1(frameIndexLoc, frameIndex);
-        GL.Uniform1(raysPerProbeLoc, raysPerProbe);
-
-        // Ray tracing parameters
-        var rayStepsLoc = GL.GetUniformLocation(programId, "raySteps");
-        var rayMaxDistLoc = GL.GetUniformLocation(programId, "rayMaxDistance");
-        var rayThicknessLoc = GL.GetUniformLocation(programId, "rayThickness");
-        GL.Uniform1(rayStepsLoc, RaySteps);
-        GL.Uniform1(rayMaxDistLoc, RayMaxDistance);
-        GL.Uniform1(rayThicknessLoc, RayThickness);
 
         // Z-planes
         var zNearLoc = GL.GetUniformLocation(programId, "zNear");
@@ -115,11 +122,9 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
         GL.Uniform1(zFarLoc, ZFar);
 
         // Sky fallback
-        var skyWeightLoc = GL.GetUniformLocation(programId, "skyMissWeight");
         var ambientLoc = GL.GetUniformLocation(programId, "ambientColor");
         var sunColorLoc = GL.GetUniformLocation(programId, "sunColor");
         var sunPosLoc = GL.GetUniformLocation(programId, "sunPosition");
-        GL.Uniform1(skyWeightLoc, skyMissWeight);
 
         // Use defaults if not specified (nullable check allows explicit zero values)
         var ambient = ambientColor ?? (0.3f, 0.4f, 0.5f);
@@ -423,7 +428,6 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
             projection: projection,
             view: view,
             raysPerProbe: DefaultRaysPerProbe,
-            skyMissWeight: skyWeight,
             ambientColor: ambient,
             sunColor: (0f, 0f, 0f),  // No sun contribution for cleaner test
             sunPosition: (0f, 1f, 0f));
@@ -657,7 +661,7 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f,
                 attachmentCount: 2);
 
-            var programId = CompileSHTraceShader();
+            var programId = CompileSHTraceShader(raysPerProbe: 1);
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -666,7 +670,6 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 invProjection: invProjection,
                 projection: projection,
                 view: view,
-                raysPerProbe: 1,
                 ambientColor: (0.5f, 0.5f, 0.5f));
 
             anchorPosTex.Bind(0);
@@ -692,7 +695,7 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f,
                 attachmentCount: 2);
 
-            var programId = CompileSHTraceShader();
+            var programId = CompileSHTraceShader(raysPerProbe: 16);
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -701,7 +704,6 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 invProjection: invProjection,
                 projection: projection,
                 view: view,
-                raysPerProbe: 16,
                 ambientColor: (0.5f, 0.5f, 0.5f));
 
             anchorPosTex.Bind(0);
@@ -766,7 +768,7 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f,
                 attachmentCount: 2);
 
-            var programId = CompileSHTraceShader();
+            var programId = CompileSHTraceShader(raysPerProbe: 4);
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -776,7 +778,6 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 projection: projection,
                 view: view,
                 frameIndex: 0,
-                raysPerProbe: 4,
                 ambientColor: (0.5f, 0.5f, 0.5f));
 
             anchorPosTex.Bind(0);
@@ -802,7 +803,7 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f,
                 attachmentCount: 2);
 
-            var programId = CompileSHTraceShader();
+            var programId = CompileSHTraceShader(raysPerProbe: 4);
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -812,7 +813,6 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 projection: projection,
                 view: view,
                 frameIndex: 1,
-                raysPerProbe: 4,
                 ambientColor: (0.5f, 0.5f, 0.5f));
 
             anchorPosTex.Bind(0);
@@ -1072,7 +1072,7 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f,
                 attachmentCount: 2);
 
-            var programId = CompileSHTraceShader();
+            var programId = CompileSHTraceShader(raySteps: 4);
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1082,11 +1082,6 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 projection: projection,
                 view: view,
                 raysPerProbe: DefaultRaysPerProbe);
-
-            // Override raySteps to 4
-            GL.UseProgram(programId);
-            GL.Uniform1(GL.GetUniformLocation(programId, "raySteps"), 4);
-            GL.UseProgram(0);
 
             anchorPosTex.Bind(0);
             anchorNormalTex.Bind(1);
@@ -1111,7 +1106,7 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f,
                 attachmentCount: 2);
 
-            var programId = CompileSHTraceShader();
+            var programId = CompileSHTraceShader(raySteps: 32);
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1121,11 +1116,6 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 projection: projection,
                 view: view,
                 raysPerProbe: DefaultRaysPerProbe);
-
-            // Override raySteps to 32
-            GL.UseProgram(programId);
-            GL.Uniform1(GL.GetUniformLocation(programId, "raySteps"), 32);
-            GL.UseProgram(0);
 
             anchorPosTex.Bind(0);
             anchorNormalTex.Bind(1);
@@ -1526,7 +1516,6 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
             invProjection: invProjection,
             projection: projection,
             view: view,
-            raysPerProbe: 0,  // Zero rays - edge case
             ambientColor: (0.5f, 0.5f, 0.5f));
 
         anchorPosTex.Bind(0);

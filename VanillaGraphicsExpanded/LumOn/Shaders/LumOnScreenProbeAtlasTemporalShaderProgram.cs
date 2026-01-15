@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
@@ -72,7 +74,7 @@ public class LumOnScreenProbeAtlasTemporalShaderProgram : VgeShaderProgram
 
     #endregion
 
-    #region Temporal Distribution Uniforms
+    #region Temporal Distribution Defines
 
     /// <summary>
     /// Current frame index for temporal distribution calculation.
@@ -82,8 +84,9 @@ public class LumOnScreenProbeAtlasTemporalShaderProgram : VgeShaderProgram
     /// <summary>
     /// Number of probe-atlas texels traced per probe per frame.
     /// With 64 total texels and 8 per frame, full coverage takes 8 frames.
+    /// Compile-time define for temporal distribution.
     /// </summary>
-    public int TexelsPerFrame { set => Uniform("texelsPerFrame", value); }
+    public int TexelsPerFrame { set => SetDefine("VGE_LUMON_ATLAS_TEXELS_PER_FRAME", value.ToString(CultureInfo.InvariantCulture)); }
 
     #endregion
 

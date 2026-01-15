@@ -14,6 +14,9 @@ layout(location = 1) out vec4 outRadiance1;  // SH coefficients set 1
 // Import common utilities
 @import "./includes/lumon_common.glsl"
 
+// Import global defines (loop-bound knobs)
+@import "./includes/vge_global_defines.glsl"
+
 // Import SH helpers
 @import "./includes/lumon_sh.glsl"
 
@@ -48,17 +51,12 @@ uniform vec2 screenSize;
 
 // Ray tracing parameters
 uniform int frameIndex;
-uniform int raysPerProbe;
-uniform int raySteps;
-uniform float rayMaxDistance;
-uniform float rayThickness;
 
 // Z-planes
 uniform float zNear;
 uniform float zFar;
 
 // Sky fallback
-uniform float skyMissWeight;
 uniform vec3 sunPosition;
 uniform vec3 sunColor;
 uniform vec3 ambientColor;
@@ -82,11 +80,11 @@ RayHit traceRay(vec3 origin, vec3 direction) {
     result.hit = false;
     result.position = vec3(0.0);
     result.color = vec3(0.0);
-    result.distance = rayMaxDistance;
+    result.distance = VGE_LUMON_RAY_MAX_DISTANCE;
     
-    float stepSize = rayMaxDistance / float(raySteps);
+    float stepSize = VGE_LUMON_RAY_MAX_DISTANCE / float(VGE_LUMON_RAY_STEPS);
     
-    for (int i = 1; i <= raySteps; i++) {
+    for (int i = 1; i <= VGE_LUMON_RAY_STEPS; i++) {
         float t = stepSize * float(i);
         vec3 samplePos = origin + direction * t;
         
@@ -113,7 +111,7 @@ RayHit traceRay(vec3 origin, vec3 direction) {
         // depthDiff > 0 means ray is behind scene (scenePos.z is less negative = closer to camera)
         float depthDiff = scenePos.z - samplePos.z;
         
-        if (depthDiff > 0.0 && depthDiff < rayThickness) {
+        if (depthDiff > 0.0 && depthDiff < VGE_LUMON_RAY_THICKNESS) {
             // Hit!
             result.hit = true;
             result.position = scenePos;
@@ -167,7 +165,7 @@ void main(void)
     // Trace rays
     float weightSum = 0.0;
     
-    for (int i = 0; i < raysPerProbe; i++) {
+    for (int i = 0; i < VGE_LUMON_RAYS_PER_PROBE; i++) {
         // Generate jittered random values for this ray
         float u1 = Squirrel3HashF(seed + uint(i * 2));
         float u2 = Squirrel3HashF(seed + uint(i * 2 + 1));
@@ -187,7 +185,7 @@ void main(void)
             radiance = hit.color * indirectTint;
         } else {
             // Sky fallback
-            radiance = lumonGetSkyColor(rayDir, sunPosition, sunColor, ambientColor, skyMissWeight);
+            radiance = lumonGetSkyColor(rayDir, sunPosition, sunColor, ambientColor, VGE_LUMON_SKY_MISS_WEIGHT);
         }
         
         // Accumulate into SH

@@ -126,22 +126,40 @@ Shader Define Migration (SetDefine) Work:
 
   Phase 6 - Convert Rare Loop-Bound Knobs (Optional / Careful):
   Exit artifacts: Loop-bound parameters that materially change shader structure are defines (only if we accept compile-time variants).
-  ☐ Decide policy for loop-bound settings:
-    - If they are restart-only or “rarely changed”, promote to define
-    - If they are hot-reloadable, keep uniforms unless recompile cost is acceptable
-  ☐ Candidate conversions:
+  ☑ Decide policy for loop-bound settings:
+    - Promote to defines. Shader system recompiles on define changes, so hot-reload is preserved.
+  ☑ Candidate conversions:
     - `RaysPerProbePerFrame` → `VGE_LUMON_RAYS_PER_PROBE` (SH tracer)
     - `RaySteps` → `VGE_LUMON_RAY_STEPS`
     - `ProbeAtlasTexelsPerFrame` → `VGE_LUMON_ATLAS_TEXELS_PER_FRAME`
-    - `HzbCoarseMip` likely stays uniform (debug/tuning)
-  ☐ Update tests that currently vary these at runtime:
-    - Switch to compiling multiple shader programs per setting
+    - `RayMaxDistance` → `VGE_LUMON_RAY_MAX_DISTANCE`
+    - `RayThickness` → `VGE_LUMON_RAY_THICKNESS`
+    - `SkyMissWeight` → `VGE_LUMON_SKY_MISS_WEIGHT`
+    - `HzbCoarseMip` → `VGE_LUMON_HZB_COARSE_MIP`
+  ☑ Update tests that currently vary these at runtime:
+    - Compile multiple shader programs per setting (define injection)
+
+  Phase 6 outputs:
+    - `assets/vanillagraphicsexpanded/shaders/includes/vge_global_defines.glsl` (added loop-bound defines)
+    - `assets/vanillagraphicsexpanded/shaders/lumon_probe_trace.fsh` (define-based loops)
+    - `assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_trace.fsh` (define-based loops)
+    - `assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_temporal.fsh` (define-based distribution)
+    - `LumOnProbeTraceShaderProgram.cs` (SetDefine wiring for rays/steps/maxDistance/thickness/sky)
+    - `LumOnScreenProbeAtlasTraceShaderProgram.cs` (SetDefine wiring for texels/steps/maxDistance/thickness/sky/hzb)
+    - `LumOnScreenProbeAtlasTemporalShaderProgram.cs` (SetDefine wiring for texels)
+    - `LumOnUniformTests.cs` (mapped loop-bound uniforms to defines)
+    - `LumOnProbeTraceFunctionalTests.cs` (compile variants)
+    - `LumOnProbeAtlasTraceFunctionalTests.cs` (compile variants)
+    - `LumOnProbeAtlasTemporalFunctionalTests.cs` (compile variants)
+    - `LumOnHzbFunctionalTests.cs` (compile variants)
+    - `PbrLumOnFullPipelineIntegrationTests.cs` (define-based compilation)
+    - `ShaderDefineInjectionTests.cs` (loop-bound variant compilation tests)
 
   Phase 7 - Refactor “Common Values” Includes:
   Exit artifacts: Shared constants/defaults live in centralized includes, reducing duplication across shaders.
   ☐ Create/extend common include files:
-    - `vge_global_defines.glsl` (defines)
-    - Consider `vge_common_constants.glsl` (math/limits), if needed
+    - `global_defines.glsl` (defines)
+    - Consider `common_constants.glsl` (math/limits)
   ☐ Move duplicated constants out of per-pass shaders:
     - Avoid putting frequently tuned values in global includes
 

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Globalization;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -60,7 +62,25 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
     /// <summary>
     /// Compiles and links the probe-atlas trace shader.
     /// </summary>
-    private int CompileOctahedralTraceShader() => CompileShader("lumon_probe_anchor.vsh", "lumon_probe_atlas_trace.fsh");
+    private int CompileOctahedralTraceShader(
+        int raySteps = RaySteps,
+        int texelsPerFrame = 64,
+        float rayMaxDistance = RayMaxDistance,
+        float rayThickness = RayThickness,
+        float skyMissWeight = SkyMissWeight,
+        int hzbCoarseMip = 0) =>
+        CompileShaderWithDefines(
+            "lumon_probe_anchor.vsh",
+            "lumon_probe_atlas_trace.fsh",
+            new Dictionary<string, string?>
+            {
+                ["VGE_LUMON_RAY_STEPS"] = raySteps.ToString(),
+                ["VGE_LUMON_ATLAS_TEXELS_PER_FRAME"] = texelsPerFrame.ToString(),
+                ["VGE_LUMON_RAY_MAX_DISTANCE"] = rayMaxDistance.ToString(CultureInfo.InvariantCulture),
+                ["VGE_LUMON_RAY_THICKNESS"] = rayThickness.ToString(CultureInfo.InvariantCulture),
+                ["VGE_LUMON_SKY_MISS_WEIGHT"] = skyMissWeight.ToString(CultureInfo.InvariantCulture),
+                ["VGE_LUMON_HZB_COARSE_MIP"] = hzbCoarseMip.ToString(CultureInfo.InvariantCulture)
+            });
 
     /// <summary>
     /// Sets up common uniforms for the probe-atlas trace shader.
@@ -73,7 +93,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         float[] invView,
         int frameIndex = 0,
         int texelsPerFrame = 64,  // Trace all texels in one frame for tests
-        float skyMissWeight = SkyMissWeight,
         (float r, float g, float b)? ambientColor = null,
         (float r, float g, float b)? sunColor = null,
         (float x, float y, float z)? sunPosition = null,
@@ -99,17 +118,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Temporal distribution
         var frameIndexLoc = GL.GetUniformLocation(programId, "frameIndex");
-        var texelsPerFrameLoc = GL.GetUniformLocation(programId, "texelsPerFrame");
         GL.Uniform1(frameIndexLoc, frameIndex);
-        GL.Uniform1(texelsPerFrameLoc, texelsPerFrame);
-
-        // Ray tracing parameters
-        var rayStepsLoc = GL.GetUniformLocation(programId, "raySteps");
-        var rayMaxDistLoc = GL.GetUniformLocation(programId, "rayMaxDistance");
-        var rayThicknessLoc = GL.GetUniformLocation(programId, "rayThickness");
-        GL.Uniform1(rayStepsLoc, RaySteps);
-        GL.Uniform1(rayMaxDistLoc, RayMaxDistance);
-        GL.Uniform1(rayThicknessLoc, RayThickness);
 
         // Z-planes
         var zNearLoc = GL.GetUniformLocation(programId, "zNear");
@@ -118,11 +127,9 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         GL.Uniform1(zFarLoc, ZFar);
 
         // Sky fallback
-        var skyWeightLoc = GL.GetUniformLocation(programId, "skyMissWeight");
         var ambientLoc = GL.GetUniformLocation(programId, "ambientColor");
         var sunColorLoc = GL.GetUniformLocation(programId, "sunColor");
         var sunPosLoc = GL.GetUniformLocation(programId, "sunPosition");
-        GL.Uniform1(skyWeightLoc, skyMissWeight);
         
         // Use defaults if not specified (nullable check allows explicit zero values)
         var ambient = ambientColor ?? (0.3f, 0.4f, 0.5f);
@@ -347,7 +354,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         // Compile and setup shader - use realistic perspective matrices
-        var programId = CompileOctahedralTraceShader();
+        var programId = CompileOctahedralTraceShader(texelsPerFrame: 64);
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -443,7 +450,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         // Use realistic perspective matrices for proper depth/ray calculations
-        var programId = CompileOctahedralTraceShader();
+        var programId = CompileOctahedralTraceShader(texelsPerFrame: 64);
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -455,7 +462,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             view: view,
             invView: invView,
             texelsPerFrame: 64,
-            skyMissWeight: skyWeight,
             ambientColor: ambient,
             sunColor: (0f, 0f, 0f),  // No sun contribution for cleaner test
             sunPosition: (0f, 1f, 0f));
@@ -541,7 +547,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         // Use realistic perspective matrices for proper depth/ray calculations
-        var programId = CompileOctahedralTraceShader();
+        var programId = CompileOctahedralTraceShader(texelsPerFrame: 64);
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -628,7 +634,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         // Use realistic perspective matrices for proper depth/ray calculations
-        var programId = CompileOctahedralTraceShader();
+        var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -724,7 +730,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         // Use realistic perspective matrices for proper depth/ray calculations
-        var programId = CompileOctahedralTraceShader();
+        var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -736,7 +742,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             view: view,
             invView: invView,
             frameIndex: 0,
-            texelsPerFrame: 8,  // Only trace 8 texels per frame
             ambientColor: (0.5f, 0.5f, 0.5f));
 
         anchorPosTex.Bind(0);
@@ -829,7 +834,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             AtlasWidth, AtlasHeight,
             PixelInternalFormat.Rgba16f);
 
-        var programId = CompileOctahedralTraceShader();
+        var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -913,7 +918,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 AtlasWidth, AtlasHeight,
                 PixelInternalFormat.Rgba16f);
 
-            var programId = CompileOctahedralTraceShader();
+            var programId = CompileOctahedralTraceShader(raySteps: 4, texelsPerFrame: 64);
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -925,11 +930,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 view: view,
                 invView: invView,
                 texelsPerFrame: 64);
-
-            // Override raySteps to 4
-            GL.UseProgram(programId);
-            GL.Uniform1(GL.GetUniformLocation(programId, "raySteps"), 4);
-            GL.UseProgram(0);
 
             anchorPosTex.Bind(0);
             anchorNormalTex.Bind(1);
@@ -955,7 +955,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 AtlasWidth, AtlasHeight,
                 PixelInternalFormat.Rgba16f);
 
-            var programId = CompileOctahedralTraceShader();
+            var programId = CompileOctahedralTraceShader(raySteps: 32, texelsPerFrame: 64);
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -967,11 +967,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 view: view,
                 invView: invView,
                 texelsPerFrame: 64);
-
-            // Override raySteps to 32
-            GL.UseProgram(programId);
-            GL.Uniform1(GL.GetUniformLocation(programId, "raySteps"), 32);
-            GL.UseProgram(0);
 
             anchorPosTex.Bind(0);
             anchorNormalTex.Bind(1);
@@ -1031,7 +1026,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f,
             PixelInternalFormat.Rg32f);
 
-        var programId = CompileOctahedralTraceShader();
+        var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1130,7 +1125,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f,
             PixelInternalFormat.Rg32f);
 
-        var programId = CompileOctahedralTraceShader();
+        var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1211,7 +1206,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f,
             PixelInternalFormat.Rg32f);
 
-        var programId = CompileOctahedralTraceShader();
+        var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1223,7 +1218,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             view: view,
             invView: invView,
             frameIndex: 0,
-            texelsPerFrame: 8,
             sunColor: (0f, 0f, 0f));
 
         GL.UseProgram(programId);
@@ -1288,7 +1282,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 AtlasWidth, AtlasHeight,
                 PixelInternalFormat.Rgba16f);
 
-            var programId = CompileOctahedralTraceShader();
+            var programId = CompileOctahedralTraceShader(texelsPerFrame: 64);
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1333,7 +1327,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 AtlasWidth, AtlasHeight,
                 PixelInternalFormat.Rgba16f);
 
-            var programId = CompileOctahedralTraceShader();
+            var programId = CompileOctahedralTraceShader(texelsPerFrame: 64);
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1410,7 +1404,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 AtlasWidth, AtlasHeight,
                 PixelInternalFormat.Rgba16f);
 
-            var programId = CompileOctahedralTraceShader();
+            var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1454,7 +1448,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 AtlasWidth, AtlasHeight,
                 PixelInternalFormat.Rgba16f);
 
-            var programId = CompileOctahedralTraceShader();
+            var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1530,7 +1524,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 AtlasWidth, AtlasHeight,
                 PixelInternalFormat.Rgba16f);
 
-            var programId = CompileOctahedralTraceShader();
+            var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1575,7 +1569,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 AtlasWidth, AtlasHeight,
                 PixelInternalFormat.Rgba16f);
 
-            var programId = CompileOctahedralTraceShader();
+            var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1655,7 +1649,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 AtlasWidth, AtlasHeight,
                 PixelInternalFormat.Rgba16f);
 
-            var programId = CompileOctahedralTraceShader();
+            var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1666,8 +1660,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 projection: projection,
                 view: view,
                 invView: invView,
-                frameIndex: 0,
-                texelsPerFrame: 8);
+                frameIndex: 0);
 
             anchorPosTex.Bind(0);
             anchorNormalTex.Bind(1);
@@ -1693,7 +1686,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 AtlasWidth, AtlasHeight,
                 PixelInternalFormat.Rgba16f);
 
-            var programId = CompileOctahedralTraceShader();
+            var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1704,8 +1697,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 projection: projection,
                 view: view,
                 invView: invView,
-                frameIndex: 1,
-                texelsPerFrame: 8);
+                frameIndex: 1);
 
             anchorPosTex.Bind(0);
             anchorNormalTex.Bind(1);
@@ -1774,7 +1766,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 AtlasWidth, AtlasHeight,
                 PixelInternalFormat.Rgba16f);
 
-            var programId = CompileOctahedralTraceShader();
+            var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1784,8 +1776,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 invProjection: invProjection,
                 projection: projection,
                 view: view,
-                invView: invView,
-                texelsPerFrame: 8);
+                invView: invView);
 
             anchorPosTex.Bind(0);
             anchorNormalTex.Bind(1);
@@ -1818,7 +1809,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 AtlasWidth, AtlasHeight,
                 PixelInternalFormat.Rgba16f);
 
-            var programId = CompileOctahedralTraceShader();
+            var programId = CompileOctahedralTraceShader(texelsPerFrame: 32);
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1828,8 +1819,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 invProjection: invProjection,
                 projection: projection,
                 view: view,
-                invView: invView,
-                texelsPerFrame: 32);
+                invView: invView);
 
             anchorPosTex.Bind(0);
             anchorNormalTex.Bind(1);

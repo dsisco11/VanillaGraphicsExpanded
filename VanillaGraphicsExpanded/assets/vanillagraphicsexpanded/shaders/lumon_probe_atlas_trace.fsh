@@ -18,6 +18,9 @@ layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFlo
 // Import common utilities
 @import "./includes/lumon_common.glsl"
 
+// Import global defines (loop-bound knobs)
+@import "./includes/vge_global_defines.glsl"
+
 // Import octahedral mapping
 @import "./includes/lumon_octahedral.glsl"
 
@@ -45,7 +48,6 @@ uniform sampler2D emissive;
 
 // Optional HZB depth pyramid
 uniform sampler2D hzbDepth;
-uniform int hzbCoarseMip;
 
 // Matrices
 uniform mat4 invProjectionMatrix;
@@ -59,19 +61,14 @@ uniform vec2 screenSize;
 
 // Temporal distribution
 uniform int frameIndex;
-uniform int texelsPerFrame;    // How many octahedral texels to trace per frame (default 8)
 
 // Ray tracing parameters
-uniform int raySteps;
-uniform float rayMaxDistance;
-uniform float rayThickness;
 
 // Z-planes
 uniform float zNear;
 uniform float zFar;
 
 // Sky fallback
-uniform float skyMissWeight;
 uniform vec3 sunPosition;
 uniform vec3 sunColor;
 uniform vec3 ambientColor;
@@ -99,8 +96,8 @@ bool shouldTraceThisFrame(ivec2 octTexel, int probeIndex) {
     
     // Which "batch" does this texel belong to?
     // With 64 texels and 8 texels/frame, there are 8 batches
-    int numBatches = (LUMON_OCTAHEDRAL_SIZE * LUMON_OCTAHEDRAL_SIZE) / texelsPerFrame;
-    int batch = texelIndex / texelsPerFrame;
+    int numBatches = (LUMON_OCTAHEDRAL_SIZE * LUMON_OCTAHEDRAL_SIZE) / VGE_LUMON_ATLAS_TEXELS_PER_FRAME;
+    int batch = texelIndex / VGE_LUMON_ATLAS_TEXELS_PER_FRAME;
     
     // Add per-probe jitter to avoid all probes tracing the same texels
     int jitteredFrame = (frameIndex + probeIndex) % numBatches;
@@ -127,11 +124,11 @@ RayHit traceRay(vec3 originVS, vec3 directionVS) {
     result.hit = false;
     result.exitedScreen = false;
     result.color = vec3(0.0);
-    result.distance = rayMaxDistance;
+    result.distance = VGE_LUMON_RAY_MAX_DISTANCE;
     
-    float stepSize = rayMaxDistance / float(raySteps);
+    float stepSize = VGE_LUMON_RAY_MAX_DISTANCE / float(VGE_LUMON_RAY_STEPS);
     
-    for (int i = 1; i <= raySteps; i++) {
+    for (int i = 1; i <= VGE_LUMON_RAY_STEPS; i++) {
         float t = stepSize * float(i);
         vec3 samplePos = originVS + directionVS * t;
         
@@ -145,7 +142,7 @@ RayHit traceRay(vec3 originVS, vec3 directionVS) {
         }
         
         // HZB coarse rejection (reduces full-res depth sampling)
-        int mip = max(0, hzbCoarseMip);
+        int mip = max(0, VGE_LUMON_HZB_COARSE_MIP);
         ivec2 hzbSize = textureSize(hzbDepth, mip);
         ivec2 hzbCoord = clamp(ivec2(sampleUV * vec2(hzbSize)), ivec2(0), hzbSize - 1);
         float coarseDepth = texelFetch(hzbDepth, hzbCoord, mip).r;
@@ -175,7 +172,7 @@ RayHit traceRay(vec3 originVS, vec3 directionVS) {
         // Depth test with thickness
         float depthDiff = scenePos.z - samplePos.z;
         
-        if (depthDiff > 0.0 && depthDiff < rayThickness) {
+        if (depthDiff > 0.0 && depthDiff < VGE_LUMON_RAY_THICKNESS) {
             // Hit!
             result.hit = true;
             vec3 direct = texture(directDiffuse, sampleUV).rgb;
@@ -257,8 +254,8 @@ void main(void)
         hitDistance = hit.distance;
     } else {
         // Sky fallback - use world-space direction for consistent sky color
-        radiance = lumonGetSkyColor(rayDirWS, sunPosition, sunColor, ambientColor, skyMissWeight);
-        hitDistance = rayMaxDistance;
+        radiance = lumonGetSkyColor(rayDirWS, sunPosition, sunColor, ambientColor, VGE_LUMON_SKY_MISS_WEIGHT);
+        hitDistance = VGE_LUMON_RAY_MAX_DISTANCE;
     }
     
     // Encode hit distance for storage

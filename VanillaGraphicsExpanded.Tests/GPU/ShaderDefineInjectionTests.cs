@@ -230,4 +230,78 @@ public class ShaderDefineInjectionTests
         var result = helper.CompileAndLink("lumon_temporal.vsh", "lumon_temporal.fsh", defines);
         Assert.True(result.IsSuccess, result.ErrorMessage);
     }
+
+    [Theory]
+    [InlineData("1", "4")]
+    [InlineData("16", "32")]
+    public void LumOnProbeTrace_Compiles_WithLoopBoundVariants(string raysPerProbe, string raySteps)
+    {
+        _fixture.EnsureContextValid();
+
+        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
+        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
+
+        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+
+        using var helper = new ShaderTestHelper(shaderPath, includePath);
+
+        var defines = new Dictionary<string, string?>
+        {
+            ["VGE_LUMON_RAYS_PER_PROBE"] = raysPerProbe,
+            ["VGE_LUMON_RAY_STEPS"] = raySteps,
+        };
+
+        var result = helper.CompileAndLink("lumon_probe_anchor.vsh", "lumon_probe_trace.fsh", defines);
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+    }
+
+    [Theory]
+    [InlineData("8", "8")]
+    [InlineData("64", "16")]
+    public void LumOnProbeAtlasTrace_Compiles_WithLoopBoundVariants(string texelsPerFrame, string raySteps)
+    {
+        _fixture.EnsureContextValid();
+
+        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
+        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
+
+        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+
+        using var helper = new ShaderTestHelper(shaderPath, includePath);
+
+        var defines = new Dictionary<string, string?>
+        {
+            ["VGE_LUMON_ATLAS_TEXELS_PER_FRAME"] = texelsPerFrame,
+            ["VGE_LUMON_RAY_STEPS"] = raySteps,
+        };
+
+        var result = helper.CompileAndLink("lumon_probe_anchor.vsh", "lumon_probe_atlas_trace.fsh", defines);
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+    }
+
+    [Theory]
+    [InlineData("8")]
+    [InlineData("64")]
+    public void LumOnProbeAtlasTemporal_Compiles_WithTexelDistributionVariants(string texelsPerFrame)
+    {
+        _fixture.EnsureContextValid();
+
+        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
+        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
+
+        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+
+        using var helper = new ShaderTestHelper(shaderPath, includePath);
+
+        var defines = new Dictionary<string, string?>
+        {
+            ["VGE_LUMON_ATLAS_TEXELS_PER_FRAME"] = texelsPerFrame,
+        };
+
+        var result = helper.CompileAndLink("lumon_probe_atlas_temporal.vsh", "lumon_probe_atlas_temporal.fsh", defines);
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+    }
 }

@@ -201,6 +201,15 @@ public class LumOnUniformTests : IDisposable
             // Phase 5: temporal toggle
             "enableReprojectionVelocity" => "VGE_LUMON_TEMPORAL_USE_VELOCITY_REPROJECTION",
 
+            // Phase 6: loop-bound knobs
+            "raysPerProbe" => "VGE_LUMON_RAYS_PER_PROBE",
+            "raySteps" => "VGE_LUMON_RAY_STEPS",
+            "texelsPerFrame" => "VGE_LUMON_ATLAS_TEXELS_PER_FRAME",
+            "rayMaxDistance" => "VGE_LUMON_RAY_MAX_DISTANCE",
+            "rayThickness" => "VGE_LUMON_RAY_THICKNESS",
+            "hzbCoarseMip" => "VGE_LUMON_HZB_COARSE_MIP",
+            "skyMissWeight" => "VGE_LUMON_SKY_MISS_WEIGHT",
+
             _ => string.Empty
         };
 
