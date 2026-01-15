@@ -34,6 +34,24 @@ public class LumOnConfig
     public bool Enabled { get; set; } = true;
 
     // ═══════════════════════════════════════════════════════════════
+    // PBR Sidecar Atlas Textures (VGE)
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Enables building and binding the VGE normal+depth sidecar atlas.
+    /// This is the plumbing stage; pixels are currently placeholder output until the bake algorithm is implemented.
+    /// Requires restart / re-entering the world to fully apply.
+    /// </summary>
+    [JsonProperty]
+    public bool EnableNormalDepthAtlas { get; set; } = false;
+
+    /// <summary>
+    /// Enables additional debug logging for normal+depth atlas build/bind plumbing.
+    /// </summary>
+    [JsonProperty]
+    public bool DebugLogNormalDepthAtlas { get; set; } = false;
+
+    // ═══════════════════════════════════════════════════════════════
     // Probe Grid Settings (SPG-001)
     // ═══════════════════════════════════════════════════════════════
 

@@ -81,11 +81,11 @@ PBR Normal+Depth Sidecar Atlas (GPU Bake Plumbing):
 
   Phase 6 - Integration Switches + Diagnostics:
   Exit artifacts: Feature can be enabled/disabled and debugged without guessing.
-  ☐ Add a toggle (config or code-level) to enable/disable normal+depth baking/binding
-  ☐ Add debug logging (guarded / optional):
+  ✔ Add a toggle (config or code-level) to enable/disable normal+depth baking/binding
+  ✔ Add debug logging (guarded / optional):
     - Report when a shader lacks the uniform
     - Report atlas page counts and texture dimensions
-  ☐ Add a simple debug visualization mode (optional):
+  ✔ Add a simple debug visualization mode (optional):
     - Sample ReadNormalDepth and output to a debug render target (if you already have a debug view)
 
   Phase 7 - Tests + Validation:

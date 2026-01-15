@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 using OpenTK.Graphics.OpenGL;
 
+using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Rendering;
 
 using Vintagestory.API.Client;
@@ -108,21 +110,26 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                 TextureFilterMode.Nearest,
                 debugName: $"vge_materialParams_atlas_{atlasTexId}");
 
-            // Placeholder normal+depth atlas page texture (filled later by GPU baker).
-            // Must match atlas page dimensions 1:1 for UV alignment.
-            var normalDepthTex = DynamicTexture.Create(
-                width,
-                height,
-                PixelInternalFormat.Rgba16f,
-                TextureFilterMode.Nearest,
-                debugName: $"vge_normalDepth_atlas_{atlasTexId}");
+            DynamicTexture? normalDepthTex = null;
 
-            // Phase 3 plumbing: bake placeholder content on the GPU.
-            PbrNormalDepthAtlasGpuBaker.Bake(
-                baseAlbedoAtlasPageTexId: atlasTexId,
-                destNormalDepthTexId: normalDepthTex.TextureId,
-                width: width,
-                height: height);
+            if (ConfigModSystem.Config.EnableNormalDepthAtlas)
+            {
+                // Placeholder normal+depth atlas page texture (filled later by GPU baker).
+                // Must match atlas page dimensions 1:1 for UV alignment.
+                normalDepthTex = DynamicTexture.Create(
+                    width,
+                    height,
+                    PixelInternalFormat.Rgba16f,
+                    TextureFilterMode.Nearest,
+                    debugName: $"vge_normalDepth_atlas_{atlasTexId}");
+
+                // Phase 3 plumbing: bake placeholder content on the GPU.
+                PbrNormalDepthAtlasGpuBaker.Bake(
+                    baseAlbedoAtlasPageTexId: atlasTexId,
+                    destNormalDepthTexId: normalDepthTex.TextureId,
+                    width: width,
+                    height: height);
+            }
 
             pageTexturesByAtlasTexId[atlasTexId] = new PbrMaterialAtlasPageTextures(materialParamsTex, normalDepthTex);
         }
@@ -131,6 +138,29 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
             "[VGE] Built material param atlas textures: {0} atlas page(s), {1} texture rect(s) filled",
             pageTexturesByAtlasTexId.Count,
             result.FilledRects);
+
+        if (ConfigModSystem.Config.DebugLogNormalDepthAtlas)
+        {
+            var sizeCounts = new Dictionary<(int Width, int Height), int>();
+            foreach ((int _, int width, int height) in atlasPages)
+            {
+                var key = (width, height);
+                if (sizeCounts.TryGetValue(key, out int count))
+                {
+                    sizeCounts[key] = count + 1;
+                }
+                else
+                {
+                    sizeCounts[key] = 1;
+                }
+            }
+
+            capi.Logger.Debug(
+                "[VGE] Normal+depth atlas: enabled={0}, pages={1}, pageSizes=[{2}]",
+                ConfigModSystem.Config.EnableNormalDepthAtlas,
+                pageTexturesByAtlasTexId.Count,
+                string.Join(", ", sizeCounts.Select(kvp => $"{kvp.Key.Width}x{kvp.Key.Height}*{kvp.Value}")));
+        }
 
         IsInitialized = pageTexturesByAtlasTexId.Count > 0;
     }
@@ -151,6 +181,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
     public bool TryGetNormalDepthTextureId(int atlasTextureId, out int normalDepthTextureId)
     {
         if (pageTexturesByAtlasTexId.TryGetValue(atlasTextureId, out PbrMaterialAtlasPageTextures? pageTextures)
+            && pageTextures.NormalDepthTexture is not null
             && pageTextures.NormalDepthTexture.IsValid)
         {
             normalDepthTextureId = pageTextures.NormalDepthTexture.TextureId;

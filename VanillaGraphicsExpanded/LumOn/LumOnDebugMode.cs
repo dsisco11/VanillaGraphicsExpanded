@@ -55,4 +55,7 @@ public enum LumOnDebugMode
    
     // Phase 7: pseudo material-id visualization (hash of gBufferMaterial)
     MaterialBands = 29,
+
+    // VGE-only debug views (special-cased by C# debug renderer; not driven by lumon_debug.fsh)
+    VgeNormalDepthAtlas = 30,
 }

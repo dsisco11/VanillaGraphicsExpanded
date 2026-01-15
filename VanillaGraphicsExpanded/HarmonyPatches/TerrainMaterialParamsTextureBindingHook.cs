@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Reflection;
 
 using VanillaGraphicsExpanded.PBR.Materials;
+using VanillaGraphicsExpanded.ModSystems;
 
 using Vintagestory.Client.NoObf;
 
@@ -56,11 +57,25 @@ internal static class TerrainMaterialParamsTextureBindingHook
     /// </summary>
     private static readonly Dictionary<int, int> normalDepthUniformLocationCache = new();
 
+    private static Action<string>? runtimeLog;
+
+    private static int lastBoundNormalDepthTexId;
+    private static int lastBoundAtlasTexId;
+
+    public static bool TryGetLastBoundNormalDepthTextureId(out int normalDepthTextureId, out int baseAtlasTextureId)
+    {
+        normalDepthTextureId = lastBoundNormalDepthTexId;
+        baseAtlasTextureId = lastBoundAtlasTexId;
+        return normalDepthTextureId != 0;
+    }
+
     /// <summary>
     /// Called from VgeModSystem to apply patches manually via Harmony.
     /// </summary>
     public static void ApplyPatches(Harmony harmony, Action<string> log)
     {
+        runtimeLog = log;
+
         var postfix = new HarmonyMethod(typeof(TerrainMaterialParamsTextureBindingHook), nameof(SetTex2dTerrain_Postfix));
         int patchedCount = 0;
 
@@ -148,10 +163,19 @@ internal static class TerrainMaterialParamsTextureBindingHook
 
             if (hasNormalDepth)
             {
+                // Capture for debug overlays (e.g., showing the currently active atlas page).
+                lastBoundNormalDepthTexId = normalDepthTexId;
+                lastBoundAtlasTexId = value;
+
                 if (!normalDepthUniformLocationCache.TryGetValue(programId, out int normalDepthUniformLoc))
                 {
                     normalDepthUniformLoc = GL.GetUniformLocation(programId, NormalDepthSamplerUniform);
                     normalDepthUniformLocationCache[programId] = normalDepthUniformLoc;
+
+                    if (ConfigModSystem.Config.DebugLogNormalDepthAtlas && normalDepthUniformLoc < 0)
+                    {
+                        runtimeLog?.Invoke($"[VGE] Normal+depth atlas: shader program {programId} missing uniform '{NormalDepthSamplerUniform}'");
+                    }
                 }
 
                 if (normalDepthUniformLoc >= 0)

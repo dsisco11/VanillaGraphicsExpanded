@@ -5,7 +5,9 @@ using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.Rendering.Profiling;
+using VanillaGraphicsExpanded.HarmonyPatches;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -114,6 +116,13 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
+        // VGE-only debug views that do not rely on lumon_debug.fsh.
+        if (config.DebugMode == LumOnDebugMode.VgeNormalDepthAtlas)
+        {
+            RenderVgeNormalDepthAtlas();
+            return;
+        }
+
         // Only render when debug mode is active
         if (config.DebugMode == LumOnDebugMode.Off || quadMeshRef is null)
             return;
@@ -254,6 +263,50 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         // Store current matrix for next frame's reprojection
         StorePrevViewProjMatrix();
+    }
+
+    private void RenderVgeNormalDepthAtlas()
+    {
+        if (quadMeshRef is null)
+        {
+            return;
+        }
+
+        if (!PbrMaterialAtlasTextures.Instance.IsInitialized)
+        {
+            return;
+        }
+
+        if (!TerrainMaterialParamsTextureBindingHook.TryGetLastBoundNormalDepthTextureId(out int texId, out int _))
+        {
+            return;
+        }
+
+        if (texId == 0)
+        {
+            return;
+        }
+
+        capi.Render.GLDepthMask(false);
+        GL.Disable(EnableCap.DepthTest);
+        capi.Render.GlToggleBlend(false);
+
+        var blitShader = capi.Render.GetEngineShader(EnumShaderProgram.Blit);
+        blitShader.Use();
+
+        GL.ActiveTexture(TextureUnit.Texture0);
+        GL.BindTexture(TextureTarget.Texture2D, texId);
+        blitShader.BindTexture2D("scene", texId, 0);
+
+        using (GlGpuProfiler.Instance.Scope("Debug.VGE.NormalDepthAtlas"))
+        {
+            capi.Render.RenderMesh(quadMeshRef);
+        }
+
+        blitShader.Stop();
+
+        GL.Enable(EnableCap.DepthTest);
+        capi.Render.GLDepthMask(true);
     }
 
     private static bool IsDirectLightingMode(LumOnDebugMode mode) =>

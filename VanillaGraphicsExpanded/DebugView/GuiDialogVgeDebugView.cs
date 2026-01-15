@@ -311,6 +311,7 @@ public sealed class GuiDialogVgeDebugView : GuiDialog
         LumOnDebugMode.DirectEmissive => "Direct Emissive (Phase 16)",
         LumOnDebugMode.DirectTotal => "Direct Total (diffuse+spec) (Phase 16)",
         LumOnDebugMode.MaterialBands => "Material Bands (hash of gMaterial) (Phase 7)",
+        LumOnDebugMode.VgeNormalDepthAtlas => "VGE Normal+Depth Atlas (current page)",
         _ => mode.ToString()
     };
 }
