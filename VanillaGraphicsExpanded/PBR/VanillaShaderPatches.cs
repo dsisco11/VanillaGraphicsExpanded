@@ -146,6 +146,7 @@ uniform sampler2D vge_normalDepthTex;
                 case "chunktransparent.fsh":
                 case "chunkopaque.fsh":
                 case "chunktopsoil.fsh":
+                case "chunkliquid.fsh":
                     {
                         InjectGBufferInputs(tree);
                         InjectChunkMaterialSampler(tree);
