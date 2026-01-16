@@ -11,7 +11,6 @@ using VanillaGraphicsExpanded.Rendering.Profiling;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.Client.NoObf;
-using Microsoft.VisualBasic;
 
 namespace VanillaGraphicsExpanded;
 

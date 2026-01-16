@@ -22,6 +22,8 @@ internal sealed class ConfigModSystem : ModSystem
     public static LumOnConfig Config { get; private set; } = new();
     private static bool configLoaded = false;
 
+    public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
+
     public override double ExecuteOrder() => 0.0;
 
     /// <summary>
