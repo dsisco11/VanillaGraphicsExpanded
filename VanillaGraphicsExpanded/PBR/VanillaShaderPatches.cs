@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Immutable;
 using System.Linq;
 
 using TinyTokenizer.Ast;
@@ -13,6 +14,22 @@ namespace VanillaGraphicsExpanded.PBR;
 /// </summary>
 internal static class VanillaShaderPatches
 {
+    #region Constants
+    private static readonly ImmutableArray<string> PatchedChunkShaders =
+    [
+        "chunktransparent.fsh",
+        "chunkopaque.fsh",
+        "chunktopsoil.fsh",
+        "chunkliquid.fsh"
+    ];
+
+    private static readonly ImmutableArray<string> PatchedGenericShaders =
+    [
+        "instanced.fsh",
+        "standard.fsh"
+    ];
+    #endregion
+
     #region G-Buffer Injection Code
 
     // G-Buffer output declarations (locations 4-5, after VS's 0-3)
@@ -83,41 +100,33 @@ uniform sampler2D vge_normalDepthTex;
     {
         try
         {
-            switch (sourceName)
+            // Chunk shaders - inject vsFunctions AND vge_material imports
+            if (PatchedChunkShaders.Contains(sourceName))
             {
-                // Chunk shaders - inject vsFunctions AND vge_material imports
-                case "chunktransparent.fsh":
-                case "chunkopaque.fsh":
-                case "chunktopsoil.fsh":
-                    {
-                        // Find main function and insert @import before it
-                        var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
-                        tree.CreateEditor()
-                            .InsertBefore(mainQuery, "@import \"./includes/vsfunctions.glsl\"\n")
-                            .InsertBefore(mainQuery, "@import \"./includes/vge_material.glsl\"\n")
-                            .InsertBefore(mainQuery, "@import \"./includes/vge_normaldepth.glsl\"\n")
-                            .Commit();
+                // Find main function and insert @import before it
+                var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
+                tree.CreateEditor()
+                    .InsertBefore(mainQuery, "@import \"./includes/vsfunctions.glsl\"\n")
+                    .InsertBefore(mainQuery, "@import \"./includes/vge_material.glsl\"\n")
+                    .InsertBefore(mainQuery, "@import \"./includes/vge_normaldepth.glsl\"\n")
+                    .Commit();
 
-                        log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");
-                        return true;
-                    }
-
-                // Entity/item shaders - inject vsFunctions only (no per-texel material params)
-                case "instanced.fsh":
-                case "standard.fsh":
-                    {
-                        var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
-                        tree.CreateEditor()
-                            .InsertBefore(mainQuery, "@import \"./includes/vsfunctions.glsl\"\n")
-                            .Commit();
-
-                        log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");
-                        return true;
-                    }
-
-                default:
-                    return false;
+                log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");
+                return true;
             }
+
+            // Entity/item shaders - inject vsFunctions only (no per-texel material params)
+            if (PatchedGenericShaders.Contains(sourceName))
+            {
+                var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
+                tree.CreateEditor()
+                    .InsertBefore(mainQuery, "@import \"./includes/vsfunctions.glsl\"\n")
+                    .Commit();
+
+                log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");
+                return true;
+            }
+            return false;
         }
         catch (Exception ex)
         {
@@ -137,34 +146,29 @@ uniform sampler2D vge_normalDepthTex;
     {
         try
         {
+            if (PatchedChunkShaders.Contains(sourceName))
+            {// Chunk shaders - inject G-buffer inputs, material sampler, and outputs
+                InjectGBufferInputs(tree);
+                InjectChunkMaterialSampler(tree);
+                InjectGBufferOutputs(tree, GBufferOutputWrites_Chunk);
+                PatchFogAndLight(tree);
+                log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
+                return true;
+            }
+            else if (PatchedGenericShaders.Contains(sourceName))
+            {// Main shader files - inject G-buffer outputs
+                InjectGBufferInputs(tree);
+                InjectGBufferOutputs(tree, GBufferOutputWrites_Default);
+                PatchFogAndLight(tree);
+                log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
+                return true;
+            }
+
             switch (sourceName)
             {
                 // case "normalshading.fsh": // Note: Disabled since we don't really care to change the lighting for gui items or first-person view items.
                 //     PatchNormalshading(tree);
                 //     return true;
-                // Main shader files - inject G-buffer outputs
-                case "chunktransparent.fsh":
-                case "chunkopaque.fsh":
-                case "chunktopsoil.fsh":
-                case "chunkliquid.fsh":
-                    {
-                        InjectGBufferInputs(tree);
-                        InjectChunkMaterialSampler(tree);
-                        InjectGBufferOutputs(tree, GBufferOutputWrites_Chunk);
-                        PatchFogAndLight(tree);
-                        log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
-                        string patchedSource = tree.ToText();
-                        return true;
-                    }
-                case "instanced.fsh":
-                case "standard.fsh":
-                    {
-                        InjectGBufferInputs(tree);
-                        InjectGBufferOutputs(tree, GBufferOutputWrites_Default);
-                        PatchFogAndLight(tree);
-                        log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
-                        return true;
-                    }
                 case "sky.fsh":
                     {
                         InjectGBufferInputs(tree);
@@ -212,10 +216,9 @@ uniform sampler2D vge_normalDepthTex;
     private static void InjectGBufferOutputs(SyntaxTree tree, string outputWrites)
     {
         // Find main function and insert at inner start of body (after opening brace)
-        var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
-
+        var mainQuery = Query.Syntax<GlFunctionNode>().Named("main").InnerStart("body");
         tree.CreateEditor()
-            .InsertAfter(mainQuery.InnerStart("body"), outputWrites)
+            .InsertAfter(mainQuery, outputWrites)
             .Commit();
     }
 
@@ -229,10 +232,9 @@ uniform sampler2D vge_normalDepthTex;
 ";
 
         // Find main function and insert at inner end of body (before closing brace)
-        var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
-
+        var mainQuery = Query.Syntax<GlFunctionNode>().Named("main").InnerEnd("body");
         tree.CreateEditor()
-            .InsertBefore(mainQuery.InnerEnd("body"), skyGBufferWrites)
+            .InsertBefore(mainQuery, skyGBufferWrites)
             .Commit();
     }
 
