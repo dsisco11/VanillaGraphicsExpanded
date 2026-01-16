@@ -51,6 +51,7 @@ internal static class PbrNormalDepthAtlasGpuBaker
     private static bool initialized;
     private static int vao;
     private static GBuffer? scratchFbo;
+    private const int MaxDebugTilesPerPage = 3;
 
     private static VgeStageNamedShaderProgram? progLuminance;
     private static VgeStageNamedShaderProgram? progGauss1D;
@@ -140,6 +141,8 @@ internal static class PbrNormalDepthAtlasGpuBaker
             GL.ClearColor(0.5f, 0.5f, 1.0f, 0.0f);
             GL.Clear(ClearBufferMask.ColorBufferBit);
 
+            int debugTilesLogged = 0;
+
             foreach (TextureAtlasPosition pos in positions)
             {
                 if (!TryGetRectPx(pos, atlasWidth, atlasHeight, out int rx, out int ry, out int rw, out int rh))
@@ -206,10 +209,62 @@ internal static class PbrNormalDepthAtlasGpuBaker
 
                 if (cfg.DebugLogNormalDepthAtlas)
                 {
-                    // Sample a single pixel from the packed atlas in this rect.
-                    // This is intentionally cheap and only enabled in debug logging mode.
-                    var (a, rgb) = ReadAtlasPixelRgba(destNormalDepthTexId, rx + rw / 2, ry + rh / 2);
-                    capi.Logger.Debug("[VGE] Normal+depth atlas sample at ({0},{1}) a={2:0.000} rgb=({3:0.000},{4:0.000},{5:0.000})", rx + rw / 2, ry + rh / 2, a, rgb.r, rgb.g, rgb.b);
+                    int sx = rx + rw / 2;
+                    int sy = ry + rh / 2;
+                    var (a, rgb) = ReadAtlasPixelRgba(destNormalDepthTexId, sx, sy);
+
+                    if (debugTilesLogged < MaxDebugTilesPerPage)
+                    {
+                        // Also sample intermediate R32F tiles so we can locate where saturation happens.
+                        // Note: tile textures are tile-local coordinates.
+                        int tx = solverW / 2;
+                        int ty = solverH / 2;
+                        float h = ReadTexturePixelR32f(tile.H, tx, ty);
+                        float hn = ReadTexturePixelR32f(tile.Hn, tx, ty);
+
+                        // Sample a few more points to detect "binary alpha" vs real gradients.
+                        // Atlas coords use the same (x,y) convention as glReadPixels (bottom-left origin).
+                        float a00 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + 0, ry + 0).a;
+                        float a10 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + (rw - 1), ry + 0).a;
+                        float a01 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + 0, ry + (rh - 1)).a;
+                        float a11 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + (rw - 1), ry + (rh - 1)).a;
+
+                        float hn00 = ReadTexturePixelR32f(tile.Hn, 0, 0);
+                        float hn10 = ReadTexturePixelR32f(tile.Hn, solverW - 1, 0);
+                        float hn01 = ReadTexturePixelR32f(tile.Hn, 0, solverH - 1);
+                        float hn11 = ReadTexturePixelR32f(tile.Hn, solverW - 1, solverH - 1);
+
+                        capi.Logger.Debug(
+                            "[VGE] Normal+depth tile debug: atlas={0} rect=({1},{2},{3},{4}) samplePx=({5},{6}) H={7:0.0000} mean={8:0.0000} Hn={9:0.0000} (strength={10:0.00}, gamma={11:0.00}) pack.a={12:0.000} pack.rgb=({13:0.000},{14:0.000},{15:0.000})",
+                            baseAlbedoAtlasPageTexId,
+                            rx,
+                            ry,
+                            rw,
+                            rh,
+                            sx,
+                            sy,
+                            h,
+                            mean,
+                            hn,
+                            bake.HeightStrength,
+                            bake.Gamma,
+                            a,
+                            rgb.r,
+                            rgb.g,
+                            rgb.b);
+
+                        capi.Logger.Debug(
+                            "[VGE] Normal+depth tile samples: pack.a corners=[{0:0.000},{1:0.000},{2:0.000},{3:0.000}] Hn corners=[{4:0.0000},{5:0.0000},{6:0.0000},{7:0.0000}]",
+                            a00,
+                            a10,
+                            a01,
+                            a11,
+                            hn00,
+                            hn10,
+                            hn01,
+                            hn11);
+                        debugTilesLogged++;
+                    }
                 }
             }
         }
@@ -219,6 +274,11 @@ internal static class PbrNormalDepthAtlasGpuBaker
         }
         finally
         {
+            // CRITICAL: ensure Vintagestory's shader program tracking is not left in a dirty state.
+            // If any of our VGE programs remains "in use", the engine will throw:
+            // "Already a different shader (...) in use!" on the next render pass.
+            StopAllBakerPrograms();
+
             GL.UseProgram(prevProgram);
             GL.BindVertexArray(prevVao);
                 GBuffer.RestoreBinding(prevFbo);
@@ -235,6 +295,25 @@ internal static class PbrNormalDepthAtlasGpuBaker
         }
     }
 
+    private static void StopAllBakerPrograms()
+    {
+        // Stop() should be a no-op when the program isn't the current active shader,
+        // but calling it defensively avoids leaks across exception paths.
+        try { progPackToAtlas?.Stop(); } catch { }
+        try { progNormalize?.Stop(); } catch { }
+        try { progProlongateAdd?.Stop(); } catch { }
+        try { progRestrict?.Stop(); } catch { }
+        try { progResidual?.Stop(); } catch { }
+        try { progJacobi?.Stop(); } catch { }
+        try { progDivergence?.Stop(); } catch { }
+        try { progGradient?.Stop(); } catch { }
+        try { progCombine?.Stop(); } catch { }
+        try { progSub?.Stop(); } catch { }
+        try { progGauss1D?.Stop(); } catch { }
+        try { progCopy?.Stop(); } catch { }
+        try { progLuminance?.Stop(); } catch { }
+    }
+
     private static (float a, (float r, float g, float b) rgb) ReadAtlasPixelRgba(int atlasTexId, int x, int y)
     {
         // Attach the atlas texture to the scratch FBO and read back a single pixel.
@@ -245,6 +324,16 @@ internal static class PbrNormalDepthAtlasGpuBaker
         float[] px = new float[4];
         GL.ReadPixels(x, y, 1, 1, PixelFormat.Rgba, PixelType.Float, px);
         return (px[3], (px[0], px[1], px[2]));
+    }
+
+    private static float ReadTexturePixelR32f(DynamicTexture tex, int x, int y)
+    {
+        scratchFbo!.AttachColor(tex);
+        GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+
+        float[] px = new float[1];
+        GL.ReadPixels(x, y, 1, 1, PixelFormat.Red, PixelType.Float, px);
+        return px[0];
     }
 
     private static void EnsureInitialized(ICoreClientAPI capi)
@@ -352,11 +441,17 @@ internal static class PbrNormalDepthAtlasGpuBaker
         BindTarget(dst);
 
         progLuminance!.Use();
-        progLuminance.BindTexture2D("u_atlas", atlasTexId, 0);
-        progLuminance.Uniform4i("u_atlasRectPx", atlasRectPx.x, atlasRectPx.y, atlasRectPx.w, atlasRectPx.h);
-        progLuminance.Uniform2i("u_outSize", dst.Width, dst.Height);
-
-        DrawFullscreenTriangle();
+        try
+        {
+            progLuminance.BindTexture2D("u_atlas", atlasTexId, 0);
+            progLuminance.Uniform4i("u_atlasRectPx", atlasRectPx.x, atlasRectPx.y, atlasRectPx.w, atlasRectPx.h);
+            progLuminance.Uniform2i("u_outSize", dst.Width, dst.Height);
+            DrawFullscreenTriangle();
+        }
+        finally
+        {
+            progLuminance.Stop();
+        }
     }
 
     private static void RunGaussian(DynamicTexture src, DynamicTexture tmp, DynamicTexture dst, float sigma)
@@ -379,87 +474,143 @@ internal static class PbrNormalDepthAtlasGpuBaker
         // Horizontal
         BindTarget(tmp);
         progGauss1D!.Use();
-        progGauss1D.BindTexture2D("u_src", src.TextureId, 0);
-        progGauss1D.Uniform2i("u_size", src.Width, src.Height);
-        progGauss1D.Uniform2i("u_dir", 1, 0);
-        progGauss1D.Uniform("u_radius", radius);
-        progGauss1D.Uniform1fv("u_weights", weights);
-        DrawFullscreenTriangle();
+        try
+        {
+            progGauss1D.BindTexture2D("u_src", src.TextureId, 0);
+            progGauss1D.Uniform2i("u_size", src.Width, src.Height);
+            progGauss1D.Uniform2i("u_dir", 1, 0);
+            progGauss1D.Uniform("u_radius", radius);
+            progGauss1D.Uniform1fv("u_weights", weights);
+            DrawFullscreenTriangle();
+        }
+        finally
+        {
+            progGauss1D.Stop();
+        }
 
         // Vertical
         BindTarget(dst);
         progGauss1D!.Use();
-        progGauss1D.BindTexture2D("u_src", tmp.TextureId, 0);
-        progGauss1D.Uniform2i("u_size", dst.Width, dst.Height);
-        progGauss1D.Uniform2i("u_dir", 0, 1);
-        progGauss1D.Uniform("u_radius", radius);
-        progGauss1D.Uniform1fv("u_weights", weights);
-        DrawFullscreenTriangle();
+        try
+        {
+            progGauss1D.BindTexture2D("u_src", tmp.TextureId, 0);
+            progGauss1D.Uniform2i("u_size", dst.Width, dst.Height);
+            progGauss1D.Uniform2i("u_dir", 0, 1);
+            progGauss1D.Uniform("u_radius", radius);
+            progGauss1D.Uniform1fv("u_weights", weights);
+            DrawFullscreenTriangle();
+        }
+        finally
+        {
+            progGauss1D.Stop();
+        }
     }
 
     private static void RunSub(DynamicTexture a, DynamicTexture b, DynamicTexture dst)
     {
         BindTarget(dst);
         progSub!.Use();
-        progSub.BindTexture2D("u_a", a.TextureId, 0);
-        progSub.BindTexture2D("u_b", b.TextureId, 1);
-        progSub.Uniform2i("u_size", dst.Width, dst.Height);
-        DrawFullscreenTriangle();
+        try
+        {
+            progSub.BindTexture2D("u_a", a.TextureId, 0);
+            progSub.BindTexture2D("u_b", b.TextureId, 1);
+            progSub.Uniform2i("u_size", dst.Width, dst.Height);
+            DrawFullscreenTriangle();
+        }
+        finally
+        {
+            progSub.Stop();
+        }
     }
 
     private static void RunCopy(DynamicTexture src, DynamicTexture dst)
     {
         BindTarget(dst);
         progCopy!.Use();
-        progCopy.BindTexture2D("u_src", src.TextureId, 0);
-        progCopy.Uniform2i("u_size", dst.Width, dst.Height);
-        DrawFullscreenTriangle();
+        try
+        {
+            progCopy.BindTexture2D("u_src", src.TextureId, 0);
+            progCopy.Uniform2i("u_size", dst.Width, dst.Height);
+            DrawFullscreenTriangle();
+        }
+        finally
+        {
+            progCopy.Stop();
+        }
     }
 
     private static void RunCombine(DynamicTexture g1, DynamicTexture g2, DynamicTexture g3, DynamicTexture g4, DynamicTexture dst, float w1, float w2, float w3)
     {
         BindTarget(dst);
         progCombine!.Use();
-        progCombine.BindTexture2D("u_g1", g1.TextureId, 0);
-        progCombine.BindTexture2D("u_g2", g2.TextureId, 1);
-        progCombine.BindTexture2D("u_g3", g3.TextureId, 2);
-        progCombine.BindTexture2D("u_g4", g4.TextureId, 3);
-        progCombine.Uniform3f("u_w", w1, w2, w3);
-        progCombine.Uniform2i("u_size", dst.Width, dst.Height);
-        DrawFullscreenTriangle();
+        try
+        {
+            progCombine.BindTexture2D("u_g1", g1.TextureId, 0);
+            progCombine.BindTexture2D("u_g2", g2.TextureId, 1);
+            progCombine.BindTexture2D("u_g3", g3.TextureId, 2);
+            progCombine.BindTexture2D("u_g4", g4.TextureId, 3);
+            progCombine.Uniform3f("u_w", w1, w2, w3);
+            progCombine.Uniform2i("u_size", dst.Width, dst.Height);
+            DrawFullscreenTriangle();
+        }
+        finally
+        {
+            progCombine.Stop();
+        }
     }
 
     private static void RunGradient(DynamicTexture d, DynamicTexture dstG, LumOnConfig.NormalDepthBakeConfig bake)
     {
         BindTarget(dstG);
         progGradient!.Use();
-        progGradient.BindTexture2D("u_d", d.TextureId, 0);
-        progGradient.Uniform2i("u_size", d.Width, d.Height);
-        progGradient.Uniform("u_gain", bake.Gain);
-        progGradient.Uniform("u_maxSlope", bake.MaxSlope);
-        progGradient.Uniform2f("u_edgeT", bake.EdgeT0, bake.EdgeT1);
-        DrawFullscreenTriangle();
+        try
+        {
+            progGradient.BindTexture2D("u_d", d.TextureId, 0);
+            progGradient.Uniform2i("u_size", d.Width, d.Height);
+            progGradient.Uniform("u_gain", bake.Gain);
+            progGradient.Uniform("u_maxSlope", bake.MaxSlope);
+            progGradient.Uniform2f("u_edgeT", bake.EdgeT0, bake.EdgeT1);
+            DrawFullscreenTriangle();
+        }
+        finally
+        {
+            progGradient.Stop();
+        }
     }
 
     private static void RunDivergence(DynamicTexture g, DynamicTexture dstDiv)
     {
         BindTarget(dstDiv);
         progDivergence!.Use();
-        progDivergence.BindTexture2D("u_g", g.TextureId, 0);
-        progDivergence.Uniform2i("u_size", dstDiv.Width, dstDiv.Height);
-        DrawFullscreenTriangle();
+        try
+        {
+            progDivergence.BindTexture2D("u_g", g.TextureId, 0);
+            progDivergence.Uniform2i("u_size", dstDiv.Width, dstDiv.Height);
+            DrawFullscreenTriangle();
+        }
+        finally
+        {
+            progDivergence.Stop();
+        }
     }
 
     private static void RunNormalize(DynamicTexture h, DynamicTexture dst, float mean, float heightStrength, float gamma)
     {
         BindTarget(dst);
         progNormalize!.Use();
-        progNormalize.BindTexture2D("u_h", h.TextureId, 0);
-        progNormalize.Uniform2i("u_size", dst.Width, dst.Height);
-        progNormalize.Uniform("u_mean", mean);
-        progNormalize.Uniform("u_heightStrength", heightStrength);
-        progNormalize.Uniform("u_gamma", gamma);
-        DrawFullscreenTriangle();
+        try
+        {
+            progNormalize.BindTexture2D("u_h", h.TextureId, 0);
+            progNormalize.Uniform2i("u_size", dst.Width, dst.Height);
+            progNormalize.Uniform("u_mean", mean);
+            progNormalize.Uniform("u_heightStrength", heightStrength);
+            progNormalize.Uniform("u_gamma", gamma);
+            DrawFullscreenTriangle();
+        }
+        finally
+        {
+            progNormalize.Stop();
+        }
     }
 
     private static void RunPackToAtlas(
@@ -473,12 +624,19 @@ internal static class PbrNormalDepthAtlasGpuBaker
         // Render into atlas sidecar, restricting to this tile rect via viewport.
         BindAtlasTarget(dstAtlasTexId, viewportOriginPx.x, viewportOriginPx.y, tileSizePx.w, tileSizePx.h);
         progPackToAtlas!.Use();
-        progPackToAtlas.BindTexture2D("u_height", heightTex.TextureId, 0);
-        progPackToAtlas.Uniform2i("u_solverSize", solverSizePx.w, solverSizePx.h);
-        progPackToAtlas.Uniform2i("u_tileSize", tileSizePx.w, tileSizePx.h);
-        progPackToAtlas.Uniform2i("u_viewportOrigin", viewportOriginPx.x, viewportOriginPx.y);
-        progPackToAtlas.Uniform("u_normalStrength", normalStrength);
-        DrawFullscreenTriangle();
+        try
+        {
+            progPackToAtlas.BindTexture2D("u_height", heightTex.TextureId, 0);
+            progPackToAtlas.Uniform2i("u_solverSize", solverSizePx.w, solverSizePx.h);
+            progPackToAtlas.Uniform2i("u_tileSize", tileSizePx.w, tileSizePx.h);
+            progPackToAtlas.Uniform2i("u_viewportOrigin", viewportOriginPx.x, viewportOriginPx.y);
+            progPackToAtlas.Uniform("u_normalStrength", normalStrength);
+            DrawFullscreenTriangle();
+        }
+        finally
+        {
+            progPackToAtlas.Stop();
+        }
     }
 
     private static int ComputeRadius(float sigma)
@@ -701,41 +859,69 @@ internal static class PbrNormalDepthAtlasGpuBaker
         {
             BindTarget(dst);
             progJacobi!.Use();
-            progJacobi.BindTexture2D("u_h", h.TextureId, 0);
-            progJacobi.BindTexture2D("u_b", b.TextureId, 1);
-            progJacobi.Uniform2i("u_size", dst.Width, dst.Height);
-            DrawFullscreenTriangle();
+            try
+            {
+                progJacobi.BindTexture2D("u_h", h.TextureId, 0);
+                progJacobi.BindTexture2D("u_b", b.TextureId, 1);
+                progJacobi.Uniform2i("u_size", dst.Width, dst.Height);
+                DrawFullscreenTriangle();
+            }
+            finally
+            {
+                progJacobi.Stop();
+            }
         }
 
         private static void RunResidual(DynamicTexture h, DynamicTexture b, DynamicTexture dst)
         {
             BindTarget(dst);
             progResidual!.Use();
-            progResidual.BindTexture2D("u_h", h.TextureId, 0);
-            progResidual.BindTexture2D("u_b", b.TextureId, 1);
-            progResidual.Uniform2i("u_size", dst.Width, dst.Height);
-            DrawFullscreenTriangle();
+            try
+            {
+                progResidual.BindTexture2D("u_h", h.TextureId, 0);
+                progResidual.BindTexture2D("u_b", b.TextureId, 1);
+                progResidual.Uniform2i("u_size", dst.Width, dst.Height);
+                DrawFullscreenTriangle();
+            }
+            finally
+            {
+                progResidual.Stop();
+            }
         }
 
         private static void RunRestrict(DynamicTexture fine, DynamicTexture coarse)
         {
             BindTarget(coarse);
             progRestrict!.Use();
-            progRestrict.BindTexture2D("u_fine", fine.TextureId, 0);
-            progRestrict.Uniform2i("u_fineSize", fine.Width, fine.Height);
-            progRestrict.Uniform2i("u_coarseSize", coarse.Width, coarse.Height);
-            DrawFullscreenTriangle();
+            try
+            {
+                progRestrict.BindTexture2D("u_fine", fine.TextureId, 0);
+                progRestrict.Uniform2i("u_fineSize", fine.Width, fine.Height);
+                progRestrict.Uniform2i("u_coarseSize", coarse.Width, coarse.Height);
+                DrawFullscreenTriangle();
+            }
+            finally
+            {
+                progRestrict.Stop();
+            }
         }
 
         private static void RunProlongateAdd(DynamicTexture fineH, DynamicTexture coarseE, DynamicTexture dst)
         {
             BindTarget(dst);
             progProlongateAdd!.Use();
-            progProlongateAdd.BindTexture2D("u_fineH", fineH.TextureId, 0);
-            progProlongateAdd.BindTexture2D("u_coarseE", coarseE.TextureId, 1);
-            progProlongateAdd.Uniform2i("u_fineSize", fineH.Width, fineH.Height);
-            progProlongateAdd.Uniform2i("u_coarseSize", coarseE.Width, coarseE.Height);
-            DrawFullscreenTriangle();
+            try
+            {
+                progProlongateAdd.BindTexture2D("u_fineH", fineH.TextureId, 0);
+                progProlongateAdd.BindTexture2D("u_coarseE", coarseE.TextureId, 1);
+                progProlongateAdd.Uniform2i("u_fineSize", fineH.Width, fineH.Height);
+                progProlongateAdd.Uniform2i("u_coarseSize", coarseE.Width, coarseE.Height);
+                DrawFullscreenTriangle();
+            }
+            finally
+            {
+                progProlongateAdd.Stop();
+            }
         }
 
         private void DisposeAll()

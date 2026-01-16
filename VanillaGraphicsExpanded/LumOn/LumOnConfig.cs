@@ -120,7 +120,7 @@ public class LumOnConfig
     /// Requires restart / re-entering the world to fully apply.
     /// </summary>
     [JsonProperty]
-    public bool EnableNormalDepthAtlas { get; set; } = false;
+    public bool EnableNormalDepthAtlas { get; set; } = true;
 
     /// <summary>
     /// Parameters for generating a tileable height/normal field from albedo.
@@ -133,7 +133,7 @@ public class LumOnConfig
     /// Enables additional debug logging for normal+depth atlas build/bind plumbing.
     /// </summary>
     [JsonProperty]
-    public bool DebugLogNormalDepthAtlas { get; set; } = false;
+    public bool DebugLogNormalDepthAtlas { get; set; } = true;
 
     // ═══════════════════════════════════════════════════════════════
     // Probe Grid Settings (SPG-001)

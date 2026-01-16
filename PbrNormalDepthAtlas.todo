@@ -23,7 +23,12 @@ PBR Normal+Depth Sidecar Atlas (GPU Bake Plumbing):
   ✔ Choose naming (stable ABI):
     - Uniform sampler: vge_normalDepthTex
     - Include file: includes/vge_normaldepth.glsl
-    - Shader helper: ReadNormalDepth(vec2 uv) -> vec4
+    - Shader helpers:
+      - ReadNormalDepth01(vec2 uv) -> vec4  (normal01, height01)
+      - ReadHeight01(vec2 uv) -> float
+      - ReadHeightSigned(vec2 uv) -> float
+      - ReadNormalSigned(vec2 uv) -> vec3
+      - ReadNormalDepth(vec2 uv) -> vec4 (back-compat: height in signed -1..1)
   ✔ Choose a texture unit allocation:
     - Existing material params uses unit 15
     - Normal+depth uses unit 14
@@ -60,7 +65,8 @@ PBR Normal+Depth Sidecar Atlas (GPU Bake Plumbing):
   Phase 4 - Shader Include + Injection:
   Exit artifacts: Chunk shaders compile with a new uniform + include, but behavior is unchanged unless used.
   ✔ Add include file: assets/.../shaders/includes/vge_normaldepth.glsl
-    - Define ReadNormalDepth(uv) and any tiny helpers
+    - Define ReadNormalDepth01/ReadHeight01/ReadHeightSigned/ReadNormalSigned
+    - Keep ReadNormalDepth(uv) as back-compat
     - Keep it stable and minimal
   ✔ Extend shader patcher to inject:
     - `@import "./includes/vge_normaldepth.glsl"` for chunk shaders
@@ -86,7 +92,7 @@ PBR Normal+Depth Sidecar Atlas (GPU Bake Plumbing):
     - Report when a shader lacks the uniform
     - Report atlas page counts and texture dimensions
   ✔ Add a simple debug visualization mode (optional):
-    - Sample ReadNormalDepth and output to a debug render target (if you already have a debug view)
+    - Sample ReadHeight01 or ReadHeightSigned and output to a debug render target (if you already have a debug view)
 
   Phase 7 - Tests + Validation:
   Exit artifacts: Plumbing regressions are caught (even without final bake algorithm).
