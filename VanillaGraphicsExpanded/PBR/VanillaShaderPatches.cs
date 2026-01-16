@@ -86,6 +86,28 @@ uniform sampler2D vge_normalDepthTex;
 
     vge_outMaterial = vec4(vge_roughness, vge_metallic, vge_emissive, vge_reflectivity);
 ";
+
+    // chunkliquid.fsh does not define `normal` or `renderFlags`.
+    // Use inputs that are actually present in that shader (fragNormal, uv), and keep the samplers live.
+    private const string GBufferOutputWrites_ChunkLiquid = @"
+
+    // VGE: Write G-buffer outputs (liquid shader variant)
+    // Normal: use the per-fragment normal provided by the liquid shader.
+    // We store encoded height01 (0..1) in the otherwise-unused W channel for optional debugging.
+    float vge_height01 = ReadHeight01(uv);
+    vec3 vge_liquidNormal = normalize(fragNormal);
+    vge_outNormal = vec4(vge_liquidNormal * 0.5 + 0.5, vge_height01);
+
+    // Material: read per-texel params but do not require renderFlags.
+    vec3 vge_params = ReadMaterialParams(uv);
+    vge_params = ApplyMaterialNoise(vge_params, uv);
+    float vge_roughness = clamp(vge_params.r, 0.0, 1.0);
+    float vge_metallic  = clamp(vge_params.g, 0.0, 1.0);
+    float vge_emissive  = clamp(vge_params.b, 0.0, 1.0);
+
+    float vge_reflectivity = ComputeReflectivity(vge_roughness, vge_metallic);
+    vge_outMaterial = vec4(vge_roughness, vge_metallic, vge_emissive, vge_reflectivity);
+";
     #endregion
 
     /// <summary>
@@ -150,7 +172,12 @@ uniform sampler2D vge_normalDepthTex;
             {// Chunk shaders - inject G-buffer inputs, material sampler, and outputs
                 InjectGBufferInputs(tree);
                 InjectChunkMaterialSampler(tree);
-                InjectGBufferOutputs(tree, GBufferOutputWrites_Chunk);
+
+                string outputWrites = sourceName == "chunkliquid.fsh"
+                    ? GBufferOutputWrites_ChunkLiquid
+                    : GBufferOutputWrites_Chunk;
+                InjectGBufferOutputs(tree, outputWrites);
+
                 PatchFogAndLight(tree);
                 log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
                 return true;

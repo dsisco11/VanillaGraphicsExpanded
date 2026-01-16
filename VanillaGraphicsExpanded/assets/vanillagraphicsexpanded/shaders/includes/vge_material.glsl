@@ -12,6 +12,11 @@ vec3 ReadMaterialParams(vec2 uv)
 
 // Placeholder until we plumb noise deltas + deterministic seed inputs.
 // This preserves a stable ABI for patched shaders.
+vec3 ApplyMaterialNoise(vec3 params, vec2 uv)
+{
+    return params;
+}
+
 vec3 ApplyMaterialNoise(vec3 params, vec2 uv, int renderFlags)
 {
     return params;
