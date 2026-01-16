@@ -49,14 +49,14 @@ Phase 1 — Schema + DTOs:
     - Add strongly-typed fields for `MaterialParams` and `NormalHeight`.
 
 Phase 2 — Rule Resolution + Normalization:
-  ☐ Extend registry output model to carry per-texture override refs alongside chosen material.
+  ✔ Extend registry output model to carry per-texture override refs alongside chosen material.
     - Implement in `VanillaGraphicsExpanded/PBR/Materials/PbrMaterialRegistry.cs`.
-  ☐ Parse shorthand ids using `AssetLocation`:
+  ✔ Parse shorthand ids using `AssetLocation`:
     - `new AssetLocation(string)` for `values.overrides.*`.
     - Apply default domain if missing.
-  ☐ Keep existing mapping precedence semantics:
+  ✔ Keep existing mapping precedence semantics:
     - Higher priority wins; on tie, first match wins.
-  ☐ Add basic validation for override refs:
+  ✔ Add basic validation for override refs:
     - If invalid AssetLocation parse or unsupported extension → warning + treat as no override.
 
 Phase 3 — Texture Override Loading (PNG + DDS):

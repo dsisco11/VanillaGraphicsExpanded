@@ -15,6 +15,7 @@ internal sealed class PbrMaterialRegistry
 
     private readonly Dictionary<string, PbrMaterialDefinition> materialById = new(StringComparer.Ordinal);
     private readonly Dictionary<AssetLocation, string> materialIdByTexture = new();
+    private readonly Dictionary<AssetLocation, PbrMaterialTextureOverrides> overridesByTexture = new();
     private readonly Dictionary<string, int> materialIndexById = new(StringComparer.Ordinal);
     private PbrMaterialDefinition[] materialsByIndex = Array.Empty<PbrMaterialDefinition>();
 
@@ -29,6 +30,8 @@ internal sealed class PbrMaterialRegistry
     public IReadOnlyDictionary<string, PbrMaterialDefinition> MaterialById => materialById;
 
     public IReadOnlyDictionary<AssetLocation, string> MaterialIdByTexture => materialIdByTexture;
+
+    public IReadOnlyDictionary<AssetLocation, PbrMaterialTextureOverrides> OverridesByTexture => overridesByTexture;
 
     public IReadOnlyDictionary<string, int> MaterialIndexById => materialIndexById;
 
@@ -75,6 +78,7 @@ internal sealed class PbrMaterialRegistry
 
         materialById.Clear();
         materialIdByTexture.Clear();
+        overridesByTexture.Clear();
         materialIndexById.Clear();
         materialsByIndex = Array.Empty<PbrMaterialDefinition>();
         mappingRules.Clear();
@@ -128,6 +132,7 @@ internal sealed class PbrMaterialRegistry
         sources.Clear();
         materialById.Clear();
         materialIdByTexture.Clear();
+        overridesByTexture.Clear();
         materialIndexById.Clear();
         materialsByIndex = Array.Empty<PbrMaterialDefinition>();
         mappingRules.Clear();
@@ -257,6 +262,12 @@ internal sealed class PbrMaterialRegistry
 
                 string materialId = ResolveMaterialId(materialRef, source.Domain);
 
+                string? overrideMaterialParams = rule.Values?.Overrides?.MaterialParams?.Trim();
+                if (string.IsNullOrWhiteSpace(overrideMaterialParams)) overrideMaterialParams = null;
+
+                string? overrideNormalHeight = rule.Values?.Overrides?.NormalHeight?.Trim();
+                if (string.IsNullOrWhiteSpace(overrideNormalHeight)) overrideNormalHeight = null;
+
                 Regex regex;
                 try
                 {
@@ -278,7 +289,9 @@ internal sealed class PbrMaterialRegistry
                     Id: rule.Id,
                     Glob: glob,
                     MatchRegex: regex,
-                    MaterialId: materialId));
+                    MaterialId: materialId,
+                    OverrideMaterialParams: overrideMaterialParams,
+                    OverrideNormalHeight: overrideNormalHeight));
 
                 orderIndex++;
             }
@@ -298,6 +311,12 @@ internal sealed class PbrMaterialRegistry
         int mapped = 0;
         int unmapped = 0;
         int unknownMaterialRefs = 0;
+
+        // Warn at most once per mapping rule + override kind.
+        var warnedOverrides = new HashSet<(int orderIndex, string kind)>();
+
+        // Cache parsed override refs per mapping rule (keyed by orderIndex + kind).
+        var parsedOverrideCache = new Dictionary<(int orderIndex, string kind), AssetLocation?>();
 
         foreach (AssetLocation texture in ordered)
         {
@@ -347,6 +366,30 @@ internal sealed class PbrMaterialRegistry
             }
 
             materialIdByTexture[texture] = materialId;
+
+            AssetLocation? materialParamsOverride = TryGetOverrideLocation(
+                logger,
+                winner.Value,
+                texture,
+                winner.Value.OverrideMaterialParams,
+                kind: "materialParams",
+                warnedOverrides,
+                parsedOverrideCache);
+
+            AssetLocation? normalHeightOverride = TryGetOverrideLocation(
+                logger,
+                winner.Value,
+                texture,
+                winner.Value.OverrideNormalHeight,
+                kind: "normalHeight",
+                warnedOverrides,
+                parsedOverrideCache);
+
+            var overrides = new PbrMaterialTextureOverrides(materialParamsOverride, normalHeightOverride);
+            if (!overrides.IsEmpty)
+            {
+                overridesByTexture[texture] = overrides;
+            }
             mapped++;
         }
 
@@ -451,6 +494,63 @@ internal sealed class PbrMaterialRegistry
         // AssetManager normalizes asset paths to lowercase; domain is also lowercase.
         return $"assets/{location.Domain}/{location.Path}";
     }
+
+    private static AssetLocation? TryGetOverrideLocation(
+        ILogger logger,
+        PbrMaterialMappingRule rule,
+        AssetLocation targetTexture,
+        string? overrideRef,
+        string kind,
+        HashSet<(int orderIndex, string kind)> warnedOverrides,
+        Dictionary<(int orderIndex, string kind), AssetLocation?> parsedOverrideCache)
+    {
+        if (string.IsNullOrWhiteSpace(overrideRef))
+        {
+            return null;
+        }
+
+        var cacheKey = (rule.OrderIndex, kind);
+        if (parsedOverrideCache.TryGetValue(cacheKey, out AssetLocation? cached))
+        {
+            return cached;
+        }
+
+        AssetLocation loc = AssetLocation.Create(overrideRef.Trim(), rule.Source.Domain.ToLowerInvariant());
+
+        string? invalidReason = null;
+        if (!loc.Valid)
+        {
+            invalidReason = "invalid asset location";
+        }
+        else
+        {
+            string path = (loc.Path ?? string.Empty).Replace('\\', '/').ToLowerInvariant();
+            if (!(path.EndsWith(".png", StringComparison.Ordinal) || path.EndsWith(".dds", StringComparison.Ordinal)))
+            {
+                invalidReason = "unsupported extension (expected .png or .dds)";
+            }
+        }
+
+        if (invalidReason is not null)
+        {
+            // Warn once per rule+kind, but include a representative target texture for easy debugging.
+            if (warnedOverrides.Add((rule.OrderIndex, kind)))
+            {
+                logger.Warning(
+                    "[VGE] PBR override ignored: rule='{0}' target='{1}' override='{2}' reason='{3}'. Falling back to generated maps.",
+                    rule.Id ?? "(no id)",
+                    targetTexture,
+                    loc,
+                    invalidReason);
+            }
+
+            parsedOverrideCache[cacheKey] = null;
+            return null;
+        }
+
+        parsedOverrideCache[cacheKey] = loc;
+        return loc;
+    }
 }
 
 internal readonly record struct PbrMaterialDefinitionsSource(string Domain, AssetLocation Location, PbrMaterialDefinitionsJsonFile File);
@@ -464,4 +564,6 @@ internal readonly record struct PbrMaterialMappingRule(
     string? Id,
     string Glob,
     Regex MatchRegex,
-    string MaterialId);
+    string MaterialId,
+    string? OverrideMaterialParams,
+    string? OverrideNormalHeight);
