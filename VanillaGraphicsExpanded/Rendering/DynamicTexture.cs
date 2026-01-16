@@ -436,6 +436,10 @@ public sealed class DynamicTexture : IDisposable
             textureId,
             0);
 
+        // Explicitly select the attachment as the read source.
+        // Some drivers/context states may otherwise read from an undefined buffer.
+        GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+
         // Read pixels
         GL.ReadPixels(0, 0, width, height,
             TextureFormatHelper.GetPixelFormat(internalFormat),

@@ -112,8 +112,26 @@ internal static class PbrNormalDepthAtlasGpuBaker
         GL.GetInteger(GetPName.ActiveTexture, out int prevActiveTex);
         GL.GetInteger(GetPName.TextureBinding2D, out int prevTex2D);
 
+        // Engine GL state can leak into the bake. Force a known-good state and restore after.
+        bool prevBlend = GL.IsEnabled(EnableCap.Blend);
+        bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
+        bool prevScissor = GL.IsEnabled(EnableCap.ScissorTest);
+        bool prevCull = GL.IsEnabled(EnableCap.CullFace);
+        GL.GetBoolean(GetPName.ColorWritemask, out bool prevColorMaskR);
+        // Note: GetBoolean(ColorWritemask) returns 4 values in native OpenGL; OpenTK overload differs.
+        // We'll restore via GetBooleanv to be safe.
+        bool[] prevColorMask = new bool[4];
+        GL.GetBoolean(GetPName.ColorWritemask, prevColorMask);
+
         try
         {
+            // Known-good state for offscreen full-screen passes.
+            GL.Disable(EnableCap.Blend);
+            GL.Disable(EnableCap.DepthTest);
+            GL.Disable(EnableCap.ScissorTest);
+            GL.Disable(EnableCap.CullFace);
+            GL.ColorMask(true, true, true, true);
+
             scratchFbo!.Bind();
             GL.BindVertexArray(vao);
 
@@ -185,6 +203,14 @@ internal static class PbrNormalDepthAtlasGpuBaker
                     solverSizePx: (solverW, solverH),
                     heightTex: tile.Hn,
                     normalStrength: bake.NormalStrength);
+
+                if (cfg.DebugLogNormalDepthAtlas)
+                {
+                    // Sample a single pixel from the packed atlas in this rect.
+                    // This is intentionally cheap and only enabled in debug logging mode.
+                    var (a, rgb) = ReadAtlasPixelRgba(destNormalDepthTexId, rx + rw / 2, ry + rh / 2);
+                    capi.Logger.Debug("[VGE] Normal+depth atlas sample at ({0},{1}) a={2:0.000} rgb=({3:0.000},{4:0.000},{5:0.000})", rx + rw / 2, ry + rh / 2, a, rgb.r, rgb.g, rgb.b);
+                }
             }
         }
         catch
@@ -200,7 +226,25 @@ internal static class PbrNormalDepthAtlasGpuBaker
 
             GL.ActiveTexture((TextureUnit)prevActiveTex);
             GL.BindTexture(TextureTarget.Texture2D, prevTex2D);
+
+            if (prevBlend) GL.Enable(EnableCap.Blend); else GL.Disable(EnableCap.Blend);
+            if (prevDepthTest) GL.Enable(EnableCap.DepthTest); else GL.Disable(EnableCap.DepthTest);
+            if (prevScissor) GL.Enable(EnableCap.ScissorTest); else GL.Disable(EnableCap.ScissorTest);
+            if (prevCull) GL.Enable(EnableCap.CullFace); else GL.Disable(EnableCap.CullFace);
+            GL.ColorMask(prevColorMask[0], prevColorMask[1], prevColorMask[2], prevColorMask[3]);
         }
+    }
+
+    private static (float a, (float r, float g, float b) rgb) ReadAtlasPixelRgba(int atlasTexId, int x, int y)
+    {
+        // Attach the atlas texture to the scratch FBO and read back a single pixel.
+        // Note: framebuffer coordinates are bottom-left origin.
+        scratchFbo!.AttachColorTextureId(atlasTexId);
+        GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+
+        float[] px = new float[4];
+        GL.ReadPixels(x, y, 1, 1, PixelFormat.Rgba, PixelType.Float, px);
+        return (px[3], (px[0], px[1], px[2]));
     }
 
     private static void EnsureInitialized(ICoreClientAPI capi)

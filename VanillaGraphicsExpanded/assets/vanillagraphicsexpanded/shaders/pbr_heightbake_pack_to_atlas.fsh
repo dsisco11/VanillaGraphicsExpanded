@@ -2,7 +2,7 @@
 
 // Pack height + normal into the atlas sidecar.
 // Output target: RGBA16F atlas texture.
-// RGB: normal (0..1). A: signed height.
+// RGB: normal (0..1). A: encoded signed height (0..1).
 
 out vec4 outColor;
 
@@ -39,5 +39,10 @@ void main()
     vec3 n = normalize(vec3(-dhdx * u_normalStrength, -dhdy * u_normalStrength, 1.0));
     vec3 n01 = n * 0.5 + 0.5;
 
-    outColor = vec4(n01, hC);
+    // Store signed height in a RenderDoc-friendly encoding.
+    // Clamp first to avoid blowing out the visualization due to large solver magnitudes.
+    float hSigned = clamp(hC, -1.0, 1.0);
+    float h01 = hSigned * 0.5 + 0.5;
+
+    outColor = vec4(n01, h01);
 }
