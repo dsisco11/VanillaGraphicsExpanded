@@ -86,15 +86,15 @@
     "painted": { "roughness": 0.6, "metallic": 0.0 },
     "polished_stone": { "roughness": 0.35, "metallic": 0.0 },
 
-    "metal_generic": { "roughness": 0.035, "metallic": 1.0 },
-    "metal_iron": { "roughness": 0.035, "metallic": 1.0 },
-    "metal_steel": { "roughness": 0.03, "metallic": 1.0 },
-    "metal_copper": { "roughness": 0.028, "metallic": 1.0 },
-    "metal_tin": { "roughness": 0.03, "metallic": 1.0 },
-    "metal_zinc": { "roughness": 0.03, "metallic": 1.0 },
-    "metal_gold": { "roughness": 0.018, "metallic": 1.0 },
-    "metal_silver": { "roughness": 0.015, "metallic": 1.0 },
-    "metal_bronze": { "roughness": 0.025, "metallic": 1.0 }
+    "metal_generic": { "roughness": 0.35, "metallic": 1.0 },
+    "metal_iron": { "roughness": 0.35, "metallic": 1.0 },
+    "metal_steel": { "roughness": 0.3, "metallic": 1.0 },
+    "metal_copper": { "roughness": 0.28, "metallic": 1.0 },
+    "metal_tin": { "roughness": 0.3, "metallic": 1.0 },
+    "metal_zinc": { "roughness": 0.3, "metallic": 1.0 },
+    "metal_gold": { "roughness": 0.18, "metallic": 1.0 },
+    "metal_silver": { "roughness": 0.15, "metallic": 1.0 },
+    "metal_bronze": { "roughness": 0.25, "metallic": 1.0 }
   },
   "mapping": [
     {
