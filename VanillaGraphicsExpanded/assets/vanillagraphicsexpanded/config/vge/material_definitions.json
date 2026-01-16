@@ -108,6 +108,20 @@
       }
     },
     {
+      "id": "vge-example-explicit-overrides-do-not-match",
+      "description": "Example only: explicit texture overrides (this glob intentionally matches nothing).",
+      "match": {
+        "glob": "assets/vanillagraphicsexpanded/textures/__example__/never_matches.png"
+      },
+      "values": {
+        "material": "stone",
+        "overrides": {
+          "materialParams": "mymod:textures/vge/params/stone/granite_pbr.png",
+          "normalHeight": "mymod:textures/vge/normalheight/stone/granite_nh.dds"
+        }
+      }
+    },
+    {
       "id": "water-liquid-blocks",
       "description": "Water textures used for liquid blocks.",
       "match": {

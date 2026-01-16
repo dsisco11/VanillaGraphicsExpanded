@@ -111,9 +111,9 @@ Phase 7 — Tests:
   ☐ (Optional GPU test) NormalHeight override rect remains as provided and is not altered by bake.
 
 Phase 8 — Docs + Examples:
-  ☐ Document override fields in `README.md` or a new doc under `docs/`.
-  ☐ Add example rules in `assets/vanillagraphicsexpanded/config/vge/material_definitions.json`.
-  ☐ Add notes on accepted packing + supported DDS types.
+  ✔ Document override fields in `README.md` or a new doc under `docs/`.
+  ✔ Add example rules in `assets/vanillagraphicsexpanded/config/vge/material_definitions.json`.
+  ✔ Add notes on accepted packing + supported DDS types.
 
 Phase 9 — Validation / Acceptance:
   ☐ Manual spot-check:

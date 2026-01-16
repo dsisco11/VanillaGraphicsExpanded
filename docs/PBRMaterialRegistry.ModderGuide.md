@@ -76,6 +76,66 @@ VGE uses **globstar** matching:
 - `?` matches one character within a segment (does not match `/`)
 - `**` matches across path segments (may cross `/`)
 
+## Explicit texture overrides (per mapping rule)
+
+Mapping rules can optionally specify **explicit texture maps** to use instead of VGE-generated/baked maps.
+
+Fields:
+
+- `values.overrides.materialParams`: explicit packed _material params_ map
+- `values.overrides.normalHeight`: explicit packed _normal+height_ map
+
+Example:
+
+```json
+{
+  "id": "mymod-granite-overrides",
+  "priority": 10,
+  "match": { "glob": "assets/mymod/textures/block/stone/granite.png" },
+  "values": {
+    "material": "stone",
+    "overrides": {
+      "materialParams": "mymod:textures/vge/params/stone/granite_pbr.png",
+      "normalHeight": "mymod:textures/vge/normalheight/stone/granite_nh.dds"
+    }
+  }
+}
+```
+
+### Supported file formats
+
+- `.png` via the Vintage Story asset system
+- `.dds` decoded via BCnEncoder.NET
+
+For `.dds`, VGE expects standard DDS files using common block-compressed BCn formats.
+BCnEncoder.NET supports BC1–BC7 (DXT1/3/5, RGTC/BC4/BC5, BC6H, BC7).
+
+### Required dimensions
+
+Overrides must match the exact atlas-rect dimensions VGE is filling (typically tile-sized, e.g. 32×32).
+VGE currently does **not** resample; if dimensions mismatch, VGE logs a warning and falls back.
+
+### Packing / channel semantics
+
+**Material params override (`materialParams`)**
+
+- Used to fill the material-params atlas (RGB16F).
+- Channels are interpreted as:
+  - `R` = roughness (0..1)
+  - `G` = metallic (0..1)
+  - `B` = emissive (0..1)
+  - `A` is ignored
+
+**Normal+height override (`normalHeight`)**
+
+- Used to fill the normal+height atlas (RGBA16F).
+- Channels are interpreted as:
+  - `RGB` = normal packed in 0..1 (consumer converts to signed via `*2-1`)
+  - `A` = height01 (0..1), where `0.5` is neutral
+
+Note: VGE’s procedural normal+height bake applies an alpha-cutoff mask derived from the albedo.
+Overrides are currently copied as-authored; if you need cutout behavior, bake it into your override texture.
+
 ## Conflict resolution (deterministic)
 
 ### MaterialId collisions

@@ -120,3 +120,12 @@ The GPU test infrastructure includes:
 VGE can bake a tileable height field (and derived normals) from albedo into a sidecar atlas during loading.
 
 See [docs/NormalDepthBake.md](docs/NormalDepthBake.md) for details and tuning.
+
+## PBR Explicit Texture Overrides
+
+VGE mapping rules support optional explicit overrides for:
+
+- Packed material params (`values.overrides.materialParams`)
+- Packed normal+height (`values.overrides.normalHeight`)
+
+See [docs/PBRMaterialRegistry.ModderGuide.md](docs/PBRMaterialRegistry.ModderGuide.md) for format, packing, and examples.
