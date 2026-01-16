@@ -52,6 +52,18 @@ internal static class PbrNormalDepthAtlasGpuBaker
     private static int vao;
     private static GBuffer? scratchFbo;
     private const int MaxDebugTilesPerPage = 3;
+    private const int FlatnessSampleStride = 128;
+    private const float FlatnessEpsilon = 0.0025f;
+
+    private static float ClampSigmaToTile(float sigma, int tileW, int tileH, float maxFractionOfMinDim)
+    {
+        if (sigma <= 0f) return 0f;
+        float minDim = Math.Min(tileW, tileH);
+        float maxSigma = Math.Max(0.5f, minDim * maxFractionOfMinDim);
+        return sigma > maxSigma ? maxSigma : sigma;
+    }
+
+    private static float Clamp(float v, float lo, float hi) => v < lo ? lo : (v > hi ? hi : v);
 
     private static VgeStageNamedShaderProgram? progLuminance;
     private static VgeStageNamedShaderProgram? progGauss1D;
@@ -142,17 +154,26 @@ internal static class PbrNormalDepthAtlasGpuBaker
             GL.Clear(ClearBufferMask.ColorBufferBit);
 
             int debugTilesLogged = 0;
+            int bakedRects = 0;
+            int skippedInvalidRects = 0;
+            int skippedTinyRects = 0;
+            int sampledRects = 0;
+            int flatSampledRects = 0;
+            int flatDetailsLogged = 0;
 
             foreach (TextureAtlasPosition pos in positions)
             {
                 if (!TryGetRectPx(pos, atlasWidth, atlasHeight, out int rx, out int ry, out int rw, out int rh))
                 {
+                    skippedInvalidRects++;
                     continue;
                 }
 
-                // Very small tiles aren’t worth baking; leave defaults.
-                if (rw < 4 || rh < 4)
+                // Extremely small tiles can't produce stable gradients; leave defaults.
+                // Note: leaving defaults means neutral height (0.5 encoded) and flat normal.
+                if (rw < 2 || rh < 2)
                 {
+                    skippedTinyRects++;
                     continue;
                 }
 
@@ -168,6 +189,42 @@ internal static class PbrNormalDepthAtlasGpuBaker
                 var cfg = ConfigModSystem.Config;
                 var bake = cfg.NormalDepthBake;
 
+                // Adaptive clamp: SigmaBig as configured can be too aggressive for small tiles (e.g. 32x32),
+                // wiping out most of the low/medium-frequency structure and yielding a flat (neutral) height map.
+                // Clamp to a fraction of the tile size to preserve usable signal across more atlas rects.
+                float sigmaBig = ClampSigmaToTile(bake.SigmaBig, solverW, solverH, maxFractionOfMinDim: 0.25f);
+
+                // Likewise clamp the band-pass sigmas so small tiles don't end up with multiple passes
+                // that are effectively "global" blurs.
+                float sigma1 = ClampSigmaToTile(bake.Sigma1, solverW, solverH, maxFractionOfMinDim: 0.05f);
+                float sigma2 = ClampSigmaToTile(bake.Sigma2, solverW, solverH, maxFractionOfMinDim: 0.08f);
+                float sigma3 = ClampSigmaToTile(bake.Sigma3, solverW, solverH, maxFractionOfMinDim: 0.12f);
+                float sigma4 = ClampSigmaToTile(bake.Sigma4, solverW, solverH, maxFractionOfMinDim: 0.20f);
+
+                // Other rect-size affected knobs (gradient stage operates in texel space).
+                // Scale relative to a 32x32 baseline and clamp to avoid extreme changes.
+                float minDim = Math.Min(solverW, solverH);
+                float sizeScale = Clamp(32f / Math.Max(1f, minDim), 0.5f, 2.0f);
+                float gain = bake.Gain * sizeScale;
+                float maxSlope = bake.MaxSlope * sizeScale;
+                float edgeT0 = bake.EdgeT0 * sizeScale;
+                float edgeT1 = bake.EdgeT1 * sizeScale;
+
+                if (cfg.DebugLogNormalDepthAtlas && debugTilesLogged < MaxDebugTilesPerPage)
+                {
+                    capi.Logger.Debug(
+                        "[VGE] Normal+depth effective sigmas: rect=({0},{1},{2},{3}) sigmaBig={4:0.00} sigma1={5:0.00} sigma2={6:0.00} sigma3={7:0.00} sigma4={8:0.00}",
+                        rx,
+                        ry,
+                        rw,
+                        rh,
+                        sigmaBig,
+                        sigma1,
+                        sigma2,
+                        sigma3,
+                        sigma4);
+                }
+
                 // 1) Luminance (linear) from atlas sub-rect.
                 RunLuminancePass(
                     atlasTexId: baseAlbedoAtlasPageTexId,
@@ -175,18 +232,20 @@ internal static class PbrNormalDepthAtlasGpuBaker
                     dst: tile.L);
 
                 // 2) Remove low-frequency ramps: base = Gauss(L, sigmaBig), D0 = L - base.
-                RunGaussian(tile.L, tile.Tmp, tile.Base, bake.SigmaBig);
-                RunSub(tile.L, tile.Base, tile.D0);
+                RunGaussian(tile.L, tile.Tmp, tile.Base, sigmaBig);
+                // Use relative contrast to reduce sensitivity to tint/brightness:
+                // D0 = (L - base) / (base + eps)
+                RunSub(tile.L, tile.Base, tile.D0, relContrast: true);
 
                 // 3) Multi-scale band-pass on D0.
-                RunGaussian(tile.D0, tile.Tmp, tile.G1, bake.Sigma1);
-                RunGaussian(tile.D0, tile.Tmp, tile.G2, bake.Sigma2);
-                RunGaussian(tile.D0, tile.Tmp, tile.G3, bake.Sigma3);
-                RunGaussian(tile.D0, tile.Tmp, tile.G4, bake.Sigma4);
+                RunGaussian(tile.D0, tile.Tmp, tile.G1, sigma1);
+                RunGaussian(tile.D0, tile.Tmp, tile.G2, sigma2);
+                RunGaussian(tile.D0, tile.Tmp, tile.G3, sigma3);
+                RunGaussian(tile.D0, tile.Tmp, tile.G4, sigma4);
                 RunCombine(tile.G1, tile.G2, tile.G3, tile.G4, tile.D, bake.W1, bake.W2, bake.W3);
 
                 // 4) Desired gradient field.
-                RunGradient(tile.D, tile.G, bake);
+                RunGradient(tile.D, tile.G, gain, maxSlope, edgeT0, edgeT1);
 
                 // 5) Divergence.
                 RunDivergence(tile.G, tile.Div);
@@ -206,6 +265,59 @@ internal static class PbrNormalDepthAtlasGpuBaker
                     solverSizePx: (solverW, solverH),
                     heightTex: tile.Hn,
                     normalStrength: bake.NormalStrength);
+
+                bakedRects++;
+
+                // Lightweight: sample every Nth baked rect to estimate how many are effectively flat.
+                if (cfg.DebugLogNormalDepthAtlas && (bakedRects % FlatnessSampleStride) == 0)
+                {
+                    int sx = rx + rw / 2;
+                    int sy = ry + rh / 2;
+                    float aCenter = ReadAtlasPixelRgba(destNormalDepthTexId, sx, sy).a;
+
+                    sampledRects++;
+                    if (Math.Abs(aCenter - 0.5f) <= FlatnessEpsilon)
+                    {
+                        flatSampledRects++;
+
+                        if (flatDetailsLogged < MaxDebugTilesPerPage)
+                        {
+                            // Sample the base albedo atlas at matching pixels to see if the source tile itself is flat.
+                            var cCenter = ReadAtlasPixelRgba(baseAlbedoAtlasPageTexId, sx, sy);
+                            var c00 = ReadAtlasPixelRgba(baseAlbedoAtlasPageTexId, rx + 0, ry + 0);
+                            var c10 = ReadAtlasPixelRgba(baseAlbedoAtlasPageTexId, rx + (rw - 1), ry + 0);
+                            var c01 = ReadAtlasPixelRgba(baseAlbedoAtlasPageTexId, rx + 0, ry + (rh - 1));
+                            var c11 = ReadAtlasPixelRgba(baseAlbedoAtlasPageTexId, rx + (rw - 1), ry + (rh - 1));
+
+                            float L((float r, float g, float b) rgb) => 0.2126f * rgb.r + 0.7152f * rgb.g + 0.0722f * rgb.b;
+                            float lCenter = L(cCenter.rgb);
+                            float l00 = L(c00.rgb);
+                            float l10 = L(c10.rgb);
+                            float l01 = L(c01.rgb);
+                            float l11 = L(c11.rgb);
+
+                            capi.Logger.Debug(
+                                "[VGE] Normal+depth flat-tile sample: rect=({0},{1},{2},{3}) pack.aCenter={4:0.000} albedoL=[{5:0.000},{6:0.000},{7:0.000},{8:0.000},{9:0.000}] albedoA=[{10:0.000},{11:0.000},{12:0.000},{13:0.000},{14:0.000}]",
+                                rx,
+                                ry,
+                                rw,
+                                rh,
+                                aCenter,
+                                lCenter,
+                                l00,
+                                l10,
+                                l01,
+                                l11,
+                                cCenter.a,
+                                c00.a,
+                                c10.a,
+                                c01.a,
+                                c11.a);
+
+                            flatDetailsLogged++;
+                        }
+                    }
+                }
 
                 if (cfg.DebugLogNormalDepthAtlas)
                 {
@@ -266,6 +378,22 @@ internal static class PbrNormalDepthAtlasGpuBaker
                         debugTilesLogged++;
                     }
                 }
+            }
+
+            if (ConfigModSystem.Config.DebugLogNormalDepthAtlas &&
+                (skippedTinyRects != 0 || skippedInvalidRects != 0 || flatSampledRects != 0))
+            {
+                capi.Logger.Debug(
+                    "[VGE] Normal+depth atlas bake summary: atlas={0} rects={1} baked={2} skippedTiny(<2px)={3} skippedInvalid={4} sampledEvery={5} sampled={6} sampledFlat(|a-0.5|<={7})={8}",
+                    baseAlbedoAtlasPageTexId,
+                    positions.Length,
+                    bakedRects,
+                    skippedTinyRects,
+                    skippedInvalidRects,
+                    FlatnessSampleStride,
+                    sampledRects,
+                    FlatnessEpsilon,
+                    flatSampledRects);
             }
         }
         catch
@@ -506,7 +634,7 @@ internal static class PbrNormalDepthAtlasGpuBaker
         }
     }
 
-    private static void RunSub(DynamicTexture a, DynamicTexture b, DynamicTexture dst)
+    private static void RunSub(DynamicTexture a, DynamicTexture b, DynamicTexture dst, bool relContrast)
     {
         BindTarget(dst);
         progSub!.Use();
@@ -515,6 +643,8 @@ internal static class PbrNormalDepthAtlasGpuBaker
             progSub.BindTexture2D("u_a", a.TextureId, 0);
             progSub.BindTexture2D("u_b", b.TextureId, 1);
             progSub.Uniform2i("u_size", dst.Width, dst.Height);
+            progSub.Uniform("u_relContrast", relContrast ? 1 : 0);
+            progSub.Uniform("u_eps", 1e-3f);
             DrawFullscreenTriangle();
         }
         finally
@@ -559,7 +689,7 @@ internal static class PbrNormalDepthAtlasGpuBaker
         }
     }
 
-    private static void RunGradient(DynamicTexture d, DynamicTexture dstG, LumOnConfig.NormalDepthBakeConfig bake)
+    private static void RunGradient(DynamicTexture d, DynamicTexture dstG, float gain, float maxSlope, float edgeT0, float edgeT1)
     {
         BindTarget(dstG);
         progGradient!.Use();
@@ -567,9 +697,9 @@ internal static class PbrNormalDepthAtlasGpuBaker
         {
             progGradient.BindTexture2D("u_d", d.TextureId, 0);
             progGradient.Uniform2i("u_size", d.Width, d.Height);
-            progGradient.Uniform("u_gain", bake.Gain);
-            progGradient.Uniform("u_maxSlope", bake.MaxSlope);
-            progGradient.Uniform2f("u_edgeT", bake.EdgeT0, bake.EdgeT1);
+            progGradient.Uniform("u_gain", gain);
+            progGradient.Uniform("u_maxSlope", maxSlope);
+            progGradient.Uniform2f("u_edgeT", edgeT0, edgeT1);
             DrawFullscreenTriangle();
         }
         finally
