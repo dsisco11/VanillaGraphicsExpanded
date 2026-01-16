@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 using BCnEncoder.Decoder;
 using BCnEncoder.Shared;
@@ -16,6 +18,27 @@ internal static class PbrOverrideTextureLoader
         public bool IsEmpty => Width <= 0 || Height <= 0 || Rgba is null || Rgba.Length == 0;
     }
 
+    private sealed class CacheEntry
+    {
+        public required int Width { get; init; }
+        public required int Height { get; init; }
+        public required byte[] RgbaBytes { get; init; }
+        public float[]? RgbaFloats01 { get; set; }
+        public DateTime LastAccessUtc { get; set; }
+    }
+
+    private const int MaxCacheEntries = 256;
+    private static readonly object CacheGate = new();
+    private static readonly Dictionary<AssetLocation, CacheEntry> Cache = new();
+
+    public static void ClearCache()
+    {
+        lock (CacheGate)
+        {
+            Cache.Clear();
+        }
+    }
+
     public static bool TryLoadRgba(
         ICoreClientAPI capi,
         AssetLocation overrideId,
@@ -30,6 +53,12 @@ internal static class PbrOverrideTextureLoader
         image = default;
         reason = null;
 
+        // Fast path: serve from cache if available (path equality).
+        if (TryGetCachedBytes(overrideId, expectedWidth, expectedHeight, out image))
+        {
+            return true;
+        }
+
         IAsset? asset = capi.Assets.TryGet(overrideId, loadAsset: true);
         if (asset == null)
         {
@@ -43,12 +72,24 @@ internal static class PbrOverrideTextureLoader
         {
             if (path.EndsWith(".png", StringComparison.Ordinal))
             {
-                return TryLoadPng(capi, asset, out image, out reason, expectedWidth, expectedHeight);
+                if (!TryLoadPng(capi, asset, out image, out reason, expectedWidth, expectedHeight))
+                {
+                    return false;
+                }
+
+                UpsertCache(overrideId, image.Width, image.Height, image.Rgba);
+                return true;
             }
 
             if (path.EndsWith(".dds", StringComparison.Ordinal))
             {
-                return TryLoadDds(asset, out image, out reason, expectedWidth, expectedHeight);
+                if (!TryLoadDds(asset, out image, out reason, expectedWidth, expectedHeight))
+                {
+                    return false;
+                }
+
+                UpsertCache(overrideId, image.Width, image.Height, image.Rgba);
+                return true;
             }
 
             reason = "unsupported extension";
@@ -59,6 +100,40 @@ internal static class PbrOverrideTextureLoader
             reason = ex.Message;
             return false;
         }
+    }
+
+    public static bool TryLoadRgbaFloats01(
+        ICoreClientAPI capi,
+        AssetLocation overrideId,
+        out int width,
+        out int height,
+        out float[] rgba01,
+        out string? reason,
+        int? expectedWidth = null,
+        int? expectedHeight = null)
+    {
+        width = 0;
+        height = 0;
+        rgba01 = Array.Empty<float>();
+        reason = null;
+
+        if (!TryLoadRgba(capi, overrideId, out LoadedRgbaImage img, out reason, expectedWidth, expectedHeight))
+        {
+            return false;
+        }
+
+        width = img.Width;
+        height = img.Height;
+
+        // If the underlying TryLoadRgba produced a cached image, convert-and-cache floats once.
+        if (TryGetCachedFloats01(overrideId, expectedWidth, expectedHeight, out width, out height, out rgba01))
+        {
+            return true;
+        }
+
+        // Fallback: convert without caching.
+        rgba01 = ConvertBytesToFloats01(img.Rgba);
+        return true;
     }
 
     private static bool TryLoadPng(
@@ -186,4 +261,105 @@ internal static class PbrOverrideTextureLoader
 
         return true;
     }
+
+    private static bool TryGetCachedBytes(AssetLocation overrideId, int? expectedWidth, int? expectedHeight, out LoadedRgbaImage image)
+    {
+        image = default;
+
+        lock (CacheGate)
+        {
+            if (!Cache.TryGetValue(overrideId, out CacheEntry? entry))
+            {
+                return false;
+            }
+
+            if (expectedWidth is not null && expectedHeight is not null &&
+                (entry.Width != expectedWidth.Value || entry.Height != expectedHeight.Value))
+            {
+                return false;
+            }
+
+            entry.LastAccessUtc = DateTime.UtcNow;
+            image = new LoadedRgbaImage(entry.Width, entry.Height, entry.RgbaBytes);
+            return true;
+        }
+    }
+
+    private static bool TryGetCachedFloats01(
+        AssetLocation overrideId,
+        int? expectedWidth,
+        int? expectedHeight,
+        out int width,
+        out int height,
+        out float[] rgba01)
+    {
+        lock (CacheGate)
+        {
+            if (!Cache.TryGetValue(overrideId, out CacheEntry? entry))
+            {
+                width = 0;
+                height = 0;
+                rgba01 = Array.Empty<float>();
+                return false;
+            }
+
+            if (expectedWidth is not null && expectedHeight is not null &&
+                (entry.Width != expectedWidth.Value || entry.Height != expectedHeight.Value))
+            {
+                width = 0;
+                height = 0;
+                rgba01 = Array.Empty<float>();
+                return false;
+            }
+
+            entry.LastAccessUtc = DateTime.UtcNow;
+            entry.RgbaFloats01 ??= ConvertBytesToFloats01(entry.RgbaBytes);
+
+            width = entry.Width;
+            height = entry.Height;
+            rgba01 = entry.RgbaFloats01;
+            return true;
+        }
+    }
+
+    private static void UpsertCache(AssetLocation overrideId, int width, int height, byte[] rgba)
+    {
+        lock (CacheGate)
+        {
+            Cache[overrideId] = new CacheEntry
+            {
+                Width = width,
+                Height = height,
+                RgbaBytes = rgba,
+                LastAccessUtc = DateTime.UtcNow
+            };
+
+            if (Cache.Count <= MaxCacheEntries)
+            {
+                return;
+            }
+
+            // Evict least-recently-used entries.
+            foreach (AssetLocation key in Cache
+                .OrderBy(kvp => kvp.Value.LastAccessUtc)
+                .Take(Cache.Count - MaxCacheEntries)
+                .Select(kvp => kvp.Key)
+                .ToArray())
+            {
+                Cache.Remove(key);
+            }
+        }
+    }
+
+    private static float[] ConvertBytesToFloats01(byte[] rgba)
+    {
+        var floats = new float[rgba.Length];
+        for (int i = 0; i < rgba.Length; i++)
+        {
+            floats[i] = rgba[i] / 255f;
+        }
+
+        return floats;
+    }
+
 }

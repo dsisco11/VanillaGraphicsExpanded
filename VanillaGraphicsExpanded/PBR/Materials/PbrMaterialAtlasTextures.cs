@@ -404,10 +404,12 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                         continue;
                     }
 
-                    if (!PbrOverrideTextureLoader.TryLoadRgba(
+                    if (!PbrOverrideTextureLoader.TryLoadRgbaFloats01(
                             capi,
                             overrides.NormalHeight,
-                            out PbrOverrideTextureLoader.LoadedRgbaImage img,
+                            out int _,
+                            out int _,
+                            out float[] floatRgba,
                             out string? reason,
                             expectedWidth: rectW,
                             expectedHeight: rectH))
@@ -419,13 +421,6 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                             overrides.NormalHeight,
                             reason ?? "unknown error");
                         continue;
-                    }
-
-                    float[] floatRgba = new float[rectW * rectH * 4];
-                    ReadOnlySpan<byte> rgba = img.Rgba;
-                    for (int i = 0, di = 0; i < rgba.Length; i++, di++)
-                    {
-                        floatRgba[di] = rgba[i] / 255f;
                     }
 
                     overrideRects[(x1, y1, rectW, rectH)] = floatRgba;

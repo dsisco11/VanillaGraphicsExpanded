@@ -94,9 +94,9 @@ Phase 5 — Normal+Height Atlas Integration (Skip Bake When Overridden):
     - If override load fails, warn and include rect in bake list.
 
 Phase 6 — Caching + Performance:
-  ☐ Add per-override texture cache keyed by `AssetLocation` + mtime/hash.
-  ☐ Avoid re-decoding DDS every frame (only on initial build / config reload).
-  ☐ Ensure temporary GL textures are disposed.
+  ✔ Add per-override texture cache keyed by `AssetLocation` + mtime/hash.
+  ✔ Avoid re-decoding DDS every frame (only on initial build / config reload).
+  ✔ Ensure temporary GL textures are disposed.
 
 Phase 7 — Tests:
   ☐ Extend mapping tests in `VanillaGraphicsExpanded.Tests/PbrMaterialRegistryPhase8Tests.cs`:
