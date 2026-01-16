@@ -375,13 +375,96 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                     continue;
                 }
 
+                // Preload/validate per-texture normalHeight overrides for this atlas page.
+                // Only successfully-loaded overrides are excluded from the bake job list.
+                var overrideRects = new Dictionary<(int x, int y, int w, int h), float[]>();
+                foreach ((AssetLocation targetTexture, PbrMaterialTextureOverrides overrides) in PbrMaterialRegistry.Instance.OverridesByTexture)
+                {
+                    if (overrides.NormalHeight is null)
+                    {
+                        continue;
+                    }
+
+                    if (!PbrMaterialAtlasPositionResolver.TryResolve(TryGetAtlasPosition, targetTexture, out TextureAtlasPosition? texPos)
+                        || texPos is null
+                        || texPos.atlasTextureId != atlasTexId)
+                    {
+                        continue;
+                    }
+
+                    int x1 = Math.Clamp((int)Math.Floor(texPos.x1 * width), 0, width - 1);
+                    int y1 = Math.Clamp((int)Math.Floor(texPos.y1 * height), 0, height - 1);
+                    int x2 = Math.Clamp((int)Math.Ceiling(texPos.x2 * width), 0, width);
+                    int y2 = Math.Clamp((int)Math.Ceiling(texPos.y2 * height), 0, height);
+
+                    int rectW = x2 - x1;
+                    int rectH = y2 - y1;
+                    if (rectW <= 0 || rectH <= 0)
+                    {
+                        continue;
+                    }
+
+                    if (!PbrOverrideTextureLoader.TryLoadRgba(
+                            capi,
+                            overrides.NormalHeight,
+                            out PbrOverrideTextureLoader.LoadedRgbaImage img,
+                            out string? reason,
+                            expectedWidth: rectW,
+                            expectedHeight: rectH))
+                    {
+                        capi.Logger.Warning(
+                            "[VGE] PBR override ignored: rule='{0}' target='{1}' override='{2}' reason='{3}'. Falling back to generated maps.",
+                            overrides.RuleId ?? "(no id)",
+                            targetTexture,
+                            overrides.NormalHeight,
+                            reason ?? "unknown error");
+                        continue;
+                    }
+
+                    float[] floatRgba = new float[rectW * rectH * 4];
+                    ReadOnlySpan<byte> rgba = img.Rgba;
+                    for (int i = 0, di = 0; i < rgba.Length; i++, di++)
+                    {
+                        floatRgba[di] = rgba[i] / 255f;
+                    }
+
+                    overrideRects[(x1, y1, rectW, rectH)] = floatRgba;
+                }
+
                 // Gather a more exhaustive set of atlas rects to bake.
                 var bakePositions = new List<TextureAtlasPosition>(capacity: atlas.Positions.Length + 1024);
+
+                int skippedByOverrides = 0;
+
+                bool TryGetRectPx(TextureAtlasPosition pos, out (int x, int y, int w, int h) rect)
+                {
+                    int rx1 = Math.Clamp((int)Math.Floor(pos.x1 * width), 0, width - 1);
+                    int ry1 = Math.Clamp((int)Math.Floor(pos.y1 * height), 0, height - 1);
+                    int rx2 = Math.Clamp((int)Math.Ceiling(pos.x2 * width), 0, width);
+                    int ry2 = Math.Clamp((int)Math.Ceiling(pos.y2 * height), 0, height);
+
+                    int rw = rx2 - rx1;
+                    int rh = ry2 - ry1;
+                    rect = (rx1, ry1, rw, rh);
+                    return rw > 0 && rh > 0;
+                }
 
                 foreach (TextureAtlasPosition? pos in atlas.Positions)
                 {
                     if (pos is not null)
                     {
+                        if (pos.atlasTextureId != atlasTexId)
+                        {
+                            continue;
+                        }
+
+                        if (overrideRects.Count > 0 && TryGetRectPx(pos, out (int x, int y, int w, int h) rect)
+                            && overrideRects.ContainsKey(rect))
+                        {
+                            skippedByOverrides++;
+                            continue;
+                        }
+
                         bakePositions.Add(pos);
                     }
                 }
@@ -394,6 +477,18 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                         if (!PbrMaterialAtlasPositionResolver.TryResolve(TryGetAtlasPosition, tex, out TextureAtlasPosition? pos)
                             || pos is null)
                         {
+                            continue;
+                        }
+
+                        if (pos.atlasTextureId != atlasTexId)
+                        {
+                            continue;
+                        }
+
+                        if (overrideRects.Count > 0 && TryGetRectPx(pos, out (int x, int y, int w, int h) rect)
+                            && overrideRects.ContainsKey(rect))
+                        {
+                            skippedByOverrides++;
                             continue;
                         }
 
@@ -414,13 +509,24 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                     atlasHeight: height,
                     texturePositions: bakePositions);
 
+                // Apply explicit overrides after the bake clears and writes into the atlas.
+                // (The baker always clears the whole atlas page sidecar for determinism.)
+                int appliedOverrides = 0;
+                foreach (((int x, int y, int w, int h) rect, float[] data) in overrideRects)
+                {
+                    pageTextures.NormalDepthTexture.UploadData(data, rect.x, rect.y, rect.w, rect.h);
+                    appliedOverrides++;
+                }
+
                 if (ConfigModSystem.Config.DebugLogNormalDepthAtlas)
                 {
                     capi.Logger.Debug(
-                        "[VGE] Normal+depth atlas bake input: pageTexId={0} positionsFromAtlasSubId={1} addedFromAssetScan={2}",
+                        "[VGE] Normal+depth atlas bake input: pageTexId={0} positionsFromAtlasSubId={1} addedFromAssetScan={2} skippedByOverrides={3} appliedOverrides={4}",
                         atlasTexId,
                         atlas.Positions.Length,
-                        addedFromAssetScan);
+                        addedFromAssetScan,
+                        skippedByOverrides,
+                        appliedOverrides);
                 }
             }
         }

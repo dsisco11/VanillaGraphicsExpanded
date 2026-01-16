@@ -82,15 +82,15 @@ Phase 4 — Material Params Atlas Integration:
   ✔ Ensure channel packing matches current runtime sampling.
 
 Phase 5 — Normal+Height Atlas Integration (Skip Bake When Overridden):
-  ☐ Determine overridden rects before bake:
+  ✔ Determine overridden rects before bake:
     - Resolve base texture id → atlas key/rect using `PbrMaterialAtlasPositionResolver`.
-  ☐ Build bake job list excluding rects with successfully-loaded `normalHeight` overrides.
+  ✔ Build bake job list excluding rects with successfully-loaded `normalHeight` overrides.
     - Implement list filtering in `PbrMaterialAtlasTextures.cs` before calling `PbrNormalDepthAtlasGpuBaker`.
-  ☐ After normalDepth atlas clear (and after bake runs for remaining rects), blit/copy overrides into atlas rects.
+  ✔ After normalDepth atlas clear (and after bake runs for remaining rects), blit/copy overrides into atlas rects.
     - Add a small GPU blit step:
       - Upload override pixels to a temporary GL texture (or reuse cached textures).
       - Draw into atlas with viewport = rect, sampling the override texture.
-  ☐ Failure handling:
+  ✔ Failure handling:
     - If override load fails, warn and include rect in bake list.
 
 Phase 6 — Caching + Performance:
