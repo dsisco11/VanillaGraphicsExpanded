@@ -286,6 +286,165 @@ public sealed class PbrMaterialRegistryPhase8Tests
     }
 
     [Fact]
+    public void MappingRuleOverrides_AreParsedAndAttachedPerTexture()
+    {
+        var logger = new TestLogger();
+
+        var src = Source(
+            domain: "game",
+            path: "materials/pbr_material_definitions.json",
+            json: """
+            {
+              "version": 1,
+              "materials": { "a": { "roughness": 0.1 } },
+              "mapping": [
+                {
+                  "id": "rule",
+                  "priority": 0,
+                  "match": { "glob": "assets/game/textures/block/test.png" },
+                  "values": {
+                    "material": "a",
+                    "overrides": {
+                      "materialParams": "textures/vge/params/test_params.png",
+                      "normalHeight": "mymod:textures/vge/nh/test_nh.dds"
+                    }
+                  }
+                }
+              ]
+            }
+            """);
+
+        var textures = Textures("textures/block/test.png");
+
+        PbrMaterialRegistry.Instance.InitializeFromParsedSources(
+            logger,
+            parsedSources: new[] { src },
+            textureLocations: textures,
+            strict: true);
+
+        var key = new AssetLocation("game", "textures/block/test.png");
+        Assert.True(PbrMaterialRegistry.Instance.OverridesByTexture.TryGetValue(key, out PbrMaterialTextureOverrides overrides));
+
+        Assert.Equal("rule", overrides.RuleId);
+        Assert.Equal(new AssetLocation("game", "materials/pbr_material_definitions.json"), overrides.RuleSource);
+
+        Assert.NotNull(overrides.MaterialParams);
+        Assert.Equal("game", overrides.MaterialParams!.Domain);
+        Assert.Equal("textures/vge/params/test_params.png", overrides.MaterialParams.Path);
+
+        Assert.NotNull(overrides.NormalHeight);
+        Assert.Equal("mymod", overrides.NormalHeight!.Domain);
+        Assert.Equal("textures/vge/nh/test_nh.dds", overrides.NormalHeight.Path);
+    }
+
+    [Fact]
+    public void MappingRuleOrdering_Tie_FirstRuleWins_AndItsOverridesAreUsed()
+    {
+        var logger = new TestLogger();
+
+        var src = Source(
+            domain: "game",
+            path: "materials/pbr_material_definitions.json",
+            json: """
+            {
+              "version": 1,
+              "materials": {
+                "a": { "roughness": 0.1 },
+                "b": { "roughness": 0.9 }
+              },
+              "mapping": [
+                {
+                  "id": "first",
+                  "priority": 0,
+                  "match": { "glob": "assets/game/textures/block/test.png" },
+                  "values": {
+                    "material": "a",
+                    "overrides": { "materialParams": "textures/vge/params/first.png" }
+                  }
+                },
+                {
+                  "id": "second",
+                  "priority": 0,
+                  "match": { "glob": "assets/game/textures/block/test.png" },
+                  "values": {
+                    "material": "b",
+                    "overrides": { "materialParams": "textures/vge/params/second.png" }
+                  }
+                }
+              ]
+            }
+            """);
+
+        var textures = Textures("textures/block/test.png");
+
+        PbrMaterialRegistry.Instance.InitializeFromParsedSources(
+            logger,
+            parsedSources: new[] { src },
+            textureLocations: textures,
+            strict: true);
+
+        var key = new AssetLocation("game", "textures/block/test.png");
+
+        Assert.True(PbrMaterialRegistry.Instance.TryGetMaterialId(key, out var materialId));
+        Assert.Equal("game:a", materialId);
+
+        Assert.True(PbrMaterialRegistry.Instance.OverridesByTexture.TryGetValue(key, out PbrMaterialTextureOverrides overrides));
+        Assert.Equal("first", overrides.RuleId);
+        Assert.Equal(new AssetLocation("game", "textures/vge/params/first.png"), overrides.MaterialParams);
+    }
+
+    [Fact]
+    public void InvalidOverrideStrings_WarnAndAreTreatedAsNoOverride()
+    {
+        var logger = new TestLogger();
+        var warnings = new List<string>();
+
+        logger.EntryAdded += (t, fmt, args) =>
+        {
+            if (t == EnumLogType.Warning)
+            {
+                warnings.Add(string.Format(fmt, args));
+            }
+        };
+
+        var src = Source(
+            domain: "game",
+            path: "materials/pbr_material_definitions.json",
+            json: """
+            {
+              "version": 1,
+              "materials": { "a": { "roughness": 0.1 } },
+              "mapping": [
+                {
+                  "id": "rule",
+                  "priority": 0,
+                  "match": { "glob": "assets/game/textures/block/*.png" },
+                  "values": {
+                    "material": "a",
+                    "overrides": { "materialParams": "mymod:textures/vge/params/bad.gif" }
+                  }
+                }
+              ]
+            }
+            """);
+
+        var textures = Textures("textures/block/test.png", "textures/block/test2.png");
+
+        PbrMaterialRegistry.Instance.InitializeFromParsedSources(
+            logger,
+            parsedSources: new[] { src },
+            textureLocations: textures,
+            strict: true);
+
+        Assert.Empty(PbrMaterialRegistry.Instance.OverridesByTexture);
+
+        // Warning is emitted once per rule/kind (not once per matching texture).
+        Assert.Single(warnings);
+        Assert.Contains("PBR override ignored", warnings[0]);
+        Assert.Contains("unsupported extension", warnings[0]);
+    }
+
+    [Fact]
     public void MappingRuleReferencesUnknownMaterial_WarnsAndSkipsMapping()
     {
         var logger = new TestLogger();

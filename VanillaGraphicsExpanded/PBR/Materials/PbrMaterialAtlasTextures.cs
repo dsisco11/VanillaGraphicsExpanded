@@ -315,22 +315,15 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 
             // Channel packing must match vge_material.glsl (RGB = roughness, metallic, emissive).
             // Ignore alpha.
-            ReadOnlySpan<byte> rgba = img.Rgba;
-            for (int y = 0; y < rectH; y++)
-            {
-                int destRow = ((y1 + y) * atlasW + x1) * 3;
-                int srcRow = (y * rectW) * 4;
-
-                for (int x = 0; x < rectW; x++)
-                {
-                    int si = srcRow + (x * 4);
-                    int di = destRow + (x * 3);
-
-                    pixels[di + 0] = rgba[si + 0] / 255f;
-                    pixels[di + 1] = rgba[si + 1] / 255f;
-                    pixels[di + 2] = rgba[si + 2] / 255f;
-                }
-            }
+            PbrMaterialParamsOverrideApplier.ApplyRgbOverride(
+                atlasRgbTriplets: pixels,
+                atlasWidth: atlasW,
+                atlasHeight: atlasH,
+                rectX: x1,
+                rectY: y1,
+                rectWidth: rectW,
+                rectHeight: rectH,
+                overrideRgba: img.Rgba);
 
             overriddenRects++;
         }

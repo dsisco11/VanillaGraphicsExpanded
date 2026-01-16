@@ -46,4 +46,13 @@ public sealed class PbrMaterialAtlasPositionResolverTests
         Assert.Equal("game", normalized.Domain);
         Assert.Equal("block/test", normalized.Path);
     }
+
+    [Fact]
+    public void NormalizeToAtlasKey_StripsAnyExtension_AndIsCaseInsensitiveOnTexturesPrefix()
+    {
+        var textureAsset = new AssetLocation("game", "Textures/block/test.DDS");
+        AssetLocation normalized = PbrMaterialAtlasPositionResolver.NormalizeToAtlasKey(textureAsset);
+        Assert.Equal("game", normalized.Domain);
+        Assert.Equal("block/test", normalized.Path);
+    }
 }

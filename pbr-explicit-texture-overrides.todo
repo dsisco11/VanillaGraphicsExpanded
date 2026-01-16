@@ -94,18 +94,18 @@ Phase 5 — Normal+Height Atlas Integration (Skip Bake When Overridden):
     - If override load fails, warn and include rect in bake list.
 
 Phase 6 — Caching + Performance:
-  ✔ Add per-override texture cache keyed by `AssetLocation` + mtime/hash.
+  ✔ Add per-override texture cache keyed by `AssetLocation` (path equality).
   ✔ Avoid re-decoding DDS every frame (only on initial build / config reload).
   ✔ Ensure temporary GL textures are disposed.
 
 Phase 7 — Tests:
-  ☐ Extend mapping tests in `VanillaGraphicsExpanded.Tests/PbrMaterialRegistryPhase8Tests.cs`:
+  ✔ Extend mapping tests in `VanillaGraphicsExpanded.Tests/PbrMaterialRegistryPhase8Tests.cs`:
     - Parses override fields.
     - Priority/first-match semantics preserved.
     - Invalid override strings warn + fallback.
-  ☐ Add/extend atlas resolver tests in `VanillaGraphicsExpanded.Tests/Unit/PBR/Materials/PbrMaterialAtlasPositionResolverTests.cs`:
+  ✔ Add/extend atlas resolver tests in `VanillaGraphicsExpanded.Tests/Unit/PBR/Materials/PbrMaterialAtlasPositionResolverTests.cs`:
     - Shorthand ids normalize deterministically.
-  ☐ Add atlas build tests (CPU-side where possible):
+  ✔ Add atlas build tests (CPU-side where possible):
     - If material params override present, atlas pixels match override.
     - If override missing, procedural output is used.
   ☐ (Optional GPU test) NormalHeight override rect remains as provided and is not altered by bake.

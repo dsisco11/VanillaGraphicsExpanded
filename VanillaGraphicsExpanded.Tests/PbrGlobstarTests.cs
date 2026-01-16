@@ -45,7 +45,9 @@ public sealed class PbrGlobstarTests
             Id: "early",
             Glob: "assets/**/textures/block/liquid/water*.png",
             MatchRegex: PbrGlobstar.CompileRegex("assets/**/textures/block/liquid/water*.png"),
-            MaterialId: "game:water");
+            MaterialId: "game:water",
+            OverrideMaterialParams: null,
+            OverrideNormalHeight: null);
 
         var later = new PbrMaterialMappingRule(
             OrderIndex: 2,
@@ -54,7 +56,9 @@ public sealed class PbrGlobstarTests
             Id: "later",
             Glob: "assets/**/textures/block/liquid/water*.png",
             MatchRegex: PbrGlobstar.CompileRegex("assets/**/textures/block/liquid/water*.png"),
-            MaterialId: "game:lava");
+            MaterialId: "game:lava",
+            OverrideMaterialParams: null,
+            OverrideNormalHeight: null);
 
         const string key = "assets/game/textures/block/liquid/water.png";
 
