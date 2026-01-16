@@ -33,7 +33,7 @@
             "type": "coreclr",
             "request": "launch",
             "program": "${config:vanillaGraphicsExpanded.renderdocPath}/renderdoccmd.exe",
-            "preLaunchTask": "build",
+            "preLaunchTask": "build + tail (RenderDoc)",
             "args": [
                 "capture",
                 "--wait-for-exit",
@@ -45,7 +45,8 @@
                 "${workspaceFolder}/VanillaGraphicsExpanded/assets"
             ],
             "cwd": "${env:VINTAGE_STORY}",
-            "console": "internalConsole",
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
             "stopAtEntry": false
         },
         {
