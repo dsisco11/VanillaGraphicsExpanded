@@ -130,7 +130,9 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                     destNormalDepthTexId: normalDepthTex.TextureId,
                     atlasWidth: width,
                     atlasHeight: height,
-                    texturePositions: texturePositions.Values);
+                    // Bake all rects in the block atlas page, not only those that have an explicit PBR material entry.
+                    // Otherwise many valid albedo tiles remain at the clear color and appear "unprocessed" (e.g. gray).
+                    texturePositions: atlas.Positions);
             }
 
             pageTexturesByAtlasTexId[atlasTexId] = new PbrMaterialAtlasPageTextures(materialParamsTex, normalDepthTex);
