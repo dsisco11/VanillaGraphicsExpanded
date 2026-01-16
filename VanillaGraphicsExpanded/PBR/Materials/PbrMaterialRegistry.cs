@@ -385,7 +385,11 @@ internal sealed class PbrMaterialRegistry
                 warnedOverrides,
                 parsedOverrideCache);
 
-            var overrides = new PbrMaterialTextureOverrides(materialParamsOverride, normalHeightOverride);
+            var overrides = new PbrMaterialTextureOverrides(
+                RuleId: winner.Value.Id,
+                RuleSource: winner.Value.Source,
+                MaterialParams: materialParamsOverride,
+                NormalHeight: normalHeightOverride);
             if (!overrides.IsEmpty)
             {
                 overridesByTexture[texture] = overrides;

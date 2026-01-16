@@ -73,13 +73,13 @@ Phase 3 — Texture Override Loading (PNG + DDS):
     - If dimensions mismatch and resample is not implemented, warn + fallback.
 
 Phase 4 — Material Params Atlas Integration:
-  ☐ In `VanillaGraphicsExpanded/PBR/Materials/PbrMaterialAtlasTextures.cs`:
+  ✔ In `VanillaGraphicsExpanded/PBR/Materials/PbrMaterialAtlasTextures.cs`:
     - For each atlas rect, if `materialParams` override loads OK:
       - Copy pixels into the material params atlas rect.
       - Skip procedural fill for that rect.
     - Else:
       - Use existing `PbrMaterialParamsPixelBuilder` procedural generation.
-  ☐ Ensure channel packing matches current runtime sampling.
+  ✔ Ensure channel packing matches current runtime sampling.
 
 Phase 5 — Normal+Height Atlas Integration (Skip Bake When Overridden):
   ☐ Determine overridden rects before bake:

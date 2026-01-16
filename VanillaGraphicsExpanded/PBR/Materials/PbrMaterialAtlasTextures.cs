@@ -261,6 +261,80 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
             texturePositions,
             materialsByTexture);
 
+        // Apply explicit material params overrides (if any) on top of the procedural buffers.
+        // Policy: if an override fails to load/validate, keep the procedural output (warn once per target texture).
+        int overriddenRects = 0;
+        foreach ((AssetLocation targetTexture, PbrMaterialTextureOverrides overrides) in PbrMaterialRegistry.Instance.OverridesByTexture)
+        {
+            if (overrides.MaterialParams is null)
+            {
+                continue;
+            }
+
+            if (!texturePositions.TryGetValue(targetTexture, out TextureAtlasPosition? texPos) || texPos is null)
+            {
+                continue;
+            }
+
+            if (!result.PixelBuffersByAtlasTexId.TryGetValue(texPos.atlasTextureId, out float[]? pixels))
+            {
+                continue;
+            }
+
+            (int atlasW, int atlasH) = result.SizesByAtlasTexId[texPos.atlasTextureId];
+
+            // Convert normalized atlas UV bounds to integer pixel bounds.
+            int x1 = Math.Clamp((int)Math.Floor(texPos.x1 * atlasW), 0, atlasW - 1);
+            int y1 = Math.Clamp((int)Math.Floor(texPos.y1 * atlasH), 0, atlasH - 1);
+            int x2 = Math.Clamp((int)Math.Ceiling(texPos.x2 * atlasW), 0, atlasW);
+            int y2 = Math.Clamp((int)Math.Ceiling(texPos.y2 * atlasH), 0, atlasH);
+
+            int rectW = x2 - x1;
+            int rectH = y2 - y1;
+            if (rectW <= 0 || rectH <= 0)
+            {
+                continue;
+            }
+
+            if (!PbrOverrideTextureLoader.TryLoadRgba(
+                    capi,
+                    overrides.MaterialParams,
+                    out PbrOverrideTextureLoader.LoadedRgbaImage img,
+                    out string? reason,
+                    expectedWidth: rectW,
+                    expectedHeight: rectH))
+            {
+                capi.Logger.Warning(
+                    "[VGE] PBR override ignored: rule='{0}' target='{1}' override='{2}' reason='{3}'. Falling back to generated maps.",
+                    overrides.RuleId ?? "(no id)",
+                    targetTexture,
+                    overrides.MaterialParams,
+                    reason ?? "unknown error");
+                continue;
+            }
+
+            // Channel packing must match vge_material.glsl (RGB = roughness, metallic, emissive).
+            // Ignore alpha.
+            ReadOnlySpan<byte> rgba = img.Rgba;
+            for (int y = 0; y < rectH; y++)
+            {
+                int destRow = ((y1 + y) * atlasW + x1) * 3;
+                int srcRow = (y * rectW) * 4;
+
+                for (int x = 0; x < rectW; x++)
+                {
+                    int si = srcRow + (x * 4);
+                    int di = destRow + (x * 3);
+
+                    pixels[di + 0] = rgba[si + 0] / 255f;
+                    pixels[di + 1] = rgba[si + 1] / 255f;
+                    pixels[di + 2] = rgba[si + 2] / 255f;
+                }
+            }
+
+            overriddenRects++;
+        }
+
         if (result.FilledRects == 0 && materialsByTexture.Count > 0)
         {
             capi.Logger.Warning(
@@ -352,9 +426,10 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         }
 
         capi.Logger.Notification(
-            "[VGE] Built material param atlas textures: {0} atlas page(s), {1} texture rect(s) filled",
+            "[VGE] Built material param atlas textures: {0} atlas page(s), {1} texture rect(s) filled ({2} overridden)",
             pageTexturesByAtlasTexId.Count,
-            result.FilledRects);
+            result.FilledRects,
+            overriddenRects);
 
         if (ConfigModSystem.Config.DebugLogNormalDepthAtlas)
         {
