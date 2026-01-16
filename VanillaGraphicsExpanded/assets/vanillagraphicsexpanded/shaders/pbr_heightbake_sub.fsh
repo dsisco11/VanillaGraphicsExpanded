@@ -13,6 +13,7 @@ uniform sampler2D u_b;
 uniform ivec2 u_size;
 uniform int u_relContrast;
 uniform float u_eps;
+uniform float u_vMax;
 
 void main()
 {
@@ -25,7 +26,9 @@ void main()
     float v = a - b;
     if (u_relContrast != 0)
     {
-        v = v / (b + u_eps);
+        float denom = max(b, u_eps);
+        v = v / denom;
+        v = clamp(v, -u_vMax, u_vMax);
     }
 
     outColor = vec4(v, 0.0, 0.0, 1.0);

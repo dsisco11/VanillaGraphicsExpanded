@@ -36,9 +36,10 @@ void main()
     ivec2 tp = Wrap(p, tileSize);
 
     ivec2 atlasCoord = u_atlasRectPx.xy + tp;
-    vec3 srgb = texelFetch(u_atlas, atlasCoord, 0).rgb;
-    vec3 lin = SrgbToLinear(srgb);
+    vec4 rgba = texelFetch(u_atlas, atlasCoord, 0);
+    vec3 lin = SrgbToLinear(rgba.rgb);
 
-    float L = dot(lin, vec3(0.2126, 0.7152, 0.0722));
+    // Respect alpha: a lot of atlas tiles include fully-transparent texels whose RGB is not meaningful.
+    float L = dot(lin, vec3(0.2126, 0.7152, 0.0722)) * rgba.a;
     outColor = vec4(L, 0.0, 0.0, 1.0);
 }

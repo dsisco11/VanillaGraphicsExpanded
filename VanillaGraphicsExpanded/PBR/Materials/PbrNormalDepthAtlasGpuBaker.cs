@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 
 using OpenTK.Graphics.OpenGL;
 
@@ -53,7 +54,8 @@ internal static class PbrNormalDepthAtlasGpuBaker
     private static GBuffer? scratchFbo;
     private const int MaxDebugTilesPerPage = 3;
     private const int FlatnessSampleStride = 128;
-    private const float FlatnessEpsilon = 0.0025f;
+    private const float FlatnessVarianceEpsilon = 0.0025f;
+    private const float SaturationEpsilon = 0.01f;
 
     private static float ClampSigmaToTile(float sigma, int tileW, int tileH, float maxFractionOfMinDim)
     {
@@ -150,7 +152,10 @@ internal static class PbrNormalDepthAtlasGpuBaker
 
             // Clear entire atlas sidecar first (deterministic baseline).
             BindAtlasTarget(destNormalDepthTexId, 0, 0, atlasWidth, atlasHeight);
-            GL.ClearColor(0.5f, 0.5f, 1.0f, 0.0f);
+            // Neutral defaults: flat normal and neutral height.
+            // IMPORTANT: many atlas rects may not be included in texturePositions (we only bake known textures),
+            // so alpha must default to 0.5 instead of 0.0 to avoid "black" depth tiles.
+            GL.ClearColor(0.5f, 0.5f, 1.0f, 0.5f);
             GL.Clear(ClearBufferMask.ColorBufferBit);
 
             int debugTilesLogged = 0;
@@ -159,6 +164,8 @@ internal static class PbrNormalDepthAtlasGpuBaker
             int skippedTinyRects = 0;
             int sampledRects = 0;
             int flatSampledRects = 0;
+            int flatSampledBlackRects = 0;
+            int flatSampledWhiteRects = 0;
             int flatDetailsLogged = 0;
 
             foreach (TextureAtlasPosition pos in positions)
@@ -210,10 +217,17 @@ internal static class PbrNormalDepthAtlasGpuBaker
                 float edgeT0 = bake.EdgeT0 * sizeScale;
                 float edgeT1 = bake.EdgeT1 * sizeScale;
 
+                // Relative-contrast D tends to have smaller gradient magnitudes than absolute luminance D.
+                // If we keep the same edge thresholds, many tiles end up with edge==0 and therefore g==0.
+                // Lower thresholds in this mode to preserve detail.
+                const float RelContrastEdgeScale = 0.25f;
+                edgeT0 *= RelContrastEdgeScale;
+                edgeT1 *= RelContrastEdgeScale;
+
                 if (cfg.DebugLogNormalDepthAtlas && debugTilesLogged < MaxDebugTilesPerPage)
                 {
                     capi.Logger.Debug(
-                        "[VGE] Normal+depth effective sigmas: rect=({0},{1},{2},{3}) sigmaBig={4:0.00} sigma1={5:0.00} sigma2={6:0.00} sigma3={7:0.00} sigma4={8:0.00}",
+                    "[VGE] Normal+depth effective params: rect=({0},{1},{2},{3}) sigmaBig={4:0.00} sigma1={5:0.00} sigma2={6:0.00} sigma3={7:0.00} sigma4={8:0.00} gain={9:0.00} maxSlope={10:0.00} edgeT=({11:0.0000},{12:0.0000})",
                         rx,
                         ry,
                         rw,
@@ -222,7 +236,11 @@ internal static class PbrNormalDepthAtlasGpuBaker
                         sigma1,
                         sigma2,
                         sigma3,
-                        sigma4);
+                    sigma4,
+                    gain,
+                    maxSlope,
+                    edgeT0,
+                    edgeT1);
                 }
 
                 // 1) Luminance (linear) from atlas sub-rect.
@@ -254,8 +272,19 @@ internal static class PbrNormalDepthAtlasGpuBaker
                 mg.Solve(tile.Div, tile.H, bake);
 
                 // 7) Subtract mean on CPU (fix DC offset) then normalize/gamma on GPU.
-                float mean = ComputeMeanR32f(tile.H);
-                RunNormalize(tile.H, tile.Hn, mean, bake.HeightStrength, bake.Gamma);
+                var (mean, center, minH, maxH) = ComputeStatsR32f(tile.H);
+
+                // Always normalize the solved height field per tile, but do so asymmetrically:
+                // scale negatives by (center-min), positives by (max-center).
+                // This avoids skewed tiles becoming "mostly black" (or "mostly white") after packing.
+                const float Eps = 1e-6f;
+                const float MaxInv = 64f;
+                float negSpan = center - minH;
+                float posSpan = maxH - center;
+                float invNeg = negSpan > Eps ? Math.Min(1f / negSpan, MaxInv) : 0f;
+                float invPos = posSpan > Eps ? Math.Min(1f / posSpan, MaxInv) : 0f;
+
+                RunNormalize(tile.H, tile.Hn, center, invNeg, invPos, bake.HeightStrength, bake.Gamma);
 
                 // 8) Pack to atlas (RGB normal in 0..1, A signed height).
                 RunPackToAtlas(
@@ -264,6 +293,7 @@ internal static class PbrNormalDepthAtlasGpuBaker
                     tileSizePx: (rw, rh),
                     solverSizePx: (solverW, solverH),
                     heightTex: tile.Hn,
+                    baseAlbedoAtlasTexId: baseAlbedoAtlasPageTexId,
                     normalStrength: bake.NormalStrength);
 
                 bakedRects++;
@@ -274,11 +304,21 @@ internal static class PbrNormalDepthAtlasGpuBaker
                     int sx = rx + rw / 2;
                     int sy = ry + rh / 2;
                     float aCenter = ReadAtlasPixelRgba(destNormalDepthTexId, sx, sy).a;
+                    float a00 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + 0, ry + 0).a;
+                    float a10 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + (rw - 1), ry + 0).a;
+                    float a01 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + 0, ry + (rh - 1)).a;
+                    float a11 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + (rw - 1), ry + (rh - 1)).a;
+
+                    float minA = Math.Min(aCenter, Math.Min(Math.Min(a00, a10), Math.Min(a01, a11)));
+                    float maxA = Math.Max(aCenter, Math.Max(Math.Max(a00, a10), Math.Max(a01, a11)));
+                    float spanA = maxA - minA;
 
                     sampledRects++;
-                    if (Math.Abs(aCenter - 0.5f) <= FlatnessEpsilon)
+                    if (spanA <= FlatnessVarianceEpsilon)
                     {
                         flatSampledRects++;
+                        if (maxA <= SaturationEpsilon) flatSampledBlackRects++;
+                        if (minA >= (1f - SaturationEpsilon)) flatSampledWhiteRects++;
 
                         if (flatDetailsLogged < MaxDebugTilesPerPage)
                         {
@@ -297,11 +337,14 @@ internal static class PbrNormalDepthAtlasGpuBaker
                             float l11 = L(c11.rgb);
 
                             capi.Logger.Debug(
-                                "[VGE] Normal+depth flat-tile sample: rect=({0},{1},{2},{3}) pack.aCenter={4:0.000} albedoL=[{5:0.000},{6:0.000},{7:0.000},{8:0.000},{9:0.000}] albedoA=[{10:0.000},{11:0.000},{12:0.000},{13:0.000},{14:0.000}]",
+                                "[VGE] Normal+depth flat-tile sample: rect=({0},{1},{2},{3}) pack.a=[min={4:0.000},max={5:0.000},span={6:0.000},center={7:0.000}] albedoL=[{8:0.000},{9:0.000},{10:0.000},{11:0.000},{12:0.000}] albedoA=[{13:0.000},{14:0.000},{15:0.000},{16:0.000},{17:0.000}]",
                                 rx,
                                 ry,
                                 rw,
                                 rh,
+                                minA,
+                                maxA,
+                                spanA,
                                 aCenter,
                                 lCenter,
                                 l00,
@@ -347,7 +390,7 @@ internal static class PbrNormalDepthAtlasGpuBaker
                         float hn11 = ReadTexturePixelR32f(tile.Hn, solverW - 1, solverH - 1);
 
                         capi.Logger.Debug(
-                            "[VGE] Normal+depth tile debug: atlas={0} rect=({1},{2},{3},{4}) samplePx=({5},{6}) H={7:0.0000} mean={8:0.0000} Hn={9:0.0000} (strength={10:0.00}, gamma={11:0.00}) pack.a={12:0.000} pack.rgb=({13:0.000},{14:0.000},{15:0.000})",
+                            "[VGE] Normal+depth tile debug: atlas={0} rect=({1},{2},{3},{4}) samplePx=({5},{6}) H={7:0.0000} mean={8:0.0000} center={9:0.0000} min={10:0.0000} max={11:0.0000} invNeg={12:0.000} invPos={13:0.000} Hn={14:0.0000} (strength={15:0.00}, gamma={16:0.00}) pack.a={17:0.000} pack.rgb=({18:0.000},{19:0.000},{20:0.000})",
                             baseAlbedoAtlasPageTexId,
                             rx,
                             ry,
@@ -357,6 +400,11 @@ internal static class PbrNormalDepthAtlasGpuBaker
                             sy,
                             h,
                             mean,
+                            center,
+                            minH,
+                            maxH,
+                            invNeg,
+                            invPos,
                             hn,
                             bake.HeightStrength,
                             bake.Gamma,
@@ -384,7 +432,7 @@ internal static class PbrNormalDepthAtlasGpuBaker
                 (skippedTinyRects != 0 || skippedInvalidRects != 0 || flatSampledRects != 0))
             {
                 capi.Logger.Debug(
-                    "[VGE] Normal+depth atlas bake summary: atlas={0} rects={1} baked={2} skippedTiny(<2px)={3} skippedInvalid={4} sampledEvery={5} sampled={6} sampledFlat(|a-0.5|<={7})={8}",
+                    "[VGE] Normal+depth atlas bake summary: atlas={0} rects={1} baked={2} skippedTiny(<2px)={3} skippedInvalid={4} sampledEvery={5} sampled={6} sampledFlat(spanA<={7})={8} flatBlack(a<={9})={10} flatWhite(a>={11})={12}",
                     baseAlbedoAtlasPageTexId,
                     positions.Length,
                     bakedRects,
@@ -392,8 +440,12 @@ internal static class PbrNormalDepthAtlasGpuBaker
                     skippedInvalidRects,
                     FlatnessSampleStride,
                     sampledRects,
-                    FlatnessEpsilon,
-                    flatSampledRects);
+                    FlatnessVarianceEpsilon,
+                    flatSampledRects,
+                    SaturationEpsilon,
+                    flatSampledBlackRects,
+                    1f - SaturationEpsilon,
+                    flatSampledWhiteRects);
             }
         }
         catch
@@ -644,7 +696,10 @@ internal static class PbrNormalDepthAtlasGpuBaker
             progSub.BindTexture2D("u_b", b.TextureId, 1);
             progSub.Uniform2i("u_size", dst.Width, dst.Height);
             progSub.Uniform("u_relContrast", relContrast ? 1 : 0);
-            progSub.Uniform("u_eps", 1e-3f);
+            // Small epsilon so multiplicative dark tints don't collapse the signal;
+            // clamp range prevents extreme spikes when base is near-zero.
+            progSub.Uniform("u_eps", 1e-6f);
+            progSub.Uniform("u_vMax", 8f);
             DrawFullscreenTriangle();
         }
         finally
@@ -724,7 +779,7 @@ internal static class PbrNormalDepthAtlasGpuBaker
         }
     }
 
-    private static void RunNormalize(DynamicTexture h, DynamicTexture dst, float mean, float heightStrength, float gamma)
+    private static void RunNormalize(DynamicTexture h, DynamicTexture dst, float mean, float invNeg, float invPos, float heightStrength, float gamma)
     {
         BindTarget(dst);
         progNormalize!.Use();
@@ -733,6 +788,8 @@ internal static class PbrNormalDepthAtlasGpuBaker
             progNormalize.BindTexture2D("u_h", h.TextureId, 0);
             progNormalize.Uniform2i("u_size", dst.Width, dst.Height);
             progNormalize.Uniform("u_mean", mean);
+            progNormalize.Uniform("u_invNeg", invNeg);
+            progNormalize.Uniform("u_invPos", invPos);
             progNormalize.Uniform("u_heightStrength", heightStrength);
             progNormalize.Uniform("u_gamma", gamma);
             DrawFullscreenTriangle();
@@ -749,6 +806,7 @@ internal static class PbrNormalDepthAtlasGpuBaker
         (int w, int h) tileSizePx,
         (int w, int h) solverSizePx,
         DynamicTexture heightTex,
+        int baseAlbedoAtlasTexId,
         float normalStrength)
     {
         // Render into atlas sidecar, restricting to this tile rect via viewport.
@@ -757,10 +815,12 @@ internal static class PbrNormalDepthAtlasGpuBaker
         try
         {
             progPackToAtlas.BindTexture2D("u_height", heightTex.TextureId, 0);
+            progPackToAtlas.BindTexture2D("u_albedoAtlas", baseAlbedoAtlasTexId, 1);
             progPackToAtlas.Uniform2i("u_solverSize", solverSizePx.w, solverSizePx.h);
             progPackToAtlas.Uniform2i("u_tileSize", tileSizePx.w, tileSizePx.h);
             progPackToAtlas.Uniform2i("u_viewportOrigin", viewportOriginPx.x, viewportOriginPx.y);
             progPackToAtlas.Uniform("u_normalStrength", normalStrength);
+            progPackToAtlas.Uniform("u_alphaCutoff", 0.001f);
             DrawFullscreenTriangle();
         }
         finally
@@ -800,15 +860,103 @@ internal static class PbrNormalDepthAtlasGpuBaker
         return w;
     }
 
-    private static float ComputeMeanR32f(DynamicTexture tex)
+    private static (float mean, float center, float min, float max) ComputeStatsR32f(DynamicTexture tex)
     {
         float[] data = tex.ReadPixels();
-        if (data.Length == 0) return 0f;
+        if (data.Length == 0) return (0f, 0f, 0f, 0f);
 
         // R32F: one float per pixel.
+        // Use SIMD for sum/min/max (single pass) where supported.
+        int i = 0;
+        int len = data.Length;
+
+        Vector<float> vSum = Vector<float>.Zero;
+        Vector<float> vMin = new(float.PositiveInfinity);
+        Vector<float> vMax = new(float.NegativeInfinity);
+
+        int vecCount = Vector<float>.Count;
+        int lastVec = len - (len % vecCount);
+        for (; i < lastVec; i += vecCount)
+        {
+            var v = new Vector<float>(data, i);
+            vSum += v;
+            vMin = Vector.Min(vMin, v);
+            vMax = Vector.Max(vMax, v);
+        }
+
         double sum = 0;
-        for (int i = 0; i < data.Length; i++) sum += data[i];
-        return (float)(sum / data.Length);
+        float min = float.PositiveInfinity;
+        float max = float.NegativeInfinity;
+
+        for (int lane = 0; lane < vecCount; lane++)
+        {
+            sum += vSum[lane];
+            float mn = vMin[lane];
+            float mx = vMax[lane];
+            if (mn < min) min = mn;
+            if (mx > max) max = mx;
+        }
+
+        for (; i < len; i++)
+        {
+            float v = data[i];
+            sum += v;
+            if (v < min) min = v;
+            if (v > max) max = v;
+        }
+
+        int count = data.Length;
+        float mean = (float)(sum / count);
+        if (float.IsPositiveInfinity(min) || float.IsNegativeInfinity(max))
+        {
+            min = mean;
+            max = mean;
+        }
+
+        // Robust center: median (computed in-place via quickselect).
+        float center = SelectMedianInPlace(data);
+        return (mean, center, min, max);
+    }
+
+    private static float SelectMedianInPlace(float[] data)
+    {
+        int n = data.Length;
+        if (n == 0) return 0f;
+
+        int k = n / 2;
+        int left = 0;
+        int right = n - 1;
+
+        while (true)
+        {
+            if (left == right) return data[left];
+
+            int pivotIndex = (left + right) >>> 1;
+            pivotIndex = Partition(data, left, right, pivotIndex);
+
+            if (k == pivotIndex) return data[k];
+            if (k < pivotIndex) right = pivotIndex - 1;
+            else left = pivotIndex + 1;
+        }
+    }
+
+    private static int Partition(float[] data, int left, int right, int pivotIndex)
+    {
+        float pivotValue = data[pivotIndex];
+        (data[pivotIndex], data[right]) = (data[right], data[pivotIndex]);
+
+        int storeIndex = left;
+        for (int i = left; i < right; i++)
+        {
+            if (data[i] < pivotValue)
+            {
+                (data[storeIndex], data[i]) = (data[i], data[storeIndex]);
+                storeIndex++;
+            }
+        }
+
+        (data[right], data[storeIndex]) = (data[storeIndex], data[right]);
+        return storeIndex;
     }
 
     private sealed class TileResources
