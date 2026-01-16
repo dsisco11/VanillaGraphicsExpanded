@@ -102,13 +102,15 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         // Initialize LumOn based on config (loaded by ConfigModSystem).
         if (ConfigModSystem.Config.Enabled)
         {
-            lumOnBufferManager = new LumOnBufferManager(api, ConfigModSystem.Config);
-            lumOnRenderer = new LumOnRenderer(api, ConfigModSystem.Config, lumOnBufferManager, gBufferManager);
             api.Logger.Notification("[VGE] LumOn enabled - using Screen Probe Gather");
+            lumOnBufferManager = new LumOnBufferManager(api, ConfigModSystem.Config);
+            lumOnRenderer = new LumOnRenderer(api, ConfigModSystem.Config, lumOnBufferManager, gBufferManager!);
         }
         else
         {
             api.Logger.Notification("[VGE] LumOn disabled - direct lighting only");
+            lumOnBufferManager = null;
+            lumOnRenderer = null;
         }
 
         // Create direct lighting pass buffers + renderer (Opaque @ 9.0)

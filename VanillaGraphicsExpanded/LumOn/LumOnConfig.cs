@@ -135,22 +135,6 @@ public class LumOnConfig
     [JsonProperty]
     public bool DebugLogNormalDepthAtlas { get; set; } = true;
 
-    /// <summary>
-    /// Dumps the base block atlas page (albedo) to disk right before the normal+depth bake begins.
-    /// This helps diagnose missing tiles caused by late/lazy atlas insertions.
-    /// Output is written as uncompressed 32-bit TGA into the game's data folder under "VGE-Debug".
-    /// </summary>
-    [JsonProperty]
-    public bool DumpNormalDepthAtlasInputTga { get; set; } = true;
-
-    /// <summary>
-    /// Dumps the generated normal+depth sidecar atlas page to disk after the bake completes.
-    /// Useful for confirming which rects stayed at the neutral default (flat/unbaked) vs got written.
-    /// Output is written as uncompressed 32-bit TGA into the game's data folder under "VGE-Debug".
-    /// </summary>
-    [JsonProperty]
-    public bool DumpNormalDepthAtlasOutputTga { get; set; } = true;
-
     // ═══════════════════════════════════════════════════════════════
     // Probe Grid Settings (SPG-001)
     // ═══════════════════════════════════════════════════════════════

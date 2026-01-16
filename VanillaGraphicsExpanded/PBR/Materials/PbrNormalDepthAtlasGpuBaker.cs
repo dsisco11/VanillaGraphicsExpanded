@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Numerics;
 
@@ -68,8 +67,6 @@ internal static class PbrNormalDepthAtlasGpuBaker
 
     private static float Clamp(float v, float lo, float hi) => v < lo ? lo : (v > hi ? hi : v);
 
-    private static readonly HashSet<long> dumpedBaseAtlasSnapshots = new();
-
     private static VgeStageNamedShaderProgram? progLuminance;
     private static VgeStageNamedShaderProgram? progGauss1D;
     private static VgeStageNamedShaderProgram? progSub;
@@ -120,9 +117,6 @@ internal static class PbrNormalDepthAtlasGpuBaker
             // Nothing to bake for this atlas page.
             return;
         }
-
-        // Debug: dump base atlas pixels before we touch anything, so we can verify whether tiles are present.
-        TryDumpBaseAtlasSnapshotTga(capi, baseAlbedoAtlasPageTexId, atlasWidth, atlasHeight, positions[0].reloadIteration, positions);
 
         // Save minimal GL state.
         int[] prevViewport = new int[4];
@@ -434,9 +428,6 @@ internal static class PbrNormalDepthAtlasGpuBaker
                 }
             }
 
-            // Debug: dump the generated sidecar atlas page after the bake completes.
-            TryDumpNormalDepthAtlasOutputSnapshotTga(capi, destNormalDepthTexId, atlasWidth, atlasHeight, positions[0].reloadIteration, positions);
-
             if (ConfigModSystem.Config.DebugLogNormalDepthAtlas &&
                 (skippedTinyRects != 0 || skippedInvalidRects != 0 || flatSampledRects != 0))
             {
@@ -484,294 +475,6 @@ internal static class PbrNormalDepthAtlasGpuBaker
         }
     }
 
-    private static void TryDumpBaseAtlasSnapshotTga(
-        ICoreClientAPI capi,
-        int atlasTexId,
-        int width,
-        int height,
-        short reloadIteration,
-        IReadOnlyList<TextureAtlasPosition> positions)
-    {
-        try
-        {
-            var cfg = ConfigModSystem.Config;
-            if (!cfg.DumpNormalDepthAtlasInputTga)
-            {
-                return;
-            }
-
-            if (atlasTexId == 0 || width <= 0 || height <= 0)
-            {
-                return;
-            }
-
-            if (positions.Count == 0)
-            {
-                return;
-            }
-
-            // Only dump once per (reloadIteration, atlasTexId).
-            long key = ((long)reloadIteration << 32) | (uint)atlasTexId;
-            if (!dumpedBaseAtlasSnapshots.Add(key))
-            {
-                return;
-            }
-
-            string outDir = capi.GetOrCreateDataPath("VGE-Debug");
-            string fileName = $"vge_baseAtlas_beforeBake_tex{atlasTexId}_it{reloadIteration}_{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}Z.tga";
-            string outPath = Path.Combine(outDir, fileName);
-
-            // Save/restore minimal GL read state.
-            GL.GetInteger(GetPName.FramebufferBinding, out int prevFbo);
-            GL.GetInteger(GetPName.ReadBuffer, out int prevReadBuffer);
-            GL.GetInteger(GetPName.PackAlignment, out int prevPackAlign);
-
-            int fbo = GL.GenFramebuffer();
-            try
-            {
-                GL.BindFramebuffer(FramebufferTarget.Framebuffer, fbo);
-                GL.FramebufferTexture2D(
-                    FramebufferTarget.Framebuffer,
-                    FramebufferAttachment.ColorAttachment0,
-                    TextureTarget.Texture2D,
-                    atlasTexId,
-                    level: 0);
-                GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-
-                // Tight packing so rows are contiguous.
-                GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
-
-                byte[] bgra = new byte[width * height * 4];
-                GL.ReadPixels(0, 0, width, height, PixelFormat.Bgra, PixelType.UnsignedByte, bgra);
-
-                // Debug overlay: mark the min-corner (origin) of each atlas rect in red.
-                // IMPORTANT: ReadPixels data is bottom-left origin, and TryGetRectPx returns bottom-left coords,
-                // so we mark before the flip.
-                for (int i = 0; i < positions.Count; i++)
-                {
-                    TextureAtlasPosition pos = positions[i];
-                    if (pos is null)
-                    {
-                        continue;
-                    }
-
-                    if (!TryGetRectPx(pos, width, height, out int rx, out int ry, out _, out _))
-                    {
-                        continue;
-                    }
-
-                    if ((uint)rx >= (uint)width || (uint)ry >= (uint)height)
-                    {
-                        continue;
-                    }
-
-                    int idx = (ry * width + rx) * 4;
-                    if ((uint)(idx + 3) >= (uint)bgra.Length)
-                    {
-                        continue;
-                    }
-
-                    // BGRA: red pixel with full alpha.
-                    bgra[idx + 0] = 0;
-                    bgra[idx + 1] = 0;
-                    bgra[idx + 2] = 255;
-                    bgra[idx + 3] = 255;
-                }
-
-                // Flip vertically so the file is top-left origin.
-                FlipImageYInPlace(bgra, width, height, bytesPerPixel: 4);
-
-                WriteUncompressedTga32(outPath, width, height, bgra);
-                capi.Logger.Debug("[VGE] Wrote base atlas snapshot: {0}", outPath);
-            }
-            finally
-            {
-                GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
-                GL.ReadBuffer((ReadBufferMode)prevReadBuffer);
-                GL.PixelStore(PixelStoreParameter.PackAlignment, prevPackAlign);
-                GL.DeleteFramebuffer(fbo);
-            }
-        }
-        catch (Exception ex)
-        {
-            // Best effort; never crash the client because of debug output.
-            capi.Logger.Debug("[VGE] Failed to dump base atlas snapshot: {0}", ex.Message);
-        }
-    }
-
-    private static void TryDumpNormalDepthAtlasOutputSnapshotTga(
-        ICoreClientAPI capi,
-        int normalDepthTexId,
-        int width,
-        int height,
-        short reloadIteration,
-        IReadOnlyList<TextureAtlasPosition> positions)
-    {
-        try
-        {
-            var cfg = ConfigModSystem.Config;
-            if (!cfg.DumpNormalDepthAtlasOutputTga)
-            {
-                return;
-            }
-
-            if (normalDepthTexId == 0 || width <= 0 || height <= 0 || positions.Count == 0)
-            {
-                return;
-            }
-
-            // Only dump once per (reloadIteration, normalDepthTexId).
-            long key = ((long)reloadIteration << 32) | (uint)normalDepthTexId;
-            if (!dumpedBaseAtlasSnapshots.Add(key))
-            {
-                return;
-            }
-
-            string outDir = capi.GetOrCreateDataPath("VGE-Debug");
-            string fileName = $"vge_normalDepth_afterBake_tex{normalDepthTexId}_it{reloadIteration}_{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}Z.tga";
-            string outPath = Path.Combine(outDir, fileName);
-
-            // Neutral default from ClearColor(0.5, 0.5, 1.0, 0.5) in RGBA.
-            // ReadPixels uses BGRA bytes.
-            const byte DefaultB = 255;
-            const byte DefaultG = 128;
-            const byte DefaultR = 128;
-            const byte DefaultA = 128;
-
-            GL.GetInteger(GetPName.FramebufferBinding, out int prevFbo);
-            GL.GetInteger(GetPName.ReadBuffer, out int prevReadBuffer);
-            GL.GetInteger(GetPName.PackAlignment, out int prevPackAlign);
-
-            int fbo = GL.GenFramebuffer();
-            try
-            {
-                GL.BindFramebuffer(FramebufferTarget.Framebuffer, fbo);
-                GL.FramebufferTexture2D(
-                    FramebufferTarget.Framebuffer,
-                    FramebufferAttachment.ColorAttachment0,
-                    TextureTarget.Texture2D,
-                    normalDepthTexId,
-                    level: 0);
-                GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-
-                GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
-
-                byte[] bgra = new byte[width * height * 4];
-                GL.ReadPixels(0, 0, width, height, PixelFormat.Bgra, PixelType.UnsignedByte, bgra);
-
-                int defaultOriginCount = 0;
-
-                // Mark origin of each rect: red if still neutral default, green otherwise.
-                for (int i = 0; i < positions.Count; i++)
-                {
-                    TextureAtlasPosition pos = positions[i];
-                    if (pos is null)
-                    {
-                        continue;
-                    }
-
-                    if (!TryGetRectPx(pos, width, height, out int rx, out int ry, out _, out _))
-                    {
-                        continue;
-                    }
-
-                    if ((uint)rx >= (uint)width || (uint)ry >= (uint)height)
-                    {
-                        continue;
-                    }
-
-                    int idx = (ry * width + rx) * 4;
-                    if ((uint)(idx + 3) >= (uint)bgra.Length)
-                    {
-                        continue;
-                    }
-
-                    bool isDefault = bgra[idx + 0] == DefaultB
-                        && bgra[idx + 1] == DefaultG
-                        && bgra[idx + 2] == DefaultR
-                        && bgra[idx + 3] == DefaultA;
-
-                    if (isDefault)
-                    {
-                        defaultOriginCount++;
-                        // Red marker (BGRA).
-                        bgra[idx + 0] = 0;
-                        bgra[idx + 1] = 0;
-                        bgra[idx + 2] = 255;
-                        bgra[idx + 3] = 255;
-                    }
-                    else
-                    {
-                        // Green marker (BGRA).
-                        bgra[idx + 0] = 0;
-                        bgra[idx + 1] = 255;
-                        bgra[idx + 2] = 0;
-                        bgra[idx + 3] = 255;
-                    }
-                }
-
-                // Flip vertically so the file is top-left origin.
-                FlipImageYInPlace(bgra, width, height, bytesPerPixel: 4);
-
-                WriteUncompressedTga32(outPath, width, height, bgra);
-                capi.Logger.Debug("[VGE] Wrote normal+depth atlas snapshot: {0} (defaultOrigins={1}/{2})", outPath, defaultOriginCount, positions.Count);
-            }
-            finally
-            {
-                GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
-                GL.ReadBuffer((ReadBufferMode)prevReadBuffer);
-                GL.PixelStore(PixelStoreParameter.PackAlignment, prevPackAlign);
-                GL.DeleteFramebuffer(fbo);
-            }
-        }
-        catch (Exception ex)
-        {
-            capi.Logger.Debug("[VGE] Failed to dump normal+depth atlas snapshot: {0}", ex.Message);
-        }
-    }
-
-    private static void FlipImageYInPlace(byte[] pixels, int width, int height, int bytesPerPixel)
-    {
-        int stride = width * bytesPerPixel;
-        byte[] tmp = new byte[stride];
-
-        for (int y = 0; y < height / 2; y++)
-        {
-            int top = y * stride;
-            int bottom = (height - 1 - y) * stride;
-
-            System.Buffer.BlockCopy(pixels, top, tmp, 0, stride);
-            System.Buffer.BlockCopy(pixels, bottom, pixels, top, stride);
-            System.Buffer.BlockCopy(tmp, 0, pixels, bottom, stride);
-        }
-    }
-
-    private static void WriteUncompressedTga32(string path, int width, int height, byte[] bgraPixelsTopLeft)
-    {
-        // 32-bit uncompressed true-color TGA, top-left origin.
-        // TGA pixel order is BGRA; we already have BGRA from GL.ReadPixels.
-        using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read);
-        using var bw = new BinaryWriter(fs);
-
-        bw.Write((byte)0);  // ID length
-        bw.Write((byte)0);  // no color map
-        bw.Write((byte)2);  // image type: uncompressed true-color
-
-        bw.Write((short)0); // color map origin
-        bw.Write((short)0); // color map length
-        bw.Write((byte)0);  // color map depth
-
-        bw.Write((short)0); // x-origin
-        bw.Write((short)0); // y-origin
-        bw.Write((short)width);
-        bw.Write((short)height);
-        bw.Write((byte)32); // bpp
-
-        // Image descriptor: bits 0-3 = alpha bits (8), bit 5 = top-left origin.
-        bw.Write((byte)0x28);
-
-        bw.Write(bgraPixelsTopLeft);
-    }
 
     private static void StopAllBakerPrograms()
     {
