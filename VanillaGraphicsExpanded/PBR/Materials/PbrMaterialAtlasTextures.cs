@@ -23,15 +23,124 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
     private readonly Dictionary<int, PbrMaterialAtlasPageTextures> pageTexturesByAtlasTexId = new();
     private bool isDisposed;
 
+    private bool texturesCreated;
+    private short lastBlockAtlasReloadIteration = -1;
+
     private PbrMaterialAtlasTextures() { }
 
     public bool IsInitialized { get; private set; }
+    public bool AreTexturesCreated => texturesCreated;
 
+    /// <summary>
+    /// Compatibility wrapper: creates/updates textures and populates their contents.
+    /// Prefer <see cref="CreateTextureObjects"/> + <see cref="PopulateAtlasContents"/>.
+    /// </summary>
     public void Initialize(ICoreClientAPI capi)
+        => PopulateAtlasContents(capi);
+
+    /// <summary>
+    /// Phase 1: allocate the GPU textures for the current block atlas pages.
+    /// Does not compute/upload per-tile material params and does not run the normal+depth bake.
+    /// </summary>
+    public void CreateTextureObjects(ICoreClientAPI capi)
     {
         if (capi is null) throw new ArgumentNullException(nameof(capi));
 
-        DisposeTextures();
+        IBlockTextureAtlasAPI atlas = capi.BlockTextureAtlas;
+
+        var atlasPages = new List<(int atlasTextureId, int width, int height)>(capacity: atlas.AtlasTextures.Count);
+        foreach (LoadedTexture atlasPage in atlas.AtlasTextures)
+        {
+            if (atlasPage.TextureId == 0 || atlasPage.Width <= 0 || atlasPage.Height <= 0)
+            {
+                continue;
+            }
+
+            atlasPages.Add((atlasPage.TextureId, atlasPage.Width, atlasPage.Height));
+        }
+
+        if (atlasPages.Count == 0)
+        {
+            // Block atlas not ready yet.
+            texturesCreated = false;
+            IsInitialized = false;
+            return;
+        }
+
+        // If the atlas texture ids changed (atlas rebuild), drop the old textures and recreate.
+        if (pageTexturesByAtlasTexId.Count > 0 && !atlasPages.All(p => pageTexturesByAtlasTexId.ContainsKey(p.atlasTextureId)))
+        {
+            DisposeTextures();
+        }
+
+        foreach ((int atlasTexId, int width, int height) in atlasPages)
+        {
+            if (pageTexturesByAtlasTexId.ContainsKey(atlasTexId))
+            {
+                continue;
+            }
+
+            // Initialize with defaults; contents get populated on BlockTexturesLoaded.
+            float[] defaultParams = new float[width * height * 3];
+            PbrMaterialParamsPixelBuilder.FillRgbTriplets(
+                defaultParams,
+                PbrMaterialParamsPixelBuilder.DefaultRoughness,
+                PbrMaterialParamsPixelBuilder.DefaultMetallic,
+                PbrMaterialParamsPixelBuilder.DefaultEmissive);
+
+            var materialParamsTex = DynamicTexture.CreateWithData(
+                width,
+                height,
+                PixelInternalFormat.Rgb16f,
+                defaultParams,
+                TextureFilterMode.Nearest,
+                debugName: $"vge_materialParams_atlas_{atlasTexId}");
+
+            DynamicTexture? normalDepthTex = null;
+            if (ConfigModSystem.Config.EnableNormalDepthAtlas)
+            {
+                // Placeholder until PopulateAtlasContents runs the bake.
+                normalDepthTex = DynamicTexture.Create(
+                    width,
+                    height,
+                    PixelInternalFormat.Rgba16f,
+                    TextureFilterMode.Nearest,
+                    debugName: $"vge_normalDepth_atlas_{atlasTexId}");
+            }
+
+            pageTexturesByAtlasTexId[atlasTexId] = new PbrMaterialAtlasPageTextures(materialParamsTex, normalDepthTex);
+        }
+
+        texturesCreated = pageTexturesByAtlasTexId.Count > 0;
+        IsInitialized = false;
+    }
+
+    /// <summary>
+    /// Phase 2: compute and upload material params, then (optionally) bake normal+depth.
+    /// Intended to run after the block atlas is finalized (e.g. on BlockTexturesLoaded).
+    /// </summary>
+    public void PopulateAtlasContents(ICoreClientAPI capi)
+    {
+        if (capi is null) throw new ArgumentNullException(nameof(capi));
+
+        // Guard: avoid repopulating for the same atlas generation.
+        // The engine bumps reloadIteration for TextureAtlasPosition each time the block atlas is rebuilt.
+        IBlockTextureAtlasAPI preAtlas = capi.BlockTextureAtlas;
+        short currentReload = preAtlas.Positions != null && preAtlas.Positions.Length > 0
+            ? preAtlas.Positions[0].reloadIteration
+            : (short)-1;
+
+        if (IsInitialized && currentReload >= 0 && currentReload == lastBlockAtlasReloadIteration)
+        {
+            return;
+        }
+
+        CreateTextureObjects(capi);
+
+        if (!texturesCreated)
+        {
+            return;
+        }
 
         if (!PbrMaterialRegistry.Instance.IsInitialized)
         {
@@ -54,7 +163,6 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         }
 
         // Pre-resolve atlas positions and material definitions once.
-        // The pixel builder is pure and can be unit-tested independently.
         var texturePositions = new Dictionary<AssetLocation, TextureAtlasPosition>(capacity: PbrMaterialRegistry.Instance.MaterialIdByTexture.Count);
         var materialsByTexture = new Dictionary<AssetLocation, PbrMaterialDefinition>(capacity: PbrMaterialRegistry.Instance.MaterialIdByTexture.Count);
 
@@ -98,11 +206,20 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                 "[VGE] Built material param atlas textures but filled 0 rects. This usually means atlas key mismatch (e.g. textures/...png vs block/...) or textures not in block atlas.");
         }
 
+        // Upload CPU-built material params into the already-created textures.
         foreach ((int atlasTexId, float[] pixels) in result.PixelBuffersByAtlasTexId)
         {
+            if (!pageTexturesByAtlasTexId.TryGetValue(atlasTexId, out PbrMaterialAtlasPageTextures? pageTextures))
+            {
+                continue;
+            }
+
             (int width, int height) = result.SizesByAtlasTexId[atlasTexId];
 
-            var materialParamsTex = DynamicTexture.CreateWithData(
+            // Replace the material params texture (simple + safe). If you want a true in-place update later,
+            // we can add a DynamicTexture.Update(...) method.
+            pageTextures.MaterialParamsTexture.Dispose();
+            var updated = DynamicTexture.CreateWithData(
                 width,
                 height,
                 PixelInternalFormat.Rgb16f,
@@ -110,32 +227,67 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                 TextureFilterMode.Nearest,
                 debugName: $"vge_materialParams_atlas_{atlasTexId}");
 
-            DynamicTexture? normalDepthTex = null;
+            pageTexturesByAtlasTexId[atlasTexId] = new PbrMaterialAtlasPageTextures(updated, pageTextures.NormalDepthTexture);
+        }
 
-            if (ConfigModSystem.Config.EnableNormalDepthAtlas)
+        if (ConfigModSystem.Config.EnableNormalDepthAtlas)
+        {
+            foreach ((int atlasTexId, int width, int height) in atlasPages)
             {
-                // Placeholder normal+depth atlas page texture (filled later by GPU baker).
-                // Must match atlas page dimensions 1:1 for UV alignment.
-                normalDepthTex = DynamicTexture.Create(
-                    width,
-                    height,
-                    PixelInternalFormat.Rgba16f,
-                    TextureFilterMode.Nearest,
-                    debugName: $"vge_normalDepth_atlas_{atlasTexId}");
+                if (!pageTexturesByAtlasTexId.TryGetValue(atlasTexId, out PbrMaterialAtlasPageTextures? pageTextures)
+                    || pageTextures.NormalDepthTexture is null)
+                {
+                    continue;
+                }
 
-                // Phase 3 plumbing: bake placeholder content on the GPU.
+                // Gather a more exhaustive set of atlas rects to bake.
+                var bakePositions = new List<TextureAtlasPosition>(capacity: atlas.Positions.Length + 1024);
+
+                foreach (TextureAtlasPosition? pos in atlas.Positions)
+                {
+                    if (pos is not null)
+                    {
+                        bakePositions.Add(pos);
+                    }
+                }
+
+                int addedFromAssetScan = 0;
+                try
+                {
+                    foreach (AssetLocation tex in capi.Assets.GetLocations("textures/block/", domain: null))
+                    {
+                        if (!PbrMaterialAtlasPositionResolver.TryResolve(TryGetAtlasPosition, tex, out TextureAtlasPosition? pos)
+                            || pos is null)
+                        {
+                            continue;
+                        }
+
+                        bakePositions.Add(pos);
+                        addedFromAssetScan++;
+                    }
+                }
+                catch
+                {
+                    // Best-effort.
+                }
+
                 PbrNormalDepthAtlasGpuBaker.BakePerTexture(
                     capi,
                     baseAlbedoAtlasPageTexId: atlasTexId,
-                    destNormalDepthTexId: normalDepthTex.TextureId,
+                    destNormalDepthTexId: pageTextures.NormalDepthTexture.TextureId,
                     atlasWidth: width,
                     atlasHeight: height,
-                    // Bake all rects in the block atlas page, not only those that have an explicit PBR material entry.
-                    // Otherwise many valid albedo tiles remain at the clear color and appear "unprocessed" (e.g. gray).
-                    texturePositions: atlas.Positions);
-            }
+                    texturePositions: bakePositions);
 
-            pageTexturesByAtlasTexId[atlasTexId] = new PbrMaterialAtlasPageTextures(materialParamsTex, normalDepthTex);
+                if (ConfigModSystem.Config.DebugLogNormalDepthAtlas)
+                {
+                    capi.Logger.Debug(
+                        "[VGE] Normal+depth atlas bake input: pageTexId={0} positionsFromAtlasSubId={1} addedFromAssetScan={2}",
+                        atlasTexId,
+                        atlas.Positions.Length,
+                        addedFromAssetScan);
+                }
+            }
         }
 
         capi.Logger.Notification(
@@ -167,6 +319,10 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         }
 
         IsInitialized = pageTexturesByAtlasTexId.Count > 0;
+        if (currentReload >= 0)
+        {
+            lastBlockAtlasReloadIteration = currentReload;
+        }
     }
 
     public bool TryGetMaterialParamsTextureId(int atlasTextureId, out int materialParamsTextureId)
@@ -215,6 +371,8 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         }
 
         pageTexturesByAtlasTexId.Clear();
+        texturesCreated = false;
+        lastBlockAtlasReloadIteration = -1;
         IsInitialized = false;
     }
 

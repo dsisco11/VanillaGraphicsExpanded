@@ -343,7 +343,7 @@ internal static class PbrMaterialParamsPixelBuilder
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void FillRgbTriplets(float[] destination, float r, float g, float b)
+    internal static void FillRgbTriplets(float[] destination, float r, float g, float b)
     {
         if (destination is null) throw new ArgumentNullException(nameof(destination));
         FillRgbTriplets(destination.AsSpan(), r, g, b);
@@ -354,7 +354,7 @@ internal static class PbrMaterialParamsPixelBuilder
     /// Uses Vector256 (AVX) or Vector128 (SSE) when supported; falls back to scalar.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void FillRgbTriplets(Span<float> destination, float r, float g, float b)
+    internal static void FillRgbTriplets(Span<float> destination, float r, float g, float b)
     {
         if (destination.Length == 0)
         {

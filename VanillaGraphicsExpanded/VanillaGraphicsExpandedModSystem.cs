@@ -18,7 +18,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
 {
     private ICoreClientAPI? capi;
     private GBufferManager? gBufferManager;
-    private PbrMaterialAtlasTextures? pbrMaterialAtlasTextures;
     private DirectLightingBufferManager? directLightingBufferManager;
     private DirectLightingRenderer? directLightingRenderer;
     private PBRCompositeRenderer? pbrCompositeRenderer;
@@ -77,12 +76,11 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         // Create G-buffer manager (Harmony hooks will call into this)
         gBufferManager = new GBufferManager(api);
 
-        // Build per-atlas material parameter textures for patched vanilla chunk shaders.
-        pbrMaterialAtlasTextures = PbrMaterialAtlasTextures.Instance;
-        pbrMaterialAtlasTextures.Initialize(api);
-
-        // Rebuild on atlas/texture lifecycle events.
-        api.Event.BlockTexturesLoaded += () => pbrMaterialAtlasTextures.Initialize(api);
+        // Material params + normal/depth atlas textures:
+        // - Phase 1 (allocation) can happen any time (no-op until atlas exists)
+        // - Phase 2 (populate/bake) must only run after the block atlas is finalized
+        PbrMaterialAtlasTextures.Instance.CreateTextureObjects(api);
+        api.Event.BlockTexturesLoaded += () => PbrMaterialAtlasTextures.Instance.PopulateAtlasContents(api);
         // api.Event.ReloadTextures += () => pbrMaterialAtlasTextures.Initialize(api);// NOTE: We DONT want to rebuild on full texture reloads, only atlas changes.
 
         // Ensure all VGE memory shader programs are registered before any renderer can request them.
@@ -166,8 +164,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
             lumOnBufferManager?.Dispose();
             lumOnBufferManager = null;
 
-            pbrMaterialAtlasTextures?.Dispose();
-            pbrMaterialAtlasTextures = null;
+            PbrMaterialAtlasTextures.Instance?.Dispose();
 
             gBufferManager?.Dispose();
             gBufferManager = null;
