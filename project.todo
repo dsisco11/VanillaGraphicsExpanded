@@ -2,9 +2,14 @@ Issues:
   ☐ Mod settings not live reloading properly.
   ☐ Add generated normal/depth maps for PBR mapped textures.
   ☐ Bake PBR material noise into material/normal textures.
+  ☐ Implement blue noise for use in lumon probe jitter, dithering, and PBR material noise.
   ☐ pbr-direct-lighting doesnt include flood-filled block-light.
   ☐ pbr-direct-lighting doesnt include flood-filled sun-light.
   ☐ pbr-direct-lighting doesnt include shadow map.
+
+New Features:
+  PBR Material Definitions:
+    ☐ Allow texture matching rules to specify explicit material/normal/height texture overrides to be used in place of the generated ones.
 
 LumOn → Lumen Alignment Work (Screen-Space Pipeline):
 
