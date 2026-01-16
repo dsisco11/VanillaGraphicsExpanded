@@ -57,6 +57,10 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     {
         capi = api;
 
+        // Debug hook: log runtime composite textures inserted into the block atlas.
+        // This helps diagnose cases where certain textures are inserted lazily after BlockTexturesLoaded.
+        HarmonyPatches.TextureAtlasInsertHook.TryApplyPatches(harmony, api, api.Logger.Notification);
+
         GlDebug.TrySuppressGroupDebugMessages();
 
         // Register GPU debug label renderers to wrap all VS render stages
@@ -80,8 +84,34 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         // - Phase 1 (allocation) can happen any time (no-op until atlas exists)
         // - Phase 2 (populate/bake) must only run after the block atlas is finalized
         PbrMaterialAtlasTextures.Instance.CreateTextureObjects(api);
-        api.Event.BlockTexturesLoaded += () => PbrMaterialAtlasTextures.Instance.PopulateAtlasContents(api);
-        // api.Event.ReloadTextures += () => pbrMaterialAtlasTextures.Initialize(api);// NOTE: We DONT want to rebuild on full texture reloads, only atlas changes.
+        api.Event.BlockTexturesLoaded += () =>
+        {
+            PbrMaterialAtlasTextures.Instance.PopulateAtlasContents(api);
+
+            // Some mods insert additional textures into the block atlas shortly after BlockTexturesLoaded.
+            // Re-check a few times; PopulateAtlasContents is guarded by reloadIteration + rect count so it is cheap when unchanged.
+            const int Recheck1Ms = 500;
+            const int Recheck2Ms = 1_000;
+            const int Recheck3Ms = 3_000;
+
+            api.Event.RegisterCallback(_ =>
+            {
+                PbrMaterialAtlasTextures.Instance.PopulateAtlasContents(api);
+            }, Recheck1Ms);
+
+            api.Event.RegisterCallback(_ =>
+            {
+                PbrMaterialAtlasTextures.Instance.PopulateAtlasContents(api);
+            }, Recheck2Ms);
+
+            api.Event.RegisterCallback(_ =>
+            {
+                PbrMaterialAtlasTextures.Instance.PopulateAtlasContents(api);
+            }, Recheck3Ms);
+        };
+        api.Event.ReloadTextures += () => {
+            api.Logger.Debug("[VGE] ReloadTextures event");
+        };
 
         // Ensure all VGE memory shader programs are registered before any renderer can request them.
         // ShaderRegistry.getProgramByName() may attempt to create/load programs on demand if missing,

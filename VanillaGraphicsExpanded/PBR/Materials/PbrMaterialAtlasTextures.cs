@@ -23,13 +23,73 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
     private readonly Dictionary<int, PbrMaterialAtlasPageTextures> pageTexturesByAtlasTexId = new();
     private bool isDisposed;
 
+    private short lastBlockAtlasReloadIteration = short.MinValue;
+    private int lastBlockAtlasNonNullPositions = -1;
+
     private bool texturesCreated;
-    private short lastBlockAtlasReloadIteration = -1;
 
     private PbrMaterialAtlasTextures() { }
 
     public bool IsInitialized { get; private set; }
     public bool AreTexturesCreated => texturesCreated;
+
+    public void RebakeNormalDepthAtlas(ICoreClientAPI capi)
+    {
+        if (capi is null) throw new ArgumentNullException(nameof(capi));
+        if (!ConfigModSystem.Config.EnableNormalDepthAtlas)
+        {
+            return;
+        }
+
+        CreateTextureObjects(capi);
+        if (!texturesCreated)
+        {
+            return;
+        }
+
+        IBlockTextureAtlasAPI atlas = capi.BlockTextureAtlas;
+
+        var atlasPages = new List<(int atlasTextureId, int width, int height)>(capacity: atlas.AtlasTextures.Count);
+        foreach (LoadedTexture atlasPage in atlas.AtlasTextures)
+        {
+            if (atlasPage.TextureId == 0 || atlasPage.Width <= 0 || atlasPage.Height <= 0)
+            {
+                continue;
+            }
+
+            atlasPages.Add((atlasPage.TextureId, atlasPage.Width, atlasPage.Height));
+        }
+
+        if (atlasPages.Count == 0)
+        {
+            return;
+        }
+
+        // Bake using current atlas pixel contents. This is intentionally "force" and does not depend on reloadIteration,
+        // because some textures are inserted/updated after BlockTexturesLoaded without changing atlas layout.
+        foreach ((int atlasTexId, int width, int height) in atlasPages)
+        {
+            if (!pageTexturesByAtlasTexId.TryGetValue(atlasTexId, out PbrMaterialAtlasPageTextures? pageTextures)
+                || pageTextures.NormalDepthTexture is null
+                || !pageTextures.NormalDepthTexture.IsValid)
+            {
+                continue;
+            }
+
+            PbrNormalDepthAtlasGpuBaker.BakePerTexture(
+                capi,
+                baseAlbedoAtlasPageTexId: atlasTexId,
+                destNormalDepthTexId: pageTextures.NormalDepthTexture.TextureId,
+                atlasWidth: width,
+                atlasHeight: height,
+                texturePositions: atlas.Positions);
+        }
+
+        if (ConfigModSystem.Config.DebugLogNormalDepthAtlas)
+        {
+            capi.Logger.Debug("[VGE] Normal+depth atlas rebake requested (forced)");
+        }
+    }
 
     /// <summary>
     /// Compatibility wrapper: creates/updates textures and populates their contents.
@@ -123,14 +183,15 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
     {
         if (capi is null) throw new ArgumentNullException(nameof(capi));
 
-        // Guard: avoid repopulating for the same atlas generation.
-        // The engine bumps reloadIteration for TextureAtlasPosition each time the block atlas is rebuilt.
+        // Guard: avoid repopulating when nothing changed.
+        // Note: some mods may insert additional textures into the atlas after BlockTexturesLoaded.
+        // In those cases reloadIteration may remain unchanged, so we also track the non-null position count.
         IBlockTextureAtlasAPI preAtlas = capi.BlockTextureAtlas;
-        short currentReload = preAtlas.Positions != null && preAtlas.Positions.Length > 0
-            ? preAtlas.Positions[0].reloadIteration
-            : (short)-1;
+        (short currentReload, int nonNullCount) = GetAtlasStats(preAtlas);
 
-        if (IsInitialized && currentReload >= 0 && currentReload == lastBlockAtlasReloadIteration)
+        if (IsInitialized &&
+            currentReload >= 0 && currentReload == lastBlockAtlasReloadIteration &&
+            nonNullCount == lastBlockAtlasNonNullPositions)
         {
             return;
         }
@@ -322,7 +383,32 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         if (currentReload >= 0)
         {
             lastBlockAtlasReloadIteration = currentReload;
+            lastBlockAtlasNonNullPositions = nonNullCount;
         }
+    }
+
+    private static (short reloadIteration, int nonNullCount) GetAtlasStats(IBlockTextureAtlasAPI atlas)
+    {
+        if (atlas?.Positions is null || atlas.Positions.Length == 0)
+        {
+            return (-1, 0);
+        }
+
+        short reloadIteration = -1;
+        int nonNullCount = 0;
+
+        foreach (TextureAtlasPosition? pos in atlas.Positions)
+        {
+            if (pos is null) continue;
+            nonNullCount++;
+
+            if (reloadIteration < 0)
+            {
+                reloadIteration = pos.reloadIteration;
+            }
+        }
+
+        return (reloadIteration, nonNullCount);
     }
 
     public bool TryGetMaterialParamsTextureId(int atlasTextureId, out int materialParamsTextureId)
@@ -372,7 +458,8 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 
         pageTexturesByAtlasTexId.Clear();
         texturesCreated = false;
-        lastBlockAtlasReloadIteration = -1;
+        lastBlockAtlasReloadIteration = short.MinValue;
+        lastBlockAtlasNonNullPositions = -1;
         IsInitialized = false;
     }
 
