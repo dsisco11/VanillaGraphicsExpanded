@@ -15,11 +15,30 @@ Goal:
   - If override is missing/invalid/unloadable, log a warning and fall back to existing procedural generation/bake behavior.
 
 Phase 0 — Design + Contracts:
-  ☐ Define override JSON shape under mapping rule `values`:
+  ✔ Define override JSON shape under mapping rule `values`:
     - `values.overrides.materialParams` : string (AssetLocation shorthand)
     - `values.overrides.normalHeight`  : string (AssetLocation shorthand)
-  ☐ Decide expected normal encoding (confirm matches current normal+height atlas consumer expectations).
-  ☐ Define warning format (include rule id, target texture id, override id, failure reason).
+    - Applies to every texture matched by the rule (for per-texture overrides, write narrower globs / more rules).
+    - Example:
+      - "values": {
+          "material": "stone",
+          "overrides": {
+            "materialParams": "mymod:textures/vge/params/stone/granite_pbr.png",
+            "normalHeight":  "mymod:textures/vge/normalheight/stone/granite_nh.dds"
+          }
+        }
+
+  ✔ Decide expected normal encoding (confirm matches current normal+height atlas consumer expectations).
+    - Encoding matches `assets/vanillagraphicsexpanded/shaders/includes/vge_normaldepth.glsl`:
+      - NormalHeight atlas is RGBA16F = (normalXYZ_01, height01)
+      - RGB is normal packed to [0,1] (consumer can convert to signed via *2-1)
+      - A is height01 in [0,1], where 0.5 ~= 0 signed height
+      - A=0 is treated as "no surface" (flat normal and zero depth contribution)
+    - Copy/blit path should preserve these semantics; ideally also apply the same alpha-cutoff masking as the procedural pack stage.
+
+  ✔ Define warning format (include rule id, target texture id, override id, failure reason).
+    - Use a consistent prefix and include all identifiers:
+      - "[VGE] PBR override ignored: rule='{ruleId}' target='{targetTextureId}' override='{overrideId}' reason='{reason}'. Falling back to generated maps."
 
 Phase 1 — Schema + DTOs:
   ☐ Update schema: `schemas/pbr_material_definitions.schema.json`
