@@ -34,6 +34,7 @@
             "request": "launch",
             "program": "${config:vanillaGraphicsExpanded.renderdocPath}/renderdoccmd.exe",
             "preLaunchTask": "build + tail (RenderDoc)",
+            "postDebugTask": "stop + scan: VintageStory client-debug.log",
             "args": [
                 "capture",
                 "--wait-for-exit",
@@ -45,7 +46,7 @@
                 "${workspaceFolder}/VanillaGraphicsExpanded/assets"
             ],
             "cwd": "${env:VINTAGE_STORY}",
-            "console": "integratedTerminal",
+            "console": "internalConsole",
             "internalConsoleOptions": "neverOpen",
             "stopAtEntry": false
         },
