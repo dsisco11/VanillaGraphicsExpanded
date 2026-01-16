@@ -107,4 +107,16 @@ internal sealed class PbrMaterialMappingValuesJson
 {
     [JsonProperty("material")]
     public string? Material { get; set; }
+
+    [JsonProperty("overrides")]
+    public PbrMaterialMappingOverridesJson? Overrides { get; set; }
+}
+
+internal sealed class PbrMaterialMappingOverridesJson
+{
+    [JsonProperty("materialParams")]
+    public string? MaterialParams { get; set; }
+
+    [JsonProperty("normalHeight")]
+    public string? NormalHeight { get; set; }
 }

@@ -41,10 +41,10 @@ Phase 0 — Design + Contracts:
       - "[VGE] PBR override ignored: rule='{ruleId}' target='{targetTextureId}' override='{overrideId}' reason='{reason}'. Falling back to generated maps."
 
 Phase 1 — Schema + DTOs:
-  ☐ Update schema: `schemas/pbr_material_definitions.schema.json`
+  ✔ Update schema: `schemas/pbr_material_definitions.schema.json`
     - Extend mapping `values` to include optional `overrides` object.
     - Validate strings (non-empty) and allow additional properties only where intentional.
-  ☐ Update JSON DTOs: `VanillaGraphicsExpanded/PBR/Materials/PbrMaterialDefinitionsModels.cs`
+  ✔ Update JSON DTOs: `VanillaGraphicsExpanded/PBR/Materials/PbrMaterialDefinitionsModels.cs`
     - Add `Overrides` object on mapping values model.
     - Add strongly-typed fields for `MaterialParams` and `NormalHeight`.
 

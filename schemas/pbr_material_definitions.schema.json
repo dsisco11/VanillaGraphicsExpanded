@@ -100,6 +100,26 @@
           "type": "string",
           "minLength": 1,
           "description": "Material key or fully-qualified MaterialId."
+        },
+        "overrides": {
+          "$ref": "#/$defs/mappingOverrides",
+          "description": "Optional explicit texture overrides used to fill the PBR atlases (replaces procedural generation/bake when present)."
+        }
+      }
+    },
+    "mappingOverrides": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "materialParams": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional explicit material params map asset id (AssetLocation shorthand)."
+        },
+        "normalHeight": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional explicit packed normal+height map asset id (AssetLocation shorthand)."
         }
       }
     },
