@@ -60,15 +60,15 @@ Phase 2 — Rule Resolution + Normalization:
     - If invalid AssetLocation parse or unsupported extension → warning + treat as no override.
 
 Phase 3 — Texture Override Loading (PNG + DDS):
-  ☐ Add helper: `PbrOverrideTextureLoader` (new file under `VanillaGraphicsExpanded/PBR/Materials/`)
+  ✔ Add helper: `PbrOverrideTextureLoader` (new file under `VanillaGraphicsExpanded/PBR/Materials/`)
     - Input: `ICoreClientAPI capi`, `AssetLocation overrideId`
     - Output: decoded RGBA pixels + width/height (or upload-ready GPU texture handle)
-  ☐ PNG path:
+  ✔ PNG path:
     - Prefer engine/asset APIs to read bytes/stream from assets.
-  ☐ DDS path:
+  ✔ DDS path:
     - Use BCnEncoder.NET (`BcDecoder`) to decode DDS to RGBA.
     - Validate DDS format support; warn + fallback if unsupported.
-  ☐ Common validation:
+  ✔ Common validation:
     - Enforce expected dimensions (either exact tile size or resample policy).
     - If dimensions mismatch and resample is not implemented, warn + fallback.
 
