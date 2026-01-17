@@ -127,6 +127,12 @@ Example (L1 layout, 3 SH textures + vis + dist):
 - 3x RGBA16F + 1x RGBA16F + 1x RG16F = 4x RGBA16F + 1x RG16F
 - bytesPerProbe = 4 * 8 + 1 * 4 = 36 bytes
 
+Example (Phase 18 defaults):
+
+- resolution = 32x32x32, levels = 4, bytesPerProbe = 36 bytes
+- bytesPerLevel = 32 * 32 * 32 * 36 = 1,179,648 bytes (~1.13 MiB)
+- totalBytes (4 levels) ~= 4.5 MiB, excluding temporary filter buffers
+
 This rough math drives level count and resolution decisions.
 
 ---

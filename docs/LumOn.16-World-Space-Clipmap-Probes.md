@@ -93,6 +93,18 @@ The blending occurs in the same indirect compositing path used by Phase 15.
 - Filter/denoise probe payload
 - Expose probe textures for shading
 
+### 4.4 Initial config defaults (Phase 18)
+
+These defaults are for initial bring-up and can be tuned once performance data is available.
+
+| Setting | Default | Notes |
+| --- | --- | --- |
+| `ClipmapBaseSpacing` | 2.0 | World units between probes at L0 |
+| `ClipmapResolution` | 32x32x32 | Per-level probe grid |
+| `ClipmapLevels` | 4 | L0-L3 |
+| `ProbeUpdateBudgetL0` | 256 | Probes per frame at L0 |
+| `ProbeUpdateBudgetFalloff` | `budgetL = baseBudget >> L` | L1=128, L2=64, L3=32 |
+
 ---
 
 ## 5. High-level dataflow
