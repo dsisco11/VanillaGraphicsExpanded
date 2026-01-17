@@ -18,24 +18,23 @@ Success Criteria
 
 Phase 0 — Design + Conventions
 Exit artifacts: API and placement are locked in; changes are low-risk and incremental.
-[ ] Confirm root path + namespace:
-    [ ] Create folder: VanillaGraphicsExpanded/Numerics/
-    [ ] Namespace: VanillaGraphicsExpanded.Numerics
-    [ ] Type: internal static class SimdSpanMath
-[ ] Decide error policy for length mismatches:
-    [ ] Throw ArgumentException (strict) OR
-    [ ] Debug.Assert + process prefix (lenient)
-    - Recommended: strict for public-ish helpers; Debug.Assert + strict for internal.
-[ ] Decide conversion surface:
-    [ ] Provide only Span-destination methods (no allocations)
-    [ ] Optional: keep local allocating wrappers only where caching justifies it
+[x] Confirm root path + namespace:
+    [x] Create folder: VanillaGraphicsExpanded/Numerics/
+    [x] Namespace: VanillaGraphicsExpanded.Numerics
+    [x] Type: internal static class SimdSpanMath
+[x] Decide error policy for length mismatches:
+    [x] Throw ArgumentException (strict)
+    [x] Also keep Debug.Assert for invariants in hot paths
+[x] Decide conversion surface:
+    [x] Provide only Span-destination methods (no allocations)
+    [x] Keep local allocating wrappers only where caching justifies it (e.g., override texture cache)
 
 
 Phase 1 — Add SNT Dependency
 Exit artifacts: Solution builds with System.Numerics.Tensors available.
-[ ] Add NuGet reference to main mod project:
-    [ ] VanillaGraphicsExpanded/VanillaGraphicsExpanded/VanillaGraphicsExpanded.csproj
-        [ ] <PackageReference Include="System.Numerics.Tensors" Version="8.0.0" />
+[x] Add NuGet reference to main mod project:
+    [x] VanillaGraphicsExpanded/VanillaGraphicsExpanded/VanillaGraphicsExpanded.csproj
+        [x] <PackageReference Include="System.Numerics.Tensors" Version="10.0.0" />
 [ ] Decide whether tests need the same reference:
     [ ] If tests only call SimdSpanMath (BCL signatures), skip.
     [ ] If tests call TensorPrimitives directly, add reference to:
