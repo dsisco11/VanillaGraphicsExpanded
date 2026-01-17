@@ -268,6 +268,12 @@ internal sealed class PbrMaterialRegistry
                 string? overrideNormalHeight = rule.Values?.Overrides?.NormalHeight?.Trim();
                 if (string.IsNullOrWhiteSpace(overrideNormalHeight)) overrideNormalHeight = null;
 
+                PbrOverrideScale overrideScale = BuildOverrideScale(
+                    logger,
+                    source.Location,
+                    rule.Id,
+                    rule.Values?.Overrides?.Scale);
+
                 Regex regex;
                 try
                 {
@@ -291,7 +297,8 @@ internal sealed class PbrMaterialRegistry
                     MatchRegex: regex,
                     MaterialId: materialId,
                     OverrideMaterialParams: overrideMaterialParams,
-                    OverrideNormalHeight: overrideNormalHeight));
+                    OverrideNormalHeight: overrideNormalHeight,
+                    OverrideScale: overrideScale));
 
                 orderIndex++;
             }
@@ -389,7 +396,8 @@ internal sealed class PbrMaterialRegistry
                 RuleId: winner.Value.Id,
                 RuleSource: winner.Value.Source,
                 MaterialParams: materialParamsOverride,
-                NormalHeight: normalHeightOverride);
+                NormalHeight: normalHeightOverride,
+                Scale: winner.Value.OverrideScale);
             if (!overrides.IsEmpty)
             {
                 overridesByTexture[texture] = overrides;
@@ -555,6 +563,59 @@ internal sealed class PbrMaterialRegistry
         parsedOverrideCache[cacheKey] = loc;
         return loc;
     }
+
+    private static PbrOverrideScale BuildOverrideScale(
+        ILogger logger,
+        AssetLocation ruleSource,
+        string? ruleId,
+        PbrOverrideScaleJson? json)
+    {
+        if (json is null)
+        {
+            return PbrOverrideScale.Identity;
+        }
+
+        var invalid = new List<string>(capacity: 2);
+
+        float roughness = ReadScaleOrDefault(json.Roughness, "roughness", invalid);
+        float metallic = ReadScaleOrDefault(json.Metallic, "metallic", invalid);
+        float emissive = ReadScaleOrDefault(json.Emissive, "emissive", invalid);
+        float normal = ReadScaleOrDefault(json.Normal, "normal", invalid);
+        float depth = ReadScaleOrDefault(json.Depth, "depth", invalid);
+
+        if (invalid.Count > 0)
+        {
+            logger.Warning(
+                "[VGE] Invalid override scale value(s) ignored: rule='{0}' source={1} invalid=[{2}]. Treating as 1.0.",
+                ruleId ?? "(no id)",
+                ruleSource,
+                string.Join(", ", invalid));
+        }
+
+        return new PbrOverrideScale(
+            Roughness: roughness,
+            Metallic: metallic,
+            Emissive: emissive,
+            Normal: normal,
+            Depth: depth);
+    }
+
+    private static float ReadScaleOrDefault(float? value, string name, List<string> invalid)
+    {
+        if (!value.HasValue)
+        {
+            return 1f;
+        }
+
+        float v = value.Value;
+        if (float.IsNaN(v) || float.IsInfinity(v) || v < 0f)
+        {
+            invalid.Add($"{name}={v}");
+            return 1f;
+        }
+
+        return v;
+    }
 }
 
 internal readonly record struct PbrMaterialDefinitionsSource(string Domain, AssetLocation Location, PbrMaterialDefinitionsJsonFile File);
@@ -570,4 +631,5 @@ internal readonly record struct PbrMaterialMappingRule(
     Regex MatchRegex,
     string MaterialId,
     string? OverrideMaterialParams,
-    string? OverrideNormalHeight);
+    string? OverrideNormalHeight,
+    PbrOverrideScale OverrideScale);

@@ -6,7 +6,8 @@ internal readonly record struct PbrMaterialTextureOverrides(
     string? RuleId,
     AssetLocation RuleSource,
     AssetLocation? MaterialParams,
-    AssetLocation? NormalHeight)
+    AssetLocation? NormalHeight,
+    PbrOverrideScale Scale)
 {
     public bool IsEmpty => MaterialParams is null && NormalHeight is null;
 }

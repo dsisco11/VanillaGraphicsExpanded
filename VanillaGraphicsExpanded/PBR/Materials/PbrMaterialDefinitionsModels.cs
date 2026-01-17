@@ -119,4 +119,7 @@ internal sealed class PbrMaterialMappingOverridesJson
 
     [JsonProperty("normalHeight")]
     public string? NormalHeight { get; set; }
+
+    [JsonProperty("scale")]
+    public PbrOverrideScaleJson? Scale { get; set; }
 }

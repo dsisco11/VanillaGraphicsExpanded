@@ -61,14 +61,14 @@ Exit artifacts: users can author the new fields correctly.
 
 Phase 2 — Model Types (JSON + Runtime)
 Exit artifacts: new fields exist end-to-end from JSON to resolved per-texture overrides.
-[ ] Update JSON model(s) in VanillaGraphicsExpanded/PBR/Materials/PbrMaterialDefinitionsModels.cs:
-    [ ] Add optional scale fields on the override descriptors (per override texture)
-[ ] Update resolved override type(s) in VanillaGraphicsExpanded/PBR/Materials/PbrMaterialTextureOverrides.cs:
-    [ ] Store resolved scale values (nullable or already defaulted to 1.0)
-[ ] Update registry plumbing in VanillaGraphicsExpanded/PBR/Materials/PbrMaterialRegistry.cs:
-    [ ] Parse/validate the new scale fields
-    [ ] Apply default = 1.0 when missing
-    [ ] Ensure per-texture resolved overrides carry the scales to the appliers
+[x] Update JSON model(s) in VanillaGraphicsExpanded/PBR/Materials/PbrMaterialDefinitionsModels.cs:
+    [x] Add optional overrides.scale fields on the override descriptors (per override texture)
+[x] Update resolved override type(s) in VanillaGraphicsExpanded/PBR/Materials/PbrMaterialTextureOverrides.cs:
+    [x] Store resolved scale values (defaulted to identity)
+[x] Update registry plumbing in VanillaGraphicsExpanded/PBR/Materials/PbrMaterialRegistry.cs:
+    [x] Parse/validate the new scale fields
+    [x] Apply default = 1.0 when missing
+    [x] Ensure per-texture resolved overrides carry the scales to the appliers
 
 
 Phase 3 — Apply Scaling: Material Params Overrides
