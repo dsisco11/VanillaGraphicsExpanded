@@ -1,6 +1,5 @@
 Issues:
   ☐ Mod settings not live reloading properly (e.g. changes to Lumon shader settings dont always take effect).
-  ☐ Implement blue noise for use in lumon probe jitter, dithering, and PBR material noise.
   ☐ pbr-direct-lighting doesnt include flood-filled block-light.
   ☐ pbr-direct-lighting doesnt include flood-filled sun-light.
   ☐ pbr-direct-lighting doesnt include shadow map.

@@ -175,16 +175,72 @@ Key requirements
 
 ---
 
-## Phase 12 — PMJ Performance Validation
-- [ ] Measure generation time for common sample counts (64/128/256/1024).
-- [ ] Confirm minimal allocations (pool usage effective).
-- [ ] Decide on recommended defaults (frame cycle length, packing format).
+## Phase 12 — Integrate Blue-Noise Into PBR Material Atlas Baking (Replace Squirrel3)
+- [ ] Identify where material-param “value noise” is mixed during baking:
+  - [ ] Locate the bake path(s) that currently call `Squirrel3Noise` to perturb/mix material parameter values.
+  - [ ] Identify required range/distribution (e.g., [-1,1] vs [0,1]) and how it is applied.
+  - [ ] Identify coordinate inputs used (texel coords, atlas UVs, material id, etc.).
+- [ ] Decide replacement strategy:
+  - [ ] Replace the Squirrel3-hash noise source with a tileable blue-noise sample from a generated rank/normalized map.
+  - [ ] Choose default config (suggest: tileable 128x128 or 256x256, sigma tuned to prior look).
+  - [ ] Define mapping from bake texel position → blue-noise lookup (wrap/tile), plus optional per-material salt/offset.
+- [ ] Implement bake-time sampling:
+  - [ ] Use `BlueNoiseCache` to generate the canonical rank map once per config.
+  - [ ] Convert to an efficient CPU-side representation for sampling (e.g., `byte[]` L8 or `float[]` normalized).
+  - [ ] Replace the Squirrel3 noise callsite(s) in the bake mixer with blue-noise sampling.
+  - [ ] Ensure deterministic results (seed + stable per-material salt if used).
 
 ---
 
-## Phase 13 — PMJ Documentation
+## Phase 13 — Integrate PMJ Temporal Jitter Into LumOn Sampler Shaders
+- [ ] Identify integration point(s) in LumOn:
+  - [ ] Find the jitter/blue-noise/random sampling sites in LumOn shader(s) and any existing frame-index inputs.
+  - [ ] Confirm whether jitter is applied in clip/NDC space, UV space, or ray direction space.
+- [ ] Decide PMJ binding model:
+  - [ ] Option A: Upload a 1D PMJ “sequence texture” (width = sampleCount) and index by frame.
+  - [ ] Option B: Push a small constant buffer of `Vector2` jitter offsets (if the engine path supports it).
+  - [ ] Default: texture (stable, simple binding, matches existing texture-driven sampling patterns).
+- [ ] Implement runtime provisioning:
+  - [ ] Use `PmjCache` to create `PmjSequence` once per config.
+  - [ ] Pack to `RG16_UNorm` (preferred) or `RG8_UNorm` (fallback) using `PmjConversions`.
+  - [ ] Upload to a GPU texture and bind it for LumOn passes.
+  - [ ] Add uniforms: `frameIndex`, `pmjCycleLength`, and optional `pmjSalt`.
+- [ ] Implement shader-side sampling:
+  - [ ] Compute `frameIndexMod = frameIndex % pmjCycleLength` (or use helper logic).
+  - [ ] Fetch jitter offset from PMJ texture; optionally center to [-0.5, 0.5).
+  - [ ] Apply jitter at the intended stage (sampling kernel / ray gen / reprojection, depending on existing pipeline).
+- [ ] Optional decorrelation:
+  - [ ] If needed, incorporate per-pixel salt (hash of pixel coords) to decorrelate spatial patterns.
+
+---
+
+## Phase 14 — Integration Validation (Visual + Automated)
+- [ ] Add/extend unit/integration tests where feasible:
+  - [ ] PBR bake: determinism + range checks for the new blue-noise mixing path.
+  - [ ] LumOn: texture upload format/size correctness (no crashes, expected dimensions).
+  - [ ] LumOn: determinism of generated PMJ textures given fixed seeds.
+- [ ] Add A/B capture workflow notes:
+  - [ ] Capture screenshots/RenderDoc for old-noise vs blue-noise PBR bake output.
+  - [ ] Capture LumOn temporal stability for old jitter vs PMJ jitter.
+- [ ] Sanity validation:
+  - [ ] Confirm no visible banding/tiling regressions at common camera distances.
+  - [ ] Confirm temporal shimmer is reduced or shifted to higher frequency.
+
+---
+
+## Phase 15 — Integration Performance + Defaults
+- [ ] Measure:
+  - [ ] Blue-noise generation + sampling cost during PBR atlas baking.
+  - [ ] PMJ upload cost and memory footprint for chosen cycle length + format.
+- [ ] Choose recommended defaults:
+  - [ ] Blue-noise tile size + sigma (for PBR bake mixing).
+  - [ ] PMJ cycle length (e.g., 64/128/256) and packing format (RG16_UNorm preferred).
+- [ ] Ensure minimal allocations:
+  - [ ] Confirm conversion + packing uses pooling effectively.
+
+---
+
+## Phase 16 — Integration Documentation
 - [ ] Document:
-  - [ ] What PMJ sequences are used for (temporal jitter).
-  - [ ] How to interpret outputs (centered vs non-centered).
-  - [ ] Recommended cycle lengths and packing formats.
-  - [ ] Scrambling options (tradeoffs: decorrelation vs reproducibility).
+  - [ ] PBR atlas bake: why blue-noise, chosen tile size/sigma, mapping strategy, and how to toggle.
+  - [ ] LumOn: how PMJ jitter is applied, how cycle length affects stability, and how to debug.
