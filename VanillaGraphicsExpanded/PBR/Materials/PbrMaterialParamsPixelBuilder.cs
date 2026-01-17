@@ -40,7 +40,7 @@ internal static class PbrMaterialParamsPixelBuilder
 
     private const int MaterialBakeBlueNoiseSize = 64;
     private const uint MaterialBakeBlueNoiseSeed = 0xC0FFEEu;
-    private const int MaterialBakeBlueNoiseMaxIterations = 2048;
+    private const int MaterialBakeBlueNoiseMaxIterations = 4096;
 
     private static readonly BlueNoiseCache MaterialBakeBlueNoiseCache = new();
     private static readonly BlueNoiseConfig MaterialBakeBlueNoiseConfig = new(
@@ -51,8 +51,8 @@ internal static class PbrMaterialParamsPixelBuilder
         Seed: MaterialBakeBlueNoiseSeed,
         Algorithm: BlueNoiseAlgorithm.VoidAndCluster,
         OutputKind: BlueNoiseOutputKind.RankU16,
-        Sigma: 1.5f,
-        InitialFillRatio: 0.10f,
+        Sigma: 1.0f,
+        InitialFillRatio: 0.12f,
         MaxIterations: MaterialBakeBlueNoiseMaxIterations,
         StagnationLimit: 0);
 

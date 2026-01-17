@@ -235,6 +235,6 @@ Key requirements
 ---
 
 ## Phase 16 — Integration Documentation
-- [ ] Document:
-  - [ ] PBR atlas bake: why blue-noise, chosen tile size/sigma, mapping strategy, and how to toggle.
-  - [ ] LumOn: how PMJ jitter is applied, how cycle length affects stability, and how to debug.
+- [x] Document:
+  - [x] PBR atlas bake: why blue-noise, chosen tile size/sigma, mapping strategy, and how to toggle.
+  - [x] LumOn: how PMJ jitter is applied, how cycle length affects stability, and how to debug.

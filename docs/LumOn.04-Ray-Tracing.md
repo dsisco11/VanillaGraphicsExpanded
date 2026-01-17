@@ -52,7 +52,7 @@ directions every frame would be expensive. Instead, we use **temporal distributi
 - Trace only a **subset** of directions per probe each frame
 - Over multiple frames, all 64 directions are updated
 - Non-traced texels **preserve their history value**
-- Per-probe **jitter** prevents coherent flickering
+- Per-probe **jitter** prevents coherent flickering (backed by a PMJ sequence; see [LumOn.PMJ-Jitter.md](LumOn.PMJ-Jitter.md))
 
 ### 2.2 Configuration
 
@@ -63,7 +63,7 @@ directions every frame would be expensive. Instead, we use **temporal distributi
 
 ### 2.3 Batch Selection Algorithm
 
-```
+```text
 texelIndex = octTexel.y * 8 + octTexel.x  // 0-63
 batch = texelIndex / texelsPerFrame       // Which batch (0-7)
 jitteredFrame = (frameIndex + probeIndex) % numBatches
@@ -74,7 +74,7 @@ traceThisFrame = (batch == jitteredFrame)
 
 Frame progression for a single probe (8 texels/frame):
 
-```
+```text
 Frame 0: Trace texels 0-7   (batch 0)
 Frame 1: Trace texels 8-15  (batch 1)
 Frame 2: Trace texels 16-23 (batch 2)
@@ -119,7 +119,7 @@ Returns `(i/N, radicalInverse(i))` for uniform coverage.
 
 **Cosine-Weighted Hemisphere Mapping**:
 
-```
+```text
 phi = 2π * xi.x
 cosTheta = sqrt(1 - xi.y)
 sinTheta = sqrt(xi.y)
@@ -137,7 +137,7 @@ rotate Hammersley samples to prevent temporal patterns.
 
 ### 4.1 Algorithm Overview
 
-```
+```text
 1. Start at probe position (view-space) with small offset along ray direction
 2. For each step:
    a. Advance ray position by stepSize
@@ -158,7 +158,7 @@ rotate Hammersley samples to prevent temporal patterns.
 
 ### 4.3 Hit Detection
 
-```
+```text
 rayDepth = -rayPos.z  // Positive depth into screen
 sceneDepth = linearizeDepth(depthSample)
 
@@ -185,7 +185,7 @@ On hit, sample the captured scene texture at `hitUV`. Optionally boost emissive 
 
 For missed rays:
 
-```
+```text
 upness = dir.y * 0.5 + 0.5
 skyColor = mix(horizonColor, zenithColor, upness)
 sunFactor = pow(max(dot(dir, sunDir), 0), 32)
@@ -213,7 +213,7 @@ Attenuate hit contribution: `falloff = 1 / (1 + distance²)`
 
 ### 6.2 Main Loop (Pseudo Code)
 
-```
+```text
 for each probe (fragment):
     load anchor (posVS, normalVS, valid)
     if invalid: output zero

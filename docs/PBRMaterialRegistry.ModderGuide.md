@@ -160,6 +160,57 @@ If multiple mapping rules match the same texture:
 - Keep `materials` IDs lowercase (VGE normalizes ids, but lowercase avoids confusion).
 - Start with a small set of materials (stone/wood/metal/liquid) and refine.
 
+## Material noise (blue-noise)
+
+The `noise` fields in material definitions are applied when VGE builds the **material params atlas** (the packed roughness/metallic/emissive sidecar).
+
+### Why blue-noise?
+
+For per-texel variation, VGE uses a **tileable blue-noise map** (Void-and-Cluster) instead of hash noise.
+
+This is intended to:
+
+- Avoid obvious low-frequency banding and long straight features.
+- Keep results deterministic and stable across loads.
+
+### Defaults (current)
+
+The bake-time noise source is a cached, tileable rank map with these defaults:
+
+- Tile size: 64×64
+- Sigma: 1.5
+- Seed: `0xC0FFEE`
+- Max iterations: 2048
+
+These values are currently defined in code in:
+
+- `VanillaGraphicsExpanded/PBR/Materials/PbrMaterialParamsPixelBuilder.cs`
+
+### Mapping strategy
+
+Noise sampling is done in **local texel coordinates inside each atlas rect** (tile-sized).
+
+- The blue-noise tile is wrapped in X/Y (periodic).
+- A deterministic per-texture/per-channel tile offset is derived from a stable hash of the texture asset location.
+  This reduces repeated phase alignment between different textures and between channels.
+
+The final per-channel value is:
+
+`value = clamp01(base + (noiseSigned * amplitude))`
+
+where `noiseSigned` is in approximately `[-1, 1]`.
+
+### How to toggle / disable
+
+You can disable noise without changing code:
+
+- Per material: set `noise.roughness`, `noise.metallic`, and `noise.emissive` to `0`.
+- Globally: set `defaults.noise.*` to `0` (and avoid adding non-zero `noise` in materials).
+
+If you need full authored control instead of procedural noise:
+
+- Use `values.overrides.materialParams` to provide an explicit per-texel material params texture.
+
 ## Troubleshooting
 
 - If a mapping rule references a material that doesn’t exist, VGE logs a warning and skips that mapping.

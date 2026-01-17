@@ -50,6 +50,8 @@ LumOn is implemented as **SSGI v2** with a feature flag toggle:
 |                 | `RayMaxDistance`        | float    | 10.0    | ✗          | Max ray distance in world units                       |
 |                 | `RayThickness`          | float    | 0.5     | ✗          | Depth comparison thickness (view-space)               |
 | **Temporal**    | `TemporalAlpha`         | float    | 0.95    | ✓          | Blend factor (0.95 = 95% history)                     |
+| **Temporal**    | `AnchorJitterEnabled`   | bool     | false   | ✓          | Deterministic per-frame jitter of probe anchors       |
+| **Temporal**    | `AnchorJitterScale`     | float    | 0.35    | ✓          | Jitter magnitude as a fraction of probe spacing       |
 |                 | `DepthRejectThreshold`  | float    | 0.1     | ✓          | Depth diff threshold for rejection                    |
 |                 | `NormalRejectThreshold` | float    | 0.8     | ✓          | Normal dot threshold for rejection                    |
 | **Quality**     | `HalfResolution`        | bool     | true    | ✗          | Run gather at half-res                                |
@@ -63,7 +65,7 @@ LumOn is implemented as **SSGI v2** with a feature flag toggle:
 
 **Initialization Flow (pseudocode):**
 
-```
+```text
 StartClientSide:
     config = LoadModConfig("vanillagraphicsexpanded-lumon.json")
     if config is null:
@@ -80,7 +82,7 @@ StartClientSide:
 
 ### 2.3 Config File Location
 
-```
+```text
 %AppData%/VintagestoryData/ModConfig/vanillagraphicsexpanded-lumon.json
 ```
 
@@ -90,6 +92,8 @@ Example JSON:
 {
   "Enabled": true,
   "ProbeSpacingPx": 8,
+  "AnchorJitterEnabled": false,
+  "AnchorJitterScale": 0.35,
   "RaysPerProbePerFrame": 8,
   "RaySteps": 12,
   "RayMaxDistance": 10.0,
@@ -106,11 +110,15 @@ Example JSON:
 }
 ```
 
+For details on the PMJ sequence backing anchor jitter, see:
+
+- [LumOn.PMJ-Jitter.md](LumOn.PMJ-Jitter.md)
+
 ---
 
 ## 3. Component Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        VanillaGraphicsExpandedModSystem                      │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐  │
@@ -176,7 +184,7 @@ Manages GPU textures for probe grid and radiance cache. Implements `IDisposable`
 
 **Buffer Creation (pseudocode):**
 
-```
+```text
 CreateBuffers:
     probeW = ceil(screenW / probeSpacing)
     probeH = ceil(screenH / probeSpacing)
@@ -224,7 +232,7 @@ Implements `IRenderer` with `RenderOrder = 0.5`, orchestrating all shader passes
 
 **Render Loop (pseudocode):**
 
-```
+```text
 OnRenderFrame(AfterPostProcessing):
     if not Enabled: return
 
@@ -268,7 +276,7 @@ Add to shader uniform system:
 
 ### 6.3 Render Stage Placement
 
-```
+```text
 EnumRenderStage.Opaque          → Terrain, entities (G-Buffer filled)
 EnumRenderStage.OIT             → Transparent geometry
 EnumRenderStage.AfterOIT        → Held item
@@ -282,7 +290,7 @@ EnumRenderStage.AfterBlit       → Final composite to screen
 
 ## 7. File Structure
 
-```
+```text
 VanillaGraphicsExpanded/
 ├── LumOn/
 │   ├── LumOnConfig.cs              ← Configuration class
