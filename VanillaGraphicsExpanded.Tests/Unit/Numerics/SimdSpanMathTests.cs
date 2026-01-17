@@ -23,7 +23,7 @@ public sealed class SimdSpanMathTests
         for (int i = 0; i < src.Length; i++)
         {
             float expected = src[i] / 255f;
-            Assert.Equal(expected, dst[i], precision: 6);
+            Assert.InRange(MathF.Abs(expected - dst[i]), 0f, 1e-6f);
         }
     }
 

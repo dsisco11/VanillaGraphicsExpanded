@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 
@@ -610,11 +611,31 @@ internal sealed class PbrMaterialRegistry
         float v = value.Value;
         if (float.IsNaN(v) || float.IsInfinity(v) || v < 0f)
         {
-            invalid.Add($"{name}={v}");
+            invalid.Add($"{name}={FormatInvalidScaleValue(v)}");
             return 1f;
         }
 
         return v;
+    }
+
+    private static string FormatInvalidScaleValue(float value)
+    {
+        if (float.IsNaN(value))
+        {
+            return "NaN";
+        }
+
+        if (float.IsPositiveInfinity(value))
+        {
+            return "Infinity";
+        }
+
+        if (float.IsNegativeInfinity(value))
+        {
+            return "-Infinity";
+        }
+
+        return value.ToString(CultureInfo.InvariantCulture);
     }
 }
 
