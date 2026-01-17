@@ -1,5 +1,5 @@
 Issues:
-  ☐ Mod settings not live reloading properly.
+  ☐ Mod settings not live reloading properly (e.g. changes to Lumon shader settings dont always take effect).
   ☐ Implement blue noise for use in lumon probe jitter, dithering, and PBR material noise.
   ☐ pbr-direct-lighting doesnt include flood-filled block-light.
   ☐ pbr-direct-lighting doesnt include flood-filled sun-light.
@@ -8,8 +8,10 @@ Issues:
   
 New Features:
   PBR Material Definitions:
-    ☐ Add depth-map-scale control per-texture.
-    ☐ Allow texture matching rules to specify explicit material/normal/height texture overrides to be used in place of the generated ones.
+    ☐ Add optional scaling multiplier properties (e.g. normals, depth, roughness, metalness, emissiveness, etc) per asset-mapping rule.
+    ☐ Asset mapping rules should support specifying compound textures (overlay textures, etc) which use the canonical "++0~" combiner syntax. (eg. "game:block/clay/brick/four/soldier/cream1++0~game:block/clay/brick/four/soldier/black1")
+    ☐ Material atlas population should be an async progressive system.
+    ☐ Need a notification-panel-like gui for showing background task progress and errors (eg. material atlas population progress/errors).
 
 LumOn → Lumen Alignment Work (Screen-Space Pipeline):
 
