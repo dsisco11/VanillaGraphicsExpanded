@@ -164,6 +164,21 @@ public class LumOnConfig
     [JsonProperty]
     public float AnchorJitterScale { get; set; } = 0.35f;
 
+    /// <summary>
+    /// PMJ jitter cycle length (number of frames before the sequence repeats).
+    /// Higher values reduce visible repetition at the cost of a slightly larger GPU texture.
+    /// Requires restart to change.
+    /// </summary>
+    [JsonProperty]
+    public int PmjJitterCycleLength { get; set; } = 1024;
+
+    /// <summary>
+    /// Seed for the PMJ jitter sequence.
+    /// Requires restart to change.
+    /// </summary>
+    [JsonProperty]
+    public uint PmjJitterSeed { get; set; } = 0xA5B35705u;
+
     // ═══════════════════════════════════════════════════════════════
     // Ray Tracing Settings (SPG-004)
     // ═══════════════════════════════════════════════════════════════

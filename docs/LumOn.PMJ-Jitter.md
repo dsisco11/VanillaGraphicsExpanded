@@ -66,7 +66,7 @@ Memory cost is negligible for typical values:
 
 Current defaults are defined in:
 
-- `VanillaGraphicsExpanded/LumOn/LumOnRenderer.cs` (`PmjJitterCycleLength`, `PmjJitterSeed`)
+- `VanillaGraphicsExpanded/LumOn/LumOnConfig.cs` (`PmjJitterCycleLength`, `PmjJitterSeed`)
 
 ## How to toggle / tune
 

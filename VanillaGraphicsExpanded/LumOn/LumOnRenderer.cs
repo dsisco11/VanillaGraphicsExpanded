@@ -33,9 +33,6 @@ public class LumOnRenderer : IRenderer, IDisposable
     private const double RENDER_ORDER = 10;
     private const int RENDER_RANGE = 1;
 
-    private const int PmjJitterCycleLength = 256;
-    private const uint PmjJitterSeed = 0xA5B35705u;
-
     #endregion
 
     #region Fields
@@ -113,7 +110,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         this.bufferManager = bufferManager;
         this.gBufferManager = gBufferManager;
 
-        pmjJitter = new LumOnPmjJitterTexture(PmjJitterCycleLength, PmjJitterSeed);
+        pmjJitter = new LumOnPmjJitterTexture(config.PmjJitterCycleLength, config.PmjJitterSeed);
 
         // Create fullscreen quad mesh
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
