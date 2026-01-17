@@ -126,13 +126,13 @@ Key requirements
 ---
 
 ## Phase 8 — PMJ Public API + Configuration
-- [ ] Add `readonly record struct PmjConfig` (Noise namespace).
-  - [ ] Fields: `SampleCount` (power-of-two or any?), `Seed`, `Variant` (enum: PMJ02, etc.).
-  - [ ] Output selection: `PmjOutputKind` (enum).
-  - [ ] Optional: `Scramble`/`OwenScramble` toggle + per-pixel salt.
-  - [ ] Optional: `Centered` (map [0,1) → [-0.5,0.5)).
-- [ ] Add validation helper.
-- [ ] Define `PmjSequence` artifact type (canonical cache result).
+- [x] Add `readonly record struct PmjConfig` (Noise namespace).
+  - [x] Fields: `SampleCount`, `Seed`, `Variant` (enum: PMJ02).
+  - [x] Output selection: `PmjOutputKind` (enum).
+  - [x] Optional: `OwenScramble` toggle + `Salt`.
+  - [x] Optional: `Centered` (map [0,1) → [-0.5,0.5)).
+- [x] Add validation helper.
+- [x] Define `PmjSequence` artifact type (canonical cache result).
 
 ---
 
