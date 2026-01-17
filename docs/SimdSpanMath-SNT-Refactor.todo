@@ -1,0 +1,122 @@
+SNT Span Math Refactor (Root-Level Utility)
+
+Goal
+- Replace repeated scalar/SIMD numeric loops with a single, reusable span-math utility backed by
+  System.Numerics.Tensors (TensorPrimitives) on .NET 8.
+- Keep the utility domain-agnostic (no PBR/texture types).
+- Keep call sites thin: they should express intent (fill/scale/clamp/convert) without re-implementing loops.
+
+Non-Goals
+- Do not attempt to replace stride/layout transforms that inherently require custom packing (e.g., RGB3 interleaving).
+- Do not introduce heavy native/GPU dependencies.
+
+Success Criteria
+- Pixel/material pipelines compile and behave identically.
+- Hot-path numeric loops (byte→float01, clamp, scale/add) are DRY and use TensorPrimitives.
+- No new per-frame allocations are introduced.
+
+
+Phase 0 — Design + Conventions
+Exit artifacts: API and placement are locked in; changes are low-risk and incremental.
+[ ] Confirm root path + namespace:
+    [ ] Create folder: VanillaGraphicsExpanded/Numerics/
+    [ ] Namespace: VanillaGraphicsExpanded.Numerics
+    [ ] Type: internal static class SimdSpanMath
+[ ] Decide error policy for length mismatches:
+    [ ] Throw ArgumentException (strict) OR
+    [ ] Debug.Assert + process prefix (lenient)
+    - Recommended: strict for public-ish helpers; Debug.Assert + strict for internal.
+[ ] Decide conversion surface:
+    [ ] Provide only Span-destination methods (no allocations)
+    [ ] Optional: keep local allocating wrappers only where caching justifies it
+
+
+Phase 1 — Add SNT Dependency
+Exit artifacts: Solution builds with System.Numerics.Tensors available.
+[ ] Add NuGet reference to main mod project:
+    [ ] VanillaGraphicsExpanded/VanillaGraphicsExpanded/VanillaGraphicsExpanded.csproj
+        [ ] <PackageReference Include="System.Numerics.Tensors" Version="8.0.0" />
+[ ] Decide whether tests need the same reference:
+    [ ] If tests only call SimdSpanMath (BCL signatures), skip.
+    [ ] If tests call TensorPrimitives directly, add reference to:
+        [ ] VanillaGraphicsExpanded/VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj
+
+
+Phase 2 — Implement Root Utility: Core Contiguous Ops
+Exit artifacts: A small, stable kernel set exists for Span<float>/Span<byte>.
+[ ] Add file:
+    [ ] VanillaGraphicsExpanded/VanillaGraphicsExpanded/Numerics/SimdSpanMath.cs
+[ ] Implement (SNT-backed) float ops:
+    [ ] Fill(Span<float> dst, float value)
+    [ ] Clamp(Span<float> dst, float min, float max)
+    [ ] Clamp01(Span<float> dst)
+    [ ] ScaleInPlace(Span<float> dst, float scale)
+    [ ] Scale(ReadOnlySpan<float> src, float scale, Span<float> dst)
+    [ ] AddInPlace(Span<float> dst, float add)
+    [ ] Add(ReadOnlySpan<float> src, float add, Span<float> dst)
+    [ ] MultiplyAddClamp01(ReadOnlySpan<float> x, float mul, float add, Span<float> dst)
+        - Intended for patterns like: dst = clamp01(base + noise*amp)
+[ ] Implement byte→float conversions:
+    [ ] BytesToSingles(ReadOnlySpan<byte> src, Span<float> dst)
+    [ ] BytesToSingles01(ReadOnlySpan<byte> src, Span<float> dst)
+        - Uses ConvertToSingle + Multiply by (1/255)
+
+
+Phase 3 — Implement Minimal Layout Helpers (Still Domain-Agnostic)
+Exit artifacts: Common interleaved layouts have canonical helpers.
+[ ] Add "layout" helpers named by structure, not meaning:
+    [ ] FillInterleaved3(Span<float> dst, float a0, float a1, float a2)
+        - Used for RGB-triplet fills, but not named "RGB".
+    [ ] CopyInterleaved4ToInterleaved3(ReadOnlySpan<float> src4, Span<float> dst3)
+        - Used for RGBA→RGB drops (alpha ignored).
+[ ] Keep these helpers small and dependency-free (no VintageStory types).
+
+
+Phase 4 — Refactor: Override Loader Uses SimdSpanMath
+Exit artifacts: byte→float01 conversion is centralized and SIMD.
+[ ] Update VanillaGraphicsExpanded/VanillaGraphicsExpanded/PBR/Materials/PbrOverrideTextureLoader.cs:
+    [ ] Replace ConvertBytesToFloats01() loop with SimdSpanMath.BytesToSingles01()
+    [ ] Ensure caching behavior is unchanged (still compute once per asset id)
+
+
+Phase 5 — Refactor: Material Params Pixel Builder Uses Root Utility
+Exit artifacts: repeated fill/clamp math is centralized (without harming current perf).
+[ ] Update VanillaGraphicsExpanded/VanillaGraphicsExpanded/PBR/Materials/PbrMaterialParamsPixelBuilder.cs:
+    [ ] Replace FillRgbTriplets calls with SimdSpanMath.FillInterleaved3
+        - Option A: move existing SIMD implementation into SimdSpanMath
+        - Option B: keep FillRgbTriplets as wrapper calling SimdSpanMath
+    [ ] Replace scalar Clamp01 usages where appropriate with SimdSpanMath.Clamp01 when operating on spans
+
+
+Phase 6 — Refactor: Override Applier Prefers Float Inputs
+Exit artifacts: override application no longer re-implements normalization/scaling.
+[ ] Update VanillaGraphicsExpanded/VanillaGraphicsExpanded/PBR/Materials/PbrMaterialParamsOverrideApplier.cs:
+    [ ] Add overload that accepts float RGBA01 inputs
+    [ ] Route call sites to use TryLoadRgbaFloats01 where possible
+    [ ] Use SimdSpanMath layout helper(s) for any contiguous math
+    [ ] Keep the required stride/rect packing loop local (atlas addressing)
+
+
+Phase 7 (Optional) — Noise Math Refactor (Planar + SNT)
+Exit artifacts: noise math uses TensorPrimitives for mul/add/clamp; custom hashing remains.
+[ ] Decide whether to refactor noise application:
+    [ ] If yes: generate per-row noise arrays (R/G/B) contiguously
+    [ ] Apply MultiplyAddClamp01 via SimdSpanMath, then interleave back into destination
+    [ ] Validate no excessive allocations (use pooled buffers or stackalloc for small rows)
+
+
+Phase 8 — Verification + Performance Safety Nets
+Exit artifacts: confidence that refactor is correct and not slower.
+[ ] Add/extend tests (if appropriate in existing test patterns):
+    [ ] BytesToSingles01 matches old results byte-for-byte (within float epsilon)
+    [ ] FillInterleaved3 produces correct repeating pattern
+    [ ] Clamp01 clamps correctly on edge cases (NaN policy: document if needed)
+[ ] Add a small benchmark harness (optional):
+    [ ] Compare old loops vs SimdSpanMath for representative buffer sizes
+    [ ] Ensure no per-frame allocation regressions in hot paths
+
+
+Notes / Risks
+- TensorPrimitives excels at contiguous span math; interleaved layouts still need adapter loops.
+- Avoid delegates/virtual dispatch in hot loops; keep helpers static and Span-based.
+- Be mindful of NaN handling; TensorPrimitives clamp behavior should be validated for your expectations.
