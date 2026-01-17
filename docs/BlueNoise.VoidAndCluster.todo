@@ -40,14 +40,14 @@ Key requirements
 ---
 
 ## Phase 2 — Cache Design (CPU)
-- [ ] Add `BlueNoiseKey` as a `readonly record struct` suitable as a dictionary key.
-  - [ ] Include: size, tileable, seed, algorithm id, sigma, output kind (or cache ranked only and convert on-demand).
-- [ ] Implement `BlueNoiseCache` (thread-safe) with “create once” semantics.
-  - [ ] Prefer `ConcurrentDictionary<BlueNoiseKey, Lazy<T>>` or a small `lock`-protected dictionary.
-  - [ ] Ensure generation work is not done under a long-held lock.
-- [ ] Decide eviction strategy:
-  - [ ] Default: no eviction (expect a small fixed set of configs).
-  - [ ] Optional: bounded LRU for unusual/experimental configs.
+- [x] Add `BlueNoiseKey` as a `readonly record struct` suitable as a dictionary key.
+  - [x] Include: size, tileable, seed, algorithm id, sigma (cache ranked only; output kind conversion will be on-demand).
+- [x] Implement `BlueNoiseCache` (thread-safe) with “create once” semantics.
+  - [x] Prefer `ConcurrentDictionary<BlueNoiseKey, Lazy<T>>` or a small `lock`-protected dictionary.
+  - [x] Ensure generation work is not done under a long-held lock.
+- [x] Decide eviction strategy:
+  - [x] Default: no eviction (expect a small fixed set of configs).
+  - [x] Optional: bounded LRU for unusual/experimental configs.
 
 ---
 
