@@ -164,14 +164,14 @@ Key requirements
 ---
 
 ## Phase 11 — PMJ Cache + Correctness Tests
-- [ ] Add `PmjKey` (`readonly record struct`) for caching.
-- [ ] Implement `PmjCache` with create-once semantics.
-- [ ] Add unit tests:
-  - [ ] Deterministic per config.
-  - [ ] Different seed differs.
-  - [ ] Range checks: all points finite and inside expected bounds.
-  - [ ] Basic stratification sanity for early prefixes (e.g., 4/16/64 bins hit counts within tolerance).
-  - [ ] Cache reuse behavior.
+- [x] Add `PmjKey` (`readonly record struct`) for caching.
+- [x] Implement `PmjCache` with create-once semantics.
+- [x] Add unit tests:
+  - [x] Deterministic per config.
+  - [x] Different seed differs.
+  - [x] Range checks: all points finite and inside expected bounds.
+  - [x] Basic stratification sanity for early prefixes (e.g., 4/16/64 bins hit counts within tolerance).
+  - [x] Cache reuse behavior.
 
 ---
 
