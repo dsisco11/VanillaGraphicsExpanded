@@ -42,8 +42,7 @@ Exit artifacts: A documented, stable strategy for mapping UV-aligned normal to w
   ✔ Keep normal unpacking/processing/transform logic inside the shared include used by patched chunk shaders (extend `vge_normaldepth.glsl` with a helper function).
   ✔ Keep `VanillaShaderPatches.cs` injection minimal: call the helper and write its result into `vge_outNormal`.
   ✔ Decide on the initial approach:
-    - Preferred (stable): build an approximate tangent frame from the geometric world normal + a fixed reference axis (similar to frame building patterns in `lumon_common.glsl`).
-    - Deferred option (more correct, riskier): derivative-based frame from `dFdx/dFdy` of world position + UV.
+    - Chosen: derivative-based frame from `dFdx/dFdy` of world position + UV.
   ✔ Define how we handle UV rotation / face orientation:
     - Acknowledge: the bake stage does not rotate normals per face; any correction must happen at runtime.
     - For initial pass, accept approximation and add TODO hooks for rotation correction.

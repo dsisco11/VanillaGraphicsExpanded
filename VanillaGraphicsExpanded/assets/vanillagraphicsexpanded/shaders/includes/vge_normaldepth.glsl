@@ -43,16 +43,58 @@ vec4 ReadNormalDepth(vec2 uv)
     return v;
 }
 
-mat3 VgeBuildApproxTbnFromNormal(vec3 normalWs)
+bool VgeTryBuildTbnFromDerivatives(vec3 worldPosWs, vec2 uv, vec3 normalWs, out mat3 outTbn)
 {
     vec3 n = normalize(normalWs);
-    vec3 up = abs(n.y) < 0.999
-        ? vec3(0.0, 1.0, 0.0)
-        : vec3(1.0, 0.0, 0.0);
 
-    vec3 t = normalize(cross(up, n));
-    vec3 b = cross(n, t);
-    return mat3(t, b, n);
+    vec3 dpdx = dFdx(worldPosWs);
+    vec3 dpdy = dFdy(worldPosWs);
+    vec2 duvdx = dFdx(uv);
+    vec2 duvdy = dFdy(uv);
+
+    float det = duvdx.x * duvdy.y - duvdx.y * duvdy.x;
+    if (abs(det) < 1e-10)
+    {
+        vec3 up = abs(n.y) < 0.999
+            ? vec3(0.0, 1.0, 0.0)
+            : vec3(1.0, 0.0, 0.0);
+
+        vec3 tFallback = normalize(cross(up, n));
+        vec3 bFallback = cross(n, tFallback);
+        outTbn = mat3(tFallback, bFallback, n);
+        return false;
+    }
+
+    float invDet = 1.0 / det;
+
+    vec3 t = (dpdx * duvdy.y - dpdy * duvdx.y) * invDet;
+    vec3 b = (dpdy * duvdx.x - dpdx * duvdy.x) * invDet;
+
+    // Orthonormalize against the geometric normal for stability.
+    t = t - n * dot(n, t);
+    float tLen2 = dot(t, t);
+    if (tLen2 < 1e-12)
+    {
+        vec3 up = abs(n.y) < 0.999
+            ? vec3(0.0, 1.0, 0.0)
+            : vec3(1.0, 0.0, 0.0);
+
+        vec3 tFallback = normalize(cross(up, n));
+        vec3 bFallback = cross(n, tFallback);
+        outTbn = mat3(tFallback, bFallback, n);
+        return false;
+    }
+    t *= inversesqrt(tLen2);
+
+    vec3 bCandidate = normalize(b);
+    vec3 bOrtho = normalize(cross(n, t));
+    if (dot(bOrtho, bCandidate) < 0.0)
+    {
+        bOrtho = -bOrtho;
+    }
+
+    outTbn = mat3(t, bOrtho, n);
+    return true;
 }
 
 bool VgeIsNeutralNormalSigned(vec3 normalSigned)
@@ -63,9 +105,8 @@ bool VgeIsNeutralNormalSigned(vec3 normalSigned)
 
 // Returns a packed world-space normal (xyz in 0..1) + height01 (w).
 // NOTE: The baked normal atlas encodes a UV-aligned normal (texture/heightmap-space).
-// Vanilla chunk shaders do not provide tangents/bitangents, so we approximate a stable TBN
-// from the geometric world normal.
-vec4 VgeComputePackedWorldNormal01Height01(vec2 uv, vec3 geometricNormalWs)
+// We derive a tangent frame from screen-space derivatives of world position and UV.
+vec4 VgeComputePackedWorldNormal01Height01(vec2 uv, vec3 geometricNormalWs, vec3 worldPosWs)
 {
     vec3 nGeom = normalize(geometricNormalWs);
 
@@ -77,7 +118,8 @@ vec4 VgeComputePackedWorldNormal01Height01(vec2 uv, vec3 geometricNormalWs)
         return vec4(nGeom * 0.5 + 0.5, height01);
     }
 
-    mat3 tbn = VgeBuildApproxTbnFromNormal(nGeom);
+    mat3 tbn;
+    VgeTryBuildTbnFromDerivatives(worldPosWs, uv, nGeom, tbn);
     vec3 nWs = normalize(tbn * nAtlasSigned);
 
     // Keep the result in the same hemisphere as the geometric normal (stability).
