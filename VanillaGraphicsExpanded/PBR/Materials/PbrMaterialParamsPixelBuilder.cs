@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Threading;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
@@ -36,6 +37,26 @@ internal static class PbrMaterialParamsPixelBuilder
     private const int NoisePlanarStackallocThreshold = 256;
 
     private static readonly bool UsePlanarNoiseSnt = true;
+
+    private const int MaterialBakeBlueNoiseSize = 64;
+    private const uint MaterialBakeBlueNoiseSeed = 0xC0FFEEu;
+    private const int MaterialBakeBlueNoiseMaxIterations = 2048;
+
+    private static readonly BlueNoiseCache MaterialBakeBlueNoiseCache = new();
+    private static readonly BlueNoiseConfig MaterialBakeBlueNoiseConfig = new(
+        Width: MaterialBakeBlueNoiseSize,
+        Height: MaterialBakeBlueNoiseSize,
+        Slices: 1,
+        Tileable: true,
+        Seed: MaterialBakeBlueNoiseSeed,
+        Algorithm: BlueNoiseAlgorithm.VoidAndCluster,
+        OutputKind: BlueNoiseOutputKind.RankU16,
+        Sigma: 1.5f,
+        InitialFillRatio: 0.10f,
+        MaxIterations: MaterialBakeBlueNoiseMaxIterations,
+        StagnationLimit: 0);
+
+    private static float[]? materialBakeBlueNoiseSignedTile;
 
     public static Result BuildRgb16fPixelBuffers(
         IReadOnlyList<(int atlasTextureId, int width, int height)> atlasPages,
@@ -236,13 +257,11 @@ internal static class PbrMaterialParamsPixelBuilder
         Span<float> noiseG,
         Span<float> noiseB)
     {
-        for (int x = 0; x < pixelCount; x++)
-        {
-            uint ux = (uint)x;
-            noiseR[x] = NoiseSigned(seedR, ux, localY);
-            noiseG[x] = NoiseSigned(seedG, ux, localY);
-            noiseB[x] = NoiseSigned(seedB, ux, localY);
-        }
+        // Fill planar noise buffers via wrapped block copies from a cached tileable blue-noise map.
+        // This avoids per-pixel hashing and keeps the hot path in bulk operations.
+        FillBlueNoiseRowSigned(noiseR, seedR, localY);
+        FillBlueNoiseRowSigned(noiseG, seedG, localY);
+        FillBlueNoiseRowSigned(noiseB, seedB, localY);
 
         // base + (noise * amp), clamped to [0,1]
         SimdSpanMath.ScaleInPlace(noiseR, ampR);
@@ -309,58 +328,9 @@ internal static class PbrMaterialParamsPixelBuilder
         float ampG,
         float ampB)
     {
-        if (!(Sse2.IsSupported && Sse41.IsSupported))
-        {
-            ApplyNoiseRowScalar(rowRgb, pixelCount, seed, localY, baseR, baseG, baseB, ampR, ampG, ampB);
-            return;
-        }
-
-        uint seedR = seed ^ RoughnessSalt;
-        uint seedG = seed ^ MetallicSalt;
-        uint seedB = seed ^ EmissiveSalt;
-
-        Vector128<uint> v1R = Vector128.Create(seedR);
-        Vector128<uint> v1G = Vector128.Create(seedG);
-        Vector128<uint> v1B = Vector128.Create(seedB);
-        Vector128<uint> v3 = Vector128.Create(localY);
-
-        Vector128<uint> offsets0 = Vector128.Create(0u, 1u, 2u, 3u);
-
-        int x = 0;
-        for (; x <= pixelCount - 4; x += 4)
-        {
-            Vector128<uint> v2 = Sse2.Add(offsets0, Vector128.Create((uint)x));
-
-            Vector128<uint> uR = Squirrel3Noise.HashU_Vector128_U32(v1R, v2, v3);
-            Vector128<uint> uG = Squirrel3Noise.HashU_Vector128_U32(v1G, v2, v3);
-            Vector128<uint> uB = Squirrel3Noise.HashU_Vector128_U32(v1B, v2, v3);
-
-            for (int lane = 0; lane < 4; lane++)
-            {
-                float nR = NoiseSignedFromU32(uR.GetElement(lane));
-                float nG = NoiseSignedFromU32(uG.GetElement(lane));
-                float nB = NoiseSignedFromU32(uB.GetElement(lane));
-
-                int i = (x + lane) * 3;
-                rowRgb[i + 0] = Clamp01(baseR + (nR * ampR));
-                rowRgb[i + 1] = Clamp01(baseG + (nG * ampG));
-                rowRgb[i + 2] = Clamp01(baseB + (nB * ampB));
-            }
-        }
-
-        for (; x < pixelCount; x++)
-        {
-            uint ux = (uint)x;
-
-            float nR = NoiseSigned(seedR, ux, localY);
-            float nG = NoiseSigned(seedG, ux, localY);
-            float nB = NoiseSigned(seedB, ux, localY);
-
-            int i = x * 3;
-            rowRgb[i + 0] = Clamp01(baseR + (nR * ampR));
-            rowRgb[i + 1] = Clamp01(baseG + (nG * ampG));
-            rowRgb[i + 2] = Clamp01(baseB + (nB * ampB));
-        }
+        // Blue-noise path uses TensorPrimitives (SIMD) for the hot math.
+        // Keep this method SIMD-accelerated by routing through the planar SNT implementation.
+        ApplyNoiseRowPlanarSnt(rowRgb, pixelCount, seed, localY, baseR, baseG, baseB, ampR, ampG, ampB);
     }
 
     internal static void ApplyNoiseRowVector256(
@@ -375,65 +345,118 @@ internal static class PbrMaterialParamsPixelBuilder
         float ampG,
         float ampB)
     {
-        if (!Avx2.IsSupported)
-        {
-            ApplyNoiseRowScalar(rowRgb, pixelCount, seed, localY, baseR, baseG, baseB, ampR, ampG, ampB);
-            return;
-        }
-
-        uint seedR = seed ^ RoughnessSalt;
-        uint seedG = seed ^ MetallicSalt;
-        uint seedB = seed ^ EmissiveSalt;
-
-        Vector256<uint> v1R = Vector256.Create(seedR);
-        Vector256<uint> v1G = Vector256.Create(seedG);
-        Vector256<uint> v1B = Vector256.Create(seedB);
-        Vector256<uint> v3 = Vector256.Create(localY);
-
-        Vector256<uint> offsets0 = Vector256.Create(0u, 1u, 2u, 3u, 4u, 5u, 6u, 7u);
-
-        int x = 0;
-        for (; x <= pixelCount - 8; x += 8)
-        {
-            Vector256<uint> v2 = Avx2.Add(offsets0, Vector256.Create((uint)x));
-
-            Vector256<uint> uR = Squirrel3Noise.HashU_Vector256_U32(v1R, v2, v3);
-            Vector256<uint> uG = Squirrel3Noise.HashU_Vector256_U32(v1G, v2, v3);
-            Vector256<uint> uB = Squirrel3Noise.HashU_Vector256_U32(v1B, v2, v3);
-
-            for (int lane = 0; lane < 8; lane++)
-            {
-                float nR = NoiseSignedFromU32(uR.GetElement(lane));
-                float nG = NoiseSignedFromU32(uG.GetElement(lane));
-                float nB = NoiseSignedFromU32(uB.GetElement(lane));
-
-                int i = (x + lane) * 3;
-                rowRgb[i + 0] = Clamp01(baseR + (nR * ampR));
-                rowRgb[i + 1] = Clamp01(baseG + (nG * ampG));
-                rowRgb[i + 2] = Clamp01(baseB + (nB * ampB));
-            }
-        }
-
-        for (; x < pixelCount; x++)
-        {
-            uint ux = (uint)x;
-
-            float nR = NoiseSigned(seedR, ux, localY);
-            float nG = NoiseSigned(seedG, ux, localY);
-            float nB = NoiseSigned(seedB, ux, localY);
-
-            int i = x * 3;
-            rowRgb[i + 0] = Clamp01(baseR + (nR * ampR));
-            rowRgb[i + 1] = Clamp01(baseG + (nG * ampG));
-            rowRgb[i + 2] = Clamp01(baseB + (nB * ampB));
-        }
+        // Blue-noise path uses TensorPrimitives (SIMD) for the hot math.
+        // Keep this method SIMD-accelerated by routing through the planar SNT implementation.
+        ApplyNoiseRowPlanarSnt(rowRgb, pixelCount, seed, localY, baseR, baseG, baseB, ampR, ampG, ampB);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static float NoiseSigned(uint saltedSeed, uint localX, uint localY)
     {
-        uint u = Squirrel3Noise.HashU(saltedSeed, localX, localY);
-        return NoiseSignedFromU32(u);
+        return BlueNoiseSigned(saltedSeed, localX, localY);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static float[] GetMaterialBakeBlueNoiseSignedTile()
+    {
+        float[]? tile = Volatile.Read(ref materialBakeBlueNoiseSignedTile);
+        if (tile is not null)
+        {
+            return tile;
+        }
+
+        return LazyInitializer.EnsureInitialized(ref materialBakeBlueNoiseSignedTile, static () =>
+        {
+            BlueNoiseRankMap map = MaterialBakeBlueNoiseCache.GetOrCreateRankMap(
+                MaterialBakeBlueNoiseConfig,
+                static c => VoidAndClusterGenerator.GenerateRankMap(c));
+
+            int n = map.Length;
+            float inv = n > 1 ? 1f / (n - 1) : 0f;
+
+            float[] signed = new float[n];
+            ReadOnlySpan<ushort> ranks = map.RanksSpan;
+            for (int i = 0; i < n; i++)
+            {
+                float t = ranks[i] * inv;
+                signed[i] = (t * 2f) - 1f;
+            }
+
+            return signed;
+        });
+    }
+
+    private static void FillBlueNoiseRowSigned(Span<float> destination, uint saltedSeed, uint localY)
+    {
+        if (destination.IsEmpty)
+        {
+            return;
+        }
+
+        // Cache tile is fixed-size and tileable.
+        float[] signedTile = GetMaterialBakeBlueNoiseSignedTile();
+        int w = MaterialBakeBlueNoiseConfig.Width;
+        int h = MaterialBakeBlueNoiseConfig.Height;
+
+        // Derive a deterministic per-saltedSeed tile offset to avoid repeating the same phase across materials/channels.
+        uint m0 = Mix32(saltedSeed);
+        uint ox = (uint)(m0 % (uint)w);
+        uint oy = (uint)(Mix32(m0 ^ 0x9E3779B9u) % (uint)h);
+
+        int y = (int)((localY + oy) % (uint)h);
+        int rowBase = y * w;
+        int x = (int)ox;
+
+        int remaining = destination.Length;
+        int dst = 0;
+        while (remaining > 0)
+        {
+            int run = Math.Min(remaining, w - x);
+            signedTile.AsSpan(rowBase + x, run).CopyTo(destination.Slice(dst, run));
+
+            dst += run;
+            remaining -= run;
+            x = 0;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static float BlueNoiseSigned(uint saltedSeed, uint localX, uint localY)
+    {
+        BlueNoiseRankMap map = MaterialBakeBlueNoiseCache.GetOrCreateRankMap(
+            MaterialBakeBlueNoiseConfig,
+            static c => VoidAndClusterGenerator.GenerateRankMap(c));
+
+        int w = map.Width;
+        int h = map.Height;
+        ReadOnlySpan<ushort> ranks = map.RanksSpan;
+
+        // Derive a deterministic per-saltedSeed tile offset to avoid repeating the same phase across materials/channels.
+        uint m0 = Mix32(saltedSeed);
+        uint ox = (uint)(m0 % (uint)w);
+        uint oy = (uint)(Mix32(m0 ^ 0x9E3779B9u) % (uint)h);
+
+        int x = (int)((localX + ox) % (uint)w);
+        int y = (int)((localY + oy) % (uint)h);
+
+        int idx = (y * w) + x;
+        ushort rank = ranks[idx];
+
+        int n = map.Length;
+        float t = n > 1 ? rank * (1f / (n - 1)) : 0f;
+        return (t * 2f) - 1f;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static uint Mix32(uint x)
+    {
+        // Small, fast avalanche mix for deriving tile offsets.
+        x ^= x >> 16;
+        x *= 0x7FEB352Du;
+        x ^= x >> 15;
+        x *= 0x846CA68Bu;
+        x ^= x >> 16;
+        return x;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

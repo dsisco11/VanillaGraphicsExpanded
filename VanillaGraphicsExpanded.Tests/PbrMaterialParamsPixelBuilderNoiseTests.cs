@@ -73,7 +73,7 @@ public sealed class PbrMaterialParamsPixelBuilderNoiseTests
         uint actual = HashFloatBits(row);
 
         // Snapshot: if this changes, noise output changed.
-        const uint expected = 2_087_666_905u;
+        const uint expected = 719_640_530u;
         Assert.Equal(expected, actual);
     }
 
@@ -220,7 +220,7 @@ public sealed class PbrMaterialParamsPixelBuilderNoiseTests
         uint actual = HashFloatBits(pixels);
 
         // Snapshot: if this changes, bake output changed.
-        const uint expected = 3_572_877_435u;
+        const uint expected = 1_414_217_958u;
         Assert.Equal(expected, actual);
     }
 }

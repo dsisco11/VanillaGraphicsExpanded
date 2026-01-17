@@ -176,19 +176,19 @@ Key requirements
 ---
 
 ## Phase 12 — Integrate Blue-Noise Into PBR Material Atlas Baking (Replace Squirrel3)
-- [ ] Identify where material-param “value noise” is mixed during baking:
-  - [ ] Locate the bake path(s) that currently call `Squirrel3Noise` to perturb/mix material parameter values.
-  - [ ] Identify required range/distribution (e.g., [-1,1] vs [0,1]) and how it is applied.
-  - [ ] Identify coordinate inputs used (texel coords, atlas UVs, material id, etc.).
-- [ ] Decide replacement strategy:
-  - [ ] Replace the Squirrel3-hash noise source with a tileable blue-noise sample from a generated rank/normalized map.
-  - [ ] Choose default config (suggest: tileable 128x128 or 256x256, sigma tuned to prior look).
-  - [ ] Define mapping from bake texel position → blue-noise lookup (wrap/tile), plus optional per-material salt/offset.
-- [ ] Implement bake-time sampling:
-  - [ ] Use `BlueNoiseCache` to generate the canonical rank map once per config.
-  - [ ] Convert to an efficient CPU-side representation for sampling (e.g., `byte[]` L8 or `float[]` normalized).
-  - [ ] Replace the Squirrel3 noise callsite(s) in the bake mixer with blue-noise sampling.
-  - [ ] Ensure deterministic results (seed + stable per-material salt if used).
+- [x] Identify where material-param “value noise” is mixed during baking:
+  - [x] Locate the bake path(s) that currently call `Squirrel3Noise` to perturb/mix material parameter values.
+  - [x] Identify required range/distribution (e.g., [-1,1] vs [0,1]) and how it is applied.
+  - [x] Identify coordinate inputs used (texel coords, atlas UVs, material id, etc.).
+- [x] Decide replacement strategy:
+  - [x] Replace the Squirrel3-hash noise source with a tileable blue-noise sample from a generated rank/normalized map.
+  - [x] Choose default config (suggest: tileable 128x128 or 256x256, sigma tuned to prior look).
+  - [x] Define mapping from bake texel position → blue-noise lookup (wrap/tile), plus optional per-material salt/offset.
+- [x] Implement bake-time sampling:
+  - [x] Use `BlueNoiseCache` to generate the canonical rank map once per config.
+  - [x] Convert to an efficient CPU-side representation for sampling (e.g., `byte[]` L8 or `float[]` normalized).
+  - [x] Replace the Squirrel3 noise callsite(s) in the bake mixer with blue-noise sampling.
+  - [x] Ensure deterministic results (seed + stable per-material salt if used).
 
 ---
 
