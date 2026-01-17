@@ -4,7 +4,6 @@ Issues:
   ☐ pbr-direct-lighting doesnt include flood-filled block-light.
   ☐ pbr-direct-lighting doesnt include flood-filled sun-light.
   ☐ pbr-direct-lighting doesnt include shadow map.
-  ☐ Need a CPU profiler class similar to UnrealEngine5s FScopedRDTSCTimer for measuring CPU time spent in various sections of code.
   
 New Features:
   PBR Material Definitions:
