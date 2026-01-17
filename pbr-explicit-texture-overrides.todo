@@ -120,4 +120,5 @@ Phase 9 — Validation / Acceptance:
     - Provide a known `normalHeight.dds` and confirm it appears in the normal/depth atlas.
     - Confirm overridden rects are excluded from procedural bake.
     - Confirm warnings appear and fallback works when override is missing.
-  ☐ Run unit tests + any existing build steps.
+    - Tip: enable `DebugLogNormalDepthAtlas` to see per-page `appliedOverrides`, and watch for the notification "Normal+height overrides applied".
+  ✔ Run unit tests + any existing build steps.

@@ -360,6 +360,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 
         if (ConfigModSystem.Config.EnableNormalDepthAtlas)
         {
+            int totalNormalHeightOverridesApplied = 0;
             foreach ((int atlasTexId, int width, int height) in atlasPages)
             {
                 if (!pageTexturesByAtlasTexId.TryGetValue(atlasTexId, out PbrMaterialAtlasPageTextures? pageTextures)
@@ -506,6 +507,8 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                     appliedOverrides++;
                 }
 
+                totalNormalHeightOverridesApplied += appliedOverrides;
+
                 if (ConfigModSystem.Config.DebugLogNormalDepthAtlas)
                 {
                     capi.Logger.Debug(
@@ -516,6 +519,13 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                         skippedByOverrides,
                         appliedOverrides);
                 }
+            }
+
+            if (totalNormalHeightOverridesApplied > 0)
+            {
+                capi.Logger.Notification(
+                    "[VGE] Normal+height overrides applied: {0}",
+                    totalNormalHeightOverridesApplied);
             }
         }
 

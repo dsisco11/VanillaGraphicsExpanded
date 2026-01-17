@@ -135,12 +135,15 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
             // 7) Normalize (mean from CPU readback)
             float mean = MeanR32f(texH);
+            (float invNeg, float invPos) = ComputeAsymmetricInvScales(texH, mean);
             RenderTo(texHn, progNorm, () =>
             {
                 texH.Bind(0);
                 GL.Uniform1(Uniform(progNorm, "u_h"), 0);
                 GL.Uniform2(Uniform(progNorm, "u_size"), w, h);
                 GL.Uniform1(Uniform(progNorm, "u_mean"), mean);
+                GL.Uniform1(Uniform(progNorm, "u_invNeg"), invNeg);
+                GL.Uniform1(Uniform(progNorm, "u_invPos"), invPos);
                 GL.Uniform1(Uniform(progNorm, "u_heightStrength"), cfg.HeightStrength);
                 GL.Uniform1(Uniform(progNorm, "u_gamma"), cfg.Gamma);
             });
@@ -214,12 +217,15 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
             // Treat luminance as the solved height field, just to stress normalize+pack.
             float mean = MeanR32f(texL);
+            (float invNeg, float invPos) = ComputeAsymmetricInvScales(texL, mean);
             RenderTo(texHn, progNorm, () =>
             {
                 texL.Bind(0);
                 GL.Uniform1(Uniform(progNorm, "u_h"), 0);
                 GL.Uniform2(Uniform(progNorm, "u_size"), w, h);
                 GL.Uniform1(Uniform(progNorm, "u_mean"), mean);
+                GL.Uniform1(Uniform(progNorm, "u_invNeg"), invNeg);
+                GL.Uniform1(Uniform(progNorm, "u_invPos"), invPos);
                 GL.Uniform1(Uniform(progNorm, "u_heightStrength"), cfg.HeightStrength);
                 GL.Uniform1(Uniform(progNorm, "u_gamma"), cfg.Gamma);
             });
@@ -359,6 +365,29 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         double sum = 0;
         for (int i = 0; i < data.Length; i++) sum += data[i];
         return (float)(sum / data.Length);
+    }
+
+    private static (float invNeg, float invPos) ComputeAsymmetricInvScales(DynamicTexture tex, float center)
+    {
+        float[] data = tex.ReadPixels();
+        if (data.Length == 0) return (0f, 0f);
+
+        float min = float.PositiveInfinity;
+        float max = float.NegativeInfinity;
+        for (int i = 0; i < data.Length; i++)
+        {
+            float v = data[i];
+            if (v < min) min = v;
+            if (v > max) max = v;
+        }
+
+        const float eps = 1e-6f;
+        const float maxInv = 64f;
+        float negSpan = center - min;
+        float posSpan = max - center;
+        float invNeg = negSpan > eps ? Math.Min(1f / negSpan, maxInv) : 0f;
+        float invPos = posSpan > eps ? Math.Min(1f / posSpan, maxInv) : 0f;
+        return (invNeg, invPos);
     }
 
     private static DynamicTexture CreateCheckerboardAtlas(int width, int height, int cell)

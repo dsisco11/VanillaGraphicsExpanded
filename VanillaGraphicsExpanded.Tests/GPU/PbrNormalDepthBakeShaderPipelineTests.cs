@@ -178,18 +178,25 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         int locH = GL.GetUniformLocation(normalizeProgram.ProgramId, "u_h");
         int locSize = GL.GetUniformLocation(normalizeProgram.ProgramId, "u_size");
         int locMean = GL.GetUniformLocation(normalizeProgram.ProgramId, "u_mean");
+        int locInvNeg = GL.GetUniformLocation(normalizeProgram.ProgramId, "u_invNeg");
+        int locInvPos = GL.GetUniformLocation(normalizeProgram.ProgramId, "u_invPos");
         int locStrength = GL.GetUniformLocation(normalizeProgram.ProgramId, "u_heightStrength");
         int locGamma = GL.GetUniformLocation(normalizeProgram.ProgramId, "u_gamma");
 
         Assert.True(locH >= 0);
         Assert.True(locSize >= 0);
         Assert.True(locMean >= 0);
+        Assert.True(locInvNeg >= 0);
+        Assert.True(locInvPos >= 0);
         Assert.True(locStrength >= 0);
         Assert.True(locGamma >= 0);
 
         GL.Uniform1(locH, 0);
         GL.Uniform2(locSize, w, h);
         GL.Uniform1(locMean, 0f);
+        // For this unit test we don't need asymmetric normalization; just ensure non-zero scaling.
+        GL.Uniform1(locInvNeg, 1.0f);
+        GL.Uniform1(locInvPos, 1.0f);
         GL.Uniform1(locStrength, 1.0f);
         GL.Uniform1(locGamma, 1.0f);
 
