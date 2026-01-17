@@ -6,6 +6,8 @@ using System.Linq;
 using BCnEncoder.Decoder;
 using BCnEncoder.Shared;
 
+using VanillaGraphicsExpanded.Numerics;
+
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 
@@ -353,12 +355,13 @@ internal static class PbrOverrideTextureLoader
 
     private static float[] ConvertBytesToFloats01(byte[] rgba)
     {
-        var floats = new float[rgba.Length];
-        for (int i = 0; i < rgba.Length; i++)
+        if (rgba is null || rgba.Length == 0)
         {
-            floats[i] = rgba[i] / 255f;
+            return Array.Empty<float>();
         }
 
+        var floats = new float[rgba.Length];
+        SimdSpanMath.BytesToSingles01(rgba, floats);
         return floats;
     }
 
