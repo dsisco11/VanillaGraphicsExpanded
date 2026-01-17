@@ -42,22 +42,22 @@ Exit artifacts: Solution builds with System.Numerics.Tensors available.
 
 Phase 2 — Implement Root Utility: Core Contiguous Ops
 Exit artifacts: A small, stable kernel set exists for Span<float>/Span<byte>.
-[ ] Add file:
-    [ ] VanillaGraphicsExpanded/VanillaGraphicsExpanded/Numerics/SimdSpanMath.cs
-[ ] Implement (SNT-backed) float ops:
-    [ ] Fill(Span<float> dst, float value)
-    [ ] Clamp(Span<float> dst, float min, float max)
-    [ ] Clamp01(Span<float> dst)
-    [ ] ScaleInPlace(Span<float> dst, float scale)
-    [ ] Scale(ReadOnlySpan<float> src, float scale, Span<float> dst)
-    [ ] AddInPlace(Span<float> dst, float add)
-    [ ] Add(ReadOnlySpan<float> src, float add, Span<float> dst)
-    [ ] MultiplyAddClamp01(ReadOnlySpan<float> x, float mul, float add, Span<float> dst)
+[x] Add file:
+    [x] VanillaGraphicsExpanded/VanillaGraphicsExpanded/Numerics/SimdSpanMath.cs
+[x] Implement (SNT-backed) float ops:
+    [x] Fill(Span<float> dst, float value)
+    [x] Clamp(Span<float> dst, float min, float max)
+    [x] Clamp01(Span<float> dst)
+    [x] ScaleInPlace(Span<float> dst, float scale)
+    [x] Scale(ReadOnlySpan<float> src, float scale, Span<float> dst)
+    [x] AddInPlace(Span<float> dst, float add)
+    [x] Add(ReadOnlySpan<float> src, float add, Span<float> dst)
+    [x] MultiplyAddClamp01(ReadOnlySpan<float> x, float mul, float add, Span<float> dst)
         - Intended for patterns like: dst = clamp01(base + noise*amp)
-[ ] Implement byte→float conversions:
-    [ ] BytesToSingles(ReadOnlySpan<byte> src, Span<float> dst)
-    [ ] BytesToSingles01(ReadOnlySpan<byte> src, Span<float> dst)
-        - Uses ConvertToSingle + Multiply by (1/255)
+[x] Implement byte→float conversions:
+    [x] BytesToSingles(ReadOnlySpan<byte> src, Span<float> dst)
+    [x] BytesToSingles01(ReadOnlySpan<byte> src, Span<float> dst)
+        - Uses TensorPrimitives.ConvertTruncating<byte,float> + Multiply by (1/255)
 
 
 Phase 3 — Implement Minimal Layout Helpers (Still Domain-Agnostic)
