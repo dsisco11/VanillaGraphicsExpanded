@@ -6,6 +6,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Profiling;
 
@@ -163,6 +164,7 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         shader.ShadowZExtendFar = capi.Render.ShaderUniforms.ShadowZExtendFar;
         shader.DropShadowIntensity = capi.Render.ShaderUniforms.DropShadowIntensity;
 
+        using var cpuScope = Profiler.BeginScope("PBR.DirectLighting", "Render");
         using (GlGpuProfiler.Instance.Scope("PBR.DirectLighting"))
         {
             capi.Render.RenderMesh(quadMeshRef);

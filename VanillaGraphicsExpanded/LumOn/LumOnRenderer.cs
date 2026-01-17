@@ -7,6 +7,7 @@ using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.Rendering.Profiling;
@@ -267,21 +268,25 @@ public class LumOnRenderer : IRenderer, IDisposable
         // This pass is safe even if not yet used by all temporal shaders.
         RenderVelocityPass(primaryFb, historyValid);
 
+        using var cpuFrame = Profiler.BeginScope("LumOn.Frame", "Render");
         using (GlGpuProfiler.Instance.Scope("LumOn.Frame"))
         {
             // === Pass 0: HZB depth pyramid ===
+            using var cpuHzb = Profiler.BeginScope("LumOn.HZB", "Render");
             using (GlGpuProfiler.Instance.Scope("LumOn.HZB"))
             {
                 BuildHzb(primaryFb);
             }
 
             // === Pass 1: Probe Anchor ===
+            using var cpuAnchor = Profiler.BeginScope("LumOn.Anchor", "Render");
             using (GlGpuProfiler.Instance.Scope("LumOn.Anchor"))
             {
                 RenderProbeAnchorPass(primaryFb);
             }
 
             // === Pass 2: Probe Trace ===
+            using var cpuTrace = Profiler.BeginScope("LumOn.Trace", "Render");
             using (GlGpuProfiler.Instance.Scope("LumOn.Trace"))
             {
                 if (config.UseProbeAtlas)
@@ -295,6 +300,7 @@ public class LumOnRenderer : IRenderer, IDisposable
             }
 
             // === Pass 3: Temporal Accumulation ===
+            using var cpuTemporal = Profiler.BeginScope("LumOn.Temporal", "Render");
             using (GlGpuProfiler.Instance.Scope("LumOn.Temporal"))
             {
                 if (config.UseProbeAtlas)
@@ -310,6 +316,7 @@ public class LumOnRenderer : IRenderer, IDisposable
             // === Pass 3.5: Probe-Atlas Filter/Denoise (Probe-space) ===
             if (config.UseProbeAtlas)
             {
+                using var cpuAtlasFilter = Profiler.BeginScope("LumOn.AtlasFilter", "Render");
                 using (GlGpuProfiler.Instance.Scope("LumOn.AtlasFilter"))
                 {
                     RenderProbeAtlasFilterPass();
@@ -319,6 +326,7 @@ public class LumOnRenderer : IRenderer, IDisposable
             // === Pass 3.75: Probe-Atlas Projection (Option B) ===
             if (config.UseProbeAtlas && config.ProbeAtlasGather == LumOnConfig.ProbeAtlasGatherMode.EvaluateProjectedSH)
             {
+                using var cpuAtlasProject = Profiler.BeginScope("LumOn.AtlasProjectSH9", "Render");
                 using (GlGpuProfiler.Instance.Scope("LumOn.AtlasProjectSH9"))
                 {
                     RenderProbeAtlasProjectSh9Pass();
@@ -326,6 +334,7 @@ public class LumOnRenderer : IRenderer, IDisposable
             }
 
             // === Pass 4: Gather ===
+            using var cpuGather = Profiler.BeginScope("LumOn.Gather", "Render");
             using (GlGpuProfiler.Instance.Scope("LumOn.Gather"))
             {
                 RenderGatherPass(primaryFb);
@@ -333,6 +342,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         }
 
         // === Pass 5: Upsample ===
+        using var cpuUpsample = Profiler.BeginScope("LumOn.Upsample", "Render");
         using (GlGpuProfiler.Instance.Scope("LumOn.Upsample"))
         {
             RenderUpsamplePass(primaryFb);

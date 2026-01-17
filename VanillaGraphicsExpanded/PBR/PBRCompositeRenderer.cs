@@ -6,6 +6,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Profiling;
@@ -191,6 +192,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         shader.InvProjectionMatrix = invProjectionMatrix;
         shader.ViewMatrix = viewMatrix;
 
+        using var cpuScope = Profiler.BeginScope("PBR.Composite", "Render");
         using (GlGpuProfiler.Instance.Scope("PBR.Composite"))
         {
             capi.Render.RenderMesh(quadMeshRef);

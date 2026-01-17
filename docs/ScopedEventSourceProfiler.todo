@@ -20,12 +20,12 @@ Docs:
 ---
 
 ## Phase 1 — Workspace Discovery (Read-only)
-- [ ] Locate existing CPU profiling utilities in `vsapi` (e.g., frame profiler helpers)
-- [ ] Locate existing GPU marker system in `VanillaGraphicsExpanded` (e.g., baked profiler events/blocks)
-- [ ] Identify 2–4 high-value callsites to instrument first (render loop, mesh build, texture ops)
-- [ ] Check repo conventions for:
-  - [ ] Namespace/layout for utilities
-  - [ ] Logging patterns and build targets (.NET version)
+- [x] Locate existing CPU profiling utilities in `vsapi` (e.g., frame profiler helpers)
+- [x] Locate existing GPU marker system in `VanillaGraphicsExpanded` (e.g., baked profiler events/blocks)
+- [x] Identify 2–4 high-value callsites to instrument first (render loop, mesh build, texture ops)
+- [x] Check repo conventions for:
+  - [x] Namespace/layout for utilities
+  - [x] Logging patterns and build targets (.NET version)
 
 Docs:
 - PerfView overview: https://github.com/microsoft/perfview
@@ -33,15 +33,15 @@ Docs:
 ---
 
 ## Phase 2 — Core API Design (Public Surface)
-- [ ] Define a minimal, ergonomic API:
-  - [ ] `Profiler.BeginScope(string name)` returns `ProfileScope : IDisposable`
-  - [ ] Optional overloads: `(string name, string category)` or `(string name, long id)`
-  - [ ] Provide no-op scope when disabled
-- [ ] Ensure API is allocation-free in the hot path:
-  - [ ] `ProfileScope` is `readonly struct`
-  - [ ] Fast-path gate: `EventSource.IsEnabled()`
-  - [ ] Avoid string interpolation or dynamic payload composition
-- [ ] Establish guidance for marker names (low cardinality)
+- [x] Define a minimal, ergonomic API:
+  - [x] `Profiler.BeginScope(string name)` returns `ProfileScope : IDisposable`
+  - [x] Optional overloads: `(string name, string category)` or `(string name, long id)`
+  - [x] Provide no-op scope when disabled
+- [x] Ensure API is allocation-free in the hot path:
+  - [x] `ProfileScope` is `readonly struct`
+  - [x] Fast-path gate: `EventSource.IsEnabled()`
+  - [x] Avoid string interpolation or dynamic payload composition
+- [x] Establish guidance for marker names (low cardinality)
 
 Docs:
 - EventSource best practices: https://learn.microsoft.com/dotnet/framework/performance/eventsource
@@ -49,11 +49,11 @@ Docs:
 ---
 
 ## Phase 3 — EventSource Provider Implementation
-- [ ] Add a single provider `EventSource`:
-  - [ ] Stable provider name (e.g., `VintageStory.Profiling` or `VanillaGraphicsExpanded.Profiling`)
-  - [ ] Start/Stop event pair (begin/end)
-  - [ ] Payload fields (example): `Name`, `Category` (optional), `ThreadId` (optional), `Timestamp` (optional)
-- [ ] Define keywords and levels for filtering
+- [x] Add a single provider `EventSource`:
+  - [x] Stable provider name (e.g., `VintageStory.Profiling` or `VanillaGraphicsExpanded.Profiling`)
+  - [x] Start/Stop event pair (begin/end)
+  - [x] Payload fields (example): `Name`, `Category` (optional), `ThreadId` (optional), `Timestamp` (optional)
+- [x] Define keywords and levels for filtering
 - [ ] Add optional counters (only if useful):
   - [ ] `EventCounter`/`IncrementingEventCounter` (events/sec, active scopes, etc.)
 - [ ] Add an `EventListener` sample for quick local verification
@@ -65,11 +65,11 @@ Docs:
 ---
 
 ## Phase 4 — Integration + Instrumentation
-- [ ] Integrate markers at selected hotspots:
-  - [ ] Render loop / mesh generation / texture processing (initial pass)
+- [x] Integrate markers at selected hotspots:
+  - [x] Render loop / mesh generation / texture processing (initial pass)
   - [ ] Any existing “frame profiler” hooks (bridge or coexist)
-- [ ] Validate nesting behavior and begin/end pairing under exceptions (scope disposal)
-- [ ] Ensure markers are safe in multi-threaded contexts
+- [x] Validate nesting behavior and begin/end pairing under exceptions (scope disposal)
+- [x] Ensure markers are safe in multi-threaded contexts
 
 Docs:
 - `dotnet-trace` providers and filtering: https://learn.microsoft.com/dotnet/core/diagnostics/dotnet-trace#collect-a-trace
@@ -77,12 +77,12 @@ Docs:
 ---
 
 ## Phase 5 — Tests / Verification
-- [ ] Add a small unit/integration test (if existing test harness fits):
-  - [ ] Attach an `EventListener`, enable provider, emit a scoped marker, assert Start+Stop observed
-  - [ ] Verify payload fields (name/category) match
-- [ ] Add developer documentation for capturing traces:
-  - [ ] PerfView session notes (Windows)
-  - [ ] `dotnet-trace collect --providers ...`
+- [x] Add a small unit/integration test (if existing test harness fits):
+  - [x] Attach an `EventListener`, enable provider, emit a scoped marker, assert Start+Stop observed
+  - [x] Verify payload fields (name/category) match
+- [x] Add developer documentation for capturing traces:
+  - [x] PerfView session notes (Windows)
+  - [x] `dotnet-trace collect --providers ...`
 
 Docs:
 - `dotnet-trace` tutorial: https://learn.microsoft.com/dotnet/core/diagnostics/dotnet-trace

@@ -3,6 +3,7 @@ using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
+using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.PBR.Materials;
@@ -250,6 +251,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         shader.SpecularAOStrength = Math.Clamp(config.SpecularAOStrength, 0f, 1f);
 
         // Render fullscreen quad
+        using var cpuScope = Profiler.BeginScope("Debug.LumOn", "Render");
         using (GlGpuProfiler.Instance.Scope("Debug.LumOn"))
         {
             capi.Render.RenderMesh(quadMeshRef);
@@ -298,6 +300,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         GL.BindTexture(TextureTarget.Texture2D, texId);
         blitShader.BindTexture2D("scene", texId, 0);
 
+        using var cpuScope = Profiler.BeginScope("Debug.VGE.NormalDepthAtlas", "Render");
         using (GlGpuProfiler.Instance.Scope("Debug.VGE.NormalDepthAtlas"))
         {
             capi.Render.RenderMesh(quadMeshRef);
