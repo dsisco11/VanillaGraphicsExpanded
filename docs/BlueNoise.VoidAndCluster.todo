@@ -83,15 +83,15 @@ Key requirements
 ---
 
 ## Phase 5 — Output Kinds + Conversions
-- [ ] Define `BlueNoiseOutputKind` (examples):
-  - [ ] `RankU16` (canonical / cacheable).
-  - [ ] `RankU32` (only if required).
-  - [ ] `NormalizedF32` in [0,1].
-  - [ ] `L8` byte in [0,255].
-  - [ ] `BinaryMask` given a threshold or fill ratio.
-- [ ] Implement conversion pipeline from ranked map to requested output:
-  - [ ] Use `TensorPrimitives.MultiplyAdd`, `Clamp`, etc. for bulk conversions.
-  - [ ] Validate monotonic mapping and range correctness.
+- [x] Define `BlueNoiseOutputKind` (examples):
+  - [x] `RankU16` (canonical / cacheable).
+  - [x] `RankU32` (only if required).
+  - [x] `NormalizedF32` in [0,1].
+  - [x] `L8` byte in [0,255].
+  - [x] `BinaryMask` given a threshold or fill ratio.
+- [x] Implement conversion pipeline from ranked map to requested output:
+  - [x] Use `TensorPrimitives` conversions and math (`ConvertTruncating`, `Multiply`, `Add`, `Clamp`).
+  - [x] Validate monotonic mapping and range correctness (range clamps + argument validation).
 
 ---
 

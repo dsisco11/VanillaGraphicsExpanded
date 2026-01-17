@@ -29,4 +29,6 @@ public sealed class BlueNoiseRankMap
     public int Length => _ranks.Length;
 
     public ReadOnlyMemory<ushort> Ranks => _ranks;
+
+    public ReadOnlySpan<ushort> RanksSpan => _ranks;
 }
