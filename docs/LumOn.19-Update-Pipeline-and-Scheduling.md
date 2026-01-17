@@ -76,6 +76,54 @@ UpdateProbes(level, probeList):
         StoreProbe(level, probe, filtered)
 ```
 
+### 4.1 CPU trace output payload (SSBO layout)
+
+The CPU writes a per-level trace batch to two SSBOs. Layout uses `std430` and is sized for variable ray counts per probe.
+
+```glsl
+layout(std430, binding = 0) buffer ProbeTraceHeaderBuffer
+{
+    TraceBatchHeader header;
+    ProbeTraceHeader probes[];
+};
+
+layout(std430, binding = 1) buffer ProbeTraceSampleBuffer
+{
+    ProbeTraceSample samples[];
+};
+
+struct TraceBatchHeader
+{
+    uint probeCount;
+    uint sampleCount;
+    uint level;
+    uint reserved;
+};
+
+struct ProbeTraceHeader
+{
+    uint probeIndex;
+    uint rayOffset;
+    uint rayCount;
+    uint flags;
+};
+
+struct ProbeTraceSample
+{
+    vec4 dirDistHit;
+    vec4 radianceWeight;
+};
+```
+
+Field definitions:
+
+- `probeIndex`: linear index for the target clipmap level (see LumOn.17).
+- `rayOffset`/`rayCount`: range into `samples[]` for this probe.
+- `dirDistHit`: `dirOct.x`, `dirOct.y`, `hitDistance`, `hitMask` (1 = hit, 0 = miss).
+- `radianceWeight`: `radiance.rgb` (linear), `weight` (default 1.0).
+
+ShortRangeAO uses the sample directions with `hitMask == 0` (unoccluded) and weights by `weight`. If a ray misses, `hitDistance` should be 0 and `radiance` may be the sky/ambient fallback.
+
 ---
 
 ## 5. Temporal stabilization rules
