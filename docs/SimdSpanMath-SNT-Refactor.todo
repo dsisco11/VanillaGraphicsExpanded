@@ -104,10 +104,10 @@ Exit artifacts: noise math uses TensorPrimitives for mul/add/clamp; custom hashi
 
 Phase 8 — Verification + Performance Safety Nets
 Exit artifacts: confidence that refactor is correct and not slower.
-[ ] Add/extend tests (if appropriate in existing test patterns):
-    [ ] BytesToSingles01 matches old results byte-for-byte (within float epsilon)
-    [ ] FillInterleaved3 produces correct repeating pattern
-    [ ] Clamp01 clamps correctly on edge cases (NaN policy: document if needed)
+[x] Add/extend tests (if appropriate in existing test patterns):
+    [x] BytesToSingles01 matches old results byte-for-byte (within float epsilon)
+    [x] FillInterleaved3 produces correct repeating pattern
+    [x] Clamp01 clamps correctly on edge cases (NaN policy: preserved)
 [ ] Add a small benchmark harness (optional):
     [ ] Compare old loops vs SimdSpanMath for representative buffer sizes
     [ ] Ensure no per-frame allocation regressions in hot paths
