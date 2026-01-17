@@ -69,17 +69,16 @@ Key requirements
 ---
 
 ## Phase 4 — Gaussian Blur (Separable) + Tensor Usage
-- [ ] Build a separable Gaussian kernel from `Sigma`.
-  - [ ] Choose radius rule (e.g., 3*sigma) and ensure odd kernel length.
-  - [ ] Normalize kernel sum to 1.
-- [ ] Implement separable convolution:
-  - [ ] Horizontal pass into scratch buffer.
-  - [ ] Vertical pass into output buffer.
-- [ ] Apply `TensorPrimitives` where it helps:
-  - [ ] Use `TensorPrimitives` for bulk multiply/add/clamp/scale operations on spans.
-  - [ ] Consider `TensorPrimitives.Dot` for inner products if it maps cleanly to the sliding window implementation.
-- [ ] Add scratch buffer reuse:
-  - [ ] Use `ArrayPool<float>` or cached scratch arrays keyed by size.
+- [x] Build a separable Gaussian kernel from `Sigma`.
+  - [x] Choose radius rule (e.g., 3*sigma) and ensure odd kernel length.
+  - [x] Normalize kernel sum to 1.
+- [x] Implement separable convolution:
+  - [x] Horizontal pass into scratch buffer.
+  - [x] Vertical pass into output buffer.
+- [x] Apply `TensorPrimitives` where it helps:
+  - [x] Use `TensorPrimitives.Dot` for inner products in the sliding window implementation.
+- [x] Add scratch buffer reuse:
+  - [x] Use `ArrayPool<float>` and `ArrayPool<int>` for convolution scratch/indices.
 
 ---
 

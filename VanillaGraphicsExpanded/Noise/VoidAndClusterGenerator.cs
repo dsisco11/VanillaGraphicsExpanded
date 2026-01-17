@@ -33,7 +33,7 @@ public static class VoidAndClusterGenerator
         int maxInitial = Math.Max(1, (n - 1) / 2);
         int nInitialOne = Math.Clamp((int)(n * config.InitialFillRatio), 1, maxInitial);
 
-        float[] kernel = BuildGaussianKernel(config.Sigma);
+        GaussianKernel1D kernel = GaussianKernel1D.Create(config.Sigma);
 
         bool[] initial = new bool[n];
         FillDeterministicInitialPattern(initial, config, nInitialOne);
@@ -121,35 +121,7 @@ public static class VoidAndClusterGenerator
         }
     }
 
-    private static float[] BuildGaussianKernel(float sigma)
-    {
-        // Radius rule: 3*sigma (common practical cutoff).
-        // Note: Phase 4 will revisit this; keep it consistent and deterministic for now.
-        int radius = Math.Max(1, (int)MathF.Ceiling(3f * sigma));
-        int size = checked((radius * 2) + 1);
-
-        var kernel = new float[size];
-
-        float invTwoSigma2 = 1f / (2f * sigma * sigma);
-
-        float sum = 0f;
-        for (int i = -radius; i <= radius; i++)
-        {
-            float w = MathF.Exp(-(i * i) * invTwoSigma2);
-            kernel[i + radius] = w;
-            sum += w;
-        }
-
-        float invSum = 1f / sum;
-        for (int i = 0; i < kernel.Length; i++)
-        {
-            kernel[i] *= invSum;
-        }
-
-        return kernel;
-    }
-
-    private static int FindLargestVoidIndex(ReadOnlySpan<bool> pattern, int width, int height, bool tileable, ReadOnlySpan<float> kernel)
+    private static int FindLargestVoidIndex(ReadOnlySpan<bool> pattern, int width, int height, bool tileable, in GaussianKernel1D kernel)
     {
         int n = pattern.Length;
 
@@ -173,7 +145,7 @@ public static class VoidAndClusterGenerator
                 src[i] = v ? 1f : 0f;
             }
 
-            GaussianBlur2D(src.AsSpan(0, n), tmp.AsSpan(0, n), dst.AsSpan(0, n), width, height, tileable, kernel);
+            SeparableGaussianBlur.Blur(kernel, src.AsSpan(0, n), tmp.AsSpan(0, n), dst.AsSpan(0, n), width, height, tileable);
 
             // Match the reference behavior (Ulichney/Peters):
             //   iLargestVoid = argmin( where(minority, 2.0, filtered) )
@@ -203,7 +175,7 @@ public static class VoidAndClusterGenerator
         }
     }
 
-    private static int FindTightestClusterIndex(ReadOnlySpan<bool> pattern, int width, int height, bool tileable, ReadOnlySpan<float> kernel)
+    private static int FindTightestClusterIndex(ReadOnlySpan<bool> pattern, int width, int height, bool tileable, in GaussianKernel1D kernel)
     {
         int n = pattern.Length;
 
@@ -227,7 +199,7 @@ public static class VoidAndClusterGenerator
                 src[i] = v ? 1f : 0f;
             }
 
-            GaussianBlur2D(src.AsSpan(0, n), tmp.AsSpan(0, n), dst.AsSpan(0, n), width, height, tileable, kernel);
+            SeparableGaussianBlur.Blur(kernel, src.AsSpan(0, n), tmp.AsSpan(0, n), dst.AsSpan(0, n), width, height, tileable);
 
             // Match the reference behavior (Ulichney/Peters):
             //   iTightestCluster = argmax( where(minority, filtered, -1.0) )
@@ -255,117 +227,5 @@ public static class VoidAndClusterGenerator
             ArrayPool<float>.Shared.Return(tmp);
             ArrayPool<float>.Shared.Return(dst);
         }
-    }
-
-    private static void GaussianBlur2D(ReadOnlySpan<float> source, Span<float> scratch, Span<float> destination, int width, int height, bool tileable, ReadOnlySpan<float> kernel)
-    {
-        if (source.Length != scratch.Length || source.Length != destination.Length)
-        {
-            throw new ArgumentException("Buffer length mismatch.");
-        }
-
-        int radius = (kernel.Length - 1) / 2;
-        int kernelLength = kernel.Length;
-
-        // Separable convolution with TensorPrimitives.Dot.
-        // We build an extended row/col buffer per scanline with wrap/clamp so each sliding window is contiguous.
-        int extendedRowLength = checked(width + (2 * radius));
-        int extendedColLength = checked(height + (2 * radius));
-
-        float[] extendedBuffer = ArrayPool<float>.Shared.Rent(Math.Max(extendedRowLength, extendedColLength));
-        int[] yIndex = ArrayPool<int>.Shared.Rent(extendedColLength);
-        try
-        {
-            FillExtendedAxisIndices(yIndex.AsSpan(0, extendedColLength), height, radius, tileable);
-
-            // Horizontal pass: source -> scratch
-            for (int y = 0; y < height; y++)
-            {
-                int rowBase = y * width;
-                Span<float> extendedRow = extendedBuffer.AsSpan(0, extendedRowLength);
-                ReadOnlySpan<float> row = source.Slice(rowBase, width);
-
-                FillExtendedRow(extendedRow, row, width, radius, tileable);
-
-                for (int x = 0; x < width; x++)
-                {
-                    scratch[rowBase + x] = TensorPrimitives.Dot(kernel, extendedRow.Slice(x, kernelLength));
-                }
-            }
-
-            // Vertical pass: scratch -> destination
-            for (int x = 0; x < width; x++)
-            {
-                Span<float> extendedCol = extendedBuffer.AsSpan(0, extendedColLength);
-                for (int j = 0; j < extendedColLength; j++)
-                {
-                    int y = yIndex[j];
-                    extendedCol[j] = scratch[(y * width) + x];
-                }
-
-                for (int y = 0; y < height; y++)
-                {
-                    destination[(y * width) + x] = TensorPrimitives.Dot(kernel, extendedCol.Slice(y, kernelLength));
-                }
-            }
-        }
-        finally
-        {
-            ArrayPool<float>.Shared.Return(extendedBuffer);
-            ArrayPool<int>.Shared.Return(yIndex);
-        }
-    }
-
-    private static void FillExtendedAxisIndices(Span<int> destination, int size, int radius, bool tileable)
-    {
-        for (int j = 0; j < destination.Length; j++)
-        {
-            int orig = j - radius;
-            destination[j] = tileable ? WrapIndex(orig, size) : ClampIndex(orig, size);
-        }
-    }
-
-    private static void FillExtendedRow(Span<float> destination, ReadOnlySpan<float> row, int width, int radius, bool tileable)
-    {
-        // Fast path: typical case where radius is small relative to width.
-        // Use bulk operations (memcpy/fill) rather than per-element wrap/clamp math.
-        if (radius <= width)
-        {
-            if (tileable)
-            {
-                // [tail | row | head]
-                row.Slice(width - radius, radius).CopyTo(destination.Slice(0, radius));
-                row.CopyTo(destination.Slice(radius, width));
-                row.Slice(0, radius).CopyTo(destination.Slice(radius + width, radius));
-                return;
-            }
-
-            // Clamp
-            destination.Slice(0, radius).Fill(row[0]);
-            row.CopyTo(destination.Slice(radius, width));
-            destination.Slice(radius + width, radius).Fill(row[width - 1]);
-            return;
-        }
-
-        // Fallback: very small textures / very large sigma where radius >= width.
-        for (int j = 0; j < destination.Length; j++)
-        {
-            int origX = j - radius;
-            int x = tileable ? WrapIndex(origX, width) : ClampIndex(origX, width);
-            destination[j] = row[x];
-        }
-    }
-
-    private static int WrapIndex(int i, int size)
-    {
-        int m = i % size;
-        return m < 0 ? m + size : m;
-    }
-
-    private static int ClampIndex(int i, int size)
-    {
-        if (i < 0) return 0;
-        if (i >= size) return size - 1;
-        return i;
     }
 }
