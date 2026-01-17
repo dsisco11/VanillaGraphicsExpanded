@@ -171,11 +171,6 @@ internal static class TerrainMaterialParamsTextureBindingHook
                 {
                     normalDepthUniformLoc = GL.GetUniformLocation(programId, NormalDepthSamplerUniform);
                     normalDepthUniformLocationCache[programId] = normalDepthUniformLoc;
-
-                    if (ConfigModSystem.Config.DebugLogNormalDepthAtlas && normalDepthUniformLoc < 0)
-                    {
-                        runtimeLog?.Invoke($"[VGE] Normal+depth atlas: shader program {programId} missing uniform '{NormalDepthSamplerUniform}'");
-                    }
                 }
 
                 if (normalDepthUniformLoc >= 0)

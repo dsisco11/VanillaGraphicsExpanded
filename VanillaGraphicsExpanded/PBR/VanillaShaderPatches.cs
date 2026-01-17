@@ -72,8 +72,7 @@ uniform sampler2D vge_normalDepthTex;
     // Normal: world-space normal packed to [0,1] range
     // Also sample the per-texel normal+depth atlas so the sampler uniform stays live.
     // We store encoded height01 (0..1) in the otherwise-unused W channel for optional debugging.
-    float vge_height01 = ReadHeight01(uv);
-    vge_outNormal = vec4(normal * 0.5 + 0.5, vge_height01);
+    vge_outNormal = VgeComputePackedWorldNormal01Height01(uv, normal);
     
     // Material: per-texel params stored in vge_materialParamsTex (RGB16F)
     vec3 vge_params = ReadMaterialParams(uv);
@@ -94,9 +93,8 @@ uniform sampler2D vge_normalDepthTex;
     // VGE: Write G-buffer outputs (liquid shader variant)
     // Normal: use the per-fragment normal provided by the liquid shader.
     // We store encoded height01 (0..1) in the otherwise-unused W channel for optional debugging.
-    float vge_height01 = ReadHeight01(uv);
     vec3 vge_liquidNormal = normalize(fragNormal);
-    vge_outNormal = vec4(vge_liquidNormal * 0.5 + 0.5, vge_height01);
+    vge_outNormal = VgeComputePackedWorldNormal01Height01(uv, vge_liquidNormal);
 
     // Material: read per-texel params but do not require renderFlags.
     vec3 vge_params = ReadMaterialParams(uv);

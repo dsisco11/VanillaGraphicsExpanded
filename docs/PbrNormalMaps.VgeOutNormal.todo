@@ -1,6 +1,5 @@
 ```todo
 PBR Normal Maps → vge_outNormal Integration
-
 Goal:
   Make the normals written to `vge_outNormal` incorporate VGE’s baked normal-texture atlas (`vge_normalDepthTex`), so the VGE PBR pipeline shades with texture-derived normals.
 
@@ -40,50 +39,38 @@ Exit artifacts: We can state exactly what is being sampled/written and in what s
 
 Phase 1 - Choose Normal-Map Transform Strategy (No Tangents Available)
 Exit artifacts: A documented, stable strategy for mapping UV-aligned normal to world-space.
-  ☐ Keep normal unpacking/processing/transform logic inside the shared include used by patched chunk shaders (extend `vge_normaldepth.glsl` with a helper function).
-  ☐ Keep `VanillaShaderPatches.cs` injection minimal: call the helper and write its result into `vge_outNormal`.
-  ☐ Decide on the initial approach:
+  ✔ Keep normal unpacking/processing/transform logic inside the shared include used by patched chunk shaders (extend `vge_normaldepth.glsl` with a helper function).
+  ✔ Keep `VanillaShaderPatches.cs` injection minimal: call the helper and write its result into `vge_outNormal`.
+  ✔ Decide on the initial approach:
     - Preferred (stable): build an approximate tangent frame from the geometric world normal + a fixed reference axis (similar to frame building patterns in `lumon_common.glsl`).
     - Deferred option (more correct, riskier): derivative-based frame from `dFdx/dFdy` of world position + UV.
-  ☐ Define how we handle UV rotation / face orientation:
+  ✔ Define how we handle UV rotation / face orientation:
     - Acknowledge: the bake stage does not rotate normals per face; any correction must happen at runtime.
     - For initial pass, accept approximation and add TODO hooks for rotation correction.
-  ☐ Define fallback behavior:
+  ✔ Define fallback behavior:
     - If sampled normal is neutral (≈ (0.5,0.5,1.0)), keep geometric normal unchanged.
     - Clamp/normalize after transform.
 
 
 Phase 2 - Patch Chunk Opaque/Transparent/Topsoil (`normal` varying)
 Exit artifacts: `vge_outNormal` reflects normal atlas sampling for the main chunk shaders.
-  ☐ Add/extend a helper in `vge_normaldepth.glsl` that:
+  ✔ Add/extend a helper in `vge_normaldepth.glsl` that:
     - samples `vge_normalDepthTex` at `uv`
     - decodes signed normal ([-1,1])
     - transforms into world-space using the chosen strategy
     - returns packed world normal01 (and height01)
-  ☐ Update the injected fragment snippet in `VanillaShaderPatches.cs` to call the helper and write `vge_outNormal = vec4(packedWorldNormal01, height01)`.
-  ☐ Keep `vge_outMaterial` behavior unchanged.
-  ☐ Ensure we keep the sampler “live” even when feature-gated (avoid dead-code elimination).
-  ☐ Ensure the transform runs only for the chunk shader targets (avoid touching non-chunk shaders).
+  ✔ Update the injected fragment snippet in `VanillaShaderPatches.cs` to call the helper and write `vge_outNormal = vec4(packedWorldNormal01, height01)`.
+  ✔ Keep `vge_outMaterial` behavior unchanged.
+  ✔ Ensure we keep the sampler “live” even when feature-gated (avoid dead-code elimination).
+  ✔ Ensure the transform runs only for the chunk shader targets (avoid touching non-chunk shaders).
 
 
 Phase 3 - Patch Chunk Liquid (`fragNormal` varying)
 Exit artifacts: Liquid path uses the same normal-map contribution as other chunk shaders.
-  ☐ Apply the same helper-based path, but using `fragNormal` instead of `normal` as the geometric normal input.
-  ☐ Verify UV input name matches liquid shader (`uv`).
+  ✔ Apply the same helper-based path, but using `fragNormal` instead of `normal` as the geometric normal input.
+  ✔ Verify UV input name matches liquid shader (`uv`).
 
-
-Phase 4 - Validation + Diagnostics
-Exit artifacts: Visual correctness and no regressions under typical play.
-  ☐ Add a toggle define/setting (if already supported by the shader pipeline) to enable/disable normal-map contribution for A/B comparison.
-  ☐ Add debug logging (once per reload) confirming the patch is active and the sampler is bound.
-  ☐ Validate in-game:
-    - Surfaces with strong baked height details show expected shading changes.
-    - Surfaces without a bake (neutral normal) look unchanged.
-    - No NaNs/black pixels in the PBR composite path.
-  ☐ Record baseline performance impact (shader-only cost, no rebake changes).
-
-
-Phase 5 - Follow-ups (Deferred)
+Phase 4 - Follow-ups (Deferred)
 Exit artifacts: Clear next steps to improve correctness.
   ☐ UV rotation correction: incorporate per-face UV rotation (if retrievable) into the runtime normal transform.
     - Candidate source: chunk UV unpack flags in vanilla shader includes (see base asset `assets/game/shaderincludes/vertexflagbits.ash`).

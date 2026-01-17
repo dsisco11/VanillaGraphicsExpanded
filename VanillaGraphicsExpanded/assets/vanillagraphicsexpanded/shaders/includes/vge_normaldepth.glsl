@@ -43,4 +43,50 @@ vec4 ReadNormalDepth(vec2 uv)
     return v;
 }
 
+mat3 VgeBuildApproxTbnFromNormal(vec3 normalWs)
+{
+    vec3 n = normalize(normalWs);
+    vec3 up = abs(n.y) < 0.999
+        ? vec3(0.0, 1.0, 0.0)
+        : vec3(1.0, 0.0, 0.0);
+
+    vec3 t = normalize(cross(up, n));
+    vec3 b = cross(n, t);
+    return mat3(t, b, n);
+}
+
+bool VgeIsNeutralNormalSigned(vec3 normalSigned)
+{
+    // Neutral for our bake is approximately (0,0,1) in signed space.
+    return abs(normalSigned.x) < 1e-3 && abs(normalSigned.y) < 1e-3 && normalSigned.z > 0.999;
+}
+
+// Returns a packed world-space normal (xyz in 0..1) + height01 (w).
+// NOTE: The baked normal atlas encodes a UV-aligned normal (texture/heightmap-space).
+// Vanilla chunk shaders do not provide tangents/bitangents, so we approximate a stable TBN
+// from the geometric world normal.
+vec4 VgeComputePackedWorldNormal01Height01(vec2 uv, vec3 geometricNormalWs)
+{
+    vec3 nGeom = normalize(geometricNormalWs);
+
+    vec3 nAtlasSigned = ReadNormalSigned(uv);
+    float height01 = ReadHeight01(uv);
+
+    if (VgeIsNeutralNormalSigned(nAtlasSigned))
+    {
+        return vec4(nGeom * 0.5 + 0.5, height01);
+    }
+
+    mat3 tbn = VgeBuildApproxTbnFromNormal(nGeom);
+    vec3 nWs = normalize(tbn * nAtlasSigned);
+
+    // Keep the result in the same hemisphere as the geometric normal (stability).
+    if (dot(nWs, nGeom) < 0.0)
+    {
+        nWs = -nWs;
+    }
+
+    return vec4(nWs * 0.5 + 0.5, height01);
+}
+
 #endif // VGE_NORMALDEPTH_GLSL
