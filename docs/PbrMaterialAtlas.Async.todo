@@ -15,18 +15,28 @@ Key requirements
 
 ## Phase 0 - Audit and Constraints
 Exit artifacts: Current pipeline, constraints, and baseline timings documented.
-- [ ] Document current entry points and lifecycle: `BlockTexturesLoaded`, `ReloadTextures`, `CreateTextureObjects`, `PopulateAtlasContents`.
-- [ ] Enumerate GL thread requirements (GPU baker, texture uploads).
-- [ ] Identify data dependencies: material registry, atlas positions, overrides, asset scanning.
-- [ ] Define failure/skip behavior when atlas pages not ready or registry not initialized.
-- [ ] Capture current timing characteristics (sync build time, normal+depth bake time) for baseline.
-- [ ] Decide what can run off-thread safely (CPU-only) vs must enqueue on main/render thread.
-- [ ] Map the current call graph with file refs (e.g., `PbrMaterialAtlasTextures`, `PbrMaterialParamsPixelBuilder`, `PbrNormalDepthAtlasGpuBaker`, `PbrOverrideTextureLoader`, `DynamicTexture`).
-- [ ] Record which APIs are not thread-safe (AssetManager, GL calls, shader programs) and must stay on main/render thread.
-- [ ] Note any current “whole-page” behaviors that need per-rect refactors (e.g., atlas page clears, full buffer builds).
-- [ ] Identify atlas size/position invariants (e.g., `TextureAtlasPosition` normalization, reload iteration tracking).
-- [ ] Capture existing override scan cost and frequency (material params overrides and normal+height overrides).
-- [ ] Baseline counts to record: atlas page count, total atlas rects, override rects, textures scanned.
+- [x] Document current entry points and lifecycle: `BlockTexturesLoaded`, `ReloadTextures`, `CreateTextureObjects`, `PopulateAtlasContents`.
+- [x] Enumerate GL thread requirements (GPU baker, texture uploads).
+- [x] Identify data dependencies: material registry, atlas positions, overrides, asset scanning.
+- [x] Define failure/skip behavior when atlas pages not ready or registry not initialized.
+- [x] Decide what can run off-thread safely (CPU-only) vs must enqueue on main/render thread.
+- [x] Map the current call graph with file refs (e.g., `PbrMaterialAtlasTextures`, `PbrMaterialParamsPixelBuilder`, `PbrNormalDepthAtlasGpuBaker`, `PbrOverrideTextureLoader`, `DynamicTexture`).
+- [x] Record which APIs are not thread-safe (AssetManager, GL calls, shader programs) and must stay on main/render thread.
+- [x] Note any current “whole-page” behaviors that need per-rect refactors (e.g., atlas page clears, full buffer builds).
+- [x] Identify atlas size/position invariants (e.g., `TextureAtlasPosition` normalization, reload iteration tracking).
+- [x] Capture existing override scan cost and frequency (material params overrides and normal+height overrides).
+- [x] Baseline counts to record: atlas page count, total atlas rects, override rects, textures scanned.
+
+### Phase 0 Notes (WIP)
+- Entry points: `StartClientSide` calls `CreateTextureObjects`, then `BlockTexturesLoaded` calls `PopulateAtlasContents` in `VanillaGraphicsExpanded/VanillaGraphicsExpandedModSystem.cs`; `PbrMaterialAtlasTextures.Initialize` is a compatibility wrapper; `RebakeNormalDepthAtlas` exists but is not wired.
+- GL-only: `DynamicTexture.Create/UploadData/Resize/ReadPixels` are OpenGL calls in `VanillaGraphicsExpanded/Rendering/DynamicTexture.cs`; `PbrNormalDepthAtlasGpuBaker.BakePerTexture` uses FBOs/shaders and must run on render thread in `VanillaGraphicsExpanded/PBR/Materials/PbrNormalDepthAtlasGpuBaker.cs`.
+- Data dependencies: registry init in `VanillaGraphicsExpanded/PBR/Materials/PbrMaterialRegistry.cs`; atlas pages/positions from `IBlockTextureAtlasAPI` in `PbrMaterialAtlasTextures`; overrides in `PbrMaterialRegistry.OverridesByTexture`; asset scan `capi.Assets.GetLocations("textures/block/")` for normal+depth bake.
+- Failure/skip behavior: no atlas pages -> `texturesCreated=false`; unchanged `reloadIteration` + non-null count -> early return; registry not initialized -> warn + skip; normal+depth baker catches init failures and returns without crashing.
+- Whole-page behaviors: `PbrMaterialParamsPixelBuilder.BuildRgb16fPixelBuffers` builds full arrays; `PopulateAtlasContents` replaces entire textures; `PbrNormalDepthAtlasGpuBaker.BakePerTexture` clears whole atlas page before per-rect bake.
+- Invariants: `TextureAtlasPosition` UVs are normalized 0..1, rects are clamped; `atlas.Positions` may contain nulls; atlas rebuild changes `atlasTextureId` and triggers texture recreation.
+- Override scan cost: normal+height overrides are validated per page and per override; per-page scan also walks `atlas.Positions` plus `capi.Assets.GetLocations("textures/block/")` to add extra bake positions; material params overrides load RGBA per target rect.
+- Off-thread candidates: CPU-only buffer generation (noise, fill, override application) is safe; GL uploads and normal+depth bake must stay on render thread; `PbrOverrideTextureLoader` uses `capi.Assets` and `BitmapRef`, so treat as main thread until proven safe.
+- Baseline metrics to record: `atlas.AtlasTextures.Count`, `atlas.Positions.Length`, non-null positions, `PbrMaterialRegistry.MaterialIdByTexture.Count`, `OverridesByTexture.Count`, per-page size distribution, asset scan count from `GetLocations("textures/block/")`.
 
 ---
 
