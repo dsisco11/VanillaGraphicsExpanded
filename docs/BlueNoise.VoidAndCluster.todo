@@ -14,11 +14,13 @@ Key requirements
 ---
 
 ## Phase 0 — References / Reading
-- [ ] Confirm exact Void-and-Cluster procedure steps and ranking method (avoid “almost correct” implementations).
-  - Void-and-Cluster overview (search terms): “Ulichney void and cluster blue noise dither matrix”.
-  - Book reference: Robert Ulichney, *Digital Halftoning* (MIT Press).
-- [ ] Identify a concise summary to link in docs (paper, notes, or community writeup).
-- [ ] Review tensor APIs we’ll lean on:
+- [x] Confirm exact Void-and-Cluster procedure steps and ranking method (avoid “almost correct” implementations).
+  - Practical, concise writeup + discussion: https://momentsingraphics.de/BlueNoise.html
+  - Reference implementation (matches Ulichney 1993, includes the 3-phase ranking procedure): https://raw.githubusercontent.com/MomentsInGraphics/BlueNoise/master/BlueNoise.py
+  - Original paper (primary source): R. A. Ulichney (1993), “Void-and-cluster method for dither array generation” (Proc. SPIE 1913).
+- [x] Identify a concise summary to link in docs (paper, notes, or community writeup).
+  - Use https://momentsingraphics.de/BlueNoise.html as the main link; it’s readable and directly covers Void-and-Cluster.
+- [x] Review tensor APIs we’ll lean on:
   - https://learn.microsoft.com/dotnet/api/system.numerics.tensors
   - https://learn.microsoft.com/dotnet/api/system.numerics.tensors.tensorprimitives
 
