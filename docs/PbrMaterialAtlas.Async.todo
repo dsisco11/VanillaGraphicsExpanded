@@ -65,11 +65,11 @@ Exit artifacts: Tile job spec for material params and render-thread upload flow 
 
 ## Phase 3 - Overrides Pipeline
 Exit artifacts: Override application order, caching, and failure policy specified.
-- [ ] Load/validate overrides per texture only when needed for its rect (lazy).
-- [ ] Apply override data as a rect upload after procedural params.
-- [ ] Cache override texture loads to avoid repeated IO/decodes.
-- [ ] Decide precedence rules for overlapping overrides (if any).
-- [ ] Decide on failure handling: log once per rule or per target texture.
+- [x] Load/validate overrides per texture only when needed for its rect (lazy).
+- [x] Apply override data as a rect upload after procedural params.
+- [x] Cache override texture loads to avoid repeated IO/decodes.
+- [x] Decide precedence rules for overlapping overrides (if any).
+- [x] Decide on failure handling: log once per rule or per target texture.
 
 ---
 

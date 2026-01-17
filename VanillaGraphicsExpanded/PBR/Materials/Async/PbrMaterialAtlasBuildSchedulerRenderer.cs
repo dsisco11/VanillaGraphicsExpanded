@@ -13,9 +13,9 @@ internal sealed class PbrMaterialAtlasBuildSchedulerRenderer : IRenderer
         this.scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
     }
 
-    public int RenderOrder => 0;
+    public double RenderOrder => 0;
 
-    public double RenderRange => 0;
+    public int RenderRange => 0;
 
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {

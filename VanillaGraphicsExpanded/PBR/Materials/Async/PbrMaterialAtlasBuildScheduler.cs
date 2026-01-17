@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
 using VanillaGraphicsExpanded.ModSystems;
+using VanillaGraphicsExpanded.Numerics;
+
+using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.PBR.Materials.Async;
 
@@ -15,14 +19,21 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
     private readonly ConcurrentQueue<PbrMaterialAtlasTileJob> pendingCpuJobs = new();
     private readonly ConcurrentQueue<PbrMaterialAtlasTileUpload> completedUploads = new();
     private readonly ConcurrentQueue<PbrMaterialAtlasTileUpload> pendingGpuUploads = new();
+    private readonly ConcurrentQueue<PbrMaterialAtlasMaterialOverrideUpload> pendingOverrideUploads = new();
 
     private readonly Stopwatch stopwatch = new();
 
+    private readonly HashSet<string> overrideFailureLogOnce = new();
+
     private PbrMaterialAtlasBuildSession? session;
     private Func<int, VanillaGraphicsExpanded.PBR.Materials.PbrMaterialAtlasPageTextures?>? tryGetPageTextures;
+    private ICoreClientAPI? capi;
 
-    public void Initialize(Func<int, VanillaGraphicsExpanded.PBR.Materials.PbrMaterialAtlasPageTextures?> tryGetPageTextures)
+    public void Initialize(
+        ICoreClientAPI capi,
+        Func<int, VanillaGraphicsExpanded.PBR.Materials.PbrMaterialAtlasPageTextures?> tryGetPageTextures)
     {
+        this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
         this.tryGetPageTextures = tryGetPageTextures ?? throw new ArgumentNullException(nameof(tryGetPageTextures));
     }
 
@@ -49,6 +60,7 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
             while (pendingCpuJobs.TryDequeue(out _)) { }
             while (completedUploads.TryDequeue(out _)) { }
             while (pendingGpuUploads.TryDequeue(out _)) { }
+            while (pendingOverrideUploads.TryDequeue(out _)) { }
 
             foreach (PbrMaterialAtlasTileJob job in newSession.TileJobs)
             {
@@ -91,7 +103,7 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
 
     public void TickOnRenderThread()
     {
-        if (tryGetPageTextures is null)
+        if (tryGetPageTextures is null || capi is null)
         {
             return;
         }
@@ -181,7 +193,12 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
                         job.RectY,
                         job.RectWidth,
                         job.RectHeight,
-                        rgb));
+                        rgb,
+                        job.Texture,
+                        job.MaterialParamsOverride,
+                        job.OverrideRuleId,
+                        job.OverrideRuleSource,
+                        job.OverrideScale));
                 }
                 catch (OperationCanceledException)
                 {
@@ -223,6 +240,23 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
                     upload.RectWidth,
                     upload.RectHeight);
 
+                // Enqueue the optional override upload after the procedural upload.
+                if (upload.MaterialParamsOverride is not null)
+                {
+                    pendingOverrideUploads.Enqueue(new PbrMaterialAtlasMaterialOverrideUpload(
+                        GenerationId: upload.GenerationId,
+                        AtlasTextureId: upload.AtlasTextureId,
+                        RectX: upload.RectX,
+                        RectY: upload.RectY,
+                        RectWidth: upload.RectWidth,
+                        RectHeight: upload.RectHeight,
+                        TargetTexture: upload.TargetTexture,
+                        OverrideAsset: upload.MaterialParamsOverride,
+                        RuleId: upload.OverrideRuleId,
+                        RuleSource: upload.OverrideRuleSource,
+                        Scale: upload.OverrideScale));
+                }
+
                 if (active.PagesByAtlasTexId.TryGetValue(upload.AtlasTextureId, out PbrMaterialAtlasPageBuildState? page))
                 {
                     page.InFlightTiles = Math.Max(0, page.InFlightTiles - 1);
@@ -230,6 +264,92 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
                 }
 
                 active.IncrementCompletedTile();
+                uploads++;
+            }
+            catch
+            {
+                // Ignore GL errors during shutdown.
+            }
+        }
+
+        // Apply a limited number of override uploads per frame (after base tiles).
+        while (uploads < maxUploads && stopwatch.Elapsed.TotalMilliseconds < budgetMs)
+        {
+            if (!pendingOverrideUploads.TryDequeue(out PbrMaterialAtlasMaterialOverrideUpload ov))
+            {
+                break;
+            }
+
+            if (ov.GenerationId != active.GenerationId)
+            {
+                continue;
+            }
+
+            var pageTextures = tryGetPageTextures(ov.AtlasTextureId);
+            if (pageTextures is null)
+            {
+                continue;
+            }
+
+            try
+            {
+                if (!VanillaGraphicsExpanded.PBR.Materials.PbrOverrideTextureLoader.TryLoadRgbaFloats01(
+                        capi,
+                        ov.OverrideAsset,
+                        out int _,
+                        out int _,
+                        out float[] rgba01,
+                        out string? reason,
+                        expectedWidth: ov.RectWidth,
+                        expectedHeight: ov.RectHeight))
+                {
+                    string key = $"{ov.RuleId ?? ov.OverrideAsset.ToString()}|{ov.TargetTexture}";
+                    if (overrideFailureLogOnce.Add(key))
+                    {
+                        capi.Logger.Warning(
+                            "[VGE] PBR override ignored: rule='{0}' target='{1}' override='{2}' reason='{3}'. Falling back to generated maps.",
+                            ov.RuleId ?? "(no id)",
+                            ov.TargetTexture,
+                            ov.OverrideAsset,
+                            reason ?? "unknown error");
+                    }
+
+                    continue;
+                }
+
+                float[] rgb = new float[checked(ov.RectWidth * ov.RectHeight * 3)];
+                for (int y = 0; y < ov.RectHeight; y++)
+                {
+                    int srcRow = (y * ov.RectWidth) * 4;
+                    int dstRow = (y * ov.RectWidth) * 3;
+
+                    ReadOnlySpan<float> src = rgba01.AsSpan(srcRow, ov.RectWidth * 4);
+                    Span<float> dst = rgb.AsSpan(dstRow, ov.RectWidth * 3);
+
+                    // Channel packing must match vge_material.glsl (RGB = roughness, metallic, emissive). Ignore alpha.
+                    SimdSpanMath.CopyInterleaved4ToInterleaved3(src, dst);
+                }
+
+                if (ov.Scale.Roughness != 1f || ov.Scale.Metallic != 1f || ov.Scale.Emissive != 1f)
+                {
+                    SimdSpanMath.MultiplyClamp01Interleaved3InPlace2D(
+                        destination3: rgb,
+                        rectWidthPixels: ov.RectWidth,
+                        rectHeightPixels: ov.RectHeight,
+                        rowStridePixels: ov.RectWidth,
+                        mul0: ov.Scale.Roughness,
+                        mul1: ov.Scale.Metallic,
+                        mul2: ov.Scale.Emissive);
+                }
+
+                pageTextures.MaterialParamsTexture.UploadData(
+                    rgb,
+                    ov.RectX,
+                    ov.RectY,
+                    ov.RectWidth,
+                    ov.RectHeight);
+
+                active.IncrementOverridesApplied();
                 uploads++;
             }
             catch
@@ -246,5 +366,6 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
         while (pendingCpuJobs.TryDequeue(out _)) { }
         while (completedUploads.TryDequeue(out _)) { }
         while (pendingGpuUploads.TryDequeue(out _)) { }
+        while (pendingOverrideUploads.TryDequeue(out _)) { }
     }
 }

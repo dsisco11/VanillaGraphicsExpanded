@@ -13,4 +13,8 @@ internal readonly record struct PbrMaterialAtlasTileJob(
     int RectHeight,
     AssetLocation Texture,
     PbrMaterialDefinition Definition,
-    int Priority);
+    int Priority,
+    AssetLocation? MaterialParamsOverride,
+    string? OverrideRuleId,
+    AssetLocation? OverrideRuleSource,
+    PbrOverrideScale OverrideScale);

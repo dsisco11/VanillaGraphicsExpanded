@@ -610,7 +610,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         lock (schedulerLock)
         {
             scheduler ??= new PbrMaterialAtlasBuildScheduler();
-            scheduler.Initialize(TryGetPageTexturesByAtlasTexId);
+            scheduler.Initialize(capi, TryGetPageTexturesByAtlasTexId);
 
             if (schedulerRegistered)
             {
@@ -679,6 +679,20 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                 continue;
             }
 
+            AssetLocation? materialOverride = null;
+            string? ruleId = null;
+            AssetLocation? ruleSource = null;
+            PbrOverrideScale scale = PbrOverrideScale.Identity;
+
+            if (PbrMaterialRegistry.Instance.OverridesByTexture.TryGetValue(texture, out PbrMaterialTextureOverrides overrides)
+                && overrides.MaterialParams is not null)
+            {
+                materialOverride = overrides.MaterialParams;
+                ruleId = overrides.RuleId;
+                ruleSource = overrides.RuleSource;
+                scale = overrides.Scale;
+            }
+
             tileJobs.Add(new PbrMaterialAtlasTileJob(
                 GenerationId: generationId,
                 AtlasTextureId: texPos.atlasTextureId,
@@ -688,7 +702,11 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                 RectHeight: rectH,
                 Texture: texture,
                 Definition: definition,
-                Priority: 0));
+                Priority: 0,
+                MaterialParamsOverride: materialOverride,
+                OverrideRuleId: ruleId,
+                OverrideRuleSource: ruleSource,
+                OverrideScale: scale));
         }
 
         var session = new PbrMaterialAtlasBuildSession(generationId, atlasPages, tileJobs);
