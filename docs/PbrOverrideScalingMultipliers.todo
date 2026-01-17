@@ -31,22 +31,28 @@ References
 
 Phase 0 — Design + Naming
 Exit artifacts: multiplier fields are specified, backward compatible, and unambiguous.
-[ ] Decide JSON key naming and structure:
-    [ ] Option A: named scalars (material): roughnessScale, metallicScale, emissiveScale
-    [ ] Option A: named scalars (normal/depth): normalXScale, normalYScale, normalZScale, depthScale
-    [ ] Option B: vector-like arrays (materialParamsScale: [r,g,b], normalHeightScale: [x,y,z,w])
-[ ] Decide clamping policy details:
-    [ ] Apply multiply then clamp to [0,1] per output channel
-    [ ] Preserve existing NaN behavior (document via unit test expectation)
-[ ] Decide validation policy for scale values:
-    [ ] Null/missing => 1.0f (no-op)
-    [ ] Reject NaN/Infinity with a clear warning + treat as no-op OR fail rule load (pick one)
+[x] Decide JSON key naming and structure:
+    [x] Use camelCase (matches existing overrides keys: materialParams, normalHeight).
+    [x] Add optional nested scale objects under overrides:
+        - materialParamsScale: { roughness, metallic, emissive }
+        - normalHeightScale: { normal, depth }
+      Notes:
+        - materialParamsScale.* apply to RGB channels respectively.
+        - normalHeightScale.normal is a scalar applied to all RGB normal channels.
+        - normalHeightScale.depth applies to alpha.
+[x] Decide clamping policy details:
+    [x] Multiply then clamp to [0,1] per output channel.
+    [x] Preserve NaN behavior (NaN stays NaN through multiply+clamp).
+[x] Decide validation policy for scale values:
+    [x] Null/missing => 1.0f (no-op).
+    [x] Invalid (NaN/Infinity/negative) => warn once per rule and treat as 1.0f.
+    [x] Allow values > 1.0f (boost) and 0..1 (attenuate).
 
 
 Phase 1 — Schema + Config Docs
 Exit artifacts: users can author the new fields correctly.
 [ ] Update schemas/pbr_material_definitions.schema.json:
-    [ ] Add new optional fields under override entries
+    [ ] Add new optional fields under override entries (materialParamsScale, normalHeightScale)
     [ ] Add descriptions stating multiply+clamp semantics and defaults
 [ ] Update VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/config/vge/material_definitions.json:
     [ ] Add one example rule demonstrating material param scaling
@@ -71,9 +77,9 @@ Exit artifacts: material params overrides honor scales without changing atlas ad
 [ ] Update VanillaGraphicsExpanded/PBR/Materials/PbrMaterialAtlasTextures.cs:
     [ ] When loading overrides.MaterialParams via TryLoadRgbaFloats01, also fetch per-rule scales
     [ ] Apply multiply+clamp to channels:
-        [ ] roughnessScale -> R
-        [ ] metallicScale  -> G
-        [ ] emissiveScale  -> B
+        [ ] overrides.materialParamsScale.roughness -> R
+        [ ] overrides.materialParamsScale.metallic  -> G
+        [ ] overrides.materialParamsScale.emissive  -> B
         [ ] (ignore alpha)
     [ ] Ensure clamping happens before PbrMaterialParamsOverrideApplier.ApplyRgbOverride
 [ ] Keep implementation allocation-free:
@@ -85,10 +91,8 @@ Exit artifacts: normalHeight overrides honor scales without changing bake/rect s
 [ ] Update VanillaGraphicsExpanded/PBR/Materials/PbrMaterialAtlasTextures.cs:
     [ ] When loading overrides.NormalHeight via TryLoadRgbaFloats01, also fetch per-rule scales
     [ ] Apply multiply+clamp to channels:
-        [ ] normalXScale -> R
-        [ ] normalYScale -> G
-        [ ] normalZScale -> B
-        [ ] depthScale   -> A
+        [ ] overrides.normalHeightScale.normal -> R,G,B
+        [ ] overrides.normalHeightScale.depth  -> A
     [ ] Apply scaling before storing into overrideRects and before applying to atlas
 [ ] Confirm shader expectations remain correct:
     [ ] vge_normaldepth.glsl still interprets channels as before
