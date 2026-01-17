@@ -63,7 +63,9 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         bool anchorJitterEnabled = false,
         float anchorJitterScale = 0.0f,
         int depthUnit = 0,
-        int normalUnit = 1)
+        int normalUnit = 1,
+        int pmjUnit = 2,
+        int pmjCycleLength = DefaultPmjCycleLength)
     {
         GL.UseProgram(programId);
 
@@ -104,6 +106,16 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         var normalLoc = GL.GetUniformLocation(programId, "gBufferNormal");
         GL.Uniform1(depthLoc, depthUnit);
         GL.Uniform1(normalLoc, normalUnit);
+
+        // PMJ jitter uniforms + binding
+        var pmjCycleLoc = GL.GetUniformLocation(programId, "pmjCycleLength");
+        var pmjSamplerLoc = GL.GetUniformLocation(programId, "pmjJitter");
+        GL.Uniform1(pmjCycleLoc, pmjCycleLength);
+        GL.Uniform1(pmjSamplerLoc, pmjUnit);
+
+        int pmjTexId = GetOrCreatePmjJitterTextureId(pmjCycleLength);
+        GL.ActiveTexture(TextureUnit.Texture0 + pmjUnit);
+        GL.BindTexture(TextureTarget.Texture2D, pmjTexId);
 
         GL.UseProgram(0);
     }

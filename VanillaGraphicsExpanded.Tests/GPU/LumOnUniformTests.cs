@@ -232,6 +232,8 @@ public class LumOnUniformTests : IDisposable
         { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "frameIndex" },
         { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "anchorJitterEnabled" },
         { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "anchorJitterScale" },
+        { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "pmjJitter" },
+        { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "pmjCycleLength" },
 
         // lumon_probe_trace - probe data and ray-marching params
         { "lumon_probe_trace.vsh", "lumon_probe_trace.fsh", "probeAnchorPosition" },
@@ -242,6 +244,8 @@ public class LumOnUniformTests : IDisposable
         { "lumon_probe_trace.vsh", "lumon_probe_trace.fsh", "probeGridSize" },
         { "lumon_probe_trace.vsh", "lumon_probe_trace.fsh", "frameIndex" },
         { "lumon_probe_trace.vsh", "lumon_probe_trace.fsh", "raysPerProbe" },
+        { "lumon_probe_trace.vsh", "lumon_probe_trace.fsh", "pmjJitter" },
+        { "lumon_probe_trace.vsh", "lumon_probe_trace.fsh", "pmjCycleLength" },
 
         // lumon_temporal - history buffers and blend params
         { "lumon_temporal.vsh", "lumon_temporal.fsh", "radianceCurrent0" },

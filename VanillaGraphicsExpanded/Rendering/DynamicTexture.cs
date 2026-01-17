@@ -362,6 +362,50 @@ public sealed class DynamicTexture : IDisposable
     }
 
     /// <summary>
+    /// Uploads pixel data to the texture, replacing existing contents.
+    /// Intended for UNorm integer textures (e.g., RG16).
+    /// </summary>
+    /// <param name="data">UShort array containing pixel data (interleaved channels).</param>
+    /// <exception cref="ArgumentException">Thrown if data array size doesn't match texture dimensions.</exception>
+    public void UploadData(ushort[] data)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[DynamicTexture] Attempted to upload data to disposed or invalid texture");
+            return;
+        }
+
+        if (data is null) throw new ArgumentNullException(nameof(data));
+
+        var pixelType = TextureFormatHelper.GetPixelType(internalFormat);
+        if (pixelType != PixelType.UnsignedShort)
+        {
+            throw new InvalidOperationException($"UploadData(ushort[]) requires {nameof(PixelType)}.{nameof(PixelType.UnsignedShort)}, but format is {internalFormat} -> {pixelType}.");
+        }
+
+        int expectedSize = width * height * GetChannelCount();
+        if (data.Length != expectedSize)
+        {
+            throw new ArgumentException(
+                $"Data array size {data.Length} doesn't match expected size {expectedSize} " +
+                $"({width}×{height}×{GetChannelCount()} channels)",
+                nameof(data));
+        }
+
+        GL.BindTexture(TextureTarget.Texture2D, textureId);
+        GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
+        GL.TexSubImage2D(
+            TextureTarget.Texture2D,
+            0,
+            0, 0,
+            width, height,
+            TextureFormatHelper.GetPixelFormat(internalFormat),
+            pixelType,
+            data);
+        GL.BindTexture(TextureTarget.Texture2D, 0);
+    }
+
+    /// <summary>
     /// Uploads pixel data to a sub-region of the texture.
     /// </summary>
     /// <param name="data">Float array containing pixel data for the sub-region.</param>
@@ -499,8 +543,10 @@ public sealed class DynamicTexture : IDisposable
     {
         return internalFormat switch
         {
-            PixelInternalFormat.R16f or PixelInternalFormat.R32f => 1,
-            PixelInternalFormat.Rg16f or PixelInternalFormat.Rg32f => 2,
+            PixelInternalFormat.R16f or PixelInternalFormat.R32f or
+            PixelInternalFormat.R16 or PixelInternalFormat.R8 => 1,
+            PixelInternalFormat.Rg16f or PixelInternalFormat.Rg32f or
+            PixelInternalFormat.Rg16 or PixelInternalFormat.Rg8 => 2,
             PixelInternalFormat.Rgb16f or PixelInternalFormat.Rgb32f or
             PixelInternalFormat.Rgb8 or PixelInternalFormat.Rgb => 3,
             _ => 4 // RGBA formats and default

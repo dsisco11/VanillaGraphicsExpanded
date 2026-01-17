@@ -20,8 +20,7 @@ layout(location = 1) out vec4 outRadiance1;  // SH coefficients set 1
 // Import SH helpers
 @import "./includes/lumon_sh.glsl"
 
-// Import noise for ray jittering
-@import "./includes/squirrel3.glsl"
+// PMJ temporal jitter sequence (provided by CPU as an RG16_UNorm 1xN texture)
 
 // Probe anchor textures (world-space for temporal stability)
 uniform sampler2D probeAnchorPosition;  // posWS.xyz, valid
@@ -51,6 +50,9 @@ uniform vec2 screenSize;
 
 // Ray tracing parameters
 uniform int frameIndex;
+
+uniform sampler2D pmjJitter;
+uniform int pmjCycleLength;
 
 // Z-planes
 uniform float zNear;
@@ -159,16 +161,21 @@ void main(void)
     vec4 shG = vec4(0.0);
     vec4 shB = vec4(0.0);
     
-    // Generate seed for this probe and frame
-    uint seed = uint(probeCoord.x + probeCoord.y * int(probeGridSize.x) + frameIndex * int(probeGridSize.x * probeGridSize.y));
+    // Linear probe index for per-probe decorrelation.
+    int probeIndex = probeCoord.x + probeCoord.y * int(probeGridSize.x);
     
     // Trace rays
     float weightSum = 0.0;
     
     for (int i = 0; i < VGE_LUMON_RAYS_PER_PROBE; i++) {
-        // Generate jittered random values for this ray
-        float u1 = Squirrel3HashF(seed + uint(i * 2));
-        float u2 = Squirrel3HashF(seed + uint(i * 2 + 1));
+        // PMJ per-ray jitter: index across frames and rays for progressive temporal distribution.
+        vec2 u = vec2(0.5);
+        if (pmjCycleLength > 0) {
+            int idx = (frameIndex * VGE_LUMON_RAYS_PER_PROBE + i + probeIndex) % pmjCycleLength;
+            u = texelFetch(pmjJitter, ivec2(idx, 0), 0).rg;
+        }
+        float u1 = u.x;
+        float u2 = u.y;
         
         // Generate cosine-weighted ray direction
         vec3 rayDir = lumonCosineSampleHemisphere(vec2(u1, u2), probeNormal);

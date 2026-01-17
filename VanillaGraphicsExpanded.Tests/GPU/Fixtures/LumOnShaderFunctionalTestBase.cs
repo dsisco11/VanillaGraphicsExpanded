@@ -1,6 +1,7 @@
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Noise;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using Xunit;
 
@@ -97,6 +98,9 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     /// </summary>
     protected const float TestEpsilon = 1e-2f;
 
+    protected const int DefaultPmjCycleLength = 256;
+    protected const uint DefaultPmjSeed = 0xA5B35705u;
+
     #endregion
 
     #region Fields
@@ -105,6 +109,57 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     private ShaderTestHelper? _shaderHelper;
     private ShaderTestFramework? _testFramework;
     private bool _disposed;
+
+    private int _pmjJitterTextureId;
+
+    #endregion
+
+    #region PMJ Helpers
+
+    protected int GetOrCreatePmjJitterTextureId(int cycleLength = DefaultPmjCycleLength, uint seed = DefaultPmjSeed)
+    {
+        if (_pmjJitterTextureId != 0)
+        {
+            return _pmjJitterTextureId;
+        }
+
+        var cache = new PmjCache();
+        var config = new PmjConfig(
+            SampleCount: cycleLength,
+            Seed: seed,
+            Variant: PmjVariant.Pmj02,
+            OutputKind: PmjOutputKind.Vector2F32,
+            OwenScramble: true,
+            Salt: 0u,
+            Centered: false);
+
+        PmjSequence seq = cache.GetOrCreateSequence(config);
+        ushort[] rg = PmjConversions.ToRg16UNormInterleaved(seq);
+
+        int tex = GL.GenTexture();
+        GL.BindTexture(TextureTarget.Texture2D, tex);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+        GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
+
+        GL.TexImage2D(
+            TextureTarget.Texture2D,
+            level: 0,
+            internalformat: PixelInternalFormat.Rg16,
+            width: cycleLength,
+            height: 1,
+            border: 0,
+            format: PixelFormat.Rg,
+            type: PixelType.UnsignedShort,
+            pixels: rg);
+
+        GL.BindTexture(TextureTarget.Texture2D, 0);
+
+        _pmjJitterTextureId = tex;
+        return _pmjJitterTextureId;
+    }
 
     #endregion
 
@@ -500,6 +555,13 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
                 _shaderHelper?.Dispose();
                 _testFramework?.Dispose();
             }
+
+            if (_pmjJitterTextureId != 0)
+            {
+                GL.DeleteTexture(_pmjJitterTextureId);
+                _pmjJitterTextureId = 0;
+            }
+
             _disposed = true;
         }
         base.Dispose(disposing);

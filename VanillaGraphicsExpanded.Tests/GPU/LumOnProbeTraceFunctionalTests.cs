@@ -93,7 +93,11 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
         (float r, float g, float b)? ambientColor = null,
         (float r, float g, float b)? sunColor = null,
         (float x, float y, float z)? sunPosition = null,
-        (float r, float g, float b)? indirectTint = null)
+        (float r, float g, float b)? indirectTint = null,
+        int directDiffuseUnit = 3,
+        int emissiveUnit = 3,
+        int pmjUnit = 4,
+        int pmjCycleLength = DefaultPmjCycleLength)
     {
         GL.UseProgram(programId);
 
@@ -144,11 +148,25 @@ public class LumOnProbeTraceFunctionalTests : LumOnShaderFunctionalTestBase
         var anchorPosLoc = GL.GetUniformLocation(programId, "probeAnchorPosition");
         var anchorNormalLoc = GL.GetUniformLocation(programId, "probeAnchorNormal");
         var depthLoc = GL.GetUniformLocation(programId, "primaryDepth");
-        var colorLoc = GL.GetUniformLocation(programId, "primaryColor");
+        var directDiffuseLoc = GL.GetUniformLocation(programId, "directDiffuse");
+        var emissiveLoc = GL.GetUniformLocation(programId, "emissive");
         GL.Uniform1(anchorPosLoc, 0);
         GL.Uniform1(anchorNormalLoc, 1);
         GL.Uniform1(depthLoc, 2);
-        GL.Uniform1(colorLoc, 3);
+
+        // Most tests bind a single color texture; map it to both directDiffuse and emissive.
+        GL.Uniform1(directDiffuseLoc, directDiffuseUnit);
+        GL.Uniform1(emissiveLoc, emissiveUnit);
+
+        // PMJ jitter uniforms + binding
+        var pmjCycleLoc = GL.GetUniformLocation(programId, "pmjCycleLength");
+        var pmjSamplerLoc = GL.GetUniformLocation(programId, "pmjJitter");
+        GL.Uniform1(pmjCycleLoc, pmjCycleLength);
+        GL.Uniform1(pmjSamplerLoc, pmjUnit);
+
+        int pmjTexId = GetOrCreatePmjJitterTextureId(pmjCycleLength);
+        GL.ActiveTexture(TextureUnit.Texture0 + pmjUnit);
+        GL.BindTexture(TextureTarget.Texture2D, pmjTexId);
 
         GL.UseProgram(0);
     }

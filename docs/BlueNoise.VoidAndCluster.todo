@@ -193,22 +193,22 @@ Key requirements
 ---
 
 ## Phase 13 — Integrate PMJ Temporal Jitter Into LumOn Sampler Shaders
-- [ ] Identify integration point(s) in LumOn:
-  - [ ] Find the jitter/blue-noise/random sampling sites in LumOn shader(s) and any existing frame-index inputs.
-  - [ ] Confirm whether jitter is applied in clip/NDC space, UV space, or ray direction space.
-- [ ] Decide PMJ binding model:
-  - [ ] Option A: Upload a 1D PMJ “sequence texture” (width = sampleCount) and index by frame.
-  - [ ] Option B: Push a small constant buffer of `Vector2` jitter offsets (if the engine path supports it).
-  - [ ] Default: texture (stable, simple binding, matches existing texture-driven sampling patterns).
-- [ ] Implement runtime provisioning:
-  - [ ] Use `PmjCache` to create `PmjSequence` once per config.
-  - [ ] Pack to `RG16_UNorm` (preferred) or `RG8_UNorm` (fallback) using `PmjConversions`.
-  - [ ] Upload to a GPU texture and bind it for LumOn passes.
-  - [ ] Add uniforms: `frameIndex`, `pmjCycleLength`, and optional `pmjSalt`.
-- [ ] Implement shader-side sampling:
-  - [ ] Compute `frameIndexMod = frameIndex % pmjCycleLength` (or use helper logic).
-  - [ ] Fetch jitter offset from PMJ texture; optionally center to [-0.5, 0.5).
-  - [ ] Apply jitter at the intended stage (sampling kernel / ray gen / reprojection, depending on existing pipeline).
+- [x] Identify integration point(s) in LumOn:
+  - [x] Find the jitter/blue-noise/random sampling sites in LumOn shader(s) and any existing frame-index inputs.
+  - [x] Confirm whether jitter is applied in clip/NDC space, UV space, or ray direction space.
+- [x] Decide PMJ binding model:
+  - [x] Option A: Upload a 1D PMJ “sequence texture” (width = sampleCount) and index by frame.
+  - [x] Option B: Push a small constant buffer of `Vector2` jitter offsets (if the engine path supports it).
+  - [x] Default: texture (stable, simple binding, matches existing texture-driven sampling patterns).
+- [x] Implement runtime provisioning:
+  - [x] Use `PmjCache` to create `PmjSequence` once per config.
+  - [x] Pack to `RG16_UNorm` (preferred) or `RG8_UNorm` (fallback) using `PmjConversions`.
+  - [x] Upload to a GPU texture and bind it for LumOn passes.
+  - [x] Add uniforms: `frameIndex`, `pmjCycleLength`, and optional `pmjSalt`.
+- [x] Implement shader-side sampling:
+  - [x] Compute `frameIndexMod = frameIndex % pmjCycleLength` (or use helper logic).
+  - [x] Fetch jitter offset from PMJ texture; optionally center to [-0.5, 0.5).
+  - [x] Apply jitter at the intended stage (sampling kernel / ray gen / reprojection, depending on existing pipeline).
 - [ ] Optional decorrelation:
   - [ ] If needed, incorporate per-pixel salt (hash of pixel coords) to decorrelate spatial patterns.
 

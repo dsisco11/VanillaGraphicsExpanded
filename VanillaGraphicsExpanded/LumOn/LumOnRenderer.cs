@@ -33,6 +33,9 @@ public class LumOnRenderer : IRenderer, IDisposable
     private const double RENDER_ORDER = 10;
     private const int RENDER_RANGE = 1;
 
+    private const int PmjJitterCycleLength = 256;
+    private const uint PmjJitterSeed = 0xA5B35705u;
+
     #endregion
 
     #region Fields
@@ -41,6 +44,8 @@ public class LumOnRenderer : IRenderer, IDisposable
     private readonly LumOnConfig config;
     private readonly LumOnBufferManager bufferManager;
     private readonly GBufferManager? gBufferManager;
+
+    private readonly LumOnPmjJitterTexture pmjJitter;
 
     // Fullscreen quad mesh
     private MeshRef? quadMeshRef;
@@ -107,6 +112,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         this.config = config;
         this.bufferManager = bufferManager;
         this.gBufferManager = gBufferManager;
+
+        pmjJitter = new LumOnPmjJitterTexture(PmjJitterCycleLength, PmjJitterSeed);
 
         // Create fullscreen quad mesh
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
@@ -190,6 +197,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
+        pmjJitter.EnsureCreated();
         TryRenderFrame(deltaTime, stage);
 
         // Ensure VS's primary framebuffer is bound for subsequent passes.
@@ -488,6 +496,9 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.PrimaryDepth = primaryFb.DepthTextureId;
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
 
+        shader.PmjJitter = pmjJitter.TextureId;
+        shader.PmjCycleLength = pmjJitter.CycleLength;
+
         // Pass matrices
         shader.InvProjectionMatrix = invProjectionMatrix;
         shader.InvViewMatrix = invModelViewMatrix;  // For view-space to world-space transform
@@ -538,6 +549,9 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Bind scene depth for ray marching
         shader.PrimaryDepth = primaryFb.DepthTextureId;
+
+        shader.PmjJitter = pmjJitter.TextureId;
+        shader.PmjCycleLength = pmjJitter.CycleLength;
 
         // Bind radiance sources for hit sampling.
         // Prefer the PBR split outputs (linear, pre-tonemap HDR) when available.
@@ -1251,6 +1265,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     public void Dispose()
     {
+        pmjJitter.Dispose();
         // Unregister world events
         capi.Event.LeaveWorld -= OnLeaveWorld;
 

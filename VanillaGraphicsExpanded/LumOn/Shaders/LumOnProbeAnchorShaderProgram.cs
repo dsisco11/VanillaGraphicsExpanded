@@ -50,6 +50,11 @@ public class LumOnProbeAnchorShaderProgram : VgeShaderProgram
     /// </summary>
     public int GBufferNormal { set => BindTexture2D("gBufferNormal", value, 1); }
 
+    /// <summary>
+    /// PMJ jitter sequence texture (RG16_UNorm, width=cycleLength, height=1).
+    /// </summary>
+    public int PmjJitter { set => BindTexture2D("pmjJitter", value, 2); }
+
     #endregion
 
     #region Matrix Uniforms
@@ -98,6 +103,11 @@ public class LumOnProbeAnchorShaderProgram : VgeShaderProgram
     /// Jitter scale as a fraction of probe spacing.
     /// </summary>
     public float AnchorJitterScale { set => Uniform("anchorJitterScale", value); }
+
+    /// <summary>
+    /// PMJ jitter cycle length (texture width).
+    /// </summary>
+    public int PmjCycleLength { set => Uniform("pmjCycleLength", value); }
 
     #endregion
 

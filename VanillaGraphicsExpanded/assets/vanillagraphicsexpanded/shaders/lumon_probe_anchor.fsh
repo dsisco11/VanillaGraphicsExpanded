@@ -26,8 +26,7 @@ layout(location = 1) out vec4 outNormal;    // normalWS.xyz, reserved
 // Import common utilities
 @import "./includes/lumon_common.glsl"
 
-// Deterministic jitter hash (already used elsewhere in LumOn)
-@import "./includes/squirrel3.glsl"
+// PMJ temporal jitter sequence (provided by CPU as an RG16_UNorm 1xN texture)
 
 // G-buffer textures
 uniform sampler2D primaryDepth;    // Depth buffer
@@ -46,6 +45,9 @@ uniform vec2 screenSize;           // Full screen dimensions
 uniform int frameIndex;
 uniform int anchorJitterEnabled;   // 0/1
 uniform float anchorJitterScale;   // fraction of probeSpacing
+
+uniform sampler2D pmjJitter;
+uniform int pmjCycleLength;
 
 // Z-planes
 uniform float zNear;
@@ -113,12 +115,13 @@ void main(void)
     }
 
     // Apply deterministic jitter within probe cell to reduce aliasing.
-    // Uses Squirrel3Hash, seeded by probeCoord + frameIndex, for stable and repeatable jitter.
+    // Uses PMJ sequence points for better temporal distribution.
     vec2 screenUV = baseUV;
-    if (anchorJitterEnabled != 0 && anchorJitterScale > 0.0) {
-        float u1 = Squirrel3HashF(probeCoord.x, probeCoord.y, frameIndex * 2);
-        float u2 = Squirrel3HashF(probeCoord.x, probeCoord.y, frameIndex * 2 + 1);
-        vec2 jitter = vec2(u1, u2) - vec2(0.5);
+    if (anchorJitterEnabled != 0 && anchorJitterScale > 0.0 && pmjCycleLength > 0) {
+        int probeIndex = probeCoord.x + probeCoord.y * int(probeGridSize.x);
+        int idx = (frameIndex + probeIndex) % pmjCycleLength;
+        vec2 u = texelFetch(pmjJitter, ivec2(idx, 0), 0).rg;
+        vec2 jitter = u - vec2(0.5);
 
         float maxOffsetPx = float(probeSpacing) * anchorJitterScale;
         vec2 jitterUV = (jitter * maxOffsetPx) / screenSize;

@@ -57,6 +57,11 @@ public class LumOnProbeTraceShaderProgram : VgeShaderProgram
     /// </summary>
     public int Emissive { set => BindTexture2D("emissive", value, 4); }
 
+    /// <summary>
+    /// PMJ jitter sequence texture (RG16_UNorm, width=cycleLength, height=1).
+    /// </summary>
+    public int PmjJitter { set => BindTexture2D("pmjJitter", value, 5); }
+
     #endregion
 
     #region Matrix Uniforms
@@ -104,6 +109,11 @@ public class LumOnProbeTraceShaderProgram : VgeShaderProgram
     /// Frame index for temporal jittering.
     /// </summary>
     public int FrameIndex { set => Uniform("frameIndex", value); }
+
+    /// <summary>
+    /// PMJ jitter cycle length (texture width).
+    /// </summary>
+    public int PmjCycleLength { set => Uniform("pmjCycleLength", value); }
 
     /// <summary>
     /// Number of rays per probe per frame.
