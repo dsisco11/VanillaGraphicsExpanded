@@ -86,6 +86,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         };
         api.Event.ReloadTextures += () => {
             api.Logger.Debug("[VGE] ReloadTextures event");
+            PbrMaterialAtlasTextures.Instance.RequestRebuild(api);
         };
 
         // Ensure all VGE memory shader programs are registered before any renderer can request them.

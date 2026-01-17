@@ -115,6 +115,34 @@ public class LumOnConfig
     // ═══════════════════════════════════════════════════════════════
 
     /// <summary>
+    /// Enables progressive async population of the material params atlas (RGB16F).
+    /// When disabled, the atlas is populated synchronously during loading.
+    /// </summary>
+    [JsonProperty]
+    public bool EnableMaterialAtlasAsyncBuild { get; set; } = true;
+
+    /// <summary>
+    /// Per-frame time budget (ms) for the async material atlas scheduler.
+    /// This caps render-thread work (job dispatch + texture sub-region uploads).
+    /// </summary>
+    [JsonProperty]
+    public float MaterialAtlasAsyncBudgetMs { get; set; } = 1.5f;
+
+    /// <summary>
+    /// Maximum number of texture sub-region uploads per frame.
+    /// Limits GL work and reduces hitching.
+    /// </summary>
+    [JsonProperty]
+    public int MaterialAtlasAsyncMaxUploadsPerFrame { get; set; } = 8;
+
+    /// <summary>
+    /// Maximum number of CPU tile jobs dispatched per frame.
+    /// Limits task churn and keeps background work paced.
+    /// </summary>
+    [JsonProperty]
+    public int MaterialAtlasAsyncMaxCpuJobsPerFrame { get; set; } = 2;
+
+    /// <summary>
     /// Enables building and binding the VGE normal+depth sidecar atlas.
     /// Pixels are generated during loading from tileable albedo textures (per texture rect).
     /// Requires restart / re-entering the world to fully apply.

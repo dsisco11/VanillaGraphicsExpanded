@@ -2,11 +2,13 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Numerics;
+using VanillaGraphicsExpanded.PBR.Materials.Async;
 using VanillaGraphicsExpanded.Rendering;
 
 using Vintagestory.API.Client;
@@ -27,6 +29,15 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 
     private short lastBlockAtlasReloadIteration = short.MinValue;
     private int lastBlockAtlasNonNullPositions = -1;
+    private short lastScheduledAtlasReloadIteration = short.MinValue;
+    private int lastScheduledAtlasNonNullPositions = -1;
+    private readonly object schedulerLock = new();
+    private ICoreClientAPI? capi;
+    private PbrMaterialAtlasBuildScheduler? scheduler;
+    private PbrMaterialAtlasBuildSchedulerRenderer? schedulerRenderer;
+    private bool schedulerRegistered;
+    private int sessionGeneration;
+    private bool buildRequested;
 
     private bool texturesCreated;
 
@@ -34,6 +45,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 
     public bool IsInitialized { get; private set; }
     public bool AreTexturesCreated => texturesCreated;
+    public bool IsBuildComplete { get; private set; }
 
     public void RebakeNormalDepthAtlas(ICoreClientAPI capi)
     {
@@ -108,6 +120,9 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
     {
         if (capi is null) throw new ArgumentNullException(nameof(capi));
 
+        this.capi = capi;
+        EnsureSchedulerRegistered(capi);
+
         IBlockTextureAtlasAPI atlas = capi.BlockTextureAtlas;
 
         var atlasPages = new List<(int atlasTextureId, int width, int height)>(capacity: atlas.AtlasTextures.Count);
@@ -126,12 +141,14 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
             // Block atlas not ready yet.
             texturesCreated = false;
             IsInitialized = false;
+            IsBuildComplete = false;
             return;
         }
 
         // If the atlas texture ids changed (atlas rebuild), drop the old textures and recreate.
         if (pageTexturesByAtlasTexId.Count > 0 && !atlasPages.All(p => pageTexturesByAtlasTexId.ContainsKey(p.atlasTextureId)))
         {
+            CancelActiveBuildSession();
             DisposeTextures();
         }
 
@@ -174,7 +191,8 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         }
 
         texturesCreated = pageTexturesByAtlasTexId.Count > 0;
-        IsInitialized = false;
+        IsInitialized = texturesCreated;
+        IsBuildComplete = false;
     }
 
     /// <summary>
@@ -185,18 +203,36 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
     {
         if (capi is null) throw new ArgumentNullException(nameof(capi));
 
+        this.capi = capi;
+        EnsureSchedulerRegistered(capi);
+
         // Guard: avoid repopulating when nothing changed.
         // Note: some mods may insert additional textures into the atlas after BlockTexturesLoaded.
         // In those cases reloadIteration may remain unchanged, so we also track the non-null position count.
         IBlockTextureAtlasAPI preAtlas = capi.BlockTextureAtlas;
         (short currentReload, int nonNullCount) = GetAtlasStats(preAtlas);
 
-        if (IsInitialized &&
-            currentReload >= 0 && currentReload == lastBlockAtlasReloadIteration &&
-            nonNullCount == lastBlockAtlasNonNullPositions)
+        if (!buildRequested && currentReload >= 0)
         {
-            return;
+            // Don't restart while the current async build is still targeting the same atlas stats.
+            if (scheduler?.ActiveSession is not null &&
+                currentReload == lastScheduledAtlasReloadIteration &&
+                nonNullCount == lastScheduledAtlasNonNullPositions)
+            {
+                IsBuildComplete = scheduler.ActiveSession.IsComplete;
+                return;
+            }
+
+            // Don't redo completed work.
+            if (IsBuildComplete &&
+                currentReload == lastBlockAtlasReloadIteration &&
+                nonNullCount == lastBlockAtlasNonNullPositions)
+            {
+                return;
+            }
         }
+
+        buildRequested = false;
 
         CreateTextureObjects(capi);
 
@@ -208,7 +244,8 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         if (!PbrMaterialRegistry.Instance.IsInitialized)
         {
             capi.Logger.Warning("[VGE] Material atlas textures: registry not initialized; skipping.");
-            IsInitialized = false;
+            IsInitialized = texturesCreated;
+            IsBuildComplete = false;
             return;
         }
 
@@ -258,109 +295,25 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
             materialsByTexture[texture] = definition;
         }
 
-        var result = PbrMaterialParamsPixelBuilder.BuildRgb16fPixelBuffers(
-            atlasPages,
-            texturePositions,
-            materialsByTexture);
-
-        // Apply explicit material params overrides (if any) on top of the procedural buffers.
-        // Policy: if an override fails to load/validate, keep the procedural output (warn once per target texture).
-        int overriddenRects = 0;
-        foreach ((AssetLocation targetTexture, PbrMaterialTextureOverrides overrides) in PbrMaterialRegistry.Instance.OverridesByTexture)
+        int filledRects;
+        int overriddenRects;
+        if (ConfigModSystem.Config.EnableMaterialAtlasAsyncBuild)
         {
-            if (overrides.MaterialParams is null)
-            {
-                continue;
-            }
-
-            if (!texturePositions.TryGetValue(targetTexture, out TextureAtlasPosition? texPos) || texPos is null)
-            {
-                continue;
-            }
-
-            if (!result.PixelBuffersByAtlasTexId.TryGetValue(texPos.atlasTextureId, out float[]? pixels))
-            {
-                continue;
-            }
-
-            (int atlasW, int atlasH) = result.SizesByAtlasTexId[texPos.atlasTextureId];
-
-            // Convert normalized atlas UV bounds to integer pixel bounds.
-            int x1 = Math.Clamp((int)Math.Floor(texPos.x1 * atlasW), 0, atlasW - 1);
-            int y1 = Math.Clamp((int)Math.Floor(texPos.y1 * atlasH), 0, atlasH - 1);
-            int x2 = Math.Clamp((int)Math.Ceiling(texPos.x2 * atlasW), 0, atlasW);
-            int y2 = Math.Clamp((int)Math.Ceiling(texPos.y2 * atlasH), 0, atlasH);
-
-            int rectW = x2 - x1;
-            int rectH = y2 - y1;
-            if (rectW <= 0 || rectH <= 0)
-            {
-                continue;
-            }
-
-            if (!PbrOverrideTextureLoader.TryLoadRgbaFloats01(
-                    capi,
-                    overrides.MaterialParams,
-                    out int _,
-                    out int _,
-                    out float[] floatRgba01,
-                    out string? reason,
-                    expectedWidth: rectW,
-                    expectedHeight: rectH))
-            {
-                capi.Logger.Warning(
-                    "[VGE] PBR override ignored: rule='{0}' target='{1}' override='{2}' reason='{3}'. Falling back to generated maps.",
-                    overrides.RuleId ?? "(no id)",
-                    targetTexture,
-                    overrides.MaterialParams,
-                    reason ?? "unknown error");
-                continue;
-            }
-
-            // Channel packing must match vge_material.glsl (RGB = roughness, metallic, emissive).
-            // Ignore alpha.
-            PbrMaterialParamsOverrideApplier.ApplyRgbOverride(
-                atlasRgbTriplets: pixels,
-                atlasWidth: atlasW,
-                atlasHeight: atlasH,
-                rectX: x1,
-                rectY: y1,
-                rectWidth: rectW,
-                rectHeight: rectH,
-                overrideRgba01: floatRgba01,
-                scale: overrides.Scale);
-
-            overriddenRects++;
+            filledRects = StartMaterialParamsAsyncBuild(
+                atlasPages,
+                texturePositions,
+                materialsByTexture,
+                currentReload,
+                nonNullCount);
+            overriddenRects = 0; // Phase 3 (override pipeline) will reintroduce these progressively.
         }
-
-        if (result.FilledRects == 0 && materialsByTexture.Count > 0)
+        else
         {
-            capi.Logger.Warning(
-                "[VGE] Built material param atlas textures but filled 0 rects. This usually means atlas key mismatch (e.g. textures/...png vs block/...) or textures not in block atlas.");
-        }
-
-        // Upload CPU-built material params into the already-created textures.
-        foreach ((int atlasTexId, float[] pixels) in result.PixelBuffersByAtlasTexId)
-        {
-            if (!pageTexturesByAtlasTexId.TryGetValue(atlasTexId, out PbrMaterialAtlasPageTextures? pageTextures))
-            {
-                continue;
-            }
-
-            (int width, int height) = result.SizesByAtlasTexId[atlasTexId];
-
-            // Replace the material params texture (simple + safe). If you want a true in-place update later,
-            // we can add a DynamicTexture.Update(...) method.
-            pageTextures.MaterialParamsTexture.Dispose();
-            var updated = DynamicTexture.CreateWithData(
-                width,
-                height,
-                PixelInternalFormat.Rgb16f,
-                pixels,
-                TextureFilterMode.Nearest,
-                debugName: $"vge_materialParams_atlas_{atlasTexId}");
-
-            pageTexturesByAtlasTexId[atlasTexId] = new PbrMaterialAtlasPageTextures(updated, pageTextures.NormalDepthTexture);
+            (filledRects, overriddenRects) = PopulateMaterialParamsSync(
+                capi,
+                atlasPages,
+                texturePositions,
+                materialsByTexture);
         }
 
         if (ConfigModSystem.Config.EnableNormalDepthAtlas)
@@ -569,9 +522,11 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         }
 
         capi.Logger.Notification(
-            "[VGE] Built material param atlas textures: {0} atlas page(s), {1} texture rect(s) filled ({2} overridden)",
+            ConfigModSystem.Config.EnableMaterialAtlasAsyncBuild
+                ? "[VGE] Material params async build scheduled: {0} atlas page(s), {1} tile(s) queued ({2} overrides deferred)"
+                : "[VGE] Built material param atlas textures: {0} atlas page(s), {1} texture rect(s) filled ({2} overridden)",
             pageTexturesByAtlasTexId.Count,
-            result.FilledRects,
+            filledRects,
             overriddenRects);
 
         if (ConfigModSystem.Config.DebugLogNormalDepthAtlas)
@@ -598,6 +553,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         }
 
         IsInitialized = pageTexturesByAtlasTexId.Count > 0;
+        IsBuildComplete = !ConfigModSystem.Config.EnableMaterialAtlasAsyncBuild || (scheduler?.ActiveSession?.IsComplete ?? false);
         if (currentReload >= 0)
         {
             lastBlockAtlasReloadIteration = currentReload;
@@ -627,6 +583,235 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         }
 
         return (reloadIteration, nonNullCount);
+    }
+
+    public void RequestRebuild(ICoreClientAPI capi)
+    {
+        if (capi is null) throw new ArgumentNullException(nameof(capi));
+
+        this.capi = capi;
+        buildRequested = true;
+        CancelActiveBuildSession();
+    }
+
+    public void CancelActiveBuildSession()
+    {
+        lock (schedulerLock)
+        {
+            scheduler?.CancelActiveSession();
+            lastScheduledAtlasReloadIteration = short.MinValue;
+            lastScheduledAtlasNonNullPositions = -1;
+            IsBuildComplete = false;
+        }
+    }
+
+    private void EnsureSchedulerRegistered(ICoreClientAPI capi)
+    {
+        lock (schedulerLock)
+        {
+            scheduler ??= new PbrMaterialAtlasBuildScheduler();
+            scheduler.Initialize(TryGetPageTexturesByAtlasTexId);
+
+            if (schedulerRegistered)
+            {
+                return;
+            }
+
+            schedulerRenderer ??= new PbrMaterialAtlasBuildSchedulerRenderer(scheduler);
+            capi.Event.RegisterRenderer(schedulerRenderer, EnumRenderStage.Before, "vge_pbr_material_atlas_async_build");
+            schedulerRegistered = true;
+        }
+    }
+
+    private PbrMaterialAtlasPageTextures? TryGetPageTexturesByAtlasTexId(int atlasTextureId)
+        => pageTexturesByAtlasTexId.TryGetValue(atlasTextureId, out PbrMaterialAtlasPageTextures? pageTextures)
+            ? pageTextures
+            : null;
+
+    private int StartMaterialParamsAsyncBuild(
+        IReadOnlyList<(int atlasTextureId, int width, int height)> atlasPages,
+        IReadOnlyDictionary<AssetLocation, TextureAtlasPosition> texturePositions,
+        IReadOnlyDictionary<AssetLocation, PbrMaterialDefinition> materialsByTexture,
+        short currentReload,
+        int nonNullCount)
+    {
+        if (scheduler is null)
+        {
+            return 0;
+        }
+
+        int generationId = Interlocked.Increment(ref sessionGeneration);
+        if (generationId <= 0)
+        {
+            sessionGeneration = 1;
+            generationId = 1;
+        }
+
+        var sizesByAtlasTexId = new Dictionary<int, (int width, int height)>(capacity: atlasPages.Count);
+        foreach ((int atlasTextureId, int width, int height) in atlasPages)
+        {
+            sizesByAtlasTexId[atlasTextureId] = (width, height);
+        }
+
+        var tileJobs = new List<PbrMaterialAtlasTileJob>(capacity: materialsByTexture.Count);
+
+        foreach ((AssetLocation texture, PbrMaterialDefinition definition) in materialsByTexture)
+        {
+            if (!texturePositions.TryGetValue(texture, out TextureAtlasPosition? texPos) || texPos is null)
+            {
+                continue;
+            }
+
+            if (!sizesByAtlasTexId.TryGetValue(texPos.atlasTextureId, out (int width, int height) size))
+            {
+                continue;
+            }
+
+            int x1 = Math.Clamp((int)Math.Floor(texPos.x1 * size.width), 0, size.width - 1);
+            int y1 = Math.Clamp((int)Math.Floor(texPos.y1 * size.height), 0, size.height - 1);
+            int x2 = Math.Clamp((int)Math.Ceiling(texPos.x2 * size.width), 0, size.width);
+            int y2 = Math.Clamp((int)Math.Ceiling(texPos.y2 * size.height), 0, size.height);
+
+            int rectW = x2 - x1;
+            int rectH = y2 - y1;
+            if (rectW <= 0 || rectH <= 0)
+            {
+                continue;
+            }
+
+            tileJobs.Add(new PbrMaterialAtlasTileJob(
+                GenerationId: generationId,
+                AtlasTextureId: texPos.atlasTextureId,
+                RectX: x1,
+                RectY: y1,
+                RectWidth: rectW,
+                RectHeight: rectH,
+                Texture: texture,
+                Definition: definition,
+                Priority: 0));
+        }
+
+        var session = new PbrMaterialAtlasBuildSession(generationId, atlasPages, tileJobs);
+        scheduler.StartSession(session);
+
+        lastScheduledAtlasReloadIteration = currentReload;
+        lastScheduledAtlasNonNullPositions = nonNullCount;
+        IsBuildComplete = tileJobs.Count == 0;
+
+        return tileJobs.Count;
+    }
+
+    private (int filledRects, int overriddenRects) PopulateMaterialParamsSync(
+        ICoreClientAPI capi,
+        IReadOnlyList<(int atlasTextureId, int width, int height)> atlasPages,
+        IReadOnlyDictionary<AssetLocation, TextureAtlasPosition> texturePositions,
+        IReadOnlyDictionary<AssetLocation, PbrMaterialDefinition> materialsByTexture)
+    {
+        var result = PbrMaterialParamsPixelBuilder.BuildRgb16fPixelBuffers(
+            atlasPages,
+            texturePositions,
+            materialsByTexture);
+
+        // Apply explicit material params overrides (if any) on top of the procedural buffers.
+        // Policy: if an override fails to load/validate, keep the procedural output (warn once per target texture).
+        int overriddenRects = 0;
+        foreach ((AssetLocation targetTexture, PbrMaterialTextureOverrides overrides) in PbrMaterialRegistry.Instance.OverridesByTexture)
+        {
+            if (overrides.MaterialParams is null)
+            {
+                continue;
+            }
+
+            if (!texturePositions.TryGetValue(targetTexture, out TextureAtlasPosition? texPos) || texPos is null)
+            {
+                continue;
+            }
+
+            if (!result.PixelBuffersByAtlasTexId.TryGetValue(texPos.atlasTextureId, out float[]? pixels))
+            {
+                continue;
+            }
+
+            (int atlasW, int atlasH) = result.SizesByAtlasTexId[texPos.atlasTextureId];
+
+            // Convert normalized atlas UV bounds to integer pixel bounds.
+            int x1 = Math.Clamp((int)Math.Floor(texPos.x1 * atlasW), 0, atlasW - 1);
+            int y1 = Math.Clamp((int)Math.Floor(texPos.y1 * atlasH), 0, atlasH - 1);
+            int x2 = Math.Clamp((int)Math.Ceiling(texPos.x2 * atlasW), 0, atlasW);
+            int y2 = Math.Clamp((int)Math.Ceiling(texPos.y2 * atlasH), 0, atlasH);
+
+            int rectW = x2 - x1;
+            int rectH = y2 - y1;
+            if (rectW <= 0 || rectH <= 0)
+            {
+                continue;
+            }
+
+            if (!PbrOverrideTextureLoader.TryLoadRgbaFloats01(
+                    capi,
+                    overrides.MaterialParams,
+                    out int _,
+                    out int _,
+                    out float[] floatRgba01,
+                    out string? reason,
+                    expectedWidth: rectW,
+                    expectedHeight: rectH))
+            {
+                capi.Logger.Warning(
+                    "[VGE] PBR override ignored: rule='{0}' target='{1}' override='{2}' reason='{3}'. Falling back to generated maps.",
+                    overrides.RuleId ?? "(no id)",
+                    targetTexture,
+                    overrides.MaterialParams,
+                    reason ?? "unknown error");
+                continue;
+            }
+
+            // Channel packing must match vge_material.glsl (RGB = roughness, metallic, emissive).
+            // Ignore alpha.
+            PbrMaterialParamsOverrideApplier.ApplyRgbOverride(
+                atlasRgbTriplets: pixels,
+                atlasWidth: atlasW,
+                atlasHeight: atlasH,
+                rectX: x1,
+                rectY: y1,
+                rectWidth: rectW,
+                rectHeight: rectH,
+                overrideRgba01: floatRgba01,
+                scale: overrides.Scale);
+
+            overriddenRects++;
+        }
+
+        if (result.FilledRects == 0 && materialsByTexture.Count > 0)
+        {
+            capi.Logger.Warning(
+                "[VGE] Built material param atlas textures but filled 0 rects. This usually means atlas key mismatch (e.g. textures/...png vs block/...) or textures not in block atlas.");
+        }
+
+        // Upload CPU-built material params into the already-created textures.
+        foreach ((int atlasTexId, float[] pixels) in result.PixelBuffersByAtlasTexId)
+        {
+            if (!pageTexturesByAtlasTexId.TryGetValue(atlasTexId, out PbrMaterialAtlasPageTextures? pageTextures))
+            {
+                continue;
+            }
+
+            (int width, int height) = result.SizesByAtlasTexId[atlasTexId];
+
+            // Replace the material params texture (simple + safe).
+            pageTextures.MaterialParamsTexture.Dispose();
+            var updated = DynamicTexture.CreateWithData(
+                width,
+                height,
+                PixelInternalFormat.Rgb16f,
+                pixels,
+                TextureFilterMode.Nearest,
+                debugName: $"vge_materialParams_atlas_{atlasTexId}");
+
+            pageTexturesByAtlasTexId[atlasTexId] = new PbrMaterialAtlasPageTextures(updated, pageTextures.NormalDepthTexture);
+        }
+
+        return (result.FilledRects, overriddenRects);
     }
 
     public bool TryGetMaterialParamsTextureId(int atlasTextureId, out int materialParamsTextureId)
@@ -663,6 +848,27 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
             return;
         }
 
+        CancelActiveBuildSession();
+
+        if (schedulerRegistered && capi is not null && schedulerRenderer is not null)
+        {
+            try
+            {
+                capi.Event.UnregisterRenderer(schedulerRenderer, EnumRenderStage.Before);
+            }
+            catch
+            {
+                // Best-effort.
+            }
+        }
+
+        schedulerRenderer?.Dispose();
+        schedulerRenderer = null;
+
+        scheduler?.Dispose();
+        scheduler = null;
+        schedulerRegistered = false;
+
         DisposeTextures();
         isDisposed = true;
     }
@@ -678,7 +884,10 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         texturesCreated = false;
         lastBlockAtlasReloadIteration = short.MinValue;
         lastBlockAtlasNonNullPositions = -1;
+        lastScheduledAtlasReloadIteration = short.MinValue;
+        lastScheduledAtlasNonNullPositions = -1;
         IsInitialized = false;
+        IsBuildComplete = false;
     }
 
 }

@@ -155,6 +155,62 @@ internal static class PbrMaterialParamsPixelBuilder
         return new Result(pixelBuffersByAtlasTexId, sizesByAtlasTexId, filledRects);
     }
 
+    public static float[] BuildRgb16fTile(
+        AssetLocation texture,
+        PbrMaterialDefinition definition,
+        int rectWidth,
+        int rectHeight,
+        CancellationToken cancellationToken)
+    {
+        if (texture is null) throw new ArgumentNullException(nameof(texture));
+        if (rectWidth <= 0) throw new ArgumentOutOfRangeException(nameof(rectWidth));
+        if (rectHeight <= 0) throw new ArgumentOutOfRangeException(nameof(rectHeight));
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        float roughness = Clamp01(definition.Roughness);
+        float metallic = Clamp01(definition.Metallic);
+        float emissive = Clamp01(definition.Emissive);
+
+        float roughnessNoise = Clamp01(definition.Noise.Roughness);
+        float metallicNoise = Clamp01(definition.Noise.Metallic);
+        float emissiveNoise = Clamp01(definition.Noise.Emissive);
+
+        uint seed = StableHash32.HashAssetLocation(texture);
+
+        float[] rgb = new float[checked(rectWidth * rectHeight * 3)];
+
+        for (int y = 0; y < rectHeight; y++)
+        {
+            if ((y & 15) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
+            int rowBase = (y * rectWidth) * 3;
+            Span<float> rowSpan = rgb.AsSpan(rowBase, rectWidth * 3);
+
+            SimdSpanMath.FillInterleaved3(rowSpan, roughness, metallic, emissive);
+
+            if (roughnessNoise != 0f || metallicNoise != 0f || emissiveNoise != 0f)
+            {
+                ApplyNoiseRow(
+                    rowSpan,
+                    rectWidth,
+                    seed,
+                    localY: (uint)y,
+                    baseR: roughness,
+                    baseG: metallic,
+                    baseB: emissive,
+                    ampR: roughnessNoise,
+                    ampG: metallicNoise,
+                    ampB: emissiveNoise);
+            }
+        }
+
+        return rgb;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void ApplyNoiseRow(
         Span<float> rowRgb,

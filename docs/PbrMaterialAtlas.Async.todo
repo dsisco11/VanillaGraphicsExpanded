@@ -42,24 +42,24 @@ Exit artifacts: Current pipeline, constraints, and baseline timings documented.
 
 ## Phase 1 - Async Session Model
 Exit artifacts: Session lifecycle and cancellation strategy defined with progress counters.
-- [ ] Add an atlas build session with generation id and cancellation token.
-- [ ] Track per-atlas-page state: pending tiles, in-flight tiles, completed tiles, page clear done.
-- [ ] Ensure a reload or atlas rebuild cancels prior session and clears queues safely.
-- [ ] Add basic progress counters: pages total, tiles total, tiles completed, overrides applied.
+- [x] Add an atlas build session with generation id and cancellation token.
+- [x] Track per-atlas-page state: pending tiles, in-flight tiles, completed tiles, page clear done.
+- [x] Ensure a reload or atlas rebuild cancels prior session and clears queues safely.
+- [x] Add basic progress counters: pages total, tiles total, tiles completed, overrides applied.
 - [ ] Define session inputs snapshot: atlas pages list, positions map, material mapping results, overrides map.
-- [ ] Establish invariants for a session (no cross-session uploads, stale jobs are dropped).
+- [x] Establish invariants for a session (no cross-session uploads, stale jobs are dropped).
 
 ---
 
 ## Phase 2 - Material Params (CPU) as Tile Jobs
 Exit artifacts: Tile job spec for material params and render-thread upload flow defined.
-- [ ] Refactor `PbrMaterialParamsPixelBuilder` to build per-rect buffers instead of whole-page arrays.
-- [ ] Add a light-weight job type: (atlas page, rect, base params, noise seed).
-- [ ] Compute on worker thread; enqueue sub-region upload to render thread.
-- [ ] Define a default unmapped fill (keep existing default roughness/metallic/emissive).
-- [ ] Decide rect selection granularity: per atlas tile, per texture atlas rect, or split large rects.
-- [ ] Specify the exact packing (RGB = roughness, metallic, emissive) and keep it consistent.
-- [ ] Decide on seed strategy for noise so it is deterministic per texture rect.
+- [x] Refactor `PbrMaterialParamsPixelBuilder` to build per-rect buffers instead of whole-page arrays.
+- [x] Add a light-weight job type: (atlas page, rect, base params, noise seed).
+- [x] Compute on worker thread; enqueue sub-region upload to render thread.
+- [x] Define a default unmapped fill (keep existing default roughness/metallic/emissive).
+- [x] Decide rect selection granularity: per atlas tile, per texture atlas rect, or split large rects.
+- [x] Specify the exact packing (RGB = roughness, metallic, emissive) and keep it consistent.
+- [x] Decide on seed strategy for noise so it is deterministic per texture rect.
 
 ---
 
@@ -86,12 +86,12 @@ Exit artifacts: Per-rect bake workflow and page-clear policy defined.
 
 ## Phase 5 - Scheduler + Budget (ms)
 Exit artifacts: Per-frame scheduler and time budget behavior specified.
-- [ ] Add a scheduler that runs each frame with a time budget in milliseconds.
-- [ ] Process a limited number of CPU jobs and render-thread uploads per frame.
-- [ ] Define a max uploads per frame guardrail to avoid stalls.
-- [ ] Add a config value for budget (ms) with reasonable defaults.
-- [ ] Define when the budget resets (per frame) and how to measure elapsed time (stopwatch).
-- [ ] Decide behavior when the budget is exceeded mid-job (finish current job vs pause).
+- [x] Add a scheduler that runs each frame with a time budget in milliseconds.
+- [x] Process a limited number of CPU jobs and render-thread uploads per frame.
+- [x] Define a max uploads per frame guardrail to avoid stalls.
+- [x] Add a config value for budget (ms) with reasonable defaults.
+- [x] Define when the budget resets (per frame) and how to measure elapsed time (stopwatch).
+- [x] Decide behavior when the budget is exceeded mid-job (finish current job vs pause).
 
 ---
 
@@ -107,10 +107,10 @@ Exit artifacts: Priority field integrated into job metadata with placeholder val
 
 ## Phase 7 - Integration and Events
 Exit artifacts: Event hooks and lifecycle integration defined.
-- [ ] Hook session start to `BlockTexturesLoaded` and other relevant events.
-- [ ] Ensure `CreateTextureObjects` can be called independently and safely.
-- [ ] Handle atlas page changes (new pages, size changes) by rebuilding state.
-- [ ] Ensure safe shutdown on mod dispose (cancel session, clear queues, dispose GPU resources).
+- [x] Hook session start to `BlockTexturesLoaded` and other relevant events.
+- [x] Ensure `CreateTextureObjects` can be called independently and safely.
+- [x] Handle atlas page changes (new pages, size changes) by rebuilding state.
+- [x] Ensure safe shutdown on mod dispose (cancel session, clear queues, dispose GPU resources).
 
 ---
 
