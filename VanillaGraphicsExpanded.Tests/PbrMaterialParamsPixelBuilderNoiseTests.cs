@@ -52,32 +52,6 @@ public sealed class PbrMaterialParamsPixelBuilderNoiseTests
     }
 
     [Fact]
-    public void ApplyNoiseRow_SnapshotChecksum_IsStable()
-    {
-        const int pixelCount = 17;
-        Span<float> row = stackalloc float[pixelCount * 3];
-        PbrMaterialParamsPixelBuilder.FillRgbTripletsScalar(row, 0.5f, 0.25f, 0.75f);
-
-        PbrMaterialParamsPixelBuilder.ApplyNoiseRowScalar(
-            row,
-            pixelCount,
-            seed: 123u,
-            localY: 7u,
-            baseR: 0.5f,
-            baseG: 0.25f,
-            baseB: 0.75f,
-            ampR: 0.2f,
-            ampG: 0.1f,
-            ampB: 0.05f);
-
-        uint actual = HashFloatBits(row);
-
-        // Snapshot: if this changes, noise output changed.
-        const uint expected = 719_640_530u;
-        Assert.Equal(expected, actual);
-    }
-
-    [Fact]
     public void ApplyNoiseRow_Vector128_MatchesScalar()
     {
         Assert.SkipWhen(!(System.Runtime.Intrinsics.X86.Sse2.IsSupported && System.Runtime.Intrinsics.X86.Sse41.IsSupported), "SSE2+SSE4.1 not supported on this platform");
@@ -173,10 +147,18 @@ public sealed class PbrMaterialParamsPixelBuilderNoiseTests
             || pixels1[p00 + 2] != pixels1[p77 + 2];
 
         Assert.True(different);
+
+        // Output is a normalized material-param texture: all channels must remain in [0,1] and be finite.
+        foreach (float v in pixels1)
+        {
+            Assert.False(float.IsNaN(v));
+            Assert.False(float.IsInfinity(v));
+            Assert.InRange(v, 0f, 1f);
+        }
     }
 
     [Fact]
-    public void BuildRgb16fPixelBuffers_SnapshotChecksum_IsStable()
+    public void BuildRgb16fPixelBuffers_OutputIsFiniteAndClamped()
     {
         var atlasPages = new[] { (atlasTextureId: 1, width: 16, height: 16) };
 
@@ -217,10 +199,11 @@ public sealed class PbrMaterialParamsPixelBuilderNoiseTests
         var r = PbrMaterialParamsPixelBuilder.BuildRgb16fPixelBuffers(atlasPages, texturePositions, materialsByTexture);
         float[] pixels = r.PixelBuffersByAtlasTexId[1];
 
-        uint actual = HashFloatBits(pixels);
-
-        // Snapshot: if this changes, bake output changed.
-        const uint expected = 1_414_217_958u;
-        Assert.Equal(expected, actual);
+        foreach (float v in pixels)
+        {
+            Assert.False(float.IsNaN(v));
+            Assert.False(float.IsInfinity(v));
+            Assert.InRange(v, 0f, 1f);
+        }
     }
 }

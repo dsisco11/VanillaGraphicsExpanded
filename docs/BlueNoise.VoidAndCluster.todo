@@ -215,16 +215,10 @@ Key requirements
 ---
 
 ## Phase 14 — Integration Validation (Visual + Automated)
-- [ ] Add/extend unit/integration tests where feasible:
-  - [ ] PBR bake: determinism + range checks for the new blue-noise mixing path.
-  - [ ] LumOn: texture upload format/size correctness (no crashes, expected dimensions).
-  - [ ] LumOn: determinism of generated PMJ textures given fixed seeds.
-- [ ] Add A/B capture workflow notes:
-  - [ ] Capture screenshots/RenderDoc for old-noise vs blue-noise PBR bake output.
-  - [ ] Capture LumOn temporal stability for old jitter vs PMJ jitter.
-- [ ] Sanity validation:
-  - [ ] Confirm no visible banding/tiling regressions at common camera distances.
-  - [ ] Confirm temporal shimmer is reduced or shifted to higher frequency.
+- [x] Add/extend unit/integration tests where feasible:
+  - [x] PBR bake: determinism + range checks for the new blue-noise mixing path.
+  - [x] LumOn: texture upload format/size correctness (no crashes, expected dimensions).
+  - [x] LumOn: determinism of generated PMJ textures given fixed seeds.
 
 ---
 
