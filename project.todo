@@ -164,56 +164,45 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
     - BentNormal_TemporalStableUnderStaticCamera
     - BentNormal_RejectionOnDisocclusion
 
-☐ Phase 18 - World-Space Clipmap Probe System - Architecture Docs (New):
-  Goal: Define and document the initial architecture for a world-space clipmap-based probe system
-  (Lumen-like “world probes”) that can coexist with the current screen-space LumOn pipeline and
-  eventually feed the same compositing stage.
+ ☐ Phase 18 - World-Space Clipmap Probe System - Implementation (New):
+  Goal: Implement world-space clipmap probes per LumOn.16-21 with L1 SH, CPU async voxel traces,
+  and ShortRangeAO visibility, feeding the Phase 15 composite alongside screen-space GI.
 
-  Exit artifacts: A set of architecture design documents exists under docs/ that:
-    - Clearly defines terms, coordinate spaces, and data layouts
-    - Describes update cadence, streaming, and stability rules
-    - Specifies GPU/CPU responsibilities and performance constraints
-    - Includes diagrams for data flow and clipmap topology
+  Exit artifacts: A working world-probe pipeline that updates clipmaps over time, blends with
+  screen-space GI using confidence, exposes debug views, and includes basic validation tests.
 
   Work items:
-  ☐ Create docs/LumOn.16-World-Space-Clipmap-Probes.md (overview + goals/non-goals):
-    - Motivation vs screen-space probes
-    - Integration strategy: how world probes feed the same indirectRadiance path
-    - Constraints: VS chunking, memory budget, update bandwidth, fallback behavior
+  ☐ Add config + defaults:
+    - Add config values (ClipmapBaseSpacing, ClipmapResolution, ClipmapLevels, per-level budgets).
+    - Wire config load, hot-reload behavior, and safety bounds.
 
-  ☐ Create docs/LumOn.17-Clipmap-Topology-and-Addressing.md:
-    - Clipmap levels, voxel/probe spacing per level
-    - World-to-clipmap addressing (level selection, wrapping, origin snapping)
-    - Probe indexing and coordinate transforms (WS ↔ clipmap local)
-    - Edge behavior (seams, cross-level blending)
+  ☐ Implement clipmap state + scheduling:
+    - Origin snapping per level and ring-buffer addressing.
+    - Dirty region tracking and per-level update budgets.
+    - Probe selection policy (near-field, dirty regions, stale probes).
 
-  ☐ Create docs/LumOn.18-Probe-Data-Layout-and-Packing.md:
-    - What each probe stores initially (irradiance SH, visibility/cone, hit distance, confidence)
-    - Texture formats and packing (SH9 vs SH3, atlas vs 3D textures, oct encoding)
-    - Versioning strategy for evolving layouts
+  ☐ Implement CPU trace backend:
+    - Iterative async voxel tracing for selected probes.
+    - Produce per-probe trace samples and metadata for GPU integration.
 
-  ☐ Create docs/LumOn.19-Update-Pipeline-and-Scheduling.md:
-    - Update triggers: camera movement thresholds, time slicing, per-level budgets
-    - Probe selection policy (prioritize near field, dirty regions)
-    - Temporal stabilization rules (history blending, invalidation)
-    - Interaction with dynamic geometry / lighting changes
+  ☐ GPU upload + integration:
+    - Define SSBO layout for trace headers and samples (per docs/LumOn.19).
+    - Integrate trace samples into L1 SH + ShortRangeAO + confidence.
+    - Apply probe-space filtering and write clipmap textures.
 
-  ☐ Create docs/LumOn.20-Streaming-and-Persistence.md:
-    - CPU-side cache (what persists across sessions, if any)
-    - Region eviction and reuse when clipmap origin shifts
-    - Determinism requirements (same camera path → stable probe identity)
+  ☐ Buffer and texture management:
+    - Allocate per-level textures for SH, ShortRangeAO, confidence, and distance.
+    - Handle resize/recreate on config changes or resolution updates.
 
-  ☐ Create docs/LumOn.21-Shading-Integration.md:
-    - Sampling world probes at a pixel/point (trilinear, anisotropic, normal-based weighting)
-    - Combining with screen-space GI (screen-first fallback, confidence-based blending)
-    - Feeding Phase 15 compositing inputs (indirectRadiance + optional bent normal/visibility)
+  ☐ Shading integration:
+    - Sample world probes with trilinear + overlap blending.
+    - Blend with screen-space GI (screen-first, confidence-based).
+    - Feed Phase 15 composite inputs, including optional ShortRangeAO use.
 
-  ☐ Diagrams (Mermaid in each doc as appropriate):
-    - System dataflow: CPU scheduling → GPU update passes → shading sample
-    - Clipmap level layout and origin snapping
-    - Probe update state machine (dirty → tracing → filtered → ready)
+  ☐ Debug tooling:
+    - Debug views for world probe irradiance, ShortRangeAO, confidence, and blend weights.
+    - GPU timing for update and filter passes.
 
-  ☐ Open questions section in each doc:
-    - SH order choice (L1 vs L2) and memory math
-    - Trace source (hardware RT? screen-space? world BVH?) and feasibility in VS context
-    - How to represent and use visibility (cone angle vs scalar vs bent normal)
+  ☐ Tests:
+    - Clipmap origin snapping determinism across camera paths.
+    - Probe sampling stability across camera movement.
