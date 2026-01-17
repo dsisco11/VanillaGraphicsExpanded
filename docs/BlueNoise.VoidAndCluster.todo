@@ -149,17 +149,17 @@ Key requirements
 ---
 
 ## Phase 10 — PMJ Output Kinds + Texture Packing
-- [ ] Define `PmjOutputKind` (examples):
-  - [ ] `Vector2F32` points in [0,1).
-  - [ ] `Vector2F32Centered` points in [-0.5,0.5).
-  - [ ] `RG16_UNorm` packed (u,v) as `ushort` in [0,65535].
-  - [ ] `RG8_UNorm` packed (lower precision).
-- [ ] Implement conversion pipeline for PMJ sequences:
-  - [ ] Prefer `TensorPrimitives` for bulk scale/offset/clamp/convert.
-- [ ] Add “temporal jitter texture” layout helpers (CPU-side only):
-  - [ ] Option A: 1D texture (width = sampleCount, height = 1).
-  - [ ] Option B: 2D atlas (width*height = sampleCount, row-major).
-  - [ ] Option C: tiled (repeatable) texture for fixed frame cycles.
+- [x] Define `PmjOutputKind` (examples):
+  - [x] `Vector2F32` points in [0,1).
+  - [x] `Vector2F32Centered` points in [-0.5,0.5).
+  - [x] `RG16_UNorm` packed (u,v) as `ushort` in [0,65535].
+  - [x] `RG8_UNorm` packed (lower precision).
+- [x] Implement conversion pipeline for PMJ sequences:
+  - [x] Prefer `TensorPrimitives` for bulk scale/offset/clamp/convert.
+- [x] Add “temporal jitter texture” layout helpers (CPU-side only):
+  - [x] Option A: 1D texture (width = sampleCount, height = 1).
+  - [x] Option B: 2D atlas (width*height = sampleCount, row-major).
+  - [x] Option C: tiled (repeatable) texture for fixed frame cycles.
 
 ---
 

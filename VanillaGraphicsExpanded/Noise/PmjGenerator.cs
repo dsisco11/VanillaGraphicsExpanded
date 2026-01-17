@@ -51,12 +51,6 @@ public static class PmjGenerator
         PmjSobol02.ToUnitFloat01(xBits, xf);
         PmjSobol02.ToUnitFloat01(yBits, yf);
 
-        if (config.Centered || config.OutputKind == PmjOutputKind.Vector2F32Centered)
-        {
-            TensorPrimitives.Add(xf, -0.5f, xf);
-            TensorPrimitives.Add(yf, -0.5f, yf);
-        }
-
         var points = new Vector2[n];
         for (int i = 0; i < n; i++)
         {
