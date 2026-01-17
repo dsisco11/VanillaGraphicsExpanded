@@ -54,6 +54,9 @@ internal sealed class PbrMaterialDefinitionJson
     [JsonProperty("noise")]
     public PbrMaterialNoiseJson? Noise { get; set; }
 
+    [JsonProperty("scale")]
+    public PbrOverrideScaleJson? Scale { get; set; }
+
     [JsonProperty("notes")]
     public string? Notes { get; set; }
 

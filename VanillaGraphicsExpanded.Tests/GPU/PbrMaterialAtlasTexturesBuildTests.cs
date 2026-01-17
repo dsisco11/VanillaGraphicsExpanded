@@ -33,6 +33,7 @@ public sealed class PbrMaterialAtlasTexturesBuildTests
                 Metallic: 0.30f,
                 Emissive: 0.40f,
                 Noise: default,
+                Scale: PbrOverrideScale.Identity,
                 Priority: 0,
                 Notes: null)
         };

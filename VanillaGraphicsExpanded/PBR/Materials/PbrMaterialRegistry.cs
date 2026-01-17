@@ -84,7 +84,7 @@ internal sealed class PbrMaterialRegistry
         materialsByIndex = Array.Empty<PbrMaterialDefinition>();
         mappingRules.Clear();
 
-        BuildMergedMaterials();
+        BuildMergedMaterials(logger);
         BuildMappingRules(logger, strict);
         BuildTextureMappings(logger, textureLocations);
         AssignMaterialIndices();
@@ -186,7 +186,7 @@ internal sealed class PbrMaterialRegistry
         return parsed;
     }
 
-    private void BuildMergedMaterials()
+    private void BuildMergedMaterials(ILogger logger)
     {
         // Deterministic merge order: stable domain/modid, then file (asset path) order.
         // For material id collisions: higher priority wins; on tie, later in deterministic load order wins.
@@ -201,7 +201,7 @@ internal sealed class PbrMaterialRegistry
             {
                 string materialId = ResolveMaterialId(key, source.Domain);
 
-                PbrMaterialDefinition definition = BuildDefinition(defaults, json);
+                PbrMaterialDefinition definition = BuildDefinition(logger, source.Location, materialId, defaults, json);
 
                 if (!materialById.TryGetValue(materialId, out PbrMaterialDefinition existing))
                 {
@@ -393,12 +393,15 @@ internal sealed class PbrMaterialRegistry
                 warnedOverrides,
                 parsedOverrideCache);
 
+            PbrMaterialDefinition material = materialById[materialId];
+            PbrOverrideScale combinedScale = PbrOverrideScale.Multiply(material.Scale, winner.Value.OverrideScale);
+
             var overrides = new PbrMaterialTextureOverrides(
                 RuleId: winner.Value.Id,
                 RuleSource: winner.Value.Source,
                 MaterialParams: materialParamsOverride,
                 NormalHeight: normalHeightOverride,
-                Scale: winner.Value.OverrideScale);
+                Scale: combinedScale);
             if (!overrides.IsEmpty)
             {
                 overridesByTexture[texture] = overrides;
@@ -465,7 +468,12 @@ internal sealed class PbrMaterialRegistry
                 Normals: noise?.Normals ?? 0.0f));
     }
 
-    private static PbrMaterialDefinition BuildDefinition(PbrMaterialDefaults defaults, PbrMaterialDefinitionJson json)
+    private static PbrMaterialDefinition BuildDefinition(
+        ILogger logger,
+        AssetLocation source,
+        string materialId,
+        PbrMaterialDefaults defaults,
+        PbrMaterialDefinitionJson json)
     {
         float roughness = json.Roughness ?? defaults.Roughness;
         float metallic = json.Metallic ?? defaults.Metallic;
@@ -479,13 +487,52 @@ internal sealed class PbrMaterialRegistry
             Reflectivity: noiseJson?.Reflectivity ?? defaults.Noise.Reflectivity,
             Normals: noiseJson?.Normals ?? defaults.Noise.Normals);
 
+        PbrOverrideScale scale = BuildMaterialScale(logger, source, materialId, json.Scale);
+
         return new PbrMaterialDefinition(
             Roughness: roughness,
             Metallic: metallic,
             Emissive: emissive,
             Noise: noise,
+            Scale: scale,
             Priority: json.Priority ?? 0,
             Notes: json.Notes);
+    }
+
+    private static PbrOverrideScale BuildMaterialScale(
+        ILogger logger,
+        AssetLocation source,
+        string materialId,
+        PbrOverrideScaleJson? json)
+    {
+        if (json is null)
+        {
+            return PbrOverrideScale.Identity;
+        }
+
+        var invalid = new List<string>(capacity: 2);
+
+        float roughness = ReadScaleOrDefault(json.Roughness, "roughness", invalid);
+        float metallic = ReadScaleOrDefault(json.Metallic, "metallic", invalid);
+        float emissive = ReadScaleOrDefault(json.Emissive, "emissive", invalid);
+        float normal = ReadScaleOrDefault(json.Normal, "normal", invalid);
+        float depth = ReadScaleOrDefault(json.Depth, "depth", invalid);
+
+        if (invalid.Count > 0)
+        {
+            logger.Warning(
+                "[VGE] Invalid material scale value(s) ignored: material='{0}' source={1} invalid=[{2}]. Treating as 1.0.",
+                materialId,
+                source,
+                string.Join(", ", invalid));
+        }
+
+        return new PbrOverrideScale(
+            Roughness: roughness,
+            Metallic: metallic,
+            Emissive: emissive,
+            Normal: normal,
+            Depth: depth);
     }
 
     private static string ResolveMaterialId(string materialKeyOrId, string sourceDomain)

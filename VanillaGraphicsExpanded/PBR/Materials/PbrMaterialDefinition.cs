@@ -12,5 +12,6 @@ internal readonly record struct PbrMaterialDefinition(
     float Metallic,
     float Emissive,
     PbrMaterialNoise Noise,
+    PbrOverrideScale Scale,
     int Priority,
     string? Notes);

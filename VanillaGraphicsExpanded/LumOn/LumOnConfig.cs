@@ -190,7 +190,7 @@ public class LumOnConfig
     /// Hot-reloadable.
     /// </summary>
     [JsonProperty]
-    public float AnchorJitterScale { get; set; } = 0.35f;
+    public float AnchorJitterScale { get; set; } = 0.15f;
 
     /// <summary>
     /// PMJ jitter cycle length (number of frames before the sequence repeats).

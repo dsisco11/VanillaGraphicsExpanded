@@ -16,6 +16,13 @@
       "roughness": 0.05,
       "metallic": 0.0,
       "normals": 0.05
+    },
+    "scale": {
+      "roughness": 1.0,
+      "metallic": 1.0,
+      "emissive": 1.0,
+      "normal": 1.0,
+      "depth": 0.5
     }
   },
   "materials": {
