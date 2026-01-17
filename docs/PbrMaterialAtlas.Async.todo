@@ -14,75 +14,108 @@ Key requirements
 ---
 
 ## Phase 0 - Audit and Constraints
+Exit artifacts: Current pipeline, constraints, and baseline timings documented.
 - [ ] Document current entry points and lifecycle: `BlockTexturesLoaded`, `ReloadTextures`, `CreateTextureObjects`, `PopulateAtlasContents`.
 - [ ] Enumerate GL thread requirements (GPU baker, texture uploads).
 - [ ] Identify data dependencies: material registry, atlas positions, overrides, asset scanning.
 - [ ] Define failure/skip behavior when atlas pages not ready or registry not initialized.
+- [ ] Capture current timing characteristics (sync build time, normal+depth bake time) for baseline.
+- [ ] Decide what can run off-thread safely (CPU-only) vs must enqueue on main/render thread.
+- [ ] Map the current call graph with file refs (e.g., `PbrMaterialAtlasTextures`, `PbrMaterialParamsPixelBuilder`, `PbrNormalDepthAtlasGpuBaker`, `PbrOverrideTextureLoader`, `DynamicTexture`).
+- [ ] Record which APIs are not thread-safe (AssetManager, GL calls, shader programs) and must stay on main/render thread.
+- [ ] Note any current “whole-page” behaviors that need per-rect refactors (e.g., atlas page clears, full buffer builds).
+- [ ] Identify atlas size/position invariants (e.g., `TextureAtlasPosition` normalization, reload iteration tracking).
+- [ ] Capture existing override scan cost and frequency (material params overrides and normal+height overrides).
+- [ ] Baseline counts to record: atlas page count, total atlas rects, override rects, textures scanned.
 
 ---
 
 ## Phase 1 - Async Session Model
+Exit artifacts: Session lifecycle and cancellation strategy defined with progress counters.
 - [ ] Add an atlas build session with generation id and cancellation token.
 - [ ] Track per-atlas-page state: pending tiles, in-flight tiles, completed tiles, page clear done.
 - [ ] Ensure a reload or atlas rebuild cancels prior session and clears queues safely.
 - [ ] Add basic progress counters: pages total, tiles total, tiles completed, overrides applied.
+- [ ] Define session inputs snapshot: atlas pages list, positions map, material mapping results, overrides map.
+- [ ] Establish invariants for a session (no cross-session uploads, stale jobs are dropped).
 
 ---
 
 ## Phase 2 - Material Params (CPU) as Tile Jobs
+Exit artifacts: Tile job spec for material params and render-thread upload flow defined.
 - [ ] Refactor `PbrMaterialParamsPixelBuilder` to build per-rect buffers instead of whole-page arrays.
 - [ ] Add a light-weight job type: (atlas page, rect, base params, noise seed).
 - [ ] Compute on worker thread; enqueue sub-region upload to render thread.
 - [ ] Define a default unmapped fill (keep existing default roughness/metallic/emissive).
+- [ ] Decide rect selection granularity: per atlas tile, per texture atlas rect, or split large rects.
+- [ ] Specify the exact packing (RGB = roughness, metallic, emissive) and keep it consistent.
+- [ ] Decide on seed strategy for noise so it is deterministic per texture rect.
 
 ---
 
 ## Phase 3 - Overrides Pipeline
+Exit artifacts: Override application order, caching, and failure policy specified.
 - [ ] Load/validate overrides per texture only when needed for its rect (lazy).
 - [ ] Apply override data as a rect upload after procedural params.
 - [ ] Cache override texture loads to avoid repeated IO/decodes.
+- [ ] Decide precedence rules for overlapping overrides (if any).
+- [ ] Decide on failure handling: log once per rule or per target texture.
 
 ---
 
 ## Phase 4 - Normal+Depth Baker Refactor
+Exit artifacts: Per-rect bake workflow and page-clear policy defined.
 - [ ] Add one-time per-page clear (neutral normal + height = 0.5).
 - [ ] Expose a per-rect bake method in `PbrNormalDepthAtlasGpuBaker`.
 - [ ] Ensure per-rect bake does not read/modify other regions.
 - [ ] Apply normal+height overrides per rect after baking.
+- [ ] Define a tile size minimum for baking (very small tiles may stay default).
+- [ ] Decide whether to reuse scratch resources across tiles or recreate per job.
 
 ---
 
 ## Phase 5 - Scheduler + Budget (ms)
+Exit artifacts: Per-frame scheduler and time budget behavior specified.
 - [ ] Add a scheduler that runs each frame with a time budget in milliseconds.
 - [ ] Process a limited number of CPU jobs and render-thread uploads per frame.
 - [ ] Define a max uploads per frame guardrail to avoid stalls.
 - [ ] Add a config value for budget (ms) with reasonable defaults.
+- [ ] Define when the budget resets (per frame) and how to measure elapsed time (stopwatch).
+- [ ] Decide behavior when the budget is exceeded mid-job (finish current job vs pause).
 
 ---
 
 ## Phase 6 - Prioritization Scaffold
+Exit artifacts: Priority field integrated into job metadata with placeholder values.
 - [ ] Add a priority factor field to job metadata (float or int).
 - [ ] Sort queues by priority first, then FIFO.
 - [ ] For now, set priority to a constant (no unique values yet).
 - [ ] Document TODO hooks for future priority computation (visibility, proximity, usage).
+- [ ] Identify where priority data will come from later (renderer visibility, block usage stats, etc).
 
 ---
 
 ## Phase 7 - Integration and Events
+Exit artifacts: Event hooks and lifecycle integration defined.
 - [ ] Hook session start to `BlockTexturesLoaded` and other relevant events.
 - [ ] Ensure `CreateTextureObjects` can be called independently and safely.
 - [ ] Handle atlas page changes (new pages, size changes) by rebuilding state.
+- [ ] Ensure safe shutdown on mod dispose (cancel session, clear queues, dispose GPU resources).
 
 ---
 
 ## Phase 8 - Diagnostics and UX
+Exit artifacts: Diagnostics and UX surface for progress/failures specified.
 - [ ] Add debug logs or UI for progress and failures.
 - [ ] Expose metrics: queue lengths, elapsed time per frame, dropped or failed jobs.
 - [ ] Add a force sync build option for loading screens if needed.
+- [ ] Add a debug view to show which atlas pages are complete vs pending.
 
 ---
 
 ## Phase 9 - Validation
+Exit artifacts: Validation checklist for correctness and performance defined.
 - [ ] Verify partial atlas rendering is stable (no missing textures cause crashes).
 - [ ] Validate overrides precedence with partial updates.
 - [ ] Check for performance regressions and stutter under typical loads.
+- [ ] Confirm deterministic results across runs with the same assets and settings.
