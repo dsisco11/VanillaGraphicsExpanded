@@ -62,12 +62,12 @@ Exit artifacts: A small, stable kernel set exists for Span<float>/Span<byte>.
 
 Phase 3 — Implement Minimal Layout Helpers (Still Domain-Agnostic)
 Exit artifacts: Common interleaved layouts have canonical helpers.
-[ ] Add "layout" helpers named by structure, not meaning:
-    [ ] FillInterleaved3(Span<float> dst, float a0, float a1, float a2)
+[x] Add "layout" helpers named by structure, not meaning:
+    [x] FillInterleaved3(Span<float> dst, float a0, float a1, float a2)
         - Used for RGB-triplet fills, but not named "RGB".
-    [ ] CopyInterleaved4ToInterleaved3(ReadOnlySpan<float> src4, Span<float> dst3)
+    [x] CopyInterleaved4ToInterleaved3(ReadOnlySpan<float> src4, Span<float> dst3)
         - Used for RGBA→RGB drops (alpha ignored).
-[ ] Keep these helpers small and dependency-free (no VintageStory types).
+[x] Keep these helpers small and dependency-free (no VintageStory types).
 
 
 Phase 4 — Refactor: Override Loader Uses SimdSpanMath
