@@ -28,6 +28,7 @@ namespace VanillaGraphicsExpanded.PBR.Materials;
 /// </summary>
 internal static class PbrNormalDepthAtlasGpuBaker
 {
+    private const int MinBakeTilePx = 2;
     // Asset domain for shader source.
     private const string Domain = "vanillagraphicsexpanded";
 
@@ -151,12 +152,7 @@ internal static class PbrNormalDepthAtlasGpuBaker
             GL.BindVertexArray(vao);
 
             // Clear entire atlas sidecar first (deterministic baseline).
-            BindAtlasTarget(destNormalDepthTexId, 0, 0, atlasWidth, atlasHeight);
-            // Neutral defaults: flat normal and neutral height.
-            // IMPORTANT: many atlas rects may not be included in texturePositions (we only bake known textures),
-            // so alpha must default to 0.5 instead of 0.0 to avoid "black" depth tiles.
-            GL.ClearColor(0.5f, 0.5f, 1.0f, 0.5f);
-            GL.Clear(ClearBufferMask.ColorBufferBit);
+            ClearAtlasPageUnsafe(destNormalDepthTexId, atlasWidth, atlasHeight);
 
             int debugTilesLogged = 0;
             int bakedRects = 0;
@@ -178,7 +174,7 @@ internal static class PbrNormalDepthAtlasGpuBaker
 
                 // Extremely small tiles can't produce stable gradients; leave defaults.
                 // Note: leaving defaults means neutral height (0.5 encoded) and flat normal.
-                if (rw < 2 || rh < 2)
+                if (rw < MinBakeTilePx || rh < MinBakeTilePx)
                 {
                     skippedTinyRects++;
                     continue;
@@ -473,6 +469,249 @@ internal static class PbrNormalDepthAtlasGpuBaker
             if (prevCull) GL.Enable(EnableCap.CullFace); else GL.Disable(EnableCap.CullFace);
             GL.ColorMask(prevColorMask[0], prevColorMask[1], prevColorMask[2], prevColorMask[3]);
         }
+    }
+
+    /// <summary>
+    /// Clears an entire normal+depth atlas page to neutral defaults.
+    /// Intended to be called once per page before any per-rect bakes.
+    /// </summary>
+    public static void ClearAtlasPage(
+        ICoreClientAPI capi,
+        int destNormalDepthTexId,
+        int atlasWidth,
+        int atlasHeight)
+    {
+        ArgumentNullException.ThrowIfNull(capi);
+        if (destNormalDepthTexId == 0) throw new ArgumentOutOfRangeException(nameof(destNormalDepthTexId));
+        if (atlasWidth <= 0) throw new ArgumentOutOfRangeException(nameof(atlasWidth));
+        if (atlasHeight <= 0) throw new ArgumentOutOfRangeException(nameof(atlasHeight));
+
+        try
+        {
+            EnsureInitialized(capi);
+        }
+        catch
+        {
+            return;
+        }
+
+        int[] prevViewport = new int[4];
+        GL.GetInteger(GetPName.Viewport, prevViewport);
+        int prevFbo = GBuffer.SaveBinding();
+        GL.GetInteger(GetPName.VertexArrayBinding, out int prevVao);
+        GL.GetInteger(GetPName.CurrentProgram, out int prevProgram);
+        GL.GetInteger(GetPName.ActiveTexture, out int prevActiveTex);
+        GL.GetInteger(GetPName.TextureBinding2D, out int prevTex2D);
+
+        bool prevBlend = GL.IsEnabled(EnableCap.Blend);
+        bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
+        bool prevScissor = GL.IsEnabled(EnableCap.ScissorTest);
+        bool prevCull = GL.IsEnabled(EnableCap.CullFace);
+        bool[] prevColorMask = new bool[4];
+        GL.GetBoolean(GetPName.ColorWritemask, prevColorMask);
+
+        try
+        {
+            GL.Disable(EnableCap.Blend);
+            GL.Disable(EnableCap.DepthTest);
+            GL.Disable(EnableCap.ScissorTest);
+            GL.Disable(EnableCap.CullFace);
+            GL.ColorMask(true, true, true, true);
+
+            scratchFbo!.Bind();
+            GL.BindVertexArray(vao);
+
+            ClearAtlasPageUnsafe(destNormalDepthTexId, atlasWidth, atlasHeight);
+        }
+        catch
+        {
+            // Best-effort.
+        }
+        finally
+        {
+            StopAllBakerPrograms();
+
+            GL.UseProgram(prevProgram);
+            GL.BindVertexArray(prevVao);
+            GBuffer.RestoreBinding(prevFbo);
+            GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+
+            GL.ActiveTexture((TextureUnit)prevActiveTex);
+            GL.BindTexture(TextureTarget.Texture2D, prevTex2D);
+
+            if (prevBlend) GL.Enable(EnableCap.Blend); else GL.Disable(EnableCap.Blend);
+            if (prevDepthTest) GL.Enable(EnableCap.DepthTest); else GL.Disable(EnableCap.DepthTest);
+            if (prevScissor) GL.Enable(EnableCap.ScissorTest); else GL.Disable(EnableCap.ScissorTest);
+            if (prevCull) GL.Enable(EnableCap.CullFace); else GL.Disable(EnableCap.CullFace);
+            GL.ColorMask(prevColorMask[0], prevColorMask[1], prevColorMask[2], prevColorMask[3]);
+        }
+    }
+
+    /// <summary>
+    /// Bakes a single atlas rect into the destination normal+depth atlas.
+    /// This does not clear the atlas page; call <see cref="ClearAtlasPage"/> once per page if needed.
+    /// </summary>
+    public static bool BakePerRect(
+        ICoreClientAPI capi,
+        int baseAlbedoAtlasPageTexId,
+        int destNormalDepthTexId,
+        int atlasWidth,
+        int atlasHeight,
+        int rectX,
+        int rectY,
+        int rectWidth,
+        int rectHeight)
+    {
+        ArgumentNullException.ThrowIfNull(capi);
+        if (baseAlbedoAtlasPageTexId == 0) throw new ArgumentOutOfRangeException(nameof(baseAlbedoAtlasPageTexId));
+        if (destNormalDepthTexId == 0) throw new ArgumentOutOfRangeException(nameof(destNormalDepthTexId));
+        if (atlasWidth <= 0) throw new ArgumentOutOfRangeException(nameof(atlasWidth));
+        if (atlasHeight <= 0) throw new ArgumentOutOfRangeException(nameof(atlasHeight));
+        if (rectX < 0 || rectY < 0) throw new ArgumentOutOfRangeException("rect origin must be non-negative");
+        if (rectWidth <= 0 || rectHeight <= 0) throw new ArgumentOutOfRangeException("rect size must be positive");
+        if (rectX + rectWidth > atlasWidth || rectY + rectHeight > atlasHeight) throw new ArgumentOutOfRangeException("rect exceeds atlas bounds");
+
+        if (rectWidth < MinBakeTilePx || rectHeight < MinBakeTilePx)
+        {
+            return false;
+        }
+
+        try
+        {
+            EnsureInitialized(capi);
+        }
+        catch
+        {
+            return false;
+        }
+
+        int[] prevViewport = new int[4];
+        GL.GetInteger(GetPName.Viewport, prevViewport);
+        int prevFbo = GBuffer.SaveBinding();
+        GL.GetInteger(GetPName.VertexArrayBinding, out int prevVao);
+        GL.GetInteger(GetPName.CurrentProgram, out int prevProgram);
+        GL.GetInteger(GetPName.ActiveTexture, out int prevActiveTex);
+        GL.GetInteger(GetPName.TextureBinding2D, out int prevTex2D);
+
+        bool prevBlend = GL.IsEnabled(EnableCap.Blend);
+        bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
+        bool prevScissor = GL.IsEnabled(EnableCap.ScissorTest);
+        bool prevCull = GL.IsEnabled(EnableCap.CullFace);
+        bool[] prevColorMask = new bool[4];
+        GL.GetBoolean(GetPName.ColorWritemask, prevColorMask);
+
+        try
+        {
+            GL.Disable(EnableCap.Blend);
+            GL.Disable(EnableCap.DepthTest);
+            GL.Disable(EnableCap.ScissorTest);
+            GL.Disable(EnableCap.CullFace);
+            GL.ColorMask(true, true, true, true);
+
+            scratchFbo!.Bind();
+            GL.BindVertexArray(vao);
+
+            int solverW = rectWidth;
+            int solverH = rectHeight;
+
+            tile ??= new TileResources();
+            tile.EnsureSize(solverW, solverH);
+
+            mg ??= new MultigridResources();
+            mg.EnsureSize(solverW, solverH);
+
+            var cfg = ConfigModSystem.Config;
+            var bake = cfg.NormalDepthBake;
+
+            float sigmaBig = ClampSigmaToTile(bake.SigmaBig, solverW, solverH, maxFractionOfMinDim: 0.25f);
+            float sigma1 = ClampSigmaToTile(bake.Sigma1, solverW, solverH, maxFractionOfMinDim: 0.05f);
+            float sigma2 = ClampSigmaToTile(bake.Sigma2, solverW, solverH, maxFractionOfMinDim: 0.08f);
+            float sigma3 = ClampSigmaToTile(bake.Sigma3, solverW, solverH, maxFractionOfMinDim: 0.12f);
+            float sigma4 = ClampSigmaToTile(bake.Sigma4, solverW, solverH, maxFractionOfMinDim: 0.20f);
+
+            float minDim = Math.Min(solverW, solverH);
+            float sizeScale = Clamp(32f / Math.Max(1f, minDim), 0.5f, 2.0f);
+            float gain = bake.Gain * sizeScale;
+            float maxSlope = bake.MaxSlope * sizeScale;
+            float edgeT0 = bake.EdgeT0 * sizeScale;
+            float edgeT1 = bake.EdgeT1 * sizeScale;
+
+            const float RelContrastEdgeScale = 0.25f;
+            edgeT0 *= RelContrastEdgeScale;
+            edgeT1 *= RelContrastEdgeScale;
+
+            RunLuminancePass(
+                atlasTexId: baseAlbedoAtlasPageTexId,
+                atlasRectPx: (rectX, rectY, rectWidth, rectHeight),
+                dst: tile.L);
+
+            RunGaussian(tile.L, tile.Tmp, tile.Base, sigmaBig);
+            RunSub(tile.L, tile.Base, tile.D0, relContrast: true);
+
+            RunGaussian(tile.D0, tile.Tmp, tile.G1, sigma1);
+            RunGaussian(tile.D0, tile.Tmp, tile.G2, sigma2);
+            RunGaussian(tile.D0, tile.Tmp, tile.G3, sigma3);
+            RunGaussian(tile.D0, tile.Tmp, tile.G4, sigma4);
+            RunCombine(tile.G1, tile.G2, tile.G3, tile.G4, tile.D, bake.W1, bake.W2, bake.W3);
+
+            RunGradient(tile.D, tile.G, gain, maxSlope, edgeT0, edgeT1);
+            RunDivergence(tile.G, tile.Div);
+            mg.Solve(tile.Div, tile.H, bake);
+
+            var (_, center, minH, maxH) = ComputeStatsR32f(tile.H);
+
+            const float Eps = 1e-6f;
+            const float MaxInv = 64f;
+            float negSpan = center - minH;
+            float posSpan = maxH - center;
+            float invNeg = negSpan > Eps ? Math.Min(1f / negSpan, MaxInv) : 0f;
+            float invPos = posSpan > Eps ? Math.Min(1f / posSpan, MaxInv) : 0f;
+
+            RunNormalize(tile.H, tile.Hn, center, invNeg, invPos, bake.HeightStrength, bake.Gamma);
+
+            RunPackToAtlas(
+                dstAtlasTexId: destNormalDepthTexId,
+                viewportOriginPx: (rectX, rectY),
+                tileSizePx: (rectWidth, rectHeight),
+                solverSizePx: (solverW, solverH),
+                heightTex: tile.Hn,
+                baseAlbedoAtlasTexId: baseAlbedoAtlasPageTexId,
+                normalStrength: bake.NormalStrength);
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            StopAllBakerPrograms();
+
+            GL.UseProgram(prevProgram);
+            GL.BindVertexArray(prevVao);
+            GBuffer.RestoreBinding(prevFbo);
+            GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+
+            GL.ActiveTexture((TextureUnit)prevActiveTex);
+            GL.BindTexture(TextureTarget.Texture2D, prevTex2D);
+
+            if (prevBlend) GL.Enable(EnableCap.Blend); else GL.Disable(EnableCap.Blend);
+            if (prevDepthTest) GL.Enable(EnableCap.DepthTest); else GL.Disable(EnableCap.DepthTest);
+            if (prevScissor) GL.Enable(EnableCap.ScissorTest); else GL.Disable(EnableCap.ScissorTest);
+            if (prevCull) GL.Enable(EnableCap.CullFace); else GL.Disable(EnableCap.CullFace);
+            GL.ColorMask(prevColorMask[0], prevColorMask[1], prevColorMask[2], prevColorMask[3]);
+        }
+    }
+
+    private static void ClearAtlasPageUnsafe(int destNormalDepthTexId, int atlasWidth, int atlasHeight)
+    {
+        BindAtlasTarget(destNormalDepthTexId, 0, 0, atlasWidth, atlasHeight);
+        // Neutral defaults: flat normal and neutral height.
+        // IMPORTANT: many atlas rects may not be included in texturePositions (we only bake known textures),
+        // so alpha must default to 0.5 instead of 0.0 to avoid "black" depth tiles.
+        GL.ClearColor(0.5f, 0.5f, 1.0f, 0.5f);
+        GL.Clear(ClearBufferMask.ColorBufferBit);
     }
 
 

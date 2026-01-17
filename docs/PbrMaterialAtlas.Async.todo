@@ -75,12 +75,12 @@ Exit artifacts: Override application order, caching, and failure policy specifie
 
 ## Phase 4 - Normal+Depth Baker Refactor
 Exit artifacts: Per-rect bake workflow and page-clear policy defined.
-- [ ] Add one-time per-page clear (neutral normal + height = 0.5).
-- [ ] Expose a per-rect bake method in `PbrNormalDepthAtlasGpuBaker`.
-- [ ] Ensure per-rect bake does not read/modify other regions.
-- [ ] Apply normal+height overrides per rect after baking.
-- [ ] Define a tile size minimum for baking (very small tiles may stay default).
-- [ ] Decide whether to reuse scratch resources across tiles or recreate per job.
+- [x] Add one-time per-page clear (neutral normal + height = 0.5).
+- [x] Expose a per-rect bake method in `PbrNormalDepthAtlasGpuBaker`.
+- [x] Ensure per-rect bake does not read/modify other regions.
+- [x] Apply normal+height overrides per rect after baking.
+- [x] Define a tile size minimum for baking (very small tiles may stay default).
+- [x] Decide whether to reuse scratch resources across tiles or recreate per job.
 
 ---
 
