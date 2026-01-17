@@ -96,28 +96,90 @@ Key requirements
 ---
 
 ## Phase 6 — Determinism + Correctness Tests
-- [ ] Add unit tests (no visual output required):
-  - [ ] Deterministic: same config produces identical results.
+- [x] Add unit tests (no visual output required):
+  - [x] Deterministic: same config produces identical results.
+  - [x] Different seed differs.
+  - [x] Tileable: edge continuity checks (wrap neighborhood / periodic boundary).
+  - [x] Output correctness: range checks, size checks, no NaNs.
+  - [x] Cache behavior: repeated requests reuse cached artifact.
+
+---
+
+## Phase 7 — PMJ (Temporal Jitter) References + Requirements
+- [ ] Add primary references for PMJ sampling (for implementation + validation):
+  - [ ] Kensler (2013): “Correlated Multi-Jittered Sampling” (for 2D stratified sampling background).
+  - [ ] Christensen et al. / Pixar: PMJ / PMJ02 notes (progressive multi-jittered sequences).
+  - [ ] Clarify whether we want PMJ(0,2) specifically (common for temporal jitter).
+- [ ] Define target use-case:
+  - [ ] Temporal jitter sequence: per-frame 2D offsets in [0,1)^2 (or centered [-0.5,0.5)).
+  - [ ] Deterministic per seed + frame index.
+  - [ ] Optional: per-pixel or per-tile scrambling to avoid visible correlation.
+- [ ] Decide canonical artifact:
+  - [ ] A sequence of points: `Vector2[]` or packed `ushort` pairs (fixed-point).
+  - [ ] Decide if we also want pre-baked “texture tiles” (NxN texels, each texel stores a point for frame f).
+
+---
+
+## Phase 8 — PMJ Public API + Configuration
+- [ ] Add `readonly record struct PmjConfig` (Noise namespace).
+  - [ ] Fields: `SampleCount` (power-of-two or any?), `Seed`, `Variant` (enum: PMJ02, etc.).
+  - [ ] Output selection: `PmjOutputKind` (enum).
+  - [ ] Optional: `Scramble`/`OwenScramble` toggle + per-pixel salt.
+  - [ ] Optional: `Centered` (map [0,1) → [-0.5,0.5)).
+- [ ] Add validation helper.
+- [ ] Define `PmjSequence` artifact type (canonical cache result).
+
+---
+
+## Phase 9 — PMJ Core Implementation
+- [ ] Implement `PmjGenerator`.
+  - [ ] Start with PMJ(0,2) / “PMJ02” generation.
+  - [ ] Deterministic RNG using existing `Squirrel3Noise` hashing.
+  - [ ] Ensure progressive property: first N samples form good stratified distributions for many N.
+  - [ ] Add optional Owen scrambling (or a cheaper hash-based scramble) without breaking stratification.
+- [ ] Add helpers:
+  - [ ] `RadicalInverse` / bit-reversal utilities if needed.
+  - [ ] Permutation utilities (per stratum) driven by seed.
+
+---
+
+## Phase 10 — PMJ Output Kinds + Texture Packing
+- [ ] Define `PmjOutputKind` (examples):
+  - [ ] `Vector2F32` points in [0,1).
+  - [ ] `Vector2F32Centered` points in [-0.5,0.5).
+  - [ ] `RG16_UNorm` packed (u,v) as `ushort` in [0,65535].
+  - [ ] `RG8_UNorm` packed (lower precision).
+- [ ] Implement conversion pipeline for PMJ sequences:
+  - [ ] Prefer `TensorPrimitives` for bulk scale/offset/clamp/convert.
+- [ ] Add “temporal jitter texture” layout helpers (CPU-side only):
+  - [ ] Option A: 1D texture (width = sampleCount, height = 1).
+  - [ ] Option B: 2D atlas (width*height = sampleCount, row-major).
+  - [ ] Option C: tiled (repeatable) texture for fixed frame cycles.
+
+---
+
+## Phase 11 — PMJ Cache + Correctness Tests
+- [ ] Add `PmjKey` (`readonly record struct`) for caching.
+- [ ] Implement `PmjCache` with create-once semantics.
+- [ ] Add unit tests:
+  - [ ] Deterministic per config.
   - [ ] Different seed differs.
-  - [ ] Tileable: edge continuity checks (wrap neighborhood / periodic boundary).
-  - [ ] Output correctness: range checks, size checks, no NaNs.
-  - [ ] Cache behavior: repeated requests reuse cached artifact.
+  - [ ] Range checks: all points finite and inside expected bounds.
+  - [ ] Basic stratification sanity for early prefixes (e.g., 4/16/64 bins hit counts within tolerance).
+  - [ ] Cache reuse behavior.
 
 ---
 
-## Phase 7 — Performance Validation
-- [ ] Measure generation time for common sizes (64, 128, 256) and typical sigmas.
-- [ ] Confirm no excessive allocations (pool usage effective).
-- [ ] Document recommended “safe defaults” for game startup vs lazy generation.
+## Phase 12 — PMJ Performance Validation
+- [ ] Measure generation time for common sample counts (64/128/256/1024).
+- [ ] Confirm minimal allocations (pool usage effective).
+- [ ] Decide on recommended defaults (frame cycle length, packing format).
 
 ---
 
-## Phase 8 — Documentation + Future Algorithms (Non-blocking)
-- [ ] Add a short doc page describing:
-  - [ ] What the cache provides (rank map, normalized map, mask).
-  - [ ] How tiling affects boundary behavior.
-  - [ ] How to pick sigma / size / iteration caps.
-- [ ] Future algorithm candidates (not required now):
-  - [ ] Progressive Multi-Jittered (PMJ) sequences for temporal jitter textures.
-  - [ ] Bridson Poisson-disk sampling for point sets.
-  - [ ] Owen-scrambled Sobol (not blue-noise, but excellent low-discrepancy sampling).
+## Phase 13 — PMJ Documentation
+- [ ] Document:
+  - [ ] What PMJ sequences are used for (temporal jitter).
+  - [ ] How to interpret outputs (centered vs non-centered).
+  - [ ] Recommended cycle lengths and packing formats.
+  - [ ] Scrambling options (tradeoffs: decorrelation vs reproducibility).
