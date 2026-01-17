@@ -122,6 +122,41 @@
       }
     },
     {
+      "id": "vge-example-materialparams-scale-do-not-match",
+      "description": "Example only: scale the packed materialParams override channels (this glob intentionally matches nothing).",
+      "match": {
+        "glob": "assets/vanillagraphicsexpanded/textures/__example__/never_matches_material_scale.png"
+      },
+      "values": {
+        "material": "stone",
+        "overrides": {
+          "materialParams": "mymod:textures/vge/params/stone/granite_pbr.png",
+          "scale": {
+            "roughness": 1.25,
+            "metallic": 0.75,
+            "emissive": 2.0
+          }
+        }
+      }
+    },
+    {
+      "id": "vge-example-normalheight-scale-do-not-match",
+      "description": "Example only: scale the packed normalHeight override channels (this glob intentionally matches nothing).",
+      "match": {
+        "glob": "assets/vanillagraphicsexpanded/textures/__example__/never_matches_normal_scale.png"
+      },
+      "values": {
+        "material": "stone",
+        "overrides": {
+          "normalHeight": "mymod:textures/vge/normalheight/stone/granite_nh.dds",
+          "scale": {
+            "normal": 1.1,
+            "depth": 0.5
+          }
+        }
+      }
+    },
+    {
       "id": "water-liquid-blocks",
       "description": "Water textures used for liquid blocks.",
       "match": {

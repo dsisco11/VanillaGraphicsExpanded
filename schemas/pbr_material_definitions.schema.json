@@ -120,13 +120,33 @@
           "type": "string",
           "minLength": 1,
           "description": "Optional explicit packed normal+height map asset id (AssetLocation shorthand)."
+        },
+        "scale": {
+          "$ref": "#/$defs/overrideScale",
+          "description": "Optional per-rule override multipliers. Semantics: output = clamp01(input * scale). Missing/null values are treated as 1.0 (no-op)."
         }
+      }
+    },
+    "overrideScale": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "roughness": { "$ref": "#/$defs/scaleFloatOrNull" },
+        "metallic": { "$ref": "#/$defs/scaleFloatOrNull" },
+        "emissive": { "$ref": "#/$defs/scaleFloatOrNull" },
+        "normal": { "$ref": "#/$defs/scaleFloatOrNull" },
+        "depth": { "$ref": "#/$defs/scaleFloatOrNull" }
       }
     },
     "unitFloat": {
       "type": "number",
       "minimum": 0.0,
       "maximum": 1.0
+    },
+    "scaleFloatOrNull": {
+      "description": "Optional non-negative multiplier. Missing/null => 1.0 at runtime.",
+      "type": ["number", "null"],
+      "minimum": 0.0
     },
     "priority": {
       "type": "integer",
