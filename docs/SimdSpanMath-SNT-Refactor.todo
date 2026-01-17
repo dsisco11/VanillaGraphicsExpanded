@@ -35,10 +35,9 @@ Exit artifacts: Solution builds with System.Numerics.Tensors available.
 [x] Add NuGet reference to main mod project:
     [x] VanillaGraphicsExpanded/VanillaGraphicsExpanded/VanillaGraphicsExpanded.csproj
         [x] <PackageReference Include="System.Numerics.Tensors" Version="10.0.0" />
-[ ] Decide whether tests need the same reference:
-    [ ] If tests only call SimdSpanMath (BCL signatures), skip.
-    [ ] If tests call TensorPrimitives directly, add reference to:
-        [ ] VanillaGraphicsExpanded/VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj
+[x] Decide whether tests need the same reference:
+    [x] Tests only call SimdSpanMath (BCL signatures), skip.
+    [x] Note: no direct TensorPrimitives usages found in tests; build passed without adding a test-package reference.
 
 
 Phase 2 — Implement Root Utility: Core Contiguous Ops
