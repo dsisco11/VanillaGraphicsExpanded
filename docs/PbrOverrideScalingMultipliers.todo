@@ -99,12 +99,12 @@ Exit artifacts: normalHeight overrides honor scales without changing bake/rect s
 
 Phase 5 — Tests
 Exit artifacts: confidence that default behavior is unchanged and scaling works.
-[ ] Add/extend unit tests (VanillaGraphicsExpanded.Tests):
-    [ ] Missing fields => no-op (exactly matches current behavior)
-    [ ] MaterialParams scaling multiplies and clamps (0..1)
-    [ ] NormalHeight scaling multiplies and clamps (0..1)
-    [ ] NaN/Infinity handling matches chosen policy
-[ ] Run: dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj
+[x] Add/extend unit tests (VanillaGraphicsExpanded.Tests):
+    [x] Missing fields => no-op (exactly matches current behavior)
+    [x] MaterialParams scaling multiplies and clamps (0..1)
+    [x] NormalHeight scaling multiplies and clamps (0..1)
+    [x] NaN/Infinity handling matches chosen policy
+[x] Run: dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj
 
 
 Phase 6 — Performance Notes (Optional)

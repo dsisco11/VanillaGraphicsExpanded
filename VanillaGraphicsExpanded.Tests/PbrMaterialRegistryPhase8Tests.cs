@@ -444,6 +444,193 @@ public sealed class PbrMaterialRegistryPhase8Tests
         Assert.Contains("unsupported extension", warnings[0]);
     }
 
+      [Fact]
+      public void OverridesScale_Missing_DefaultsToIdentity_NoWarnings()
+      {
+        var logger = new TestLogger();
+        var warnings = new List<string>();
+
+        logger.EntryAdded += (t, fmt, args) =>
+        {
+          if (t == EnumLogType.Warning)
+          {
+            warnings.Add(string.Format(fmt, args));
+          }
+        };
+
+        var src = Source(
+          domain: "game",
+          path: "materials/pbr_material_definitions.json",
+          json: """
+          {
+            "version": 1,
+            "materials": { "a": { "roughness": 0.1 } },
+            "mapping": [
+            {
+              "id": "rule",
+              "priority": 0,
+              "match": { "glob": "assets/game/textures/block/test.png" },
+              "values": {
+              "material": "a",
+              "overrides": { "materialParams": "textures/vge/params/test_params.png" }
+              }
+            }
+            ]
+          }
+          """
+        );
+
+        var textures = Textures("textures/block/test.png");
+
+        PbrMaterialRegistry.Instance.InitializeFromParsedSources(
+          logger,
+          parsedSources: new[] { src },
+          textureLocations: textures,
+          strict: true);
+
+        var key = new AssetLocation("game", "textures/block/test.png");
+        Assert.True(PbrMaterialRegistry.Instance.OverridesByTexture.TryGetValue(key, out PbrMaterialTextureOverrides overrides));
+
+        Assert.Equal(PbrOverrideScale.Identity, overrides.Scale);
+        Assert.Empty(warnings);
+      }
+
+      [Fact]
+      public void OverridesScale_InvalidValues_WarnAndDefaultToOne()
+      {
+        var logger = new TestLogger();
+        var warnings = new List<string>();
+
+        logger.EntryAdded += (t, fmt, args) =>
+        {
+          if (t == EnumLogType.Warning)
+          {
+            warnings.Add(string.Format(fmt, args));
+          }
+        };
+
+        // Negative values are representable in JSON; NaN/Infinity are covered by direct object construction below.
+        var src = Source(
+          domain: "game",
+          path: "materials/pbr_material_definitions.json",
+          json: """
+          {
+            "version": 1,
+            "materials": { "a": { "roughness": 0.1 } },
+            "mapping": [
+            {
+              "id": "rule",
+              "priority": 0,
+              "match": { "glob": "assets/game/textures/block/test.png" },
+              "values": {
+              "material": "a",
+              "overrides": {
+                "materialParams": "textures/vge/params/test_params.png",
+                "scale": { "roughness": -1, "metallic": 2, "emissive": 0.5 }
+              }
+              }
+            }
+            ]
+          }
+          """
+        );
+
+        var textures = Textures("textures/block/test.png");
+
+        PbrMaterialRegistry.Instance.InitializeFromParsedSources(
+          logger,
+          parsedSources: new[] { src },
+          textureLocations: textures,
+          strict: true);
+
+        var key = new AssetLocation("game", "textures/block/test.png");
+        Assert.True(PbrMaterialRegistry.Instance.OverridesByTexture.TryGetValue(key, out PbrMaterialTextureOverrides overrides));
+
+        Assert.Equal(1f, overrides.Scale.Roughness);
+        Assert.Equal(2f, overrides.Scale.Metallic);
+        Assert.Equal(0.5f, overrides.Scale.Emissive);
+
+        Assert.Single(warnings);
+        Assert.Contains("Invalid override scale value", warnings[0]);
+        Assert.Contains("roughness", warnings[0]);
+      }
+
+      [Fact]
+      public void OverridesScale_NaNAndInfinity_WarnAndDefaultToOne()
+      {
+        var logger = new TestLogger();
+        var warnings = new List<string>();
+
+        logger.EntryAdded += (t, fmt, args) =>
+        {
+          if (t == EnumLogType.Warning)
+          {
+            warnings.Add(string.Format(fmt, args));
+          }
+        };
+
+        var file = new PbrMaterialDefinitionsJsonFile
+        {
+          Version = 1,
+          Materials = new Dictionary<string, PbrMaterialDefinitionJson>
+          {
+            ["a"] = new PbrMaterialDefinitionJson { Roughness = 0.1f }
+          },
+          Mapping = new List<PbrMaterialMappingRuleJson>
+          {
+            new()
+            {
+              Id = "rule",
+              Priority = 0,
+              Match = new PbrMaterialMatchJson { Glob = "assets/game/textures/block/test.png" },
+              Values = new PbrMaterialMappingValuesJson
+              {
+                Material = "a",
+                Overrides = new PbrMaterialMappingOverridesJson
+                {
+                  MaterialParams = "textures/vge/params/test_params.png",
+                  Scale = new PbrOverrideScaleJson
+                  {
+                    Roughness = float.NaN,
+                    Metallic = float.PositiveInfinity,
+                    Emissive = 2f,
+                    Normal = 0.25f,
+                    Depth = float.NegativeInfinity
+                  }
+                }
+              }
+            }
+          }
+        };
+
+        var src = new PbrMaterialDefinitionsSource(
+          Domain: "game",
+          Location: new AssetLocation("game", "materials/pbr_material_definitions.json"),
+          File: file);
+
+        var textures = Textures("textures/block/test.png");
+
+        PbrMaterialRegistry.Instance.InitializeFromParsedSources(
+          logger,
+          parsedSources: new[] { src },
+          textureLocations: textures,
+          strict: true);
+
+        var key = new AssetLocation("game", "textures/block/test.png");
+        Assert.True(PbrMaterialRegistry.Instance.OverridesByTexture.TryGetValue(key, out PbrMaterialTextureOverrides overrides));
+
+        Assert.Equal(1f, overrides.Scale.Roughness);
+        Assert.Equal(1f, overrides.Scale.Metallic);
+        Assert.Equal(2f, overrides.Scale.Emissive);
+        Assert.Equal(0.25f, overrides.Scale.Normal);
+        Assert.Equal(1f, overrides.Scale.Depth);
+
+        Assert.Single(warnings);
+        Assert.Contains("Invalid override scale value", warnings[0]);
+        Assert.Contains("NaN", warnings[0]);
+        Assert.Contains("Infinity", warnings[0]);
+      }
+
     [Fact]
     public void MappingRuleReferencesUnknownMaterial_WarnsAndSkipsMapping()
     {
