@@ -87,14 +87,14 @@ Exit artifacts: material params overrides honor scales without changing atlas ad
 
 Phase 4 — Apply Scaling: Normal/Depth Overrides
 Exit artifacts: normalHeight overrides honor scales without changing bake/rect selection.
-[ ] Update VanillaGraphicsExpanded/PBR/Materials/PbrMaterialAtlasTextures.cs:
-    [ ] When loading overrides.NormalHeight via TryLoadRgbaFloats01, also fetch per-rule scales
-    [ ] Apply multiply+clamp to channels:
-        [ ] overrides.scale.normal -> R,G,B
-        [ ] overrides.scale.depth  -> A
-    [ ] Apply scaling before storing into overrideRects and before applying to atlas
-[ ] Confirm shader expectations remain correct:
-    [ ] vge_normaldepth.glsl still interprets channels as before
+[x] Update VanillaGraphicsExpanded/PBR/Materials/PbrMaterialAtlasTextures.cs:
+    [x] When loading overrides.NormalHeight via TryLoadRgbaFloats01, also fetch per-rule scales
+    [x] Apply multiply+clamp to channels:
+        [x] overrides.scale.normal -> R,G,B
+        [x] overrides.scale.depth  -> A
+    [x] Apply scaling before storing into overrideRects and before applying to atlas
+[x] Confirm shader expectations remain correct:
+    [x] vge_normaldepth.glsl still interprets channels as before
 
 
 Phase 5 — Tests

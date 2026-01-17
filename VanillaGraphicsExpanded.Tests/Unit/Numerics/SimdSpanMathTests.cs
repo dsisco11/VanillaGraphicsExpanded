@@ -151,4 +151,61 @@ public sealed class SimdSpanMathTests
         Assert.Equal(0.5f, dst[1 * rowStrideFloats + 2 * 3 + 1]);
         Assert.Equal(0.5f, dst[1 * rowStrideFloats + 2 * 3 + 2]);
     }
+
+    [Fact]
+    public void MultiplyClamp01Interleaved4InPlace2D_MultipliesAndClampsRgbAndASeparately()
+    {
+        // 2x2 rect inside a 3-wide row stride, RGBA interleaved.
+        Span<float> dst = stackalloc float[3 * 4 * 2];
+
+        for (int i = 0; i < dst.Length; i++) dst[i] = 0.5f;
+
+        // Place NaNs in RGB and A of first pixel to ensure they propagate.
+        dst[0] = float.NaN;
+        dst[3] = float.NaN;
+
+        SimdSpanMath.MultiplyClamp01Interleaved4InPlace2D(
+            destination4: dst,
+            rectWidthPixels: 2,
+            rectHeightPixels: 2,
+            rowStridePixels: 3,
+            mulRgb: 2f,
+            mulA: 0.25f);
+
+        const int rowStrideFloats = 12; // 3 pixels * 4 floats
+
+        for (int y = 0; y < 2; y++)
+        {
+            int rowBase = y * rowStrideFloats;
+
+            for (int x = 0; x < 2; x++)
+            {
+                int i = rowBase + (x * 4);
+
+                if (y == 0 && x == 0)
+                {
+                    Assert.True(float.IsNaN(dst[i + 0]));
+                    Assert.True(float.IsNaN(dst[i + 3]));
+                }
+                else
+                {
+                    Assert.Equal(1f, dst[i + 0]);
+                    Assert.Equal(1f, dst[i + 1]);
+                    Assert.Equal(1f, dst[i + 2]);
+                    Assert.Equal(0.125f, dst[i + 3], precision: 6);
+                }
+            }
+        }
+
+        // 3rd pixel in each row is outside the rect.
+        Assert.Equal(0.5f, dst[0 * rowStrideFloats + 2 * 4 + 0]);
+        Assert.Equal(0.5f, dst[0 * rowStrideFloats + 2 * 4 + 1]);
+        Assert.Equal(0.5f, dst[0 * rowStrideFloats + 2 * 4 + 2]);
+        Assert.Equal(0.5f, dst[0 * rowStrideFloats + 2 * 4 + 3]);
+
+        Assert.Equal(0.5f, dst[1 * rowStrideFloats + 2 * 4 + 0]);
+        Assert.Equal(0.5f, dst[1 * rowStrideFloats + 2 * 4 + 1]);
+        Assert.Equal(0.5f, dst[1 * rowStrideFloats + 2 * 4 + 2]);
+        Assert.Equal(0.5f, dst[1 * rowStrideFloats + 2 * 4 + 3]);
+    }
 }

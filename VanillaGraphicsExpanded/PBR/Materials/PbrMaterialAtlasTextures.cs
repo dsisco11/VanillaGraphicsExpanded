@@ -1,10 +1,12 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 
 using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.ModSystems;
+using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 
 using Vintagestory.API.Client;
@@ -374,7 +376,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 
                 // Preload/validate per-texture normalHeight overrides for this atlas page.
                 // Only successfully-loaded overrides are excluded from the bake job list.
-                var overrideRects = new Dictionary<(int x, int y, int w, int h), float[]>();
+                var overrideRects = new Dictionary<(int x, int y, int w, int h), (float[] data, bool isRented)>();
                 foreach ((AssetLocation targetTexture, PbrMaterialTextureOverrides overrides) in PbrMaterialRegistry.Instance.OverridesByTexture)
                 {
                     if (overrides.NormalHeight is null)
@@ -420,7 +422,31 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                         continue;
                     }
 
-                    overrideRects[(x1, y1, rectW, rectH)] = floatRgba;
+                    float normalScale = overrides.Scale.Normal;
+                    float depthScale = overrides.Scale.Depth;
+                    bool isIdentity = normalScale == 1f && depthScale == 1f;
+
+                    if (isIdentity)
+                    {
+                        overrideRects[(x1, y1, rectW, rectH)] = (floatRgba, isRented: false);
+                        continue;
+                    }
+
+                    // Don't mutate cached float arrays from the override loader.
+                    int floats = checked(rectW * rectH * 4);
+                    float[] rented = ArrayPool<float>.Shared.Rent(floats);
+                    Array.Copy(floatRgba, 0, rented, 0, floats);
+
+                    // Channel packing must match vge_normaldepth.glsl (RGB = normalXYZ_01, A = height01).
+                    SimdSpanMath.MultiplyClamp01Interleaved4InPlace2D(
+                        destination4: rented.AsSpan(0, floats),
+                        rectWidthPixels: rectW,
+                        rectHeightPixels: rectH,
+                        rowStridePixels: rectW,
+                        mulRgb: normalScale,
+                        mulA: depthScale);
+
+                    overrideRects[(x1, y1, rectW, rectH)] = (rented, isRented: true);
                 }
 
                 // Gather a more exhaustive set of atlas rects to bake.
@@ -504,10 +530,20 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                 // Apply explicit overrides after the bake clears and writes into the atlas.
                 // (The baker always clears the whole atlas page sidecar for determinism.)
                 int appliedOverrides = 0;
-                foreach (((int x, int y, int w, int h) rect, float[] data) in overrideRects)
+                foreach (((int x, int y, int w, int h) rect, (float[] data, bool isRented) ov) in overrideRects)
                 {
-                    pageTextures.NormalDepthTexture.UploadData(data, rect.x, rect.y, rect.w, rect.h);
-                    appliedOverrides++;
+                    try
+                    {
+                        pageTextures.NormalDepthTexture.UploadData(ov.data, rect.x, rect.y, rect.w, rect.h);
+                        appliedOverrides++;
+                    }
+                    finally
+                    {
+                        if (ov.isRented)
+                        {
+                            ArrayPool<float>.Shared.Return(ov.data);
+                        }
+                    }
                 }
 
                 totalNormalHeightOverridesApplied += appliedOverrides;

@@ -178,6 +178,62 @@ internal static class SimdSpanMath
         }
     }
 
+    public static void MultiplyClamp01Interleaved4InPlace2D(
+        Span<float> destination4,
+        int rectWidthPixels,
+        int rectHeightPixels,
+        int rowStridePixels,
+        float mulRgb,
+        float mulA)
+    {
+        if (rectWidthPixels <= 0) throw new ArgumentOutOfRangeException(nameof(rectWidthPixels));
+        if (rectHeightPixels <= 0) throw new ArgumentOutOfRangeException(nameof(rectHeightPixels));
+        if (rowStridePixels < rectWidthPixels) throw new ArgumentOutOfRangeException(nameof(rowStridePixels));
+
+        int rectRowFloats = checked(rectWidthPixels * 4);
+        int requiredFloats = checked(((rectHeightPixels - 1) * rowStridePixels + rectWidthPixels) * 4);
+        if (destination4.Length < requiredFloats)
+        {
+            throw new ArgumentException(
+                $"destination4 is too small for rect (required={requiredFloats}, actual={destination4.Length}, rect={rectWidthPixels}x{rectHeightPixels}, stridePixels={rowStridePixels}).",
+                nameof(destination4));
+        }
+
+        // Precompute a row-sized multiplier tensor so each row can use TensorPrimitives ops.
+        const int StackallocFloatLimit = 1024;
+        float[]? rented = null;
+        Span<float> mulRow = rectRowFloats <= StackallocFloatLimit
+            ? stackalloc float[rectRowFloats]
+            : (rented = ArrayPool<float>.Shared.Rent(rectRowFloats));
+
+        mulRow = mulRow.Slice(0, rectRowFloats);
+        for (int i = 0; i < mulRow.Length; i += 4)
+        {
+            mulRow[i + 0] = mulRgb;
+            mulRow[i + 1] = mulRgb;
+            mulRow[i + 2] = mulRgb;
+            mulRow[i + 3] = mulA;
+        }
+
+        try
+        {
+            int rowStrideFloats = checked(rowStridePixels * 4);
+            for (int y = 0; y < rectHeightPixels; y++)
+            {
+                Span<float> row = destination4.Slice(y * rowStrideFloats, rectRowFloats);
+                TensorPrimitives.Multiply(row, mulRow, row);
+                TensorPrimitives.Clamp(row, 0f, 1f, row);
+            }
+        }
+        finally
+        {
+            if (rented is not null)
+            {
+                ArrayPool<float>.Shared.Return(rented);
+            }
+        }
+    }
+
     public static void Fill(Span<float> destination, float value)
     {
         destination.Fill(value);
