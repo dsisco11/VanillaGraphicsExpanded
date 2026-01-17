@@ -16,10 +16,10 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
 {
     private readonly object sessionLock = new();
 
-    private readonly ConcurrentQueue<PbrMaterialAtlasTileJob> pendingCpuJobs = new();
+    private readonly PriorityFifoQueue<PbrMaterialAtlasTileJob> pendingCpuJobs = new();
     private readonly ConcurrentQueue<PbrMaterialAtlasTileUpload> completedUploads = new();
-    private readonly ConcurrentQueue<PbrMaterialAtlasTileUpload> pendingGpuUploads = new();
-    private readonly ConcurrentQueue<PbrMaterialAtlasMaterialOverrideUpload> pendingOverrideUploads = new();
+    private readonly PriorityFifoQueue<PbrMaterialAtlasTileUpload> pendingGpuUploads = new();
+    private readonly PriorityFifoQueue<PbrMaterialAtlasMaterialOverrideUpload> pendingOverrideUploads = new();
 
     private readonly Stopwatch stopwatch = new();
 
@@ -57,14 +57,14 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
             CancelSession_NoLock();
             session = newSession;
 
-            while (pendingCpuJobs.TryDequeue(out _)) { }
+            pendingCpuJobs.Clear();
             while (completedUploads.TryDequeue(out _)) { }
-            while (pendingGpuUploads.TryDequeue(out _)) { }
-            while (pendingOverrideUploads.TryDequeue(out _)) { }
+            pendingGpuUploads.Clear();
+            pendingOverrideUploads.Clear();
 
             foreach (PbrMaterialAtlasTileJob job in newSession.TileJobs)
             {
-                pendingCpuJobs.Enqueue(job);
+                pendingCpuJobs.Enqueue(job.Priority, job);
 
                 if (newSession.PagesByAtlasTexId.TryGetValue(job.AtlasTextureId, out PbrMaterialAtlasPageBuildState? page))
                 {
@@ -128,7 +128,7 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
                 continue;
             }
 
-            pendingGpuUploads.Enqueue(completed);
+            pendingGpuUploads.Enqueue(completed.Priority, completed);
         }
 
         float budgetMs = ConfigModSystem.Config.MaterialAtlasAsyncBudgetMs;
@@ -198,7 +198,8 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
                         job.MaterialParamsOverride,
                         job.OverrideRuleId,
                         job.OverrideRuleSource,
-                        job.OverrideScale));
+                        job.OverrideScale,
+                        job.Priority));
                 }
                 catch (OperationCanceledException)
                 {
@@ -243,7 +244,7 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
                 // Enqueue the optional override upload after the procedural upload.
                 if (upload.MaterialParamsOverride is not null)
                 {
-                    pendingOverrideUploads.Enqueue(new PbrMaterialAtlasMaterialOverrideUpload(
+                    pendingOverrideUploads.Enqueue(upload.Priority, new PbrMaterialAtlasMaterialOverrideUpload(
                         GenerationId: upload.GenerationId,
                         AtlasTextureId: upload.AtlasTextureId,
                         RectX: upload.RectX,
@@ -254,7 +255,8 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
                         OverrideAsset: upload.MaterialParamsOverride,
                         RuleId: upload.OverrideRuleId,
                         RuleSource: upload.OverrideRuleSource,
-                        Scale: upload.OverrideScale));
+                        Scale: upload.OverrideScale,
+                        Priority: upload.Priority));
                 }
 
                 if (active.PagesByAtlasTexId.TryGetValue(upload.AtlasTextureId, out PbrMaterialAtlasPageBuildState? page))
@@ -363,9 +365,9 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
     {
         CancelActiveSession();
 
-        while (pendingCpuJobs.TryDequeue(out _)) { }
+        pendingCpuJobs.Clear();
         while (completedUploads.TryDequeue(out _)) { }
-        while (pendingGpuUploads.TryDequeue(out _)) { }
-        while (pendingOverrideUploads.TryDequeue(out _)) { }
+        pendingGpuUploads.Clear();
+        pendingOverrideUploads.Clear();
     }
 }

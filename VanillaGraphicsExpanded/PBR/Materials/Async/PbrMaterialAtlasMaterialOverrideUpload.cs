@@ -13,4 +13,5 @@ internal readonly record struct PbrMaterialAtlasMaterialOverrideUpload(
     AssetLocation OverrideAsset,
     string? RuleId,
     AssetLocation? RuleSource,
-    PbrOverrideScale Scale);
+    PbrOverrideScale Scale,
+    int Priority);

@@ -97,11 +97,11 @@ Exit artifacts: Per-frame scheduler and time budget behavior specified.
 
 ## Phase 6 - Prioritization Scaffold
 Exit artifacts: Priority field integrated into job metadata with placeholder values.
-- [ ] Add a priority factor field to job metadata (float or int).
-- [ ] Sort queues by priority first, then FIFO.
-- [ ] For now, set priority to a constant (no unique values yet).
-- [ ] Document TODO hooks for future priority computation (visibility, proximity, usage).
-- [ ] Identify where priority data will come from later (renderer visibility, block usage stats, etc).
+- [x] Add a priority factor field to job metadata (float or int).
+- [x] Sort queues by priority first, then FIFO.
+- [x] For now, set priority to a constant (no unique values yet).
+- [x] Document TODO hooks for future priority computation (visibility, proximity, usage).
+- [x] Identify where priority data will come from later (renderer visibility, block usage stats, etc).
 
 ---
 
