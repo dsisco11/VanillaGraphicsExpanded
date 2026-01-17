@@ -106,17 +106,22 @@ Key requirements
 ---
 
 ## Phase 7 — PMJ (Temporal Jitter) References + Requirements
-- [ ] Add primary references for PMJ sampling (for implementation + validation):
-  - [ ] Kensler (2013): “Correlated Multi-Jittered Sampling” (for 2D stratified sampling background).
-  - [ ] Christensen et al. / Pixar: PMJ / PMJ02 notes (progressive multi-jittered sequences).
-  - [ ] Clarify whether we want PMJ(0,2) specifically (common for temporal jitter).
-- [ ] Define target use-case:
-  - [ ] Temporal jitter sequence: per-frame 2D offsets in [0,1)^2 (or centered [-0.5,0.5)).
-  - [ ] Deterministic per seed + frame index.
-  - [ ] Optional: per-pixel or per-tile scrambling to avoid visible correlation.
-- [ ] Decide canonical artifact:
-  - [ ] A sequence of points: `Vector2[]` or packed `ushort` pairs (fixed-point).
-  - [ ] Decide if we also want pre-baked “texture tiles” (NxN texels, each texel stores a point for frame f).
+- [x] Add primary references for PMJ sampling (for implementation + validation):
+  - [x] Kensler (2013): “Correlated Multi-Jittered Sampling” (CMJ background)
+    - https://graphics.pixar.com/library/CorrelatedMultiJitteredSampling/
+  - [x] Progressive Multi-Jittered (PMJ) / PMJ02 discussion + code references
+    - https://graphics.pixar.com/library/ProgressiveMultiJitteredSampling/
+    - https://github.com/pixar/RenderManForBlender/blob/master/rman_operators/rman_operators_sampling.py (PMJ-style sequence generation reference)
+  - [x] Clarify whether we want PMJ(0,2) specifically (common for temporal jitter).
+    - Decision: implement PMJ(0,2) (“PMJ02”) first.
+- [x] Define target use-case:
+  - [x] Temporal jitter sequence: per-frame 2D offsets in [0,1)^2 and optionally centered [-0.5,0.5).
+  - [x] Deterministic per seed + frame index.
+  - [x] Optional: per-pixel or per-tile scrambling (seed + salt) to avoid visible correlation.
+- [x] Decide canonical artifact:
+  - [x] Canonical cache output: sequence of points as `Vector2[]` in [0,1)^2.
+  - [x] Conversions: packed `ushort` (RG16_UNorm) and/or `byte` (RG8_UNorm) for texture upload.
+  - [x] Optional later: pre-baked “texture tiles” (NxN texels, each texel stores a point for frame f).
 
 ---
 
