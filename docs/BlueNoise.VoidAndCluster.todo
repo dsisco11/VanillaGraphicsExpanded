@@ -27,15 +27,15 @@ Key requirements
 ---
 
 ## Phase 1 — Public API + Configuration
-- [ ] Add `readonly record struct BlueNoiseConfig` (Noise namespace).
-  - [ ] Fields: `Width`, `Height` (and optional `Depth/Slices` if needed later).
-  - [ ] `Tileable` default `true`.
-  - [ ] `Seed` (uint) and `Algorithm` (enum or type tag).
-  - [ ] Output selection: `BlueNoiseOutputKind` (enum).
-  - [ ] Algorithm parameters: `Sigma`, `InitialFillRatio`, `MaxIterations`, `StagnationLimit`.
-- [ ] Add validation helper (throws or returns error result): sizes > 0, sigma > 0, fill in (0,1), etc.
-- [ ] Define the canonical artifact to cache:
-  - [ ] Ranked threshold map (e.g., `ushort[]` length = width*height) should likely be the “source of truth”.
+- [x] Add `readonly record struct BlueNoiseConfig` (Noise namespace).
+  - [x] Fields: `Width`, `Height` (and optional `Depth/Slices` if needed later).
+  - [x] `Tileable` default `true`.
+  - [x] `Seed` (uint) and `Algorithm` (enum or type tag).
+  - [x] Output selection: `BlueNoiseOutputKind` (enum).
+  - [x] Algorithm parameters: `Sigma`, `InitialFillRatio`, `MaxIterations`, `StagnationLimit`.
+- [x] Add validation helper (throws or returns error result): sizes > 0, sigma > 0, fill in (0,1), etc.
+- [x] Define the canonical artifact to cache:
+  - [x] Ranked threshold map (e.g., `ushort[]` length = width*height) should likely be the “source of truth”.
 
 ---
 
