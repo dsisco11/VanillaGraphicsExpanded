@@ -1,0 +1,122 @@
+# Blue Noise: Runtime Compute + Cache (Void-and-Cluster)
+
+Goal: Implement a runtime system to compute and cache reusable blue-noise arrays.
+Scope: CPU-side generation + cache + configurable outputs. Downstream consumer integration is explicitly out-of-scope.
+
+Key requirements
+- Tiling is optional, default `true`.
+- Output type is configurable.
+- Sizes are configurable.
+- Configuration type is a `readonly record struct`.
+- Algorithm: Void-and-Cluster (Ulichney).
+- Prefer `System.Numerics.Tensors` (`TensorPrimitives`) for bulk operations wherever it makes sense.
+
+---
+
+## Phase 0 — References / Reading
+- [ ] Confirm exact Void-and-Cluster procedure steps and ranking method (avoid “almost correct” implementations).
+  - Void-and-Cluster overview (search terms): “Ulichney void and cluster blue noise dither matrix”.
+  - Book reference: Robert Ulichney, *Digital Halftoning* (MIT Press).
+- [ ] Identify a concise summary to link in docs (paper, notes, or community writeup).
+- [ ] Review tensor APIs we’ll lean on:
+  - https://learn.microsoft.com/dotnet/api/system.numerics.tensors
+  - https://learn.microsoft.com/dotnet/api/system.numerics.tensors.tensorprimitives
+
+---
+
+## Phase 1 — Public API + Configuration
+- [ ] Add `readonly record struct BlueNoiseConfig` (Noise namespace).
+  - [ ] Fields: `Width`, `Height` (and optional `Depth/Slices` if needed later).
+  - [ ] `Tileable` default `true`.
+  - [ ] `Seed` (uint) and `Algorithm` (enum or type tag).
+  - [ ] Output selection: `BlueNoiseOutputKind` (enum).
+  - [ ] Algorithm parameters: `Sigma`, `InitialFillRatio`, `MaxIterations`, `StagnationLimit`.
+- [ ] Add validation helper (throws or returns error result): sizes > 0, sigma > 0, fill in (0,1), etc.
+- [ ] Define the canonical artifact to cache:
+  - [ ] Ranked threshold map (e.g., `ushort[]` length = width*height) should likely be the “source of truth”.
+
+---
+
+## Phase 2 — Cache Design (CPU)
+- [ ] Add `BlueNoiseKey` as a `readonly record struct` suitable as a dictionary key.
+  - [ ] Include: size, tileable, seed, algorithm id, sigma, output kind (or cache ranked only and convert on-demand).
+- [ ] Implement `BlueNoiseCache` (thread-safe) with “create once” semantics.
+  - [ ] Prefer `ConcurrentDictionary<BlueNoiseKey, Lazy<T>>` or a small `lock`-protected dictionary.
+  - [ ] Ensure generation work is not done under a long-held lock.
+- [ ] Decide eviction strategy:
+  - [ ] Default: no eviction (expect a small fixed set of configs).
+  - [ ] Optional: bounded LRU for unusual/experimental configs.
+
+---
+
+## Phase 3 — Core Void-and-Cluster Implementation
+- [ ] Implement `VoidAndClusterGenerator` producing a ranked threshold map.
+  - [ ] Deterministic RNG: seed with existing stable hashing + Squirrel3-style hash PRNG.
+  - [ ] Initial binary pattern generation at `InitialFillRatio`.
+  - [ ] Compute “density” field via Gaussian blur of the binary pattern.
+  - [ ] Iteratively swap the most “clustered” ON pixel with the most “void” OFF pixel.
+    - [ ] Define convergence criteria (iteration cap + stagnation).
+    - [ ] Ensure toroidal addressing when tileable.
+  - [ ] Ranking step (generate dither matrix thresholds):
+    - [ ] Confirm Ulichney’s ranking method precisely.
+    - [ ] Produce ranks `0..(N-1)` (or inverse) consistent with output conversions.
+- [ ] Boundary behavior:
+  - [ ] Tileable: toroidal wrap in both axes for all neighborhood/blur ops.
+  - [ ] Non-tileable: clamp or mirror edges consistently (pick one and document).
+
+---
+
+## Phase 4 — Gaussian Blur (Separable) + Tensor Usage
+- [ ] Build a separable Gaussian kernel from `Sigma`.
+  - [ ] Choose radius rule (e.g., 3*sigma) and ensure odd kernel length.
+  - [ ] Normalize kernel sum to 1.
+- [ ] Implement separable convolution:
+  - [ ] Horizontal pass into scratch buffer.
+  - [ ] Vertical pass into output buffer.
+- [ ] Apply `TensorPrimitives` where it helps:
+  - [ ] Use `TensorPrimitives` for bulk multiply/add/clamp/scale operations on spans.
+  - [ ] Consider `TensorPrimitives.Dot` for inner products if it maps cleanly to the sliding window implementation.
+- [ ] Add scratch buffer reuse:
+  - [ ] Use `ArrayPool<float>` or cached scratch arrays keyed by size.
+
+---
+
+## Phase 5 — Output Kinds + Conversions
+- [ ] Define `BlueNoiseOutputKind` (examples):
+  - [ ] `RankU16` (canonical / cacheable).
+  - [ ] `RankU32` (only if required).
+  - [ ] `NormalizedF32` in [0,1].
+  - [ ] `L8` byte in [0,255].
+  - [ ] `BinaryMask` given a threshold or fill ratio.
+- [ ] Implement conversion pipeline from ranked map to requested output:
+  - [ ] Use `TensorPrimitives.MultiplyAdd`, `Clamp`, etc. for bulk conversions.
+  - [ ] Validate monotonic mapping and range correctness.
+
+---
+
+## Phase 6 — Determinism + Correctness Tests
+- [ ] Add unit tests (no visual output required):
+  - [ ] Deterministic: same config produces identical results.
+  - [ ] Different seed differs.
+  - [ ] Tileable: edge continuity checks (wrap neighborhood / periodic boundary).
+  - [ ] Output correctness: range checks, size checks, no NaNs.
+  - [ ] Cache behavior: repeated requests reuse cached artifact.
+
+---
+
+## Phase 7 — Performance Validation
+- [ ] Measure generation time for common sizes (64, 128, 256) and typical sigmas.
+- [ ] Confirm no excessive allocations (pool usage effective).
+- [ ] Document recommended “safe defaults” for game startup vs lazy generation.
+
+---
+
+## Phase 8 — Documentation + Future Algorithms (Non-blocking)
+- [ ] Add a short doc page describing:
+  - [ ] What the cache provides (rank map, normalized map, mask).
+  - [ ] How tiling affects boundary behavior.
+  - [ ] How to pick sigma / size / iteration caps.
+- [ ] Future algorithm candidates (not required now):
+  - [ ] Progressive Multi-Jittered (PMJ) sequences for temporal jitter textures.
+  - [ ] Bridson Poisson-disk sampling for point sets.
+  - [ ] Owen-scrambled Sobol (not blue-noise, but excellent low-discrepancy sampling).
