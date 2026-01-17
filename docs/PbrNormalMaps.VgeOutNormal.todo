@@ -30,12 +30,12 @@ Important constraints (ground truth):
 
 Phase 0 - Audit + Ground Truth
 Exit artifacts: We can state exactly what is being sampled/written and in what space.
-  ☐ Confirm where `vge_outNormal` is declared and assigned per shader target in `VanillaShaderPatches.cs`.
-  ☐ Confirm current normal packing expectations downstream (decode path in `pbr_composite.fsh`).
-  ☐ Confirm normal+height atlas encoding by reading:
+  ✔ Confirm where `vge_outNormal` is declared and assigned per shader target in `VanillaShaderPatches.cs`.
+  ✔ Confirm current normal packing expectations downstream (decode path in `pbr_composite.fsh`).
+  ✔ Confirm normal+height atlas encoding by reading:
     - `vge_normaldepth.glsl` helpers (`ReadNormalSigned`, `ReadHeight01`)
     - `pbr_heightbake_pack_to_atlas.fsh` outputs
-  ☐ Confirm sampler binding is already wired for chunk shaders (texture unit mapping in `TerrainMaterialParamsTextureBindingHook.cs`).
+  ✔ Confirm sampler binding is already wired for chunk shaders (texture unit mapping in `TerrainMaterialParamsTextureBindingHook.cs`).
 
 
 Phase 1 - Choose Normal-Map Transform Strategy (No Tangents Available)
