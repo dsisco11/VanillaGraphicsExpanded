@@ -52,19 +52,19 @@ Key requirements
 ---
 
 ## Phase 3 — Core Void-and-Cluster Implementation
-- [ ] Implement `VoidAndClusterGenerator` producing a ranked threshold map.
-  - [ ] Deterministic RNG: seed with existing stable hashing + Squirrel3-style hash PRNG.
-  - [ ] Initial binary pattern generation at `InitialFillRatio`.
-  - [ ] Compute “density” field via Gaussian blur of the binary pattern.
-  - [ ] Iteratively swap the most “clustered” ON pixel with the most “void” OFF pixel.
-    - [ ] Define convergence criteria (iteration cap + stagnation).
-    - [ ] Ensure toroidal addressing when tileable.
-  - [ ] Ranking step (generate dither matrix thresholds):
-    - [ ] Confirm Ulichney’s ranking method precisely.
-    - [ ] Produce ranks `0..(N-1)` (or inverse) consistent with output conversions.
-- [ ] Boundary behavior:
-  - [ ] Tileable: toroidal wrap in both axes for all neighborhood/blur ops.
-  - [ ] Non-tileable: clamp or mirror edges consistently (pick one and document).
+- [x] Implement `VoidAndClusterGenerator` producing a ranked threshold map.
+  - [x] Deterministic RNG: seed with existing stable hashing + Squirrel3-style hash PRNG.
+  - [x] Initial binary pattern generation at `InitialFillRatio`.
+  - [x] Compute “density” field via Gaussian blur of the binary pattern.
+  - [x] Iteratively swap the most “clustered” ON pixel with the most “void” OFF pixel.
+    - [x] Define convergence criteria (iteration cap + stagnation).
+    - [x] Ensure toroidal addressing when tileable.
+  - [x] Ranking step (generate dither matrix thresholds):
+    - [x] Confirm Ulichney’s ranking method precisely.
+    - [x] Produce ranks `0..(N-1)` (or inverse) consistent with output conversions.
+- [x] Boundary behavior:
+  - [x] Tileable: toroidal wrap in both axes for all neighborhood/blur ops.
+  - [x] Non-tileable: clamp edges consistently.
 
 ---
 
