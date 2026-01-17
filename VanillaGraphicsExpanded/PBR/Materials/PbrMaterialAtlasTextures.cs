@@ -296,10 +296,12 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                 continue;
             }
 
-            if (!PbrOverrideTextureLoader.TryLoadRgba(
+            if (!PbrOverrideTextureLoader.TryLoadRgbaFloats01(
                     capi,
                     overrides.MaterialParams,
-                    out PbrOverrideTextureLoader.LoadedRgbaImage img,
+                    out int _,
+                    out int _,
+                    out float[] floatRgba01,
                     out string? reason,
                     expectedWidth: rectW,
                     expectedHeight: rectH))
@@ -323,7 +325,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                 rectY: y1,
                 rectWidth: rectW,
                 rectHeight: rectH,
-                overrideRgba: img.Rgba);
+                overrideRgba01: floatRgba01);
 
             overriddenRects++;
         }

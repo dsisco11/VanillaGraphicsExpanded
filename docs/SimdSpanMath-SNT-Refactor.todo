@@ -87,11 +87,11 @@ Exit artifacts: repeated fill/clamp math is centralized (without harming current
 
 Phase 6 — Refactor: Override Applier Prefers Float Inputs
 Exit artifacts: override application no longer re-implements normalization/scaling.
-[ ] Update VanillaGraphicsExpanded/VanillaGraphicsExpanded/PBR/Materials/PbrMaterialParamsOverrideApplier.cs:
-    [ ] Add overload that accepts float RGBA01 inputs
-    [ ] Route call sites to use TryLoadRgbaFloats01 where possible
-    [ ] Use SimdSpanMath layout helper(s) for any contiguous math
-    [ ] Keep the required stride/rect packing loop local (atlas addressing)
+[x] Update VanillaGraphicsExpanded/VanillaGraphicsExpanded/PBR/Materials/PbrMaterialParamsOverrideApplier.cs:
+    [x] Add overload that accepts float RGBA01 inputs
+    [x] Route call sites to use TryLoadRgbaFloats01 where possible
+    [x] Use SimdSpanMath layout helper(s) for any contiguous math
+    [x] Keep the required stride/rect packing loop local (atlas addressing)
 
 
 Phase 7 (Optional) — Noise Math Refactor (Planar + SNT)

@@ -350,6 +350,21 @@ internal static class PbrMaterialParamsPixelBuilder
         SimdSpanMath.FillInterleaved3(destination, r, g, b);
     }
 
+    internal static void FillRgbTripletsScalar(Span<float> destination, float r, float g, float b)
+    {
+        SimdSpanMath.FillInterleaved3Scalar(destination, r, g, b);
+    }
+
+    internal static void FillRgbTripletsVector128Sse(Span<float> destination, float r, float g, float b)
+    {
+        SimdSpanMath.FillInterleaved3Vector128Sse(destination, r, g, b);
+    }
+
+    internal static void FillRgbTripletsVector256Avx(Span<float> destination, float r, float g, float b)
+    {
+        SimdSpanMath.FillInterleaved3Vector256Avx(destination, r, g, b);
+    }
+
     /// <summary>
     /// Fills <paramref name="destination"/> (a multiple-of-3 length span) with repeating RGB triplets: r,g,b,r,g,b,...
     /// Uses Vector256 (AVX) or Vector128 (SSE) when supported; falls back to scalar.

@@ -174,7 +174,7 @@ internal static class SimdSpanMath
 
     #region Layout SIMD Helpers
 
-    private static void FillInterleaved3Scalar(Span<float> destination, float a0, float a1, float a2)
+    internal static void FillInterleaved3Scalar(Span<float> destination, float a0, float a1, float a2)
     {
         Debug.Assert((destination.Length % 3) == 0);
 
@@ -186,12 +186,11 @@ internal static class SimdSpanMath
         }
     }
 
-    private static void FillInterleaved3Vector128Sse(Span<float> destination, float a0, float a1, float a2)
+    internal static void FillInterleaved3Vector128Sse(Span<float> destination, float a0, float a1, float a2)
     {
         if (!Sse.IsSupported)
         {
-            FillInterleaved3Scalar(destination, a0, a1, a2);
-            return;
+            throw new PlatformNotSupportedException("SSE is not supported on this platform.");
         }
 
         Debug.Assert((destination.Length % 3) == 0);
@@ -220,12 +219,11 @@ internal static class SimdSpanMath
         }
     }
 
-    private static void FillInterleaved3Vector256Avx(Span<float> destination, float a0, float a1, float a2)
+    internal static void FillInterleaved3Vector256Avx(Span<float> destination, float a0, float a1, float a2)
     {
         if (!Avx.IsSupported)
         {
-            FillInterleaved3Scalar(destination, a0, a1, a2);
-            return;
+            throw new PlatformNotSupportedException("AVX is not supported on this platform.");
         }
 
         Debug.Assert((destination.Length % 3) == 0);

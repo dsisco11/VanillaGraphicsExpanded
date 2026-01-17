@@ -1,9 +1,58 @@
 using System;
 
+using VanillaGraphicsExpanded.Numerics;
+
 namespace VanillaGraphicsExpanded.PBR.Materials;
 
 internal static class PbrMaterialParamsOverrideApplier
 {
+    public static void ApplyRgbOverride(
+        float[] atlasRgbTriplets,
+        int atlasWidth,
+        int atlasHeight,
+        int rectX,
+        int rectY,
+        int rectWidth,
+        int rectHeight,
+        ReadOnlySpan<float> overrideRgba01)
+    {
+        ArgumentNullException.ThrowIfNull(atlasRgbTriplets);
+
+        if (atlasWidth <= 0) throw new ArgumentOutOfRangeException(nameof(atlasWidth));
+        if (atlasHeight <= 0) throw new ArgumentOutOfRangeException(nameof(atlasHeight));
+        if (rectX < 0 || rectY < 0) throw new ArgumentOutOfRangeException("rect origin must be non-negative");
+        if (rectWidth <= 0 || rectHeight <= 0) throw new ArgumentOutOfRangeException("rect size must be positive");
+        if (rectX + rectWidth > atlasWidth || rectY + rectHeight > atlasHeight) throw new ArgumentOutOfRangeException("rect exceeds atlas bounds");
+
+        int expectedAtlasFloats = atlasWidth * atlasHeight * 3;
+        if (atlasRgbTriplets.Length != expectedAtlasFloats)
+        {
+            throw new ArgumentException(
+                $"atlasRgbTriplets length {atlasRgbTriplets.Length} does not match atlas size {expectedAtlasFloats} ({atlasWidth}x{atlasHeight}x3)",
+                nameof(atlasRgbTriplets));
+        }
+
+        int expectedOverrideFloats = rectWidth * rectHeight * 4;
+        if (overrideRgba01.Length != expectedOverrideFloats)
+        {
+            throw new ArgumentException(
+                $"overrideRgba01 length {overrideRgba01.Length} does not match rect size {expectedOverrideFloats} ({rectWidth}x{rectHeight}x4)",
+                nameof(overrideRgba01));
+        }
+
+        for (int y = 0; y < rectHeight; y++)
+        {
+            int destRow = ((rectY + y) * atlasWidth + rectX) * 3;
+            int srcRow = (y * rectWidth) * 4;
+
+            ReadOnlySpan<float> srcRowSpan = overrideRgba01.Slice(srcRow, rectWidth * 4);
+            Span<float> dstRowSpan = atlasRgbTriplets.AsSpan(destRow, rectWidth * 3);
+
+            // Channel packing must match vge_material.glsl (RGB = roughness, metallic, emissive). Ignore alpha.
+            SimdSpanMath.CopyInterleaved4ToInterleaved3(srcRowSpan, dstRowSpan);
+        }
+    }
+
     public static void ApplyRgbOverride(
         float[] atlasRgbTriplets,
         int atlasWidth,
