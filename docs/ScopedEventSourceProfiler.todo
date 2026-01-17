@@ -1,0 +1,99 @@
+# UE5-Style Scoped Profiling Markers (EventSource) — Implementation Todo
+
+Goal: Add a `using`/`IDisposable` scoped CPU profiling marker system (UE5-style) backed by .NET `EventSource`, with minimal overhead when disabled and optional integration points for existing profiler utilities.
+
+---
+
+## Phase 0 — Requirements + Alignment
+- [ ] Confirm consumer tools: PerfView/ETW vs `dotnet-trace`/EventPipe vs both
+- [ ] Decide naming + provider identity (provider name, keywords, levels)
+- [ ] Decide if markers should support:
+  - [ ] Nesting + per-thread stacks (optional)
+  - [ ] Correlation IDs / Activity IDs (optional)
+  - [ ] Categories/keywords (Render/WorldGen/IO/etc)
+
+Docs:
+- https://learn.microsoft.com/dotnet/api/system.diagnostics.tracing.eventsource
+- https://learn.microsoft.com/dotnet/core/diagnostics/eventpipe
+- https://learn.microsoft.com/dotnet/core/diagnostics/dotnet-trace
+
+---
+
+## Phase 1 — Workspace Discovery (Read-only)
+- [ ] Locate existing CPU profiling utilities in `vsapi` (e.g., frame profiler helpers)
+- [ ] Locate existing GPU marker system in `VanillaGraphicsExpanded` (e.g., baked profiler events/blocks)
+- [ ] Identify 2–4 high-value callsites to instrument first (render loop, mesh build, texture ops)
+- [ ] Check repo conventions for:
+  - [ ] Namespace/layout for utilities
+  - [ ] Logging patterns and build targets (.NET version)
+
+Docs:
+- PerfView overview: https://github.com/microsoft/perfview
+
+---
+
+## Phase 2 — Core API Design (Public Surface)
+- [ ] Define a minimal, ergonomic API:
+  - [ ] `Profiler.BeginScope(string name)` returns `ProfileScope : IDisposable`
+  - [ ] Optional overloads: `(string name, string category)` or `(string name, long id)`
+  - [ ] Provide no-op scope when disabled
+- [ ] Ensure API is allocation-free in the hot path:
+  - [ ] `ProfileScope` is `readonly struct`
+  - [ ] Fast-path gate: `EventSource.IsEnabled()`
+  - [ ] Avoid string interpolation or dynamic payload composition
+- [ ] Establish guidance for marker names (low cardinality)
+
+Docs:
+- EventSource best practices: https://learn.microsoft.com/dotnet/framework/performance/eventsource
+
+---
+
+## Phase 3 — EventSource Provider Implementation
+- [ ] Add a single provider `EventSource`:
+  - [ ] Stable provider name (e.g., `VintageStory.Profiling` or `VanillaGraphicsExpanded.Profiling`)
+  - [ ] Start/Stop event pair (begin/end)
+  - [ ] Payload fields (example): `Name`, `Category` (optional), `ThreadId` (optional), `Timestamp` (optional)
+- [ ] Define keywords and levels for filtering
+- [ ] Add optional counters (only if useful):
+  - [ ] `EventCounter`/`IncrementingEventCounter` (events/sec, active scopes, etc.)
+- [ ] Add an `EventListener` sample for quick local verification
+
+Docs:
+- EventListener: https://learn.microsoft.com/dotnet/api/system.diagnostics.tracing.eventlistener
+- EventCounters: https://learn.microsoft.com/dotnet/core/diagnostics/event-counters
+
+---
+
+## Phase 4 — Integration + Instrumentation
+- [ ] Integrate markers at selected hotspots:
+  - [ ] Render loop / mesh generation / texture processing (initial pass)
+  - [ ] Any existing “frame profiler” hooks (bridge or coexist)
+- [ ] Validate nesting behavior and begin/end pairing under exceptions (scope disposal)
+- [ ] Ensure markers are safe in multi-threaded contexts
+
+Docs:
+- `dotnet-trace` providers and filtering: https://learn.microsoft.com/dotnet/core/diagnostics/dotnet-trace#collect-a-trace
+
+---
+
+## Phase 5 — Tests / Verification
+- [ ] Add a small unit/integration test (if existing test harness fits):
+  - [ ] Attach an `EventListener`, enable provider, emit a scoped marker, assert Start+Stop observed
+  - [ ] Verify payload fields (name/category) match
+- [ ] Add developer documentation for capturing traces:
+  - [ ] PerfView session notes (Windows)
+  - [ ] `dotnet-trace collect --providers ...`
+
+Docs:
+- `dotnet-trace` tutorial: https://learn.microsoft.com/dotnet/core/diagnostics/dotnet-trace
+
+---
+
+## Phase 6 — Performance + Polish
+- [ ] Benchmark micro-overhead in disabled and enabled states
+- [ ] Ensure minimal allocations in hot path (no boxing, no closures)
+- [ ] Add guardrails for high-cardinality marker names (optional analyzer/guidelines)
+- [ ] Confirm compatibility with the repo’s target frameworks and runtime
+
+Docs:
+- Perf considerations for tracing: https://learn.microsoft.com/dotnet/core/diagnostics/logging-tracing
