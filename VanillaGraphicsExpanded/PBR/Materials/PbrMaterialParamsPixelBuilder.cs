@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -30,6 +31,10 @@ internal static class PbrMaterialParamsPixelBuilder
     private const uint EmissiveSalt = 0x9E3779B9u;
 
     private const float InvFloatMax = 1f / Squirrel3Noise.FloatMax;
+
+    private const int NoisePlanarStackallocThreshold = 256;
+
+    private static readonly bool UsePlanarNoiseSnt = true;
 
     public static Result BuildRgb16fPixelBuffers(
         IReadOnlyList<(int atlasTextureId, int width, int height)> atlasPages,
@@ -146,6 +151,14 @@ internal static class PbrMaterialParamsPixelBuilder
             return;
         }
 
+        if (UsePlanarNoiseSnt)
+        {
+            // Planar noise buffers let us use SNT/TensorPrimitives for the hot math (mul/add/clamp)
+            // while keeping the custom hashing unchanged.
+            ApplyNoiseRowPlanarSnt(rowRgb, pixelCount, seed, localY, baseR, baseG, baseB, ampR, ampG, ampB);
+            return;
+        }
+
         if (Avx2.IsSupported)
         {
             ApplyNoiseRowVector256(rowRgb, pixelCount, seed, localY, baseR, baseG, baseB, ampR, ampG, ampB);
@@ -159,6 +172,97 @@ internal static class PbrMaterialParamsPixelBuilder
         }
 
         ApplyNoiseRowScalar(rowRgb, pixelCount, seed, localY, baseR, baseG, baseB, ampR, ampG, ampB);
+    }
+
+    private static void ApplyNoiseRowPlanarSnt(
+        Span<float> rowRgb,
+        int pixelCount,
+        uint seed,
+        uint localY,
+        float baseR,
+        float baseG,
+        float baseB,
+        float ampR,
+        float ampG,
+        float ampB)
+    {
+        uint seedR = seed ^ RoughnessSalt;
+        uint seedG = seed ^ MetallicSalt;
+        uint seedB = seed ^ EmissiveSalt;
+
+        if (pixelCount <= NoisePlanarStackallocThreshold)
+        {
+            Span<float> noise = stackalloc float[pixelCount * 3];
+            Span<float> noiseR = noise.Slice(0, pixelCount);
+            Span<float> noiseG = noise.Slice(pixelCount, pixelCount);
+            Span<float> noiseB = noise.Slice(pixelCount * 2, pixelCount);
+
+            FillNoiseAndApply(rowRgb, pixelCount, seedR, seedG, seedB, localY, baseR, baseG, baseB, ampR, ampG, ampB, noiseR, noiseG, noiseB);
+            return;
+        }
+
+        float[] rented = ArrayPool<float>.Shared.Rent(pixelCount * 3);
+        try
+        {
+            Span<float> noise = rented.AsSpan(0, pixelCount * 3);
+            Span<float> noiseR = noise.Slice(0, pixelCount);
+            Span<float> noiseG = noise.Slice(pixelCount, pixelCount);
+            Span<float> noiseB = noise.Slice(pixelCount * 2, pixelCount);
+
+            FillNoiseAndApply(rowRgb, pixelCount, seedR, seedG, seedB, localY, baseR, baseG, baseB, ampR, ampG, ampB, noiseR, noiseG, noiseB);
+        }
+        finally
+        {
+            ArrayPool<float>.Shared.Return(rented);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void FillNoiseAndApply(
+        Span<float> rowRgb,
+        int pixelCount,
+        uint seedR,
+        uint seedG,
+        uint seedB,
+        uint localY,
+        float baseR,
+        float baseG,
+        float baseB,
+        float ampR,
+        float ampG,
+        float ampB,
+        Span<float> noiseR,
+        Span<float> noiseG,
+        Span<float> noiseB)
+    {
+        for (int x = 0; x < pixelCount; x++)
+        {
+            uint ux = (uint)x;
+            noiseR[x] = NoiseSigned(seedR, ux, localY);
+            noiseG[x] = NoiseSigned(seedG, ux, localY);
+            noiseB[x] = NoiseSigned(seedB, ux, localY);
+        }
+
+        // base + (noise * amp), clamped to [0,1]
+        SimdSpanMath.ScaleInPlace(noiseR, ampR);
+        SimdSpanMath.AddInPlace(noiseR, baseR);
+        SimdSpanMath.Clamp01(noiseR);
+
+        SimdSpanMath.ScaleInPlace(noiseG, ampG);
+        SimdSpanMath.AddInPlace(noiseG, baseG);
+        SimdSpanMath.Clamp01(noiseG);
+
+        SimdSpanMath.ScaleInPlace(noiseB, ampB);
+        SimdSpanMath.AddInPlace(noiseB, baseB);
+        SimdSpanMath.Clamp01(noiseB);
+
+        for (int x = 0; x < pixelCount; x++)
+        {
+            int i = x * 3;
+            rowRgb[i + 0] = noiseR[x];
+            rowRgb[i + 1] = noiseG[x];
+            rowRgb[i + 2] = noiseB[x];
+        }
     }
 
     internal static void ApplyNoiseRowScalar(

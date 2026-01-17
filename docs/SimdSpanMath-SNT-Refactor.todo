@@ -96,10 +96,10 @@ Exit artifacts: override application no longer re-implements normalization/scali
 
 Phase 7 (Optional) — Noise Math Refactor (Planar + SNT)
 Exit artifacts: noise math uses TensorPrimitives for mul/add/clamp; custom hashing remains.
-[ ] Decide whether to refactor noise application:
-    [ ] If yes: generate per-row noise arrays (R/G/B) contiguously
-    [ ] Apply MultiplyAddClamp01 via SimdSpanMath, then interleave back into destination
-    [ ] Validate no excessive allocations (use pooled buffers or stackalloc for small rows)
+[x] Decide whether to refactor noise application:
+    [x] Yes: generate per-row noise arrays (R/G/B) contiguously
+    [x] Apply mul/add/clamp via SimdSpanMath, then interleave back into destination
+    [x] Validate no excessive allocations (stackalloc for small rows; ArrayPool for larger)
 
 
 Phase 8 — Verification + Performance Safety Nets
