@@ -73,16 +73,16 @@ Exit artifacts: new fields exist end-to-end from JSON to resolved per-texture ov
 
 Phase 3 — Apply Scaling: Material Params Overrides
 Exit artifacts: material params overrides honor scales without changing atlas addressing.
-[ ] Update VanillaGraphicsExpanded/PBR/Materials/PbrMaterialAtlasTextures.cs:
-    [ ] When loading overrides.MaterialParams via TryLoadRgbaFloats01, also fetch per-rule scales
-    [ ] Apply multiply+clamp to channels:
-        [ ] overrides.scale.roughness -> R
-        [ ] overrides.scale.metallic  -> G
-        [ ] overrides.scale.emissive  -> B
-        [ ] (ignore alpha)
-    [ ] Ensure clamping happens before PbrMaterialParamsOverrideApplier.ApplyRgbOverride
-[ ] Keep implementation allocation-free:
-    [ ] Prefer in-place span ops (SimdSpanMath) on the loaded float array (or row slices)
+[x] Update VanillaGraphicsExpanded/PBR/Materials/PbrMaterialAtlasTextures.cs:
+    [x] When loading overrides.MaterialParams via TryLoadRgbaFloats01, also fetch per-rule scales
+    [x] Apply multiply+clamp to channels:
+        [x] overrides.scale.roughness -> R
+        [x] overrides.scale.metallic  -> G
+        [x] overrides.scale.emissive  -> B
+        [x] (ignore alpha)
+    [x] Ensure clamping happens before PbrMaterialParamsOverrideApplier.ApplyRgbOverride
+[x] Keep implementation allocation-free:
+    [x] Apply scaling during copy/pack (does not mutate cached override float arrays)
 
 
 Phase 4 — Apply Scaling: Normal/Depth Overrides

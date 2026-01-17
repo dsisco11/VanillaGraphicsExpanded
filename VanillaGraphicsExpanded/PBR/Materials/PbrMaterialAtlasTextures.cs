@@ -325,7 +325,8 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                 rectY: y1,
                 rectWidth: rectW,
                 rectHeight: rectH,
-                overrideRgba01: floatRgba01);
+                overrideRgba01: floatRgba01,
+                scale: overrides.Scale);
 
             overriddenRects++;
         }

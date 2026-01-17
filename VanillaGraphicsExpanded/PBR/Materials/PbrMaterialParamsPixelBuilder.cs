@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
+using System.Numerics.Tensors;
 
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Noise;
@@ -246,15 +247,15 @@ internal static class PbrMaterialParamsPixelBuilder
         // base + (noise * amp), clamped to [0,1]
         SimdSpanMath.ScaleInPlace(noiseR, ampR);
         SimdSpanMath.AddInPlace(noiseR, baseR);
-        SimdSpanMath.Clamp01(noiseR);
+        System.Numerics.Tensors.TensorPrimitives.Clamp(noiseR, 0f, 1f, noiseR);
 
         SimdSpanMath.ScaleInPlace(noiseG, ampG);
         SimdSpanMath.AddInPlace(noiseG, baseG);
-        SimdSpanMath.Clamp01(noiseG);
+        System.Numerics.Tensors.TensorPrimitives.Clamp(noiseG, 0f, 1f, noiseG);
 
         SimdSpanMath.ScaleInPlace(noiseB, ampB);
         SimdSpanMath.AddInPlace(noiseB, baseB);
-        SimdSpanMath.Clamp01(noiseB);
+        System.Numerics.Tensors.TensorPrimitives.Clamp(noiseB, 0f, 1f, noiseB);
 
         for (int x = 0; x < pixelCount; x++)
         {

@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Diagnostics;
 using System.Numerics.Tensors;
 using System.Runtime.CompilerServices;
@@ -104,19 +105,82 @@ internal static class SimdSpanMath
         Debug.Assert(di == destination3.Length);
     }
 
+    public static void MultiplyClamp01Interleaved3InPlace(Span<float> destination3, float mul0, float mul1, float mul2)
+    {
+        if (destination3.Length == 0)
+        {
+            return;
+        }
+
+        if ((destination3.Length % 3) != 0)
+        {
+            throw new ArgumentException($"Length must be a multiple of 3 (destination={destination3.Length}).", nameof(destination3));
+        }
+
+        // This is an interleaved layout; keep the math centralized here.
+        // NaN policy: comparisons against NaN are false, so NaN passes through unchanged.
+        for (int i = 0; i < destination3.Length; i += 3)
+        {
+            destination3[i + 0] = Clamp01(destination3[i + 0] * mul0);
+            destination3[i + 1] = Clamp01(destination3[i + 1] * mul1);
+            destination3[i + 2] = Clamp01(destination3[i + 2] * mul2);
+        }
+    }
+
+    public static void MultiplyClamp01Interleaved3InPlace2D(
+        Span<float> destination3,
+        int rectWidthPixels,
+        int rectHeightPixels,
+        int rowStridePixels,
+        float mul0,
+        float mul1,
+        float mul2)
+    {
+        if (rectWidthPixels <= 0) throw new ArgumentOutOfRangeException(nameof(rectWidthPixels));
+        if (rectHeightPixels <= 0) throw new ArgumentOutOfRangeException(nameof(rectHeightPixels));
+        if (rowStridePixels < rectWidthPixels) throw new ArgumentOutOfRangeException(nameof(rowStridePixels));
+
+        int rectRowFloats = checked(rectWidthPixels * 3);
+        int requiredFloats = checked(((rectHeightPixels - 1) * rowStridePixels + rectWidthPixels) * 3);
+        if (destination3.Length < requiredFloats)
+        {
+            throw new ArgumentException(
+                $"destination3 is too small for rect (required={requiredFloats}, actual={destination3.Length}, rect={rectWidthPixels}x{rectHeightPixels}, stridePixels={rowStridePixels}).",
+                nameof(destination3));
+        }
+
+        // Precompute a row-sized multiplier tensor so each row can use TensorPrimitives ops.
+        const int StackallocFloatLimit = 1024;
+        float[]? rented = null;
+        Span<float> mulRow = rectRowFloats <= StackallocFloatLimit
+            ? stackalloc float[rectRowFloats]
+            : (rented = ArrayPool<float>.Shared.Rent(rectRowFloats));
+
+        mulRow = mulRow.Slice(0, rectRowFloats);
+        FillInterleaved3(mulRow, mul0, mul1, mul2);
+
+        try
+        {
+            int rowStrideFloats = checked(rowStridePixels * 3);
+            for (int y = 0; y < rectHeightPixels; y++)
+            {
+                Span<float> row = destination3.Slice(y * rowStrideFloats, rectRowFloats);
+                TensorPrimitives.Multiply(row, mulRow, row);
+                TensorPrimitives.Clamp(row, 0f, 1f, row);
+            }
+        }
+        finally
+        {
+            if (rented is not null)
+            {
+                ArrayPool<float>.Shared.Return(rented);
+            }
+        }
+    }
+
     public static void Fill(Span<float> destination, float value)
     {
         destination.Fill(value);
-    }
-
-    public static void Clamp(Span<float> destination, float min, float max)
-    {
-        TensorPrimitives.Clamp(destination, min, max, destination);
-    }
-
-    public static void Clamp01(Span<float> destination)
-    {
-        Clamp(destination, 0f, 1f);
     }
 
     public static void ScaleInPlace(Span<float> destination, float scale)
@@ -170,6 +234,14 @@ internal static class SimdSpanMath
         {
             throw new ArgumentException($"Length mismatch (source={sourceLength}, destination={destinationLength}).");
         }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static float Clamp01(float value)
+    {
+        if (value < 0f) return 0f;
+        if (value > 1f) return 1f;
+        return value;
     }
 
     #region Layout SIMD Helpers
