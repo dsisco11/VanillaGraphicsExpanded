@@ -1,0 +1,88 @@
+# PBR Material Atlas Async Build/Bake
+
+Goal: Convert the current synchronous atlas build/bake into an async, progressive system that can populate sub-textures over time during gameplay.
+Scope: Material params (RGB16F) and optional normal+depth sidecar (RGBA16F) for block atlas pages.
+Non-goals: New material mapping rules or changed shader formats.
+
+Key requirements
+- Per-frame budget measured in milliseconds.
+- Async CPU work with render-thread uploads (GL).
+- Prioritization factor exists in the scheduler, but unique priority values are deferred for now (use default/zero).
+- Safe cancellation and restart on atlas reload/asset changes.
+- Partial atlas availability is supported and stable.
+
+---
+
+## Phase 0 - Audit and Constraints
+- [ ] Document current entry points and lifecycle: `BlockTexturesLoaded`, `ReloadTextures`, `CreateTextureObjects`, `PopulateAtlasContents`.
+- [ ] Enumerate GL thread requirements (GPU baker, texture uploads).
+- [ ] Identify data dependencies: material registry, atlas positions, overrides, asset scanning.
+- [ ] Define failure/skip behavior when atlas pages not ready or registry not initialized.
+
+---
+
+## Phase 1 - Async Session Model
+- [ ] Add an atlas build session with generation id and cancellation token.
+- [ ] Track per-atlas-page state: pending tiles, in-flight tiles, completed tiles, page clear done.
+- [ ] Ensure a reload or atlas rebuild cancels prior session and clears queues safely.
+- [ ] Add basic progress counters: pages total, tiles total, tiles completed, overrides applied.
+
+---
+
+## Phase 2 - Material Params (CPU) as Tile Jobs
+- [ ] Refactor `PbrMaterialParamsPixelBuilder` to build per-rect buffers instead of whole-page arrays.
+- [ ] Add a light-weight job type: (atlas page, rect, base params, noise seed).
+- [ ] Compute on worker thread; enqueue sub-region upload to render thread.
+- [ ] Define a default unmapped fill (keep existing default roughness/metallic/emissive).
+
+---
+
+## Phase 3 - Overrides Pipeline
+- [ ] Load/validate overrides per texture only when needed for its rect (lazy).
+- [ ] Apply override data as a rect upload after procedural params.
+- [ ] Cache override texture loads to avoid repeated IO/decodes.
+
+---
+
+## Phase 4 - Normal+Depth Baker Refactor
+- [ ] Add one-time per-page clear (neutral normal + height = 0.5).
+- [ ] Expose a per-rect bake method in `PbrNormalDepthAtlasGpuBaker`.
+- [ ] Ensure per-rect bake does not read/modify other regions.
+- [ ] Apply normal+height overrides per rect after baking.
+
+---
+
+## Phase 5 - Scheduler + Budget (ms)
+- [ ] Add a scheduler that runs each frame with a time budget in milliseconds.
+- [ ] Process a limited number of CPU jobs and render-thread uploads per frame.
+- [ ] Define a max uploads per frame guardrail to avoid stalls.
+- [ ] Add a config value for budget (ms) with reasonable defaults.
+
+---
+
+## Phase 6 - Prioritization Scaffold
+- [ ] Add a priority factor field to job metadata (float or int).
+- [ ] Sort queues by priority first, then FIFO.
+- [ ] For now, set priority to a constant (no unique values yet).
+- [ ] Document TODO hooks for future priority computation (visibility, proximity, usage).
+
+---
+
+## Phase 7 - Integration and Events
+- [ ] Hook session start to `BlockTexturesLoaded` and other relevant events.
+- [ ] Ensure `CreateTextureObjects` can be called independently and safely.
+- [ ] Handle atlas page changes (new pages, size changes) by rebuilding state.
+
+---
+
+## Phase 8 - Diagnostics and UX
+- [ ] Add debug logs or UI for progress and failures.
+- [ ] Expose metrics: queue lengths, elapsed time per frame, dropped or failed jobs.
+- [ ] Add a force sync build option for loading screens if needed.
+
+---
+
+## Phase 9 - Validation
+- [ ] Verify partial atlas rendering is stable (no missing textures cause crashes).
+- [ ] Validate overrides precedence with partial updates.
+- [ ] Check for performance regressions and stutter under typical loads.
