@@ -1,0 +1,118 @@
+PBR Override Scaling Multipliers (Per-Rule / Per-Override-Texture)
+
+Goal
+- Add optional scaling multiplier properties per asset-mapping rule (override texture mapping).
+- Semantics: multiply + clamp to [0,1].
+- Default behavior: if a value is not specified, it is a no-op (equivalent to scale=1).
+- Apply scalers on float RGBA01 data (after decode/normalize), before packing into atlas buffers.
+- No new per-frame allocations introduced; reuse existing row/rect loops and pooled buffers.
+
+Non-Goals
+- Do not change shader packing conventions (must continue to match existing GLSL expectations).
+- Do not change rule matching semantics (priority/regex/glob selection stays the same).
+
+References
+- Rule JSON + schema:
+  - VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/config/vge/material_definitions.json
+  - schemas/pbr_material_definitions.schema.json
+- Rule parsing/registry:
+  - VanillaGraphicsExpanded/PBR/Materials/PbrMaterialRegistry.cs
+  - VanillaGraphicsExpanded/PBR/Materials/PbrMaterialDefinitionsModels.cs
+  - VanillaGraphicsExpanded/PBR/Materials/PbrMaterialTextureOverrides.cs
+- Override loading (byte RGBA + float RGBA01):
+  - VanillaGraphicsExpanded/PBR/Materials/PbrOverrideTextureLoader.cs
+- Override application (atlas packing):
+  - VanillaGraphicsExpanded/PBR/Materials/PbrMaterialAtlasTextures.cs
+  - VanillaGraphicsExpanded/PBR/Materials/PbrMaterialParamsOverrideApplier.cs
+- Shader packing expectations:
+  - VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/vge_material.glsl
+  - VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/vge_normaldepth.glsl
+
+
+Phase 0 — Design + Naming
+Exit artifacts: multiplier fields are specified, backward compatible, and unambiguous.
+[ ] Decide JSON key naming and structure:
+    [ ] Option A: named scalars (material): roughnessScale, metallicScale, emissiveScale
+    [ ] Option A: named scalars (normal/depth): normalXScale, normalYScale, normalZScale, depthScale
+    [ ] Option B: vector-like arrays (materialParamsScale: [r,g,b], normalHeightScale: [x,y,z,w])
+[ ] Decide clamping policy details:
+    [ ] Apply multiply then clamp to [0,1] per output channel
+    [ ] Preserve existing NaN behavior (document via unit test expectation)
+[ ] Decide validation policy for scale values:
+    [ ] Null/missing => 1.0f (no-op)
+    [ ] Reject NaN/Infinity with a clear warning + treat as no-op OR fail rule load (pick one)
+
+
+Phase 1 — Schema + Config Docs
+Exit artifacts: users can author the new fields correctly.
+[ ] Update schemas/pbr_material_definitions.schema.json:
+    [ ] Add new optional fields under override entries
+    [ ] Add descriptions stating multiply+clamp semantics and defaults
+[ ] Update VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/config/vge/material_definitions.json:
+    [ ] Add one example rule demonstrating material param scaling
+    [ ] Add one example rule demonstrating normal/depth scaling
+    [ ] Confirm examples remain valid under the updated schema
+
+
+Phase 2 — Model Types (JSON + Runtime)
+Exit artifacts: new fields exist end-to-end from JSON to resolved per-texture overrides.
+[ ] Update JSON model(s) in VanillaGraphicsExpanded/PBR/Materials/PbrMaterialDefinitionsModels.cs:
+    [ ] Add optional scale fields on the override descriptors (per override texture)
+[ ] Update resolved override type(s) in VanillaGraphicsExpanded/PBR/Materials/PbrMaterialTextureOverrides.cs:
+    [ ] Store resolved scale values (nullable or already defaulted to 1.0)
+[ ] Update registry plumbing in VanillaGraphicsExpanded/PBR/Materials/PbrMaterialRegistry.cs:
+    [ ] Parse/validate the new scale fields
+    [ ] Apply default = 1.0 when missing
+    [ ] Ensure per-texture resolved overrides carry the scales to the appliers
+
+
+Phase 3 — Apply Scaling: Material Params Overrides
+Exit artifacts: material params overrides honor scales without changing atlas addressing.
+[ ] Update VanillaGraphicsExpanded/PBR/Materials/PbrMaterialAtlasTextures.cs:
+    [ ] When loading overrides.MaterialParams via TryLoadRgbaFloats01, also fetch per-rule scales
+    [ ] Apply multiply+clamp to channels:
+        [ ] roughnessScale -> R
+        [ ] metallicScale  -> G
+        [ ] emissiveScale  -> B
+        [ ] (ignore alpha)
+    [ ] Ensure clamping happens before PbrMaterialParamsOverrideApplier.ApplyRgbOverride
+[ ] Keep implementation allocation-free:
+    [ ] Prefer in-place span ops (SimdSpanMath) on the loaded float array (or row slices)
+
+
+Phase 4 — Apply Scaling: Normal/Depth Overrides
+Exit artifacts: normalHeight overrides honor scales without changing bake/rect selection.
+[ ] Update VanillaGraphicsExpanded/PBR/Materials/PbrMaterialAtlasTextures.cs:
+    [ ] When loading overrides.NormalHeight via TryLoadRgbaFloats01, also fetch per-rule scales
+    [ ] Apply multiply+clamp to channels:
+        [ ] normalXScale -> R
+        [ ] normalYScale -> G
+        [ ] normalZScale -> B
+        [ ] depthScale   -> A
+    [ ] Apply scaling before storing into overrideRects and before applying to atlas
+[ ] Confirm shader expectations remain correct:
+    [ ] vge_normaldepth.glsl still interprets channels as before
+
+
+Phase 5 — Tests
+Exit artifacts: confidence that default behavior is unchanged and scaling works.
+[ ] Add/extend unit tests (VanillaGraphicsExpanded.Tests):
+    [ ] Missing fields => no-op (exactly matches current behavior)
+    [ ] MaterialParams scaling multiplies and clamps (0..1)
+    [ ] NormalHeight scaling multiplies and clamps (0..1)
+    [ ] NaN/Infinity handling matches chosen policy
+[ ] Run: dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj
+
+
+Phase 6 — Performance Notes (Optional)
+Exit artifacts: no perf regressions in hot paths.
+[ ] If needed, add a small micro-benchmark harness:
+    [ ] Compare pre-scaling vs scaling on representative rect sizes
+    [ ] Verify no new per-frame allocations (use profiler/GC stats)
+
+
+Acceptance Criteria
+- Existing material_definitions.json without scale fields behaves identically.
+- New optional scale fields are honored per-rule (per override texture mapping).
+- Scaling is multiply+clamp to [0,1] per channel.
+- No new per-frame allocations are introduced in atlas build paths.
