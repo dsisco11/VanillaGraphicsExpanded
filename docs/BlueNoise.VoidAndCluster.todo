@@ -137,14 +137,14 @@ Key requirements
 ---
 
 ## Phase 9 — PMJ Core Implementation
-- [ ] Implement `PmjGenerator`.
-  - [ ] Start with PMJ(0,2) / “PMJ02” generation.
-  - [ ] Deterministic RNG using existing `Squirrel3Noise` hashing.
-  - [ ] Ensure progressive property: first N samples form good stratified distributions for many N.
-  - [ ] Add optional Owen scrambling (or a cheaper hash-based scramble) without breaking stratification.
-- [ ] Add helpers:
-  - [ ] `RadicalInverse` / bit-reversal utilities if needed.
-  - [ ] Permutation utilities (per stratum) driven by seed.
+- [x] Implement `PmjGenerator`.
+  - [x] Start with PMJ(0,2) / “PMJ02” generation.
+  - [x] Deterministic RNG using existing `Squirrel3Noise` hashing.
+  - [x] Ensure progressive property: first N samples form good stratified distributions for many N.
+  - [x] Add optional Owen scrambling (Owen-style hierarchical bit scrambling) driven by seed + salt.
+- [x] Add helpers:
+  - [x] Bit-reversal utilities (van der Corput base-2).
+  - [x] Sobol(0,2) direction-number helper for the 2nd dimension.
 
 ---
 
