@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 
+using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Noise;
 
 using Vintagestory.API.Client;
@@ -52,7 +53,7 @@ internal static class PbrMaterialParamsPixelBuilder
             sizesByAtlasTexId[atlasTextureId] = (width, height);
 
             float[] pixels = new float[width * height * 3];
-            FillRgbTriplets(pixels, DefaultRoughness, DefaultMetallic, DefaultEmissive);
+            SimdSpanMath.FillInterleaved3(pixels, DefaultRoughness, DefaultMetallic, DefaultEmissive);
 
             pixelBuffersByAtlasTexId[atlasTextureId] = pixels;
         }
@@ -102,7 +103,7 @@ internal static class PbrMaterialParamsPixelBuilder
                 int rowBase = (y * width + x1) * 3;
                 Span<float> rowSpan = pixels.AsSpan(rowBase, rectWidth * 3);
 
-                FillRgbTriplets(rowSpan, roughness, metallic, emissive);
+                SimdSpanMath.FillInterleaved3(rowSpan, roughness, metallic, emissive);
 
                 if (roughnessNoise != 0f || metallicNoise != 0f || emissiveNoise != 0f)
                 {
@@ -346,7 +347,7 @@ internal static class PbrMaterialParamsPixelBuilder
     internal static void FillRgbTriplets(float[] destination, float r, float g, float b)
     {
         if (destination is null) throw new ArgumentNullException(nameof(destination));
-        FillRgbTriplets(destination.AsSpan(), r, g, b);
+        SimdSpanMath.FillInterleaved3(destination, r, g, b);
     }
 
     /// <summary>
@@ -356,122 +357,7 @@ internal static class PbrMaterialParamsPixelBuilder
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void FillRgbTriplets(Span<float> destination, float r, float g, float b)
     {
-        if (destination.Length == 0)
-        {
-            return;
-        }
-
-        // These spans are always produced by code paths that multiply pixel counts by 3.
-        // Keep a fast debug-time check but avoid throwing in release builds.
-        System.Diagnostics.Debug.Assert(destination.Length % 3 == 0);
-
-        if (Avx.IsSupported)
-        {
-            FillRgbTripletsVector256Avx(destination, r, g, b);
-            return;
-        }
-
-        if (Sse.IsSupported)
-        {
-            FillRgbTripletsVector128Sse(destination, r, g, b);
-            return;
-        }
-
-        FillRgbTripletsScalar(destination, r, g, b);
-    }
-
-    internal static void FillRgbTripletsScalar(Span<float> destination, float r, float g, float b)
-    {
-        if (destination.Length == 0)
-        {
-            return;
-        }
-
-        System.Diagnostics.Debug.Assert(destination.Length % 3 == 0);
-
-        for (int i = 0; i < destination.Length; i += 3)
-        {
-            destination[i + 0] = r;
-            destination[i + 1] = g;
-            destination[i + 2] = b;
-        }
-    }
-
-    internal static void FillRgbTripletsVector128Sse(Span<float> destination, float r, float g, float b)
-    {
-        if (!Sse.IsSupported)
-        {
-            throw new PlatformNotSupportedException("SSE is not supported on this platform.");
-        }
-
-        if (destination.Length == 0)
-        {
-            return;
-        }
-
-        System.Diagnostics.Debug.Assert(destination.Length % 3 == 0);
-
-        ref float dstRef = ref MemoryMarshal.GetReference(destination);
-        int length = destination.Length;
-
-        // 4 floats per vector. Write 3 vectors (12 floats) per iteration to preserve the RGB triplet phase.
-        Vector128<float> v0 = Vector128.Create(r, g, b, r);
-        Vector128<float> v1 = Vector128.Create(g, b, r, g);
-        Vector128<float> v2 = Vector128.Create(b, r, g, b);
-
-        int i = 0;
-        for (; i <= length - 12; i += 12)
-        {
-            Unsafe.WriteUnaligned(ref Unsafe.As<float, byte>(ref Unsafe.Add(ref dstRef, i + 0)), v0);
-            Unsafe.WriteUnaligned(ref Unsafe.As<float, byte>(ref Unsafe.Add(ref dstRef, i + 4)), v1);
-            Unsafe.WriteUnaligned(ref Unsafe.As<float, byte>(ref Unsafe.Add(ref dstRef, i + 8)), v2);
-        }
-
-        for (; i < length; i += 3)
-        {
-            Unsafe.Add(ref dstRef, i + 0) = r;
-            Unsafe.Add(ref dstRef, i + 1) = g;
-            Unsafe.Add(ref dstRef, i + 2) = b;
-        }
-    }
-
-    internal static void FillRgbTripletsVector256Avx(Span<float> destination, float r, float g, float b)
-    {
-        if (!Avx.IsSupported)
-        {
-            throw new PlatformNotSupportedException("AVX is not supported on this platform.");
-        }
-
-        if (destination.Length == 0)
-        {
-            return;
-        }
-
-        System.Diagnostics.Debug.Assert(destination.Length % 3 == 0);
-
-        ref float dstRef = ref MemoryMarshal.GetReference(destination);
-        int length = destination.Length;
-
-        // 8 floats per vector. Write 3 vectors (24 floats) per iteration to preserve the RGB triplet phase.
-        Vector256<float> v0 = Vector256.Create(r, g, b, r, g, b, r, g);
-        Vector256<float> v1 = Vector256.Create(b, r, g, b, r, g, b, r);
-        Vector256<float> v2 = Vector256.Create(g, b, r, g, b, r, g, b);
-
-        int i = 0;
-        for (; i <= length - 24; i += 24)
-        {
-            Unsafe.WriteUnaligned(ref Unsafe.As<float, byte>(ref Unsafe.Add(ref dstRef, i + 0)), v0);
-            Unsafe.WriteUnaligned(ref Unsafe.As<float, byte>(ref Unsafe.Add(ref dstRef, i + 8)), v1);
-            Unsafe.WriteUnaligned(ref Unsafe.As<float, byte>(ref Unsafe.Add(ref dstRef, i + 16)), v2);
-        }
-
-        // Tail: scalar is enough here (still correct, and avoids depending on SSE from this method).
-        for (; i < length; i += 3)
-        {
-            Unsafe.Add(ref dstRef, i + 0) = r;
-            Unsafe.Add(ref dstRef, i + 1) = g;
-            Unsafe.Add(ref dstRef, i + 2) = b;
-        }
+        SimdSpanMath.FillInterleaved3(destination, r, g, b);
     }
 
     private static int Clamp(int value, int min, int max)

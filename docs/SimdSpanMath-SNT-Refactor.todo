@@ -79,11 +79,10 @@ Exit artifacts: byte→float01 conversion is centralized and SIMD.
 
 Phase 5 — Refactor: Material Params Pixel Builder Uses Root Utility
 Exit artifacts: repeated fill/clamp math is centralized (without harming current perf).
-[ ] Update VanillaGraphicsExpanded/VanillaGraphicsExpanded/PBR/Materials/PbrMaterialParamsPixelBuilder.cs:
-    [ ] Replace FillRgbTriplets calls with SimdSpanMath.FillInterleaved3
-        - Option A: move existing SIMD implementation into SimdSpanMath
+[x] Update VanillaGraphicsExpanded/VanillaGraphicsExpanded/PBR/Materials/PbrMaterialParamsPixelBuilder.cs:
+    [x] Replace FillRgbTriplets calls with SimdSpanMath.FillInterleaved3
         - Option B: keep FillRgbTriplets as wrapper calling SimdSpanMath
-    [ ] Replace scalar Clamp01 usages where appropriate with SimdSpanMath.Clamp01 when operating on spans
+    [x] Replace scalar Clamp01 usages where appropriate with SimdSpanMath.Clamp01 when operating on spans (no span-wide Clamp01 sites needed yet)
 
 
 Phase 6 — Refactor: Override Applier Prefers Float Inputs
