@@ -21,6 +21,10 @@ internal static class DdsRgba16UnormCodec
 
     private const uint DdsCapsTexture = 0x1000;
 
+    // DDS_HEADER layout: DDS_PIXELFORMAT starts at offset 72.
+    private const int DdsPixelFormatOffset = 72;
+    private const int DdsCapsOffset = 104;
+
     // DXGI_FORMAT_R16G16B16A16_UNORM
     private const uint DxgiFormatR16G16B16A16Unorm = 11;
 
@@ -59,14 +63,14 @@ internal static class DdsRgba16UnormCodec
         uint pitchBytes = checked((uint)width * 8u);
         BinaryPrimitives.WriteUInt32LittleEndian(h[16..20], pitchBytes);
 
-        // ddspf at offset 76
-        Span<byte> pf = h.Slice(76, DdsPixelFormatSize);
+        // ddspf at offset 72
+        Span<byte> pf = h.Slice(DdsPixelFormatOffset, DdsPixelFormatSize);
         BinaryPrimitives.WriteUInt32LittleEndian(pf[0..4], DdsPixelFormatSize);
         BinaryPrimitives.WriteUInt32LittleEndian(pf[4..8], DdpfFourCc);
         BinaryPrimitives.WriteUInt32LittleEndian(pf[8..12], FourCcDx10);
 
         // caps
-        BinaryPrimitives.WriteUInt32LittleEndian(h[108..112], DdsCapsTexture);
+        BinaryPrimitives.WriteUInt32LittleEndian(h[DdsCapsOffset..(DdsCapsOffset + 4)], DdsCapsTexture);
 
         // DDS_HEADER_DX10 (20 bytes)
         Span<byte> dx10 = header.Slice(4 + DdsHeaderSize, 20);
@@ -133,6 +137,8 @@ internal static class DdsRgba16UnormCodec
         }
 
         Span<byte> pf = h.Slice(76, DdsPixelFormatSize);
+        // NOTE: DDS_PIXELFORMAT starts at offset 72 (see DdsPixelFormatOffset).
+        pf = h.Slice(DdsPixelFormatOffset, DdsPixelFormatSize);
         uint pfSize = BinaryPrimitives.ReadUInt32LittleEndian(pf[0..4]);
         uint pfFlags = BinaryPrimitives.ReadUInt32LittleEndian(pf[4..8]);
         uint fourCc = BinaryPrimitives.ReadUInt32LittleEndian(pf[8..12]);
