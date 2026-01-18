@@ -1,0 +1,108 @@
+# PBR Material Atlas Refactor Plan
+
+Goal: Split the current PBR material atlas system into cleanly separated systems for
+- async/iterative processing
+- DynamicTexture production and ownership
+- GPU execution (shader/compute)
+- disk caching (load/save, skip recompute)
+
+Scope: Material params atlas (RGB16F) and normal+depth atlas (RGBA16F) for block atlas pages.
+Non-goals: New material mapping rules, shader format changes, or engine API changes.
+
+---
+
+## Phase 0 - Inventory and Baseline
+Exit artifacts: current responsibilities and seams documented; parity baseline.
+- [ ] Capture current entry points and lifecycle (BlockTexturesLoaded, ReloadTextures).
+- [ ] Note which calls are GL/render-thread only vs CPU-safe.
+- [ ] Identify duplicated atlas page/rect math and override loading paths.
+- [ ] Record baseline metrics (pages, rects, overrides, build duration).
+- [ ] Confirm existing tests and add missing coverage targets.
+
+---
+
+## Phase 1 - Data Contracts and Atlas Snapshot
+Exit artifacts: shared data structures that decouple planning from execution.
+- [ ] Define `MaterialAtlasSnapshot` (pages, sizes, positions, reload iteration, non-null count).
+- [ ] Define `AtlasRect` + resolver for UV->pixel conversion with clamping rules.
+- [ ] Define `MaterialAtlasBuildPlan` (per-page jobs, overrides, stats).
+- [ ] Define `MaterialAtlasCacheKey` (hash of inputs, versioned schema).
+- [ ] Centralize atlas position normalization (replace inline copies).
+
+---
+
+## Phase 2 - Texture Store (DynamicTexture Ownership)
+Exit artifacts: a dedicated store for page textures and lifecycle management.
+- [ ] Create `MaterialAtlasTextureStore` to allocate/resize/dispose per atlas page.
+- [ ] Expose lookups for material params and normal+depth texture IDs.
+- [ ] Move default fill/placeholder creation into the store.
+- [ ] Replace direct dictionary access in `PbrMaterialAtlasTextures`.
+
+---
+
+## Phase 3 - Build Planning (Registry + Atlas)
+Exit artifacts: pure planning layer that produces jobs from registry + atlas snapshot.
+- [ ] Create `MaterialAtlasBuildPlanner` that consumes snapshot + registry.
+- [ ] Produce per-rect material params jobs and optional override jobs.
+- [ ] Produce per-rect normal+depth bake jobs + overrides.
+- [ ] Isolate asset scans (textures/block) behind a planner helper.
+- [ ] Ensure planner is deterministic and side-effect free.
+
+---
+
+## Phase 4 - Material Params Pipeline (CPU + Upload)
+Exit artifacts: single pipeline used by both sync and async paths.
+- [ ] Extract `MaterialParamsGenerator` from `PbrMaterialParamsPixelBuilder`.
+- [ ] Create `MaterialParamsOverrideProvider` (wraps `PbrOverrideTextureLoader`).
+- [ ] Define `MaterialParamsUploader` (uploads per rect to texture store).
+- [ ] Route sync path through the same pipeline used by async jobs.
+- [ ] Add unit tests for per-rect generation and override application.
+
+---
+
+## Phase 5 - Normal+Depth Pipeline (GPU + Overrides)
+Exit artifacts: planner + GPU runner split; unified re-bake flow.
+- [ ] Create `NormalDepthBakePlanner` to define per-rect GPU tasks.
+- [ ] Wrap `PbrNormalDepthAtlasGpuBaker` in a `NormalDepthBakeRunner`.
+- [ ] Add override apply stage after bake (reuse loader/provider).
+- [ ] Route `RebakeNormalDepthAtlas` through the same pipeline.
+- [ ] Confirm all GL calls are render-thread only.
+
+---
+
+## Phase 6 - Async/Iterative Scheduler Integration
+Exit artifacts: scheduler runs on shared job interfaces and supports sync fallback.
+- [ ] Define job interfaces/records for CPU work and GPU uploads.
+- [ ] Adapt `PbrMaterialAtlasBuildScheduler` to new job types.
+- [ ] Keep generation-id cancellation and stale job drop behavior.
+- [ ] Expose progress counters for pages, jobs, overrides.
+- [ ] Ensure sync path can reuse the same build plan.
+
+---
+
+## Phase 7 - Disk Cache Subsystem
+Exit artifacts: load/save material params (and optional normal+depth) to disk.
+- [ ] Decide cache policy (what to store, when to invalidate, size limits).
+- [ ] Implement cache key hashing from snapshot + registry + config.
+- [ ] Serialize per-page material params buffers to disk.
+- [ ] Optional: support normal+depth readback caching (evaluate cost).
+- [ ] Add config toggles and logging for cache hits/misses.
+
+---
+
+## Phase 8 - Orchestration and Events
+Exit artifacts: a thin orchestrator that delegates to planner/pipelines/stores.
+- [ ] Introduce `PbrMaterialAtlasOrchestrator` (or rename existing class).
+- [ ] Wire events in `VanillaGraphicsExpandedModSystem` to orchestrator.
+- [ ] Update `TerrainMaterialParamsTextureBindingHook` to query texture store.
+- [ ] Ensure clean shutdown: cancel sessions, dispose textures, clear caches.
+
+---
+
+## Phase 9 - Diagnostics, UX, and Validation
+Exit artifacts: observability and test coverage for the refactor.
+- [ ] Add progress metrics for async builds (queue lengths, ms per frame).
+- [ ] Add debug view for atlas page completeness.
+- [ ] Add tests for planner determinism and cache key stability.
+- [ ] Add perf sanity checks for sync vs async paths.
+- [ ] Validate visual parity with existing shaders and mapping rules.
