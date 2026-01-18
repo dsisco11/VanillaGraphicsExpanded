@@ -45,6 +45,10 @@ internal sealed class PbrMaterialRegistry
 
     public bool IsInitialized { get; private set; }
 
+    // Policy B: defaults apply even when no mapping rule matches.
+    // This represents the merged defaults.scale across all loaded sources.
+    public PbrOverrideScale DefaultScale { get; private set; } = PbrOverrideScale.Identity;
+
     public void Initialize(ICoreAPI api, bool strict = false)
     {
         if (api == null) throw new ArgumentNullException(nameof(api));
@@ -88,6 +92,8 @@ internal sealed class PbrMaterialRegistry
         materialsByIndex = Array.Empty<PbrMaterialDefinition>();
         mappingRules.Clear();
 
+        DefaultScale = ComputeMergedDefaultScale(logger);
+
         BuildMergedMaterials(logger);
         BuildMappingRules(logger, strict);
         BuildTextureMappings(logger, textureLocations);
@@ -97,7 +103,7 @@ internal sealed class PbrMaterialRegistry
         int totalMappingRules = sources.Sum(s => s.File.Mapping?.Count ?? 0);
 
         logger.Notification(
-            "[VGE] Loaded {0} pbr_material_definitions.json file(s): {1} material(s), {2} mapping rule(s)",
+            "[VGE] Loaded {0} material_definitions.json file(s): {1} material(s), {2} mapping rule(s)",
             sources.Count,
             totalMaterials,
             totalMappingRules);
@@ -109,6 +115,51 @@ internal sealed class PbrMaterialRegistry
             mappingRules.Count);
 
         IsInitialized = true;
+    }
+
+    private PbrOverrideScale ComputeMergedDefaultScale(ILogger logger)
+    {
+        // Deterministic merge order: sources are already in deterministic load order.
+        // Merge semantics: if a field is specified in defaults.scale, it overrides; otherwise we keep previous.
+        // Invalid values are treated as 1.0 (same as other scale parsing).
+
+        float roughness = 1f;
+        float metallic = 1f;
+        float emissive = 1f;
+        float normal = 1f;
+        float depth = 1f;
+
+        foreach (PbrMaterialDefinitionsSource source in sources)
+        {
+            PbrOverrideScaleJson? scale = source.File.Defaults?.Scale;
+            if (scale is null)
+            {
+                continue;
+            }
+
+            var invalid = new List<string>(capacity: 2);
+
+            if (scale.Roughness is not null) roughness = ReadScaleOrDefault(scale.Roughness, "roughness", invalid);
+            if (scale.Metallic is not null) metallic = ReadScaleOrDefault(scale.Metallic, "metallic", invalid);
+            if (scale.Emissive is not null) emissive = ReadScaleOrDefault(scale.Emissive, "emissive", invalid);
+            if (scale.Normal is not null) normal = ReadScaleOrDefault(scale.Normal, "normal", invalid);
+            if (scale.Depth is not null) depth = ReadScaleOrDefault(scale.Depth, "depth", invalid);
+
+            if (invalid.Count > 0)
+            {
+                logger.Warning(
+                    "[VGE] Invalid defaults.scale value(s) ignored in {0}: invalid=[{1}]. Treating as 1.0.",
+                    source.Location,
+                    string.Join(", ", invalid));
+            }
+        }
+
+        return new PbrOverrideScale(
+            Roughness: roughness,
+            Metallic: metallic,
+            Emissive: emissive,
+            Normal: normal,
+            Depth: depth);
     }
 
     public bool TryGetMaterial(string materialId, out PbrMaterialDefinition definition)
@@ -130,6 +181,17 @@ internal sealed class PbrMaterialRegistry
         }
 
         return materialById.TryGetValue(materialId, out definition);
+    }
+
+    public bool TryGetScale(AssetLocation texture, out PbrOverrideScale scale)
+    {
+        if (scaleByTexture.TryGetValue(texture, out scale))
+        {
+            return true;
+        }
+
+        AssetLocation normalized = NormalizeTextureLocation(texture);
+        return scaleByTexture.TryGetValue(normalized, out scale);
     }
 
     public void Clear()
@@ -165,7 +227,7 @@ internal sealed class PbrMaterialRegistry
                 if (file.Version != 1)
                 {
                     logger.Warning(
-                        "[VGE] Skipping {0}: unsupported pbr_material_definitions.json version={1}",
+                        "[VGE] Skipping {0}: unsupported material_definitions.json version={1}",
                         asset.Location,
                         file.Version);
                     continue;
@@ -176,7 +238,7 @@ internal sealed class PbrMaterialRegistry
             catch (Exception ex)
             {
                 logger.Error(
-                    "[VGE] Failed to parse {0} as pbr_material_definitions.json: {1}",
+                    "[VGE] Failed to parse {0} as material_definitions.json: {1}",
                     asset.Location,
                     ex);
 
@@ -323,6 +385,7 @@ internal sealed class PbrMaterialRegistry
         int mapped = 0;
         int unmapped = 0;
         int unknownMaterialRefs = 0;
+        int defaultScaleApplied = 0;
 
         // Warn at most once per mapping rule + override kind.
         var warnedOverrides = new HashSet<(int orderIndex, string kind)>();
@@ -360,6 +423,9 @@ internal sealed class PbrMaterialRegistry
 
             if (winner == null)
             {
+                // Policy B: still apply defaults.scale even when no material mapping rule matches.
+                scaleByTexture[texture] = DefaultScale;
+                defaultScaleApplied++;
                 unmapped++;
                 continue;
             }
@@ -420,6 +486,12 @@ internal sealed class PbrMaterialRegistry
             mapped,
             unmapped,
             unknownMaterialRefs);
+
+        logger.Notification(
+            "[VGE] Default scale applied to {0} unmapped texture(s): normal={1:0.###} depth={2:0.###}",
+            defaultScaleApplied,
+            DefaultScale.Normal,
+            DefaultScale.Depth);
     }
 
     private static AssetLocation NormalizeTextureLocation(AssetLocation location)

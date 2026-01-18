@@ -49,7 +49,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         // Initialize the shader imports system to load mod shader imports (shaders/includes)
         ShaderImportsSystem.Instance.Initialize(api);
 
-        // Load per-mod PBR material definitions (materials/pbr_material_definitions.json)
+        // Load PBR material definitions (config/vge/material_definitions.json)
         PbrMaterialRegistry.Instance.Initialize(api);
     }
 

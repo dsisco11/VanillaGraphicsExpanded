@@ -21,7 +21,7 @@
       "roughness": 1.0,
       "metallic": 1.0,
       "emissive": 1.0,
-      "normal": 1.0,
+      "normal": 0.3,
       "depth": 0.5
     }
   },
@@ -93,15 +93,15 @@
     "painted": { "roughness": 0.6, "metallic": 0.0 },
     "polished_stone": { "roughness": 0.35, "metallic": 0.0 },
 
-    "metal_generic": { "roughness": 0.35, "metallic": 0.8, "noise": { "roughness": 0.04, "metallic": 0.01 } },
-    "metal_iron": { "roughness": 0.35, "metallic": 0.8, "noise": { "roughness": 0.04, "metallic": 0.01 } },
-    "metal_steel": { "roughness": 0.3, "metallic": 0.8, "noise": { "roughness": 0.04, "metallic": 0.01 } },
-    "metal_copper": { "roughness": 0.28, "metallic": 0.8, "noise": { "roughness": 0.04, "metallic": 0.01 } },
-    "metal_tin": { "roughness": 0.3, "metallic": 0.8, "noise": { "roughness": 0.04, "metallic": 0.01 } },
-    "metal_zinc": { "roughness": 0.3, "metallic": 0.8, "noise": { "roughness": 0.04, "metallic": 0.01 } },
-    "metal_gold": { "roughness": 0.18, "metallic": 0.8, "noise": { "roughness": 0.04, "metallic": 0.01 } },
-    "metal_silver": { "roughness": 0.15, "metallic": 0.8, "noise": { "roughness": 0.04, "metallic": 0.01 } },
-    "metal_bronze": { "roughness": 0.25, "metallic": 0.8, "noise": { "roughness": 0.04, "metallic": 0.01 } }
+    "metal_generic": { "roughness": 0.35, "metallic": 1.0, "noise": { "roughness": 0.04, "metallic": 0.01 } },
+    "metal_iron": { "roughness": 0.35, "metallic": 1.0, "noise": { "roughness": 0.04, "metallic": 0.01 } },
+    "metal_steel": { "roughness": 0.3, "metallic": 1.0, "noise": { "roughness": 0.04, "metallic": 0.01 } },
+    "metal_copper": { "roughness": 0.28, "metallic": 1.0, "noise": { "roughness": 0.04, "metallic": 0.01 } },
+    "metal_tin": { "roughness": 0.3, "metallic": 1.0, "noise": { "roughness": 0.04, "metallic": 0.01 } },
+    "metal_zinc": { "roughness": 0.3, "metallic": 1.0, "noise": { "roughness": 0.04, "metallic": 0.01 } },
+    "metal_gold": { "roughness": 0.18, "metallic": 1.0, "noise": { "roughness": 0.04, "metallic": 0.01 } },
+    "metal_silver": { "roughness": 0.15, "metallic": 1.0, "noise": { "roughness": 0.04, "metallic": 0.01 } },
+    "metal_bronze": { "roughness": 0.25, "metallic": 1.0, "noise": { "roughness": 0.04, "metallic": 0.01 } }
   },
   "mapping": [
     {

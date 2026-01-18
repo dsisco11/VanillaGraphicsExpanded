@@ -41,7 +41,7 @@ public sealed class PbrGlobstarTests
         var early = new PbrMaterialMappingRule(
             OrderIndex: 1,
             Priority: 0,
-            Source: new("game", "materials/pbr_material_definitions.json"),
+            Source: new("game", "config/vge/material_definitions.json"),
             Id: "early",
             Glob: "assets/**/textures/block/liquid/water*.png",
             MatchRegex: PbrGlobstar.CompileRegex("assets/**/textures/block/liquid/water*.png"),
@@ -53,7 +53,7 @@ public sealed class PbrGlobstarTests
         var later = new PbrMaterialMappingRule(
             OrderIndex: 2,
             Priority: 0,
-            Source: new("game", "materials/pbr_material_definitions.json"),
+            Source: new("game", "config/vge/material_definitions.json"),
             Id: "later",
             Glob: "assets/**/textures/block/liquid/water*.png",
             MatchRegex: PbrGlobstar.CompileRegex("assets/**/textures/block/liquid/water*.png"),

@@ -33,7 +33,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
 
         var src = Source(
             domain: "game",
-            path: "materials/pbr_material_definitions.json",
+            path: "config/vge/material_definitions.json",
             json: """
             {
               "version": 1,
@@ -56,13 +56,53 @@ public sealed class PbrMaterialRegistryPhase8Tests
     }
 
     [Fact]
+    public void DefaultsScale_NormalZero_IsAppliedToMappedTextureScale()
+    {
+        var logger = new TestLogger();
+
+        var src = Source(
+            domain: "game",
+            path: "config/vge/material_definitions.json",
+            json: """
+            {
+              "version": 1,
+              "defaults": {
+                "scale": { "normal": 0.0, "depth": 1.0 }
+              },
+              "materials": {
+                "a": { "roughness": 0.1 }
+              },
+              "mapping": [
+                {
+                  "id": "rule",
+                  "priority": 0,
+                  "match": { "glob": "assets/game/textures/block/test.png" },
+                  "values": { "material": "a" }
+                }
+              ]
+            }
+            """);
+
+        var texture = new AssetLocation("game", "textures/block/test.png");
+        PbrMaterialRegistry.Instance.InitializeFromParsedSources(
+            logger,
+            parsedSources: new[] { src },
+            textureLocations: new[] { texture },
+            strict: true);
+
+        Assert.True(PbrMaterialRegistry.Instance.TryGetScale(texture, out var scale));
+        Assert.Equal(0f, scale.Normal, 6);
+        Assert.Equal(1f, scale.Depth, 6);
+    }
+
+    [Fact]
     public void MaterialOverrides_ApplyCorrectly()
     {
         var logger = new TestLogger();
 
         var src = Source(
             domain: "game",
-            path: "materials/pbr_material_definitions.json",
+            path: "config/vge/material_definitions.json",
             json: """
             {
               "version": 1,
@@ -91,7 +131,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
 
         var low = Source(
             domain: "a",
-            path: "materials/pbr_material_definitions.json",
+            path: "config/vge/material_definitions.json",
             json: """
             {
               "version": 1,
@@ -102,7 +142,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
 
         var high = Source(
             domain: "b",
-            path: "materials/pbr_material_definitions.json",
+            path: "config/vge/material_definitions.json",
             json: """
             {
               "version": 1,
@@ -128,7 +168,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
 
         var first = Source(
             domain: "a",
-            path: "materials/pbr_material_definitions.json",
+            path: "config/vge/material_definitions.json",
             json: """
             {
               "version": 1,
@@ -139,7 +179,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
 
         var second = Source(
             domain: "b",
-            path: "materials/pbr_material_definitions.json",
+            path: "config/vge/material_definitions.json",
             json: """
             {
               "version": 1,
@@ -165,7 +205,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
 
         var src = Source(
             domain: "game",
-            path: "materials/pbr_material_definitions.json",
+            path: "config/vge/material_definitions.json",
             json: """
             {
               "version": 1,
@@ -211,7 +251,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
 
         var src = Source(
             domain: "game",
-            path: "materials/pbr_material_definitions.json",
+            path: "config/vge/material_definitions.json",
             json: """
             {
               "version": 1,
@@ -248,7 +288,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
 
         var src = Source(
             domain: "game",
-            path: "materials/pbr_material_definitions.json",
+            path: "config/vge/material_definitions.json",
             json: """
             {
               "version": 1,
@@ -292,7 +332,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
 
         var src = Source(
             domain: "game",
-            path: "materials/pbr_material_definitions.json",
+            path: "config/vge/material_definitions.json",
             json: """
             {
               "version": 1,
@@ -326,7 +366,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
         Assert.True(PbrMaterialRegistry.Instance.OverridesByTexture.TryGetValue(key, out PbrMaterialTextureOverrides overrides));
 
         Assert.Equal("rule", overrides.RuleId);
-        Assert.Equal(new AssetLocation("game", "materials/pbr_material_definitions.json"), overrides.RuleSource);
+        Assert.Equal(new AssetLocation("game", "config/vge/material_definitions.json"), overrides.RuleSource);
 
         Assert.NotNull(overrides.MaterialParams);
         Assert.Equal("game", overrides.MaterialParams!.Domain);
@@ -344,7 +384,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
 
         var src = Source(
             domain: "game",
-            path: "materials/pbr_material_definitions.json",
+            path: "config/vge/material_definitions.json",
             json: """
             {
               "version": 1,
@@ -409,7 +449,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
 
         var src = Source(
             domain: "game",
-            path: "materials/pbr_material_definitions.json",
+            path: "config/vge/material_definitions.json",
             json: """
             {
               "version": 1,
@@ -460,7 +500,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
 
         var src = Source(
           domain: "game",
-          path: "materials/pbr_material_definitions.json",
+          path: "config/vge/material_definitions.json",
           json: """
           {
             "version": 1,
@@ -512,7 +552,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
         // Negative values are representable in JSON; NaN/Infinity are covered by direct object construction below.
         var src = Source(
           domain: "game",
-          path: "materials/pbr_material_definitions.json",
+          path: "config/vge/material_definitions.json",
           json: """
           {
             "version": 1,
@@ -605,7 +645,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
 
         var src = new PbrMaterialDefinitionsSource(
           Domain: "game",
-          Location: new AssetLocation("game", "materials/pbr_material_definitions.json"),
+          Location: new AssetLocation("game", "config/vge/material_definitions.json"),
           File: file);
 
         var textures = Textures("textures/block/test.png");
@@ -647,7 +687,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
 
         var src = Source(
             domain: "game",
-            path: "materials/pbr_material_definitions.json",
+            path: "config/vge/material_definitions.json",
             json: """
             {
               "version": 1,
@@ -683,7 +723,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
 
         var src = Source(
             domain: "mymod",
-            path: "materials/pbr_material_definitions.json",
+            path: "config/vge/material_definitions.json",
             json: """
             {
               "version": 1,

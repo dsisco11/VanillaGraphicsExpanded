@@ -414,6 +414,176 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         }
     }
 
+    [Fact]
+    public void FullChain_NormalScaleZero_FlattensPackedNormalsRgb()
+    {
+        EnsureContextValid();
+        fixture.MakeCurrent();
+
+        (ShaderTestHelper helper, string reason) = TryCreateHelper();
+        if (helper is null)
+        {
+            Assert.SkipWhen(true, reason);
+        }
+
+        using (helper)
+        {
+            var cfg = new LumOnConfig.NormalDepthBakeConfig
+            {
+                // Ensure normals are actually generated (otherwise normalScale doesn't matter).
+                NormalStrength = 4f
+            };
+
+            var progL = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_luminance.fsh");
+            var progG = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_gauss1d.fsh");
+            var progSub = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_sub.fsh");
+            var progGrad = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_gradient.fsh");
+            var progDiv = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_divergence.fsh");
+            var progJacobi = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_jacobi.fsh");
+            var progNorm = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_normalize.fsh");
+            var progPack = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_pack_to_atlas.fsh");
+
+            const int w = 64;
+            const int h = 64;
+
+            using var atlas = CreateCheckerboardAtlas(w, h, cell: 4);
+
+            using var texL = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texTmp = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texBase = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texD0 = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texGxy = DynamicTexture.Create(w, h, PixelInternalFormat.Rg32f, TextureFilterMode.Nearest);
+            using var texDiv = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texH = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texH2 = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texHn = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var outAtlasFlat = DynamicTexture.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
+            using var outAtlasScaled = DynamicTexture.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
+
+            // 1) Luminance.
+            RenderTo(texL, progL, () =>
+            {
+                atlas.Bind(0);
+                GL.Uniform1(Uniform(progL, "u_atlas"), 0);
+                GL.Uniform4(Uniform(progL, "u_atlasRectPx"), 0, 0, w, h);
+                GL.Uniform2(Uniform(progL, "u_outSize"), w, h);
+            });
+
+            // 2) base = Gauss(L, sigmaBig)
+            RunGaussian1D(texL, texTmp, progG, sigma: cfg.SigmaBig, dirX: true);
+            RunGaussian1D(texTmp, texBase, progG, sigma: cfg.SigmaBig, dirX: false);
+
+            // 3) D0 = L - base
+            RenderTo(texD0, progSub, () =>
+            {
+                texL.Bind(0);
+                texBase.Bind(1);
+                GL.Uniform1(Uniform(progSub, "u_a"), 0);
+                GL.Uniform1(Uniform(progSub, "u_b"), 1);
+                GL.Uniform2(Uniform(progSub, "u_size"), w, h);
+            });
+
+            // 4) Gradient
+            RenderTo(texGxy, progGrad, () =>
+            {
+                texD0.Bind(0);
+                GL.Uniform1(Uniform(progGrad, "u_d"), 0);
+                GL.Uniform2(Uniform(progGrad, "u_size"), w, h);
+                GL.Uniform1(Uniform(progGrad, "u_gain"), cfg.Gain);
+                GL.Uniform1(Uniform(progGrad, "u_maxSlope"), cfg.MaxSlope);
+                GL.Uniform2(Uniform(progGrad, "u_edgeT"), cfg.EdgeT0, cfg.EdgeT1);
+            });
+
+            // 5) Divergence
+            RenderTo(texDiv, progDiv, () =>
+            {
+                texGxy.Bind(0);
+                GL.Uniform1(Uniform(progDiv, "u_g"), 0);
+                GL.Uniform2(Uniform(progDiv, "u_size"), w, h);
+            });
+
+            // 6) Jacobi iterations
+            ClearR32f(texH, 0f);
+            for (int i = 0; i < 150; i++)
+            {
+                DynamicTexture src = (i % 2 == 0) ? texH : texH2;
+                DynamicTexture dst = (i % 2 == 0) ? texH2 : texH;
+
+                RenderTo(dst, progJacobi, () =>
+                {
+                    src.Bind(0);
+                    texDiv.Bind(1);
+                    GL.Uniform1(Uniform(progJacobi, "u_h"), 0);
+                    GL.Uniform1(Uniform(progJacobi, "u_b"), 1);
+                    GL.Uniform2(Uniform(progJacobi, "u_size"), w, h);
+                });
+            }
+
+            // 7) Normalize
+            float mean = MeanR32f(texH);
+            (float invNeg, float invPos) = ComputeAsymmetricInvScales(texH, mean);
+            RenderTo(texHn, progNorm, () =>
+            {
+                texH.Bind(0);
+                GL.Uniform1(Uniform(progNorm, "u_h"), 0);
+                GL.Uniform2(Uniform(progNorm, "u_size"), w, h);
+                GL.Uniform1(Uniform(progNorm, "u_mean"), mean);
+                GL.Uniform1(Uniform(progNorm, "u_invNeg"), invNeg);
+                GL.Uniform1(Uniform(progNorm, "u_invPos"), invPos);
+                GL.Uniform1(Uniform(progNorm, "u_heightStrength"), cfg.HeightStrength);
+                GL.Uniform1(Uniform(progNorm, "u_gamma"), cfg.Gamma);
+            });
+
+            // 8) Pack with normalScale=0 (flat) and normalScale=1 (non-flat).
+            RenderTo(outAtlasFlat, progPack, () =>
+            {
+                texHn.Bind(0);
+                GL.Uniform1(Uniform(progPack, "u_height"), 0);
+                GL.Uniform2(Uniform(progPack, "u_solverSize"), w, h);
+                GL.Uniform2(Uniform(progPack, "u_tileSize"), w, h);
+                GL.Uniform2(Uniform(progPack, "u_viewportOrigin"), 0, 0);
+                GL.Uniform1(Uniform(progPack, "u_normalStrength"), cfg.NormalStrength);
+                GL.Uniform1(Uniform(progPack, "u_normalScale"), 0f);
+                GL.Uniform1(Uniform(progPack, "u_depthScale"), 1f);
+            });
+
+            RenderTo(outAtlasScaled, progPack, () =>
+            {
+                texHn.Bind(0);
+                GL.Uniform1(Uniform(progPack, "u_height"), 0);
+                GL.Uniform2(Uniform(progPack, "u_solverSize"), w, h);
+                GL.Uniform2(Uniform(progPack, "u_tileSize"), w, h);
+                GL.Uniform2(Uniform(progPack, "u_viewportOrigin"), 0, 0);
+                GL.Uniform1(Uniform(progPack, "u_normalStrength"), cfg.NormalStrength);
+                GL.Uniform1(Uniform(progPack, "u_normalScale"), 1f);
+                GL.Uniform1(Uniform(progPack, "u_depthScale"), 1f);
+            });
+
+            float[] flat = outAtlasFlat.ReadPixels();
+            float[] scaled = outAtlasScaled.ReadPixels();
+
+            // Flat normals should be constant-ish and near (0.5,0.5,1.0).
+            float maxDevR = 0f, maxDevG = 0f, maxDevB = 0f;
+            float maxDiffRgb = 0f;
+            for (int i = 0; i < flat.Length; i += 4)
+            {
+                maxDevR = Math.Max(maxDevR, Math.Abs(flat[i + 0] - 0.5f));
+                maxDevG = Math.Max(maxDevG, Math.Abs(flat[i + 1] - 0.5f));
+                maxDevB = Math.Max(maxDevB, Math.Abs(flat[i + 2] - 1.0f));
+
+                maxDiffRgb = Math.Max(maxDiffRgb, Math.Abs(flat[i + 0] - scaled[i + 0]));
+                maxDiffRgb = Math.Max(maxDiffRgb, Math.Abs(flat[i + 1] - scaled[i + 1]));
+                maxDiffRgb = Math.Max(maxDiffRgb, Math.Abs(flat[i + 2] - scaled[i + 2]));
+            }
+
+            Assert.True(maxDevR < 0.02f, $"Expected flat normal R≈0.5; maxDevR={maxDevR}");
+            Assert.True(maxDevG < 0.02f, $"Expected flat normal G≈0.5; maxDevG={maxDevG}");
+            Assert.True(maxDevB < 0.02f, $"Expected flat normal B≈1.0; maxDevB={maxDevB}");
+
+            Assert.True(maxDiffRgb > 0.001f, $"Expected normalScale=0 vs 1 to change RGB; maxDiffRgb={maxDiffRgb}");
+        }
+    }
+
     private (ShaderTestHelper helper, string reason) TryCreateHelper()
     {
         string shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
