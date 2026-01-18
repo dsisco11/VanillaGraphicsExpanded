@@ -22,6 +22,11 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
 
     private readonly Stopwatch stopwatch = new();
 
+    private double lastTickMs;
+    private int lastDispatchedCpuJobs;
+    private int lastGpuUploads;
+    private int lastOverrideUploads;
+
     private PbrMaterialAtlasBuildSession? session;
     private Func<int, VanillaGraphicsExpanded.PBR.Materials.PbrMaterialAtlasPageTextures?>? tryGetPageTextures;
     private ICoreClientAPI? capi;
@@ -232,6 +237,7 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
         }
 
         // Apply a limited number of override uploads per frame.
+        int overrideUploads = 0;
         while (uploads < maxUploads && stopwatch.Elapsed.TotalMilliseconds < budgetMs)
         {
             if (!active.TryDequeuePendingOverrideUpload(out MaterialAtlasParamsGpuOverrideUpload ov))
@@ -248,12 +254,82 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
             {
                 ov.Execute(capi, tryGetPageTextures, active);
                 uploads++;
+                overrideUploads++;
             }
             catch
             {
                 // Ignore GL errors during shutdown.
             }
         }
+
+        lastTickMs = stopwatch.Elapsed.TotalMilliseconds;
+        lastDispatchedCpuJobs = dispatched;
+        lastGpuUploads = uploads - overrideUploads;
+        lastOverrideUploads = overrideUploads;
+    }
+
+    public MaterialAtlasAsyncBuildDiagnostics GetDiagnosticsSnapshot()
+    {
+        PbrMaterialAtlasBuildSession? active;
+        lock (sessionLock)
+        {
+            active = session;
+        }
+
+        if (active is null)
+        {
+            return new MaterialAtlasAsyncBuildDiagnostics(
+                GenerationId: 0,
+                IsCancelled: false,
+                IsComplete: true,
+                TotalTiles: 0,
+                CompletedTiles: 0,
+                TotalOverrides: 0,
+                OverridesApplied: 0,
+                PendingCpuJobs: pendingCpuJobs.Count,
+                CompletedCpuResults: completedUploads.Count,
+                PendingGpuUploads: pendingGpuUploads.Count,
+                PendingOverrideUploads: 0,
+                LastTickMs: lastTickMs,
+                LastDispatchedCpuJobs: lastDispatchedCpuJobs,
+                LastGpuUploads: lastGpuUploads,
+                LastOverrideUploads: lastOverrideUploads,
+                Pages: Array.Empty<MaterialAtlasAsyncBuildDiagnostics.Page>());
+        }
+
+        var pages = new List<MaterialAtlasAsyncBuildDiagnostics.Page>(capacity: active.PagesByAtlasTexId.Count);
+        foreach (var kvp in active.PagesByAtlasTexId)
+        {
+            PbrMaterialAtlasPageBuildState p = kvp.Value;
+            pages.Add(new MaterialAtlasAsyncBuildDiagnostics.Page(
+                AtlasTextureId: p.AtlasTextureId,
+                Width: p.Width,
+                Height: p.Height,
+                PendingTiles: p.PendingTiles,
+                InFlightTiles: p.InFlightTiles,
+                CompletedTiles: p.CompletedTiles,
+                PendingOverrides: p.PendingOverrides,
+                CompletedOverrides: p.CompletedOverrides,
+                PageClearDone: p.PageClearDone));
+        }
+
+        return new MaterialAtlasAsyncBuildDiagnostics(
+            GenerationId: active.GenerationId,
+            IsCancelled: active.IsCancelled,
+            IsComplete: active.IsComplete,
+            TotalTiles: active.TotalTiles,
+            CompletedTiles: active.CompletedTiles,
+            TotalOverrides: active.TotalOverrides,
+            OverridesApplied: active.OverridesApplied,
+            PendingCpuJobs: pendingCpuJobs.Count,
+            CompletedCpuResults: completedUploads.Count,
+            PendingGpuUploads: pendingGpuUploads.Count,
+            PendingOverrideUploads: active.PendingOverrideUploadsCount,
+            LastTickMs: lastTickMs,
+            LastDispatchedCpuJobs: lastDispatchedCpuJobs,
+            LastGpuUploads: lastGpuUploads,
+            LastOverrideUploads: lastOverrideUploads,
+            Pages: pages);
     }
 
     public void Dispose()

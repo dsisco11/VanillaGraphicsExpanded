@@ -8,6 +8,23 @@ internal sealed class PriorityFifoQueue<T>
     private readonly object gate = new();
     private readonly SortedDictionary<int, Queue<T>> queuesByPriority = new();
 
+    public int Count
+    {
+        get
+        {
+            lock (gate)
+            {
+                int total = 0;
+                foreach (Queue<T> q in queuesByPriority.Values)
+                {
+                    total += q.Count;
+                }
+
+                return total;
+            }
+        }
+    }
+
     public void Clear()
     {
         lock (gate)

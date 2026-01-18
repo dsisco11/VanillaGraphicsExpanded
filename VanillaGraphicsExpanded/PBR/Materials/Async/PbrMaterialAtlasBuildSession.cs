@@ -73,6 +73,17 @@ internal sealed class PbrMaterialAtlasBuildSession : IDisposable
 
     public int OverridesApplied { get; private set; }
 
+    public int PendingOverrideUploadsCount
+    {
+        get
+        {
+            lock (overrideLock)
+            {
+                return pendingOverrideUploads.Count;
+            }
+        }
+    }
+
     public bool IsCancelled => cts.IsCancellationRequested;
 
     public bool IsComplete => CompletedTiles >= TotalTiles && !IsCancelled;

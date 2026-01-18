@@ -164,6 +164,13 @@ public class LumOnConfig
     public bool DebugLogMaterialAtlasDiskCache { get; set; } = false;
 
     /// <summary>
+    /// Shows an in-game progress panel while the material atlas is building.
+    /// Intended for development/diagnostics; off by default.
+    /// </summary>
+    [JsonProperty]
+    public bool ShowMaterialAtlasProgressPanel { get; set; } = true;
+
+    /// <summary>
     /// Enables parallax mapping in patched vanilla chunk shaders.
     /// Requires shader reload / re-entering the world to fully apply.
     /// </summary>

@@ -2,6 +2,8 @@ using System;
 
 using Vintagestory.API.Client;
 
+using VanillaGraphicsExpanded.PBR.Materials.Async;
+
 namespace VanillaGraphicsExpanded.PBR.Materials;
 
 /// <summary>
@@ -40,6 +42,9 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
     public bool TryGetNormalDepthTextureId(int atlasTextureId, out int normalDepthTextureId)
         => impl.TryGetNormalDepthTextureId(atlasTextureId, out normalDepthTextureId);
+
+    public bool TryGetAsyncBuildDiagnostics(out MaterialAtlasAsyncBuildDiagnostics diagnostics)
+        => impl.TryGetAsyncBuildDiagnostics(out diagnostics);
 
     public void Dispose() => impl.Dispose();
 }

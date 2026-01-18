@@ -48,6 +48,21 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 
     internal MaterialAtlasTextureStore TextureStore => textureStore;
 
+    internal bool TryGetAsyncBuildDiagnostics(out MaterialAtlasAsyncBuildDiagnostics diagnostics)
+    {
+        lock (schedulerLock)
+        {
+            if (scheduler is null)
+            {
+                diagnostics = default;
+                return false;
+            }
+
+            diagnostics = scheduler.GetDiagnosticsSnapshot();
+            return true;
+        }
+    }
+
     public bool IsInitialized { get; private set; }
     public bool AreTexturesCreated => texturesCreated;
     public bool IsBuildComplete { get; private set; }

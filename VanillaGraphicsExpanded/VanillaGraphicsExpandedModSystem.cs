@@ -4,6 +4,7 @@ using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.PBR.Materials;
+using VanillaGraphicsExpanded.PBR.Materials.Diagnostics;
 using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Profiling;
@@ -28,6 +29,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     private LumOnBufferManager? lumOnBufferManager;
     private LumOnRenderer? lumOnRenderer;
     private LumOnDebugRenderer? lumOnDebugRenderer;
+
+    private HudMaterialAtlasProgressPanel? materialAtlasProgressPanel;
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
@@ -84,6 +87,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         {
             MaterialAtlasSystem.Instance.PopulateAtlasContents(api);
         };
+
+        // Optional: small in-game progress overlay while the material atlas builds.
+        materialAtlasProgressPanel = new HudMaterialAtlasProgressPanel(api, MaterialAtlasSystem.Instance);
         api.Event.ReloadTextures += () => {
             api.Logger.Debug("[VGE] ReloadTextures event");
             MaterialAtlasSystem.Instance.RequestRebuild(api);
@@ -141,6 +147,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         try
         {
             VgeDebugViewManager.Dispose();
+
+            materialAtlasProgressPanel?.Dispose();
+            materialAtlasProgressPanel = null;
 
             // Unregister GPU debug label renderers
             if (capi != null)
