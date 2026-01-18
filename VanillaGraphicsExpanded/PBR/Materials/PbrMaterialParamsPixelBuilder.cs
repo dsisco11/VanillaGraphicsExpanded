@@ -123,6 +123,9 @@ internal static class PbrMaterialParamsPixelBuilder
             float metallicNoise = Clamp01(definition.Noise.Metallic);
             float emissiveNoise = Clamp01(definition.Noise.Emissive);
 
+            PbrOverrideScale scale = definition.Scale;
+            bool scaleIsIdentity = scale.Roughness == 1f && scale.Metallic == 1f && scale.Emissive == 1f;
+
             uint seed = StableHash32.HashAssetLocation(texture);
 
             for (int y = y1; y < y2; y++)
@@ -147,6 +150,19 @@ internal static class PbrMaterialParamsPixelBuilder
                         metallicNoise,
                         emissiveNoise);
                 }
+            }
+
+            if (!scaleIsIdentity)
+            {
+                int rectStart = (y1 * width + x1) * 3;
+                SimdSpanMath.MultiplyClamp01Interleaved3InPlace2D(
+                    destination3: pixels.AsSpan(rectStart),
+                    rectWidthPixels: rectWidth,
+                    rectHeightPixels: rectHeight,
+                    rowStridePixels: width,
+                    mul0: scale.Roughness,
+                    mul1: scale.Metallic,
+                    mul2: scale.Emissive);
             }
 
             filledRects++;
@@ -175,6 +191,9 @@ internal static class PbrMaterialParamsPixelBuilder
         float roughnessNoise = Clamp01(definition.Noise.Roughness);
         float metallicNoise = Clamp01(definition.Noise.Metallic);
         float emissiveNoise = Clamp01(definition.Noise.Emissive);
+
+        PbrOverrideScale scale = definition.Scale;
+        bool scaleIsIdentity = scale.Roughness == 1f && scale.Metallic == 1f && scale.Emissive == 1f;
 
         uint seed = StableHash32.HashAssetLocation(texture);
 
@@ -206,6 +225,18 @@ internal static class PbrMaterialParamsPixelBuilder
                     ampG: metallicNoise,
                     ampB: emissiveNoise);
             }
+        }
+
+        if (!scaleIsIdentity)
+        {
+            SimdSpanMath.MultiplyClamp01Interleaved3InPlace2D(
+                destination3: rgb,
+                rectWidthPixels: rectWidth,
+                rectHeightPixels: rectHeight,
+                rowStridePixels: rectWidth,
+                mul0: scale.Roughness,
+                mul1: scale.Metallic,
+                mul2: scale.Emissive);
         }
 
         return rgb;

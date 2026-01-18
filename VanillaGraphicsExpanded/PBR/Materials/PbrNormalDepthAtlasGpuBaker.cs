@@ -290,7 +290,9 @@ internal static class PbrNormalDepthAtlasGpuBaker
                     solverSizePx: (solverW, solverH),
                     heightTex: tile.Hn,
                     baseAlbedoAtlasTexId: baseAlbedoAtlasPageTexId,
-                    normalStrength: bake.NormalStrength);
+                    normalStrength: bake.NormalStrength,
+                    normalScale: 1f,
+                    depthScale: 1f);
 
                 bakedRects++;
 
@@ -560,7 +562,9 @@ internal static class PbrNormalDepthAtlasGpuBaker
         int rectX,
         int rectY,
         int rectWidth,
-        int rectHeight)
+        int rectHeight,
+        float normalScale,
+        float depthScale)
     {
         ArgumentNullException.ThrowIfNull(capi);
         if (baseAlbedoAtlasPageTexId == 0) throw new ArgumentOutOfRangeException(nameof(baseAlbedoAtlasPageTexId));
@@ -575,6 +579,9 @@ internal static class PbrNormalDepthAtlasGpuBaker
         {
             return false;
         }
+
+        if (float.IsNaN(normalScale) || float.IsInfinity(normalScale) || normalScale < 0f) normalScale = 1f;
+        if (float.IsNaN(depthScale) || float.IsInfinity(depthScale) || depthScale < 0f) depthScale = 1f;
 
         try
         {
@@ -676,7 +683,9 @@ internal static class PbrNormalDepthAtlasGpuBaker
                 solverSizePx: (solverW, solverH),
                 heightTex: tile.Hn,
                 baseAlbedoAtlasTexId: baseAlbedoAtlasPageTexId,
-                normalStrength: bake.NormalStrength);
+                normalStrength: bake.NormalStrength,
+                normalScale: normalScale,
+                depthScale: depthScale);
 
             return true;
         }
@@ -1047,7 +1056,9 @@ internal static class PbrNormalDepthAtlasGpuBaker
         (int w, int h) solverSizePx,
         DynamicTexture heightTex,
         int baseAlbedoAtlasTexId,
-        float normalStrength)
+        float normalStrength,
+        float normalScale,
+        float depthScale)
     {
         // Render into atlas sidecar, restricting to this tile rect via viewport.
         BindAtlasTarget(dstAtlasTexId, viewportOriginPx.x, viewportOriginPx.y, tileSizePx.w, tileSizePx.h);
@@ -1060,6 +1071,8 @@ internal static class PbrNormalDepthAtlasGpuBaker
             progPackToAtlas.Uniform2i("u_tileSize", tileSizePx.w, tileSizePx.h);
             progPackToAtlas.Uniform2i("u_viewportOrigin", viewportOriginPx.x, viewportOriginPx.y);
             progPackToAtlas.Uniform("u_normalStrength", normalStrength);
+            progPackToAtlas.Uniform("u_normalScale", normalScale);
+            progPackToAtlas.Uniform("u_depthScale", depthScale);
             progPackToAtlas.Uniform("u_alphaCutoff", 0.001f);
             DrawFullscreenTriangle();
         }

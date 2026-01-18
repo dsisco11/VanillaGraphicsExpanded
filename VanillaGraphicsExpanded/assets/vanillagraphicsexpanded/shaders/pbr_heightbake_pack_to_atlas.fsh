@@ -17,6 +17,8 @@ uniform ivec2 u_tileSize;        // viewport/tile size within atlas
 uniform ivec2 u_viewportOrigin;  // atlas viewport origin in pixels
 
 uniform float u_normalStrength;
+uniform float u_normalScale;
+uniform float u_depthScale;
 
 ivec2 Wrap(ivec2 p, ivec2 size)
 {
@@ -49,12 +51,13 @@ void main()
     float dhdx = 0.5 * (LoadH(p + ivec2(1, 0)) - LoadH(p + ivec2(-1, 0)));
     float dhdy = 0.5 * (LoadH(p + ivec2(0, 1)) - LoadH(p + ivec2(0, -1)));
 
-    vec3 n = normalize(vec3(-dhdx * u_normalStrength, -dhdy * u_normalStrength, 1.0));
+    float ns = u_normalStrength * u_normalScale;
+    vec3 n = normalize(vec3(-dhdx * ns, -dhdy * ns, 1.0));
     vec3 n01 = n * 0.5 + 0.5;
 
     // Store signed height in a RenderDoc-friendly encoding.
     // Clamp first to avoid blowing out the visualization due to large solver magnitudes.
-    float hSigned = clamp(hC, -1.0, 1.0);
+    float hSigned = clamp(hC * u_depthScale, -1.0, 1.0);
     float h01 = hSigned * 0.5 + 0.5;
 
     outColor = vec4(n01, h01);

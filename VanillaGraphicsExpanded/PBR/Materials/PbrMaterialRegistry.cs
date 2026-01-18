@@ -17,6 +17,7 @@ internal sealed class PbrMaterialRegistry
     private readonly Dictionary<string, PbrMaterialDefinition> materialById = new(StringComparer.Ordinal);
     private readonly Dictionary<AssetLocation, string> materialIdByTexture = new();
     private readonly Dictionary<AssetLocation, PbrMaterialTextureOverrides> overridesByTexture = new();
+    private readonly Dictionary<AssetLocation, PbrOverrideScale> scaleByTexture = new();
     private readonly Dictionary<string, int> materialIndexById = new(StringComparer.Ordinal);
     private PbrMaterialDefinition[] materialsByIndex = Array.Empty<PbrMaterialDefinition>();
 
@@ -33,6 +34,8 @@ internal sealed class PbrMaterialRegistry
     public IReadOnlyDictionary<AssetLocation, string> MaterialIdByTexture => materialIdByTexture;
 
     public IReadOnlyDictionary<AssetLocation, PbrMaterialTextureOverrides> OverridesByTexture => overridesByTexture;
+
+    public IReadOnlyDictionary<AssetLocation, PbrOverrideScale> ScaleByTexture => scaleByTexture;
 
     public IReadOnlyDictionary<string, int> MaterialIndexById => materialIndexById;
 
@@ -80,6 +83,7 @@ internal sealed class PbrMaterialRegistry
         materialById.Clear();
         materialIdByTexture.Clear();
         overridesByTexture.Clear();
+        scaleByTexture.Clear();
         materialIndexById.Clear();
         materialsByIndex = Array.Empty<PbrMaterialDefinition>();
         mappingRules.Clear();
@@ -375,6 +379,10 @@ internal sealed class PbrMaterialRegistry
 
             materialIdByTexture[texture] = materialId;
 
+            PbrMaterialDefinition material = materialById[materialId];
+            PbrOverrideScale combinedScale = PbrOverrideScale.Multiply(material.Scale, winner.Value.OverrideScale);
+            scaleByTexture[texture] = combinedScale;
+
             AssetLocation? materialParamsOverride = TryGetOverrideLocation(
                 logger,
                 winner.Value,
@@ -392,9 +400,6 @@ internal sealed class PbrMaterialRegistry
                 kind: "normalHeight",
                 warnedOverrides,
                 parsedOverrideCache);
-
-            PbrMaterialDefinition material = materialById[materialId];
-            PbrOverrideScale combinedScale = PbrOverrideScale.Multiply(material.Scale, winner.Value.OverrideScale);
 
             var overrides = new PbrMaterialTextureOverrides(
                 RuleId: winner.Value.Id,
@@ -456,6 +461,23 @@ internal sealed class PbrMaterialRegistry
         float emissive = file.Defaults?.Emissive ?? 0.0f;
 
         var noise = file.Defaults?.Noise;
+
+        // Defaults scale uses the same schema/fields as override scale. Invalid values are treated as 1.0.
+        PbrOverrideScaleJson? scaleJson = file.Defaults?.Scale;
+        var invalid = new List<string>(capacity: 2);
+        float scaleR = ReadScaleOrDefault(scaleJson?.Roughness, "roughness", invalid);
+        float scaleM = ReadScaleOrDefault(scaleJson?.Metallic, "metallic", invalid);
+        float scaleE = ReadScaleOrDefault(scaleJson?.Emissive, "emissive", invalid);
+        float scaleN = ReadScaleOrDefault(scaleJson?.Normal, "normal", invalid);
+        float scaleD = ReadScaleOrDefault(scaleJson?.Depth, "depth", invalid);
+
+        PbrOverrideScale scale = new(
+            Roughness: scaleR,
+            Metallic: scaleM,
+            Emissive: scaleE,
+            Normal: scaleN,
+            Depth: scaleD);
+
         return new PbrMaterialDefaults(
             Roughness: roughness,
             Metallic: metallic,
@@ -465,7 +487,8 @@ internal sealed class PbrMaterialRegistry
                 Metallic: noise?.Metallic ?? 0.0f,
                 Emissive: noise?.Emissive ?? 0.0f,
                 Reflectivity: noise?.Reflectivity ?? 0.0f,
-                Normals: noise?.Normals ?? 0.0f));
+                Normals: noise?.Normals ?? 0.0f),
+            Scale: scale);
     }
 
     private static PbrMaterialDefinition BuildDefinition(
@@ -487,7 +510,7 @@ internal sealed class PbrMaterialRegistry
             Reflectivity: noiseJson?.Reflectivity ?? defaults.Noise.Reflectivity,
             Normals: noiseJson?.Normals ?? defaults.Noise.Normals);
 
-        PbrOverrideScale scale = BuildMaterialScale(logger, source, materialId, json.Scale);
+        PbrOverrideScale scale = BuildMaterialScale(logger, source, materialId, defaults.Scale, json.Scale);
 
         return new PbrMaterialDefinition(
             Roughness: roughness,
@@ -503,11 +526,12 @@ internal sealed class PbrMaterialRegistry
         ILogger logger,
         AssetLocation source,
         string materialId,
+        PbrOverrideScale defaultScale,
         PbrOverrideScaleJson? json)
     {
         if (json is null)
         {
-            return PbrOverrideScale.Identity;
+            return defaultScale;
         }
 
         var invalid = new List<string>(capacity: 2);
@@ -688,7 +712,7 @@ internal sealed class PbrMaterialRegistry
 
 internal readonly record struct PbrMaterialDefinitionsSource(string Domain, AssetLocation Location, PbrMaterialDefinitionsJsonFile File);
 
-internal readonly record struct PbrMaterialDefaults(float Roughness, float Metallic, float Emissive, PbrMaterialNoise Noise);
+internal readonly record struct PbrMaterialDefaults(float Roughness, float Metallic, float Emissive, PbrMaterialNoise Noise, PbrOverrideScale Scale);
 
 internal readonly record struct PbrMaterialMappingRule(
     int OrderIndex,
