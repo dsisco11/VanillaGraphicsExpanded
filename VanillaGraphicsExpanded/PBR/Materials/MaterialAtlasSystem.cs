@@ -342,7 +342,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
             if (ConfigModSystem.Config.EnableMaterialAtlasDiskCache && ConfigModSystem.Config.DebugLogMaterialAtlasDiskCache)
             {
                 capi.Logger.Debug(
-                    "[VGE] Material atlas disk cache (normal+depth): hits={0} misses={1} (store not implemented; requires GPU readback)",
+                    "[VGE] Material atlas disk cache (normal+depth): hits={0} misses={1}",
                     cacheHits,
                     cacheMisses);
             }

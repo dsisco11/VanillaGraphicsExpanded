@@ -50,10 +50,10 @@ Exit artifacts: cache hit path for RGB rects.
 ## Phase 4 - Normal+Depth Integration
 Exit artifacts: cache hit path for RGBA rects.
 - [x] Add per-tile cache lookup before GPU bake. See `docs/MaterialSystem.Cache.Architecture.md`.
-- [ ] Upload cached rects and bake only misses per page.
+- [x] Upload cached rects and bake only misses per page.
 - [x] Read back baked misses per tile. See `docs/MaterialSystem.Cache.Architecture.md`.
-- [ ] Cache normal+height override outputs as authoritative.
-- [ ] Ensure bake clear and override order remains deterministic.
+- [x] Cache normal+height override outputs as authoritative.
+- [x] Ensure bake clear and override order remains deterministic.
 
 ---
 

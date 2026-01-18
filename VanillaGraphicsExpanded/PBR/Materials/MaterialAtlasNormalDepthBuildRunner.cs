@@ -135,6 +135,35 @@ internal sealed class MaterialAtlasNormalDepthBuildRunner
                         depthScale: job.DepthScale))
                     {
                         baked++;
+
+                        if (enableCache)
+                        {
+                            try
+                            {
+                                AtlasCacheKey key = cacheKeyBuilder.BuildNormalDepthTileKey(
+                                    cacheInputs,
+                                    page.AtlasTextureId,
+                                    job.Rect,
+                                    job.SourceTexture,
+                                    job.NormalScale,
+                                    job.DepthScale);
+
+                                float[] rgbaQuads = pageTextures.NormalDepthTexture.ReadPixelsRegion(
+                                    job.Rect.X,
+                                    job.Rect.Y,
+                                    job.Rect.Width,
+                                    job.Rect.Height);
+
+                                if (rgbaQuads.Length == checked(job.Rect.Width * job.Rect.Height * 4))
+                                {
+                                    diskCache.StoreNormalDepthTile(key, job.Rect.Width, job.Rect.Height, rgbaQuads);
+                                }
+                            }
+                            catch
+                            {
+                                // Best-effort: skip persistence.
+                            }
+                        }
                     }
                 }
             }
@@ -144,6 +173,32 @@ internal sealed class MaterialAtlasNormalDepthBuildRunner
             {
                 foreach (var ov in overrideJobs)
                 {
+                    AtlasCacheKey overrideKey = default;
+                    if (enableCache)
+                    {
+                        overrideKey = cacheKeyBuilder.BuildNormalDepthOverrideTileKey(
+                            cacheInputs,
+                            ov.AtlasTextureId,
+                            ov.Rect,
+                            ov.TargetTexture,
+                            ov.OverrideTexture,
+                            ov.NormalScale,
+                            ov.DepthScale,
+                            ov.RuleId,
+                            ov.RuleSource);
+
+                        if (diskCache.TryLoadNormalDepthTile(overrideKey, out float[] cachedOverride)
+                            && cachedOverride.Length == checked(ov.Rect.Width * ov.Rect.Height * 4))
+                        {
+                            pageTextures.NormalDepthTexture.UploadData(cachedOverride, ov.Rect.X, ov.Rect.Y, ov.Rect.Width, ov.Rect.Height);
+                            overrides++;
+                            cacheHits++;
+                            continue;
+                        }
+
+                        cacheMisses++;
+                    }
+
                     if (!overrideLoader.TryLoadRgbaFloats01(
                             capi,
                             ov.OverrideTexture,
@@ -171,6 +226,18 @@ internal sealed class MaterialAtlasNormalDepthBuildRunner
                     {
                         pageTextures.NormalDepthTexture.UploadData(rgba01, ov.Rect.X, ov.Rect.Y, ov.Rect.Width, ov.Rect.Height);
                         overrides++;
+
+                        if (enableCache)
+                        {
+                            try
+                            {
+                                diskCache.StoreNormalDepthTile(overrideKey, ov.Rect.Width, ov.Rect.Height, rgba01);
+                            }
+                            catch
+                            {
+                                // Best-effort.
+                            }
+                        }
                         continue;
                     }
 
@@ -191,6 +258,18 @@ internal sealed class MaterialAtlasNormalDepthBuildRunner
 
                     pageTextures.NormalDepthTexture.UploadData(scaled, ov.Rect.X, ov.Rect.Y, ov.Rect.Width, ov.Rect.Height);
                     overrides++;
+
+                    if (enableCache)
+                    {
+                        try
+                        {
+                            diskCache.StoreNormalDepthTile(overrideKey, ov.Rect.Width, ov.Rect.Height, scaled);
+                        }
+                        catch
+                        {
+                            // Best-effort.
+                        }
+                    }
                 }
             }
         }

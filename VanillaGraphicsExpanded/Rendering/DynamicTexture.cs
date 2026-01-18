@@ -498,6 +498,52 @@ public sealed class DynamicTexture : IDisposable
     }
 
     /// <summary>
+    /// Reads pixel data from a sub-region of the texture.
+    /// Creates a temporary FBO for readback (best-effort; avoid calling frequently at runtime).
+    /// </summary>
+    public float[] ReadPixelsRegion(int x, int y, int regionWidth, int regionHeight)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[DynamicTexture] Attempted to read pixels from disposed or invalid texture");
+            return [];
+        }
+
+        if (x < 0 || y < 0 || x + regionWidth > width || y + regionHeight > height)
+        {
+            throw new ArgumentOutOfRangeException(
+                $"Region ({x}, {y}, {regionWidth}, {regionHeight}) extends beyond texture bounds ({width}×{height})");
+        }
+
+        int channelCount = GetChannelCount();
+        float[] data = new float[regionWidth * regionHeight * channelCount];
+
+        int tempFbo = GL.GenFramebuffer();
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, tempFbo);
+        GL.FramebufferTexture2D(
+            FramebufferTarget.Framebuffer,
+            FramebufferAttachment.ColorAttachment0,
+            TextureTarget.Texture2D,
+            textureId,
+            0);
+
+        GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+        GL.ReadPixels(
+            x,
+            y,
+            regionWidth,
+            regionHeight,
+            TextureFormatHelper.GetPixelFormat(internalFormat),
+            PixelType.Float,
+            data);
+
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        GL.DeleteFramebuffer(tempFbo);
+
+        return data;
+    }
+
+    /// <summary>
     /// Reads pixel data from a specific mip level of the texture.
     /// </summary>
     public float[] ReadPixels(int mipLevel)
