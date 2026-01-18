@@ -23,10 +23,10 @@ Exit artifacts: current responsibilities and seams documented; parity baseline.
 
 ## Phase 1 - Data Contracts and Atlas Snapshot
 Exit artifacts: shared data structures that decouple planning from execution.
-- [ ] Define `MaterialAtlasSnapshot` (pages, sizes, positions, reload iteration, non-null count).
-- [ ] Define `AtlasRect` + resolver for UV->pixel conversion with clamping rules.
-- [ ] Define `MaterialAtlasBuildPlan` (per-page jobs, overrides, stats).
-- [ ] Define `MaterialAtlasCacheKey` (hash of inputs, versioned schema).
+- [ ] Define `AtlasSnapshot` (pages, sizes, positions, reload iteration, non-null count).
+- [ ] Define `AtlasRect` + `AtlasRectResolver` for UV->pixel conversion with clamping rules.
+- [ ] Define `AtlasBuildPlan` (per-page jobs, overrides, stats).
+- [ ] Define `AtlasCacheKey` (hash of inputs, versioned schema).
 - [ ] Centralize atlas position normalization (replace inline copies).
 
 ---
@@ -36,7 +36,7 @@ Exit artifacts: a dedicated store for page textures and lifecycle management.
 - [ ] Create `MaterialAtlasTextureStore` to allocate/resize/dispose per atlas page.
 - [ ] Expose lookups for material params and normal+depth texture IDs.
 - [ ] Move default fill/placeholder creation into the store.
-- [ ] Replace direct dictionary access in `PbrMaterialAtlasTextures`.
+- [ ] Replace direct dictionary access in `MaterialAtlasSystem`.
 
 ---
 
@@ -52,9 +52,9 @@ Exit artifacts: pure planning layer that produces jobs from registry + atlas sna
 
 ## Phase 4 - Material Params Pipeline (CPU + Upload)
 Exit artifacts: single pipeline used by both sync and async paths.
-- [ ] Extract `MaterialParamsGenerator` from `PbrMaterialParamsPixelBuilder`.
-- [ ] Create `MaterialParamsOverrideProvider` (wraps `PbrOverrideTextureLoader`).
-- [ ] Define `MaterialParamsUploader` (uploads per rect to texture store).
+- [ ] Extract `MaterialAtlasParamsBuilder` from `PbrMaterialParamsPixelBuilder`.
+- [ ] Create `MaterialOverrideTextureLoader` (wraps `PbrOverrideTextureLoader`).
+- [ ] Define `MaterialAtlasParamsUploader` (uploads per tile to texture store).
 - [ ] Route sync path through the same pipeline used by async jobs.
 - [ ] Add unit tests for per-rect generation and override application.
 
@@ -62,8 +62,8 @@ Exit artifacts: single pipeline used by both sync and async paths.
 
 ## Phase 5 - Normal+Depth Pipeline (GPU + Overrides)
 Exit artifacts: planner + GPU runner split; unified re-bake flow.
-- [ ] Create `NormalDepthBakePlanner` to define per-rect GPU tasks.
-- [ ] Wrap `PbrNormalDepthAtlasGpuBaker` in a `NormalDepthBakeRunner`.
+- [ ] Create `MaterialAtlasNormalDepthBuildPlanner` to define per-tile GPU tasks.
+- [ ] Wrap `PbrNormalDepthAtlasGpuBaker` in a `MaterialAtlasNormalDepthBuildRunner`.
 - [ ] Add override apply stage after bake (reuse loader/provider).
 - [ ] Route `RebakeNormalDepthAtlas` through the same pipeline.
 - [ ] Confirm all GL calls are render-thread only.
@@ -73,7 +73,7 @@ Exit artifacts: planner + GPU runner split; unified re-bake flow.
 ## Phase 6 - Async/Iterative Scheduler Integration
 Exit artifacts: scheduler runs on shared job interfaces and supports sync fallback.
 - [ ] Define job interfaces/records for CPU work and GPU uploads.
-- [ ] Adapt `PbrMaterialAtlasBuildScheduler` to new job types.
+- [ ] Adapt `MaterialAtlasBuildScheduler` to new job types.
 - [ ] Keep generation-id cancellation and stale job drop behavior.
 - [ ] Expose progress counters for pages, jobs, overrides.
 - [ ] Ensure sync path can reuse the same build plan.
@@ -81,18 +81,18 @@ Exit artifacts: scheduler runs on shared job interfaces and supports sync fallba
 ---
 
 ## Phase 7 - Disk Cache Subsystem
-Exit artifacts: load/save material params (and optional normal+depth) to disk.
-- [ ] Decide cache policy (what to store, when to invalidate, size limits).
-- [ ] Implement cache key hashing from snapshot + registry + config.
-- [ ] Serialize per-page material params buffers to disk.
-- [ ] Optional: support normal+depth readback caching (evaluate cost).
-- [ ] Add config toggles and logging for cache hits/misses.
+Exit artifacts: cache interfaces and wiring points only (no persistence).
+- [ ] Define cache interfaces (lookup/store/invalidate) and data contracts.
+- [ ] Define cache key builder inputs (snapshot + registry + config).
+- [ ] Add no-op cache implementation and wire it through the pipeline.
+- [ ] Add config toggles and logging stubs for cache integration points.
+- [ ] Defer persistence and eviction policy to `MaterialSystem.Cache.todo`.
 
 ---
 
 ## Phase 8 - Orchestration and Events
 Exit artifacts: a thin orchestrator that delegates to planner/pipelines/stores.
-- [ ] Introduce `PbrMaterialAtlasOrchestrator` (or rename existing class).
+- [ ] Introduce `MaterialAtlasSystem` (or rename existing class).
 - [ ] Wire events in `VanillaGraphicsExpandedModSystem` to orchestrator.
 - [ ] Update `TerrainMaterialParamsTextureBindingHook` to query texture store.
 - [ ] Ensure clean shutdown: cancel sessions, dispose textures, clear caches.
@@ -106,3 +106,24 @@ Exit artifacts: observability and test coverage for the refactor.
 - [ ] Add tests for planner determinism and cache key stability.
 - [ ] Add perf sanity checks for sync vs async paths.
 - [ ] Validate visual parity with existing shaders and mapping rules.
+
+---
+
+## Rename Checklist (System/Tile/Build, drop Pbr prefix)
+Exit artifacts: all class/file names updated and references corrected.
+- [ ] `PbrMaterialAtlasTextures` -> `MaterialAtlasSystem`
+- [ ] `PbrMaterialAtlasPositionResolver` -> `MaterialAtlasKeyResolver`
+- [ ] `PbrMaterialAtlasPageTextures` -> `MaterialAtlasPageTextures`
+- [ ] `PbrMaterialAtlasBuildSession` -> `MaterialAtlasBuildSession`
+- [ ] `PbrMaterialAtlasBuildScheduler` -> `MaterialAtlasBuildScheduler`
+- [ ] `PbrMaterialAtlasBuildSchedulerRenderer` -> `MaterialAtlasBuildSchedulerRenderer`
+- [ ] `PbrMaterialAtlasTileJob` -> `MaterialAtlasTileJob`
+- [ ] `PbrMaterialAtlasTileUpload` -> `MaterialAtlasTileUpload`
+- [ ] `PbrMaterialAtlasMaterialOverrideUpload` -> `MaterialAtlasOverrideUpload`
+- [ ] `PbrMaterialAtlasPageBuildState` -> `MaterialAtlasBuildPageState`
+- [ ] `PbrMaterialParamsPixelBuilder` -> `MaterialAtlasParamsBuilder`
+- [ ] `PbrMaterialParamsOverrideApplier` -> `MaterialAtlasParamsOverrideApplier`
+- [ ] `PbrOverrideTextureLoader` -> `MaterialOverrideTextureLoader`
+- [ ] `PbrNormalDepthAtlasGpuBaker` -> `MaterialAtlasNormalDepthGpuBuilder`
+- [ ] Update file names to match class names where applicable.
+- [ ] Update tests and TODO/docs references to the new names.
