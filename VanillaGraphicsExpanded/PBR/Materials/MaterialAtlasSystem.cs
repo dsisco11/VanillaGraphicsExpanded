@@ -914,14 +914,6 @@ internal sealed class MaterialAtlasSystem : IDisposable
         schedulerRegistered = false;
 
         DisposeTextures();
-        try
-        {
-            diskCache.Clear();
-        }
-        catch
-        {
-            // Best-effort.
-        }
         isDisposed = true;
     }
 
