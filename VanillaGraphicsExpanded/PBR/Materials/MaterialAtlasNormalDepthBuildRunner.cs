@@ -32,7 +32,7 @@ internal sealed class MaterialAtlasNormalDepthBuildRunner
         this.cacheKeyBuilder = cacheKeyBuilder ?? throw new ArgumentNullException(nameof(cacheKeyBuilder));
     }
 
-    public (int bakedRects, int appliedOverrides, int cacheHits, int cacheMisses) ExecutePlan(
+    public (int bakedRects, int appliedOverrides, int bakeCacheHits, int bakeCacheMisses, int overrideCacheHits, int overrideCacheMisses) ExecutePlan(
         ICoreClientAPI capi,
         MaterialAtlasNormalDepthBuildPlan plan,
         MaterialAtlasCacheKeyInputs cacheInputs,
@@ -43,8 +43,10 @@ internal sealed class MaterialAtlasNormalDepthBuildRunner
 
         int baked = 0;
         int overrides = 0;
-        int cacheHits = 0;
-        int cacheMisses = 0;
+        int bakeCacheHits = 0;
+        int bakeCacheMisses = 0;
+        int overrideCacheHits = 0;
+        int overrideCacheMisses = 0;
 
         // Group jobs per atlas page for locality.
         var bakeByPage = new Dictionary<int, List<MaterialAtlasNormalDepthBuildPlan.BakeJob>>();
@@ -114,11 +116,11 @@ internal sealed class MaterialAtlasNormalDepthBuildRunner
                                 job.Rect.Width,
                                 job.Rect.Height);
                             baked++;
-                            cacheHits++;
+                            bakeCacheHits++;
                             continue;
                         }
 
-                        cacheMisses++;
+                        bakeCacheMisses++;
                     }
 
                     if (MaterialAtlasNormalDepthGpuBuilder.BakePerRect(
@@ -192,11 +194,11 @@ internal sealed class MaterialAtlasNormalDepthBuildRunner
                         {
                             pageTextures.NormalDepthTexture.UploadData(cachedOverride, ov.Rect.X, ov.Rect.Y, ov.Rect.Width, ov.Rect.Height);
                             overrides++;
-                            cacheHits++;
+                            overrideCacheHits++;
                             continue;
                         }
 
-                        cacheMisses++;
+                        overrideCacheMisses++;
                     }
 
                     if (!overrideLoader.TryLoadRgbaFloats01(
@@ -274,6 +276,6 @@ internal sealed class MaterialAtlasNormalDepthBuildRunner
             }
         }
 
-        return (baked, overrides, cacheHits, cacheMisses);
+        return (baked, overrides, bakeCacheHits, bakeCacheMisses, overrideCacheHits, overrideCacheMisses);
     }
 }

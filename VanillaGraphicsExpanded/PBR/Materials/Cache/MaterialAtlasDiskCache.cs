@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Numerics.Tensors;
+using System.Threading;
 
 using Vintagestory.API.Config;
 
@@ -20,6 +21,17 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
     private readonly long maxBytes;
 
     private DateTime lastPruneUtc = DateTime.MinValue;
+
+    private long materialParamsHits;
+    private long materialParamsMisses;
+    private long materialParamsStores;
+
+    private long normalDepthHits;
+    private long normalDepthMisses;
+    private long normalDepthStores;
+
+    private long evictedEntries;
+    private long evictedBytes;
 
     private const float InvU16Max = 1f / 65535f;
 
@@ -68,11 +80,45 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         Directory.CreateDirectory(root);
     }
 
+    public MaterialAtlasDiskCacheStats GetStatsSnapshot()
+    {
+        long totalEntries = 0;
+        long totalBytes = 0;
+
+        try
+        {
+            foreach (CacheEntry entry in EnumerateEntries())
+            {
+                totalEntries++;
+                totalBytes += entry.SizeBytes;
+            }
+        }
+        catch
+        {
+            // Best-effort.
+        }
+
+        return new MaterialAtlasDiskCacheStats(
+            MaterialParams: new MaterialAtlasDiskCacheStats.Payload(
+                Hits: Interlocked.Read(ref materialParamsHits),
+                Misses: Interlocked.Read(ref materialParamsMisses),
+                Stores: Interlocked.Read(ref materialParamsStores)),
+            NormalDepth: new MaterialAtlasDiskCacheStats.Payload(
+                Hits: Interlocked.Read(ref normalDepthHits),
+                Misses: Interlocked.Read(ref normalDepthMisses),
+                Stores: Interlocked.Read(ref normalDepthStores)),
+            TotalEntries: totalEntries,
+            TotalBytes: totalBytes,
+            EvictedEntries: Interlocked.Read(ref evictedEntries),
+            EvictedBytes: Interlocked.Read(ref evictedBytes));
+    }
+
     public bool TryLoadMaterialParamsTile(AtlasCacheKey key, out float[] rgbTriplets)
     {
         if (!TryLoadTile(PayloadKind.MaterialParams, key, out TileMeta meta, out float[] rgba))
         {
             rgbTriplets = Array.Empty<float>();
+            Interlocked.Increment(ref materialParamsMisses);
             return false;
         }
 
@@ -82,6 +128,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         if (rgba.Length != expectedRgba)
         {
             rgbTriplets = Array.Empty<float>();
+            Interlocked.Increment(ref materialParamsMisses);
             return false;
         }
 
@@ -97,6 +144,8 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             rgbTriplets[di++] = rgba[si++];
             si++; // skip A
         }
+
+        Interlocked.Increment(ref materialParamsHits);
 
         return true;
     }
@@ -134,10 +183,12 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         if (!TryLoadTile(PayloadKind.NormalDepth, key, out TileMeta meta, out float[] rgba))
         {
             rgbaQuads = Array.Empty<float>();
+            Interlocked.Increment(ref normalDepthMisses);
             return false;
         }
 
         rgbaQuads = rgba;
+        Interlocked.Increment(ref normalDepthHits);
         return true;
     }
 
@@ -314,6 +365,8 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             string tmpMeta = metaPath + "." + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture) + ".tmp";
             string tmpDds = ddsPath + "." + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture) + ".tmp";
 
+            bool stored = false;
+
             try
             {
                 // Write payload first, then publish metadata last.
@@ -322,11 +375,25 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
 
                 WriteAllBytesAtomic(tmpMeta, metaBytes, metaPath);
                 TouchMeta(metaPath);
+
+                stored = true;
             }
             finally
             {
                 TryDelete(tmpMeta);
                 TryDelete(tmpDds);
+            }
+
+            if (stored)
+            {
+                if (kind == PayloadKind.MaterialParams)
+                {
+                    Interlocked.Increment(ref materialParamsStores);
+                }
+                else if (kind == PayloadKind.NormalDepth)
+                {
+                    Interlocked.Increment(ref normalDepthStores);
+                }
             }
 
             TryPruneIfNeeded();
@@ -398,6 +465,9 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
                 long freed = entry.SizeBytes;
                 TryDeletePair(entry.MetaPath, entry.DdsPath);
                 totalBytes -= freed;
+
+                Interlocked.Increment(ref evictedEntries);
+                Interlocked.Add(ref evictedBytes, freed);
             }
         }
         catch

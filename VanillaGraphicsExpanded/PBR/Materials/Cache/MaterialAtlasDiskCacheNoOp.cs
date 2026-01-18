@@ -14,6 +14,15 @@ internal sealed class MaterialAtlasDiskCacheNoOp : IMaterialAtlasDiskCache
         // Intentionally no-op.
     }
 
+    public MaterialAtlasDiskCacheStats GetStatsSnapshot()
+        => new(
+            MaterialParams: default,
+            NormalDepth: default,
+            TotalEntries: 0,
+            TotalBytes: 0,
+            EvictedEntries: 0,
+            EvictedBytes: 0);
+
     public bool TryLoadMaterialParamsTile(AtlasCacheKey key, out float[] rgbTriplets)
     {
         rgbTriplets = null!;

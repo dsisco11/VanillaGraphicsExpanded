@@ -109,4 +109,147 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
             PbrMaterialRegistry.Instance.Clear();
         }
     }
+
+    [Fact]
+    public void CacheKeys_Change_WhenSnapshotFingerprintChanges()
+    {
+        var logger = new TestLogger();
+
+        var src = Source(
+            domain: "game",
+            path: "config/vge/material_definitions.json",
+            json: """
+            {
+              "version": 1,
+              "defaults": { "scale": { "normal": 1.0, "depth": 1.0 } },
+              "materials": { "stone": { "roughness": 0.2, "metallic": 0.3, "emissive": 0.4 } },
+              "mapping": [
+                {
+                  "id": "rule",
+                  "priority": 0,
+                  "match": { "glob": "assets/game/textures/block/test.png" },
+                  "values": { "material": "stone" }
+                }
+              ]
+            }
+            """
+        );
+
+        try
+        {
+            PbrMaterialRegistry.Instance.InitializeFromParsedSources(
+                logger,
+                parsedSources: new[] { src },
+                textureLocations: new[] { new AssetLocation("game", "textures/block/test.png") },
+                strict: true);
+
+            var cfg = new LumOnConfig
+            {
+                EnableMaterialAtlasAsyncBuild = true,
+                EnableNormalDepthAtlas = true
+            };
+
+            var snapshotA = new AtlasSnapshot(
+                Pages: new[] { new AtlasSnapshot.AtlasPage(AtlasTextureId: 101, Width: 16, Height: 16) },
+                Positions: Array.Empty<TextureAtlasPosition?>(),
+                ReloadIteration: 1,
+                NonNullPositionCount: 1);
+
+            var snapshotB = new AtlasSnapshot(
+                Pages: new[] { new AtlasSnapshot.AtlasPage(AtlasTextureId: 101, Width: 16, Height: 16) },
+                Positions: Array.Empty<TextureAtlasPosition?>(),
+                ReloadIteration: 2,
+                NonNullPositionCount: 1);
+
+            var inputsA = MaterialAtlasCacheKeyInputs.Create(cfg, snapshotA, PbrMaterialRegistry.Instance);
+            var inputsB = MaterialAtlasCacheKeyInputs.Create(cfg, snapshotB, PbrMaterialRegistry.Instance);
+
+            var builder = new MaterialAtlasCacheKeyBuilder();
+            var rect = new AtlasRect(0, 0, 16, 16);
+            var texture = new AssetLocation("game", "textures/block/test.png");
+
+            Assert.True(PbrMaterialRegistry.Instance.TryGetMaterial(texture, out PbrMaterialDefinition def));
+            Assert.True(PbrMaterialRegistry.Instance.TryGetScale(texture, out PbrOverrideScale scale));
+
+            AtlasCacheKey kA = builder.BuildMaterialParamsTileKey(inputsA, 101, rect, texture, def, scale);
+            AtlasCacheKey kB = builder.BuildMaterialParamsTileKey(inputsB, 101, rect, texture, def, scale);
+
+            Assert.NotEqual(kA, kB);
+        }
+        finally
+        {
+            PbrMaterialRegistry.Instance.Clear();
+        }
+    }
+
+    [Fact]
+    public void OverrideKeys_Change_WhenOverrideAssetOrScaleChanges()
+    {
+        var logger = new TestLogger();
+
+        var src = Source(
+            domain: "game",
+            path: "config/vge/material_definitions.json",
+            json: """
+            {
+              "version": 1,
+              "defaults": { "scale": { "normal": 1.0, "depth": 1.0 } },
+              "materials": { "stone": { "roughness": 0.2, "metallic": 0.3, "emissive": 0.4 } },
+              "mapping": []
+            }
+            """
+        );
+
+        try
+        {
+            PbrMaterialRegistry.Instance.InitializeFromParsedSources(
+                logger,
+                parsedSources: new[] { src },
+                textureLocations: new[] { new AssetLocation("game", "textures/block/test.png") },
+                strict: true);
+
+            var cfg = new LumOnConfig
+            {
+                EnableMaterialAtlasAsyncBuild = true,
+                EnableNormalDepthAtlas = true
+            };
+
+            var snapshot = new AtlasSnapshot(
+                Pages: new[] { new AtlasSnapshot.AtlasPage(AtlasTextureId: 101, Width: 16, Height: 16) },
+                Positions: Array.Empty<TextureAtlasPosition?>(),
+                ReloadIteration: 1,
+                NonNullPositionCount: 1);
+
+            var inputs = MaterialAtlasCacheKeyInputs.Create(cfg, snapshot, PbrMaterialRegistry.Instance);
+            var builder = new MaterialAtlasCacheKeyBuilder();
+
+            var rect = new AtlasRect(0, 0, 16, 16);
+            var targetTexture = new AssetLocation("game", "textures/block/test.png");
+
+            // Material params override key
+            var ov1 = new AssetLocation("game", "textures/block/test_override1.png");
+            var ov2 = new AssetLocation("game", "textures/block/test_override2.png");
+            var scale1 = new PbrOverrideScale(Roughness: 1f, Metallic: 1f, Emissive: 1f, Normal: 1f, Depth: 1f);
+            var scale2 = new PbrOverrideScale(Roughness: 0.9f, Metallic: 1f, Emissive: 1f, Normal: 1f, Depth: 1f);
+
+            AtlasCacheKey mpA = builder.BuildMaterialParamsOverrideTileKey(inputs, 101, rect, targetTexture, ov1, scale1, ruleId: "r", ruleSource: null);
+            AtlasCacheKey mpB = builder.BuildMaterialParamsOverrideTileKey(inputs, 101, rect, targetTexture, ov2, scale1, ruleId: "r", ruleSource: null);
+            AtlasCacheKey mpC = builder.BuildMaterialParamsOverrideTileKey(inputs, 101, rect, targetTexture, ov1, scale2, ruleId: "r", ruleSource: null);
+
+            Assert.NotEqual(mpA, mpB);
+            Assert.NotEqual(mpA, mpC);
+
+            // Normal+depth override key
+            AtlasCacheKey ndA = builder.BuildNormalDepthOverrideTileKey(inputs, 101, rect, targetTexture, ov1, normalScale: 1f, depthScale: 1f, ruleId: "r", ruleSource: null);
+            AtlasCacheKey ndB = builder.BuildNormalDepthOverrideTileKey(inputs, 101, rect, targetTexture, ov2, normalScale: 1f, depthScale: 1f, ruleId: "r", ruleSource: null);
+            AtlasCacheKey ndC = builder.BuildNormalDepthOverrideTileKey(inputs, 101, rect, targetTexture, ov1, normalScale: 0.8f, depthScale: 1f, ruleId: "r", ruleSource: null);
+
+            Assert.NotEqual(ndA, ndB);
+            Assert.NotEqual(ndA, ndC);
+        }
+        finally
+        {
+            PbrMaterialRegistry.Instance.Clear();
+        }
+    }
 }

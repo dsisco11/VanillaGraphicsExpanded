@@ -8,6 +8,8 @@ internal interface IMaterialAtlasDiskCache
 {
     void Clear();
 
+    MaterialAtlasDiskCacheStats GetStatsSnapshot();
+
     bool TryLoadMaterialParamsTile(AtlasCacheKey key, out float[] rgbTriplets);
 
     void StoreMaterialParamsTile(AtlasCacheKey key, int width, int height, float[] rgbTriplets);

@@ -75,6 +75,12 @@ The disk cache can be toggled via config:
 
 When disabled, the cache behaves as a no-op store (always miss; no writes).
 
+### 4.0.1 Performance Notes
+
+- Normal+depth cache writes require GPU readback (`glReadPixels`) for each baked miss tile.
+- This is intentionally done during loading / atlas build time (not gameplay) and only for cache misses.
+- If startup hitching becomes noticeable, prefer raising the cache hit rate (keep cache enabled; avoid frequent shader reloads) rather than increasing bake complexity.
+
 ### 4.1 Cache Tiers
 
 - **Global cache**: Shared across worlds and sessions. Preferred when assets

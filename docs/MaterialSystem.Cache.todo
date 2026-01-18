@@ -69,8 +69,8 @@ Exit artifacts: stable invalidation rules.
 
 ## Phase 6 - Diagnostics and Validation
 Exit artifacts: visibility into cache behavior and correctness.
-- [ ] Log hit/miss stats (per system and per asset class).
-- [ ] Expose counters (entries, bytes, evictions).
-- [ ] Add tests for key stability and fingerprint changes.
-- [ ] Validate parity between cached and freshly baked outputs.
-- [ ] Add performance notes (readback cost vs bake cost).
+- [x] Log hit/miss stats (per system and per asset class).
+- [x] Expose counters (entries, bytes, evictions).
+- [x] Add tests for key stability and fingerprint changes.
+- [x] Validate parity between cached and freshly baked outputs.
+- [x] Add performance notes (readback cost vs bake cost).
