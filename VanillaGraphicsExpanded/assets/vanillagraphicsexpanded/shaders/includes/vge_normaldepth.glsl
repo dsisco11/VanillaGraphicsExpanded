@@ -122,6 +122,15 @@ vec4 VgeComputePackedWorldNormal01Height01(vec2 uv, vec3 geometricNormalWs, vec3
     VgeTryBuildTbnFromDerivatives(worldPosWs, uv, nGeom, tbn);
     vec3 nWs = normalize(tbn * nAtlasSigned);
 
+    // VGE: Distance attenuation for normal-map contribution.
+    // Assumption: `worldPosWs` is camera-relative world-space (common in VS terrain shaders),
+    // so distance-to-camera is simply length(worldPosWs).
+    const float VGE_NORMALMAP_FADE_START = 8.0;
+    const float VGE_NORMALMAP_FADE_END = 24.0;
+    float vge_dist = length(worldPosWs);
+    float vge_normalMapWeight = 1.0 - smoothstep(VGE_NORMALMAP_FADE_START, VGE_NORMALMAP_FADE_END, vge_dist);
+    nWs = normalize(mix(nGeom, nWs, vge_normalMapWeight));
+
     // Keep the result in the same hemisphere as the geometric normal (stability).
     if (dot(nWs, nGeom) < 0.0)
     {

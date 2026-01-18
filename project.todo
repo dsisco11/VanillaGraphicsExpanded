@@ -1,9 +1,7 @@
 Issues:
   ☐ Mod settings not live reloading properly (e.g. changes to Lumon shader settings dont always take effect).
-  ☐ Implement distance falloff attenuation for normal-map contribution to vge_normals gbuffer.
   ☐ Make async PBRMaterialBaking system "more async" by passing a copy of the relevant data to the worker thread instead of forcing main-thread access.
   ☐ Need better material override system, consider allowing material definitions to specify a "base material" to inherit from.
-  ☐ Consider moving asset mapping rules to reside directly within their material definition, rather than having a separate "mappings" section, each material could define a list of "asset globs" that it applies to.
   ☐ pbr-direct-lighting doesnt include flood-filled block-light.
   ☐ pbr-direct-lighting doesnt include flood-filled sun-light.
   ☐ pbr-direct-lighting doesnt include shadow map.
