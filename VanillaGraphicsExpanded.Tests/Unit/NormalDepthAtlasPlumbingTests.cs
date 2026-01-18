@@ -19,7 +19,7 @@ public sealed class NormalDepthAtlasPlumbingTests
         const int baseAtlasTexId = 1234;
         const int normalDepthTexId = 5678;
 
-        var instance = PbrMaterialAtlasTextures.Instance;
+        var instance = MaterialAtlasSystem.Instance;
 
         MaterialAtlasTextureStore store = GetPrivateInstanceField<MaterialAtlasTextureStore>(instance, "textureStore");
         IDictionary pagesByAtlasTexId = GetPrivateInstanceField<IDictionary>(store, "pagesByAtlasTexId");
@@ -29,7 +29,7 @@ public sealed class NormalDepthAtlasPlumbingTests
         DynamicTexture materialParams = CreateFakeDynamicTexture(textureId: 111, internalFormat: PixelInternalFormat.Rgb16f);
         DynamicTexture normalDepth = CreateFakeDynamicTexture(textureId: normalDepthTexId, internalFormat: PixelInternalFormat.Rgba16f);
 
-        var pageTextures = new PbrMaterialAtlasPageTextures(materialParams, normalDepth);
+        var pageTextures = new MaterialAtlasPageTextures(materialParams, normalDepth);
 
         Type entryType = typeof(MaterialAtlasTextureStore).GetNestedType("PageEntry", BindingFlags.NonPublic)!;
         object entry = Activator.CreateInstance(

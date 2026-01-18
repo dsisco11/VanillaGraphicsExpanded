@@ -14,7 +14,7 @@ internal readonly record struct MaterialAtlasParamsGpuTileUpload(
     AssetLocation TargetTexture,
     int Priority) : IMaterialAtlasGpuJob
 {
-    public void Execute(ICoreClientAPI capi, System.Func<int, PbrMaterialAtlasPageTextures?> tryGetPageTextures, PbrMaterialAtlasBuildSession session)
+    public void Execute(ICoreClientAPI capi, System.Func<int, MaterialAtlasPageTextures?> tryGetPageTextures, MaterialAtlasBuildSession session)
     {
         var pageTextures = tryGetPageTextures(AtlasTextureId);
         if (pageTextures is null)
@@ -31,7 +31,7 @@ internal readonly record struct MaterialAtlasParamsGpuTileUpload(
 
         session.IncrementCompletedTile();
 
-        if (session.PagesByAtlasTexId.TryGetValue(AtlasTextureId, out PbrMaterialAtlasPageBuildState? page))
+        if (session.PagesByAtlasTexId.TryGetValue(AtlasTextureId, out MaterialAtlasBuildPageState? page))
         {
             page.InFlightTiles = System.Math.Max(0, page.InFlightTiles - 1);
             page.CompletedTiles++;

@@ -4,9 +4,9 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.PBR.Materials;
 
-internal sealed class PbrMaterialAtlasPageTextures : IDisposable
+internal sealed class MaterialAtlasPageTextures : IDisposable
 {
-    public PbrMaterialAtlasPageTextures(DynamicTexture materialParamsTexture, DynamicTexture? normalDepthTexture)
+    public MaterialAtlasPageTextures(DynamicTexture materialParamsTexture, DynamicTexture? normalDepthTexture)
     {
         MaterialParamsTexture = materialParamsTexture ?? throw new ArgumentNullException(nameof(materialParamsTexture));
         NormalDepthTexture = normalDepthTexture;

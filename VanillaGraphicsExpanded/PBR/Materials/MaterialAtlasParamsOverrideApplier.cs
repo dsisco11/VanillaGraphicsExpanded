@@ -4,7 +4,7 @@ using VanillaGraphicsExpanded.Numerics;
 
 namespace VanillaGraphicsExpanded.PBR.Materials;
 
-internal static class PbrMaterialParamsOverrideApplier
+internal static class MaterialAtlasParamsOverrideApplier
 {
     public static void ApplyRgbOverride(
         float[] atlasRgbTriplets,

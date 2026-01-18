@@ -73,7 +73,7 @@ internal sealed class MaterialAtlasNormalDepthBuildRunner
 
         foreach (var page in plan.Pages)
         {
-            if (!textureStore.TryGetPageTextures(page.AtlasTextureId, out PbrMaterialAtlasPageTextures pageTextures)
+            if (!textureStore.TryGetPageTextures(page.AtlasTextureId, out MaterialAtlasPageTextures pageTextures)
                 || pageTextures.NormalDepthTexture is null
                 || !pageTextures.NormalDepthTexture.IsValid)
             {
@@ -84,7 +84,7 @@ internal sealed class MaterialAtlasNormalDepthBuildRunner
             _ = overridesByPage.TryGetValue(page.AtlasTextureId, out List<MaterialAtlasNormalDepthBuildPlan.OverrideJob>? overrideJobs);
 
             // Clear once per page, then bake per rect.
-            PbrNormalDepthAtlasGpuBaker.ClearAtlasPage(
+            MaterialAtlasNormalDepthGpuBuilder.ClearAtlasPage(
                 capi,
                 destNormalDepthTexId: pageTextures.NormalDepthTexture.TextureId,
                 atlasWidth: page.Width,
@@ -121,7 +121,7 @@ internal sealed class MaterialAtlasNormalDepthBuildRunner
                         cacheMisses++;
                     }
 
-                    if (PbrNormalDepthAtlasGpuBaker.BakePerRect(
+                    if (MaterialAtlasNormalDepthGpuBuilder.BakePerRect(
                         capi,
                         baseAlbedoAtlasPageTexId: page.AtlasTextureId,
                         destNormalDepthTexId: pageTextures.NormalDepthTexture.TextureId,

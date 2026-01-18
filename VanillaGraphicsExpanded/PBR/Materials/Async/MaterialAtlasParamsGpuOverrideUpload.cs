@@ -21,7 +21,7 @@ internal readonly record struct MaterialAtlasParamsGpuOverrideUpload(
     PbrOverrideScale Scale,
     int Priority) : IMaterialAtlasGpuJob
 {
-    public void Execute(ICoreClientAPI capi, System.Func<int, PbrMaterialAtlasPageTextures?> tryGetPageTextures, PbrMaterialAtlasBuildSession session)
+    public void Execute(ICoreClientAPI capi, System.Func<int, MaterialAtlasPageTextures?> tryGetPageTextures, MaterialAtlasBuildSession session)
     {
         var pageTextures = tryGetPageTextures(AtlasTextureId);
         if (pageTextures is null)
@@ -78,7 +78,7 @@ internal readonly record struct MaterialAtlasParamsGpuOverrideUpload(
         pageTextures.MaterialParamsTexture.UploadData(rgb, Rect.X, Rect.Y, Rect.Width, Rect.Height);
         session.IncrementOverridesApplied();
 
-        if (session.PagesByAtlasTexId.TryGetValue(AtlasTextureId, out PbrMaterialAtlasPageBuildState? page))
+        if (session.PagesByAtlasTexId.TryGetValue(AtlasTextureId, out MaterialAtlasBuildPageState? page))
         {
             page.PendingOverrides = System.Math.Max(0, page.PendingOverrides - 1);
             page.CompletedOverrides++;

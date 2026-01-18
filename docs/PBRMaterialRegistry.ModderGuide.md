@@ -184,7 +184,7 @@ The bake-time noise source is a cached, tileable rank map with these defaults:
 
 These values are currently defined in code in:
 
-- `VanillaGraphicsExpanded/PBR/Materials/PbrMaterialParamsPixelBuilder.cs`
+- `VanillaGraphicsExpanded/PBR/Materials/MaterialAtlasParamsBuilder.cs`
 
 ### Mapping strategy
 

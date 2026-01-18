@@ -47,7 +47,7 @@ internal sealed class MaterialAtlasNormalDepthBuildPlanner
                 continue;
             }
 
-            if (!PbrMaterialAtlasPositionResolver.TryResolve(tryGetAtlasPosition, targetTexture, out TextureAtlasPosition? texPos)
+            if (!MaterialAtlasKeyResolver.TryResolve(tryGetAtlasPosition, targetTexture, out TextureAtlasPosition? texPos)
                 || texPos is null)
             {
                 missingAtlasPositions++;
@@ -138,7 +138,7 @@ internal sealed class MaterialAtlasNormalDepthBuildPlanner
                 continue;
             }
 
-            if (!PbrMaterialAtlasPositionResolver.TryResolve(tryGetAtlasPosition, tex, out TextureAtlasPosition? pos)
+            if (!MaterialAtlasKeyResolver.TryResolve(tryGetAtlasPosition, tex, out TextureAtlasPosition? pos)
                 || pos is null)
             {
                 missingAtlasPositions++;
@@ -177,7 +177,7 @@ internal sealed class MaterialAtlasNormalDepthBuildPlanner
         IReadOnlyList<AssetLocation> normalizedAssets = MaterialAtlasAssetScan.NormalizeSortAndDedupeBlockTextures(blockTextureAssets);
         foreach (AssetLocation tex in normalizedAssets)
         {
-            if (!PbrMaterialAtlasPositionResolver.TryResolve(tryGetAtlasPosition, tex, out TextureAtlasPosition? pos)
+            if (!MaterialAtlasKeyResolver.TryResolve(tryGetAtlasPosition, tex, out TextureAtlasPosition? pos)
                 || pos is null)
             {
                 continue;

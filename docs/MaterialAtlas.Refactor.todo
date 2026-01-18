@@ -149,19 +149,19 @@ Exit artifacts: observability and test coverage for the refactor.
 ## Rename Checklist (System/Tile/Build, drop Pbr prefix)
 Exit artifacts: all class/file names updated and references corrected.
 - Reference: `docs/MaterialAtlas.Architecture.md`
-- [ ] `PbrMaterialAtlasTextures` -> `MaterialAtlasSystem`
-- [ ] `PbrMaterialAtlasPositionResolver` -> `MaterialAtlasKeyResolver`
-- [ ] `PbrMaterialAtlasPageTextures` -> `MaterialAtlasPageTextures`
-- [ ] `PbrMaterialAtlasBuildSession` -> `MaterialAtlasBuildSession`
-- [ ] `PbrMaterialAtlasBuildScheduler` -> `MaterialAtlasBuildScheduler`
-- [ ] `PbrMaterialAtlasBuildSchedulerRenderer` -> `MaterialAtlasBuildSchedulerRenderer`
-- [ ] `PbrMaterialAtlasTileJob` -> `MaterialAtlasTileJob`
-- [ ] `PbrMaterialAtlasTileUpload` -> `MaterialAtlasTileUpload`
-- [ ] `PbrMaterialAtlasMaterialOverrideUpload` -> `MaterialAtlasOverrideUpload`
-- [ ] `PbrMaterialAtlasPageBuildState` -> `MaterialAtlasBuildPageState`
-- [ ] `PbrMaterialParamsPixelBuilder` -> `MaterialAtlasParamsBuilder`
-- [ ] `PbrMaterialParamsOverrideApplier` -> `MaterialAtlasParamsOverrideApplier`
-- [ ] `PbrOverrideTextureLoader` -> `MaterialOverrideTextureLoader`
-- [ ] `PbrNormalDepthAtlasGpuBaker` -> `MaterialAtlasNormalDepthGpuBuilder`
-- [ ] Update file names to match class names where applicable.
-- [ ] Update tests and TODO/docs references to the new names.
+- [x] `PbrMaterialAtlasTextures` -> `MaterialAtlasSystem`
+- [x] `PbrMaterialAtlasPositionResolver` -> `MaterialAtlasKeyResolver`
+- [x] `PbrMaterialAtlasPageTextures` -> `MaterialAtlasPageTextures`
+- [x] `PbrMaterialAtlasBuildSession` -> `MaterialAtlasBuildSession`
+- [x] `PbrMaterialAtlasBuildScheduler` -> `MaterialAtlasBuildScheduler`
+- [x] `PbrMaterialAtlasBuildSchedulerRenderer` -> `MaterialAtlasBuildSchedulerRenderer`
+- [x] `PbrMaterialAtlasTileJob` -> `MaterialAtlasTileJob`
+- [x] `PbrMaterialAtlasTileUpload` -> `MaterialAtlasTileUpload`
+- [x] `PbrMaterialAtlasMaterialOverrideUpload` -> `MaterialAtlasOverrideUpload`
+- [x] `PbrMaterialAtlasPageBuildState` -> `MaterialAtlasBuildPageState`
+- [x] `PbrMaterialParamsPixelBuilder` -> `MaterialAtlasParamsBuilder`
+- [x] `PbrMaterialParamsOverrideApplier` -> `MaterialAtlasParamsOverrideApplier`
+- [x] `PbrOverrideTextureLoader` -> `MaterialOverrideTextureLoader`
+- [x] `PbrNormalDepthAtlasGpuBaker` -> `MaterialAtlasNormalDepthGpuBuilder`
+- [x] Update file names to match class names where applicable.
+- [x] Update tests and TODO/docs references to the new names.

@@ -2,7 +2,7 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.PBR.Materials.Async;
 
-internal readonly record struct PbrMaterialAtlasMaterialOverrideUpload(
+internal readonly record struct MaterialAtlasOverrideUpload(
     int GenerationId,
     int AtlasTextureId,
     int RectX,

@@ -6,7 +6,7 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.PBR.Materials;
 
-internal static class PbrMaterialAtlasPositionResolver
+internal static class MaterialAtlasKeyResolver
 {
     public static bool TryResolve(
         System.Func<AssetLocation, TextureAtlasPosition?> tryGetAtlasPosition,

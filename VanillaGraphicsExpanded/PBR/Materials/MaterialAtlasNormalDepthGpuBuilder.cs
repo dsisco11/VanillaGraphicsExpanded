@@ -26,7 +26,7 @@ namespace VanillaGraphicsExpanded.PBR.Materials;
 ///
 /// This runs during loading / atlas build time.
 /// </summary>
-internal static class PbrNormalDepthAtlasGpuBaker
+internal static class MaterialAtlasNormalDepthGpuBuilder
 {
     private const int MinBakeTilePx = 2;
     // Asset domain for shader source.

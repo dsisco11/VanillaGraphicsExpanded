@@ -4,7 +4,7 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.PBR.Materials.Async;
 
-internal readonly record struct PbrMaterialAtlasTileJob(
+internal readonly record struct MaterialAtlasTileJob(
     int GenerationId,
     int AtlasTextureId,
     int RectX,

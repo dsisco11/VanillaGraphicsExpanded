@@ -60,7 +60,7 @@ internal sealed class MaterialAtlasBuildPlanner
                 definition = definition with { Scale = combinedScale };
             }
 
-            if (!PbrMaterialAtlasPositionResolver.TryResolve(tryGetAtlasPosition, texture, out TextureAtlasPosition? texPos)
+            if (!MaterialAtlasKeyResolver.TryResolve(tryGetAtlasPosition, texture, out TextureAtlasPosition? texPos)
                 || texPos is null)
             {
                 missingAtlasPositions++;
@@ -99,7 +99,7 @@ internal sealed class MaterialAtlasBuildPlanner
                 continue;
             }
 
-            if (!PbrMaterialAtlasPositionResolver.TryResolve(tryGetAtlasPosition, targetTexture, out TextureAtlasPosition? texPos)
+            if (!MaterialAtlasKeyResolver.TryResolve(tryGetAtlasPosition, targetTexture, out TextureAtlasPosition? texPos)
                 || texPos is null)
             {
                 missingAtlasPositions++;
@@ -139,7 +139,7 @@ internal sealed class MaterialAtlasBuildPlanner
 
             foreach (AssetLocation texture in normalizedAssets)
             {
-                if (!PbrMaterialAtlasPositionResolver.TryResolve(tryGetAtlasPosition, texture, out TextureAtlasPosition? texPos)
+                if (!MaterialAtlasKeyResolver.TryResolve(tryGetAtlasPosition, texture, out TextureAtlasPosition? texPos)
                     || texPos is null)
                 {
                     missingAtlasPositions++;

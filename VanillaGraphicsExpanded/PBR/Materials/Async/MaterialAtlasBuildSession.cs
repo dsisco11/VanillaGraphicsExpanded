@@ -7,7 +7,7 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.PBR.Materials.Async;
 
-internal sealed class PbrMaterialAtlasBuildSession : IDisposable
+internal sealed class MaterialAtlasBuildSession : IDisposable
 {
     private readonly CancellationTokenSource cts;
     private readonly object overrideLock = new();
@@ -15,7 +15,7 @@ internal sealed class PbrMaterialAtlasBuildSession : IDisposable
     private readonly PriorityFifoQueue<MaterialAtlasParamsGpuOverrideUpload> pendingOverrideUploads = new();
     private readonly Dictionary<(int atlasTexId, AtlasRect rect), MaterialAtlasParamsGpuOverrideUpload> overridesByRect = new();
 
-    public PbrMaterialAtlasBuildSession(
+    public MaterialAtlasBuildSession(
         int generationId,
         IReadOnlyList<(int atlasTextureId, int width, int height)> atlasPages,
         IReadOnlyList<IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload>> cpuTileJobs,
@@ -32,10 +32,10 @@ internal sealed class PbrMaterialAtlasBuildSession : IDisposable
         cts = new CancellationTokenSource();
         CreatedUtc = DateTime.UtcNow;
 
-        PagesByAtlasTexId = new Dictionary<int, PbrMaterialAtlasPageBuildState>(capacity: atlasPages.Count);
+        PagesByAtlasTexId = new Dictionary<int, MaterialAtlasBuildPageState>(capacity: atlasPages.Count);
         foreach ((int atlasTextureId, int width, int height) in atlasPages)
         {
-            PagesByAtlasTexId[atlasTextureId] = new PbrMaterialAtlasPageBuildState(atlasTextureId, width, height);
+            PagesByAtlasTexId[atlasTextureId] = new MaterialAtlasBuildPageState(atlasTextureId, width, height);
         }
 
         TotalTiles = cpuTileJobs.Count;
@@ -61,7 +61,7 @@ internal sealed class PbrMaterialAtlasBuildSession : IDisposable
 
     public IReadOnlyList<MaterialAtlasParamsGpuOverrideUpload> OverrideJobs { get; }
 
-    public Dictionary<int, PbrMaterialAtlasPageBuildState> PagesByAtlasTexId { get; }
+    public Dictionary<int, MaterialAtlasBuildPageState> PagesByAtlasTexId { get; }
 
     public MaterialOverrideTextureLoader OverrideLoader { get; }
 

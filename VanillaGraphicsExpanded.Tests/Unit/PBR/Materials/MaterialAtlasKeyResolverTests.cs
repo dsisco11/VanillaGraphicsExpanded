@@ -6,7 +6,7 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.Tests.Unit.PBR.Materials;
 
 [Trait("Category", "Unit")]
-public sealed class PbrMaterialAtlasPositionResolverTests
+public sealed class MaterialAtlasKeyResolverTests
 {
     [Fact]
     public void Resolve_StripsTexturesPrefixAndPngSuffix_ForBlockAtlasKeys()
@@ -34,7 +34,7 @@ public sealed class PbrMaterialAtlasPositionResolverTests
 
         var textureAsset = new AssetLocation("game", "textures/block/test.png");
 
-        Assert.True(PbrMaterialAtlasPositionResolver.TryResolve(TryGet, textureAsset, out TextureAtlasPosition? resolved));
+        Assert.True(MaterialAtlasKeyResolver.TryResolve(TryGet, textureAsset, out TextureAtlasPosition? resolved));
         Assert.Same(texPos, resolved);
     }
 
@@ -42,7 +42,7 @@ public sealed class PbrMaterialAtlasPositionResolverTests
     public void NormalizeToAtlasKey_StripsPrefixAndExtension()
     {
         var textureAsset = new AssetLocation("game", "textures/block/test.png");
-        AssetLocation normalized = PbrMaterialAtlasPositionResolver.NormalizeToAtlasKey(textureAsset);
+        AssetLocation normalized = MaterialAtlasKeyResolver.NormalizeToAtlasKey(textureAsset);
         Assert.Equal("game", normalized.Domain);
         Assert.Equal("block/test", normalized.Path);
     }
@@ -51,7 +51,7 @@ public sealed class PbrMaterialAtlasPositionResolverTests
     public void NormalizeToAtlasKey_StripsAnyExtension_AndIsCaseInsensitiveOnTexturesPrefix()
     {
         var textureAsset = new AssetLocation("game", "Textures/block/test.DDS");
-        AssetLocation normalized = PbrMaterialAtlasPositionResolver.NormalizeToAtlasKey(textureAsset);
+        AssetLocation normalized = MaterialAtlasKeyResolver.NormalizeToAtlasKey(textureAsset);
         Assert.Equal("game", normalized.Domain);
         Assert.Equal("block/test", normalized.Path);
     }

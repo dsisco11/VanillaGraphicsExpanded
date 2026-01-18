@@ -39,7 +39,7 @@ The pipeline is implemented as a sequence of fullscreen fragment passes (no comp
 Main entrypoints:
 
 - `PbrMaterialAtlasTextures.Initialize(...)` triggers bake when enabled
-- `PbrNormalDepthAtlasGpuBaker.BakePerTexture(...)` runs the per-rect pipeline
+- `MaterialAtlasNormalDepthGpuBuilder.BakePerTexture(...)` runs the per-rect pipeline
 
 Shader passes live under:
 

@@ -2,9 +2,9 @@ using System;
 
 namespace VanillaGraphicsExpanded.PBR.Materials.Async;
 
-internal sealed class PbrMaterialAtlasPageBuildState
+internal sealed class MaterialAtlasBuildPageState
 {
-    public PbrMaterialAtlasPageBuildState(int atlasTextureId, int width, int height)
+    public MaterialAtlasBuildPageState(int atlasTextureId, int width, int height)
     {
         if (atlasTextureId == 0) throw new ArgumentOutOfRangeException(nameof(atlasTextureId));
         if (width <= 0) throw new ArgumentOutOfRangeException(nameof(width));

@@ -4,11 +4,11 @@ using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.PBR.Materials.Async;
 
-internal sealed class PbrMaterialAtlasBuildSchedulerRenderer : IRenderer
+internal sealed class MaterialAtlasBuildSchedulerRenderer : IRenderer
 {
-    private readonly PbrMaterialAtlasBuildScheduler scheduler;
+    private readonly MaterialAtlasBuildScheduler scheduler;
 
-    public PbrMaterialAtlasBuildSchedulerRenderer(PbrMaterialAtlasBuildScheduler scheduler)
+    public MaterialAtlasBuildSchedulerRenderer(MaterialAtlasBuildScheduler scheduler)
     {
         this.scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
     }

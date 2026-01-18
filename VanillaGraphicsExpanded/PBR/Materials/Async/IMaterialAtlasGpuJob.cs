@@ -13,5 +13,5 @@ internal interface IMaterialAtlasGpuJob
 
     int Priority { get; }
 
-    void Execute(ICoreClientAPI capi, System.Func<int, PbrMaterialAtlasPageTextures?> tryGetPageTextures, PbrMaterialAtlasBuildSession session);
+    void Execute(ICoreClientAPI capi, System.Func<int, MaterialAtlasPageTextures?> tryGetPageTextures, MaterialAtlasBuildSession session);
 }

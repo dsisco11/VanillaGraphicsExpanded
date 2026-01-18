@@ -38,7 +38,7 @@ public sealed class PbrMaterialAtlasTexturesBuildTests
                 Notes: null)
         };
 
-        var result = PbrMaterialParamsPixelBuilder.BuildRgb16fPixelBuffers(
+        var result = MaterialAtlasParamsBuilder.BuildRgb16fPixelBuffers(
             atlasPages: new[] { (atlasTexId, width, height) },
             texturePositions: new Dictionary<AssetLocation, TextureAtlasPosition> { [texture] = texPos },
             materialsByTexture: materialsByTexture);
@@ -49,9 +49,9 @@ public sealed class PbrMaterialAtlasTexturesBuildTests
 
         // Defaults (unmapped)
         AssertPixelRgb(pixels, width, x: 0, y: 0,
-            r: PbrMaterialParamsPixelBuilder.DefaultRoughness,
-            g: PbrMaterialParamsPixelBuilder.DefaultMetallic,
-            b: PbrMaterialParamsPixelBuilder.DefaultEmissive);
+            r: MaterialAtlasParamsBuilder.DefaultRoughness,
+            g: MaterialAtlasParamsBuilder.DefaultMetallic,
+            b: MaterialAtlasParamsBuilder.DefaultEmissive);
 
         // Mapped rect
         AssertPixelRgb(pixels, width, x: 2, y: 1, r: 0.20f, g: 0.30f, b: 0.40f);
@@ -59,9 +59,9 @@ public sealed class PbrMaterialAtlasTexturesBuildTests
 
         // Neighbor outside rect remains default
         AssertPixelRgb(pixels, width, x: 4, y: 1,
-            r: PbrMaterialParamsPixelBuilder.DefaultRoughness,
-            g: PbrMaterialParamsPixelBuilder.DefaultMetallic,
-            b: PbrMaterialParamsPixelBuilder.DefaultEmissive);
+            r: MaterialAtlasParamsBuilder.DefaultRoughness,
+            g: MaterialAtlasParamsBuilder.DefaultMetallic,
+            b: MaterialAtlasParamsBuilder.DefaultEmissive);
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public sealed class PbrMaterialAtlasTexturesBuildTests
                 Notes: null)
         };
 
-        var result = PbrMaterialParamsPixelBuilder.BuildRgb16fPixelBuffers(
+        var result = MaterialAtlasParamsBuilder.BuildRgb16fPixelBuffers(
             atlasPages: new[] { (atlasTexId, width, height) },
             texturePositions: new Dictionary<AssetLocation, TextureAtlasPosition> { [texture] = texPos },
             materialsByTexture: materialsByTexture);

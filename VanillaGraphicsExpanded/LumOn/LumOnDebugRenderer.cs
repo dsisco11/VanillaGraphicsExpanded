@@ -274,7 +274,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (!PbrMaterialAtlasTextures.Instance.IsInitialized)
+        if (!MaterialAtlasSystem.Instance.IsInitialized)
         {
             return;
         }

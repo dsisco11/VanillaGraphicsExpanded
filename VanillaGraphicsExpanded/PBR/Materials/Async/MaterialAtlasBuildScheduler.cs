@@ -12,7 +12,7 @@ using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.PBR.Materials.Async;
 
-internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
+internal sealed class MaterialAtlasBuildScheduler : IDisposable
 {
     private readonly object sessionLock = new();
 
@@ -27,19 +27,19 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
     private int lastGpuUploads;
     private int lastOverrideUploads;
 
-    private PbrMaterialAtlasBuildSession? session;
-    private Func<int, VanillaGraphicsExpanded.PBR.Materials.PbrMaterialAtlasPageTextures?>? tryGetPageTextures;
+    private MaterialAtlasBuildSession? session;
+    private Func<int, VanillaGraphicsExpanded.PBR.Materials.MaterialAtlasPageTextures?>? tryGetPageTextures;
     private ICoreClientAPI? capi;
 
     public void Initialize(
         ICoreClientAPI capi,
-        Func<int, VanillaGraphicsExpanded.PBR.Materials.PbrMaterialAtlasPageTextures?> tryGetPageTextures)
+        Func<int, VanillaGraphicsExpanded.PBR.Materials.MaterialAtlasPageTextures?> tryGetPageTextures)
     {
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
         this.tryGetPageTextures = tryGetPageTextures ?? throw new ArgumentNullException(nameof(tryGetPageTextures));
     }
 
-    public PbrMaterialAtlasBuildSession? ActiveSession
+    public MaterialAtlasBuildSession? ActiveSession
     {
         get
         {
@@ -50,7 +50,7 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
         }
     }
 
-    public void StartSession(PbrMaterialAtlasBuildSession newSession)
+    public void StartSession(MaterialAtlasBuildSession newSession)
     {
         ArgumentNullException.ThrowIfNull(newSession);
 
@@ -67,7 +67,7 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
             {
                 pendingCpuJobs.Enqueue(job.Priority, job);
 
-                if (newSession.PagesByAtlasTexId.TryGetValue(job.AtlasTextureId, out PbrMaterialAtlasPageBuildState? page))
+                if (newSession.PagesByAtlasTexId.TryGetValue(job.AtlasTextureId, out MaterialAtlasBuildPageState? page))
                 {
                     page.PendingTiles++;
                     page.PageClearDone = true; // material params texture is pre-filled with defaults.
@@ -77,7 +77,7 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
             // Enqueue override-only uploads (rects that have no corresponding tile job).
             foreach (MaterialAtlasParamsGpuOverrideUpload ov in newSession.OverrideJobs)
             {
-                if (newSession.PagesByAtlasTexId.TryGetValue(ov.AtlasTextureId, out PbrMaterialAtlasPageBuildState? page))
+                if (newSession.PagesByAtlasTexId.TryGetValue(ov.AtlasTextureId, out MaterialAtlasBuildPageState? page))
                 {
                     page.PendingOverrides++;
                 }
@@ -120,7 +120,7 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
             return;
         }
 
-        PbrMaterialAtlasBuildSession? active;
+        MaterialAtlasBuildSession? active;
         lock (sessionLock)
         {
             active = session;
@@ -177,7 +177,7 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
                 continue;
             }
 
-            if (active.PagesByAtlasTexId.TryGetValue(job.AtlasTextureId, out PbrMaterialAtlasPageBuildState? page))
+            if (active.PagesByAtlasTexId.TryGetValue(job.AtlasTextureId, out MaterialAtlasBuildPageState? page))
             {
                 page.PendingTiles = Math.Max(0, page.PendingTiles - 1);
                 page.InFlightTiles++;
@@ -270,7 +270,7 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
 
     public MaterialAtlasAsyncBuildDiagnostics GetDiagnosticsSnapshot()
     {
-        PbrMaterialAtlasBuildSession? active;
+        MaterialAtlasBuildSession? active;
         lock (sessionLock)
         {
             active = session;
@@ -300,7 +300,7 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
         var pages = new List<MaterialAtlasAsyncBuildDiagnostics.Page>(capacity: active.PagesByAtlasTexId.Count);
         foreach (var kvp in active.PagesByAtlasTexId)
         {
-            PbrMaterialAtlasPageBuildState p = kvp.Value;
+            MaterialAtlasBuildPageState p = kvp.Value;
             pages.Add(new MaterialAtlasAsyncBuildDiagnostics.Page(
                 AtlasTextureId: p.AtlasTextureId,
                 Width: p.Width,

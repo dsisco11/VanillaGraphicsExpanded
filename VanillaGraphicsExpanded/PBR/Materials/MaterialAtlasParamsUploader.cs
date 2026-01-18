@@ -18,7 +18,7 @@ internal sealed class MaterialAtlasParamsUploader
     {
         ArgumentNullException.ThrowIfNull(rgbTriplets);
 
-        if (!textureStore.TryGetPageTextures(atlasTextureId, out PbrMaterialAtlasPageTextures pageTextures))
+            if (!textureStore.TryGetPageTextures(atlasTextureId, out MaterialAtlasPageTextures pageTextures))
         {
             return false;
         }
