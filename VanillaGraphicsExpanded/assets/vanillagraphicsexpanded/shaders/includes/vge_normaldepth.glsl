@@ -43,7 +43,7 @@ vec4 ReadNormalDepth(vec2 uv)
     return v;
 }
 
-bool VgeTryBuildTbnFromDerivatives(vec3 worldPosWs, vec2 uv, vec3 normalWs, out mat3 outTbn)
+bool VgeTryBuildTbnFromDerivatives(vec3 worldPosWs, vec2 uv, vec3 normalWs, out mat3 outTbn, out float outHandedness)
 {
     vec3 n = normalize(normalWs);
 
@@ -55,6 +55,7 @@ bool VgeTryBuildTbnFromDerivatives(vec3 worldPosWs, vec2 uv, vec3 normalWs, out 
     float det = duvdx.x * duvdy.y - duvdx.y * duvdy.x;
     if (abs(det) < 1e-10)
     {
+        outHandedness = 1.0;
         vec3 up = abs(n.y) < 0.999
             ? vec3(0.0, 1.0, 0.0)
             : vec3(1.0, 0.0, 0.0);
@@ -64,6 +65,10 @@ bool VgeTryBuildTbnFromDerivatives(vec3 worldPosWs, vec2 uv, vec3 normalWs, out 
         outTbn = mat3(tFallback, bFallback, n);
         return false;
     }
+
+    // UV determinant sign indicates whether the UV mapping is mirrored.
+    // We keep TBN right-handed and apply this sign to the tangent-space normal (Y) at use-site.
+    outHandedness = det < 0.0 ? -1.0 : 1.0;
 
     float invDet = 1.0 / det;
 
@@ -86,13 +91,8 @@ bool VgeTryBuildTbnFromDerivatives(vec3 worldPosWs, vec2 uv, vec3 normalWs, out 
     }
     t *= inversesqrt(tLen2);
 
-    vec3 bCandidate = normalize(b);
+    // Right-handed TBN.
     vec3 bOrtho = normalize(cross(n, t));
-    if (dot(bOrtho, bCandidate) < 0.0)
-    {
-        bOrtho = -bOrtho;
-    }
-
     outTbn = mat3(t, bOrtho, n);
     return true;
 }
@@ -119,7 +119,12 @@ vec4 VgeComputePackedWorldNormal01Height01(vec2 uv, vec3 geometricNormalWs, vec3
     }
 
     mat3 tbn;
-    VgeTryBuildTbnFromDerivatives(worldPosWs, uv, nGeom, tbn);
+    float handedness;
+    VgeTryBuildTbnFromDerivatives(worldPosWs, uv, nGeom, tbn, handedness);
+
+    // Apply UV-handedness to the tangent-space normal to avoid mirrored UVs producing inverted bumps.
+    // Tangent space convention: X=tangent, Y=bitangent, Z=normal.
+    nAtlasSigned.y *= handedness;
     vec3 nWs = normalize(tbn * nAtlasSigned);
 
     // VGE: Distance attenuation for normal-map contribution.
