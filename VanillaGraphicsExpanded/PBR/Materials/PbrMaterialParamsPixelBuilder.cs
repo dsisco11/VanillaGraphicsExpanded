@@ -101,19 +101,17 @@ internal static class PbrMaterialParamsPixelBuilder
 
             (int width, int height) = sizesByAtlasTexId[texPos.atlasTextureId];
 
-            // TextureAtlasPosition coordinates are normalized (0..1) in atlas UV space.
-            // Convert to integer pixel bounds.
-            int x1 = Clamp((int)Math.Floor(texPos.x1 * width), 0, width - 1);
-            int y1 = Clamp((int)Math.Floor(texPos.y1 * height), 0, height - 1);
-            int x2 = Clamp((int)Math.Ceiling(texPos.x2 * width), 0, width);
-            int y2 = Clamp((int)Math.Ceiling(texPos.y2 * height), 0, height);
-
-            int rectWidth = x2 - x1;
-            int rectHeight = y2 - y1;
-            if (rectWidth <= 0 || rectHeight <= 0)
+            if (!AtlasRectResolver.TryResolvePixelRect(texPos, width, height, out AtlasRect rect))
             {
                 continue;
             }
+
+            int x1 = rect.X;
+            int y1 = rect.Y;
+            int x2 = rect.Right;
+            int y2 = rect.Bottom;
+            int rectWidth = rect.Width;
+            int rectHeight = rect.Height;
 
             float roughness = Clamp01(definition.Roughness);
             float metallic = Clamp01(definition.Metallic);

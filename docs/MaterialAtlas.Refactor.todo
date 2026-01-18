@@ -55,11 +55,11 @@ Existing tests and gaps:
 ## Phase 1 - Data Contracts and Atlas Snapshot
 Exit artifacts: shared data structures that decouple planning from execution.
 - Reference: `docs/MaterialAtlas.Architecture.md`
-- [ ] Define `AtlasSnapshot` (pages, sizes, positions, reload iteration, non-null count).
-- [ ] Define `AtlasRect` + `AtlasRectResolver` for UV->pixel conversion with clamping rules.
-- [ ] Define `AtlasBuildPlan` (per-page jobs, overrides, stats).
-- [ ] Define `AtlasCacheKey` (hash of inputs, versioned schema).
-- [ ] Centralize atlas position normalization (replace inline copies).
+- [x] Define `AtlasSnapshot` (pages, sizes, positions, reload iteration, non-null count).
+- [x] Define `AtlasRect` + `AtlasRectResolver` for UV->pixel conversion with clamping rules.
+- [x] Define `AtlasBuildPlan` (per-page jobs, overrides, stats).
+- [x] Define `AtlasCacheKey` (hash of inputs, versioned schema).
+- [x] Centralize atlas position normalization (replace inline copies).
 
 ---
 

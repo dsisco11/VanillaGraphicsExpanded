@@ -110,20 +110,10 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                 }
             }
 
-            bool TryGetRectPx(TextureAtlasPosition pos, out (int x, int y, int w, int h) rect)
-            {
-                int rx1 = Math.Clamp((int)Math.Floor(pos.x1 * width), 0, width - 1);
-                int ry1 = Math.Clamp((int)Math.Floor(pos.y1 * height), 0, height - 1);
-                int rx2 = Math.Clamp((int)Math.Ceiling(pos.x2 * width), 0, width);
-                int ry2 = Math.Clamp((int)Math.Ceiling(pos.y2 * height), 0, height);
+            bool TryGetRectPx(TextureAtlasPosition pos, out AtlasRect rect)
+                => AtlasRectResolver.TryResolvePixelRect(pos, width, height, out rect);
 
-                int rw = rx2 - rx1;
-                int rh = ry2 - ry1;
-                rect = (rx1, ry1, rw, rh);
-                return rw > 0 && rh > 0;
-            }
-
-            var bakeRects = new Dictionary<(int x, int y, int w, int h), (float normalScale, float depthScale)>();
+            var bakeRects = new Dictionary<AtlasRect, (float normalScale, float depthScale)>();
 
             // Seed from atlas positions with identity scale (no asset key).
             foreach (TextureAtlasPosition? pos in atlas.Positions)
@@ -133,7 +123,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                     continue;
                 }
 
-                if (TryGetRectPx(pos, out var rect))
+                if (TryGetRectPx(pos, out AtlasRect rect))
                 {
                     bakeRects.TryAdd(rect, (normalScale: 1f, depthScale: 1f));
                 }
@@ -155,7 +145,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                         continue;
                     }
 
-                    if (!TryGetRectPx(pos, out var rect))
+                    if (!TryGetRectPx(pos, out AtlasRect rect))
                     {
                         continue;
                     }
@@ -181,10 +171,10 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                                 "[VGE] Normal+depth rebake scale sample: pageTexId={0} tex={1} rect=({2},{3},{4},{5}) normalScale={6:0.###} depthScale={7:0.###}",
                                 atlasTexId,
                                 tex,
-                                rect.x,
-                                rect.y,
-                                rect.w,
-                                rect.h,
+                                rect.X,
+                                rect.Y,
+                                rect.Width,
+                                rect.Height,
                                 ns,
                                 ds);
 
@@ -207,7 +197,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                 // Best-effort.
             }
 
-            foreach (((int x, int y, int w, int h) rect, (float normalScale, float depthScale) scale) in bakeRects)
+                foreach ((AtlasRect rect, (float normalScale, float depthScale) scale) in bakeRects)
             {
                 _ = PbrNormalDepthAtlasGpuBaker.BakePerRect(
                     capi,
@@ -215,10 +205,10 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                     destNormalDepthTexId: pageTextures.NormalDepthTexture.TextureId,
                     atlasWidth: width,
                     atlasHeight: height,
-                    rectX: rect.x,
-                    rectY: rect.y,
-                    rectWidth: rect.w,
-                    rectHeight: rect.h,
+                    rectX: rect.X,
+                    rectY: rect.Y,
+                    rectWidth: rect.Width,
+                    rectHeight: rect.Height,
                     normalScale: scale.normalScale,
                     depthScale: scale.depthScale);
             }
@@ -459,7 +449,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 
                 // Preload/validate per-texture normalHeight overrides for this atlas page.
                 // Only successfully-loaded overrides are excluded from the bake job list.
-                var overrideRects = new Dictionary<(int x, int y, int w, int h), (float[] data, bool isRented)>();
+                var overrideRects = new Dictionary<AtlasRect, (float[] data, bool isRented)>();
                 foreach ((AssetLocation targetTexture, PbrMaterialTextureOverrides overrides) in PbrMaterialRegistry.Instance.OverridesByTexture)
                 {
                     if (overrides.NormalHeight is null)
@@ -474,14 +464,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                         continue;
                     }
 
-                    int x1 = Math.Clamp((int)Math.Floor(texPos.x1 * width), 0, width - 1);
-                    int y1 = Math.Clamp((int)Math.Floor(texPos.y1 * height), 0, height - 1);
-                    int x2 = Math.Clamp((int)Math.Ceiling(texPos.x2 * width), 0, width);
-                    int y2 = Math.Clamp((int)Math.Ceiling(texPos.y2 * height), 0, height);
-
-                    int rectW = x2 - x1;
-                    int rectH = y2 - y1;
-                    if (rectW <= 0 || rectH <= 0)
+                    if (!AtlasRectResolver.TryResolvePixelRect(texPos, width, height, out AtlasRect rect))
                     {
                         continue;
                     }
@@ -493,8 +476,8 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                             out int _,
                             out float[] floatRgba,
                             out string? reason,
-                            expectedWidth: rectW,
-                            expectedHeight: rectH))
+                            expectedWidth: rect.Width,
+                            expectedHeight: rect.Height))
                     {
                         capi.Logger.Warning(
                             "[VGE] PBR override ignored: rule='{0}' target='{1}' override='{2}' reason='{3}'. Falling back to generated maps.",
@@ -511,44 +494,34 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 
                     if (isIdentity)
                     {
-                        overrideRects[(x1, y1, rectW, rectH)] = (floatRgba, isRented: false);
+                        overrideRects[rect] = (floatRgba, isRented: false);
                         continue;
                     }
 
                     // Don't mutate cached float arrays from the override loader.
-                    int floats = checked(rectW * rectH * 4);
+                    int floats = checked(rect.Width * rect.Height * 4);
                     float[] rented = ArrayPool<float>.Shared.Rent(floats);
                     Array.Copy(floatRgba, 0, rented, 0, floats);
 
                     // Channel packing must match vge_normaldepth.glsl (RGB = normalXYZ_01, A = height01).
                     SimdSpanMath.MultiplyClamp01Interleaved4InPlace2D(
                         destination4: rented.AsSpan(0, floats),
-                        rectWidthPixels: rectW,
-                        rectHeightPixels: rectH,
-                        rowStridePixels: rectW,
+                        rectWidthPixels: rect.Width,
+                        rectHeightPixels: rect.Height,
+                        rowStridePixels: rect.Width,
                         mulRgb: normalScale,
                         mulA: depthScale);
 
-                    overrideRects[(x1, y1, rectW, rectH)] = (rented, isRented: true);
+                    overrideRects[rect] = (rented, isRented: true);
                 }
 
                 // Gather a more exhaustive set of atlas rects to bake.
-                var bakeRects = new Dictionary<(int x, int y, int w, int h), (float normalScale, float depthScale)>(capacity: atlas.Positions.Length + 1024);
+                var bakeRects = new Dictionary<AtlasRect, (float normalScale, float depthScale)>(capacity: atlas.Positions.Length + 1024);
 
                 int skippedByOverrides = 0;
 
-                bool TryGetRectPx(TextureAtlasPosition pos, out (int x, int y, int w, int h) rect)
-                {
-                    int rx1 = Math.Clamp((int)Math.Floor(pos.x1 * width), 0, width - 1);
-                    int ry1 = Math.Clamp((int)Math.Floor(pos.y1 * height), 0, height - 1);
-                    int rx2 = Math.Clamp((int)Math.Ceiling(pos.x2 * width), 0, width);
-                    int ry2 = Math.Clamp((int)Math.Ceiling(pos.y2 * height), 0, height);
-
-                    int rw = rx2 - rx1;
-                    int rh = ry2 - ry1;
-                    rect = (rx1, ry1, rw, rh);
-                    return rw > 0 && rh > 0;
-                }
+                static bool TryGetRectPx(TextureAtlasPosition pos, int width, int height, out AtlasRect rect)
+                    => AtlasRectResolver.TryResolvePixelRect(pos, width, height, out rect);
 
                 foreach (TextureAtlasPosition? pos in atlas.Positions)
                 {
@@ -559,7 +532,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                             continue;
                         }
 
-                        if (overrideRects.Count > 0 && TryGetRectPx(pos, out (int x, int y, int w, int h) rect)
+                        if (overrideRects.Count > 0 && TryGetRectPx(pos, width, height, out AtlasRect rect)
                             && overrideRects.ContainsKey(rect))
                         {
                             skippedByOverrides++;
@@ -568,7 +541,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 
                         // No reliable asset key for atlas.Positions entries.
                         // Policy B: apply registry default scale to all rects, then overwrite where we can resolve a specific texture.
-                        if (TryGetRectPx(pos, out (int x, int y, int w, int h) rect2))
+                        if (TryGetRectPx(pos, width, height, out AtlasRect rect2))
                         {
                             PbrOverrideScale def = PbrMaterialRegistry.Instance.DefaultScale;
                             bakeRects.TryAdd(rect2, (normalScale: def.Normal, depthScale: def.Depth));
@@ -592,7 +565,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                         continue;
                     }
 
-                    if (!TryGetRectPx(pos, out (int x, int y, int w, int h) rect))
+                    if (!TryGetRectPx(pos, width, height, out AtlasRect rect))
                     {
                         continue;
                     }
@@ -635,14 +608,14 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                             continue;
                         }
 
-                        if (overrideRects.Count > 0 && TryGetRectPx(pos, out (int x, int y, int w, int h) rect)
+                        if (overrideRects.Count > 0 && TryGetRectPx(pos, width, height, out AtlasRect rect)
                             && overrideRects.ContainsKey(rect))
                         {
                             skippedByOverrides++;
                             continue;
                         }
 
-                        if (TryGetRectPx(pos, out (int x, int y, int w, int h) rect2))
+                        if (TryGetRectPx(pos, width, height, out AtlasRect rect2))
                         {
                             float ns = 1f;
                             float ds = 1f;
@@ -704,10 +677,10 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                         capi.Logger.Debug(
                             "[VGE] Normal+depth atlas scale sample: pageTexId={0} rect=({1},{2},{3},{4}) normalScale={5:0.###} depthScale={6:0.###}",
                             atlasTexId,
-                            rect.x,
-                            rect.y,
-                            rect.w,
-                            rect.h,
+                            rect.X,
+                            rect.Y,
+                            rect.Width,
+                            rect.Height,
                             scale.normalScale,
                             scale.depthScale);
 
@@ -728,7 +701,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                     atlasHeight: height);
 
                 int bakedRects = 0;
-                foreach (((int x, int y, int w, int h) rect, (float normalScale, float depthScale) scale) in bakeRects)
+                foreach ((AtlasRect rect, (float normalScale, float depthScale) scale) in bakeRects)
                 {
                     if (PbrNormalDepthAtlasGpuBaker.BakePerRect(
                         capi,
@@ -736,10 +709,10 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                         destNormalDepthTexId: pageTextures.NormalDepthTexture.TextureId,
                         atlasWidth: width,
                         atlasHeight: height,
-                        rectX: rect.x,
-                        rectY: rect.y,
-                        rectWidth: rect.w,
-                        rectHeight: rect.h,
+                        rectX: rect.X,
+                        rectY: rect.Y,
+                        rectWidth: rect.Width,
+                        rectHeight: rect.Height,
                         normalScale: scale.normalScale,
                         depthScale: scale.depthScale))
                     {
@@ -750,11 +723,11 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                 // Apply explicit overrides after the bake clears and writes into the atlas.
                 // (The baker always clears the whole atlas page sidecar for determinism.)
                 int appliedOverrides = 0;
-                foreach (((int x, int y, int w, int h) rect, (float[] data, bool isRented) ov) in overrideRects)
+                foreach ((AtlasRect rect, (float[] data, bool isRented) ov) in overrideRects)
                 {
                     try
                     {
-                        pageTextures.NormalDepthTexture.UploadData(ov.data, rect.x, rect.y, rect.w, rect.h);
+                        pageTextures.NormalDepthTexture.UploadData(ov.data, rect.X, rect.Y, rect.Width, rect.Height);
                         appliedOverrides++;
                     }
                     finally
@@ -936,14 +909,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                 continue;
             }
 
-            int x1 = Math.Clamp((int)Math.Floor(texPos.x1 * size.width), 0, size.width - 1);
-            int y1 = Math.Clamp((int)Math.Floor(texPos.y1 * size.height), 0, size.height - 1);
-            int x2 = Math.Clamp((int)Math.Ceiling(texPos.x2 * size.width), 0, size.width);
-            int y2 = Math.Clamp((int)Math.Ceiling(texPos.y2 * size.height), 0, size.height);
-
-            int rectW = x2 - x1;
-            int rectH = y2 - y1;
-            if (rectW <= 0 || rectH <= 0)
+            if (!AtlasRectResolver.TryResolvePixelRect(texPos, size.width, size.height, out AtlasRect rect))
             {
                 continue;
             }
@@ -965,10 +931,10 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
             tileJobs.Add(new PbrMaterialAtlasTileJob(
                 GenerationId: generationId,
                 AtlasTextureId: texPos.atlasTextureId,
-                RectX: x1,
-                RectY: y1,
-                RectWidth: rectW,
-                RectHeight: rectH,
+                RectX: rect.X,
+                RectY: rect.Y,
+                RectWidth: rect.Width,
+                RectHeight: rect.Height,
                 Texture: texture,
                 Definition: definition,
                 Priority: 0,
@@ -1021,15 +987,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 
             (int atlasW, int atlasH) = result.SizesByAtlasTexId[texPos.atlasTextureId];
 
-            // Convert normalized atlas UV bounds to integer pixel bounds.
-            int x1 = Math.Clamp((int)Math.Floor(texPos.x1 * atlasW), 0, atlasW - 1);
-            int y1 = Math.Clamp((int)Math.Floor(texPos.y1 * atlasH), 0, atlasH - 1);
-            int x2 = Math.Clamp((int)Math.Ceiling(texPos.x2 * atlasW), 0, atlasW);
-            int y2 = Math.Clamp((int)Math.Ceiling(texPos.y2 * atlasH), 0, atlasH);
-
-            int rectW = x2 - x1;
-            int rectH = y2 - y1;
-            if (rectW <= 0 || rectH <= 0)
+            if (!AtlasRectResolver.TryResolvePixelRect(texPos, atlasW, atlasH, out AtlasRect rect))
             {
                 continue;
             }
@@ -1041,8 +999,8 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                     out int _,
                     out float[] floatRgba01,
                     out string? reason,
-                    expectedWidth: rectW,
-                    expectedHeight: rectH))
+                    expectedWidth: rect.Width,
+                    expectedHeight: rect.Height))
             {
                 capi.Logger.Warning(
                     "[VGE] PBR override ignored: rule='{0}' target='{1}' override='{2}' reason='{3}'. Falling back to generated maps.",
@@ -1059,10 +1017,10 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                 atlasRgbTriplets: pixels,
                 atlasWidth: atlasW,
                 atlasHeight: atlasH,
-                rectX: x1,
-                rectY: y1,
-                rectWidth: rectW,
-                rectHeight: rectH,
+                rectX: rect.X,
+                rectY: rect.Y,
+                rectWidth: rect.Width,
+                rectHeight: rect.Height,
                 overrideRgba01: floatRgba01,
                 scale: overrides.Scale);
 

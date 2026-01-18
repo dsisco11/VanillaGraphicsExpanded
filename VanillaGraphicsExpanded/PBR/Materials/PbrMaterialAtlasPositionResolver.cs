@@ -22,29 +22,5 @@ internal static class PbrMaterialAtlasPositionResolver
     }
 
     internal static AssetLocation NormalizeToAtlasKey(AssetLocation textureAsset)
-    {
-        // VGE mapping rules are authored against the actual asset file location, e.g.
-        //   game:textures/block/stone/granite.png
-        // but the block atlas is keyed by composite texture bases, e.g.
-        //   game:block/stone/granite
-        // The conversion is deterministic:
-        //   1) strip leading "textures/"
-        //   2) trim the file extension (".png", ".jpg", etc.)
-
-        string path = textureAsset.Path;
-
-        if (path.StartsWith("textures/", StringComparison.OrdinalIgnoreCase))
-        {
-            path = path["textures/".Length..];
-        }
-
-        int lastSlash = path.LastIndexOf('/');
-        int lastDot = path.LastIndexOf('.');
-        if (lastDot > lastSlash)
-        {
-            path = path[..lastDot];
-        }
-
-        return new AssetLocation(textureAsset.Domain, path);
-    }
+        => AtlasAssetKeyNormalizer.NormalizeToBlockAtlasKey(textureAsset);
 }

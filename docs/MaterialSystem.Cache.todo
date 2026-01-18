@@ -5,7 +5,7 @@ Goal: Add a disk cache for material params, normal, and depth bake outputs.
 Scope: Per-texture-rect caching for block atlas pages (RGB16F + RGBA16F).
 Non-goals: Changes to mapping rules, shader formats, or engine API behavior.
 
----
+---pnpm
 
 ## Phase 0 - Requirements and Policy
 Exit artifacts: clear cache policy and terminology.
