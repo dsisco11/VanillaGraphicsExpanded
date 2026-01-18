@@ -95,15 +95,15 @@
     "painted": { "roughness": 0.6, "metallic": 0.0 },
     "polished_stone": { "roughness": 0.35, "metallic": 0.0 },
 
-    "metal_generic": { "roughness": 0.35, "metallic": 0.75, "noise": { "roughness": 0.025, "metallic": 0.1 }, "scale": { "normal": 0.02, "depth": 0.02 } },
-    "metal_iron": { "roughness": 0.35, "metallic": 0.75, "noise": { "roughness": 0.025, "metallic": 0.1 }, "scale": { "normal": 0.02, "depth": 0.02 } },
-    "metal_steel": { "roughness": 0.3, "metallic": 0.75, "noise": { "roughness": 0.025, "metallic": 0.1 }, "scale": { "normal": 0.02, "depth": 0.02 } },
-    "metal_copper": { "roughness": 0.28, "metallic": 0.75, "noise": { "roughness": 0.025, "metallic": 0.1 }, "scale": { "normal": 0.02, "depth": 0.02 } },
-    "metal_tin": { "roughness": 0.3, "metallic": 0.75, "noise": { "roughness": 0.025, "metallic": 0.1 }, "scale": { "normal": 0.02, "depth": 0.02 } },
-    "metal_zinc": { "roughness": 0.3, "metallic": 0.75, "noise": { "roughness": 0.025, "metallic": 0.1 }, "scale": { "normal": 0.02, "depth": 0.02 } },
-    "metal_gold": { "roughness": 0.18, "metallic": 0.75, "noise": { "roughness": 0.025, "metallic": 0.1 }, "scale": { "normal": 0.02, "depth": 0.02 } },
-    "metal_silver": { "roughness": 0.15, "metallic": 0.75, "noise": { "roughness": 0.025, "metallic": 0.1 }, "scale": { "normal": 0.02, "depth": 0.02 } },
-    "metal_bronze": { "roughness": 0.25, "metallic": 0.75, "noise": { "roughness": 0.025, "metallic": 0.1 }, "scale": { "normal": 0.02, "depth": 0.02 } }
+    "metal_generic": { "roughness": 0.35, "metallic": 0.75, "noise": { "roughness": 0.025, "metallic": 0.02 }, "scale": { "normal": 0.02, "depth": 0.02 } },
+    "metal_iron": { "roughness": 0.35, "metallic": 0.75, "noise": { "roughness": 0.025, "metallic": 0.02 }, "scale": { "normal": 0.02, "depth": 0.02 } },
+    "metal_steel": { "roughness": 0.3, "metallic": 0.75, "noise": { "roughness": 0.025, "metallic": 0.02 }, "scale": { "normal": 0.02, "depth": 0.02 } },
+    "metal_copper": { "roughness": 0.28, "metallic": 0.75, "noise": { "roughness": 0.025, "metallic": 0.02 }, "scale": { "normal": 0.02, "depth": 0.02 } },
+    "metal_tin": { "roughness": 0.3, "metallic": 0.75, "noise": { "roughness": 0.025, "metallic": 0.02 }, "scale": { "normal": 0.02, "depth": 0.02 } },
+    "metal_zinc": { "roughness": 0.3, "metallic": 0.75, "noise": { "roughness": 0.025, "metallic": 0.02 }, "scale": { "normal": 0.02, "depth": 0.02 } },
+    "metal_gold": { "roughness": 0.18, "metallic": 0.75, "noise": { "roughness": 0.025, "metallic": 0.02 }, "scale": { "normal": 0.02, "depth": 0.02 } },
+    "metal_silver": { "roughness": 0.15, "metallic": 0.75, "noise": { "roughness": 0.025, "metallic": 0.02 }, "scale": { "normal": 0.02, "depth": 0.02 } },
+    "metal_bronze": { "roughness": 0.25, "metallic": 0.75, "noise": { "roughness": 0.025, "metallic": 0.02 }, "scale": { "normal": 0.02, "depth": 0.02 } }
   },
   "mapping": [
     {
