@@ -10,14 +10,58 @@ namespace VanillaGraphicsExpanded.PBR.Materials;
 internal sealed record class AtlasBuildPlan(
     AtlasSnapshot Snapshot,
     IReadOnlyList<AtlasBuildPlan.AtlasPagePlan> Pages,
-    IReadOnlyList<AtlasBuildPlan.AtlasTilePlan> Tiles,
+    IReadOnlyList<AtlasBuildPlan.MaterialParamsTileJob> MaterialParamsTiles,
+    IReadOnlyList<AtlasBuildPlan.MaterialParamsOverrideJob> MaterialParamsOverrides,
+    IReadOnlyList<AtlasBuildPlan.NormalDepthTileJob> NormalDepthTiles,
+    IReadOnlyList<AtlasBuildPlan.NormalDepthOverrideJob> NormalDepthOverrides,
     AtlasBuildPlan.AtlasBuildStats Stats)
 {
     internal readonly record struct AtlasPagePlan(int AtlasTextureId, int Width, int Height);
 
-    internal readonly record struct AtlasTilePlan(int AtlasTextureId, AtlasRect Rect, int Priority);
+    internal readonly record struct MaterialParamsTileJob(
+        int AtlasTextureId,
+        AtlasRect Rect,
+        Vintagestory.API.Common.AssetLocation Texture,
+        PbrMaterialDefinition Definition,
+        PbrOverrideScale Scale,
+        int Priority);
 
-    internal readonly record struct AtlasBuildStats(int TotalTiles, int TotalOverrides);
+    internal readonly record struct MaterialParamsOverrideJob(
+        int AtlasTextureId,
+        AtlasRect Rect,
+        Vintagestory.API.Common.AssetLocation TargetTexture,
+        Vintagestory.API.Common.AssetLocation OverrideTexture,
+        string? RuleId,
+        Vintagestory.API.Common.AssetLocation? RuleSource,
+        PbrOverrideScale Scale,
+        int Priority);
+
+    internal readonly record struct NormalDepthTileJob(
+        int AtlasTextureId,
+        AtlasRect Rect,
+        Vintagestory.API.Common.AssetLocation Texture,
+        float NormalScale,
+        float DepthScale,
+        int Priority);
+
+    internal readonly record struct NormalDepthOverrideJob(
+        int AtlasTextureId,
+        AtlasRect Rect,
+        Vintagestory.API.Common.AssetLocation TargetTexture,
+        Vintagestory.API.Common.AssetLocation OverrideTexture,
+        string? RuleId,
+        Vintagestory.API.Common.AssetLocation? RuleSource,
+        float NormalScale,
+        float DepthScale,
+        int Priority);
+
+    internal readonly record struct AtlasBuildStats(
+        int MaterialParamsTiles,
+        int MaterialParamsOverrides,
+        int NormalDepthTiles,
+        int NormalDepthOverrides,
+        int MissingAtlasPositions,
+        int EmptyRects);
 
     public DateTime CreatedUtc { get; } = DateTime.UtcNow;
 }

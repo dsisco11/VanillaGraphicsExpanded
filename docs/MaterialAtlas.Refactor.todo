@@ -76,11 +76,11 @@ Exit artifacts: a dedicated store for page textures and lifecycle management.
 ## Phase 3 - Build Planning (Registry + Atlas)
 Exit artifacts: pure planning layer that produces jobs from registry + atlas snapshot.
 - Reference: `docs/MaterialAtlas.Architecture.md`
-- [ ] Create `MaterialAtlasBuildPlanner` that consumes snapshot + registry.
-- [ ] Produce per-rect material params jobs and optional override jobs.
-- [ ] Produce per-rect normal+depth bake jobs + overrides.
-- [ ] Isolate asset scans (textures/block) behind a planner helper.
-- [ ] Ensure planner is deterministic and side-effect free.
+- [x] Create `MaterialAtlasBuildPlanner` that consumes snapshot + registry.
+- [x] Produce per-rect material params jobs and optional override jobs.
+- [x] Produce per-rect normal+depth bake jobs + overrides.
+- [x] Isolate asset scans (textures/block) behind a planner helper.
+- [x] Ensure planner is deterministic and side-effect free.
 
 ---
 
