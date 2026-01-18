@@ -1,0 +1,75 @@
+# Material System Disk Cache Plan
+
+Goal: Add a disk cache for material params, normal, and depth bake outputs.
+Scope: Per-texture-rect caching for block atlas pages (RGB16F + RGBA16F).
+Non-goals: Changes to mapping rules, shader formats, or engine API behavior.
+
+---
+
+## Phase 0 - Requirements and Policy
+Exit artifacts: clear cache policy and terminology.
+- [ ] Decide global vs per-world policy (global by default, per-world overlay for mutable assets).
+- [ ] Define "stable" vs "mutable" asset provenance (base game, mods, resource packs, server assets).
+- [ ] Define fallback when provenance is unknown (treat as mutable).
+- [ ] Define cache scope naming (global root + optional per-world namespace).
+- [ ] Add config toggles (enable, max size, debug stats, allow per-world).
+
+---
+
+## Phase 1 - Cache Key and Fingerprint Schema
+Exit artifacts: versioned key spec and metadata contract.
+- [ ] Define cache key fields for material params (asset location, rect size, resolved params, noise, scale, overrides).
+- [ ] Define cache key fields for normal+depth (config values, normal/depth scale, source asset fingerprint).
+- [ ] Define lightweight fingerprint fields (path, source id, last modified, size, pack list fingerprint).
+- [ ] Add bake-version stamp (blue-noise seed/size, algorithm constants, schema version).
+- [ ] Document key serialization order and hashing method.
+
+---
+
+## Phase 2 - Disk Cache Storage
+Exit artifacts: cache reader/writer with safe persistence.
+- [ ] Implement `MaterialAtlasDiskCache` (read/write, versioned header).
+- [ ] Choose file layout (per-key files + optional index for LRU).
+- [ ] Add atomic writes (temp file then move) and corruption handling.
+- [ ] Track last-access timestamps for eviction.
+- [ ] Enforce max size and prune least-recently-used entries.
+
+---
+
+## Phase 3 - Material Params Integration
+Exit artifacts: cache hit path for RGB16F rects.
+- [ ] Add cache lookup when building tile jobs (skip CPU compute on hit).
+- [ ] Upload cached data directly via render thread.
+- [ ] Cache post-override results (so a hit skips override stage).
+- [ ] Ensure session generation id protects against stale cache work.
+- [ ] Wire sync build path to use cache too.
+
+---
+
+## Phase 4 - Normal+Depth Integration
+Exit artifacts: cache hit path for RGBA16F rects.
+- [ ] Add per-rect cache lookup before GPU bake.
+- [ ] Upload cached rects and bake only misses per page.
+- [ ] Read back baked misses for persistence (per-rect or per-page readback).
+- [ ] Cache normal+height override outputs as authoritative.
+- [ ] Ensure bake clear and override order remains deterministic.
+
+---
+
+## Phase 5 - Invalidation and Provenance
+Exit artifacts: stable invalidation rules.
+- [ ] Add global cache namespace fingerprint (mod list + resource packs).
+- [ ] Add per-world namespace fingerprint (world id + server mods/packs).
+- [ ] Invalidate on material_definitions changes (timestamp or version).
+- [ ] Guard against dimension mismatch and reject stale cache entries.
+- [ ] Provide manual cache clear hook for debugging.
+
+---
+
+## Phase 6 - Diagnostics and Validation
+Exit artifacts: visibility into cache behavior and correctness.
+- [ ] Log hit/miss stats (per system and per asset class).
+- [ ] Expose counters (entries, bytes, evictions).
+- [ ] Add tests for key stability and fingerprint changes.
+- [ ] Validate parity between cached and freshly baked outputs.
+- [ ] Add performance notes (readback cost vs bake cost).
