@@ -2,6 +2,8 @@ Issues:
   ☐ Mod settings not live reloading properly (e.g. changes to Lumon shader settings dont always take effect).
   ☐ Make async PBRMaterialBaking system "more async" by passing a copy of the relevant data to the worker thread instead of forcing main-thread access.
   ☐ Need better material override system, consider allowing material definitions to specify a "base material" to inherit from.
+  ☐ Allow material definitions "emissive" property to accept values > 1.0 for glowing materials (should be a real measurement like 'lumens' or something).
+  ☐ Allow material definitions to specify emissive colors (not just grayscale intensity).
   ☐ pbr-direct-lighting doesnt include flood-filled block-light.
   ☐ pbr-direct-lighting doesnt include flood-filled sun-light.
   ☐ pbr-direct-lighting doesnt include shadow map.

@@ -231,6 +231,6 @@ to simplify IO and reduce decoding overhead.
 
 ---
 
-## 11. Open Decisions
+## 11. Resolved Decisions
 
-- (none currently)
+- All cache design decisions are resolved in sections 4-9.
