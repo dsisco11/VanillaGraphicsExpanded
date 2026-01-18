@@ -130,13 +130,14 @@ internal static class TerrainMaterialParamsTextureBindingHook
             return;
         }
 
-        if (!PbrMaterialAtlasTextures.Instance.IsInitialized)
+        if (!MaterialAtlasSystem.Instance.IsInitialized)
         {
             return;
         }
 
-        bool hasMaterialParams = PbrMaterialAtlasTextures.Instance.TryGetMaterialParamsTextureId(value, out int materialTexId);
-        bool hasNormalDepth = PbrMaterialAtlasTextures.Instance.TryGetNormalDepthTextureId(value, out int normalDepthTexId);
+        MaterialAtlasTextureStore store = MaterialAtlasSystem.Instance.TextureStore;
+        bool hasMaterialParams = store.TryGetMaterialParamsTextureId(value, out int materialTexId);
+        bool hasNormalDepth = store.TryGetNormalDepthTextureId(value, out int normalDepthTexId);
 
         if (!hasMaterialParams && !hasNormalDepth)
         {

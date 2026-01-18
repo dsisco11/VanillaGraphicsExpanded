@@ -6,6 +6,8 @@ namespace VanillaGraphicsExpanded.PBR.Materials.Cache;
 /// </summary>
 internal interface IMaterialAtlasDiskCache
 {
+    void Clear();
+
     bool TryLoadMaterialParamsTile(AtlasCacheKey key, out float[] rgbTriplets);
 
     void StoreMaterialParamsTile(AtlasCacheKey key, float[] rgbTriplets);

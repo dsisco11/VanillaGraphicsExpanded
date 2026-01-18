@@ -79,14 +79,14 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         // Material params + normal/depth atlas textures:
         // - Phase 1 (allocation) can happen any time (no-op until atlas exists)
         // - Phase 2 (populate/bake) must only run after the block atlas is finalized
-        PbrMaterialAtlasTextures.Instance.CreateTextureObjects(api);
+        MaterialAtlasSystem.Instance.CreateTextureObjects(api);
         api.Event.BlockTexturesLoaded += () =>
         {
-            PbrMaterialAtlasTextures.Instance.PopulateAtlasContents(api);
+            MaterialAtlasSystem.Instance.PopulateAtlasContents(api);
         };
         api.Event.ReloadTextures += () => {
             api.Logger.Debug("[VGE] ReloadTextures event");
-            PbrMaterialAtlasTextures.Instance.RequestRebuild(api);
+            MaterialAtlasSystem.Instance.RequestRebuild(api);
         };
 
         // Ensure all VGE memory shader programs are registered before any renderer can request them.
@@ -172,7 +172,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
             lumOnBufferManager?.Dispose();
             lumOnBufferManager = null;
 
-            PbrMaterialAtlasTextures.Instance?.Dispose();
+            MaterialAtlasSystem.Instance.Dispose();
 
             gBufferManager?.Dispose();
             gBufferManager = null;

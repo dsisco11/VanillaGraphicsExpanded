@@ -46,6 +46,8 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 
     private PbrMaterialAtlasTextures() { }
 
+    internal MaterialAtlasTextureStore TextureStore => textureStore;
+
     public bool IsInitialized { get; private set; }
     public bool AreTexturesCreated => texturesCreated;
     public bool IsBuildComplete { get; private set; }
@@ -671,6 +673,14 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         schedulerRegistered = false;
 
         DisposeTextures();
+        try
+        {
+            diskCache.Clear();
+        }
+        catch
+        {
+            // Best-effort.
+        }
         isDisposed = true;
     }
 

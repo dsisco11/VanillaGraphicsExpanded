@@ -123,7 +123,7 @@ Exit artifacts: cache interfaces and wiring points only (no persistence).
 - [x] Define cache interfaces (lookup/store/invalidate) and data contracts.
 - [x] Define cache key builder inputs (snapshot + registry + config).
 - [x] Add no-op cache implementation and wire it through the pipeline.
-- [x] Add config toggles and logging stubs for cache integration points.
+- [x] Add config toggles and logging stubs for cache integration points
 - [x] Defer persistence and eviction policy to `MaterialSystem.Cache.todo`.
 
 ---
@@ -131,10 +131,10 @@ Exit artifacts: cache interfaces and wiring points only (no persistence).
 ## Phase 8 - Orchestration and Events
 Exit artifacts: a thin orchestrator that delegates to planner/pipelines/stores.
 - Reference: `docs/MaterialAtlas.Architecture.md`
-- [ ] Introduce `MaterialAtlasSystem` (or rename existing class).
-- [ ] Wire events in `VanillaGraphicsExpandedModSystem` to orchestrator.
-- [ ] Update `TerrainMaterialParamsTextureBindingHook` to query texture store.
-- [ ] Ensure clean shutdown: cancel sessions, dispose textures, clear caches.
+- [x] Introduce `MaterialAtlasSystem` (or rename existing class).
+- [x] Wire events in `VanillaGraphicsExpandedModSystem` to orchestrator.
+- [x] Update `TerrainMaterialParamsTextureBindingHook` to query texture store.
+- [x] Ensure clean shutdown: cancel sessions, dispose textures, clear caches.
 
 ---
 

@@ -9,6 +9,11 @@ internal sealed class MaterialAtlasDiskCacheNoOp : IMaterialAtlasDiskCache
 
     private MaterialAtlasDiskCacheNoOp() { }
 
+    public void Clear()
+    {
+        // Intentionally no-op.
+    }
+
     public bool TryLoadMaterialParamsTile(AtlasCacheKey key, out float[] rgbTriplets)
     {
         rgbTriplets = null!;
