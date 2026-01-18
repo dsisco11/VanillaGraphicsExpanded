@@ -16,7 +16,7 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
 {
     private readonly object sessionLock = new();
 
-    private readonly PriorityFifoQueue<MaterialAtlasParamsCpuTileJob> pendingCpuJobs = new();
+    private readonly PriorityFifoQueue<IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload>> pendingCpuJobs = new();
     private readonly ConcurrentQueue<MaterialAtlasParamsGpuTileUpload> completedUploads = new();
     private readonly PriorityFifoQueue<MaterialAtlasParamsGpuTileUpload> pendingGpuUploads = new();
 
@@ -58,7 +58,7 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
             while (completedUploads.TryDequeue(out _)) { }
             pendingGpuUploads.Clear();
 
-            foreach (MaterialAtlasParamsCpuTileJob job in newSession.CpuTileJobs)
+            foreach (IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload> job in newSession.CpuTileJobs)
             {
                 pendingCpuJobs.Enqueue(job.Priority, job);
 
@@ -162,7 +162,7 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
         int dispatched = 0;
         while (dispatched < maxCpuJobsPerFrame && stopwatch.Elapsed.TotalMilliseconds < budgetMs)
         {
-            if (!pendingCpuJobs.TryDequeue(out MaterialAtlasParamsCpuTileJob job))
+            if (!pendingCpuJobs.TryDequeue(out IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload> job))
             {
                 break;
             }

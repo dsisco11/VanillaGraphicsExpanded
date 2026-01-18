@@ -1,5 +1,7 @@
 using System.Threading;
 
+using VanillaGraphicsExpanded.PBR.Materials.Cache;
+
 using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.PBR.Materials.Async;
@@ -13,7 +15,9 @@ internal readonly record struct MaterialAtlasParamsCpuTileJob(
     AtlasRect Rect,
     AssetLocation Texture,
     PbrMaterialDefinition Definition,
-    int Priority) : IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload>
+    int Priority,
+    IMaterialAtlasDiskCache? DiskCache,
+    AtlasCacheKey CacheKey) : IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload>
 {
     public MaterialAtlasParamsGpuTileUpload Execute(CancellationToken cancellationToken)
     {
@@ -23,6 +27,8 @@ internal readonly record struct MaterialAtlasParamsCpuTileJob(
             rectWidth: Rect.Width,
             rectHeight: Rect.Height,
             cancellationToken);
+
+        DiskCache?.StoreMaterialParamsTile(CacheKey, rgb);
 
         return new MaterialAtlasParamsGpuTileUpload(
             GenerationId,

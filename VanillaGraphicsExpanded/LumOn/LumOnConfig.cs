@@ -151,6 +151,19 @@ public class LumOnConfig
     public bool EnableNormalDepthAtlas { get; set; } = true;
 
     /// <summary>
+    /// Enables disk cache integration points for the material atlas build.
+    /// Phase 7 provides wiring points only; persistence/eviction is implemented separately.
+    /// </summary>
+    [JsonProperty]
+    public bool EnableMaterialAtlasDiskCache { get; set; } = false;
+
+    /// <summary>
+    /// Enables debug logging for disk cache hit/miss counters.
+    /// </summary>
+    [JsonProperty]
+    public bool DebugLogMaterialAtlasDiskCache { get; set; } = false;
+
+    /// <summary>
     /// Enables parallax mapping in patched vanilla chunk shaders.
     /// Requires shader reload / re-entering the world to fully apply.
     /// </summary>

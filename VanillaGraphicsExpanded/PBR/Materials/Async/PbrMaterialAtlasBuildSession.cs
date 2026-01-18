@@ -18,7 +18,7 @@ internal sealed class PbrMaterialAtlasBuildSession : IDisposable
     public PbrMaterialAtlasBuildSession(
         int generationId,
         IReadOnlyList<(int atlasTextureId, int width, int height)> atlasPages,
-        IReadOnlyList<MaterialAtlasParamsCpuTileJob> cpuTileJobs,
+        IReadOnlyList<IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload>> cpuTileJobs,
         IReadOnlyList<MaterialAtlasParamsGpuOverrideUpload> overrideJobs,
         MaterialOverrideTextureLoader overrideLoader)
     {
@@ -57,7 +57,7 @@ internal sealed class PbrMaterialAtlasBuildSession : IDisposable
 
     public IReadOnlyList<(int atlasTextureId, int width, int height)> AtlasPages { get; }
 
-    public IReadOnlyList<MaterialAtlasParamsCpuTileJob> CpuTileJobs { get; }
+    public IReadOnlyList<IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload>> CpuTileJobs { get; }
 
     public IReadOnlyList<MaterialAtlasParamsGpuOverrideUpload> OverrideJobs { get; }
 

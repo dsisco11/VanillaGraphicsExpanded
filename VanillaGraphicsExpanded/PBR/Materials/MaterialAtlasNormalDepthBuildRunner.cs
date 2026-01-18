@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 
+using VanillaGraphicsExpanded.PBR.Materials.Cache;
 using VanillaGraphicsExpanded.Numerics;
 
 using Vintagestory.API.Client;
@@ -16,20 +17,34 @@ internal sealed class MaterialAtlasNormalDepthBuildRunner
 {
     private readonly MaterialAtlasTextureStore textureStore;
     private readonly MaterialOverrideTextureLoader overrideLoader;
+    private readonly IMaterialAtlasDiskCache diskCache;
+    private readonly MaterialAtlasCacheKeyBuilder cacheKeyBuilder;
 
-    public MaterialAtlasNormalDepthBuildRunner(MaterialAtlasTextureStore textureStore, MaterialOverrideTextureLoader overrideLoader)
+    public MaterialAtlasNormalDepthBuildRunner(
+        MaterialAtlasTextureStore textureStore,
+        MaterialOverrideTextureLoader overrideLoader,
+        IMaterialAtlasDiskCache diskCache,
+        MaterialAtlasCacheKeyBuilder cacheKeyBuilder)
     {
         this.textureStore = textureStore ?? throw new ArgumentNullException(nameof(textureStore));
         this.overrideLoader = overrideLoader ?? throw new ArgumentNullException(nameof(overrideLoader));
+        this.diskCache = diskCache ?? throw new ArgumentNullException(nameof(diskCache));
+        this.cacheKeyBuilder = cacheKeyBuilder ?? throw new ArgumentNullException(nameof(cacheKeyBuilder));
     }
 
-    public (int bakedRects, int appliedOverrides) ExecutePlan(ICoreClientAPI capi, MaterialAtlasNormalDepthBuildPlan plan)
+    public (int bakedRects, int appliedOverrides, int cacheHits, int cacheMisses) ExecutePlan(
+        ICoreClientAPI capi,
+        MaterialAtlasNormalDepthBuildPlan plan,
+        MaterialAtlasCacheKeyInputs cacheInputs,
+        bool enableCache)
     {
         ArgumentNullException.ThrowIfNull(capi);
         ArgumentNullException.ThrowIfNull(plan);
 
         int baked = 0;
         int overrides = 0;
+        int cacheHits = 0;
+        int cacheMisses = 0;
 
         // Group jobs per atlas page for locality.
         var bakeByPage = new Dictionary<int, List<MaterialAtlasNormalDepthBuildPlan.BakeJob>>();
@@ -79,6 +94,33 @@ internal sealed class MaterialAtlasNormalDepthBuildRunner
             {
                 foreach (var job in bakeJobs)
                 {
+                    if (enableCache)
+                    {
+                        AtlasCacheKey key = cacheKeyBuilder.BuildNormalDepthTileKey(
+                            cacheInputs,
+                            page.AtlasTextureId,
+                            job.Rect,
+                            job.SourceTexture,
+                            job.NormalScale,
+                            job.DepthScale);
+
+                        if (diskCache.TryLoadNormalDepthTile(key, out float[] rgbaQuads)
+                            && rgbaQuads.Length == checked(job.Rect.Width * job.Rect.Height * 4))
+                        {
+                            pageTextures.NormalDepthTexture.UploadData(
+                                rgbaQuads,
+                                job.Rect.X,
+                                job.Rect.Y,
+                                job.Rect.Width,
+                                job.Rect.Height);
+                            baked++;
+                            cacheHits++;
+                            continue;
+                        }
+
+                        cacheMisses++;
+                    }
+
                     if (PbrNormalDepthAtlasGpuBaker.BakePerRect(
                         capi,
                         baseAlbedoAtlasPageTexId: page.AtlasTextureId,
@@ -153,6 +195,6 @@ internal sealed class MaterialAtlasNormalDepthBuildRunner
             }
         }
 
-        return (baked, overrides);
+        return (baked, overrides, cacheHits, cacheMisses);
     }
 }

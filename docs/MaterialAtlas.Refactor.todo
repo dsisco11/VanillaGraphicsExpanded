@@ -120,11 +120,11 @@ Exit artifacts: scheduler runs on shared job interfaces and supports sync fallba
 ## Phase 7 - Disk Cache Subsystem
 Exit artifacts: cache interfaces and wiring points only (no persistence).
 - Reference: `docs/MaterialAtlas.Architecture.md`
-- [ ] Define cache interfaces (lookup/store/invalidate) and data contracts.
-- [ ] Define cache key builder inputs (snapshot + registry + config).
-- [ ] Add no-op cache implementation and wire it through the pipeline.
-- [ ] Add config toggles and logging stubs for cache integration points.
-- [ ] Defer persistence and eviction policy to `MaterialSystem.Cache.todo`.
+- [x] Define cache interfaces (lookup/store/invalidate) and data contracts.
+- [x] Define cache key builder inputs (snapshot + registry + config).
+- [x] Add no-op cache implementation and wire it through the pipeline.
+- [x] Add config toggles and logging stubs for cache integration points.
+- [x] Defer persistence and eviction policy to `MaterialSystem.Cache.todo`.
 
 ---
 

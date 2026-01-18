@@ -9,6 +9,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.PBR.Materials.Async;
+using VanillaGraphicsExpanded.PBR.Materials.Cache;
 using VanillaGraphicsExpanded.Rendering;
 
 using Vintagestory.API.Client;
@@ -25,6 +26,8 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
     public static PbrMaterialAtlasTextures Instance { get; } = new();
 
     private readonly MaterialAtlasTextureStore textureStore = new();
+    private readonly IMaterialAtlasDiskCache diskCache = MaterialAtlasDiskCacheNoOp.Instance;
+    private readonly MaterialAtlasCacheKeyBuilder cacheKeyBuilder = new();
     private bool isDisposed;
 
     private short lastBlockAtlasReloadIteration = short.MinValue;
@@ -88,8 +91,10 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
             PbrMaterialRegistry.Instance,
             capi.Assets.GetLocations("textures/block/", domain: null));
 
-        var runner = new MaterialAtlasNormalDepthBuildRunner(textureStore, new MaterialOverrideTextureLoader());
-        _ = runner.ExecutePlan(capi, plan);
+        MaterialAtlasCacheKeyInputs cacheInputs = MaterialAtlasCacheKeyInputs.Create(ConfigModSystem.Config, snapshot, PbrMaterialRegistry.Instance);
+
+        var runner = new MaterialAtlasNormalDepthBuildRunner(textureStore, new MaterialOverrideTextureLoader(), diskCache, cacheKeyBuilder);
+        _ = runner.ExecutePlan(capi, plan, cacheInputs, enableCache: ConfigModSystem.Config.EnableMaterialAtlasDiskCache);
 
         if (ConfigModSystem.Config.DebugLogNormalDepthAtlas)
         {
@@ -238,11 +243,14 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 
         int filledRects;
         int overriddenRects;
+        MaterialAtlasCacheKeyInputs cacheInputs = MaterialAtlasCacheKeyInputs.Create(ConfigModSystem.Config, snapshot, PbrMaterialRegistry.Instance);
+
         if (ConfigModSystem.Config.EnableMaterialAtlasAsyncBuild)
         {
             filledRects = StartMaterialParamsAsyncBuild(
                 atlasPages,
                 plan,
+                cacheInputs,
                 currentReload,
                 nonNullCount);
             overriddenRects = 0; // overrides are applied asynchronously on the render thread.
@@ -251,7 +259,8 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         {
             (filledRects, overriddenRects) = PopulateMaterialParamsSync(
                 capi,
-                plan);
+                plan,
+                cacheInputs);
         }
 
         if (ConfigModSystem.Config.EnableNormalDepthAtlas)
@@ -264,8 +273,12 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                 PbrMaterialRegistry.Instance,
                 capi.Assets.GetLocations("textures/block/", domain: null));
 
-            var runner = new MaterialAtlasNormalDepthBuildRunner(textureStore, new MaterialOverrideTextureLoader());
-            (int bakedRects, int appliedOverrides) = runner.ExecutePlan(capi, normalDepthPlan);
+            var runner = new MaterialAtlasNormalDepthBuildRunner(textureStore, new MaterialOverrideTextureLoader(), diskCache, cacheKeyBuilder);
+            (int bakedRects, int appliedOverrides, int cacheHits, int cacheMisses) = runner.ExecutePlan(
+                capi,
+                normalDepthPlan,
+                cacheInputs,
+                enableCache: ConfigModSystem.Config.EnableMaterialAtlasDiskCache);
 
             if (appliedOverrides > 0)
             {
@@ -287,6 +300,14 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                     "[VGE] Normal+depth atlas execution: bakedRects={0} appliedOverrides={1}",
                     bakedRects,
                     appliedOverrides);
+            }
+
+            if (ConfigModSystem.Config.EnableMaterialAtlasDiskCache && ConfigModSystem.Config.DebugLogMaterialAtlasDiskCache)
+            {
+                capi.Logger.Debug(
+                    "[VGE] Material atlas disk cache (normal+depth): hits={0} misses={1} (store not implemented; requires GPU readback)",
+                    cacheHits,
+                    cacheMisses);
             }
         }
 
@@ -400,6 +421,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
     private int StartMaterialParamsAsyncBuild(
         IReadOnlyList<(int atlasTextureId, int width, int height)> atlasPages,
         AtlasBuildPlan plan,
+        MaterialAtlasCacheKeyInputs cacheInputs,
         short currentReload,
         int nonNullCount)
     {
@@ -415,16 +437,50 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
             generationId = 1;
         }
 
-        var cpuJobs = new List<MaterialAtlasParamsCpuTileJob>(capacity: plan.MaterialParamsTiles.Count);
+        var cpuJobs = new List<IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload>>(capacity: plan.MaterialParamsTiles.Count);
+
+        bool enableCache = ConfigModSystem.Config.EnableMaterialAtlasDiskCache;
+        int cacheHits = 0;
+        int cacheMisses = 0;
+
         foreach (AtlasBuildPlan.MaterialParamsTileJob tile in plan.MaterialParamsTiles)
         {
+            AtlasCacheKey key = default;
+            if (enableCache)
+            {
+                key = cacheKeyBuilder.BuildMaterialParamsTileKey(
+                    cacheInputs,
+                    tile.AtlasTextureId,
+                    tile.Rect,
+                    tile.Texture,
+                    tile.Definition,
+                    tile.Scale);
+
+                if (diskCache.TryLoadMaterialParamsTile(key, out float[] rgb))
+                {
+                    cpuJobs.Add(new MaterialAtlasParamsCpuCachedTileJob(
+                        GenerationId: generationId,
+                        AtlasTextureId: tile.AtlasTextureId,
+                        Rect: tile.Rect,
+                        RgbTriplets: rgb,
+                        TargetTexture: tile.Texture,
+                        Priority: tile.Priority));
+                    cacheHits++;
+                    continue;
+                }
+
+                cacheMisses++;
+            }
+
             cpuJobs.Add(new MaterialAtlasParamsCpuTileJob(
                 GenerationId: generationId,
                 AtlasTextureId: tile.AtlasTextureId,
                 Rect: tile.Rect,
                 Texture: tile.Texture,
                 Definition: tile.Definition,
-                Priority: tile.Priority));
+                Priority: tile.Priority,
+                DiskCache: enableCache ? diskCache : null,
+                CacheKey: key));
         }
 
         var overrideJobs = new List<MaterialAtlasParamsGpuOverrideUpload>(capacity: plan.MaterialParamsOverrides.Count);
@@ -450,6 +506,14 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
             new MaterialOverrideTextureLoader());
         scheduler.StartSession(session);
 
+        if (enableCache && ConfigModSystem.Config.DebugLogMaterialAtlasDiskCache && capi is not null)
+        {
+            capi.Logger.Debug(
+                "[VGE] Material atlas disk cache (material params): hits={0} misses={1}",
+                cacheHits,
+                cacheMisses);
+        }
+
         lastScheduledAtlasReloadIteration = currentReload;
         lastScheduledAtlasNonNullPositions = nonNullCount;
         IsBuildComplete = cpuJobs.Count == 0 && overrideJobs.Count == 0;
@@ -459,15 +523,46 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 
     private (int filledRects, int overriddenRects) PopulateMaterialParamsSync(
         ICoreClientAPI capi,
-        AtlasBuildPlan plan)
+        AtlasBuildPlan plan,
+        MaterialAtlasCacheKeyInputs cacheInputs)
     {
         var uploader = new MaterialAtlasParamsUploader(textureStore);
         var overrideLoader = new MaterialOverrideTextureLoader();
+
+        bool enableCache = ConfigModSystem.Config.EnableMaterialAtlasDiskCache;
+        int cacheHits = 0;
+        int cacheMisses = 0;
 
         // Upload procedural tiles.
         int filledRects = 0;
         foreach (AtlasBuildPlan.MaterialParamsTileJob tile in plan.MaterialParamsTiles)
         {
+            AtlasCacheKey key = default;
+
+            if (enableCache)
+            {
+                key = cacheKeyBuilder.BuildMaterialParamsTileKey(
+                    cacheInputs,
+                    tile.AtlasTextureId,
+                    tile.Rect,
+                    tile.Texture,
+                    tile.Definition,
+                    tile.Scale);
+
+                if (diskCache.TryLoadMaterialParamsTile(key, out float[] cached))
+                {
+                    if (uploader.TryUploadTile(tile.AtlasTextureId, tile.Rect, cached))
+                    {
+                        filledRects++;
+                    }
+
+                    cacheHits++;
+                    continue;
+                }
+
+                cacheMisses++;
+            }
+
             float[] rgb = MaterialAtlasParamsBuilder.BuildRgb16fTile(
                 tile.Texture,
                 tile.Definition,
@@ -478,6 +573,11 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
             if (uploader.TryUploadTile(tile.AtlasTextureId, tile.Rect, rgb))
             {
                 filledRects++;
+            }
+
+            if (enableCache)
+            {
+                diskCache.StoreMaterialParamsTile(key, rgb);
             }
         }
 
@@ -523,6 +623,14 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         {
             capi.Logger.Warning(
                 "[VGE] Built material param atlas textures but filled 0 rects. This usually means atlas key mismatch (e.g. textures/...png vs block/...) or textures not in block atlas.");
+        }
+
+        if (enableCache && ConfigModSystem.Config.DebugLogMaterialAtlasDiskCache)
+        {
+            capi.Logger.Debug(
+                "[VGE] Material atlas disk cache (material params): hits={0} misses={1}",
+                cacheHits,
+                cacheMisses);
         }
 
         return (filledRects, overriddenRects);
