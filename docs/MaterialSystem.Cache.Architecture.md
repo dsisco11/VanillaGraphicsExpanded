@@ -92,6 +92,24 @@ Assets are classified as:
 
 If provenance is unknown, treat as mutable.
 
+Provenance signals (locked in):
+
+- If the resolved `IAsset` indicates a resource pack source, treat as mutable.
+- If the resolved `IAsset` indicates server/world override, treat as mutable.
+- If the resolved `IAsset` indicates base game or mod asset and no pack override is present, treat as stable.
+- If any of the above signals are unavailable, treat as mutable.
+- Persist the resolved provenance in the cache `.meta` sidecar to avoid re-querying.
+
+Metadata threshold rules (locked in):
+
+- Global cache is allowed only when provenance is stable and a fingerprint is
+  sufficiently stable (source id + at least one of last modified or size).
+- If provenance is missing or ambiguous, treat as unknown and use per-world only.
+- If pack/mod list fingerprints are unavailable, allow per-world caching but
+  never global caching.
+- Cache `.meta` must record which metadata fields were present so future reads
+  preserve the same policy.
+
 ---
 
 ## 5. Cache Key Schema
@@ -149,8 +167,8 @@ which forces a more conservative cache policy (per-world only).
 
 ### 7.1 File Layout
 
-Per-key cache entry uses a `.dds` texture file for the payload, plus a small
-sidecar header for metadata:
+Per-tile cache entry (one per atlas rect) uses a `.dds` texture file for the
+payload, plus a small sidecar header for metadata:
 
 ```text
 <key>.dds   -> texture payload (RGB16F or RGBA16F, DDS container)
@@ -176,16 +194,16 @@ to simplify IO and reduce decoding overhead.
 
 ### 8.1 Material Params
 
-- Before CPU bake, build cache key and probe cache.
+- Before CPU bake, build cache key and probe cache per tile.
 - Cache hit: enqueue upload immediately.
 - Cache miss: compute tile, upload, then persist result.
 - Cache stores post-override RGB data to avoid reapplying overrides.
 
 ### 8.2 Normal + Depth
 
-- Before GPU bake, probe cache per rect.
+- Before GPU bake, probe cache per tile.
 - Upload cached rects and bake only misses.
-- Read back baked misses and persist.
+- Read back baked misses per tile and persist.
 - Overrides are cached as authoritative output.
 
 ### 8.3 Scheduler and Threading
@@ -215,6 +233,4 @@ to simplify IO and reduce decoding overhead.
 
 ## 11. Open Decisions
 
-- Exact provenance signals available from `IAsset` and the API.
-- Readback granularity for normal+depth (per-rect vs per-page).
-- Thresholds for treating metadata as "unknown".
+- (none currently)

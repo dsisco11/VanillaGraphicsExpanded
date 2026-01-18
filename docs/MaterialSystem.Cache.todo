@@ -1,4 +1,5 @@
 # Material System Disk Cache Plan
+See: `docs/MaterialSystem.Cache.Architecture.md`
 
 Goal: Add a disk cache for material params, normal, and depth bake outputs.
 Scope: Per-texture-rect caching for block atlas pages (RGB16F + RGBA16F).
@@ -8,29 +9,29 @@ Non-goals: Changes to mapping rules, shader formats, or engine API behavior.
 
 ## Phase 0 - Requirements and Policy
 Exit artifacts: clear cache policy and terminology.
-- [ ] Decide global vs per-world policy (global by default, per-world overlay for mutable assets).
-- [ ] Define "stable" vs "mutable" asset provenance (base game, mods, resource packs, server assets).
-- [ ] Define fallback when provenance is unknown (treat as mutable).
-- [ ] Define cache scope naming (`VintagestoryData/VGE/Cache/` + optional `Worlds/<worldId>/` namespace).
-- [ ] Add config toggles (enable, max size, debug stats, allow per-world).
+- [x] Global cache by default with per-world overlay for mutable/unknown assets.
+- [x] Stable vs mutable provenance: base/mod without pack override = stable; pack/server/world override or unknown = mutable.
+- [x] Unknown provenance defaults to per-world only.
+- [x] Cache root: `VintagestoryData/VGE/Cache/` with per-world `Worlds/<worldId>/` overlay.
+- [ ] Add config toggle: enable cache (default: true). See `docs/MaterialSystem.Cache.Architecture.md`.
 
 ---
 
 ## Phase 1 - Cache Key and Fingerprint Schema
 Exit artifacts: versioned key spec and metadata contract.
-- [ ] Define cache key fields for material params (asset location, rect size, resolved params, noise, scale, overrides).
-- [ ] Define cache key fields for normal+depth (config values, normal/depth scale, source asset fingerprint).
-- [ ] Define lightweight fingerprint fields (path, source id, last modified, size, pack list fingerprint).
-- [ ] Add bake-version stamp (blue-noise seed/size, algorithm constants, schema version).
-- [ ] Document key serialization order and hashing method.
+- [x] Cache key fields for material params (asset location, rect size, resolved params, noise, scale, overrides). See `docs/MaterialSystem.Cache.Architecture.md`.
+- [x] Cache key fields for normal+depth (config values, normal/depth scale, source asset fingerprint). See `docs/MaterialSystem.Cache.Architecture.md`.
+- [x] Lightweight fingerprints (path, source id, last modified, size, pack/mod list fingerprints). See `docs/MaterialSystem.Cache.Architecture.md`.
+- [x] Bake-version stamp (blue-noise seed/size, algorithm constants, schema version). See `docs/MaterialSystem.Cache.Architecture.md`.
+- [ ] Document key serialization order and hashing method. See `docs/MaterialSystem.Cache.Architecture.md`.
 
 ---
 
 ## Phase 2 - Disk Cache Storage
 Exit artifacts: cache reader/writer with safe persistence.
 - [ ] Implement `MaterialAtlasDiskCache` (read/write, versioned header).
-- [ ] Choose file layout (per-key files + optional index for LRU).
-- [ ] Add atomic writes (temp file then move) and corruption handling.
+- [x] File layout: per-tile `.dds` payload + `.meta` sidecar. See `docs/MaterialSystem.Cache.Architecture.md`.
+- [ ] Add atomic writes (temp file then move) and corruption handling. See `docs/MaterialSystem.Cache.Architecture.md`.
 - [ ] Track last-access timestamps for eviction.
 - [ ] Enforce max size and prune least-recently-used entries.
 
@@ -38,7 +39,7 @@ Exit artifacts: cache reader/writer with safe persistence.
 
 ## Phase 3 - Material Params Integration
 Exit artifacts: cache hit path for RGB16F rects.
-- [ ] Add cache lookup when building tile jobs (skip CPU compute on hit).
+- [x] Cache lookup per tile job (skip CPU compute on hit). See `docs/MaterialSystem.Cache.Architecture.md`.
 - [ ] Upload cached data directly via render thread.
 - [ ] Cache post-override results (so a hit skips override stage).
 - [ ] Ensure session generation id protects against stale cache work.
@@ -48,9 +49,9 @@ Exit artifacts: cache hit path for RGB16F rects.
 
 ## Phase 4 - Normal+Depth Integration
 Exit artifacts: cache hit path for RGBA16F rects.
-- [ ] Add per-rect cache lookup before GPU bake.
+- [x] Add per-tile cache lookup before GPU bake. See `docs/MaterialSystem.Cache.Architecture.md`.
 - [ ] Upload cached rects and bake only misses per page.
-- [ ] Read back baked misses for persistence (per-rect or per-page readback).
+- [x] Read back baked misses per tile. See `docs/MaterialSystem.Cache.Architecture.md`.
 - [ ] Cache normal+height override outputs as authoritative.
 - [ ] Ensure bake clear and override order remains deterministic.
 
@@ -58,10 +59,10 @@ Exit artifacts: cache hit path for RGBA16F rects.
 
 ## Phase 5 - Invalidation and Provenance
 Exit artifacts: stable invalidation rules.
-- [ ] Add global cache namespace fingerprint (mod list + resource packs).
-- [ ] Add per-world namespace fingerprint (world id + server mods/packs).
-- [ ] Invalidate on material_definitions changes (timestamp or version).
-- [ ] Guard against dimension mismatch and reject stale cache entries.
+- [x] Global cache namespace fingerprint (mod list + resource packs). See `docs/MaterialSystem.Cache.Architecture.md`.
+- [x] Per-world namespace fingerprint (world id + server mods/packs). See `docs/MaterialSystem.Cache.Architecture.md`.
+- [x] Invalidate on material_definitions changes (timestamp or version). See `docs/MaterialSystem.Cache.Architecture.md`.
+- [x] Guard against dimension mismatch and reject stale cache entries. See `docs/MaterialSystem.Cache.Architecture.md`.
 - [ ] Provide manual cache clear hook for debugging.
 
 ---
