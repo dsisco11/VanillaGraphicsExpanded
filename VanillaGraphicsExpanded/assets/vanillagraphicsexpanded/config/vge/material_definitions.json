@@ -83,7 +83,8 @@
     "water": { "roughness": 0.02, "metallic": 0.0 },
     "ice": { "roughness": 0.5, "metallic": 0.0 },
     "snow": { "roughness": 0.5, "metallic": 0.0 },
-    "lava": { "roughness": 0.1, "metallic": 0.0, "emissive": 1.0 },
+    "lava": { "roughness": 0.1, "metallic": 0.0, "emissive": 10.0 },
+    "fire": { "roughness": 1.0, "metallic": 0.0, "emissive": 3.0, "scale": { "normal": 0.0, "depth": 0.0 } },
     "tar": { "roughness": 0.08, "metallic": 0.0 },
     "honey": { "roughness": 0.05, "metallic": 0.0 },
 
@@ -192,6 +193,66 @@
       },
       "values": {
         "material": "lava"
+      }
+    },
+    {
+      "id": "fire-blocks",
+      "description": "Flame/fire textures used for blocks (emissive).",
+      "match": {
+        "glob": "assets/**/textures/block/fire.png"
+      },
+      "values": {
+        "material": "fire"
+      }
+    },
+    {
+      "id": "fire-variant-blocks",
+      "description": "Colored flame/fire variants (emissive).",
+      "match": {
+        "glob": "assets/**/textures/block/fire-*.png"
+      },
+      "values": {
+        "material": "fire"
+      }
+    },
+    {
+      "id": "firepit-fire",
+      "description": "Firepit flame texture (emissive; excludes extinguished texture).",
+      "match": {
+        "glob": "assets/**/textures/block/wood/firepit/fire.png"
+      },
+      "values": {
+        "material": "fire"
+      }
+    },
+    {
+      "id": "fire-particle-textures",
+      "description": "Particle textures used for flame/fire effects (emissive).",
+      "match": {
+        "glob": "assets/**/textures/particle/*fire*.png"
+      },
+      "values": {
+        "material": "fire"
+      }
+    },
+    {
+      "id": "flame-particle-textures",
+      "description": "Particle textures used for flame effects (emissive).",
+      "match": {
+        "glob": "assets/**/textures/particle/*flame*.png"
+      },
+      "values": {
+        "material": "fire"
+      }
+    },
+    {
+      "id": "fire-particle-white-spec",
+      "description": "Generic particle sprite often tinted for sparks/flames (emissive).",
+      "match": {
+        "glob": "assets/**/textures/particle/white-spec.png"
+      },
+      "values": {
+        "material": "fire"
       }
     },
     {
