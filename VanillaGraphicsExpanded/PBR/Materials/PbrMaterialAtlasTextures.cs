@@ -63,156 +63,33 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 
         IBlockTextureAtlasAPI atlas = capi.BlockTextureAtlas;
 
-        var atlasPages = new List<(int atlasTextureId, int width, int height)>(capacity: atlas.AtlasTextures.Count);
-        foreach (LoadedTexture atlasPage in atlas.AtlasTextures)
-        {
-            if (atlasPage.TextureId == 0 || atlasPage.Width <= 0 || atlasPage.Height <= 0)
-            {
-                continue;
-            }
-
-            atlasPages.Add((atlasPage.TextureId, atlasPage.Width, atlasPage.Height));
-        }
-
-        if (atlasPages.Count == 0)
+        AtlasSnapshot snapshot = AtlasSnapshot.Capture(atlas);
+        if (snapshot.Pages.Count == 0)
         {
             return;
         }
 
-        // Bake using current atlas pixel contents. This is intentionally "force" and does not depend on reloadIteration,
-        // because some textures are inserted/updated after BlockTexturesLoaded without changing atlas layout.
-        foreach ((int atlasTexId, int width, int height) in atlasPages)
+        TextureAtlasPosition? TryGetAtlasPosition(AssetLocation loc)
         {
-            if (!textureStore.TryGetPageTextures(atlasTexId, out PbrMaterialAtlasPageTextures pageTextures)
-                || pageTextures.NormalDepthTexture is null
-                || !pageTextures.NormalDepthTexture.IsValid)
-            {
-                continue;
-            }
-
-            // Match the atlas-build path: clear once per page, then bake per rect with resolved scale.
-            // BakePerTexture() cannot apply per-texture scales because atlas.Positions entries don't carry asset keys.
-            PbrNormalDepthAtlasGpuBaker.ClearAtlasPage(
-                capi,
-                destNormalDepthTexId: pageTextures.NormalDepthTexture.TextureId,
-                atlasWidth: width,
-                atlasHeight: height);
-
-            TextureAtlasPosition? TryGetAtlasPosition(AssetLocation loc)
-            {
-                try
-                {
-                    return atlas[loc];
-                }
-                catch
-                {
-                    return null;
-                }
-            }
-
-            bool TryGetRectPx(TextureAtlasPosition pos, out AtlasRect rect)
-                => AtlasRectResolver.TryResolvePixelRect(pos, width, height, out rect);
-
-            var bakeRects = new Dictionary<AtlasRect, (float normalScale, float depthScale)>();
-
-            // Seed from atlas positions with identity scale (no asset key).
-            foreach (TextureAtlasPosition? pos in atlas.Positions)
-            {
-                if (pos is null || pos.atlasTextureId != atlasTexId)
-                {
-                    continue;
-                }
-
-                if (TryGetRectPx(pos, out AtlasRect rect))
-                {
-                    bakeRects.TryAdd(rect, (normalScale: 1f, depthScale: 1f));
-                }
-            }
-
-            // Refine scales using registry mapping (asset scan) so defaults.scale.normal affects final normals.
             try
             {
-                int sampledNonIdentity = 0;
-                int sampledTotal = 0;
-                const int MaxSamplesToLog = 12;
-
-                foreach (AssetLocation tex in capi.Assets.GetLocations("textures/block/", domain: null))
-                {
-                    if (!PbrMaterialAtlasPositionResolver.TryResolve(TryGetAtlasPosition, tex, out TextureAtlasPosition? pos)
-                        || pos is null
-                        || pos.atlasTextureId != atlasTexId)
-                    {
-                        continue;
-                    }
-
-                    if (!TryGetRectPx(pos, out AtlasRect rect))
-                    {
-                        continue;
-                    }
-
-                    float ns = 1f;
-                    float ds = 1f;
-                    if (PbrMaterialRegistry.Instance.TryGetScale(tex, out PbrOverrideScale scale))
-                    {
-                        ns = scale.Normal;
-                        ds = scale.Depth;
-                    }
-
-                    bakeRects[rect] = (normalScale: ns, depthScale: ds);
-
-                    if (ConfigModSystem.Config.DebugLogNormalDepthAtlas && sampledTotal < MaxSamplesToLog)
-                    {
-                        bool nonIdentity = Math.Abs(ns - 1f) > 1e-6f || Math.Abs(ds - 1f) > 1e-6f;
-
-                        // Prefer logging non-identity scales first (i.e., actually proving scaling is applied).
-                        if (nonIdentity || sampledNonIdentity == 0)
-                        {
-                            capi.Logger.Debug(
-                                "[VGE] Normal+depth rebake scale sample: pageTexId={0} tex={1} rect=({2},{3},{4},{5}) normalScale={6:0.###} depthScale={7:0.###}",
-                                atlasTexId,
-                                tex,
-                                rect.X,
-                                rect.Y,
-                                rect.Width,
-                                rect.Height,
-                                ns,
-                                ds);
-
-                            sampledTotal++;
-                            if (nonIdentity) sampledNonIdentity++;
-                        }
-                    }
-                }
-
-                if (ConfigModSystem.Config.DebugLogNormalDepthAtlas)
-                {
-                    capi.Logger.Debug(
-                        "[VGE] Normal+depth rebake scale sampling complete: pageTexId={0} samplesLogged={1}",
-                        atlasTexId,
-                        sampledTotal);
-                }
+                return atlas[loc];
             }
             catch
             {
-                // Best-effort.
-            }
-
-                foreach ((AtlasRect rect, (float normalScale, float depthScale) scale) in bakeRects)
-            {
-                _ = PbrNormalDepthAtlasGpuBaker.BakePerRect(
-                    capi,
-                    baseAlbedoAtlasPageTexId: atlasTexId,
-                    destNormalDepthTexId: pageTextures.NormalDepthTexture.TextureId,
-                    atlasWidth: width,
-                    atlasHeight: height,
-                    rectX: rect.X,
-                    rectY: rect.Y,
-                    rectWidth: rect.Width,
-                    rectHeight: rect.Height,
-                    normalScale: scale.normalScale,
-                    depthScale: scale.depthScale);
+                return null;
             }
         }
+
+        var planner = new MaterialAtlasNormalDepthBuildPlanner();
+        var plan = planner.CreatePlan(
+            snapshot,
+            TryGetAtlasPosition,
+            PbrMaterialRegistry.Instance,
+            capi.Assets.GetLocations("textures/block/", domain: null));
+
+        var runner = new MaterialAtlasNormalDepthBuildRunner(textureStore, new MaterialOverrideTextureLoader());
+        _ = runner.ExecutePlan(capi, plan);
 
         if (ConfigModSystem.Config.DebugLogNormalDepthAtlas)
         {
@@ -400,328 +277,37 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 
         if (ConfigModSystem.Config.EnableNormalDepthAtlas)
         {
-            int totalNormalHeightOverridesApplied = 0;
-            foreach ((int atlasTexId, int width, int height) in atlasPages)
-            {
-                if (!textureStore.TryGetPageTextures(atlasTexId, out PbrMaterialAtlasPageTextures pageTextures)
-                    || pageTextures.NormalDepthTexture is null)
-                {
-                    continue;
-                }
+            AtlasSnapshot snapshot = AtlasSnapshot.Capture(atlas);
+            var planner = new MaterialAtlasNormalDepthBuildPlanner();
+            var plan = planner.CreatePlan(
+                snapshot,
+                TryGetAtlasPosition,
+                PbrMaterialRegistry.Instance,
+                capi.Assets.GetLocations("textures/block/", domain: null));
 
-                // Preload/validate per-texture normalHeight overrides for this atlas page.
-                // Only successfully-loaded overrides are excluded from the bake job list.
-                var overrideRects = new Dictionary<AtlasRect, (float[] data, bool isRented)>();
-                foreach ((AssetLocation targetTexture, PbrMaterialTextureOverrides overrides) in PbrMaterialRegistry.Instance.OverridesByTexture)
-                {
-                    if (overrides.NormalHeight is null)
-                    {
-                        continue;
-                    }
+            var runner = new MaterialAtlasNormalDepthBuildRunner(textureStore, new MaterialOverrideTextureLoader());
+            (int bakedRects, int appliedOverrides) = runner.ExecutePlan(capi, plan);
 
-                    if (!PbrMaterialAtlasPositionResolver.TryResolve(TryGetAtlasPosition, targetTexture, out TextureAtlasPosition? texPos)
-                        || texPos is null
-                        || texPos.atlasTextureId != atlasTexId)
-                    {
-                        continue;
-                    }
-
-                    if (!AtlasRectResolver.TryResolvePixelRect(texPos, width, height, out AtlasRect rect))
-                    {
-                        continue;
-                    }
-
-                    if (!PbrOverrideTextureLoader.TryLoadRgbaFloats01(
-                            capi,
-                            overrides.NormalHeight,
-                            out int _,
-                            out int _,
-                            out float[] floatRgba,
-                            out string? reason,
-                            expectedWidth: rect.Width,
-                            expectedHeight: rect.Height))
-                    {
-                        capi.Logger.Warning(
-                            "[VGE] PBR override ignored: rule='{0}' target='{1}' override='{2}' reason='{3}'. Falling back to generated maps.",
-                            overrides.RuleId ?? "(no id)",
-                            targetTexture,
-                            overrides.NormalHeight,
-                            reason ?? "unknown error");
-                        continue;
-                    }
-
-                    float normalScale = overrides.Scale.Normal;
-                    float depthScale = overrides.Scale.Depth;
-                    bool isIdentity = normalScale == 1f && depthScale == 1f;
-
-                    if (isIdentity)
-                    {
-                        overrideRects[rect] = (floatRgba, isRented: false);
-                        continue;
-                    }
-
-                    // Don't mutate cached float arrays from the override loader.
-                    int floats = checked(rect.Width * rect.Height * 4);
-                    float[] rented = ArrayPool<float>.Shared.Rent(floats);
-                    Array.Copy(floatRgba, 0, rented, 0, floats);
-
-                    // Channel packing must match vge_normaldepth.glsl (RGB = normalXYZ_01, A = height01).
-                    SimdSpanMath.MultiplyClamp01Interleaved4InPlace2D(
-                        destination4: rented.AsSpan(0, floats),
-                        rectWidthPixels: rect.Width,
-                        rectHeightPixels: rect.Height,
-                        rowStridePixels: rect.Width,
-                        mulRgb: normalScale,
-                        mulA: depthScale);
-
-                    overrideRects[rect] = (rented, isRented: true);
-                }
-
-                // Gather a more exhaustive set of atlas rects to bake.
-                var bakeRects = new Dictionary<AtlasRect, (float normalScale, float depthScale)>(capacity: atlas.Positions.Length + 1024);
-
-                int skippedByOverrides = 0;
-
-                static bool TryGetRectPx(TextureAtlasPosition pos, int width, int height, out AtlasRect rect)
-                    => AtlasRectResolver.TryResolvePixelRect(pos, width, height, out rect);
-
-                foreach (TextureAtlasPosition? pos in atlas.Positions)
-                {
-                    if (pos is not null)
-                    {
-                        if (pos.atlasTextureId != atlasTexId)
-                        {
-                            continue;
-                        }
-
-                        if (overrideRects.Count > 0 && TryGetRectPx(pos, width, height, out AtlasRect rect)
-                            && overrideRects.ContainsKey(rect))
-                        {
-                            skippedByOverrides++;
-                            continue;
-                        }
-
-                        // No reliable asset key for atlas.Positions entries.
-                        // Policy B: apply registry default scale to all rects, then overwrite where we can resolve a specific texture.
-                        if (TryGetRectPx(pos, width, height, out AtlasRect rect2))
-                        {
-                            PbrOverrideScale def = PbrMaterialRegistry.Instance.DefaultScale;
-                            bakeRects.TryAdd(rect2, (normalScale: def.Normal, depthScale: def.Depth));
-                        }
-                    }
-                }
-
-                int updatedFromScaleMap = 0;
-                foreach ((AssetLocation tex, PbrOverrideScale scale) in PbrMaterialRegistry.Instance.ScaleByTexture)
-                {
-                    // Normal+depth bake is currently targeted at block textures.
-                    if (!tex.Path.StartsWith("textures/block/", StringComparison.Ordinal))
-                    {
-                        continue;
-                    }
-
-                    if (!PbrMaterialAtlasPositionResolver.TryResolve(TryGetAtlasPosition, tex, out TextureAtlasPosition? pos)
-                        || pos is null
-                        || pos.atlasTextureId != atlasTexId)
-                    {
-                        continue;
-                    }
-
-                    if (!TryGetRectPx(pos, width, height, out AtlasRect rect))
-                    {
-                        continue;
-                    }
-
-                    if (overrideRects.Count > 0 && overrideRects.ContainsKey(rect))
-                    {
-                        skippedByOverrides++;
-                        continue;
-                    }
-
-                    if (bakeRects.TryGetValue(rect, out (float normalScale, float depthScale) existing))
-                    {
-                        if (Math.Abs(existing.normalScale - scale.Normal) > 1e-6f
-                            || Math.Abs(existing.depthScale - scale.Depth) > 1e-6f)
-                        {
-                            bakeRects[rect] = (normalScale: scale.Normal, depthScale: scale.Depth);
-                            updatedFromScaleMap++;
-                        }
-                    }
-                    else
-                    {
-                        bakeRects[rect] = (normalScale: scale.Normal, depthScale: scale.Depth);
-                        updatedFromScaleMap++;
-                    }
-                }
-
-                int updatedFromAssetScan = 0;
-                try
-                {
-                    foreach (AssetLocation tex in capi.Assets.GetLocations("textures/block/", domain: null))
-                    {
-                        if (!PbrMaterialAtlasPositionResolver.TryResolve(TryGetAtlasPosition, tex, out TextureAtlasPosition? pos)
-                            || pos is null)
-                        {
-                            continue;
-                        }
-
-                        if (pos.atlasTextureId != atlasTexId)
-                        {
-                            continue;
-                        }
-
-                        if (overrideRects.Count > 0 && TryGetRectPx(pos, width, height, out AtlasRect rect)
-                            && overrideRects.ContainsKey(rect))
-                        {
-                            skippedByOverrides++;
-                            continue;
-                        }
-
-                        if (TryGetRectPx(pos, width, height, out AtlasRect rect2))
-                        {
-                            float ns = 1f;
-                            float ds = 1f;
-                            if (PbrMaterialRegistry.Instance.TryGetScale(tex, out PbrOverrideScale scale))
-                            {
-                                ns = scale.Normal;
-                                ds = scale.Depth;
-                            }
-
-                            if (bakeRects.TryGetValue(rect2, out (float normalScale, float depthScale) existing))
-                            {
-                                if (Math.Abs(existing.normalScale - ns) > 1e-6f
-                                    || Math.Abs(existing.depthScale - ds) > 1e-6f)
-                                {
-                                    bakeRects[rect2] = (normalScale: ns, depthScale: ds);
-                                    updatedFromAssetScan++;
-                                }
-                            }
-                            else
-                            {
-                                bakeRects[rect2] = (normalScale: ns, depthScale: ds);
-                                updatedFromAssetScan++;
-                            }
-                        }
-                    }
-                }
-                catch
-                {
-                    // Best-effort.
-                }
-
-                if (ConfigModSystem.Config.DebugLogNormalDepthAtlas)
-                {
-                    PbrOverrideScale def = PbrMaterialRegistry.Instance.DefaultScale;
-                    capi.Logger.Debug(
-                        "[VGE] Normal+depth atlas default scale: pageTexId={0} normal={1:0.###} depth={2:0.###}",
-                        atlasTexId,
-                        def.Normal,
-                        def.Depth);
-
-                    int logged = 0;
-                    const int MaxSamplesToLog = 12;
-
-                    foreach (var kvp in bakeRects)
-                    {
-                        if (logged >= MaxSamplesToLog)
-                        {
-                            break;
-                        }
-
-                        var rect = kvp.Key;
-                        var scale = kvp.Value;
-                        bool nonIdentity = Math.Abs(scale.normalScale - 1f) > 1e-6f || Math.Abs(scale.depthScale - 1f) > 1e-6f;
-                        if (!nonIdentity)
-                        {
-                            continue;
-                        }
-
-                        capi.Logger.Debug(
-                            "[VGE] Normal+depth atlas scale sample: pageTexId={0} rect=({1},{2},{3},{4}) normalScale={5:0.###} depthScale={6:0.###}",
-                            atlasTexId,
-                            rect.X,
-                            rect.Y,
-                            rect.Width,
-                            rect.Height,
-                            scale.normalScale,
-                            scale.depthScale);
-
-                        logged++;
-                    }
-
-                    capi.Logger.Debug(
-                        "[VGE] Normal+depth atlas scale sampling complete: pageTexId={0} nonIdentitySamplesLogged={1}",
-                        atlasTexId,
-                        logged);
-                }
-
-                // Clear once per page, then bake per rect with scale.
-                PbrNormalDepthAtlasGpuBaker.ClearAtlasPage(
-                    capi,
-                    destNormalDepthTexId: pageTextures.NormalDepthTexture.TextureId,
-                    atlasWidth: width,
-                    atlasHeight: height);
-
-                int bakedRects = 0;
-                foreach ((AtlasRect rect, (float normalScale, float depthScale) scale) in bakeRects)
-                {
-                    if (PbrNormalDepthAtlasGpuBaker.BakePerRect(
-                        capi,
-                        baseAlbedoAtlasPageTexId: atlasTexId,
-                        destNormalDepthTexId: pageTextures.NormalDepthTexture.TextureId,
-                        atlasWidth: width,
-                        atlasHeight: height,
-                        rectX: rect.X,
-                        rectY: rect.Y,
-                        rectWidth: rect.Width,
-                        rectHeight: rect.Height,
-                        normalScale: scale.normalScale,
-                        depthScale: scale.depthScale))
-                    {
-                        bakedRects++;
-                    }
-                }
-
-                // Apply explicit overrides after the bake clears and writes into the atlas.
-                // (The baker always clears the whole atlas page sidecar for determinism.)
-                int appliedOverrides = 0;
-                foreach ((AtlasRect rect, (float[] data, bool isRented) ov) in overrideRects)
-                {
-                    try
-                    {
-                        pageTextures.NormalDepthTexture.UploadData(ov.data, rect.X, rect.Y, rect.Width, rect.Height);
-                        appliedOverrides++;
-                    }
-                    finally
-                    {
-                        if (ov.isRented)
-                        {
-                            ArrayPool<float>.Shared.Return(ov.data);
-                        }
-                    }
-                }
-
-                totalNormalHeightOverridesApplied += appliedOverrides;
-
-                if (ConfigModSystem.Config.DebugLogNormalDepthAtlas)
-                {
-                    capi.Logger.Debug(
-                        "[VGE] Normal+depth atlas bake input: pageTexId={0} positionsFromAtlasSubId={1} updatedFromScaleMap={2} updatedFromAssetScan={3} bakedRects={4} skippedByOverrides={5} appliedOverrides={6}",
-                        atlasTexId,
-                        atlas.Positions.Length,
-                        updatedFromScaleMap,
-                        updatedFromAssetScan,
-                        bakedRects,
-                        skippedByOverrides,
-                        appliedOverrides);
-                }
-            }
-
-            if (totalNormalHeightOverridesApplied > 0)
+            if (appliedOverrides > 0)
             {
                 capi.Logger.Notification(
                     "[VGE] Normal+height overrides applied: {0}",
-                    totalNormalHeightOverridesApplied);
+                    appliedOverrides);
+            }
+
+            if (ConfigModSystem.Config.DebugLogNormalDepthAtlas)
+            {
+                capi.Logger.Debug(
+                    "[VGE] Normal+depth atlas plan: pages={0} bakeJobs={1} overrideJobs={2} skippedByOverrides={3}",
+                    plan.Pages.Count,
+                    plan.PlanStats.BakeJobs,
+                    plan.PlanStats.OverrideJobs,
+                    plan.PlanStats.SkippedByOverrides);
+
+                capi.Logger.Debug(
+                    "[VGE] Normal+depth atlas execution: bakedRects={0} appliedOverrides={1}",
+                    bakedRects,
+                    appliedOverrides);
             }
         }
 

@@ -98,11 +98,11 @@ Exit artifacts: single pipeline used by both sync and async paths.
 ## Phase 5 - Normal+Depth Pipeline (GPU + Overrides)
 Exit artifacts: planner + GPU runner split; unified re-bake flow.
 - Reference: `docs/MaterialAtlas.Architecture.md`
-- [ ] Create `MaterialAtlasNormalDepthBuildPlanner` to define per-tile GPU tasks.
-- [ ] Wrap `PbrNormalDepthAtlasGpuBaker` in a `MaterialAtlasNormalDepthBuildRunner`.
-- [ ] Add override apply stage after bake (reuse loader/provider).
-- [ ] Route `RebakeNormalDepthAtlas` through the same pipeline.
-- [ ] Confirm all GL calls are render-thread only.
+- [x] Create `MaterialAtlasNormalDepthBuildPlanner` to define per-tile GPU tasks.
+- [x] Wrap `PbrNormalDepthAtlasGpuBaker` in a `MaterialAtlasNormalDepthBuildRunner`.
+- [x] Add override apply stage after bake (reuse loader/provider).
+- [x] Route `RebakeNormalDepthAtlas` through the same pipeline.
+- [x] Confirm all GL calls are render-thread only.
 
 ---
 
