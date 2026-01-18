@@ -103,29 +103,6 @@ bool VgeIsNeutralNormalSigned(vec3 normalSigned)
     return abs(normalSigned.x) < 1e-3 && abs(normalSigned.y) < 1e-3 && normalSigned.z > 0.999;
 }
 
-// Returns a packed world-space normal (xyz in 0..1) + height01 (w).
-// NOTE: The baked normal atlas encodes a UV-aligned normal (texture/heightmap-space).
-// We derive a tangent frame from screen-space derivatives of world position and UV.
-vec4 VgeComputePackedWorldNormal01Height01(vec2 uv, vec3 geometricNormalWs, vec3 worldPosWs)
-{
-    vec3 nGeom = normalize(geometricNormalWs);
-
-    vec3 nAtlasSigned = ReadNormalSigned(uv);
-    float height01 = ReadHeight01(uv);
-
-    if (VgeIsNeutralNormalSigned(nAtlasSigned))
-    {
-        return vec4(nGeom * 0.5 + 0.5, height01);
-    }
-
-    mat3 tbn;
-    float handedness;
-    VgeTryBuildTbnFromDerivatives(worldPosWs, uv, nGeom, tbn, handedness);
-
-    // Delegate to the TBN-reuse helper.
-    return VgeComputePackedWorldNormal01Height01_WithTbn(uv, nGeom, worldPosWs, tbn, handedness, nAtlasSigned, height01);
-}
-
 // TBN-reuse helper: caller supplies tangent frame and handedness (usually computed once per-fragment).
 // Optionally also supplies the already-sampled atlas normal/height to avoid resampling.
 vec4 VgeComputePackedWorldNormal01Height01_WithTbn(
@@ -173,6 +150,29 @@ vec4 VgeComputePackedWorldNormal01Height01_WithTbn(vec2 uv, vec3 geometricNormal
     vec3 nAtlasSigned = ReadNormalSigned(uv);
     float height01 = ReadHeight01(uv);
     return VgeComputePackedWorldNormal01Height01_WithTbn(uv, geometricNormalWs, worldPosWs, tbn, handedness, nAtlasSigned, height01);
+}
+
+// Returns a packed world-space normal (xyz in 0..1) + height01 (w).
+// NOTE: The baked normal atlas encodes a UV-aligned normal (texture/heightmap-space).
+// We derive a tangent frame from screen-space derivatives of world position and UV.
+vec4 VgeComputePackedWorldNormal01Height01(vec2 uv, vec3 geometricNormalWs, vec3 worldPosWs)
+{
+    vec3 nGeom = normalize(geometricNormalWs);
+
+    vec3 nAtlasSigned = ReadNormalSigned(uv);
+    float height01 = ReadHeight01(uv);
+
+    if (VgeIsNeutralNormalSigned(nAtlasSigned))
+    {
+        return vec4(nGeom * 0.5 + 0.5, height01);
+    }
+
+    mat3 tbn;
+    float handedness;
+    VgeTryBuildTbnFromDerivatives(worldPosWs, uv, nGeom, tbn, handedness);
+
+    // Delegate to the TBN-reuse helper.
+    return VgeComputePackedWorldNormal01Height01_WithTbn(uv, nGeom, worldPosWs, tbn, handedness, nAtlasSigned, height01);
 }
 
 #endif // VGE_NORMALDEPTH_GLSL

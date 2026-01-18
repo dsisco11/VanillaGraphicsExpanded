@@ -254,12 +254,15 @@ uniform sampler2D vge_normalDepthTex;
                 InjectGBufferInputs(tree);
                 InjectChunkMaterialSampler(tree);
 
-                InjectParallaxUvMapping(tree, sourceName);
-
                 string outputWrites = sourceName == "chunkliquid.fsh"
                     ? GBufferOutputWrites_ChunkLiquid
                     : GBufferOutputWrites_Chunk;
+
+                // Must be at the start of main() to survive early returns.
                 InjectGBufferOutputs(tree, outputWrites);
+
+                // Inject UV/TBN helpers after output injection (still placed at start of main()).
+                InjectParallaxUvMapping(tree, sourceName);
 
                 PatchFogAndLight(tree);
                 log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
@@ -356,7 +359,7 @@ uniform sampler2D vge_normalDepthTex;
     }
 
     /// <summary>
-    /// Injects G-buffer output writes at the end of main() function body.
+    /// Injects G-buffer output writes at the start of main() function body.
     /// This ensures normal, glowLevel, and renderFlags have been computed.
     /// </summary>
     private static void InjectGBufferOutputs(SyntaxTree tree, string outputWrites)
