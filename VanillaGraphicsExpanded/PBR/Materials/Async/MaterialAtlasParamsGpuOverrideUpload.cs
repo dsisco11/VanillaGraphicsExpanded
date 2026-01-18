@@ -1,9 +1,11 @@
 using System;
+using System.Threading.Tasks;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 
 using VanillaGraphicsExpanded.Numerics;
+using VanillaGraphicsExpanded.PBR.Materials.Cache;
 
 namespace VanillaGraphicsExpanded.PBR.Materials.Async;
 
@@ -19,6 +21,8 @@ internal readonly record struct MaterialAtlasParamsGpuOverrideUpload(
     string? RuleId,
     AssetLocation? RuleSource,
     PbrOverrideScale Scale,
+    IMaterialAtlasDiskCache? DiskCache,
+    AtlasCacheKey CacheKey,
     int Priority) : IMaterialAtlasGpuJob
 {
     public void Execute(ICoreClientAPI capi, System.Func<int, MaterialAtlasPageTextures?> tryGetPageTextures, MaterialAtlasBuildSession session)
@@ -77,6 +81,30 @@ internal readonly record struct MaterialAtlasParamsGpuOverrideUpload(
 
         pageTextures.MaterialParamsTexture.UploadData(rgb, Rect.X, Rect.Y, Rect.Width, Rect.Height);
         session.IncrementOverridesApplied();
+
+        // Persist the post-override RGB tile for future cache hits (so hits skip the override stage).
+        // Never block the render thread on IO.
+        if (DiskCache is not null
+            && CacheKey.SchemaVersion != 0
+            && !session.IsCancelled
+            && session.GenerationId == GenerationId)
+        {
+            IMaterialAtlasDiskCache diskCache = DiskCache;
+            AtlasCacheKey cacheKey = CacheKey;
+            int w = Rect.Width;
+            int h = Rect.Height;
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    diskCache.StoreMaterialParamsTile(cacheKey, w, h, rgb);
+                }
+                catch
+                {
+                    // Best-effort.
+                }
+            });
+        }
 
         if (session.PagesByAtlasTexId.TryGetValue(AtlasTextureId, out MaterialAtlasBuildPageState? page))
         {

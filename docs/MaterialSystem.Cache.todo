@@ -40,10 +40,10 @@ Exit artifacts: cache reader/writer with safe persistence.
 ## Phase 3 - Material Params Integration
 Exit artifacts: cache hit path for RGB rects.
 - [x] Cache lookup per tile job (skip CPU compute on hit). See `docs/MaterialSystem.Cache.Architecture.md`.
-- [ ] Upload cached data directly via render thread.
-- [ ] Cache post-override results (so a hit skips override stage).
-- [ ] Ensure session generation id protects against stale cache work.
-- [ ] Wire sync build path to use cache too.
+- [x] Upload cached data directly via render thread.
+- [x] Cache post-override results (so a hit skips override stage).
+- [x] Ensure session generation id protects against stale cache work.
+- [x] Wire sync build path to use cache too.
 
 ---
 

@@ -44,6 +44,36 @@ internal sealed class MaterialAtlasCacheKeyBuilder
         return AtlasCacheKey.FromUtf8(inputs.SchemaVersion, stableKey);
     }
 
+    public AtlasCacheKey BuildMaterialParamsOverrideTileKey(
+        in MaterialAtlasCacheKeyInputs inputs,
+        int atlasTextureId,
+        AtlasRect rect,
+        AssetLocation targetTexture,
+        AssetLocation overrideTexture,
+        PbrOverrideScale overrideScale,
+        string? ruleId,
+        AssetLocation? ruleSource)
+    {
+        string stableKey = string.Format(
+            CultureInfo.InvariantCulture,
+            "{0}|kind=matparams_override|page={1}|rect=({2},{3},{4},{5})|target={6}|override={7}|rule={8}|ruleSrc={9}|scale=({10:R},{11:R},{12:R})",
+            inputs.StablePrefix,
+            atlasTextureId,
+            rect.X,
+            rect.Y,
+            rect.Width,
+            rect.Height,
+            targetTexture,
+            overrideTexture,
+            ruleId ?? "(no id)",
+            ruleSource?.ToString() ?? "(unknown)",
+            overrideScale.Roughness,
+            overrideScale.Metallic,
+            overrideScale.Emissive);
+
+        return AtlasCacheKey.FromUtf8(inputs.SchemaVersion, stableKey);
+    }
+
     public AtlasCacheKey BuildNormalDepthTileKey(
         in MaterialAtlasCacheKeyInputs inputs,
         int atlasTextureId,

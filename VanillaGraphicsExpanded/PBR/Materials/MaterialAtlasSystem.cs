@@ -476,6 +476,12 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
         var cpuJobs = new List<IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload>>(capacity: plan.MaterialParamsTiles.Count);
 
+        var overridesByRect = new Dictionary<(int atlasTexId, AtlasRect rect), AtlasBuildPlan.MaterialParamsOverrideJob>(capacity: plan.MaterialParamsOverrides.Count);
+        foreach (AtlasBuildPlan.MaterialParamsOverrideJob ov in plan.MaterialParamsOverrides)
+        {
+            overridesByRect[(ov.AtlasTextureId, ov.Rect)] = ov;
+        }
+
         bool enableCache = ConfigModSystem.Config.EnableMaterialAtlasDiskCache;
         int cacheHits = 0;
         int cacheMisses = 0;
@@ -485,6 +491,34 @@ internal sealed class MaterialAtlasSystem : IDisposable
             AtlasCacheKey key = default;
             if (enableCache)
             {
+                // If a post-override tile is cached, we can skip both the procedural build and the override stage.
+                if (overridesByRect.TryGetValue((tile.AtlasTextureId, tile.Rect), out AtlasBuildPlan.MaterialParamsOverrideJob ov)
+                    && diskCache.TryLoadMaterialParamsTile(
+                        cacheKeyBuilder.BuildMaterialParamsOverrideTileKey(
+                            cacheInputs,
+                            tile.AtlasTextureId,
+                            tile.Rect,
+                            ov.TargetTexture,
+                            ov.OverrideTexture,
+                            ov.Scale,
+                            ov.RuleId,
+                            ov.RuleSource),
+                        out float[] cachedOverrideRgb))
+                {
+                    cpuJobs.Add(new MaterialAtlasParamsCpuCachedTileJob(
+                        GenerationId: generationId,
+                        AtlasTextureId: tile.AtlasTextureId,
+                        Rect: tile.Rect,
+                        RgbTriplets: cachedOverrideRgb,
+                        TargetTexture: tile.Texture,
+                        Priority: tile.Priority));
+
+                    // Mark consumed so we don't enqueue the override upload for this rect.
+                    overridesByRect.Remove((tile.AtlasTextureId, tile.Rect));
+                    cacheHits++;
+                    continue;
+                }
+
                 key = cacheKeyBuilder.BuildMaterialParamsTileKey(
                     cacheInputs,
                     tile.AtlasTextureId,
@@ -523,6 +557,40 @@ internal sealed class MaterialAtlasSystem : IDisposable
         var overrideJobs = new List<MaterialAtlasParamsGpuOverrideUpload>(capacity: plan.MaterialParamsOverrides.Count);
         foreach (AtlasBuildPlan.MaterialParamsOverrideJob ov in plan.MaterialParamsOverrides)
         {
+            // If we already satisfied this rect via cached post-override output, skip scheduling.
+            if (!overridesByRect.ContainsKey((ov.AtlasTextureId, ov.Rect)))
+            {
+                continue;
+            }
+
+            // If an override-only rect is cached (or a rect with a missing tile job), upload directly and skip the override stage.
+            if (enableCache)
+            {
+                AtlasCacheKey overrideKey = cacheKeyBuilder.BuildMaterialParamsOverrideTileKey(
+                    cacheInputs,
+                    ov.AtlasTextureId,
+                    ov.Rect,
+                    ov.TargetTexture,
+                    ov.OverrideTexture,
+                    ov.Scale,
+                    ov.RuleId,
+                    ov.RuleSource);
+
+                if (diskCache.TryLoadMaterialParamsTile(overrideKey, out float[] cachedOverrideRgb))
+                {
+                    cpuJobs.Add(new MaterialAtlasParamsCpuCachedTileJob(
+                        GenerationId: generationId,
+                        AtlasTextureId: ov.AtlasTextureId,
+                        Rect: ov.Rect,
+                        RgbTriplets: cachedOverrideRgb,
+                        TargetTexture: ov.TargetTexture,
+                        Priority: ov.Priority));
+
+                    cacheHits++;
+                    continue;
+                }
+            }
+
             overrideJobs.Add(new MaterialAtlasParamsGpuOverrideUpload(
                 GenerationId: generationId,
                 AtlasTextureId: ov.AtlasTextureId,
@@ -532,6 +600,18 @@ internal sealed class MaterialAtlasSystem : IDisposable
                 RuleId: ov.RuleId,
                 RuleSource: ov.RuleSource,
                 Scale: ov.Scale,
+                DiskCache: enableCache ? diskCache : null,
+                CacheKey: enableCache
+                    ? cacheKeyBuilder.BuildMaterialParamsOverrideTileKey(
+                        cacheInputs,
+                        ov.AtlasTextureId,
+                        ov.Rect,
+                        ov.TargetTexture,
+                        ov.OverrideTexture,
+                        ov.Scale,
+                        ov.RuleId,
+                        ov.RuleSource)
+                    : default,
                 Priority: ov.Priority));
         }
 
@@ -566,6 +646,14 @@ internal sealed class MaterialAtlasSystem : IDisposable
         var uploader = new MaterialAtlasParamsUploader(textureStore);
         var overrideLoader = new MaterialOverrideTextureLoader();
 
+        var overridesByRect = new Dictionary<(int atlasTexId, AtlasRect rect), AtlasBuildPlan.MaterialParamsOverrideJob>(capacity: plan.MaterialParamsOverrides.Count);
+        foreach (AtlasBuildPlan.MaterialParamsOverrideJob ov in plan.MaterialParamsOverrides)
+        {
+            overridesByRect[(ov.AtlasTextureId, ov.Rect)] = ov;
+        }
+
+        var overriddenRectsByCache = new HashSet<(int atlasTexId, AtlasRect rect)>();
+
         bool enableCache = ConfigModSystem.Config.EnableMaterialAtlasDiskCache;
         int cacheHits = 0;
         int cacheMisses = 0;
@@ -578,6 +666,26 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
             if (enableCache)
             {
+                // Prefer cached post-override output so we can skip both the procedural build and the override stage.
+                if (overridesByRect.TryGetValue((tile.AtlasTextureId, tile.Rect), out AtlasBuildPlan.MaterialParamsOverrideJob ov)
+                    && diskCache.TryLoadMaterialParamsTile(
+                        cacheKeyBuilder.BuildMaterialParamsOverrideTileKey(
+                            cacheInputs,
+                            tile.AtlasTextureId,
+                            tile.Rect,
+                            ov.TargetTexture,
+                            ov.OverrideTexture,
+                            ov.Scale,
+                            ov.RuleId,
+                            ov.RuleSource),
+                        out float[] cachedOverrideRgb)
+                    && uploader.TryUploadTile(tile.AtlasTextureId, tile.Rect, cachedOverrideRgb))
+                {
+                    overriddenRectsByCache.Add((tile.AtlasTextureId, tile.Rect));
+                    cacheHits++;
+                    continue;
+                }
+
                 key = cacheKeyBuilder.BuildMaterialParamsTileKey(
                     cacheInputs,
                     tile.AtlasTextureId,
@@ -620,9 +728,41 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
         // Upload explicit material params overrides (if any) after base tiles.
         // Policy: if an override fails to load/validate, keep the procedural output.
-        int overriddenRects = 0;
+        int overriddenRects = overriddenRectsByCache.Count;
         foreach (AtlasBuildPlan.MaterialParamsOverrideJob ov in plan.MaterialParamsOverrides)
         {
+            if (overriddenRectsByCache.Contains((ov.AtlasTextureId, ov.Rect)))
+            {
+                continue;
+            }
+
+            AtlasCacheKey overrideKey = default;
+            if (enableCache)
+            {
+                overrideKey = cacheKeyBuilder.BuildMaterialParamsOverrideTileKey(
+                    cacheInputs,
+                    ov.AtlasTextureId,
+                    ov.Rect,
+                    ov.TargetTexture,
+                    ov.OverrideTexture,
+                    ov.Scale,
+                    ov.RuleId,
+                    ov.RuleSource);
+
+                if (diskCache.TryLoadMaterialParamsTile(overrideKey, out float[] cachedOverrideRgb))
+                {
+                    if (uploader.TryUploadTile(ov.AtlasTextureId, ov.Rect, cachedOverrideRgb))
+                    {
+                        overriddenRects++;
+                    }
+
+                    cacheHits++;
+                    continue;
+                }
+
+                cacheMisses++;
+            }
+
             if (!overrideLoader.TryLoadRgbaFloats01(
                     capi,
                     ov.OverrideTexture,
@@ -653,6 +793,11 @@ internal sealed class MaterialAtlasSystem : IDisposable
             if (uploader.TryUploadTile(ov.AtlasTextureId, ov.Rect, rgb))
             {
                 overriddenRects++;
+            }
+
+            if (enableCache)
+            {
+                diskCache.StoreMaterialParamsTile(overrideKey, ov.Rect.Width, ov.Rect.Height, rgb);
             }
         }
 

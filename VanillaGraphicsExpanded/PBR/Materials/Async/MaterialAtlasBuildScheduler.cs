@@ -63,9 +63,21 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
             while (completedUploads.TryDequeue(out _)) { }
             pendingGpuUploads.Clear();
 
+            var tileRects = new HashSet<(int atlasTexId, AtlasRect rect)>();
+
             foreach (IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload> job in newSession.CpuTileJobs)
             {
                 pendingCpuJobs.Enqueue(job.Priority, job);
+
+                // IMaterialAtlasCpuJob does not expose the rect, so extract from known implementations.
+                if (job is MaterialAtlasParamsCpuTileJob p)
+                {
+                    tileRects.Add((p.AtlasTextureId, p.Rect));
+                }
+                else if (job is MaterialAtlasParamsCpuCachedTileJob c)
+                {
+                    tileRects.Add((c.AtlasTextureId, c.Rect));
+                }
 
                 if (newSession.PagesByAtlasTexId.TryGetValue(job.AtlasTextureId, out MaterialAtlasBuildPageState? page))
                 {
@@ -82,7 +94,10 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
                     page.PendingOverrides++;
                 }
 
-                newSession.EnqueueOverrideUpload(ov);
+                if (!tileRects.Contains((ov.AtlasTextureId, ov.Rect)))
+                {
+                    newSession.EnqueueOverrideUpload(ov);
+                }
             }
         }
     }
