@@ -66,10 +66,10 @@ Exit artifacts: shared data structures that decouple planning from execution.
 ## Phase 2 - Texture Store (DynamicTexture Ownership)
 Exit artifacts: a dedicated store for page textures and lifecycle management.
 - Reference: `docs/MaterialAtlas.Architecture.md`
-- [ ] Create `MaterialAtlasTextureStore` to allocate/resize/dispose per atlas page.
-- [ ] Expose lookups for material params and normal+depth texture IDs.
-- [ ] Move default fill/placeholder creation into the store.
-- [ ] Replace direct dictionary access in `MaterialAtlasSystem`.
+- [x] Create `MaterialAtlasTextureStore` to allocate/resize/dispose per atlas page.
+- [x] Expose lookups for material params and normal+depth texture IDs.
+- [x] Move default fill/placeholder creation into the store.
+- [x] Replace direct dictionary access in `MaterialAtlasSystem`.
 
 ---
 

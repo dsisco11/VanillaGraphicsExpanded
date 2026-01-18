@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Reflection;
 using System.Runtime.Serialization;
 
@@ -20,16 +21,25 @@ public sealed class NormalDepthAtlasPlumbingTests
 
         var instance = PbrMaterialAtlasTextures.Instance;
 
-        Dictionary<int, PbrMaterialAtlasPageTextures> dict = GetPrivateInstanceField<Dictionary<int, PbrMaterialAtlasPageTextures>>(
-            instance,
-            "pageTexturesByAtlasTexId");
+        MaterialAtlasTextureStore store = GetPrivateInstanceField<MaterialAtlasTextureStore>(instance, "textureStore");
+        IDictionary pagesByAtlasTexId = GetPrivateInstanceField<IDictionary>(store, "pagesByAtlasTexId");
 
-        dict.Clear();
+        pagesByAtlasTexId.Clear();
 
         DynamicTexture materialParams = CreateFakeDynamicTexture(textureId: 111, internalFormat: PixelInternalFormat.Rgb16f);
         DynamicTexture normalDepth = CreateFakeDynamicTexture(textureId: normalDepthTexId, internalFormat: PixelInternalFormat.Rgba16f);
 
-        dict[baseAtlasTexId] = new PbrMaterialAtlasPageTextures(materialParams, normalDepth);
+        var pageTextures = new PbrMaterialAtlasPageTextures(materialParams, normalDepth);
+
+        Type entryType = typeof(MaterialAtlasTextureStore).GetNestedType("PageEntry", BindingFlags.NonPublic)!;
+        object entry = Activator.CreateInstance(
+            entryType,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            binder: null,
+            args: new object[] { 1, 1, pageTextures },
+            culture: null)!;
+
+        pagesByAtlasTexId[baseAtlasTexId] = entry;
 
         // Act + Assert
         Assert.True(instance.TryGetNormalDepthTextureId(baseAtlasTexId, out int got));
@@ -38,7 +48,7 @@ public sealed class NormalDepthAtlasPlumbingTests
         Assert.False(instance.TryGetNormalDepthTextureId(baseAtlasTexId + 1, out _));
 
         // Cleanup (avoid disposing fake textures)
-        dict.Clear();
+        pagesByAtlasTexId.Clear();
     }
 
     [Fact]
@@ -72,8 +82,8 @@ public sealed class NormalDepthAtlasPlumbingTests
 
         object? value = field!.GetValue(instance);
         Assert.NotNull(value);
-        Assert.IsType<T>(value);
-        return (T)value;
+        Assert.IsAssignableFrom<T>(value);
+        return (T)value!;
     }
 
     private static T GetPrivateStaticField<T>(Type type, string fieldName)

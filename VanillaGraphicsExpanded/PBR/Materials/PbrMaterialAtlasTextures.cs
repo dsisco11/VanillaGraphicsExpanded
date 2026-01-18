@@ -24,7 +24,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 {
     public static PbrMaterialAtlasTextures Instance { get; } = new();
 
-    private readonly Dictionary<int, PbrMaterialAtlasPageTextures> pageTexturesByAtlasTexId = new();
+    private readonly MaterialAtlasTextureStore textureStore = new();
     private bool isDisposed;
 
     private short lastBlockAtlasReloadIteration = short.MinValue;
@@ -83,7 +83,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         // because some textures are inserted/updated after BlockTexturesLoaded without changing atlas layout.
         foreach ((int atlasTexId, int width, int height) in atlasPages)
         {
-            if (!pageTexturesByAtlasTexId.TryGetValue(atlasTexId, out PbrMaterialAtlasPageTextures? pageTextures)
+            if (!textureStore.TryGetPageTextures(atlasTexId, out PbrMaterialAtlasPageTextures pageTextures)
                 || pageTextures.NormalDepthTexture is null
                 || !pageTextures.NormalDepthTexture.IsValid)
             {
@@ -260,52 +260,14 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
             return;
         }
 
-        // If the atlas texture ids changed (atlas rebuild), drop the old textures and recreate.
-        if (pageTexturesByAtlasTexId.Count > 0 && !atlasPages.All(p => pageTexturesByAtlasTexId.ContainsKey(p.atlasTextureId)))
+        if (textureStore.NeedsResync(atlasPages, ConfigModSystem.Config.EnableNormalDepthAtlas))
         {
             CancelActiveBuildSession();
-            DisposeTextures();
         }
 
-        foreach ((int atlasTexId, int width, int height) in atlasPages)
-        {
-            if (pageTexturesByAtlasTexId.ContainsKey(atlasTexId))
-            {
-                continue;
-            }
+        textureStore.SyncToAtlasPages(atlasPages, ConfigModSystem.Config.EnableNormalDepthAtlas);
 
-            // Initialize with defaults; contents get populated on BlockTexturesLoaded.
-            float[] defaultParams = new float[width * height * 3];
-            PbrMaterialParamsPixelBuilder.FillRgbTriplets(
-                defaultParams,
-                PbrMaterialParamsPixelBuilder.DefaultRoughness,
-                PbrMaterialParamsPixelBuilder.DefaultMetallic,
-                PbrMaterialParamsPixelBuilder.DefaultEmissive);
-
-            var materialParamsTex = DynamicTexture.CreateWithData(
-                width,
-                height,
-                PixelInternalFormat.Rgb16f,
-                defaultParams,
-                TextureFilterMode.Nearest,
-                debugName: $"vge_materialParams_atlas_{atlasTexId}");
-
-            DynamicTexture? normalDepthTex = null;
-            if (ConfigModSystem.Config.EnableNormalDepthAtlas)
-            {
-                // Placeholder until PopulateAtlasContents runs the bake.
-                normalDepthTex = DynamicTexture.Create(
-                    width,
-                    height,
-                    PixelInternalFormat.Rgba16f,
-                    TextureFilterMode.Nearest,
-                    debugName: $"vge_normalDepth_atlas_{atlasTexId}");
-            }
-
-            pageTexturesByAtlasTexId[atlasTexId] = new PbrMaterialAtlasPageTextures(materialParamsTex, normalDepthTex);
-        }
-
-        texturesCreated = pageTexturesByAtlasTexId.Count > 0;
+        texturesCreated = textureStore.HasAnyTextures;
         IsInitialized = texturesCreated;
         IsBuildComplete = false;
     }
@@ -441,7 +403,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
             int totalNormalHeightOverridesApplied = 0;
             foreach ((int atlasTexId, int width, int height) in atlasPages)
             {
-                if (!pageTexturesByAtlasTexId.TryGetValue(atlasTexId, out PbrMaterialAtlasPageTextures? pageTextures)
+                if (!textureStore.TryGetPageTextures(atlasTexId, out PbrMaterialAtlasPageTextures pageTextures)
                     || pageTextures.NormalDepthTexture is null)
                 {
                     continue;
@@ -767,7 +729,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
             ConfigModSystem.Config.EnableMaterialAtlasAsyncBuild
                 ? "[VGE] Material params async build scheduled: {0} atlas page(s), {1} tile(s) queued ({2} overrides deferred)"
                 : "[VGE] Built material param atlas textures: {0} atlas page(s), {1} texture rect(s) filled ({2} overridden)",
-            pageTexturesByAtlasTexId.Count,
+            textureStore.PageCount,
             filledRects,
             overriddenRects);
 
@@ -790,11 +752,11 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
             capi.Logger.Debug(
                 "[VGE] Normal+depth atlas: enabled={0}, pages={1}, pageSizes=[{2}]",
                 ConfigModSystem.Config.EnableNormalDepthAtlas,
-                pageTexturesByAtlasTexId.Count,
+                textureStore.PageCount,
                 string.Join(", ", sizeCounts.Select(kvp => $"{kvp.Key.Width}x{kvp.Key.Height}*{kvp.Value}")));
         }
 
-        IsInitialized = pageTexturesByAtlasTexId.Count > 0;
+        IsInitialized = textureStore.PageCount > 0;
         IsBuildComplete = !ConfigModSystem.Config.EnableMaterialAtlasAsyncBuild || (scheduler?.ActiveSession?.IsComplete ?? false);
         if (currentReload >= 0)
         {
@@ -866,7 +828,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
     }
 
     private PbrMaterialAtlasPageTextures? TryGetPageTexturesByAtlasTexId(int atlasTextureId)
-        => pageTexturesByAtlasTexId.TryGetValue(atlasTextureId, out PbrMaterialAtlasPageTextures? pageTextures)
+        => textureStore.TryGetPageTextures(atlasTextureId, out PbrMaterialAtlasPageTextures pageTextures)
             ? pageTextures
             : null;
 
@@ -1036,55 +998,20 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         // Upload CPU-built material params into the already-created textures.
         foreach ((int atlasTexId, float[] pixels) in result.PixelBuffersByAtlasTexId)
         {
-            if (!pageTexturesByAtlasTexId.TryGetValue(atlasTexId, out PbrMaterialAtlasPageTextures? pageTextures))
-            {
-                continue;
-            }
-
             (int width, int height) = result.SizesByAtlasTexId[atlasTexId];
 
             // Replace the material params texture (simple + safe).
-            pageTextures.MaterialParamsTexture.Dispose();
-            var updated = DynamicTexture.CreateWithData(
-                width,
-                height,
-                PixelInternalFormat.Rgb16f,
-                pixels,
-                TextureFilterMode.Nearest,
-                debugName: $"vge_materialParams_atlas_{atlasTexId}");
-
-            pageTexturesByAtlasTexId[atlasTexId] = new PbrMaterialAtlasPageTextures(updated, pageTextures.NormalDepthTexture);
+            textureStore.ReplaceMaterialParamsTextureWithData(atlasTexId, width, height, pixels);
         }
 
         return (result.FilledRects, overriddenRects);
     }
 
     public bool TryGetMaterialParamsTextureId(int atlasTextureId, out int materialParamsTextureId)
-    {
-        if (pageTexturesByAtlasTexId.TryGetValue(atlasTextureId, out PbrMaterialAtlasPageTextures? pageTextures)
-            && pageTextures.MaterialParamsTexture.IsValid)
-        {
-            materialParamsTextureId = pageTextures.MaterialParamsTexture.TextureId;
-            return true;
-        }
-
-        materialParamsTextureId = 0;
-        return false;
-    }
+        => textureStore.TryGetMaterialParamsTextureId(atlasTextureId, out materialParamsTextureId);
 
     public bool TryGetNormalDepthTextureId(int atlasTextureId, out int normalDepthTextureId)
-    {
-        if (pageTexturesByAtlasTexId.TryGetValue(atlasTextureId, out PbrMaterialAtlasPageTextures? pageTextures)
-            && pageTextures.NormalDepthTexture is not null
-            && pageTextures.NormalDepthTexture.IsValid)
-        {
-            normalDepthTextureId = pageTextures.NormalDepthTexture.TextureId;
-            return true;
-        }
-
-        normalDepthTextureId = 0;
-        return false;
-    }
+        => textureStore.TryGetNormalDepthTextureId(atlasTextureId, out normalDepthTextureId);
 
     public void Dispose()
     {
@@ -1120,12 +1047,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 
     private void DisposeTextures()
     {
-        foreach (PbrMaterialAtlasPageTextures pageTextures in pageTexturesByAtlasTexId.Values)
-        {
-            pageTextures.Dispose();
-        }
-
-        pageTexturesByAtlasTexId.Clear();
+        textureStore.Dispose();
         texturesCreated = false;
         lastBlockAtlasReloadIteration = short.MinValue;
         lastBlockAtlasNonNullPositions = -1;
