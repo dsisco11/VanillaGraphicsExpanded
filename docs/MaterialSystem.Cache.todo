@@ -11,7 +11,7 @@ Exit artifacts: clear cache policy and terminology.
 - [ ] Decide global vs per-world policy (global by default, per-world overlay for mutable assets).
 - [ ] Define "stable" vs "mutable" asset provenance (base game, mods, resource packs, server assets).
 - [ ] Define fallback when provenance is unknown (treat as mutable).
-- [ ] Define cache scope naming (global root + optional per-world namespace).
+- [ ] Define cache scope naming (`VintagestoryData/VGE/Cache/` + optional `Worlds/<worldId>/` namespace).
 - [ ] Add config toggles (enable, max size, debug stats, allow per-world).
 
 ---

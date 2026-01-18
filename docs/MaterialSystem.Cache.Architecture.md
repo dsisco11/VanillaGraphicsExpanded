@@ -78,6 +78,11 @@ Read order: per-world first, then global. Writes:
 - Stable assets: write to global cache.
 - Mutable or unknown assets: write to per-world cache.
 
+Cache root location:
+
+- `VintagestoryData/VGE/Cache/` (global)
+- `VintagestoryData/VGE/Cache/Worlds/<worldId>/` (per-world overlay)
+
 ### 4.2 Asset Provenance Rules
 
 Assets are classified as:
@@ -211,6 +216,5 @@ to simplify IO and reduce decoding overhead.
 ## 11. Open Decisions
 
 - Exact provenance signals available from `IAsset` and the API.
-- Global cache location and per-world namespace location.
 - Readback granularity for normal+depth (per-rect vs per-page).
 - Thresholds for treating metadata as "unknown".
