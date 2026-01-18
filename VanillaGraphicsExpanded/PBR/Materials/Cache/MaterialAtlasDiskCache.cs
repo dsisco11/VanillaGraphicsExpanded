@@ -33,6 +33,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
     private long evictedEntries;
     private long evictedBytes;
 
+    private const float InvU8Max = 1f / 255f;
     private const float InvU16Max = 1f / 65535f;
 
     private enum PayloadKind : byte
@@ -132,7 +133,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             return false;
         }
 
-        // Stored as RGBA16_UNORM on disk for DDS compatibility; strip A when serving RGB callers.
+        // Stored as BC7-compressed DDS (8-bit RGBA); strip A when serving RGB callers.
         rgbTriplets = new float[checked(pixels * 3)];
 
         int si = 0;
@@ -160,22 +161,22 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             return;
         }
 
-        ushort[] rgbU16 = new ushort[rgbTriplets.Length];
-        QuantizeUnorm16(rgbTriplets, rgbU16);
+        byte[] rgbU8 = new byte[rgbTriplets.Length];
+        QuantizeUnorm8(rgbTriplets, rgbU8);
 
-        var rgbaU16 = new ushort[checked(pixels * 4)];
+        var rgbaU8 = new byte[checked(pixels * 4)];
 
         int si = 0;
         int di = 0;
         for (int p = 0; p < pixels; p++)
         {
-            rgbaU16[di++] = rgbU16[si++];
-            rgbaU16[di++] = rgbU16[si++];
-            rgbaU16[di++] = rgbU16[si++];
-            rgbaU16[di++] = 65535;
+            rgbaU8[di++] = rgbU8[si++];
+            rgbaU8[di++] = rgbU8[si++];
+            rgbaU8[di++] = rgbU8[si++];
+            rgbaU8[di++] = 255;
         }
 
-        StoreTile(PayloadKind.MaterialParams, key, width, height, channels: 3, rgbaU16);
+        StoreTileBc7(PayloadKind.MaterialParams, key, width, height, channels: 3, rgbaU8);
     }
 
     public bool TryLoadNormalDepthTile(AtlasCacheKey key, out float[] rgbaQuads)
@@ -252,18 +253,37 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
 
             try
             {
-                ushort[] rgbaU16 = DdsRgba16UnormCodec.ReadRgba16Unorm(ddsPath, out int w, out int h);
-                if (w != meta.Width || h != meta.Height)
+                if (kind == PayloadKind.MaterialParams)
                 {
-                    TryDeletePair(metaPath, ddsPath);
-                    rgba = Array.Empty<float>();
-                    return false;
-                }
+                    byte[] rgbaU8 = DdsBc7Rgba8Codec.ReadRgba8FromDds(ddsPath, out int w, out int h);
+                    if (w != meta.Width || h != meta.Height)
+                    {
+                        TryDeletePair(metaPath, ddsPath);
+                        rgba = Array.Empty<float>();
+                        return false;
+                    }
 
-                rgba = new float[rgbaU16.Length];
-                for (int i = 0; i < rgbaU16.Length; i++)
+                    rgba = new float[rgbaU8.Length];
+                    for (int i = 0; i < rgbaU8.Length; i++)
+                    {
+                        rgba[i] = rgbaU8[i] * InvU8Max;
+                    }
+                }
+                else
                 {
-                    rgba[i] = rgbaU16[i] * InvU16Max;
+                    ushort[] rgbaU16 = DdsRgba16UnormCodec.ReadRgba16Unorm(ddsPath, out int w, out int h);
+                    if (w != meta.Width || h != meta.Height)
+                    {
+                        TryDeletePair(metaPath, ddsPath);
+                        rgba = Array.Empty<float>();
+                        return false;
+                    }
+
+                    rgba = new float[rgbaU16.Length];
+                    for (int i = 0; i < rgbaU16.Length; i++)
+                    {
+                        rgba[i] = rgbaU16[i] * InvU16Max;
+                    }
                 }
             }
             catch
@@ -348,6 +368,88 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         catch
         {
             // Best-effort: failures should not crash the build pipeline.
+        }
+    }
+
+    private void StoreTileBc7(PayloadKind kind, AtlasCacheKey key, int width, int height, int channels, byte[] rgbaU8)
+    {
+        try
+        {
+            Directory.CreateDirectory(root);
+
+            string stem = GetFileStem(key);
+
+            string metaPath = GetMetaPath(root, stem, kind);
+            string ddsPath = GetDdsPath(root, stem, kind);
+
+            var meta = new TileMeta(
+                Kind: kind,
+                SchemaVersion: key.SchemaVersion,
+                Hash64: key.Hash64,
+                Width: width,
+                Height: height,
+                Channels: channels,
+                CreatedUtcTicks: DateTime.UtcNow.Ticks);
+
+            byte[] metaBytes = WriteMeta(meta);
+
+            string tmpMeta = metaPath + "." + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture) + ".tmp";
+            string tmpDds = ddsPath + "." + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture) + ".tmp";
+
+            bool stored = false;
+
+            try
+            {
+                DdsBc7Rgba8Codec.WriteBc7Dds(tmpDds, width, height, rgbaU8);
+                ReplaceAtomic(tmpDds, ddsPath);
+
+                WriteAllBytesAtomic(tmpMeta, metaBytes, metaPath);
+                TouchMeta(metaPath);
+
+                stored = true;
+            }
+            finally
+            {
+                TryDelete(tmpMeta);
+                TryDelete(tmpDds);
+            }
+
+            if (stored)
+            {
+                if (kind == PayloadKind.MaterialParams)
+                {
+                    Interlocked.Increment(ref materialParamsStores);
+                }
+                else if (kind == PayloadKind.NormalDepth)
+                {
+                    Interlocked.Increment(ref normalDepthStores);
+                }
+            }
+
+            TryPruneIfNeeded();
+        }
+        catch
+        {
+            // Best-effort.
+        }
+    }
+
+    private static void QuantizeUnorm8(ReadOnlySpan<float> src, Span<byte> dst)
+    {
+        if (dst.Length != src.Length)
+        {
+            throw new ArgumentException("Destination length must match source length.", nameof(dst));
+        }
+
+        for (int i = 0; i < src.Length; i++)
+        {
+            float v = src[i];
+            if (v < 0f) v = 0f;
+            if (v > 1f) v = 1f;
+            v = (v * 255f) + 0.5f;
+            if (v < 0f) v = 0f;
+            if (v > 255f) v = 255f;
+            dst[i] = (byte)v;
         }
     }
 

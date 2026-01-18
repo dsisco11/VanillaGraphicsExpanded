@@ -40,11 +40,25 @@ public sealed class MaterialAtlasDiskCacheRoundTripTests
             Assert.True(cache.TryLoadMaterialParamsTile(key, out float[] loaded));
             Assert.Equal(rgb.Length, loaded.Length);
 
-            const float Eps = (1f / 65535f) + 1e-6f;
-            for (int i = 0; i < rgb.Length; i++)
-            {
-                Assert.InRange(MathF.Abs(loaded[i] - rgb[i]), 0f, Eps);
-            }
+                // Material params are quantized to RGBA8 then BC7-compressed; allow a small error budget.
+                // Compare against the quantized reference (what we *intend* to store).
+                float[] quantized = new float[rgb.Length];
+                for (int i = 0; i < rgb.Length; i++)
+                {
+                    float v = rgb[i];
+                    if (v < 0f) v = 0f;
+                    if (v > 1f) v = 1f;
+                    int b = (int)(v * 255f + 0.5f);
+                    if (b < 0) b = 0;
+                    if (b > 255) b = 255;
+                    quantized[i] = b / 255f;
+                }
+
+                const float Eps = (16f / 255f) + 1e-6f;
+                for (int i = 0; i < rgb.Length; i++)
+                {
+                    Assert.InRange(MathF.Abs(loaded[i] - quantized[i]), 0f, Eps);
+                }
         }
         finally
         {
@@ -156,11 +170,23 @@ public sealed class MaterialAtlasDiskCacheRoundTripTests
 
             Assert.Equal(fresh2.Length, cached.Length);
 
-            const float Eps = (1f / 65535f) + 1e-6f;
-            for (int i = 0; i < cached.Length; i++)
-            {
-                Assert.InRange(MathF.Abs(cached[i] - fresh2[i]), 0f, Eps);
-            }
+                float[] quantized = new float[fresh2.Length];
+                for (int i = 0; i < fresh2.Length; i++)
+                {
+                    float v = fresh2[i];
+                    if (v < 0f) v = 0f;
+                    if (v > 1f) v = 1f;
+                    int b = (int)(v * 255f + 0.5f);
+                    if (b < 0) b = 0;
+                    if (b > 255) b = 255;
+                    quantized[i] = b / 255f;
+                }
+
+                const float Eps = (16f / 255f) + 1e-6f;
+                for (int i = 0; i < cached.Length; i++)
+                {
+                    Assert.InRange(MathF.Abs(cached[i] - quantized[i]), 0f, Eps);
+                }
         }
         finally
         {

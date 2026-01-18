@@ -12,7 +12,7 @@
 The material system cache persists per-texture-rect bake results to disk so the
 PBR material atlas can skip recomputation across sessions. The cache covers:
 
-- Material params (RGB in RGBA16_UNORM) for each atlas rect
+- Material params (RGB in BC7-compressed RGBA8) for each atlas rect
 - Normal + depth (RGBA16_UNORM) for each atlas rect
 
 The cache is designed to be deterministic, low-risk, and aware of asset
@@ -218,21 +218,17 @@ Per-tile cache entry (one per atlas rect) uses a `.dds` texture file for the
 payload, plus a small sidecar header for metadata:
 
 ```text
-<key>.material.dds   -> material params payload (RGBA16_UNORM, DX10 DDS container)
+<key>.material.dds   -> material params payload (BC7, DX10 DDS container)
 <key>.material.meta  -> schema version, payload kind, key hash, timestamp, fingerprints
 
 <key>.norm.dds       -> normal+depth payload (RGBA16_UNORM, DX10 DDS container)
 <key>.norm.meta      -> schema version, payload kind, key hash, timestamp, fingerprints
 ```
 
-The `.dds` payload stores float16 channels:
+The `.dds` payload stores UNORM channels:
 
-- Cache payload is stored as uncompressed `R16G16B16A16_UNORM` (DX10 DDS) for both kinds.
-- Material params are written as RGBA16_UNORM with `A=1` and consumers ignore alpha.
-- Normal+depth is written as RGBA16_UNORM (RGB = normalXYZ_01, A = height01).
-
-Optional compression can be added later; first iteration uses uncompressed DDS
-to simplify IO and reduce decoding overhead.
+- Material params are stored as BC7-compressed `RGBA8` (DX10 DDS) with `A=1`, and consumers ignore alpha.
+- Normal+depth is stored as uncompressed `R16G16B16A16_UNORM` (DX10 DDS) (RGB = normalXYZ_01, A = height01).
 
 ### 7.2 Atomic Writes
 
