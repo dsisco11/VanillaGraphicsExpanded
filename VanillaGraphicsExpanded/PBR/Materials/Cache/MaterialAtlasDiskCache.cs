@@ -223,23 +223,6 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             bool hasMeta = File.Exists(metaPath);
             bool hasDds = File.Exists(ddsPath);
 
-            // Back-compat: legacy layout stored entries in per-kind subfolders with no kind suffix.
-            if (!hasMeta || !hasDds)
-            {
-                (string legacyMeta, string legacyDds) = GetLegacyPaths(stem, kind);
-                bool hasLegacyMeta = File.Exists(legacyMeta);
-                bool hasLegacyDds = File.Exists(legacyDds);
-
-                if (hasLegacyMeta && hasLegacyDds)
-                {
-                    // Prefer legacy pair over partial new pair.
-                    metaPath = legacyMeta;
-                    ddsPath = legacyDds;
-                    hasMeta = true;
-                    hasDds = true;
-                }
-            }
-
             if (!hasMeta || !hasDds)
             {
                 // Clean up orphans from interrupted writes.
@@ -288,42 +271,6 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
                 TryDeletePair(metaPath, ddsPath);
                 rgba = Array.Empty<float>();
                 return false;
-            }
-
-            // If we loaded from legacy paths, try to migrate to the new naming scheme.
-            try
-            {
-                if (!string.Equals(Path.GetDirectoryName(metaPath), root, StringComparison.OrdinalIgnoreCase))
-                {
-                    Directory.CreateDirectory(root);
-
-                    string newMeta = GetMetaPath(root, stem, kind);
-                    string newDds = GetDdsPath(root, stem, kind);
-
-                    if (!File.Exists(newDds))
-                    {
-                        File.Move(ddsPath, newDds);
-                    }
-                    else
-                    {
-                        TryDelete(ddsPath);
-                    }
-
-                    if (!File.Exists(newMeta))
-                    {
-                        File.Move(metaPath, newMeta);
-                    }
-                    else
-                    {
-                        TryDelete(metaPath);
-                    }
-
-                    metaPath = newMeta;
-                }
-            }
-            catch
-            {
-                // Best-effort.
             }
 
             // Touch meta timestamp for LRU.
@@ -493,20 +440,6 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         {
             yield return entry;
         }
-
-        // Back-compat: include legacy entries for pruning as well.
-        string legacyMat = GetLegacyKindDir(PayloadKind.MaterialParams);
-        string legacyNorm = GetLegacyKindDir(PayloadKind.NormalDepth);
-
-        foreach (CacheEntry entry in EnumerateEntriesInDir(legacyMat, useSuffixedNames: false))
-        {
-            yield return entry;
-        }
-
-        foreach (CacheEntry entry in EnumerateEntriesInDir(legacyNorm, useSuffixedNames: false))
-        {
-            yield return entry;
-        }
     }
 
     private IEnumerable<CacheEntry> EnumerateEntriesInDir(string dir, bool useSuffixedNames)
@@ -586,20 +519,6 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
 
     private static string GetDdsPath(string dir, string stem, PayloadKind kind)
         => Path.Combine(dir, stem + GetKindSuffix(kind) + ".dds");
-
-    private string GetLegacyKindDir(PayloadKind kind)
-        => kind switch
-        {
-            PayloadKind.MaterialParams => Path.Combine(root, "matparams"),
-            PayloadKind.NormalDepth => Path.Combine(root, "normaldepth"),
-            _ => root,
-        };
-
-    private (string metaPath, string ddsPath) GetLegacyPaths(string stem, PayloadKind kind)
-    {
-        string dir = GetLegacyKindDir(kind);
-        return (Path.Combine(dir, stem + ".meta"), Path.Combine(dir, stem + ".dds"));
-    }
 
     private static string GetFileStem(AtlasCacheKey key)
         // Windows-safe (':' is invalid in filenames).
