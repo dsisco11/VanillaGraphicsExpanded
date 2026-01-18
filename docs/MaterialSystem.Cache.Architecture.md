@@ -67,6 +67,14 @@ Registry + Atlas Snapshot + Config
 
 ## 4. Cache Scope and Policy
 
+### 4.0 Configuration
+
+The disk cache can be toggled via config:
+
+- `EnableMaterialAtlasDiskCache`: `true` by default.
+
+When disabled, the cache behaves as a no-op store (always miss; no writes).
+
 ### 4.1 Cache Tiers
 
 - **Global cache**: Shared across worlds and sessions. Preferred when assets

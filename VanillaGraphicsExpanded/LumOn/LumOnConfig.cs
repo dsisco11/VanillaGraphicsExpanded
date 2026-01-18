@@ -151,11 +151,12 @@ public class LumOnConfig
     public bool EnableNormalDepthAtlas { get; set; } = true;
 
     /// <summary>
-    /// Enables disk cache integration points for the material atlas build.
-    /// Phase 7 provides wiring points only; persistence/eviction is implemented separately.
+    /// Enables the material atlas disk cache.
+    /// When enabled, material params and normal+depth tiles can be loaded from and persisted to disk
+    /// so subsequent sessions can skip expensive work.
     /// </summary>
     [JsonProperty]
-    public bool EnableMaterialAtlasDiskCache { get; set; } = false;
+    public bool EnableMaterialAtlasDiskCache { get; set; } = true;
 
     /// <summary>
     /// Enables debug logging for disk cache hit/miss counters.

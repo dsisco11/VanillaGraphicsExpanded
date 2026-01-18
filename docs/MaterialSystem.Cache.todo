@@ -13,7 +13,7 @@ Exit artifacts: clear cache policy and terminology.
 - [x] Stable vs mutable provenance: base/mod without pack override = stable; pack/server/world override or unknown = mutable.
 - [x] Unknown provenance defaults to per-world only.
 - [x] Cache root: `VintagestoryData/VGE/Cache/` with per-world `Worlds/<worldId>/` overlay.
-- [ ] Add config toggle: enable cache (default: true). See `docs/MaterialSystem.Cache.Architecture.md`.
+- [x] Add config toggle: enable cache (default: true). See `docs/MaterialSystem.Cache.Architecture.md`.
 
 ---
 
