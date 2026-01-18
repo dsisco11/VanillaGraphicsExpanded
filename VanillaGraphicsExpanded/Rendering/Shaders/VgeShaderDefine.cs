@@ -24,4 +24,7 @@ public static class VgeShaderDefines
     public const string LumOnSkyMissWeight = "VGE_LUMON_SKY_MISS_WEIGHT";
 
     public const string LumOnEmissiveBoost = "LUMON_EMISSIVE_BOOST";
+
+    public const string PbrEnableParallax = "VGE_PBR_ENABLE_PARALLAX";
+    public const string PbrParallaxScale = "VGE_PBR_PARALLAX_SCALE";
 }

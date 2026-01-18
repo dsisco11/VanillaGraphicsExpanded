@@ -151,6 +151,20 @@ public class LumOnConfig
     public bool EnableNormalDepthAtlas { get; set; } = true;
 
     /// <summary>
+    /// Enables parallax mapping in patched vanilla chunk shaders.
+    /// Requires shader reload / re-entering the world to fully apply.
+    /// </summary>
+    [JsonProperty]
+    public bool EnableParallaxMapping { get; set; } = false;
+
+    /// <summary>
+    /// Parallax UV offset scale (in atlas UV units).
+    /// This is intentionally small; typical range: 0.005 .. 0.05.
+    /// </summary>
+    [JsonProperty]
+    public float ParallaxScale { get; set; } = 0.03f;
+
+    /// <summary>
     /// Parameters for generating a tileable height/normal field from albedo.
     /// Applied during loading when <see cref="EnableNormalDepthAtlas"/> is enabled.
     /// </summary>

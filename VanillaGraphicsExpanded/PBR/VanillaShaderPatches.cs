@@ -1,8 +1,12 @@
 ﻿using System;
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Linq;
 
 using TinyTokenizer.Ast;
+
+using VanillaGraphicsExpanded.ModSystems;
+using VanillaGraphicsExpanded.Rendering.Shaders;
 
 using Vintagestory.API.Common;
 
@@ -49,6 +53,60 @@ uniform sampler2D vge_materialParamsTex;
 uniform sampler2D vge_normalDepthTex;
 ";
 
+    private const string ParallaxUvProlog_Chunk = @"
+
+    // VGE: Parallax mapping (UV indirection)
+    vec2 vge_uv = uv;
+    mat3 vge_tbn;
+    float vge_tbnHandedness;
+    VgeTryBuildTbnFromDerivatives(worldPos.xyz, vge_uv, normalize(normal), vge_tbn, vge_tbnHandedness);
+#if VGE_PBR_ENABLE_PARALLAX
+    vge_uv = VgeApplyParallaxUv_WithTbn(vge_uv, vge_tbn, vge_tbnHandedness, worldPos.xyz);
+#endif
+
+#define uv vge_uv
+";
+
+    private const string ParallaxUvEpilog_Chunk = @"
+
+#undef uv
+";
+
+    private const string ParallaxUvProlog_Topsoil = @"
+
+    // VGE: Parallax mapping (UV indirection)
+    vec2 vge_uv = uv;
+    vec2 vge_uv2 = uv2;
+    mat3 vge_tbn;
+    float vge_tbnHandedness;
+    VgeTryBuildTbnFromDerivatives(worldPos.xyz, vge_uv, normalize(normal), vge_tbn, vge_tbnHandedness);
+
+    mat3 vge_tbn2;
+    float vge_tbnHandedness2;
+    VgeTryBuildTbnFromDerivatives(worldPos.xyz, vge_uv2, normalize(normal), vge_tbn2, vge_tbnHandedness2);
+#if VGE_PBR_ENABLE_PARALLAX
+    vge_uv = VgeApplyParallaxUv_WithTbn(vge_uv, vge_tbn, vge_tbnHandedness, worldPos.xyz);
+    vge_uv2 = VgeApplyParallaxUv_WithTbn(vge_uv2, vge_tbn2, vge_tbnHandedness2, worldPos.xyz);
+#endif
+
+#define uv vge_uv
+#define uv2 vge_uv2
+";
+
+    private const string ParallaxUvEpilog_Topsoil = @"
+
+#undef uv
+#undef uv2
+";
+
+    // chunkliquid: keep an alias for our own sampling, but do not macro-override `uv`
+    // (liquid uses `uv` and `uvBase` in special flow logic).
+    private const string ParallaxUvProlog_ChunkLiquid = @"
+
+    // VGE: Local alias for UV used by VGE sampling
+    vec2 vge_uv = uv;
+";
+
     // Code to inject before the final closing brace of main() to write G-buffer data
     // Uses available shader variables: normal, renderFlags, texColor/rgba
     // Note: VS's outColor (ColorAttachment0) serves as albedo
@@ -72,11 +130,11 @@ uniform sampler2D vge_normalDepthTex;
     // Normal: world-space normal packed to [0,1] range
     // Also sample the per-texel normal+depth atlas so the sampler uniform stays live.
     // We store encoded height01 (0..1) in the otherwise-unused W channel for optional debugging.
-    vge_outNormal = VgeComputePackedWorldNormal01Height01(uv, normal, worldPos.xyz);
+    vge_outNormal = VgeComputePackedWorldNormal01Height01_WithTbn(vge_uv, normal, worldPos.xyz, vge_tbn, vge_tbnHandedness);
     
     // Material: per-texel params stored in vge_materialParamsTex (RGB16F)
-    vec3 vge_params = ReadMaterialParams(uv);
-    vge_params = ApplyMaterialNoise(vge_params, uv, renderFlags);
+    vec3 vge_params = ReadMaterialParams(vge_uv);
+    vge_params = ApplyMaterialNoise(vge_params, vge_uv, renderFlags);
     float vge_roughness = clamp(vge_params.r, 0.0, 1.0);
     float vge_metallic  = clamp(vge_params.g, 0.0, 1.0);
     float vge_emissive  = clamp(vge_params.b, 0.0, 1.0);
@@ -94,11 +152,11 @@ uniform sampler2D vge_normalDepthTex;
     // Normal: use the per-fragment normal provided by the liquid shader.
     // We store encoded height01 (0..1) in the otherwise-unused W channel for optional debugging.
     vec3 vge_liquidNormal = normalize(fragNormal);
-    vge_outNormal = VgeComputePackedWorldNormal01Height01(uv, vge_liquidNormal, fWorldPos);
+    vge_outNormal = VgeComputePackedWorldNormal01Height01(vge_uv, vge_liquidNormal, fWorldPos);
 
     // Material: read per-texel params but do not require renderFlags.
-    vec3 vge_params = ReadMaterialParams(uv);
-    vge_params = ApplyMaterialNoise(vge_params, uv);
+    vec3 vge_params = ReadMaterialParams(vge_uv);
+    vge_params = ApplyMaterialNoise(vge_params, vge_uv);
     float vge_roughness = clamp(vge_params.r, 0.0, 1.0);
     float vge_metallic  = clamp(vge_params.g, 0.0, 1.0);
     float vge_emissive  = clamp(vge_params.b, 0.0, 1.0);
@@ -123,12 +181,15 @@ uniform sampler2D vge_normalDepthTex;
             // Chunk shaders - inject vsFunctions AND vge_material imports
             if (PatchedChunkShaders.Contains(sourceName))
             {
+                InjectParallaxDefines(tree);
+
                 // Find main function and insert @import before it
                 var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
                 tree.CreateEditor()
                     .InsertBefore(mainQuery, "@import \"./includes/vsfunctions.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_material.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_normaldepth.glsl\"\n")
+                    .InsertBefore(mainQuery, "@import \"./includes/vge_parallax.glsl\"\n")
                     .Commit();
 
                 log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");
@@ -155,6 +216,28 @@ uniform sampler2D vge_normalDepthTex;
         }
     }
 
+    private static void InjectParallaxDefines(SyntaxTree tree)
+    {
+        if (!ConfigModSystem.Config.EnableParallaxMapping) return;
+        if (!ConfigModSystem.Config.EnableNormalDepthAtlas) return;
+
+        var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
+        if (!tree.Select(versionQuery).Any()) return;
+
+        string scale = ConfigModSystem.Config.ParallaxScale.ToString("0.0####", CultureInfo.InvariantCulture);
+
+        string defineBlock = $@"
+
+// VGE: Parallax settings
+#define {VgeShaderDefines.PbrEnableParallax} 1
+#define {VgeShaderDefines.PbrParallaxScale} {scale}
+";
+
+        tree.CreateEditor()
+            .InsertAfter(versionQuery, defineBlock)
+            .Commit();
+    }
+
     /// <summary>
     /// Attempts to apply patches to the given SyntaxTree based on the shader name.
     /// </summary>
@@ -170,6 +253,8 @@ uniform sampler2D vge_normalDepthTex;
             {// Chunk shaders - inject G-buffer inputs, material sampler, and outputs
                 InjectGBufferInputs(tree);
                 InjectChunkMaterialSampler(tree);
+
+                InjectParallaxUvMapping(tree, sourceName);
 
                 string outputWrites = sourceName == "chunkliquid.fsh"
                     ? GBufferOutputWrites_ChunkLiquid
@@ -232,6 +317,42 @@ uniform sampler2D vge_normalDepthTex;
         tree.CreateEditor()
             .InsertAfter(versionQuery, ChunkMaterialParamsSamplerDeclaration)
             .Commit();
+    }
+
+    private static void InjectParallaxUvMapping(SyntaxTree tree, string sourceName)
+    {
+        // Insert at the top of main() so subsequent vanilla code can see the uv macros.
+        var mainStart = Query.Syntax<GlFunctionNode>().Named("main").InnerStart("body");
+        var mainEnd = Query.Syntax<GlFunctionNode>().Named("main").InnerEnd("body");
+
+        string prolog;
+        string? epilog;
+
+        if (sourceName == "chunktopsoil.fsh")
+        {
+            prolog = ParallaxUvProlog_Topsoil;
+            epilog = ParallaxUvEpilog_Topsoil;
+        }
+        else if (sourceName == "chunkliquid.fsh")
+        {
+            prolog = ParallaxUvProlog_ChunkLiquid;
+            epilog = null;
+        }
+        else
+        {
+            prolog = ParallaxUvProlog_Chunk;
+            epilog = ParallaxUvEpilog_Chunk;
+        }
+
+        var editor = tree.CreateEditor();
+        editor.InsertAfter(mainStart, prolog);
+
+        if (!string.IsNullOrEmpty(epilog))
+        {
+            editor.InsertBefore(mainEnd, epilog);
+        }
+
+        editor.Commit();
     }
 
     /// <summary>

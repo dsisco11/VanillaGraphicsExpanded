@@ -122,6 +122,28 @@ vec4 VgeComputePackedWorldNormal01Height01(vec2 uv, vec3 geometricNormalWs, vec3
     float handedness;
     VgeTryBuildTbnFromDerivatives(worldPosWs, uv, nGeom, tbn, handedness);
 
+    // Delegate to the TBN-reuse helper.
+    return VgeComputePackedWorldNormal01Height01_WithTbn(uv, nGeom, worldPosWs, tbn, handedness, nAtlasSigned, height01);
+}
+
+// TBN-reuse helper: caller supplies tangent frame and handedness (usually computed once per-fragment).
+// Optionally also supplies the already-sampled atlas normal/height to avoid resampling.
+vec4 VgeComputePackedWorldNormal01Height01_WithTbn(
+    vec2 uv,
+    vec3 geometricNormalWs,
+    vec3 worldPosWs,
+    mat3 tbn,
+    float handedness,
+    vec3 nAtlasSigned,
+    float height01)
+{
+    vec3 nGeom = normalize(geometricNormalWs);
+
+    if (VgeIsNeutralNormalSigned(nAtlasSigned))
+    {
+        return vec4(nGeom * 0.5 + 0.5, height01);
+    }
+
     // Apply UV-handedness to the tangent-space normal to avoid mirrored UVs producing inverted bumps.
     // Tangent space convention: X=tangent, Y=bitangent, Z=normal.
     nAtlasSigned.y *= handedness;
@@ -143,6 +165,14 @@ vec4 VgeComputePackedWorldNormal01Height01(vec2 uv, vec3 geometricNormalWs, vec3
     }
 
     return vec4(nWs * 0.5 + 0.5, height01);
+}
+
+// Convenience overload: caller supplies TBN/handedness only; this helper will sample the atlas.
+vec4 VgeComputePackedWorldNormal01Height01_WithTbn(vec2 uv, vec3 geometricNormalWs, vec3 worldPosWs, mat3 tbn, float handedness)
+{
+    vec3 nAtlasSigned = ReadNormalSigned(uv);
+    float height01 = ReadHeight01(uv);
+    return VgeComputePackedWorldNormal01Height01_WithTbn(uv, geometricNormalWs, worldPosWs, tbn, handedness, nAtlasSigned, height01);
 }
 
 #endif // VGE_NORMALDEPTH_GLSL
