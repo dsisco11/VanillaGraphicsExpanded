@@ -141,6 +141,38 @@ All material params fields plus:
 - NormalDepthBakeConfig values
 - Source albedo fingerprint (path + metadata)
 
+### 5.4 Key Serialization and Hashing
+
+All cache keys are built by serializing a stable, deterministic UTF-8 string and hashing it.
+
+Serialization rules (locked in):
+
+- The stable key is a single string with fields delimited by `|`.
+- The field order is fixed and must never change without bumping the schema version.
+- Numbers use `InvariantCulture`.
+- Floating point values are formatted with round-trip format (`R`) for stability.
+- Asset locations serialize via `AssetLocation.ToString()`.
+
+Key structure:
+
+- `StablePrefix` comes first and captures session/config/registry inputs.
+- `StablePrefix` is followed by per-tile fields.
+
+Per-tile fields are appended in this order:
+
+- `kind=...`
+- `page=<atlasTextureId>`
+- `rect=(x,y,width,height)`
+- `tex=<asset location or (unknown)>`
+- For material params: `def=(roughness,metallic,emissive)`, then `noise=(...)`, then `scale=(...)`
+- For normal+depth: `scale=(normalScale,depthScale)`
+
+Hashing rules (locked in):
+
+- Compute `SHA-256(UTF8(stableKey))`.
+- Interpret the first 8 bytes of the digest as a little-endian `ulong` to form `Hash64`.
+- The on-disk filename key is formatted as `v<SchemaVersion>:<Hash64 as 16 lowercase hex digits>`.
+
 ---
 
 ## 6. Lightweight Fingerprints
