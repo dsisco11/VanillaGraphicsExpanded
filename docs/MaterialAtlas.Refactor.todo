@@ -87,11 +87,11 @@ Exit artifacts: pure planning layer that produces jobs from registry + atlas sna
 ## Phase 4 - Material Params Pipeline (CPU + Upload)
 Exit artifacts: single pipeline used by both sync and async paths.
 - Reference: `docs/MaterialAtlas.Architecture.md`
-- [ ] Extract `MaterialAtlasParamsBuilder` from `PbrMaterialParamsPixelBuilder`.
-- [ ] Create `MaterialOverrideTextureLoader` (wraps `PbrOverrideTextureLoader`).
-- [ ] Define `MaterialAtlasParamsUploader` (uploads per tile to texture store).
-- [ ] Route sync path through the same pipeline used by async jobs.
-- [ ] Add unit tests for per-rect generation and override application.
+- [x] Extract `MaterialAtlasParamsBuilder` from `PbrMaterialParamsPixelBuilder`.
+- [x] Create `MaterialOverrideTextureLoader` (wraps `PbrOverrideTextureLoader`).
+- [x] Define `MaterialAtlasParamsUploader` (uploads per tile to texture store).
+- [x] Route sync path through the same pipeline used by async jobs.
+- [x] Add unit tests for per-rect generation and override application.
 
 ---
 

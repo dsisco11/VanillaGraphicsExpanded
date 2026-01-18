@@ -922,13 +922,54 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         IReadOnlyDictionary<AssetLocation, TextureAtlasPosition> texturePositions,
         IReadOnlyDictionary<AssetLocation, PbrMaterialDefinition> materialsByTexture)
     {
-        var result = PbrMaterialParamsPixelBuilder.BuildRgb16fPixelBuffers(
-            atlasPages,
-            texturePositions,
-            materialsByTexture);
+        var uploader = new MaterialAtlasParamsUploader(textureStore);
+        var overrideLoader = new MaterialOverrideTextureLoader();
 
-        // Apply explicit material params overrides (if any) on top of the procedural buffers.
-        // Policy: if an override fails to load/validate, keep the procedural output (warn once per target texture).
+        var sizesByAtlasTexId = new Dictionary<int, (int width, int height)>(capacity: atlasPages.Count);
+        foreach ((int atlasTextureId, int width, int height) in atlasPages)
+        {
+            if (atlasTextureId == 0 || width <= 0 || height <= 0)
+            {
+                continue;
+            }
+
+            sizesByAtlasTexId[atlasTextureId] = (width, height);
+        }
+
+        // Upload procedural tiles.
+        int filledRects = 0;
+        foreach ((AssetLocation texture, PbrMaterialDefinition definition) in materialsByTexture)
+        {
+            if (!texturePositions.TryGetValue(texture, out TextureAtlasPosition? texPos) || texPos is null)
+            {
+                continue;
+            }
+
+            if (!sizesByAtlasTexId.TryGetValue(texPos.atlasTextureId, out (int atlasW, int atlasH) size))
+            {
+                continue;
+            }
+
+            if (!AtlasRectResolver.TryResolvePixelRect(texPos, size.atlasW, size.atlasH, out AtlasRect rect))
+            {
+                continue;
+            }
+
+            float[] rgb = MaterialAtlasParamsBuilder.BuildRgb16fTile(
+                texture,
+                definition,
+                rectWidth: rect.Width,
+                rectHeight: rect.Height,
+                CancellationToken.None);
+
+            if (uploader.TryUploadTile(texPos.atlasTextureId, rect, rgb))
+            {
+                filledRects++;
+            }
+        }
+
+        // Upload explicit material params overrides (if any) after base tiles.
+        // Policy: if an override fails to load/validate, keep the procedural output.
         int overriddenRects = 0;
         foreach ((AssetLocation targetTexture, PbrMaterialTextureOverrides overrides) in PbrMaterialRegistry.Instance.OverridesByTexture)
         {
@@ -942,19 +983,17 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                 continue;
             }
 
-            if (!result.PixelBuffersByAtlasTexId.TryGetValue(texPos.atlasTextureId, out float[]? pixels))
+            if (!sizesByAtlasTexId.TryGetValue(texPos.atlasTextureId, out (int atlasW, int atlasH) size))
             {
                 continue;
             }
 
-            (int atlasW, int atlasH) = result.SizesByAtlasTexId[texPos.atlasTextureId];
-
-            if (!AtlasRectResolver.TryResolvePixelRect(texPos, atlasW, atlasH, out AtlasRect rect))
+            if (!AtlasRectResolver.TryResolvePixelRect(texPos, size.atlasW, size.atlasH, out AtlasRect rect))
             {
                 continue;
             }
 
-            if (!PbrOverrideTextureLoader.TryLoadRgbaFloats01(
+            if (!overrideLoader.TryLoadRgbaFloats01(
                     capi,
                     overrides.MaterialParams,
                     out int _,
@@ -973,38 +1012,27 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
                 continue;
             }
 
-            // Channel packing must match vge_material.glsl (RGB = roughness, metallic, emissive).
-            // Ignore alpha.
-            PbrMaterialParamsOverrideApplier.ApplyRgbOverride(
-                atlasRgbTriplets: pixels,
-                atlasWidth: atlasW,
-                atlasHeight: atlasH,
-                rectX: rect.X,
-                rectY: rect.Y,
+            float[] rgb = new float[checked(rect.Width * rect.Height * 3)];
+            MaterialAtlasParamsBuilder.ApplyOverrideToTileRgb16f(
+                tileRgbTriplets: rgb,
                 rectWidth: rect.Width,
                 rectHeight: rect.Height,
                 overrideRgba01: floatRgba01,
                 scale: overrides.Scale);
 
-            overriddenRects++;
+            if (uploader.TryUploadTile(texPos.atlasTextureId, rect, rgb))
+            {
+                overriddenRects++;
+            }
         }
 
-        if (result.FilledRects == 0 && materialsByTexture.Count > 0)
+        if (filledRects == 0 && materialsByTexture.Count > 0)
         {
             capi.Logger.Warning(
                 "[VGE] Built material param atlas textures but filled 0 rects. This usually means atlas key mismatch (e.g. textures/...png vs block/...) or textures not in block atlas.");
         }
 
-        // Upload CPU-built material params into the already-created textures.
-        foreach ((int atlasTexId, float[] pixels) in result.PixelBuffersByAtlasTexId)
-        {
-            (int width, int height) = result.SizesByAtlasTexId[atlasTexId];
-
-            // Replace the material params texture (simple + safe).
-            textureStore.ReplaceMaterialParamsTextureWithData(atlasTexId, width, height, pixels);
-        }
-
-        return (result.FilledRects, overriddenRects);
+        return (filledRects, overriddenRects);
     }
 
     public bool TryGetMaterialParamsTextureId(int atlasTextureId, out int materialParamsTextureId)
