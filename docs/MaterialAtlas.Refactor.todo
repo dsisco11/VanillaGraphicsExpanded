@@ -142,10 +142,8 @@ Exit artifacts: a thin orchestrator that delegates to planner/pipelines/stores.
 Exit artifacts: observability and test coverage for the refactor.
 - Reference: `docs/MaterialAtlas.Architecture.md`
 - [ ] Add progress metrics for async builds (queue lengths, ms per frame).
-- [ ] Add debug view for atlas page completeness.
+- [ ] Create a new "task progress" notification panel for UX which shows atlas build status.
 - [ ] Add tests for planner determinism and cache key stability.
-- [ ] Add perf sanity checks for sync vs async paths.
-- [ ] Validate visual parity with existing shaders and mapping rules.
 
 ---
 
