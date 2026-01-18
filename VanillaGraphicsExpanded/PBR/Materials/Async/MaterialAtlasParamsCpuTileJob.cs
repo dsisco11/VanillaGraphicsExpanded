@@ -28,7 +28,7 @@ internal readonly record struct MaterialAtlasParamsCpuTileJob(
             rectHeight: Rect.Height,
             cancellationToken);
 
-        DiskCache?.StoreMaterialParamsTile(CacheKey, rgb);
+        DiskCache?.StoreMaterialParamsTile(CacheKey, Rect.Width, Rect.Height, rgb);
 
         return new MaterialAtlasParamsGpuTileUpload(
             GenerationId,

@@ -26,7 +26,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
     public static MaterialAtlasSystem Instance { get; } = new();
 
     private readonly MaterialAtlasTextureStore textureStore = new();
-    private readonly IMaterialAtlasDiskCache diskCache = MaterialAtlasDiskCacheNoOp.Instance;
+    private IMaterialAtlasDiskCache diskCache = MaterialAtlasDiskCacheNoOp.Instance;
     private readonly MaterialAtlasCacheKeyBuilder cacheKeyBuilder = new();
     private bool isDisposed;
 
@@ -45,6 +45,22 @@ internal sealed class MaterialAtlasSystem : IDisposable
     private bool texturesCreated;
 
     private MaterialAtlasSystem() { }
+
+    private void EnsureDiskCacheInitialized()
+    {
+        if (!ConfigModSystem.Config.EnableMaterialAtlasDiskCache)
+        {
+            diskCache = MaterialAtlasDiskCacheNoOp.Instance;
+            return;
+        }
+
+        if (diskCache is MaterialAtlasDiskCache)
+        {
+            return;
+        }
+
+        diskCache = MaterialAtlasDiskCache.CreateDefault();
+    }
 
     internal MaterialAtlasTextureStore TextureStore => textureStore;
 
@@ -74,6 +90,8 @@ internal sealed class MaterialAtlasSystem : IDisposable
         {
             return;
         }
+
+        EnsureDiskCacheInitialized();
 
         CreateTextureObjects(capi);
         if (!texturesCreated)
@@ -136,6 +154,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
         this.capi = capi;
         EnsureSchedulerRegistered(capi);
+        EnsureDiskCacheInitialized();
 
         IBlockTextureAtlasAPI atlas = capi.BlockTextureAtlas;
 
@@ -181,6 +200,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
         this.capi = capi;
         EnsureSchedulerRegistered(capi);
+        EnsureDiskCacheInitialized();
 
         // Guard: avoid repopulating when nothing changed.
         // Note: some mods may insert additional textures into the atlas after BlockTexturesLoaded.
@@ -594,7 +614,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
             if (enableCache)
             {
-                diskCache.StoreMaterialParamsTile(key, rgb);
+                diskCache.StoreMaterialParamsTile(key, tile.Rect.Width, tile.Rect.Height, rgb);
             }
         }
 

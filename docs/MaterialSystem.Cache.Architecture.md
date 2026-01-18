@@ -12,8 +12,8 @@
 The material system cache persists per-texture-rect bake results to disk so the
 PBR material atlas can skip recomputation across sessions. The cache covers:
 
-- Material params (RGB16F) for each atlas rect
-- Normal + depth (RGBA16F) for each atlas rect
+- Material params (RGB in RGBA16_UNORM) for each atlas rect
+- Normal + depth (RGBA16_UNORM) for each atlas rect
 
 The cache is designed to be deterministic, low-risk, and aware of asset
 provenance. It avoids hashing asset bytes and instead uses a lightweight
@@ -171,7 +171,8 @@ Hashing rules (locked in):
 
 - Compute `SHA-256(UTF8(stableKey))`.
 - Interpret the first 8 bytes of the digest as a little-endian `ulong` to form `Hash64`.
-- The on-disk filename key is formatted as `v<SchemaVersion>:<Hash64 as 16 lowercase hex digits>`.
+- Logical key formatting (for logs/debugging) is `v<SchemaVersion>:<Hash64 as 16 lowercase hex digits>`.
+- On disk, the filename stem MUST be filesystem-safe (Windows does not allow `:`), so it is encoded as `v<SchemaVersion>-<Hash64 as 16 lowercase hex digits>`.
 
 ---
 
@@ -203,14 +204,18 @@ Per-tile cache entry (one per atlas rect) uses a `.dds` texture file for the
 payload, plus a small sidecar header for metadata:
 
 ```text
-<key>.dds   -> texture payload (RGB16F or RGBA16F, DDS container)
-<key>.meta  -> schema version, payload kind, key hash, timestamp, fingerprints
+<key>.material.dds   -> material params payload (RGBA16_UNORM, DX10 DDS container)
+<key>.material.meta  -> schema version, payload kind, key hash, timestamp, fingerprints
+
+<key>.norm.dds       -> normal+depth payload (RGBA16_UNORM, DX10 DDS container)
+<key>.norm.meta      -> schema version, payload kind, key hash, timestamp, fingerprints
 ```
 
 The `.dds` payload stores float16 channels:
 
-- RGB16F cache: interleaved RGB triplets
-- RGBA16F cache: interleaved RGBA
+- Cache payload is stored as uncompressed `R16G16B16A16_UNORM` (DX10 DDS) for both kinds.
+- Material params are written as RGBA16_UNORM with `A=1` and consumers ignore alpha.
+- Normal+depth is written as RGBA16_UNORM (RGB = normalXYZ_01, A = height01).
 
 Optional compression can be added later; first iteration uses uncompressed DDS
 to simplify IO and reduce decoding overhead.

@@ -20,7 +20,7 @@ internal sealed class MaterialAtlasDiskCacheNoOp : IMaterialAtlasDiskCache
         return false;
     }
 
-    public void StoreMaterialParamsTile(AtlasCacheKey key, float[] rgbTriplets)
+    public void StoreMaterialParamsTile(AtlasCacheKey key, int width, int height, float[] rgbTriplets)
     {
         // Intentionally no-op.
     }
@@ -31,7 +31,7 @@ internal sealed class MaterialAtlasDiskCacheNoOp : IMaterialAtlasDiskCache
         return false;
     }
 
-    public void StoreNormalDepthTile(AtlasCacheKey key, float[] rgbaQuads)
+    public void StoreNormalDepthTile(AtlasCacheKey key, int width, int height, float[] rgbaQuads)
     {
         // Intentionally no-op.
     }

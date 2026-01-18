@@ -2,7 +2,7 @@
 See: `docs/MaterialSystem.Cache.Architecture.md`
 
 Goal: Add a disk cache for material params, normal, and depth bake outputs.
-Scope: Per-texture-rect caching for block atlas pages (RGB16F + RGBA16F).
+Scope: Per-texture-rect caching for block atlas pages (RGBA16_UNORM payload; RGB stored in RGBA with A=1 for material params).
 Non-goals: Changes to mapping rules, shader formats, or engine API behavior.
 
 ---
@@ -29,16 +29,16 @@ Exit artifacts: versioned key spec and metadata contract.
 
 ## Phase 2 - Disk Cache Storage
 Exit artifacts: cache reader/writer with safe persistence.
-- [ ] Implement `MaterialAtlasDiskCache` (read/write, versioned header).
+- [x] Implement `MaterialAtlasDiskCache` (read/write, versioned header).
 - [x] File layout: per-tile `.dds` payload + `.meta` sidecar. See `docs/MaterialSystem.Cache.Architecture.md`.
-- [ ] Add atomic writes (temp file then move) and corruption handling. See `docs/MaterialSystem.Cache.Architecture.md`.
-- [ ] Track last-access timestamps for eviction.
-- [ ] Enforce max size and prune least-recently-used entries.
+- [x] Add atomic writes (temp file then move) and corruption handling. See `docs/MaterialSystem.Cache.Architecture.md`.
+- [x] Track last-access timestamps for eviction.
+- [x] Enforce max size and prune least-recently-used entries.
 
 ---
 
 ## Phase 3 - Material Params Integration
-Exit artifacts: cache hit path for RGB16F rects.
+Exit artifacts: cache hit path for RGB rects.
 - [x] Cache lookup per tile job (skip CPU compute on hit). See `docs/MaterialSystem.Cache.Architecture.md`.
 - [ ] Upload cached data directly via render thread.
 - [ ] Cache post-override results (so a hit skips override stage).
@@ -48,7 +48,7 @@ Exit artifacts: cache hit path for RGB16F rects.
 ---
 
 ## Phase 4 - Normal+Depth Integration
-Exit artifacts: cache hit path for RGBA16F rects.
+Exit artifacts: cache hit path for RGBA rects.
 - [x] Add per-tile cache lookup before GPU bake. See `docs/MaterialSystem.Cache.Architecture.md`.
 - [ ] Upload cached rects and bake only misses per page.
 - [x] Read back baked misses per tile. See `docs/MaterialSystem.Cache.Architecture.md`.
