@@ -109,11 +109,11 @@ Exit artifacts: planner + GPU runner split; unified re-bake flow.
 ## Phase 6 - Async/Iterative Scheduler Integration
 Exit artifacts: scheduler runs on shared job interfaces and supports sync fallback.
 - Reference: `docs/MaterialAtlas.Architecture.md`
-- [ ] Define job interfaces/records for CPU work and GPU uploads.
-- [ ] Adapt `MaterialAtlasBuildScheduler` to new job types.
-- [ ] Keep generation-id cancellation and stale job drop behavior.
-- [ ] Expose progress counters for pages, jobs, overrides.
-- [ ] Ensure sync path can reuse the same build plan.
+- [x] Define job interfaces/records for CPU work and GPU uploads.
+- [x] Adapt `MaterialAtlasBuildScheduler` to new job types.
+- [x] Keep generation-id cancellation and stale job drop behavior.
+- [x] Expose progress counters for pages, jobs, overrides.
+- [x] Ensure sync path can reuse the same build plan.
 
 ---
 

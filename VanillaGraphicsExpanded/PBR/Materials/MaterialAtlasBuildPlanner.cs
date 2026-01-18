@@ -45,7 +45,7 @@ internal sealed class MaterialAtlasBuildPlanner
         int missingAtlasPositions = 0;
         int emptyRects = 0;
 
-        // Material params: only textures that have a material definition.
+        // Material params: procedural tiles are only for textures that have a material definition.
         foreach (AssetLocation texture in registry.MaterialIdByTexture.Keys.OrderBy(l => l.Domain, StringComparer.Ordinal).ThenBy(l => l.Path, StringComparer.Ordinal))
         {
             if (!registry.TryGetMaterial(texture, out PbrMaterialDefinition definition))
@@ -86,20 +86,47 @@ internal sealed class MaterialAtlasBuildPlanner
                 Definition: definition,
                 Scale: scale,
                 Priority: 0));
+        }
 
-            if (registry.OverridesByTexture.TryGetValue(texture, out PbrMaterialTextureOverrides overrides)
-                && overrides.MaterialParams is not null)
+        // Material params overrides: apply regardless of whether the texture has a procedural material definition.
+        // This matches legacy behavior: if an override exists and the texture resolves to an atlas rect, it is applied.
+        foreach ((AssetLocation targetTexture, PbrMaterialTextureOverrides overrides) in registry.OverridesByTexture
+                     .OrderBy(kvp => kvp.Key.Domain, StringComparer.Ordinal)
+                     .ThenBy(kvp => kvp.Key.Path, StringComparer.Ordinal))
+        {
+            if (overrides.MaterialParams is null)
             {
-                materialParamsOverrides.Add(new AtlasBuildPlan.MaterialParamsOverrideJob(
-                    AtlasTextureId: texPos.atlasTextureId,
-                    Rect: rect,
-                    TargetTexture: texture,
-                    OverrideTexture: overrides.MaterialParams,
-                    RuleId: overrides.RuleId,
-                    RuleSource: overrides.RuleSource,
-                    Scale: overrides.Scale,
-                    Priority: 0));
+                continue;
             }
+
+            if (!PbrMaterialAtlasPositionResolver.TryResolve(tryGetAtlasPosition, targetTexture, out TextureAtlasPosition? texPos)
+                || texPos is null)
+            {
+                missingAtlasPositions++;
+                continue;
+            }
+
+            if (!sizesByAtlasTexId.TryGetValue(texPos.atlasTextureId, out (int w, int h) size))
+            {
+                missingAtlasPositions++;
+                continue;
+            }
+
+            if (!AtlasRectResolver.TryResolvePixelRect(texPos, size.w, size.h, out AtlasRect rect))
+            {
+                emptyRects++;
+                continue;
+            }
+
+            materialParamsOverrides.Add(new AtlasBuildPlan.MaterialParamsOverrideJob(
+                AtlasTextureId: texPos.atlasTextureId,
+                Rect: rect,
+                TargetTexture: targetTexture,
+                OverrideTexture: overrides.MaterialParams,
+                RuleId: overrides.RuleId,
+                RuleSource: overrides.RuleSource,
+                Scale: overrides.Scale,
+                Priority: 0));
         }
 
         // Normal+depth: asset-scanned textures/block are the source of truth for resolving scales.

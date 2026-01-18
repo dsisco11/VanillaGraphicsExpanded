@@ -27,5 +27,9 @@ internal sealed class PbrMaterialAtlasPageBuildState
 
     public int CompletedTiles { get; set; }
 
+    public int PendingOverrides { get; set; }
+
+    public int CompletedOverrides { get; set; }
+
     public bool PageClearDone { get; set; }
 }

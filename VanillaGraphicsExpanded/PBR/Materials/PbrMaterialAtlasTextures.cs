@@ -216,10 +216,6 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
             atlasPages.Add((atlasPage.TextureId, atlasPage.Width, atlasPage.Height));
         }
 
-        // Pre-resolve atlas positions and material definitions once.
-        var texturePositions = new Dictionary<AssetLocation, TextureAtlasPosition>(capacity: PbrMaterialRegistry.Instance.MaterialIdByTexture.Count);
-        var materialsByTexture = new Dictionary<AssetLocation, PbrMaterialDefinition>(capacity: PbrMaterialRegistry.Instance.MaterialIdByTexture.Count);
-
         TextureAtlasPosition? TryGetAtlasPosition(AssetLocation loc)
         {
             try
@@ -232,27 +228,13 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
             }
         }
 
-        foreach ((AssetLocation texture, string _) in PbrMaterialRegistry.Instance.MaterialIdByTexture)
-        {
-            if (!PbrMaterialRegistry.Instance.TryGetMaterial(texture, out PbrMaterialDefinition definition))
-            {
-                continue;
-            }
-
-            if (PbrMaterialRegistry.Instance.ScaleByTexture.TryGetValue(texture, out PbrOverrideScale combinedScale))
-            {
-                definition = definition with { Scale = combinedScale };
-            }
-
-            if (!PbrMaterialAtlasPositionResolver.TryResolve(TryGetAtlasPosition, texture, out TextureAtlasPosition? texPos)
-                || texPos is null)
-            {
-                continue;
-            }
-
-            texturePositions[texture] = texPos;
-            materialsByTexture[texture] = definition;
-        }
+        AtlasSnapshot snapshot = AtlasSnapshot.Capture(atlas);
+        var plan = new MaterialAtlasBuildPlanner().CreatePlan(
+            snapshot,
+            TryGetAtlasPosition,
+            PbrMaterialRegistry.Instance,
+            blockTextureAssets: Array.Empty<AssetLocation>(),
+            enableNormalDepth: false);
 
         int filledRects;
         int overriddenRects;
@@ -260,33 +242,30 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         {
             filledRects = StartMaterialParamsAsyncBuild(
                 atlasPages,
-                texturePositions,
-                materialsByTexture,
+                plan,
                 currentReload,
                 nonNullCount);
-            overriddenRects = 0; // Phase 3 (override pipeline) will reintroduce these progressively.
+            overriddenRects = 0; // overrides are applied asynchronously on the render thread.
         }
         else
         {
             (filledRects, overriddenRects) = PopulateMaterialParamsSync(
                 capi,
-                atlasPages,
-                texturePositions,
-                materialsByTexture);
+                plan);
         }
 
         if (ConfigModSystem.Config.EnableNormalDepthAtlas)
         {
-            AtlasSnapshot snapshot = AtlasSnapshot.Capture(atlas);
+            snapshot = AtlasSnapshot.Capture(atlas);
             var planner = new MaterialAtlasNormalDepthBuildPlanner();
-            var plan = planner.CreatePlan(
+            var normalDepthPlan = planner.CreatePlan(
                 snapshot,
                 TryGetAtlasPosition,
                 PbrMaterialRegistry.Instance,
                 capi.Assets.GetLocations("textures/block/", domain: null));
 
             var runner = new MaterialAtlasNormalDepthBuildRunner(textureStore, new MaterialOverrideTextureLoader());
-            (int bakedRects, int appliedOverrides) = runner.ExecutePlan(capi, plan);
+            (int bakedRects, int appliedOverrides) = runner.ExecutePlan(capi, normalDepthPlan);
 
             if (appliedOverrides > 0)
             {
@@ -299,10 +278,10 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
             {
                 capi.Logger.Debug(
                     "[VGE] Normal+depth atlas plan: pages={0} bakeJobs={1} overrideJobs={2} skippedByOverrides={3}",
-                    plan.Pages.Count,
-                    plan.PlanStats.BakeJobs,
-                    plan.PlanStats.OverrideJobs,
-                    plan.PlanStats.SkippedByOverrides);
+                    normalDepthPlan.Pages.Count,
+                    normalDepthPlan.PlanStats.BakeJobs,
+                    normalDepthPlan.PlanStats.OverrideJobs,
+                    normalDepthPlan.PlanStats.SkippedByOverrides);
 
                 capi.Logger.Debug(
                     "[VGE] Normal+depth atlas execution: bakedRects={0} appliedOverrides={1}",
@@ -420,8 +399,7 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
 
     private int StartMaterialParamsAsyncBuild(
         IReadOnlyList<(int atlasTextureId, int width, int height)> atlasPages,
-        IReadOnlyDictionary<AssetLocation, TextureAtlasPosition> texturePositions,
-        IReadOnlyDictionary<AssetLocation, PbrMaterialDefinition> materialsByTexture,
+        AtlasBuildPlan plan,
         short currentReload,
         int nonNullCount)
     {
@@ -437,118 +415,67 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
             generationId = 1;
         }
 
-        var sizesByAtlasTexId = new Dictionary<int, (int width, int height)>(capacity: atlasPages.Count);
-        foreach ((int atlasTextureId, int width, int height) in atlasPages)
+        var cpuJobs = new List<MaterialAtlasParamsCpuTileJob>(capacity: plan.MaterialParamsTiles.Count);
+        foreach (AtlasBuildPlan.MaterialParamsTileJob tile in plan.MaterialParamsTiles)
         {
-            sizesByAtlasTexId[atlasTextureId] = (width, height);
-        }
-
-        var tileJobs = new List<PbrMaterialAtlasTileJob>(capacity: materialsByTexture.Count);
-
-        foreach ((AssetLocation texture, PbrMaterialDefinition definition) in materialsByTexture)
-        {
-            if (!texturePositions.TryGetValue(texture, out TextureAtlasPosition? texPos) || texPos is null)
-            {
-                continue;
-            }
-
-            if (!sizesByAtlasTexId.TryGetValue(texPos.atlasTextureId, out (int width, int height) size))
-            {
-                continue;
-            }
-
-            if (!AtlasRectResolver.TryResolvePixelRect(texPos, size.width, size.height, out AtlasRect rect))
-            {
-                continue;
-            }
-
-            AssetLocation? materialOverride = null;
-            string? ruleId = null;
-            AssetLocation? ruleSource = null;
-            PbrOverrideScale scale = definition.Scale;
-
-            if (PbrMaterialRegistry.Instance.OverridesByTexture.TryGetValue(texture, out PbrMaterialTextureOverrides overrides)
-                && overrides.MaterialParams is not null)
-            {
-                materialOverride = overrides.MaterialParams;
-                ruleId = overrides.RuleId;
-                ruleSource = overrides.RuleSource;
-                scale = overrides.Scale;
-            }
-
-            tileJobs.Add(new PbrMaterialAtlasTileJob(
+            cpuJobs.Add(new MaterialAtlasParamsCpuTileJob(
                 GenerationId: generationId,
-                AtlasTextureId: texPos.atlasTextureId,
-                RectX: rect.X,
-                RectY: rect.Y,
-                RectWidth: rect.Width,
-                RectHeight: rect.Height,
-                Texture: texture,
-                Definition: definition,
-                Priority: 0,
-                MaterialParamsOverride: materialOverride,
-                OverrideRuleId: ruleId,
-                OverrideRuleSource: ruleSource,
-                OverrideScale: scale));
+                AtlasTextureId: tile.AtlasTextureId,
+                Rect: tile.Rect,
+                Texture: tile.Texture,
+                Definition: tile.Definition,
+                Priority: tile.Priority));
         }
 
-        var session = new PbrMaterialAtlasBuildSession(generationId, atlasPages, tileJobs);
+        var overrideJobs = new List<MaterialAtlasParamsGpuOverrideUpload>(capacity: plan.MaterialParamsOverrides.Count);
+        foreach (AtlasBuildPlan.MaterialParamsOverrideJob ov in plan.MaterialParamsOverrides)
+        {
+            overrideJobs.Add(new MaterialAtlasParamsGpuOverrideUpload(
+                GenerationId: generationId,
+                AtlasTextureId: ov.AtlasTextureId,
+                Rect: ov.Rect,
+                TargetTexture: ov.TargetTexture,
+                OverrideAsset: ov.OverrideTexture,
+                RuleId: ov.RuleId,
+                RuleSource: ov.RuleSource,
+                Scale: ov.Scale,
+                Priority: ov.Priority));
+        }
+
+        var session = new PbrMaterialAtlasBuildSession(
+            generationId,
+            atlasPages,
+            cpuJobs,
+            overrideJobs,
+            new MaterialOverrideTextureLoader());
         scheduler.StartSession(session);
 
         lastScheduledAtlasReloadIteration = currentReload;
         lastScheduledAtlasNonNullPositions = nonNullCount;
-        IsBuildComplete = tileJobs.Count == 0;
+        IsBuildComplete = cpuJobs.Count == 0 && overrideJobs.Count == 0;
 
-        return tileJobs.Count;
+        return cpuJobs.Count;
     }
 
     private (int filledRects, int overriddenRects) PopulateMaterialParamsSync(
         ICoreClientAPI capi,
-        IReadOnlyList<(int atlasTextureId, int width, int height)> atlasPages,
-        IReadOnlyDictionary<AssetLocation, TextureAtlasPosition> texturePositions,
-        IReadOnlyDictionary<AssetLocation, PbrMaterialDefinition> materialsByTexture)
+        AtlasBuildPlan plan)
     {
         var uploader = new MaterialAtlasParamsUploader(textureStore);
         var overrideLoader = new MaterialOverrideTextureLoader();
 
-        var sizesByAtlasTexId = new Dictionary<int, (int width, int height)>(capacity: atlasPages.Count);
-        foreach ((int atlasTextureId, int width, int height) in atlasPages)
-        {
-            if (atlasTextureId == 0 || width <= 0 || height <= 0)
-            {
-                continue;
-            }
-
-            sizesByAtlasTexId[atlasTextureId] = (width, height);
-        }
-
         // Upload procedural tiles.
         int filledRects = 0;
-        foreach ((AssetLocation texture, PbrMaterialDefinition definition) in materialsByTexture)
+        foreach (AtlasBuildPlan.MaterialParamsTileJob tile in plan.MaterialParamsTiles)
         {
-            if (!texturePositions.TryGetValue(texture, out TextureAtlasPosition? texPos) || texPos is null)
-            {
-                continue;
-            }
-
-            if (!sizesByAtlasTexId.TryGetValue(texPos.atlasTextureId, out (int atlasW, int atlasH) size))
-            {
-                continue;
-            }
-
-            if (!AtlasRectResolver.TryResolvePixelRect(texPos, size.atlasW, size.atlasH, out AtlasRect rect))
-            {
-                continue;
-            }
-
             float[] rgb = MaterialAtlasParamsBuilder.BuildRgb16fTile(
-                texture,
-                definition,
-                rectWidth: rect.Width,
-                rectHeight: rect.Height,
+                tile.Texture,
+                tile.Definition,
+                rectWidth: tile.Rect.Width,
+                rectHeight: tile.Rect.Height,
                 CancellationToken.None);
 
-            if (uploader.TryUploadTile(texPos.atlasTextureId, rect, rgb))
+            if (uploader.TryUploadTile(tile.AtlasTextureId, tile.Rect, rgb))
             {
                 filledRects++;
             }
@@ -557,62 +484,42 @@ internal sealed class PbrMaterialAtlasTextures : IDisposable
         // Upload explicit material params overrides (if any) after base tiles.
         // Policy: if an override fails to load/validate, keep the procedural output.
         int overriddenRects = 0;
-        foreach ((AssetLocation targetTexture, PbrMaterialTextureOverrides overrides) in PbrMaterialRegistry.Instance.OverridesByTexture)
+        foreach (AtlasBuildPlan.MaterialParamsOverrideJob ov in plan.MaterialParamsOverrides)
         {
-            if (overrides.MaterialParams is null)
-            {
-                continue;
-            }
-
-            if (!texturePositions.TryGetValue(targetTexture, out TextureAtlasPosition? texPos) || texPos is null)
-            {
-                continue;
-            }
-
-            if (!sizesByAtlasTexId.TryGetValue(texPos.atlasTextureId, out (int atlasW, int atlasH) size))
-            {
-                continue;
-            }
-
-            if (!AtlasRectResolver.TryResolvePixelRect(texPos, size.atlasW, size.atlasH, out AtlasRect rect))
-            {
-                continue;
-            }
-
             if (!overrideLoader.TryLoadRgbaFloats01(
                     capi,
-                    overrides.MaterialParams,
+                    ov.OverrideTexture,
                     out int _,
                     out int _,
                     out float[] floatRgba01,
                     out string? reason,
-                    expectedWidth: rect.Width,
-                    expectedHeight: rect.Height))
+                    expectedWidth: ov.Rect.Width,
+                    expectedHeight: ov.Rect.Height))
             {
                 capi.Logger.Warning(
                     "[VGE] PBR override ignored: rule='{0}' target='{1}' override='{2}' reason='{3}'. Falling back to generated maps.",
-                    overrides.RuleId ?? "(no id)",
-                    targetTexture,
-                    overrides.MaterialParams,
+                    ov.RuleId ?? "(no id)",
+                    ov.TargetTexture,
+                    ov.OverrideTexture,
                     reason ?? "unknown error");
                 continue;
             }
 
-            float[] rgb = new float[checked(rect.Width * rect.Height * 3)];
+            float[] rgb = new float[checked(ov.Rect.Width * ov.Rect.Height * 3)];
             MaterialAtlasParamsBuilder.ApplyOverrideToTileRgb16f(
                 tileRgbTriplets: rgb,
-                rectWidth: rect.Width,
-                rectHeight: rect.Height,
+                rectWidth: ov.Rect.Width,
+                rectHeight: ov.Rect.Height,
                 overrideRgba01: floatRgba01,
-                scale: overrides.Scale);
+                scale: ov.Scale);
 
-            if (uploader.TryUploadTile(texPos.atlasTextureId, rect, rgb))
+            if (uploader.TryUploadTile(ov.AtlasTextureId, ov.Rect, rgb))
             {
                 overriddenRects++;
             }
         }
 
-        if (filledRects == 0 && materialsByTexture.Count > 0)
+        if (filledRects == 0 && PbrMaterialRegistry.Instance.MaterialIdByTexture.Count > 0)
         {
             capi.Logger.Warning(
                 "[VGE] Built material param atlas textures but filled 0 rects. This usually means atlas key mismatch (e.g. textures/...png vs block/...) or textures not in block atlas.");

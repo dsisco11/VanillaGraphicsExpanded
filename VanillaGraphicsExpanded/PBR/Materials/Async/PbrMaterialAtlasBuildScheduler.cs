@@ -16,14 +16,11 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
 {
     private readonly object sessionLock = new();
 
-    private readonly PriorityFifoQueue<PbrMaterialAtlasTileJob> pendingCpuJobs = new();
-    private readonly ConcurrentQueue<PbrMaterialAtlasTileUpload> completedUploads = new();
-    private readonly PriorityFifoQueue<PbrMaterialAtlasTileUpload> pendingGpuUploads = new();
-    private readonly PriorityFifoQueue<PbrMaterialAtlasMaterialOverrideUpload> pendingOverrideUploads = new();
+    private readonly PriorityFifoQueue<MaterialAtlasParamsCpuTileJob> pendingCpuJobs = new();
+    private readonly ConcurrentQueue<MaterialAtlasParamsGpuTileUpload> completedUploads = new();
+    private readonly PriorityFifoQueue<MaterialAtlasParamsGpuTileUpload> pendingGpuUploads = new();
 
     private readonly Stopwatch stopwatch = new();
-
-    private readonly HashSet<string> overrideFailureLogOnce = new();
 
     private PbrMaterialAtlasBuildSession? session;
     private Func<int, VanillaGraphicsExpanded.PBR.Materials.PbrMaterialAtlasPageTextures?>? tryGetPageTextures;
@@ -60,9 +57,8 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
             pendingCpuJobs.Clear();
             while (completedUploads.TryDequeue(out _)) { }
             pendingGpuUploads.Clear();
-            pendingOverrideUploads.Clear();
 
-            foreach (PbrMaterialAtlasTileJob job in newSession.TileJobs)
+            foreach (MaterialAtlasParamsCpuTileJob job in newSession.CpuTileJobs)
             {
                 pendingCpuJobs.Enqueue(job.Priority, job);
 
@@ -71,6 +67,17 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
                     page.PendingTiles++;
                     page.PageClearDone = true; // material params texture is pre-filled with defaults.
                 }
+            }
+
+            // Enqueue override-only uploads (rects that have no corresponding tile job).
+            foreach (MaterialAtlasParamsGpuOverrideUpload ov in newSession.OverrideJobs)
+            {
+                if (newSession.PagesByAtlasTexId.TryGetValue(ov.AtlasTextureId, out PbrMaterialAtlasPageBuildState? page))
+                {
+                    page.PendingOverrides++;
+                }
+
+                newSession.EnqueueOverrideUpload(ov);
             }
         }
     }
@@ -120,7 +127,7 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
         }
 
         // Pump completed CPU results into the GPU upload queue.
-        while (completedUploads.TryDequeue(out PbrMaterialAtlasTileUpload completed))
+        while (completedUploads.TryDequeue(out MaterialAtlasParamsGpuTileUpload completed))
         {
             if (completed.GenerationId != active.GenerationId)
             {
@@ -155,7 +162,7 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
         int dispatched = 0;
         while (dispatched < maxCpuJobsPerFrame && stopwatch.Elapsed.TotalMilliseconds < budgetMs)
         {
-            if (!pendingCpuJobs.TryDequeue(out PbrMaterialAtlasTileJob job))
+            if (!pendingCpuJobs.TryDequeue(out MaterialAtlasParamsCpuTileJob job))
             {
                 break;
             }
@@ -179,27 +186,8 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
                 {
                     active.Token.ThrowIfCancellationRequested();
 
-                    float[] rgb = VanillaGraphicsExpanded.PBR.Materials.PbrMaterialParamsPixelBuilder.BuildRgb16fTile(
-                        job.Texture,
-                        job.Definition,
-                        job.RectWidth,
-                        job.RectHeight,
-                        active.Token);
-
-                    completedUploads.Enqueue(new PbrMaterialAtlasTileUpload(
-                        job.GenerationId,
-                        job.AtlasTextureId,
-                        job.RectX,
-                        job.RectY,
-                        job.RectWidth,
-                        job.RectHeight,
-                        rgb,
-                        job.Texture,
-                        job.MaterialParamsOverride,
-                        job.OverrideRuleId,
-                        job.OverrideRuleSource,
-                        job.OverrideScale,
-                        job.Priority));
+                    MaterialAtlasParamsGpuTileUpload upload = job.Execute(active.Token);
+                    completedUploads.Enqueue(upload);
                 }
                 catch (OperationCanceledException)
                 {
@@ -216,7 +204,7 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
         int uploads = 0;
         while (uploads < maxUploads && stopwatch.Elapsed.TotalMilliseconds < budgetMs)
         {
-            if (!pendingGpuUploads.TryDequeue(out PbrMaterialAtlasTileUpload upload))
+            if (!pendingGpuUploads.TryDequeue(out MaterialAtlasParamsGpuTileUpload upload))
             {
                 break;
             }
@@ -234,38 +222,7 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
 
             try
             {
-                pageTextures.MaterialParamsTexture.UploadData(
-                    upload.RgbTriplets,
-                    upload.RectX,
-                    upload.RectY,
-                    upload.RectWidth,
-                    upload.RectHeight);
-
-                // Enqueue the optional override upload after the procedural upload.
-                if (upload.MaterialParamsOverride is not null)
-                {
-                    pendingOverrideUploads.Enqueue(upload.Priority, new PbrMaterialAtlasMaterialOverrideUpload(
-                        GenerationId: upload.GenerationId,
-                        AtlasTextureId: upload.AtlasTextureId,
-                        RectX: upload.RectX,
-                        RectY: upload.RectY,
-                        RectWidth: upload.RectWidth,
-                        RectHeight: upload.RectHeight,
-                        TargetTexture: upload.TargetTexture,
-                        OverrideAsset: upload.MaterialParamsOverride,
-                        RuleId: upload.OverrideRuleId,
-                        RuleSource: upload.OverrideRuleSource,
-                        Scale: upload.OverrideScale,
-                        Priority: upload.Priority));
-                }
-
-                if (active.PagesByAtlasTexId.TryGetValue(upload.AtlasTextureId, out PbrMaterialAtlasPageBuildState? page))
-                {
-                    page.InFlightTiles = Math.Max(0, page.InFlightTiles - 1);
-                    page.CompletedTiles++;
-                }
-
-                active.IncrementCompletedTile();
+                upload.Execute(capi, tryGetPageTextures, active);
                 uploads++;
             }
             catch
@@ -274,10 +231,10 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
             }
         }
 
-        // Apply a limited number of override uploads per frame (after base tiles).
+        // Apply a limited number of override uploads per frame.
         while (uploads < maxUploads && stopwatch.Elapsed.TotalMilliseconds < budgetMs)
         {
-            if (!pendingOverrideUploads.TryDequeue(out PbrMaterialAtlasMaterialOverrideUpload ov))
+            if (!active.TryDequeuePendingOverrideUpload(out MaterialAtlasParamsGpuOverrideUpload ov))
             {
                 break;
             }
@@ -287,71 +244,9 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
                 continue;
             }
 
-            var pageTextures = tryGetPageTextures(ov.AtlasTextureId);
-            if (pageTextures is null)
-            {
-                continue;
-            }
-
             try
             {
-                if (!VanillaGraphicsExpanded.PBR.Materials.PbrOverrideTextureLoader.TryLoadRgbaFloats01(
-                        capi,
-                        ov.OverrideAsset,
-                        out int _,
-                        out int _,
-                        out float[] rgba01,
-                        out string? reason,
-                        expectedWidth: ov.RectWidth,
-                        expectedHeight: ov.RectHeight))
-                {
-                    string key = $"{ov.RuleId ?? ov.OverrideAsset.ToString()}|{ov.TargetTexture}";
-                    if (overrideFailureLogOnce.Add(key))
-                    {
-                        capi.Logger.Warning(
-                            "[VGE] PBR override ignored: rule='{0}' target='{1}' override='{2}' reason='{3}'. Falling back to generated maps.",
-                            ov.RuleId ?? "(no id)",
-                            ov.TargetTexture,
-                            ov.OverrideAsset,
-                            reason ?? "unknown error");
-                    }
-
-                    continue;
-                }
-
-                float[] rgb = new float[checked(ov.RectWidth * ov.RectHeight * 3)];
-                for (int y = 0; y < ov.RectHeight; y++)
-                {
-                    int srcRow = (y * ov.RectWidth) * 4;
-                    int dstRow = (y * ov.RectWidth) * 3;
-
-                    ReadOnlySpan<float> src = rgba01.AsSpan(srcRow, ov.RectWidth * 4);
-                    Span<float> dst = rgb.AsSpan(dstRow, ov.RectWidth * 3);
-
-                    // Channel packing must match vge_material.glsl (RGB = roughness, metallic, emissive). Ignore alpha.
-                    SimdSpanMath.CopyInterleaved4ToInterleaved3(src, dst);
-                }
-
-                if (ov.Scale.Roughness != 1f || ov.Scale.Metallic != 1f || ov.Scale.Emissive != 1f)
-                {
-                    SimdSpanMath.MultiplyClamp01Interleaved3InPlace2D(
-                        destination3: rgb,
-                        rectWidthPixels: ov.RectWidth,
-                        rectHeightPixels: ov.RectHeight,
-                        rowStridePixels: ov.RectWidth,
-                        mul0: ov.Scale.Roughness,
-                        mul1: ov.Scale.Metallic,
-                        mul2: ov.Scale.Emissive);
-                }
-
-                pageTextures.MaterialParamsTexture.UploadData(
-                    rgb,
-                    ov.RectX,
-                    ov.RectY,
-                    ov.RectWidth,
-                    ov.RectHeight);
-
-                active.IncrementOverridesApplied();
+                ov.Execute(capi, tryGetPageTextures, active);
                 uploads++;
             }
             catch
@@ -368,6 +263,5 @@ internal sealed class PbrMaterialAtlasBuildScheduler : IDisposable
         pendingCpuJobs.Clear();
         while (completedUploads.TryDequeue(out _)) { }
         pendingGpuUploads.Clear();
-        pendingOverrideUploads.Clear();
     }
 }
