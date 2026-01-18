@@ -23,6 +23,7 @@ Exit artifacts: current responsibilities and seams documented; parity baseline.
 
 ## Phase 1 - Data Contracts and Atlas Snapshot
 Exit artifacts: shared data structures that decouple planning from execution.
+- Reference: `docs/MaterialAtlas.Architecture.md`
 - [ ] Define `AtlasSnapshot` (pages, sizes, positions, reload iteration, non-null count).
 - [ ] Define `AtlasRect` + `AtlasRectResolver` for UV->pixel conversion with clamping rules.
 - [ ] Define `AtlasBuildPlan` (per-page jobs, overrides, stats).
@@ -33,6 +34,7 @@ Exit artifacts: shared data structures that decouple planning from execution.
 
 ## Phase 2 - Texture Store (DynamicTexture Ownership)
 Exit artifacts: a dedicated store for page textures and lifecycle management.
+- Reference: `docs/MaterialAtlas.Architecture.md`
 - [ ] Create `MaterialAtlasTextureStore` to allocate/resize/dispose per atlas page.
 - [ ] Expose lookups for material params and normal+depth texture IDs.
 - [ ] Move default fill/placeholder creation into the store.
@@ -42,6 +44,7 @@ Exit artifacts: a dedicated store for page textures and lifecycle management.
 
 ## Phase 3 - Build Planning (Registry + Atlas)
 Exit artifacts: pure planning layer that produces jobs from registry + atlas snapshot.
+- Reference: `docs/MaterialAtlas.Architecture.md`
 - [ ] Create `MaterialAtlasBuildPlanner` that consumes snapshot + registry.
 - [ ] Produce per-rect material params jobs and optional override jobs.
 - [ ] Produce per-rect normal+depth bake jobs + overrides.
@@ -52,6 +55,7 @@ Exit artifacts: pure planning layer that produces jobs from registry + atlas sna
 
 ## Phase 4 - Material Params Pipeline (CPU + Upload)
 Exit artifacts: single pipeline used by both sync and async paths.
+- Reference: `docs/MaterialAtlas.Architecture.md`
 - [ ] Extract `MaterialAtlasParamsBuilder` from `PbrMaterialParamsPixelBuilder`.
 - [ ] Create `MaterialOverrideTextureLoader` (wraps `PbrOverrideTextureLoader`).
 - [ ] Define `MaterialAtlasParamsUploader` (uploads per tile to texture store).
@@ -62,6 +66,7 @@ Exit artifacts: single pipeline used by both sync and async paths.
 
 ## Phase 5 - Normal+Depth Pipeline (GPU + Overrides)
 Exit artifacts: planner + GPU runner split; unified re-bake flow.
+- Reference: `docs/MaterialAtlas.Architecture.md`
 - [ ] Create `MaterialAtlasNormalDepthBuildPlanner` to define per-tile GPU tasks.
 - [ ] Wrap `PbrNormalDepthAtlasGpuBaker` in a `MaterialAtlasNormalDepthBuildRunner`.
 - [ ] Add override apply stage after bake (reuse loader/provider).
@@ -72,6 +77,7 @@ Exit artifacts: planner + GPU runner split; unified re-bake flow.
 
 ## Phase 6 - Async/Iterative Scheduler Integration
 Exit artifacts: scheduler runs on shared job interfaces and supports sync fallback.
+- Reference: `docs/MaterialAtlas.Architecture.md`
 - [ ] Define job interfaces/records for CPU work and GPU uploads.
 - [ ] Adapt `MaterialAtlasBuildScheduler` to new job types.
 - [ ] Keep generation-id cancellation and stale job drop behavior.
@@ -82,6 +88,7 @@ Exit artifacts: scheduler runs on shared job interfaces and supports sync fallba
 
 ## Phase 7 - Disk Cache Subsystem
 Exit artifacts: cache interfaces and wiring points only (no persistence).
+- Reference: `docs/MaterialAtlas.Architecture.md`
 - [ ] Define cache interfaces (lookup/store/invalidate) and data contracts.
 - [ ] Define cache key builder inputs (snapshot + registry + config).
 - [ ] Add no-op cache implementation and wire it through the pipeline.
@@ -92,6 +99,7 @@ Exit artifacts: cache interfaces and wiring points only (no persistence).
 
 ## Phase 8 - Orchestration and Events
 Exit artifacts: a thin orchestrator that delegates to planner/pipelines/stores.
+- Reference: `docs/MaterialAtlas.Architecture.md`
 - [ ] Introduce `MaterialAtlasSystem` (or rename existing class).
 - [ ] Wire events in `VanillaGraphicsExpandedModSystem` to orchestrator.
 - [ ] Update `TerrainMaterialParamsTextureBindingHook` to query texture store.
@@ -101,6 +109,7 @@ Exit artifacts: a thin orchestrator that delegates to planner/pipelines/stores.
 
 ## Phase 9 - Diagnostics, UX, and Validation
 Exit artifacts: observability and test coverage for the refactor.
+- Reference: `docs/MaterialAtlas.Architecture.md`
 - [ ] Add progress metrics for async builds (queue lengths, ms per frame).
 - [ ] Add debug view for atlas page completeness.
 - [ ] Add tests for planner determinism and cache key stability.
@@ -111,6 +120,7 @@ Exit artifacts: observability and test coverage for the refactor.
 
 ## Rename Checklist (System/Tile/Build, drop Pbr prefix)
 Exit artifacts: all class/file names updated and references corrected.
+- Reference: `docs/MaterialAtlas.Architecture.md`
 - [ ] `PbrMaterialAtlasTextures` -> `MaterialAtlasSystem`
 - [ ] `PbrMaterialAtlasPositionResolver` -> `MaterialAtlasKeyResolver`
 - [ ] `PbrMaterialAtlasPageTextures` -> `MaterialAtlasPageTextures`
