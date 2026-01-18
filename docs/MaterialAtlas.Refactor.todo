@@ -23,27 +23,27 @@ Exit artifacts: current responsibilities and seams documented; parity baseline.
 
 Entry points and lifecycle:
 - `VanillaGraphicsExpanded/VanillaGraphicsExpandedModSystem.cs`: StartClientSide -> `CreateTextureObjects`; BlockTexturesLoaded -> `PopulateAtlasContents`; ReloadTextures -> `RequestRebuild`.
-- `VanillaGraphicsExpanded/PBR/Materials/PbrMaterialAtlasTextures.cs`: `Initialize` wrapper; `RebakeNormalDepthAtlas` exists but is not wired to events.
+- `VanillaGraphicsExpanded/PBR/Materials/MaterialAtlasSystem.cs`: orchestrator; owns `Initialize` and texture rebuild flow.
 - `VanillaGraphicsExpanded/HarmonyPatches/TerrainMaterialParamsTextureBindingHook.cs`: binds the per-page textures on terrain shader set.
 
 GL vs CPU-only:
-- GL-only: `VanillaGraphicsExpanded/Rendering/DynamicTexture.cs` (all texture ops), `VanillaGraphicsExpanded/PBR/Materials/PbrNormalDepthAtlasGpuBaker.cs` (FBO/shader pipeline), render-thread uploads in `VanillaGraphicsExpanded/PBR/Materials/Async/PbrMaterialAtlasBuildScheduler.cs`.
-- CPU-safe: `VanillaGraphicsExpanded/PBR/Materials/PbrMaterialParamsPixelBuilder.cs` (tile generation), `VanillaGraphicsExpanded/PBR/Materials/PbrMaterialParamsOverrideApplier.cs`.
-- Treat as main-thread: `VanillaGraphicsExpanded/PBR/Materials/PbrOverrideTextureLoader.cs` (uses `capi.Assets` + `BitmapRef`) until proven safe.
+- GL-only: `VanillaGraphicsExpanded/Rendering/DynamicTexture.cs` (all texture ops), `VanillaGraphicsExpanded/PBR/Materials/MaterialAtlasNormalDepthGpuBuilder.cs` (FBO/shader pipeline), render-thread uploads in `VanillaGraphicsExpanded/PBR/Materials/Async/MaterialAtlasBuildScheduler.cs`.
+- CPU-safe: `VanillaGraphicsExpanded/PBR/Materials/MaterialAtlasParamsBuilder.cs` (tile generation), `VanillaGraphicsExpanded/PBR/Materials/MaterialAtlasParamsOverrideApplier.cs`.
+- Treat as main-thread: `VanillaGraphicsExpanded/PBR/Materials/MaterialOverrideTextureLoader.cs` (uses `capi.Assets` + `BitmapRef`) until proven safe.
 
 Duplication hotspots:
-- Atlas page enumeration is repeated in `PbrMaterialAtlasTextures.CreateTextureObjects`, `PopulateAtlasContents`, and `RebakeNormalDepthAtlas`.
+- Atlas page enumeration is repeated in `MaterialAtlasSystem` entry points (CreateTextureObjects/PopulateAtlasContents/RebakeNormalDepthAtlas).
 - Rect conversion (UV -> pixel bounds) repeats in `PopulateAtlasContents`, `StartMaterialParamsAsyncBuild`, `PopulateMaterialParamsSync`, and normal/depth override scanning.
-- Override loading + apply path duplicated between sync (`PopulateMaterialParamsSync`) and async (`PbrMaterialAtlasBuildScheduler`) flows.
+- Override loading + apply path duplicated between sync (`PopulateMaterialParamsSync`) and async (`MaterialAtlasBuildScheduler`) flows.
 - Normal/depth bake logic duplicated between `PopulateAtlasContents` and `RebakeNormalDepthAtlas`.
 
 Baseline metrics:
 - Skipped per request.
 
 Existing tests and gaps:
-- Existing: `VanillaGraphicsExpanded.Tests/Unit/PBR/Materials/PbrMaterialAtlasPositionResolverTests.cs`,
-  `VanillaGraphicsExpanded.Tests/Unit/PBR/Materials/PbrMaterialParamsPixelBuilderTests.cs`,
-  `VanillaGraphicsExpanded.Tests/Unit/PBR/Materials/PbrMaterialParamsOverrideApplierTests.cs`,
+- Existing: `VanillaGraphicsExpanded.Tests/Unit/PBR/Materials/MaterialAtlasKeyResolverTests.cs`,
+  `VanillaGraphicsExpanded.Tests/Unit/PBR/Materials/MaterialAtlasParamsBuilderTests.cs`,
+  `VanillaGraphicsExpanded.Tests/Unit/PBR/Materials/MaterialAtlasParamsOverrideApplierTests.cs`,
   `VanillaGraphicsExpanded.Tests/GPU/PbrMaterialAtlasTexturesBuildTests.cs`,
   `VanillaGraphicsExpanded.Tests/GPU/PbrNormalDepthBakeShaderPipelineTests.cs`,
   `VanillaGraphicsExpanded.Tests/GPU/PbrMaterialParamsTextureSmokeTests.cs`,
@@ -88,7 +88,7 @@ Exit artifacts: pure planning layer that produces jobs from registry + atlas sna
 Exit artifacts: single pipeline used by both sync and async paths.
 - Reference: `docs/MaterialAtlas.Architecture.md`
 - [x] Extract `MaterialAtlasParamsBuilder` from `PbrMaterialParamsPixelBuilder`.
-- [x] Create `MaterialOverrideTextureLoader` (wraps `PbrOverrideTextureLoader`).
+- [x] Create `MaterialOverrideTextureLoader` (renamed from `PbrOverrideTextureLoader`).
 - [x] Define `MaterialAtlasParamsUploader` (uploads per tile to texture store).
 - [x] Route sync path through the same pipeline used by async jobs.
 - [x] Add unit tests for per-rect generation and override application.
@@ -99,7 +99,7 @@ Exit artifacts: single pipeline used by both sync and async paths.
 Exit artifacts: planner + GPU runner split; unified re-bake flow.
 - Reference: `docs/MaterialAtlas.Architecture.md`
 - [x] Create `MaterialAtlasNormalDepthBuildPlanner` to define per-tile GPU tasks.
-- [x] Wrap `PbrNormalDepthAtlasGpuBaker` in a `MaterialAtlasNormalDepthBuildRunner`.
+- [x] Wrap `MaterialAtlasNormalDepthGpuBuilder` in a `MaterialAtlasNormalDepthBuildRunner`.
 - [x] Add override apply stage after bake (reuse loader/provider).
 - [x] Route `RebakeNormalDepthAtlas` through the same pipeline.
 - [x] Confirm all GL calls are render-thread only.
