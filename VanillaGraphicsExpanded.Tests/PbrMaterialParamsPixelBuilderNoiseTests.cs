@@ -113,6 +113,7 @@ public sealed class PbrMaterialParamsPixelBuilderNoiseTests
             Roughness = 0.5f,
             Metallic = 0.2f,
             Emissive = 0.1f,
+            Scale = PbrOverrideScale.Identity,
             Noise = new PbrMaterialNoise
             {
                 Roughness = 0.25f,
@@ -183,6 +184,7 @@ public sealed class PbrMaterialParamsPixelBuilderNoiseTests
             Roughness = 0.5f,
             Metallic = 0.2f,
             Emissive = 0.1f,
+            Scale = PbrOverrideScale.Identity,
             Noise = new PbrMaterialNoise
             {
                 Roughness = 0.25f,

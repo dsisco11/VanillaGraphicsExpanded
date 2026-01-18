@@ -158,6 +158,8 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 GL.Uniform2(Uniform(progPack, "u_tileSize"), w, h);
                 GL.Uniform2(Uniform(progPack, "u_viewportOrigin"), 0, 0);
                 GL.Uniform1(Uniform(progPack, "u_normalStrength"), cfg.NormalStrength);
+                GL.Uniform1(Uniform(progPack, "u_normalScale"), 1f);
+                GL.Uniform1(Uniform(progPack, "u_depthScale"), 1f);
             });
 
             float[] packed = outAtlas.ReadPixels();
@@ -238,6 +240,8 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 GL.Uniform2(Uniform(progPack, "u_tileSize"), w, h);
                 GL.Uniform2(Uniform(progPack, "u_viewportOrigin"), 0, 0);
                 GL.Uniform1(Uniform(progPack, "u_normalStrength"), cfg.NormalStrength);
+                GL.Uniform1(Uniform(progPack, "u_normalScale"), 1f);
+                GL.Uniform1(Uniform(progPack, "u_depthScale"), 1f);
             });
 
             float[] packed = outAtlas.ReadPixels();
@@ -246,6 +250,167 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             // This test is expected to show heavy saturation.
             Assert.True(maxA >= 0.99f);
             Assert.True(ones > (w * h * 0.25f), "Expected some alpha saturation at extreme height strength.");
+        }
+    }
+
+    [Fact]
+    public void FullChain_ScaleUniforms_ChangeFinalPackedOutput()
+    {
+        EnsureContextValid();
+        fixture.MakeCurrent();
+
+        (ShaderTestHelper helper, string reason) = TryCreateHelper();
+        if (helper is null)
+        {
+            Assert.SkipWhen(true, reason);
+        }
+
+        using (helper)
+        {
+            var cfg = new LumOnConfig.NormalDepthBakeConfig();
+
+            var progL = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_luminance.fsh");
+            var progG = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_gauss1d.fsh");
+            var progSub = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_sub.fsh");
+            var progGrad = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_gradient.fsh");
+            var progDiv = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_divergence.fsh");
+            var progJacobi = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_jacobi.fsh");
+            var progNorm = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_normalize.fsh");
+            var progPack = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_pack_to_atlas.fsh");
+
+            const int w = 64;
+            const int h = 64;
+
+            using var atlas = CreateCheckerboardAtlas(w, h, cell: 4);
+
+            using var texL = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texTmp = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texBase = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texD0 = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texGxy = DynamicTexture.Create(w, h, PixelInternalFormat.Rg32f, TextureFilterMode.Nearest);
+            using var texDiv = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texH = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texH2 = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texHn = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+
+            using var outAtlas1 = DynamicTexture.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
+            using var outAtlas2 = DynamicTexture.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
+
+            // 1) Luminance.
+            RenderTo(texL, progL, () =>
+            {
+                atlas.Bind(0);
+                GL.Uniform1(Uniform(progL, "u_atlas"), 0);
+                GL.Uniform4(Uniform(progL, "u_atlasRectPx"), 0, 0, w, h);
+                GL.Uniform2(Uniform(progL, "u_outSize"), w, h);
+            });
+
+            // 2) base = Gauss(L, sigmaBig)
+            RunGaussian1D(texL, texTmp, progG, sigma: cfg.SigmaBig, dirX: true);
+            RunGaussian1D(texTmp, texBase, progG, sigma: cfg.SigmaBig, dirX: false);
+
+            // 3) D0 = L - base
+            RenderTo(texD0, progSub, () =>
+            {
+                texL.Bind(0);
+                texBase.Bind(1);
+                GL.Uniform1(Uniform(progSub, "u_a"), 0);
+                GL.Uniform1(Uniform(progSub, "u_b"), 1);
+                GL.Uniform2(Uniform(progSub, "u_size"), w, h);
+            });
+
+            // 4) Gradient
+            RenderTo(texGxy, progGrad, () =>
+            {
+                texD0.Bind(0);
+                GL.Uniform1(Uniform(progGrad, "u_d"), 0);
+                GL.Uniform2(Uniform(progGrad, "u_size"), w, h);
+                GL.Uniform1(Uniform(progGrad, "u_gain"), cfg.Gain);
+                GL.Uniform1(Uniform(progGrad, "u_maxSlope"), cfg.MaxSlope);
+                GL.Uniform2(Uniform(progGrad, "u_edgeT"), cfg.EdgeT0, cfg.EdgeT1);
+            });
+
+            // 5) Divergence
+            RenderTo(texDiv, progDiv, () =>
+            {
+                texGxy.Bind(0);
+                GL.Uniform1(Uniform(progDiv, "u_g"), 0);
+                GL.Uniform2(Uniform(progDiv, "u_size"), w, h);
+            });
+
+            // 6) Jacobi iterations
+            ClearR32f(texH, 0f);
+            for (int i = 0; i < 150; i++)
+            {
+                DynamicTexture src = (i % 2 == 0) ? texH : texH2;
+                DynamicTexture dst = (i % 2 == 0) ? texH2 : texH;
+
+                RenderTo(dst, progJacobi, () =>
+                {
+                    src.Bind(0);
+                    texDiv.Bind(1);
+                    GL.Uniform1(Uniform(progJacobi, "u_h"), 0);
+                    GL.Uniform1(Uniform(progJacobi, "u_b"), 1);
+                    GL.Uniform2(Uniform(progJacobi, "u_size"), w, h);
+                });
+            }
+
+            // 7) Normalize
+            float mean = MeanR32f(texH);
+            (float invNeg, float invPos) = ComputeAsymmetricInvScales(texH, mean);
+            RenderTo(texHn, progNorm, () =>
+            {
+                texH.Bind(0);
+                GL.Uniform1(Uniform(progNorm, "u_h"), 0);
+                GL.Uniform2(Uniform(progNorm, "u_size"), w, h);
+                GL.Uniform1(Uniform(progNorm, "u_mean"), mean);
+                GL.Uniform1(Uniform(progNorm, "u_invNeg"), invNeg);
+                GL.Uniform1(Uniform(progNorm, "u_invPos"), invPos);
+                GL.Uniform1(Uniform(progNorm, "u_heightStrength"), cfg.HeightStrength);
+                GL.Uniform1(Uniform(progNorm, "u_gamma"), cfg.Gamma);
+            });
+
+            // 8) Pack twice with different scales.
+            RenderTo(outAtlas1, progPack, () =>
+            {
+                texHn.Bind(0);
+                GL.Uniform1(Uniform(progPack, "u_height"), 0);
+                GL.Uniform2(Uniform(progPack, "u_solverSize"), w, h);
+                GL.Uniform2(Uniform(progPack, "u_tileSize"), w, h);
+                GL.Uniform2(Uniform(progPack, "u_viewportOrigin"), 0, 0);
+                GL.Uniform1(Uniform(progPack, "u_normalStrength"), cfg.NormalStrength);
+                GL.Uniform1(Uniform(progPack, "u_normalScale"), 1f);
+                GL.Uniform1(Uniform(progPack, "u_depthScale"), 1f);
+            });
+
+            RenderTo(outAtlas2, progPack, () =>
+            {
+                texHn.Bind(0);
+                GL.Uniform1(Uniform(progPack, "u_height"), 0);
+                GL.Uniform2(Uniform(progPack, "u_solverSize"), w, h);
+                GL.Uniform2(Uniform(progPack, "u_tileSize"), w, h);
+                GL.Uniform2(Uniform(progPack, "u_viewportOrigin"), 0, 0);
+                GL.Uniform1(Uniform(progPack, "u_normalStrength"), cfg.NormalStrength);
+                GL.Uniform1(Uniform(progPack, "u_normalScale"), 0.5f);
+                GL.Uniform1(Uniform(progPack, "u_depthScale"), 0.5f);
+            });
+
+            float[] packed1 = outAtlas1.ReadPixels();
+            float[] packed2 = outAtlas2.ReadPixels();
+
+            // Prove the final baked texture changes.
+            float maxAbsDiffA = 0f;
+            float maxAbsDiffRgb = 0f;
+            for (int i = 0; i < packed1.Length; i += 4)
+            {
+                maxAbsDiffRgb = Math.Max(maxAbsDiffRgb, Math.Abs(packed1[i + 0] - packed2[i + 0]));
+                maxAbsDiffRgb = Math.Max(maxAbsDiffRgb, Math.Abs(packed1[i + 1] - packed2[i + 1]));
+                maxAbsDiffRgb = Math.Max(maxAbsDiffRgb, Math.Abs(packed1[i + 2] - packed2[i + 2]));
+                maxAbsDiffA = Math.Max(maxAbsDiffA, Math.Abs(packed1[i + 3] - packed2[i + 3]));
+            }
+
+            Assert.True(maxAbsDiffA > 0.01f, $"Expected alpha to change with depthScale; maxAbsDiffA={maxAbsDiffA}");
+            Assert.True(maxAbsDiffRgb > 0.001f, $"Expected RGB to change with normalScale; maxAbsDiffRgb={maxAbsDiffRgb}");
         }
     }
 
