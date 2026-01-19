@@ -51,6 +51,18 @@ Priority order:
 
 Selection produces a compact list of probe indices per level.
 
+### 3.3 Determinism and stability
+
+To avoid temporal “sparkle” from scheduling jitter, the scheduler must be deterministic for a given camera path and config:
+
+- Origin snapping per level is deterministic (see LumOn.17).
+- Within a level, selection is stable using a strict ordering:
+    1) lifecycle priority (dirty/uninitialized first, then stale)
+    2) distance to the camera in probe units
+    3) stable linear index tiebreak
+
+This makes update ordering independent of hash iteration order, thread timing, or container traversal.
+
 ---
 
 ## 4. Update pipeline (CPU + GPU)

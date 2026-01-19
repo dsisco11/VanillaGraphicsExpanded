@@ -69,17 +69,17 @@ LumOn - Phase 18 - World-Space Clipmap Probe System (Implementation):
 
   Phase 18.5 - Scheduling + Dirty Tracking:
   Exit artifacts: A per-level update scheduler exists with budgets, prioritization, and clear state transitions.
-  ☐ Define probe lifecycle states (uninitialized, valid, stale, dirty, in-flight).
-  ☐ Implement dirty region tracking sources:
-    - Origin shift
-    - Time-since-update / staleness
-    - Optional world changes / block updates (if accessible)
-  ☐ Implement selection policy:
-    - Near-field priority
-    - Dirty regions priority
-    - Stale probes priority
-  ☐ Enforce per-level budgets and global CPU/GPU budgets.
-  ☐ Add determinism notes (ordering/stability) to avoid temporal “sparkle” from scheduling jitter.
+  ✔ Define probe lifecycle states (uninitialized, valid, stale, dirty, in-flight). @done
+  ✔ Implement dirty region tracking sources: @done
+    - Origin shift @done
+    - Time-since-update / staleness @done
+    - Optional world changes / block updates (if accessible) @done
+  ✔ Implement selection policy: @done
+    - Near-field priority @done
+    - Dirty regions priority @done
+    - Stale probes priority @done
+  ✔ Enforce per-level budgets and global CPU/GPU budgets. @done
+  ✔ Add determinism notes (ordering/stability) to avoid temporal “sparkle” from scheduling jitter. @done
 
 
   Phase 18.6 - CPU Trace Backend (Async Voxel Traces):
