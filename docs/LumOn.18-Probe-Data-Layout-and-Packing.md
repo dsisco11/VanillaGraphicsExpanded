@@ -195,7 +195,7 @@ Probe layouts evolve. To keep compatibility:
 - Increment when channel mappings change.
 - On version mismatch, clear probe textures and rebuild.
 
-Optional: store the version in a CPU-side cache header if persistence is added.
+Note: world-probe payloads are not persisted to disk; the version exists to safely invalidate in-memory resources.
 
 ---
 

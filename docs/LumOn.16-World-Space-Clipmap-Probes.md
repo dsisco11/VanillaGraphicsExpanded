@@ -24,11 +24,13 @@ Screen-space probes are fast and dense, but they fail when:
 
 World-space clipmap probes address those cases by caching indirect lighting in a camera-centered, multi-resolution volume that persists across frames.
 
+This persistence is **in-memory only** (frame-to-frame); world probes are **never persisted to disk**.
+
 ### 1.2 Design goals
 
 | Goal | Requirement |
 | --- | --- |
-| Stable off-screen GI | Probes persist across frames and camera motion |
+| Stable off-screen GI | Probes persist across frames and camera motion (in memory only) |
 | Coexist with LumOn | World probes feed the same indirectRadiance inputs |
 | Scalable memory | Clipmap levels trade detail for distance |
 | Update within budget | Time-sliced updates with per-level limits |
@@ -39,6 +41,7 @@ World-space clipmap probes address those cases by caching indirect lighting in a
 - Full Lumen surface cache replacement
 - Perfect parity with UE5 world probes
 - Dynamic mesh capture beyond existing G-buffer and scene data
+- Cross-session persistence of world probe payloads (no disk cache)
 - Final implementation details (this is architecture only)
 
 ---

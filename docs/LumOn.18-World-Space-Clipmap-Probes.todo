@@ -11,7 +11,7 @@ LumOn - Phase 18 - World-Space Clipmap Probe System (Implementation):
   - docs/LumOn.17-Clipmap-Topology-and-Addressing.md (origin snapping, rings, addressing)
   - docs/LumOn.18-Probe-Data-Layout-and-Packing.md (L1 SH packing, metadata, formats)
   - docs/LumOn.19-Update-Pipeline-and-Scheduling.md (CPU update selection, budgets, upload)
-  - docs/LumOn.20-Streaming-and-Persistence.md (streaming, cache persistence, versioning)
+  - docs/LumOn.20-Streaming-and-Persistence.md (streaming, in-memory cache policy, versioning)
   - docs/LumOn.21-Shading-Integration.md (sampling + blend policy)
   - docs/Profiling.EventSource.md (timing + profiling hooks)
 
@@ -119,17 +119,7 @@ LumOn - Phase 18 - World-Space Clipmap Probe System (Implementation):
     - Graphics reload events @done
   ✔ Ensure history/temporal buffers (if introduced) are double-buffered and consistent. @done
 
-
-  Phase 18.9 - Streaming + Persistence (Optional):
-  Exit artifacts: A path exists to warm-start and to invalidate caches safely when config/content changes.
-  ☐ Define persistence format (binary) and versioning strategy.
-  ☐ Define invalidation keys:
-    - Layout version
-    - Config values affecting topology/layout
-    - Game/mod version (if needed)
-  ☐ Implement optional warm-start load for nearby clipmaps.
-  ☐ Implement periodic save throttling and size limits.
-
+  Note: Phase 18.9 was intentionally removed (world probes are RAM-only; no disk persistence).
 
   Phase 18.10 - Shading Integration:
   Exit artifacts: Shaders can sample world probes, blend them with screen-space GI, and feed Phase 15 composite.

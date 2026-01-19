@@ -1,4 +1,4 @@
-# LumOn Streaming and Persistence
+# LumOn Streaming (No Disk Persistence)
 
 > **Document**: LumOn.20-Streaming-and-Persistence.md  
 > **Status**: Draft  
@@ -11,7 +11,9 @@
 
 ## 1. Overview
 
-This document defines how world-probe data streams as the clipmap origin shifts and how (or whether) probe data persists across sessions.
+This document defines how world-probe data streams as the clipmap origin shifts.
+
+World-probe payloads are **in-memory only**: they may persist across frames, but are **never persisted to disk**.
 
 ---
 
@@ -42,31 +44,17 @@ Recommended policy:
 
 ---
 
-## 4. Persistence across sessions
-
-Persistence is optional and can be added later.
-
-If enabled:
-
-- Store probe regions to disk keyed by world seed and layout version.
-- On load, only accept cached data if version matches.
-- Keep a size cap and LRU eviction policy.
-
-Persistence should never block the render thread.
-
----
-
-## 5. Determinism requirements
+## 4. Determinism requirements
 
 To keep results stable:
 
 - Origin snapping must be deterministic for a given camera path.
 - Probe update selection should be stable when budgets are equal.
-- Cross-session cache invalidation must be deterministic (version + world seed).
+- In-memory cache invalidation must be deterministic (layout version + topology changes).
 
 ---
 
-## 6. Streaming diagram
+## 5. Streaming diagram
 
 ```mermaid
 flowchart TD
@@ -76,16 +64,15 @@ flowchart TD
   Evict["Evict or recycle regions"]
   Dirty["Mark new regions dirty"]
   Update["Schedule probe updates"]
-  Cache["Optional disk cache"]
 
   Move --> Snap --> Shift --> Evict --> Dirty --> Update
-  Evict --> Cache
 ```
 
 ---
 
-## 7. Decisions (locked)
+## 6. Decisions (locked)
 
 - SH order: L1
 - Trace source: iterative async voxel traces on the CPU
 - Visibility: ShortRangeAO direction (oct-encoded) + confidence
+- Persistence: none (world probes are RAM-only)

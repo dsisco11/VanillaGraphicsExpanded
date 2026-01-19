@@ -46,7 +46,7 @@ This ensures world probes never “reach into” screen-probe resources (and vic
 
 ### 1.3 Coordinate spaces and conventions
 
-All persistent probe payloads are stored in **world space**:
+All frame-persistent probe payloads are stored in **world space** (in-memory only; not persisted to disk):
 
 - SH coefficients represent irradiance as a function of **world-space direction**.
 - `ShortRangeAO` direction is stored as a **WS unit vector** (typically oct-encoded in textures).
