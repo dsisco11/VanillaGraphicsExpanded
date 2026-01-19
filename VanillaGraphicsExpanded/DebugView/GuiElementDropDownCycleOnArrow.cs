@@ -21,13 +21,15 @@ internal sealed class GuiElementDropDownCycleOnArrow : GuiElementDropDown
     {
         if (!HasFocus) return;
 
-        if ((args.KeyCode == (int)GlKeys.Up || args.KeyCode == (int)GlKeys.Down) && !listMenu.IsOpened)
+        var menu = listMenu;
+
+        if (menu is not null && (args.KeyCode == (int)GlKeys.Up || args.KeyCode == (int)GlKeys.Down) && !menu.IsOpened)
         {
-            int valuesLength = listMenu?.Values?.Length ?? 0;
+            int valuesLength = menu.Values?.Length ?? 0;
             if (valuesLength > 0)
             {
                 int delta = args.KeyCode == (int)GlKeys.Up ? -1 : 1;
-                int next = GameMath.Mod(listMenu.SelectedIndex + delta, valuesLength);
+                int next = GameMath.Mod(menu.SelectedIndex + delta, valuesLength);
                 SetSelectedIndex(next);
                 args.Handled = true;
                 onSelectionChanged?.Invoke(SelectedValue, true);

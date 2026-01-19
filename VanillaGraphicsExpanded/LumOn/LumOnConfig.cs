@@ -1,3 +1,5 @@
+using System;
+
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 
@@ -98,6 +100,98 @@ public class LumOnConfig
 
         [JsonProperty]
         public float NormalStrength { get; set; } = 2.0f;
+    }
+
+    [JsonObject(MemberSerialization.OptIn)]
+    public sealed class WorldProbeClipmapConfig
+    {
+        /// <summary>
+        /// World units between probes at L0.
+        /// </summary>
+        [JsonProperty]
+        public float ClipmapBaseSpacing { get; set; } = 2.0f;
+
+        /// <summary>
+        /// Per-level resolution of the clipmap grid.
+        /// This initial implementation uses a cubic grid: (N×N×N).
+        /// </summary>
+        [JsonProperty]
+        public int ClipmapResolution { get; set; } = 32;
+
+        /// <summary>
+        /// Number of clipmap levels (L0..L{N-1}).
+        /// </summary>
+        [JsonProperty]
+        public int ClipmapLevels { get; set; } = 4;
+
+        /// <summary>
+        /// Per-level max number of probes selected for CPU update per frame.
+        /// Expected to be length == <see cref="ClipmapLevels"/>.
+        /// Hot-reloadable.
+        /// </summary>
+        [JsonProperty]
+        public int[] PerLevelProbeUpdateBudget { get; set; } = [256, 128, 64, 32];
+
+        /// <summary>
+        /// Global CPU cap for the number of probes traced per frame across all levels.
+        /// Hot-reloadable.
+        /// </summary>
+        [JsonProperty]
+        public int TraceMaxProbesPerFrame { get; set; } = 512;
+
+        /// <summary>
+        /// Global GPU upload bandwidth cap for world-probe updates.
+        /// Hot-reloadable.
+        /// </summary>
+        [JsonProperty]
+        public int UploadBudgetBytesPerFrame { get; set; } = 2 * 1024 * 1024;
+
+        [JsonIgnore]
+        public int LevelsClamped => Math.Clamp(ClipmapLevels, 1, 8);
+
+        internal void Sanitize()
+        {
+            ClipmapBaseSpacing = Math.Clamp(ClipmapBaseSpacing, 0.25f, 64.0f);
+            ClipmapResolution = Math.Clamp(ClipmapResolution, 8, 128);
+            ClipmapLevels = Math.Clamp(ClipmapLevels, 1, 8);
+            TraceMaxProbesPerFrame = Math.Clamp(TraceMaxProbesPerFrame, 0, 65_536);
+            UploadBudgetBytesPerFrame = Math.Clamp(UploadBudgetBytesPerFrame, 0, 64 * 1024 * 1024);
+
+            int levels = ClipmapLevels;
+
+            if (PerLevelProbeUpdateBudget is null || PerLevelProbeUpdateBudget.Length == 0)
+            {
+                PerLevelProbeUpdateBudget = new int[levels];
+                int b = 256;
+                for (int i = 0; i < levels; i++)
+                {
+                    PerLevelProbeUpdateBudget[i] = Math.Clamp(b, 0, 65_536);
+                    b = Math.Max(1, b >> 1);
+                }
+                return;
+            }
+
+            if (PerLevelProbeUpdateBudget.Length != levels)
+            {
+                int[] resized = new int[levels];
+                int copy = Math.Min(levels, PerLevelProbeUpdateBudget.Length);
+                Array.Copy(PerLevelProbeUpdateBudget, resized, copy);
+
+                int fallback = copy > 0 ? resized[copy - 1] : 256;
+                for (int i = copy; i < levels; i++)
+                {
+                    fallback = Math.Max(1, fallback >> 1);
+                    resized[i] = fallback;
+                }
+
+                PerLevelProbeUpdateBudget = resized;
+            }
+
+            for (int i = 0; i < PerLevelProbeUpdateBudget.Length; i++)
+            {
+                PerLevelProbeUpdateBudget[i] = Math.Clamp(PerLevelProbeUpdateBudget[i], 0, 65_536);
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -211,6 +305,16 @@ public class LumOnConfig
     /// </summary>
     [JsonProperty]
     public bool DebugLogNormalDepthAtlas { get; set; } = true;
+
+    // ═══════════════════════════════════════════════════════════════
+    // Phase 18 - World-Space Clipmap Probes (Config)
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Configuration for the Phase 18 world-probe clipmap system.
+    /// </summary>
+    [JsonProperty]
+    public WorldProbeClipmapConfig WorldProbeClipmap { get; set; } = new();
 
     // ═══════════════════════════════════════════════════════════════
     // Probe Grid Settings (SPG-001)
@@ -607,4 +711,59 @@ public class LumOnConfig
     /// </summary>
     [JsonIgnore]
     public LumOnDebugMode DebugMode { get; set; } = LumOnDebugMode.Off;
+
+    /// <summary>
+    /// Clamps settings to safe bounds. Intended to be called after loading or live reload.
+    /// </summary>
+    public void Sanitize()
+    {
+        // Keep existing behavior for NaNs: clamp/guards are conservative.
+        ProbeSpacingPx = Math.Clamp(ProbeSpacingPx, 1, 64);
+        AnchorJitterScale = Math.Clamp(AnchorJitterScale, 0.0f, 0.49f);
+        PmjJitterCycleLength = Math.Clamp(PmjJitterCycleLength, 1, 65_536);
+        HzbCoarseMip = Math.Clamp(HzbCoarseMip, 0, 12);
+        ProbeAtlasTexelsPerFrame = Math.Clamp(ProbeAtlasTexelsPerFrame, 1, 64);
+        RaysPerProbePerFrame = Math.Clamp(RaysPerProbePerFrame, 1, 256);
+        RaySteps = Math.Clamp(RaySteps, 1, 512);
+        RayMaxDistance = Math.Clamp(RayMaxDistance, 0.25f, 256.0f);
+        RayThickness = Math.Clamp(RayThickness, 0.01f, 16.0f);
+
+        TemporalAlpha = Math.Clamp(TemporalAlpha, 0.0f, 1.0f);
+        DepthRejectThreshold = Math.Clamp(DepthRejectThreshold, 0.0f, 10.0f);
+        NormalRejectThreshold = Math.Clamp(NormalRejectThreshold, -1.0f, 1.0f);
+        DepthDiscontinuityThreshold = Math.Clamp(DepthDiscontinuityThreshold, 0.0f, 10.0f);
+
+        VelocityRejectThreshold = Math.Clamp(VelocityRejectThreshold, 0.0f, 1.0f);
+        CameraTeleportResetThreshold = Math.Clamp(CameraTeleportResetThreshold, 0.0f, 10_000.0f);
+
+        MaterialAtlasAsyncBudgetMs = Math.Clamp(MaterialAtlasAsyncBudgetMs, 0.0f, 100.0f);
+        MaterialAtlasAsyncMaxUploadsPerFrame = Math.Clamp(MaterialAtlasAsyncMaxUploadsPerFrame, 0, 512);
+        MaterialAtlasAsyncMaxCpuJobsPerFrame = Math.Clamp(MaterialAtlasAsyncMaxCpuJobsPerFrame, 0, 512);
+        NormalDepthAtlasAsyncBudgetMs = Math.Clamp(NormalDepthAtlasAsyncBudgetMs, 0.0f, 100.0f);
+        NormalDepthAtlasAsyncMaxUploadsPerFrame = Math.Clamp(NormalDepthAtlasAsyncMaxUploadsPerFrame, 0, 512);
+
+        ParallaxScale = Math.Clamp(ParallaxScale, 0.0f, 0.25f);
+
+        Intensity = Math.Clamp(Intensity, 0.0f, 16.0f);
+        EmissiveGiBoost = Math.Clamp(EmissiveGiBoost, 0.0f, 64.0f);
+        SkyMissWeight = Math.Clamp(SkyMissWeight, 0.0f, 1.0f);
+
+        GatherDepthSigma = Math.Clamp(GatherDepthSigma, 0.0f, 10.0f);
+        GatherNormalSigma = Math.Clamp(GatherNormalSigma, 0.0f, 64.0f);
+
+        UpsampleDepthSigma = Math.Clamp(UpsampleDepthSigma, 0.0f, 10.0f);
+        UpsampleNormalSigma = Math.Clamp(UpsampleNormalSigma, 0.0f, 128.0f);
+        UpsampleSpatialSigma = Math.Clamp(UpsampleSpatialSigma, 0.0f, 32.0f);
+        UpsampleHoleFillRadius = Math.Clamp(UpsampleHoleFillRadius, 0, 16);
+        UpsampleHoleFillMinConfidence = Math.Clamp(UpsampleHoleFillMinConfidence, 0.0f, 1.0f);
+
+        DiffuseAOStrength = Math.Clamp(DiffuseAOStrength, 0.0f, 1.0f);
+        SpecularAOStrength = Math.Clamp(SpecularAOStrength, 0.0f, 1.0f);
+
+        ProbeAtlasLeakThreshold = Math.Clamp(ProbeAtlasLeakThreshold, 0.0f, 10.0f);
+        ProbeAtlasSampleStride = Math.Clamp(ProbeAtlasSampleStride, 1, 8);
+
+        WorldProbeClipmap ??= new WorldProbeClipmapConfig();
+        WorldProbeClipmap.Sanitize();
+    }
 }

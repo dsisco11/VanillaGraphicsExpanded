@@ -12,10 +12,11 @@ using VanillaGraphicsExpanded.Rendering.Profiling;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.Client.NoObf;
+using System;
 
 namespace VanillaGraphicsExpanded;
 
-public sealed class VanillaGraphicsExpandedModSystem : ModSystem
+public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigurable
 {
     private ICoreClientAPI? capi;
     private GBufferManager? gBufferManager;
@@ -35,6 +36,48 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
     private bool isLevelFinalized;
     private bool pendingMaterialAtlasPopulate;
     private long materialAtlasPopulateCallbackId;
+
+    private LumOnLiveConfigSnapshot? lastLiveConfigSnapshot;
+
+    private readonly record struct LumOnLiveConfigSnapshot(
+        bool LumOnEnabled,
+        int ProbeSpacingPx,
+        bool HalfResolution,
+        float ClipmapBaseSpacing,
+        int ClipmapResolution,
+        int ClipmapLevels,
+        int ClipmapBudgetsHash,
+        int ClipmapTraceMaxProbesPerFrame,
+        int ClipmapUploadBudgetBytesPerFrame)
+    {
+        public static LumOnLiveConfigSnapshot From(LumOnConfig cfg)
+        {
+            var c = cfg.WorldProbeClipmap;
+            return new LumOnLiveConfigSnapshot(
+                cfg.Enabled,
+                cfg.ProbeSpacingPx,
+                cfg.HalfResolution,
+                c.ClipmapBaseSpacing,
+                c.ClipmapResolution,
+                c.ClipmapLevels,
+                HashBudgets(c.PerLevelProbeUpdateBudget),
+                c.TraceMaxProbesPerFrame,
+                c.UploadBudgetBytesPerFrame);
+        }
+
+        private static int HashBudgets(int[]? budgets)
+        {
+            if (budgets is null) return 0;
+
+            int hash = HashCode.Combine(budgets.Length);
+            foreach (int b in budgets)
+            {
+                hash = HashCode.Combine(hash, b);
+            }
+
+            return hash;
+        }
+    }
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
@@ -144,6 +187,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         };
 
         // Initialize LumOn based on config (loaded by ConfigModSystem).
+        ConfigModSystem.Config.Sanitize();
+        lastLiveConfigSnapshot = LumOnLiveConfigSnapshot.From(ConfigModSystem.Config);
         if (ConfigModSystem.Config.Enabled)
         {
             api.Logger.Notification("[VGE] LumOn enabled - using Screen Probe Gather");
@@ -176,6 +221,70 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         VgeDebugViewManager.Initialize(
             api,
             ConfigModSystem.Config);
+    }
+
+    public void OnConfigReloaded(ICoreAPI api)
+    {
+        if (api is not ICoreClientAPI clientApi) return;
+
+        // Ensure any external mutation (ConfigLib) is clamped into safe bounds.
+        ConfigModSystem.Config.Sanitize();
+
+        var current = LumOnLiveConfigSnapshot.From(ConfigModSystem.Config);
+        if (lastLiveConfigSnapshot is null)
+        {
+            lastLiveConfigSnapshot = current;
+            return;
+        }
+
+        var prev = lastLiveConfigSnapshot.Value;
+        lastLiveConfigSnapshot = current;
+
+        // LumOn enable: create missing runtime objects.
+        // LumOn disable: keep objects alive (renderer remains registered) but it will early-out.
+        if (current.LumOnEnabled && lumOnRenderer is null)
+        {
+            if (gBufferManager is null)
+            {
+                clientApi.Logger.Warning("[VGE] LumOn enabled via live config reload, but GBufferManager is not initialized yet.");
+                return;
+            }
+
+            clientApi.Logger.Notification("[VGE] LumOn enabled via live config reload");
+            lumOnBufferManager ??= new LumOnBufferManager(clientApi, ConfigModSystem.Config);
+            lumOnRenderer = new LumOnRenderer(clientApi, ConfigModSystem.Config, lumOnBufferManager, gBufferManager);
+        }
+
+        // Screen-probe resource sizing depends on these keys.
+        if (lumOnBufferManager is not null)
+        {
+            if (prev.ProbeSpacingPx != current.ProbeSpacingPx || prev.HalfResolution != current.HalfResolution)
+            {
+                lumOnBufferManager.RequestRecreateBuffers("live config change (ProbeSpacingPx/HalfResolution)");
+            }
+        }
+
+        // Phase 18 world-probe config: classify hot-reload behavior.
+        // - Budgets are safe live updates (scheduler will consume them once implemented).
+        // - Topology changes (spacing/resolution/levels) require resource reallocation + invalidation.
+        bool clipmapTopologyChanged =
+            prev.ClipmapBaseSpacing != current.ClipmapBaseSpacing ||
+            prev.ClipmapResolution != current.ClipmapResolution ||
+            prev.ClipmapLevels != current.ClipmapLevels;
+
+        bool clipmapBudgetsChanged =
+            prev.ClipmapBudgetsHash != current.ClipmapBudgetsHash ||
+            prev.ClipmapTraceMaxProbesPerFrame != current.ClipmapTraceMaxProbesPerFrame ||
+            prev.ClipmapUploadBudgetBytesPerFrame != current.ClipmapUploadBudgetBytesPerFrame;
+
+        if (clipmapTopologyChanged)
+        {
+            clientApi.Logger.Notification("[VGE] World-probe clipmap topology changed (spacing/resolution/levels). Will apply once Phase 18 clipmap resources exist; re-entering the world may be required.");
+        }
+        else if (clipmapBudgetsChanged)
+        {
+            clientApi.Logger.Debug("[VGE] World-probe clipmap budgets updated (live).");
+        }
     }
 
     public override void Dispose()

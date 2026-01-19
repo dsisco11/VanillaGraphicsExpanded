@@ -46,11 +46,14 @@ internal sealed class ConfigModSystem : ModSystem
             {
                 Config = loadedConfig;
             }
+
+            Config.Sanitize();
         }
         catch (Exception ex)
         {
             api.Logger.Error("[VGE] Failed to load configuration: {0}", ex.Message);
             Config = new LumOnConfig();
+            Config.Sanitize();
         }
         
         configLoaded = true;
@@ -77,6 +80,7 @@ internal sealed class ConfigModSystem : ModSystem
         if (api is null) return;
 
         TrySyncConfigFromConfigLib();
+        Config.Sanitize();
         LiveConfigReload.NotifyAll(api);
         PersistConfigAndNotifyReloadRequired(api, source: "ConfigLib");
     }
@@ -134,6 +138,7 @@ internal sealed class ConfigModSystem : ModSystem
             // Capture the created/registered config instance and do an initial sync.
             configLibConfig = TryGetConfigInstance(configLib);
             TrySyncConfigFromConfigLib();
+            Config.Sanitize();
             LiveConfigReload.NotifyAll(api);
         }
         catch (Exception ex)
@@ -229,7 +234,7 @@ internal sealed class ConfigModSystem : ModSystem
         api.StoreModConfig(Config, Constants.ConfigFileName);
 
         api.Logger.Notification(
-            "[VanillaExpanded] Configuration updated via {0}. Changes will apply after re-entering the world (and may require a restart).",
+            "[VanillaExpanded] Configuration updated via {0}. Some changes apply immediately; others apply after re-entering the world (and may require a restart).",
             source
         );
     }

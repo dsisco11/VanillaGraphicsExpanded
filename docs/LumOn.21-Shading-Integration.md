@@ -26,7 +26,7 @@ Required outputs per pixel (initial scope):
 Optional outputs per pixel (needed for Phase 18+ feature completeness and tuning/debug):
 
 - **IndirectConfidence**: `scalar` $[0,1]$, “how trustworthy is IndirectDiffuse?”.
-- **ShortRangeAO direction**: `unit vec3` in **world space** (WS). Provides a *visibility / bent-normal* style signal.
+- **ShortRangeAO direction**: `unit vec3` in **world space** (WS). Provides a _visibility / bent-normal_ style signal.
 - **ShortRangeAO confidence**: `scalar` $[0,1]$.
 - **Mean hit distance**: `scalar` (world units or log-encoded), used for temporal validation and filtering.
 
@@ -52,7 +52,7 @@ All persistent probe payloads are stored in **world space**:
 - `ShortRangeAO` direction is stored as a **WS unit vector** (typically oct-encoded in textures).
 - Hit distance is defined along traced rays in world units (or a documented log encoding).
 
-Shading may transform vectors to view space (VS) *only at the last moment* when needed for BRDF math (e.g., `shortRangeAoDirVS` in the PBR composite path).
+Shading may transform vectors to view space (VS) _only at the last moment_ when needed for BRDF math (e.g., `shortRangeAoDirVS` in the PBR composite path).
 
 ---
 
@@ -62,7 +62,7 @@ Shading may transform vectors to view space (VS) *only at the last moment* when 
 
 Select a level based on distance or sample footprint:
 
-```
+```text
 level = SelectLevel(worldPos, cameraPos)
 ```
 
@@ -72,13 +72,13 @@ Optionally sample both L and L+1 in overlap regions (see LumOn.17).
 
 Given `(index, frac)` for a level:
 
-```
+```text
 sample = Trilinear(ProbeTex, index, frac)
 ```
 
 For SH payloads:
 
-```
+```text
 irradiance = EvaluateSH(sampleSH, normalWS)
 ```
 
@@ -89,7 +89,7 @@ To reduce light leaking:
 - Use the ShortRangeAO direction and confidence from the probe payload.
 - Apply a normal-based weight:
 
-```
+```text
 weight = saturate(dot(normalWS, shortRangeAODirWS)) * shortRangeAOConfidence
 ```
 
@@ -101,7 +101,7 @@ This treats ShortRangeAO as a directional occlusion weight; no cone angle is use
 
 Screen-space remains the primary source when confident:
 
-```
+```text
 screenWeight = screenConfidence
 worldWeight = worldConfidence * (1 - screenWeight)
 sumW = screenWeight + worldWeight

@@ -31,19 +31,19 @@ LumOn - Phase 18 - World-Space Clipmap Probe System (Implementation):
 
   Phase 18.2 - Config + Defaults + Hot-Reload:
   Exit artifacts: Config values exist with safe bounds; changes trigger deterministic re-init and/or incremental rebuild.
-  ☐ Add config values:
-    - ClipmapBaseSpacing
-    - ClipmapResolution
-    - ClipmapLevels
-    - PerLevelProbeUpdateBudget (or per-level budgets)
-    - TraceBudget / MaxProbesPerFrame (CPU)
-    - UploadBudgetBytesPerFrame (GPU)
-  ☐ Choose validation bounds (min/max) and define clamping behavior.
-  ☐ Decide hot-reload behavior per key:
-    - Safe live update (budget changes)
-    - Requires resource reallocate (resolution/levels)
-    - Requires full invalidation (packing/layout changes)
-  ☐ Implement config change detection and orderly re-init sequencing.
+  ✔ Add config values: @done
+    - ClipmapBaseSpacing @done
+    - ClipmapResolution @done
+    - ClipmapLevels @done
+    - PerLevelProbeUpdateBudget (or per-level budgets) @done
+    - TraceBudget / MaxProbesPerFrame (CPU) @done
+    - UploadBudgetBytesPerFrame (GPU) @done
+  ✔ Choose validation bounds (min/max) and define clamping behavior. @done
+  ✔ Decide hot-reload behavior per key: @done
+    - Safe live update (budget changes) @done
+    - Requires resource reallocate (resolution/levels) @done
+    - Requires full invalidation (packing/layout changes) @done
+  ✔ Implement config change detection and orderly re-init sequencing. @done
 
 
   Phase 18.3 - Data Layout + Packing (L1 SH + Metadata):

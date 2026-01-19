@@ -159,6 +159,8 @@ public sealed class LumOnBufferManager : IDisposable
 
     private bool isInitialized;
 
+    private bool forceRecreateOnNextEnsure;
+
     #endregion
 
     #region Properties
@@ -459,14 +461,21 @@ public sealed class LumOnBufferManager : IDisposable
     /// <returns>True if buffers are valid and ready, false if not initialized</returns>
     public bool EnsureBuffers(int screenWidth, int screenHeight)
     {
-        if (!isInitialized || screenWidth != lastScreenWidth || screenHeight != lastScreenHeight)
+        if (forceRecreateOnNextEnsure || !isInitialized || screenWidth != lastScreenWidth || screenHeight != lastScreenHeight)
         {
             CreateBuffers(screenWidth, screenHeight);
             lastScreenWidth = screenWidth;
             lastScreenHeight = screenHeight;
+            forceRecreateOnNextEnsure = false;
             return false;  // Buffers were recreated
         }
         return true;  // No change
+    }
+
+    public void RequestRecreateBuffers(string reason)
+    {
+        forceRecreateOnNextEnsure = true;
+        capi.Logger.Debug("[LumOn] Buffer recreation requested: {0}", reason);
     }
 
     /// <summary>
