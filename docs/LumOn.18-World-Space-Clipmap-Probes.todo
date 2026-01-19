@@ -1,0 +1,169 @@
+LumOn - Phase 18 - World-Space Clipmap Probe System (Implementation):
+
+  Goal:
+  Implement world-space clipmap probes per LumOn.16-21 with L1 SH, CPU async voxel traces,
+  and ShortRangeAO visibility, feeding the Phase 15 composite alongside screen-space GI.
+
+  Reference:
+  - docs/LumOn.01-Core-Architecture.md (ownership boundaries)
+  - docs/LumOn.02-Probe-Grid.md (probe sampling conventions)
+  - docs/LumOn.16-World-Space-Clipmap-Probes.md (system shape)
+  - docs/LumOn.17-Clipmap-Topology-and-Addressing.md (origin snapping, rings, addressing)
+  - docs/LumOn.18-Probe-Data-Layout-and-Packing.md (L1 SH packing, metadata, formats)
+  - docs/LumOn.19-Update-Pipeline-and-Scheduling.md (CPU update selection, budgets, upload)
+  - docs/LumOn.20-Streaming-and-Persistence.md (streaming, cache persistence, versioning)
+  - docs/LumOn.21-Shading-Integration.md (sampling + blend policy)
+  - docs/Profiling.EventSource.md (timing + profiling hooks)
+
+  Exit artifacts (Phase 18 overall):
+  A working world-probe pipeline that updates clipmaps over time, blends with screen-space GI using
+  confidence, exposes debug views, and includes basic validation tests.
+
+
+  Phase 18.1 - Requirements + Ownership Boundaries:
+  Exit artifacts: Clear contracts for what produces/consumes world-probe data, and how it interacts with screen-space GI.
+  ☐ Enumerate required outputs per pixel for Phase 15 composite (irradiance/specular, ShortRangeAO, confidence, distance).
+  ☐ Decide which buffers/textures are authoritative for world probes (separate from ScreenProbeAtlas).
+  ☐ Define coordinate spaces for all stored values (WS vs VS, encoding conventions).
+  ☐ Define blend policy with screen-space GI (screen-first, confidence-based) and failure modes.
+  ☐ Define quality/perf targets and expected update budgets (per level, per frame).
+
+
+  Phase 18.2 - Config + Defaults + Hot-Reload:
+  Exit artifacts: Config values exist with safe bounds; changes trigger deterministic re-init and/or incremental rebuild.
+  ☐ Add config values:
+    - ClipmapBaseSpacing
+    - ClipmapResolution
+    - ClipmapLevels
+    - PerLevelProbeUpdateBudget (or per-level budgets)
+    - TraceBudget / MaxProbesPerFrame (CPU)
+    - UploadBudgetBytesPerFrame (GPU)
+  ☐ Choose validation bounds (min/max) and define clamping behavior.
+  ☐ Decide hot-reload behavior per key:
+    - Safe live update (budget changes)
+    - Requires resource reallocate (resolution/levels)
+    - Requires full invalidation (packing/layout changes)
+  ☐ Implement config change detection and orderly re-init sequencing.
+
+
+  Phase 18.3 - Data Layout + Packing (L1 SH + Metadata):
+  Exit artifacts: A stable, documented layout for per-probe/per-texel data with versioning hooks.
+  ☐ Specify SH basis (L1) orientation and normalization conventions; align with docs/LumOn.02.
+  ☐ Choose texture formats per signal (per level):
+    - L1 SH (RGB) packing (e.g., multiple RGBA16F targets or packed formats)
+    - ShortRangeAO direction encoding (oct) + optional cone/confidence
+    - Confidence (scalar)
+    - Distance / hit distance (optional)
+  ☐ Define metadata bitflags (valid, stale, sky, etc.) and confidence semantics.
+  ☐ Define a version tag for packed layout to support persistence/streaming.
+
+
+  Phase 18.4 - Clipmap Topology + Addressing:
+  Exit artifacts: Deterministic mapping between world space and clipmap addresses, with origin snapping.
+  ☐ Implement origin snapping per level (deterministic for a given camera path).
+  ☐ Implement world→(level, probeCoord) mapping and inverse mapping.
+  ☐ Implement ring/brick (if applicable) addressing per docs/LumOn.17.
+  ☐ Define border behavior and sampling rules near clipmap edges.
+  ☐ Define cross-level overlap blending (how many levels contribute, weights, and transition band).
+
+
+  Phase 18.5 - Scheduling + Dirty Tracking:
+  Exit artifacts: A per-level update scheduler exists with budgets, prioritization, and clear state transitions.
+  ☐ Define probe lifecycle states (uninitialized, valid, stale, dirty, in-flight).
+  ☐ Implement dirty region tracking sources:
+    - Origin shift
+    - Time-since-update / staleness
+    - Optional world changes / block updates (if accessible)
+  ☐ Implement selection policy:
+    - Near-field priority
+    - Dirty regions priority
+    - Stale probes priority
+  ☐ Enforce per-level budgets and global CPU/GPU budgets.
+  ☐ Add determinism notes (ordering/stability) to avoid temporal “sparkle” from scheduling jitter.
+
+
+  Phase 18.6 - CPU Trace Backend (Async Voxel Traces):
+  Exit artifacts: CPU generates trace samples + metadata for selected probes, asynchronously and safely.
+  ☐ Decide voxel trace representation and scene sampling source (what data is accessible from VS).
+  ☐ Implement async worker pipeline:
+    - Work item creation (probe id, level, origin, directions)
+    - Worker execution (trace, integrate)
+    - Result handoff and lifetime management
+  ☐ Define trace sampling pattern (directions / stratification) consistent with SH expectations.
+  ☐ Compute per-probe outputs:
+    - L1 SH coefficients
+    - ShortRangeAO visibility direction (or occlusion proxy)
+    - Confidence and distance metrics
+  ☐ Add cancellation/backpressure when camera moves rapidly or budgets are exceeded.
+
+
+  Phase 18.7 - GPU Upload + Integration:
+  Exit artifacts: CPU results are uploaded to GPU and written into per-level textures with optional filtering.
+  ☐ Define SSBO layout for trace headers + samples (or final coefficients), per docs/LumOn.18.
+  ☐ Implement GPU upload path with budget enforcement and staging buffers.
+  ☐ Implement GPU integration/resolve:
+    - Write SH coefficients into clipmap textures
+    - Write ShortRangeAO + confidence + distance
+    - Mark metadata flags
+  ☐ Implement probe-space filtering / denoise for world probes (optional but planned), consistent with Phase 11 approach.
+  ☐ Handle device lost / reload / recompile paths (resource re-create).
+
+
+  Phase 18.8 - Buffer + Texture Management:
+  Exit artifacts: Clipmap textures exist per level; resizing/recreation is correct and leak-free.
+  ☐ Allocate per-level textures for SH, ShortRangeAO, confidence, distance, and metadata.
+  ☐ Define naming/debug labels for GL objects for RenderDoc/debug tooling.
+  ☐ Implement recreate on:
+    - Resolution/levels change
+    - Format/layout change
+    - Graphics reload events
+  ☐ Ensure history/temporal buffers (if introduced) are double-buffered and consistent.
+
+
+  Phase 18.9 - Streaming + Persistence (Optional):
+  Exit artifacts: A path exists to warm-start and to invalidate caches safely when config/content changes.
+  ☐ Define persistence format (binary) and versioning strategy.
+  ☐ Define invalidation keys:
+    - Layout version
+    - Config values affecting topology/layout
+    - Game/mod version (if needed)
+  ☐ Implement optional warm-start load for nearby clipmaps.
+  ☐ Implement periodic save throttling and size limits.
+
+
+  Phase 18.10 - Shading Integration:
+  Exit artifacts: Shaders can sample world probes, blend them with screen-space GI, and feed Phase 15 composite.
+  ☐ Implement world-probe sampling in shading path (trilinear within level).
+  ☐ Implement cross-level overlap blending and transition smoothing.
+  ☐ Implement screen-space vs world-space blend policy (confidence-based, screen-first).
+  ☐ Feed Phase 15 composite inputs:
+    - Indirect diffuse/specular contributions (as applicable)
+    - ShortRangeAO direction / visibility proxy
+    - Confidence for compositing decisions
+  ☐ Define fallback behavior when world probes are missing/low-confidence.
+
+
+  Phase 18.11 - Debug Tooling + Profiling:
+  Exit artifacts: Debug views exist and performance can be measured per stage.
+  ☐ Add debug views for:
+    - World probe irradiance (per level and combined)
+    - ShortRangeAO direction and/or magnitude
+    - Confidence and distance
+    - Blend weights (screen vs world, per level)
+    - Probe update heatmap (stale/dirty/in-flight)
+  ☐ Add GPU timing events for:
+    - Upload
+    - Integrate/resolve
+    - Filter (if any)
+  ☐ Add CPU timing for:
+    - Scheduling
+    - Trace work (queued, running, completed)
+
+
+  Phase 18.12 - Tests + Validation:
+  Exit artifacts: Deterministic behavior and basic correctness are validated by automated tests/diagnostics.
+  ☐ Clipmap origin snapping determinism across camera paths.
+  ☐ Probe sampling stability across camera movement.
+  ☐ Budget enforcement tests (no runaway CPU/GPU work under stress).
+  ☐ Layout/version migration tests for persistence (if implemented).
+  ☐ Visual debug capture checklist (RenderDoc): validate per-level textures update and blend.
