@@ -9,6 +9,8 @@
 - AtlasSnapshot (page sizes, positions, reload iteration)
 - Material registry (material definitions, scales, overrides)
 - Config flags (async enable, normal/depth enable, budgets)
+  - `MaterialAtlasAsyncBudgetMs`, `MaterialAtlasAsyncMaxUploadsPerFrame`
+  - `NormalDepthAtlasAsyncBudgetMs`, `NormalDepthAtlasAsyncMaxUploadsPerFrame`
 
 ## 2. Build Plan Generation
 
@@ -36,6 +38,7 @@ For each material params tile:
 4. Upload tile to the MaterialAtlasTextureStore.
 
 Notes:
+
 - Default fill values exist for unmapped tiles.
 - Override failures log once and fall back to procedural output.
 
@@ -50,16 +53,23 @@ For each normal/depth tile:
    - Upload override data to the atlas region.
 
 Notes:
+
 - Tiles smaller than the minimum size can be skipped (leave defaults).
 - All GPU operations occur on the render thread.
+- When async is enabled, disk cache reads are performed on worker threads and enqueue GPU jobs:
+  - cached upload (hit)
+  - bake (miss)
+  - override apply (if present)
 
 ## 5. Sync vs Async Execution
 
 Sync build:
+
 - MaterialAtlasSystem iterates the build plan and uploads all tiles in one pass.
 - Normal/depth bake runs inline on render thread.
 
 Async build:
+
 - MaterialAtlasBuildScheduler dispatches CPU tile work on worker threads.
 - Render thread uploads results within a per-frame budget.
 - Normal/depth bake tiles can be scheduled in a similar budgeted path.
@@ -69,10 +79,12 @@ Both paths share the same AtlasBuildPlan and tile data contracts.
 ## 6. Ordering and Determinism
 
 Per tile ordering:
+
 - Material params base -> material params override.
 - Normal/depth bake -> normal/height override.
 
 Determinism:
+
 - Seeded noise uses asset keys and stable salts.
 - Atlas rect conversion is consistent and clamped.
 
@@ -86,10 +98,12 @@ Determinism:
 ## 8. Outputs
 
 Material params atlas:
+
 - Format: RGB16F
 - Channels: roughness, metallic, emissive
 
 Normal/depth atlas:
+
 - Format: RGBA16F
 - Channels: normal.xyz (0..1), height (signed in A)
 

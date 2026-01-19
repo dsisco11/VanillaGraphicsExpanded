@@ -1,5 +1,4 @@
 using System;
-using System.Threading.Tasks;
 
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.PBR.Materials.Cache;
@@ -41,14 +40,6 @@ internal readonly record struct MaterialAtlasNormalDepthGpuOverrideJob(
             }
 
             session.EnsureNormalDepthPageCleared(capi, AtlasTextureId, pageTextures);
-
-            if (DiskCache is not null && CacheKey.SchemaVersion != 0
-                && DiskCache.TryLoadNormalDepthTile(CacheKey, out float[] cached)
-                && cached.Length == checked(Rect.Width * Rect.Height * 4))
-            {
-                pageTextures.NormalDepthTexture.UploadData(cached, Rect.X, Rect.Y, Rect.Width, Rect.Height);
-                return;
-            }
 
             var loader = session.OverrideLoader;
             if (!loader.TryLoadRgbaFloats01(
@@ -94,6 +85,7 @@ internal readonly record struct MaterialAtlasNormalDepthGpuOverrideJob(
 
             if (DiskCache is not null && CacheKey.SchemaVersion != 0 && !session.IsCancelled && session.GenerationId == GenerationId)
             {
+                int genId = GenerationId;
                 IMaterialAtlasDiskCache diskCache = DiskCache;
                 AtlasCacheKey cacheKey = CacheKey;
                 int w = Rect.Width;
@@ -101,16 +93,14 @@ internal readonly record struct MaterialAtlasNormalDepthGpuOverrideJob(
                 float[] copy = uploadData;
 
                 // Never block the render thread on IO.
-                _ = Task.Run(() =>
+                _ = MaterialAtlasDiskCacheIoQueue.TryQueue(() =>
                 {
-                    try
+                    if (session.IsCancelled || session.GenerationId != genId)
                     {
-                        diskCache.StoreNormalDepthTile(cacheKey, w, h, copy);
+                        return;
                     }
-                    catch
-                    {
-                        // Best-effort.
-                    }
+
+                    diskCache.StoreNormalDepthTile(cacheKey, w, h, copy);
                 });
             }
         }

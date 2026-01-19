@@ -28,10 +28,10 @@ Goals:
   ☑ Keep cache writes off the render thread (Task.Run) and cancel-aware.
   ☑ Add bounded queues or backpressure to avoid memory spikes.
 
-☐ Phase 4 - Config and UX
-  ☐ Add config knobs for normal+depth async budget (ms) and max uploads/frame.
-  ☐ Document new knobs and defaults in config docs and change notes.
-  ☐ Update the progress panel to show material params vs normal+depth progress.
+☑ Phase 4 - Config and UX
+  ☑ Add config knobs for normal+depth async budget (ms) and max uploads/frame.
+  ☑ Document new knobs and defaults in config docs and change notes.
+  ☑ Update the progress panel to show material params vs normal+depth progress.
 
 ☐ Phase 5 - Validation and regression coverage
   ☐ Add tests for determinism and cache key stability when async is enabled.

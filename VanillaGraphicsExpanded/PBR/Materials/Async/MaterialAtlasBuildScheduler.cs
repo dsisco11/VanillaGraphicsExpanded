@@ -191,16 +191,28 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
             pendingNormalDepthGpuJobs.Enqueue(completedNd.Priority, completedNd);
         }
 
-        float budgetMs = ConfigModSystem.Config.MaterialAtlasAsyncBudgetMs;
-        if (budgetMs <= 0)
+        float materialBudgetMs = ConfigModSystem.Config.MaterialAtlasAsyncBudgetMs;
+        if (materialBudgetMs <= 0)
         {
-            budgetMs = 0.5f;
+            materialBudgetMs = 0.5f;
         }
 
-        int maxUploads = ConfigModSystem.Config.MaterialAtlasAsyncMaxUploadsPerFrame;
-        if (maxUploads <= 0)
+        int materialMaxUploads = ConfigModSystem.Config.MaterialAtlasAsyncMaxUploadsPerFrame;
+        if (materialMaxUploads <= 0)
         {
-            maxUploads = 1;
+            materialMaxUploads = 1;
+        }
+
+        float normalDepthBudgetMs = ConfigModSystem.Config.NormalDepthAtlasAsyncBudgetMs;
+        if (normalDepthBudgetMs <= 0)
+        {
+            normalDepthBudgetMs = 0.5f;
+        }
+
+        int normalDepthMaxUploads = ConfigModSystem.Config.NormalDepthAtlasAsyncMaxUploadsPerFrame;
+        if (normalDepthMaxUploads <= 0)
+        {
+            normalDepthMaxUploads = 1;
         }
 
         int maxCpuJobsPerFrame = ConfigModSystem.Config.MaterialAtlasAsyncMaxCpuJobsPerFrame;
@@ -213,7 +225,8 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
 
         // Dispatch a limited number of CPU jobs per frame.
         int dispatched = 0;
-        while (dispatched < maxCpuJobsPerFrame && stopwatch.Elapsed.TotalMilliseconds < budgetMs)
+        float dispatchBudgetMs = Math.Max(materialBudgetMs, normalDepthBudgetMs);
+        while (dispatched < maxCpuJobsPerFrame && stopwatch.Elapsed.TotalMilliseconds < dispatchBudgetMs)
         {
             bool isMaterialParams = pendingCpuJobs.TryDequeue(out IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload> job);
             bool isNormalDepth = false;
@@ -284,9 +297,9 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
             }, CancellationToken.None);
         }
 
-        // Do a limited number of GPU uploads per frame.
-        int uploads = 0;
-        while (uploads < maxUploads && stopwatch.Elapsed.TotalMilliseconds < budgetMs)
+        // Do a limited number of material params GPU uploads per frame.
+        int materialUploads = 0;
+        while (materialUploads < materialMaxUploads && stopwatch.Elapsed.TotalMilliseconds < materialBudgetMs)
         {
             if (!pendingGpuUploads.TryDequeue(out MaterialAtlasParamsGpuTileUpload upload))
             {
@@ -307,7 +320,7 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
             try
             {
                 upload.Execute(capi, tryGetPageTextures, active);
-                uploads++;
+                materialUploads++;
             }
             catch
             {
@@ -317,7 +330,7 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
 
         // Apply a limited number of override uploads per frame.
         int overrideUploads = 0;
-        while (uploads < maxUploads && stopwatch.Elapsed.TotalMilliseconds < budgetMs)
+        while (materialUploads + overrideUploads < materialMaxUploads && stopwatch.Elapsed.TotalMilliseconds < materialBudgetMs)
         {
             if (!active.TryDequeuePendingOverrideUpload(out MaterialAtlasParamsGpuOverrideUpload ov))
             {
@@ -332,7 +345,6 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
             try
             {
                 ov.Execute(capi, tryGetPageTextures, active);
-                uploads++;
                 overrideUploads++;
             }
             catch
@@ -342,8 +354,10 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
         }
 
         // Do a limited number of normal+depth GPU jobs per frame.
+        long normalDepthStart = Stopwatch.GetTimestamp();
         int normalDepthUploads = 0;
-        while (uploads < maxUploads && stopwatch.Elapsed.TotalMilliseconds < budgetMs)
+        while (normalDepthUploads < normalDepthMaxUploads
+            && Stopwatch.GetElapsedTime(normalDepthStart).TotalMilliseconds < normalDepthBudgetMs)
         {
             if (!pendingNormalDepthGpuJobs.TryDequeue(out MaterialAtlasNormalDepthGpuJob job))
             {
@@ -358,7 +372,6 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
             try
             {
                 job.Execute(capi, tryGetPageTextures, active);
-                uploads++;
                 normalDepthUploads++;
             }
             catch
@@ -372,8 +385,7 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
         lastOverrideUploads = overrideUploads;
         lastNormalDepthUploads = normalDepthUploads;
 
-        // totalUploads == materialUploads + overrideUploads + normalDepthUploads
-        lastGpuUploads = Math.Max(0, uploads - overrideUploads - normalDepthUploads);
+        lastGpuUploads = materialUploads;
 
         if (active.IsComplete
             && lastLoggedCompleteGenerationId != active.GenerationId

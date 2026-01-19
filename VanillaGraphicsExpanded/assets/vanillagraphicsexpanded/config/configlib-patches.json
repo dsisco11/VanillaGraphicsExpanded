@@ -82,6 +82,38 @@
         "comment": "vanillagraphicsexpanded:config-enable-short-range-ao-tooltip",
         "default": true,
         "weight": 9.3
+      },
+      "ENABLE_MATERIAL_ATLAS_ASYNC_BUILD": {
+        "code": "EnableMaterialAtlasAsyncBuild",
+        "name": "EnableMaterialAtlasAsyncBuild",
+        "ingui": "vanillagraphicsexpanded:config-material-atlas-async-enabled",
+        "comment": "vanillagraphicsexpanded:config-material-atlas-async-enabled-tooltip",
+        "default": true,
+        "weight": 20.0
+      },
+      "ENABLE_NORMAL_DEPTH_ATLAS": {
+        "code": "EnableNormalDepthAtlas",
+        "name": "EnableNormalDepthAtlas",
+        "ingui": "vanillagraphicsexpanded:config-normal-depth-atlas-enabled",
+        "comment": "vanillagraphicsexpanded:config-normal-depth-atlas-enabled-tooltip",
+        "default": true,
+        "weight": 20.1
+      },
+      "ENABLE_MATERIAL_ATLAS_DISK_CACHE": {
+        "code": "EnableMaterialAtlasDiskCache",
+        "name": "EnableMaterialAtlasDiskCache",
+        "ingui": "vanillagraphicsexpanded:config-material-atlas-disk-cache-enabled",
+        "comment": "vanillagraphicsexpanded:config-material-atlas-disk-cache-enabled-tooltip",
+        "default": true,
+        "weight": 20.2
+      },
+      "SHOW_MATERIAL_ATLAS_PROGRESS_PANEL": {
+        "code": "ShowMaterialAtlasProgressPanel",
+        "name": "ShowMaterialAtlasProgressPanel",
+        "ingui": "vanillagraphicsexpanded:config-material-atlas-progress-panel",
+        "comment": "vanillagraphicsexpanded:config-material-atlas-progress-panel-tooltip",
+        "default": true,
+        "weight": 20.3
       }
     },
     "integer": {
@@ -159,6 +191,33 @@
           "IntegrateAtlas": 0,
           "EvaluateProjectedSH": 1
         }
+      },
+      "MATERIAL_ATLAS_ASYNC_MAX_UPLOADS_PER_FRAME": {
+        "code": "MaterialAtlasAsyncMaxUploadsPerFrame",
+        "name": "MaterialAtlasAsyncMaxUploadsPerFrame",
+        "ingui": "vanillagraphicsexpanded:config-material-atlas-async-max-uploads",
+        "comment": "vanillagraphicsexpanded:config-material-atlas-async-max-uploads-tooltip",
+        "default": 8,
+        "weight": 20.6,
+        "range": { "min": 1, "max": 64, "step": 1 }
+      },
+      "MATERIAL_ATLAS_ASYNC_MAX_CPU_JOBS_PER_FRAME": {
+        "code": "MaterialAtlasAsyncMaxCpuJobsPerFrame",
+        "name": "MaterialAtlasAsyncMaxCpuJobsPerFrame",
+        "ingui": "vanillagraphicsexpanded:config-material-atlas-async-max-cpu-jobs",
+        "comment": "vanillagraphicsexpanded:config-material-atlas-async-max-cpu-jobs-tooltip",
+        "default": 2,
+        "weight": 20.7,
+        "range": { "min": 1, "max": 32, "step": 1 }
+      },
+      "NORMAL_DEPTH_ATLAS_ASYNC_MAX_UPLOADS_PER_FRAME": {
+        "code": "NormalDepthAtlasAsyncMaxUploadsPerFrame",
+        "name": "NormalDepthAtlasAsyncMaxUploadsPerFrame",
+        "ingui": "vanillagraphicsexpanded:config-normal-depth-atlas-async-max-uploads",
+        "comment": "vanillagraphicsexpanded:config-normal-depth-atlas-async-max-uploads-tooltip",
+        "default": 2,
+        "weight": 20.8,
+        "range": { "min": 1, "max": 32, "step": 1 }
       }
     },
     "float": {
@@ -323,6 +382,24 @@
         "default": 0.5,
         "weight": 10.0,
         "range": { "min": 0.0, "max": 2.0, "step": 0.1 }
+      },
+      "MATERIAL_ATLAS_ASYNC_BUDGET_MS": {
+        "code": "MaterialAtlasAsyncBudgetMs",
+        "name": "MaterialAtlasAsyncBudgetMs",
+        "ingui": "vanillagraphicsexpanded:config-material-atlas-async-budget-ms",
+        "comment": "vanillagraphicsexpanded:config-material-atlas-async-budget-ms-tooltip",
+        "default": 1.5,
+        "weight": 20.5,
+        "range": { "min": 0.1, "max": 8.0, "step": 0.1 }
+      },
+      "NORMAL_DEPTH_ATLAS_ASYNC_BUDGET_MS": {
+        "code": "NormalDepthAtlasAsyncBudgetMs",
+        "name": "NormalDepthAtlasAsyncBudgetMs",
+        "ingui": "vanillagraphicsexpanded:config-normal-depth-atlas-async-budget-ms",
+        "comment": "vanillagraphicsexpanded:config-normal-depth-atlas-async-budget-ms-tooltip",
+        "default": 0.75,
+        "weight": 20.9,
+        "range": { "min": 0.1, "max": 8.0, "step": 0.05 }
       }
     }
   },
@@ -336,5 +413,7 @@
     { "type": "separator", "title": "vanillagraphicsexpanded:config-section-upsample", "weight": 7.9 },
     { "type": "separator", "title": "vanillagraphicsexpanded:config-section-integration", "weight": 8.9 },
     { "type": "separator", "title": "vanillagraphicsexpanded:config-section-probe-atlas-advanced", "weight": 9.9 }
+    ,
+    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-material-atlas", "weight": 19.9 }
   ]
 }

@@ -1,6 +1,6 @@
 # Normal/Height Sidecar Atlas Bake (VGE)
 
-This mod can generate a per-texture *tileable* height field (and derived normals) from albedo during the loading/atlas-build stage.
+This mod can generate a per-texture _tileable_ height field (and derived normals) from albedo during the loading/atlas-build stage.
 
 The result is written into the VGE sidecar atlas texture:
 
@@ -15,6 +15,11 @@ The result is written into the VGE sidecar atlas texture:
 In `ModConfig/vanillagraphicsexpanded-lumon.json`:
 
 - `EnableNormalDepthAtlas`: `true`
+
+Async throttling (when `EnableMaterialAtlasAsyncBuild` is enabled):
+
+- `NormalDepthAtlasAsyncBudgetMs`: `0.75` (default)
+- `NormalDepthAtlasAsyncMaxUploadsPerFrame`: `2` (default)
 
 A restart / re-entering the world is required.
 

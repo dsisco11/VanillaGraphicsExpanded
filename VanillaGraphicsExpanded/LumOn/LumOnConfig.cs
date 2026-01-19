@@ -143,6 +143,20 @@ public class LumOnConfig
     public int MaterialAtlasAsyncMaxCpuJobsPerFrame { get; set; } = 2;
 
     /// <summary>
+    /// Per-frame time budget (ms) for the async normal+depth atlas jobs.
+    /// This caps render-thread work for normal+depth uploads/bakes.
+    /// </summary>
+    [JsonProperty]
+    public float NormalDepthAtlasAsyncBudgetMs { get; set; } = 0.75f;
+
+    /// <summary>
+    /// Maximum number of normal+depth atlas jobs executed per frame.
+    /// Limits GL work and reduces hitching during the bake.
+    /// </summary>
+    [JsonProperty]
+    public int NormalDepthAtlasAsyncMaxUploadsPerFrame { get; set; } = 2;
+
+    /// <summary>
     /// Enables building and binding the VGE normal+depth sidecar atlas.
     /// Pixels are generated during loading from tileable albedo textures (per texture rect).
     /// Requires restart / re-entering the world to fully apply.

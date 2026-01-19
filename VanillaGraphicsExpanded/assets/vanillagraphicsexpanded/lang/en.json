@@ -10,6 +10,7 @@
   "config-section-upsample": "Upsample Settings",
   "config-section-integration": "Integration & Compositing Settings",
   "config-section-probe-atlas-advanced": "Probe Atlas Advanced Settings",
+  "config-section-material-atlas": "Material Atlas Settings",
 
   "config-lumon-enabled": "Enable LumOn",
   "config-lumon-enabled-tooltip": "Master enable for LumOn screen-space global illumination.",
@@ -118,4 +119,32 @@
 
   "config-probe-atlas-sample-stride": "Probe Atlas Sample Stride",
   "config-probe-atlas-sample-stride-tooltip": "Sample stride for probe-atlas hemisphere integration. 1 = full quality (64 samples/probe, ~1.2ms), 2 = performance (16 samples/probe, ~0.5ms), 4 = ultra-fast (4 samples/probe)."
+
+  ,
+  "config-material-atlas-async-enabled": "Enable Async Material Atlas",
+  "config-material-atlas-async-enabled-tooltip": "Build the material params + normal/height sidecar atlases progressively using a per-frame budget. Reduces loading hitches at the cost of longer total build time.",
+
+  "config-normal-depth-atlas-enabled": "Enable Normal/Height Sidecar Atlas",
+  "config-normal-depth-atlas-enabled-tooltip": "Enables baking and binding the normal/height (normal+depth) sidecar atlas during loading. Requires restart / re-entering the world to fully apply.",
+
+  "config-material-atlas-disk-cache-enabled": "Enable Material Atlas Disk Cache",
+  "config-material-atlas-disk-cache-enabled-tooltip": "Caches material params and normal/height tiles on disk so subsequent sessions can skip expensive work.",
+
+  "config-material-atlas-progress-panel": "Show Material Atlas Progress Panel",
+  "config-material-atlas-progress-panel-tooltip": "Shows a small in-game overlay reporting material atlas build progress while async builds are running.",
+
+  "config-material-atlas-async-budget-ms": "Material Atlas Async Budget (ms)",
+  "config-material-atlas-async-budget-ms-tooltip": "Per-frame time budget (milliseconds) for material params async jobs (CPU dispatch + tile uploads). Lower = less hitching, slower build.",
+
+  "config-material-atlas-async-max-uploads": "Material Atlas Async Max Uploads/Frame",
+  "config-material-atlas-async-max-uploads-tooltip": "Maximum number of material params tile uploads (and overrides) executed per frame.",
+
+  "config-material-atlas-async-max-cpu-jobs": "Material Atlas Async Max CPU Jobs/Frame",
+  "config-material-atlas-async-max-cpu-jobs-tooltip": "Maximum number of worker CPU jobs dispatched per frame for material atlas work.",
+
+  "config-normal-depth-atlas-async-max-uploads": "Normal/Height Async Max Jobs/Frame",
+  "config-normal-depth-atlas-async-max-uploads-tooltip": "Maximum number of normal/height jobs executed per frame (cached uploads, bakes, overrides).",
+
+  "config-normal-depth-atlas-async-budget-ms": "Normal/Height Async Budget (ms)",
+  "config-normal-depth-atlas-async-budget-ms-tooltip": "Per-frame time budget (milliseconds) for normal/height jobs on the render thread. Lower = less hitching, slower bake."
 }

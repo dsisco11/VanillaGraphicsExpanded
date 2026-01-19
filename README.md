@@ -8,7 +8,6 @@ This project includes launch configurations for debugging graphics with [RenderD
 
 1. **Install RenderDoc** from <https://renderdoc.org/>
 2. **Configure the RenderDoc path** in VS Code:
-
    - Open `.vscode/settings.json`
    - Set `vanillaGraphicsExpanded.renderdocPath` to your RenderDoc installation folder
    - Default: `C:/Program Files/RenderDoc`
@@ -120,6 +119,11 @@ The GPU test infrastructure includes:
 VGE can bake a tileable height field (and derived normals) from albedo into a sidecar atlas during loading.
 
 See [docs/NormalDepthBake.md](docs/NormalDepthBake.md) for details and tuning.
+
+Async throttling knobs (in `ModConfig/vanillagraphicsexpanded-lumon.json`):
+
+- `MaterialAtlasAsyncBudgetMs` / `MaterialAtlasAsyncMaxUploadsPerFrame` (material params)
+- `NormalDepthAtlasAsyncBudgetMs` / `NormalDepthAtlasAsyncMaxUploadsPerFrame` (normal/height)
 
 ## PBR Explicit Texture Overrides
 

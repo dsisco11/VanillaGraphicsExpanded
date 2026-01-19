@@ -19,7 +19,7 @@ internal readonly record struct MaterialAtlasNormalDepthGpuBakeJob(
     AtlasCacheKey CacheKey,
     int Priority) : IMaterialAtlasGpuJob
 {
-    public void Execute(ICoreClientAPI capi, Func<int, MaterialAtlasPageTextures?> tryGetPageTextures, MaterialAtlasBuildSession session)
+    public void Execute(ICoreClientAPI capi, System.Func<int, MaterialAtlasPageTextures?> tryGetPageTextures, MaterialAtlasBuildSession session)
     {
         try
         {
@@ -35,14 +35,6 @@ internal readonly record struct MaterialAtlasNormalDepthGpuBakeJob(
 
             session.EnsureNormalDepthPageCleared(capi, AtlasTextureId, pageTextures);
 
-            if (DiskCache is not null && CacheKey.SchemaVersion != 0
-                && DiskCache.TryLoadNormalDepthTile(CacheKey, out float[] cached)
-                && cached.Length == checked(Rect.Width * Rect.Height * 4))
-            {
-                pageTextures.NormalDepthTexture.UploadData(cached, Rect.X, Rect.Y, Rect.Width, Rect.Height);
-                return;
-            }
-
             _ = MaterialAtlasNormalDepthGpuBuilder.BakePerRect(
                 capi,
                 baseAlbedoAtlasPageTexId: AtlasTextureId,
@@ -56,14 +48,31 @@ internal readonly record struct MaterialAtlasNormalDepthGpuBakeJob(
                 normalScale: NormalScale,
                 depthScale: DepthScale);
 
-            if (DiskCache is not null && CacheKey.SchemaVersion != 0)
+            if (DiskCache is not null
+                && CacheKey.SchemaVersion != 0
+                && !session.IsCancelled
+                && session.GenerationId == GenerationId)
             {
                 try
                 {
+                    int genId = GenerationId;
                     float[] rgbaQuads = pageTextures.NormalDepthTexture.ReadPixelsRegion(Rect.X, Rect.Y, Rect.Width, Rect.Height);
                     if (rgbaQuads.Length == checked(Rect.Width * Rect.Height * 4))
                     {
-                        DiskCache.StoreNormalDepthTile(CacheKey, Rect.Width, Rect.Height, rgbaQuads);
+                        IMaterialAtlasDiskCache diskCache = DiskCache;
+                        AtlasCacheKey key = CacheKey;
+                        int w = Rect.Width;
+                        int h = Rect.Height;
+
+                        _ = MaterialAtlasDiskCacheIoQueue.TryQueue(() =>
+                        {
+                            if (session.IsCancelled || session.GenerationId != genId)
+                            {
+                                return;
+                            }
+
+                            diskCache.StoreNormalDepthTile(key, w, h, rgbaQuads);
+                        });
                     }
                 }
                 catch

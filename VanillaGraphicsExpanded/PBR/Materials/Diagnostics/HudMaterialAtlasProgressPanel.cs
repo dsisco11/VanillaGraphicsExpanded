@@ -14,8 +14,10 @@ namespace VanillaGraphicsExpanded.PBR.Materials.Diagnostics;
 /// </summary>
 internal sealed class HudMaterialAtlasProgressPanel : HudElement
 {
-    private const string TrackerTextKey = "tracker";
-    private const string ProgressBarKey = "bar";
+    private const string TrackerMpTextKey = "tracker-mp";
+    private const string TrackerNdTextKey = "tracker-nd";
+    private const string ProgressBarMpKey = "bar-mp";
+    private const string ProgressBarNdKey = "bar-nd";
 
     private const int PanelWidth = 220;
     private const int PanelPadding = 6;
@@ -32,7 +34,8 @@ internal sealed class HudMaterialAtlasProgressPanel : HudElement
     private bool wasVisible;
     private float hideCountdownSeconds;
 
-    private float progress01;
+    private float mpProgress01;
+    private float ndProgress01;
 
     public HudMaterialAtlasProgressPanel(ICoreClientAPI capi, MaterialAtlasSystem atlasSystem)
         : base(capi)
@@ -57,12 +60,18 @@ internal sealed class HudMaterialAtlasProgressPanel : HudElement
         ElementBounds titleBounds = ElementBounds.Fixed(0, y, PanelWidth, LineHeight);
         y += LineHeight + Spacing;
 
-        ElementBounds trackerBounds = ElementBounds.Fixed(0, y, PanelWidth, LineHeight);
+        ElementBounds trackerMpBounds = ElementBounds.Fixed(0, y, PanelWidth, LineHeight);
         y += LineHeight + Spacing;
 
-        ElementBounds barBounds = ElementBounds.Fixed(0, y, PanelWidth, ProgressBarHeight);
+        ElementBounds barMpBounds = ElementBounds.Fixed(0, y, PanelWidth, ProgressBarHeight);
+        y += ProgressBarHeight + Spacing;
 
-        bgBounds.WithChildren(titleBounds, trackerBounds, barBounds);
+        ElementBounds trackerNdBounds = ElementBounds.Fixed(0, y, PanelWidth, LineHeight);
+        y += LineHeight + Spacing;
+
+        ElementBounds barNdBounds = ElementBounds.Fixed(0, y, PanelWidth, ProgressBarHeight);
+
+        bgBounds.WithChildren(titleBounds, trackerMpBounds, barMpBounds, trackerNdBounds, barNdBounds);
 
         ElementBounds dialogBounds = bgBounds
             .ForkBoundingParent()
@@ -74,8 +83,10 @@ internal sealed class HudMaterialAtlasProgressPanel : HudElement
             .CreateCompo("vge-materialatlas-progress", dialogBounds)
             .AddGameOverlay(bgBounds, GuiStyle.DialogLightBgColor)
             .AddStaticText("Material Atlas", CairoFont.WhiteSmallText(), titleBounds)
-            .AddDynamicText("0 of 0", CairoFont.WhiteSmallText(), trackerBounds, TrackerTextKey)
-            .AddDynamicCustomDraw(barBounds, DrawProgressBar, ProgressBarKey)
+            .AddDynamicText("MP 0/0", CairoFont.WhiteSmallText(), trackerMpBounds, TrackerMpTextKey)
+            .AddDynamicCustomDraw(barMpBounds, DrawMpProgressBar, ProgressBarMpKey)
+            .AddDynamicText("ND 0/0", CairoFont.WhiteSmallText(), trackerNdBounds, TrackerNdTextKey)
+            .AddDynamicCustomDraw(barNdBounds, DrawNdProgressBar, ProgressBarNdKey)
             .Compose();
     }
 
@@ -141,20 +152,22 @@ internal sealed class HudMaterialAtlasProgressPanel : HudElement
         int ndTotal = Math.Max(0, diag.TotalNormalDepthJobs);
         int ndDone = Math.Clamp(diag.CompletedNormalDepthJobs, 0, ndTotal);
 
-        int total = mpTotal + ndTotal;
-        int completed = mpDone + ndDone;
+        mpProgress01 = mpTotal > 0 ? (float)mpDone / mpTotal : 0f;
+        ndProgress01 = ndTotal > 0 ? (float)ndDone / ndTotal : 0f;
 
-        progress01 = total > 0 ? (float)completed / total : 0f;
-
-        string text = ndTotal > 0
-            ? $"MP {mpDone}/{mpTotal}  ND {ndDone}/{ndTotal}"
-            : $"MP {mpDone}/{mpTotal}";
-
-        SingleComposer.GetDynamicText(TrackerTextKey).SetNewText(text);
-        SingleComposer.GetCustomDraw(ProgressBarKey).Redraw();
+        SingleComposer.GetDynamicText(TrackerMpTextKey).SetNewText($"MP {mpDone}/{mpTotal}");
+        SingleComposer.GetDynamicText(TrackerNdTextKey).SetNewText($"ND {ndDone}/{ndTotal}");
+        SingleComposer.GetCustomDraw(ProgressBarMpKey).Redraw();
+        SingleComposer.GetCustomDraw(ProgressBarNdKey).Redraw();
     }
 
-    private void DrawProgressBar(Context ctx, ImageSurface surface, ElementBounds currentBounds)
+    private void DrawMpProgressBar(Context ctx, ImageSurface surface, ElementBounds currentBounds)
+        => DrawProgressBar(ctx, surface, currentBounds, mpProgress01);
+
+    private void DrawNdProgressBar(Context ctx, ImageSurface surface, ElementBounds currentBounds)
+        => DrawProgressBar(ctx, surface, currentBounds, ndProgress01);
+
+    private static void DrawProgressBar(Context ctx, ImageSurface surface, ElementBounds currentBounds, float progress01)
     {
         int w = Math.Max(1, currentBounds.OuterWidthInt);
         int h = Math.Max(1, currentBounds.OuterHeightInt);
