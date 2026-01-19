@@ -110,9 +110,15 @@ internal static class DdsRgba16UnormCodec
     public static ushort[] ReadRgba16Unorm(string filePath, out int width, out int height)
     {
         using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return ReadRgba16Unorm(fs, out width, out height);
+    }
+
+    public static ushort[] ReadRgba16Unorm(Stream stream, out int width, out int height)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
 
         Span<byte> prefix = stackalloc byte[4 + DdsHeaderSize + 20];
-        fs.ReadExactly(prefix);
+        stream.ReadExactly(prefix);
 
         uint magic = BinaryPrimitives.ReadUInt32LittleEndian(prefix[0..4]);
         if (magic != DdsMagic)
@@ -162,7 +168,7 @@ internal static class DdsRgba16UnormCodec
         int bytes = checked(width * height * 8);
 
         byte[] payload = new byte[bytes];
-        fs.ReadExactly(payload);
+        stream.ReadExactly(payload);
 
         var rgba = new ushort[u16];
         int pi = 0;

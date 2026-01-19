@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -7,6 +8,7 @@ using BCnEncoder.Decoder;
 using BCnEncoder.Shared;
 
 using VanillaGraphicsExpanded.Numerics;
+using VanillaGraphicsExpanded.PBR.Materials.Cache;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -15,19 +17,28 @@ namespace VanillaGraphicsExpanded.PBR.Materials;
 
 internal sealed class MaterialOverrideTextureLoader
 {
-    internal readonly record struct LoadedRgbaImage(int Width, int Height, byte[] Rgba)
+    internal enum PixelDataFormat : byte
     {
-        public bool IsEmpty => Width <= 0 || Height <= 0 || Rgba is null || Rgba.Length == 0;
+        Rgba8Unorm = 1,
+        Rgba16Unorm = 2,
+    }
+
+    internal readonly record struct LoadedRgbaImage(int Width, int Height, PixelDataFormat Format, byte[] Bytes)
+    {
+        public bool IsEmpty => Width <= 0 || Height <= 0 || Bytes is null || Bytes.Length == 0;
     }
 
     private sealed class CacheEntry
     {
         public required int Width { get; init; }
         public required int Height { get; init; }
-        public required byte[] RgbaBytes { get; init; }
+        public required PixelDataFormat Format { get; init; }
+        public required byte[] Bytes { get; init; }
         public float[]? RgbaFloats01 { get; set; }
         public DateTime LastAccessUtc { get; set; }
     }
+
+    private const float InvU16Max = 1f / 65535f;
 
     private const int MaxCacheEntries = 256;
     private static readonly object CacheGate = new();
@@ -79,7 +90,7 @@ internal sealed class MaterialOverrideTextureLoader
                     return false;
                 }
 
-                UpsertCache(overrideId, image.Width, image.Height, image.Rgba);
+                UpsertCache(overrideId, image);
                 return true;
             }
 
@@ -90,7 +101,7 @@ internal sealed class MaterialOverrideTextureLoader
                     return false;
                 }
 
-                UpsertCache(overrideId, image.Width, image.Height, image.Rgba);
+                UpsertCache(overrideId, image);
                 return true;
             }
 
@@ -134,7 +145,7 @@ internal sealed class MaterialOverrideTextureLoader
         }
 
         // Fallback: convert without caching.
-        rgba01 = ConvertBytesToFloats01(img.Rgba);
+        rgba01 = ConvertToFloats01(img.Format, img.Bytes);
         return true;
     }
 
@@ -184,7 +195,7 @@ internal sealed class MaterialOverrideTextureLoader
             rgba[di++] = a;
         }
 
-        image = new LoadedRgbaImage(width, height, rgba);
+        image = new LoadedRgbaImage(width, height, PixelDataFormat.Rgba8Unorm, rgba);
         return true;
     }
 
@@ -204,11 +215,30 @@ internal sealed class MaterialOverrideTextureLoader
             return false;
         }
 
+        return TryDecodeDdsBytes(asset.Data, out image, out reason, expectedWidth, expectedHeight);
+    }
+
+    internal static bool TryDecodeDdsBytes(
+        byte[] ddsBytes,
+        out LoadedRgbaImage image,
+        out string? reason,
+        int? expectedWidth,
+        int? expectedHeight)
+    {
+        image = default;
+        reason = null;
+
+        if (ddsBytes is null || ddsBytes.Length == 0)
+        {
+            reason = "dds asset had no data";
+            return false;
+        }
+
+        // Path A: BCnEncoder decode (BC1/BC3/BC5/BC7, etc.)
         try
         {
-            using var ms = new MemoryStream(asset.Data, writable: false);
+            using var ms = new MemoryStream(ddsBytes, writable: false);
 
-            // Core BCnEncoder API (no ImageSharp dependency): decode to raw RGBA memory.
             var decoder = new BcDecoder();
             var pixels2d = decoder.Decode2D(ms);
 
@@ -223,7 +253,6 @@ internal sealed class MaterialOverrideTextureLoader
             byte[] rgba = new byte[width * height * 4];
             int di = 0;
 
-            // ColorRgba32 is expected to be 8-bit per channel.
             foreach (ColorRgba32 px in pixels2d.Span)
             {
                 rgba[di++] = px.r;
@@ -232,7 +261,32 @@ internal sealed class MaterialOverrideTextureLoader
                 rgba[di++] = px.a;
             }
 
-            image = new LoadedRgbaImage(width, height, rgba);
+            image = new LoadedRgbaImage(width, height, PixelDataFormat.Rgba8Unorm, rgba);
+            return true;
+        }
+        catch
+        {
+            // Fall through to uncompressed DX10 decode.
+        }
+
+        // Path B: DX10 uncompressed R16G16B16A16_UNORM (used by some authoring tools).
+        try
+        {
+            using var ms = new MemoryStream(ddsBytes, writable: false);
+            ushort[] rgbaU16 = DdsRgba16UnormCodec.ReadRgba16Unorm(ms, out int width, out int height);
+
+            if (!ValidateDimensions(width, height, expectedWidth, expectedHeight, out reason))
+            {
+                return false;
+            }
+
+            // Preserve full 16-bit precision by storing the raw bytes.
+            // Note: on all supported runtimes/platforms here, ushort[] is stored little-endian in memory.
+            // Buffer.BlockCopy is much faster than per-element writes.
+            byte[] bytes = new byte[checked(rgbaU16.Length * 2)];
+            Buffer.BlockCopy(rgbaU16, 0, bytes, 0, bytes.Length);
+
+            image = new LoadedRgbaImage(width, height, PixelDataFormat.Rgba16Unorm, bytes);
             return true;
         }
         catch (Exception ex)
@@ -282,7 +336,7 @@ internal sealed class MaterialOverrideTextureLoader
             }
 
             entry.LastAccessUtc = DateTime.UtcNow;
-            image = new LoadedRgbaImage(entry.Width, entry.Height, entry.RgbaBytes);
+            image = new LoadedRgbaImage(entry.Width, entry.Height, entry.Format, entry.Bytes);
             return true;
         }
     }
@@ -315,7 +369,7 @@ internal sealed class MaterialOverrideTextureLoader
             }
 
             entry.LastAccessUtc = DateTime.UtcNow;
-            entry.RgbaFloats01 ??= ConvertBytesToFloats01(entry.RgbaBytes);
+            entry.RgbaFloats01 ??= ConvertToFloats01(entry.Format, entry.Bytes);
 
             width = entry.Width;
             height = entry.Height;
@@ -324,15 +378,16 @@ internal sealed class MaterialOverrideTextureLoader
         }
     }
 
-    private static void UpsertCache(AssetLocation overrideId, int width, int height, byte[] rgba)
+    private static void UpsertCache(AssetLocation overrideId, LoadedRgbaImage image)
     {
         lock (CacheGate)
         {
             Cache[overrideId] = new CacheEntry
             {
-                Width = width,
-                Height = height,
-                RgbaBytes = rgba,
+                Width = image.Width,
+                Height = image.Height,
+                Format = image.Format,
+                Bytes = image.Bytes,
                 LastAccessUtc = DateTime.UtcNow
             };
 
@@ -353,16 +408,40 @@ internal sealed class MaterialOverrideTextureLoader
         }
     }
 
-    private static float[] ConvertBytesToFloats01(byte[] rgba)
+    private static float[] ConvertToFloats01(PixelDataFormat format, byte[] bytes)
     {
-        if (rgba is null || rgba.Length == 0)
+        if (bytes is null || bytes.Length == 0)
         {
             return Array.Empty<float>();
         }
 
-        var floats = new float[rgba.Length];
-        SimdSpanMath.BytesToSingles01(rgba, floats);
-        return floats;
+        if (format == PixelDataFormat.Rgba8Unorm)
+        {
+            var floats = new float[bytes.Length];
+            SimdSpanMath.BytesToSingles01(bytes, floats);
+            return floats;
+        }
+
+        if (format == PixelDataFormat.Rgba16Unorm)
+        {
+            if ((bytes.Length & 1) != 0)
+            {
+                throw new InvalidDataException("RGBA16_UNORM byte payload must have even length.");
+            }
+
+            int u16 = bytes.Length / 2;
+            var floats = new float[u16];
+
+            for (int i = 0; i < u16; i++)
+            {
+                ushort v = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(i * 2, 2));
+                floats[i] = v * InvU16Max;
+            }
+
+            return floats;
+        }
+
+        throw new InvalidDataException($"Unknown pixel format {format}.");
     }
 
 }
