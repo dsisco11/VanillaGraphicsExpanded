@@ -56,18 +56,18 @@ Texture Streaming - Persistent-Mapped StageCopy Refactor (Option B First):
 
   Phase 3 - Persistent-Mapped Ring: Producer-Side StageCopy:
   Exit artifacts: CPU threads can reserve ring space, memcpy pixels into mapped memory, and enqueue a render command.
-  ☐ Refactor `PersistentMappedPboRing` to expose a thread-safe reserve/commit API.
-  ☐ Implement ring allocation rules:
+  ✔ Refactor `PersistentMappedPboRing` to expose a thread-safe reserve/commit API. @done
+  ✔ Implement ring allocation rules: @done
     - alignment (`PboAlignment`)
     - wrap-around handling
     - failure when insufficient contiguous space
-  ☐ Implement StageCopy fast path:
+  ✔ Implement StageCopy fast path: @done
     - acquire queue slot
     - reserve aligned bytes
     - memcpy into mapped pointer (managed → unmanaged)
     - enqueue `UploadCmd` referencing ring offset/size + upload metadata
-  ☐ Track non-coherent flush requirements per command (record ranges; flush on render thread).
-  ☐ Define behavior for oversize requests (bypass persistent ring → fallback path).
+  ✔ Track non-coherent flush requirements per command (record ranges; flush on render thread). @done
+  ✔ Define behavior for oversize requests (bypass persistent ring → fallback path). @done
 
 
   Phase 4 - Render Thread: Drain, Upload, Fence, Retire:

@@ -36,6 +36,8 @@ internal sealed class TextureStreamingManager : IDisposable
     private long droppedInvalid;
     private long deferredCount;
 
+    private long stageCopyStaged;
+
     public TextureStreamingManager(TextureStreamingSettings? settings = null)
     {
         this.settings = settings ?? TextureStreamingSettings.Default;
@@ -68,7 +70,7 @@ internal sealed class TextureStreamingManager : IDisposable
     public void Enqueue(TextureUploadRequest request)
     {
         long sequenceId = Interlocked.Increment(ref nextSequenceId);
-        UploadCommand cmd = new(sequenceId, request.Priority, request);
+        UploadCommand cmd = UploadCommand.FromCpu(sequenceId, request.Priority, request);
 
         if (!commandQueue.TryEnqueue(cmd))
         {
@@ -112,19 +114,74 @@ internal sealed class TextureStreamingManager : IDisposable
             return TextureStageResult.Rejected(TextureStageRejectReason.DataTooSmall);
         }
 
-        byte[] owned = data.Slice(0, requiredBytes).ToArray();
-        Enqueue(new TextureUploadRequest(
+        if (!commandQueue.TryAcquireEnqueueSlot(out UploadEnqueueToken token))
+        {
+            Interlocked.Increment(ref priorityFailed[GetPriorityIndex((int)priority)]);
+            return TextureStageResult.Rejected(TextureStageRejectReason.QueueFull);
+        }
+
+        TextureUploadRequest request = new(
             TextureId: textureId,
             Target: target,
             Region: region,
             PixelFormat: pixelFormat,
             PixelType: pixelType,
-            Data: TextureUploadData.From(owned),
+            Data: default,
             Priority: (int)priority,
             UnpackAlignment: unpackAlignment,
             UnpackRowLength: unpackRowLength,
-            UnpackImageHeight: unpackImageHeight));
+            UnpackImageHeight: unpackImageHeight);
 
+        int rowLength = unpackRowLength > 0 ? unpackRowLength : region.Width;
+        int imageHeight = unpackImageHeight > 0 ? unpackImageHeight : region.Height;
+
+        if (TryStageCopyToPersistentRing(data.Slice(0, requiredBytes), requiredBytes, out PboUpload pboUpload, out MappedFlushRange flushRange))
+        {
+            long sequenceId = Interlocked.Increment(ref nextSequenceId);
+            UploadCommand cmd = UploadCommand.FromPersistentRing(
+                sequenceId,
+                (int)priority,
+                request,
+                requiredBytes,
+                rowLength,
+                imageHeight,
+                pboUpload,
+                flushRange);
+
+            if (!commandQueue.TryEnqueue(token, cmd))
+            {
+                commandQueue.ReleaseEnqueueSlot(token);
+                Interlocked.Increment(ref priorityFailed[GetPriorityIndex((int)priority)]);
+                return TextureStageResult.Rejected(TextureStageRejectReason.QueueFull);
+            }
+
+            Interlocked.Increment(ref enqueued);
+            Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
+            Interlocked.Increment(ref stageCopyStaged);
+            return TextureStageResult.StagedToPersistentRing();
+        }
+
+        byte[] owned = data.Slice(0, requiredBytes).ToArray();
+        request = request with { Data = TextureUploadData.From(owned) };
+
+        long fallbackSequenceId = Interlocked.Increment(ref nextSequenceId);
+        UploadCommand fallbackCmd = UploadCommand.FromCpuPrepared(
+            fallbackSequenceId,
+            (int)priority,
+            request,
+            requiredBytes,
+            rowLength,
+            imageHeight);
+
+        if (!commandQueue.TryEnqueue(token, fallbackCmd))
+        {
+            commandQueue.ReleaseEnqueueSlot(token);
+            Interlocked.Increment(ref priorityFailed[GetPriorityIndex((int)priority)]);
+            return TextureStageResult.Rejected(TextureStageRejectReason.QueueFull);
+        }
+
+        Interlocked.Increment(ref enqueued);
+        Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
         return TextureStageResult.EnqueuedFallback();
     }
 
@@ -161,19 +218,75 @@ internal sealed class TextureStreamingManager : IDisposable
             return TextureStageResult.Rejected(TextureStageRejectReason.DataTooSmall);
         }
 
-        ushort[] owned = data.Slice(0, requiredElements).ToArray();
-        Enqueue(new TextureUploadRequest(
+        if (!commandQueue.TryAcquireEnqueueSlot(out UploadEnqueueToken token))
+        {
+            Interlocked.Increment(ref priorityFailed[GetPriorityIndex((int)priority)]);
+            return TextureStageResult.Rejected(TextureStageRejectReason.QueueFull);
+        }
+
+        TextureUploadRequest request = new(
             TextureId: textureId,
             Target: target,
             Region: region,
             PixelFormat: pixelFormat,
             PixelType: pixelType,
-            Data: TextureUploadData.From(owned),
+            Data: default,
             Priority: (int)priority,
             UnpackAlignment: unpackAlignment,
             UnpackRowLength: unpackRowLength,
-            UnpackImageHeight: unpackImageHeight));
+            UnpackImageHeight: unpackImageHeight);
 
+        int rowLength = unpackRowLength > 0 ? unpackRowLength : region.Width;
+        int imageHeight = unpackImageHeight > 0 ? unpackImageHeight : region.Height;
+
+        ReadOnlySpan<byte> bytes = MemoryMarshal.AsBytes(data.Slice(0, requiredElements));
+        if (TryStageCopyToPersistentRing(bytes, requiredBytes, out PboUpload pboUpload, out MappedFlushRange flushRange))
+        {
+            long sequenceId = Interlocked.Increment(ref nextSequenceId);
+            UploadCommand cmd = UploadCommand.FromPersistentRing(
+                sequenceId,
+                (int)priority,
+                request,
+                requiredBytes,
+                rowLength,
+                imageHeight,
+                pboUpload,
+                flushRange);
+
+            if (!commandQueue.TryEnqueue(token, cmd))
+            {
+                commandQueue.ReleaseEnqueueSlot(token);
+                Interlocked.Increment(ref priorityFailed[GetPriorityIndex((int)priority)]);
+                return TextureStageResult.Rejected(TextureStageRejectReason.QueueFull);
+            }
+
+            Interlocked.Increment(ref enqueued);
+            Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
+            Interlocked.Increment(ref stageCopyStaged);
+            return TextureStageResult.StagedToPersistentRing();
+        }
+
+        ushort[] owned = data.Slice(0, requiredElements).ToArray();
+        request = request with { Data = TextureUploadData.From(owned) };
+
+        long fallbackSequenceId = Interlocked.Increment(ref nextSequenceId);
+        UploadCommand fallbackCmd = UploadCommand.FromCpuPrepared(
+            fallbackSequenceId,
+            (int)priority,
+            request,
+            requiredBytes,
+            rowLength,
+            imageHeight);
+
+        if (!commandQueue.TryEnqueue(token, fallbackCmd))
+        {
+            commandQueue.ReleaseEnqueueSlot(token);
+            Interlocked.Increment(ref priorityFailed[GetPriorityIndex((int)priority)]);
+            return TextureStageResult.Rejected(TextureStageRejectReason.QueueFull);
+        }
+
+        Interlocked.Increment(ref enqueued);
+        Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
         return TextureStageResult.EnqueuedFallback();
     }
 
@@ -210,19 +323,75 @@ internal sealed class TextureStreamingManager : IDisposable
             return TextureStageResult.Rejected(TextureStageRejectReason.DataTooSmall);
         }
 
-        Half[] owned = data.Slice(0, requiredElements).ToArray();
-        Enqueue(new TextureUploadRequest(
+        if (!commandQueue.TryAcquireEnqueueSlot(out UploadEnqueueToken token))
+        {
+            Interlocked.Increment(ref priorityFailed[GetPriorityIndex((int)priority)]);
+            return TextureStageResult.Rejected(TextureStageRejectReason.QueueFull);
+        }
+
+        TextureUploadRequest request = new(
             TextureId: textureId,
             Target: target,
             Region: region,
             PixelFormat: pixelFormat,
             PixelType: pixelType,
-            Data: TextureUploadData.From(owned),
+            Data: default,
             Priority: (int)priority,
             UnpackAlignment: unpackAlignment,
             UnpackRowLength: unpackRowLength,
-            UnpackImageHeight: unpackImageHeight));
+            UnpackImageHeight: unpackImageHeight);
 
+        int rowLength = unpackRowLength > 0 ? unpackRowLength : region.Width;
+        int imageHeight = unpackImageHeight > 0 ? unpackImageHeight : region.Height;
+
+        ReadOnlySpan<byte> bytes = MemoryMarshal.AsBytes(data.Slice(0, requiredElements));
+        if (TryStageCopyToPersistentRing(bytes, requiredBytes, out PboUpload pboUpload, out MappedFlushRange flushRange))
+        {
+            long sequenceId = Interlocked.Increment(ref nextSequenceId);
+            UploadCommand cmd = UploadCommand.FromPersistentRing(
+                sequenceId,
+                (int)priority,
+                request,
+                requiredBytes,
+                rowLength,
+                imageHeight,
+                pboUpload,
+                flushRange);
+
+            if (!commandQueue.TryEnqueue(token, cmd))
+            {
+                commandQueue.ReleaseEnqueueSlot(token);
+                Interlocked.Increment(ref priorityFailed[GetPriorityIndex((int)priority)]);
+                return TextureStageResult.Rejected(TextureStageRejectReason.QueueFull);
+            }
+
+            Interlocked.Increment(ref enqueued);
+            Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
+            Interlocked.Increment(ref stageCopyStaged);
+            return TextureStageResult.StagedToPersistentRing();
+        }
+
+        Half[] owned = data.Slice(0, requiredElements).ToArray();
+        request = request with { Data = TextureUploadData.From(owned) };
+
+        long fallbackSequenceId = Interlocked.Increment(ref nextSequenceId);
+        UploadCommand fallbackCmd = UploadCommand.FromCpuPrepared(
+            fallbackSequenceId,
+            (int)priority,
+            request,
+            requiredBytes,
+            rowLength,
+            imageHeight);
+
+        if (!commandQueue.TryEnqueue(token, fallbackCmd))
+        {
+            commandQueue.ReleaseEnqueueSlot(token);
+            Interlocked.Increment(ref priorityFailed[GetPriorityIndex((int)priority)]);
+            return TextureStageResult.Rejected(TextureStageRejectReason.QueueFull);
+        }
+
+        Interlocked.Increment(ref enqueued);
+        Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
         return TextureStageResult.EnqueuedFallback();
     }
 
@@ -259,19 +428,75 @@ internal sealed class TextureStreamingManager : IDisposable
             return TextureStageResult.Rejected(TextureStageRejectReason.DataTooSmall);
         }
 
-        float[] owned = data.Slice(0, requiredElements).ToArray();
-        Enqueue(new TextureUploadRequest(
+        if (!commandQueue.TryAcquireEnqueueSlot(out UploadEnqueueToken token))
+        {
+            Interlocked.Increment(ref priorityFailed[GetPriorityIndex((int)priority)]);
+            return TextureStageResult.Rejected(TextureStageRejectReason.QueueFull);
+        }
+
+        TextureUploadRequest request = new(
             TextureId: textureId,
             Target: target,
             Region: region,
             PixelFormat: pixelFormat,
             PixelType: pixelType,
-            Data: TextureUploadData.From(owned),
+            Data: default,
             Priority: (int)priority,
             UnpackAlignment: unpackAlignment,
             UnpackRowLength: unpackRowLength,
-            UnpackImageHeight: unpackImageHeight));
+            UnpackImageHeight: unpackImageHeight);
 
+        int rowLength = unpackRowLength > 0 ? unpackRowLength : region.Width;
+        int imageHeight = unpackImageHeight > 0 ? unpackImageHeight : region.Height;
+
+        ReadOnlySpan<byte> bytes = MemoryMarshal.AsBytes(data.Slice(0, requiredElements));
+        if (TryStageCopyToPersistentRing(bytes, requiredBytes, out PboUpload pboUpload, out MappedFlushRange flushRange))
+        {
+            long sequenceId = Interlocked.Increment(ref nextSequenceId);
+            UploadCommand cmd = UploadCommand.FromPersistentRing(
+                sequenceId,
+                (int)priority,
+                request,
+                requiredBytes,
+                rowLength,
+                imageHeight,
+                pboUpload,
+                flushRange);
+
+            if (!commandQueue.TryEnqueue(token, cmd))
+            {
+                commandQueue.ReleaseEnqueueSlot(token);
+                Interlocked.Increment(ref priorityFailed[GetPriorityIndex((int)priority)]);
+                return TextureStageResult.Rejected(TextureStageRejectReason.QueueFull);
+            }
+
+            Interlocked.Increment(ref enqueued);
+            Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
+            Interlocked.Increment(ref stageCopyStaged);
+            return TextureStageResult.StagedToPersistentRing();
+        }
+
+        float[] owned = data.Slice(0, requiredElements).ToArray();
+        request = request with { Data = TextureUploadData.From(owned) };
+
+        long fallbackSequenceId = Interlocked.Increment(ref nextSequenceId);
+        UploadCommand fallbackCmd = UploadCommand.FromCpuPrepared(
+            fallbackSequenceId,
+            (int)priority,
+            request,
+            requiredBytes,
+            rowLength,
+            imageHeight);
+
+        if (!commandQueue.TryEnqueue(token, fallbackCmd))
+        {
+            commandQueue.ReleaseEnqueueSlot(token);
+            Interlocked.Increment(ref priorityFailed[GetPriorityIndex((int)priority)]);
+            return TextureStageResult.Rejected(TextureStageRejectReason.QueueFull);
+        }
+
+        Interlocked.Increment(ref enqueued);
+        Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
         return TextureStageResult.EnqueuedFallback();
     }
 
@@ -350,18 +575,55 @@ internal sealed class TextureStreamingManager : IDisposable
                     return;
                 }
 
-                TextureUploadRequest request = work[i].Request;
+                UploadCommand cmd = work[i];
+                TextureUploadRequest request = cmd.Request;
 
-                if (!TryPrepareRequest(request, out PreparedUpload prepared))
+                PreparedUpload prepared;
+                if (cmd.Kind == UploadCommandKind.FromPersistentRing)
                 {
-                    Interlocked.Increment(ref droppedInvalid);
-                    continue;
+                    if (cmd.ByteCount <= 0 || cmd.RowLength <= 0 || cmd.ImageHeight <= 0)
+                    {
+                        Interlocked.Increment(ref droppedInvalid);
+                        continue;
+                    }
+
+                    prepared = new PreparedUpload(request, cmd.ByteCount, cmd.RowLength, cmd.ImageHeight);
+                }
+                else
+                {
+                    if (cmd.ByteCount > 0)
+                    {
+                        prepared = new PreparedUpload(request, cmd.ByteCount, cmd.RowLength, cmd.ImageHeight);
+                    }
+                    else if (!TryPrepareRequest(request, out prepared))
+                    {
+                        Interlocked.Increment(ref droppedInvalid);
+                        continue;
+                    }
                 }
 
                 int byteCount = prepared.ByteCount;
                 bool uploadedThisFrame = false;
 
-                if (backend is not null && byteCount <= settings.MaxStagingBytes)
+                if (cmd.Kind == UploadCommandKind.FromPersistentRing)
+                {
+                    if (backend is not PersistentMappedPboRing ring || cmd.PboUpload.BufferId != ring.BufferId)
+                    {
+                        Interlocked.Increment(ref droppedInvalid);
+                        continue;
+                    }
+
+                    if (!cmd.FlushRange.IsEmpty)
+                    {
+                        ring.FlushMappedRange(cmd.FlushRange);
+                    }
+
+                    IssuePboUpload(prepared, cmd.PboUpload);
+                    ring.SubmitUpload(cmd.PboUpload);
+                    uploadedThisFrame = true;
+                }
+
+                if (!uploadedThisFrame && backend is not null && byteCount <= settings.MaxStagingBytes)
                 {
                     if (backend.TryStageUpload(prepared, out PboUpload pboUpload))
                     {
@@ -428,7 +690,40 @@ internal sealed class TextureStreamingManager : IDisposable
             Deferred: Interlocked.Read(ref deferredCount),
             Pending: commandQueue.Count + Volatile.Read(ref carryOverCount),
             Backend: backend?.Kind ?? TextureStreamingBackendKind.None,
-            Priority: priority);
+            Priority: priority,
+            StageCopyStaged: Interlocked.Read(ref stageCopyStaged));
+    }
+
+    private bool TryStageCopyToPersistentRing(
+        ReadOnlySpan<byte> bytes,
+        int byteCount,
+        out PboUpload upload,
+        out MappedFlushRange flushRange)
+    {
+        upload = default;
+        flushRange = MappedFlushRange.None;
+
+        if (byteCount <= 0)
+        {
+            return false;
+        }
+
+        if (!backendInitialized)
+        {
+            return false;
+        }
+
+        if (byteCount > settings.MaxStagingBytes)
+        {
+            return false;
+        }
+
+        if (backend is not PersistentMappedPboRing ring)
+        {
+            return false;
+        }
+
+        return ring.TryStageCopy(bytes, byteCount, out upload, out flushRange);
     }
 
     public void Dispose()
@@ -873,6 +1168,7 @@ internal sealed class TextureStreamingManager : IDisposable
 
     private sealed class PersistentMappedPboRing : IPboUploadBackend
     {
+        private readonly object gate = new();
         private readonly int bufferSizeBytes;
         private readonly int alignment;
         private readonly bool coherent;
@@ -925,6 +1221,8 @@ internal sealed class TextureStreamingManager : IDisposable
         }
         public TextureStreamingBackendKind Kind => TextureStreamingBackendKind.PersistentMappedRing;
 
+        public int BufferId => bufferId;
+
         public bool TryStageUpload(in PreparedUpload prepared, out PboUpload upload)
         {
             upload = default;
@@ -955,10 +1253,66 @@ internal sealed class TextureStreamingManager : IDisposable
             return true;
         }
 
+        public bool TryStageCopy(ReadOnlySpan<byte> bytes, int byteCount, out PboUpload upload, out MappedFlushRange flushRange)
+        {
+            upload = default;
+            flushRange = MappedFlushRange.None;
+
+            if (byteCount <= 0 || bytes.Length < byteCount)
+            {
+                return false;
+            }
+
+            int allocationSize = TextureStreamingUtils.AlignUp(byteCount, alignment);
+            if (allocationSize > bufferSizeBytes)
+            {
+                return false;
+            }
+
+            int offset;
+            lock (gate)
+            {
+                if (!TryAllocateNoLock(allocationSize, out offset))
+                {
+                    return false;
+                }
+            }
+
+            unsafe
+            {
+                IntPtr ptr = IntPtr.Add(mappedPtr, offset);
+                Span<byte> dst = new((void*)ptr, byteCount);
+                bytes.Slice(0, byteCount).CopyTo(dst);
+            }
+
+            if (!coherent)
+            {
+                flushRange = new MappedFlushRange(offset, byteCount);
+            }
+
+            upload = new PboUpload(bufferId, offset, allocationSize, -1);
+            return true;
+        }
+
+        public void FlushMappedRange(in MappedFlushRange range)
+        {
+            if (coherent || range.IsEmpty)
+            {
+                return;
+            }
+
+            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, bufferId);
+            GL.FlushMappedBufferRange(BufferTarget.PixelUnpackBuffer, (IntPtr)range.OffsetBytes, range.SizeBytes);
+            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
+        }
+
         public void SubmitUpload(in PboUpload upload)
         {
             GpuFence fence = GpuFence.Insert();
-            inFlight.Enqueue(new PendingRegion(upload.OffsetBytes, upload.AllocationSizeBytes, fence));
+            lock (gate)
+            {
+                inFlight.Enqueue(new PendingRegion(upload.OffsetBytes, upload.AllocationSizeBytes, fence));
+            }
         }
 
         public void Tick()
@@ -986,20 +1340,53 @@ internal sealed class TextureStreamingManager : IDisposable
 
         private void ReleaseCompleted()
         {
-            while (inFlight.Count > 0)
+            while (true)
             {
-                PendingRegion region = inFlight.Peek();
-                if (!region.Fence.TryConsumeIfSignaled())
+                PendingRegion region;
+
+                lock (gate)
                 {
-                    break;
+                    if (inFlight.Count == 0)
+                    {
+                        return;
+                    }
+
+                    region = inFlight.Peek();
                 }
 
-                inFlight.Dequeue();
-                tail = (region.Offset + region.Size) % bufferSizeBytes;
+                if (!region.Fence.TryConsumeIfSignaled())
+                {
+                    return;
+                }
+
+                lock (gate)
+                {
+                    if (inFlight.Count == 0)
+                    {
+                        return;
+                    }
+
+                    PendingRegion dequeued = inFlight.Peek();
+                    if (!ReferenceEquals(region.Fence, dequeued.Fence))
+                    {
+                        continue;
+                    }
+
+                    inFlight.Dequeue();
+                    tail = (dequeued.Offset + dequeued.Size) % bufferSizeBytes;
+                }
             }
         }
 
         private bool TryAllocate(int size, out int offset)
+        {
+            lock (gate)
+            {
+                return TryAllocateNoLock(size, out offset);
+            }
+        }
+
+        private bool TryAllocateNoLock(int size, out int offset)
         {
             offset = 0;
 
@@ -1212,7 +1599,8 @@ internal enum TextureStageRejectReason
     ManagerDisposed = 1,
     InvalidArguments = 2,
     DataTooSmall = 3,
-    DataTypeMismatch = 4
+    DataTypeMismatch = 4,
+    QueueFull = 5
 }
 
 internal readonly record struct TextureStageResult(TextureStageOutcome Outcome, TextureStageRejectReason RejectReason = TextureStageRejectReason.None)
@@ -1256,7 +1644,8 @@ internal readonly record struct TextureStreamingDiagnostics(
     long Deferred,
     int Pending,
     TextureStreamingBackendKind Backend,
-    TextureStreamingPriorityDiagnostics Priority);
+    TextureStreamingPriorityDiagnostics Priority,
+    long StageCopyStaged);
 
 internal readonly record struct TextureUploadTarget(TextureTarget BindTarget, TextureTarget UploadTarget)
 {
