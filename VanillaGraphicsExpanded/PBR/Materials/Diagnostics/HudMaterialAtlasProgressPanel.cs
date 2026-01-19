@@ -93,7 +93,8 @@ internal sealed class HudMaterialAtlasProgressPanel : HudElement
             return;
         }
 
-        bool isActive = !diag.IsComplete && !diag.IsCancelled && diag.TotalTiles > 0;
+        int totalWork = Math.Max(0, diag.TotalTiles) + Math.Max(0, diag.TotalNormalDepthJobs);
+        bool isActive = !diag.IsComplete && !diag.IsCancelled && totalWork > 0;
 
         if (diag.GenerationId != lastSeenGenerationId)
         {
@@ -134,12 +135,22 @@ internal sealed class HudMaterialAtlasProgressPanel : HudElement
             return;
         }
 
-        int total = Math.Max(0, diag.TotalTiles);
-        int completed = Math.Clamp(diag.CompletedTiles, 0, total);
+        int mpTotal = Math.Max(0, diag.TotalTiles);
+        int mpDone = Math.Clamp(diag.CompletedTiles, 0, mpTotal);
+
+        int ndTotal = Math.Max(0, diag.TotalNormalDepthJobs);
+        int ndDone = Math.Clamp(diag.CompletedNormalDepthJobs, 0, ndTotal);
+
+        int total = mpTotal + ndTotal;
+        int completed = mpDone + ndDone;
 
         progress01 = total > 0 ? (float)completed / total : 0f;
 
-        SingleComposer.GetDynamicText(TrackerTextKey).SetNewText($"{completed} of {total}");
+        string text = ndTotal > 0
+            ? $"MP {mpDone}/{mpTotal}  ND {ndDone}/{ndTotal}"
+            : $"MP {mpDone}/{mpTotal}";
+
+        SingleComposer.GetDynamicText(TrackerTextKey).SetNewText(text);
         SingleComposer.GetCustomDraw(ProgressBarKey).Redraw();
     }
 

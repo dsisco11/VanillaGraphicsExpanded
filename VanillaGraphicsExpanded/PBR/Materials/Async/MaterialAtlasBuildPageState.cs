@@ -32,4 +32,10 @@ internal sealed class MaterialAtlasBuildPageState
     public int CompletedOverrides { get; set; }
 
     public bool PageClearDone { get; set; }
+
+    public int NormalDepthPendingJobs { get; set; }
+
+    public int NormalDepthCompletedJobs { get; set; }
+
+    public bool NormalDepthPageClearDone { get; set; }
 }

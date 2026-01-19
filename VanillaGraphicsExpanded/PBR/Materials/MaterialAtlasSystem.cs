@@ -279,6 +279,18 @@ internal sealed class MaterialAtlasSystem : IDisposable
             blockTextureAssets: Array.Empty<AssetLocation>(),
             enableNormalDepth: false);
 
+        MaterialAtlasNormalDepthBuildPlan? normalDepthPlan = null;
+        if (ConfigModSystem.Config.EnableNormalDepthAtlas)
+        {
+            snapshot = AtlasSnapshot.Capture(atlas);
+            var ndPlanner = new MaterialAtlasNormalDepthBuildPlanner();
+            normalDepthPlan = ndPlanner.CreatePlan(
+                snapshot,
+                TryGetAtlasPosition,
+                PbrMaterialRegistry.Instance,
+                capi.Assets.GetLocations("textures/block/", domain: null));
+        }
+
         int filledRects;
         int overriddenRects;
         MaterialAtlasCacheKeyInputs cacheInputs = MaterialAtlasCacheKeyInputs.Create(ConfigModSystem.Config, snapshot, PbrMaterialRegistry.Instance);
@@ -290,7 +302,8 @@ internal sealed class MaterialAtlasSystem : IDisposable
                 plan,
                 cacheInputs,
                 currentReload,
-                nonNullCount);
+                nonNullCount,
+                normalDepthPlan);
             overriddenRects = 0; // overrides are applied asynchronously on the render thread.
         }
         else
@@ -301,16 +314,8 @@ internal sealed class MaterialAtlasSystem : IDisposable
                 cacheInputs);
         }
 
-        if (ConfigModSystem.Config.EnableNormalDepthAtlas)
+        if (normalDepthPlan is not null && !ConfigModSystem.Config.EnableMaterialAtlasAsyncBuild)
         {
-            snapshot = AtlasSnapshot.Capture(atlas);
-            var planner = new MaterialAtlasNormalDepthBuildPlanner();
-            var normalDepthPlan = planner.CreatePlan(
-                snapshot,
-                TryGetAtlasPosition,
-                PbrMaterialRegistry.Instance,
-                capi.Assets.GetLocations("textures/block/", domain: null));
-
             var runner = new MaterialAtlasNormalDepthBuildRunner(textureStore, new MaterialOverrideTextureLoader(), diskCache, cacheKeyBuilder);
             (int bakedRects, int appliedOverrides, int bakeCacheHits, int bakeCacheMisses, int overrideCacheHits, int overrideCacheMisses) = runner.ExecutePlan(
                 capi,
@@ -363,6 +368,16 @@ internal sealed class MaterialAtlasSystem : IDisposable
                     stats.NormalDepth.Misses,
                     stats.NormalDepth.Stores);
             }
+        }
+
+        if (normalDepthPlan is not null && ConfigModSystem.Config.EnableMaterialAtlasAsyncBuild && ConfigModSystem.Config.DebugLogNormalDepthAtlas)
+        {
+            capi.Logger.Debug(
+                "[VGE] Normal+depth atlas plan (async): pages={0} bakeJobs={1} overrideJobs={2} skippedByOverrides={3}",
+                normalDepthPlan.Pages.Count,
+                normalDepthPlan.PlanStats.BakeJobs,
+                normalDepthPlan.PlanStats.OverrideJobs,
+                normalDepthPlan.PlanStats.SkippedByOverrides);
         }
 
         capi.Logger.Notification(
@@ -477,7 +492,8 @@ internal sealed class MaterialAtlasSystem : IDisposable
         AtlasBuildPlan plan,
         MaterialAtlasCacheKeyInputs cacheInputs,
         short currentReload,
-        int nonNullCount)
+        int nonNullCount,
+        MaterialAtlasNormalDepthBuildPlan? normalDepthPlan)
     {
         if (scheduler is null)
         {
@@ -611,18 +627,99 @@ internal sealed class MaterialAtlasSystem : IDisposable
                 Priority: ov.Priority));
         }
 
+        var normalDepthJobs = new List<IMaterialAtlasGpuJob>(capacity: normalDepthPlan is null
+            ? 0
+            : checked(normalDepthPlan.BakeJobs.Count + normalDepthPlan.OverrideJobs.Count));
+
+        if (normalDepthPlan is not null)
+        {
+            var pageSizes = new Dictionary<int, (int w, int h)>(capacity: normalDepthPlan.Pages.Count);
+            foreach (var p in normalDepthPlan.Pages)
+            {
+                pageSizes[p.AtlasTextureId] = (p.Width, p.Height);
+            }
+
+            foreach (var job in normalDepthPlan.BakeJobs)
+            {
+                if (!pageSizes.TryGetValue(job.AtlasTextureId, out (int w, int h) size))
+                {
+                    continue;
+                }
+
+                AtlasCacheKey key = enableCache
+                    ? cacheKeyBuilder.BuildNormalDepthTileKey(
+                        cacheInputs,
+                        job.AtlasTextureId,
+                        job.Rect,
+                        job.SourceTexture,
+                        job.NormalScale,
+                        job.DepthScale)
+                    : default;
+
+                normalDepthJobs.Add(new MaterialAtlasNormalDepthGpuBakeJob(
+                    GenerationId: generationId,
+                    AtlasTextureId: job.AtlasTextureId,
+                    Rect: job.Rect,
+                    AtlasWidth: size.w,
+                    AtlasHeight: size.h,
+                    NormalScale: job.NormalScale,
+                    DepthScale: job.DepthScale,
+                    DiskCache: enableCache ? diskCache : null,
+                    CacheKey: key,
+                    Priority: job.Priority));
+            }
+
+            foreach (var ov in normalDepthPlan.OverrideJobs)
+            {
+                if (!pageSizes.TryGetValue(ov.AtlasTextureId, out (int w, int h) size))
+                {
+                    continue;
+                }
+
+                AtlasCacheKey key = enableCache
+                    ? cacheKeyBuilder.BuildNormalDepthOverrideTileKey(
+                        cacheInputs,
+                        ov.AtlasTextureId,
+                        ov.Rect,
+                        ov.TargetTexture,
+                        ov.OverrideTexture,
+                        ov.NormalScale,
+                        ov.DepthScale,
+                        ov.RuleId,
+                        ov.RuleSource)
+                    : default;
+
+                normalDepthJobs.Add(new MaterialAtlasNormalDepthGpuOverrideJob(
+                    GenerationId: generationId,
+                    AtlasTextureId: ov.AtlasTextureId,
+                    Rect: ov.Rect,
+                    AtlasWidth: size.w,
+                    AtlasHeight: size.h,
+                    TargetTexture: ov.TargetTexture,
+                    OverrideTexture: ov.OverrideTexture,
+                    NormalScale: ov.NormalScale,
+                    DepthScale: ov.DepthScale,
+                    RuleId: ov.RuleId,
+                    RuleSource: ov.RuleSource,
+                    DiskCache: enableCache ? diskCache : null,
+                    CacheKey: key,
+                    Priority: ov.Priority));
+            }
+        }
+
         var session = new MaterialAtlasBuildSession(
             generationId,
             atlasPages,
             cpuJobs,
             overrideJobs,
+            normalDepthJobs,
             new MaterialOverrideTextureLoader(),
             cacheCounters);
         scheduler.StartSession(session);
 
         lastScheduledAtlasReloadIteration = currentReload;
         lastScheduledAtlasNonNullPositions = nonNullCount;
-        IsBuildComplete = cpuJobs.Count == 0 && overrideJobs.Count == 0;
+        IsBuildComplete = cpuJobs.Count == 0 && overrideJobs.Count == 0 && normalDepthJobs.Count == 0;
 
         return cpuJobs.Count;
     }

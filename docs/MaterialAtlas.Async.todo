@@ -18,10 +18,10 @@ Goals:
     ☑ If override-only rects exist, enqueue override upload as today.
   ☑ Preserve cache stats logging (base/override hits and misses).
 
-☐ Phase 2 - Budgeted normal+depth pipeline
-  ☐ Introduce normal+depth GPU jobs executed via a per-frame budget.
-  ☐ Track per-page "clear once" state before the first tile upload.
-  ☐ Add normal+depth progress to async diagnostics and HUD.
+☑ Phase 2 - Budgeted normal+depth pipeline
+  ☑ Introduce normal+depth GPU jobs executed via a per-frame budget.
+  ☑ Track per-page "clear once" state before the first tile upload.
+  ☑ Add normal+depth progress to async diagnostics and HUD.
 
 ☐ Phase 3 - Disk cache IO isolation
   ☐ Ensure normal+depth cache reads run on worker threads only.

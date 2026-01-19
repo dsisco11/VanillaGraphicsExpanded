@@ -5,6 +5,8 @@ using System.Threading;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 
+using VanillaGraphicsExpanded.PBR.Materials;
+
 namespace VanillaGraphicsExpanded.PBR.Materials.Async;
 
 internal sealed class MaterialAtlasBuildSession : IDisposable
@@ -20,6 +22,7 @@ internal sealed class MaterialAtlasBuildSession : IDisposable
         IReadOnlyList<(int atlasTextureId, int width, int height)> atlasPages,
         IReadOnlyList<IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload>> cpuTileJobs,
         IReadOnlyList<MaterialAtlasParamsGpuOverrideUpload> overrideJobs,
+        IReadOnlyList<IMaterialAtlasGpuJob> normalDepthJobs,
         MaterialOverrideTextureLoader overrideLoader,
         MaterialAtlasAsyncCacheCounters? cacheCounters)
     {
@@ -28,6 +31,7 @@ internal sealed class MaterialAtlasBuildSession : IDisposable
         AtlasPages = atlasPages ?? throw new ArgumentNullException(nameof(atlasPages));
         CpuTileJobs = cpuTileJobs ?? throw new ArgumentNullException(nameof(cpuTileJobs));
         OverrideJobs = overrideJobs ?? throw new ArgumentNullException(nameof(overrideJobs));
+        NormalDepthJobs = normalDepthJobs ?? throw new ArgumentNullException(nameof(normalDepthJobs));
         OverrideLoader = overrideLoader ?? throw new ArgumentNullException(nameof(overrideLoader));
         CacheCounters = cacheCounters;
 
@@ -46,6 +50,9 @@ internal sealed class MaterialAtlasBuildSession : IDisposable
         TotalOverrides = overrideJobs.Count;
         OverridesApplied = 0;
 
+        TotalNormalDepthJobs = normalDepthJobs.Count;
+        CompletedNormalDepthJobs = 0;
+
         // Prime the per-rect override dictionary for O(1) lookup when a tile upload completes.
         foreach (var ov in overrideJobs)
         {
@@ -63,6 +70,8 @@ internal sealed class MaterialAtlasBuildSession : IDisposable
 
     public IReadOnlyList<MaterialAtlasParamsGpuOverrideUpload> OverrideJobs { get; }
 
+    public IReadOnlyList<IMaterialAtlasGpuJob> NormalDepthJobs { get; }
+
     public Dictionary<int, MaterialAtlasBuildPageState> PagesByAtlasTexId { get; }
 
     public MaterialOverrideTextureLoader OverrideLoader { get; }
@@ -77,6 +86,10 @@ internal sealed class MaterialAtlasBuildSession : IDisposable
 
     public int OverridesApplied { get; private set; }
 
+    public int TotalNormalDepthJobs { get; }
+
+    public int CompletedNormalDepthJobs { get; private set; }
+
     public int PendingOverrideUploadsCount
     {
         get
@@ -90,7 +103,7 @@ internal sealed class MaterialAtlasBuildSession : IDisposable
 
     public bool IsCancelled => cts.IsCancellationRequested;
 
-    public bool IsComplete => CompletedTiles >= TotalTiles && !IsCancelled;
+    public bool IsComplete => CompletedTiles >= TotalTiles && CompletedNormalDepthJobs >= TotalNormalDepthJobs && !IsCancelled;
 
     public CancellationToken Token => cts.Token;
 
@@ -99,6 +112,43 @@ internal sealed class MaterialAtlasBuildSession : IDisposable
 
     public void IncrementOverridesApplied()
         => OverridesApplied++;
+
+    public void MarkNormalDepthJobCompleted(int atlasTextureId)
+    {
+        CompletedNormalDepthJobs++;
+
+        if (PagesByAtlasTexId.TryGetValue(atlasTextureId, out MaterialAtlasBuildPageState? page))
+        {
+            page.NormalDepthPendingJobs = Math.Max(0, page.NormalDepthPendingJobs - 1);
+            page.NormalDepthCompletedJobs++;
+        }
+    }
+
+    public void EnsureNormalDepthPageCleared(ICoreClientAPI capi, int atlasTextureId, MaterialAtlasPageTextures pageTextures)
+    {
+        if (!PagesByAtlasTexId.TryGetValue(atlasTextureId, out MaterialAtlasBuildPageState? page))
+        {
+            return;
+        }
+
+        if (page.NormalDepthPageClearDone)
+        {
+            return;
+        }
+
+        if (pageTextures.NormalDepthTexture is null || !pageTextures.NormalDepthTexture.IsValid)
+        {
+            return;
+        }
+
+        MaterialAtlasNormalDepthGpuBuilder.ClearAtlasPage(
+            capi,
+            destNormalDepthTexId: pageTextures.NormalDepthTexture.TextureId,
+            atlasWidth: page.Width,
+            atlasHeight: page.Height);
+
+        page.NormalDepthPageClearDone = true;
+    }
 
     public void EnqueueOverrideUpload(MaterialAtlasParamsGpuOverrideUpload upload)
     {
