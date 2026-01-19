@@ -529,29 +529,33 @@ internal sealed class TextureStreamingManager : IDisposable
 
         EnsureBackend();
 
-        UploadCommand[] work = ArrayPool<UploadCommand>.Shared.Rent(Math.Max(64, pendingCount));
+        int maxBatchCommands = ComputeMaxDrainBatchSize(settings);
+        int targetBatchSize = Math.Min(pendingCount, maxBatchCommands);
+        UploadCommand[] work = ArrayPool<UploadCommand>.Shared.Rent(Math.Max(64, targetBatchSize));
         int workCount = 0;
 
         try
         {
             if (carryOverCount > 0)
             {
-                EnsureCarryOverCapacity(0);
-                Array.Copy(carryOver, 0, work, 0, carryOverCount);
-                workCount = carryOverCount;
-                carryOverCount = 0;
+                int take = Math.Min(carryOverCount, work.Length);
+                Array.Copy(carryOver, 0, work, 0, take);
+                workCount = take;
+
+                if (take < carryOverCount)
+                {
+                    int remaining = carryOverCount - take;
+                    Array.Copy(carryOver, take, carryOver, 0, remaining);
+                    carryOverCount = remaining;
+                }
+                else
+                {
+                    carryOverCount = 0;
+                }
             }
 
-            while (true)
+            while (workCount < work.Length)
             {
-                if (workCount == work.Length)
-                {
-                    UploadCommand[] grown = ArrayPool<UploadCommand>.Shared.Rent(work.Length * 2);
-                    Array.Copy(work, 0, grown, 0, workCount);
-                    ArrayPool<UploadCommand>.Shared.Return(work, clearArray: false);
-                    work = grown;
-                }
-
                 int drained = commandQueue.Drain(work.AsSpan(workCount));
                 if (drained == 0)
                 {
@@ -660,6 +664,13 @@ internal sealed class TextureStreamingManager : IDisposable
         {
             ArrayPool<UploadCommand>.Shared.Return(work, clearArray: false);
         }
+    }
+
+    private static int ComputeMaxDrainBatchSize(in TextureStreamingSettings settings)
+    {
+        int maxByUploads = Math.Max(settings.MaxUploadsPerFrame, 1) * 4;
+        int max = Math.Clamp(maxByUploads, 64, 4096);
+        return max;
     }
 
     public TextureStreamingDiagnostics GetDiagnosticsSnapshot()

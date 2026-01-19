@@ -72,15 +72,15 @@ Texture Streaming - Persistent-Mapped StageCopy Refactor (Option B First):
 
   Phase 4 - Render Thread: Drain, Upload, Fence, Retire:
   Exit artifacts: Render thread uploads from PBO offsets under budgets and advances the ring tail via fences.
-  ☐ Drain commands into a temp list (bounded by `MaxUploadsPerFrame` / `MaxBytesPerFrame`).
-  ☐ Order via scheduler (Option B stable sort).
-  ☐ For each command:
+  ✔ Drain commands into a temp list (bounded by `MaxUploadsPerFrame` / `MaxBytesPerFrame`). @done
+  ✔ Order via scheduler (Option B stable sort). @done
+  ✔ For each command: @done
     - flush mapped range if needed (non-coherent)
     - bind `GL_PIXEL_UNPACK_BUFFER` + apply pixel store
     - issue correct `glTexSubImage1D/2D/3D` based on texture target
     - insert `GpuFence` and associate it with the ring segment
-  ☐ Maintain in-flight segments and retire in-order (poll fences; advance tail; release queue slots if needed).
-  ☐ Ensure GL state is restored even when requests are invalid (pixel store reset; PBO unbind).
+  ✔ Maintain in-flight segments and retire in-order (poll fences; advance tail; release queue slots if needed). @done
+  ✔ Ensure GL state is restored even when requests are invalid (pixel store reset; PBO unbind). @done
 
 
   Phase 5 - Full-Copy Fallback Path (Non-Persistent / Queue Full):
