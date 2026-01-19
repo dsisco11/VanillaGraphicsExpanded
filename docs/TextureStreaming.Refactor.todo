@@ -46,12 +46,12 @@ Texture Streaming - Persistent-Mapped StageCopy Refactor (Option B First):
 
   Phase 2 - Queue + Scheduler Abstractions (Option B, extensible to A):
   Exit artifacts: Producers enqueue commands through a swappable internal queue/scheduler.
-  ☐ Add internal `IUploadCommandQueue` (TryEnqueue + Drain into caller-provided buffer).
-  ☐ Implement `SingleChannelUploadQueue` using bounded `System.Threading.Channels.Channel<T>`.
-  ☐ Add admission control (queue slots) so StageCopy never reserves/copies into the ring if enqueue would fail.
-  ☐ Add internal `IUploadScheduler` and implement “stable priority sort” (Priority desc, SequenceId asc).
-  ☐ Ensure “hot path” is low/zero-GC (pool drain buffers; avoid per-upload allocations).
-  ☐ Add per-priority diagnostics counters (enqueued/drained/fallback/failed).
+  ✔ Add internal `IUploadCommandQueue` (TryEnqueue + Drain into caller-provided buffer). @done
+  ✔ Implement `SingleChannelUploadQueue` using bounded `System.Threading.Channels.Channel<T>`. @done
+  ✔ Add admission control (queue slots) so StageCopy never reserves/copies into the ring if enqueue would fail. @done
+  ✔ Add internal `IUploadScheduler` and implement “stable priority sort” (Priority desc, SequenceId asc). @done
+  ✔ Ensure “hot path” is low/zero-GC (pool drain buffers; avoid per-upload allocations). @done
+  ✔ Add per-priority diagnostics counters (enqueued/drained/fallback/failed). @done
 
 
   Phase 3 - Persistent-Mapped Ring: Producer-Side StageCopy:

@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -9,13 +10,24 @@ namespace VanillaGraphicsExpanded.Rendering;
 
 internal sealed class TextureStreamingManager : IDisposable
 {
-    private readonly PriorityFifoQueue<TextureUploadRequest> pending = new();
-    private readonly List<TextureUploadRequest> deferred = new();
+    private const int DefaultQueueCapacity = 65_536;
+
+    private readonly IUploadCommandQueue commandQueue;
+    private readonly IUploadScheduler scheduler;
+    private UploadCommand[] carryOver = Array.Empty<UploadCommand>();
+    private int carryOverCount;
     private TextureStreamingSettings settings;
     private IPboUploadBackend? backend;
     private bool backendInitialized;
     private int backendResetRequested;
     private bool disposed;
+
+    private long nextSequenceId;
+
+    private readonly long[] priorityEnqueued = new long[3];
+    private readonly long[] priorityDrained = new long[3];
+    private readonly long[] priorityFallback = new long[3];
+    private readonly long[] priorityFailed = new long[3];
 
     private long enqueued;
     private long uploaded;
@@ -27,6 +39,8 @@ internal sealed class TextureStreamingManager : IDisposable
     public TextureStreamingManager(TextureStreamingSettings? settings = null)
     {
         this.settings = settings ?? TextureStreamingSettings.Default;
+        commandQueue = new SingleChannelUploadQueue(DefaultQueueCapacity);
+        scheduler = new StablePriorityUploadScheduler();
     }
 
     public TextureStreamingSettings Settings
@@ -53,8 +67,17 @@ internal sealed class TextureStreamingManager : IDisposable
 
     public void Enqueue(TextureUploadRequest request)
     {
-        pending.Enqueue(request.Priority, request);
+        long sequenceId = Interlocked.Increment(ref nextSequenceId);
+        UploadCommand cmd = new(sequenceId, request.Priority, request);
+
+        if (!commandQueue.TryEnqueue(cmd))
+        {
+            Interlocked.Increment(ref priorityFailed[GetPriorityIndex(request.Priority)]);
+            return;
+        }
+
         Interlocked.Increment(ref enqueued);
+        Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex(request.Priority)]);
     }
 
     public TextureStageResult StageCopy(
@@ -273,77 +296,129 @@ internal sealed class TextureStreamingManager : IDisposable
 
         backend?.Tick();
 
-        if (pending.Count == 0)
+        int pendingCount = commandQueue.Count + Volatile.Read(ref carryOverCount);
+        if (pendingCount == 0)
         {
             return;
         }
 
         EnsureBackend();
 
-        int uploads = 0;
-        int bytes = 0;
+        UploadCommand[] work = ArrayPool<UploadCommand>.Shared.Rent(Math.Max(64, pendingCount));
+        int workCount = 0;
 
-        while (uploads < settings.MaxUploadsPerFrame && bytes < settings.MaxBytesPerFrame)
+        try
         {
-            if (!pending.TryDequeue(out TextureUploadRequest request))
+            if (carryOverCount > 0)
             {
-                break;
+                EnsureCarryOverCapacity(0);
+                Array.Copy(carryOver, 0, work, 0, carryOverCount);
+                workCount = carryOverCount;
+                carryOverCount = 0;
             }
 
-            if (!TryPrepareRequest(request, out PreparedUpload prepared))
+            while (true)
             {
-                Interlocked.Increment(ref droppedInvalid);
-                continue;
-            }
-
-            int byteCount = prepared.ByteCount;
-            bool uploadedThisFrame = false;
-
-            if (backend is not null && byteCount <= settings.MaxStagingBytes)
-            {
-                if (backend.TryStageUpload(prepared, out PboUpload pboUpload))
+                if (workCount == work.Length)
                 {
-                    IssuePboUpload(prepared, pboUpload);
-                    backend.SubmitUpload(pboUpload);
-                    uploadedThisFrame = true;
+                    UploadCommand[] grown = ArrayPool<UploadCommand>.Shared.Rent(work.Length * 2);
+                    Array.Copy(work, 0, grown, 0, workCount);
+                    ArrayPool<UploadCommand>.Shared.Return(work, clearArray: false);
+                    work = grown;
                 }
-            }
 
-            if (!uploadedThisFrame)
-            {
-                if (settings.AllowDirectUploads && TryUploadDirect(prepared))
+                int drained = commandQueue.Drain(work.AsSpan(workCount));
+                if (drained == 0)
                 {
-                    Interlocked.Increment(ref fallbackUploads);
-                    uploadedThisFrame = true;
+                    break;
                 }
+
+                AccumulatePriorityCounts(work.AsSpan(workCount, drained), priorityDrained);
+                workCount += drained;
             }
 
-            if (!uploadedThisFrame)
+            scheduler.Sort(work, workCount);
+
+            int uploads = 0;
+            int bytes = 0;
+
+            for (int i = 0; i < workCount; i++)
             {
-                deferred.Add(request);
-                Interlocked.Increment(ref deferredCount);
-                break;
-            }
+                if (uploads >= settings.MaxUploadsPerFrame || bytes >= settings.MaxBytesPerFrame)
+                {
+                    CarryOver(work, i, workCount - i);
+                    return;
+                }
 
-            uploads++;
-            bytes += byteCount;
-            Interlocked.Increment(ref uploaded);
-            Interlocked.Add(ref uploadedBytes, byteCount);
+                TextureUploadRequest request = work[i].Request;
+
+                if (!TryPrepareRequest(request, out PreparedUpload prepared))
+                {
+                    Interlocked.Increment(ref droppedInvalid);
+                    continue;
+                }
+
+                int byteCount = prepared.ByteCount;
+                bool uploadedThisFrame = false;
+
+                if (backend is not null && byteCount <= settings.MaxStagingBytes)
+                {
+                    if (backend.TryStageUpload(prepared, out PboUpload pboUpload))
+                    {
+                        IssuePboUpload(prepared, pboUpload);
+                        backend.SubmitUpload(pboUpload);
+                        uploadedThisFrame = true;
+                    }
+                }
+
+                if (!uploadedThisFrame)
+                {
+                    if (settings.AllowDirectUploads && TryUploadDirect(prepared))
+                    {
+                        Interlocked.Increment(ref fallbackUploads);
+                        Interlocked.Increment(ref priorityFallback[GetPriorityIndex(request.Priority)]);
+                        uploadedThisFrame = true;
+                    }
+                }
+
+                if (!uploadedThisFrame)
+                {
+                    CarryOver(work, i, workCount - i);
+                    Interlocked.Increment(ref deferredCount);
+                    return;
+                }
+
+                uploads++;
+                bytes += byteCount;
+                Interlocked.Increment(ref uploaded);
+                Interlocked.Add(ref uploadedBytes, byteCount);
+            }
         }
-
-        if (deferred.Count > 0)
+        finally
         {
-            foreach (TextureUploadRequest request in deferred)
-            {
-                pending.Enqueue(request.Priority, request);
-            }
-
-            deferred.Clear();
+            ArrayPool<UploadCommand>.Shared.Return(work, clearArray: false);
         }
     }
 
     public TextureStreamingDiagnostics GetDiagnosticsSnapshot()
     {
+        TextureStreamingPriorityDiagnostics priority = new(
+            Low: new TextureStreamingPriorityCounter(
+                Enqueued: Interlocked.Read(ref priorityEnqueued[0]),
+                Drained: Interlocked.Read(ref priorityDrained[0]),
+                Fallback: Interlocked.Read(ref priorityFallback[0]),
+                Failed: Interlocked.Read(ref priorityFailed[0])),
+            Normal: new TextureStreamingPriorityCounter(
+                Enqueued: Interlocked.Read(ref priorityEnqueued[1]),
+                Drained: Interlocked.Read(ref priorityDrained[1]),
+                Fallback: Interlocked.Read(ref priorityFallback[1]),
+                Failed: Interlocked.Read(ref priorityFailed[1])),
+            High: new TextureStreamingPriorityCounter(
+                Enqueued: Interlocked.Read(ref priorityEnqueued[2]),
+                Drained: Interlocked.Read(ref priorityDrained[2]),
+                Fallback: Interlocked.Read(ref priorityFallback[2]),
+                Failed: Interlocked.Read(ref priorityFailed[2])));
+
         return new TextureStreamingDiagnostics(
             Enqueued: Interlocked.Read(ref enqueued),
             Uploaded: Interlocked.Read(ref uploaded),
@@ -351,8 +426,9 @@ internal sealed class TextureStreamingManager : IDisposable
             FallbackUploads: Interlocked.Read(ref fallbackUploads),
             DroppedInvalid: Interlocked.Read(ref droppedInvalid),
             Deferred: Interlocked.Read(ref deferredCount),
-            Pending: pending.Count,
-            Backend: backend?.Kind ?? TextureStreamingBackendKind.None);
+            Pending: commandQueue.Count + Volatile.Read(ref carryOverCount),
+            Backend: backend?.Kind ?? TextureStreamingBackendKind.None,
+            Priority: priority);
     }
 
     public void Dispose()
@@ -364,7 +440,107 @@ internal sealed class TextureStreamingManager : IDisposable
 
         backend?.Dispose();
         backend = null;
+
+        if (carryOver.Length != 0)
+        {
+            ArrayPool<UploadCommand>.Shared.Return(carryOver, clearArray: false);
+            carryOver = Array.Empty<UploadCommand>();
+            carryOverCount = 0;
+        }
+
         disposed = true;
+    }
+
+    private static int GetPriorityIndex(int priority)
+    {
+        if (priority < 0)
+        {
+            return 0;
+        }
+
+        if (priority > 0)
+        {
+            return 2;
+        }
+
+        return 1;
+    }
+
+    private static void AccumulatePriorityCounts(ReadOnlySpan<UploadCommand> commands, long[] counters)
+    {
+        long low = 0;
+        long normal = 0;
+        long high = 0;
+
+        for (int i = 0; i < commands.Length; i++)
+        {
+            int idx = GetPriorityIndex(commands[i].Priority);
+            if (idx == 0)
+            {
+                low++;
+            }
+            else if (idx == 2)
+            {
+                high++;
+            }
+            else
+            {
+                normal++;
+            }
+        }
+
+        if (low != 0)
+        {
+            Interlocked.Add(ref counters[0], low);
+        }
+        if (normal != 0)
+        {
+            Interlocked.Add(ref counters[1], normal);
+        }
+        if (high != 0)
+        {
+            Interlocked.Add(ref counters[2], high);
+        }
+    }
+
+    private void EnsureCarryOverCapacity(int additional)
+    {
+        int required = carryOverCount + additional;
+        if (carryOver.Length >= required)
+        {
+            return;
+        }
+
+        int newSize = Math.Max(64, carryOver.Length);
+        while (newSize < required)
+        {
+            newSize *= 2;
+        }
+
+        UploadCommand[] grown = ArrayPool<UploadCommand>.Shared.Rent(newSize);
+        if (carryOverCount > 0)
+        {
+            Array.Copy(carryOver, 0, grown, 0, carryOverCount);
+        }
+
+        if (carryOver.Length != 0)
+        {
+            ArrayPool<UploadCommand>.Shared.Return(carryOver, clearArray: false);
+        }
+
+        carryOver = grown;
+    }
+
+    private void CarryOver(UploadCommand[] source, int offset, int length)
+    {
+        if (length <= 0)
+        {
+            return;
+        }
+
+        EnsureCarryOverCapacity(length);
+        Array.Copy(source, offset, carryOver, carryOverCount, length);
+        carryOverCount += length;
     }
 
     private void EnsureBackend()
@@ -1079,7 +1255,8 @@ internal readonly record struct TextureStreamingDiagnostics(
     long DroppedInvalid,
     long Deferred,
     int Pending,
-    TextureStreamingBackendKind Backend);
+    TextureStreamingBackendKind Backend,
+    TextureStreamingPriorityDiagnostics Priority);
 
 internal readonly record struct TextureUploadTarget(TextureTarget BindTarget, TextureTarget UploadTarget)
 {
@@ -1284,77 +1461,5 @@ internal static class TextureStreamingUtils
         }
 
         return channels * bytesPerChannel;
-    }
-}
-
-internal sealed class PriorityFifoQueue<T>
-{
-    private readonly object gate = new();
-    private readonly SortedDictionary<int, Queue<T>> queuesByPriority = new();
-
-    public int Count
-    {
-        get
-        {
-            lock (gate)
-            {
-                int total = 0;
-                foreach (Queue<T> q in queuesByPriority.Values)
-                {
-                    total += q.Count;
-                }
-
-                return total;
-            }
-        }
-    }
-
-    public void Enqueue(int priority, T item)
-    {
-        lock (gate)
-        {
-            if (!queuesByPriority.TryGetValue(priority, out Queue<T>? q))
-            {
-                q = new Queue<T>();
-                queuesByPriority[priority] = q;
-            }
-
-            q.Enqueue(item);
-        }
-    }
-
-    public bool TryDequeue(out T item)
-    {
-        lock (gate)
-        {
-            if (queuesByPriority.Count == 0)
-            {
-                item = default!;
-                return false;
-            }
-
-            int highestPriority = int.MinValue;
-            Queue<T>? highestQueue = null;
-
-            foreach ((int priority, Queue<T> q) in queuesByPriority)
-            {
-                highestPriority = priority;
-                highestQueue = q;
-            }
-
-            if (highestQueue is null || highestQueue.Count == 0)
-            {
-                item = default!;
-                return false;
-            }
-
-            item = highestQueue.Dequeue();
-            if (highestQueue.Count == 0)
-            {
-                queuesByPriority.Remove(highestPriority);
-            }
-
-            return true;
-        }
     }
 }
