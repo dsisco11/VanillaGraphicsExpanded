@@ -13,6 +13,27 @@ internal static class SimdSpanMath
 {
     private const float Inv255 = 1f / 255f;
 
+    public static void FillInterleaved4(Span<float> destination, float a0, float a1, float a2, float a3)
+    {
+        if (destination.Length == 0)
+        {
+            return;
+        }
+
+        if ((destination.Length % 4) != 0)
+        {
+            throw new ArgumentException($"Length must be a multiple of 4 (destination={destination.Length}).", nameof(destination));
+        }
+
+        if (Avx.IsSupported)
+        {
+            FillInterleaved4Vector256Avx(destination, a0, a1, a2, a3);
+            return;
+        }
+
+        FillInterleaved4Scalar(destination, a0, a1, a2, a3);
+    }
+
     public static void FillInterleaved3(Span<float> destination, float a0, float a1, float a2)
     {
         if (destination.Length == 0)
@@ -38,6 +59,45 @@ internal static class SimdSpanMath
         }
 
         FillInterleaved3Scalar(destination, a0, a1, a2);
+    }
+
+    private static void FillInterleaved4Scalar(Span<float> destination, float a0, float a1, float a2, float a3)
+    {
+        for (int i = 0; i < destination.Length; i += 4)
+        {
+            destination[i + 0] = a0;
+            destination[i + 1] = a1;
+            destination[i + 2] = a2;
+            destination[i + 3] = a3;
+        }
+    }
+
+    private static void FillInterleaved4Vector256Avx(Span<float> destination, float a0, float a1, float a2, float a3)
+    {
+        if (!Avx.IsSupported)
+        {
+            throw new PlatformNotSupportedException("AVX is not supported on this platform.");
+        }
+
+        // Store two RGBA pixels per vector (8 floats).
+        Vector256<float> v = Vector256.Create(a0, a1, a2, a3, a0, a1, a2, a3);
+
+        ref float dstRef = ref MemoryMarshal.GetReference(destination);
+        int length = destination.Length;
+
+        int i = 0;
+        for (; i <= length - 8; i += 8)
+        {
+            Unsafe.WriteUnaligned(ref Unsafe.As<float, byte>(ref Unsafe.Add(ref dstRef, i)), v);
+        }
+
+        for (; i < length; i += 4)
+        {
+            Unsafe.Add(ref dstRef, i + 0) = a0;
+            Unsafe.Add(ref dstRef, i + 1) = a1;
+            Unsafe.Add(ref dstRef, i + 2) = a2;
+            Unsafe.Add(ref dstRef, i + 3) = a3;
+        }
     }
 
     public static void CopyInterleaved4ToInterleaved3(ReadOnlySpan<float> source4, Span<float> destination3)

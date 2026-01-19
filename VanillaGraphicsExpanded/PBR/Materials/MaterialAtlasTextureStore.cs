@@ -4,6 +4,7 @@ using System.Linq;
 
 using OpenTK.Graphics.OpenGL;
 
+using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.PBR.Materials;
@@ -179,11 +180,11 @@ internal sealed class MaterialAtlasTextureStore : IDisposable
     {
         // Initialize with defaults; contents get populated on BlockTexturesLoaded.
         float[] defaultParams = new float[checked(width * height * 3)];
-            MaterialAtlasParamsBuilder.FillRgbTriplets(
+        MaterialAtlasParamsBuilder.FillRgbTriplets(
             defaultParams,
-                MaterialAtlasParamsBuilder.DefaultRoughness,
-                MaterialAtlasParamsBuilder.DefaultMetallic,
-                MaterialAtlasParamsBuilder.DefaultEmissive);
+            MaterialAtlasParamsBuilder.DefaultRoughness,
+            MaterialAtlasParamsBuilder.DefaultMetallic,
+            MaterialAtlasParamsBuilder.DefaultEmissive);
 
         var materialParamsTex = DynamicTexture.CreateWithData(
             width,
@@ -196,11 +197,16 @@ internal sealed class MaterialAtlasTextureStore : IDisposable
         DynamicTexture? normalDepthTex = null;
         if (enableNormalDepth)
         {
-            // Placeholder until PopulateAtlasContents runs the bake.
-            normalDepthTex = DynamicTexture.Create(
+            // Initialize to an identity normal with zero depth so terrain shading stays stable
+            // while the async normal+depth pipeline populates tiles.
+            float[] defaultNormalDepth = new float[checked(width * height * 4)];
+            SimdSpanMath.FillInterleaved4(defaultNormalDepth, 0.5f, 0.5f, 1.0f, 0.0f);
+
+            normalDepthTex = DynamicTexture.CreateWithData(
                 width,
                 height,
                 PixelInternalFormat.Rgba16f,
+                defaultNormalDepth,
                 TextureFilterMode.Nearest,
                 debugName: $"vge_normalDepth_atlas_{atlasTextureId}");
         }
