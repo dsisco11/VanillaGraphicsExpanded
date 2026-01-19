@@ -450,6 +450,95 @@ public sealed class DynamicTexture : IDisposable
         GL.BindTexture(TextureTarget.Texture2D, 0);
     }
 
+    internal void EnqueueUploadData(float[] data, int priority = 0, int mipLevel = 0)
+        => EnqueueUploadData(data, 0, 0, Math.Max(1, width >> mipLevel), Math.Max(1, height >> mipLevel), priority, mipLevel);
+
+    internal void EnqueueUploadData(float[] data, int x, int y, int regionWidth, int regionHeight, int priority = 0, int mipLevel = 0)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[DynamicTexture] Attempted to enqueue upload for disposed or invalid texture");
+            return;
+        }
+
+        if (data is null) throw new ArgumentNullException(nameof(data));
+
+        int mipWidth = Math.Max(1, width >> mipLevel);
+        int mipHeight = Math.Max(1, height >> mipLevel);
+
+        if (x < 0 || y < 0 || x + regionWidth > mipWidth || y + regionHeight > mipHeight)
+        {
+            throw new ArgumentOutOfRangeException(
+                $"Region ({x}, {y}, {regionWidth}, {regionHeight}) extends beyond texture bounds ({mipWidth}x{mipHeight}) at mip {mipLevel}");
+        }
+
+        int expectedSize = checked(regionWidth * regionHeight * GetChannelCount());
+        if (data.Length != expectedSize)
+        {
+            throw new ArgumentException(
+                $"Data array size {data.Length} doesn't match expected size {expectedSize} " +
+                $"({regionWidth}x{regionHeight}x{GetChannelCount()} channels)",
+                nameof(data));
+        }
+
+        TextureStreamingSystem.Manager.Enqueue(new TextureUploadRequest(
+            TextureId: textureId,
+            Target: TextureUploadTarget.For2D(),
+            Region: new TextureUploadRegion(x, y, 0, regionWidth, regionHeight, depth: 1, MipLevel: mipLevel),
+            PixelFormat: TextureFormatHelper.GetPixelFormat(internalFormat),
+            PixelType: PixelType.Float,
+            Data: TextureUploadData.From(data),
+            Priority: priority,
+            UnpackAlignment: 4));
+    }
+
+    internal void EnqueueUploadData(ushort[] data, int priority = 0, int mipLevel = 0)
+        => EnqueueUploadData(data, 0, 0, Math.Max(1, width >> mipLevel), Math.Max(1, height >> mipLevel), priority, mipLevel);
+
+    internal void EnqueueUploadData(ushort[] data, int x, int y, int regionWidth, int regionHeight, int priority = 0, int mipLevel = 0)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[DynamicTexture] Attempted to enqueue upload for disposed or invalid texture");
+            return;
+        }
+
+        if (data is null) throw new ArgumentNullException(nameof(data));
+
+        var pixelType = TextureFormatHelper.GetPixelType(internalFormat);
+        if (pixelType != PixelType.UnsignedShort)
+        {
+            throw new InvalidOperationException($"EnqueueUploadData(ushort[]) requires {nameof(PixelType)}.{nameof(PixelType.UnsignedShort)}, but format is {internalFormat} -> {pixelType}.");
+        }
+
+        int mipWidth = Math.Max(1, width >> mipLevel);
+        int mipHeight = Math.Max(1, height >> mipLevel);
+
+        if (x < 0 || y < 0 || x + regionWidth > mipWidth || y + regionHeight > mipHeight)
+        {
+            throw new ArgumentOutOfRangeException(
+                $"Region ({x}, {y}, {regionWidth}, {regionHeight}) extends beyond texture bounds ({mipWidth}x{mipHeight}) at mip {mipLevel}");
+        }
+
+        int expectedSize = checked(regionWidth * regionHeight * GetChannelCount());
+        if (data.Length != expectedSize)
+        {
+            throw new ArgumentException(
+                $"Data array size {data.Length} doesn't match expected size {expectedSize} " +
+                $"({regionWidth}x{regionHeight}x{GetChannelCount()} channels)",
+                nameof(data));
+        }
+
+        TextureStreamingSystem.Manager.Enqueue(new TextureUploadRequest(
+            TextureId: textureId,
+            Target: TextureUploadTarget.For2D(),
+            Region: new TextureUploadRegion(x, y, 0, regionWidth, regionHeight, depth: 1, MipLevel: mipLevel),
+            PixelFormat: TextureFormatHelper.GetPixelFormat(internalFormat),
+            PixelType: pixelType,
+            Data: TextureUploadData.From(data),
+            Priority: priority,
+            UnpackAlignment: 2));
+    }
     /// <summary>
     /// Reads pixel data from the texture.
     /// Requires the texture to be bound to an FBO for readback.

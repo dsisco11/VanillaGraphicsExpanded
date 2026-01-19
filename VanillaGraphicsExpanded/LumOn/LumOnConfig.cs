@@ -306,6 +306,74 @@ public class LumOnConfig
     [JsonProperty]
     public bool DebugLogNormalDepthAtlas { get; set; } = true;
 
+    // ════════════════════════════════════════════════════════════════════════
+    // Texture Streaming (PBO)
+    // ════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Enables PBO-based texture streaming uploads (persistent mapped ring when supported,
+    /// otherwise triple-buffered PBOs). When disabled, uploads can still fall back to direct
+    /// glTexSubImage* calls if <see cref="TextureStreamingAllowDirectUploads"/> is enabled.
+    /// </summary>
+    [JsonProperty]
+    public bool TextureStreamingEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Allows direct (non-PBO) uploads when staging is unavailable or oversized.
+    /// </summary>
+    [JsonProperty]
+    public bool TextureStreamingAllowDirectUploads { get; set; } = true;
+
+    /// <summary>
+    /// Forces persistent mapped buffers off even if GL_ARB_buffer_storage is supported.
+    /// Useful for driver workarounds.
+    /// </summary>
+    [JsonProperty]
+    public bool TextureStreamingForceDisablePersistent { get; set; } = false;
+
+    /// <summary>
+    /// Uses coherent persistent mapping when supported; when false uses explicit flushes.
+    /// </summary>
+    [JsonProperty]
+    public bool TextureStreamingUseCoherentMapping { get; set; } = true;
+
+    /// <summary>
+    /// Maximum number of texture sub-region uploads per frame.
+    /// </summary>
+    [JsonProperty]
+    public int TextureStreamingMaxUploadsPerFrame { get; set; } = 8;
+
+    /// <summary>
+    /// Maximum total bytes uploaded per frame.
+    /// </summary>
+    [JsonProperty]
+    public int TextureStreamingMaxBytesPerFrame { get; set; } = 4 * 1024 * 1024;
+
+    /// <summary>
+    /// Maximum upload byte size eligible for PBO staging.
+    /// Larger uploads can fall back to direct upload if enabled.
+    /// </summary>
+    [JsonProperty]
+    public int TextureStreamingMaxStagingBytes { get; set; } = 8 * 1024 * 1024;
+
+    /// <summary>
+    /// Persistent-mapped ring buffer size in bytes (when supported).
+    /// </summary>
+    [JsonProperty]
+    public int TextureStreamingPersistentRingBytes { get; set; } = 32 * 1024 * 1024;
+
+    /// <summary>
+    /// Per-PBO allocation size in bytes for the triple-buffered fallback backend.
+    /// </summary>
+    [JsonProperty]
+    public int TextureStreamingTripleBufferBytes { get; set; } = 8 * 1024 * 1024;
+
+    /// <summary>
+    /// Byte alignment for persistent ring allocations.
+    /// </summary>
+    [JsonProperty]
+    public int TextureStreamingPboAlignment { get; set; } = 256;
+
     // ═══════════════════════════════════════════════════════════════
     // Phase 18 - World-Space Clipmap Probes (Config)
     // ═══════════════════════════════════════════════════════════════
@@ -741,6 +809,13 @@ public class LumOnConfig
         MaterialAtlasAsyncMaxCpuJobsPerFrame = Math.Clamp(MaterialAtlasAsyncMaxCpuJobsPerFrame, 0, 512);
         NormalDepthAtlasAsyncBudgetMs = Math.Clamp(NormalDepthAtlasAsyncBudgetMs, 0.0f, 100.0f);
         NormalDepthAtlasAsyncMaxUploadsPerFrame = Math.Clamp(NormalDepthAtlasAsyncMaxUploadsPerFrame, 0, 512);
+
+        TextureStreamingMaxUploadsPerFrame = Math.Clamp(TextureStreamingMaxUploadsPerFrame, 0, 8192);
+        TextureStreamingMaxBytesPerFrame = Math.Clamp(TextureStreamingMaxBytesPerFrame, 0, 256 * 1024 * 1024);
+        TextureStreamingMaxStagingBytes = Math.Clamp(TextureStreamingMaxStagingBytes, 0, 256 * 1024 * 1024);
+        TextureStreamingPersistentRingBytes = Math.Clamp(TextureStreamingPersistentRingBytes, 1, 512 * 1024 * 1024);
+        TextureStreamingTripleBufferBytes = Math.Clamp(TextureStreamingTripleBufferBytes, 1, 256 * 1024 * 1024);
+        TextureStreamingPboAlignment = Math.Clamp(TextureStreamingPboAlignment, 1, 65_536);
 
         ParallaxScale = Math.Clamp(ParallaxScale, 0.0f, 0.25f);
 

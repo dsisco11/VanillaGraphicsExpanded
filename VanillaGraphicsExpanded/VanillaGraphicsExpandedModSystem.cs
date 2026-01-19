@@ -27,6 +27,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     private GlGpuProfilerRenderer? gpuProfilerRenderer;
     private HarmonyLib.Harmony? harmony;
 
+    private TextureStreamingManagerRenderer? textureStreamingRenderer;
+    private bool textureStreamingRendererRegistered;
+
     // LumOn components
     private LumOnBufferManager? lumOnBufferManager;
     private LumOnWorldProbeClipmapBufferManager? lumOnWorldProbeClipmapBufferManager;
@@ -81,6 +84,21 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         }
     }
 
+    private static TextureStreamingSettings BuildTextureStreamingSettings(LumOnConfig cfg)
+    {
+        return new TextureStreamingSettings(
+            EnablePboStreaming: cfg.TextureStreamingEnabled,
+            AllowDirectUploads: cfg.TextureStreamingAllowDirectUploads,
+            ForceDisablePersistent: cfg.TextureStreamingForceDisablePersistent,
+            UseCoherentMapping: cfg.TextureStreamingUseCoherentMapping,
+            MaxUploadsPerFrame: cfg.TextureStreamingMaxUploadsPerFrame,
+            MaxBytesPerFrame: cfg.TextureStreamingMaxBytesPerFrame,
+            MaxStagingBytes: cfg.TextureStreamingMaxStagingBytes,
+            PersistentRingBytes: cfg.TextureStreamingPersistentRingBytes,
+            TripleBufferBytes: cfg.TextureStreamingTripleBufferBytes,
+            PboAlignment: cfg.TextureStreamingPboAlignment);
+    }
+
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
     public override void StartPre(ICoreAPI api)
@@ -113,6 +131,11 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
         // Register GPU debug label renderers to wrap all VS render stages
         GpuDebugLabelManager.Register(api);
+
+        // Generic texture streaming (PBO) manager tick.
+        textureStreamingRenderer ??= new TextureStreamingManagerRenderer();
+        api.Event.RegisterRenderer(textureStreamingRenderer, EnumRenderStage.Before, "vge_texture_streaming");
+        textureStreamingRendererRegistered = true;
 
         GlGpuProfiler.Instance.Initialize(api);
         gpuProfilerRenderer = new GlGpuProfilerRenderer(api);
@@ -190,6 +213,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
         // Initialize LumOn based on config (loaded by ConfigModSystem).
         ConfigModSystem.Config.Sanitize();
+        TextureStreamingSystem.Configure(BuildTextureStreamingSettings(ConfigModSystem.Config));
         lastLiveConfigSnapshot = LumOnLiveConfigSnapshot.From(ConfigModSystem.Config);
         if (ConfigModSystem.Config.Enabled)
         {
@@ -231,6 +255,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
         // Ensure any external mutation (ConfigLib) is clamped into safe bounds.
         ConfigModSystem.Config.Sanitize();
+        TextureStreamingSystem.Configure(BuildTextureStreamingSettings(ConfigModSystem.Config));
 
         var current = LumOnLiveConfigSnapshot.From(ConfigModSystem.Config);
         if (lastLiveConfigSnapshot is null)
@@ -322,6 +347,23 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
             {
                 GpuDebugLabelManager.Unregister(capi);
             }
+
+            if (capi != null && textureStreamingRendererRegistered && textureStreamingRenderer is not null)
+            {
+                try
+                {
+                    capi.Event.UnregisterRenderer(textureStreamingRenderer, EnumRenderStage.Before);
+                }
+                catch
+                {
+                    // Best-effort.
+                }
+            }
+
+            textureStreamingRenderer?.Dispose();
+            textureStreamingRenderer = null;
+            textureStreamingRendererRegistered = false;
+            TextureStreamingSystem.Dispose();
 
             gpuProfilerRenderer?.Dispose();
             gpuProfilerRenderer = null;

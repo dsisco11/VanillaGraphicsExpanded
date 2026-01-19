@@ -11,6 +11,7 @@
   "config-section-integration": "Integration & Compositing Settings",
   "config-section-probe-atlas-advanced": "Probe Atlas Advanced Settings",
   "config-section-material-atlas": "Material Atlas Settings",
+  "config-section-texture-streaming": "Texture Streaming Settings",
 
   "config-lumon-enabled": "Enable LumOn",
   "config-lumon-enabled-tooltip": "Master enable for LumOn screen-space global illumination.",
@@ -119,6 +120,37 @@
 
   "config-probe-atlas-sample-stride": "Probe Atlas Sample Stride",
   "config-probe-atlas-sample-stride-tooltip": "Sample stride for probe-atlas hemisphere integration. 1 = full quality (64 samples/probe, ~1.2ms), 2 = performance (16 samples/probe, ~0.5ms), 4 = ultra-fast (4 samples/probe)."
+
+  ,
+  "config-texture-streaming-enabled": "Enable Texture Streaming (PBO)",
+  "config-texture-streaming-enabled-tooltip": "Stages texture upload requests through Pixel Buffer Objects (persistent mapping when supported, otherwise triple-buffered PBOs).",
+
+  "config-texture-streaming-allow-direct-uploads": "Allow Direct Texture Uploads",
+  "config-texture-streaming-allow-direct-uploads-tooltip": "Allows direct (non-PBO) uploads when staging is unavailable or oversized. Disabling can avoid stalls but may defer uploads.",
+
+  "config-texture-streaming-force-disable-persistent": "Force Disable Persistent Mapping",
+  "config-texture-streaming-force-disable-persistent-tooltip": "Forces use of the triple-buffered PBO fallback even if persistent mapping is supported. Useful for driver workarounds.",
+
+  "config-texture-streaming-use-coherent-mapping": "Use Coherent Persistent Mapping",
+  "config-texture-streaming-use-coherent-mapping-tooltip": "Uses coherent persistent mapping when available. Disabling uses explicit flushes; may be more compatible on some drivers.",
+
+  "config-texture-streaming-max-uploads-per-frame": "Texture Streaming Max Uploads/Frame",
+  "config-texture-streaming-max-uploads-per-frame-tooltip": "Maximum number of texture sub-region upload requests processed per frame.",
+
+  "config-texture-streaming-max-bytes-per-frame": "Texture Streaming Max Bytes/Frame (bytes)",
+  "config-texture-streaming-max-bytes-per-frame-tooltip": "Maximum total bytes uploaded per frame (sum of processed requests).",
+
+  "config-texture-streaming-max-staging-bytes": "Texture Streaming Max Staging Bytes (bytes)",
+  "config-texture-streaming-max-staging-bytes-tooltip": "Maximum size (bytes) of an individual upload eligible for PBO staging. Larger uploads use direct upload if allowed.",
+
+  "config-texture-streaming-persistent-ring-bytes": "Texture Streaming Persistent Ring Size (bytes)",
+  "config-texture-streaming-persistent-ring-bytes-tooltip": "Size (bytes) of the persistent-mapped ring buffer when supported.",
+
+  "config-texture-streaming-triple-buffer-bytes": "Texture Streaming Triple Buffer Size (bytes)",
+  "config-texture-streaming-triple-buffer-bytes-tooltip": "Size (bytes) per PBO in the triple-buffered fallback backend.",
+
+  "config-texture-streaming-pbo-alignment": "Texture Streaming PBO Alignment (bytes)",
+  "config-texture-streaming-pbo-alignment-tooltip": "Alignment (bytes) for allocations inside the persistent ring."
 
   ,
   "config-material-atlas-async-enabled": "Enable Async Material Atlas",

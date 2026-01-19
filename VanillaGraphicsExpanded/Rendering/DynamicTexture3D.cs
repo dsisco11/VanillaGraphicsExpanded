@@ -249,6 +249,68 @@ public sealed class DynamicTexture3D : IDisposable
         GL.BindTexture(textureTarget, 0);
     }
 
+    internal void EnqueueUploadData(float[] data, int x, int y, int z, int regionWidth, int regionHeight, int regionDepth, int priority = 0, int mipLevel = 0)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[DynamicTexture3D] Attempted to enqueue upload for disposed or invalid texture");
+            return;
+        }
+
+        if (data is null) throw new ArgumentNullException(nameof(data));
+
+        int mipWidth = Math.Max(1, width >> mipLevel);
+        int mipHeight = Math.Max(1, height >> mipLevel);
+        int mipDepth = textureTarget == TextureTarget.Texture3D ? Math.Max(1, depth >> mipLevel) : depth;
+
+        if (x < 0 || y < 0 || z < 0 ||
+            x + regionWidth > mipWidth ||
+            y + regionHeight > mipHeight ||
+            z + regionDepth > mipDepth)
+        {
+            throw new ArgumentOutOfRangeException(
+                $"Region ({x}, {y}, {z}, {regionWidth}, {regionHeight}, {regionDepth}) exceeds bounds ({mipWidth}x{mipHeight}x{mipDepth}) at mip {mipLevel}.");
+        }
+
+        PixelFormat pixelFormat = TextureFormatHelper.GetPixelFormat(internalFormat);
+        int bytesPerPixel = TextureStreamingUtils.GetBytesPerPixel(pixelFormat, PixelType.Float);
+        if (bytesPerPixel <= 0 || (bytesPerPixel % sizeof(float)) != 0)
+        {
+            throw new InvalidOperationException($"Unsupported format/type combination for float upload: {pixelFormat}/{PixelType.Float}.");
+        }
+
+        int channelCount = bytesPerPixel / sizeof(float);
+        int expectedSize = checked(regionWidth * regionHeight * regionDepth * channelCount);
+
+        if (data.Length != expectedSize)
+        {
+            throw new ArgumentException(
+                $"Data array size {data.Length} doesn't match expected size {expectedSize} " +
+                $"({regionWidth}x{regionHeight}x{regionDepth}x{channelCount} channels)",
+                nameof(data));
+        }
+
+        TextureUploadTarget target = textureTarget switch
+        {
+            TextureTarget.Texture3D => TextureUploadTarget.For3D(),
+            TextureTarget.Texture2DArray => TextureUploadTarget.For2DArray(),
+            TextureTarget.TextureCubeMapArray => TextureUploadTarget.ForCubeArray(),
+            TextureTarget.Texture1DArray => TextureUploadTarget.For1DArray(),
+            TextureTarget.TextureRectangle => TextureUploadTarget.ForRectangle(),
+            _ => new TextureUploadTarget(textureTarget, textureTarget)
+        };
+
+        TextureStreamingSystem.Manager.Enqueue(new TextureUploadRequest(
+            TextureId: textureId,
+            Target: target,
+            Region: new TextureUploadRegion(x, y, z, regionWidth, regionHeight, regionDepth, mipLevel),
+            PixelFormat: pixelFormat,
+            PixelType: PixelType.Float,
+            Data: TextureUploadData.From(data),
+            Priority: priority,
+            UnpackAlignment: 4));
+    }
+
     #endregion
 
     #region Private Methods

@@ -14,6 +14,7 @@ internal sealed class TextureStreamingManager : IDisposable
     private TextureStreamingSettings settings;
     private IPboUploadBackend? backend;
     private bool backendInitialized;
+    private int backendResetRequested;
     private bool disposed;
 
     private long enqueued;
@@ -31,7 +32,23 @@ internal sealed class TextureStreamingManager : IDisposable
     public TextureStreamingSettings Settings
     {
         get => settings;
-        set => settings = value;
+        set => UpdateSettings(value);
+    }
+
+    public void UpdateSettings(TextureStreamingSettings value)
+    {
+        TextureStreamingSettings previous = settings;
+        settings = value;
+
+        if (RequiresBackendReset(previous, value))
+        {
+            RequestBackendReset();
+        }
+    }
+
+    public void RequestBackendReset()
+    {
+        Interlocked.Exchange(ref backendResetRequested, 1);
     }
 
     public void Enqueue(TextureUploadRequest request)
@@ -47,8 +64,26 @@ internal sealed class TextureStreamingManager : IDisposable
             return;
         }
 
-        EnsureBackend();
+        if (Interlocked.Exchange(ref backendResetRequested, 0) != 0)
+        {
+            if (backend is not null)
+            {
+                GL.Finish();
+                backend.Dispose();
+                backend = null;
+            }
+
+            backendInitialized = false;
+        }
+
         backend?.Tick();
+
+        if (pending.Count == 0)
+        {
+            return;
+        }
+
+        EnsureBackend();
 
         int uploads = 0;
         int bytes = 0;
@@ -165,6 +200,16 @@ internal sealed class TextureStreamingManager : IDisposable
         }
 
         backend = new TripleBufferedPboPool(settings.TripleBufferBytes);
+    }
+
+    private static bool RequiresBackendReset(in TextureStreamingSettings previous, in TextureStreamingSettings next)
+    {
+        return previous.EnablePboStreaming != next.EnablePboStreaming
+            || previous.ForceDisablePersistent != next.ForceDisablePersistent
+            || previous.UseCoherentMapping != next.UseCoherentMapping
+            || previous.PersistentRingBytes != next.PersistentRingBytes
+            || previous.TripleBufferBytes != next.TripleBufferBytes
+            || previous.PboAlignment != next.PboAlignment;
     }
 
     private static bool TryPrepareRequest(TextureUploadRequest request, out PreparedUpload prepared)
