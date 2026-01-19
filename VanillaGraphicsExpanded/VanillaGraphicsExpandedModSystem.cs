@@ -209,7 +209,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         directLightingRenderer = new DirectLightingRenderer(api, gBufferManager, directLightingBufferManager);
 
         // Unified debug overlay (AfterBlit) driven by the VGE Debug View dialog.
-        lumOnDebugRenderer = new LumOnDebugRenderer(api, ConfigModSystem.Config, lumOnBufferManager, gBufferManager, directLightingBufferManager);
+        lumOnDebugRenderer = new LumOnDebugRenderer(api, ConfigModSystem.Config, lumOnBufferManager, gBufferManager, directLightingBufferManager, lumOnWorldProbeClipmapBufferManager);
 
         // Final composite (Opaque @ 11.0): direct + optional indirect + fog
         pbrCompositeRenderer = new PBRCompositeRenderer(
@@ -256,6 +256,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
             lumOnBufferManager ??= new LumOnBufferManager(clientApi, ConfigModSystem.Config);
             lumOnWorldProbeClipmapBufferManager ??= new LumOnWorldProbeClipmapBufferManager(clientApi, ConfigModSystem.Config);
             lumOnWorldProbeClipmapBufferManager.EnsureResources();
+            lumOnDebugRenderer?.SetWorldProbeClipmapBufferManager(lumOnWorldProbeClipmapBufferManager);
             lumOnRenderer = new LumOnRenderer(clientApi, ConfigModSystem.Config, lumOnBufferManager, gBufferManager, lumOnWorldProbeClipmapBufferManager);
         }
 

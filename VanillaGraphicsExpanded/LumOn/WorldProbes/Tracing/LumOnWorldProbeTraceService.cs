@@ -3,6 +3,8 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
+using VanillaGraphicsExpanded.Profiling;
+
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 
 internal sealed class LumOnWorldProbeTraceService : IDisposable
@@ -78,6 +80,7 @@ internal sealed class LumOnWorldProbeTraceService : IDisposable
             {
                 while (work.Reader.TryRead(out var item))
                 {
+                    using var scope = Profiler.BeginScope("LumOn.WorldProbe.Trace.Run", "LumOn");
                     LumOnWorldProbeTraceResult res = integrator.TraceProbe(scene, item, cts.Token);
                     await results.Writer.WriteAsync(res, cts.Token).ConfigureAwait(false);
                 }

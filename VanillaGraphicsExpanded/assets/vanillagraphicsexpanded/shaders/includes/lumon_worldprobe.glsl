@@ -49,6 +49,7 @@ uniform sampler2D worldProbeSH0;
 uniform sampler2D worldProbeSH1;
 uniform sampler2D worldProbeSH2;
 uniform sampler2D worldProbeVis0;
+uniform sampler2D worldProbeDist0;
 uniform sampler2D worldProbeMeta0;
 
 uniform vec3 worldProbeCameraPosWS;

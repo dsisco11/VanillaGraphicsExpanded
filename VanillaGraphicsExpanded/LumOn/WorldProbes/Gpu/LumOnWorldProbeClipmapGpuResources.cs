@@ -18,6 +18,8 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
     private readonly DynamicTexture dist0;
     private readonly DynamicTexture meta0;
 
+    private readonly DynamicTexture debugState0;
+
     private readonly GBuffer fbo;
 
     public int Resolution => resolution;
@@ -33,6 +35,7 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
     public int ProbeVis0TextureId => vis0.TextureId;
     public int ProbeDist0TextureId => dist0.TextureId;
     public int ProbeMeta0TextureId => meta0.TextureId;
+    public int ProbeDebugState0TextureId => debugState0.TextureId;
 
     public LumOnWorldProbeClipmapGpuResources(int resolution, int levels)
     {
@@ -58,6 +61,10 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
         // Meta: RG32F (confidence, uintBitsToFloat(flags))
         meta0 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, TextureFilterMode.Nearest, "WorldProbe_ProbeMeta0");
 
+        // Debug state: RGBA16 (UNorm) encoded by CPU from scheduler lifecycle.
+        // R=stale, G=in-flight, B=valid, A=1.
+        debugState0 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16, TextureFilterMode.Nearest, "WorldProbe_DebugState0");
+
         fbo = GBuffer.CreateMRT(
             "WorldProbe_ClipmapFbo",
             sh0,
@@ -73,12 +80,18 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
         Label(vis0);
         Label(dist0);
         Label(meta0);
+        Label(debugState0);
         GlDebug.TryLabelFramebuffer(fbo.FboId, fbo.DebugName);
 
         ClearAll();
     }
 
     public GBuffer GetFbo() => fbo;
+
+    public void UploadDebugState0(ushort[] data)
+    {
+        debugState0.UploadData(data);
+    }
 
     public void ClearAll()
     {
@@ -101,6 +114,8 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
         vis0.Dispose();
         dist0.Dispose();
         meta0.Dispose();
+
+        debugState0.Dispose();
     }
 
     private static void Label(DynamicTexture texture)

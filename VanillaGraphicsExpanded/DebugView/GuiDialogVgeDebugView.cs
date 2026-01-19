@@ -312,6 +312,15 @@ public sealed class GuiDialogVgeDebugView : GuiDialog
         LumOnDebugMode.DirectTotal => "Direct Total (diffuse+spec) (Phase 16)",
         LumOnDebugMode.MaterialBands => "Material Bands (hash of gMaterial) (Phase 7)",
         LumOnDebugMode.VgeNormalDepthAtlas => "VGE Normal+Depth Atlas (current page)",
+        LumOnDebugMode.WorldProbeIrradianceCombined => "World-Probe Irradiance (combined) (Phase 18)",
+        LumOnDebugMode.WorldProbeIrradianceLevel => "World-Probe Irradiance (selected level) (Phase 18)",
+        LumOnDebugMode.WorldProbeConfidence => "World-Probe Confidence (Phase 18)",
+        LumOnDebugMode.WorldProbeShortRangeAoDirection => "World-Probe ShortRangeAO Direction (Phase 18)",
+        LumOnDebugMode.WorldProbeShortRangeAoConfidence => "World-Probe ShortRangeAO Confidence (Phase 18)",
+        LumOnDebugMode.WorldProbeHitDistance => "World-Probe Hit Distance (normalized) (Phase 18)",
+        LumOnDebugMode.WorldProbeMetaFlagsHeatmap => "World-Probe Meta Flags (heatmap) (Phase 18)",
+        LumOnDebugMode.WorldProbeBlendWeights => "Blend Weights: screen vs world (Phase 18)",
+        LumOnDebugMode.WorldProbeCrossLevelBlend => "Cross-Level Blend: selected L + weights (Phase 18)",
         _ => mode.ToString()
     };
 }

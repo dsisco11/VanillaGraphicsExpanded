@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 
 using Vintagestory.API.Client;
 
@@ -18,6 +19,17 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
     private LumOnWorldProbeClipmapGpuResources? resources;
     private LumOnWorldProbeClipmapGpuUploader? uploader;
 
+    // Cached per-frame shader parameters (owned by LumOnRenderer).
+    // This enables debug overlays and other passes to bind world-probe uniforms
+    // without needing direct access to the scheduler.
+    private bool hasRuntimeParams;
+    private Vector3 runtimeCameraPosWS;
+    private float runtimeBaseSpacing;
+    private int runtimeLevels;
+    private int runtimeResolution;
+    private readonly Vector3[] runtimeOrigins = new Vector3[8];
+    private readonly Vector3[] runtimeRings = new Vector3[8];
+
     private bool forceRecreate;
     private bool isDisposed;
 
@@ -27,6 +39,57 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
 
     public LumOnWorldProbeClipmapGpuResources? Resources => resources;
     public LumOnWorldProbeClipmapGpuUploader? Uploader => uploader;
+
+    public bool TryGetRuntimeParams(
+        out Vector3 cameraPosWS,
+        out float baseSpacing,
+        out int levels,
+        out int resolution,
+        out Vector3[] origins,
+        out Vector3[] rings)
+    {
+        if (!hasRuntimeParams)
+        {
+            cameraPosWS = default;
+            baseSpacing = 0;
+            levels = 0;
+            resolution = 0;
+            origins = Array.Empty<Vector3>();
+            rings = Array.Empty<Vector3>();
+            return false;
+        }
+
+        cameraPosWS = runtimeCameraPosWS;
+        baseSpacing = runtimeBaseSpacing;
+        levels = runtimeLevels;
+        resolution = runtimeResolution;
+        origins = runtimeOrigins;
+        rings = runtimeRings;
+        return true;
+    }
+
+    public void UpdateRuntimeParams(
+        Vector3 cameraPosWS,
+        float baseSpacing,
+        int levels,
+        int resolution,
+        ReadOnlySpan<Vector3> origins,
+        ReadOnlySpan<Vector3> rings)
+    {
+        runtimeCameraPosWS = cameraPosWS;
+        runtimeBaseSpacing = baseSpacing;
+        runtimeLevels = levels;
+        runtimeResolution = resolution;
+
+        // Fixed-size copy to avoid per-frame allocations and keep references stable.
+        for (int i = 0; i < 8; i++)
+        {
+            runtimeOrigins[i] = (i < origins.Length) ? origins[i] : default;
+            runtimeRings[i] = (i < rings.Length) ? rings[i] : default;
+        }
+
+        hasRuntimeParams = true;
+    }
 
     public LumOnWorldProbeClipmapBufferManager(ICoreClientAPI capi, LumOnConfig config)
     {

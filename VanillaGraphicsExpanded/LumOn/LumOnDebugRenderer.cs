@@ -9,6 +9,7 @@ using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.Rendering.Profiling;
 using VanillaGraphicsExpanded.HarmonyPatches;
+using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -47,6 +48,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private readonly GBufferManager? gBufferManager;
     private readonly DirectLightingBufferManager? directLightingBufferManager;
 
+    private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager;
+
     private MeshRef? quadMeshRef;
 
     // Matrix buffers
@@ -73,13 +76,15 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         LumOnConfig config,
         LumOnBufferManager? bufferManager,
         GBufferManager? gBufferManager,
-        DirectLightingBufferManager? directLightingBufferManager)
+        DirectLightingBufferManager? directLightingBufferManager,
+        LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager)
     {
         this.capi = capi;
         this.config = config;
         this.bufferManager = bufferManager;
         this.gBufferManager = gBufferManager;
         this.directLightingBufferManager = directLightingBufferManager;
+        this.worldProbeClipmapBufferManager = worldProbeClipmapBufferManager;
 
         // Create fullscreen quad mesh (-1 to 1 in NDC)
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
@@ -90,6 +95,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         capi.Event.RegisterRenderer(this, EnumRenderStage.AfterBlit, "lumon_debug");
 
         capi.Logger.Notification("[LumOn] Debug renderer initialized");
+    }
+
+    public void SetWorldProbeClipmapBufferManager(LumOnWorldProbeClipmapBufferManager? bufferManager)
+    {
+        worldProbeClipmapBufferManager = bufferManager;
     }
 
     /// <summary>
@@ -215,6 +225,42 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         shader.ProbeAtlasFiltered = probeAtlasFiltered;
         shader.ProbeAtlasGatherInput = gatherInput;
         shader.GatherAtlasSource = gatherAtlasSource;
+
+        // Phase 18 world-probe debug inputs (only bound if available).
+        if (worldProbeClipmapBufferManager?.Resources is not null
+            && worldProbeClipmapBufferManager.TryGetRuntimeParams(
+                out var wpCamPos,
+                out var wpBaseSpacing,
+                out var wpLevels,
+                out var wpResolution,
+                out var wpOrigins,
+                out var wpRings))
+        {
+            shader.WorldProbeEnabled = 1;
+            shader.WorldProbeSH0 = worldProbeClipmapBufferManager.Resources.ProbeSh0TextureId;
+            shader.WorldProbeSH1 = worldProbeClipmapBufferManager.Resources.ProbeSh1TextureId;
+            shader.WorldProbeSH2 = worldProbeClipmapBufferManager.Resources.ProbeSh2TextureId;
+            shader.WorldProbeVis0 = worldProbeClipmapBufferManager.Resources.ProbeVis0TextureId;
+            shader.WorldProbeDist0 = worldProbeClipmapBufferManager.Resources.ProbeDist0TextureId;
+            shader.WorldProbeMeta0 = worldProbeClipmapBufferManager.Resources.ProbeMeta0TextureId;
+            shader.WorldProbeDebugState0 = worldProbeClipmapBufferManager.Resources.ProbeDebugState0TextureId;
+
+            shader.WorldProbeCameraPosWS = new Vec3f(wpCamPos.X, wpCamPos.Y, wpCamPos.Z);
+            shader.WorldProbeBaseSpacing = wpBaseSpacing;
+            shader.WorldProbeLevels = wpLevels;
+            shader.WorldProbeResolution = wpResolution;
+
+            for (int i = 0; i < 8; i++)
+            {
+                var o = wpOrigins[i];
+                var r = wpRings[i];
+                shader.SetWorldProbeLevelParams(i, new Vec3f(o.X, o.Y, o.Z), new Vec3f(r.X, r.Y, r.Z));
+            }
+        }
+        else
+        {
+            shader.WorldProbeEnabled = 0;
+        }
 
         // Phase 15 composite debug inputs
         shader.IndirectDiffuseFull = bufferManager?.IndirectFullTex?.TextureId ?? 0;

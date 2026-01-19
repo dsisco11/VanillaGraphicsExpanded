@@ -36,6 +36,15 @@ out vec4 outColor;
 // 23 = Direct Specular (Phase 16)
 // 24 = Direct Emissive (Phase 16)
 // 25 = Direct Total (diffuse+spec) (Phase 16)
+// 31 = World-Probe Irradiance (combined)
+// 32 = World-Probe Irradiance (selected level)
+// 33 = World-Probe Confidence
+// 34 = World-Probe ShortRangeAO Direction
+// 35 = World-Probe ShortRangeAO Confidence
+// 36 = World-Probe Hit Distance (normalized)
+// 37 = World-Probe Meta Flags (heatmap)
+// 38 = Blend Weights (screen vs world)
+// 39 = Cross-Level Blend (selected L and weights)
 // ============================================================================
 
 // Import common utilities
@@ -43,6 +52,9 @@ out vec4 outColor;
 
 // Import SH helpers for mode 8
 @import "./includes/lumon_sh.glsl"
+
+// Phase 18: world-probe clipmap sampling + uniforms
+@import "./includes/lumon_worldprobe.glsl"
 
 // Import probe-atlas meta helpers for mode 14
 @import "./includes/lumon_probe_atlas_meta.glsl"
@@ -91,6 +103,9 @@ uniform sampler2D emissive;
 
 // Phase 14: velocity buffer (RGBA32F)
 uniform sampler2D velocityTex;
+
+// Phase 18: world-probe lifecycle debug atlas (RGBA16 UNorm)
+uniform sampler2D worldProbeDebugState0;
 
 // Matrices
 uniform mat4 invProjectionMatrix;
@@ -900,6 +915,282 @@ vec4 renderGatherWeightDebug() {
 }
 
 // ============================================================================
+// Debug Modes 31-39: World-Probe Clipmap (Phase 18)
+// ============================================================================
+
+bool lumonWorldProbeDebugNearest(in vec3 worldPosWS, out int outLevel, out ivec2 outAtlasCoord)
+{
+#if !VGE_LUMON_WORLDPROBE_ENABLED
+    outLevel = 0;
+    outAtlasCoord = ivec2(0);
+    return false;
+#else
+    int levels = VGE_LUMON_WORLDPROBE_LEVELS;
+    int resolution = VGE_LUMON_WORLDPROBE_RESOLUTION;
+    float baseSpacing = VGE_LUMON_WORLDPROBE_BASE_SPACING;
+
+    if (levels <= 0 || resolution <= 0)
+    {
+        outLevel = 0;
+        outAtlasCoord = ivec2(0);
+        return false;
+    }
+
+    int maxLevel = max(levels - 1, 0);
+    int level = lumonWorldProbeSelectLevelByDistance(worldPosWS, worldProbeCameraPosWS, baseSpacing, maxLevel);
+    float spacing = lumonWorldProbeSpacing(baseSpacing, level);
+
+    vec3 origin = worldProbeOriginMinCorner[level];
+    vec3 local = (worldPosWS - origin) / max(spacing, 1e-6);
+
+    // Outside clip volume.
+    if (any(lessThan(local, vec3(0.0))) || any(greaterThanEqual(local, vec3(float(resolution)))))
+    {
+        outLevel = level;
+        outAtlasCoord = ivec2(0);
+        return false;
+    }
+
+    ivec3 idx = ivec3(floor(local + 0.5));
+    idx = clamp(idx, ivec3(0), ivec3(resolution - 1));
+
+    ivec3 ring = ivec3(floor(worldProbeRingOffset[level] + 0.5));
+    ivec3 storage = lumonWorldProbeWrapIndex(idx + ring, resolution);
+
+    outLevel = level;
+    outAtlasCoord = lumonWorldProbeAtlasCoord(storage, level, resolution);
+    return true;
+#endif
+}
+
+vec3 lumonWorldProbeDebugToneMap(vec3 hdr)
+{
+    hdr = max(hdr, vec3(0.0));
+    return hdr / (hdr + vec3(1.0));
+}
+
+vec4 renderWorldProbeIrradianceCombinedDebug()
+{
+    float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
+
+#if !VGE_LUMON_WORLDPROBE_ENABLED
+    return vec4(0.0, 0.0, 0.0, 1.0);
+#else
+    vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+    vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
+    vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
+
+    LumOnWorldProbeSample wp = lumonWorldProbeSampleClipmapBound(posWS, normalWS);
+    vec3 color = lumonWorldProbeDebugToneMap(wp.irradiance);
+    return vec4(color, 1.0);
+#endif
+}
+
+vec4 renderWorldProbeIrradianceLevelDebug()
+{
+    float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
+
+#if !VGE_LUMON_WORLDPROBE_ENABLED
+    return vec4(0.0, 0.0, 0.0, 1.0);
+#else
+    vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+    vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
+    vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
+
+    int levels = VGE_LUMON_WORLDPROBE_LEVELS;
+    int resolution = VGE_LUMON_WORLDPROBE_RESOLUTION;
+    float baseSpacing = VGE_LUMON_WORLDPROBE_BASE_SPACING;
+    if (levels <= 0 || resolution <= 0) return vec4(0.0, 0.0, 0.0, 1.0);
+
+    int maxLevel = max(levels - 1, 0);
+    int level = lumonWorldProbeSelectLevelByDistance(posWS, worldProbeCameraPosWS, baseSpacing, maxLevel);
+    float spacing = lumonWorldProbeSpacing(baseSpacing, level);
+
+    LumOnWorldProbeSample sL = lumonWorldProbeSampleLevelTrilinear(
+        worldProbeSH0, worldProbeSH1, worldProbeSH2, worldProbeVis0, worldProbeMeta0,
+        posWS, normalWS,
+        worldProbeOriginMinCorner[level], worldProbeRingOffset[level],
+        spacing, resolution, level);
+
+    vec3 color = lumonWorldProbeDebugToneMap(sL.irradiance);
+    // Encode selected level in alpha for quick inspection.
+    float a = (levels > 1) ? float(level) / float(max(levels - 1, 1)) : 0.0;
+    return vec4(color, a);
+#endif
+}
+
+vec4 renderWorldProbeConfidenceDebug()
+{
+    float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
+
+#if !VGE_LUMON_WORLDPROBE_ENABLED
+    return vec4(0.0, 0.0, 0.0, 1.0);
+#else
+    vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+    vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
+    vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
+
+    LumOnWorldProbeSample wp = lumonWorldProbeSampleClipmapBound(posWS, normalWS);
+    float c = clamp(wp.confidence, 0.0, 1.0);
+    return vec4(vec3(c), 1.0);
+#endif
+}
+
+vec4 renderWorldProbeAoDirectionDebug()
+{
+    float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
+
+    vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+    vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
+
+    int level;
+    ivec2 ac;
+    if (!lumonWorldProbeDebugNearest(posWS, level, ac))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    vec4 vis = texelFetch(worldProbeVis0, ac, 0);
+    vec3 aoDir = lumonOctahedralUVToDirection(vis.xy);
+    float aoConf = clamp(vis.w, 0.0, 1.0);
+
+    vec3 color = aoDir * 0.5 + 0.5;
+    color *= aoConf;
+    return vec4(color, 1.0);
+}
+
+vec4 renderWorldProbeAoConfidenceDebug()
+{
+    float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
+
+    vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+    vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
+
+    int level;
+    ivec2 ac;
+    if (!lumonWorldProbeDebugNearest(posWS, level, ac))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    float aoConf = clamp(texelFetch(worldProbeVis0, ac, 0).w, 0.0, 1.0);
+    return vec4(vec3(aoConf), 1.0);
+}
+
+vec4 renderWorldProbeDistanceDebug()
+{
+    float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
+
+    vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+    vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
+
+    int level;
+    ivec2 ac;
+    if (!lumonWorldProbeDebugNearest(posWS, level, ac))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    float baseSpacing = VGE_LUMON_WORLDPROBE_BASE_SPACING;
+    int resolution = VGE_LUMON_WORLDPROBE_RESOLUTION;
+    float spacing = lumonWorldProbeSpacing(baseSpacing, level);
+
+    float meanLog = texelFetch(worldProbeDist0, ac, 0).x; // log(dist+1)
+    float dist = exp(meanLog) - 1.0;
+
+    float maxDist = max(spacing * float(resolution), 1e-3);
+    float t = clamp(dist / maxDist, 0.0, 1.0);
+    t = sqrt(t);
+    return vec4(vec3(t), 1.0);
+}
+
+vec4 renderWorldProbeFlagsHeatmapDebug()
+{
+    float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
+
+    vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+    vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
+
+    int level;
+    ivec2 ac;
+    if (!lumonWorldProbeDebugNearest(posWS, level, ac))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    // R=stale/dirty, G=in-flight, B=valid.
+    vec3 color = texelFetch(worldProbeDebugState0, ac, 0).rgb;
+    return vec4(color, 1.0);
+}
+
+vec4 renderWorldProbeBlendWeightsDebug()
+{
+    float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
+
+#if !VGE_LUMON_WORLDPROBE_ENABLED
+    return vec4(0.0, 0.0, 0.0, 1.0);
+#else
+    vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+    vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
+    vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
+
+    // indirectHalf alpha encodes the final (screen+world) confidence.
+    float sumW = clamp(texture(indirectHalf, uv).a, 0.0, 1.0);
+
+    LumOnWorldProbeSample wp = lumonWorldProbeSampleClipmapBound(posWS, normalWS);
+    float worldConf = clamp(wp.confidence, 0.0, 1.0);
+
+    float screenW = (worldConf >= 0.999)
+        ? 0.0
+        : clamp((sumW - worldConf) / max(1.0 - worldConf, 1e-6), 0.0, 1.0);
+
+    float worldW = worldConf * (1.0 - screenW);
+
+    // R=screen weight, G=world weight.
+    return vec4(screenW, worldW, 0.0, 1.0);
+#endif
+}
+
+vec4 renderWorldProbeCrossLevelBlendDebug()
+{
+    float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
+
+#if !VGE_LUMON_WORLDPROBE_ENABLED
+    return vec4(0.0, 0.0, 0.0, 1.0);
+#else
+    vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+    vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
+
+    int levels = VGE_LUMON_WORLDPROBE_LEVELS;
+    int resolution = VGE_LUMON_WORLDPROBE_RESOLUTION;
+    float baseSpacing = VGE_LUMON_WORLDPROBE_BASE_SPACING;
+    if (levels <= 0 || resolution <= 0) return vec4(0.0, 0.0, 0.0, 1.0);
+
+    int maxLevel = max(levels - 1, 0);
+    int level = lumonWorldProbeSelectLevelByDistance(posWS, worldProbeCameraPosWS, baseSpacing, maxLevel);
+    float spacingL = lumonWorldProbeSpacing(baseSpacing, level);
+
+    vec3 originL = worldProbeOriginMinCorner[level];
+    vec3 localL = (posWS - originL) / max(spacingL, 1e-6);
+    float edgeDist = lumonWorldProbeDistanceToBoundaryProbeUnits(localL, resolution);
+    float wL = lumonWorldProbeCrossLevelBlendWeight(edgeDist, 2.0, 2.0);
+
+    float levelN = (levels > 1) ? float(level) / float(max(levels - 1, 1)) : 0.0;
+    // R = selected level (normalized), G = weight for L, B = weight for L+1.
+    return vec4(levelN, wL, 1.0 - wL, 1.0);
+#endif
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -995,6 +1286,33 @@ void main(void)
             break;
         case 29:
             outColor = renderMaterialBandsDebug();
+            break;
+        case 31:
+            outColor = renderWorldProbeIrradianceCombinedDebug();
+            break;
+        case 32:
+            outColor = renderWorldProbeIrradianceLevelDebug();
+            break;
+        case 33:
+            outColor = renderWorldProbeConfidenceDebug();
+            break;
+        case 34:
+            outColor = renderWorldProbeAoDirectionDebug();
+            break;
+        case 35:
+            outColor = renderWorldProbeAoConfidenceDebug();
+            break;
+        case 36:
+            outColor = renderWorldProbeDistanceDebug();
+            break;
+        case 37:
+            outColor = renderWorldProbeFlagsHeatmapDebug();
+            break;
+        case 38:
+            outColor = renderWorldProbeBlendWeightsDebug();
+            break;
+        case 39:
+            outColor = renderWorldProbeCrossLevelBlendDebug();
             break;
         default:
             outColor = vec4(1.0, 0.0, 1.0, 1.0);  // Magenta = unknown mode

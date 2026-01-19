@@ -57,6 +57,25 @@ internal sealed class LumOnWorldProbeScheduler
 
     public int Resolution => resolution;
 
+    public int ProbesPerLevel => probesPerLevel;
+
+    public bool TryCopyLifecycleStates(int level, LumOnWorldProbeLifecycleState[] destination)
+    {
+        if ((uint)level >= (uint)levels.Length)
+        {
+            return false;
+        }
+
+        if (destination is null) throw new ArgumentNullException(nameof(destination));
+        if (destination.Length < probesPerLevel)
+        {
+            throw new ArgumentException($"Destination must be at least {probesPerLevel} elements.", nameof(destination));
+        }
+
+        levels[level].CopyLifecycleTo(destination);
+        return true;
+    }
+
     public bool TryGetLevelParams(int level, out Vec3d originMinCorner, out Vec3i ringOffset)
     {
         if ((uint)level >= (uint)levels.Length)
@@ -204,6 +223,11 @@ internal sealed class LumOnWorldProbeScheduler
             anchor = null;
             originMinCorner = null;
             ringOffset = new Vec3i(0, 0, 0);
+        }
+
+        public void CopyLifecycleTo(LumOnWorldProbeLifecycleState[] destination)
+        {
+            Array.Copy(lifecycle, destination, lifecycle.Length);
         }
 
         public bool TryGetParams(out Vec3d origin, out Vec3i ring)

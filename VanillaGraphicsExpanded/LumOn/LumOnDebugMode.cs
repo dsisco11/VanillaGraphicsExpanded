@@ -58,4 +58,15 @@ public enum LumOnDebugMode
 
     // VGE-only debug views (special-cased by C# debug renderer; not driven by lumon_debug.fsh)
     VgeNormalDepthAtlas = 30,
+
+    // Phase 18: world-probe clipmap debug views (implemented in lumon_debug.fsh)
+    WorldProbeIrradianceCombined = 31,
+    WorldProbeIrradianceLevel = 32,
+    WorldProbeConfidence = 33,
+    WorldProbeShortRangeAoDirection = 34,
+    WorldProbeShortRangeAoConfidence = 35,
+    WorldProbeHitDistance = 36,
+    WorldProbeMetaFlagsHeatmap = 37,
+    WorldProbeBlendWeights = 38,
+    WorldProbeCrossLevelBlend = 39,
 }

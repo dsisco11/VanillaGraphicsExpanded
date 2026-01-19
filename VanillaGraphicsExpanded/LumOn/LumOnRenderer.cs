@@ -9,8 +9,8 @@ using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.LumOn.WorldProbes;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
-using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Profiling;
+using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.Rendering.Profiling;
@@ -52,6 +52,14 @@ public class LumOnRenderer : IRenderer, IDisposable
     private BlockAccessorWorldProbeTraceScene? worldProbeTraceScene;
 
     private readonly System.Collections.Generic.List<LumOnWorldProbeTraceResult> worldProbeResults = new();
+
+    // Debug-only CPU->GPU heatmap buffer for world-probe lifecycle visualization.
+    private LumOnWorldProbeLifecycleState[]? worldProbeLifecycleScratch;
+    private ushort[]? worldProbeDebugStateTexels;
+
+    // Cache arrays to avoid per-frame allocations in TryBindWorldProbeClipmapCommon.
+    private readonly Vec3f[] worldProbeOriginsCache = new Vec3f[8];
+    private readonly Vec3f[] worldProbeRingsCache = new Vec3f[8];
 
     private readonly LumOnPmjJitterTexture pmjJitter;
 
@@ -1143,6 +1151,8 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     private void UpdateWorldProbeClipmap()
     {
+        using var scope = Profiler.BeginScope("LumOn.WorldProbe.Update", "LumOn");
+
         if (worldProbeClipmapBufferManager is null)
         {
             return;
@@ -1183,55 +1193,160 @@ public class LumOnRenderer : IRenderer, IDisposable
         double baseSpacing = Math.Max(1e-6, cfg.ClipmapBaseSpacing);
 
         // Update per-level origins + dirty slabs.
-        worldProbeScheduler.UpdateOrigins(camPos, baseSpacing);
+        using (Profiler.BeginScope("LumOn.WorldProbe.Schedule.UpdateOrigins", "LumOn"))
+        {
+            worldProbeScheduler.UpdateOrigins(camPos, baseSpacing);
+        }
 
         // Build per-frame update list.
         int[] perLevelBudgets = cfg.PerLevelProbeUpdateBudget ?? Array.Empty<int>();
-        var requests = worldProbeScheduler.BuildUpdateList(
-            frameIndex,
-            camPos,
-            baseSpacing,
-            perLevelBudgets,
-            cfg.TraceMaxProbesPerFrame,
-            cfg.UploadBudgetBytesPerFrame);
+        var requests = new System.Collections.Generic.List<LumOnWorldProbeUpdateRequest>();
+        using (Profiler.BeginScope("LumOn.WorldProbe.Schedule.BuildList", "LumOn"))
+        {
+            requests = worldProbeScheduler.BuildUpdateList(
+                frameIndex,
+                camPos,
+                baseSpacing,
+                perLevelBudgets,
+                cfg.TraceMaxProbesPerFrame,
+                cfg.UploadBudgetBytesPerFrame);
+        }
 
         // Enqueue trace work.
-        for (int i = 0; i < requests.Count; i++)
+        using (Profiler.BeginScope("LumOn.WorldProbe.Trace.Enqueue", "LumOn"))
         {
-            var req = requests[i];
-            if (!worldProbeScheduler.TryGetLevelParams(req.Level, out var originMinCorner, out _))
+            for (int i = 0; i < requests.Count; i++)
             {
-                worldProbeScheduler.Complete(req, frameIndex, success: false);
-                continue;
-            }
+                var req = requests[i];
+                if (!worldProbeScheduler.TryGetLevelParams(req.Level, out var originMinCorner, out _))
+                {
+                    worldProbeScheduler.Complete(req, frameIndex, success: false);
+                    continue;
+                }
 
-            double spacing = LumOnClipmapTopology.GetSpacing(baseSpacing, req.Level);
-            Vec3d probePosWorld = LumOnClipmapTopology.IndexToProbeCenterWorld(req.LocalIndex, originMinCorner, spacing);
+                double spacing = LumOnClipmapTopology.GetSpacing(baseSpacing, req.Level);
+                Vec3d probePosWorld = LumOnClipmapTopology.IndexToProbeCenterWorld(req.LocalIndex, originMinCorner, spacing);
 
-            // Conservative max distance: one clipmap diameter for this level.
-            double maxDist = spacing * resources.Resolution;
+                // Conservative max distance: one clipmap diameter for this level.
+                double maxDist = spacing * resources.Resolution;
 
-            var item = new LumOnWorldProbeTraceWorkItem(frameIndex, req, probePosWorld, maxDist);
-            if (!worldProbeTraceService.TryEnqueue(item))
-            {
-                // Backpressure: re-mark dirty so we try again next frame.
-                worldProbeScheduler.Complete(req, frameIndex, success: false);
+                var item = new LumOnWorldProbeTraceWorkItem(frameIndex, req, probePosWorld, maxDist);
+                if (!worldProbeTraceService.TryEnqueue(item))
+                {
+                    // Backpressure: re-mark dirty so we try again next frame.
+                    worldProbeScheduler.Complete(req, frameIndex, success: false);
+                }
             }
         }
 
         // Drain completed results.
-        worldProbeResults.Clear();
-        while (worldProbeTraceService.TryDequeueResult(out var res))
+        using (Profiler.BeginScope("LumOn.WorldProbe.Trace.Drain", "LumOn"))
         {
-            worldProbeResults.Add(res);
-            worldProbeScheduler.Complete(res.Request, frameIndex, success: true);
+            worldProbeResults.Clear();
+            while (worldProbeTraceService.TryDequeueResult(out var res))
+            {
+                worldProbeResults.Add(res);
+                worldProbeScheduler.Complete(res.Request, frameIndex, success: true);
+            }
         }
 
         // Upload to GPU.
         if (worldProbeResults.Count > 0)
         {
+            using var uploadScope = Profiler.BeginScope("LumOn.WorldProbe.Upload", "LumOn");
             uploader.Upload(resources, worldProbeResults, cfg.UploadBudgetBytesPerFrame);
         }
+
+        if (config.DebugMode == LumOnDebugMode.WorldProbeMetaFlagsHeatmap)
+        {
+            using var heatmapScope = Profiler.BeginScope("LumOn.WorldProbe.DebugHeatmap", "LumOn");
+            UpdateWorldProbeDebugHeatmap(resources);
+        }
+    }
+
+    private void UpdateWorldProbeDebugHeatmap(LumOnWorldProbeClipmapGpuResources resources)
+    {
+        if (worldProbeScheduler is null)
+        {
+            return;
+        }
+
+        int levels = Math.Clamp(resources.Levels, 1, 8);
+        int resolution = resources.Resolution;
+        int probesPerLevel = worldProbeScheduler.ProbesPerLevel;
+
+        worldProbeLifecycleScratch ??= new LumOnWorldProbeLifecycleState[probesPerLevel];
+        if (worldProbeLifecycleScratch.Length < probesPerLevel)
+        {
+            worldProbeLifecycleScratch = new LumOnWorldProbeLifecycleState[probesPerLevel];
+        }
+
+        int atlasW = resources.AtlasWidth;
+        int atlasH = resources.AtlasHeight;
+        int texelCount = atlasW * atlasH;
+
+        worldProbeDebugStateTexels ??= new ushort[texelCount * 4];
+        if (worldProbeDebugStateTexels.Length != texelCount * 4)
+        {
+            worldProbeDebugStateTexels = new ushort[texelCount * 4];
+        }
+
+        const ushort On = ushort.MaxValue;
+        const ushort Off = 0;
+
+        for (int level = 0; level < levels; level++)
+        {
+            if (!worldProbeScheduler.TryCopyLifecycleStates(level, worldProbeLifecycleScratch))
+            {
+                continue;
+            }
+
+            for (int storageLinear = 0; storageLinear < probesPerLevel; storageLinear++)
+            {
+                // Decode storage linear index -> storage coord (x,y,z).
+                int x = storageLinear % resolution;
+                int yz = storageLinear / resolution;
+                int y = yz % resolution;
+                int z = yz / resolution;
+
+                int u = x + z * resolution;
+                int v = y + level * resolution;
+
+                int dst = (v * atlasW + u) * 4;
+
+                ushort r = Off;
+                ushort g = Off;
+                ushort b = Off;
+                ushort a = On;
+
+                switch (worldProbeLifecycleScratch[storageLinear])
+                {
+                    case LumOnWorldProbeLifecycleState.Valid:
+                        b = On;
+                        break;
+                    case LumOnWorldProbeLifecycleState.Stale:
+                        r = On;
+                        break;
+                    case LumOnWorldProbeLifecycleState.Dirty:
+                        r = On;
+                        g = On;
+                        break;
+                    case LumOnWorldProbeLifecycleState.InFlight:
+                        g = On;
+                        break;
+                    default:
+                        // Uninitialized/unknown -> black.
+                        break;
+                }
+
+                worldProbeDebugStateTexels[dst + 0] = r;
+                worldProbeDebugStateTexels[dst + 1] = g;
+                worldProbeDebugStateTexels[dst + 2] = b;
+                worldProbeDebugStateTexels[dst + 3] = a;
+            }
+        }
+
+        resources.UploadDebugState0(worldProbeDebugStateTexels);
     }
 
     private void BindWorldProbeClipmap(LumOnGatherShaderProgram shader)
@@ -1339,8 +1454,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         out Vec3f[] origins,
         out Vec3f[] rings)
     {
-        origins = new Vec3f[8];
-        rings = new Vec3f[8];
+        origins = worldProbeOriginsCache;
+        rings = worldProbeRingsCache;
 
         resources = null!;
         camPos = new Vec3f();
@@ -1384,6 +1499,25 @@ public class LumOnRenderer : IRenderer, IDisposable
             }
         }
 
+        // Cache for debug overlays and other passes that can't see the scheduler.
+        Span<System.Numerics.Vector3> o = stackalloc System.Numerics.Vector3[8];
+        Span<System.Numerics.Vector3> r2 = stackalloc System.Numerics.Vector3[8];
+        for (int i = 0; i < 8; i++)
+        {
+            var oi = origins[i];
+            var ri = rings[i];
+            o[i] = new System.Numerics.Vector3(oi.X, oi.Y, oi.Z);
+            r2[i] = new System.Numerics.Vector3(ri.X, ri.Y, ri.Z);
+        }
+
+        worldProbeClipmapBufferManager.UpdateRuntimeParams(
+            new System.Numerics.Vector3(camPos.X, camPos.Y, camPos.Z),
+            baseSpacing,
+            levels,
+            resolution,
+            o,
+            r2);
+
         return true;
     }
 
@@ -1397,6 +1531,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_filter") as LumOnScreenProbeAtlasFilterShaderProgram;
         if (shader is null || shader.LoadError)
             return;
+
+        using var gpuScope = GlGpuProfiler.Instance.Scope("LumOn.ProbeAtlas.Filter");
 
         var fbo = bufferManager.ScreenProbeAtlasFilteredFbo;
         if (fbo is null) return;

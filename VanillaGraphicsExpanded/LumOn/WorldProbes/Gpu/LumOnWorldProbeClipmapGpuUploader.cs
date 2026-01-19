@@ -8,6 +8,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
+using VanillaGraphicsExpanded.Rendering.Profiling;
 
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 
@@ -120,6 +121,8 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         {
             return;
         }
+
+        using var gpuScope = GlGpuProfiler.Instance.Scope("LumOn.WorldProbe.UploadResolve");
 
         GL.Disable(EnableCap.Blend);
         GL.Disable(EnableCap.DepthTest);

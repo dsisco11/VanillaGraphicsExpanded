@@ -135,17 +135,17 @@ LumOn - Phase 18 - World-Space Clipmap Probe System (Implementation):
 
   Phase 18.11 - Debug Tooling + Profiling:
   Exit artifacts: Debug views exist and performance can be measured per stage.
-  ☐ Add debug views for:
+  ✔ Add debug views for: @done
     - World probe irradiance (per level and combined)
     - ShortRangeAO direction and/or magnitude
     - Confidence and distance
     - Blend weights (screen vs world, per level)
     - Probe update heatmap (stale/dirty/in-flight)
-  ☐ Add GPU timing events for:
+  ✔ Add GPU timing events for: @done
     - Upload
     - Integrate/resolve
     - Filter (if any)
-  ☐ Add CPU timing for:
+  ✔ Add CPU timing for: @done
     - Scheduling
     - Trace work (queued, running, completed)
 
