@@ -195,7 +195,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         {
             api.Logger.Notification("[VGE] LumOn enabled - using Screen Probe Gather");
             lumOnBufferManager = new LumOnBufferManager(api, ConfigModSystem.Config);
-            lumOnRenderer = new LumOnRenderer(api, ConfigModSystem.Config, lumOnBufferManager, gBufferManager!);
+            lumOnRenderer = new LumOnRenderer(api, ConfigModSystem.Config, lumOnBufferManager, gBufferManager!, lumOnWorldProbeClipmapBufferManager);
         }
         else
         {
@@ -256,7 +256,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
             lumOnBufferManager ??= new LumOnBufferManager(clientApi, ConfigModSystem.Config);
             lumOnWorldProbeClipmapBufferManager ??= new LumOnWorldProbeClipmapBufferManager(clientApi, ConfigModSystem.Config);
             lumOnWorldProbeClipmapBufferManager.EnsureResources();
-            lumOnRenderer = new LumOnRenderer(clientApi, ConfigModSystem.Config, lumOnBufferManager, gBufferManager);
+            lumOnRenderer = new LumOnRenderer(clientApi, ConfigModSystem.Config, lumOnBufferManager, gBufferManager, lumOnWorldProbeClipmapBufferManager);
         }
 
         // Screen-probe resource sizing depends on these keys.

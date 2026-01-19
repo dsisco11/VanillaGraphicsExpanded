@@ -18,6 +18,9 @@ out vec4 outColor;
 // Import SH helpers
 @import "./includes/lumon_sh.glsl"
 
+// World-probe clipmap helpers
+@import "./includes/lumon_worldprobe.glsl"
+
 // Radiance textures (from temporal pass)
 uniform sampler2D radianceTexture0;
 uniform sampler2D radianceTexture1;
@@ -33,6 +36,7 @@ uniform sampler2D gBufferNormal;
 // Matrices
 uniform mat4 invProjectionMatrix;
 uniform mat4 viewMatrix;  // For WS to VS normal transform (SH stored in VS directions)
+uniform mat4 invViewMatrix;
 
 // Probe grid parameters
 uniform int probeSpacing;
@@ -52,6 +56,10 @@ uniform vec3 indirectTint;
 // Edge-aware weighting parameters (from spec Section 2.3)
 uniform float depthSigma;   // Controls depth similarity falloff (default: 0.5)
 uniform float normalSigma;  // Controls normal similarity power (default: 8.0)
+
+// ============================================================================
+// World Probe Clipmap (Phase 18)
+// ============================================================================
 
 // ============================================================================
 // Probe Data Structure
@@ -207,39 +215,61 @@ void main(void)
     
     float totalWeight = w00 + w10 + w01 + w11;
     
-    // Handle case where all probes are invalid
-    if (totalWeight < 0.001) {
-        // Alpha is used as a confidence/quality measure for later passes.
-        outColor = vec4(0.0, 0.0, 0.0, 0.0);
-        return;
-    }
-
-    // Preserve the raw weight sum as a confidence/quality metric.
+    // Screen-probe confidence (used by upsample hole-fill).
     // Since the bilinear weights sum to 1.0 and all modifiers are <= 1.0,
     // totalWeight is expected to be in [0, 1] for valid pixels.
-    float confidence = clamp(totalWeight, 0.0, 1.0);
+    float screenConfidence = clamp(totalWeight, 0.0, 1.0);
     
-    // Normalize weights
-    float invWeight = 1.0 / totalWeight;
-    w00 *= invWeight;
-    w10 *= invWeight;
-    w01 *= invWeight;
-    w11 *= invWeight;
-    
-    // Interpolate SH coefficients with edge-aware weights
-    vec4 shR = p00.shR * w00 + p10.shR * w10 + p01.shR * w01 + p11.shR * w11;
-    vec4 shG = p00.shG * w00 + p10.shG * w10 + p01.shG * w01 + p11.shG * w11;
-    vec4 shB = p00.shB * w00 + p10.shB * w10 + p01.shB * w01 + p11.shB * w11;
-    
-    // Evaluate SH for pixel's normal direction (cosine-weighted diffuse)
-    vec3 irradiance = shEvaluateDiffuseRGB(shR, shG, shB, pixelNormalVS);
-    
-    // Clamp negative values (can occur due to SH ringing)
-    irradiance = max(irradiance, vec3(0.0));
-    
-    // Apply intensity and tint
-    irradiance *= intensity;
-    irradiance *= indirectTint;
-    
-    outColor = vec4(irradiance, confidence);
+    vec3 screenIrradiance = vec3(0.0);
+
+    if (totalWeight >= 0.001)
+    {
+        // Normalize weights
+        float invWeight = 1.0 / totalWeight;
+        w00 *= invWeight;
+        w10 *= invWeight;
+        w01 *= invWeight;
+        w11 *= invWeight;
+
+        // Interpolate SH coefficients with edge-aware weights
+        vec4 shR = p00.shR * w00 + p10.shR * w10 + p01.shR * w01 + p11.shR * w11;
+        vec4 shG = p00.shG * w00 + p10.shG * w10 + p01.shG * w01 + p11.shG * w11;
+        vec4 shB = p00.shB * w00 + p10.shB * w10 + p01.shB * w01 + p11.shB * w11;
+
+        // Evaluate SH for pixel's normal direction (cosine-weighted diffuse)
+        screenIrradiance = shEvaluateDiffuseRGB(shR, shG, shB, pixelNormalVS);
+        screenIrradiance = max(screenIrradiance, vec3(0.0));
+    }
+    else
+    {
+        screenConfidence = 0.0;
+    }
+
+    // World-probe sample (WORLD space)
+    vec3 worldIrradiance = vec3(0.0);
+    float worldConfidence = 0.0;
+
+#if VGE_LUMON_WORLDPROBE_ENABLED
+    vec3 pixelPosWS = (invViewMatrix * vec4(pixelPosVS, 1.0)).xyz;
+    LumOnWorldProbeSample wp = lumonWorldProbeSampleClipmapBound(pixelPosWS, pixelNormalWS);
+
+    worldIrradiance = wp.irradiance;
+    worldConfidence = wp.confidence;
+#endif
+
+    // Screen-first blend (LumOn.21)
+    float screenW = screenConfidence;
+    float worldW = worldConfidence * (1.0 - screenW);
+    float sumW = screenW + worldW;
+
+    vec3 blended = (sumW > 1e-3)
+        ? (screenIrradiance * screenW + worldIrradiance * worldW) / sumW
+        : vec3(0.0);
+
+    float outConfidence = clamp(sumW, 0.0, 1.0);
+
+    blended *= intensity;
+    blended *= indirectTint;
+
+    outColor = vec4(blended, outConfidence);
 }

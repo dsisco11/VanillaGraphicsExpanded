@@ -57,6 +57,19 @@ internal sealed class LumOnWorldProbeScheduler
 
     public int Resolution => resolution;
 
+    public bool TryGetLevelParams(int level, out Vec3d originMinCorner, out Vec3i ringOffset)
+    {
+        if ((uint)level >= (uint)levels.Length)
+        {
+            originMinCorner = new Vec3d();
+            ringOffset = new Vec3i();
+            return false;
+        }
+
+        ref LevelState state = ref levels[level];
+        return state.TryGetParams(out originMinCorner, out ringOffset);
+    }
+
     public void ResetAll()
     {
         foreach (ref LevelState level in levels.AsSpan())
@@ -191,6 +204,20 @@ internal sealed class LumOnWorldProbeScheduler
             anchor = null;
             originMinCorner = null;
             ringOffset = new Vec3i(0, 0, 0);
+        }
+
+        public bool TryGetParams(out Vec3d origin, out Vec3i ring)
+        {
+            if (originMinCorner is null)
+            {
+                origin = new Vec3d();
+                ring = new Vec3i();
+                return false;
+            }
+
+            origin = originMinCorner!;
+            ring = ringOffset;
+            return true;
         }
 
         public void UpdateOrigin(Vec3d cameraPos, double spacing)

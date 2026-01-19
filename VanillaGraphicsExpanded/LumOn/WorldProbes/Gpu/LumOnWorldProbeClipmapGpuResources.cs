@@ -11,20 +11,28 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
     private readonly int resolution;
     private readonly int levels;
 
-    private readonly DynamicTexture[] sh0;
-    private readonly DynamicTexture[] sh1;
-    private readonly DynamicTexture[] sh2;
-    private readonly DynamicTexture[] vis0;
-    private readonly DynamicTexture[] dist0;
-    private readonly DynamicTexture[] meta0;
+    private readonly DynamicTexture sh0;
+    private readonly DynamicTexture sh1;
+    private readonly DynamicTexture sh2;
+    private readonly DynamicTexture vis0;
+    private readonly DynamicTexture dist0;
+    private readonly DynamicTexture meta0;
 
-    private readonly GBuffer[] fbos;
+    private readonly GBuffer fbo;
 
     public int Resolution => resolution;
     public int Levels => levels;
 
     public int AtlasWidth => resolution * resolution;
-    public int AtlasHeight => resolution;
+    public int AtlasHeightPerLevel => resolution;
+    public int AtlasHeight => resolution * levels;
+
+    public int ProbeSh0TextureId => sh0.TextureId;
+    public int ProbeSh1TextureId => sh1.TextureId;
+    public int ProbeSh2TextureId => sh2.TextureId;
+    public int ProbeVis0TextureId => vis0.TextureId;
+    public int ProbeDist0TextureId => dist0.TextureId;
+    public int ProbeMeta0TextureId => meta0.TextureId;
 
     public LumOnWorldProbeClipmapGpuResources(int resolution, int levels)
     {
@@ -34,82 +42,65 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
         this.resolution = resolution;
         this.levels = levels;
 
-        sh0 = new DynamicTexture[levels];
-        sh1 = new DynamicTexture[levels];
-        sh2 = new DynamicTexture[levels];
+        // Per docs/LumOn.18-Probe-Data-Layout-and-Packing.md: L1 SH packed into 3 RGBA16F targets.
+        // We pack all levels into a single 2D atlas per signal by stacking levels vertically:
+        // v = y + level * resolution.
+        sh0 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSH0");
+        sh1 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSH1");
+        sh2 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSH2");
 
-        vis0 = new DynamicTexture[levels];
-        dist0 = new DynamicTexture[levels];
-        meta0 = new DynamicTexture[levels];
+        // Visibility: RGBA16F (octU, octV, reserved, aoConfidence)
+        vis0 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeVis0");
 
-        fbos = new GBuffer[levels];
+        // Distance: RG16F (meanLogDist, reserved)
+        dist0 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg16f, TextureFilterMode.Nearest, "WorldProbe_ProbeDist0");
 
-        for (int level = 0; level < levels; level++)
-        {
-            // Per docs/LumOn.18-Probe-Data-Layout-and-Packing.md: L1 SH packed into 3 RGBA16F targets.
-            var tSh0 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, $"WorldProbeL{level}_ProbeSH0");
-            var tSh1 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, $"WorldProbeL{level}_ProbeSH1");
-            var tSh2 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, $"WorldProbeL{level}_ProbeSH2");
+        // Meta: RG32F (confidence, uintBitsToFloat(flags))
+        meta0 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, TextureFilterMode.Nearest, "WorldProbe_ProbeMeta0");
 
-            // Visibility: RGBA16F (octU, octV, reserved, aoConfidence)
-            var tVis0 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, $"WorldProbeL{level}_ProbeVis0");
+        fbo = GBuffer.CreateMRT(
+            "WorldProbe_ClipmapFbo",
+            sh0,
+            sh1,
+            sh2,
+            vis0,
+            dist0,
+            meta0) ?? throw new InvalidOperationException("Failed to create world-probe MRT FBO");
 
-            // Distance: RG16F (meanLogDist, reserved)
-            var tDist0 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg16f, TextureFilterMode.Nearest, $"WorldProbeL{level}_ProbeDist0");
+        Label(sh0);
+        Label(sh1);
+        Label(sh2);
+        Label(vis0);
+        Label(dist0);
+        Label(meta0);
+        GlDebug.TryLabelFramebuffer(fbo.FboId, fbo.DebugName);
 
-            // Meta: RG32F (confidence, uintBitsToFloat(flags))
-            var tMeta0 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, TextureFilterMode.Nearest, $"WorldProbeL{level}_ProbeMeta0");
-
-            sh0[level] = tSh0;
-            sh1[level] = tSh1;
-            sh2[level] = tSh2;
-
-            vis0[level] = tVis0;
-            dist0[level] = tDist0;
-            meta0[level] = tMeta0;
-
-            fbos[level] = GBuffer.CreateMRT(
-                $"WorldProbeL{level}_ClipmapFbo",
-                tSh0,
-                tSh1,
-                tSh2,
-                tVis0,
-                tDist0,
-                tMeta0) ?? throw new InvalidOperationException($"Failed to create world-probe MRT FBO for level {level}");
-
-            Label(tSh0);
-            Label(tSh1);
-            Label(tSh2);
-            Label(tVis0);
-            Label(tDist0);
-            Label(tMeta0);
-            GlDebug.TryLabelFramebuffer(fbos[level].FboId, fbos[level].DebugName);
-
-            // Clear on create to keep deterministic sampling when uninitialized.
-            fbos[level].Bind();
-            GL.Viewport(0, 0, AtlasWidth, AtlasHeight);
-            GL.ClearColor(0, 0, 0, 0);
-            GL.Clear(ClearBufferMask.ColorBufferBit);
-            GBuffer.Unbind();
-        }
+        ClearAll();
     }
 
-    public GBuffer GetFbo(int level) => fbos[level];
+    public GBuffer GetFbo() => fbo;
+
+    public void ClearAll()
+    {
+        // Clear on create to keep deterministic sampling when uninitialized.
+        fbo.Bind();
+        GL.Viewport(0, 0, AtlasWidth, AtlasHeight);
+        GL.ClearColor(0, 0, 0, 0);
+        GL.Clear(ClearBufferMask.ColorBufferBit);
+        GBuffer.Unbind();
+    }
 
     public void Dispose()
     {
-        for (int level = 0; level < levels; level++)
-        {
-            fbos[level]?.Dispose();
+        fbo.Dispose();
 
-            sh0[level].Dispose();
-            sh1[level].Dispose();
-            sh2[level].Dispose();
+        sh0.Dispose();
+        sh1.Dispose();
+        sh2.Dispose();
 
-            vis0[level].Dispose();
-            dist0[level].Dispose();
-            meta0[level].Dispose();
-        }
+        vis0.Dispose();
+        dist0.Dispose();
+        meta0.Dispose();
     }
 
     private static void Label(DynamicTexture texture)

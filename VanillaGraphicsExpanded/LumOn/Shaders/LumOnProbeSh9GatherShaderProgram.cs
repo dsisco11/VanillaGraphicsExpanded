@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
@@ -22,6 +24,10 @@ public class LumOnProbeSh9GatherShaderProgram : VgeShaderProgram
             AssetDomain = "vanillagraphicsexpanded"
         };
         instance.Initialize(api);
+        instance.SetDefine(VgeShaderDefines.LumOnWorldProbeEnabled, "0");
+        instance.SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapLevels, "0");
+        instance.SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, "0");
+        instance.SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, "0.0");
         instance.CompileAndLink();
         api.Shader.RegisterMemoryShaderProgram("lumon_probe_sh9_gather", instance);
     }
@@ -60,6 +66,8 @@ public class LumOnProbeSh9GatherShaderProgram : VgeShaderProgram
 
     public float[] ViewMatrix { set => UniformMatrix("viewMatrix", value); }
 
+    public float[] InvViewMatrix { set => UniformMatrix("invViewMatrix", value); }
+
     #endregion
 
     #region Uniforms
@@ -79,6 +87,32 @@ public class LumOnProbeSh9GatherShaderProgram : VgeShaderProgram
     public float Intensity { set => Uniform("intensity", value); }
 
     public float[] IndirectTint { set => Uniform("indirectTint", new Vec3f(value[0], value[1], value[2])); }
+
+    #endregion
+
+    #region World Probes (Phase 18)
+
+    public int WorldProbeEnabled { set => SetDefine(VgeShaderDefines.LumOnWorldProbeEnabled, value != 0 ? "1" : "0"); }
+
+    public int WorldProbeSH0 { set => BindTexture2D("worldProbeSH0", value, 11); }
+    public int WorldProbeSH1 { set => BindTexture2D("worldProbeSH1", value, 12); }
+    public int WorldProbeSH2 { set => BindTexture2D("worldProbeSH2", value, 13); }
+    public int WorldProbeVis0 { set => BindTexture2D("worldProbeVis0", value, 14); }
+    public int WorldProbeMeta0 { set => BindTexture2D("worldProbeMeta0", value, 15); }
+
+    public Vec3f WorldProbeCameraPosWS { set => Uniform("worldProbeCameraPosWS", value); }
+
+    public float WorldProbeBaseSpacing { set => SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, value.ToString("0.0####", CultureInfo.InvariantCulture)); }
+
+    public int WorldProbeLevels { set => SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapLevels, value.ToString(CultureInfo.InvariantCulture)); }
+
+    public int WorldProbeResolution { set => SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, value.ToString(CultureInfo.InvariantCulture)); }
+
+    public void SetWorldProbeLevelParams(int level, Vec3f originMinCorner, Vec3f ringOffset)
+    {
+        Uniform($"worldProbeOriginMinCorner[{level}]", originMinCorner);
+        Uniform($"worldProbeRingOffset[{level}]", ringOffset);
+    }
 
     #endregion
 }

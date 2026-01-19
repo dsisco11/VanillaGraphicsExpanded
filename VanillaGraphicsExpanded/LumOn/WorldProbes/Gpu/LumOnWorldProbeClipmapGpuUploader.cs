@@ -93,11 +93,8 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
             maxVertices = Math.Min(maxVertices, Math.Max(0, uploadBudgetBytesPerFrame / Math.Max(1, bytesPerVertex)));
         }
 
-        // Group by level (stable order).
-        var perLevel = new List<UploadVertex>[resources.Levels];
-        for (int i = 0; i < perLevel.Length; i++) perLevel[i] = new List<UploadVertex>();
-
         int used = 0;
+        var vertices = new List<UploadVertex>(capacity: maxVertices);
         for (int i = 0; i < results.Count && used < maxVertices; i++)
         {
             var r = results[i];
@@ -107,7 +104,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
             Vec3i s = r.Request.StorageIndex;
 
             int u = s.X + s.Z * resources.Resolution;
-            int v = s.Y;
+            int v = s.Y + level * resources.AtlasHeightPerLevel;
 
             uint flags = LumOnWorldProbeMetaFlags.Valid;
             if (r.MeanLogHitDistance <= 0f && r.ShortRangeAoConfidence > 0.99f)
@@ -115,8 +112,13 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
                 flags |= LumOnWorldProbeMetaFlags.SkyOnly;
             }
 
-            perLevel[level].Add(UploadVertex.From(r, u, v, flags));
+            vertices.Add(UploadVertex.From(r, u, v, flags));
             used++;
+        }
+
+        if (vertices.Count == 0)
+        {
+            return;
         }
 
         GL.Disable(EnableCap.Blend);
@@ -128,25 +130,19 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
 
         GL.BindVertexArray(vao);
 
-        for (int level = 0; level < resources.Levels; level++)
-        {
-            var list = perLevel[level];
-            if (list.Count == 0) continue;
+        var fbo = resources.GetFbo();
+        fbo.Bind();
+        GL.Viewport(0, 0, resources.AtlasWidth, resources.AtlasHeight);
 
-            var fbo = resources.GetFbo(level);
-            fbo.Bind();
-            GL.Viewport(0, 0, resources.AtlasWidth, resources.AtlasHeight);
+        UploadVertex[] data = vertices.ToArray();
 
-            UploadVertex[] data = list.ToArray();
+        GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
+        GL.BufferData(BufferTarget.ArrayBuffer, data.Length * bytesPerVertex, data, BufferUsageHint.StreamDraw);
 
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, data.Length * bytesPerVertex, data, BufferUsageHint.StreamDraw);
+        GL.DrawArrays(PrimitiveType.Points, 0, data.Length);
 
-            GL.DrawArrays(PrimitiveType.Points, 0, data.Length);
-
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-            Rendering.GBuffer.Unbind();
-        }
+        GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+        Rendering.GBuffer.Unbind();
 
         GL.BindVertexArray(0);
         prog.Stop();

@@ -21,6 +21,9 @@ out vec4 outColor;
 // Import octahedral mapping utilities
 @import "./includes/lumon_octahedral.glsl"
 
+// World-probe clipmap helpers
+@import "./includes/lumon_worldprobe.glsl"
+
 // ============================================================================
 // Uniforms
 // ============================================================================
@@ -40,6 +43,7 @@ uniform sampler2D gBufferNormal;
 // Matrices
 uniform mat4 invProjectionMatrix;
 uniform mat4 viewMatrix;  // For depth calculation (WS probe to VS)
+uniform mat4 invViewMatrix;
 
 // Probe grid parameters
 uniform int probeSpacing;
@@ -58,6 +62,10 @@ uniform float leakThreshold;  // Leak prevention threshold (e.g., 0.5 = 50%)
 // Sampling configuration
 // Use 4×4 subgrid (16 samples) for performance vs 8×8 (64 samples) for quality
 uniform int sampleStride;  // 1 = full 64 samples, 2 = 16 samples
+
+// ============================================================================
+// World Probe Clipmap (Phase 18)
+// ============================================================================
 
 // ============================================================================
 // Probe Data Structure
@@ -271,14 +279,11 @@ void main(void)
     float w11 = computeProbeWeight(bw11, pixelDepthVS, p11.depthVS, pixelNormalWS, p11.normalWS, avgDist11, p11.valid);
     
     float totalWeight = w00 + w10 + w01 + w11;
-    float edgeTotalWeight = totalWeight;
-    bool usedFallback = false;
     
     // If edge-aware weighting collapses (common very near the camera), fall back to
     // bilinear weighting with normal similarity + validity (dropping depth/dist penalties)
     // so we avoid a hard black cutoff without reintroducing obvious normal leaks.
     if (totalWeight < 0.001) {
-        usedFallback = true;
         float n00 = pow(max(dot(pixelNormalWS, p00.normalWS), 0.0), 4.0);
         float n10 = pow(max(dot(pixelNormalWS, p10.normalWS), 0.0), 4.0);
         float n01 = pow(max(dot(pixelNormalWS, p01.normalWS), 0.0), 4.0);
@@ -297,28 +302,44 @@ void main(void)
         }
     }
     
+    // Screen confidence (raw weight sum, clamped)
+    float screenConfidence = clamp(totalWeight, 0.0, 1.0);
+
     // Normalize weights
     float invWeight = 1.0 / totalWeight;
     w00 *= invWeight;
     w10 *= invWeight;
     w01 *= invWeight;
     w11 *= invWeight;
-    
-    // Blend irradiance from all probes
-    vec3 irradiance = irr00 * w00 + irr10 * w10 + irr01 * w01 + irr11 * w11;
-    
-    // Apply intensity and tint
-    irradiance *= intensity;
-    irradiance *= indirectTint;
-    
-    // Clamp negative values (can occur due to numerical issues)
-    irradiance = max(irradiance, vec3(0.0));
-    
-    // Store diagnostics in alpha for debug visualization:
-    // - magnitude = edge-aware totalWeight (scaled)
-    // - sign = negative when fallback path was used
-    float weightViz = clamp(edgeTotalWeight * 4.0, 0.0, 1.0);
-    float signedWeightViz = usedFallback ? -weightViz : weightViz;
 
-    outColor = vec4(irradiance, signedWeightViz);
+    // Blend irradiance from all probes (screen-space GI)
+    vec3 screenIrradiance = irr00 * w00 + irr10 * w10 + irr01 * w01 + irr11 * w11;
+    screenIrradiance = max(screenIrradiance, vec3(0.0));
+
+    // World-probe sample (WORLD space)
+    vec3 worldIrradiance = vec3(0.0);
+    float worldConfidence = 0.0;
+
+#if VGE_LUMON_WORLDPROBE_ENABLED
+    vec3 pixelPosWS = (invViewMatrix * vec4(pixelPosVS, 1.0)).xyz;
+    LumOnWorldProbeSample wp = lumonWorldProbeSampleClipmapBound(pixelPosWS, pixelNormalWS);
+
+    worldIrradiance = wp.irradiance;
+    worldConfidence = wp.confidence;
+#endif
+
+    float screenW = screenConfidence;
+    float worldW = worldConfidence * (1.0 - screenW);
+    float sumW = screenW + worldW;
+
+    vec3 blended = (sumW > 1e-3)
+        ? (screenIrradiance * screenW + worldIrradiance * worldW) / sumW
+        : vec3(0.0);
+
+    float outConfidence = clamp(sumW, 0.0, 1.0);
+
+    blended *= intensity;
+    blended *= indirectTint;
+
+    outColor = vec4(blended, outConfidence);
 }

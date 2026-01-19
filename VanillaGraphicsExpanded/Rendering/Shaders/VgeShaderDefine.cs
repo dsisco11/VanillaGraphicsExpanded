@@ -26,6 +26,12 @@ public static class VgeShaderDefines
     public const string LumOnHzbCoarseMip = "VGE_LUMON_HZB_COARSE_MIP";
     public const string LumOnSkyMissWeight = "VGE_LUMON_SKY_MISS_WEIGHT";
 
+    // World-probe clipmap (Phase 18)
+    public const string LumOnWorldProbeEnabled = "VGE_LUMON_WORLDPROBE_ENABLED";
+    public const string LumOnWorldProbeClipmapLevels = "VGE_LUMON_WORLDPROBE_LEVELS";
+    public const string LumOnWorldProbeClipmapResolution = "VGE_LUMON_WORLDPROBE_RESOLUTION";
+    public const string LumOnWorldProbeClipmapBaseSpacing = "VGE_LUMON_WORLDPROBE_BASE_SPACING";
+
     public const string LumOnEmissiveBoost = "LUMON_EMISSIVE_BOOST";
 
     public const string PbrEnableParallax = "VGE_PBR_ENABLE_PARALLAX";

@@ -123,14 +123,14 @@ LumOn - Phase 18 - World-Space Clipmap Probe System (Implementation):
 
   Phase 18.10 - Shading Integration:
   Exit artifacts: Shaders can sample world probes, blend them with screen-space GI, and feed Phase 15 composite.
-  ☐ Implement world-probe sampling in shading path (trilinear within level).
-  ☐ Implement cross-level overlap blending and transition smoothing.
-  ☐ Implement screen-space vs world-space blend policy (confidence-based, screen-first).
-  ☐ Feed Phase 15 composite inputs:
-    - Indirect diffuse/specular contributions (as applicable)
-    - ShortRangeAO direction / visibility proxy
-    - Confidence for compositing decisions
-  ☐ Define fallback behavior when world probes are missing/low-confidence.
+  ✔ Implement world-probe sampling in shading path (trilinear within level). @done
+  ✔ Implement cross-level overlap blending and transition smoothing. @done
+  ✔ Implement screen-space vs world-space blend policy (confidence-based, screen-first). @done
+  ✔ Feed Phase 15 composite inputs: @done
+    - Indirect diffuse/specular contributions (as applicable) @done
+    - ShortRangeAO direction / visibility proxy @done
+    - Confidence for compositing decisions @done
+  ✔ Define fallback behavior when world probes are missing/low-confidence. @done
 
 
   Phase 18.11 - Debug Tooling + Profiling:

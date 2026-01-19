@@ -16,6 +16,8 @@ out vec4 outColor;
 @import "./includes/lumon_common.glsl"
 @import "./includes/lumon_sh9.glsl"
 
+@import "./includes/lumon_worldprobe.glsl"
+
 // SH9 packed textures (7 MRT attachments from projection pass)
 uniform sampler2D probeSh0;
 uniform sampler2D probeSh1;
@@ -36,6 +38,7 @@ uniform sampler2D gBufferNormal;
 // Matrices
 uniform mat4 invProjectionMatrix;
 uniform mat4 viewMatrix;  // For depth calculation (WS probe to VS)
+uniform mat4 invViewMatrix;
 
 // Probe grid parameters
 uniform int probeSpacing;
@@ -50,6 +53,10 @@ uniform float zFar;
 // Quality parameters
 uniform float intensity;
 uniform vec3 indirectTint;
+
+// ============================================================================
+// World Probe Clipmap (Phase 18)
+// ============================================================================
 
 struct ProbeData {
     vec3 posWS;
@@ -153,11 +160,10 @@ void main(void)
     float w11 = computeProbeWeight(bw11, pixelDepthVS, p11.depthVS, pixelNormalWS, p11.normalWS, p11.valid);
 
     float totalWeight = w00 + w10 + w01 + w11;
-    bool usedFallback = false;
+    float screenConfidence = clamp(totalWeight, 0.0, 1.0);
 
     if (totalWeight < 0.001)
     {
-        usedFallback = true;
         float n00 = pow(max(dot(pixelNormalWS, p00.normalWS), 0.0), 4.0);
         float n10 = pow(max(dot(pixelNormalWS, p10.normalWS), 0.0), 4.0);
         float n01 = pow(max(dot(pixelNormalWS, p01.normalWS), 0.0), 4.0);
@@ -169,29 +175,56 @@ void main(void)
         w11 = bw11 * n11 * (p11.valid >= 0.5 ? 1.0 : 0.0);
         totalWeight = w00 + w10 + w01 + w11;
 
-        if (totalWeight < 0.001)
-        {
-            outColor = vec4(0.0, 0.0, 0.0, 0.0);
-            return;
-        }
+        screenConfidence = clamp(totalWeight, 0.0, 1.0);
     }
 
-    float invW = 1.0 / totalWeight;
-    w00 *= invW;
-    w10 *= invW;
-    w01 *= invW;
-    w11 *= invW;
+    vec3 screenIrradiance = vec3(0.0);
 
-    vec3 irr00 = (p00.valid >= 0.5) ? evaluateProbeIrradiance(clamp(probe00, ivec2(0), probeGridSizeI - 1), pixelNormalWS) : vec3(0.0);
-    vec3 irr10 = (p10.valid >= 0.5) ? evaluateProbeIrradiance(clamp(probe10, ivec2(0), probeGridSizeI - 1), pixelNormalWS) : vec3(0.0);
-    vec3 irr01 = (p01.valid >= 0.5) ? evaluateProbeIrradiance(clamp(probe01, ivec2(0), probeGridSizeI - 1), pixelNormalWS) : vec3(0.0);
-    vec3 irr11 = (p11.valid >= 0.5) ? evaluateProbeIrradiance(clamp(probe11, ivec2(0), probeGridSizeI - 1), pixelNormalWS) : vec3(0.0);
+    if (totalWeight >= 0.001)
+    {
+        float invW = 1.0 / totalWeight;
+        w00 *= invW;
+        w10 *= invW;
+        w01 *= invW;
+        w11 *= invW;
 
-    vec3 irradiance = irr00 * w00 + irr10 * w10 + irr01 * w01 + irr11 * w11;
+        vec3 irr00 = (p00.valid >= 0.5) ? evaluateProbeIrradiance(clamp(probe00, ivec2(0), probeGridSizeI - 1), pixelNormalWS) : vec3(0.0);
+        vec3 irr10 = (p10.valid >= 0.5) ? evaluateProbeIrradiance(clamp(probe10, ivec2(0), probeGridSizeI - 1), pixelNormalWS) : vec3(0.0);
+        vec3 irr01 = (p01.valid >= 0.5) ? evaluateProbeIrradiance(clamp(probe01, ivec2(0), probeGridSizeI - 1), pixelNormalWS) : vec3(0.0);
+        vec3 irr11 = (p11.valid >= 0.5) ? evaluateProbeIrradiance(clamp(probe11, ivec2(0), probeGridSizeI - 1), pixelNormalWS) : vec3(0.0);
 
-    irradiance *= intensity;
-    irradiance *= indirectTint;
-    irradiance = max(irradiance, vec3(0.0));
+        screenIrradiance = irr00 * w00 + irr10 * w10 + irr01 * w01 + irr11 * w11;
+        screenIrradiance = max(screenIrradiance, vec3(0.0));
+    }
+    else
+    {
+        screenConfidence = 0.0;
+    }
 
-    outColor = vec4(irradiance, usedFallback ? 0.5 : 1.0);
+    // World-probe sample (WORLD space)
+    vec3 worldIrradiance = vec3(0.0);
+    float worldConfidence = 0.0;
+
+#if VGE_LUMON_WORLDPROBE_ENABLED
+    vec3 pixelPosWS = (invViewMatrix * vec4(pixelPosVS, 1.0)).xyz;
+    LumOnWorldProbeSample wp = lumonWorldProbeSampleClipmapBound(pixelPosWS, pixelNormalWS);
+
+    worldIrradiance = wp.irradiance;
+    worldConfidence = wp.confidence;
+#endif
+
+    float screenW = screenConfidence;
+    float worldW = worldConfidence * (1.0 - screenW);
+    float sumW = screenW + worldW;
+
+    vec3 blended = (sumW > 1e-3)
+        ? (screenIrradiance * screenW + worldIrradiance * worldW) / sumW
+        : vec3(0.0);
+
+    float outConfidence = clamp(sumW, 0.0, 1.0);
+
+    blended *= intensity;
+    blended *= indirectTint;
+
+    outColor = vec4(blended, outConfidence);
 }
