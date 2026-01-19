@@ -32,6 +32,10 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
 
     private HudMaterialAtlasProgressPanel? materialAtlasProgressPanel;
 
+    private bool isLevelFinalized;
+    private bool pendingMaterialAtlasPopulate;
+    private long materialAtlasPopulateCallbackId;
+
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
     public override void StartPre(ICoreAPI api)
@@ -85,7 +89,40 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         MaterialAtlasSystem.Instance.CreateTextureObjects(api);
         api.Event.BlockTexturesLoaded += () =>
         {
-            MaterialAtlasSystem.Instance.PopulateAtlasContents(api);
+            // Keep textures in sync with the block atlas as soon as it exists,
+            // but defer the expensive population/bake until the world is fully ready.
+            MaterialAtlasSystem.Instance.CreateTextureObjects(api);
+
+            if (isLevelFinalized)
+            {
+                MaterialAtlasSystem.Instance.PopulateAtlasContents(api);
+            }
+            else
+            {
+                pendingMaterialAtlasPopulate = true;
+            }
+        };
+
+        api.Event.LevelFinalize += () =>
+        {
+            isLevelFinalized = true;
+
+            if (!pendingMaterialAtlasPopulate)
+            {
+                return;
+            }
+
+            pendingMaterialAtlasPopulate = false;
+
+            if (materialAtlasPopulateCallbackId != 0)
+            {
+                api.Event.UnregisterCallback(materialAtlasPopulateCallbackId);
+            }
+
+            // Give the client a brief moment after finalize to finish settling (GUI, chunk init, etc.).
+            materialAtlasPopulateCallbackId = api.Event.RegisterCallback(
+                _ => MaterialAtlasSystem.Instance.PopulateAtlasContents(api),
+                millisecondDelay: 500);
         };
 
         // Optional: small in-game progress overlay while the material atlas builds.
@@ -147,6 +184,12 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem
         try
         {
             VgeDebugViewManager.Dispose();
+
+            if (capi != null && materialAtlasPopulateCallbackId != 0)
+            {
+                capi.Event.UnregisterCallback(materialAtlasPopulateCallbackId);
+                materialAtlasPopulateCallbackId = 0;
+            }
 
             materialAtlasProgressPanel?.Dispose();
             materialAtlasProgressPanel = null;
