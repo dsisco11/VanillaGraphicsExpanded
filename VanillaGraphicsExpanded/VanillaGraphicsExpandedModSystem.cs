@@ -21,9 +21,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 {
     private ICoreClientAPI? capi;
     private GBufferManager? gBufferManager;
-    private DirectLightingBufferManager? directLightingBufferManager;
-    private DirectLightingRenderer? directLightingRenderer;
-    private PBRCompositeRenderer? pbrCompositeRenderer;
     private GlGpuProfilerRenderer? gpuProfilerRenderer;
     private HarmonyLib.Harmony? harmony;
 
@@ -143,22 +140,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
         ConfigModSystem.Config.Sanitize();
 
-        // Create direct lighting pass buffers + renderer (Opaque @ 9.0)
-        directLightingBufferManager = new DirectLightingBufferManager(api);
-        directLightingRenderer = new DirectLightingRenderer(api, gBufferManager, directLightingBufferManager);
-
-        // LumOn and debug overlay are managed by LumOnModSystem.
-        var lumOnSystem = api.ModLoader.GetModSystem<LumOnModSystem>();
-        lumOnSystem.SetDependencies(api, gBufferManager!, directLightingBufferManager);
-        var lumOnBuffers = lumOnSystem.GetLumOnBufferManagerOrNull();
-
-        // Final composite (Opaque @ 11.0): direct + optional indirect + fog
-        pbrCompositeRenderer = new PBRCompositeRenderer(
-            api,
-            gBufferManager,
-            directLightingBufferManager,
-            ConfigModSystem.Config,
-            lumOnBuffers);
+        // PBR (direct lighting + composite) is managed by PbrModSystem.
+        api.ModLoader.GetModSystem<PbrModSystem>().SetDependencies(api, gBufferManager);
 
         // Initialize the debug view manager (GUI)
         VgeDebugViewManager.Initialize(
@@ -197,15 +180,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
             gpuProfilerRenderer = null;
 
             GlGpuProfiler.Instance.Dispose();
-
-            directLightingRenderer?.Dispose();
-            directLightingRenderer = null;
-
-            directLightingBufferManager?.Dispose();
-            directLightingBufferManager = null;
-
-            pbrCompositeRenderer?.Dispose();
-            pbrCompositeRenderer = null;
 
             MaterialAtlasSystem.Instance.Dispose();
 
