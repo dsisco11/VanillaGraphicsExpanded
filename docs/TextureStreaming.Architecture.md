@@ -31,6 +31,7 @@ Core:
   - `TextureStreamingDiagnostics` (counters snapshot)
   - Upload request contracts (`TextureUploadRequest`, `TextureUploadTarget`, `TextureUploadRegion`, `TextureUploadData`)
   - Backends: `PersistentMappedPboRing`, `TripleBufferedPboPool`
+  - GPU sync helper: `GpuFence`
 
 System wrapper + render loop integration:
 - `VanillaGraphicsExpanded/Rendering/TextureStreamingSystem.cs` (lazy singleton, configure/tick/dispose)

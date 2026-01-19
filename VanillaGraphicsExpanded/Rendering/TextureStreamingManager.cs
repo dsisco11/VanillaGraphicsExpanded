@@ -542,7 +542,7 @@ internal sealed class TextureStreamingManager : IDisposable
 
         public void SubmitUpload(in PboUpload upload)
         {
-            IntPtr fence = GL.FenceSync(SyncCondition.SyncGpuCommandsComplete, WaitSyncFlags.None);
+            GpuFence fence = GpuFence.Insert();
             inFlight.Enqueue(new PendingRegion(upload.OffsetBytes, upload.AllocationSizeBytes, fence));
         }
 
@@ -556,10 +556,7 @@ internal sealed class TextureStreamingManager : IDisposable
             while (inFlight.Count > 0)
             {
                 PendingRegion region = inFlight.Dequeue();
-                if (region.Fence != IntPtr.Zero)
-                {
-                    GL.DeleteSync(region.Fence);
-                }
+                region.Fence.Dispose();
             }
 
             if (bufferId != 0)
@@ -577,14 +574,12 @@ internal sealed class TextureStreamingManager : IDisposable
             while (inFlight.Count > 0)
             {
                 PendingRegion region = inFlight.Peek();
-                WaitSyncStatus status = GL.ClientWaitSync(region.Fence, ClientWaitSyncFlags.None, 0);
-                if (status == WaitSyncStatus.TimeoutExpired)
+                if (!region.Fence.TryConsumeIfSignaled())
                 {
                     break;
                 }
 
                 inFlight.Dequeue();
-                GL.DeleteSync(region.Fence);
                 tail = (region.Offset + region.Size) % bufferSizeBytes;
             }
         }
@@ -623,7 +618,7 @@ internal sealed class TextureStreamingManager : IDisposable
             return false;
         }
 
-        private readonly record struct PendingRegion(int Offset, int Size, IntPtr Fence);
+        private readonly record struct PendingRegion(int Offset, int Size, GpuFence Fence);
     }
 
     private sealed class TripleBufferedPboPool : IPboUploadBackend
@@ -701,9 +696,8 @@ internal sealed class TextureStreamingManager : IDisposable
 
         public void SubmitUpload(in PboUpload upload)
         {
-            IntPtr fence = GL.FenceSync(SyncCondition.SyncGpuCommandsComplete, WaitSyncFlags.None);
             int index = upload.SlotIndex;
-            slots[index] = slots[index] with { Fence = fence };
+            slots[index] = slots[index] with { Fence = GpuFence.Insert() };
             nextIndex = (index + 1) % BufferCount;
         }
 
@@ -716,10 +710,7 @@ internal sealed class TextureStreamingManager : IDisposable
         {
             for (int i = 0; i < slots.Length; i++)
             {
-                if (slots[i].Fence != IntPtr.Zero)
-                {
-                    GL.DeleteSync(slots[i].Fence);
-                }
+                slots[i].Fence?.Dispose();
 
                 if (slots[i].BufferId != 0)
                 {
@@ -732,19 +723,18 @@ internal sealed class TextureStreamingManager : IDisposable
         {
             for (int i = 0; i < slots.Length; i++)
             {
-                if (slots[i].Fence == IntPtr.Zero)
+                GpuFence? fence = slots[i].Fence;
+                if (fence is null)
                 {
                     continue;
                 }
 
-                WaitSyncStatus status = GL.ClientWaitSync(slots[i].Fence, ClientWaitSyncFlags.None, 0);
-                if (status == WaitSyncStatus.TimeoutExpired)
+                if (!fence.TryConsumeIfSignaled())
                 {
                     continue;
                 }
 
-                GL.DeleteSync(slots[i].Fence);
-                slots[i] = slots[i] with { Fence = IntPtr.Zero };
+                slots[i] = slots[i] with { Fence = null };
             }
         }
 
@@ -753,20 +743,19 @@ internal sealed class TextureStreamingManager : IDisposable
             for (int i = 0; i < slots.Length; i++)
             {
                 int candidate = (nextIndex + i) % slots.Length;
-                if (slots[candidate].Fence == IntPtr.Zero)
+                GpuFence? fence = slots[candidate].Fence;
+                if (fence is null)
                 {
                     index = candidate;
                     return true;
                 }
 
-                WaitSyncStatus status = GL.ClientWaitSync(slots[candidate].Fence, ClientWaitSyncFlags.None, 0);
-                if (status == WaitSyncStatus.TimeoutExpired)
+                if (!fence.TryConsumeIfSignaled())
                 {
                     continue;
                 }
 
-                GL.DeleteSync(slots[candidate].Fence);
-                slots[candidate] = slots[candidate] with { Fence = IntPtr.Zero };
+                slots[candidate] = slots[candidate] with { Fence = null };
                 index = candidate;
                 return true;
             }
@@ -777,7 +766,7 @@ internal sealed class TextureStreamingManager : IDisposable
 
         private readonly record struct PboSlot(int BufferId)
         {
-            public IntPtr Fence { get; init; }
+            public GpuFence? Fence { get; init; }
         }
     }
 }
