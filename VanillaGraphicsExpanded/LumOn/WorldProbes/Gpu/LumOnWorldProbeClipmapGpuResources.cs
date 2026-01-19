@@ -11,9 +11,9 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
     private readonly int resolution;
     private readonly int levels;
 
-    private readonly DynamicTexture[][] sh0;
-    private readonly DynamicTexture[][] sh1;
-    private readonly DynamicTexture[][] sh2;
+    private readonly DynamicTexture[] sh0;
+    private readonly DynamicTexture[] sh1;
+    private readonly DynamicTexture[] sh2;
     private readonly DynamicTexture[] vis0;
     private readonly DynamicTexture[] dist0;
     private readonly DynamicTexture[] meta0;
@@ -34,9 +34,9 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
         this.resolution = resolution;
         this.levels = levels;
 
-        sh0 = new DynamicTexture[levels][];
-        sh1 = new DynamicTexture[levels][];
-        sh2 = new DynamicTexture[levels][];
+        sh0 = new DynamicTexture[levels];
+        sh1 = new DynamicTexture[levels];
+        sh2 = new DynamicTexture[levels];
 
         vis0 = new DynamicTexture[levels];
         dist0 = new DynamicTexture[levels];
@@ -60,9 +60,9 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
             // Meta: RG32F (confidence, uintBitsToFloat(flags))
             var tMeta0 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, TextureFilterMode.Nearest, $"WorldProbeL{level}_ProbeMeta0");
 
-            sh0[level] = [tSh0];
-            sh1[level] = [tSh1];
-            sh2[level] = [tSh2];
+            sh0[level] = tSh0;
+            sh1[level] = tSh1;
+            sh2[level] = tSh2;
 
             vis0[level] = tVis0;
             dist0[level] = tDist0;
@@ -76,6 +76,14 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
                 tVis0,
                 tDist0,
                 tMeta0) ?? throw new InvalidOperationException($"Failed to create world-probe MRT FBO for level {level}");
+
+            Label(tSh0);
+            Label(tSh1);
+            Label(tSh2);
+            Label(tVis0);
+            Label(tDist0);
+            Label(tMeta0);
+            GlDebug.TryLabelFramebuffer(fbos[level].FboId, fbos[level].DebugName);
 
             // Clear on create to keep deterministic sampling when uninitialized.
             fbos[level].Bind();
@@ -94,13 +102,19 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
         {
             fbos[level]?.Dispose();
 
-            sh0[level][0].Dispose();
-            sh1[level][0].Dispose();
-            sh2[level][0].Dispose();
+            sh0[level].Dispose();
+            sh1[level].Dispose();
+            sh2[level].Dispose();
 
             vis0[level].Dispose();
             dist0[level].Dispose();
             meta0[level].Dispose();
         }
+    }
+
+    private static void Label(DynamicTexture texture)
+    {
+        if (texture.TextureId == 0) return;
+        GlDebug.TryLabelTexture2D(texture.TextureId, texture.DebugName);
     }
 }

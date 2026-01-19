@@ -111,13 +111,13 @@ LumOn - Phase 18 - World-Space Clipmap Probe System (Implementation):
 
   Phase 18.8 - Buffer + Texture Management:
   Exit artifacts: Clipmap textures exist per level; resizing/recreation is correct and leak-free.
-  ☐ Allocate per-level textures for SH, ShortRangeAO, confidence, distance, and metadata.
-  ☐ Define naming/debug labels for GL objects for RenderDoc/debug tooling.
-  ☐ Implement recreate on:
-    - Resolution/levels change
-    - Format/layout change
-    - Graphics reload events
-  ☐ Ensure history/temporal buffers (if introduced) are double-buffered and consistent.
+  ✔ Allocate per-level textures for SH, ShortRangeAO, confidence, distance, and metadata. @done
+  ✔ Define naming/debug labels for GL objects for RenderDoc/debug tooling. @done
+  ✔ Implement recreate on: @done
+    - Resolution/levels change @done
+    - Format/layout change @done
+    - Graphics reload events @done
+  ✔ Ensure history/temporal buffers (if introduced) are double-buffered and consistent. @done
 
 
   Phase 18.9 - Streaming + Persistence (Optional):

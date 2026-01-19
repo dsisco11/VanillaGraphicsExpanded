@@ -1,6 +1,7 @@
 ﻿using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.PBR.Materials;
@@ -28,6 +29,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
     // LumOn components
     private LumOnBufferManager? lumOnBufferManager;
+    private LumOnWorldProbeClipmapBufferManager? lumOnWorldProbeClipmapBufferManager;
     private LumOnRenderer? lumOnRenderer;
     private LumOnDebugRenderer? lumOnDebugRenderer;
 
@@ -252,6 +254,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
             clientApi.Logger.Notification("[VGE] LumOn enabled via live config reload");
             lumOnBufferManager ??= new LumOnBufferManager(clientApi, ConfigModSystem.Config);
+            lumOnWorldProbeClipmapBufferManager ??= new LumOnWorldProbeClipmapBufferManager(clientApi, ConfigModSystem.Config);
+            lumOnWorldProbeClipmapBufferManager.EnsureResources();
             lumOnRenderer = new LumOnRenderer(clientApi, ConfigModSystem.Config, lumOnBufferManager, gBufferManager);
         }
 
@@ -279,7 +283,16 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
         if (clipmapTopologyChanged)
         {
-            clientApi.Logger.Notification("[VGE] World-probe clipmap topology changed (spacing/resolution/levels). Will apply once Phase 18 clipmap resources exist; re-entering the world may be required.");
+            if (lumOnWorldProbeClipmapBufferManager is not null)
+            {
+                lumOnWorldProbeClipmapBufferManager.RequestRecreate("live config change (clipmap topology)");
+                lumOnWorldProbeClipmapBufferManager.EnsureResources();
+                clientApi.Logger.Notification("[VGE] World-probe clipmap topology changed (spacing/resolution/levels). Resources recreated.");
+            }
+            else
+            {
+                clientApi.Logger.Notification("[VGE] World-probe clipmap topology changed (spacing/resolution/levels). Will apply once Phase 18 clipmap resources exist; re-entering the world may be required.");
+            }
         }
         else if (clipmapBudgetsChanged)
         {
@@ -332,6 +345,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
             lumOnBufferManager?.Dispose();
             lumOnBufferManager = null;
+
+            lumOnWorldProbeClipmapBufferManager?.Dispose();
+            lumOnWorldProbeClipmapBufferManager = null;
 
             MaterialAtlasSystem.Instance.Dispose();
 
