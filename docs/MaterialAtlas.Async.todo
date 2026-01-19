@@ -5,9 +5,9 @@ Goals:
 - Keep deterministic outputs and cache behavior.
 - Preserve current visual results across sync and async paths.
 
-☐ Phase 0 - Baseline and guardrails
-  ☐ Add timing logs around async scheduling and normal+depth bake.
-  ☐ Capture cache hit/miss counts and time spent in cache reads.
+☑ Phase 0 - Baseline and guardrails
+  ☑ Add profiling scopes around async scheduling and normal+depth bake.
+  ☑ Capture cache hit/miss counts and cache read profiling scopes.
 
 ☐ Phase 1 - Move material params cache IO off the main thread
   ☐ Replace main-thread cache scan in StartMaterialParamsAsyncBuild with a CPU job that:

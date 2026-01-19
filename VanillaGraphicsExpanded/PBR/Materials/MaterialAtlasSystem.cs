@@ -10,6 +10,7 @@ using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.PBR.Materials.Async;
 using VanillaGraphicsExpanded.PBR.Materials.Cache;
+using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.Rendering;
 
 using Vintagestory.API.Client;
@@ -482,6 +483,8 @@ internal sealed class MaterialAtlasSystem : IDisposable
         {
             return 0;
         }
+
+        using var scheduleScope = Profiler.BeginScope("MaterialAtlas.AsyncSchedule", "PBR");
 
         int generationId = Interlocked.Increment(ref sessionGeneration);
         if (generationId <= 0)

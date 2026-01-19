@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 using VanillaGraphicsExpanded.PBR.Materials.Cache;
 using VanillaGraphicsExpanded.Numerics;
+using VanillaGraphicsExpanded.Profiling;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -40,6 +41,8 @@ internal sealed class MaterialAtlasNormalDepthBuildRunner
     {
         ArgumentNullException.ThrowIfNull(capi);
         ArgumentNullException.ThrowIfNull(plan);
+
+        using var cpuScope = Profiler.BeginScope("MaterialAtlas.NormalDepth.ExecutePlan", "PBR");
 
         int baked = 0;
         int overrides = 0;

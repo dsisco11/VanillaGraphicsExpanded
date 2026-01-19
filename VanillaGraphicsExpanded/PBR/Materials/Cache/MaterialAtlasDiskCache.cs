@@ -7,6 +7,8 @@ using System.Linq;
 using System.Numerics.Tensors;
 using System.Threading;
 
+using VanillaGraphicsExpanded.Profiling;
+
 using Vintagestory.API.Config;
 
 namespace VanillaGraphicsExpanded.PBR.Materials.Cache;
@@ -213,6 +215,12 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
     {
         meta = default;
         rgba = Array.Empty<float>();
+
+        using var cacheReadScope = Profiler.BeginScope(
+            kind == PayloadKind.MaterialParams
+                ? "MaterialAtlasDiskCache.Read.MaterialParams"
+                : "MaterialAtlasDiskCache.Read.NormalDepth",
+            category: "Cache");
 
         try
         {
