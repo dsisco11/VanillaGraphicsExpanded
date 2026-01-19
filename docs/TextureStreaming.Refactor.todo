@@ -85,12 +85,12 @@ Texture Streaming - Persistent-Mapped StageCopy Refactor (Option B First):
 
   Phase 5 - Full-Copy Fallback Path (Non-Persistent / Queue Full):
   Exit artifacts: StageCopy always deep-copies immediately even under backpressure or missing persistent support.
-  ☐ Define an owned CPU buffer representation for fallback (`byte[]` or `IMemoryOwner<byte>` + metadata).
-  ☐ If StageCopy cannot admit to the staging queue, deep-copy into owned buffer and enqueue to fallback.
-  ☐ Render thread fallback execution:
+  ✔ Define an owned CPU buffer representation for fallback (`byte[]` or `IMemoryOwner<byte>` + metadata). @done
+  ✔ If StageCopy cannot admit to the staging queue, deep-copy into owned buffer and enqueue to fallback. @done
+  ✔ Render thread fallback execution: @done
     - stage owned buffer to triple-buffer PBO pool (or direct upload if explicitly allowed)
     - upload to texture, manage fences/pool reuse
-  ☐ Track fallback reasons (queue full, ring full, not initialized, no persistent support, oversize, disabled).
+  ✔ Track fallback reasons (queue full, ring full, not initialized, no persistent support, oversize, disabled). @done
 
 
   Phase 6 - Texture Target Coverage (All Types Up Front):

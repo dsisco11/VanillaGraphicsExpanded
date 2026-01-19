@@ -9,7 +9,8 @@ internal readonly record struct UploadCommand(
     int RowLength,
     int ImageHeight,
     PboUpload PboUpload,
-    MappedFlushRange FlushRange)
+    MappedFlushRange FlushRange,
+    OwnedCpuUploadBuffer? OwnedBuffer)
 {
     public static UploadCommand FromCpu(long sequenceId, int priority, in TextureUploadRequest request)
         => new(
@@ -21,7 +22,8 @@ internal readonly record struct UploadCommand(
             RowLength: 0,
             ImageHeight: 0,
             PboUpload: default,
-            FlushRange: MappedFlushRange.None);
+            FlushRange: MappedFlushRange.None,
+            OwnedBuffer: null);
 
     public static UploadCommand FromCpuPrepared(
         long sequenceId,
@@ -39,7 +41,8 @@ internal readonly record struct UploadCommand(
             rowLength,
             imageHeight,
             PboUpload: default,
-            FlushRange: MappedFlushRange.None);
+            FlushRange: MappedFlushRange.None,
+            OwnedBuffer: null);
 
     public static UploadCommand FromPersistentRing(
         long sequenceId,
@@ -59,5 +62,27 @@ internal readonly record struct UploadCommand(
             rowLength,
             imageHeight,
             pboUpload,
-            flushRange);
+
+            flushRange,
+            OwnedBuffer: null);
+
+    public static UploadCommand FromOwnedCpuBytes(
+        long sequenceId,
+        int priority,
+        in TextureUploadRequest request,
+        int byteCount,
+        int rowLength,
+        int imageHeight,
+        OwnedCpuUploadBuffer owned)
+        => new(
+            sequenceId,
+            priority,
+            UploadCommandKind.FromOwnedCpuBytes,
+            request,
+            byteCount,
+            rowLength,
+            imageHeight,
+            PboUpload: default,
+            FlushRange: MappedFlushRange.None,
+            OwnedBuffer: owned);
 }
