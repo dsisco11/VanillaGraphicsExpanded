@@ -32,16 +32,16 @@ Texture Streaming - Persistent-Mapped StageCopy Refactor (Option B First):
 
   Phase 1 - Contracts + Producer API (StageCopy):
   Exit artifacts: A clear public contract exists for immediate deep-copy staging + async GPU upload.
-  ☐ Define `TextureUploadPriority` (e.g., Low/Normal/High) and document semantics.
-  ☐ Define `StageCopy(...)` API surface (manager/system), including:
+  ✔ Define `TextureUploadPriority` (e.g., Low/Normal/High) and document semantics. @done
+  ✔ Define `StageCopy(...)` API surface (manager/system), including: @done
     - texture target + sub-region + mip
     - pixel format/type + pixel store (alignment/rowLength/imageHeight)
     - typed input overloads (byte/ushort/Half/float)
     - optional priority parameter (defaults to Normal)
-  ☐ Define result semantics (`TextureStageResult`): staged-to-ring vs fallback-enqueued vs dropped/rejected.
-  ☐ Specify behavior when persistent staging is not ready yet (startup / no GL tick yet):
+  ✔ Define result semantics (`TextureStageResult`): staged-to-ring vs fallback-enqueued vs dropped/rejected. @done
+  ✔ Specify behavior when persistent staging is not ready yet (startup / no GL tick yet): @done
     - StageCopy still deep-copies immediately, but routes to fallback queue.
-  ☐ Update docs: “Data Lifetime” becomes “safe to reuse input immediately” for StageCopy.
+  ✔ Update docs: “Data Lifetime” becomes “safe to reuse input immediately” for StageCopy. @done
 
 
   Phase 2 - Queue + Scheduler Abstractions (Option B, extensible to A):

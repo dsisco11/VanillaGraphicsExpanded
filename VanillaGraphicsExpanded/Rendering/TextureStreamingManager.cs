@@ -57,6 +57,201 @@ internal sealed class TextureStreamingManager : IDisposable
         Interlocked.Increment(ref enqueued);
     }
 
+    public TextureStageResult StageCopy(
+        int textureId,
+        TextureUploadTarget target,
+        TextureUploadRegion region,
+        PixelFormat pixelFormat,
+        PixelType pixelType,
+        ReadOnlySpan<byte> data,
+        TextureUploadPriority priority = TextureUploadPriority.Normal,
+        int unpackAlignment = 1,
+        int unpackRowLength = 0,
+        int unpackImageHeight = 0)
+    {
+        if (disposed)
+        {
+            return TextureStageResult.Rejected(TextureStageRejectReason.ManagerDisposed);
+        }
+
+        if (textureId <= 0)
+        {
+            return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
+        }
+
+        if (!TryComputeUploadByteCount(region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, out int requiredBytes))
+        {
+            return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
+        }
+
+        if (data.Length < requiredBytes)
+        {
+            return TextureStageResult.Rejected(TextureStageRejectReason.DataTooSmall);
+        }
+
+        byte[] owned = data.Slice(0, requiredBytes).ToArray();
+        Enqueue(new TextureUploadRequest(
+            TextureId: textureId,
+            Target: target,
+            Region: region,
+            PixelFormat: pixelFormat,
+            PixelType: pixelType,
+            Data: TextureUploadData.From(owned),
+            Priority: (int)priority,
+            UnpackAlignment: unpackAlignment,
+            UnpackRowLength: unpackRowLength,
+            UnpackImageHeight: unpackImageHeight));
+
+        return TextureStageResult.EnqueuedFallback();
+    }
+
+    public TextureStageResult StageCopy(
+        int textureId,
+        TextureUploadTarget target,
+        TextureUploadRegion region,
+        PixelFormat pixelFormat,
+        PixelType pixelType,
+        ReadOnlySpan<ushort> data,
+        TextureUploadPriority priority = TextureUploadPriority.Normal,
+        int unpackAlignment = 1,
+        int unpackRowLength = 0,
+        int unpackImageHeight = 0)
+    {
+        if (pixelType != PixelType.UnsignedShort && pixelType != PixelType.Short)
+        {
+            return TextureStageResult.Rejected(TextureStageRejectReason.DataTypeMismatch);
+        }
+
+        if (!TryComputeUploadByteCount(region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, out int requiredBytes))
+        {
+            return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
+        }
+
+        if ((requiredBytes % sizeof(ushort)) != 0)
+        {
+            return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
+        }
+
+        int requiredElements = requiredBytes / sizeof(ushort);
+        if (data.Length < requiredElements)
+        {
+            return TextureStageResult.Rejected(TextureStageRejectReason.DataTooSmall);
+        }
+
+        ushort[] owned = data.Slice(0, requiredElements).ToArray();
+        Enqueue(new TextureUploadRequest(
+            TextureId: textureId,
+            Target: target,
+            Region: region,
+            PixelFormat: pixelFormat,
+            PixelType: pixelType,
+            Data: TextureUploadData.From(owned),
+            Priority: (int)priority,
+            UnpackAlignment: unpackAlignment,
+            UnpackRowLength: unpackRowLength,
+            UnpackImageHeight: unpackImageHeight));
+
+        return TextureStageResult.EnqueuedFallback();
+    }
+
+    public TextureStageResult StageCopy(
+        int textureId,
+        TextureUploadTarget target,
+        TextureUploadRegion region,
+        PixelFormat pixelFormat,
+        PixelType pixelType,
+        ReadOnlySpan<Half> data,
+        TextureUploadPriority priority = TextureUploadPriority.Normal,
+        int unpackAlignment = 1,
+        int unpackRowLength = 0,
+        int unpackImageHeight = 0)
+    {
+        if (pixelType != PixelType.HalfFloat)
+        {
+            return TextureStageResult.Rejected(TextureStageRejectReason.DataTypeMismatch);
+        }
+
+        if (!TryComputeUploadByteCount(region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, out int requiredBytes))
+        {
+            return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
+        }
+
+        if ((requiredBytes % sizeof(ushort)) != 0)
+        {
+            return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
+        }
+
+        int requiredElements = requiredBytes / sizeof(ushort);
+        if (data.Length < requiredElements)
+        {
+            return TextureStageResult.Rejected(TextureStageRejectReason.DataTooSmall);
+        }
+
+        Half[] owned = data.Slice(0, requiredElements).ToArray();
+        Enqueue(new TextureUploadRequest(
+            TextureId: textureId,
+            Target: target,
+            Region: region,
+            PixelFormat: pixelFormat,
+            PixelType: pixelType,
+            Data: TextureUploadData.From(owned),
+            Priority: (int)priority,
+            UnpackAlignment: unpackAlignment,
+            UnpackRowLength: unpackRowLength,
+            UnpackImageHeight: unpackImageHeight));
+
+        return TextureStageResult.EnqueuedFallback();
+    }
+
+    public TextureStageResult StageCopy(
+        int textureId,
+        TextureUploadTarget target,
+        TextureUploadRegion region,
+        PixelFormat pixelFormat,
+        PixelType pixelType,
+        ReadOnlySpan<float> data,
+        TextureUploadPriority priority = TextureUploadPriority.Normal,
+        int unpackAlignment = 1,
+        int unpackRowLength = 0,
+        int unpackImageHeight = 0)
+    {
+        if (pixelType != PixelType.Float)
+        {
+            return TextureStageResult.Rejected(TextureStageRejectReason.DataTypeMismatch);
+        }
+
+        if (!TryComputeUploadByteCount(region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, out int requiredBytes))
+        {
+            return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
+        }
+
+        if ((requiredBytes % sizeof(float)) != 0)
+        {
+            return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
+        }
+
+        int requiredElements = requiredBytes / sizeof(float);
+        if (data.Length < requiredElements)
+        {
+            return TextureStageResult.Rejected(TextureStageRejectReason.DataTooSmall);
+        }
+
+        float[] owned = data.Slice(0, requiredElements).ToArray();
+        Enqueue(new TextureUploadRequest(
+            TextureId: textureId,
+            Target: target,
+            Region: region,
+            PixelFormat: pixelFormat,
+            PixelType: pixelType,
+            Data: TextureUploadData.From(owned),
+            Priority: (int)priority,
+            UnpackAlignment: unpackAlignment,
+            UnpackRowLength: unpackRowLength,
+            UnpackImageHeight: unpackImageHeight));
+
+        return TextureStageResult.EnqueuedFallback();
+    }
+
     public void TickOnRenderThread()
     {
         if (disposed)
@@ -210,6 +405,50 @@ internal sealed class TextureStreamingManager : IDisposable
             || previous.PersistentRingBytes != next.PersistentRingBytes
             || previous.TripleBufferBytes != next.TripleBufferBytes
             || previous.PboAlignment != next.PboAlignment;
+    }
+
+    private static bool TryComputeUploadByteCount(
+        in TextureUploadRegion region,
+        PixelFormat pixelFormat,
+        PixelType pixelType,
+        int unpackRowLength,
+        int unpackImageHeight,
+        out int byteCount)
+    {
+        byteCount = 0;
+
+        if (region.Width <= 0 || region.Height <= 0 || region.Depth <= 0)
+        {
+            return false;
+        }
+
+        int rowLength = unpackRowLength > 0 ? unpackRowLength : region.Width;
+        int imageHeight = unpackImageHeight > 0 ? unpackImageHeight : region.Height;
+
+        if (rowLength <= 0 || imageHeight <= 0)
+        {
+            return false;
+        }
+
+        if (rowLength < region.Width || imageHeight < region.Height)
+        {
+            return false;
+        }
+
+        int bytesPerPixel = TextureStreamingUtils.GetBytesPerPixel(pixelFormat, pixelType);
+        if (bytesPerPixel <= 0)
+        {
+            return false;
+        }
+
+        long byteCountLong = (long)rowLength * imageHeight * region.Depth * bytesPerPixel;
+        if (byteCountLong <= 0 || byteCountLong > int.MaxValue)
+        {
+            return false;
+        }
+
+        byteCount = (int)byteCountLong;
+        return true;
     }
 
     private static bool TryPrepareRequest(TextureUploadRequest request, out PreparedUpload prepared)
@@ -775,6 +1014,36 @@ internal enum TextureStreamingBackendKind
     None = 0,
     PersistentMappedRing = 1,
     TripleBuffered = 2
+}
+
+internal enum TextureUploadPriority
+{
+    Low = -100,
+    Normal = 0,
+    High = 100
+}
+
+internal enum TextureStageOutcome
+{
+    StagedToPersistentRing = 0,
+    EnqueuedFallback = 1,
+    Rejected = 2
+}
+
+internal enum TextureStageRejectReason
+{
+    None = 0,
+    ManagerDisposed = 1,
+    InvalidArguments = 2,
+    DataTooSmall = 3,
+    DataTypeMismatch = 4
+}
+
+internal readonly record struct TextureStageResult(TextureStageOutcome Outcome, TextureStageRejectReason RejectReason = TextureStageRejectReason.None)
+{
+    public static TextureStageResult StagedToPersistentRing() => new(TextureStageOutcome.StagedToPersistentRing);
+    public static TextureStageResult EnqueuedFallback() => new(TextureStageOutcome.EnqueuedFallback);
+    public static TextureStageResult Rejected(TextureStageRejectReason reason) => new(TextureStageOutcome.Rejected, reason);
 }
 
 internal readonly record struct TextureStreamingSettings(

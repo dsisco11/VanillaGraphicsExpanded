@@ -86,6 +86,20 @@ Implications:
   - a render-thread-only API that stages into the PBO immediately (still requires GL context), or
   - completion handles so callers can return arrays after upload completes.
 
+#### StageCopy contract
+
+`TextureStreamingManager.StageCopy(...)` (and the `TextureStreamingSystem.StageCopy(...)` passthroughs) provide a stronger producer contract:
+
+- **Safe to reuse input immediately:** `StageCopy(...)` deep-copies the required bytes from the provided span before returning.
+- **No producer-side GL calls:** producers never touch GL; the render thread performs the actual `glTexSubImage*`.
+- **Startup / persistent staging not ready:** if the persistent-mapped staging backend is not initialized yet (e.g., before the first render tick / before a GL context has been used), `StageCopy(...)` still deep-copies immediately but routes the request to the existing fallback queue.
+
+Result semantics are reported via `TextureStageResult`:
+
+- `StagedToPersistentRing`: data was copied directly into the persistent-mapped ring and only the GPU upload remains.
+- `EnqueuedFallback`: data was deep-copied into an owned CPU buffer and enqueued for upload by the render thread.
+- `Rejected`: invalid arguments, type mismatch, or insufficient input data (see `TextureStageRejectReason`).
+
 ### 5.1 Integration with `DynamicTexture` / `DynamicTexture3D`
 
 The `DynamicTexture` wrappers currently expose **two different semantics**:
