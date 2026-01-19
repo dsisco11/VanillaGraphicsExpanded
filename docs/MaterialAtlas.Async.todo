@@ -33,7 +33,7 @@ Goals:
   ☑ Document new knobs and defaults in config docs and change notes.
   ☑ Update the progress panel to show material params vs normal+depth progress.
 
-☐ Phase 5 - Validation and regression coverage
-  ☐ Add tests for determinism and cache key stability when async is enabled.
-  ☐ Add a perf checklist: rebuild time, max frame time spike, total tiles.
-  ☐ Validate sync vs async output parity for a fixed atlas snapshot.
+☑ Phase 5 - Validation and regression coverage
+  ☑ Add tests for determinism and cache key stability when async is enabled.
+  ☑ Add a perf checklist: rebuild time, max frame time spike, total tiles.
+  ☑ Validate sync vs async output parity for a fixed atlas snapshot.

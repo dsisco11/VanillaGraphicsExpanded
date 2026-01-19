@@ -91,7 +91,7 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
 
             Assert.Equal(k1, k2);
 
-            // Changing config should change inputs => change key.
+            // Async scheduling is a performance concern and must not affect cache keys.
             var cfg2 = new LumOnConfig
             {
                 EnableMaterialAtlasAsyncBuild = false,
@@ -101,7 +101,18 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
             var inputs2 = MaterialAtlasCacheKeyInputs.Create(cfg2, snapshot, PbrMaterialRegistry.Instance);
             AtlasCacheKey k3 = builder.BuildMaterialParamsTileKey(inputs2, 101, rect, texture, def, scale);
 
-            Assert.NotEqual(k1, k3);
+            Assert.Equal(k1, k3);
+
+            // Output-affecting config should change inputs => change key.
+            var cfg3 = new LumOnConfig
+            {
+                EnableMaterialAtlasAsyncBuild = true,
+                EnableNormalDepthAtlas = false
+            };
+
+            var inputs3 = MaterialAtlasCacheKeyInputs.Create(cfg3, snapshot, PbrMaterialRegistry.Instance);
+            AtlasCacheKey k4 = builder.BuildMaterialParamsTileKey(inputs3, 101, rect, texture, def, scale);
+            Assert.NotEqual(k1, k4);
         }
         finally
         {
@@ -246,6 +257,89 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
 
             Assert.NotEqual(ndA, ndB);
             Assert.NotEqual(ndA, ndC);
+        }
+        finally
+        {
+            PbrMaterialRegistry.Instance.Clear();
+        }
+    }
+
+    [Fact]
+    public void CacheKeys_DoNotChange_WhenAsyncBudgetsChange()
+    {
+        var logger = new TestLogger();
+
+        var src = Source(
+            domain: "game",
+            path: "config/vge/material_definitions.json",
+            json: """
+            {
+              "version": 1,
+              "defaults": { "scale": { "normal": 1.0, "depth": 1.0 } },
+              "materials": { "stone": { "roughness": 0.2, "metallic": 0.3, "emissive": 0.4 } },
+              "mapping": [
+                {
+                  "id": "rule",
+                  "priority": 0,
+                  "match": { "glob": "assets/game/textures/block/test.png" },
+                  "values": { "material": "stone" }
+                }
+              ]
+            }
+            """
+        );
+
+        try
+        {
+            PbrMaterialRegistry.Instance.InitializeFromParsedSources(
+                logger,
+                parsedSources: new[] { src },
+                textureLocations: new[] { new AssetLocation("game", "textures/block/test.png") },
+                strict: true);
+
+            var snapshot = new AtlasSnapshot(
+                Pages: new[] { new AtlasSnapshot.AtlasPage(AtlasTextureId: 101, Width: 16, Height: 16) },
+                Positions: Array.Empty<TextureAtlasPosition?>(),
+                ReloadIteration: 1,
+                NonNullPositionCount: 1);
+
+            var rect = new AtlasRect(0, 0, 16, 16);
+            var texture = new AssetLocation("game", "textures/block/test.png");
+
+            Assert.True(PbrMaterialRegistry.Instance.TryGetMaterial(texture, out PbrMaterialDefinition def));
+            Assert.True(PbrMaterialRegistry.Instance.TryGetScale(texture, out PbrOverrideScale scale));
+
+            var builder = new MaterialAtlasCacheKeyBuilder();
+
+            var cfgA = new LumOnConfig
+            {
+                EnableMaterialAtlasAsyncBuild = true,
+                EnableNormalDepthAtlas = true,
+                MaterialAtlasAsyncBudgetMs = 1.5f,
+                MaterialAtlasAsyncMaxUploadsPerFrame = 8,
+                MaterialAtlasAsyncMaxCpuJobsPerFrame = 2,
+                NormalDepthAtlasAsyncBudgetMs = 0.75f,
+                NormalDepthAtlasAsyncMaxUploadsPerFrame = 2
+            };
+
+            var cfgB = new LumOnConfig
+            {
+                EnableMaterialAtlasAsyncBuild = true,
+                EnableNormalDepthAtlas = true,
+                MaterialAtlasAsyncBudgetMs = 3.0f,
+                MaterialAtlasAsyncMaxUploadsPerFrame = 32,
+                MaterialAtlasAsyncMaxCpuJobsPerFrame = 8,
+                NormalDepthAtlasAsyncBudgetMs = 2.0f,
+                NormalDepthAtlasAsyncMaxUploadsPerFrame = 8
+            };
+
+            var inputsA = MaterialAtlasCacheKeyInputs.Create(cfgA, snapshot, PbrMaterialRegistry.Instance);
+            var inputsB = MaterialAtlasCacheKeyInputs.Create(cfgB, snapshot, PbrMaterialRegistry.Instance);
+
+            AtlasCacheKey kA = builder.BuildMaterialParamsTileKey(inputsA, 101, rect, texture, def, scale);
+            AtlasCacheKey kB = builder.BuildMaterialParamsTileKey(inputsB, 101, rect, texture, def, scale);
+
+            Assert.Equal(kA, kB);
         }
         finally
         {
