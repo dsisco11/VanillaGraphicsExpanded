@@ -5,7 +5,6 @@ using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.PBR.Materials;
-using VanillaGraphicsExpanded.PBR.Materials.Diagnostics;
 using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Profiling;
@@ -23,12 +22,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     private GBufferManager? gBufferManager;
     private GlGpuProfilerRenderer? gpuProfilerRenderer;
     private HarmonyLib.Harmony? harmony;
-
-    private HudMaterialAtlasProgressPanel? materialAtlasProgressPanel;
-
-    private bool isLevelFinalized;
-    private bool pendingMaterialAtlasPopulate;
-    private long materialAtlasPopulateCallbackId;
 
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
@@ -78,55 +71,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         // Create G-buffer manager (Harmony hooks will call into this)
         gBufferManager = new GBufferManager(api);
 
-        // Material params + normal/depth atlas textures:
-        // - Phase 1 (allocation) can happen any time (no-op until atlas exists)
-        // - Phase 2 (populate/bake) must only run after the block atlas is finalized
-        MaterialAtlasSystem.Instance.CreateTextureObjects(api);
-        api.Event.BlockTexturesLoaded += () =>
-        {
-            // Keep textures in sync with the block atlas as soon as it exists,
-            // but defer the expensive population/bake until the world is fully ready.
-            MaterialAtlasSystem.Instance.CreateTextureObjects(api);
-
-            if (isLevelFinalized)
-            {
-                MaterialAtlasSystem.Instance.PopulateAtlasContents(api);
-            }
-            else
-            {
-                pendingMaterialAtlasPopulate = true;
-            }
-        };
-
-        api.Event.LevelFinalize += () =>
-        {
-            isLevelFinalized = true;
-
-            if (!pendingMaterialAtlasPopulate)
-            {
-                return;
-            }
-
-            pendingMaterialAtlasPopulate = false;
-
-            if (materialAtlasPopulateCallbackId != 0)
-            {
-                api.Event.UnregisterCallback(materialAtlasPopulateCallbackId);
-            }
-
-            // Give the client a brief moment after finalize to finish settling (GUI, chunk init, etc.).
-            materialAtlasPopulateCallbackId = api.Event.RegisterCallback(
-                _ => MaterialAtlasSystem.Instance.PopulateAtlasContents(api),
-                millisecondDelay: 500);
-        };
-
-        // Optional: small in-game progress overlay while the material atlas builds.
-        materialAtlasProgressPanel = new HudMaterialAtlasProgressPanel(api, MaterialAtlasSystem.Instance);
-        api.Event.ReloadTextures += () => {
-            api.Logger.Debug("[VGE] ReloadTextures event");
-            MaterialAtlasSystem.Instance.RequestRebuild(api);
-        };
-
         // Ensure all VGE memory shader programs are registered before any renderer can request them.
         // ShaderRegistry.getProgramByName() may attempt to create/load programs on demand if missing,
         // which can lead to engine-side NREs when stage instances are null.
@@ -161,15 +105,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         {
             VgeDebugViewManager.Dispose();
 
-            if (capi != null && materialAtlasPopulateCallbackId != 0)
-            {
-                capi.Event.UnregisterCallback(materialAtlasPopulateCallbackId);
-                materialAtlasPopulateCallbackId = 0;
-            }
-
-            materialAtlasProgressPanel?.Dispose();
-            materialAtlasProgressPanel = null;
-
             // Unregister GPU debug label renderers
             if (capi != null)
             {
@@ -180,8 +115,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
             gpuProfilerRenderer = null;
 
             GlGpuProfiler.Instance.Dispose();
-
-            MaterialAtlasSystem.Instance.Dispose();
 
             gBufferManager?.Dispose();
             gBufferManager = null;
