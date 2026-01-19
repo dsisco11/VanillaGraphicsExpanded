@@ -1379,20 +1379,23 @@ public class LumOnRenderer : IRenderer, IDisposable
                 out var origins,
                 out var rings))
         {
-            shader.WorldProbeEnabled = 0;
+            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
             return;
         }
 
-        shader.WorldProbeEnabled = 1;
+        // Clipmap parameters are compile-time defines in the shader include.
+        // If they change, VGE will queue a recompile; we must skip binding uniforms this frame.
+        if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, baseSpacing, levels, resolution))
+        {
+            return;
+        }
+
         shader.WorldProbeSH0 = resources.ProbeSh0TextureId;
         shader.WorldProbeSH1 = resources.ProbeSh1TextureId;
         shader.WorldProbeSH2 = resources.ProbeSh2TextureId;
         shader.WorldProbeVis0 = resources.ProbeVis0TextureId;
         shader.WorldProbeMeta0 = resources.ProbeMeta0TextureId;
         shader.WorldProbeCameraPosWS = camPos;
-        shader.WorldProbeBaseSpacing = baseSpacing;
-        shader.WorldProbeLevels = levels;
-        shader.WorldProbeResolution = resolution;
 
         for (int i = 0; i < 8; i++)
         {
@@ -1411,20 +1414,21 @@ public class LumOnRenderer : IRenderer, IDisposable
                 out var origins,
                 out var rings))
         {
-            shader.WorldProbeEnabled = 0;
+            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
             return;
         }
 
-        shader.WorldProbeEnabled = 1;
+        if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, baseSpacing, levels, resolution))
+        {
+            return;
+        }
+
         shader.WorldProbeSH0 = resources.ProbeSh0TextureId;
         shader.WorldProbeSH1 = resources.ProbeSh1TextureId;
         shader.WorldProbeSH2 = resources.ProbeSh2TextureId;
         shader.WorldProbeVis0 = resources.ProbeVis0TextureId;
         shader.WorldProbeMeta0 = resources.ProbeMeta0TextureId;
         shader.WorldProbeCameraPosWS = camPos;
-        shader.WorldProbeBaseSpacing = baseSpacing;
-        shader.WorldProbeLevels = levels;
-        shader.WorldProbeResolution = resolution;
 
         for (int i = 0; i < 8; i++)
         {
@@ -1443,20 +1447,21 @@ public class LumOnRenderer : IRenderer, IDisposable
                 out var origins,
                 out var rings))
         {
-            shader.WorldProbeEnabled = 0;
+            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
             return;
         }
 
-        shader.WorldProbeEnabled = 1;
+        if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, baseSpacing, levels, resolution))
+        {
+            return;
+        }
+
         shader.WorldProbeSH0 = resources.ProbeSh0TextureId;
         shader.WorldProbeSH1 = resources.ProbeSh1TextureId;
         shader.WorldProbeSH2 = resources.ProbeSh2TextureId;
         shader.WorldProbeVis0 = resources.ProbeVis0TextureId;
         shader.WorldProbeMeta0 = resources.ProbeMeta0TextureId;
         shader.WorldProbeCameraPosWS = camPos;
-        shader.WorldProbeBaseSpacing = baseSpacing;
-        shader.WorldProbeLevels = levels;
-        shader.WorldProbeResolution = resolution;
 
         for (int i = 0; i < 8; i++)
         {

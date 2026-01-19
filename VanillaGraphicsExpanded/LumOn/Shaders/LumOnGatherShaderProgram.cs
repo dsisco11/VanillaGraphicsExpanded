@@ -160,6 +160,23 @@ public class LumOnGatherShaderProgram : VgeShaderProgram
 
     public int WorldProbeEnabled { set => SetDefine(VgeShaderDefines.LumOnWorldProbeEnabled, value != 0 ? "1" : "0"); }
 
+    public bool EnsureWorldProbeClipmapDefines(bool enabled, float baseSpacing, int levels, int resolution)
+    {
+        if (!enabled)
+        {
+            baseSpacing = 0;
+            levels = 0;
+            resolution = 0;
+        }
+
+        bool changed = false;
+        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeEnabled, enabled ? "1" : "0");
+        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapLevels, levels.ToString(CultureInfo.InvariantCulture));
+        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, resolution.ToString(CultureInfo.InvariantCulture));
+        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, baseSpacing.ToString("0.0####", CultureInfo.InvariantCulture));
+        return !changed;
+    }
+
     public int WorldProbeSH0 { set => BindTexture2D("worldProbeSH0", value, 6); }
     public int WorldProbeSH1 { set => BindTexture2D("worldProbeSH1", value, 7); }
     public int WorldProbeSH2 { set => BindTexture2D("worldProbeSH2", value, 8); }
