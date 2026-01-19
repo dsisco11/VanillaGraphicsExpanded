@@ -84,17 +84,17 @@ LumOn - Phase 18 - World-Space Clipmap Probe System (Implementation):
 
   Phase 18.6 - CPU Trace Backend (Async Voxel Traces):
   Exit artifacts: CPU generates trace samples + metadata for selected probes, asynchronously and safely.
-  ☐ Decide voxel trace representation and scene sampling source (what data is accessible from VS).
-  ☐ Implement async worker pipeline:
-    - Work item creation (probe id, level, origin, directions)
-    - Worker execution (trace, integrate)
-    - Result handoff and lifetime management
-  ☐ Define trace sampling pattern (directions / stratification) consistent with SH expectations.
-  ☐ Compute per-probe outputs:
-    - L1 SH coefficients
-    - ShortRangeAO visibility direction (or occlusion proxy)
-    - Confidence and distance metrics
-  ☐ Add cancellation/backpressure when camera moves rapidly or budgets are exceeded.
+  ✔ Decide voxel trace representation and scene sampling source (what data is accessible from VS). @done
+  ✔ Implement async worker pipeline: @done
+    - Work item creation (probe id, level, origin, directions) @done
+    - Worker execution (trace, integrate) @done
+    - Result handoff and lifetime management @done
+  ✔ Define trace sampling pattern (directions / stratification) consistent with SH expectations. @done
+  ✔ Compute per-probe outputs: @done
+    - L1 SH coefficients @done
+    - ShortRangeAO visibility direction (or occlusion proxy) @done
+    - Confidence and distance metrics @done
+  ✔ Add cancellation/backpressure when camera moves rapidly or budgets are exceeded. @done
 
 
   Phase 18.7 - GPU Upload + Integration:
