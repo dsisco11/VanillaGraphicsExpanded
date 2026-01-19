@@ -1399,7 +1399,11 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         for (int i = 0; i < 8; i++)
         {
-            shader.SetWorldProbeLevelParams(i, origins[i], rings[i]);
+            if (!shader.TrySetWorldProbeLevelParams(i, origins[i], rings[i]))
+            {
+                shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
+                return;
+            }
         }
     }
 
@@ -1432,7 +1436,11 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         for (int i = 0; i < 8; i++)
         {
-            shader.SetWorldProbeLevelParams(i, origins[i], rings[i]);
+            if (!shader.TrySetWorldProbeLevelParams(i, origins[i], rings[i]))
+            {
+                shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
+                return;
+            }
         }
     }
 
@@ -1465,7 +1473,11 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         for (int i = 0; i < 8; i++)
         {
-            shader.SetWorldProbeLevelParams(i, origins[i], rings[i]);
+            if (!shader.TrySetWorldProbeLevelParams(i, origins[i], rings[i]))
+            {
+                shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
+                return;
+            }
         }
     }
 

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Collections.Generic;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
@@ -34,6 +35,23 @@ public class LumOnDebugShaderProgram : VgeShaderProgram
 
     public int WorldProbeEnabled { set => SetDefine(VgeShaderDefines.LumOnWorldProbeEnabled, value != 0 ? "1" : "0"); }
 
+    public bool EnsureWorldProbeClipmapDefines(bool enabled, float baseSpacing, int levels, int resolution)
+    {
+        if (!enabled)
+        {
+            baseSpacing = 0;
+            levels = 0;
+            resolution = 0;
+        }
+
+        bool changed = false;
+        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeEnabled, enabled ? "1" : "0");
+        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapLevels, levels.ToString(CultureInfo.InvariantCulture));
+        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, resolution.ToString(CultureInfo.InvariantCulture));
+        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, baseSpacing.ToString("0.0####", CultureInfo.InvariantCulture));
+        return !changed;
+    }
+
     public int WorldProbeSH0 { set => BindTexture2D("worldProbeSH0", value, 19); }
     public int WorldProbeSH1 { set => BindTexture2D("worldProbeSH1", value, 20); }
     public int WorldProbeSH2 { set => BindTexture2D("worldProbeSH2", value, 21); }
@@ -52,8 +70,21 @@ public class LumOnDebugShaderProgram : VgeShaderProgram
 
     public void SetWorldProbeLevelParams(int level, Vec3f originMinCorner, Vec3f ringOffset)
     {
-        Uniform($"worldProbeOriginMinCorner[{level}]", originMinCorner);
-        Uniform($"worldProbeRingOffset[{level}]", ringOffset);
+        TrySetWorldProbeLevelParams(level, originMinCorner, ringOffset);
+    }
+
+    public bool TrySetWorldProbeLevelParams(int level, Vec3f originMinCorner, Vec3f ringOffset)
+    {
+        try
+        {
+            Uniform($"worldProbeOriginMinCorner[{level}]", originMinCorner);
+            Uniform($"worldProbeRingOffset[{level}]", ringOffset);
+            return true;
+        }
+        catch (KeyNotFoundException)
+        {
+            return false;
+        }
     }
 
     #endregion

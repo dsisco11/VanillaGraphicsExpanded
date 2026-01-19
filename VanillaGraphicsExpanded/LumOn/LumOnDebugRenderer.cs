@@ -187,6 +187,38 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         shader.EnableAO = config.EnableAO;
         shader.EnableShortRangeAo = config.EnableShortRangeAo;
 
+        // Phase 18 world-probe defines must be set before Use() as well.
+        bool wantWorldProbe = false;
+        Vec3f wpCamPosVf = default;
+        float wpBaseSpacing = 0;
+        int wpLevels = 0;
+        int wpResolution = 0;
+        System.Numerics.Vector3[]? wpOrigins = null;
+        System.Numerics.Vector3[]? wpRings = null;
+
+        if (worldProbeClipmapBufferManager?.Resources is not null
+            && worldProbeClipmapBufferManager.TryGetRuntimeParams(
+                out var wpCamPos,
+                out wpBaseSpacing,
+                out wpLevels,
+                out wpResolution,
+                out wpOrigins,
+                out wpRings))
+        {
+            wantWorldProbe = true;
+            wpCamPosVf = new Vec3f(wpCamPos.X, wpCamPos.Y, wpCamPos.Z);
+
+            // If defines changed, a recompile has been queued; skip rendering this frame.
+            if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, wpBaseSpacing, wpLevels, wpResolution))
+            {
+                return;
+            }
+        }
+        else
+        {
+            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
+        }
+
         shader.Use();
 
         // Bind textures
@@ -226,17 +258,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         shader.ProbeAtlasGatherInput = gatherInput;
         shader.GatherAtlasSource = gatherAtlasSource;
 
-        // Phase 18 world-probe debug inputs (only bound if available).
-        if (worldProbeClipmapBufferManager?.Resources is not null
-            && worldProbeClipmapBufferManager.TryGetRuntimeParams(
-                out var wpCamPos,
-                out var wpBaseSpacing,
-                out var wpLevels,
-                out var wpResolution,
-                out var wpOrigins,
-                out var wpRings))
+        // Phase 18 world-probe debug inputs (only bound if available + active in the compiled shader).
+        if (wantWorldProbe && worldProbeClipmapBufferManager?.Resources is not null && wpOrigins != null && wpRings != null)
         {
-            shader.WorldProbeEnabled = 1;
             shader.WorldProbeSH0 = worldProbeClipmapBufferManager.Resources.ProbeSh0TextureId;
             shader.WorldProbeSH1 = worldProbeClipmapBufferManager.Resources.ProbeSh1TextureId;
             shader.WorldProbeSH2 = worldProbeClipmapBufferManager.Resources.ProbeSh2TextureId;
@@ -245,21 +269,20 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             shader.WorldProbeMeta0 = worldProbeClipmapBufferManager.Resources.ProbeMeta0TextureId;
             shader.WorldProbeDebugState0 = worldProbeClipmapBufferManager.Resources.ProbeDebugState0TextureId;
 
-            shader.WorldProbeCameraPosWS = new Vec3f(wpCamPos.X, wpCamPos.Y, wpCamPos.Z);
-            shader.WorldProbeBaseSpacing = wpBaseSpacing;
-            shader.WorldProbeLevels = wpLevels;
-            shader.WorldProbeResolution = wpResolution;
+            shader.WorldProbeCameraPosWS = wpCamPosVf;
 
             for (int i = 0; i < 8; i++)
             {
                 var o = wpOrigins[i];
                 var r = wpRings[i];
-                shader.SetWorldProbeLevelParams(i, new Vec3f(o.X, o.Y, o.Z), new Vec3f(r.X, r.Y, r.Z));
+                if (!shader.TrySetWorldProbeLevelParams(
+                        i,
+                        new Vec3f(o.X, o.Y, o.Z),
+                        new Vec3f(r.X, r.Y, r.Z)))
+                {
+                    break;
+                }
             }
-        }
-        else
-        {
-            shader.WorldProbeEnabled = 0;
         }
 
         // Phase 15 composite debug inputs

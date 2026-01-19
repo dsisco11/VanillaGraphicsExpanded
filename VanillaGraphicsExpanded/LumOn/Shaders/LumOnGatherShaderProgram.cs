@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Collections.Generic;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
@@ -193,8 +194,21 @@ public class LumOnGatherShaderProgram : VgeShaderProgram
 
     public void SetWorldProbeLevelParams(int level, Vec3f originMinCorner, Vec3f ringOffset)
     {
-        Uniform($"worldProbeOriginMinCorner[{level}]", originMinCorner);
-        Uniform($"worldProbeRingOffset[{level}]", ringOffset);
+        TrySetWorldProbeLevelParams(level, originMinCorner, ringOffset);
+    }
+
+    public bool TrySetWorldProbeLevelParams(int level, Vec3f originMinCorner, Vec3f ringOffset)
+    {
+        try
+        {
+            Uniform($"worldProbeOriginMinCorner[{level}]", originMinCorner);
+            Uniform($"worldProbeRingOffset[{level}]", ringOffset);
+            return true;
+        }
+        catch (KeyNotFoundException)
+        {
+            return false;
+        }
     }
 
     #endregion
