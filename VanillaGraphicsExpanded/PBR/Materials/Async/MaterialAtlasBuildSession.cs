@@ -20,7 +20,8 @@ internal sealed class MaterialAtlasBuildSession : IDisposable
         IReadOnlyList<(int atlasTextureId, int width, int height)> atlasPages,
         IReadOnlyList<IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload>> cpuTileJobs,
         IReadOnlyList<MaterialAtlasParamsGpuOverrideUpload> overrideJobs,
-        MaterialOverrideTextureLoader overrideLoader)
+        MaterialOverrideTextureLoader overrideLoader,
+        MaterialAtlasAsyncCacheCounters? cacheCounters)
     {
         if (generationId <= 0) throw new ArgumentOutOfRangeException(nameof(generationId));
         GenerationId = generationId;
@@ -28,6 +29,7 @@ internal sealed class MaterialAtlasBuildSession : IDisposable
         CpuTileJobs = cpuTileJobs ?? throw new ArgumentNullException(nameof(cpuTileJobs));
         OverrideJobs = overrideJobs ?? throw new ArgumentNullException(nameof(overrideJobs));
         OverrideLoader = overrideLoader ?? throw new ArgumentNullException(nameof(overrideLoader));
+        CacheCounters = cacheCounters;
 
         cts = new CancellationTokenSource();
         CreatedUtc = DateTime.UtcNow;
@@ -64,6 +66,8 @@ internal sealed class MaterialAtlasBuildSession : IDisposable
     public Dictionary<int, MaterialAtlasBuildPageState> PagesByAtlasTexId { get; }
 
     public MaterialOverrideTextureLoader OverrideLoader { get; }
+
+    public MaterialAtlasAsyncCacheCounters? CacheCounters { get; }
 
     public int TotalTiles { get; }
 
@@ -124,6 +128,28 @@ internal sealed class MaterialAtlasBuildSession : IDisposable
 
             return true;
         }
+    }
+
+    public bool TryMarkOverrideSatisfiedByCache(int atlasTextureId, AtlasRect rect)
+    {
+        lock (overrideLock)
+        {
+            if (!overridesByRect.Remove((atlasTextureId, rect), out _))
+            {
+                return false;
+            }
+        }
+
+        // Treat as applied (tile already contains post-override output).
+        IncrementOverridesApplied();
+
+        if (PagesByAtlasTexId.TryGetValue(atlasTextureId, out MaterialAtlasBuildPageState? page))
+        {
+            page.PendingOverrides = Math.Max(0, page.PendingOverrides - 1);
+            page.CompletedOverrides++;
+        }
+
+        return true;
     }
 
     public void LogOverrideFailureOnce(

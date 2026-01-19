@@ -27,6 +27,8 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
     private int lastGpuUploads;
     private int lastOverrideUploads;
 
+    private int lastLoggedCompleteGenerationId;
+
     private MaterialAtlasBuildSession? session;
     private Func<int, VanillaGraphicsExpanded.PBR.Materials.MaterialAtlasPageTextures?>? tryGetPageTextures;
     private ICoreClientAPI? capi;
@@ -62,6 +64,8 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
             pendingCpuJobs.Clear();
             while (completedUploads.TryDequeue(out _)) { }
             pendingGpuUploads.Clear();
+
+            lastLoggedCompleteGenerationId = 0;
 
             var tileRects = new HashSet<(int atlasTexId, AtlasRect rect)>();
 
@@ -281,6 +285,23 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
         lastDispatchedCpuJobs = dispatched;
         lastGpuUploads = uploads - overrideUploads;
         lastOverrideUploads = overrideUploads;
+
+        if (active.IsComplete
+            && lastLoggedCompleteGenerationId != active.GenerationId
+            && ConfigModSystem.Config.EnableMaterialAtlasDiskCache
+            && ConfigModSystem.Config.DebugLogMaterialAtlasDiskCache
+            && capi is not null
+            && active.CacheCounters is not null)
+        {
+            lastLoggedCompleteGenerationId = active.GenerationId;
+            MaterialAtlasAsyncCacheCounters.Snapshot s = active.CacheCounters.GetSnapshot();
+            capi.Logger.Debug(
+                "[VGE] Material atlas disk cache (material params): base hits={0} misses={1}; override hits={2} misses={3}",
+                s.BaseHits,
+                s.BaseMisses,
+                s.OverrideHits,
+                s.OverrideMisses);
+        }
     }
 
     public MaterialAtlasAsyncBuildDiagnostics GetDiagnosticsSnapshot()

@@ -502,69 +502,36 @@ internal sealed class MaterialAtlasSystem : IDisposable
         }
 
         bool enableCache = ConfigModSystem.Config.EnableMaterialAtlasDiskCache;
-        int baseHits = 0;
-        int baseMisses = 0;
-        int overrideHits = 0;
-        int overrideMisses = 0;
+        var cacheCounters = enableCache ? new MaterialAtlasAsyncCacheCounters() : null;
 
+        var tileRects = new HashSet<(int atlasTexId, AtlasRect rect)>(capacity: plan.MaterialParamsTiles.Count);
         foreach (AtlasBuildPlan.MaterialParamsTileJob tile in plan.MaterialParamsTiles)
         {
-            AtlasCacheKey key = default;
-            if (enableCache)
-            {
-                // If a post-override tile is cached, we can skip both the procedural build and the override stage.
-                if (overridesByRect.TryGetValue((tile.AtlasTextureId, tile.Rect), out AtlasBuildPlan.MaterialParamsOverrideJob ov)
-                    && diskCache.TryLoadMaterialParamsTile(
-                        cacheKeyBuilder.BuildMaterialParamsOverrideTileKey(
-                            cacheInputs,
-                            tile.AtlasTextureId,
-                            tile.Rect,
-                            ov.TargetTexture,
-                            ov.OverrideTexture,
-                            ov.Scale,
-                            ov.RuleId,
-                            ov.RuleSource),
-                        out float[] cachedOverrideRgb))
-                {
-                    cpuJobs.Add(new MaterialAtlasParamsCpuCachedTileJob(
-                        GenerationId: generationId,
-                        AtlasTextureId: tile.AtlasTextureId,
-                        Rect: tile.Rect,
-                        RgbTriplets: cachedOverrideRgb,
-                        TargetTexture: tile.Texture,
-                        Priority: tile.Priority));
+            tileRects.Add((tile.AtlasTextureId, tile.Rect));
 
-                    // Mark consumed so we don't enqueue the override upload for this rect.
-                    overridesByRect.Remove((tile.AtlasTextureId, tile.Rect));
-                    overrideHits++;
-                    continue;
-                }
+            bool hasOverride = overridesByRect.TryGetValue((tile.AtlasTextureId, tile.Rect), out AtlasBuildPlan.MaterialParamsOverrideJob ov);
 
-                overrideMisses++;
-
-                key = cacheKeyBuilder.BuildMaterialParamsTileKey(
+            AtlasCacheKey baseKey = enableCache
+                ? cacheKeyBuilder.BuildMaterialParamsTileKey(
                     cacheInputs,
                     tile.AtlasTextureId,
                     tile.Rect,
                     tile.Texture,
                     tile.Definition,
-                    tile.Scale);
+                    tile.Scale)
+                : default;
 
-                if (diskCache.TryLoadMaterialParamsTile(key, out float[] rgb))
-                {
-                    cpuJobs.Add(new MaterialAtlasParamsCpuCachedTileJob(
-                        GenerationId: generationId,
-                        AtlasTextureId: tile.AtlasTextureId,
-                        Rect: tile.Rect,
-                        RgbTriplets: rgb,
-                        TargetTexture: tile.Texture,
-                        Priority: tile.Priority));
-                    baseHits++;
-                    continue;
-                }
-
-                baseMisses++;
-            }
+            AtlasCacheKey overrideKey = enableCache && hasOverride
+                ? cacheKeyBuilder.BuildMaterialParamsOverrideTileKey(
+                    cacheInputs,
+                    tile.AtlasTextureId,
+                    tile.Rect,
+                    ov.TargetTexture,
+                    ov.OverrideTexture,
+                    ov.Scale,
+                    ov.RuleId,
+                    ov.RuleSource)
+                : default;
 
             cpuJobs.Add(new MaterialAtlasParamsCpuTileJob(
                 GenerationId: generationId,
@@ -574,22 +541,24 @@ internal sealed class MaterialAtlasSystem : IDisposable
                 Definition: tile.Definition,
                 Priority: tile.Priority,
                 DiskCache: enableCache ? diskCache : null,
-                CacheKey: key));
+                BaseCacheKey: baseKey,
+                OverrideCacheKey: overrideKey,
+                HasOverride: hasOverride,
+                IsOverrideOnly: false,
+                CacheCounters: cacheCounters));
         }
 
-        var overrideJobs = new List<MaterialAtlasParamsGpuOverrideUpload>(capacity: plan.MaterialParamsOverrides.Count);
+        // Add cache-aware jobs for override-only rects so cache hits can skip the override stage,
+        // and cache misses can trigger the override upload without overwriting default params.
         foreach (AtlasBuildPlan.MaterialParamsOverrideJob ov in plan.MaterialParamsOverrides)
         {
-            // If we already satisfied this rect via cached post-override output, skip scheduling.
-            if (!overridesByRect.ContainsKey((ov.AtlasTextureId, ov.Rect)))
+            if (tileRects.Contains((ov.AtlasTextureId, ov.Rect)))
             {
                 continue;
             }
 
-            // If an override-only rect is cached (or a rect with a missing tile job), upload directly and skip the override stage.
-            if (enableCache)
-            {
-                AtlasCacheKey overrideKey = cacheKeyBuilder.BuildMaterialParamsOverrideTileKey(
+            AtlasCacheKey overrideKey = enableCache
+                ? cacheKeyBuilder.BuildMaterialParamsOverrideTileKey(
                     cacheInputs,
                     ov.AtlasTextureId,
                     ov.Rect,
@@ -597,25 +566,27 @@ internal sealed class MaterialAtlasSystem : IDisposable
                     ov.OverrideTexture,
                     ov.Scale,
                     ov.RuleId,
-                    ov.RuleSource);
+                    ov.RuleSource)
+                : default;
 
-                if (diskCache.TryLoadMaterialParamsTile(overrideKey, out float[] cachedOverrideRgb))
-                {
-                    cpuJobs.Add(new MaterialAtlasParamsCpuCachedTileJob(
-                        GenerationId: generationId,
-                        AtlasTextureId: ov.AtlasTextureId,
-                        Rect: ov.Rect,
-                        RgbTriplets: cachedOverrideRgb,
-                        TargetTexture: ov.TargetTexture,
-                        Priority: ov.Priority));
+            cpuJobs.Add(new MaterialAtlasParamsCpuTileJob(
+                GenerationId: generationId,
+                AtlasTextureId: ov.AtlasTextureId,
+                Rect: ov.Rect,
+                Texture: ov.TargetTexture,
+                Definition: null,
+                Priority: ov.Priority,
+                DiskCache: enableCache ? diskCache : null,
+                BaseCacheKey: default,
+                OverrideCacheKey: overrideKey,
+                HasOverride: true,
+                IsOverrideOnly: true,
+                CacheCounters: cacheCounters));
+        }
 
-                    overrideHits++;
-                    continue;
-                }
-
-                overrideMisses++;
-            }
-
+        var overrideJobs = new List<MaterialAtlasParamsGpuOverrideUpload>(capacity: plan.MaterialParamsOverrides.Count);
+        foreach (AtlasBuildPlan.MaterialParamsOverrideJob ov in plan.MaterialParamsOverrides)
+        {
             overrideJobs.Add(new MaterialAtlasParamsGpuOverrideUpload(
                 GenerationId: generationId,
                 AtlasTextureId: ov.AtlasTextureId,
@@ -645,32 +616,9 @@ internal sealed class MaterialAtlasSystem : IDisposable
             atlasPages,
             cpuJobs,
             overrideJobs,
-            new MaterialOverrideTextureLoader());
+            new MaterialOverrideTextureLoader(),
+            cacheCounters);
         scheduler.StartSession(session);
-
-        if (enableCache && ConfigModSystem.Config.DebugLogMaterialAtlasDiskCache && capi is not null)
-        {
-            capi.Logger.Debug(
-                "[VGE] Material atlas disk cache (material params): base hits={0} misses={1}; override hits={2} misses={3}",
-                baseHits,
-                baseMisses,
-                overrideHits,
-                overrideMisses);
-
-            MaterialAtlasDiskCacheStats stats = diskCache.GetStatsSnapshot();
-            capi.Logger.Debug(
-                "[VGE] Material atlas disk cache: entries={0} bytes={1} evicted={2} ({3} bytes) mat(h/m/s)={4}/{5}/{6} nd(h/m/s)={7}/{8}/{9}",
-                stats.TotalEntries,
-                stats.TotalBytes,
-                stats.EvictedEntries,
-                stats.EvictedBytes,
-                stats.MaterialParams.Hits,
-                stats.MaterialParams.Misses,
-                stats.MaterialParams.Stores,
-                stats.NormalDepth.Hits,
-                stats.NormalDepth.Misses,
-                stats.NormalDepth.Stores);
-        }
 
         lastScheduledAtlasReloadIteration = currentReload;
         lastScheduledAtlasNonNullPositions = nonNullCount;

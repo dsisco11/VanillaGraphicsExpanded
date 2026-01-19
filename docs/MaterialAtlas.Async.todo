@@ -9,14 +9,14 @@ Goals:
   ☑ Add profiling scopes around async scheduling and normal+depth bake.
   ☑ Capture cache hit/miss counts and cache read profiling scopes.
 
-☐ Phase 1 - Move material params cache IO off the main thread
-  ☐ Replace main-thread cache scan in StartMaterialParamsAsyncBuild with a CPU job that:
-    ☐ Tries disk cache first.
-    ☐ Falls back to procedural build on miss.
-  ☐ Keep override behavior:
-    ☐ If post-override cache hits, skip override upload.
-    ☐ If override-only rects exist, enqueue override upload as today.
-  ☐ Preserve cache stats logging (base/override hits and misses).
+☑ Phase 1 - Move material params cache IO off the main thread
+  ☑ Replace main-thread cache scan in StartMaterialParamsAsyncBuild with a CPU job that:
+    ☑ Tries disk cache first.
+    ☑ Falls back to procedural build on miss.
+  ☑ Keep override behavior:
+    ☑ If post-override cache hits, skip override upload.
+    ☑ If override-only rects exist, enqueue override upload as today.
+  ☑ Preserve cache stats logging (base/override hits and misses).
 
 ☐ Phase 2 - Budgeted normal+depth pipeline
   ☐ Introduce normal+depth GPU jobs executed via a per-frame budget.

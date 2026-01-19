@@ -23,5 +23,7 @@ internal readonly record struct MaterialAtlasParamsCpuCachedTileJob(
             Rect,
             RgbTriplets,
             TargetTexture,
-            Priority);
+            Priority,
+            SkipUpload: false,
+            SuppressOverrideUpload: false);
 }

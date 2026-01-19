@@ -12,7 +12,9 @@ internal readonly record struct MaterialAtlasParamsGpuTileUpload(
     AtlasRect Rect,
     float[] RgbTriplets,
     AssetLocation TargetTexture,
-    int Priority) : IMaterialAtlasGpuJob
+    int Priority,
+    bool SkipUpload,
+    bool SuppressOverrideUpload) : IMaterialAtlasGpuJob
 {
     public void Execute(ICoreClientAPI capi, System.Func<int, MaterialAtlasPageTextures?> tryGetPageTextures, MaterialAtlasBuildSession session)
     {
@@ -22,12 +24,15 @@ internal readonly record struct MaterialAtlasParamsGpuTileUpload(
             return;
         }
 
-        pageTextures.MaterialParamsTexture.UploadData(
-            RgbTriplets,
-            Rect.X,
-            Rect.Y,
-            Rect.Width,
-            Rect.Height);
+        if (!SkipUpload)
+        {
+            pageTextures.MaterialParamsTexture.UploadData(
+                RgbTriplets,
+                Rect.X,
+                Rect.Y,
+                Rect.Width,
+                Rect.Height);
+        }
 
         session.IncrementCompletedTile();
 
@@ -35,6 +40,12 @@ internal readonly record struct MaterialAtlasParamsGpuTileUpload(
         {
             page.InFlightTiles = System.Math.Max(0, page.InFlightTiles - 1);
             page.CompletedTiles++;
+        }
+
+        if (SuppressOverrideUpload)
+        {
+            session.TryMarkOverrideSatisfiedByCache(AtlasTextureId, Rect);
+            return;
         }
 
         // Enqueue override upload if any (including override-only rects).
