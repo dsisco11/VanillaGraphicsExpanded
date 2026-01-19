@@ -27,50 +27,12 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     private GlGpuProfilerRenderer? gpuProfilerRenderer;
     private HarmonyLib.Harmony? harmony;
 
-    private TextureStreamingManagerRenderer? textureStreamingRenderer;
-    private bool textureStreamingRendererRegistered;
-
-    // LumOn components
-    private LumOnBufferManager? lumOnBufferManager;
-    private LumOnRenderer? lumOnRenderer;
-    private LumOnDebugRenderer? lumOnDebugRenderer;
-
     private HudMaterialAtlasProgressPanel? materialAtlasProgressPanel;
 
     private bool isLevelFinalized;
     private bool pendingMaterialAtlasPopulate;
     private long materialAtlasPopulateCallbackId;
 
-    private LumOnLiveConfigSnapshot? lastLiveConfigSnapshot;
-
-    private readonly record struct LumOnLiveConfigSnapshot(
-        bool LumOnEnabled,
-        int ProbeSpacingPx,
-        bool HalfResolution)
-    {
-        public static LumOnLiveConfigSnapshot From(LumOnConfig cfg)
-        {
-            return new LumOnLiveConfigSnapshot(
-                cfg.Enabled,
-                cfg.ProbeSpacingPx,
-                cfg.HalfResolution);
-        }
-    }
-
-    private static TextureStreamingSettings BuildTextureStreamingSettings(LumOnConfig cfg)
-    {
-        return new TextureStreamingSettings(
-            EnablePboStreaming: cfg.TextureStreamingEnabled,
-            AllowDirectUploads: cfg.TextureStreamingAllowDirectUploads,
-            ForceDisablePersistent: cfg.TextureStreamingForceDisablePersistent,
-            UseCoherentMapping: cfg.TextureStreamingUseCoherentMapping,
-            MaxUploadsPerFrame: cfg.TextureStreamingMaxUploadsPerFrame,
-            MaxBytesPerFrame: cfg.TextureStreamingMaxBytesPerFrame,
-            MaxStagingBytes: cfg.TextureStreamingMaxStagingBytes,
-            PersistentRingBytes: cfg.TextureStreamingPersistentRingBytes,
-            TripleBufferBytes: cfg.TextureStreamingTripleBufferBytes,
-            PboAlignment: cfg.TextureStreamingPboAlignment);
-    }
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
@@ -104,11 +66,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
         // Register GPU debug label renderers to wrap all VS render stages
         GpuDebugLabelManager.Register(api);
-
-        // Generic texture streaming (PBO) manager tick.
-        textureStreamingRenderer ??= new TextureStreamingManagerRenderer();
-        api.Event.RegisterRenderer(textureStreamingRenderer, EnumRenderStage.Before, "vge_texture_streaming");
-        textureStreamingRendererRegistered = true;
 
         GlGpuProfiler.Instance.Initialize(api);
         gpuProfilerRenderer = new GlGpuProfilerRenderer(api);
@@ -184,33 +141,16 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
             return LoadShaders(api);
         };
 
-        // Initialize LumOn based on config (loaded by ConfigModSystem).
         ConfigModSystem.Config.Sanitize();
-        TextureStreamingSystem.Configure(BuildTextureStreamingSettings(ConfigModSystem.Config));
-        lastLiveConfigSnapshot = LumOnLiveConfigSnapshot.From(ConfigModSystem.Config);
-        if (ConfigModSystem.Config.Enabled)
-        {
-            api.Logger.Notification("[VGE] LumOn enabled - using Screen Probe Gather");
-            lumOnBufferManager = new LumOnBufferManager(api, ConfigModSystem.Config);
-
-            var worldProbeSystem = api.ModLoader.GetModSystem<WorldProbeModSystem>();
-            var clipmapManager = worldProbeSystem.EnsureClipmapResources(api, "LumOn startup");
-            lumOnRenderer = new LumOnRenderer(api, ConfigModSystem.Config, lumOnBufferManager, gBufferManager!, clipmapManager);
-        }
-        else
-        {
-            api.Logger.Notification("[VGE] LumOn disabled - direct lighting only");
-            lumOnBufferManager = null;
-            lumOnRenderer = null;
-        }
 
         // Create direct lighting pass buffers + renderer (Opaque @ 9.0)
         directLightingBufferManager = new DirectLightingBufferManager(api);
         directLightingRenderer = new DirectLightingRenderer(api, gBufferManager, directLightingBufferManager);
 
-        // Unified debug overlay (AfterBlit) driven by the VGE Debug View dialog.
-        var initialClipmapManager = api.ModLoader.GetModSystem<WorldProbeModSystem>().GetClipmapBufferManagerOrNull();
-        lumOnDebugRenderer = new LumOnDebugRenderer(api, ConfigModSystem.Config, lumOnBufferManager, gBufferManager, directLightingBufferManager, initialClipmapManager);
+        // LumOn and debug overlay are managed by LumOnModSystem.
+        var lumOnSystem = api.ModLoader.GetModSystem<LumOnModSystem>();
+        lumOnSystem.SetDependencies(api, gBufferManager!, directLightingBufferManager);
+        var lumOnBuffers = lumOnSystem.GetLumOnBufferManagerOrNull();
 
         // Final composite (Opaque @ 11.0): direct + optional indirect + fog
         pbrCompositeRenderer = new PBRCompositeRenderer(
@@ -218,7 +158,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
             gBufferManager,
             directLightingBufferManager,
             ConfigModSystem.Config,
-            lumOnBufferManager);
+            lumOnBuffers);
 
         // Initialize the debug view manager (GUI)
         VgeDebugViewManager.Initialize(
@@ -228,61 +168,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
     public void OnConfigReloaded(ICoreAPI api)
     {
-        if (api is not ICoreClientAPI clientApi) return;
-
-        // Ensure any external mutation (ConfigLib) is clamped into safe bounds.
-        ConfigModSystem.Config.Sanitize();
-        TextureStreamingSystem.Configure(BuildTextureStreamingSettings(ConfigModSystem.Config));
-
-        var current = LumOnLiveConfigSnapshot.From(ConfigModSystem.Config);
-        if (lastLiveConfigSnapshot is null)
-        {
-            lastLiveConfigSnapshot = current;
-            return;
-        }
-
-        var prev = lastLiveConfigSnapshot.Value;
-        lastLiveConfigSnapshot = current;
-
-        // LumOn enable: create missing runtime objects.
-        // LumOn disable: keep objects alive (renderer remains registered) but it will early-out.
-        if (current.LumOnEnabled && lumOnRenderer is null)
-        {
-            if (gBufferManager is null)
-            {
-                clientApi.Logger.Warning("[VGE] LumOn enabled via live config reload, but GBufferManager is not initialized yet.");
-                return;
-            }
-
-            clientApi.Logger.Notification("[VGE] LumOn enabled via live config reload");
-            lumOnBufferManager ??= new LumOnBufferManager(clientApi, ConfigModSystem.Config);
-
-            var worldProbeSystem = clientApi.ModLoader.GetModSystem<WorldProbeModSystem>();
-            var clipmapManager = worldProbeSystem.EnsureClipmapResources(clientApi, "LumOn live enable");
-            lumOnDebugRenderer?.SetWorldProbeClipmapBufferManager(clipmapManager);
-            lumOnRenderer = new LumOnRenderer(clientApi, ConfigModSystem.Config, lumOnBufferManager, gBufferManager, clipmapManager);
-        }
-
-        // Screen-probe resource sizing depends on these keys.
-        if (lumOnBufferManager is not null)
-        {
-            if (prev.ProbeSpacingPx != current.ProbeSpacingPx || prev.HalfResolution != current.HalfResolution)
-            {
-                lumOnBufferManager.RequestRecreateBuffers("live config change (ProbeSpacingPx/HalfResolution)");
-            }
-        }
-
-
-        // Bind Phase 18 clipmap resources if they exist (WorldProbeModSystem owns them).
-        if (current.LumOnEnabled)
-        {
-            var clipmapManager = clientApi.ModLoader.GetModSystem<WorldProbeModSystem>().GetClipmapBufferManagerOrNull();
-            if (clipmapManager is not null)
-            {
-                lumOnDebugRenderer?.SetWorldProbeClipmapBufferManager(clipmapManager);
-                lumOnRenderer?.SetWorldProbeClipmapBufferManager(clipmapManager);
-            }
-        }
+        // Intentionally empty: live config reload is handled by specialized mod systems.
     }
 
     public override void Dispose()
@@ -307,23 +193,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
                 GpuDebugLabelManager.Unregister(capi);
             }
 
-            if (capi != null && textureStreamingRendererRegistered && textureStreamingRenderer is not null)
-            {
-                try
-                {
-                    capi.Event.UnregisterRenderer(textureStreamingRenderer, EnumRenderStage.Before);
-                }
-                catch
-                {
-                    // Best-effort.
-                }
-            }
-
-            textureStreamingRenderer?.Dispose();
-            textureStreamingRenderer = null;
-            textureStreamingRendererRegistered = false;
-            TextureStreamingSystem.Dispose();
-
             gpuProfilerRenderer?.Dispose();
             gpuProfilerRenderer = null;
 
@@ -337,16 +206,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
             pbrCompositeRenderer?.Dispose();
             pbrCompositeRenderer = null;
-
-            // Dispose LumOn components
-            lumOnDebugRenderer?.Dispose();
-            lumOnDebugRenderer = null;
-
-            lumOnRenderer?.Dispose();
-            lumOnRenderer = null;
-
-            lumOnBufferManager?.Dispose();
-            lumOnBufferManager = null;
 
             MaterialAtlasSystem.Instance.Dispose();
 
