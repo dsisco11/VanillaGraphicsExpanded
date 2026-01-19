@@ -48,14 +48,14 @@ LumOn - Phase 18 - World-Space Clipmap Probe System (Implementation):
 
   Phase 18.3 - Data Layout + Packing (L1 SH + Metadata):
   Exit artifacts: A stable, documented layout for per-probe/per-texel data with versioning hooks.
-  ☐ Specify SH basis (L1) orientation and normalization conventions; align with docs/LumOn.02.
-  ☐ Choose texture formats per signal (per level):
-    - L1 SH (RGB) packing (e.g., multiple RGBA16F targets or packed formats)
-    - ShortRangeAO direction encoding (oct) + optional cone/confidence
-    - Confidence (scalar)
-    - Distance / hit distance (optional)
-  ☐ Define metadata bitflags (valid, stale, sky, etc.) and confidence semantics.
-  ☐ Define a version tag for packed layout to support persistence/streaming.
+  ✔ Specify SH basis (L1) orientation and normalization conventions; align with docs/LumOn.02. @done
+  ✔ Choose texture formats per signal (per level): @done
+    - L1 SH (RGB) packing (e.g., multiple RGBA16F targets or packed formats) @done
+    - ShortRangeAO direction encoding (oct) + optional cone/confidence @done
+    - Confidence (scalar) @done
+    - Distance / hit distance (optional) @done
+  ✔ Define metadata bitflags (valid, stale, sky, etc.) and confidence semantics. @done
+  ✔ Define a version tag for packed layout to support persistence/streaming. @done
 
 
   Phase 18.4 - Clipmap Topology + Addressing:

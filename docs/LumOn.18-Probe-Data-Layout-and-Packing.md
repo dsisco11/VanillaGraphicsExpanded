@@ -35,14 +35,54 @@ Optional future fields:
 
 ### 3.1 SH order
 
-| SH order | Coefficients per color | Total floats | Notes |
-| --- | --- | --- | --- |
-| L1 (SH4) | 4 | 12 | Lowest cost, good for diffuse |
-| L2 (SH9) | 9 | 27 | Higher quality, higher memory |
+| SH order | Coefficients per color | Total floats | Notes                         |
+| -------- | ---------------------- | ------------ | ----------------------------- |
+| L1 (SH4) | 4                      | 12           | Lowest cost, good for diffuse |
+| L2 (SH9) | 9                      | 27           | Higher quality, higher memory |
 
 Decision: L1 is the baseline for initial implementation; L2 is a future upgrade.
 
-### 3.2 ShortRangeAO representation
+### 3.2 SH basis conventions (L1)
+
+World probes reuse the **same real SH basis and coefficient ordering as screen-space LumOn** (see `assets/.../includes/lumon_sh.glsl`).
+
+**Direction space**
+
+- SH is defined over **world-space unit directions** $\omega$.
+- Coefficients are stored in **world space**; no SH rotation is performed on camera rotation.
+
+**Real SH basis (normalized)**
+
+We store 4 coefficients per color channel:
+
+- $c_0$ = $\int L(\omega)\,Y_{00}(\omega)\,d\omega$
+- $c_1$ = $\int L(\omega)\,Y_{1,-1}(\omega)\,d\omega$ (mapped to **$y$**)
+- $c_2$ = $\int L(\omega)\,Y_{1,0}(\omega)\,d\omega$ (mapped to **$z$**)
+- $c_3$ = $\int L(\omega)\,Y_{1,1}(\omega)\,d\omega$ (mapped to **$x$**)
+
+With constants:
+
+- $Y_{00} = 0.282095$
+- $Y_{1,-1} = 0.488603\,y$
+- $Y_{1,0} = 0.488603\,z$
+- $Y_{1,1} = 0.488603\,x$
+
+So the coefficient vector for each channel is:
+
+```text
+sh = vec4(c0, cY, cZ, cX)
+```
+
+**Diffuse convolution**
+
+For Lambertian outgoing diffuse, we apply the cosine-kernel band weights matching `lumon_sh.glsl`:
+
+- $A_0 = \pi$
+- $A_1 = \tfrac{2\pi}{3}$
+
+and return $E/\pi$.
+
+### 3.3 ShortRangeAO representation
 
 Chosen for initial implementation:
 
@@ -55,10 +95,12 @@ Alternative options (future):
 
 ### 3.3 Hit distance
 
-Use a **log-encoded mean distance** to stabilize large ranges:
+Use a **log-encoded mean distance** to stabilize large ranges.
 
-```
-logDist = log2(max(dist, minDist))
+For consistency with existing LumOn hit-distance encoding helpers (`lumon_octahedral.glsl`), use:
+
+```text
+encoded = log(dist + 1)
 ```
 
 Optionally store variance if temporal filters need it.
@@ -69,27 +111,35 @@ Optionally store variance if temporal filters need it.
 
 ### 4.1 Baseline layout (L1 SH, packed)
 
-Pack 12 floats into 3 RGBA16F textures per level:
+Pack 12 floats into **3 RGBA16F** textures per level (**full-fidelity**, no compression):
 
-| Texture | Channels | Content |
-| --- | --- | --- |
-| `ProbeSH0` | RGBA | c0.r, c0.g, c0.b, c1.r |
-| `ProbeSH1` | RGBA | c1.g, c1.b, c2.r, c2.g |
-| `ProbeSH2` | RGBA | c2.b, c3.r, c3.g, c3.b |
+| Texture    | Channels | Content                |
+| ---------- | -------- | ---------------------- |
+| `ProbeSH0` | RGBA     | c0.r, c0.g, c0.b, c1.r |
+| `ProbeSH1` | RGBA     | c1.g, c1.b, c2.r, c2.g |
+| `ProbeSH2` | RGBA     | c2.b, c3.r, c3.g, c3.b |
 
 Visibility and confidence:
 
-| Texture | Channels | Content |
-| --- | --- | --- |
-| `ProbeVis0` | RGBA16F | octX, octY, reserved, confidence |
+| Texture     | Channels | Content                                      |
+| ----------- | -------- | -------------------------------------------- |
+| `ProbeVis0` | RGBA16F  | octU, octV, reserved, shortRangeAOConfidence |
 
-The third channel is reserved for a future cone angle or scalar visibility value.
+The reserved channel is for a future cone angle or scalar visibility value.
 
 Hit distance:
 
-| Texture | Channels | Content |
-| --- | --- | --- |
-| `ProbeDist0` | RG16F | meanLogDist, variance (optional) |
+| Texture      | Channels | Content                                       |
+| ------------ | -------- | --------------------------------------------- |
+| `ProbeDist0` | RG16F    | meanLogDist (log(dist+1)), varianceOrReserved |
+
+Metadata (validity/state flags + unified confidence):
+
+| Texture      | Channels | Content                            |
+| ------------ | -------- | ---------------------------------- |
+| `ProbeMeta0` | RG32F    | confidence, uintBitsToFloat(flags) |
+
+This matches existing patterns used by the screen-probe atlas meta textures.
 
 ### 4.2 L2 layout (higher quality)
 
@@ -125,12 +175,12 @@ totalBytes = sum(bytesPerLevel for all levels)
 Example (L1 layout, 3 SH textures + vis + dist):
 
 - 3x RGBA16F + 1x RGBA16F + 1x RG16F = 4x RGBA16F + 1x RG16F
-- bytesPerProbe = 4 * 8 + 1 * 4 = 36 bytes
+- bytesPerProbe = 4 _ 8 + 1 _ 4 = 36 bytes
 
 Example (Phase 18 defaults):
 
 - resolution = 32x32x32, levels = 4, bytesPerProbe = 36 bytes
-- bytesPerLevel = 32 * 32 * 32 * 36 = 1,179,648 bytes (~1.13 MiB)
+- bytesPerLevel = 32 _ 32 _ 32 \* 36 = 1,179,648 bytes (~1.13 MiB)
 - totalBytes (4 levels) ~= 4.5 MiB, excluding temporary filter buffers
 
 This rough math drives level count and resolution decisions.
@@ -141,7 +191,7 @@ This rough math drives level count and resolution decisions.
 
 Probe layouts evolve. To keep compatibility:
 
-- Add a `ProbeLayoutVersion` integer in renderer constants.
+- Add a `WorldProbeLayoutVersion` integer in renderer constants.
 - Increment when channel mappings change.
 - On version mismatch, clear probe textures and rebuild.
 
@@ -168,3 +218,30 @@ flowchart TD
 - SH order: L1
 - Trace source: iterative async voxel traces on the CPU
 - Visibility: ShortRangeAO direction (oct-encoded) + confidence
+
+---
+
+## 9. Metadata + confidence semantics (initial)
+
+### 9.1 Confidence
+
+`confidence` is a **unified probe validity/warm-up scalar** used by shading blend:
+
+- Range: $[0,1]$
+- `0` means **uninitialized/invalid** (do not contribute)
+- `1` means **fully converged for the current layout/topology**
+
+Shading should treat `confidence` as the _primary_ weight for world probes (screen-first blend is handled in LumOn.21).
+
+### 9.2 Flags (bitfield)
+
+Flags are stored as a `uint` packed via `uintBitsToFloat(flags)` into `ProbeMeta0.g`.
+
+Initial bits:
+
+- `VALID` (probe payload is usable; implies `confidence > 0`)
+- `SKY_ONLY` (trace found no meaningful geometry; SH mostly represents sky/ambient)
+- `STALE` (payload is valid but scheduled for refresh)
+- `IN_FLIGHT` (update job is running; use current payload but avoid marking it “fresh”)
+
+These flags are primarily for debug tooling and scheduling; shading should only hard-reject on `VALID==0`.
