@@ -8,6 +8,9 @@ public static class VgeShaderDefines
     public const string LumOnEnabled = "VGE_LUMON_ENABLED";
     public const string LumOnPbrComposite = "VGE_LUMON_PBR_COMPOSITE";
     public const string LumOnEnableAo = "VGE_LUMON_ENABLE_AO";
+    public const string LumOnEnableShortRangeAo = "VGE_LUMON_ENABLE_SHORT_RANGE_AO";
+
+    [System.Obsolete("Renamed to LumOnEnableShortRangeAo.")]
     public const string LumOnEnableBentNormal = "VGE_LUMON_ENABLE_BENT_NORMAL";
 
     public const string LumOnUpsampleDenoise = "VGE_LUMON_UPSAMPLE_DENOISE";

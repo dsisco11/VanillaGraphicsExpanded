@@ -977,10 +977,10 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         SetVec3(programId, "indirectTint", 1.0f, 1.0f, 1.0f);
         SetInt(programId, "lumOnEnabled", lumOnEnabled);
 
-        // Keep composite deterministic (no AO/bent normal).
+        // Keep composite deterministic (no AO/short-range AO).
         SetInt(programId, "enablePbrComposite", 1);
         SetInt(programId, "enableAO", 0);
-        SetInt(programId, "enableBentNormal", 0);
+        SetInt(programId, "enableShortRangeAo", 0);
         SetFloat(programId, "diffuseAOStrength", 1.0f);
         SetFloat(programId, "specularAOStrength", 1.0f);
 

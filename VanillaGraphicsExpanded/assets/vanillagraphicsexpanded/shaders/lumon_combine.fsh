@@ -116,13 +116,14 @@ void main(void)
     if (specularAOStrength != specularAOStrength) ao = 0.0;
 #endif
 
-    // Bent normal: when enabled, apply a cheap approximation that bends the
-    // normal toward +Y (view-up) as AO decreases. This provides a usable
-    // visibility-ish signal without requiring a dedicated bent-normal buffer.
-    vec3 bentNormalVS = normalVS;
-#if VGE_LUMON_ENABLE_BENT_NORMAL
+    // Short-range AO direction: when enabled, apply a cheap approximation that
+    // biases the visibility direction toward +Y (view-up) as AO decreases.
+    // This provides a usable visibility-ish signal without requiring a dedicated
+    // short-range AO buffer.
+    vec3 shortRangeAoDirVS = normalVS;
+#if VGE_LUMON_ENABLE_SHORT_RANGE_AO
     float bend = clamp((1.0 - clamp(ao, 0.0, 1.0)) * 0.5, 0.0, 0.5);
-    bentNormalVS = normalize(mix(normalVS, vec3(0.0, 1.0, 0.0), bend));
+    shortRangeAoDirVS = normalize(mix(normalVS, vec3(0.0, 1.0, 0.0), bend));
 #endif
 
         vec3 indirectDiffuseContrib;
@@ -131,7 +132,7 @@ void main(void)
         lumonComputeIndirectSplit(
             indirect,
             albedo,
-            bentNormalVS,
+            shortRangeAoDirVS,
             viewDirVS,
             roughness,
             metallic,

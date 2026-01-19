@@ -46,7 +46,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         int lumOnEnabled = 1,
         int enablePbrComposite = 0,
         int enableAO = 0,
-        int enableBentNormal = 0) =>
+        int enableShortRangeAo = 0) =>
         CompileShaderWithDefines(
             "lumon_combine.vsh",
             "lumon_combine.fsh",
@@ -55,7 +55,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
                 ["VGE_LUMON_ENABLED"] = lumOnEnabled.ToString(),
                 ["VGE_LUMON_PBR_COMPOSITE"] = enablePbrComposite.ToString(),
                 ["VGE_LUMON_ENABLE_AO"] = enableAO.ToString(),
-                ["VGE_LUMON_ENABLE_BENT_NORMAL"] = enableBentNormal.ToString(),
+                ["VGE_LUMON_ENABLE_SHORT_RANGE_AO"] = enableShortRangeAo.ToString(),
             });
 
     /// <summary>
@@ -65,7 +65,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
     private int CompileDebugShader(
         int enablePbrComposite = 1,
         int enableAO = 0,
-        int enableBentNormal = 0) =>
+        int enableShortRangeAo = 0) =>
         CompileShaderWithDefines(
             "lumon_debug.vsh",
             "lumon_debug.fsh",
@@ -73,7 +73,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             {
                 ["VGE_LUMON_PBR_COMPOSITE"] = enablePbrComposite.ToString(),
                 ["VGE_LUMON_ENABLE_AO"] = enableAO.ToString(),
-                ["VGE_LUMON_ENABLE_BENT_NORMAL"] = enableBentNormal.ToString(),
+                ["VGE_LUMON_ENABLE_SHORT_RANGE_AO"] = enableShortRangeAo.ToString(),
             });
 
     /// <summary>

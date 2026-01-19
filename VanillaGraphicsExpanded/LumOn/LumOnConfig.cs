@@ -529,12 +529,19 @@ public class LumOnConfig
     public bool EnableAO { get; set; } = true;
 
     /// <summary>
-    /// Enables bent-normal-based visibility for indirect compositing.
-    /// Not yet wired to a dedicated bent-normal source; currently falls back to surface normal.
+    /// Enables a short-range AO visibility direction for indirect compositing.
+    /// Not yet wired to a dedicated short-range AO source; currently falls back to surface normal.
     /// Hot-reloadable.
     /// </summary>
     [JsonProperty]
     public bool EnableBentNormal { get; set; } = true;
+
+    [JsonIgnore]
+    public bool EnableShortRangeAo
+    {
+        get => EnableBentNormal;
+        set => EnableBentNormal = value;
+    }
 
     /// <summary>
     /// Strength of AO applied to indirect diffuse.

@@ -84,7 +84,10 @@ public class LumOnCombineShaderProgram : VgeShaderProgram
 
     public bool EnableAO { set => SetDefine(VgeShaderDefines.LumOnEnableAo, value ? "1" : "0"); }
 
-    public bool EnableBentNormal { set => SetDefine(VgeShaderDefines.LumOnEnableBentNormal, value ? "1" : "0"); }
+    public bool EnableShortRangeAo { set => SetDefine(VgeShaderDefines.LumOnEnableShortRangeAo, value ? "1" : "0"); }
+
+    [System.Obsolete("Renamed to EnableShortRangeAo.")]
+    public bool EnableBentNormal { set => EnableShortRangeAo = value; }
 
     public float DiffuseAOStrength { set => Uniform("diffuseAOStrength", value); }
 

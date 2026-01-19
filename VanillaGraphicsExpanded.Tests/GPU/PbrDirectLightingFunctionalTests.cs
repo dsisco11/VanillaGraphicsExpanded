@@ -549,7 +549,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         // Phase 15 toggles irrelevant when lumOn disabled
         SetInt(programId, "enablePbrComposite", 0);
         SetInt(programId, "enableAO", 0);
-        SetInt(programId, "enableBentNormal", 0);
+        SetInt(programId, "enableShortRangeAo", 0);
         SetFloat(programId, "diffuseAOStrength", 1f);
         SetFloat(programId, "specularAOStrength", 1f);
 

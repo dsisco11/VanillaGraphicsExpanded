@@ -126,7 +126,7 @@ public class ShaderDefineInjectionTests
     [InlineData("1", "1", "0")]
     [InlineData("1", "1", "1")]
     public void LumOnCombine_Compiles_WithPbrCompositeVariants(
-        string pbrComposite, string enableAO, string enableBentNormal)
+        string pbrComposite, string enableAO, string enableShortRangeAo)
     {
         _fixture.EnsureContextValid();
 
@@ -143,7 +143,7 @@ public class ShaderDefineInjectionTests
             ["VGE_LUMON_ENABLED"] = "1",
             ["VGE_LUMON_PBR_COMPOSITE"] = pbrComposite,
             ["VGE_LUMON_ENABLE_AO"] = enableAO,
-            ["VGE_LUMON_ENABLE_BENT_NORMAL"] = enableBentNormal,
+            ["VGE_LUMON_ENABLE_SHORT_RANGE_AO"] = enableShortRangeAo,
         };
 
         var result = helper.CompileAndLink("lumon_combine.vsh", "lumon_combine.fsh", defines);
@@ -156,7 +156,7 @@ public class ShaderDefineInjectionTests
     [InlineData("1", "1", "0")]
     [InlineData("1", "1", "1")]
     public void PbrComposite_Compiles_WithToggleVariants(
-        string lumOnEnabled, string pbrComposite, string enableBentNormal)
+        string lumOnEnabled, string pbrComposite, string enableShortRangeAo)
     {
         _fixture.EnsureContextValid();
 
@@ -172,7 +172,7 @@ public class ShaderDefineInjectionTests
         {
             ["VGE_LUMON_ENABLED"] = lumOnEnabled,
             ["VGE_LUMON_PBR_COMPOSITE"] = pbrComposite,
-            ["VGE_LUMON_ENABLE_BENT_NORMAL"] = enableBentNormal,
+            ["VGE_LUMON_ENABLE_SHORT_RANGE_AO"] = enableShortRangeAo,
         };
 
         var result = helper.CompileAndLink("pbr_composite.vsh", "pbr_composite.fsh", defines);

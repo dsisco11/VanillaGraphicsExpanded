@@ -190,10 +190,10 @@ void computeCompositeSplit(
     vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
     vec3 normalVS = normalize((getViewMatrix() * vec4(normalWS, 0.0)).xyz);
 
-    vec3 bentNormalVS = normalVS;
-#if VGE_LUMON_ENABLE_BENT_NORMAL
+    vec3 shortRangeAoDirVS = normalVS;
+#if VGE_LUMON_ENABLE_SHORT_RANGE_AO
     float bend = clamp((1.0 - clamp(ao, 0.0, 1.0)) * 0.5, 0.0, 0.5);
-    bentNormalVS = normalize(mix(normalVS, vec3(0.0, 1.0, 0.0), bend));
+    shortRangeAoDirVS = normalize(mix(normalVS, vec3(0.0, 1.0, 0.0), bend));
 #endif
 
     vec3 diffuseContrib;
@@ -202,7 +202,7 @@ void computeCompositeSplit(
     lumonComputeIndirectSplit(
         indirect,
         albedo,
-        bentNormalVS,
+        shortRangeAoDirVS,
         viewDirVS,
         roughness,
         metallic,

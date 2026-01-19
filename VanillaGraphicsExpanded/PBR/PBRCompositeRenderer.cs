@@ -153,7 +153,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         // Phase 15 knobs (now compile-time defines)
         shader.EnablePbrComposite = lumOnConfig?.EnablePbrComposite ?? true;
         shader.EnableAO = lumOnConfig?.EnableAO ?? true;
-        shader.EnableBentNormal = lumOnConfig?.EnableBentNormal ?? true;
+        shader.EnableShortRangeAo = lumOnConfig?.EnableShortRangeAo ?? true;
 
         shader.Use();
 

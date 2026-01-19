@@ -175,7 +175,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         // Define-backed toggles must be set before Use() so the correct variant is bound.
         shader.EnablePbrComposite = config.EnablePbrComposite;
         shader.EnableAO = config.EnableAO;
-        shader.EnableBentNormal = config.EnableBentNormal;
+        shader.EnableShortRangeAo = config.EnableShortRangeAo;
 
         shader.Use();
 

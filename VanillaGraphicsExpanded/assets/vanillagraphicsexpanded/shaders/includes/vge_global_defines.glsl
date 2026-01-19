@@ -19,8 +19,23 @@
   #define VGE_LUMON_ENABLE_AO 1
 #endif
 
+// Short-range AO toggle (formerly: VGE_LUMON_ENABLE_BENT_NORMAL)
+//
+// Backwards-compatibility:
+// - If callers inject the legacy define, mirror it into the new define.
+// - If callers inject the new define, mirror it into the legacy define.
+//
+// This keeps older mod builds/tests working while we migrate terminology.
+#ifndef VGE_LUMON_ENABLE_SHORT_RANGE_AO
+  #ifdef VGE_LUMON_ENABLE_BENT_NORMAL
+    #define VGE_LUMON_ENABLE_SHORT_RANGE_AO VGE_LUMON_ENABLE_BENT_NORMAL
+  #else
+    #define VGE_LUMON_ENABLE_SHORT_RANGE_AO 1
+  #endif
+#endif
+
 #ifndef VGE_LUMON_ENABLE_BENT_NORMAL
-  #define VGE_LUMON_ENABLE_BENT_NORMAL 1
+  #define VGE_LUMON_ENABLE_BENT_NORMAL VGE_LUMON_ENABLE_SHORT_RANGE_AO
 #endif
 
 // Phase 4: Upsample toggles

@@ -75,11 +75,11 @@
         "default": true,
         "weight": 9.2
       },
-      "ENABLE_BENT_NORMAL": {
+      "ENABLE_SHORT_RANGE_AO": {
         "code": "EnableBentNormal",
         "name": "EnableBentNormal",
-        "ingui": "vanillagraphicsexpanded:config-enable-bent-normal",
-        "comment": "vanillagraphicsexpanded:config-enable-bent-normal-tooltip",
+        "ingui": "vanillagraphicsexpanded:config-enable-short-range-ao",
+        "comment": "vanillagraphicsexpanded:config-enable-short-range-ao-tooltip",
         "default": true,
         "weight": 9.3
       }

@@ -192,7 +192,7 @@ public class LumOnUniformTests : IDisposable
             "lumOnEnabled" => "VGE_LUMON_ENABLED",
             "enablePbrComposite" => "VGE_LUMON_PBR_COMPOSITE",
             "enableAO" => "VGE_LUMON_ENABLE_AO",
-            "enableBentNormal" => "VGE_LUMON_ENABLE_BENT_NORMAL",
+            "enableShortRangeAo" => "VGE_LUMON_ENABLE_SHORT_RANGE_AO",
 
             // Phase 4: upsample toggles
             "denoiseEnabled" => "VGE_LUMON_UPSAMPLE_DENOISE",
@@ -282,7 +282,7 @@ public class LumOnUniformTests : IDisposable
         { "lumon_combine.vsh", "lumon_combine.fsh", "lumOnEnabled" },
         { "lumon_combine.vsh", "lumon_combine.fsh", "enablePbrComposite" },
         { "lumon_combine.vsh", "lumon_combine.fsh", "enableAO" },
-        { "lumon_combine.vsh", "lumon_combine.fsh", "enableBentNormal" },
+        { "lumon_combine.vsh", "lumon_combine.fsh", "enableShortRangeAo" },
         { "lumon_combine.vsh", "lumon_combine.fsh", "diffuseAOStrength" },
         { "lumon_combine.vsh", "lumon_combine.fsh", "specularAOStrength" },
         { "lumon_combine.vsh", "lumon_combine.fsh", "invProjectionMatrix" },
@@ -300,7 +300,7 @@ public class LumOnUniformTests : IDisposable
         { "lumon_debug.vsh", "lumon_debug.fsh", "indirectTint" },
         { "lumon_debug.vsh", "lumon_debug.fsh", "enablePbrComposite" },
         { "lumon_debug.vsh", "lumon_debug.fsh", "enableAO" },
-        { "lumon_debug.vsh", "lumon_debug.fsh", "enableBentNormal" },
+        { "lumon_debug.vsh", "lumon_debug.fsh", "enableShortRangeAo" },
         { "lumon_debug.vsh", "lumon_debug.fsh", "diffuseAOStrength" },
         { "lumon_debug.vsh", "lumon_debug.fsh", "specularAOStrength" },
     };

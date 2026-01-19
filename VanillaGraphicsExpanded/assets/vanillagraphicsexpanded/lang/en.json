@@ -104,8 +104,8 @@
   "config-enable-ao": "Enable Ambient Occlusion",
   "config-enable-ao-tooltip": "Enables ambient occlusion application during indirect compositing. NOTE: AO is currently stubbed (no-op). gBuffer material alpha is reflectivity, not AO.",
 
-  "config-enable-bent-normal": "Enable Bent Normal",
-  "config-enable-bent-normal-tooltip": "Enables bent-normal-based visibility for indirect compositing. Currently falls back to surface normal (dedicated bent-normal source not yet wired).",
+  "config-enable-short-range-ao": "Enable Short Range AO",
+  "config-enable-short-range-ao-tooltip": "Enables short-range AO visibility for indirect compositing. Currently falls back to surface normal (dedicated short-range AO source not yet wired).",
 
   "config-diffuse-ao-strength": "Diffuse AO Strength",
   "config-diffuse-ao-strength-tooltip": "Strength of ambient occlusion applied to indirect diffuse lighting. 0 = disabled, 1 = full AO occlusion.",
