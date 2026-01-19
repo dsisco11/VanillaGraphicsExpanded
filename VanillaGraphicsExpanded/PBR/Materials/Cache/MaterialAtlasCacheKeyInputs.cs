@@ -17,15 +17,12 @@ internal readonly record struct MaterialAtlasCacheKeyInputs(int SchemaVersion, s
         ArgumentNullException.ThrowIfNull(registry);
 
         // Bump whenever the stable prefix contract changes.
-        const int SchemaVersion = 2;
+        const int SchemaVersion = 4;
 
         string prefix = string.Format(
             CultureInfo.InvariantCulture,
-            "schema={0}|reload={1}|nonNull={2}|pages={3}|matDefs={4}|mapRules={5}|defScale=({6:R},{7:R},{8:R},{9:R},{10:R})|ndEnabled={11}|ndBake=({12:R},{13:R},{14:R},{15:R},{16:R},{17:R},{18:R},{19:R},{20:R},{21:R},{22:R},{23:R},{24},{25},{26},{27:R},{28:R},{29:R})",
+            "schema={0}|matDefs={1}|mapRules={2}|defScale=({3:R},{4:R},{5:R},{6:R},{7:R})|ndEnabled={8}|ndBake=({9:R},{10:R},{11:R},{12:R},{13:R},{14:R},{15:R},{16:R},{17:R},{18:R},{19:R},{20:R},{21:R},{22},{23},{24},{25:R},{26:R},{27:R})",
             SchemaVersion,
-            snapshot.ReloadIteration,
-            snapshot.NonNullPositionCount,
-            snapshot.Pages.Count,
             registry.MaterialById.Count,
             registry.MappingRules.Count,
             registry.DefaultScale.Roughness,
