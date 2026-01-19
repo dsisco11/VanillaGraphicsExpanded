@@ -484,7 +484,7 @@ public sealed class DynamicTexture : IDisposable
         TextureStreamingSystem.Manager.Enqueue(new TextureUploadRequest(
             TextureId: textureId,
             Target: TextureUploadTarget.For2D(),
-            Region: new TextureUploadRegion(x, y, 0, regionWidth, regionHeight, depth: 1, MipLevel: mipLevel),
+            Region: new TextureUploadRegion(x, y, 0, regionWidth, regionHeight, Depth: 1, MipLevel: mipLevel),
             PixelFormat: TextureFormatHelper.GetPixelFormat(internalFormat),
             PixelType: PixelType.Float,
             Data: TextureUploadData.From(data),
@@ -532,7 +532,7 @@ public sealed class DynamicTexture : IDisposable
         TextureStreamingSystem.Manager.Enqueue(new TextureUploadRequest(
             TextureId: textureId,
             Target: TextureUploadTarget.For2D(),
-            Region: new TextureUploadRegion(x, y, 0, regionWidth, regionHeight, depth: 1, MipLevel: mipLevel),
+            Region: new TextureUploadRegion(x, y, 0, regionWidth, regionHeight, Depth: 1, MipLevel: mipLevel),
             PixelFormat: TextureFormatHelper.GetPixelFormat(internalFormat),
             PixelType: pixelType,
             Data: TextureUploadData.From(data),

@@ -118,7 +118,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     #region Constructor
 
-    public LumOnRenderer(
+    internal LumOnRenderer(
         ICoreClientAPI capi,
         LumOnConfig config,
         LumOnBufferManager bufferManager,
@@ -1500,14 +1500,14 @@ public class LumOnRenderer : IRenderer, IDisposable
         }
 
         // Cache for debug overlays and other passes that can't see the scheduler.
-        Span<System.Numerics.Vector3> o = stackalloc System.Numerics.Vector3[8];
-        Span<System.Numerics.Vector3> r2 = stackalloc System.Numerics.Vector3[8];
+        Span<System.Numerics.Vector3> originsSpan = stackalloc System.Numerics.Vector3[8];
+        Span<System.Numerics.Vector3> ringsSpan = stackalloc System.Numerics.Vector3[8];
         for (int i = 0; i < 8; i++)
         {
             var oi = origins[i];
             var ri = rings[i];
-            o[i] = new System.Numerics.Vector3(oi.X, oi.Y, oi.Z);
-            r2[i] = new System.Numerics.Vector3(ri.X, ri.Y, ri.Z);
+            originsSpan[i] = new System.Numerics.Vector3(oi.X, oi.Y, oi.Z);
+            ringsSpan[i] = new System.Numerics.Vector3(ri.X, ri.Y, ri.Z);
         }
 
         worldProbeClipmapBufferManager.UpdateRuntimeParams(
@@ -1515,8 +1515,8 @@ public class LumOnRenderer : IRenderer, IDisposable
             baseSpacing,
             levels,
             resolution,
-            o,
-            r2);
+            originsSpan,
+            ringsSpan);
 
         return true;
     }

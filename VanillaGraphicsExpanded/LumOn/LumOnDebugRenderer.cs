@@ -71,7 +71,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     #region Constructor
 
-    public LumOnDebugRenderer(
+    internal LumOnDebugRenderer(
         ICoreClientAPI capi,
         LumOnConfig config,
         LumOnBufferManager? bufferManager,
@@ -97,7 +97,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         capi.Logger.Notification("[LumOn] Debug renderer initialized");
     }
 
-    public void SetWorldProbeClipmapBufferManager(LumOnWorldProbeClipmapBufferManager? bufferManager)
+    internal void SetWorldProbeClipmapBufferManager(LumOnWorldProbeClipmapBufferManager? bufferManager)
     {
         worldProbeClipmapBufferManager = bufferManager;
     }

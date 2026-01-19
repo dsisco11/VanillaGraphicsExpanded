@@ -1,6 +1,6 @@
 #version 330 core
 
-#include "shaders/includes/lumon_octahedral.glsl"
+@import "./includes/lumon_octahedral.glsl"
 
 in vec4 vShR;
 in vec4 vShG;
