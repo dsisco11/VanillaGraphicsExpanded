@@ -45,7 +45,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     private readonly LumOnBufferManager bufferManager;
     private readonly GBufferManager? gBufferManager;
 
-    private readonly LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager;
+    private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager;
 
     private LumOnWorldProbeScheduler? worldProbeScheduler;
     private LumOnWorldProbeTraceService? worldProbeTraceService;
@@ -60,6 +60,8 @@ public class LumOnRenderer : IRenderer, IDisposable
     // Cache arrays to avoid per-frame allocations in TryBindWorldProbeClipmapCommon.
     private readonly Vec3f[] worldProbeOriginsCache = new Vec3f[8];
     private readonly Vec3f[] worldProbeRingsCache = new Vec3f[8];
+
+    private bool worldProbeClipmapStartupLogged;
 
     private readonly LumOnPmjJitterTexture pmjJitter;
 
@@ -155,6 +157,11 @@ public class LumOnRenderer : IRenderer, IDisposable
         RegisterWorldEvents();
 
         capi.Logger.Notification("[LumOn] Renderer initialized");
+    }
+
+    internal void SetWorldProbeClipmapBufferManager(LumOnWorldProbeClipmapBufferManager? bufferManager)
+    {
+        worldProbeClipmapBufferManager = bufferManager;
     }
 
     private void RegisterWorldEvents()
@@ -1208,6 +1215,18 @@ public class LumOnRenderer : IRenderer, IDisposable
                 camPos,
                 baseSpacing,
                 perLevelBudgets,
+                cfg.TraceMaxProbesPerFrame,
+                cfg.UploadBudgetBytesPerFrame);
+        }
+
+        if (!worldProbeClipmapStartupLogged)
+        {
+            worldProbeClipmapStartupLogged = true;
+            capi.Logger.Notification(
+                "[VGE] Phase 18 world-probe clipmap started (levels={0}, res={1}, baseSpacing={2:0.###}, traceMax={3}/frame, uploadBudget={4} B/frame)",
+                resources.Levels,
+                resources.Resolution,
+                baseSpacing,
                 cfg.TraceMaxProbesPerFrame,
                 cfg.UploadBudgetBytesPerFrame);
         }

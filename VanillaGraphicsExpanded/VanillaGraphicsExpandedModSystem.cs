@@ -32,7 +32,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
     // LumOn components
     private LumOnBufferManager? lumOnBufferManager;
-    private LumOnWorldProbeClipmapBufferManager? lumOnWorldProbeClipmapBufferManager;
     private LumOnRenderer? lumOnRenderer;
     private LumOnDebugRenderer? lumOnDebugRenderer;
 
@@ -47,40 +46,14 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     private readonly record struct LumOnLiveConfigSnapshot(
         bool LumOnEnabled,
         int ProbeSpacingPx,
-        bool HalfResolution,
-        float ClipmapBaseSpacing,
-        int ClipmapResolution,
-        int ClipmapLevels,
-        int ClipmapBudgetsHash,
-        int ClipmapTraceMaxProbesPerFrame,
-        int ClipmapUploadBudgetBytesPerFrame)
+        bool HalfResolution)
     {
         public static LumOnLiveConfigSnapshot From(LumOnConfig cfg)
         {
-            var c = cfg.WorldProbeClipmap;
             return new LumOnLiveConfigSnapshot(
                 cfg.Enabled,
                 cfg.ProbeSpacingPx,
-                cfg.HalfResolution,
-                c.ClipmapBaseSpacing,
-                c.ClipmapResolution,
-                c.ClipmapLevels,
-                HashBudgets(c.PerLevelProbeUpdateBudget),
-                c.TraceMaxProbesPerFrame,
-                c.UploadBudgetBytesPerFrame);
-        }
-
-        private static int HashBudgets(int[]? budgets)
-        {
-            if (budgets is null) return 0;
-
-            int hash = HashCode.Combine(budgets.Length);
-            foreach (int b in budgets)
-            {
-                hash = HashCode.Combine(hash, b);
-            }
-
-            return hash;
+                cfg.HalfResolution);
         }
     }
 
@@ -219,7 +192,10 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         {
             api.Logger.Notification("[VGE] LumOn enabled - using Screen Probe Gather");
             lumOnBufferManager = new LumOnBufferManager(api, ConfigModSystem.Config);
-            lumOnRenderer = new LumOnRenderer(api, ConfigModSystem.Config, lumOnBufferManager, gBufferManager!, lumOnWorldProbeClipmapBufferManager);
+
+            var worldProbeSystem = api.ModLoader.GetModSystem<WorldProbeModSystem>();
+            var clipmapManager = worldProbeSystem.EnsureClipmapResources(api, "LumOn startup");
+            lumOnRenderer = new LumOnRenderer(api, ConfigModSystem.Config, lumOnBufferManager, gBufferManager!, clipmapManager);
         }
         else
         {
@@ -233,7 +209,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         directLightingRenderer = new DirectLightingRenderer(api, gBufferManager, directLightingBufferManager);
 
         // Unified debug overlay (AfterBlit) driven by the VGE Debug View dialog.
-        lumOnDebugRenderer = new LumOnDebugRenderer(api, ConfigModSystem.Config, lumOnBufferManager, gBufferManager, directLightingBufferManager, lumOnWorldProbeClipmapBufferManager);
+        var initialClipmapManager = api.ModLoader.GetModSystem<WorldProbeModSystem>().GetClipmapBufferManagerOrNull();
+        lumOnDebugRenderer = new LumOnDebugRenderer(api, ConfigModSystem.Config, lumOnBufferManager, gBufferManager, directLightingBufferManager, initialClipmapManager);
 
         // Final composite (Opaque @ 11.0): direct + optional indirect + fog
         pbrCompositeRenderer = new PBRCompositeRenderer(
@@ -279,10 +256,11 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
             clientApi.Logger.Notification("[VGE] LumOn enabled via live config reload");
             lumOnBufferManager ??= new LumOnBufferManager(clientApi, ConfigModSystem.Config);
-            lumOnWorldProbeClipmapBufferManager ??= new LumOnWorldProbeClipmapBufferManager(clientApi, ConfigModSystem.Config);
-            lumOnWorldProbeClipmapBufferManager.EnsureResources();
-            lumOnDebugRenderer?.SetWorldProbeClipmapBufferManager(lumOnWorldProbeClipmapBufferManager);
-            lumOnRenderer = new LumOnRenderer(clientApi, ConfigModSystem.Config, lumOnBufferManager, gBufferManager, lumOnWorldProbeClipmapBufferManager);
+
+            var worldProbeSystem = clientApi.ModLoader.GetModSystem<WorldProbeModSystem>();
+            var clipmapManager = worldProbeSystem.EnsureClipmapResources(clientApi, "LumOn live enable");
+            lumOnDebugRenderer?.SetWorldProbeClipmapBufferManager(clipmapManager);
+            lumOnRenderer = new LumOnRenderer(clientApi, ConfigModSystem.Config, lumOnBufferManager, gBufferManager, clipmapManager);
         }
 
         // Screen-probe resource sizing depends on these keys.
@@ -294,35 +272,16 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
             }
         }
 
-        // Phase 18 world-probe config: classify hot-reload behavior.
-        // - Budgets are safe live updates (scheduler will consume them once implemented).
-        // - Topology changes (spacing/resolution/levels) require resource reallocation + invalidation.
-        bool clipmapTopologyChanged =
-            prev.ClipmapBaseSpacing != current.ClipmapBaseSpacing ||
-            prev.ClipmapResolution != current.ClipmapResolution ||
-            prev.ClipmapLevels != current.ClipmapLevels;
 
-        bool clipmapBudgetsChanged =
-            prev.ClipmapBudgetsHash != current.ClipmapBudgetsHash ||
-            prev.ClipmapTraceMaxProbesPerFrame != current.ClipmapTraceMaxProbesPerFrame ||
-            prev.ClipmapUploadBudgetBytesPerFrame != current.ClipmapUploadBudgetBytesPerFrame;
-
-        if (clipmapTopologyChanged)
+        // Bind Phase 18 clipmap resources if they exist (WorldProbeModSystem owns them).
+        if (current.LumOnEnabled)
         {
-            if (lumOnWorldProbeClipmapBufferManager is not null)
+            var clipmapManager = clientApi.ModLoader.GetModSystem<WorldProbeModSystem>().GetClipmapBufferManagerOrNull();
+            if (clipmapManager is not null)
             {
-                lumOnWorldProbeClipmapBufferManager.RequestRecreate("live config change (clipmap topology)");
-                lumOnWorldProbeClipmapBufferManager.EnsureResources();
-                clientApi.Logger.Notification("[VGE] World-probe clipmap topology changed (spacing/resolution/levels). Resources recreated.");
+                lumOnDebugRenderer?.SetWorldProbeClipmapBufferManager(clipmapManager);
+                lumOnRenderer?.SetWorldProbeClipmapBufferManager(clipmapManager);
             }
-            else
-            {
-                clientApi.Logger.Notification("[VGE] World-probe clipmap topology changed (spacing/resolution/levels). Will apply once Phase 18 clipmap resources exist; re-entering the world may be required.");
-            }
-        }
-        else if (clipmapBudgetsChanged)
-        {
-            clientApi.Logger.Debug("[VGE] World-probe clipmap budgets updated (live).");
         }
     }
 
@@ -388,9 +347,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
             lumOnBufferManager?.Dispose();
             lumOnBufferManager = null;
-
-            lumOnWorldProbeClipmapBufferManager?.Dispose();
-            lumOnWorldProbeClipmapBufferManager = null;
 
             MaterialAtlasSystem.Instance.Dispose();
 
