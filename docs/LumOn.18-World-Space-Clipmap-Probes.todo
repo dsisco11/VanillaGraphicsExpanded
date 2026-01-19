@@ -22,11 +22,11 @@ LumOn - Phase 18 - World-Space Clipmap Probe System (Implementation):
 
   Phase 18.1 - Requirements + Ownership Boundaries:
   Exit artifacts: Clear contracts for what produces/consumes world-probe data, and how it interacts with screen-space GI.
-  ☐ Enumerate required outputs per pixel for Phase 15 composite (irradiance/specular, ShortRangeAO, confidence, distance).
-  ☐ Decide which buffers/textures are authoritative for world probes (separate from ScreenProbeAtlas).
-  ☐ Define coordinate spaces for all stored values (WS vs VS, encoding conventions).
-  ☐ Define blend policy with screen-space GI (screen-first, confidence-based) and failure modes.
-  ☐ Define quality/perf targets and expected update budgets (per level, per frame).
+  ✔ Enumerate required outputs per pixel for Phase 15 composite (irradiance/specular, ShortRangeAO, confidence, distance). @done
+  ✔ Decide which buffers/textures are authoritative for world probes (separate from ScreenProbeAtlas). @done
+  ✔ Define coordinate spaces for all stored values (WS vs VS, encoding conventions). @done
+  ✔ Define blend policy with screen-space GI (screen-first, confidence-based) and failure modes. @done
+  ✔ Define quality/perf targets and expected update budgets (per level, per frame). @done
 
 
   Phase 18.2 - Config + Defaults + Hot-Reload:

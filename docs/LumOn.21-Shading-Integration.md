@@ -15,6 +15,45 @@
 
 This document defines how world-probe data is sampled and blended with screen-space GI, then fed into the Phase 15 compositing stage.
 
+### 1.1 Phase 15 indirect contract (per-pixel outputs)
+
+The **Phase 15 composite** consumes a single, unified “indirect lighting product” produced by upstream GI systems (screen-space LumOn and/or world probes).
+
+Required outputs per pixel (initial scope):
+
+- **IndirectDiffuse**: `RGB` linear radiance, pre-tonemap, fog-free.
+
+Optional outputs per pixel (needed for Phase 18+ feature completeness and tuning/debug):
+
+- **IndirectConfidence**: `scalar` $[0,1]$, “how trustworthy is IndirectDiffuse?”.
+- **ShortRangeAO direction**: `unit vec3` in **world space** (WS). Provides a *visibility / bent-normal* style signal.
+- **ShortRangeAO confidence**: `scalar` $[0,1]$.
+- **Mean hit distance**: `scalar` (world units or log-encoded), used for temporal validation and filtering.
+
+Notes:
+
+- Today’s runtime composite shaders only require `IndirectDiffuse` (see `pbr_composite.*`). The remaining signals are treated as “GI metadata” for later wiring.
+
+### 1.2 Ownership boundaries (authoritative buffers)
+
+To keep coupling low, **screen-space GI** and **world-probe GI** own separate storage and only meet at a single blend point.
+
+- Screen-space LumOn owns the **Screen Probe Atlas** outputs (trace/temporal/filter history and the half-res gather product).
+- World probes own **clipmap probe textures per level** (`ProbeSH*`, `ProbeVis*`, `ProbeDist*`).
+- The shading/blend stage produces a single authoritative **IndirectDiffuse** texture consumed by Phase 15.
+
+This ensures world probes never “reach into” screen-probe resources (and vice versa).
+
+### 1.3 Coordinate spaces and conventions
+
+All persistent probe payloads are stored in **world space**:
+
+- SH coefficients represent irradiance as a function of **world-space direction**.
+- `ShortRangeAO` direction is stored as a **WS unit vector** (typically oct-encoded in textures).
+- Hit distance is defined along traced rays in world units (or a documented log encoding).
+
+Shading may transform vectors to view space (VS) *only at the last moment* when needed for BRDF math (e.g., `shortRangeAoDirVS` in the PBR composite path).
+
 ---
 
 ## 2. Sampling world probes
@@ -65,14 +104,22 @@ Screen-space remains the primary source when confident:
 ```
 screenWeight = screenConfidence
 worldWeight = worldConfidence * (1 - screenWeight)
-norm = max(screenWeight + worldWeight, 1e-4)
-indirect = (screenGI * screenWeight + worldGI * worldWeight) / norm
+sumW = screenWeight + worldWeight
+indirect = (sumW > 1e-3)
+  ? (screenGI * screenWeight + worldGI * worldWeight) / sumW
+  : vec3(0)
 ```
 
 Fallback rules:
 
 - If screenConfidence is low or missing, world probes dominate.
 - If worldConfidence is low, rely on screen-space or ambient.
+
+Failure modes (and the intended behavior):
+
+- **Disocclusion / off-screen rays**: screen confidence drops, world probes fill.
+- **World probes not warmed up / invalid**: world confidence is 0, screen-space dominates.
+- **Both low confidence** (e.g., thin silhouettes + no world probes): output should converge to 0 rather than amplifying noise via normalization.
 
 ---
 

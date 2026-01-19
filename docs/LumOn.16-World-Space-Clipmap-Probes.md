@@ -105,6 +105,27 @@ These defaults are for initial bring-up and can be tuned once performance data i
 | `ProbeUpdateBudgetL0` | 256 | Probes per frame at L0 |
 | `ProbeUpdateBudgetFalloff` | `budgetL = baseBudget >> L` | L1=128, L2=64, L3=32 |
 
+### 4.5 Quality + perf targets (bring-up)
+
+These are **initial** targets to guide implementation decisions and prevent the clipmap system from regressing the existing LumOn pipeline.
+
+Quality targets:
+
+- **Stability first**: world probes should reduce view-dependent “black cutoffs” and disocclusion gaps relative to screen-space alone.
+- **Diffuse correctness**: L1 SH should provide plausible low-frequency diffuse GI; high-frequency detail remains screen-space.
+- **Graceful failure**: missing/low-confidence world probes should never introduce normalization artifacts (no “blow up” when weights are tiny).
+
+Performance + budget targets:
+
+- **Memory**: keep total resident clipmap probe textures under ~8–16 MiB for the default settings.
+- **CPU**: scheduling overhead should be negligible; trace work is time-sliced via a strict per-frame probe budget (background threads), with cancellation/backpressure.
+- **GPU**: uploads and integrate/resolve should fit within a small, bounded post-opaque budget; enforce an explicit bytes-per-frame upload cap.
+
+Expected update budget shape (per frame):
+
+- L0 receives the majority of updates (near camera), falling off by level (e.g., `baseBudget >> L`).
+- Coarser levels update slowly but persist longer; they are primarily a stable fallback.
+
 ---
 
 ## 5. High-level dataflow
