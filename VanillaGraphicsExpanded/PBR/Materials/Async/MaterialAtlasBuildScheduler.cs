@@ -390,7 +390,6 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
         if (active.IsComplete
             && lastLoggedCompleteGenerationId != active.GenerationId
             && ConfigModSystem.Config.EnableMaterialAtlasDiskCache
-            && ConfigModSystem.Config.DebugLogMaterialAtlasDiskCache
             && capi is not null
             && active.CacheCounters is not null)
         {

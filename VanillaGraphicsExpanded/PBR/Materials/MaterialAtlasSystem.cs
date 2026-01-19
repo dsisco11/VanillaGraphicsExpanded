@@ -345,7 +345,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
                     appliedOverrides);
             }
 
-            if (ConfigModSystem.Config.EnableMaterialAtlasDiskCache && ConfigModSystem.Config.DebugLogMaterialAtlasDiskCache)
+            if (ConfigModSystem.Config.EnableMaterialAtlasDiskCache)
             {
                 capi.Logger.Debug(
                     "[VGE] Material atlas disk cache (normal+depth): bake hits={0} misses={1}; override hits={2} misses={3}",
@@ -354,19 +354,22 @@ internal sealed class MaterialAtlasSystem : IDisposable
                     overrideCacheHits,
                     overrideCacheMisses);
 
-                MaterialAtlasDiskCacheStats stats = diskCache.GetStatsSnapshot();
-                capi.Logger.Debug(
-                    "[VGE] Material atlas disk cache: entries={0} bytes={1} evicted={2} ({3} bytes) mat(h/m/s)={4}/{5}/{6} nd(h/m/s)={7}/{8}/{9}",
-                    stats.TotalEntries,
-                    stats.TotalBytes,
-                    stats.EvictedEntries,
-                    stats.EvictedBytes,
-                    stats.MaterialParams.Hits,
-                    stats.MaterialParams.Misses,
-                    stats.MaterialParams.Stores,
-                    stats.NormalDepth.Hits,
-                    stats.NormalDepth.Misses,
-                    stats.NormalDepth.Stores);
+                if (ConfigModSystem.Config.DebugLogMaterialAtlasDiskCache)
+                {
+                    MaterialAtlasDiskCacheStats stats = diskCache.GetStatsSnapshot();
+                    capi.Logger.Debug(
+                        "[VGE] Material atlas disk cache: entries={0} bytes={1} evicted={2} ({3} bytes) mat(h/m/s)={4}/{5}/{6} nd(h/m/s)={7}/{8}/{9}",
+                        stats.TotalEntries,
+                        stats.TotalBytes,
+                        stats.EvictedEntries,
+                        stats.EvictedBytes,
+                        stats.MaterialParams.Hits,
+                        stats.MaterialParams.Misses,
+                        stats.MaterialParams.Stores,
+                        stats.NormalDepth.Hits,
+                        stats.NormalDepth.Misses,
+                        stats.NormalDepth.Stores);
+                }
             }
         }
 
@@ -906,7 +909,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
                 "[VGE] Built material param atlas textures but filled 0 rects. This usually means atlas key mismatch (e.g. textures/...png vs block/...) or textures not in block atlas.");
         }
 
-        if (enableCache && ConfigModSystem.Config.DebugLogMaterialAtlasDiskCache)
+        if (enableCache)
         {
             capi.Logger.Debug(
                 "[VGE] Material atlas disk cache (material params): base hits={0} misses={1}; override hits={2} misses={3}",
@@ -915,19 +918,22 @@ internal sealed class MaterialAtlasSystem : IDisposable
                 overrideHits,
                 overrideMisses);
 
-            MaterialAtlasDiskCacheStats stats = diskCache.GetStatsSnapshot();
-            capi.Logger.Debug(
-                "[VGE] Material atlas disk cache: entries={0} bytes={1} evicted={2} ({3} bytes) mat(h/m/s)={4}/{5}/{6} nd(h/m/s)={7}/{8}/{9}",
-                stats.TotalEntries,
-                stats.TotalBytes,
-                stats.EvictedEntries,
-                stats.EvictedBytes,
-                stats.MaterialParams.Hits,
-                stats.MaterialParams.Misses,
-                stats.MaterialParams.Stores,
-                stats.NormalDepth.Hits,
-                stats.NormalDepth.Misses,
-                stats.NormalDepth.Stores);
+            if (ConfigModSystem.Config.DebugLogMaterialAtlasDiskCache)
+            {
+                MaterialAtlasDiskCacheStats stats = diskCache.GetStatsSnapshot();
+                capi.Logger.Debug(
+                    "[VGE] Material atlas disk cache: entries={0} bytes={1} evicted={2} ({3} bytes) mat(h/m/s)={4}/{5}/{6} nd(h/m/s)={7}/{8}/{9}",
+                    stats.TotalEntries,
+                    stats.TotalBytes,
+                    stats.EvictedEntries,
+                    stats.EvictedBytes,
+                    stats.MaterialParams.Hits,
+                    stats.MaterialParams.Misses,
+                    stats.MaterialParams.Stores,
+                    stats.NormalDepth.Hits,
+                    stats.NormalDepth.Misses,
+                    stats.NormalDepth.Stores);
+            }
         }
 
         return (filledRects, overriddenRects);
