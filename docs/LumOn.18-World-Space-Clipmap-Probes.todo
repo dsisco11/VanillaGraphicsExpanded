@@ -99,14 +99,14 @@ LumOn - Phase 18 - World-Space Clipmap Probe System (Implementation):
 
   Phase 18.7 - GPU Upload + Integration:
   Exit artifacts: CPU results are uploaded to GPU and written into per-level textures with optional filtering.
-  ☐ Define SSBO layout for trace headers + samples (or final coefficients), per docs/LumOn.18.
-  ☐ Implement GPU upload path with budget enforcement and staging buffers.
-  ☐ Implement GPU integration/resolve:
-    - Write SH coefficients into clipmap textures
-    - Write ShortRangeAO + confidence + distance
-    - Mark metadata flags
+  ✔ Define SSBO layout for trace headers + samples (or final coefficients), per docs/LumOn.18. @done
+  ✔ Implement GPU upload path with budget enforcement and staging buffers. @done
+  ✔ Implement GPU integration/resolve: @done
+    - Write SH coefficients into clipmap textures @done
+    - Write ShortRangeAO + confidence + distance @done
+    - Mark metadata flags @done
   ☐ Implement probe-space filtering / denoise for world probes (optional but planned), consistent with Phase 11 approach.
-  ☐ Handle device lost / reload / recompile paths (resource re-create).
+  ✔ Handle device lost / reload / recompile paths (resource re-create). @done
 
 
   Phase 18.8 - Buffer + Texture Management:

@@ -360,6 +360,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         // PBR final composite shader
         PBRCompositeShaderProgram.Register(api);
 
+        // Phase 18.7: World-probe clipmap resolve (CPU -> GPU textures)
+        LumOnWorldProbeClipmapResolveShaderProgram.Register(api);
+
         // LumOn shaders
         LumOnProbeAnchorShaderProgram.Register(api);
         LumOnHzbCopyShaderProgram.Register(api);
