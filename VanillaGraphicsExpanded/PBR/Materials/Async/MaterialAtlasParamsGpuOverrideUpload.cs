@@ -1,5 +1,4 @@
 using System;
-using System.Threading.Tasks;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -89,20 +88,19 @@ internal readonly record struct MaterialAtlasParamsGpuOverrideUpload(
             && !session.IsCancelled
             && session.GenerationId == GenerationId)
         {
+            int genId = GenerationId;
             IMaterialAtlasDiskCache diskCache = DiskCache;
             AtlasCacheKey cacheKey = CacheKey;
             int w = Rect.Width;
             int h = Rect.Height;
-            _ = Task.Run(() =>
+            _ = MaterialAtlasDiskCacheIoQueue.TryQueue(() =>
             {
-                try
+                if (session.IsCancelled || session.GenerationId != genId)
                 {
-                    diskCache.StoreMaterialParamsTile(cacheKey, w, h, rgb);
+                    return;
                 }
-                catch
-                {
-                    // Best-effort.
-                }
+
+                diskCache.StoreMaterialParamsTile(cacheKey, w, h, rgb);
             });
         }
 

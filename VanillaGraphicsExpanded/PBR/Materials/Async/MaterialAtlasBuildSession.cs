@@ -22,7 +22,7 @@ internal sealed class MaterialAtlasBuildSession : IDisposable
         IReadOnlyList<(int atlasTextureId, int width, int height)> atlasPages,
         IReadOnlyList<IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload>> cpuTileJobs,
         IReadOnlyList<MaterialAtlasParamsGpuOverrideUpload> overrideJobs,
-        IReadOnlyList<IMaterialAtlasGpuJob> normalDepthJobs,
+        IReadOnlyList<IMaterialAtlasCpuJob<MaterialAtlasNormalDepthGpuJob>> normalDepthCpuJobs,
         MaterialOverrideTextureLoader overrideLoader,
         MaterialAtlasAsyncCacheCounters? cacheCounters)
     {
@@ -31,7 +31,7 @@ internal sealed class MaterialAtlasBuildSession : IDisposable
         AtlasPages = atlasPages ?? throw new ArgumentNullException(nameof(atlasPages));
         CpuTileJobs = cpuTileJobs ?? throw new ArgumentNullException(nameof(cpuTileJobs));
         OverrideJobs = overrideJobs ?? throw new ArgumentNullException(nameof(overrideJobs));
-        NormalDepthJobs = normalDepthJobs ?? throw new ArgumentNullException(nameof(normalDepthJobs));
+        NormalDepthCpuJobs = normalDepthCpuJobs ?? throw new ArgumentNullException(nameof(normalDepthCpuJobs));
         OverrideLoader = overrideLoader ?? throw new ArgumentNullException(nameof(overrideLoader));
         CacheCounters = cacheCounters;
 
@@ -50,7 +50,7 @@ internal sealed class MaterialAtlasBuildSession : IDisposable
         TotalOverrides = overrideJobs.Count;
         OverridesApplied = 0;
 
-        TotalNormalDepthJobs = normalDepthJobs.Count;
+        TotalNormalDepthJobs = normalDepthCpuJobs.Count;
         CompletedNormalDepthJobs = 0;
 
         // Prime the per-rect override dictionary for O(1) lookup when a tile upload completes.
@@ -70,7 +70,7 @@ internal sealed class MaterialAtlasBuildSession : IDisposable
 
     public IReadOnlyList<MaterialAtlasParamsGpuOverrideUpload> OverrideJobs { get; }
 
-    public IReadOnlyList<IMaterialAtlasGpuJob> NormalDepthJobs { get; }
+    public IReadOnlyList<IMaterialAtlasCpuJob<MaterialAtlasNormalDepthGpuJob>> NormalDepthCpuJobs { get; }
 
     public Dictionary<int, MaterialAtlasBuildPageState> PagesByAtlasTexId { get; }
 

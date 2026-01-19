@@ -19,7 +19,10 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
     private readonly PriorityFifoQueue<IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload>> pendingCpuJobs = new();
     private readonly ConcurrentQueue<MaterialAtlasParamsGpuTileUpload> completedUploads = new();
     private readonly PriorityFifoQueue<MaterialAtlasParamsGpuTileUpload> pendingGpuUploads = new();
-    private readonly PriorityFifoQueue<IMaterialAtlasGpuJob> pendingNormalDepthJobs = new();
+
+    private readonly PriorityFifoQueue<IMaterialAtlasCpuJob<MaterialAtlasNormalDepthGpuJob>> pendingNormalDepthCpuJobs = new();
+    private readonly ConcurrentQueue<MaterialAtlasNormalDepthGpuJob> completedNormalDepthUploads = new();
+    private readonly PriorityFifoQueue<MaterialAtlasNormalDepthGpuJob> pendingNormalDepthGpuJobs = new();
 
     private readonly Stopwatch stopwatch = new();
 
@@ -66,7 +69,9 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
             pendingCpuJobs.Clear();
             while (completedUploads.TryDequeue(out _)) { }
             pendingGpuUploads.Clear();
-            pendingNormalDepthJobs.Clear();
+            pendingNormalDepthCpuJobs.Clear();
+            while (completedNormalDepthUploads.TryDequeue(out _)) { }
+            pendingNormalDepthGpuJobs.Clear();
 
             lastLoggedCompleteGenerationId = 0;
 
@@ -107,9 +112,9 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
                 }
             }
 
-            foreach (IMaterialAtlasGpuJob job in newSession.NormalDepthJobs)
+            foreach (IMaterialAtlasCpuJob<MaterialAtlasNormalDepthGpuJob> job in newSession.NormalDepthCpuJobs)
             {
-                pendingNormalDepthJobs.Enqueue(job.Priority, job);
+                pendingNormalDepthCpuJobs.Enqueue(job.Priority, job);
 
                 if (newSession.PagesByAtlasTexId.TryGetValue(job.AtlasTextureId, out MaterialAtlasBuildPageState? page))
                 {
@@ -176,6 +181,16 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
             pendingGpuUploads.Enqueue(completed.Priority, completed);
         }
 
+        while (completedNormalDepthUploads.TryDequeue(out MaterialAtlasNormalDepthGpuJob completedNd))
+        {
+            if (completedNd.GenerationId != active.GenerationId)
+            {
+                continue;
+            }
+
+            pendingNormalDepthGpuJobs.Enqueue(completedNd.Priority, completedNd);
+        }
+
         float budgetMs = ConfigModSystem.Config.MaterialAtlasAsyncBudgetMs;
         if (budgetMs <= 0)
         {
@@ -200,32 +215,63 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
         int dispatched = 0;
         while (dispatched < maxCpuJobsPerFrame && stopwatch.Elapsed.TotalMilliseconds < budgetMs)
         {
-            if (!pendingCpuJobs.TryDequeue(out IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload> job))
+            bool isMaterialParams = pendingCpuJobs.TryDequeue(out IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload> job);
+            bool isNormalDepth = false;
+            IMaterialAtlasCpuJob<MaterialAtlasNormalDepthGpuJob> ndJob = default!;
+
+            if (!isMaterialParams)
             {
-                break;
+                isNormalDepth = pendingNormalDepthCpuJobs.TryDequeue(out ndJob);
+                if (!isNormalDepth)
+                {
+                    break;
+                }
             }
 
-            if (job.GenerationId != active.GenerationId)
+            if (isMaterialParams)
             {
-                continue;
-            }
+                if (job.GenerationId != active.GenerationId)
+                {
+                    continue;
+                }
 
-            if (active.PagesByAtlasTexId.TryGetValue(job.AtlasTextureId, out MaterialAtlasBuildPageState? page))
+                if (active.PagesByAtlasTexId.TryGetValue(job.AtlasTextureId, out MaterialAtlasBuildPageState? page))
+                {
+                    page.PendingTiles = Math.Max(0, page.PendingTiles - 1);
+                    page.InFlightTiles++;
+                }
+            }
+            else
             {
-                page.PendingTiles = Math.Max(0, page.PendingTiles - 1);
-                page.InFlightTiles++;
+                if (ndJob.GenerationId != active.GenerationId)
+                {
+                    continue;
+                }
             }
 
             dispatched++;
+
+            bool isMp = isMaterialParams;
+            IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload> mpJob = job;
+            IMaterialAtlasCpuJob<MaterialAtlasNormalDepthGpuJob> ndJobLocal = ndJob;
+            CancellationToken token = active.Token;
 
             _ = Task.Run(() =>
             {
                 try
                 {
-                    active.Token.ThrowIfCancellationRequested();
+                    token.ThrowIfCancellationRequested();
 
-                    MaterialAtlasParamsGpuTileUpload upload = job.Execute(active.Token);
-                    completedUploads.Enqueue(upload);
+                    if (isMp)
+                    {
+                        MaterialAtlasParamsGpuTileUpload upload = mpJob.Execute(token);
+                        completedUploads.Enqueue(upload);
+                    }
+                    else
+                    {
+                        MaterialAtlasNormalDepthGpuJob gpuJob = ndJobLocal.Execute(token);
+                        completedNormalDepthUploads.Enqueue(gpuJob);
+                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -233,7 +279,7 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
                 }
                 catch
                 {
-                    // Best-effort: skip this tile.
+                    // Best-effort: skip.
                 }
             }, CancellationToken.None);
         }
@@ -299,7 +345,7 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
         int normalDepthUploads = 0;
         while (uploads < maxUploads && stopwatch.Elapsed.TotalMilliseconds < budgetMs)
         {
-            if (!pendingNormalDepthJobs.TryDequeue(out IMaterialAtlasGpuJob job))
+            if (!pendingNormalDepthGpuJobs.TryDequeue(out MaterialAtlasNormalDepthGpuJob job))
             {
                 break;
             }
@@ -371,7 +417,7 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
                 CompletedCpuResults: completedUploads.Count,
                 PendingGpuUploads: pendingGpuUploads.Count,
                 PendingOverrideUploads: 0,
-                PendingNormalDepthJobs: pendingNormalDepthJobs.Count,
+                PendingNormalDepthJobs: pendingNormalDepthGpuJobs.Count,
                 LastTickMs: lastTickMs,
                 LastDispatchedCpuJobs: lastDispatchedCpuJobs,
                 LastGpuUploads: lastGpuUploads,
@@ -413,7 +459,7 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
             CompletedCpuResults: completedUploads.Count,
             PendingGpuUploads: pendingGpuUploads.Count,
             PendingOverrideUploads: active.PendingOverrideUploadsCount,
-            PendingNormalDepthJobs: pendingNormalDepthJobs.Count,
+            PendingNormalDepthJobs: pendingNormalDepthGpuJobs.Count,
             LastTickMs: lastTickMs,
             LastDispatchedCpuJobs: lastDispatchedCpuJobs,
             LastGpuUploads: lastGpuUploads,

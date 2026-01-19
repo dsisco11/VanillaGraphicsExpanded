@@ -23,10 +23,10 @@ Goals:
   ☑ Track per-page "clear once" state before the first tile upload.
   ☑ Add normal+depth progress to async diagnostics and HUD.
 
-☐ Phase 3 - Disk cache IO isolation
-  ☐ Ensure normal+depth cache reads run on worker threads only.
-  ☐ Keep cache writes off the render thread (Task.Run) and cancel-aware.
-  ☐ Add bounded queues or backpressure to avoid memory spikes.
+☑ Phase 3 - Disk cache IO isolation
+  ☑ Ensure normal+depth cache reads run on worker threads only.
+  ☑ Keep cache writes off the render thread (Task.Run) and cancel-aware.
+  ☑ Add bounded queues or backpressure to avoid memory spikes.
 
 ☐ Phase 4 - Config and UX
   ☐ Add config knobs for normal+depth async budget (ms) and max uploads/frame.

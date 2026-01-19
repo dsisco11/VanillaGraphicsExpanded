@@ -627,7 +627,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
                 Priority: ov.Priority));
         }
 
-        var normalDepthJobs = new List<IMaterialAtlasGpuJob>(capacity: normalDepthPlan is null
+        var normalDepthCpuJobs = new List<IMaterialAtlasCpuJob<MaterialAtlasNormalDepthGpuJob>>(capacity: normalDepthPlan is null
             ? 0
             : checked(normalDepthPlan.BakeJobs.Count + normalDepthPlan.OverrideJobs.Count));
 
@@ -656,14 +656,19 @@ internal sealed class MaterialAtlasSystem : IDisposable
                         job.DepthScale)
                     : default;
 
-                normalDepthJobs.Add(new MaterialAtlasNormalDepthGpuBakeJob(
+                normalDepthCpuJobs.Add(new MaterialAtlasNormalDepthCpuJob(
                     GenerationId: generationId,
                     AtlasTextureId: job.AtlasTextureId,
                     Rect: job.Rect,
                     AtlasWidth: size.w,
                     AtlasHeight: size.h,
+                    JobKind: MaterialAtlasNormalDepthGpuJob.Kind.Bake,
+                    TargetTexture: job.SourceTexture,
+                    OverrideTexture: null,
                     NormalScale: job.NormalScale,
                     DepthScale: job.DepthScale,
+                    RuleId: null,
+                    RuleSource: null,
                     DiskCache: enableCache ? diskCache : null,
                     CacheKey: key,
                     Priority: job.Priority));
@@ -689,12 +694,13 @@ internal sealed class MaterialAtlasSystem : IDisposable
                         ov.RuleSource)
                     : default;
 
-                normalDepthJobs.Add(new MaterialAtlasNormalDepthGpuOverrideJob(
+                normalDepthCpuJobs.Add(new MaterialAtlasNormalDepthCpuJob(
                     GenerationId: generationId,
                     AtlasTextureId: ov.AtlasTextureId,
                     Rect: ov.Rect,
                     AtlasWidth: size.w,
                     AtlasHeight: size.h,
+                    JobKind: MaterialAtlasNormalDepthGpuJob.Kind.Override,
                     TargetTexture: ov.TargetTexture,
                     OverrideTexture: ov.OverrideTexture,
                     NormalScale: ov.NormalScale,
@@ -712,14 +718,14 @@ internal sealed class MaterialAtlasSystem : IDisposable
             atlasPages,
             cpuJobs,
             overrideJobs,
-            normalDepthJobs,
+            normalDepthCpuJobs,
             new MaterialOverrideTextureLoader(),
             cacheCounters);
         scheduler.StartSession(session);
 
         lastScheduledAtlasReloadIteration = currentReload;
         lastScheduledAtlasNonNullPositions = nonNullCount;
-        IsBuildComplete = cpuJobs.Count == 0 && overrideJobs.Count == 0 && normalDepthJobs.Count == 0;
+        IsBuildComplete = cpuJobs.Count == 0 && overrideJobs.Count == 0 && normalDepthCpuJobs.Count == 0;
 
         return cpuJobs.Count;
     }
