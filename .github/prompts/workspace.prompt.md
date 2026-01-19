@@ -43,6 +43,14 @@ This repo contains the mod code and tests for **VanillaGraphicsExpanded**, a ren
 - use the `test` task to run all unit and GPU tests.
 - `VanillaGraphicsExpanded.sln`
 
+## Live Config + Debug Tooling
+- Config file: `VanillaGraphicsExpanded.json` (ConfigLib aware) with live reload via `ILiveConfigurable` + `LiveConfigReload`
+- Config system entry: `ModSystems/ConfigModSystem.cs` (load/sanitize, ConfigLib sync, notify + persist)
+- Debug UI: `DebugView/VgeDebugViewManager.cs` (F8 hotkey) and overlays in `DebugOverlays/`
+- Render-stage GPU labels (DEBUG builds): `GpuDebugLabelManager` wraps VS render stages
+- Debug hotkey registration: `VanillaGraphicsExpandedModSystem.cs` (F8 toggle wiring)
+- ConfigLib event hook: `ModSystems/ConfigModSystem.cs` (config-saved bus listener)
+
 ## GPU Abstractions (Rendering/)
 - `DynamicTexture` / `DynamicTexture3D` - RAII wrappers for 2D + 2D-array/3D textures; allocate, resize, upload, readback, debug labels
 - `GBuffer` - FBO wrapper (single, MRT, depth-only) with attach/resize/blit and wrapper support for engine-owned FBOs
@@ -79,6 +87,11 @@ This repo contains the mod code and tests for **VanillaGraphicsExpanded**, a ren
 - Direct lighting pass writes split radiance buffers (diffuse/specular/emissive)
 - Composite pass merges direct lighting + LumOn indirect and applies AO/fog
 - Material atlas builds packed params (roughness/metallic/emissive) and normal/depth sidecar, with async builds, disk cache, and overrides
+
+## Shader Asset Layout
+- Domain: `vanillagraphicsexpanded`
+- Main shader assets: `assets/vanillagraphicsexpanded/shaders/*.vsh|*.fsh`
+- Shared includes: `assets/vanillagraphicsexpanded/shaders/includes/*.glsl`
 
 ## Current Focus
 - `project.todo` - Active feature work (LumOn alignment, PBR pipeline, material atlas)
