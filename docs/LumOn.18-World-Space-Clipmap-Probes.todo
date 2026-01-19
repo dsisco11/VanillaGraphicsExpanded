@@ -60,11 +60,11 @@ LumOn - Phase 18 - World-Space Clipmap Probe System (Implementation):
 
   Phase 18.4 - Clipmap Topology + Addressing:
   Exit artifacts: Deterministic mapping between world space and clipmap addresses, with origin snapping.
-  ☐ Implement origin snapping per level (deterministic for a given camera path).
-  ☐ Implement world→(level, probeCoord) mapping and inverse mapping.
-  ☐ Implement ring/brick (if applicable) addressing per docs/LumOn.17.
-  ☐ Define border behavior and sampling rules near clipmap edges.
-  ☐ Define cross-level overlap blending (how many levels contribute, weights, and transition band).
+  ✔ Implement origin snapping per level (deterministic for a given camera path). @done
+  ✔ Implement world→(level, probeCoord) mapping and inverse mapping. @done
+  ✔ Implement ring/brick (if applicable) addressing per docs/LumOn.17. @done
+  ✔ Define border behavior and sampling rules near clipmap edges. @done
+  ✔ Define cross-level overlap blending (how many levels contribute, weights, and transition band). @done
 
 
   Phase 18.5 - Scheduling + Dirty Tracking:

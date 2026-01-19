@@ -32,12 +32,20 @@ Levels are ordered from finest to coarsest:
 
 ## 3. Origin snapping and wrapping
 
-To keep probe identity stable, each level uses a snapped origin:
+To keep probe identity stable while keeping the grid camera-centered, each level uses a snapped **anchor** and derives a camera-centered origin.
 
 ```
-originL = Snap(cameraPos, spacingL)
+anchorL = Snap(cameraPos, spacingL)
 Snap(p, s) = floor(p / s) * s
 ```
+
+The clipmap **origin** is the minimum-corner of the level in world space:
+
+```text
+originL = anchorL - (resolution/2) * spacingL
+```
+
+This places the camera near the middle of the grid (in probe units), while keeping the level stable under camera motion.
 
 The clipmap uses a ring-buffer addressing scheme to avoid reallocating textures when the origin shifts. Indices wrap by `resolution`:
 
@@ -58,7 +66,8 @@ SelectLevel(pos, cameraPos):
 
 WorldToClipmap(pos, level):
     spacingL = baseSpacing * (2^level)
-    originL = Snap(cameraPos, spacingL)
+  anchorL = Snap(cameraPos, spacingL)
+  originL = anchorL - (resolution/2) * spacingL
     local = (pos - originL) / spacingL
     index = floor(local)
     frac = local - index
@@ -105,7 +114,12 @@ blend = saturate((edgeDist - blendStart) / blendWidth)
 value = lerp(sampleLplus1, sampleL, blend)
 ```
 
-`blendStart` and `blendWidth` are expressed in probe units (not world units) so they scale with level spacing.
+`blendStart` and `blendWidth` are expressed in **probe units** (not world units) so they scale with level spacing.
+
+Implementation note:
+
+- `local` is in probe units.
+- `DistanceToLevelBoundary` uses the minimum distance to any face of the level in probe units.
 
 ---
 
