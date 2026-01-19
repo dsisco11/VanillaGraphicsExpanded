@@ -152,8 +152,8 @@ LumOn - Phase 18 - World-Space Clipmap Probe System (Implementation):
 
   Phase 18.12 - Tests + Validation:
   Exit artifacts: Deterministic behavior and basic correctness are validated by automated tests/diagnostics.
-  ☐ Clipmap origin snapping determinism across camera paths.
-  ☐ Probe sampling stability across camera movement.
-  ☐ Budget enforcement tests (no runaway CPU/GPU work under stress).
-  ☐ Layout/version migration tests for persistence (if implemented).
-  ☐ Visual debug capture checklist (RenderDoc): validate per-level textures update and blend.
+  ✔ Clipmap origin snapping determinism across camera paths. @done
+  ✔ Probe sampling stability across camera movement. @done
+  ✔ Budget enforcement tests (no runaway CPU/GPU work under stress). @done
+  ✔ Layout/version migration tests for persistence (if implemented). @done (N/A: Phase 18.9 removed; world probes are RAM-only)
+  ✔ Visual debug capture checklist (RenderDoc): validate per-level textures update and blend. @done

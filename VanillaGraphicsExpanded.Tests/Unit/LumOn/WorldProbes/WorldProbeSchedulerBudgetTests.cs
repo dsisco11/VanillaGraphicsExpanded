@@ -1,0 +1,120 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+
+using Vintagestory.API.MathTools;
+
+using VanillaGraphicsExpanded.LumOn.WorldProbes;
+
+namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.WorldProbes;
+
+public sealed class WorldProbeSchedulerBudgetTests
+{
+    [Fact]
+    public void BuildUpdateList_RespectsGlobalTraceBudget()
+    {
+        var scheduler = new LumOnWorldProbeScheduler(levelCount: 3, resolution: 4);
+        scheduler.UpdateOrigins(new Vec3d(0, 0, 0), baseSpacing: 1.0);
+
+        List<LumOnWorldProbeUpdateRequest> list = scheduler.BuildUpdateList(
+            frameIndex: 0,
+            cameraPos: new Vec3d(0, 0, 0),
+            baseSpacing: 1.0,
+            perLevelProbeBudgets: [100, 100, 100],
+            traceMaxProbesPerFrame: 10,
+            uploadBudgetBytesPerFrame: 1_000_000);
+
+        Assert.InRange(list.Count, 0, 10);
+    }
+
+    [Fact]
+    public void BuildUpdateList_RespectsUploadBudgetBytesPerFrame()
+    {
+        int estimatedBytes = GetEstimatedUploadBytesPerProbe();
+
+        var scheduler = new LumOnWorldProbeScheduler(levelCount: 3, resolution: 4);
+        scheduler.UpdateOrigins(new Vec3d(0, 0, 0), baseSpacing: 1.0);
+
+        int expectedMax = 7;
+        int uploadBudget = (estimatedBytes * expectedMax) + (estimatedBytes - 1);
+
+        List<LumOnWorldProbeUpdateRequest> list = scheduler.BuildUpdateList(
+            frameIndex: 0,
+            cameraPos: new Vec3d(0, 0, 0),
+            baseSpacing: 1.0,
+            perLevelProbeBudgets: [100, 100, 100],
+            traceMaxProbesPerFrame: 10_000,
+            uploadBudgetBytesPerFrame: uploadBudget);
+
+        Assert.Equal(expectedMax, list.Count);
+    }
+
+    [Fact]
+    public void BuildUpdateList_RespectsPerLevelBudgets()
+    {
+        var scheduler = new LumOnWorldProbeScheduler(levelCount: 3, resolution: 4);
+        scheduler.UpdateOrigins(new Vec3d(0, 0, 0), baseSpacing: 1.0);
+
+        List<LumOnWorldProbeUpdateRequest> list = scheduler.BuildUpdateList(
+            frameIndex: 0,
+            cameraPos: new Vec3d(0, 0, 0),
+            baseSpacing: 1.0,
+            perLevelProbeBudgets: [2, 3],
+            traceMaxProbesPerFrame: 100,
+            uploadBudgetBytesPerFrame: 1_000_000);
+
+        Assert.Equal(5, list.Count);
+
+        int l0 = 0;
+        int l1 = 0;
+        int l2 = 0;
+        foreach (var r in list)
+        {
+            if (r.Level == 0) l0++;
+            else if (r.Level == 1) l1++;
+            else if (r.Level == 2) l2++;
+        }
+
+        Assert.Equal(2, l0);
+        Assert.Equal(3, l1);
+        Assert.Equal(0, l2);
+    }
+
+    [Fact]
+    public void Complete_MovesProbeFromInFlightToValid()
+    {
+        var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution: 4);
+        scheduler.UpdateOrigins(new Vec3d(0, 0, 0), baseSpacing: 1.0);
+
+        List<LumOnWorldProbeUpdateRequest> list = scheduler.BuildUpdateList(
+            frameIndex: 0,
+            cameraPos: new Vec3d(0, 0, 0),
+            baseSpacing: 1.0,
+            perLevelProbeBudgets: [1],
+            traceMaxProbesPerFrame: 1,
+            uploadBudgetBytesPerFrame: 1_000_000);
+
+        Assert.Single(list);
+        var req = list[0];
+
+        var lifecycle = new LumOnWorldProbeLifecycleState[scheduler.ProbesPerLevel];
+        Assert.True(scheduler.TryCopyLifecycleStates(level: 0, lifecycle));
+        Assert.Equal(LumOnWorldProbeLifecycleState.InFlight, lifecycle[req.StorageLinearIndex]);
+
+        scheduler.Complete(req, frameIndex: 1, success: true);
+
+        Assert.True(scheduler.TryCopyLifecycleStates(level: 0, lifecycle));
+        Assert.Equal(LumOnWorldProbeLifecycleState.Valid, lifecycle[req.StorageLinearIndex]);
+    }
+
+    private static int GetEstimatedUploadBytesPerProbe()
+    {
+        const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Static;
+        FieldInfo? f = typeof(LumOnWorldProbeScheduler).GetField("EstimatedUploadBytesPerProbe", flags);
+
+        Assert.NotNull(f);
+        object? v = f!.GetRawConstantValue();
+        Assert.NotNull(v);
+        return (int)v!;
+    }
+}
