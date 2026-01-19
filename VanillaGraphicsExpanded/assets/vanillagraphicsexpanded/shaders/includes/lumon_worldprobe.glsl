@@ -244,7 +244,8 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 	vec3 irradiance = shEvaluateDiffuseRGB(shR, shG, shB, normalWS);
 
 	// ShortRangeAO directional weight (leak reduction proxy).
-	vec3 aoDir = normalize(aoDirAccum);
+	// Guard against undefined normalize(0) behavior on some drivers.
+	vec3 aoDir = (dot(aoDirAccum, aoDirAccum) > 1e-8) ? normalize(aoDirAccum) : normalWS;
 	float aoConf = clamp(aoConfAccum, 0.0, 1.0);
 	float aoWeight = max(dot(normalWS, aoDir), 0.0) * aoConf;
 

@@ -1001,6 +1001,25 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (bufferManager.ProbeSh9Tex0 is null || bufferManager.ProbeSh9Tex6 is null)
             return;
 
+        if (TryBindWorldProbeClipmapCommon(
+                out _,
+                out _,
+                out var wpBaseSpacing,
+                out var wpLevels,
+                out var wpResolution,
+                out _,
+                out _))
+        {
+            if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, wpBaseSpacing, wpLevels, wpResolution))
+            {
+                return;
+            }
+        }
+        else
+        {
+            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
+        }
+
         fbo.BindWithViewport();
         fbo.Clear();
 
@@ -1051,6 +1070,27 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         var fbo = bufferManager.IndirectHalfFbo;
         if (fbo is null) return;
+
+        // World-probe clipmap uses compile-time defines. They must be configured before Use().
+        // If defines change, a recompile is queued; skip this pass (do not clear) to avoid black flicker.
+        if (TryBindWorldProbeClipmapCommon(
+                out _,
+                out _,
+                out var wpBaseSpacing,
+                out var wpLevels,
+                out var wpResolution,
+                out _,
+                out _))
+        {
+            if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, wpBaseSpacing, wpLevels, wpResolution))
+            {
+                return;
+            }
+        }
+        else
+        {
+            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
+        }
 
         fbo.BindWithViewport();
         fbo.Clear();
@@ -1114,6 +1154,25 @@ public class LumOnRenderer : IRenderer, IDisposable
             ?? bufferManager.ScreenProbeAtlasCurrentTex
             ?? bufferManager.ScreenProbeAtlasTraceTex;
         if (probeAtlas is null) return;
+
+        if (TryBindWorldProbeClipmapCommon(
+                out _,
+                out _,
+                out var wpBaseSpacing,
+                out var wpLevels,
+                out var wpResolution,
+                out _,
+                out _))
+        {
+            if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, wpBaseSpacing, wpLevels, wpResolution))
+            {
+                return;
+            }
+        }
+        else
+        {
+            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
+        }
 
         fbo.BindWithViewport();
         fbo.Clear();
@@ -1401,7 +1460,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         {
             if (!shader.TrySetWorldProbeLevelParams(i, origins[i], rings[i]))
             {
-                shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
                 return;
             }
         }
@@ -1438,7 +1496,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         {
             if (!shader.TrySetWorldProbeLevelParams(i, origins[i], rings[i]))
             {
-                shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
                 return;
             }
         }
@@ -1475,7 +1532,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         {
             if (!shader.TrySetWorldProbeLevelParams(i, origins[i], rings[i]))
             {
-                shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
                 return;
             }
         }
