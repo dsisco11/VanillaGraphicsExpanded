@@ -500,6 +500,6 @@
     { "type": "separator", "title": "vanillagraphicsexpanded:config-section-integration", "weight": 8.9 },
     { "type": "separator", "title": "vanillagraphicsexpanded:config-section-probe-atlas-advanced", "weight": 9.9 },
     { "type": "separator", "title": "vanillagraphicsexpanded:config-section-texture-streaming", "weight": 18.9 },
-    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-material-atlas", "weight": 19.9 }
+    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-material-atlas", "weight": 19.95 }
   ]
 }
