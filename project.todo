@@ -171,40 +171,55 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
   Goal: Implement world-space clipmap probes per LumOn.16-21 with L1 SH, CPU async voxel traces,
   and ShortRangeAO visibility, feeding the Phase 15 composite alongside screen-space GI.
 
+    Reference:
+    - docs/LumOn.01-Core-Architecture.md (overall GI architecture + ownership boundaries)
+    - docs/LumOn.02-Probe-Grid.md (probe sampling conventions that world probes should match)
+    - docs/LumOn.16-World-Space-Clipmap-Probes.md (what/why + high-level system shape)
+    - docs/LumOn.17-Clipmap-Topology-and-Addressing.md (origin snapping, rings, addressing)
+    - docs/LumOn.18-Probe-Data-Layout-and-Packing.md (L1 SH packing, metadata, formats)
+    - docs/LumOn.19-Update-Pipeline-and-Scheduling.md (CPU update selection, budgets, SSBO upload)
+    - docs/LumOn.20-Streaming-and-Persistence.md (streaming, cache persistence, versioning)
+    - docs/LumOn.21-Shading-Integration.md (shading path + blend policy with screen-space GI)
+    - docs/Profiling.EventSource.md (timing + profiling hooks)
+
   Exit artifacts: A working world-probe pipeline that updates clipmaps over time, blends with
   screen-space GI using confidence, exposes debug views, and includes basic validation tests.
 
   Work items:
   ☐ Add config + defaults:
-    - Add config values (ClipmapBaseSpacing, ClipmapResolution, ClipmapLevels, per-level budgets).
+      - Add config values (ClipmapBaseSpacing, ClipmapResolution, ClipmapLevels, per-level budgets). (docs/LumOn.16, docs/LumOn.19)
     - Wire config load, hot-reload behavior, and safety bounds.
 
   ☐ Implement clipmap state + scheduling:
-    - Origin snapping per level and ring-buffer addressing.
-    - Dirty region tracking and per-level update budgets.
-    - Probe selection policy (near-field, dirty regions, stale probes).
+      - Origin snapping per level and ring-buffer addressing. (docs/LumOn.17)
+      - Dirty region tracking and per-level update budgets. (docs/LumOn.19)
+      - Probe selection policy (near-field, dirty regions, stale probes). (docs/LumOn.19)
 
   ☐ Implement CPU trace backend:
-    - Iterative async voxel tracing for selected probes.
-    - Produce per-probe trace samples and metadata for GPU integration.
+      - Iterative async voxel tracing for selected probes. (docs/LumOn.19)
+      - Produce per-probe trace samples and metadata for GPU integration. (docs/LumOn.18, docs/LumOn.19)
 
   ☐ GPU upload + integration:
-    - Define SSBO layout for trace headers and samples (per docs/LumOn.19).
-    - Integrate trace samples into L1 SH + ShortRangeAO + confidence.
-    - Apply probe-space filtering and write clipmap textures.
+      - Define SSBO layout for trace headers and samples. (docs/LumOn.18, docs/LumOn.19)
+      - Integrate trace samples into L1 SH + ShortRangeAO + confidence. (docs/LumOn.18)
+      - Apply probe-space filtering and write clipmap textures. (docs/LumOn.19)
 
   ☐ Buffer and texture management:
-    - Allocate per-level textures for SH, ShortRangeAO, confidence, and distance.
-    - Handle resize/recreate on config changes or resolution updates.
+      - Allocate per-level textures for SH, ShortRangeAO, confidence, and distance. (docs/LumOn.18)
+      - Handle resize/recreate on config changes or resolution updates. (docs/LumOn.16, docs/LumOn.18)
+
+    ☐ Streaming and persistence:
+      - Cache warm-start / persistence as appropriate (optional). (docs/LumOn.20)
+      - Versioning/invalidation on config changes and content changes. (docs/LumOn.20)
 
   ☐ Shading integration:
-    - Sample world probes with trilinear + overlap blending.
-    - Blend with screen-space GI (screen-first, confidence-based).
-    - Feed Phase 15 composite inputs, including optional ShortRangeAO use.
+      - Sample world probes with trilinear + overlap blending. (docs/LumOn.21)
+      - Blend with screen-space GI (screen-first, confidence-based). (docs/LumOn.21)
+      - Feed Phase 15 composite inputs, including optional ShortRangeAO use. (docs/LumOn.21)
 
   ☐ Debug tooling:
-    - Debug views for world probe irradiance, ShortRangeAO, confidence, and blend weights.
-    - GPU timing for update and filter passes.
+      - Debug views for world probe irradiance, ShortRangeAO, confidence, and blend weights. (docs/LumOn.21)
+      - GPU timing for update and filter passes. (docs/Profiling.EventSource.md)
 
   ☐ Tests:
     - Clipmap origin snapping determinism across camera paths.
