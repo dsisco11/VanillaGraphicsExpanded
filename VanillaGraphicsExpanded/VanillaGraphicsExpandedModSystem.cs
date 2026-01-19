@@ -37,11 +37,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
     public override void AssetsLoaded(ICoreAPI api)
     {
-        // Initialize the shader includes hook with dependencies
-        ShaderIncludesHook.Initialize(api.Logger, api.Assets);
-
-        // Initialize the shader imports system to load mod shader imports (shaders/includes)
-        ShaderImportsSystem.Instance.Initialize(api);
+        // Shader pipeline setup is owned by ShaderModSystem.
     }
 
     public override void StartClientSide(ICoreClientAPI api)
@@ -114,9 +110,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
             gBufferManager?.Dispose();
             gBufferManager = null;
-
-            // Clear shader imports cache
-            ShaderImportsSystem.Instance.Clear();
 
         }
         finally
