@@ -26,8 +26,8 @@ public sealed class NormalDepthAtlasPlumbingTests
 
         pagesByAtlasTexId.Clear();
 
-        DynamicTexture2D materialParams = CreateFakeDynamicTexture(textureId: 111, internalFormat: PixelInternalFormat.Rgb16f);
-        DynamicTexture2D normalDepth = CreateFakeDynamicTexture(textureId: normalDepthTexId, internalFormat: PixelInternalFormat.Rgba16f);
+        Texture2D materialParams = CreateFakeTexture2D(textureId: 111, internalFormat: PixelInternalFormat.Rgb16f);
+        Texture2D normalDepth = CreateFakeTexture2D(textureId: normalDepthTexId, internalFormat: PixelInternalFormat.Rgba16f);
 
         var pageTextures = new MaterialAtlasPageTextures(materialParams, normalDepth);
 
@@ -97,18 +97,17 @@ public sealed class NormalDepthAtlasPlumbingTests
         return (T)value;
     }
 
-    private static DynamicTexture2D CreateFakeDynamicTexture(int textureId, PixelInternalFormat internalFormat)
+    private static Texture2D CreateFakeTexture2D(int textureId, PixelInternalFormat internalFormat)
     {
         // Tests should not require a live GL context; we create an uninitialized instance and
         // populate the minimum fields used by IsValid/TextureId.
 #pragma warning disable SYSLIB0050
-        var tex = (DynamicTexture2D)FormatterServices.GetUninitializedObject(typeof(DynamicTexture2D));
+        var tex = (Texture2D)FormatterServices.GetUninitializedObject(typeof(Texture2D));
 #pragma warning restore SYSLIB0050
 
         SetPrivateInstanceField(tex, "textureId", textureId);
         SetPrivateInstanceField(tex, "width", 1);
         SetPrivateInstanceField(tex, "height", 1);
-        SetPrivateInstanceField(tex, "mipLevels", 1);
         SetPrivateInstanceField(tex, "internalFormat", internalFormat);
         SetPrivateInstanceField(tex, "filterMode", TextureFilterMode.Nearest);
         SetPrivateInstanceField(tex, "isDisposed", false);
