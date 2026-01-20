@@ -37,11 +37,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 {
     #region Constants
 
-    private const double DEBUG_RENDER_ORDER = 1.1; // After other debug overlays
+    private const double DEBUG_RENDER_ORDER = 12.0; // After PBR composite (needs depth for wireframes)
     private const int RENDER_RANGE = 1;
 
     private const int MaxWorldProbeLevels = 8;
-    private const int ClipmapBoundsVerticesPerLevel = 24; // 12 edges * 2 vertices
+    private const int ClipmapBoundsVerticesPerLevel = 48; // Outer clip volume + inner probe-center bounds (2 * 12 edges * 2 vertices)
     private const int FrozenMarkerVertices = 24; // camera axes + L0 center + L0 min + L0 max (3*2 each)
 
     #endregion
@@ -112,8 +112,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         quadMesh.Rgba = null;
         quadMeshRef = capi.Render.UploadMesh(quadMesh);
 
-        // Register at AfterBlit stage so debug output renders on top
+        // Debug views:
+        // - Fullscreen overlays: AfterBlit (always visible).
+        // - 3D wireframe bounds: Opaque (so depth-testing works against the scene).
         capi.Event.RegisterRenderer(this, EnumRenderStage.AfterBlit, "lumon_debug");
+        capi.Event.RegisterRenderer(this, EnumRenderStage.AfterOIT, "lumon_debug_bounds");
 
         capi.Logger.Notification("[LumOn] Debug renderer initialized");
     }
@@ -148,6 +151,22 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
+        // Render 3D wireframes after transparency so the depth buffer is available and water/OIT content is present.
+        if (stage == EnumRenderStage.AfterOIT)
+        {
+            if (config.DebugMode == LumOnDebugMode.WorldProbeClipmapBounds)
+            {
+                RenderWorldProbeClipmapBoundsFrozen();
+            }
+
+            return;
+        }
+
+        if (stage != EnumRenderStage.AfterBlit)
+        {
+            return;
+        }
+
         if (config.DebugMode != lastMode)
         {
             OnDebugModeChanged(prev: lastMode, current: config.DebugMode);
@@ -163,7 +182,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         if (config.DebugMode == LumOnDebugMode.WorldProbeClipmapBounds)
         {
-            RenderWorldProbeClipmapBoundsFrozen();
             return;
         }
 
@@ -560,11 +578,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        // Convert the frozen absolute world-space bounds into the current camera-matrix space every frame,
+        // Convert the frozen absolute world-space bounds into the current camera-relative space every frame,
         // so they appear fixed in world space even when the engine re-centers the floating origin.
         Vec3d camPosWorldNow = player.Entity.CameraPos;
-        MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invViewMatrix);
-        var camPosMatrixNow = new System.Numerics.Vector3(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
 
         for (int i = 0; i < MaxWorldProbeLevels; i++)
         {
@@ -715,13 +731,13 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
             // Coordinates are already in the engine's camera-matrix world space.
             var o = origins[level];
-            float minX = o.X;
-            float minY = o.Y;
-            float minZ = o.Z;
+            float minXOuter = o.X;
+            float minYOuter = o.Y;
+            float minZOuter = o.Z;
 
-            float maxX = minX + size;
-            float maxY = minY + size;
-            float maxZ = minZ + size;
+            float maxXOuter = minXOuter + size;
+            float maxYOuter = minYOuter + size;
+            float maxZOuter = minZOuter + size;
 
             (float r, float g, float b, float a) = GetDebugColorForLevel(level);
 
@@ -750,28 +766,48 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 AddVertex(bx, by, bz);
             }
 
-            // 8 corners
-            float x0 = minX, x1 = maxX;
-            float y0 = minY, y1 = maxY;
-            float z0 = minZ, z1 = maxZ;
+            void AddBox(float x0, float y0, float z0, float x1, float y1, float z1)
+            {
+                // bottom (z0)
+                AddLine(x0, y0, z0, x1, y0, z0);
+                AddLine(x1, y0, z0, x1, y1, z0);
+                AddLine(x1, y1, z0, x0, y1, z0);
+                AddLine(x0, y1, z0, x0, y0, z0);
 
-            // bottom (z0)
-            AddLine(x0, y0, z0, x1, y0, z0);
-            AddLine(x1, y0, z0, x1, y1, z0);
-            AddLine(x1, y1, z0, x0, y1, z0);
-            AddLine(x0, y1, z0, x0, y0, z0);
+                // top (z1)
+                AddLine(x0, y0, z1, x1, y0, z1);
+                AddLine(x1, y0, z1, x1, y1, z1);
+                AddLine(x1, y1, z1, x0, y1, z1);
+                AddLine(x0, y1, z1, x0, y0, z1);
 
-            // top (z1)
-            AddLine(x0, y0, z1, x1, y0, z1);
-            AddLine(x1, y0, z1, x1, y1, z1);
-            AddLine(x1, y1, z1, x0, y1, z1);
-            AddLine(x0, y1, z1, x0, y0, z1);
+                // verticals
+                AddLine(x0, y0, z0, x0, y0, z1);
+                AddLine(x1, y0, z0, x1, y0, z1);
+                AddLine(x1, y1, z0, x1, y1, z1);
+                AddLine(x0, y1, z0, x0, y1, z1);
+            }
 
-            // verticals
-            AddLine(x0, y0, z0, x0, y0, z1);
-            AddLine(x1, y0, z0, x1, y0, z1);
-            AddLine(x1, y1, z0, x1, y1, z1);
-            AddLine(x0, y1, z0, x0, y1, z1);
+            // Outer clip volume bounds: [originMinCorner, originMinCorner + resolution*spacing]
+            AddBox(minXOuter, minYOuter, minZOuter, maxXOuter, maxYOuter, maxZOuter);
+
+            // Inner probe-center bounds: [firstProbeCenter, lastProbeCenter]
+            // This helps diagnose "probes seem to start at the max corner" reports.
+            // Probe centers are at origin + (i + 0.5) * spacing.
+            if (resolution >= 2)
+            {
+                float inset = spacing * 0.5f;
+                float minXInner = minXOuter + inset;
+                float minYInner = minYOuter + inset;
+                float minZInner = minZOuter + inset;
+
+                float maxXInner = maxXOuter - inset;
+                float maxYInner = maxYOuter - inset;
+                float maxZInner = maxZOuter - inset;
+
+                // Darken the color so it's easy to distinguish.
+                (r, g, b, a) = (r * 0.35f, g * 0.35f, b * 0.35f, 1f);
+                AddBox(minXInner, minYInner, minZInner, maxXInner, maxYInner, maxZInner);
+            }
         }
 
         // Frozen capture markers:
@@ -948,6 +984,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         }
 
         capi.Event.UnregisterRenderer(this, EnumRenderStage.AfterBlit);
+        capi.Event.UnregisterRenderer(this, EnumRenderStage.AfterOIT);
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
