@@ -61,10 +61,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private LumOnDebugMode lastMode = LumOnDebugMode.Off;
 
     private bool hasFrozenClipmapBounds;
-    private System.Numerics.Vector3 frozenCameraPosWS;
+    private Vec3d frozenCameraPosWorld;
     private float frozenBaseSpacing;
     private int frozenLevels;
     private int frozenResolution;
+    private readonly Vec3d[] frozenOriginsWorld = new Vec3d[MaxWorldProbeLevels];
     private readonly System.Numerics.Vector3[] frozenOrigins = new System.Numerics.Vector3[MaxWorldProbeLevels];
 
     // World-probe bounds debug line rendering (GL_LINES, camera-relative coords).
@@ -425,24 +426,24 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         {
             if (worldProbeClipmapBufferManager is null)
             {
-                capi.ShowChatMessage("[VGE] World-probe clipmap manager: null (debug renderer)");
+                capi.Logger.Debug("[VGE] World-probe clipmap manager: null (debug renderer)");
             }
             else
             {
-                capi.ShowChatMessage($"[VGE] World-probe clipmap manager: resources={(worldProbeClipmapBufferManager.Resources is null ? "null" : "ok")}");
+                capi.Logger.Debug($"[VGE] World-probe clipmap manager: resources={(worldProbeClipmapBufferManager.Resources is null ? "null" : "ok")}");
             }
 
             if (worldProbeClipmapBufferManager?.Resources is null)
             {
-                capi.ShowChatMessage("[VGE] World-probe clipmap resources not available yet.");
+                capi.Logger.Debug("[VGE] World-probe clipmap resources not available yet.");
             }
             else if (worldProbeClipmapBufferManager.TryGetRuntimeParams(out var camPos, out var baseSpacing, out var levels, out var resolution, out _, out _))
             {
-                capi.ShowChatMessage($"[VGE] World-probe clipmap params: levels={levels}, res={resolution}, baseSpacing={baseSpacing:0.###}, cam=({camPos.X:0.#},{camPos.Y:0.#},{camPos.Z:0.#})");
+                capi.Logger.Debug($"[VGE] World-probe clipmap params: levels={levels}, res={resolution}, baseSpacing={baseSpacing:0.###}, cam=({camPos.X:0.#},{camPos.Y:0.#},{camPos.Z:0.#})");
             }
             else
             {
-                capi.ShowChatMessage("[VGE] World-probe clipmap params not published yet (runtime params missing).");
+                capi.Logger.Debug("[VGE] World-probe clipmap params not published yet (runtime params missing).");
             }
 
             if (worldProbeClipmapBufferManager is not null && worldProbeClipmapBufferManager.TryGetRuntimeParams(
@@ -462,7 +463,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 float camLocalZ = -o0.Z / denom;
                 float expected = resolutionL0 * 0.5f;
 
-                capi.ShowChatMessage(
+                capi.Logger.Debug(
                     $"[VGE] World-probe L0: originRel=({o0.X:0.###},{o0.Y:0.###},{o0.Z:0.###}), ring=({r0.X},{r0.Y},{r0.Z}), camLocal=({camLocalX:0.##},{camLocalY:0.##},{camLocalZ:0.##}) expected~{expected:0.##}");
             }
         }
@@ -487,7 +488,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         }
 
         if (!worldProbeClipmapBufferManager.TryGetRuntimeParams(
-                out frozenCameraPosWS,
+                out _,
                 out frozenBaseSpacing,
                 out frozenLevels,
                 out frozenResolution,
@@ -497,20 +498,34 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
+        var player = capi.World?.Player;
+        if (player?.Entity is null)
+        {
+            return;
+        }
+
+        // Store the frozen capture in absolute world space so it stays fixed even when the engine's
+        // camera-matrix origin shifts (floating origin).
+        frozenCameraPosWorld = player.Entity.CameraPos;
+
         frozenLevels = Math.Clamp(frozenLevels, 1, MaxWorldProbeLevels);
         for (int i = 0; i < MaxWorldProbeLevels; i++)
         {
-            // Runtime origins are stored relative to the absolute camera position; convert to the engine's
-            // camera-matrix world space for line rendering (so the view-projection matrix matches).
+            // Runtime origins are stored relative to the absolute camera position.
+            // Recover absolute world origins at capture time:
+            //   originAbs = originRel + cameraAbs
             var oRel = (i < origins.Length) ? origins[i] : default;
-            frozenOrigins[i] = oRel + frozenCameraPosWS;
+            frozenOriginsWorld[i] = new Vec3d(
+                frozenCameraPosWorld.X + oRel.X,
+                frozenCameraPosWorld.Y + oRel.Y,
+                frozenCameraPosWorld.Z + oRel.Z);
         }
 
         hasFrozenClipmapBounds = true;
 
         capi.Logger.Notification(
             "[VGE] Frozen world-probe clipmap bounds captured (camera={0:0.0},{1:0.0},{2:0.0}; L0 size={3:0.0}m; levels={4})",
-            frozenCameraPosWS.X, frozenCameraPosWS.Y, frozenCameraPosWS.Z,
+            frozenCameraPosWorld.X, frozenCameraPosWorld.Y, frozenCameraPosWorld.Z,
             frozenBaseSpacing * frozenResolution,
             frozenLevels);
     }
@@ -539,13 +554,47 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
+        var player = capi.World?.Player;
+        if (player?.Entity is null)
+        {
+            return;
+        }
+
+        // Convert the frozen absolute world-space bounds into the current camera-matrix space every frame,
+        // so they appear fixed in world space even when the engine re-centers the floating origin.
+        Vec3d camPosWorldNow = player.Entity.CameraPos;
+        MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invViewMatrix);
+        var camPosMatrixNow = new System.Numerics.Vector3(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
+
+        for (int i = 0; i < MaxWorldProbeLevels; i++)
+        {
+            if (i < frozenLevels)
+            {
+                Vec3d oAbs = frozenOriginsWorld[i];
+                frozenOrigins[i] = new System.Numerics.Vector3(
+                    (float)(oAbs.X - camPosWorldNow.X),
+                    (float)(oAbs.Y - camPosWorldNow.Y),
+                    (float)(oAbs.Z - camPosWorldNow.Z));
+            }
+            else
+            {
+                frozenOrigins[i] = default;
+            }
+        }
+
+        var frozenCameraMarkerPos = new System.Numerics.Vector3(
+            (float)(frozenCameraPosWorld.X - camPosWorldNow.X),
+            (float)(frozenCameraPosWorld.Y - camPosWorldNow.Y),
+            (float)(frozenCameraPosWorld.Z - camPosWorldNow.Z));
+
         UpdateCurrentViewProjMatrix();
 
         int vertexCount = BuildClipmapBoundsVertices(
             baseSpacing: frozenBaseSpacing,
             levels: frozenLevels,
             resolution: frozenResolution,
-            origins: frozenOrigins);
+            origins: frozenOrigins,
+            frozenCameraMarkerPos: frozenCameraMarkerPos);
 
         if (vertexCount <= 0)
         {
@@ -649,7 +698,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         float baseSpacing,
         int levels,
         int resolution,
-        System.Numerics.Vector3[] origins)
+        System.Numerics.Vector3[] origins,
+        System.Numerics.Vector3 frozenCameraMarkerPos)
     {
         levels = Math.Clamp(levels, 1, MaxWorldProbeLevels);
 
@@ -728,9 +778,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         {
             float axisLen = Math.Clamp(baseSpacing * 2f, 1f, 8f);
 
-            float ox = frozenCameraPosWS.X;
-            float oy = frozenCameraPosWS.Y;
-            float oz = frozenCameraPosWS.Z;
+            float ox = frozenCameraMarkerPos.X;
+            float oy = frozenCameraMarkerPos.Y;
+            float oz = frozenCameraMarkerPos.Z;
 
             void AddMarkerLine(float ax, float ay, float az, float bx, float by, float bz, float r, float g, float b)
             {

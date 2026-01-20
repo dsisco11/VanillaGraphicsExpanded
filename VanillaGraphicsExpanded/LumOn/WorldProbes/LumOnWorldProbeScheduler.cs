@@ -276,7 +276,7 @@ internal sealed class LumOnWorldProbeScheduler
 
             // Preserve overlapping region by shifting the ring offset.
             ringOffset = LumOnClipmapTopology.WrapIndex(
-                new Vec3i(ringOffset.X - dx, ringOffset.Y - dy, ringOffset.Z - dz),
+                new Vec3i(ringOffset.X + dx, ringOffset.Y + dy, ringOffset.Z + dz),
                 resolution);
 
             // Mark newly introduced slabs dirty.
