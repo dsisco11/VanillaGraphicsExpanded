@@ -16,64 +16,19 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// // ... use texture ...
 /// </code>
 /// </remarks>
-public sealed class DynamicTexture : IDisposable
+public sealed class DynamicTexture : GpuTexture
 {
     #region Fields
-
-    private int textureId;
-    private int width;
-    private int height;
     private int mipLevels = 1;
-    private PixelInternalFormat internalFormat;
-    private TextureFilterMode filterMode;
-    private string? debugName;
-    private bool isDisposed;
 
     #endregion
 
     #region Properties
 
     /// <summary>
-    /// OpenGL texture ID. Returns 0 if disposed or not created.
-    /// </summary>
-    public int TextureId => textureId;
-
-    /// <summary>
-    /// Texture width in pixels.
-    /// </summary>
-    public int Width => width;
-
-    /// <summary>
-    /// Texture height in pixels.
-    /// </summary>
-    public int Height => height;
-
-    /// <summary>
     /// Number of mip levels allocated for this texture (>= 1).
     /// </summary>
     public int MipLevels => mipLevels;
-
-    /// <summary>
-    /// Internal pixel format of the texture.
-    /// </summary>
-    public PixelInternalFormat InternalFormat => internalFormat;
-
-    /// <summary>
-    /// Filtering mode used for sampling.
-    /// </summary>
-    public TextureFilterMode FilterMode => filterMode;
-
-    /// <summary>
-    /// Whether this texture has been disposed.
-    /// </summary>
-    public bool IsDisposed => isDisposed;
-
-    /// <summary>
-    /// Whether this is a valid, allocated texture.
-    /// </summary>
-    public bool IsValid => textureId != 0 && !isDisposed;
-
-    public string? DebugName => debugName;
 
     #endregion
 
@@ -115,8 +70,10 @@ public sealed class DynamicTexture : IDisposable
         {
             width = width,
             height = height,
+            depth = 1,
             mipLevels = 1,
             internalFormat = format,
+            textureTarget = TextureTarget.Texture2D,
             filterMode = filter,
             debugName = debugName
         };
@@ -154,8 +111,10 @@ public sealed class DynamicTexture : IDisposable
         {
             width = width,
             height = height,
+            depth = 1,
             mipLevels = mipLevels,
             internalFormat = format,
+            textureTarget = TextureTarget.Texture2D,
             filterMode = TextureFilterMode.Nearest,
             debugName = debugName
         };
@@ -205,7 +164,7 @@ public sealed class DynamicTexture : IDisposable
         string? debugName = null)
     {
         var texture = Create(width, height, format, filter, debugName);
-        texture.UploadData(data);
+        texture.UploadDataImmediate(data);
         return texture;
     }
 
@@ -217,22 +176,16 @@ public sealed class DynamicTexture : IDisposable
     /// Binds this texture to the specified texture unit.
     /// </summary>
     /// <param name="unit">Texture unit (0-31 typically).</param>
-    public void Bind(int unit)
+    public override void Bind(int unit)
     {
-        if (!IsValid)
-        {
-            Debug.WriteLine("[DynamicTexture] Attempted to bind disposed or invalid texture");
-            return;
-        }
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(TextureTarget.Texture2D, textureId);
+        base.Bind(unit);
     }
 
     /// <summary>
     /// Unbinds any texture from the specified texture unit.
     /// </summary>
     /// <param name="unit">Texture unit to unbind.</param>
-    public static void Unbind(int unit)
+    public static new void Unbind(int unit)
     {
         GL.ActiveTexture(TextureUnit.Texture0 + unit);
         GL.BindTexture(TextureTarget.Texture2D, 0);
@@ -270,44 +223,8 @@ public sealed class DynamicTexture : IDisposable
         width = newWidth;
         height = newHeight;
 
-        // Reallocate with new dimensions
-        GL.BindTexture(TextureTarget.Texture2D, textureId);
-
-        if (mipLevels <= 1)
-        {
-            GL.TexImage2D(
-                TextureTarget.Texture2D,
-                0,
-                internalFormat,
-                width,
-                height,
-                0,
-                TextureFormatHelper.GetPixelFormat(internalFormat),
-                TextureFormatHelper.GetPixelType(internalFormat),
-                IntPtr.Zero);
-        }
-        else
-        {
-            for (int level = 0; level < mipLevels; level++)
-            {
-                int lw = Math.Max(1, width >> level);
-                int lh = Math.Max(1, height >> level);
-                GL.TexImage2D(
-                    TextureTarget.Texture2D,
-                    level,
-                    internalFormat,
-                    lw,
-                    lh,
-                    0,
-                    TextureFormatHelper.GetPixelFormat(internalFormat),
-                    TextureFormatHelper.GetPixelType(internalFormat),
-                    IntPtr.Zero);
-            }
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureBaseLevel, 0);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, mipLevels - 1);
-        }
-
-        GL.BindTexture(TextureTarget.Texture2D, 0);
+        // Reallocate storage while preserving the existing texture id.
+        Reallocate2DStorageInPlace(mipLevels);
 
         return true;
     }
@@ -332,7 +249,16 @@ public sealed class DynamicTexture : IDisposable
     /// </summary>
     /// <param name="data">Float array containing pixel data (RGBA order for RGBA formats).</param>
     /// <exception cref="ArgumentException">Thrown if data array size doesn't match texture dimensions.</exception>
-    public void UploadData(float[] data)
+    public override void UploadData(float[] data)
+    {
+        UploadDataImmediate(data);
+    }
+
+    /// <summary>
+    /// Uploads pixel data to the texture immediately (GL call on the current thread).
+    /// Use this only when the updated texture must be visible right away.
+    /// </summary>
+    public override void UploadDataImmediate(float[] data)
     {
         if (!IsValid)
         {
@@ -367,7 +293,16 @@ public sealed class DynamicTexture : IDisposable
     /// </summary>
     /// <param name="data">UShort array containing pixel data (interleaved channels).</param>
     /// <exception cref="ArgumentException">Thrown if data array size doesn't match texture dimensions.</exception>
-    public void UploadData(ushort[] data)
+    public override void UploadData(ushort[] data)
+    {
+        UploadDataImmediate(data);
+    }
+
+    /// <summary>
+    /// Uploads pixel data to the texture immediately (GL call on the current thread).
+    /// Use this only when the updated texture must be visible right away.
+    /// </summary>
+    public override void UploadDataImmediate(ushort[] data)
     {
         if (!IsValid)
         {
@@ -380,7 +315,7 @@ public sealed class DynamicTexture : IDisposable
         var pixelType = TextureFormatHelper.GetPixelType(internalFormat);
         if (pixelType != PixelType.UnsignedShort)
         {
-            throw new InvalidOperationException($"UploadData(ushort[]) requires {nameof(PixelType)}.{nameof(PixelType.UnsignedShort)}, but format is {internalFormat} -> {pixelType}.");
+            throw new InvalidOperationException($"UploadDataImmediate(ushort[]) requires {nameof(PixelType)}.{nameof(PixelType.UnsignedShort)}, but format is {internalFormat} -> {pixelType}.");
         }
 
         int expectedSize = width * height * GetChannelCount();
@@ -415,7 +350,16 @@ public sealed class DynamicTexture : IDisposable
     /// <param name="regionHeight">Height of the sub-region in pixels.</param>
     /// <exception cref="ArgumentException">Thrown if data array size doesn't match region dimensions.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if region extends beyond texture bounds.</exception>
-    public void UploadData(float[] data, int x, int y, int regionWidth, int regionHeight)
+    public override void UploadData(float[] data, int x, int y, int regionWidth, int regionHeight)
+    {
+        UploadDataImmediate(data, x, y, regionWidth, regionHeight);
+    }
+
+    /// <summary>
+    /// Uploads pixel data to a sub-region of the texture immediately (GL call on the current thread).
+    /// Use this only when the updated texture must be visible right away.
+    /// </summary>
+    public override void UploadDataImmediate(float[] data, int x, int y, int regionWidth, int regionHeight)
     {
         if (!IsValid)
         {
@@ -481,15 +425,27 @@ public sealed class DynamicTexture : IDisposable
                 nameof(data));
         }
 
-        TextureStreamingSystem.Manager.Enqueue(new TextureUploadRequest(
-            TextureId: textureId,
-            Target: TextureUploadTarget.For2D(),
-            Region: new TextureUploadRegion(x, y, 0, regionWidth, regionHeight, Depth: 1, MipLevel: mipLevel),
-            PixelFormat: TextureFormatHelper.GetPixelFormat(internalFormat),
-            PixelType: PixelType.Float,
-            Data: TextureUploadData.From(data),
-            Priority: priority,
-            UnpackAlignment: 4));
+        TextureUploadPriority uploadPriority = priority switch
+        {
+            <= -1 => TextureUploadPriority.Low,
+            >= 1 => TextureUploadPriority.High,
+            _ => TextureUploadPriority.Normal
+        };
+
+        TextureStageResult result = TextureStreamingSystem.StageCopy(
+            textureId,
+            TextureUploadTarget.For2D(),
+            new TextureUploadRegion(x, y, 0, regionWidth, regionHeight, Depth: 1, MipLevel: mipLevel),
+            TextureFormatHelper.GetPixelFormat(internalFormat),
+            PixelType.Float,
+            data,
+            uploadPriority,
+            unpackAlignment: 4);
+
+        if (result.Outcome == TextureStageOutcome.Rejected)
+        {
+            Debug.WriteLine($"[DynamicTexture] EnqueueUploadData(float[]) staged rejected: {result.RejectReason}");
+        }
     }
 
     internal void EnqueueUploadData(ushort[] data, int priority = 0, int mipLevel = 0)
@@ -529,15 +485,27 @@ public sealed class DynamicTexture : IDisposable
                 nameof(data));
         }
 
-        TextureStreamingSystem.Manager.Enqueue(new TextureUploadRequest(
-            TextureId: textureId,
-            Target: TextureUploadTarget.For2D(),
-            Region: new TextureUploadRegion(x, y, 0, regionWidth, regionHeight, Depth: 1, MipLevel: mipLevel),
-            PixelFormat: TextureFormatHelper.GetPixelFormat(internalFormat),
-            PixelType: pixelType,
-            Data: TextureUploadData.From(data),
-            Priority: priority,
-            UnpackAlignment: 2));
+        TextureUploadPriority uploadPriority = priority switch
+        {
+            <= -1 => TextureUploadPriority.Low,
+            >= 1 => TextureUploadPriority.High,
+            _ => TextureUploadPriority.Normal
+        };
+
+        TextureStageResult result = TextureStreamingSystem.StageCopy(
+            textureId,
+            TextureUploadTarget.For2D(),
+            new TextureUploadRegion(x, y, 0, regionWidth, regionHeight, Depth: 1, MipLevel: mipLevel),
+            TextureFormatHelper.GetPixelFormat(internalFormat),
+            pixelType,
+            data,
+            uploadPriority,
+            unpackAlignment: 2);
+
+        if (result.Outcome == TextureStageOutcome.Rejected)
+        {
+            Debug.WriteLine($"[DynamicTexture] EnqueueUploadData(ushort[]) staged rejected: {result.RejectReason}");
+        }
     }
     /// <summary>
     /// Reads pixel data from the texture.
@@ -674,7 +642,7 @@ public sealed class DynamicTexture : IDisposable
     /// <summary>
     /// Gets the number of channels for the current internal format.
     /// </summary>
-    private int GetChannelCount()
+    private new int GetChannelCount()
     {
         return internalFormat switch
         {
@@ -694,64 +662,7 @@ public sealed class DynamicTexture : IDisposable
 
     private void AllocateTexture()
     {
-        textureId = GL.GenTexture();
-        GL.BindTexture(TextureTarget.Texture2D, textureId);
-
-#if DEBUG
-        GlDebug.TryLabelTexture2D(textureId, debugName);
-#endif
-
-        if (mipLevels <= 1)
-        {
-            // Allocate storage
-            GL.TexImage2D(
-                TextureTarget.Texture2D,
-                0,
-                internalFormat,
-                width,
-                height,
-                0,
-                TextureFormatHelper.GetPixelFormat(internalFormat),
-                TextureFormatHelper.GetPixelType(internalFormat),
-                IntPtr.Zero);
-
-            // Set filtering parameters
-            int filterParam = TextureFormatHelper.GetFilterParameter(filterMode);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, filterParam);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, filterParam);
-        }
-        else
-        {
-            // Allocate all mip levels explicitly
-            for (int level = 0; level < mipLevels; level++)
-            {
-                int lw = Math.Max(1, width >> level);
-                int lh = Math.Max(1, height >> level);
-                GL.TexImage2D(
-                    TextureTarget.Texture2D,
-                    level,
-                    internalFormat,
-                    lw,
-                    lh,
-                    0,
-                    TextureFormatHelper.GetPixelFormat(internalFormat),
-                    TextureFormatHelper.GetPixelType(internalFormat),
-                    IntPtr.Zero);
-            }
-
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureBaseLevel, 0);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, mipLevels - 1);
-
-            // Mipmapped sampling is explicit via texelFetch/textureLod.
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.NearestMipmapNearest);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
-        }
-
-        // Set wrap mode to clamp (standard for render targets)
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-
-        GL.BindTexture(TextureTarget.Texture2D, 0);
+        AllocateOrReallocate2DTexture(mipLevels);
     }
 
     #endregion
@@ -761,7 +672,7 @@ public sealed class DynamicTexture : IDisposable
     /// <summary>
     /// Releases the GPU texture resource.
     /// </summary>
-    public void Dispose()
+    public override void Dispose()
     {
         if (isDisposed)
             return;

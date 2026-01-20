@@ -20,7 +20,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// // ... use texture ...
 /// </code>
 /// </remarks>
-public sealed class DynamicTexture3D : IDisposable
+public sealed class DynamicTexture3D : GpuTexture
 {
     #region Constants
 
@@ -33,63 +33,13 @@ public sealed class DynamicTexture3D : IDisposable
 
     #region Fields
 
-    private int textureId;
-    private int width;
-    private int height;
-    private int depth;
-    private PixelInternalFormat internalFormat;
-    private TextureFilterMode filterMode;
-    private TextureTarget textureTarget;
-    private bool isDisposed;
+    // All common texture state lives in GpuTexture.
 
     #endregion
 
     #region Properties
 
-    /// <summary>
-    /// OpenGL texture ID. Returns 0 if disposed or not created.
-    /// </summary>
-    public int TextureId => textureId;
-
-    /// <summary>
-    /// Texture width in pixels.
-    /// </summary>
-    public int Width => width;
-
-    /// <summary>
-    /// Texture height in pixels.
-    /// </summary>
-    public int Height => height;
-
-    /// <summary>
-    /// Texture depth (number of slices/layers).
-    /// </summary>
-    public int Depth => depth;
-
-    /// <summary>
-    /// Internal pixel format of the texture.
-    /// </summary>
-    public PixelInternalFormat InternalFormat => internalFormat;
-
-    /// <summary>
-    /// Filtering mode used for sampling.
-    /// </summary>
-    public TextureFilterMode FilterMode => filterMode;
-
-    /// <summary>
-    /// The OpenGL texture target (Texture3D or Texture2DArray).
-    /// </summary>
-    public TextureTarget TextureTarget => textureTarget;
-
-    /// <summary>
-    /// Whether this texture has been disposed.
-    /// </summary>
-    public bool IsDisposed => isDisposed;
-
-    /// <summary>
-    /// Whether this is a valid, allocated texture.
-    /// </summary>
-    public bool IsValid => textureId != 0 && !isDisposed;
+    // Public properties are inherited from GpuTexture.
 
     #endregion
 
@@ -145,7 +95,10 @@ public sealed class DynamicTexture3D : IDisposable
             textureTarget = textureTarget
         };
 
-        texture.AllocateGpu();
+        texture.AllocateOrReallocate3DTexture();
+
+        var typeStr = textureTarget == TextureTarget.Texture2DArray ? "2D array" : "3D";
+        Debug.WriteLine($"[DynamicTexture3D] Allocated {width}x{height}x{depth} {typeStr} {format}");
         return texture;
     }
 
@@ -175,26 +128,18 @@ public sealed class DynamicTexture3D : IDisposable
     /// Binds this texture to the specified texture unit.
     /// </summary>
     /// <param name="unit">Texture unit index (0-15 typically).</param>
-    public void Bind(int unit)
+    public override void Bind(int unit)
     {
-        if (isDisposed || textureId == 0)
-        {
-            Debug.WriteLine($"[DynamicTexture3D] Attempted to bind disposed or invalid texture");
-            return;
-        }
-
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(textureTarget, textureId);
+        base.Bind(unit);
     }
 
     /// <summary>
     /// Unbinds this texture from the specified texture unit.
     /// </summary>
     /// <param name="unit">Texture unit index.</param>
-    public void Unbind(int unit)
+    public override void Unbind(int unit)
     {
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(textureTarget, 0);
+        base.Unbind(unit);
     }
 
     /// <summary>
@@ -213,7 +158,10 @@ public sealed class DynamicTexture3D : IDisposable
         height = Math.Max(1, newHeight);
         depth = Math.Max(1, newDepth);
 
-        AllocateGpu();
+        AllocateOrReallocate3DTexture();
+
+        var typeStr = textureTarget == TextureTarget.Texture2DArray ? "2D array" : "3D";
+        Debug.WriteLine($"[DynamicTexture3D] Allocated {width}x{height}x{depth} {typeStr} {internalFormat}");
         return true;
     }
 
@@ -226,8 +174,21 @@ public sealed class DynamicTexture3D : IDisposable
     /// <param name="a">Alpha component.</param>
     public void Clear(float r = 0f, float g = 0f, float b = 0f, float a = 0f)
     {
-        if (isDisposed || textureId == 0)
+        ClearImmediate(r, g, b, a);
+    }
+
+    public override void UploadData(float[] data, int x, int y, int z, int regionWidth, int regionHeight, int regionDepth)
+    {
+        UploadDataImmediate(data, x, y, z, regionWidth, regionHeight, regionDepth);
+    }
+
+    public void ClearImmediate(float r = 0f, float g = 0f, float b = 0f, float a = 0f)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[DynamicTexture3D] Attempted to clear disposed or invalid texture");
             return;
+        }
 
         var clearData = new float[width * height * depth * 4];
         for (int i = 0; i < clearData.Length; i += 4)
@@ -300,71 +261,34 @@ public sealed class DynamicTexture3D : IDisposable
             _ => new TextureUploadTarget(textureTarget, textureTarget)
         };
 
-        TextureStreamingSystem.Manager.Enqueue(new TextureUploadRequest(
-            TextureId: textureId,
-            Target: target,
-            Region: new TextureUploadRegion(x, y, z, regionWidth, regionHeight, regionDepth, mipLevel),
-            PixelFormat: pixelFormat,
-            PixelType: PixelType.Float,
-            Data: TextureUploadData.From(data),
-            Priority: priority,
-            UnpackAlignment: 4));
+        TextureUploadPriority uploadPriority = priority switch
+        {
+            <= -1 => TextureUploadPriority.Low,
+            >= 1 => TextureUploadPriority.High,
+            _ => TextureUploadPriority.Normal
+        };
+
+        TextureStageResult result = TextureStreamingSystem.StageCopy(
+            textureId,
+            target,
+            new TextureUploadRegion(x, y, z, regionWidth, regionHeight, regionDepth, mipLevel),
+            pixelFormat,
+            PixelType.Float,
+            data,
+            uploadPriority,
+            unpackAlignment: 4);
+
+        if (result.Outcome == TextureStageOutcome.Rejected)
+        {
+            Debug.WriteLine($"[DynamicTexture3D] EnqueueUploadData staged rejected: {result.RejectReason}");
+        }
     }
 
     #endregion
 
     #region Private Methods
 
-    private void AllocateGpu()
-    {
-        // Delete existing texture if any
-        if (textureId != 0)
-        {
-            GL.DeleteTexture(textureId);
-            textureId = 0;
-        }
-
-        // Generate new texture
-        textureId = GL.GenTexture();
-        GL.BindTexture(textureTarget, textureId);
-
-        // Allocate storage
-        GL.TexImage3D(
-            textureTarget,
-            0,  // mipmap level
-            internalFormat,
-            width,
-            height,
-            depth,
-            0,  // border (must be 0)
-            TextureFormatHelper.GetPixelFormat(internalFormat),
-            TextureFormatHelper.GetPixelType(internalFormat),
-            IntPtr.Zero);  // no initial data
-
-        // Set filtering
-        var glFilter = filterMode == TextureFilterMode.Linear
-            ? TextureMinFilter.Linear
-            : TextureMinFilter.Nearest;
-        var glMagFilter = filterMode == TextureFilterMode.Linear
-            ? TextureMagFilter.Linear
-            : TextureMagFilter.Nearest;
-
-        GL.TexParameter(textureTarget, TextureParameterName.TextureMinFilter, (int)glFilter);
-        GL.TexParameter(textureTarget, TextureParameterName.TextureMagFilter, (int)glMagFilter);
-
-        // Clamp to edge
-        GL.TexParameter(textureTarget, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-        GL.TexParameter(textureTarget, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-        if (textureTarget == TextureTarget.Texture3D)
-        {
-            GL.TexParameter(textureTarget, TextureParameterName.TextureWrapR, (int)TextureWrapMode.ClampToEdge);
-        }
-
-        GL.BindTexture(textureTarget, 0);
-
-        var typeStr = textureTarget == TextureTarget.Texture2DArray ? "2D array" : "3D";
-        Debug.WriteLine($"[DynamicTexture3D] Allocated {width}x{height}x{depth} {typeStr} {internalFormat}");
-    }
+    // Allocation handled by GpuTexture.
 
     #endregion
 
@@ -373,7 +297,7 @@ public sealed class DynamicTexture3D : IDisposable
     /// <summary>
     /// Releases GPU resources.
     /// </summary>
-    public void Dispose()
+    public override void Dispose()
     {
         if (isDisposed)
             return;

@@ -64,11 +64,6 @@ internal static class GlDebug
 #endif
     }
 
-    public static void TryLabelTexture2D(int textureId, string? name)
-    {
-        TryLabel(ObjectLabelIdentifier.Texture, textureId, name);
-    }
-
     public static void TryLabelFramebuffer(int framebufferId, string? name)
     {
         TryLabel(ObjectLabelIdentifier.Framebuffer, framebufferId, name);
