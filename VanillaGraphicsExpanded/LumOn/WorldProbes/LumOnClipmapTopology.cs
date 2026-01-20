@@ -19,12 +19,11 @@ internal static class LumOnClipmapTopology
         ArgumentNullException.ThrowIfNull(cameraPos);
         if (spacing <= 0) throw new ArgumentOutOfRangeException(nameof(spacing));
 
-        // Snap to the nearest grid multiple so the clip volume stays centered on the camera
-        // (floor() biases the anchor negative by up to almost one spacing unit).
+        // Snap down to the containing grid cell.
         return new Vec3d(
-            Math.Floor(cameraPos.X / spacing + 0.5) * spacing,
-            Math.Floor(cameraPos.Y / spacing + 0.5) * spacing,
-            Math.Floor(cameraPos.Z / spacing + 0.5) * spacing);
+            Math.Floor(cameraPos.X / spacing) * spacing,
+            Math.Floor(cameraPos.Y / spacing) * spacing,
+            Math.Floor(cameraPos.Z / spacing) * spacing);
     }
 
     public static Vec3d GetOriginMinCorner(Vec3d anchor, double spacing, int resolution)

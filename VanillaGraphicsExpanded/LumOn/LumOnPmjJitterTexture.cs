@@ -43,7 +43,8 @@ internal sealed class LumOnPmjJitterTexture : IDisposable
 
         PmjSequence seq = cache.GetOrCreateSequence(config);
         ushort[] rg = PmjConversions.ToRg16UNormInterleaved(seq);
-        texture.UploadData(rg);
+        // This texture is sampled immediately by GPU tests and the renderer; make upload synchronous.
+        texture.UploadDataImmediate(rg);
     }
 
     public void Dispose()
