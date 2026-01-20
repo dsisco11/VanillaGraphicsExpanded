@@ -251,22 +251,8 @@ public sealed class DynamicTexture3D : GpuTexture
                 nameof(data));
         }
 
-        TextureUploadTarget target = textureTarget switch
-        {
-            TextureTarget.Texture3D => TextureUploadTarget.For3D(),
-            TextureTarget.Texture2DArray => TextureUploadTarget.For2DArray(),
-            TextureTarget.TextureCubeMapArray => TextureUploadTarget.ForCubeArray(),
-            TextureTarget.Texture1DArray => TextureUploadTarget.For1DArray(),
-            TextureTarget.TextureRectangle => TextureUploadTarget.ForRectangle(),
-            _ => new TextureUploadTarget(textureTarget, textureTarget)
-        };
-
-        TextureUploadPriority uploadPriority = priority switch
-        {
-            <= -1 => TextureUploadPriority.Low,
-            >= 1 => TextureUploadPriority.High,
-            _ => TextureUploadPriority.Normal
-        };
+        TextureUploadTarget target = GpuTexture.MapUploadTarget(textureTarget);
+        TextureUploadPriority uploadPriority = GpuTexture.MapUploadPriority(priority);
 
         TextureStageResult result = TextureStreamingSystem.StageCopy(
             textureId,

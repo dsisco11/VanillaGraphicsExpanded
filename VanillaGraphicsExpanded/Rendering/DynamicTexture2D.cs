@@ -425,12 +425,7 @@ public sealed class DynamicTexture2D : GpuTexture
                 nameof(data));
         }
 
-        TextureUploadPriority uploadPriority = priority switch
-        {
-            <= -1 => TextureUploadPriority.Low,
-            >= 1 => TextureUploadPriority.High,
-            _ => TextureUploadPriority.Normal
-        };
+        TextureUploadPriority uploadPriority = GpuTexture.MapUploadPriority(priority);
 
         TextureStageResult result = TextureStreamingSystem.StageCopy(
             textureId,
@@ -485,12 +480,7 @@ public sealed class DynamicTexture2D : GpuTexture
                 nameof(data));
         }
 
-        TextureUploadPriority uploadPriority = priority switch
-        {
-            <= -1 => TextureUploadPriority.Low,
-            >= 1 => TextureUploadPriority.High,
-            _ => TextureUploadPriority.Normal
-        };
+        TextureUploadPriority uploadPriority = GpuTexture.MapUploadPriority(priority);
 
         TextureStageResult result = TextureStreamingSystem.StageCopy(
             textureId,

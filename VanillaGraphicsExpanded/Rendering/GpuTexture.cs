@@ -272,12 +272,12 @@ public abstract class GpuTexture : IDisposable
 
         TextureStageResult result = TextureStreamingSystem.StageCopy(
             textureId,
-            GetUploadTarget(),
+            MapUploadTarget(textureTarget),
             TextureUploadRegion.For2D(0, 0, width, height, mipLevel: mipLevel),
             TextureFormatHelper.GetPixelFormat(internalFormat),
             PixelType.Float,
             data,
-            MapPriority(priority),
+            MapUploadPriority(priority),
             unpackAlignment: 4);
 
         if (result.Outcome == TextureStageOutcome.Rejected)
@@ -320,12 +320,12 @@ public abstract class GpuTexture : IDisposable
 
         TextureStageResult result = TextureStreamingSystem.StageCopy(
             textureId,
-            GetUploadTarget(),
+            MapUploadTarget(textureTarget),
             TextureUploadRegion.For2D(x, y, regionWidth, regionHeight, mipLevel: mipLevel),
             TextureFormatHelper.GetPixelFormat(internalFormat),
             PixelType.Float,
             data,
-            MapPriority(priority),
+            MapUploadPriority(priority),
             unpackAlignment: 4);
 
         if (result.Outcome == TextureStageOutcome.Rejected)
@@ -365,12 +365,12 @@ public abstract class GpuTexture : IDisposable
 
         TextureStageResult result = TextureStreamingSystem.StageCopy(
             textureId,
-            GetUploadTarget(),
+            MapUploadTarget(textureTarget),
             TextureUploadRegion.For2D(0, 0, width, height, mipLevel: mipLevel),
             TextureFormatHelper.GetPixelFormat(internalFormat),
             pixelType,
             data,
-            MapPriority(priority),
+            MapUploadPriority(priority),
             unpackAlignment: 1);
 
         if (result.Outcome == TextureStageOutcome.Rejected)
@@ -411,12 +411,12 @@ public abstract class GpuTexture : IDisposable
 
         TextureStageResult result = TextureStreamingSystem.StageCopy(
             textureId,
-            GetUploadTarget(),
+            MapUploadTarget(textureTarget),
             new TextureUploadRegion(x, y, z, regionWidth, regionHeight, regionDepth, mipLevel),
             TextureFormatHelper.GetPixelFormat(internalFormat),
             PixelType.Float,
             data,
-            MapPriority(priority),
+            MapUploadPriority(priority),
             unpackAlignment: 4);
 
         if (result.Outcome == TextureStageOutcome.Rejected)
@@ -601,7 +601,7 @@ public abstract class GpuTexture : IDisposable
         isDisposed = true;
     }
 
-    private static TextureUploadPriority MapPriority(int priority)
+    internal static TextureUploadPriority MapUploadPriority(int priority)
     {
         return priority switch
         {
@@ -611,7 +611,7 @@ public abstract class GpuTexture : IDisposable
         };
     }
 
-    private TextureUploadTarget GetUploadTarget()
+    internal static TextureUploadTarget MapUploadTarget(TextureTarget textureTarget)
     {
         return textureTarget switch
         {
