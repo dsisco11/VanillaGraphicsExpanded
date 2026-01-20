@@ -42,7 +42,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     private const int MaxWorldProbeLevels = 8;
     private const int ClipmapBoundsVerticesPerLevel = 24; // 12 edges * 2 vertices
-    private const int FrozenMarkerVertices = 12; // camera axes + L0 center axes (3*2 each)
+    private const int FrozenMarkerVertices = 24; // camera axes + L0 center + L0 min + L0 max (3*2 each)
 
     #endregion
 
@@ -609,11 +609,14 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             bool prevBlend = GL.IsEnabled(EnableCap.Blend);
             bool prevDepthMask = GL.GetBoolean(GetPName.DepthWritemask);
             int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
+            int prevDepthFunc = GL.GetInteger(GetPName.DepthFunc);
 
             bool shaderUsed = false;
             try
             {
-                GL.Disable(EnableCap.DepthTest);
+                // Depth-test so the bounds don't draw over all geometry.
+                GL.Enable(EnableCap.DepthTest);
+                GL.DepthFunc(DepthFunction.Lequal);
                 capi.Render.GlToggleBlend(false);
                 capi.Render.GLDepthMask(false);
 
@@ -644,6 +647,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 if (prevDepthTest) GL.Enable(EnableCap.DepthTest);
                 else GL.Disable(EnableCap.DepthTest);
 
+                GL.DepthFunc((DepthFunction)prevDepthFunc);
                 capi.Render.GLDepthMask(prevDepthMask);
                 capi.Render.GlToggleBlend(prevBlend);
                 GL.ActiveTexture((TextureUnit)prevActiveTexture);
@@ -773,6 +777,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         // Frozen capture markers:
         // - a small RGB axis tripod at the frozen camera position (so you can move away and still see where it was captured)
         // - a small YUV-ish axis tripod at the L0 clipmap center (to reveal any offset/bias)
+        // - a small axis tripod at the L0 min-corner and max-corner (to make it obvious which corner is which)
         // This makes it obvious the overlay is in world space when you move away.
         if ((uint)written + FrozenMarkerVertices <= (uint)clipmapBoundsVertices.Length)
         {
@@ -805,6 +810,22 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 AddMarkerLine(cx, cy, cz, cx + axisLen, cy, cz, 1f, 1f, 0.25f);
                 AddMarkerLine(cx, cy, cz, cx, cy + axisLen, cz, 0.85f, 0.25f, 1f);
                 AddMarkerLine(cx, cy, cz, cx, cy, cz + axisLen, 0.25f, 1f, 1f);
+
+                // L0 min-corner marker (dim RGB)
+                float minX = o0.X;
+                float minY = o0.Y;
+                float minZ = o0.Z;
+                AddMarkerLine(minX, minY, minZ, minX + axisLen, minY, minZ, 0.65f, 0.15f, 0.15f);
+                AddMarkerLine(minX, minY, minZ, minX, minY + axisLen, minZ, 0.15f, 0.65f, 0.15f);
+                AddMarkerLine(minX, minY, minZ, minX, minY, minZ + axisLen, 0.15f, 0.35f, 0.65f);
+
+                // L0 max-corner marker (dim white)
+                float maxX = o0.X + size0;
+                float maxY = o0.Y + size0;
+                float maxZ = o0.Z + size0;
+                AddMarkerLine(maxX, maxY, maxZ, maxX + axisLen, maxY, maxZ, 0.6f, 0.6f, 0.6f);
+                AddMarkerLine(maxX, maxY, maxZ, maxX, maxY + axisLen, maxZ, 0.6f, 0.6f, 0.6f);
+                AddMarkerLine(maxX, maxY, maxZ, maxX, maxY, maxZ + axisLen, 0.6f, 0.6f, 0.6f);
             }
         }
 
