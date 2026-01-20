@@ -227,14 +227,14 @@ public class LumOnConfig
     /// Limits GL work and reduces hitching.
     /// </summary>
     [JsonProperty]
-    public int MaterialAtlasAsyncMaxUploadsPerFrame { get; set; } = 32;
+    public int MaterialAtlasAsyncMaxUploadsPerFrame { get; set; } = 2;
 
     /// <summary>
     /// Maximum number of CPU tile jobs dispatched per frame.
     /// Limits task churn and keeps background work paced.
     /// </summary>
     [JsonProperty]
-    public int MaterialAtlasAsyncMaxCpuJobsPerFrame { get; set; } = 32;
+    public int MaterialAtlasAsyncMaxCpuJobsPerFrame { get; set; } = 2;
 
     /// <summary>
     /// Per-frame time budget (ms) for the async normal+depth atlas jobs.
@@ -248,7 +248,7 @@ public class LumOnConfig
     /// Limits GL work and reduces hitching during the bake.
     /// </summary>
     [JsonProperty]
-    public int NormalDepthAtlasAsyncMaxUploadsPerFrame { get; set; } = 64;
+    public int NormalDepthAtlasAsyncMaxUploadsPerFrame { get; set; } = 2;
 
     /// <summary>
     /// Enables building and binding the VGE normal+depth sidecar atlas.
@@ -284,14 +284,14 @@ public class LumOnConfig
     /// Requires shader reload / re-entering the world to fully apply.
     /// </summary>
     [JsonProperty]
-    public bool EnableParallaxMapping { get; set; } = true;
+    public bool EnableParallaxMapping { get; set; } = false;
 
     /// <summary>
     /// Parallax UV offset scale (in atlas UV units).
     /// This is intentionally small; typical range: 0.005 .. 0.05.
     /// </summary>
     [JsonProperty]
-    public float ParallaxScale { get; set; } = 0.1f;
+    public float ParallaxScale { get; set; } = 0.03f;
 
     /// <summary>
     /// Parameters for generating a tileable height/normal field from albedo.
@@ -341,7 +341,7 @@ public class LumOnConfig
     /// Maximum number of texture sub-region uploads per frame.
     /// </summary>
     [JsonProperty]
-    public int TextureStreamingMaxUploadsPerFrame { get; set; } = 20;
+    public int TextureStreamingMaxUploadsPerFrame { get; set; } = 32;
 
     /// <summary>
     /// Maximum total bytes uploaded per frame.
@@ -402,7 +402,7 @@ public class LumOnConfig
     /// Hot-reloadable.
     /// </summary>
     [JsonProperty]
-    public bool AnchorJitterEnabled { get; set; } = true;
+    public bool AnchorJitterEnabled { get; set; } = false;
 
     /// <summary>
     /// Jitter amount as a fraction of probe cell size.
@@ -411,7 +411,7 @@ public class LumOnConfig
     /// Hot-reloadable.
     /// </summary>
     [JsonProperty]
-    public float AnchorJitterScale { get; set; } = 0.05f;
+    public float AnchorJitterScale { get; set; } = 0.15f;
 
     /// <summary>
     /// PMJ jitter cycle length (number of frames before the sequence repeats).
@@ -455,7 +455,7 @@ public class LumOnConfig
     /// Hot-reloadable.
     /// </summary>
     [JsonProperty]
-    public int HzbCoarseMip { get; set; } = 3;
+    public int HzbCoarseMip { get; set; } = 4;
 
     /// <summary>
     /// Number of probe-atlas texels to trace per probe per frame.
@@ -463,7 +463,7 @@ public class LumOnConfig
     /// Only used when <see cref="UseProbeAtlas"/> is true.
     /// </summary>
     [JsonProperty]
-    public int ProbeAtlasTexelsPerFrame { get; set; } = 32;
+    public int ProbeAtlasTexelsPerFrame { get; set; } = 16;
 
     /// <summary>
     /// Number of rays traced per probe per frame (SH mode only).
@@ -482,7 +482,7 @@ public class LumOnConfig
     /// Maximum ray travel distance in world units (meters).
     /// </summary>
     [JsonProperty]
-    public float RayMaxDistance { get; set; } = 2.5f;
+    public float RayMaxDistance { get; set; } = 4.0f;
 
     /// <summary>
     /// Thickness of ray for depth comparison (view-space units).
@@ -500,7 +500,7 @@ public class LumOnConfig
     /// Hot-reloadable.
     /// </summary>
     [JsonProperty]
-    public float TemporalAlpha { get; set; } = 0.8f;
+    public float TemporalAlpha { get; set; } = 0.2f;
 
     /// <summary>
     /// Depth difference threshold for history rejection (view-space).
@@ -796,7 +796,7 @@ public class LumOnConfig
         RayMaxDistance = Math.Clamp(RayMaxDistance, 0.25f, 256.0f);
         RayThickness = Math.Clamp(RayThickness, 0.01f, 16.0f);
 
-        TemporalAlpha = Math.Clamp(TemporalAlpha, 0.0f, 0.999f);
+        TemporalAlpha = Math.Clamp(TemporalAlpha, 0.0f, 1.0f);
         DepthRejectThreshold = Math.Clamp(DepthRejectThreshold, 0.0f, 10.0f);
         NormalRejectThreshold = Math.Clamp(NormalRejectThreshold, -1.0f, 1.0f);
         DepthDiscontinuityThreshold = Math.Clamp(DepthDiscontinuityThreshold, 0.0f, 10.0f);
