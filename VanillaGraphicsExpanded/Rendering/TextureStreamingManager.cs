@@ -74,6 +74,30 @@ internal sealed class TextureStreamingManager : IDisposable
         {
             RequestBackendReset();
         }
+
+        // If the active backend is the fallback PBO pool, resizing requires a reset.
+        // Keep this separate from RequiresBackendReset() so we don't unnecessarily reset
+        // the persistent ring backend when only the per-frame upload budget changes.
+        if (backend is TripleBufferedPboPool activePool)
+        {
+            int desiredSlots = ComputePboSlotCount(value);
+
+            if (activePool.SlotCount != desiredSlots || activePool.BufferSizeBytes != value.TripleBufferBytes)
+            {
+                RequestBackendReset();
+            }
+        }
+
+        // StageCopy fallback pool should track settings immediately.
+        if (fallbackPboPool is not null)
+        {
+            int desiredSlots = ComputePboSlotCount(value);
+            if (fallbackPboPool.SlotCount != desiredSlots || fallbackPboPool.BufferSizeBytes != value.TripleBufferBytes)
+            {
+                fallbackPboPool.Dispose();
+                fallbackPboPool = null;
+            }
+        }
     }
 
     public void RequestBackendReset()
@@ -1008,8 +1032,28 @@ internal sealed class TextureStreamingManager : IDisposable
 
     private TripleBufferedPboPool EnsureFallbackPboPool()
     {
-        fallbackPboPool ??= new TripleBufferedPboPool(settings.TripleBufferBytes);
+        int desiredSlots = ComputePboSlotCount(settings);
+
+        if (fallbackPboPool is null
+            || fallbackPboPool.SlotCount != desiredSlots
+            || fallbackPboPool.BufferSizeBytes != settings.TripleBufferBytes)
+        {
+            fallbackPboPool?.Dispose();
+            fallbackPboPool = new TripleBufferedPboPool(settings.TripleBufferBytes, desiredSlots);
+        }
+
         return fallbackPboPool;
+    }
+
+    private static int ComputePboSlotCount(in TextureStreamingSettings settings)
+    {
+        // The fallback backend uses one PBO per in-flight upload.
+        // Match capacity to the per-frame upload cap so we can stage up to that many uploads
+        // without immediately falling back to direct uploads.
+        // Keep a small minimum to preserve the original "triple buffering" behavior.
+        int maxUploads = settings.MaxUploadsPerFrame;
+        int desired = Math.Max(3, maxUploads);
+        return Math.Clamp(desired, 3, 512);
     }
 
     private bool TryStageOwnedFallbackToTripleBuffer(OwnedCpuUploadBuffer owned, in PreparedUpload prepared, out PboUpload upload)
@@ -1241,7 +1285,7 @@ internal sealed class TextureStreamingManager : IDisposable
             }
         }
 
-        backend = new TripleBufferedPboPool(settings.TripleBufferBytes);
+        backend = new TripleBufferedPboPool(settings.TripleBufferBytes, ComputePboSlotCount(settings));
     }
 
     private static bool RequiresBackendReset(in TextureStreamingSettings previous, in TextureStreamingSettings next)
@@ -1841,22 +1885,24 @@ internal sealed class TextureStreamingManager : IDisposable
 
     private sealed class TripleBufferedPboPool : IPboUploadBackend
     {
-        private const int BufferCount = 3;
-
-        private readonly PboSlot[] slots = new PboSlot[BufferCount];
+        private readonly PboSlot[] slots;
         private readonly int bufferSizeBytes;
         private int nextIndex;
 
-        public TripleBufferedPboPool(int bufferSizeBytes)
+        public TripleBufferedPboPool(int bufferSizeBytes, int slotCount)
         {
             if (bufferSizeBytes <= 0)
             {
                 bufferSizeBytes = 1;
             }
 
+            slotCount = Math.Clamp(slotCount, 1, 8192);
+
             this.bufferSizeBytes = bufferSizeBytes;
 
-            for (int i = 0; i < BufferCount; i++)
+            slots = new PboSlot[slotCount];
+
+            for (int i = 0; i < slots.Length; i++)
             {
                 int id = GL.GenBuffer();
                 GL.BindBuffer(BufferTarget.PixelUnpackBuffer, id);
@@ -1865,6 +1911,10 @@ internal sealed class TextureStreamingManager : IDisposable
                 slots[i] = new PboSlot(id);
             }
         }
+
+        public int BufferSizeBytes => bufferSizeBytes;
+
+        public int SlotCount => slots.Length;
 
         public TextureStreamingBackendKind Kind => TextureStreamingBackendKind.TripleBuffered;
 
@@ -1965,7 +2015,7 @@ internal sealed class TextureStreamingManager : IDisposable
         {
             int index = upload.SlotIndex;
             slots[index] = slots[index] with { Fence = GpuFence.Insert() };
-            nextIndex = (index + 1) % BufferCount;
+            nextIndex = (index + 1) % slots.Length;
         }
 
         public void Tick()
