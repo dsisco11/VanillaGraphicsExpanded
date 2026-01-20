@@ -304,20 +304,20 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
             var cfgA = new LumOnConfig();
             cfgA.MaterialAtlas.EnableAsync = true;
             cfgA.MaterialAtlas.EnableNormalMaps = true;
-            cfgA.MaterialAtlas.MaterialAtlasAsyncBudgetMs = 1.5f;
-            cfgA.MaterialAtlas.MaterialAtlasAsyncMaxUploadsPerFrame = 8;
-            cfgA.MaterialAtlas.MaterialAtlasAsyncMaxCpuJobsPerFrame = 2;
-            cfgA.MaterialAtlas.NormalDepthAtlasAsyncBudgetMs = 0.75f;
-            cfgA.MaterialAtlas.NormalDepthAtlasAsyncMaxUploadsPerFrame = 2;
+            cfgA.MaterialAtlas.AsyncBudgetMs = 1.5f;
+            cfgA.MaterialAtlas.AsyncMaxUploadsPerFrame = 8;
+            cfgA.MaterialAtlas.AsyncMaxJobsPerFrame = 2;
+            cfgA.MaterialAtlas.AsyncBudgetMs = 0.75f;
+            cfgA.MaterialAtlas.AsyncMaxUploadsPerFrame = 2;
 
             var cfgB = new LumOnConfig();
             cfgB.MaterialAtlas.EnableAsync = true;
             cfgB.MaterialAtlas.EnableNormalMaps = true;
-            cfgB.MaterialAtlas.MaterialAtlasAsyncBudgetMs = 3.0f;
-            cfgB.MaterialAtlas.MaterialAtlasAsyncMaxUploadsPerFrame = 32;
-            cfgB.MaterialAtlas.MaterialAtlasAsyncMaxCpuJobsPerFrame = 8;
-            cfgB.MaterialAtlas.NormalDepthAtlasAsyncBudgetMs = 2.0f;
-            cfgB.MaterialAtlas.NormalDepthAtlasAsyncMaxUploadsPerFrame = 8;
+            cfgB.MaterialAtlas.AsyncBudgetMs = 3.0f;
+            cfgB.MaterialAtlas.AsyncMaxUploadsPerFrame = 32;
+            cfgB.MaterialAtlas.AsyncMaxJobsPerFrame = 8;
+            cfgB.MaterialAtlas.AsyncBudgetMs = 2.0f;
+            cfgB.MaterialAtlas.AsyncMaxUploadsPerFrame = 8;
 
             var inputsA = MaterialAtlasCacheKeyInputs.Create(cfgA, snapshot, PbrMaterialRegistry.Instance);
             var inputsB = MaterialAtlasCacheKeyInputs.Create(cfgB, snapshot, PbrMaterialRegistry.Instance);

@@ -192,31 +192,31 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
             pendingNormalDepthGpuJobs.Enqueue(completedNd.Priority, completedNd);
         }
 
-        float materialBudgetMs = ConfigModSystem.Config.MaterialAtlas.MaterialAtlasAsyncBudgetMs;
+        float materialBudgetMs = ConfigModSystem.Config.MaterialAtlas.AsyncBudgetMs;
         if (materialBudgetMs <= 0)
         {
             materialBudgetMs = 0.5f;
         }
 
-        int materialMaxUploads = ConfigModSystem.Config.MaterialAtlas.MaterialAtlasAsyncMaxUploadsPerFrame;
+        int materialMaxUploads = ConfigModSystem.Config.MaterialAtlas.AsyncMaxUploadsPerFrame;
         if (materialMaxUploads <= 0)
         {
             materialMaxUploads = 1;
         }
 
-        float normalDepthBudgetMs = ConfigModSystem.Config.MaterialAtlas.NormalDepthAtlasAsyncBudgetMs;
+        float normalDepthBudgetMs = ConfigModSystem.Config.MaterialAtlas.AsyncBudgetMs;
         if (normalDepthBudgetMs <= 0)
         {
             normalDepthBudgetMs = 0.5f;
         }
 
-        int normalDepthMaxUploads = ConfigModSystem.Config.MaterialAtlas.NormalDepthAtlasAsyncMaxUploadsPerFrame;
+        int normalDepthMaxUploads = ConfigModSystem.Config.MaterialAtlas.AsyncMaxUploadsPerFrame;
         if (normalDepthMaxUploads <= 0)
         {
             normalDepthMaxUploads = 1;
         }
 
-        int maxCpuJobsPerFrame = ConfigModSystem.Config.MaterialAtlas.MaterialAtlasAsyncMaxCpuJobsPerFrame;
+        int maxCpuJobsPerFrame = ConfigModSystem.Config.MaterialAtlas.AsyncMaxJobsPerFrame;
         if (maxCpuJobsPerFrame <= 0)
         {
             maxCpuJobsPerFrame = 1;

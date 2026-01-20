@@ -118,35 +118,21 @@ public class LumOnConfig
         /// This caps render-thread work (job dispatch + texture sub-region uploads).
         /// </summary>
         [JsonProperty]
-        public float MaterialAtlasAsyncBudgetMs { get; set; } = 1.0f;
+        public float AsyncBudgetMs { get; set; } = 1.0f;
 
         /// <summary>
         /// Maximum number of texture sub-region uploads per frame.
         /// Limits GL work and reduces hitching.
         /// </summary>
         [JsonProperty]
-        public int MaterialAtlasAsyncMaxUploadsPerFrame { get; set; } = 32;
+        public int AsyncMaxUploadsPerFrame { get; set; } = 32;
 
         /// <summary>
         /// Maximum number of CPU tile jobs dispatched per frame.
         /// Limits task churn and keeps background work paced.
         /// </summary>
         [JsonProperty]
-        public int MaterialAtlasAsyncMaxCpuJobsPerFrame { get; set; } = 32;
-
-        /// <summary>
-        /// Per-frame time budget (ms) for the async normal+depth atlas jobs.
-        /// This caps render-thread work for normal+depth uploads/bakes.
-        /// </summary>
-        [JsonProperty]
-        public float NormalDepthAtlasAsyncBudgetMs { get; set; } = 1.0f;
-
-        /// <summary>
-        /// Maximum number of normal+depth atlas jobs executed per frame.
-        /// Limits GL work and reduces hitching during the bake.
-        /// </summary>
-        [JsonProperty]
-        public int NormalDepthAtlasAsyncMaxUploadsPerFrame { get; set; } = 32;
+        public int AsyncMaxJobsPerFrame { get; set; } = 32;
 
         /// <summary>
         /// Enables building and binding the VGE normal+depth sidecar atlas.
@@ -207,11 +193,9 @@ public class LumOnConfig
         internal void Sanitize()
         {
             // Keep existing behavior for NaNs: clamp/guards are conservative.
-            MaterialAtlasAsyncBudgetMs = Math.Clamp(MaterialAtlasAsyncBudgetMs, 0.0f, 100.0f);
-            MaterialAtlasAsyncMaxUploadsPerFrame = Math.Clamp(MaterialAtlasAsyncMaxUploadsPerFrame, 0, 512);
-            MaterialAtlasAsyncMaxCpuJobsPerFrame = Math.Clamp(MaterialAtlasAsyncMaxCpuJobsPerFrame, 0, 512);
-            NormalDepthAtlasAsyncBudgetMs = Math.Clamp(NormalDepthAtlasAsyncBudgetMs, 0.0f, 100.0f);
-            NormalDepthAtlasAsyncMaxUploadsPerFrame = Math.Clamp(NormalDepthAtlasAsyncMaxUploadsPerFrame, 0, 512);
+            AsyncBudgetMs = Math.Clamp(AsyncBudgetMs, 0.0f, 100.0f);
+            AsyncMaxUploadsPerFrame = Math.Clamp(AsyncMaxUploadsPerFrame, 0, 512);
+            AsyncMaxJobsPerFrame = Math.Clamp(AsyncMaxJobsPerFrame, 0, 512);
 
             ParallaxScale = Math.Clamp(ParallaxScale, 0.0f, 0.25f);
 
