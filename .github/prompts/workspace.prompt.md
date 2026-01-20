@@ -39,8 +39,8 @@ This repo contains the mod code and tests for **VanillaGraphicsExpanded**, a ren
 - Profiling event source docs
 
 ### Build/Tools
-- use the `build` task to compile the mod.
-- use the `test` task to run all unit and GPU tests.
+- use the `dotnet: build` task to compile the mod.
+- use the `dotnet: test` task to run all unit and GPU tests.
 - `VanillaGraphicsExpanded.sln`
 
 ## Live Config + Debug Tooling
