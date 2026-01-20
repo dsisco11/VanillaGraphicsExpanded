@@ -104,12 +104,12 @@ Texture Streaming - Persistent-Mapped StageCopy Refactor (Option B First):
   ✔ Validate pixel store behavior for sub-rect uploads and 3D/array uploads (rowLength + imageHeight). @done
 
 
-  Phase 7 - Producer Integration Defaults (DynamicTexture):
-  Exit artifacts: DynamicTexture paths immediately copy to the streaming system by default.
-  ☐ Update `DynamicTexture.UploadData(...)` and region overloads to use StageCopy by default.
-  ☐ Preserve an explicit synchronous path for call sites that require immediate visibility.
-  ☐ Update `DynamicTexture3D` helpers and other common producer paths (`Clear`, `CreateWithData`, etc.).
-  ☐ Audit call sites for assumptions about immediate upload and update as needed.
+  Phase 7 - Producer Integration Defaults (DynamicTexture2D):
+  Exit artifacts: Streamed uploads are the default on the base texture wrapper; dynamic variants can opt into immediate defaults.
+  ✔ Introduce `GpuTexture` base with StageCopy defaults for uploads. @done
+  ✔ Update `DynamicTexture2D` / `DynamicTexture3D` to override upload defaults to immediate. @done
+  ✔ Add fixed-size `Texture2D` / `Texture3D` wrappers that keep StageCopy defaults. @done
+  ✔ Preserve explicit immediate upload methods for call sites that require same-tick visibility. @done
 
 
   Phase 8 - Diagnostics, Tests, and Perf Verification:
