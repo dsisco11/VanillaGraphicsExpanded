@@ -1,3 +1,4 @@
+using System;
 using VanillaGraphicsExpanded.LumOn;
 
 using Vintagestory.API.Client;
@@ -67,13 +68,7 @@ public static class VgeDebugViewManager
 
     public static void SetMode(LumOnDebugMode mode)
     {
-        currentMode = mode switch
-        {
-            // Deprecated/incorrect world-probe debug modes. Redirect to the GL_POINTS orb mode.
-            LumOnDebugMode.WorldProbeSpheres => LumOnDebugMode.WorldProbeOrbsPoints,
-            LumOnDebugMode.WorldProbeClipmapBounds => LumOnDebugMode.WorldProbeOrbsPoints,
-            _ => mode
-        };
+        currentMode = Enum.IsDefined(typeof(LumOnDebugMode), mode) ? mode : LumOnDebugMode.Off;
         ApplyModeToRuntime();
     }
 

@@ -174,18 +174,13 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
+        var lum = config.LumOn;
+        LumOnDebugMode mode = lum.DebugMode;
+
         // Render 3D wireframes after transparency so the depth buffer is available and water/OIT content is present.
         if (stage == EnumRenderStage.AfterOIT)
         {
-            if (config.DebugMode == LumOnDebugMode.WorldProbeClipmapBounds)
-            {
-                RenderWorldProbeClipmapBoundsLive();
-            }
-            else if (config.DebugMode == LumOnDebugMode.WorldProbeSpheres)
-            {
-                RenderWorldProbeClipmapBoundsLive();
-            }
-            else if (config.DebugMode == LumOnDebugMode.WorldProbeOrbsPoints)
+            if (mode == LumOnDebugMode.WorldProbeOrbsPoints)
             {
                 RenderWorldProbeClipmapBoundsLive();
                 RenderWorldProbeOrbsPointsLive();
@@ -199,31 +194,31 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (config.DebugMode != lastMode)
+        if (mode != lastMode)
         {
-            OnDebugModeChanged(prev: lastMode, current: config.DebugMode);
-            lastMode = config.DebugMode;
+            OnDebugModeChanged(prev: lastMode, current: mode);
+            lastMode = mode;
         }
 
         // VGE-only debug views that do not rely on lumon_debug.fsh.
-        if (config.DebugMode == LumOnDebugMode.VgeNormalDepthAtlas)
+        if (mode == LumOnDebugMode.VgeNormalDepthAtlas)
         {
             RenderVgeNormalDepthAtlas();
             return;
         }
 
-        if (config.DebugMode == LumOnDebugMode.WorldProbeClipmapBounds || config.DebugMode == LumOnDebugMode.WorldProbeOrbsPoints)
+        if (mode == LumOnDebugMode.WorldProbeOrbsPoints)
         {
             return;
         }
 
         // Only render when debug mode is active
-        if (config.DebugMode == LumOnDebugMode.Off || quadMeshRef is null)
+        if (mode == LumOnDebugMode.Off || quadMeshRef is null)
             return;
 
         // Most debug modes require the GBuffer to be ready.
         // Direct lighting debug modes do not.
-        if (!IsDirectLightingMode(config.DebugMode))
+        if (!IsDirectLightingMode(mode))
         {
             if (gBufferManager is null || !gBufferManager.EnsureBuffers(capi.Render.FrameWidth, capi.Render.FrameHeight))
                 return;
@@ -238,14 +233,14 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
 
         // Modes that rely on LumOn internals should not render unless LumOn is enabled.
-        if (RequiresLumOnBuffers(config.DebugMode))
+        if (RequiresLumOnBuffers(mode))
         {
-            if (!config.Enabled || bufferManager is null || !bufferManager.IsInitialized)
+            if (!lum.Enabled || bufferManager is null || !bufferManager.IsInitialized)
                 return;
         }
 
         // Phase 16 direct lighting debug modes rely on the direct lighting MRT outputs.
-        if (IsDirectLightingMode(config.DebugMode))
+        if (IsDirectLightingMode(mode))
         {
             if (directLightingBufferManager?.DirectDiffuseTex is null
                 || directLightingBufferManager.DirectSpecularTex is null
@@ -261,9 +256,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         UpdateCurrentViewProjMatrixNoTranslate();
 
         // Define-backed toggles must be set before Use() so the correct variant is bound.
-        shader.EnablePbrComposite = config.EnablePbrComposite;
-        shader.EnableAO = config.EnableAO;
-        shader.EnableShortRangeAo = config.EnableShortRangeAo;
+        shader.EnablePbrComposite = lum.EnablePbrComposite;
+        shader.EnableAO = lum.EnableAO;
+        shader.EnableShortRangeAo = lum.EnableShortRangeAo;
 
         // Phase 18 world-probe defines must be set before Use() as well.
         // Make this robust across initialization order / live reloads: if the renderer's buffer manager reference
@@ -426,23 +421,23 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             // Pass uniforms
             shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
             shader.ProbeGridSize = new Vec2i(bufferManager?.ProbeCountX ?? 0, bufferManager?.ProbeCountY ?? 0);
-            shader.ProbeSpacing = config.ProbeSpacingPx;
+            shader.ProbeSpacing = lum.ProbeSpacingPx;
             shader.ZNear = capi.Render.ShaderUniforms.ZNear;
             shader.ZFar = capi.Render.ShaderUniforms.ZFar;
-            shader.DebugMode = (int)config.DebugMode;
+            shader.DebugMode = (int)mode;
             shader.InvProjectionMatrix = invProjectionMatrix;
             shader.InvViewMatrix = invViewMatrix;
             shader.PrevViewProjMatrix = prevViewProjMatrix;
-            shader.TemporalAlpha = config.TemporalAlpha;
-            shader.DepthRejectThreshold = config.DepthRejectThreshold;
-            shader.NormalRejectThreshold = config.NormalRejectThreshold;
-            shader.VelocityRejectThreshold = config.VelocityRejectThreshold;
+            shader.TemporalAlpha = lum.TemporalAlpha;
+            shader.DepthRejectThreshold = lum.DepthRejectThreshold;
+            shader.NormalRejectThreshold = lum.NormalRejectThreshold;
+            shader.VelocityRejectThreshold = lum.VelocityRejectThreshold;
 
             // Phase 15 composite params (now compile-time defines)
-            shader.IndirectIntensity = config.Intensity;
-            shader.IndirectTint = new Vec3f(config.IndirectTint[0], config.IndirectTint[1], config.IndirectTint[2]);
-            shader.DiffuseAOStrength = Math.Clamp(config.DiffuseAOStrength, 0f, 1f);
-            shader.SpecularAOStrength = Math.Clamp(config.SpecularAOStrength, 0f, 1f);
+            shader.IndirectIntensity = lum.Intensity;
+            shader.IndirectTint = new Vec3f(lum.IndirectTint[0], lum.IndirectTint[1], lum.IndirectTint[2]);
+            shader.DiffuseAOStrength = Math.Clamp(lum.DiffuseAOStrength, 0f, 1f);
+            shader.SpecularAOStrength = Math.Clamp(lum.SpecularAOStrength, 0f, 1f);
 
             // Render fullscreen quad
             using var cpuScope = Profiler.BeginScope("Debug.LumOn", "Render");
@@ -472,8 +467,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     private void OnDebugModeChanged(LumOnDebugMode prev, LumOnDebugMode current)
     {
-        if (current is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeSpheres
-            || current == LumOnDebugMode.WorldProbeClipmapBounds)
+        if (current is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeOrbsPoints)
         {
             if (worldProbeClipmapBufferManager is null)
             {
@@ -520,8 +514,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             }
         }
 
-        // WorldProbeClipmapBounds is live now; keep frozen capture code around for future use,
-        // but do not auto-capture when entering the mode.
+        // Clipmap bounds overlay is live now; keep frozen capture code around for future use.
     }
 
     private void CaptureFrozenClipmapBounds()
@@ -722,7 +715,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     private void RenderWorldProbeClipmapBoundsLive()
     {
-        // Live bounds overlay (for WorldProbeSpheres mode) so we can compare bounds + spheres in the same frame.
+        // Live bounds overlay so we can compare bounds + probe debug visualizations in the same frame.
         if (worldProbeClipmapBufferManager?.Resources is null)
         {
             return;

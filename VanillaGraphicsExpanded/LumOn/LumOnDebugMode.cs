@@ -71,12 +71,7 @@ public enum LumOnDebugMode
     WorldProbeBlendWeights = 38,
     WorldProbeCrossLevelBlend = 39,
 
-    // VGE-only (line rendering; not driven by lumon_debug.fsh)
-    WorldProbeClipmapBounds = 40,
-
-    // Phase 18: visualize world-probe clipmap probes in 3D (implemented in lumon_debug.fsh)
-    WorldProbeSpheres = 41,
-
     // VGE-only: render probe "orbs" as GL_POINTS point sprites using CPU-generated probe centers + atlas coords.
-    WorldProbeOrbsPoints = 42,
+    // Also renders the clipmap bounds overlay.
+    WorldProbeOrbsPoints = 40,
 }

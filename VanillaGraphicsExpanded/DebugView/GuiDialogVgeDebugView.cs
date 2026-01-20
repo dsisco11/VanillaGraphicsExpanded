@@ -321,8 +321,6 @@ public sealed class GuiDialogVgeDebugView : GuiDialog
         LumOnDebugMode.WorldProbeMetaFlagsHeatmap => "World-Probe Meta Flags (heatmap) (Phase 18)",
         LumOnDebugMode.WorldProbeBlendWeights => "Blend Weights: screen vs world (Phase 18)",
         LumOnDebugMode.WorldProbeCrossLevelBlend => "Cross-Level Blend: selected L + weights (Phase 18)",
-        LumOnDebugMode.WorldProbeClipmapBounds => "World-Probe Clipmap Bounds (lines) (Phase 18)",
-        LumOnDebugMode.WorldProbeSpheres => "World-Probe Probes (spheres) (Phase 18)",
         LumOnDebugMode.WorldProbeOrbsPoints => "World-Probe Probes (orbs, GL_POINTS) (Phase 18)",
         _ => mode.ToString()
     };
