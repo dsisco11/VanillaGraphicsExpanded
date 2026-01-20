@@ -33,6 +33,10 @@ public sealed class MaterialAtlasModSystem : ModSystem
             // but defer the expensive population/bake until the world is fully ready.
             MaterialAtlasSystem.Instance.CreateTextureObjects(api);
 
+            // Cache-only warmup during the loading screen: upload cached tiles early,
+            // while deferring cache misses to the normal pipeline.
+            MaterialAtlasSystem.Instance.WarmupAtlasCache(api);
+
             if (isLevelFinalized)
             {
                 MaterialAtlasSystem.Instance.PopulateAtlasContents(api);

@@ -33,6 +33,7 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
     private int lastNormalDepthUploads;
 
     private int lastLoggedCompleteGenerationId;
+    private int lastLoggedWarmupCompleteGenerationId;
 
     private MaterialAtlasBuildSession? session;
     private Func<int, VanillaGraphicsExpanded.PBR.Materials.MaterialAtlasPageTextures?>? tryGetPageTextures;
@@ -401,6 +402,18 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
                 s.BaseMisses,
                 s.OverrideHits,
                 s.OverrideMisses);
+        }
+
+        if (active.IsComplete
+            && string.Equals(active.SessionTag, "warmup", StringComparison.Ordinal)
+            && lastLoggedWarmupCompleteGenerationId != active.GenerationId
+            && capi is not null)
+        {
+            lastLoggedWarmupCompleteGenerationId = active.GenerationId;
+            capi.Logger.Debug(
+                "[VGE] Material atlas disk cache warmup complete: tiles={0} normalDepthJobs={1}",
+                active.TotalTiles,
+                active.TotalNormalDepthJobs);
         }
     }
 

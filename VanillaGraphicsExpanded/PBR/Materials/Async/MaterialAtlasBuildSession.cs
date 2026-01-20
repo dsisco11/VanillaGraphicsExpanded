@@ -24,7 +24,8 @@ internal sealed class MaterialAtlasBuildSession : IDisposable
         IReadOnlyList<MaterialAtlasParamsGpuOverrideUpload> overrideJobs,
         IReadOnlyList<IMaterialAtlasCpuJob<MaterialAtlasNormalDepthGpuJob>> normalDepthCpuJobs,
         MaterialOverrideTextureLoader overrideLoader,
-        MaterialAtlasAsyncCacheCounters? cacheCounters)
+        MaterialAtlasAsyncCacheCounters? cacheCounters,
+        string? sessionTag)
     {
         if (generationId <= 0) throw new ArgumentOutOfRangeException(nameof(generationId));
         GenerationId = generationId;
@@ -34,6 +35,7 @@ internal sealed class MaterialAtlasBuildSession : IDisposable
         NormalDepthCpuJobs = normalDepthCpuJobs ?? throw new ArgumentNullException(nameof(normalDepthCpuJobs));
         OverrideLoader = overrideLoader ?? throw new ArgumentNullException(nameof(overrideLoader));
         CacheCounters = cacheCounters;
+        SessionTag = sessionTag;
 
         cts = new CancellationTokenSource();
         CreatedUtc = DateTime.UtcNow;
@@ -61,6 +63,8 @@ internal sealed class MaterialAtlasBuildSession : IDisposable
     }
 
     public int GenerationId { get; }
+
+    public string? SessionTag { get; }
 
     public DateTime CreatedUtc { get; }
 

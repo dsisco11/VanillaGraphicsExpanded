@@ -66,11 +66,11 @@ Material Atlas Disk Cache - Meta Index + Cache-Only Warmup:
 
   Phase 4 - Warmup Integration:
   Exit artifacts: Warmup runs during loading and does not trigger baking for misses.
-  ☐ Add MaterialAtlasSystem warmup entry point (e.g., WarmupAtlasCache).
-  ☐ Hook warmup into startup path (loading screen) before PopulateAtlasContents.
-  ☐ Ensure warmup does not re-run for identical atlas stats.
-  ☐ Ensure normal build still runs later to fill misses (cache hits can be skipped or re-used).
-  ☐ Add logging/diagnostics for warmup hits/misses and warmup completion.
+  ☑ Add MaterialAtlasSystem warmup entry point (e.g., WarmupAtlasCache).
+  ☑ Hook warmup into startup path (loading screen) before PopulateAtlasContents.
+  ☑ Ensure warmup does not re-run for identical atlas stats.
+  ☑ Ensure normal build still runs later to fill misses (cache hits can be skipped or re-used).
+  ☑ Add logging/diagnostics for warmup hits/misses and warmup completion.
 
 
   Phase 5 - Tests and Docs:

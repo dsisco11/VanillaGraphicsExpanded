@@ -35,6 +35,9 @@ internal sealed class MaterialAtlasSystem : IDisposable
     private int lastBlockAtlasNonNullPositions = -1;
     private short lastScheduledAtlasReloadIteration = short.MinValue;
     private int lastScheduledAtlasNonNullPositions = -1;
+
+    private short lastWarmupAtlasReloadIteration = short.MinValue;
+    private int lastWarmupAtlasNonNullPositions = -1;
     private readonly object schedulerLock = new();
     private ICoreClientAPI? capi;
     private MaterialAtlasBuildScheduler? scheduler;
@@ -83,6 +86,165 @@ internal sealed class MaterialAtlasSystem : IDisposable
     public bool IsInitialized { get; private set; }
     public bool AreTexturesCreated => texturesCreated;
     public bool IsBuildComplete { get; private set; }
+
+    public void WarmupAtlasCache(ICoreClientAPI capi)
+    {
+        if (capi is null) throw new ArgumentNullException(nameof(capi));
+
+        // Warmup is intended to be cache-only and async; if either is disabled, it provides no value.
+        if (!ConfigModSystem.Config.EnableMaterialAtlasDiskCache || !ConfigModSystem.Config.EnableMaterialAtlasAsyncBuild)
+        {
+            return;
+        }
+
+        this.capi = capi;
+        EnsureSchedulerRegistered(capi);
+        EnsureDiskCacheInitialized();
+
+        CreateTextureObjects(capi);
+        if (!texturesCreated)
+        {
+            return;
+        }
+
+        if (!PbrMaterialRegistry.Instance.IsInitialized)
+        {
+            return;
+        }
+
+        IBlockTextureAtlasAPI atlas = capi.BlockTextureAtlas;
+        (short currentReload, int nonNullCount) = GetAtlasStats(atlas);
+
+        if (currentReload >= 0
+            && currentReload == lastWarmupAtlasReloadIteration
+            && nonNullCount == lastWarmupAtlasNonNullPositions)
+        {
+            return;
+        }
+
+        // Build plans (same work as PopulateAtlasContents, but we will only schedule cache hits).
+        TextureAtlasPosition? TryGetAtlasPosition(AssetLocation loc)
+        {
+            try
+            {
+                return atlas[loc];
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        AtlasSnapshot snapshot = AtlasSnapshot.Capture(atlas);
+        var materialPlan = new MaterialAtlasBuildPlanner().CreatePlan(
+            snapshot,
+            TryGetAtlasPosition,
+            PbrMaterialRegistry.Instance,
+            blockTextureAssets: Array.Empty<AssetLocation>(),
+            enableNormalDepth: false);
+
+        MaterialAtlasNormalDepthBuildPlan? normalDepthPlan = null;
+        if (ConfigModSystem.Config.EnableNormalDepthAtlas)
+        {
+            snapshot = AtlasSnapshot.Capture(atlas);
+            var ndPlanner = new MaterialAtlasNormalDepthBuildPlanner();
+            normalDepthPlan = ndPlanner.CreatePlan(
+                snapshot,
+                TryGetAtlasPosition,
+                PbrMaterialRegistry.Instance,
+                capi.Assets.GetLocations("textures/block/", domain: null));
+        }
+
+        MaterialAtlasCacheKeyInputs cacheInputs = MaterialAtlasCacheKeyInputs.Create(ConfigModSystem.Config, snapshot, PbrMaterialRegistry.Instance);
+
+        // Determine atlas pages for session page state.
+        var atlasPages = new List<(int atlasTextureId, int width, int height)>(capacity: atlas.AtlasTextures.Count);
+        foreach (LoadedTexture atlasPage in atlas.AtlasTextures)
+        {
+            if (atlasPage.TextureId == 0 || atlasPage.Width <= 0 || atlasPage.Height <= 0)
+            {
+                continue;
+            }
+
+            atlasPages.Add((atlasPage.TextureId, atlasPage.Width, atlasPage.Height));
+        }
+
+        int generationId = Interlocked.Increment(ref sessionGeneration);
+        if (generationId <= 0)
+        {
+            sessionGeneration = 1;
+            generationId = 1;
+        }
+
+        var warmupPlanner = new MaterialAtlasCacheWarmupPlanner(diskCache, cacheKeyBuilder);
+        MaterialAtlasCacheWarmupPlan warmupPlan = warmupPlanner.CreatePlan(
+            generationId,
+            materialPlan,
+            normalDepthPlan,
+            cacheInputs,
+            enableCache: true);
+
+        int totalMaterialCandidates;
+        {
+            var tileRects = new HashSet<(int atlasTexId, AtlasRect rect)>(capacity: materialPlan.MaterialParamsTiles.Count);
+            foreach (var t in materialPlan.MaterialParamsTiles)
+            {
+                tileRects.Add((t.AtlasTextureId, t.Rect));
+            }
+
+            int overrideOnly = 0;
+            foreach (var ov in materialPlan.MaterialParamsOverrides)
+            {
+                if (!tileRects.Contains((ov.AtlasTextureId, ov.Rect)))
+                {
+                    overrideOnly++;
+                }
+            }
+
+            totalMaterialCandidates = materialPlan.MaterialParamsTiles.Count + overrideOnly;
+        }
+
+        int totalNormalDepthCandidates = normalDepthPlan is null
+            ? 0
+            : checked(normalDepthPlan.BakeJobs.Count + normalDepthPlan.OverrideJobs.Count);
+
+        int plannedMaterial = warmupPlan.MaterialParamsPlanned;
+        int plannedNormalDepth = warmupPlan.NormalDepthPlanned;
+
+        lastWarmupAtlasReloadIteration = currentReload;
+        lastWarmupAtlasNonNullPositions = nonNullCount;
+
+        if (plannedMaterial == 0 && plannedNormalDepth == 0)
+        {
+            capi.Logger.Debug(
+                "[VGE] Material atlas disk cache warmup: no cached tiles found (material 0/{0}, normalDepth 0/{1})",
+                totalMaterialCandidates,
+                totalNormalDepthCandidates);
+            return;
+        }
+
+        capi.Logger.Debug(
+            "[VGE] Material atlas disk cache warmup scheduled: material {0}/{1} tiles, normalDepth {2}/{3} jobs",
+            plannedMaterial,
+            totalMaterialCandidates,
+            plannedNormalDepth,
+            totalNormalDepthCandidates);
+
+        var session = new MaterialAtlasBuildSession(
+            generationId,
+            atlasPages,
+            warmupPlan.MaterialParamsCpuJobs,
+            overrideJobs: Array.Empty<MaterialAtlasParamsGpuOverrideUpload>(),
+            warmupPlan.NormalDepthCpuJobs,
+            new MaterialOverrideTextureLoader(),
+            cacheCounters: null,
+            sessionTag: "warmup");
+
+        lock (schedulerLock)
+        {
+            scheduler?.StartSession(session);
+        }
+    }
 
     public void RebakeNormalDepthAtlas(ICoreClientAPI capi)
     {
@@ -723,7 +885,8 @@ internal sealed class MaterialAtlasSystem : IDisposable
             overrideJobs,
             normalDepthCpuJobs,
             new MaterialOverrideTextureLoader(),
-            cacheCounters);
+            cacheCounters,
+            sessionTag: "build");
         scheduler.StartSession(session);
 
         lastScheduledAtlasReloadIteration = currentReload;
