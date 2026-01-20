@@ -2301,8 +2301,17 @@ internal static class TextureStreamingUtils
 {
     public static bool SupportsBufferStorage()
     {
-        string? extensions = GL.GetString(StringName.Extensions);
-        return extensions is not null && extensions.Contains("GL_ARB_buffer_storage", StringComparison.Ordinal);
+        GL.GetInteger(GetPName.NumExtensions, out int count);
+        for (int i = 0; i < count; i++)
+        {
+            string ext = GL.GetString(StringNameIndexed.Extensions, i);
+            if (ext == "GL_ARB_buffer_storage")
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static UploadDimension GetUploadDimension(TextureTarget target)
