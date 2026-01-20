@@ -54,13 +54,13 @@ Material Atlas Disk Cache - Meta Index + Cache-Only Warmup:
 
   Phase 3 - Cache-Only Warmup Planning:
   Exit artifacts: A warmup plan can be built that schedules cached tiles without baking.
-  ☐ Extend IMaterialAtlasDiskCache to support cheap index lookups:
+  ☑ Extend IMaterialAtlasDiskCache to support cheap index lookups:
     - TryGetEntry(key) or HasEntry(key)
-  ☐ Build a cache-only plan:
+  ☑ Build a cache-only plan:
     - For each material params tile: build cache key, check index, enqueue cached job on hit.
     - For override tiles: prefer override cache key; enqueue if present.
     - For normal/depth tiles and overrides: check cache keys and enqueue on hit.
-  ☐ Create CPU job variants that only read cached .dds (no bake fallback).
+  ☑ Create CPU job variants that only read cached .dds (no bake fallback).
     - If read fails, treat as miss and let normal pipeline regenerate later
 
 

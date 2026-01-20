@@ -10,9 +10,13 @@ internal interface IMaterialAtlasDiskCache
 
     MaterialAtlasDiskCacheStats GetStatsSnapshot();
 
+    bool HasMaterialParamsTile(AtlasCacheKey key);
+
     bool TryLoadMaterialParamsTile(AtlasCacheKey key, out float[] rgbTriplets);
 
     void StoreMaterialParamsTile(AtlasCacheKey key, int width, int height, float[] rgbTriplets);
+
+    bool HasNormalDepthTile(AtlasCacheKey key);
 
     bool TryLoadNormalDepthTile(AtlasCacheKey key, out float[] rgbaQuads);
 

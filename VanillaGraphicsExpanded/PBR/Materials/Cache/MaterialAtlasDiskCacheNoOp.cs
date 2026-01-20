@@ -23,6 +23,9 @@ internal sealed class MaterialAtlasDiskCacheNoOp : IMaterialAtlasDiskCache
             EvictedEntries: 0,
             EvictedBytes: 0);
 
+    public bool HasMaterialParamsTile(AtlasCacheKey key)
+        => false;
+
     public bool TryLoadMaterialParamsTile(AtlasCacheKey key, out float[] rgbTriplets)
     {
         rgbTriplets = null!;
@@ -33,6 +36,9 @@ internal sealed class MaterialAtlasDiskCacheNoOp : IMaterialAtlasDiskCache
     {
         // Intentionally no-op.
     }
+
+    public bool HasNormalDepthTile(AtlasCacheKey key)
+        => false;
 
     public bool TryLoadNormalDepthTile(AtlasCacheKey key, out float[] rgbaQuads)
     {

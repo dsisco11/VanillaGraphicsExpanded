@@ -59,6 +59,9 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         LoadAndValidateIndex();
     }
 
+    public bool HasMaterialParamsTile(AtlasCacheKey key)
+        => HasTile(PayloadKind.MaterialParams, key);
+
     private void LoadAndValidateIndex()
     {
         string indexPath = Path.Combine(root, MetaIndexFileName);
@@ -301,6 +304,9 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         StoreTileBc7(PayloadKind.MaterialParams, key, width, height, channels: 3, rgbaU8);
     }
 
+    public bool HasNormalDepthTile(AtlasCacheKey key)
+        => HasTile(PayloadKind.NormalDepth, key);
+
     public bool TryLoadNormalDepthTile(AtlasCacheKey key, out float[] rgbaQuads)
     {
         if (!TryLoadTile(PayloadKind.NormalDepth, key, out TileInfo info, out float[] rgba))
@@ -329,6 +335,45 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         QuantizeUnorm16(rgbaQuads, rgbaU16);
 
         StoreTile(PayloadKind.NormalDepth, key, width, height, channels: 4, rgbaU16);
+    }
+
+    private bool HasTile(PayloadKind kind, AtlasCacheKey key)
+    {
+        if (key.SchemaVersion == 0)
+        {
+            return false;
+        }
+
+        string entryId;
+        MaterialAtlasDiskCacheIndex.Entry entry;
+
+        try
+        {
+            string stem = GetFileStem(key);
+            entryId = stem + GetKindSuffix(kind);
+
+            indexLock.EnterReadLock();
+            try
+            {
+                if (!index.Entries.TryGetValue(entryId, out entry))
+                {
+                    return false;
+                }
+            }
+            finally
+            {
+                indexLock.ExitReadLock();
+            }
+        }
+        catch
+        {
+            return false;
+        }
+
+        string expectedKind = GetIndexKind(kind);
+        return string.Equals(entry.Kind, expectedKind, StringComparison.Ordinal)
+            && entry.SchemaVersion == key.SchemaVersion
+            && entry.Hash64 == key.Hash64;
     }
 
     private readonly record struct TileInfo(int Width, int Height, int Channels);
