@@ -28,9 +28,9 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
         DirectLightingMrt = RequireGBuffer(GBuffer.CreateMRT(
             new[]
             {
-                DynamicTexture.Create(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.DirectDiffuse"),
-                DynamicTexture.Create(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.DirectSpecular"),
-                DynamicTexture.Create(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.Emissive"),
+                DynamicTexture2D.Create(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.DirectDiffuse"),
+                DynamicTexture2D.Create(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.DirectSpecular"),
+                DynamicTexture2D.Create(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.Emissive"),
             },
             depthTexture: null,
             ownsTextures: true,
@@ -40,7 +40,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
         Velocity = RequireGBuffer(GBuffer.CreateMRT(
             new[]
             {
-                DynamicTexture.Create(screenW, screenH, PixelInternalFormat.Rgba32f, debugName: "Test.Velocity"),
+                DynamicTexture2D.Create(screenW, screenH, PixelInternalFormat.Rgba32f, debugName: "Test.Velocity"),
             },
             depthTexture: null,
             ownsTextures: true,
@@ -53,8 +53,8 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
         ProbeAnchor = RequireGBuffer(GBuffer.CreateMRT(
             new[]
             {
-                DynamicTexture.Create(probeW, probeH, PixelInternalFormat.Rgba16f, debugName: "Test.ProbeAnchorPosition"),
-                DynamicTexture.Create(probeW, probeH, PixelInternalFormat.Rgba16f, debugName: "Test.ProbeAnchorNormal"),
+                DynamicTexture2D.Create(probeW, probeH, PixelInternalFormat.Rgba16f, debugName: "Test.ProbeAnchorPosition"),
+                DynamicTexture2D.Create(probeW, probeH, PixelInternalFormat.Rgba16f, debugName: "Test.ProbeAnchorNormal"),
             },
             depthTexture: null,
             ownsTextures: true,
@@ -64,8 +64,8 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
         AtlasTrace = RequireGBuffer(GBuffer.CreateMRT(
             new[]
             {
-                DynamicTexture.Create(atlasW, atlasH, PixelInternalFormat.Rgba16f, debugName: "Test.AtlasTraceRadiance"),
-                DynamicTexture.Create(atlasW, atlasH, PixelInternalFormat.Rg32f, debugName: "Test.AtlasTraceMeta"),
+                DynamicTexture2D.Create(atlasW, atlasH, PixelInternalFormat.Rgba16f, debugName: "Test.AtlasTraceRadiance"),
+                DynamicTexture2D.Create(atlasW, atlasH, PixelInternalFormat.Rg32f, debugName: "Test.AtlasTraceMeta"),
             },
             depthTexture: null,
             ownsTextures: true,
@@ -74,8 +74,8 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
         AtlasTemporal = RequireGBuffer(GBuffer.CreateMRT(
             new[]
             {
-                DynamicTexture.Create(atlasW, atlasH, PixelInternalFormat.Rgba16f, debugName: "Test.AtlasTemporalRadiance"),
-                DynamicTexture.Create(atlasW, atlasH, PixelInternalFormat.Rg32f, debugName: "Test.AtlasTemporalMeta"),
+                DynamicTexture2D.Create(atlasW, atlasH, PixelInternalFormat.Rgba16f, debugName: "Test.AtlasTemporalRadiance"),
+                DynamicTexture2D.Create(atlasW, atlasH, PixelInternalFormat.Rg32f, debugName: "Test.AtlasTemporalMeta"),
             },
             depthTexture: null,
             ownsTextures: true,
@@ -84,8 +84,8 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
         AtlasFiltered = RequireGBuffer(GBuffer.CreateMRT(
             new[]
             {
-                DynamicTexture.Create(atlasW, atlasH, PixelInternalFormat.Rgba16f, debugName: "Test.AtlasFilteredRadiance"),
-                DynamicTexture.Create(atlasW, atlasH, PixelInternalFormat.Rg32f, debugName: "Test.AtlasFilteredMeta"),
+                DynamicTexture2D.Create(atlasW, atlasH, PixelInternalFormat.Rgba16f, debugName: "Test.AtlasFilteredRadiance"),
+                DynamicTexture2D.Create(atlasW, atlasH, PixelInternalFormat.Rg32f, debugName: "Test.AtlasFilteredMeta"),
             },
             depthTexture: null,
             ownsTextures: true,
@@ -95,7 +95,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
         IndirectHalf = RequireGBuffer(GBuffer.CreateMRT(
             new[]
             {
-                DynamicTexture.Create(halfW, halfH, PixelInternalFormat.Rgba16f, debugName: "Test.IndirectHalf"),
+                DynamicTexture2D.Create(halfW, halfH, PixelInternalFormat.Rgba16f, debugName: "Test.IndirectHalf"),
             },
             depthTexture: null,
             ownsTextures: true,
@@ -105,7 +105,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
         IndirectFull = RequireGBuffer(GBuffer.CreateMRT(
             new[]
             {
-                DynamicTexture.Create(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.IndirectFull"),
+                DynamicTexture2D.Create(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.IndirectFull"),
             },
             depthTexture: null,
             ownsTextures: true,
@@ -115,7 +115,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
         Composite = RequireGBuffer(GBuffer.CreateMRT(
             new[]
             {
-                DynamicTexture.Create(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.Composite"),
+                DynamicTexture2D.Create(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.Composite"),
             },
             depthTexture: null,
             ownsTextures: true,

@@ -54,16 +54,16 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
             using var atlas = CreateCheckerboardAtlas(w, h, cell: 4);
 
-            using var texL = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texTmp = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texBase = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texD0 = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texGxy = DynamicTexture.Create(w, h, PixelInternalFormat.Rg32f, TextureFilterMode.Nearest);
-            using var texDiv = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texH = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texH2 = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texHn = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var outAtlas = DynamicTexture.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
+            using var texL = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texTmp = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texBase = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texD0 = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texGxy = DynamicTexture2D.Create(w, h, PixelInternalFormat.Rg32f, TextureFilterMode.Nearest);
+            using var texDiv = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texH = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texH2 = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texHn = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var outAtlas = DynamicTexture2D.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
 
             // 1) Luminance.
             RenderTo(texL, progL, () =>
@@ -118,8 +118,8 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             ClearR32f(texH, 0f);
             for (int i = 0; i < 150; i++)
             {
-                DynamicTexture src = (i % 2 == 0) ? texH : texH2;
-                DynamicTexture dst = (i % 2 == 0) ? texH2 : texH;
+                DynamicTexture2D src = (i % 2 == 0) ? texH : texH2;
+                DynamicTexture2D dst = (i % 2 == 0) ? texH2 : texH;
 
                 RenderTo(dst, progJacobi, () =>
                 {
@@ -205,9 +205,9 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             const int h = 32;
 
             using var atlas = CreateCheckerboardAtlas(w, h, cell: 2);
-            using var texL = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texHn = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var outAtlas = DynamicTexture.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
+            using var texL = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texHn = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var outAtlas = DynamicTexture2D.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
 
             RenderTo(texL, progL, () =>
             {
@@ -283,18 +283,18 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
             using var atlas = CreateCheckerboardAtlas(w, h, cell: 4);
 
-            using var texL = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texTmp = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texBase = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texD0 = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texGxy = DynamicTexture.Create(w, h, PixelInternalFormat.Rg32f, TextureFilterMode.Nearest);
-            using var texDiv = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texH = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texH2 = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texHn = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texL = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texTmp = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texBase = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texD0 = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texGxy = DynamicTexture2D.Create(w, h, PixelInternalFormat.Rg32f, TextureFilterMode.Nearest);
+            using var texDiv = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texH = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texH2 = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texHn = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
 
-            using var outAtlas1 = DynamicTexture.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
-            using var outAtlas2 = DynamicTexture.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
+            using var outAtlas1 = DynamicTexture2D.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
+            using var outAtlas2 = DynamicTexture2D.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
 
             // 1) Luminance.
             RenderTo(texL, progL, () =>
@@ -342,8 +342,8 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             ClearR32f(texH, 0f);
             for (int i = 0; i < 150; i++)
             {
-                DynamicTexture src = (i % 2 == 0) ? texH : texH2;
-                DynamicTexture dst = (i % 2 == 0) ? texH2 : texH;
+                DynamicTexture2D src = (i % 2 == 0) ? texH : texH2;
+                DynamicTexture2D dst = (i % 2 == 0) ? texH2 : texH;
 
                 RenderTo(dst, progJacobi, () =>
                 {
@@ -448,17 +448,17 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
             using var atlas = CreateCheckerboardAtlas(w, h, cell: 4);
 
-            using var texL = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texTmp = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texBase = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texD0 = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texGxy = DynamicTexture.Create(w, h, PixelInternalFormat.Rg32f, TextureFilterMode.Nearest);
-            using var texDiv = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texH = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texH2 = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var texHn = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var outAtlasFlat = DynamicTexture.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
-            using var outAtlasScaled = DynamicTexture.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
+            using var texL = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texTmp = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texBase = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texD0 = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texGxy = DynamicTexture2D.Create(w, h, PixelInternalFormat.Rg32f, TextureFilterMode.Nearest);
+            using var texDiv = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texH = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texH2 = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var texHn = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var outAtlasFlat = DynamicTexture2D.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
+            using var outAtlasScaled = DynamicTexture2D.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
 
             // 1) Luminance.
             RenderTo(texL, progL, () =>
@@ -506,8 +506,8 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             ClearR32f(texH, 0f);
             for (int i = 0; i < 150; i++)
             {
-                DynamicTexture src = (i % 2 == 0) ? texH : texH2;
-                DynamicTexture dst = (i % 2 == 0) ? texH2 : texH;
+                DynamicTexture2D src = (i % 2 == 0) ? texH : texH2;
+                DynamicTexture2D dst = (i % 2 == 0) ? texH2 : texH;
 
                 RenderTo(dst, progJacobi, () =>
                 {
@@ -611,7 +611,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         return loc;
     }
 
-    private void RenderTo(DynamicTexture dst, int programId, Action setup)
+    private void RenderTo(DynamicTexture2D dst, int programId, Action setup)
     {
         using var fbo = GBuffer.CreateSingle(dst, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
 
@@ -632,7 +632,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         GBuffer.Unbind();
     }
 
-    private void RunGaussian1D(DynamicTexture src, DynamicTexture dst, int programId, float sigma, bool dirX)
+    private void RunGaussian1D(DynamicTexture2D src, DynamicTexture2D dst, int programId, float sigma, bool dirX)
     {
         int radius = (int)Math.Ceiling(3.0 * sigma);
         radius = Math.Clamp(radius, 0, 64);
@@ -683,7 +683,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         return w;
     }
 
-    private void ClearR32f(DynamicTexture tex, float value)
+    private void ClearR32f(DynamicTexture2D tex, float value)
     {
         using var fbo = GBuffer.CreateSingle(tex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
         fbo.Bind();
@@ -693,7 +693,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         GBuffer.Unbind();
     }
 
-    private static float MeanR32f(DynamicTexture tex)
+    private static float MeanR32f(DynamicTexture2D tex)
     {
         float[] data = tex.ReadPixels();
         if (data.Length == 0) return 0f;
@@ -702,7 +702,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         return (float)(sum / data.Length);
     }
 
-    private static (float invNeg, float invPos) ComputeAsymmetricInvScales(DynamicTexture tex, float center)
+    private static (float invNeg, float invPos) ComputeAsymmetricInvScales(DynamicTexture2D tex, float center)
     {
         float[] data = tex.ReadPixels();
         if (data.Length == 0) return (0f, 0f);
@@ -725,7 +725,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         return (invNeg, invPos);
     }
 
-    private static DynamicTexture CreateCheckerboardAtlas(int width, int height, int cell)
+    private static DynamicTexture2D CreateCheckerboardAtlas(int width, int height, int cell)
     {
         float[] data = new float[width * height * 4];
         for (int y = 0; y < height; y++)
@@ -745,10 +745,10 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             }
         }
 
-        return DynamicTexture.CreateWithData(width, height, PixelInternalFormat.Rgba8, data, TextureFilterMode.Nearest);
+        return DynamicTexture2D.CreateWithData(width, height, PixelInternalFormat.Rgba8, data, TextureFilterMode.Nearest);
     }
 
-    private static void AssertFiniteAndHasVariance(DynamicTexture tex, int channels, string name)
+    private static void AssertFiniteAndHasVariance(DynamicTexture2D tex, int channels, string name)
     {
         float[] data = tex.ReadPixels();
         Assert.NotEmpty(data);
@@ -776,7 +776,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         Assert.True(var > 1e-8, $"{name} variance too low: {var}");
     }
 
-    private static void AssertFinite(DynamicTexture tex, int channels, string name)
+    private static void AssertFinite(DynamicTexture2D tex, int channels, string name)
     {
         float[] data = tex.ReadPixels();
         Assert.NotEmpty(data);

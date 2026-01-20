@@ -37,7 +37,7 @@ public sealed class PbrMaterialParamsTextureSmokeTests
             data[i + 2] = 0.75f;
         }
 
-        using DynamicTexture materialTex = framework.CreateTexture(width, height, PixelInternalFormat.Rgb16f, data, TextureFilterMode.Nearest);
+        using DynamicTexture2D materialTex = framework.CreateTexture(width, height, PixelInternalFormat.Rgb16f, data, TextureFilterMode.Nearest);
 
         Assert.True(materialTex.IsValid);
         Assert.Equal(width, materialTex.Width);

@@ -432,12 +432,12 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
     private void RenderDirectLighting(
         int programId,
         GBuffer output,
-        DynamicTexture primaryScene,
-        DynamicTexture primaryDepth,
-        DynamicTexture gBufferNormal,
-        DynamicTexture gBufferMaterial,
-        DynamicTexture shadowNear,
-        DynamicTexture shadowFar,
+        DynamicTexture2D primaryScene,
+        DynamicTexture2D primaryDepth,
+        DynamicTexture2D gBufferNormal,
+        DynamicTexture2D gBufferMaterial,
+        DynamicTexture2D shadowNear,
+        DynamicTexture2D shadowFar,
         (float x, float y, float z) lightDirection,
         (float r, float g, float b) rgbaLightIn,
         int pointLightCount,
@@ -513,14 +513,14 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
     private void RenderComposite(
         int programId,
         GBuffer output,
-        DynamicTexture directDiffuse,
-        DynamicTexture directSpecular,
-        DynamicTexture emissive,
-        DynamicTexture indirectDiffuse,
-        DynamicTexture gBufferAlbedo,
-        DynamicTexture gBufferMaterial,
-        DynamicTexture gBufferNormal,
-        DynamicTexture primaryDepth)
+        DynamicTexture2D directDiffuse,
+        DynamicTexture2D directSpecular,
+        DynamicTexture2D emissive,
+        DynamicTexture2D indirectDiffuse,
+        DynamicTexture2D gBufferAlbedo,
+        DynamicTexture2D gBufferMaterial,
+        DynamicTexture2D gBufferNormal,
+        DynamicTexture2D primaryDepth)
     {
         output.BindWithViewport();
         GL.ClearColor(0f, 0f, 0f, 0f);

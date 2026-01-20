@@ -31,8 +31,8 @@ public sealed class GBuffer : IDisposable
     #region Fields
 
     private int fboId;
-    private readonly List<DynamicTexture> colorAttachments;
-    private DynamicTexture? depthAttachment;
+    private readonly List<DynamicTexture2D> colorAttachments;
+    private DynamicTexture2D? depthAttachment;
     private readonly bool ownsTextures;
     private string? debugName;
     private bool isDisposed;
@@ -89,12 +89,12 @@ public sealed class GBuffer : IDisposable
     /// <summary>
     /// Gets a color attachment by index.
     /// </summary>
-    public DynamicTexture this[int index] => colorAttachments[index];
+    public DynamicTexture2D this[int index] => colorAttachments[index];
 
     /// <summary>
     /// Gets the depth attachment texture (may be null).
     /// </summary>
-    public DynamicTexture? DepthTexture => depthAttachment;
+    public DynamicTexture2D? DepthTexture => depthAttachment;
 
     #endregion
 
@@ -118,8 +118,8 @@ public sealed class GBuffer : IDisposable
     /// <param name="ownsTextures">If true, textures will be disposed when the GBuffer is disposed.</param>
     /// <returns>A new GBuffer instance.</returns>
     public static GBuffer? CreateSingle(
-        DynamicTexture? colorTexture,
-        DynamicTexture? depthTexture = null,
+        DynamicTexture2D? colorTexture,
+        DynamicTexture2D? depthTexture = null,
         bool ownsTextures = false,
         string? debugName = null)
     {
@@ -146,8 +146,8 @@ public sealed class GBuffer : IDisposable
     /// <param name="ownsTextures">If true, textures will be disposed when the GBuffer is disposed.</param>
     /// <returns>A new GBuffer instance.</returns>
     public static GBuffer? CreateMRT(
-        DynamicTexture[]? colorTextures,
-        DynamicTexture? depthTexture = null,
+        DynamicTexture2D[]? colorTextures,
+        DynamicTexture2D? depthTexture = null,
         bool ownsTextures = false,
         string? debugName = null)
     {
@@ -158,7 +158,7 @@ public sealed class GBuffer : IDisposable
         }
 
         // Filter out invalid textures
-        var validTextures = new List<DynamicTexture>();
+        var validTextures = new List<DynamicTexture2D>();
         foreach (var tex in colorTextures)
         {
             if (tex != null && tex.IsValid)
@@ -187,12 +187,12 @@ public sealed class GBuffer : IDisposable
     /// </summary>
     /// <param name="colorTextures">Color textures to attach.</param>
     /// <returns>A new GBuffer instance.</returns>
-    public static GBuffer? CreateMRT(params DynamicTexture[] colorTextures)
+    public static GBuffer? CreateMRT(params DynamicTexture2D[] colorTextures)
     {
         return CreateMRT(colorTextures, null, false);
     }
 
-    public static GBuffer? CreateMRT(string? debugName, params DynamicTexture[] colorTextures)
+    public static GBuffer? CreateMRT(string? debugName, params DynamicTexture2D[] colorTextures)
     {
         return CreateMRT(colorTextures, null, false, debugName);
     }
@@ -204,7 +204,7 @@ public sealed class GBuffer : IDisposable
     /// <param name="ownsTextures">If true, texture will be disposed when the GBuffer is disposed.</param>
     /// <returns>A new GBuffer instance.</returns>
     public static GBuffer? CreateDepthOnly(
-        DynamicTexture? depthTexture,
+        DynamicTexture2D? depthTexture,
         bool ownsTextures = false,
         string? debugName = null)
     {
@@ -285,7 +285,7 @@ public sealed class GBuffer : IDisposable
     /// <remarks>
     /// This updates the framebuffer attachment in OpenGL. It does not take ownership of the texture.
     /// </remarks>
-    public void AttachColor(DynamicTexture texture, int attachmentIndex = 0, int mipLevel = 0)
+    public void AttachColor(DynamicTexture2D texture, int attachmentIndex = 0, int mipLevel = 0)
     {
         if (!IsValid)
         {

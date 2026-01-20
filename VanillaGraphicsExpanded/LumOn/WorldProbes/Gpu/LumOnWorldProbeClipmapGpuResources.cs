@@ -11,14 +11,14 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
     private readonly int resolution;
     private readonly int levels;
 
-    private readonly DynamicTexture sh0;
-    private readonly DynamicTexture sh1;
-    private readonly DynamicTexture sh2;
-    private readonly DynamicTexture vis0;
-    private readonly DynamicTexture dist0;
-    private readonly DynamicTexture meta0;
+    private readonly DynamicTexture2D sh0;
+    private readonly DynamicTexture2D sh1;
+    private readonly DynamicTexture2D sh2;
+    private readonly DynamicTexture2D vis0;
+    private readonly DynamicTexture2D dist0;
+    private readonly DynamicTexture2D meta0;
 
-    private readonly DynamicTexture debugState0;
+    private readonly DynamicTexture2D debugState0;
 
     private readonly GBuffer fbo;
 
@@ -48,22 +48,22 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
         // Per docs/LumOn.18-Probe-Data-Layout-and-Packing.md: L1 SH packed into 3 RGBA16F targets.
         // We pack all levels into a single 2D atlas per signal by stacking levels vertically:
         // v = y + level * resolution.
-        sh0 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSH0");
-        sh1 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSH1");
-        sh2 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSH2");
+        sh0 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSH0");
+        sh1 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSH1");
+        sh2 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSH2");
 
         // Visibility: RGBA16F (octU, octV, reserved, aoConfidence)
-        vis0 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeVis0");
+        vis0 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeVis0");
 
         // Distance: RG16F (meanLogDist, reserved)
-        dist0 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg16f, TextureFilterMode.Nearest, "WorldProbe_ProbeDist0");
+        dist0 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg16f, TextureFilterMode.Nearest, "WorldProbe_ProbeDist0");
 
         // Meta: RG32F (confidence, uintBitsToFloat(flags))
-        meta0 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, TextureFilterMode.Nearest, "WorldProbe_ProbeMeta0");
+        meta0 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, TextureFilterMode.Nearest, "WorldProbe_ProbeMeta0");
 
         // Debug state: RGBA16 (UNorm) encoded by CPU from scheduler lifecycle.
         // R=stale, G=in-flight, B=valid, A=1.
-        debugState0 = DynamicTexture.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16, TextureFilterMode.Nearest, "WorldProbe_DebugState0");
+        debugState0 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16, TextureFilterMode.Nearest, "WorldProbe_DebugState0");
 
         fbo = GBuffer.CreateMRT(
             "WorldProbe_ClipmapFbo",
@@ -118,9 +118,9 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
         debugState0.Dispose();
     }
 
-    private static void Label(DynamicTexture texture)
+    private static void Label(DynamicTexture2D texture)
     {
         if (texture.TextureId == 0) return;
-        GlDebug.TryLabelTexture2D(texture.TextureId, texture.DebugName);
+        GlDebug.TryLabel(ObjectLabelIdentifier.Texture, texture.TextureId, texture.DebugName);
     }
 }

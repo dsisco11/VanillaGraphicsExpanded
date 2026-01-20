@@ -765,7 +765,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         return count == 0 ? 0f : sum / count;
     }
 
-    private static void AssertSampler2DBinding(string stage, int programId, string samplerUniform, int expectedUnit, DynamicTexture expectedTexture)
+    private static void AssertSampler2DBinding(string stage, int programId, string samplerUniform, int expectedUnit, DynamicTexture2D expectedTexture)
     {
         ArgumentNullException.ThrowIfNull(expectedTexture);
         Assert.True(expectedTexture.IsValid, $"{stage}: expected texture for '{samplerUniform}' is invalid/disposed");

@@ -72,7 +72,7 @@ public abstract class RenderTestBase : IDisposable
     protected GBuffer CreateRenderTarget(int width, int height, PixelInternalFormat format)
     {
         EnsureContextValid();
-        var texture = DynamicTexture.Create(width, height, format);
+        var texture = DynamicTexture2D.Create(width, height, format);
         var gBuffer = GBuffer.CreateSingle(texture, ownsTextures: true);
         return gBuffer ?? throw new InvalidOperationException("Failed to create GBuffer");
     }
@@ -87,10 +87,10 @@ public abstract class RenderTestBase : IDisposable
     protected GBuffer CreateMRTRenderTarget(int width, int height, params PixelInternalFormat[] formats)
     {
         EnsureContextValid();
-        var textures = new DynamicTexture[formats.Length];
+        var textures = new DynamicTexture2D[formats.Length];
         for (int i = 0; i < formats.Length; i++)
         {
-            textures[i] = DynamicTexture.Create(width, height, formats[i]);
+            textures[i] = DynamicTexture2D.Create(width, height, formats[i]);
         }
         var gBuffer = GBuffer.CreateMRT(textures, ownsTextures: true);
         return gBuffer ?? throw new InvalidOperationException("Failed to create MRT GBuffer");

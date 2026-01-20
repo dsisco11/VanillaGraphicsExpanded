@@ -325,7 +325,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     /// <summary>
     /// Creates a texture with uniform color (RGBA16F).
     /// </summary>
-    protected DynamicTexture CreateUniformColorTexture(int width, int height, float r, float g, float b, float a = 1.0f)
+    protected DynamicTexture2D CreateUniformColorTexture(int width, int height, float r, float g, float b, float a = 1.0f)
     {
         var data = CreateUniformColorData(width, height, r, g, b, a);
         return TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba16f, data);
@@ -334,7 +334,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     /// <summary>
     /// Creates a depth texture with uniform depth (R32F).
     /// </summary>
-    protected DynamicTexture CreateUniformDepthTexture(int width, int height, float depth)
+    protected DynamicTexture2D CreateUniformDepthTexture(int width, int height, float depth)
     {
         var data = CreateUniformDepthData(width, height, depth);
         return TestFramework.CreateTexture(width, height, PixelInternalFormat.R32f, data);
@@ -343,7 +343,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     /// <summary>
     /// Creates a normal texture with uniform normals (RGBA16F, encoded to [0,1]).
     /// </summary>
-    protected DynamicTexture CreateUniformNormalTexture(int width, int height, float nx, float ny, float nz)
+    protected DynamicTexture2D CreateUniformNormalTexture(int width, int height, float nx, float ny, float nz)
     {
         var data = CreateUniformNormalData(width, height, nx, ny, nz);
         return TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba16f, data);
@@ -353,7 +353,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     /// Creates a material texture (RGBA16F).
     /// Layout: R=roughness, G=metallic, B=emissive, A=reflectivity
     /// </summary>
-    protected DynamicTexture CreateMaterialTexture(int width, int height, float roughness, float metallic, float emissive = 0f, float reflectivity = 0f)
+    protected DynamicTexture2D CreateMaterialTexture(int width, int height, float roughness, float metallic, float emissive = 0f, float reflectivity = 0f)
     {
         var data = CreateUniformMaterialData(width, height, roughness, metallic, emissive, reflectivity);
         return TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba16f, data);

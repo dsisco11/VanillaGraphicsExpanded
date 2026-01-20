@@ -33,7 +33,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
     private MeshRef? quadMeshRef;
 
     private GBuffer? compositeFbo;
-    private DynamicTexture? compositeColorTex;
+    private DynamicTexture2D? compositeColorTex;
 
     private readonly float[] invProjectionMatrix = new float[16];
     private readonly float[] viewMatrix = new float[16];
@@ -101,7 +101,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             compositeColorTex?.Dispose();
             compositeColorTex = null;
 
-            compositeColorTex = DynamicTexture.Create(capi.Render.FrameWidth, capi.Render.FrameHeight, PixelInternalFormat.Rgba16f, debugName: "PBRComposite");
+            compositeColorTex = DynamicTexture2D.Create(capi.Render.FrameWidth, capi.Render.FrameHeight, PixelInternalFormat.Rgba16f, debugName: "PBRComposite");
             if (!compositeColorTex.IsValid)
             {
                 compositeColorTex.Dispose();

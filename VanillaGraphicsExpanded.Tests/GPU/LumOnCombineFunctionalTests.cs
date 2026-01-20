@@ -449,7 +449,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader(enablePbrComposite: 1, enableAO: 1);
 
-        float RenderWithAoTexture(DynamicTexture materialTex)
+        float RenderWithAoTexture(DynamicTexture2D materialTex)
         {
             SetupDebugCompositeUniforms(programId,
                 debugMode: (int)LumOnDebugMode.CompositeIndirectDiffuse,

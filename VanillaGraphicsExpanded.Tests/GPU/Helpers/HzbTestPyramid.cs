@@ -13,11 +13,11 @@ internal sealed class HzbTestPyramid : IDisposable
 
     public HzbTestPyramid(int width, int height, int mipLevels)
     {
-        Texture = DynamicTexture.CreateMipmapped(width, height, PixelInternalFormat.R32f, mipLevels);
+        Texture = DynamicTexture2D.CreateMipmapped(width, height, PixelInternalFormat.R32f, mipLevels);
         _fbo = GL.GenFramebuffer();
     }
 
-    public DynamicTexture Texture { get; }
+    public DynamicTexture2D Texture { get; }
 
     public int MipLevels => Texture.MipLevels;
 

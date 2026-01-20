@@ -62,9 +62,9 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         int programId = progResult.ProgramId;
         Assert.True(programId > 0);
 
-        using var hTex = DynamicTexture.CreateWithData(input.Width, input.Height, PixelInternalFormat.R32f, input.H, TextureFilterMode.Nearest);
-        using var bTex = DynamicTexture.CreateWithData(input.Width, input.Height, PixelInternalFormat.R32f, input.B, TextureFilterMode.Nearest);
-        using var outTex = DynamicTexture.Create(input.Width, input.Height, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var hTex = DynamicTexture2D.CreateWithData(input.Width, input.Height, PixelInternalFormat.R32f, input.H, TextureFilterMode.Nearest);
+        using var bTex = DynamicTexture2D.CreateWithData(input.Width, input.Height, PixelInternalFormat.R32f, input.B, TextureFilterMode.Nearest);
+        using var outTex = DynamicTexture2D.Create(input.Width, input.Height, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
 
         // GPU step
         int vao = GL.GenVertexArray();
@@ -137,9 +137,9 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         // Keep this reasonably fast; Jacobi is slow but we only need to see clear reduction.
         const int iterations = 800;
 
-        using var bTex = DynamicTexture.CreateWithData(rhs.Width, rhs.Height, PixelInternalFormat.R32f, rhs.Data, TextureFilterMode.Nearest);
-        using var h0 = DynamicTexture.Create(rhs.Width, rhs.Height, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var h1 = DynamicTexture.Create(rhs.Width, rhs.Height, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var bTex = DynamicTexture2D.CreateWithData(rhs.Width, rhs.Height, PixelInternalFormat.R32f, rhs.Data, TextureFilterMode.Nearest);
+        using var h0 = DynamicTexture2D.Create(rhs.Width, rhs.Height, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var h1 = DynamicTexture2D.Create(rhs.Width, rhs.Height, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
 
         ClearR32f(h0, 0f);
         ClearR32f(h1, 0f);
@@ -150,8 +150,8 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         // Jacobi ping-pong
         for (int i = 0; i < iterations; i++)
         {
-            DynamicTexture src = (i % 2 == 0) ? h0 : h1;
-            DynamicTexture dst = (i % 2 == 0) ? h1 : h0;
+            DynamicTexture2D src = (i % 2 == 0) ? h0 : h1;
+            DynamicTexture2D dst = (i % 2 == 0) ? h1 : h0;
 
             using var fbo = GBuffer.CreateSingle(dst, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
 
@@ -180,7 +180,7 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         GL.DeleteVertexArray(vao);
 
         // After an even number of iterations, h0 is the latest; after odd, h1.
-        DynamicTexture hSolved = (iterations % 2 == 0) ? h0 : h1;
+        DynamicTexture2D hSolved = (iterations % 2 == 0) ? h0 : h1;
         float[] h = hSolved.ReadPixels();
 
         // Compute residual r = Laplacian(h) - b, using the same periodic stencil as the shader.
@@ -211,7 +211,7 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         return loc;
     }
 
-    private void ClearR32f(DynamicTexture tex, float value)
+    private void ClearR32f(DynamicTexture2D tex, float value)
     {
         using var fbo = GBuffer.CreateSingle(tex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
         fbo.Bind();

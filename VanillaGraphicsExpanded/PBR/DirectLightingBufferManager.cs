@@ -34,9 +34,9 @@ public sealed class DirectLightingBufferManager : IDisposable
     private int lastScreenHeight;
 
     // Direct lighting output textures (all RGBA16F)
-    private DynamicTexture? directDiffuseTex;
-    private DynamicTexture? directSpecularTex;
-    private DynamicTexture? emissiveTex;
+    private DynamicTexture2D? directDiffuseTex;
+    private DynamicTexture2D? directSpecularTex;
+    private DynamicTexture2D? emissiveTex;
 
     // Framebuffer for MRT output
     private GBuffer? directLightingFbo;
@@ -56,7 +56,7 @@ public sealed class DirectLightingBufferManager : IDisposable
     /// Texture for direct diffuse radiance (RGBA16F).
     /// RGB = diffuse BRDF contribution, A = reserved.
     /// </summary>
-    public DynamicTexture? DirectDiffuseTex => directDiffuseTex;
+    public DynamicTexture2D? DirectDiffuseTex => directDiffuseTex;
 
     /// <summary>
     /// OpenGL texture ID for direct diffuse.
@@ -67,7 +67,7 @@ public sealed class DirectLightingBufferManager : IDisposable
     /// Texture for direct specular radiance (RGBA16F).
     /// RGB = specular BRDF contribution, A = reserved.
     /// </summary>
-    public DynamicTexture? DirectSpecularTex => directSpecularTex;
+    public DynamicTexture2D? DirectSpecularTex => directSpecularTex;
 
     /// <summary>
     /// OpenGL texture ID for direct specular.
@@ -78,7 +78,7 @@ public sealed class DirectLightingBufferManager : IDisposable
     /// Texture for emissive radiance (RGBA16F).
     /// RGB = emissive contribution, A = reserved.
     /// </summary>
-    public DynamicTexture? EmissiveTex => emissiveTex;
+    public DynamicTexture2D? EmissiveTex => emissiveTex;
 
     /// <summary>
     /// OpenGL texture ID for emissive.
@@ -178,9 +178,9 @@ public sealed class DirectLightingBufferManager : IDisposable
         capi.Logger.Notification($"[VGE] Creating direct lighting buffers: {width}x{height}");
 
         // Create output textures (all RGBA16F for HDR)
-        directDiffuseTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "DirectDiffuse");
-        directSpecularTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "DirectSpecular");
-        emissiveTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "Emissive");
+        directDiffuseTex = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "DirectDiffuse");
+        directSpecularTex = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "DirectSpecular");
+        emissiveTex = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "Emissive");
 
         // Validate texture creation
         if (directDiffuseTex == null || !directDiffuseTex.IsValid ||

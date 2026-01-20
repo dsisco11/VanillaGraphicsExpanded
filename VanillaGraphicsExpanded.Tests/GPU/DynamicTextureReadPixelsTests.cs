@@ -20,7 +20,7 @@ public sealed class DynamicTextureReadPixelsTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var tex = DynamicTexture.Create(8, 8, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var tex = DynamicTexture2D.Create(8, 8, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
         using var fbo = GBuffer.CreateSingle(tex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create GBuffer");
 
         fbo.Bind();
@@ -54,7 +54,7 @@ public sealed class DynamicTextureReadPixelsTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var tex = DynamicTexture.Create(4, 4, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
+        using var tex = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
         using var fbo = GBuffer.CreateSingle(tex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create GBuffer");
 
         fbo.Bind();

@@ -60,7 +60,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
             }
         }
 
-        using var heightTex = DynamicTexture.CreateWithData(w, h, PixelInternalFormat.R32f, heightData, TextureFilterMode.Nearest);
+        using var heightTex = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, heightData, TextureFilterMode.Nearest);
         using var target = CreateRenderTarget(w, h, PixelInternalFormat.Rgba16f);
 
         target.Bind();
@@ -163,7 +163,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
             }
         }
 
-        using var heightTex = DynamicTexture.CreateWithData(w, h, PixelInternalFormat.R32f, heightData, TextureFilterMode.Nearest);
+        using var heightTex = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, heightData, TextureFilterMode.Nearest);
 
         (float minA1, float maxA1) = RenderPackAndGetAlphaMinMax(programId, heightTex, w, h, normalStrength: 0f, normalScale: 1f, depthScale: 1f);
         (float minA2, float maxA2) = RenderPackAndGetAlphaMinMax(programId, heightTex, w, h, normalStrength: 0f, normalScale: 1f, depthScale: 0.5f);
@@ -213,7 +213,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
             }
         }
 
-        using var heightTex = DynamicTexture.CreateWithData(w, h, PixelInternalFormat.R32f, heightData, TextureFilterMode.Nearest);
+        using var heightTex = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, heightData, TextureFilterMode.Nearest);
 
         float[] rgbFlat = RenderPackAndReadFirstPixel(programId, heightTex, w, h, normalStrength: 1f, normalScale: 0f, depthScale: 1f);
         float[] rgbTilt = RenderPackAndReadFirstPixel(programId, heightTex, w, h, normalStrength: 1f, normalScale: 2f, depthScale: 1f);
@@ -230,7 +230,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
     private (float minA, float maxA) RenderPackAndGetAlphaMinMax(
         int programId,
-        DynamicTexture heightTex,
+        DynamicTexture2D heightTex,
         int w,
         int h,
         float normalStrength,
@@ -284,7 +284,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
     private float[] RenderPackAndReadFirstPixel(
         int programId,
-        DynamicTexture heightTex,
+        DynamicTexture2D heightTex,
         int w,
         int h,
         float normalStrength,
@@ -369,8 +369,8 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
             }
         }
 
-        using var hTex = DynamicTexture.CreateWithData(w, h, PixelInternalFormat.R32f, hData, TextureFilterMode.Nearest);
-        using var hnTex = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var hTex = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, hData, TextureFilterMode.Nearest);
+        using var hnTex = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
         using var hnFbo = GBuffer.CreateSingle(hnTex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create Hn FBO");
 
         // Pass 1: normalize into hnTex
@@ -509,7 +509,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
             }
         }
 
-        using var heightTex = DynamicTexture.CreateWithData(w, h, PixelInternalFormat.R32f, heightData, TextureFilterMode.Nearest);
+        using var heightTex = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, heightData, TextureFilterMode.Nearest);
         using var target = CreateRenderTarget(w, h, PixelInternalFormat.Rgba16f);
 
         // Simulate engine state bleed: blending enabled with an additive-ish alpha path.

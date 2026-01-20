@@ -37,7 +37,7 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         using var primaryDepth = TestFramework.CreateTexture(w, h, PixelInternalFormat.R32f, baseDepth);
 
         // Create mipmapped HZB texture: 4x4 -> 2x2 -> 1x1 (3 mips)
-        using var hzb = DynamicTexture.CreateMipmapped(w, h, PixelInternalFormat.R32f, mipLevels: 3);
+        using var hzb = DynamicTexture2D.CreateMipmapped(w, h, PixelInternalFormat.R32f, mipLevels: 3);
 
         int fbo = GL.GenFramebuffer();
 
@@ -170,7 +170,7 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
             });
 
         // Build HZB (mip0 only is enough for this equivalence test).
-        using var hzb = DynamicTexture.CreateMipmapped(screenW, screenH, PixelInternalFormat.R32f, mipLevels: 1);
+        using var hzb = DynamicTexture2D.CreateMipmapped(screenW, screenH, PixelInternalFormat.R32f, mipLevels: 1);
         int fbo = GL.GenFramebuffer();
         int copyProg = CompileShader("lumon_hzb_copy.vsh", "lumon_hzb_copy.fsh");
 

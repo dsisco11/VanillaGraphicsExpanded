@@ -16,7 +16,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// // ... use texture ...
 /// </code>
 /// </remarks>
-public sealed class DynamicTexture : GpuTexture
+public sealed class DynamicTexture2D : GpuTexture
 {
     #region Fields
     private int mipLevels = 1;
@@ -34,7 +34,7 @@ public sealed class DynamicTexture : GpuTexture
 
     #region Constructor (private - use factory methods)
 
-    private DynamicTexture() { }
+    private DynamicTexture2D() { }
 
     #endregion
 
@@ -48,7 +48,7 @@ public sealed class DynamicTexture : GpuTexture
     /// <param name="format">Internal pixel format (e.g., Rgba16f, Rgba8).</param>
     /// <param name="filter">Filtering mode for sampling. Default is Nearest.</param>
     /// <returns>A new DynamicTexture instance.</returns>
-    public static DynamicTexture Create(
+    public static DynamicTexture2D Create(
         int width,
         int height,
         PixelInternalFormat format,
@@ -66,7 +66,7 @@ public sealed class DynamicTexture : GpuTexture
             height = 1;
         }
 
-        var texture = new DynamicTexture
+        var texture = new DynamicTexture2D
         {
             width = width,
             height = height,
@@ -86,7 +86,7 @@ public sealed class DynamicTexture : GpuTexture
     /// Creates a new 2D texture with an explicit mip chain allocated.
     /// Intended for hierarchical buffers like HZB.
     /// </summary>
-    public static DynamicTexture CreateMipmapped(
+    public static DynamicTexture2D CreateMipmapped(
         int width,
         int height,
         PixelInternalFormat format,
@@ -107,7 +107,7 @@ public sealed class DynamicTexture : GpuTexture
         if (mipLevels < 1)
             mipLevels = 1;
 
-        var texture = new DynamicTexture
+        var texture = new DynamicTexture2D
         {
             width = width,
             height = height,
@@ -130,7 +130,7 @@ public sealed class DynamicTexture : GpuTexture
     /// <param name="height">Texture height in pixels.</param>
     /// <param name="format">Depth format (default: DepthComponent24).</param>
     /// <returns>A new DynamicTexture instance configured for depth.</returns>
-    public static DynamicTexture CreateDepth(
+    public static DynamicTexture2D CreateDepth(
         int width,
         int height,
         PixelInternalFormat format = PixelInternalFormat.DepthComponent24,
@@ -155,7 +155,7 @@ public sealed class DynamicTexture : GpuTexture
     /// <param name="filter">Filtering mode for sampling. Default is Nearest.</param>
     /// <returns>A new DynamicTexture instance with uploaded data.</returns>
     /// <exception cref="ArgumentException">Thrown if data array size doesn't match texture dimensions.</exception>
-    public static DynamicTexture CreateWithData(
+    public static DynamicTexture2D CreateWithData(
         int width,
         int height,
         PixelInternalFormat format,
@@ -693,7 +693,7 @@ public sealed class DynamicTexture : GpuTexture
     /// <summary>
     /// Allows implicit conversion to int for use with existing APIs expecting texture IDs.
     /// </summary>
-    public static implicit operator int(DynamicTexture texture)
+    public static implicit operator int(DynamicTexture2D texture)
     {
         return texture?.textureId ?? 0;
     }

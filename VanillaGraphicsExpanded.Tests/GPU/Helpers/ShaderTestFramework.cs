@@ -55,14 +55,14 @@ public sealed class ShaderTestFramework : IDisposable
     /// <param name="data">Float array containing pixel data.</param>
     /// <param name="filter">Filtering mode. Default is Nearest for test precision.</param>
     /// <returns>A new DynamicTexture with uploaded data.</returns>
-    public DynamicTexture CreateTexture(
+    public DynamicTexture2D CreateTexture(
         int width,
         int height,
         PixelInternalFormat format,
         float[] data,
         TextureFilterMode filter = TextureFilterMode.Nearest)
     {
-        var texture = DynamicTexture.CreateWithData(width, height, format, data, filter);
+        var texture = DynamicTexture2D.CreateWithData(width, height, format, data, filter);
         _managedResources.Add(texture);
         return texture;
     }
@@ -76,13 +76,13 @@ public sealed class ShaderTestFramework : IDisposable
     /// <param name="format">Internal pixel format.</param>
     /// <param name="filter">Filtering mode. Default is Nearest.</param>
     /// <returns>A new DynamicTexture.</returns>
-    public DynamicTexture CreateTexture(
+    public DynamicTexture2D CreateTexture(
         int width,
         int height,
         PixelInternalFormat format,
         TextureFilterMode filter = TextureFilterMode.Nearest)
     {
-        var texture = DynamicTexture.Create(width, height, format, filter);
+        var texture = DynamicTexture2D.Create(width, height, format, filter);
         _managedResources.Add(texture);
         return texture;
     }
@@ -108,10 +108,10 @@ public sealed class ShaderTestFramework : IDisposable
         PixelInternalFormat format,
         int attachmentCount = 1)
     {
-        var textures = new DynamicTexture[attachmentCount];
+        var textures = new DynamicTexture2D[attachmentCount];
         for (int i = 0; i < attachmentCount; i++)
         {
-            textures[i] = DynamicTexture.Create(width, height, format);
+            textures[i] = DynamicTexture2D.Create(width, height, format);
         }
 
         var gBuffer = GBuffer.CreateMRT(textures, null, ownsTextures: true);
@@ -141,10 +141,10 @@ public sealed class ShaderTestFramework : IDisposable
         int height,
         params PixelInternalFormat[] formats)
     {
-        var textures = new DynamicTexture[formats.Length];
+        var textures = new DynamicTexture2D[formats.Length];
         for (int i = 0; i < formats.Length; i++)
         {
-            textures[i] = DynamicTexture.Create(width, height, formats[i]);
+            textures[i] = DynamicTexture2D.Create(width, height, formats[i]);
         }
 
         var gBuffer = GBuffer.CreateMRT(textures, null, ownsTextures: true);

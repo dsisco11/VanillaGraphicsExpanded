@@ -39,9 +39,9 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         float[] hData = BuildDeterministicNoise(w, h, seed: 101);
         float[] bData = BuildDeterministicNoise(w, h, seed: 202);
 
-        using var hTex = DynamicTexture.CreateWithData(w, h, PixelInternalFormat.R32f, hData, TextureFilterMode.Nearest);
-        using var bTex = DynamicTexture.CreateWithData(w, h, PixelInternalFormat.R32f, bData, TextureFilterMode.Nearest);
-        using var rTex = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var hTex = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, hData, TextureFilterMode.Nearest);
+        using var bTex = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, bData, TextureFilterMode.Nearest);
+        using var rTex = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
 
         RenderTo(rTex, progResidual, () =>
         {
@@ -82,8 +82,8 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
 
         float[] fine = BuildDeterministicNoise(fineW, fineH, seed: 303);
 
-        using var fineTex = DynamicTexture.CreateWithData(fineW, fineH, PixelInternalFormat.R32f, fine, TextureFilterMode.Nearest);
-        using var coarseTex = DynamicTexture.Create(coarseW, coarseH, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var fineTex = DynamicTexture2D.CreateWithData(fineW, fineH, PixelInternalFormat.R32f, fine, TextureFilterMode.Nearest);
+        using var coarseTex = DynamicTexture2D.Create(coarseW, coarseH, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
 
         RenderTo(coarseTex, progRestrict, () =>
         {
@@ -124,9 +124,9 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         float[] fineHData = BuildDeterministicNoise(fineW, fineH, seed: 404);
         float[] coarseE = BuildDeterministicNoise(coarseW, coarseH, seed: 505);
 
-        using var fineTex = DynamicTexture.CreateWithData(fineW, fineH, PixelInternalFormat.R32f, fineHData, TextureFilterMode.Nearest);
-        using var coarseTex = DynamicTexture.CreateWithData(coarseW, coarseH, PixelInternalFormat.R32f, coarseE, TextureFilterMode.Nearest);
-        using var outTex = DynamicTexture.Create(fineW, fineH, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var fineTex = DynamicTexture2D.CreateWithData(fineW, fineH, PixelInternalFormat.R32f, fineHData, TextureFilterMode.Nearest);
+        using var coarseTex = DynamicTexture2D.CreateWithData(coarseW, coarseH, PixelInternalFormat.R32f, coarseE, TextureFilterMode.Nearest);
+        using var outTex = DynamicTexture2D.Create(fineW, fineH, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
 
         RenderTo(outTex, progProlongate, () =>
         {
@@ -176,16 +176,16 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         int cw = Math.Max(1, w / 2);
         int ch = Math.Max(1, h / 2);
 
-        using var bFine = DynamicTexture.CreateWithData(w, h, PixelInternalFormat.R32f, rhs.Data, TextureFilterMode.Nearest);
+        using var bFine = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, rhs.Data, TextureFilterMode.Nearest);
 
-        using var h0 = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var h1 = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var h0 = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var h1 = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
 
-        using var resFine = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var bCoarse = DynamicTexture.Create(cw, ch, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var resFine = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var bCoarse = DynamicTexture2D.Create(cw, ch, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
 
-        using var e0 = DynamicTexture.Create(cw, ch, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var e1 = DynamicTexture.Create(cw, ch, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var e0 = DynamicTexture2D.Create(cw, ch, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var e1 = DynamicTexture2D.Create(cw, ch, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
 
         ClearR32f(h0, 0f);
         ClearR32f(h1, 0f);
@@ -196,7 +196,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         float rms0 = Rms(rhs.Data);
 
         // Pre-smooth (Jacobi on fine)
-        DynamicTexture hFine = RunJacobiIterationsFrom(progJacobi, bFine, start: h0, scratch: h1, iterations: 8);
+        DynamicTexture2D hFine = RunJacobiIterationsFrom(progJacobi, bFine, start: h0, scratch: h1, iterations: 8);
 
         // Residual r = b - A*h
         ComputeResidual(progResidual, bFine, hFine, resFine);
@@ -212,11 +212,11 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         });
 
         // Solve coarse error approximately: A*e = bCoarse
-        DynamicTexture eCoarse = RunJacobiIterationsFrom(progJacobi, bCoarse, start: e0, scratch: e1, iterations: 40);
+        DynamicTexture2D eCoarse = RunJacobiIterationsFrom(progJacobi, bCoarse, start: e0, scratch: e1, iterations: 40);
 
         // Prolongate + add correction: h = h + P(e)
         // Prolongate into the other fine texture.
-        DynamicTexture hCorrected = ReferenceEquals(hFine, h0) ? h1 : h0;
+        DynamicTexture2D hCorrected = ReferenceEquals(hFine, h0) ? h1 : h0;
         RenderTo(hCorrected, progProlongate, () =>
         {
             hFine.Bind(0);
@@ -228,7 +228,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         });
 
         // Post-smooth.
-        DynamicTexture hPost = RunJacobiIterationsFrom(
+        DynamicTexture2D hPost = RunJacobiIterationsFrom(
             progJacobi,
             bFine,
             start: hCorrected,
@@ -268,23 +268,23 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         int cw = Math.Max(1, mw / 2);
         int ch = Math.Max(1, mh / 2);
 
-        using var bFine = DynamicTexture.CreateWithData(w, h, PixelInternalFormat.R32f, rhs.Data, TextureFilterMode.Nearest);
+        using var bFine = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, rhs.Data, TextureFilterMode.Nearest);
 
         // Fine solution buffers.
-        using var h0 = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var h1 = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var resFine = DynamicTexture.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var h0 = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var h1 = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var resFine = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
 
         // Mid (coarse-1) buffers.
-        using var bMid = DynamicTexture.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var eMid0 = DynamicTexture.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var eMid1 = DynamicTexture.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var resMid = DynamicTexture.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var bMid = DynamicTexture2D.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var eMid0 = DynamicTexture2D.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var eMid1 = DynamicTexture2D.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var resMid = DynamicTexture2D.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
 
         // Coarsest buffers.
-        using var bCoarse = DynamicTexture.Create(cw, ch, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var eCoarse0 = DynamicTexture.Create(cw, ch, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var eCoarse1 = DynamicTexture.Create(cw, ch, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var bCoarse = DynamicTexture2D.Create(cw, ch, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var eCoarse0 = DynamicTexture2D.Create(cw, ch, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var eCoarse1 = DynamicTexture2D.Create(cw, ch, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
 
         ClearR32f(h0, 0f);
         ClearR32f(h1, 0f);
@@ -297,7 +297,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         float rms0 = Rms(rhs.Data);
 
         // Pre-smooth on fine.
-        DynamicTexture hFine = RunJacobiIterationsFrom(progJacobi, bFine, start: h0, scratch: h1, iterations: 8);
+        DynamicTexture2D hFine = RunJacobiIterationsFrom(progJacobi, bFine, start: h0, scratch: h1, iterations: 8);
 
         // Residual on fine.
         ComputeResidual(progResidual, bFine, hFine, resFine);
@@ -306,9 +306,9 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         // Compute a 2-level V-cycle result for comparison.
         float rms2LevelFinal;
         {
-            using var bCoarse2 = DynamicTexture.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var eC0 = DynamicTexture.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var eC1 = DynamicTexture.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var bCoarse2 = DynamicTexture2D.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var eC0 = DynamicTexture2D.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var eC1 = DynamicTexture2D.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
             ClearR32f(eC0, 0f);
             ClearR32f(eC1, 0f);
 
@@ -322,10 +322,10 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             });
 
             // Coarse solve.
-            DynamicTexture eCoarse2 = RunJacobiIterationsFrom(progJacobi, bCoarse2, start: eC0, scratch: eC1, iterations: 60);
+            DynamicTexture2D eCoarse2 = RunJacobiIterationsFrom(progJacobi, bCoarse2, start: eC0, scratch: eC1, iterations: 60);
 
             // Prolongate into the opposite fine buffer.
-            DynamicTexture hFineCorrected2 = ReferenceEquals(hFine, h0) ? h1 : h0;
+            DynamicTexture2D hFineCorrected2 = ReferenceEquals(hFine, h0) ? h1 : h0;
             RenderTo(hFineCorrected2, progProlongate, () =>
             {
                 hFine.Bind(0);
@@ -337,7 +337,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             });
 
             // Post-smooth fine.
-            DynamicTexture hPost2 = RunJacobiIterationsFrom(
+            DynamicTexture2D hPost2 = RunJacobiIterationsFrom(
                 progJacobi,
                 bFine,
                 start: hFineCorrected2,
@@ -360,7 +360,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
 
         // --- Mid-level solve (one V-cycle inside) ---
         // Pre-smooth on mid.
-        DynamicTexture eMid = RunJacobiIterationsFrom(progJacobi, bMid, start: eMid0, scratch: eMid1, iterations: 6);
+        DynamicTexture2D eMid = RunJacobiIterationsFrom(progJacobi, bMid, start: eMid0, scratch: eMid1, iterations: 6);
 
         // Residual on mid.
         ComputeResidual(progResidual, bMid, eMid, resMid);
@@ -375,10 +375,10 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         });
 
         // Coarse solve (more iterations).
-        DynamicTexture eCoarse = RunJacobiIterationsFrom(progJacobi, bCoarse, start: eCoarse0, scratch: eCoarse1, iterations: 80);
+        DynamicTexture2D eCoarse = RunJacobiIterationsFrom(progJacobi, bCoarse, start: eCoarse0, scratch: eCoarse1, iterations: 80);
 
         // Prolongate coarse correction into mid.
-        DynamicTexture eMidCorrected = ReferenceEquals(eMid, eMid0) ? eMid1 : eMid0;
+        DynamicTexture2D eMidCorrected = ReferenceEquals(eMid, eMid0) ? eMid1 : eMid0;
         RenderTo(eMidCorrected, progProlongate, () =>
         {
             eMid.Bind(0);
@@ -390,7 +390,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         });
 
         // Post-smooth mid.
-        DynamicTexture eMidPost = RunJacobiIterationsFrom(
+        DynamicTexture2D eMidPost = RunJacobiIterationsFrom(
             progJacobi,
             bMid,
             start: eMidCorrected,
@@ -398,7 +398,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             iterations: 6);
 
         // --- Back to fine: prolongate mid correction into fine ---
-        DynamicTexture hFineCorrected = ReferenceEquals(hFine, h0) ? h1 : h0;
+        DynamicTexture2D hFineCorrected = ReferenceEquals(hFine, h0) ? h1 : h0;
         RenderTo(hFineCorrected, progProlongate, () =>
         {
             hFine.Bind(0);
@@ -410,7 +410,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         });
 
         // Post-smooth fine.
-        DynamicTexture hPost = RunJacobiIterationsFrom(
+        DynamicTexture2D hPost = RunJacobiIterationsFrom(
             progJacobi,
             bFine,
             start: hFineCorrected,
@@ -459,7 +459,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         return loc;
     }
 
-    private void RenderTo(DynamicTexture dst, int programId, Action setup)
+    private void RenderTo(DynamicTexture2D dst, int programId, Action setup)
     {
         using var fbo = GBuffer.CreateSingle(dst, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
 
@@ -487,7 +487,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         GL.DeleteVertexArray(vao);
     }
 
-    private void ClearR32f(DynamicTexture tex, float value)
+    private void ClearR32f(DynamicTexture2D tex, float value)
     {
         using var fbo = GBuffer.CreateSingle(tex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
         fbo.Bind();
@@ -499,10 +499,10 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         GBuffer.Unbind();
     }
 
-    private DynamicTexture RunJacobiIterationsFrom(int progJacobi, DynamicTexture b, DynamicTexture start, DynamicTexture scratch, int iterations)
+    private DynamicTexture2D RunJacobiIterationsFrom(int progJacobi, DynamicTexture2D b, DynamicTexture2D start, DynamicTexture2D scratch, int iterations)
     {
-        DynamicTexture src = start;
-        DynamicTexture dst = scratch;
+        DynamicTexture2D src = start;
+        DynamicTexture2D dst = scratch;
 
         for (int i = 0; i < iterations; i++)
         {
@@ -521,7 +521,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         return src;
     }
 
-    private void ComputeResidual(int progResidual, DynamicTexture b, DynamicTexture h, DynamicTexture outResidual)
+    private void ComputeResidual(int progResidual, DynamicTexture2D b, DynamicTexture2D h, DynamicTexture2D outResidual)
     {
         RenderTo(outResidual, progResidual, () =>
         {

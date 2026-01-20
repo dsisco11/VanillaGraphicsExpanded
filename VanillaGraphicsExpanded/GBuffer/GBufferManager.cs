@@ -30,8 +30,8 @@ public sealed class GBufferManager : IDisposable
     private readonly ICoreClientAPI capi;
     
     // G-buffer textures using DynamicTexture
-    private DynamicTexture? normalTex;
-    private DynamicTexture? materialTex;
+    private DynamicTexture2D? normalTex;
+    private DynamicTexture2D? materialTex;
 
     private const int NormalSlotId = 4;
     private const int MaterialSlotId = 5;
@@ -337,14 +337,14 @@ public sealed class GBufferManager : IDisposable
                     3 => "VS_outGPosition",
                     _ => $"VS_Color{i}"
                 };
-                GlDebug.TryLabelTexture2D(fb.ColorTextureIds[i], texName);
+                GlDebug.TryLabel(ObjectLabelIdentifier.Texture, fb.ColorTextureIds[i], texName);
             }
         }
 
         // Label depth attachment
         if (fb.DepthTextureId != 0)
         {
-            GlDebug.TryLabelTexture2D(fb.DepthTextureId, "VS_Depth");
+            GlDebug.TryLabel(ObjectLabelIdentifier.Texture, fb.DepthTextureId, "VS_Depth");
         }
 #endif
     }
@@ -355,10 +355,10 @@ public sealed class GBufferManager : IDisposable
         DeleteTextures();
 
         // Create Normal texture (RGBA16F)
-        normalTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "gNormal");
+        normalTex = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "gNormal");
 
         // Create Material texture (RGBA16F) - Roughness, Metallic, Emissive, Reflectivity
-        materialTex = DynamicTexture.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "gMaterial");
+        materialTex = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "gMaterial");
 
         isInitialized = true;
         capi.Logger.Notification($"[VGE] Created G-buffer textures: {width}x{height}");

@@ -6,15 +6,15 @@ namespace VanillaGraphicsExpanded.PBR.Materials;
 
 internal sealed class MaterialAtlasPageTextures : IDisposable
 {
-    public MaterialAtlasPageTextures(DynamicTexture materialParamsTexture, DynamicTexture? normalDepthTexture)
+    public MaterialAtlasPageTextures(DynamicTexture2D materialParamsTexture, DynamicTexture2D? normalDepthTexture)
     {
         MaterialParamsTexture = materialParamsTexture ?? throw new ArgumentNullException(nameof(materialParamsTexture));
         NormalDepthTexture = normalDepthTexture;
     }
 
-    public DynamicTexture MaterialParamsTexture { get; }
+    public DynamicTexture2D MaterialParamsTexture { get; }
 
-    public DynamicTexture? NormalDepthTexture { get; }
+    public DynamicTexture2D? NormalDepthTexture { get; }
 
     public void Dispose()
     {

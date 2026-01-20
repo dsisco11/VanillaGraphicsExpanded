@@ -753,7 +753,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         return (px[3], (px[0], px[1], px[2]));
     }
 
-    private static float ReadTexturePixelR32f(DynamicTexture tex, int x, int y)
+    private static float ReadTexturePixelR32f(DynamicTexture2D tex, int x, int y)
     {
         scratchFbo!.AttachColor(tex);
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
@@ -851,7 +851,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
     }
 
-    private static void BindTarget(DynamicTexture dst)
+    private static void BindTarget(DynamicTexture2D dst)
     {
         scratchFbo!.AttachColor(dst);
         GL.Viewport(0, 0, dst.Width, dst.Height);
@@ -863,7 +863,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         GL.Viewport(x, y, w, h);
     }
 
-    private static void RunLuminancePass(int atlasTexId, (int x, int y, int w, int h) atlasRectPx, DynamicTexture dst)
+    private static void RunLuminancePass(int atlasTexId, (int x, int y, int w, int h) atlasRectPx, DynamicTexture2D dst)
     {
         BindTarget(dst);
 
@@ -881,7 +881,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         }
     }
 
-    private static void RunGaussian(DynamicTexture src, DynamicTexture tmp, DynamicTexture dst, float sigma)
+    private static void RunGaussian(DynamicTexture2D src, DynamicTexture2D tmp, DynamicTexture2D dst, float sigma)
     {
         if (sigma <= 0.0001f)
         {
@@ -933,7 +933,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         }
     }
 
-    private static void RunSub(DynamicTexture a, DynamicTexture b, DynamicTexture dst, bool relContrast)
+    private static void RunSub(DynamicTexture2D a, DynamicTexture2D b, DynamicTexture2D dst, bool relContrast)
     {
         BindTarget(dst);
         progSub!.Use();
@@ -955,7 +955,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         }
     }
 
-    private static void RunCopy(DynamicTexture src, DynamicTexture dst)
+    private static void RunCopy(DynamicTexture2D src, DynamicTexture2D dst)
     {
         BindTarget(dst);
         progCopy!.Use();
@@ -971,7 +971,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         }
     }
 
-    private static void RunCombine(DynamicTexture g1, DynamicTexture g2, DynamicTexture g3, DynamicTexture g4, DynamicTexture dst, float w1, float w2, float w3)
+    private static void RunCombine(DynamicTexture2D g1, DynamicTexture2D g2, DynamicTexture2D g3, DynamicTexture2D g4, DynamicTexture2D dst, float w1, float w2, float w3)
     {
         BindTarget(dst);
         progCombine!.Use();
@@ -991,7 +991,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         }
     }
 
-    private static void RunGradient(DynamicTexture d, DynamicTexture dstG, float gain, float maxSlope, float edgeT0, float edgeT1)
+    private static void RunGradient(DynamicTexture2D d, DynamicTexture2D dstG, float gain, float maxSlope, float edgeT0, float edgeT1)
     {
         BindTarget(dstG);
         progGradient!.Use();
@@ -1010,7 +1010,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         }
     }
 
-    private static void RunDivergence(DynamicTexture g, DynamicTexture dstDiv)
+    private static void RunDivergence(DynamicTexture2D g, DynamicTexture2D dstDiv)
     {
         BindTarget(dstDiv);
         progDivergence!.Use();
@@ -1026,7 +1026,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         }
     }
 
-    private static void RunNormalize(DynamicTexture h, DynamicTexture dst, float mean, float invNeg, float invPos, float heightStrength, float gamma)
+    private static void RunNormalize(DynamicTexture2D h, DynamicTexture2D dst, float mean, float invNeg, float invPos, float heightStrength, float gamma)
     {
         BindTarget(dst);
         progNormalize!.Use();
@@ -1052,7 +1052,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         (int x, int y) viewportOriginPx,
         (int w, int h) tileSizePx,
         (int w, int h) solverSizePx,
-        DynamicTexture heightTex,
+        DynamicTexture2D heightTex,
         int baseAlbedoAtlasTexId,
         float normalStrength,
         float normalScale,
@@ -1111,7 +1111,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         return w;
     }
 
-    private static (float mean, float center, float min, float max) ComputeStatsR32f(DynamicTexture tex)
+    private static (float mean, float center, float min, float max) ComputeStatsR32f(DynamicTexture2D tex)
     {
         float[] data = tex.ReadPixels();
         if (data.Length == 0) return (0f, 0f, 0f, 0f);
@@ -1212,19 +1212,19 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
 
     private sealed class TileResources
     {
-        public DynamicTexture L { get; private set; } = DynamicTexture.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_L");
-        public DynamicTexture Base { get; private set; } = DynamicTexture.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_Base");
-        public DynamicTexture D0 { get; private set; } = DynamicTexture.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_D0");
-        public DynamicTexture G1 { get; private set; } = DynamicTexture.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_G1");
-        public DynamicTexture G2 { get; private set; } = DynamicTexture.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_G2");
-        public DynamicTexture G3 { get; private set; } = DynamicTexture.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_G3");
-        public DynamicTexture G4 { get; private set; } = DynamicTexture.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_G4");
-        public DynamicTexture D { get; private set; } = DynamicTexture.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_D");
-        public DynamicTexture G { get; private set; } = DynamicTexture.Create(1, 1, PixelInternalFormat.Rg32f, TextureFilterMode.Nearest, "vge_bake_Gxy");
-        public DynamicTexture Div { get; private set; } = DynamicTexture.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_Div");
-        public DynamicTexture H { get; private set; } = DynamicTexture.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_H");
-        public DynamicTexture Hn { get; private set; } = DynamicTexture.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_Hn");
-        public DynamicTexture Tmp { get; private set; } = DynamicTexture.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_Tmp");
+        public DynamicTexture2D L { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_L");
+        public DynamicTexture2D Base { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_Base");
+        public DynamicTexture2D D0 { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_D0");
+        public DynamicTexture2D G1 { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_G1");
+        public DynamicTexture2D G2 { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_G2");
+        public DynamicTexture2D G3 { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_G3");
+        public DynamicTexture2D G4 { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_G4");
+        public DynamicTexture2D D { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_D");
+        public DynamicTexture2D G { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rg32f, TextureFilterMode.Nearest, "vge_bake_Gxy");
+        public DynamicTexture2D Div { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_Div");
+        public DynamicTexture2D H { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_H");
+        public DynamicTexture2D Hn { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_Hn");
+        public DynamicTexture2D Tmp { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_Tmp");
 
         public void EnsureSize(int w, int h)
         {
@@ -1243,7 +1243,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             ResizeIfNeeded(Tmp, w, h);
         }
 
-        private static void ResizeIfNeeded(DynamicTexture tex, int w, int h)
+        private static void ResizeIfNeeded(DynamicTexture2D tex, int w, int h)
         {
             if (tex.Width == w && tex.Height == h) return;
             tex.Resize(w, h);
@@ -1257,10 +1257,10 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         private int levels;
         private (int w, int h)[] levelSizes = Array.Empty<(int w, int h)>();
 
-        private DynamicTexture[] hLevel = Array.Empty<DynamicTexture>();
-        private DynamicTexture[] hTmpLevel = Array.Empty<DynamicTexture>();
-        private DynamicTexture[] bLevel = Array.Empty<DynamicTexture>();
-        private DynamicTexture[] residualLevel = Array.Empty<DynamicTexture>();
+        private DynamicTexture2D[] hLevel = Array.Empty<DynamicTexture2D>();
+        private DynamicTexture2D[] hTmpLevel = Array.Empty<DynamicTexture2D>();
+        private DynamicTexture2D[] bLevel = Array.Empty<DynamicTexture2D>();
+        private DynamicTexture2D[] residualLevel = Array.Empty<DynamicTexture2D>();
 
         public void EnsureSize(int width, int height)
         {
@@ -1291,22 +1291,22 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
 
             DisposeAll();
 
-            hLevel = new DynamicTexture[levels];
-            hTmpLevel = new DynamicTexture[levels];
-            bLevel = new DynamicTexture[levels];
-            residualLevel = new DynamicTexture[levels];
+            hLevel = new DynamicTexture2D[levels];
+            hTmpLevel = new DynamicTexture2D[levels];
+            bLevel = new DynamicTexture2D[levels];
+            residualLevel = new DynamicTexture2D[levels];
 
             for (int l = 0; l < levels; l++)
             {
                 (int levelW, int levelH) = levelSizes[l];
-                hLevel[l] = DynamicTexture.Create(levelW, levelH, PixelInternalFormat.R32f, TextureFilterMode.Nearest, $"vge_mg_h_{levelW}x{levelH}");
-                hTmpLevel[l] = DynamicTexture.Create(levelW, levelH, PixelInternalFormat.R32f, TextureFilterMode.Nearest, $"vge_mg_htmp_{levelW}x{levelH}");
-                bLevel[l] = DynamicTexture.Create(levelW, levelH, PixelInternalFormat.R32f, TextureFilterMode.Nearest, $"vge_mg_b_{levelW}x{levelH}");
-                residualLevel[l] = DynamicTexture.Create(levelW, levelH, PixelInternalFormat.R32f, TextureFilterMode.Nearest, $"vge_mg_r_{levelW}x{levelH}");
+                hLevel[l] = DynamicTexture2D.Create(levelW, levelH, PixelInternalFormat.R32f, TextureFilterMode.Nearest, $"vge_mg_h_{levelW}x{levelH}");
+                hTmpLevel[l] = DynamicTexture2D.Create(levelW, levelH, PixelInternalFormat.R32f, TextureFilterMode.Nearest, $"vge_mg_htmp_{levelW}x{levelH}");
+                bLevel[l] = DynamicTexture2D.Create(levelW, levelH, PixelInternalFormat.R32f, TextureFilterMode.Nearest, $"vge_mg_b_{levelW}x{levelH}");
+                residualLevel[l] = DynamicTexture2D.Create(levelW, levelH, PixelInternalFormat.R32f, TextureFilterMode.Nearest, $"vge_mg_r_{levelW}x{levelH}");
             }
         }
 
-        public void Solve(DynamicTexture rhs, DynamicTexture outH, LumOnConfig.NormalDepthBakeConfig bake)
+        public void Solve(DynamicTexture2D rhs, DynamicTexture2D outH, LumOnConfig.NormalDepthBakeConfig bake)
         {
             // Copy rhs into bLevel[0] (keep a stable reference for residual).
             RunCopy(rhs, bLevel[0]);
@@ -1370,12 +1370,12 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             }
         }
 
-        private static void Swap(ref DynamicTexture a, ref DynamicTexture b)
+        private static void Swap(ref DynamicTexture2D a, ref DynamicTexture2D b)
         {
             (a, b) = (b, a);
         }
 
-        private static void ClearR32f(DynamicTexture tex, float v)
+        private static void ClearR32f(DynamicTexture2D tex, float v)
         {
             BindTarget(tex);
             GL.ClearColor(v, 0f, 0f, 0f);
@@ -1384,7 +1384,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
 
         // Uses outer RunCopy
 
-        private static void RunJacobi(DynamicTexture h, DynamicTexture b, DynamicTexture dst)
+        private static void RunJacobi(DynamicTexture2D h, DynamicTexture2D b, DynamicTexture2D dst)
         {
             BindTarget(dst);
             progJacobi!.Use();
@@ -1401,7 +1401,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             }
         }
 
-        private static void RunResidual(DynamicTexture h, DynamicTexture b, DynamicTexture dst)
+        private static void RunResidual(DynamicTexture2D h, DynamicTexture2D b, DynamicTexture2D dst)
         {
             BindTarget(dst);
             progResidual!.Use();
@@ -1418,7 +1418,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             }
         }
 
-        private static void RunRestrict(DynamicTexture fine, DynamicTexture coarse)
+        private static void RunRestrict(DynamicTexture2D fine, DynamicTexture2D coarse)
         {
             BindTarget(coarse);
             progRestrict!.Use();
@@ -1435,7 +1435,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             }
         }
 
-        private static void RunProlongateAdd(DynamicTexture fineH, DynamicTexture coarseE, DynamicTexture dst)
+        private static void RunProlongateAdd(DynamicTexture2D fineH, DynamicTexture2D coarseE, DynamicTexture2D dst)
         {
             BindTarget(dst);
             progProlongateAdd!.Use();
@@ -1455,15 +1455,15 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
 
         private void DisposeAll()
         {
-            foreach (DynamicTexture t in hLevel) t.Dispose();
-            foreach (DynamicTexture t in hTmpLevel) t.Dispose();
-            foreach (DynamicTexture t in bLevel) t.Dispose();
-            foreach (DynamicTexture t in residualLevel) t.Dispose();
+            foreach (DynamicTexture2D t in hLevel) t.Dispose();
+            foreach (DynamicTexture2D t in hTmpLevel) t.Dispose();
+            foreach (DynamicTexture2D t in bLevel) t.Dispose();
+            foreach (DynamicTexture2D t in residualLevel) t.Dispose();
 
-            hLevel = Array.Empty<DynamicTexture>();
-            hTmpLevel = Array.Empty<DynamicTexture>();
-            bLevel = Array.Empty<DynamicTexture>();
-            residualLevel = Array.Empty<DynamicTexture>();
+            hLevel = Array.Empty<DynamicTexture2D>();
+            hTmpLevel = Array.Empty<DynamicTexture2D>();
+            bLevel = Array.Empty<DynamicTexture2D>();
+            residualLevel = Array.Empty<DynamicTexture2D>();
         }
     }
 }
