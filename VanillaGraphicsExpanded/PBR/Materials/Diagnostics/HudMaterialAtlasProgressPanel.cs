@@ -82,10 +82,10 @@ internal sealed class HudMaterialAtlasProgressPanel : HudElement
         SingleComposer = capi.Gui
             .CreateCompo("vge-materialatlas-progress", dialogBounds)
             .AddGameOverlay(bgBounds, GuiStyle.DialogLightBgColor)
-            .AddStaticText("Material Atlas", CairoFont.WhiteSmallText(), titleBounds)
-            .AddDynamicText("MP 0/0", CairoFont.WhiteSmallText(), trackerMpBounds, TrackerMpTextKey)
+            .AddStaticText("Building Atlas", CairoFont.WhiteSmallText(), titleBounds)
+            .AddDynamicText("Materials 0/0", CairoFont.WhiteSmallText(), trackerMpBounds, TrackerMpTextKey)
             .AddDynamicCustomDraw(barMpBounds, DrawMpProgressBar, ProgressBarMpKey)
-            .AddDynamicText("ND 0/0", CairoFont.WhiteSmallText(), trackerNdBounds, TrackerNdTextKey)
+            .AddDynamicText("Normals 0/0", CairoFont.WhiteSmallText(), trackerNdBounds, TrackerNdTextKey)
             .AddDynamicCustomDraw(barNdBounds, DrawNdProgressBar, ProgressBarNdKey)
             .Compose();
     }
