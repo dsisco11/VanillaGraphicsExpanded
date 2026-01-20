@@ -42,7 +42,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     private const int MaxWorldProbeLevels = 8;
     private const int ClipmapBoundsVerticesPerLevel = 24; // 12 edges * 2 vertices
-    private const int FrozenMarkerVertices = 6; // 3 axes * 2 vertices
+    private const int FrozenMarkerVertices = 12; // camera axes + L0 center axes (3*2 each)
 
     #endregion
 
@@ -444,6 +444,27 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             {
                 capi.ShowChatMessage("[VGE] World-probe clipmap params not published yet (runtime params missing).");
             }
+
+            if (worldProbeClipmapBufferManager is not null && worldProbeClipmapBufferManager.TryGetRuntimeParams(
+                    out _,
+                    out float baseSpacingL0,
+                    out _,
+                    out int resolutionL0,
+                    out var origins,
+                    out var rings))
+            {
+                var o0 = (origins.Length > 0) ? origins[0] : default;
+                var r0 = (rings.Length > 0) ? rings[0] : default;
+
+                float denom = Math.Max(1e-6f, baseSpacingL0);
+                float camLocalX = -o0.X / denom;
+                float camLocalY = -o0.Y / denom;
+                float camLocalZ = -o0.Z / denom;
+                float expected = resolutionL0 * 0.5f;
+
+                capi.ShowChatMessage(
+                    $"[VGE] World-probe L0: originRel=({o0.X:0.###},{o0.Y:0.###},{o0.Z:0.###}), ring=({r0.X},{r0.Y},{r0.Z}), camLocal=({camLocalX:0.##},{camLocalY:0.##},{camLocalZ:0.##}) expected~{expected:0.##}");
+            }
         }
 
         if (current == LumOnDebugMode.WorldProbeClipmapBounds)
@@ -699,7 +720,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             AddLine(x0, y1, z0, x0, y1, z1);
         }
 
-        // Frozen capture marker: a small RGB axis tripod at the frozen camera position.
+        // Frozen capture markers:
+        // - a small RGB axis tripod at the frozen camera position (so you can move away and still see where it was captured)
+        // - a small YUV-ish axis tripod at the L0 clipmap center (to reveal any offset/bias)
         // This makes it obvious the overlay is in world space when you move away.
         if ((uint)written + FrozenMarkerVertices <= (uint)clipmapBoundsVertices.Length)
         {
@@ -719,6 +742,20 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             AddMarkerLine(ox, oy, oz, ox + axisLen, oy, oz, 1f, 0.25f, 0.25f);
             AddMarkerLine(ox, oy, oz, ox, oy + axisLen, oz, 0.25f, 1f, 0.25f);
             AddMarkerLine(ox, oy, oz, ox, oy, oz + axisLen, 0.25f, 0.6f, 1f);
+
+            // L0 clipmap center marker (yellow/purple/cyan-ish), if we have at least one level.
+            if (levels > 0)
+            {
+                float size0 = baseSpacing * resolution;
+                var o0 = origins[0];
+                float cx = o0.X + size0 * 0.5f;
+                float cy = o0.Y + size0 * 0.5f;
+                float cz = o0.Z + size0 * 0.5f;
+
+                AddMarkerLine(cx, cy, cz, cx + axisLen, cy, cz, 1f, 1f, 0.25f);
+                AddMarkerLine(cx, cy, cz, cx, cy + axisLen, cz, 0.85f, 0.25f, 1f);
+                AddMarkerLine(cx, cy, cz, cx, cy, cz + axisLen, 0.25f, 1f, 1f);
+            }
         }
 
         return Math.Min(written, clipmapBoundsVertices.Length);
