@@ -17,10 +17,15 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
 {
     private const int MetaFormatVersion = 1;
 
+    private const string MetaIndexFileName = "meta.json";
+
     private static readonly byte[] MetaMagic = "VGEDC1\0\0"u8.ToArray();
 
     private readonly string root;
     private readonly long maxBytes;
+
+    private readonly ReaderWriterLockSlim indexLock = new(LockRecursionPolicy.NoRecursion);
+    private MaterialAtlasDiskCacheIndex index;
 
     private DateTime lastPruneUtc = DateTime.MinValue;
 
@@ -53,6 +58,108 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         this.maxBytes = maxBytes;
 
         Directory.CreateDirectory(root);
+
+        index = MaterialAtlasDiskCacheIndex.CreateEmpty(DateTime.UtcNow.Ticks);
+        LoadAndValidateIndex();
+    }
+
+    private void LoadAndValidateIndex()
+    {
+        string indexPath = Path.Combine(root, MetaIndexFileName);
+
+        if (!MaterialAtlasDiskCacheIndex.TryLoad(indexPath, out MaterialAtlasDiskCacheIndex loaded))
+        {
+            return;
+        }
+
+        bool changed = false;
+        long nowTicks = DateTime.UtcNow.Ticks;
+
+        // Validate entries against payload existence only.
+        // Corruption/dimension checks are deferred to actual reads to avoid opening every cached payload at startup.
+        foreach ((string entryId, MaterialAtlasDiskCacheIndex.Entry entry) in loaded.Entries.ToArray())
+        {
+            string ddsFileName = entry.DdsFileName ?? (entryId + ".dds");
+            string ddsPath = Path.Combine(root, ddsFileName);
+
+            if (!File.Exists(ddsPath))
+            {
+                loaded.Entries.Remove(entryId);
+                changed = true;
+                continue;
+            }
+
+            // Basic sanity: unknown kinds or channel counts are dropped early.
+            if (string.Equals(entry.Kind, "materialParams", StringComparison.Ordinal))
+            {
+                if (entry.Channels != 3)
+                {
+                    loaded.Entries.Remove(entryId);
+                    changed = true;
+                    continue;
+                }
+            }
+            else if (string.Equals(entry.Kind, "normalDepth", StringComparison.Ordinal))
+            {
+                if (entry.Channels != 4)
+                {
+                    loaded.Entries.Remove(entryId);
+                    changed = true;
+                    continue;
+                }
+            }
+            else
+            {
+                loaded.Entries.Remove(entryId);
+                changed = true;
+                continue;
+            }
+
+            try
+            {
+                long payloadBytes = new FileInfo(ddsPath).Length;
+                if (payloadBytes != entry.SizeBytes)
+                {
+                    loaded.Entries[entryId] = entry with { SizeBytes = payloadBytes };
+                    changed = true;
+                }
+            }
+            catch
+            {
+                loaded.Entries.Remove(entryId);
+                changed = true;
+            }
+        }
+
+        long beforeTotal = loaded.TotalBytes;
+        loaded.RecomputeTotals();
+        if (loaded.TotalBytes != beforeTotal)
+        {
+            changed = true;
+        }
+
+        indexLock.EnterWriteLock();
+        try
+        {
+            index = loaded;
+        }
+        finally
+        {
+            indexLock.ExitWriteLock();
+        }
+
+        if (changed)
+        {
+            try
+            {
+                loaded.SetSavedNow(nowTicks);
+                loaded.SaveAtomic(indexPath);
+            }
+            catch
+            {
+                // Best-effort: do not fail cache init.
+            }
+        }
     }
 
     public static MaterialAtlasDiskCache CreateDefault()

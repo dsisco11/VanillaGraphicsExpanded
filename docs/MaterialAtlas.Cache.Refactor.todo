@@ -33,19 +33,20 @@ Material Atlas Disk Cache - Meta Index + Cache-Only Warmup:
 
   Phase 1 - Cache Index Load/Save:
   Exit artifacts: MaterialAtlasDiskCache loads meta.json on init, validates entries, and saves updates atomically.
-  ☐ Add in-memory index structure (dictionary + totals) inside MaterialAtlasDiskCache.
-  ☐ Load meta.json at cache initialization; ignore if missing or invalid.
-  ☐ Validate entries on load:
+  ☑ Add in-memory index structure (dictionary + totals) inside MaterialAtlasDiskCache.
+  ☑ Load meta.json at cache initialization; ignore if missing or invalid.
+  ☑ Validate entries on load:
     - Drop entries with missing .dds payloads
-    - Validate header dimensions and channel counts
-  ☐ Implement atomic save (write temp, replace, best-effort on failure).
-  ☐ Ensure thread-safety for concurrent read/write (lock or RW lock).
+    - Validate channel counts and known kinds; defer DDS header validation to actual reads
+  ☑ Implement atomic save (write temp, replace, best-effort on failure).
+  ☑ Ensure thread-safety for concurrent read/write (lock or RW lock).
 
 
   Phase 2 - Refactor Cache Ops to Use Index:
   Exit artifacts: All reads/writes/prunes/stats operate on meta.json + index only.
   ☐ Remove per-file .meta read/write logic and file timestamp LRU.
   ☐ Update TryLoad* to consult index before reading .dds; update lastAccess on hit.
+    - On read failure (missing/corrupt/wrong dims): delete payload best-effort, remove index entry, and return miss
   ☐ Update Store* to add/update entries and totalBytes; persist index.
   ☐ Update TryPruneIfNeeded to use index LRU ordering; delete .dds and drop entries.
   ☐ Update GetStatsSnapshot to read from index totals (no directory walk).
@@ -60,6 +61,7 @@ Material Atlas Disk Cache - Meta Index + Cache-Only Warmup:
     - For override tiles: prefer override cache key; enqueue if present.
     - For normal/depth tiles and overrides: check cache keys and enqueue on hit.
   ☐ Create CPU job variants that only read cached .dds (no bake fallback).
+    - If read fails, treat as miss and let normal pipeline regenerate later
 
 
   Phase 4 - Warmup Integration:
@@ -74,6 +76,7 @@ Material Atlas Disk Cache - Meta Index + Cache-Only Warmup:
   Phase 5 - Tests and Docs:
   Exit artifacts: meta.json behavior and warmup scheduling are covered by tests and docs.
   ☐ Update MaterialAtlasDiskCacheRoundTripTests for meta.json read/write and LRU updates.
-  ☐ Add tests for index validation (missing .dds, bad headers, invalid schema).
+  ☐ Add tests for index validation (missing .dds, invalid schema).
+  ☐ Add tests for deferred corruption handling (bad headers/dims are handled on read: entry removed + miss returned).
   ☐ Add tests for warmup planning (hits enqueue jobs, misses ignored).
   ☐ Update docs/MaterialSystem.Cache.Architecture.md to reflect meta.json and warmup pass.

@@ -280,6 +280,13 @@ The `.dds` payload stores UNORM channels:
 - On read, reject files with invalid header or size mismatch.
 - If `meta.json` is missing, invalid, or partially written, ignore it and treat the cache as empty (payload files may be cleaned up later by prune logic).
 
+Deferred payload validation (locked in):
+
+- Cache initialization must not open/read every `.dds` payload to validate headers.
+- The cache trusts the `meta.json` index (and payload existence) during init.
+- Corruption or mismatched dimensions are detected when a tile is actually read.
+- On read failure, treat it as a cache miss and remove the bad cache entry (delete payload best-effort and drop the index entry) so the normal pipeline regenerates the tile.
+
 ---
 
 ## 8. Integration Points

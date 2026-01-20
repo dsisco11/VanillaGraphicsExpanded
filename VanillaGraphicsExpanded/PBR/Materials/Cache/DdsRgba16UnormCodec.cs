@@ -113,6 +113,56 @@ internal static class DdsRgba16UnormCodec
         return ReadRgba16Unorm(fs, out width, out height);
     }
 
+    public static void ReadRgba16UnormHeader(string filePath, out int width, out int height)
+    {
+        using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+        Span<byte> prefix = stackalloc byte[4 + DdsHeaderSize + 20];
+        fs.ReadExactly(prefix);
+
+        uint magic = BinaryPrimitives.ReadUInt32LittleEndian(prefix[0..4]);
+        if (magic != DdsMagic)
+        {
+            throw new InvalidDataException("DDS magic mismatch.");
+        }
+
+        Span<byte> h = prefix.Slice(4, DdsHeaderSize);
+
+        uint headerSize = BinaryPrimitives.ReadUInt32LittleEndian(h[0..4]);
+        if (headerSize != DdsHeaderSize)
+        {
+            throw new InvalidDataException($"Unsupported DDS header size {headerSize}.");
+        }
+
+        height = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(h[8..12]));
+        width = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(h[12..16]));
+
+        if (width <= 0 || height <= 0)
+        {
+            throw new InvalidDataException("DDS had invalid dimensions.");
+        }
+
+        Span<byte> pf = h.Slice(DdsPixelFormatOffset, DdsPixelFormatSize);
+        uint pfSize = BinaryPrimitives.ReadUInt32LittleEndian(pf[0..4]);
+        uint pfFlags = BinaryPrimitives.ReadUInt32LittleEndian(pf[4..8]);
+        uint fourCc = BinaryPrimitives.ReadUInt32LittleEndian(pf[8..12]);
+
+        if (pfSize != DdsPixelFormatSize || (pfFlags & DdpfFourCc) == 0 || fourCc != FourCcDx10)
+        {
+            throw new InvalidDataException("DDS pixel format is not DX10.");
+        }
+
+        Span<byte> dx10 = prefix.Slice(4 + DdsHeaderSize, 20);
+        uint dxgiFormat = BinaryPrimitives.ReadUInt32LittleEndian(dx10[0..4]);
+        uint dimension = BinaryPrimitives.ReadUInt32LittleEndian(dx10[4..8]);
+        uint arraySize = BinaryPrimitives.ReadUInt32LittleEndian(dx10[12..16]);
+
+        if (dxgiFormat != DxgiFormatR16G16B16A16Unorm || dimension != ResourceDimensionTexture2D || arraySize != 1)
+        {
+            throw new InvalidDataException("DDS DX10 header does not describe a 2D R16G16B16A16_UNORM texture.");
+        }
+    }
+
     public static ushort[] ReadRgba16Unorm(Stream stream, out int width, out int height)
     {
         ArgumentNullException.ThrowIfNull(stream);
