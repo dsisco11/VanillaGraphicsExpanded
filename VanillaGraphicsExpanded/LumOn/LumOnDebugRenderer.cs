@@ -79,6 +79,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private int clipmapProbePointsVao;
     private int clipmapProbePointsVbo;
 
+    // World-probe per-probe orb rendering (GL_POINTS + point sprite shading, camera-matrix world space).
+    private ProbeOrbVertex[]? clipmapProbeOrbVertices;
+    private int clipmapProbeOrbsVao;
+    private int clipmapProbeOrbsVbo;
+
     // Matrix buffers
     private readonly float[] invProjectionMatrix = new float[16];
     private readonly float[] invViewMatrix = new float[16];
@@ -180,6 +185,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             {
                 RenderWorldProbeClipmapBoundsLive();
             }
+            else if (config.DebugMode == LumOnDebugMode.WorldProbeOrbsPoints)
+            {
+                RenderWorldProbeClipmapBoundsLive();
+                RenderWorldProbeOrbsPointsLive();
+            }
 
             return;
         }
@@ -202,7 +212,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (config.DebugMode == LumOnDebugMode.WorldProbeClipmapBounds)
+        if (config.DebugMode == LumOnDebugMode.WorldProbeClipmapBounds || config.DebugMode == LumOnDebugMode.WorldProbeOrbsPoints)
         {
             return;
         }
@@ -989,6 +999,256 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         return written;
     }
 
+    private void EnsureClipmapProbeOrbsGlObjects()
+    {
+        if (clipmapProbeOrbsVao != 0 && clipmapProbeOrbsVbo != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            clipmapProbeOrbsVao = GL.GenVertexArray();
+            clipmapProbeOrbsVbo = GL.GenBuffer();
+
+            GL.BindVertexArray(clipmapProbeOrbsVao);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbeOrbsVbo);
+
+            int stride = Marshal.SizeOf<ProbeOrbVertex>();
+
+            // vec3 position
+            GL.EnableVertexAttribArray(0);
+            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, stride, 0);
+
+            // vec4 color
+            GL.EnableVertexAttribArray(1);
+            GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, stride, 12);
+
+            // vec2 atlasCoord
+            GL.EnableVertexAttribArray(2);
+            GL.VertexAttribPointer(2, 2, VertexAttribPointerType.Float, normalized: false, stride, 28);
+
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+            GL.BindVertexArray(0);
+
+            GlDebug.TryLabel(ObjectLabelIdentifier.VertexArray, clipmapProbeOrbsVao, "VGE_WorldProbeClipmapProbeOrbs_VAO");
+            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapProbeOrbsVbo, "VGE_WorldProbeClipmapProbeOrbs_VBO");
+        }
+        catch
+        {
+            if (clipmapProbeOrbsVbo != 0) GL.DeleteBuffer(clipmapProbeOrbsVbo);
+            if (clipmapProbeOrbsVao != 0) GL.DeleteVertexArray(clipmapProbeOrbsVao);
+            clipmapProbeOrbsVao = 0;
+            clipmapProbeOrbsVbo = 0;
+        }
+    }
+
+    private static int WrapIndex(int index, int resolution)
+    {
+        int m = index % resolution;
+        return m < 0 ? m + resolution : m;
+    }
+
+    private int BuildClipmapProbeOrbVertices(
+        float baseSpacing,
+        int levels,
+        int resolution,
+        System.Numerics.Vector3[] originsCm,
+        System.Numerics.Vector3[] rings)
+    {
+        levels = Math.Clamp(levels, 1, MaxWorldProbeLevels);
+        resolution = Math.Max(1, resolution);
+
+        long requested = (long)levels * resolution * resolution * resolution;
+        if (requested <= 0 || requested > MaxProbePointVertices)
+        {
+            return 0;
+        }
+
+        clipmapProbeOrbVertices ??= Array.Empty<ProbeOrbVertex>();
+        if (clipmapProbeOrbVertices.Length < requested)
+        {
+            clipmapProbeOrbVertices = new ProbeOrbVertex[requested];
+        }
+
+        int written = 0;
+        for (int level = 0; level < levels; level++)
+        {
+            float spacing = baseSpacing * (1 << level);
+            var o = originsCm[level];
+
+            var ring = (level < rings.Length) ? rings[level] : default;
+            int rx = (int)MathF.Round(ring.X);
+            int ry = (int)MathF.Round(ring.Y);
+            int rz = (int)MathF.Round(ring.Z);
+
+            (float r, float g, float b, float a) = GetDebugColorForLevel(level);
+
+            for (int z = 0; z < resolution; z++)
+            {
+                for (int y = 0; y < resolution; y++)
+                {
+                    for (int x = 0; x < resolution; x++)
+                    {
+                        float px = o.X + (x + 0.5f) * spacing;
+                        float py = o.Y + (y + 0.5f) * spacing;
+                        float pz = o.Z + (z + 0.5f) * spacing;
+
+                        int sx = WrapIndex(x + rx, resolution);
+                        int sy = WrapIndex(y + ry, resolution);
+                        int sz = WrapIndex(z + rz, resolution);
+
+                        int u = sx + sz * resolution;
+                        int v = sy + level * resolution;
+
+                        clipmapProbeOrbVertices[written++] = new ProbeOrbVertex
+                        {
+                            X = px,
+                            Y = py,
+                            Z = pz,
+                            R = r,
+                            G = g,
+                            B = b,
+                            A = a,
+                            U = u,
+                            V = v
+                        };
+                    }
+                }
+            }
+        }
+
+        return written;
+    }
+
+    private void RenderWorldProbeOrbsPointsLive()
+    {
+        if (worldProbeClipmapBufferManager?.Resources is null)
+        {
+            return;
+        }
+
+        if (!worldProbeClipmapBufferManager.TryGetRuntimeParams(
+                out var camPosWS,
+                out float baseSpacing,
+                out int levels,
+                out int resolution,
+                out var origins,
+                out var rings))
+        {
+            return;
+        }
+
+        var shader = capi.Shader.GetProgramByName("vge_worldprobe_orbs_points") as VanillaGraphicsExpanded.Rendering.Shaders.VgeWorldProbeOrbsPointsShaderProgram;
+        if (shader is null || shader.LoadError)
+        {
+            return;
+        }
+
+        EnsureClipmapProbeOrbsGlObjects();
+        if (clipmapProbeOrbsVao == 0 || clipmapProbeOrbsVbo == 0)
+        {
+            return;
+        }
+
+        levels = Math.Clamp(levels, 1, MaxWorldProbeLevels);
+
+        // Convert runtime origins (originAbs - cameraAbs) into camera-matrix world space (originRel + camPosMatrix).
+        var camPosMatrix = camPosWS;
+        for (int i = 0; i < MaxWorldProbeLevels; i++)
+        {
+            frozenOrigins[i] = (i < origins.Length) ? (origins[i] + camPosMatrix) : default;
+        }
+
+        int vertexCount = BuildClipmapProbeOrbVertices(
+            baseSpacing: baseSpacing,
+            levels: levels,
+            resolution: resolution,
+            originsCm: frozenOrigins,
+            rings: rings);
+
+        if (vertexCount <= 0 || clipmapProbeOrbVertices is null)
+        {
+            return;
+        }
+
+        UpdateCurrentViewProjMatrix();
+        MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invViewMatrix);
+
+        using var cpuScope = Profiler.BeginScope("Debug.WorldProbeOrbsPoints", "Render");
+        using (GlGpuProfiler.Instance.Scope("Debug.WorldProbeOrbsPoints"))
+        {
+            bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
+            bool prevBlend = GL.IsEnabled(EnableCap.Blend);
+            bool prevDepthMask = GL.GetBoolean(GetPName.DepthWritemask);
+            int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
+            int prevDepthFunc = GL.GetInteger(GetPName.DepthFunc);
+            float prevPointSize = GL.GetFloat(GetPName.PointSize);
+
+            bool shaderUsed = false;
+            try
+            {
+                GL.Enable(EnableCap.DepthTest);
+                GL.DepthFunc(DepthFunction.Lequal);
+                capi.Render.GlToggleBlend(true);
+                GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+                capi.Render.GLDepthMask(false);
+
+                shader.Use();
+                shaderUsed = true;
+
+                shader.ModelViewProjectionMatrix = currentViewProjMatrix;
+                shader.InvViewMatrix = invViewMatrix;
+                shader.PointSize = 18f;
+
+                // Bind SH textures.
+                int sh0 = worldProbeClipmapBufferManager.Resources.ProbeSh0TextureId;
+                int sh1 = worldProbeClipmapBufferManager.Resources.ProbeSh1TextureId;
+                int sh2 = worldProbeClipmapBufferManager.Resources.ProbeSh2TextureId;
+
+                GL.ActiveTexture(TextureUnit.Texture0);
+                GL.BindTexture(TextureTarget.Texture2D, sh0);
+                shader.WorldProbeSH0 = 0;
+
+                GL.ActiveTexture(TextureUnit.Texture1);
+                GL.BindTexture(TextureTarget.Texture2D, sh1);
+                shader.WorldProbeSH1 = 1;
+
+                GL.ActiveTexture(TextureUnit.Texture2);
+                GL.BindTexture(TextureTarget.Texture2D, sh2);
+                shader.WorldProbeSH2 = 2;
+
+                int stride = Marshal.SizeOf<ProbeOrbVertex>();
+
+                GL.BindVertexArray(clipmapProbeOrbsVao);
+                GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbeOrbsVbo);
+                GL.BufferData(BufferTarget.ArrayBuffer, vertexCount * stride, clipmapProbeOrbVertices, BufferUsageHint.StreamDraw);
+
+                GL.PointSize(18f);
+                GL.DrawArrays(PrimitiveType.Points, 0, vertexCount);
+
+                GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+                GL.BindVertexArray(0);
+            }
+            finally
+            {
+                if (shaderUsed)
+                {
+                    shader.Stop();
+                }
+
+                if (prevDepthTest) GL.Enable(EnableCap.DepthTest);
+                else GL.Disable(EnableCap.DepthTest);
+
+                GL.DepthFunc((DepthFunction)prevDepthFunc);
+                GL.PointSize(prevPointSize);
+                capi.Render.GLDepthMask(prevDepthMask);
+                capi.Render.GlToggleBlend(prevBlend);
+                GL.ActiveTexture((TextureUnit)prevActiveTexture);
+            }
+        }
+    }
+
     private int BuildClipmapBoundsVertices(
         float baseSpacing,
         int levels,
@@ -1243,7 +1503,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         // Anything involving probes/atlases/temporal/indirect assumes LumOn is enabled.
         return (mode is >= LumOnDebugMode.ProbeGrid and <= LumOnDebugMode.CompositeMaterial)
             || (mode is >= LumOnDebugMode.VelocityMagnitude and <= LumOnDebugMode.VelocityPrevUv)
-            || (mode is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeSpheres);
+            || (mode is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeOrbsPoints);
     }
 
     #endregion
@@ -1288,6 +1548,18 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             clipmapProbePointsVao = 0;
         }
 
+        if (clipmapProbeOrbsVbo != 0)
+        {
+            GL.DeleteBuffer(clipmapProbeOrbsVbo);
+            clipmapProbeOrbsVbo = 0;
+        }
+
+        if (clipmapProbeOrbsVao != 0)
+        {
+            GL.DeleteVertexArray(clipmapProbeOrbsVao);
+            clipmapProbeOrbsVao = 0;
+        }
+
         capi.Event.UnregisterRenderer(this, EnumRenderStage.AfterBlit);
         capi.Event.UnregisterRenderer(this, EnumRenderStage.AfterOIT);
     }
@@ -1302,6 +1574,20 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         public float G;
         public float B;
         public float A;
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    private struct ProbeOrbVertex
+    {
+        public float X;
+        public float Y;
+        public float Z;
+        public float R;
+        public float G;
+        public float B;
+        public float A;
+        public float U;
+        public float V;
     }
 
     #endregion

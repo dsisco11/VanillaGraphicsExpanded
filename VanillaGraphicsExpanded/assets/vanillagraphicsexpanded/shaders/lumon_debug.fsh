@@ -1263,19 +1263,21 @@ vec4 renderWorldProbeSpheresDebug()
     float baseSpacing = VGE_LUMON_WORLDPROBE_BASE_SPACING;
     if (levels <= 0 || resolution <= 0) return vec4(0.0, 0.0, 0.0, 1.0);
 
-    // View ray (camera-matrix world space).
+    // View ray direction in WORLD axes (works both for camera-matrix and camera-relative math).
     vec3 rayOriginWS = (invViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
     vec3 farVS = lumonReconstructViewPos(uv, 1.0, invProjectionMatrix);
     vec3 rayDirWS = normalize((invViewMatrix * vec4(normalize(farVS), 0.0)).xyz);
 
     // Use scene depth for occlusion (spheres behind geometry are hidden).
+    // Compute occlusion in camera-relative space for consistency with clipmap originRel uniforms.
     float sceneT = 1e20;
     float depthRaw = texture(primaryDepth, uv).r;
     if (!lumonIsSky(depthRaw) && depthRaw > 0.0)
     {
         vec3 scenePosVS = lumonReconstructViewPos(uv, depthRaw, invProjectionMatrix);
         vec3 scenePosWS = (invViewMatrix * vec4(scenePosVS, 1.0)).xyz;
-        sceneT = max(dot(scenePosWS - rayOriginWS, rayDirWS), 0.0);
+        vec3 scenePosRel = scenePosWS - rayOriginWS;
+        sceneT = max(dot(scenePosRel, rayDirWS), 0.0);
     }
 
     // Fixed world-space sphere radius so clip levels don't explode in size.
@@ -1285,24 +1287,24 @@ vec4 renderWorldProbeSpheresDebug()
     float bestT = 1e20;
     int bestLevel = 0;
     ivec2 bestAc = ivec2(0);
-    vec3 bestCenterWS = vec3(0.0);
+    vec3 bestCenterRel = vec3(0.0);
     bool hit = false;
 
     for (int level = 0; level < levels; level++)
     {
         float spacing = lumonWorldProbeSpacing(baseSpacing, level);
-        // Origins are stored relative to the absolute camera position (originAbs - cameraAbs).
-        // Convert back into camera-matrix world space for ray math:
-        //   originCm = originRel + cameraCm
-        vec3 origin = worldProbeOriginMinCorner[level] + worldProbeCameraPosWS;
+        // Work entirely in camera-relative space:
+        // - ray origin is (0,0,0)
+        // - worldProbeOriginMinCorner[] uniforms are already (originAbs - cameraAbs)
+        vec3 originRel = worldProbeOriginMinCorner[level];
 
         float size = spacing * float(resolution);
-        vec3 bmin = origin;
-        vec3 bmax = origin + vec3(size);
+        vec3 bmin = originRel;
+        vec3 bmax = originRel + vec3(size);
 
         float tEnter;
         float tExit;
-        if (!lumonRayAabbHit(rayOriginWS, rayDirWS, bmin, bmax, tEnter, tExit))
+        if (!lumonRayAabbHit(vec3(0.0), rayDirWS, bmin, bmax, tEnter, tExit))
         {
             continue;
         }
@@ -1328,8 +1330,8 @@ vec4 renderWorldProbeSpheresDebug()
                 break;
             }
 
-            vec3 pWS = rayOriginWS + rayDirWS * t;
-            vec3 local = (pWS - origin) / max(spacing, 1e-6);
+            vec3 pRel = rayDirWS * t;
+            vec3 local = (pRel - originRel) / max(spacing, 1e-6);
 
             // Nearest probe index in this level.
             ivec3 idx = ivec3(floor(local + vec3(0.5)));
@@ -1341,10 +1343,10 @@ vec4 renderWorldProbeSpheresDebug()
             }
             prevIdx = idx;
 
-            vec3 centerWS = origin + (vec3(idx) + vec3(0.5)) * spacing;
+            vec3 centerRel = originRel + (vec3(idx) + vec3(0.5)) * spacing;
 
             float tHit;
-            if (!lumonRaySphereHit(rayOriginWS, rayDirWS, centerWS, radius, tHit))
+            if (!lumonRaySphereHit(vec3(0.0), rayDirWS, centerRel, radius, tHit))
             {
                 continue;
             }
@@ -1366,7 +1368,7 @@ vec4 renderWorldProbeSpheresDebug()
             bestT = tHit;
             bestLevel = level;
             bestAc = ac;
-            bestCenterWS = centerWS;
+            bestCenterRel = centerRel;
             hit = true;
         }
     }
@@ -1375,8 +1377,8 @@ vec4 renderWorldProbeSpheresDebug()
     // This keeps the underlying world visible and allows the clipmap bounds wireframe overlay to be seen.
     if (!hit) discard;
 
-    vec3 hitPosWS = rayOriginWS + rayDirWS * bestT;
-    vec3 N = hitPosWS - bestCenterWS;
+    vec3 hitPosRel = rayDirWS * bestT;
+    vec3 N = hitPosRel - bestCenterRel;
     N = (dot(N, N) > 1e-8) ? normalize(N) : vec3(0.0, 1.0, 0.0);
 
     vec4 t0p = texelFetch(worldProbeSH0, bestAc, 0);

@@ -125,6 +125,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     {
         // General-purpose debug line shader (C#-rendered overlays).
         VgeDebugLinesShaderProgram.Register(api);
+        VgeWorldProbeOrbsPointsShaderProgram.Register(api);
 
         // PBR direct lighting shader
         PBRDirectLightingShaderProgram.Register(api);
