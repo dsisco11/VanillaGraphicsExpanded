@@ -21,14 +21,14 @@ Material Atlas Disk Cache - Meta Index + Cache-Only Warmup:
 
   Phase 0 - Schema and Decisions:
   Exit artifacts: meta.json schema is documented and stable; field ownership and LRU rules are clear.
-  ☐ Define meta.json top-level shape (version, entries, totalBytes, etc.).
-  ☐ Define entry keying (file stem + kind) and required fields:
+  ☑ Define meta.json top-level shape (version, entries, totalBytes, etc.).
+  ☑ Define entry keying (file stem + kind) and required fields:
     - kind, schemaVersion, hash64
     - width, height, channels
     - createdUtcTicks, lastAccessUtcTicks
     - sizeBytes, ddsFileName (or derivable)
-  ☐ Decide how LRU is updated (access ticks per read vs per upload).
-  ☐ Document schema changes in docs/MaterialSystem.Cache.Architecture.md (remove .meta sidecars).
+  ☑ Decide how LRU is updated (access ticks per read vs per upload).
+  ☑ Document schema changes in docs/MaterialSystem.Cache.Architecture.md (remove .meta sidecars).
 
 
   Phase 1 - Cache Index Load/Save:

@@ -112,7 +112,7 @@ Provenance signals (locked in):
 - If the resolved `IAsset` indicates server/world override, treat as mutable.
 - If the resolved `IAsset` indicates base game or mod asset and no pack override is present, treat as stable.
 - If any of the above signals are unavailable, treat as mutable.
-- Persist the resolved provenance in the cache `.meta` sidecar to avoid re-querying.
+- Persist the resolved provenance and any policy-relevant metadata presence flags in the cache index (`meta.json`) to avoid re-querying.
 
 Metadata threshold rules (locked in):
 
@@ -121,8 +121,7 @@ Metadata threshold rules (locked in):
 - If provenance is missing or ambiguous, treat as unknown and use per-world only.
 - If pack/mod list fingerprints are unavailable, allow per-world caching but
   never global caching.
-- Cache `.meta` must record which metadata fields were present so future reads
-  preserve the same policy.
+- Cache index entries must record which metadata fields were present so future reads preserve the same policy.
 
 ---
 
@@ -215,15 +214,59 @@ which forces a more conservative cache policy (per-world only).
 ### 7.1 File Layout
 
 Per-tile cache entry (one per atlas rect) uses a `.dds` texture file for the
-payload, plus a small sidecar header for metadata:
+payload. A single `meta.json` file at the cache root maintains an index of all
+entries and their bookkeeping metadata (created/access timestamps, sizes, and
+policy hints).
 
 ```text
-<key>.material.dds   -> material params payload (BC7, DX10 DDS container)
-<key>.material.meta  -> schema version, payload kind, key hash, timestamp, fingerprints
+meta.json            -> meta index for all entries (atomic write)
 
+<key>.material.dds   -> material params payload (BC7, DX10 DDS container)
 <key>.norm.dds       -> normal+depth payload (RGBA16_UNORM, DX10 DDS container)
-<key>.norm.meta      -> schema version, payload kind, key hash, timestamp, fingerprints
 ```
+
+Naming rules (locked in):
+
+- `<key>` is the Windows-safe filename stem derived from the cache key: `v<schemaVersion>-<hash64Hex16>`.
+- The kind suffix matches the payload kind: `.material` or `.norm`.
+
+Index keying (locked in):
+
+- Each entry is keyed in `meta.json` by `"<key><kindSuffix>"` (file stem + kind), e.g. `"v1-0123abcd...cdef.material"`.
+- The `.dds` payload filename is derived as `"<key><kindSuffix>.dds"`.
+
+`meta.json` schema (v1):
+
+Top-level object:
+
+- `schemaVersion` (int): meta index schema version (currently `1`).
+- `createdUtcTicks` (int64): first index creation time.
+- `lastSavedUtcTicks` (int64): last successful index write time.
+- `totalBytes` (int64): sum of `sizeBytes` across all entries.
+- `entries` (object): dictionary mapping entry id to entry record.
+
+Entry record (required fields):
+
+- `kind` (string): `"materialParams"` or `"normalDepth"`.
+- `schemaVersion` (int): cache key schema version.
+- `hash64` (string): 16-char lowercase hex of the key hash (unsigned 64-bit).
+- `width` (int), `height` (int)
+- `channels` (int): logical channel count served by the cache (3 for material params, 4 for normal+depth).
+- `createdUtcTicks` (int64)
+- `lastAccessUtcTicks` (int64): LRU timestamp.
+- `sizeBytes` (int64): total bytes on disk attributed to this entry (at minimum the `.dds` payload; may include per-entry overheads if added later).
+- `ddsFileName` (string, optional): payload filename; if omitted, it is derived from the entry id.
+
+LRU update rule (locked in):
+
+- Update `lastAccessUtcTicks` on each successful disk cache read (cache hit), including cache-only warmup reads.
+- Also set/update `lastAccessUtcTicks` when an entry is stored (write completes).
+- Do not update LRU on GPU upload alone; only disk cache interactions affect LRU.
+
+Entry record (optional policy fields):
+
+- `provenance` (string): `"stable" | "mutable" | "unknown"`.
+- `metadataPresent` (object): per-field presence flags used by cache tier policy (e.g. `lastModifiedUtcTicks`, `fileSizeBytes`).
 
 The `.dds` payload stores UNORM channels:
 
@@ -232,8 +275,10 @@ The `.dds` payload stores UNORM channels:
 
 ### 7.2 Atomic Writes
 
-- Write `.dds` and `.meta` to temp files, then move/replace.
+- Write `.dds` payloads using temp + replace.
+- Write `meta.json` atomically using temp + replace.
 - On read, reject files with invalid header or size mismatch.
+- If `meta.json` is missing, invalid, or partially written, ignore it and treat the cache as empty (payload files may be cleaned up later by prune logic).
 
 ---
 
