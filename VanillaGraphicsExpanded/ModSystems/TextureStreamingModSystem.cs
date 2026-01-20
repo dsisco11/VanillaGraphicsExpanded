@@ -65,15 +65,15 @@ public sealed class TextureStreamingModSystem : ModSystem, ILiveConfigurable
     private static TextureStreamingSettings BuildTextureStreamingSettings(LumOnConfig cfg)
     {
         return new TextureStreamingSettings(
-            EnablePboStreaming: cfg.TextureStreamingEnabled,
-            AllowDirectUploads: cfg.TextureStreamingAllowDirectUploads,
-            ForceDisablePersistent: cfg.TextureStreamingForceDisablePersistent,
-            UseCoherentMapping: cfg.TextureStreamingUseCoherentMapping,
-            MaxUploadsPerFrame: cfg.TextureStreamingMaxUploadsPerFrame,
-            MaxBytesPerFrame: cfg.TextureStreamingMaxBytesPerFrame,
-            MaxStagingBytes: cfg.TextureStreamingMaxStagingBytes,
-            PersistentRingBytes: cfg.TextureStreamingPersistentRingBytes,
-            TripleBufferBytes: cfg.TextureStreamingTripleBufferBytes,
-            PboAlignment: cfg.TextureStreamingPboAlignment);
+            EnablePboStreaming: cfg.TextureStreaming.Enabled,
+            AllowDirectUploads: cfg.TextureStreaming.AllowDirectUploads,
+            ForceDisablePersistent: cfg.TextureStreaming.ForceDisablePersistent,
+            UseCoherentMapping: cfg.TextureStreaming.UseCoherentMapping,
+            MaxUploadsPerFrame: cfg.TextureStreaming.MaxUploadsPerFrame,
+            MaxBytesPerFrame: cfg.TextureStreaming.MaxBytesPerFrame,
+            MaxStagingBytes: cfg.TextureStreaming.MaxStagingBytes,
+            PersistentRingBytes: cfg.TextureStreaming.PersistentRingBytes,
+            TripleBufferBytes: cfg.TextureStreaming.TripleBufferBytes,
+            PboAlignment: cfg.TextureStreaming.PboAlignment);
     }
 }

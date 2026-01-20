@@ -116,32 +116,32 @@
         "weight": 20.3
       },
       "TEXTURE_STREAMING_ENABLED": {
-        "code": "TextureStreamingEnabled",
-        "name": "TextureStreamingEnabled",
+        "code": "TextureStreaming.Enabled",
+        "name": "TextureStreaming.Enabled",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-enabled",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-enabled-tooltip",
         "default": true,
         "weight": 19.0
       },
       "TEXTURE_STREAMING_ALLOW_DIRECT_UPLOADS": {
-        "code": "TextureStreamingAllowDirectUploads",
-        "name": "TextureStreamingAllowDirectUploads",
+        "code": "TextureStreaming.AllowDirectUploads",
+        "name": "TextureStreaming.AllowDirectUploads",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-allow-direct-uploads",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-allow-direct-uploads-tooltip",
         "default": true,
         "weight": 19.1
       },
       "TEXTURE_STREAMING_FORCE_DISABLE_PERSISTENT": {
-        "code": "TextureStreamingForceDisablePersistent",
-        "name": "TextureStreamingForceDisablePersistent",
+        "code": "TextureStreaming.ForceDisablePersistent",
+        "name": "TextureStreaming.ForceDisablePersistent",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-force-disable-persistent",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-force-disable-persistent-tooltip",
         "default": false,
         "weight": 19.2
       },
       "TEXTURE_STREAMING_USE_COHERENT_MAPPING": {
-        "code": "TextureStreamingUseCoherentMapping",
-        "name": "TextureStreamingUseCoherentMapping",
+        "code": "TextureStreaming.UseCoherentMapping",
+        "name": "TextureStreaming.UseCoherentMapping",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-use-coherent-mapping",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-use-coherent-mapping-tooltip",
         "default": true,
@@ -252,8 +252,8 @@
         "range": { "min": 1, "max": 32, "step": 1 }
       },
       "TEXTURE_STREAMING_MAX_UPLOADS_PER_FRAME": {
-        "code": "TextureStreamingMaxUploadsPerFrame",
-        "name": "TextureStreamingMaxUploadsPerFrame",
+        "code": "TextureStreaming.MaxUploadsPerFrame",
+        "name": "TextureStreaming.MaxUploadsPerFrame",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-max-uploads-per-frame",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-max-uploads-per-frame-tooltip",
         "default": 8,
@@ -261,8 +261,8 @@
         "range": { "min": 0, "max": 1024, "step": 1 }
       },
       "TEXTURE_STREAMING_MAX_BYTES_PER_FRAME": {
-        "code": "TextureStreamingMaxBytesPerFrame",
-        "name": "TextureStreamingMaxBytesPerFrame",
+        "code": "TextureStreaming.MaxBytesPerFrame",
+        "name": "TextureStreaming.MaxBytesPerFrame",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-max-bytes-per-frame",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-max-bytes-per-frame-tooltip",
         "default": 4194304,
@@ -270,8 +270,8 @@
         "range": { "min": 0, "max": 67108864, "step": 262144 }
       },
       "TEXTURE_STREAMING_MAX_STAGING_BYTES": {
-        "code": "TextureStreamingMaxStagingBytes",
-        "name": "TextureStreamingMaxStagingBytes",
+        "code": "TextureStreaming.MaxStagingBytes",
+        "name": "TextureStreaming.MaxStagingBytes",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-max-staging-bytes",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-max-staging-bytes-tooltip",
         "default": 8388608,
@@ -279,8 +279,8 @@
         "range": { "min": 0, "max": 134217728, "step": 1048576 }
       },
       "TEXTURE_STREAMING_PERSISTENT_RING_BYTES": {
-        "code": "TextureStreamingPersistentRingBytes",
-        "name": "TextureStreamingPersistentRingBytes",
+        "code": "TextureStreaming.PersistentRingBytes",
+        "name": "TextureStreaming.PersistentRingBytes",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-persistent-ring-bytes",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-persistent-ring-bytes-tooltip",
         "default": 33554432,
@@ -288,8 +288,8 @@
         "range": { "min": 1048576, "max": 536870912, "step": 1048576 }
       },
       "TEXTURE_STREAMING_TRIPLE_BUFFER_BYTES": {
-        "code": "TextureStreamingTripleBufferBytes",
-        "name": "TextureStreamingTripleBufferBytes",
+        "code": "TextureStreaming.TripleBufferBytes",
+        "name": "TextureStreaming.TripleBufferBytes",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-triple-buffer-bytes",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-triple-buffer-bytes-tooltip",
         "default": 8388608,
@@ -297,7 +297,7 @@
         "range": { "min": 262144, "max": 134217728, "step": 262144 }
       },
       "TEXTURE_STREAMING_PBO_ALIGNMENT": {
-        "code": "TextureStreamingPboAlignment",
+        "code": "TextureStreaming.PboAlignment",
         "name": "TextureStreamingPboAlignment",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-pbo-alignment",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-pbo-alignment-tooltip",
