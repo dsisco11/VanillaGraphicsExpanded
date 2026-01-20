@@ -1247,13 +1247,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         worldProbeTraceScene ??= new BlockAccessorWorldProbeTraceScene(capi.World.BlockAccessor);
         worldProbeTraceService ??= new LumOnWorldProbeTraceService(worldProbeTraceScene, maxQueuedWorkItems: 2048);
 
-        var origin = capi.Render.CameraMatrixOrigin;
-        if (origin is null)
+        if (!TryGetCameraPosMatrixSpace(out Vec3d camPosMatrixSpace, out Vec3d matrixToWorldOffset))
         {
             return;
         }
-
-        Vec3d camPos = new(origin[0], origin[1], origin[2]);
 
         var cfg = config.WorldProbeClipmap;
         double baseSpacing = Math.Max(1e-6, cfg.ClipmapBaseSpacing);
@@ -1261,7 +1258,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Update per-level origins + dirty slabs.
         using (Profiler.BeginScope("LumOn.WorldProbe.Schedule.UpdateOrigins", "LumOn"))
         {
-            worldProbeScheduler.UpdateOrigins(camPos, baseSpacing);
+            worldProbeScheduler.UpdateOrigins(camPosMatrixSpace, baseSpacing);
         }
 
         // Build per-frame update list.
@@ -1271,7 +1268,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         {
             requests = worldProbeScheduler.BuildUpdateList(
                 frameIndex,
-                camPos,
+                camPosMatrixSpace,
                 baseSpacing,
                 perLevelBudgets,
                 cfg.TraceMaxProbesPerFrame,
@@ -1303,7 +1300,11 @@ public class LumOnRenderer : IRenderer, IDisposable
                 }
 
                 double spacing = LumOnClipmapTopology.GetSpacing(baseSpacing, req.Level);
-                Vec3d probePosWorld = LumOnClipmapTopology.IndexToProbeCenterWorld(req.LocalIndex, originMinCorner, spacing);
+                Vec3d probePosMatrix = LumOnClipmapTopology.IndexToProbeCenterWorld(req.LocalIndex, originMinCorner, spacing);
+                Vec3d probePosWorld = new(
+                    probePosMatrix.X + matrixToWorldOffset.X,
+                    probePosMatrix.Y + matrixToWorldOffset.Y,
+                    probePosMatrix.Z + matrixToWorldOffset.Z);
 
                 // Conservative max distance: one clipmap diameter for this level.
                 double maxDist = spacing * resources.Resolution;
@@ -1455,16 +1456,13 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.WorldProbeVis0 = resources.ProbeVis0TextureId;
         shader.WorldProbeMeta0 = resources.ProbeMeta0TextureId;
 
-        // Shaders reconstruct camera-relative world positions (camera at 0,0,0) from depth using invViewMatrix.
-        // Convert clipmap parameters to the same camera-relative space by shifting origins by the camera position.
-        shader.WorldProbeCameraPosWS = new Vec3f(0, 0, 0);
+        // Shaders reconstruct world positions in the engine's camera-matrix space via invViewMatrix.
+        // Use the matching camera position/origins in that same space (do not apply additional camera-relative shifts).
+        shader.WorldProbeCameraPosWS = camPos;
 
         for (int i = 0; i < 8; i++)
         {
-            var o = origins[i];
-            var originRel = new Vec3f(o.X - camPos.X, o.Y - camPos.Y, o.Z - camPos.Z);
-
-            if (!shader.TrySetWorldProbeLevelParams(i, originRel, rings[i]))
+            if (!shader.TrySetWorldProbeLevelParams(i, origins[i], rings[i]))
             {
                 return;
             }
@@ -1496,14 +1494,11 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.WorldProbeSH2 = resources.ProbeSh2TextureId;
         shader.WorldProbeVis0 = resources.ProbeVis0TextureId;
         shader.WorldProbeMeta0 = resources.ProbeMeta0TextureId;
-        shader.WorldProbeCameraPosWS = new Vec3f(0, 0, 0);
+        shader.WorldProbeCameraPosWS = camPos;
 
         for (int i = 0; i < 8; i++)
         {
-            var o = origins[i];
-            var originRel = new Vec3f(o.X - camPos.X, o.Y - camPos.Y, o.Z - camPos.Z);
-
-            if (!shader.TrySetWorldProbeLevelParams(i, originRel, rings[i]))
+            if (!shader.TrySetWorldProbeLevelParams(i, origins[i], rings[i]))
             {
                 return;
             }
@@ -1535,14 +1530,11 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.WorldProbeSH2 = resources.ProbeSh2TextureId;
         shader.WorldProbeVis0 = resources.ProbeVis0TextureId;
         shader.WorldProbeMeta0 = resources.ProbeMeta0TextureId;
-        shader.WorldProbeCameraPosWS = new Vec3f(0, 0, 0);
+        shader.WorldProbeCameraPosWS = camPos;
 
         for (int i = 0; i < 8; i++)
         {
-            var o = origins[i];
-            var originRel = new Vec3f(o.X - camPos.X, o.Y - camPos.Y, o.Z - camPos.Z);
-
-            if (!shader.TrySetWorldProbeLevelParams(i, originRel, rings[i]))
+            if (!shader.TrySetWorldProbeLevelParams(i, origins[i], rings[i]))
             {
                 return;
             }
@@ -1577,17 +1569,11 @@ public class LumOnRenderer : IRenderer, IDisposable
             return false;
         }
 
-        var origin = capi.Render.CameraMatrixOrigin;
-        if (origin is null)
-        {
-            return false;
-        }
-
         resources = worldProbeClipmapBufferManager.Resources;
         levels = Math.Clamp(resources.Levels, 1, 8);
         resolution = resources.Resolution;
         baseSpacing = Math.Max(1e-6f, config.WorldProbeClipmap.ClipmapBaseSpacing);
-        camPos = new Vec3f((float)origin[0], (float)origin[1], (float)origin[2]);
+        camPos = new Vec3f(invModelViewMatrix[12], invModelViewMatrix[13], invModelViewMatrix[14]);
 
         for (int i = 0; i < 8; i++)
         {
@@ -1621,6 +1607,26 @@ public class LumOnRenderer : IRenderer, IDisposable
             resolution,
             originsSpan,
             ringsSpan);
+
+        return true;
+    }
+
+    private bool TryGetCameraPosMatrixSpace(out Vec3d cameraPosMatrixSpace, out Vec3d matrixToWorldOffset)
+    {
+        cameraPosMatrixSpace = new Vec3d(invModelViewMatrix[12], invModelViewMatrix[13], invModelViewMatrix[14]);
+
+        var player = capi.World?.Player;
+        if (player?.Entity is null)
+        {
+            matrixToWorldOffset = new Vec3d();
+            return false;
+        }
+
+        var cameraPosWorld = player.Entity.CameraPos;
+        matrixToWorldOffset = new Vec3d(
+            cameraPosWorld.X - cameraPosMatrixSpace.X,
+            cameraPosWorld.Y - cameraPosMatrixSpace.Y,
+            cameraPosWorld.Z - cameraPosMatrixSpace.Z);
 
         return true;
     }

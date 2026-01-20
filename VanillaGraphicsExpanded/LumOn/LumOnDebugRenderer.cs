@@ -291,28 +291,27 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         shader.GatherAtlasSource = gatherAtlasSource;
 
         // Phase 18 world-probe debug inputs (only bound if available + active in the compiled shader).
-        if (wantWorldProbe && worldProbeClipmapBufferManager?.Resources is not null && wpOrigins != null && wpRings != null)
-        {
-            shader.WorldProbeSH0 = worldProbeClipmapBufferManager.Resources.ProbeSh0TextureId;
-            shader.WorldProbeSH1 = worldProbeClipmapBufferManager.Resources.ProbeSh1TextureId;
+         if (wantWorldProbe && worldProbeClipmapBufferManager?.Resources is not null && wpOrigins != null && wpRings != null)
+         {
+             shader.WorldProbeSH0 = worldProbeClipmapBufferManager.Resources.ProbeSh0TextureId;
+             shader.WorldProbeSH1 = worldProbeClipmapBufferManager.Resources.ProbeSh1TextureId;
             shader.WorldProbeSH2 = worldProbeClipmapBufferManager.Resources.ProbeSh2TextureId;
             shader.WorldProbeVis0 = worldProbeClipmapBufferManager.Resources.ProbeVis0TextureId;
-            shader.WorldProbeDist0 = worldProbeClipmapBufferManager.Resources.ProbeDist0TextureId;
-            shader.WorldProbeMeta0 = worldProbeClipmapBufferManager.Resources.ProbeMeta0TextureId;
-            shader.WorldProbeDebugState0 = worldProbeClipmapBufferManager.Resources.ProbeDebugState0TextureId;
+             shader.WorldProbeDist0 = worldProbeClipmapBufferManager.Resources.ProbeDist0TextureId;
+             shader.WorldProbeMeta0 = worldProbeClipmapBufferManager.Resources.ProbeMeta0TextureId;
+             shader.WorldProbeDebugState0 = worldProbeClipmapBufferManager.Resources.ProbeDebugState0TextureId;
 
-            // Shaders reconstruct camera-relative world positions (camera at 0,0,0) from depth using invViewMatrix.
-            // Convert clipmap params to the same space by shifting origins by the camera position.
-            shader.WorldProbeCameraPosWS = new Vec3f(0, 0, 0);
+            // Shaders reconstruct world positions in the engine's camera-matrix space via invViewMatrix.
+            // Bind clipmap parameters in that same space (do not apply additional camera-relative shifts).
+            shader.WorldProbeCameraPosWS = new Vec3f(wpCamPosWS.X, wpCamPosWS.Y, wpCamPosWS.Z);
 
             for (int i = 0; i < 8; i++)
             {
                 var o = wpOrigins[i];
                 var r = wpRings[i];
-                var originRel = new Vec3f(o.X - wpCamPosWS.X, o.Y - wpCamPosWS.Y, o.Z - wpCamPosWS.Z);
                 if (!shader.TrySetWorldProbeLevelParams(
                         i,
-                        originRel,
+                        new Vec3f(o.X, o.Y, o.Z),
                         new Vec3f(r.X, r.Y, r.Z)))
                 {
                     break;
@@ -444,18 +443,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         UpdateCurrentViewProjMatrix();
 
-        // Use current camera position so the frozen world-space bounds appear to move as you move around.
-        if (capi.Render.CameraMatrixOrigin is null)
-        {
-            StorePrevViewProjMatrix();
-            return;
-        }
-
-        var origin = capi.Render.CameraMatrixOrigin;
-        var currentCamPosWS = new System.Numerics.Vector3((float)origin[0], (float)origin[1], (float)origin[2]);
-
         int vertexCount = BuildClipmapBoundsVertices(
-            cameraPosWS: currentCamPosWS,
             baseSpacing: frozenBaseSpacing,
             levels: frozenLevels,
             resolution: frozenResolution,
@@ -541,7 +529,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     }
 
     private int BuildClipmapBoundsVertices(
-        System.Numerics.Vector3 cameraPosWS,
         float baseSpacing,
         int levels,
         int resolution,
@@ -555,11 +542,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             float spacing = baseSpacing * (1 << level);
             float size = spacing * resolution;
 
-            // Camera-relative so we can use the engine's camera-relative view matrix.
+            // Coordinates are already in the engine's camera-matrix world space.
             var o = origins[level];
-            float minX = o.X - cameraPosWS.X;
-            float minY = o.Y - cameraPosWS.Y;
-            float minZ = o.Z - cameraPosWS.Z;
+            float minX = o.X;
+            float minY = o.Y;
+            float minZ = o.Z;
 
             float maxX = minX + size;
             float maxY = minY + size;
@@ -622,9 +609,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         {
             float axisLen = Math.Clamp(baseSpacing * 2f, 1f, 8f);
 
-            float ox = frozenCameraPosWS.X - cameraPosWS.X;
-            float oy = frozenCameraPosWS.Y - cameraPosWS.Y;
-            float oz = frozenCameraPosWS.Z - cameraPosWS.Z;
+            float ox = frozenCameraPosWS.X;
+            float oy = frozenCameraPosWS.Y;
+            float oz = frozenCameraPosWS.Z;
 
             void AddMarkerLine(float ax, float ay, float az, float bx, float by, float bz, float r, float g, float b)
             {
