@@ -70,14 +70,14 @@ Current defaults are defined in:
 
 ## How to toggle / tune
 
-In `ModConfig/vanillagraphicsexpanded-lumon.json`:
+In `ModConfig/VanillaGraphicsExpanded.json`:
 
-- Set `AnchorJitterEnabled` to `true` or `false`.
-- Adjust `AnchorJitterScale` (recommended range: `0.0 .. 0.49`).
+- Set `LumOn.AnchorJitterEnabled` to `true` or `false`.
+- Adjust `LumOn.AnchorJitterScale` (recommended range: `0.0 .. 0.49`).
 
 Notes:
 
-- The maximum offset in pixels is approximately: `ProbeSpacingPx * AnchorJitterScale`.
+- The maximum offset in pixels is approximately: `LumOn.ProbeSpacingPx * LumOn.AnchorJitterScale`.
 - Very high values approach sampling across probe cell boundaries; that can be useful but may also increase history rejection if validation is strict.
 
 ## Debugging

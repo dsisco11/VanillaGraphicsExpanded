@@ -12,14 +12,14 @@ The result is written into the VGE sidecar atlas texture:
 
 ## Enable
 
-In `ModConfig/vanillagraphicsexpanded-lumon.json`:
+In `ModConfig/VanillaGraphicsExpanded.json`:
 
-- `EnableNormalDepthAtlas`: `true`
+- `MaterialAtlas.EnableNormalMaps`: `true`
 
-Async throttling (when `EnableMaterialAtlasAsyncBuild` is enabled):
+Async throttling (when `MaterialAtlas.EnableAsync` is enabled):
 
-- `NormalDepthAtlasAsyncBudgetMs`: `0.75` (default)
-- `NormalDepthAtlasAsyncMaxUploadsPerFrame`: `2` (default)
+- `MaterialAtlas.AsyncBudgetMs`: `1.0` (default)
+- `MaterialAtlas.AsyncMaxUploadsPerFrame`: `32` (default)
 
 A restart / re-entering the world is required.
 
@@ -27,7 +27,7 @@ A restart / re-entering the world is required.
 
 All bake parameters are under:
 
-- `NormalDepthBake`
+- `MaterialAtlas.NormalDepthBake`
 
 Key knobs:
 

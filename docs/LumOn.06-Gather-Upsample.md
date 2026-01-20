@@ -32,7 +32,7 @@ The gather and upsample pipeline transforms probe radiance into per-pixel indire
 
 ### 1.3 Two Gather Modes
 
-LumOn supports two gather modes controlled by `UseProbeAtlas`:
+LumOn supports two gather modes controlled by `LumOn.UseProbeAtlas`:
 
 | Mode        | Storage    | Gather Method               | Advantages                               |
 | ----------- | ---------- | --------------------------- | ---------------------------------------- |
@@ -125,7 +125,7 @@ GatherPass(halfResPixel):
 
 ---
 
-## 2.5 Probe-Atlas Gather (UseProbeAtlas = true)
+## 2.5 Probe-Atlas Gather (LumOn.UseProbeAtlas = true)
 
 When using octahedral radiance storage, the gather pass replaces SH evaluation with hemisphere integration over the octahedral texture. This provides:
 
@@ -398,11 +398,11 @@ Compare to per-pixel SSGI: ~5-8 ms
 
 ## 8. Debug Visualization
 
-### 8.1 Debug Mode: SH Coefficients (DebugMode = 5)
+### 8.1 Debug Mode: SH Coefficients (LumOn.DebugMode = 5)
 
 Visualize DC (ambient) as RGB, directional magnitude as brightness.
 
-### 8.2 Debug Mode: Interpolation Weights (DebugMode = 6)
+### 8.2 Debug Mode: Interpolation Weights (LumOn.DebugMode = 6)
 
 Color pixels by dominant probe weight (R=w00, G=w10, B=w01+w11) to visualize interpolation.
 

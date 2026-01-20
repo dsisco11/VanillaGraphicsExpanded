@@ -29,8 +29,8 @@ LumOn is a **Screen-Space Radiance Cache** system implementing Screen Probe Gath
 
 LumOn is implemented as **SSGI v2** with a feature flag toggle:
 
-- When `LumOnConfig.Enabled = true`: LumOn pipeline runs
-- When `LumOnConfig.Enabled = false`: Existing `SSGIRenderer` runs
+- When `LumOnConfig.LumOn.Enabled = true`: LumOn pipeline runs
+- When `LumOnConfig.LumOn.Enabled = false`: Existing `SSGIRenderer` runs
 - Both share the same G-buffer inputs and output to `IndirectDiffuse` texture
 
 ---
@@ -39,27 +39,29 @@ LumOn is implemented as **SSGI v2** with a feature flag toggle:
 
 ### 2.1 LumOnConfig Properties
 
-`LumOnConfig` is a JSON-serialized class persisted to `ModConfig/vanillagraphicsexpanded-lumon.json`.
+`LumOnConfig` is a JSON-serialized class persisted to `ModConfig/VanillaGraphicsExpanded.json`.
 
-| Category        | Property                | Type     | Default | Hot-Reload | Description                                           |
-| --------------- | ----------------------- | -------- | ------- | ---------- | ----------------------------------------------------- |
-| **Feature**     | `Enabled`               | bool     | true    | ✗          | Master toggle; falls back to legacy SSGI when false   |
-| **Probe Grid**  | `ProbeSpacingPx`        | int      | 8       | ✗          | Pixels between probes (4=high, 8=balanced, 16=perf)   |
-| **Ray Tracing** | `RaysPerProbePerFrame`  | int      | 8       | ✗          | Rays traced per probe per frame                       |
-|                 | `RaySteps`              | int      | 12      | ✗          | Steps per ray during screen-space march               |
-|                 | `RayMaxDistance`        | float    | 10.0    | ✗          | Max ray distance in world units                       |
-|                 | `RayThickness`          | float    | 0.5     | ✗          | Depth comparison thickness (view-space)               |
-| **Temporal**    | `TemporalAlpha`         | float    | 0.95    | ✓          | Blend factor (0.95 = 95% history)                     |
-| **Temporal**    | `AnchorJitterEnabled`   | bool     | false   | ✓          | Deterministic per-frame jitter of probe anchors       |
-| **Temporal**    | `AnchorJitterScale`     | float    | 0.35    | ✓          | Jitter magnitude as a fraction of probe spacing       |
-|                 | `DepthRejectThreshold`  | float    | 0.1     | ✓          | Depth diff threshold for rejection                    |
-|                 | `NormalRejectThreshold` | float    | 0.8     | ✓          | Normal dot threshold for rejection                    |
-| **Quality**     | `HalfResolution`        | bool     | true    | ✗          | Run gather at half-res                                |
-|                 | `DenoiseEnabled`        | bool     | true    | ✓          | Edge-aware denoising on upsample                      |
-|                 | `Intensity`             | float    | 1.0     | ✓          | Output intensity multiplier                           |
-|                 | `IndirectTint`          | float[3] | [1,1,1] | ✓          | RGB tint for indirect bounce                          |
-|                 | `SkyMissWeight`         | float    | 0.5     | ✓          | Weight for sky/miss samples                           |
-| **Debug**       | `DebugMode`             | int      | 0       | ✓          | 0=Off, 1=Grid, 2=Radiance, 3=Temporal, 4=Reject, 5=SH |
+LumOn settings live under the nested `LumOn` section in that JSON file.
+
+| Category        | Property                      | Type     | Default | Hot-Reload | Description                                         |
+| --------------- | ----------------------------- | -------- | ------- | ---------- | --------------------------------------------------- |
+| **Feature**     | `LumOn.Enabled`               | bool     | true    | ✗          | Master toggle; falls back to legacy SSGI when false |
+| **Probe Grid**  | `LumOn.ProbeSpacingPx`        | int      | 8       | ✗          | Pixels between probes (4=high, 8=balanced, 16=perf) |
+| **Ray Tracing** | `LumOn.RaysPerProbePerFrame`  | int      | 8       | ✗          | Rays traced per probe per frame                     |
+|                 | `LumOn.RaySteps`              | int      | 12      | ✗          | Steps per ray during screen-space march             |
+|                 | `LumOn.RayMaxDistance`        | float    | 10.0    | ✗          | Max ray distance in world units                     |
+|                 | `LumOn.RayThickness`          | float    | 0.5     | ✗          | Depth comparison thickness (view-space)             |
+| **Temporal**    | `LumOn.TemporalAlpha`         | float    | 0.95    | ✓          | Blend factor (0.95 = 95% history)                   |
+| **Temporal**    | `LumOn.AnchorJitterEnabled`   | bool     | false   | ✓          | Deterministic per-frame jitter of probe anchors     |
+| **Temporal**    | `LumOn.AnchorJitterScale`     | float    | 0.35    | ✓          | Jitter magnitude as a fraction of probe spacing     |
+|                 | `LumOn.DepthRejectThreshold`  | float    | 0.1     | ✓          | Depth diff threshold for rejection                  |
+|                 | `LumOn.NormalRejectThreshold` | float    | 0.8     | ✓          | Normal dot threshold for rejection                  |
+| **Quality**     | `LumOn.HalfResolution`        | bool     | true    | ✗          | Run gather at half-res                              |
+|                 | `LumOn.DenoiseEnabled`        | bool     | true    | ✓          | Edge-aware denoising on upsample                    |
+|                 | `LumOn.Intensity`             | float    | 1.0     | ✓          | Output intensity multiplier                         |
+|                 | `LumOn.IndirectTint`          | float[3] | [1,1,1] | ✓          | RGB tint for indirect bounce                        |
+|                 | `LumOn.SkyMissWeight`         | float    | 0.5     | ✓          | Weight for sky/miss samples                         |
+| **Debug**       | `LumOn.DebugMode`             | int      | 0       | ✓          | Runtime-only debug mode (not persisted to JSON)     |
 
 ### 2.2 Configuration Loading
 
@@ -67,14 +69,14 @@ LumOn is implemented as **SSGI v2** with a feature flag toggle:
 
 ```text
 StartClientSide:
-    config = LoadModConfig("vanillagraphicsexpanded-lumon.json")
+    config = LoadModConfig("VanillaGraphicsExpanded.json")
     if config is null:
         config = new LumOnConfig()  // defaults
         StoreModConfig(config)
 
     RegisterHotReloadWatchers()  // for runtime-changeable params
 
-    if config.Enabled:
+    if config.LumOn.Enabled:
         RegisterRenderer(LumOnRenderer, AfterPostProcessing)
     else:
         RegisterRenderer(SSGIRenderer, AfterPostProcessing)  // legacy fallback
@@ -83,30 +85,31 @@ StartClientSide:
 ### 2.3 Config File Location
 
 ```text
-%AppData%/VintagestoryData/ModConfig/vanillagraphicsexpanded-lumon.json
+%AppData%/VintagestoryData/ModConfig/VanillaGraphicsExpanded.json
 ```
 
 Example JSON:
 
 ```json
 {
-  "Enabled": true,
-  "ProbeSpacingPx": 8,
-  "AnchorJitterEnabled": false,
-  "AnchorJitterScale": 0.35,
-  "RaysPerProbePerFrame": 8,
-  "RaySteps": 12,
-  "RayMaxDistance": 10.0,
-  "RayThickness": 0.5,
-  "TemporalAlpha": 0.95,
-  "DepthRejectThreshold": 0.1,
-  "NormalRejectThreshold": 0.8,
-  "HalfResolution": true,
-  "DenoiseEnabled": true,
-  "Intensity": 1.0,
-  "IndirectTint": [1.0, 1.0, 1.0],
-  "SkyMissWeight": 0.5,
-  "DebugMode": 0
+  "LumOn": {
+    "Enabled": true,
+    "ProbeSpacingPx": 8,
+    "AnchorJitterEnabled": false,
+    "AnchorJitterScale": 0.35,
+    "RaysPerProbePerFrame": 8,
+    "RaySteps": 12,
+    "RayMaxDistance": 10.0,
+    "RayThickness": 0.5,
+    "TemporalAlpha": 0.95,
+    "DepthRejectThreshold": 0.1,
+    "NormalRejectThreshold": 0.8,
+    "HalfResolution": true,
+    "DenoiseEnabled": true,
+    "Intensity": 1.0,
+    "IndirectTint": [1.0, 1.0, 1.0],
+    "SkyMissWeight": 0.5
+  }
 }
 ```
 
@@ -346,7 +349,7 @@ Use OpenGL `GL_TIME_ELAPSED` queries to measure per-pass GPU time. Wrap each pas
 
 ### 8.3 Debug Overlay
 
-When `DebugMode > 0`, render a text overlay showing:
+When `LumOn.DebugMode > 0`, render a text overlay showing:
 
 - Probe counts (valid/total, edge)
 - Ray stats (traced, hit rate)

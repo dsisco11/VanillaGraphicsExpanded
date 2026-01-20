@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>
 /// Configuration for LumOn Screen Probe Gather system.
-/// Persisted to: ModConfig/vanillagraphicsexpanded-lumon.json
+/// Persisted to: ModConfig/VanillaGraphicsExpanded.json
 /// </summary>
 [JsonObject(MemberSerialization.OptIn)]
 public class LumOnConfig
@@ -898,11 +898,6 @@ public class LumOnConfig
         TextureStreaming.Sanitize();
 
         // Debug-view migrations: keep old enum values stable, but redirect removed/deprecated modes.
-        if (LumOn.DebugMode is LumOnDebugMode.WorldProbeSpheres or LumOnDebugMode.WorldProbeClipmapBounds)
-        {
-            LumOn.DebugMode = LumOnDebugMode.WorldProbeOrbsPoints;
-        }
-
         WorldProbeClipmap ??= new WorldProbeClipmapConfig();
         WorldProbeClipmap.Sanitize();
     }

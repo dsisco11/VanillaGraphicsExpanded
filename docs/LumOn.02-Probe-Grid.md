@@ -49,7 +49,7 @@ Total probes = 240 × 135 = 32,400       // vs 2,073,600 pixels at 1080p
 | **8 px** | 240 × 135 = 32,400  | **Balanced** | **Medium** |
 | 16 px    | 120 × 68 = 8,160    | Low          | Low        |
 
-**Recommendation**: Start with 8px spacing. Users can adjust via `ProbeSpacingPx` config.
+**Recommendation**: Start with 8px spacing. Users can adjust via `LumOn.ProbeSpacingPx` config.
 
 ### 2.3 Screen-to-Probe Mapping
 
@@ -202,7 +202,7 @@ Registered via static `Register(api)` method during mod initialization.
 
 ## 6. Debug Visualization
 
-### 6.1 Debug Mode: Probe Grid (DebugMode = 1)
+### 6.1 Debug Mode: Probe Grid (LumOn.DebugMode = 1)
 
 Overlays probe centers colored by validity:
 
