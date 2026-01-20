@@ -1661,14 +1661,14 @@ internal sealed class TextureStreamingManager : IDisposable
 
             GL.BufferStorage(BufferTarget.PixelUnpackBuffer, bufferSizeBytes, IntPtr.Zero, storageFlags);
 
-            BufferAccessMask mapFlags = BufferAccessMask.MapWriteBit | BufferAccessMask.MapPersistentBit;
+            MapBufferAccessMask mapFlags = MapBufferAccessMask.MapWriteBit | MapBufferAccessMask.MapPersistentBit;
             if (coherent)
             {
-                mapFlags |= BufferAccessMask.MapCoherentBit;
+                mapFlags |= MapBufferAccessMask.MapCoherentBit;
             }
             else
             {
-                mapFlags |= BufferAccessMask.MapFlushExplicitBit;
+                mapFlags |= MapBufferAccessMask.MapFlushExplicitBit;
             }
 
             mappedPtr = GL.MapBufferRange(BufferTarget.PixelUnpackBuffer, IntPtr.Zero, bufferSizeBytes, mapFlags);
@@ -1941,7 +1941,7 @@ internal sealed class TextureStreamingManager : IDisposable
                 BufferTarget.PixelUnpackBuffer,
                 IntPtr.Zero,
                 prepared.ByteCount,
-                BufferAccessMask.MapWriteBit | BufferAccessMask.MapInvalidateBufferBit);
+                MapBufferAccessMask.MapWriteBit | MapBufferAccessMask.MapInvalidateBufferBit);
 
             if (ptr == IntPtr.Zero)
             {
@@ -1990,7 +1990,7 @@ internal sealed class TextureStreamingManager : IDisposable
                 BufferTarget.PixelUnpackBuffer,
                 IntPtr.Zero,
                 byteCount,
-                BufferAccessMask.MapWriteBit | BufferAccessMask.MapInvalidateBufferBit);
+                MapBufferAccessMask.MapWriteBit | MapBufferAccessMask.MapInvalidateBufferBit);
 
             if (ptr == IntPtr.Zero)
             {
