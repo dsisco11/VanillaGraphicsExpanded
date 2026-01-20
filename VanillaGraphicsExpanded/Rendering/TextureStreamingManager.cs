@@ -118,7 +118,7 @@ internal sealed class TextureStreamingManager : IDisposable
             return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
         }
 
-        if (!TryComputeUploadByteCount(region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, out int requiredBytes))
+        if (!TryComputeUploadByteCount(target.UploadTarget, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, out int requiredBytes))
         {
             return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
         }
@@ -246,7 +246,7 @@ internal sealed class TextureStreamingManager : IDisposable
             return TextureStageResult.Rejected(TextureStageRejectReason.DataTypeMismatch);
         }
 
-        if (!TryComputeUploadByteCount(region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, out int requiredBytes))
+        if (!TryComputeUploadByteCount(target.UploadTarget, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, out int requiredBytes))
         {
             return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
         }
@@ -377,7 +377,7 @@ internal sealed class TextureStreamingManager : IDisposable
             return TextureStageResult.Rejected(TextureStageRejectReason.DataTypeMismatch);
         }
 
-        if (!TryComputeUploadByteCount(region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, out int requiredBytes))
+        if (!TryComputeUploadByteCount(target.UploadTarget, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, out int requiredBytes))
         {
             return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
         }
@@ -508,7 +508,7 @@ internal sealed class TextureStreamingManager : IDisposable
             return TextureStageResult.Rejected(TextureStageRejectReason.DataTypeMismatch);
         }
 
-        if (!TryComputeUploadByteCount(region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, out int requiredBytes))
+        if (!TryComputeUploadByteCount(target.UploadTarget, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, out int requiredBytes))
         {
             return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
         }
@@ -1255,6 +1255,7 @@ internal sealed class TextureStreamingManager : IDisposable
     }
 
     private static bool TryComputeUploadByteCount(
+        TextureTarget uploadTarget,
         in TextureUploadRegion region,
         PixelFormat pixelFormat,
         PixelType pixelType,
@@ -1269,8 +1270,27 @@ internal sealed class TextureStreamingManager : IDisposable
             return false;
         }
 
+        UploadDimension dim = TextureStreamingUtils.GetUploadDimension(uploadTarget);
+
+        if (dim == UploadDimension.Tex1D)
+        {
+            if (region.Height != 1 || region.Depth != 1)
+            {
+                return false;
+            }
+        }
+        else if (dim == UploadDimension.Tex2D)
+        {
+            if (region.Depth != 1)
+            {
+                return false;
+            }
+        }
+
         int rowLength = unpackRowLength > 0 ? unpackRowLength : region.Width;
-        int imageHeight = unpackImageHeight > 0 ? unpackImageHeight : region.Height;
+        int imageHeight = dim == UploadDimension.Tex1D
+            ? 1
+            : unpackImageHeight > 0 ? unpackImageHeight : region.Height;
 
         if (rowLength <= 0 || imageHeight <= 0)
         {
@@ -1288,7 +1308,8 @@ internal sealed class TextureStreamingManager : IDisposable
             return false;
         }
 
-        long byteCountLong = (long)rowLength * imageHeight * region.Depth * bytesPerPixel;
+        long slices = dim == UploadDimension.Tex3D ? region.Depth : 1;
+        long byteCountLong = (long)rowLength * imageHeight * slices * bytesPerPixel;
         if (byteCountLong <= 0 || byteCountLong > int.MaxValue)
         {
             return false;
@@ -1313,8 +1334,26 @@ internal sealed class TextureStreamingManager : IDisposable
             return false;
         }
 
+        UploadDimension dim = TextureStreamingUtils.GetUploadDimension(request.Target.UploadTarget);
+        if (dim == UploadDimension.Tex1D)
+        {
+            if (region.Height != 1 || region.Depth != 1)
+            {
+                return false;
+            }
+        }
+        else if (dim == UploadDimension.Tex2D)
+        {
+            if (region.Depth != 1)
+            {
+                return false;
+            }
+        }
+
         int rowLength = request.UnpackRowLength > 0 ? request.UnpackRowLength : region.Width;
-        int imageHeight = request.UnpackImageHeight > 0 ? request.UnpackImageHeight : region.Height;
+        int imageHeight = dim == UploadDimension.Tex1D
+            ? 1
+            : request.UnpackImageHeight > 0 ? request.UnpackImageHeight : region.Height;
         if (rowLength <= 0 || imageHeight <= 0)
         {
             return false;
@@ -1330,7 +1369,8 @@ internal sealed class TextureStreamingManager : IDisposable
             return false;
         }
 
-        long byteCountLong = (long)rowLength * imageHeight * region.Depth * bytesPerPixel;
+        long slices = dim == UploadDimension.Tex3D ? region.Depth : 1;
+        long byteCountLong = (long)rowLength * imageHeight * slices * bytesPerPixel;
         if (byteCountLong <= 0 || byteCountLong > int.MaxValue)
         {
             return false;
@@ -2108,8 +2148,17 @@ internal readonly record struct TextureUploadRegion(
     public static TextureUploadRegion For1D(int x, int width, int mipLevel = 0)
         => new(x, 0, 0, width, 1, 1, mipLevel);
 
+    public static TextureUploadRegion For1DArray(int x, int layer, int width, int layerCount = 1, int mipLevel = 0)
+        => new(x, layer, 0, width, layerCount, 1, mipLevel);
+
     public static TextureUploadRegion For2D(int x, int y, int width, int height, int mipLevel = 0)
         => new(x, y, 0, width, height, 1, mipLevel);
+
+    public static TextureUploadRegion For2DArray(int x, int y, int layer, int width, int height, int layerCount = 1, int mipLevel = 0)
+        => new(x, y, layer, width, height, layerCount, mipLevel);
+
+    public static TextureUploadRegion ForCubeArrayFace(int x, int y, int cubeIndex, TextureCubeFace face, int width, int height, int mipLevel = 0)
+        => new(x, y, TextureStreamingUtils.GetCubeArraySlice(cubeIndex, face), width, height, 1, mipLevel);
 
     public static TextureUploadRegion For3D(int x, int y, int z, int width, int height, int depth, int mipLevel = 0)
         => new(x, y, z, width, height, depth, mipLevel);
@@ -2230,6 +2279,9 @@ internal static class TextureStreamingUtils
 
     public static TextureTarget GetCubeFaceTarget(TextureCubeFace face)
         => (TextureTarget)((int)TextureTarget.TextureCubeMapPositiveX + (int)face);
+
+    public static int GetCubeArraySlice(int cubeIndex, TextureCubeFace face)
+        => checked(cubeIndex * 6 + (int)face);
 
     public static int AlignUp(int value, int alignment)
     {

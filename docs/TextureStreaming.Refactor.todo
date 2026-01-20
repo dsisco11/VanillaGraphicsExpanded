@@ -95,13 +95,13 @@ Texture Streaming - Persistent-Mapped StageCopy Refactor (Option B First):
 
   Phase 6 - Texture Target Coverage (All Types Up Front):
   Exit artifacts: StageCopy supports all expected targets and regions correctly.
-  ☐ Validate/extend `TextureUploadTarget` helpers for:
+  ✔ Validate/extend `TextureUploadTarget` helpers for: @done
     - 1D / 2D / 3D
     - 1D array / 2D array
     - cube faces / cube arrays
     - rectangle
-  ☐ Validate the upload dispatcher chooses the correct TexSubImage variant for each target.
-  ☐ Validate pixel store behavior for sub-rect uploads and 3D/array uploads (rowLength + imageHeight).
+  ✔ Validate the upload dispatcher chooses the correct TexSubImage variant for each target. @done
+  ✔ Validate pixel store behavior for sub-rect uploads and 3D/array uploads (rowLength + imageHeight). @done
 
 
   Phase 7 - Producer Integration Defaults (DynamicTexture):
