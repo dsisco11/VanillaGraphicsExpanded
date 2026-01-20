@@ -75,8 +75,8 @@ Material Atlas Disk Cache - Meta Index + Cache-Only Warmup:
 
   Phase 5 - Tests and Docs:
   Exit artifacts: meta.json behavior and warmup scheduling are covered by tests and docs.
-  ☐ Update MaterialAtlasDiskCacheRoundTripTests for meta.json read/write and LRU updates.
-  ☐ Add tests for index validation (missing .dds, invalid schema).
-  ☐ Add tests for deferred corruption handling (bad headers/dims are handled on read: entry removed + miss returned).
-  ☐ Add tests for warmup planning (hits enqueue jobs, misses ignored).
-  ☐ Update docs/MaterialSystem.Cache.Architecture.md to reflect meta.json and warmup pass.
+  ☑ Update MaterialAtlasDiskCacheRoundTripTests for meta.json read/write and LRU updates.
+  ☑ Add tests for index validation (missing .dds, invalid schema).
+  ☑ Add tests for deferred corruption handling (bad headers/dims are handled on read: entry removed + miss returned).
+  ☑ Add tests for warmup planning (hits enqueue jobs, misses ignored).
+  ☑ Update docs/MaterialSystem.Cache.Architecture.md to reflect meta.json and warmup pass.

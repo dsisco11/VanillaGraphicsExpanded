@@ -291,6 +291,18 @@ Deferred payload validation (locked in):
 
 ## 8. Integration Points
 
+### 8.0 Cache-Only Warmup Pass
+
+To reduce time-to-first-frame after loading (and to keep heavy misses deferred), the client runs a
+**cache-only warmup** pass during the loading screen.
+
+- The warmup pass builds the same tile plans as the normal pipeline.
+- It performs *index-only* probes first and schedules CPU jobs **only** for tiles whose cache keys exist in `meta.json`.
+- Scheduled warmup jobs read cached `.dds` payloads and enqueue GPU uploads.
+- Cache misses are ignored in warmup (no procedural material params work and no normal+depth bakes are triggered).
+
+Warmup hook (current implementation): `BlockTexturesLoaded` (before the deferred full `PopulateAtlasContents`).
+
 ### 8.1 Material Params
 
 - Before CPU bake, build cache key and probe cache per tile.
@@ -310,6 +322,8 @@ Deferred payload validation (locked in):
 - File IO runs off the render thread.
 - Upload remains on render thread as today.
 - Session generation id guards against stale uploads or cache writes.
+
+Warmup uses the same scheduler infrastructure and is tagged as a distinct session for diagnostics.
 
 ---
 
