@@ -695,7 +695,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     {
         // Anything involving probes/atlases/temporal/indirect assumes LumOn is enabled.
         return (mode is >= LumOnDebugMode.ProbeGrid and <= LumOnDebugMode.CompositeMaterial)
-            || (mode is >= LumOnDebugMode.VelocityMagnitude and <= LumOnDebugMode.VelocityPrevUv);
+            || (mode is >= LumOnDebugMode.VelocityMagnitude and <= LumOnDebugMode.VelocityPrevUv)
+            || (mode is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeSpheres);
     }
 
     #endregion

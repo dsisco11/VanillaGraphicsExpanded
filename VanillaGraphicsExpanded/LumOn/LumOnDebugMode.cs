@@ -73,4 +73,7 @@ public enum LumOnDebugMode
 
     // VGE-only (line rendering; not driven by lumon_debug.fsh)
     WorldProbeClipmapBounds = 40,
+
+    // Phase 18: visualize world-probe clipmap probes in 3D (implemented in lumon_debug.fsh)
+    WorldProbeSpheres = 41,
 }

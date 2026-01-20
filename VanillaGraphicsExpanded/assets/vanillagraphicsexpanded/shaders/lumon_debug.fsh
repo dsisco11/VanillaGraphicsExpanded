@@ -915,7 +915,7 @@ vec4 renderGatherWeightDebug() {
 }
 
 // ============================================================================
-// Debug Modes 31-39: World-Probe Clipmap (Phase 18)
+// Debug Modes 31-39, 41: World-Probe Clipmap (Phase 18)
 // ============================================================================
 
 bool lumonWorldProbeDebugNearest(in vec3 worldPosWS, out int outLevel, out ivec2 outAtlasCoord)
@@ -1190,6 +1190,196 @@ vec4 renderWorldProbeCrossLevelBlendDebug()
 #endif
 }
 
+vec4 renderWorldProbeSpheresDebug()
+{
+#if !VGE_LUMON_WORLDPROBE_ENABLED
+    return vec4(0.0, 0.0, 0.0, 1.0);
+#else
+    int levels = VGE_LUMON_WORLDPROBE_LEVELS;
+    int resolution = VGE_LUMON_WORLDPROBE_RESOLUTION;
+    float baseSpacing = VGE_LUMON_WORLDPROBE_BASE_SPACING;
+    if (levels <= 0 || resolution <= 0) return vec4(0.0, 0.0, 0.0, 1.0);
+
+    // View ray (camera-matrix world space).
+    vec3 rayOriginWS = (invViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    vec3 farVS = lumonReconstructViewPos(uv, 1.0, invProjectionMatrix);
+    vec3 rayDirWS = normalize((invViewMatrix * vec4(normalize(farVS), 0.0)).xyz);
+
+    // Use scene depth for occlusion (spheres behind geometry are hidden).
+    float sceneT = 1e20;
+    float depthRaw = texture(primaryDepth, uv).r;
+    if (!lumonIsSky(depthRaw) && depthRaw > 0.0)
+    {
+        vec3 scenePosVS = lumonReconstructViewPos(uv, depthRaw, invProjectionMatrix);
+        vec3 scenePosWS = (invViewMatrix * vec4(scenePosVS, 1.0)).xyz;
+        sceneT = max(dot(scenePosWS - rayOriginWS, rayDirWS), 0.0);
+    }
+
+    // Fixed world-space sphere radius so clip levels don't explode in size.
+    float radius = max(baseSpacing * 0.35, 0.05);
+
+    // Find the closest sphere hit across levels.
+    float bestT = 1e20;
+    int bestLevel = 0;
+    ivec2 bestAc = ivec2(0);
+    vec3 bestCenterWS = vec3(0.0);
+    bool hit = false;
+
+    // Ray-sphere intersection (returns closest positive t).
+    bool RaySphereHit(vec3 ro, vec3 rd, vec3 c, float r, out float tHit)
+    {
+        tHit = 0.0;
+        vec3 oc = ro - c;
+        float b = dot(oc, rd);
+        float cc = dot(oc, oc) - r * r;
+        float h = b * b - cc;
+        if (h < 0.0) return false;
+        float s = sqrt(h);
+        float t0 = -b - s;
+        float t1 = -b + s;
+        float t = (t0 > 1e-4) ? t0 : ((t1 > 1e-4) ? t1 : -1.0);
+        if (t < 0.0) return false;
+        tHit = t;
+        return true;
+    }
+
+    // Ray-AABB intersection for clip volumes.
+    bool RayAabbHit(vec3 ro, vec3 rd, vec3 bmin, vec3 bmax, out float tEnter, out float tExit)
+    {
+        tEnter = 0.0;
+        tExit = 0.0;
+
+        vec3 invD = 1.0 / max(abs(rd), vec3(1e-8)) * sign(rd);
+        vec3 t0 = (bmin - ro) * invD;
+        vec3 t1 = (bmax - ro) * invD;
+        vec3 tmin = min(t0, t1);
+        vec3 tmax = max(t0, t1);
+
+        tEnter = max(max(tmin.x, tmin.y), tmin.z);
+        tExit = min(min(tmax.x, tmax.y), tmax.z);
+        return tExit >= max(tEnter, 0.0);
+    }
+
+    for (int level = 0; level < levels; level++)
+    {
+        float spacing = lumonWorldProbeSpacing(baseSpacing, level);
+        vec3 origin = worldProbeOriginMinCorner[level];
+
+        float size = spacing * float(resolution);
+        vec3 bmin = origin;
+        vec3 bmax = origin + vec3(size);
+
+        float tEnter;
+        float tExit;
+        if (!RayAabbHit(rayOriginWS, rayDirWS, bmin, bmax, tEnter, tExit))
+        {
+            continue;
+        }
+
+        float t0 = max(tEnter, 0.0);
+        float t1 = min(tExit, sceneT);
+        if (t1 <= t0)
+        {
+            continue;
+        }
+
+        float stepDist = max(spacing * 0.5, radius * 0.9);
+        int steps = int(clamp(ceil((t1 - t0) / stepDist), 1.0, 96.0));
+
+        ivec3 prevIdx = ivec3(-999999);
+        ivec3 ring = ivec3(floor(worldProbeRingOffset[level] + 0.5));
+
+        for (int i = 0; i < steps; i++)
+        {
+            float t = t0 + (float(i) + 0.5) * stepDist;
+            if (t >= bestT)
+            {
+                break;
+            }
+
+            vec3 pWS = rayOriginWS + rayDirWS * t;
+            vec3 local = (pWS - origin) / max(spacing, 1e-6);
+
+            // Nearest probe index in this level.
+            ivec3 idx = ivec3(floor(local + vec3(0.5)));
+            idx = clamp(idx, ivec3(0), ivec3(resolution - 1));
+
+            if (all(equal(idx, prevIdx)))
+            {
+                continue;
+            }
+            prevIdx = idx;
+
+            vec3 centerWS = origin + (vec3(idx) + vec3(0.5)) * spacing;
+
+            float tHit;
+            if (!RaySphereHit(rayOriginWS, rayDirWS, centerWS, radius, tHit))
+            {
+                continue;
+            }
+
+            if (tHit >= sceneT || tHit >= bestT)
+            {
+                continue;
+            }
+
+            // Ensure the hit is within this clip volume interval.
+            if (tHit < t0 - stepDist || tHit > t1 + stepDist)
+            {
+                continue;
+            }
+
+            ivec3 storage = lumonWorldProbeWrapIndex(idx + ring, resolution);
+            ivec2 ac = lumonWorldProbeAtlasCoord(storage, level, resolution);
+
+            bestT = tHit;
+            bestLevel = level;
+            bestAc = ac;
+            bestCenterWS = centerWS;
+            hit = true;
+        }
+    }
+
+    if (!hit) return vec4(0.0, 0.0, 0.0, 1.0);
+
+    vec3 hitPosWS = rayOriginWS + rayDirWS * bestT;
+    vec3 N = hitPosWS - bestCenterWS;
+    N = (dot(N, N) > 1e-8) ? normalize(N) : vec3(0.0, 1.0, 0.0);
+
+    vec4 t0p = texelFetch(worldProbeSH0, bestAc, 0);
+    vec4 t1p = texelFetch(worldProbeSH1, bestAc, 0);
+    vec4 t2p = texelFetch(worldProbeSH2, bestAc, 0);
+
+    vec4 shR, shG, shB;
+    lumonWorldProbeDecodeShL1(t0p, t1p, t2p, shR, shG, shB);
+
+    vec2 meta = texelFetch(worldProbeMeta0, bestAc, 0).xy;
+    float conf = clamp(meta.x, 0.0, 1.0);
+
+    // Evaluate the probe's irradiance as "lighting" on a white orb surface.
+    vec3 irr = shEvaluateDiffuseRGB(shR, shG, shB, N);
+    irr = max(irr, vec3(0.0));
+
+    // Tone-map to display range.
+    vec3 col = lumonWorldProbeDebugToneMap(irr);
+
+    // Level tint (helps visualize clipmap selection at a glance).
+    float levelN = (levels > 1) ? float(bestLevel) / float(max(levels - 1, 1)) : 0.0;
+    vec3 tint = mix(vec3(1.0, 0.9, 0.9), vec3(0.9, 0.95, 1.0), levelN);
+    col *= tint;
+
+    // Rim glow for readability.
+    float VdotN = clamp(dot(-rayDirWS, N), 0.0, 1.0);
+    float rim = pow(1.0 - VdotN, 3.0);
+    col += vec3(0.15) * rim;
+
+    // Keep low-confidence probes visible but subdued.
+    col = mix(vec3(0.06), col, conf);
+
+    return vec4(col, 1.0);
+#endif
+}
+
 // ============================================================================
 // Main
 // ============================================================================
@@ -1313,6 +1503,9 @@ void main(void)
             break;
         case 39:
             outColor = renderWorldProbeCrossLevelBlendDebug();
+            break;
+        case 41:
+            outColor = renderWorldProbeSpheresDebug();
             break;
         default:
             outColor = vec4(1.0, 0.0, 1.0, 1.0);  // Magenta = unknown mode
