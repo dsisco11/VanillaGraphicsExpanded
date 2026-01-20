@@ -76,6 +76,8 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
         ReadOnlySpan<Vector3> origins,
         ReadOnlySpan<Vector3> rings)
     {
+        bool wasMissing = !hasRuntimeParams;
+
         runtimeCameraPosWS = cameraPosWS;
         runtimeBaseSpacing = baseSpacing;
         runtimeLevels = levels;
@@ -89,6 +91,15 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
         }
 
         hasRuntimeParams = true;
+
+        if (wasMissing)
+        {
+            capi.Logger.Debug(
+                "[VGE] World-probe clipmap runtime params published (levels={0}, res={1}, baseSpacing={2:0.###})",
+                runtimeLevels,
+                runtimeResolution,
+                runtimeBaseSpacing);
+        }
     }
 
     public LumOnWorldProbeClipmapBufferManager(ICoreClientAPI capi, LumOnConfig config)

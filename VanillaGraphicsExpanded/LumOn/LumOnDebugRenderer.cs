@@ -215,7 +215,22 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         shader.EnableShortRangeAo = config.EnableShortRangeAo;
 
         // Phase 18 world-probe defines must be set before Use() as well.
-        bool wantWorldProbe = false;
+        // Make this robust across initialization order / live reloads: if the renderer's buffer manager reference
+        // is stale/missing, re-acquire it from the mod system.
+        if (worldProbeClipmapBufferManager is null || worldProbeClipmapBufferManager.Resources is null)
+        {
+            var clipmapMs = capi.ModLoader.GetModSystem<ModSystems.WorldProbeModSystem>();
+            worldProbeClipmapBufferManager = clipmapMs.EnsureClipmapResources(capi, "LumOnDebugRenderer bind");
+        }
+
+        // Keep resources alive for debug modes even if the main renderer is temporarily not running.
+        // (Defines are compile-time; we want stable behavior when switching debug modes.)
+        worldProbeClipmapBufferManager?.EnsureResources();
+
+        bool hasWorldProbeResources = worldProbeClipmapBufferManager?.Resources is not null;
+
+        // Runtime params are optional; debug overlays can still compile the enabled variant from the known topology.
+        // (If runtime params are missing, sampling will likely show no contribution, but it should not force-disable.)
         System.Numerics.Vector3 wpCamPosWS = default;
         float wpBaseSpacing = 0;
         int wpLevels = 0;
@@ -223,20 +238,23 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         System.Numerics.Vector3[]? wpOrigins = null;
         System.Numerics.Vector3[]? wpRings = null;
 
-        if (worldProbeClipmapBufferManager?.Resources is not null
-            && worldProbeClipmapBufferManager.TryGetRuntimeParams(
-                out var wpCamPos,
+        bool hasWorldProbeRuntimeParams = false;
+        if (hasWorldProbeResources && worldProbeClipmapBufferManager is not null)
+        {
+            hasWorldProbeRuntimeParams = worldProbeClipmapBufferManager.TryGetRuntimeParams(
+                out wpCamPosWS,
                 out wpBaseSpacing,
                 out wpLevels,
                 out wpResolution,
                 out wpOrigins,
-                out wpRings))
-        {
-            wantWorldProbe = true;
-            wpCamPosWS = wpCamPos;
+                out wpRings);
+
+            float baseSpacing = Math.Max(1e-6f, config.WorldProbeClipmap.ClipmapBaseSpacing);
+            int levels = Math.Clamp(worldProbeClipmapBufferManager.Resources!.Levels, 1, MaxWorldProbeLevels);
+            int resolution = Math.Max(1, worldProbeClipmapBufferManager.Resources!.Resolution);
 
             // If defines changed, a recompile has been queued; skip rendering this frame.
-            if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, wpBaseSpacing, wpLevels, wpResolution))
+            if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, baseSpacing, levels, resolution))
             {
                 return;
             }
@@ -300,7 +318,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             shader.GatherAtlasSource = gatherAtlasSource;
 
             // Phase 18 world-probe debug inputs (only bound if available + active in the compiled shader).
-            if (wantWorldProbe && worldProbeClipmapBufferManager?.Resources is not null && wpOrigins != null && wpRings != null)
+            if (hasWorldProbeResources && worldProbeClipmapBufferManager?.Resources is not null)
             {
                 shader.WorldProbeSH0 = worldProbeClipmapBufferManager.Resources.ProbeSh0TextureId;
                 shader.WorldProbeSH1 = worldProbeClipmapBufferManager.Resources.ProbeSh1TextureId;
@@ -310,20 +328,32 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 shader.WorldProbeMeta0 = worldProbeClipmapBufferManager.Resources.ProbeMeta0TextureId;
                 shader.WorldProbeDebugState0 = worldProbeClipmapBufferManager.Resources.ProbeDebugState0TextureId;
 
-                // Shaders reconstruct world positions in the engine's camera-matrix space via invViewMatrix.
-                // Bind clipmap parameters in that same space (do not apply additional camera-relative shifts).
-                shader.WorldProbeCameraPosWS = new Vec3f(wpCamPosWS.X, wpCamPosWS.Y, wpCamPosWS.Z);
-
-                for (int i = 0; i < 8; i++)
+                // Shaders reconstruct world positions in the engine's camera-matrix world space (invViewMatrix).
+                // If runtime params are missing, fall back to the current inverse view translation.
+                if (!hasWorldProbeRuntimeParams || wpOrigins is null || wpRings is null)
                 {
-                    var o = wpOrigins[i];
-                    var r = wpRings[i];
-                    if (!shader.TrySetWorldProbeLevelParams(
-                            i,
-                            new Vec3f(o.X, o.Y, o.Z),
-                            new Vec3f(r.X, r.Y, r.Z)))
+                    shader.WorldProbeCameraPosWS = new Vec3f(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
+
+                    for (int i = 0; i < 8; i++)
                     {
-                        break;
+                        shader.TrySetWorldProbeLevelParams(i, new Vec3f(0, 0, 0), new Vec3f(0, 0, 0));
+                    }
+                }
+                else
+                {
+                    shader.WorldProbeCameraPosWS = new Vec3f(wpCamPosWS.X, wpCamPosWS.Y, wpCamPosWS.Z);
+
+                    for (int i = 0; i < 8; i++)
+                    {
+                        var o = wpOrigins[i];
+                        var r = wpRings[i];
+                        if (!shader.TrySetWorldProbeLevelParams(
+                                i,
+                                new Vec3f(o.X, o.Y, o.Z),
+                                new Vec3f(r.X, r.Y, r.Z)))
+                        {
+                            break;
+                        }
                     }
                 }
             }
@@ -393,6 +423,15 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         if (current is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeSpheres
             || current == LumOnDebugMode.WorldProbeClipmapBounds)
         {
+            if (worldProbeClipmapBufferManager is null)
+            {
+                capi.ShowChatMessage("[VGE] World-probe clipmap manager: null (debug renderer)");
+            }
+            else
+            {
+                capi.ShowChatMessage($"[VGE] World-probe clipmap manager: resources={(worldProbeClipmapBufferManager.Resources is null ? "null" : "ok")}");
+            }
+
             if (worldProbeClipmapBufferManager?.Resources is null)
             {
                 capi.ShowChatMessage("[VGE] World-probe clipmap resources not available yet.");
@@ -440,7 +479,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         frozenLevels = Math.Clamp(frozenLevels, 1, MaxWorldProbeLevels);
         for (int i = 0; i < MaxWorldProbeLevels; i++)
         {
-            frozenOrigins[i] = (i < origins.Length) ? origins[i] : default;
+            // Runtime origins are stored relative to the absolute camera position; convert to the engine's
+            // camera-matrix world space for line rendering (so the view-projection matrix matches).
+            var oRel = (i < origins.Length) ? origins[i] : default;
+            frozenOrigins[i] = oRel + frozenCameraPosWS;
         }
 
         hasFrozenClipmapBounds = true;

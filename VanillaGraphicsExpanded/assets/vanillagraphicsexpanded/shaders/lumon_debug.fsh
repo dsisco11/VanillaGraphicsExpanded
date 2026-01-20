@@ -950,7 +950,8 @@ bool lumonWorldProbeDebugNearest(in vec3 worldPosWS, out int outLevel, out ivec2
     float spacing = lumonWorldProbeSpacing(baseSpacing, level);
 
     vec3 origin = worldProbeOriginMinCorner[level];
-    vec3 local = (worldPosWS - origin) / max(spacing, 1e-6);
+    vec3 worldPosRel = worldPosWS - worldProbeCameraPosWS;
+    vec3 local = (worldPosRel - origin) / max(spacing, 1e-6);
 
     // Outside clip volume.
     if (any(lessThan(local, vec3(0.0))) || any(greaterThanEqual(local, vec3(float(resolution)))))
@@ -1016,10 +1017,11 @@ vec4 renderWorldProbeIrradianceLevelDebug()
     int maxLevel = max(levels - 1, 0);
     int level = lumonWorldProbeSelectLevelByDistance(posWS, worldProbeCameraPosWS, baseSpacing, maxLevel);
     float spacing = lumonWorldProbeSpacing(baseSpacing, level);
+    vec3 posRel = posWS - worldProbeCameraPosWS;
 
     LumOnWorldProbeSample sL = lumonWorldProbeSampleLevelTrilinear(
         worldProbeSH0, worldProbeSH1, worldProbeSH2, worldProbeVis0, worldProbeMeta0,
-        posWS, normalWS,
+        posRel, normalWS,
         worldProbeOriginMinCorner[level], worldProbeRingOffset[level],
         spacing, resolution, level);
 
@@ -1205,7 +1207,8 @@ vec4 renderWorldProbeCrossLevelBlendDebug()
     float spacingL = lumonWorldProbeSpacing(baseSpacing, level);
 
     vec3 originL = worldProbeOriginMinCorner[level];
-    vec3 localL = (posWS - originL) / max(spacingL, 1e-6);
+    vec3 posRel = posWS - worldProbeCameraPosWS;
+    vec3 localL = (posRel - originL) / max(spacingL, 1e-6);
     float edgeDist = lumonWorldProbeDistanceToBoundaryProbeUnits(localL, resolution);
     float wL = lumonWorldProbeCrossLevelBlendWeight(edgeDist, 2.0, 2.0);
 
@@ -1213,6 +1216,41 @@ vec4 renderWorldProbeCrossLevelBlendDebug()
     // R = selected level (normalized), G = weight for L, B = weight for L+1.
     return vec4(levelN, wL, 1.0 - wL, 1.0);
 #endif
+}
+
+// Ray-sphere intersection (returns closest positive t).
+bool lumonRaySphereHit(vec3 ro, vec3 rd, vec3 c, float r, out float tHit)
+{
+    tHit = 0.0;
+    vec3 oc = ro - c;
+    float b = dot(oc, rd);
+    float cc = dot(oc, oc) - r * r;
+    float h = b * b - cc;
+    if (h < 0.0) return false;
+    float s = sqrt(h);
+    float t0 = -b - s;
+    float t1 = -b + s;
+    float t = (t0 > 1e-4) ? t0 : ((t1 > 1e-4) ? t1 : -1.0);
+    if (t < 0.0) return false;
+    tHit = t;
+    return true;
+}
+
+// Ray-AABB intersection for clip volumes.
+bool lumonRayAabbHit(vec3 ro, vec3 rd, vec3 bmin, vec3 bmax, out float tEnter, out float tExit)
+{
+    tEnter = 0.0;
+    tExit = 0.0;
+
+    vec3 invD = 1.0 / max(abs(rd), vec3(1e-8)) * sign(rd);
+    vec3 t0 = (bmin - ro) * invD;
+    vec3 t1 = (bmax - ro) * invD;
+    vec3 tmin = min(t0, t1);
+    vec3 tmax = max(t0, t1);
+
+    tEnter = max(max(tmin.x, tmin.y), tmin.z);
+    tExit = min(min(tmax.x, tmax.y), tmax.z);
+    return tExit >= max(tEnter, 0.0);
 }
 
 vec4 renderWorldProbeSpheresDebug()
@@ -1250,45 +1288,11 @@ vec4 renderWorldProbeSpheresDebug()
     vec3 bestCenterWS = vec3(0.0);
     bool hit = false;
 
-    // Ray-sphere intersection (returns closest positive t).
-    bool RaySphereHit(vec3 ro, vec3 rd, vec3 c, float r, out float tHit)
-    {
-        tHit = 0.0;
-        vec3 oc = ro - c;
-        float b = dot(oc, rd);
-        float cc = dot(oc, oc) - r * r;
-        float h = b * b - cc;
-        if (h < 0.0) return false;
-        float s = sqrt(h);
-        float t0 = -b - s;
-        float t1 = -b + s;
-        float t = (t0 > 1e-4) ? t0 : ((t1 > 1e-4) ? t1 : -1.0);
-        if (t < 0.0) return false;
-        tHit = t;
-        return true;
-    }
-
-    // Ray-AABB intersection for clip volumes.
-    bool RayAabbHit(vec3 ro, vec3 rd, vec3 bmin, vec3 bmax, out float tEnter, out float tExit)
-    {
-        tEnter = 0.0;
-        tExit = 0.0;
-
-        vec3 invD = 1.0 / max(abs(rd), vec3(1e-8)) * sign(rd);
-        vec3 t0 = (bmin - ro) * invD;
-        vec3 t1 = (bmax - ro) * invD;
-        vec3 tmin = min(t0, t1);
-        vec3 tmax = max(t0, t1);
-
-        tEnter = max(max(tmin.x, tmin.y), tmin.z);
-        tExit = min(min(tmax.x, tmax.y), tmax.z);
-        return tExit >= max(tEnter, 0.0);
-    }
-
     for (int level = 0; level < levels; level++)
     {
         float spacing = lumonWorldProbeSpacing(baseSpacing, level);
-        vec3 origin = worldProbeOriginMinCorner[level];
+        // Stored relative to absolute camera position; convert back to camera-matrix world space for ray math.
+        vec3 origin = worldProbeOriginMinCorner[level] + worldProbeCameraPosWS;
 
         float size = spacing * float(resolution);
         vec3 bmin = origin;
@@ -1296,7 +1300,7 @@ vec4 renderWorldProbeSpheresDebug()
 
         float tEnter;
         float tExit;
-        if (!RayAabbHit(rayOriginWS, rayDirWS, bmin, bmax, tEnter, tExit))
+        if (!lumonRayAabbHit(rayOriginWS, rayDirWS, bmin, bmax, tEnter, tExit))
         {
             continue;
         }
@@ -1338,7 +1342,7 @@ vec4 renderWorldProbeSpheresDebug()
             vec3 centerWS = origin + (vec3(idx) + vec3(0.5)) * spacing;
 
             float tHit;
-            if (!RaySphereHit(rayOriginWS, rayDirWS, centerWS, radius, tHit))
+            if (!lumonRaySphereHit(rayOriginWS, rayDirWS, centerWS, radius, tHit))
             {
                 continue;
             }

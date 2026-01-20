@@ -52,7 +52,12 @@ uniform sampler2D worldProbeVis0;
 uniform sampler2D worldProbeDist0;
 uniform sampler2D worldProbeMeta0;
 
+// Camera position in the engine's camera-matrix world space (as produced by invViewMatrix reconstruction).
 uniform vec3 worldProbeCameraPosWS;
+
+// Per-level origin min-corner, stored relative to the *absolute* camera position:
+//   originRel = originAbs - cameraAbs
+// This keeps values small/stable in float precision while still representing a world-space anchored clipmap.
 uniform vec3 worldProbeOriginMinCorner[LUMON_WORLDPROBE_MAX_LEVELS];
 uniform vec3 worldProbeRingOffset[LUMON_WORLDPROBE_MAX_LEVELS];
 
@@ -173,7 +178,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 	sampler2D probeSH2,
 	sampler2D probeVis0,
 	sampler2D probeMeta0,
-	vec3 worldPos,
+	vec3 worldPosRel,
 	vec3 normalWS,
 	vec3 originMinCorner,
 	vec3 ringOffset,
@@ -185,7 +190,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 	s.irradiance = vec3(0.0);
 	s.confidence = 0.0;
 
-	vec3 local = (worldPos - originMinCorner) / max(spacing, 1e-6);
+	vec3 local = (worldPosRel - originMinCorner) / max(spacing, 1e-6);
 
 	// Outside clip volume: no contribution.
 	if (any(lessThan(local, vec3(0.0))) || any(greaterThanEqual(local, vec3(float(resolution)))))
@@ -284,6 +289,9 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
 		return outS;
 	}
 
+	// Work in camera-relative space for stable float precision.
+	vec3 worldPosRel = worldPos - cameraPosWS;
+
 	int maxLevel = max(levels - 1, 0);
 	int level = lumonWorldProbeSelectLevelByDistance(worldPos, cameraPosWS, baseSpacing, maxLevel);
 
@@ -292,13 +300,13 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
 	vec3 ringL = ringOffset[level];
 
 	// Cross-level overlap smoothing: blend to L+1 near boundary.
-	vec3 localL = (worldPos - originL) / max(spacingL, 1e-6);
+	vec3 localL = (worldPosRel - originL) / max(spacingL, 1e-6);
 	float edgeDist = lumonWorldProbeDistanceToBoundaryProbeUnits(localL, resolution);
 	float wL = lumonWorldProbeCrossLevelBlendWeight(edgeDist, 2.0, 2.0);
 
 	LumOnWorldProbeSample sL = lumonWorldProbeSampleLevelTrilinear(
 		probeSH0, probeSH1, probeSH2, probeVis0, probeMeta0,
-		worldPos, normalWS,
+		worldPosRel, normalWS,
 		originL, ringL,
 		spacingL, resolution, level);
 
@@ -311,7 +319,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
 
 		LumOnWorldProbeSample s2 = lumonWorldProbeSampleLevelTrilinear(
 			probeSH0, probeSH1, probeSH2, probeVis0, probeMeta0,
-			worldPos, normalWS,
+			worldPosRel, normalWS,
 			origin2, ring2,
 			spacing2, resolution, level2);
 
