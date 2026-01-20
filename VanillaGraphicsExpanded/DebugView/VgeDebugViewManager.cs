@@ -67,7 +67,13 @@ public static class VgeDebugViewManager
 
     public static void SetMode(LumOnDebugMode mode)
     {
-        currentMode = mode;
+        currentMode = mode switch
+        {
+            // Deprecated/incorrect world-probe debug modes. Redirect to the GL_POINTS orb mode.
+            LumOnDebugMode.WorldProbeSpheres => LumOnDebugMode.WorldProbeOrbsPoints,
+            LumOnDebugMode.WorldProbeClipmapBounds => LumOnDebugMode.WorldProbeOrbsPoints,
+            _ => mode
+        };
         ApplyModeToRuntime();
     }
 
@@ -75,7 +81,7 @@ public static class VgeDebugViewManager
     {
         if (lumOnConfig != null)
         {
-            lumOnConfig.DebugMode = currentMode;
+            lumOnConfig.LumOn.DebugMode = currentMode;
         }
     }
 }

@@ -11,8 +11,11 @@ public sealed class DebugViewConfigTests
     {
         var cfg = new LumOnConfig
         {
-            Enabled = true,
-            DebugMode = LumOnDebugMode.ProbeAtlasMetaFlags
+            LumOn =
+            {
+                Enabled = true,
+                DebugMode = LumOnDebugMode.ProbeAtlasMetaFlags
+            }
         };
 
         string json = JsonConvert.SerializeObject(cfg);

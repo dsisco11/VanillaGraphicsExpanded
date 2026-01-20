@@ -575,13 +575,15 @@ public sealed class LumOnBufferManager : IDisposable
         // Delete existing buffers
         DeleteBuffers();
 
+        var cfg = config.LumOn;
+
         // Calculate probe grid dimensions
-        probeCountX = (int)Math.Ceiling((float)screenWidth / config.ProbeSpacingPx);
-        probeCountY = (int)Math.Ceiling((float)screenHeight / config.ProbeSpacingPx);
+        probeCountX = (int)Math.Ceiling((float)screenWidth / cfg.ProbeSpacingPx);
+        probeCountY = (int)Math.Ceiling((float)screenHeight / cfg.ProbeSpacingPx);
 
         // Calculate half-res dimensions
-        halfResWidth = config.HalfResolution ? screenWidth / 2 : screenWidth;
-        halfResHeight = config.HalfResolution ? screenHeight / 2 : screenHeight;
+        halfResWidth = cfg.HalfResolution ? screenWidth / 2 : screenWidth;
+        halfResHeight = cfg.HalfResolution ? screenHeight / 2 : screenHeight;
 
         // ═══════════════════════════════════════════════════════════════
         // Create Probe Anchor Buffers
@@ -711,7 +713,7 @@ public sealed class LumOnBufferManager : IDisposable
 
         capi.Logger.Notification(
             $"[LumOn] Created buffers: {probeCountX}x{probeCountY} probes, " +
-            $"spacing={config.ProbeSpacingPx}px, halfRes={halfResWidth}x{halfResHeight}");
+            $"spacing={cfg.ProbeSpacingPx}px, halfRes={halfResWidth}x{halfResHeight}");
     }
 
     /// <summary>

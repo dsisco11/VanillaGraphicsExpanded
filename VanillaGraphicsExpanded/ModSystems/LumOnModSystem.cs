@@ -30,10 +30,11 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
     {
         public static LumOnLiveConfigSnapshot From(LumOnConfig cfg)
         {
+            var c = cfg.LumOn;
             return new LumOnLiveConfigSnapshot(
-                cfg.Enabled,
-                cfg.ProbeSpacingPx,
-                cfg.HalfResolution);
+                c.Enabled,
+                c.ProbeSpacingPx,
+                c.HalfResolution);
         }
     }
 
@@ -140,7 +141,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         }
 
         // Initialize LumOn based on config (loaded by ConfigModSystem).
-        if (!ConfigModSystem.Config.Enabled)
+        if (!ConfigModSystem.Config.LumOn.Enabled)
         {
             return;
         }

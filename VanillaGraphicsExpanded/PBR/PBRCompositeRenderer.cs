@@ -142,7 +142,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         // Define-backed toggles must be set before Use() so the correct variant is bound.
         int lumOnEnabled = 0;
         int indirectTexId = 0;
-        if (lumOnConfig?.Enabled == true && lumOnBuffers?.IndirectFullTex is not null)
+        if (lumOnConfig?.LumOn.Enabled == true && lumOnBuffers?.IndirectFullTex is not null)
         {
             lumOnEnabled = 1;
             indirectTexId = lumOnBuffers.IndirectFullTex.TextureId;
@@ -151,9 +151,9 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         shader.LumOnEnabled = lumOnEnabled == 1;
 
         // Phase 15 knobs (now compile-time defines)
-        shader.EnablePbrComposite = lumOnConfig?.EnablePbrComposite ?? true;
-        shader.EnableAO = lumOnConfig?.EnableAO ?? true;
-        shader.EnableShortRangeAo = lumOnConfig?.EnableShortRangeAo ?? true;
+        shader.EnablePbrComposite = lumOnConfig?.LumOn.EnablePbrComposite ?? true;
+        shader.EnableAO = lumOnConfig?.LumOn.EnableAO ?? true;
+        shader.EnableShortRangeAo = lumOnConfig?.LumOn.EnableShortRangeAo ?? true;
 
         shader.Use();
 
@@ -176,18 +176,18 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         shader.FogMinIn = capi.Render.FogMin;
 
         // Indirect controls
-        shader.IndirectIntensity = lumOnConfig?.Intensity ?? 1.0f;
-        if (lumOnConfig?.IndirectTint is not null && lumOnConfig.IndirectTint.Length >= 3)
+        shader.IndirectIntensity = lumOnConfig?.LumOn.Intensity ?? 1.0f;
+        if (lumOnConfig?.LumOn.IndirectTint is not null && lumOnConfig.LumOn.IndirectTint.Length >= 3)
         {
-            shader.IndirectTint = new Vec3f(lumOnConfig.IndirectTint[0], lumOnConfig.IndirectTint[1], lumOnConfig.IndirectTint[2]);
+            shader.IndirectTint = new Vec3f(lumOnConfig.LumOn.IndirectTint[0], lumOnConfig.LumOn.IndirectTint[1], lumOnConfig.LumOn.IndirectTint[2]);
         }
         else
         {
             shader.IndirectTint = new Vec3f(1, 1, 1);
         }
 
-        shader.DiffuseAOStrength = Math.Clamp(lumOnConfig?.DiffuseAOStrength ?? 1.0f, 0f, 1f);
-        shader.SpecularAOStrength = Math.Clamp(lumOnConfig?.SpecularAOStrength ?? 1.0f, 0f, 1f);
+        shader.DiffuseAOStrength = Math.Clamp(lumOnConfig?.LumOn.DiffuseAOStrength ?? 1.0f, 0f, 1f);
+        shader.SpecularAOStrength = Math.Clamp(lumOnConfig?.LumOn.SpecularAOStrength ?? 1.0f, 0f, 1f);
 
         shader.InvProjectionMatrix = invProjectionMatrix;
         shader.ViewMatrix = viewMatrix;

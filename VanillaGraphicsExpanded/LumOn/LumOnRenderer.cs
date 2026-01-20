@@ -102,7 +102,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// <summary>
     /// Whether LumOn rendering is enabled.
     /// </summary>
-    public bool Enabled => config.Enabled;
+    public bool Enabled => config.LumOn.Enabled;
 
     /// <summary>
     /// Debug counters for performance monitoring.
@@ -133,7 +133,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         this.gBufferManager = gBufferManager;
         this.worldProbeClipmapBufferManager = worldProbeClipmapBufferManager;
 
-        pmjJitter = new LumOnPmjJitterTexture(config.PmjJitterCycleLength, config.PmjJitterSeed);
+        pmjJitter = new LumOnPmjJitterTexture(config.LumOn.PmjJitterCycleLength, config.LumOn.PmjJitterSeed);
 
         // Create fullscreen quad mesh
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
@@ -209,8 +209,8 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     private bool OnToggleLumOn(KeyCombination keyCombination)
     {
-        config.Enabled = !config.Enabled;
-        string status = config.Enabled ? "enabled" : "disabled";
+        config.LumOn.Enabled = !config.LumOn.Enabled;
+        string status = config.LumOn.Enabled ? "enabled" : "disabled";
         capi.TriggerIngameError(this, "vgelumon", $"[LumOn] {status}");
         return true;
     }
@@ -248,7 +248,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     private bool TryRenderFrame(float deltaTime, EnumRenderStage stage)
     {
-        if (quadMeshRef is null || !config.Enabled)
+        if (quadMeshRef is null || !config.LumOn.Enabled)
             return false;
 
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
@@ -336,7 +336,7 @@ public class LumOnRenderer : IRenderer, IDisposable
             using var cpuTrace = Profiler.BeginScope("LumOn.Trace", "Render");
             using (GlGpuProfiler.Instance.Scope("LumOn.Trace"))
             {
-                if (config.UseProbeAtlas)
+                if (config.LumOn.UseProbeAtlas)
                 {
                     RenderProbeAtlasTracePass(primaryFb);
                 }
@@ -350,7 +350,7 @@ public class LumOnRenderer : IRenderer, IDisposable
             using var cpuTemporal = Profiler.BeginScope("LumOn.Temporal", "Render");
             using (GlGpuProfiler.Instance.Scope("LumOn.Temporal"))
             {
-                if (config.UseProbeAtlas)
+                if (config.LumOn.UseProbeAtlas)
                 {
                     RenderProbeAtlasTemporalPass();
                 }
@@ -361,7 +361,7 @@ public class LumOnRenderer : IRenderer, IDisposable
             }
 
             // === Pass 3.5: Probe-Atlas Filter/Denoise (Probe-space) ===
-            if (config.UseProbeAtlas)
+            if (config.LumOn.UseProbeAtlas)
             {
                 using var cpuAtlasFilter = Profiler.BeginScope("LumOn.AtlasFilter", "Render");
                 using (GlGpuProfiler.Instance.Scope("LumOn.AtlasFilter"))
@@ -371,7 +371,7 @@ public class LumOnRenderer : IRenderer, IDisposable
             }
 
             // === Pass 3.75: Probe-Atlas Projection (Option B) ===
-            if (config.UseProbeAtlas && config.ProbeAtlasGather == LumOnConfig.ProbeAtlasGatherMode.EvaluateProjectedSH)
+            if (config.LumOn.UseProbeAtlas && config.LumOn.ProbeAtlasGather == LumOnConfig.ProbeAtlasGatherMode.EvaluateProjectedSH)
             {
                 using var cpuAtlasProject = Profiler.BeginScope("LumOn.AtlasProjectSH9", "Render");
                 using (GlGpuProfiler.Instance.Scope("LumOn.AtlasProjectSH9"))
@@ -439,7 +439,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         double dz = origin[2] - lastCameraZ;
         double distance = Math.Sqrt(dx * dx + dy * dy + dz * dz);
 
-        return distance > config.CameraTeleportResetThreshold;
+        return distance > config.LumOn.CameraTeleportResetThreshold;
     }
 
     /// <summary>
@@ -489,7 +489,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Emissive GI scaling is a compile-time define to avoid extra uniform plumbing.
         // Ensure we emit a float literal (e.g., 2.0) to keep GLSL typing happy.
-        shader.SetDefine(VgeShaderDefines.LumOnEmissiveBoost, Math.Max(0.0f, config.EmissiveGiBoost).ToString("0.0####", CultureInfo.InvariantCulture));
+        shader.SetDefine(VgeShaderDefines.LumOnEmissiveBoost, Math.Max(0.0f, config.LumOn.EmissiveGiBoost).ToString("0.0####", CultureInfo.InvariantCulture));
 
         shader.Use();
 
@@ -543,19 +543,19 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.InvViewMatrix = invModelViewMatrix;  // For view-space to world-space transform
         
         // Pass probe grid uniforms
-        shader.ProbeSpacing = config.ProbeSpacingPx;
+        shader.ProbeSpacing = config.LumOn.ProbeSpacingPx;
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
 
         // Deterministic probe jitter (uses existing Squirrel3Hash in shader)
         shader.FrameIndex = frameIndex;
-        shader.AnchorJitterEnabled = config.AnchorJitterEnabled ? 1 : 0;
-        shader.AnchorJitterScale = config.AnchorJitterScale * 0.1f;// Scale down for subtlety
+        shader.AnchorJitterEnabled = config.LumOn.AnchorJitterEnabled ? 1 : 0;
+        shader.AnchorJitterScale = config.LumOn.AnchorJitterScale * 0.1f;// Scale down for subtlety
         shader.ZNear = capi.Render.ShaderUniforms.ZNear;
         shader.ZFar = capi.Render.ShaderUniforms.ZFar;
 
         // Edge detection threshold for depth discontinuity
-        shader.DepthDiscontinuityThreshold = config.DepthDiscontinuityThreshold;
+        shader.DepthDiscontinuityThreshold = config.LumOn.DepthDiscontinuityThreshold;
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);
@@ -614,7 +614,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ViewMatrix = modelViewMatrix;  // viewMatrix transforms WS probe data to VS for ray marching
 
         // Pass uniforms
-        shader.ProbeSpacing = config.ProbeSpacingPx;
+        shader.ProbeSpacing = config.LumOn.ProbeSpacingPx;
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
         shader.FrameIndex = frameIndex;
@@ -628,9 +628,9 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Indirect lighting tint (from config)
         shader.IndirectTint = new Vec3f(
-            config.IndirectTint[0], 
-            config.IndirectTint[1], 
-            config.IndirectTint[2]);
+            config.LumOn.IndirectTint[0], 
+            config.LumOn.IndirectTint[1], 
+            config.LumOn.IndirectTint[2]);
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);
@@ -659,16 +659,16 @@ public class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
 
         // Define-backed knobs must be set before Use() so the correct variant is bound.
-        shader.SetDefine(VgeShaderDefines.LumOnEmissiveBoost, Math.Max(0.0f, config.EmissiveGiBoost).ToString("0.0####", CultureInfo.InvariantCulture));
-        shader.TexelsPerFrame = config.ProbeAtlasTexelsPerFrame;
-        shader.RaySteps = config.RaySteps;
-        shader.RayMaxDistance = config.RayMaxDistance;
-        shader.RayThickness = config.RayThickness;
-        shader.SkyMissWeight = config.SkyMissWeight;
+        shader.SetDefine(VgeShaderDefines.LumOnEmissiveBoost, Math.Max(0.0f, config.LumOn.EmissiveGiBoost).ToString("0.0####", CultureInfo.InvariantCulture));
+        shader.TexelsPerFrame = config.LumOn.ProbeAtlasTexelsPerFrame;
+        shader.RaySteps = config.LumOn.RaySteps;
+        shader.RayMaxDistance = config.LumOn.RayMaxDistance;
+        shader.RayThickness = config.LumOn.RayThickness;
+        shader.SkyMissWeight = config.LumOn.SkyMissWeight;
 
         if (bufferManager.HzbDepthTex != null)
         {
-            shader.HzbCoarseMip = Math.Clamp(config.HzbCoarseMip, 0, Math.Max(0, bufferManager.HzbDepthTex.MipLevels - 1));
+            shader.HzbCoarseMip = Math.Clamp(config.LumOn.HzbCoarseMip, 0, Math.Max(0, bufferManager.HzbDepthTex.MipLevels - 1));
         }
 
         shader.Use();
@@ -726,9 +726,9 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Indirect lighting tint
         shader.IndirectTint = new Vec3f(
-            config.IndirectTint[0],
-            config.IndirectTint[1],
-            config.IndirectTint[2]);
+            config.LumOn.IndirectTint[0],
+            config.LumOn.IndirectTint[1],
+            config.LumOn.IndirectTint[2]);
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);
@@ -807,7 +807,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
 
         // Define-backed knobs must be set before Use() so the correct variant is bound.
-        shader.EnableReprojectionVelocity = config.EnableReprojectionVelocity;
+        shader.EnableReprojectionVelocity = config.LumOn.EnableReprojectionVelocity;
 
         shader.Use();
 
@@ -840,21 +840,21 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Pass screen mapping + jitter params (must match anchor pass)
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
-        shader.ProbeSpacing = config.ProbeSpacingPx;
+        shader.ProbeSpacing = config.LumOn.ProbeSpacingPx;
         shader.FrameIndex = frameIndex;
-        shader.AnchorJitterEnabled = config.AnchorJitterEnabled ? 1 : 0;
-        shader.AnchorJitterScale = config.AnchorJitterScale;
+        shader.AnchorJitterEnabled = config.LumOn.AnchorJitterEnabled ? 1 : 0;
+        shader.AnchorJitterScale = config.LumOn.AnchorJitterScale;
 
         // Pass depth parameters
         shader.ZNear = capi.Render.ShaderUniforms.ZNear;
         shader.ZFar = capi.Render.ShaderUniforms.ZFar;
 
         // Pass temporal parameters
-        shader.TemporalAlpha = config.TemporalAlpha;
-        shader.DepthRejectThreshold = config.DepthRejectThreshold;
-        shader.NormalRejectThreshold = config.NormalRejectThreshold;
+        shader.TemporalAlpha = config.LumOn.TemporalAlpha;
+        shader.DepthRejectThreshold = config.LumOn.DepthRejectThreshold;
+        shader.NormalRejectThreshold = config.LumOn.NormalRejectThreshold;
 
-        shader.VelocityRejectThreshold = config.VelocityRejectThreshold;
+        shader.VelocityRejectThreshold = config.LumOn.VelocityRejectThreshold;
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);
@@ -882,7 +882,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
 
         // Define-backed knobs must be set before Use() so the correct variant is bound.
-        shader.TexelsPerFrame = config.ProbeAtlasTexelsPerFrame;
+        shader.TexelsPerFrame = config.LumOn.ProbeAtlasTexelsPerFrame;
 
         shader.Use();
 
@@ -916,7 +916,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.FrameIndex = frameIndex;
 
         // Pass temporal blending parameters
-        shader.TemporalAlpha = config.TemporalAlpha;
+        shader.TemporalAlpha = config.LumOn.TemporalAlpha;
         shader.HitDistanceRejectThreshold = 0.3f;  // 30% relative difference threshold
 
         // Render
@@ -934,13 +934,13 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderGatherPass(FrameBufferRef primaryFb)
     {
-        if (!config.UseProbeAtlas)
+        if (!config.LumOn.UseProbeAtlas)
         {
             RenderSHGatherPass(primaryFb);
             return;
         }
 
-        if (config.ProbeAtlasGather == LumOnConfig.ProbeAtlasGatherMode.EvaluateProjectedSH)
+        if (config.LumOn.ProbeAtlasGather == LumOnConfig.ProbeAtlasGatherMode.EvaluateProjectedSH)
         {
             RenderProbeSh9GatherPass(primaryFb);
             return;
@@ -1043,14 +1043,14 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.InvProjectionMatrix = invProjectionMatrix;
         shader.ViewMatrix = modelViewMatrix;
         shader.InvViewMatrix = invModelViewMatrix;
-        shader.ProbeSpacing = config.ProbeSpacingPx;
+        shader.ProbeSpacing = config.LumOn.ProbeSpacingPx;
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
         shader.HalfResSize = new Vec2f(bufferManager.HalfResWidth, bufferManager.HalfResHeight);
         shader.ZNear = capi.Render.ShaderUniforms.ZNear;
         shader.ZFar = capi.Render.ShaderUniforms.ZFar;
-        shader.Intensity = config.Intensity;
-        shader.IndirectTint = config.IndirectTint;
+        shader.Intensity = config.LumOn.Intensity;
+        shader.IndirectTint = config.LumOn.IndirectTint;
 
         BindWorldProbeClipmap(shader);
 
@@ -1114,19 +1114,19 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.InvProjectionMatrix = invProjectionMatrix;
         shader.ViewMatrix = modelViewMatrix;
         shader.InvViewMatrix = invModelViewMatrix;
-        shader.ProbeSpacing = config.ProbeSpacingPx;
+        shader.ProbeSpacing = config.LumOn.ProbeSpacingPx;
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
         shader.HalfResSize = new Vec2f(bufferManager.HalfResWidth, bufferManager.HalfResHeight);
         shader.ZNear = capi.Render.ShaderUniforms.ZNear;
         shader.ZFar = capi.Render.ShaderUniforms.ZFar;
-        shader.DepthDiscontinuityThreshold = config.DepthDiscontinuityThreshold;
-        shader.Intensity = config.Intensity;
-        shader.IndirectTint = config.IndirectTint;
+        shader.DepthDiscontinuityThreshold = config.LumOn.DepthDiscontinuityThreshold;
+        shader.Intensity = config.LumOn.Intensity;
+        shader.IndirectTint = config.LumOn.IndirectTint;
 
         // Edge-aware weighting parameters (SPG-007 Section 2.3)
-        shader.DepthSigma = config.GatherDepthSigma;
-        shader.NormalSigma = config.GatherNormalSigma;
+        shader.DepthSigma = config.LumOn.GatherDepthSigma;
+        shader.NormalSigma = config.LumOn.GatherNormalSigma;
 
         BindWorldProbeClipmap(shader);
 
@@ -1195,18 +1195,18 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.InvProjectionMatrix = invProjectionMatrix;
         shader.ViewMatrix = modelViewMatrix;
         shader.InvViewMatrix = invModelViewMatrix;
-        shader.ProbeSpacing = config.ProbeSpacingPx;
+        shader.ProbeSpacing = config.LumOn.ProbeSpacingPx;
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
         shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
         shader.HalfResSize = new Vec2f(bufferManager.HalfResWidth, bufferManager.HalfResHeight);
         shader.ZNear = capi.Render.ShaderUniforms.ZNear;
         shader.ZFar = capi.Render.ShaderUniforms.ZFar;
-        shader.Intensity = config.Intensity;
-        shader.IndirectTint = config.IndirectTint;
+        shader.Intensity = config.LumOn.Intensity;
+        shader.IndirectTint = config.LumOn.IndirectTint;
 
         // Probe-atlas gather parameters (from config per Section 2.5)
-        shader.LeakThreshold = config.ProbeAtlasLeakThreshold;
-        shader.SampleStride = config.ProbeAtlasSampleStride;
+        shader.LeakThreshold = config.LumOn.ProbeAtlasLeakThreshold;
+        shader.SampleStride = config.LumOn.ProbeAtlasSampleStride;
 
         BindWorldProbeClipmap(shader);
 
@@ -1338,7 +1338,7 @@ public class LumOnRenderer : IRenderer, IDisposable
             uploader.Upload(resources, worldProbeResults, cfg.UploadBudgetBytesPerFrame);
         }
 
-        if (config.DebugMode == LumOnDebugMode.WorldProbeMetaFlagsHeatmap)
+        if (config.LumOn.DebugMode == LumOnDebugMode.WorldProbeMetaFlagsHeatmap)
         {
             using var heatmapScope = Profiler.BeginScope("LumOn.WorldProbe.DebugHeatmap", "LumOn");
             UpdateWorldProbeDebugHeatmap(resources);
@@ -1780,13 +1780,13 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ViewMatrix = modelViewMatrix;
 
         // Bilateral upsample parameters (SPG-008 Section 3.1)
-        shader.UpsampleDepthSigma = config.UpsampleDepthSigma;
-        shader.UpsampleNormalSigma = config.UpsampleNormalSigma;
-        shader.UpsampleSpatialSigma = config.UpsampleSpatialSigma;
+        shader.UpsampleDepthSigma = config.LumOn.UpsampleDepthSigma;
+        shader.UpsampleNormalSigma = config.LumOn.UpsampleNormalSigma;
+        shader.UpsampleSpatialSigma = config.LumOn.UpsampleSpatialSigma;
 
         // Phase 14: bounded hole filling for low-confidence indirect values
-        shader.HoleFillRadius = Math.Max(0, config.UpsampleHoleFillRadius);
-        shader.HoleFillMinConfidence = Math.Clamp(config.UpsampleHoleFillMinConfidence, 0f, 1f);
+        shader.HoleFillRadius = Math.Max(0, config.LumOn.UpsampleHoleFillRadius);
+        shader.HoleFillMinConfidence = Math.Clamp(config.LumOn.UpsampleHoleFillMinConfidence, 0f, 1f);
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);

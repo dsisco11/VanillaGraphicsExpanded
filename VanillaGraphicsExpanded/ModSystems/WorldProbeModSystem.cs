@@ -29,7 +29,7 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
         {
             var c = cfg.WorldProbeClipmap;
             return new WorldProbeLiveConfigSnapshot(
-                cfg.Enabled,
+                cfg.LumOn.Enabled,
                 c.ClipmapBaseSpacing,
                 c.ClipmapResolution,
                 c.ClipmapLevels,
@@ -63,7 +63,7 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
         lastSnapshot = WorldProbeLiveConfigSnapshot.From(ConfigModSystem.Config);
 
         // If LumOn starts enabled, initialize clipmap resources immediately so the renderer can run Phase 18.
-        if (ConfigModSystem.Config.Enabled)
+        if (ConfigModSystem.Config.LumOn.Enabled)
         {
             EnsureClipmapResources(api, "startup");
         }
