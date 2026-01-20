@@ -10,7 +10,7 @@ using VanillaGraphicsExpanded.Rendering;
 namespace VanillaGraphicsExpanded.PBR.Materials;
 
 /// <summary>
-/// Owns per-atlas-page <see cref="DynamicTexture2D"/> objects for the material params and normal+depth atlases.
+/// Owns per-atlas-page <see cref="Texture2D"/> objects for the material params and normal+depth atlases.
 /// Centralizes allocation, placeholder/default fills, and disposal so build/execution code can avoid managing
 /// texture lifetimes directly.
 /// </summary>
@@ -161,11 +161,11 @@ internal sealed class MaterialAtlasTextureStore : IDisposable
             return;
         }
 
-        DynamicTexture2D? existingNormalDepth = entry.Textures.NormalDepthTexture;
+        Texture2D? existingNormalDepth = entry.Textures.NormalDepthTexture;
 
         entry.Textures.MaterialParamsTexture.Dispose();
 
-        var updated = DynamicTexture2D.CreateWithData(
+        var updated = Texture2D.CreateWithData(
             width,
             height,
             PixelInternalFormat.Rgb16f,
@@ -186,7 +186,7 @@ internal sealed class MaterialAtlasTextureStore : IDisposable
             MaterialAtlasParamsBuilder.DefaultMetallic,
             MaterialAtlasParamsBuilder.DefaultEmissive);
 
-        var materialParamsTex = DynamicTexture2D.CreateWithData(
+        var materialParamsTex = Texture2D.CreateWithData(
             width,
             height,
             PixelInternalFormat.Rgb16f,
@@ -194,7 +194,7 @@ internal sealed class MaterialAtlasTextureStore : IDisposable
             TextureFilterMode.Nearest,
             debugName: $"vge_materialParams_atlas_{atlasTextureId}");
 
-        DynamicTexture2D? normalDepthTex = null;
+        Texture2D? normalDepthTex = null;
         if (enableNormalDepth)
         {
             // Initialize to an identity normal with zero depth so terrain shading stays stable
@@ -202,7 +202,7 @@ internal sealed class MaterialAtlasTextureStore : IDisposable
             float[] defaultNormalDepth = new float[checked(width * height * 4)];
             SimdSpanMath.FillInterleaved4(defaultNormalDepth, 0.5f, 0.5f, 1.0f, 0.0f);
 
-            normalDepthTex = DynamicTexture2D.CreateWithData(
+            normalDepthTex = Texture2D.CreateWithData(
                 width,
                 height,
                 PixelInternalFormat.Rgba16f,

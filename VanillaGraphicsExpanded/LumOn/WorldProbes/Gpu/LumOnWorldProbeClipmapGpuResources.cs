@@ -18,7 +18,7 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
     private readonly DynamicTexture2D dist0;
     private readonly DynamicTexture2D meta0;
 
-    private readonly DynamicTexture2D debugState0;
+    private readonly Texture2D debugState0;
 
     private readonly GBuffer fbo;
 
@@ -63,7 +63,7 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
 
         // Debug state: RGBA16 (UNorm) encoded by CPU from scheduler lifecycle.
         // R=stale, G=in-flight, B=valid, A=1.
-        debugState0 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16, TextureFilterMode.Nearest, "WorldProbe_DebugState0");
+        debugState0 = Texture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16, TextureFilterMode.Nearest, "WorldProbe_DebugState0");
 
         fbo = GBuffer.CreateMRT(
             "WorldProbe_ClipmapFbo",
@@ -118,7 +118,7 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
         debugState0.Dispose();
     }
 
-    private static void Label(DynamicTexture2D texture)
+    private static void Label(GpuTexture texture)
     {
         if (texture.TextureId == 0) return;
         GlDebug.TryLabel(ObjectLabelIdentifier.Texture, texture.TextureId, texture.DebugName);

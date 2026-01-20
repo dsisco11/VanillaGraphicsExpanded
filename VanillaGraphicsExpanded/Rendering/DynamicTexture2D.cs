@@ -506,7 +506,7 @@ public sealed class DynamicTexture2D : GpuTexture
     /// This method binds the texture to a temporary FBO for readback.
     /// For frequent readback operations, consider using a persistent FBO.
     /// </remarks>
-    public float[] ReadPixels()
+    public override float[] ReadPixels()
     {
         if (!IsValid)
         {
@@ -548,7 +548,7 @@ public sealed class DynamicTexture2D : GpuTexture
     /// Reads pixel data from a sub-region of the texture.
     /// Creates a temporary FBO for readback (best-effort; avoid calling frequently at runtime).
     /// </summary>
-    public float[] ReadPixelsRegion(int x, int y, int regionWidth, int regionHeight)
+    public override float[] ReadPixelsRegion(int x, int y, int regionWidth, int regionHeight)
     {
         if (!IsValid)
         {
@@ -593,7 +593,7 @@ public sealed class DynamicTexture2D : GpuTexture
     /// <summary>
     /// Reads pixel data from a specific mip level of the texture.
     /// </summary>
-    public float[] ReadPixels(int mipLevel)
+    public override float[] ReadPixels(int mipLevel)
     {
         if (!IsValid)
         {

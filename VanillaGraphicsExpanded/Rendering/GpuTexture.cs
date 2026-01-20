@@ -585,6 +585,150 @@ public abstract class GpuTexture : IDisposable
         GL.BindTexture(textureTarget, 0);
     }
 
+    #region Readback
+
+    /// <summary>
+    /// Reads pixel data from the full texture.
+    /// Requires the texture to be a 2D-like target; uses a temporary FBO for readback.
+    /// </summary>
+    public virtual float[] ReadPixels()
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GpuTexture] Attempted to read pixels from disposed or invalid texture");
+            return [];
+        }
+
+        Ensure2DLike();
+
+        int channelCount = GetChannelCount();
+        float[] data = new float[checked(width * height * channelCount)];
+
+        int tempFbo = GL.GenFramebuffer();
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, tempFbo);
+        GL.FramebufferTexture2D(
+            FramebufferTarget.Framebuffer,
+            FramebufferAttachment.ColorAttachment0,
+            textureTarget,
+            textureId,
+            0);
+
+        GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+        GL.ReadPixels(
+            0,
+            0,
+            width,
+            height,
+            TextureFormatHelper.GetPixelFormat(internalFormat),
+            PixelType.Float,
+            data);
+
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        GL.DeleteFramebuffer(tempFbo);
+
+        return data;
+    }
+
+    /// <summary>
+    /// Reads pixel data from a sub-region of the texture.
+    /// Creates a temporary FBO for readback (best-effort; avoid calling frequently at runtime).
+    /// </summary>
+    public virtual float[] ReadPixelsRegion(int x, int y, int regionWidth, int regionHeight)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GpuTexture] Attempted to read pixels from disposed or invalid texture");
+            return [];
+        }
+
+        Ensure2DLike();
+
+        if (x < 0 || y < 0 || x + regionWidth > width || y + regionHeight > height)
+        {
+            throw new ArgumentOutOfRangeException(
+                $"Region ({x}, {y}, {regionWidth}, {regionHeight}) extends beyond texture bounds ({width}×{height})");
+        }
+
+        int channelCount = GetChannelCount();
+        float[] data = new float[checked(regionWidth * regionHeight * channelCount)];
+
+        int tempFbo = GL.GenFramebuffer();
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, tempFbo);
+        GL.FramebufferTexture2D(
+            FramebufferTarget.Framebuffer,
+            FramebufferAttachment.ColorAttachment0,
+            textureTarget,
+            textureId,
+            0);
+
+        GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+        GL.ReadPixels(
+            x,
+            y,
+            regionWidth,
+            regionHeight,
+            TextureFormatHelper.GetPixelFormat(internalFormat),
+            PixelType.Float,
+            data);
+
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        GL.DeleteFramebuffer(tempFbo);
+
+        return data;
+    }
+
+    /// <summary>
+    /// Reads pixel data from a specific mip level of the texture.
+    /// </summary>
+    public virtual float[] ReadPixels(int mipLevel)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GpuTexture] Attempted to read pixels from disposed or invalid texture");
+            return [];
+        }
+
+        Ensure2DLike();
+
+        if (textureTarget != TextureTarget.Texture2D)
+        {
+            throw new InvalidOperationException($"Mip readback is not supported for target {textureTarget}.");
+        }
+
+        mipLevel = Math.Max(0, mipLevel);
+
+        int mipWidth = Math.Max(1, width >> mipLevel);
+        int mipHeight = Math.Max(1, height >> mipLevel);
+        int channelCount = GetChannelCount();
+        float[] data = new float[checked(mipWidth * mipHeight * channelCount)];
+
+        int tempFbo = GL.GenFramebuffer();
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, tempFbo);
+        GL.FramebufferTexture2D(
+            FramebufferTarget.Framebuffer,
+            FramebufferAttachment.ColorAttachment0,
+            TextureTarget.Texture2D,
+            textureId,
+            mipLevel);
+
+        GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+        GL.ReadPixels(
+            0,
+            0,
+            mipWidth,
+            mipHeight,
+            TextureFormatHelper.GetPixelFormat(internalFormat),
+            PixelType.Float,
+            data);
+
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        GL.DeleteFramebuffer(tempFbo);
+
+        return data;
+    }
+
+    #endregion
+
     public virtual void Dispose()
     {
         if (isDisposed)

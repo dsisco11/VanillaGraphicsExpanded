@@ -221,7 +221,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         // Phase 18 world-probe defines must be set before Use() as well.
         bool wantWorldProbe = false;
-        Vec3f wpCamPosVf = default;
+        System.Numerics.Vector3 wpCamPosWS = default;
         float wpBaseSpacing = 0;
         int wpLevels = 0;
         int wpResolution = 0;
@@ -238,7 +238,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 out wpRings))
         {
             wantWorldProbe = true;
-            wpCamPosVf = new Vec3f(wpCamPos.X, wpCamPos.Y, wpCamPos.Z);
+            wpCamPosWS = wpCamPos;
 
             // If defines changed, a recompile has been queued; skip rendering this frame.
             if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, wpBaseSpacing, wpLevels, wpResolution))
@@ -301,15 +301,18 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             shader.WorldProbeMeta0 = worldProbeClipmapBufferManager.Resources.ProbeMeta0TextureId;
             shader.WorldProbeDebugState0 = worldProbeClipmapBufferManager.Resources.ProbeDebugState0TextureId;
 
-            shader.WorldProbeCameraPosWS = wpCamPosVf;
+            // Shaders reconstruct camera-relative world positions (camera at 0,0,0) from depth using invViewMatrix.
+            // Convert clipmap params to the same space by shifting origins by the camera position.
+            shader.WorldProbeCameraPosWS = new Vec3f(0, 0, 0);
 
             for (int i = 0; i < 8; i++)
             {
                 var o = wpOrigins[i];
                 var r = wpRings[i];
+                var originRel = new Vec3f(o.X - wpCamPosWS.X, o.Y - wpCamPosWS.Y, o.Z - wpCamPosWS.Z);
                 if (!shader.TrySetWorldProbeLevelParams(
                         i,
-                        new Vec3f(o.X, o.Y, o.Z),
+                        originRel,
                         new Vec3f(r.X, r.Y, r.Z)))
                 {
                     break;

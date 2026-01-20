@@ -1454,11 +1454,17 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.WorldProbeSH2 = resources.ProbeSh2TextureId;
         shader.WorldProbeVis0 = resources.ProbeVis0TextureId;
         shader.WorldProbeMeta0 = resources.ProbeMeta0TextureId;
-        shader.WorldProbeCameraPosWS = camPos;
+
+        // Shaders reconstruct camera-relative world positions (camera at 0,0,0) from depth using invViewMatrix.
+        // Convert clipmap parameters to the same camera-relative space by shifting origins by the camera position.
+        shader.WorldProbeCameraPosWS = new Vec3f(0, 0, 0);
 
         for (int i = 0; i < 8; i++)
         {
-            if (!shader.TrySetWorldProbeLevelParams(i, origins[i], rings[i]))
+            var o = origins[i];
+            var originRel = new Vec3f(o.X - camPos.X, o.Y - camPos.Y, o.Z - camPos.Z);
+
+            if (!shader.TrySetWorldProbeLevelParams(i, originRel, rings[i]))
             {
                 return;
             }
@@ -1490,11 +1496,14 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.WorldProbeSH2 = resources.ProbeSh2TextureId;
         shader.WorldProbeVis0 = resources.ProbeVis0TextureId;
         shader.WorldProbeMeta0 = resources.ProbeMeta0TextureId;
-        shader.WorldProbeCameraPosWS = camPos;
+        shader.WorldProbeCameraPosWS = new Vec3f(0, 0, 0);
 
         for (int i = 0; i < 8; i++)
         {
-            if (!shader.TrySetWorldProbeLevelParams(i, origins[i], rings[i]))
+            var o = origins[i];
+            var originRel = new Vec3f(o.X - camPos.X, o.Y - camPos.Y, o.Z - camPos.Z);
+
+            if (!shader.TrySetWorldProbeLevelParams(i, originRel, rings[i]))
             {
                 return;
             }
@@ -1526,11 +1535,14 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.WorldProbeSH2 = resources.ProbeSh2TextureId;
         shader.WorldProbeVis0 = resources.ProbeVis0TextureId;
         shader.WorldProbeMeta0 = resources.ProbeMeta0TextureId;
-        shader.WorldProbeCameraPosWS = camPos;
+        shader.WorldProbeCameraPosWS = new Vec3f(0, 0, 0);
 
         for (int i = 0; i < 8; i++)
         {
-            if (!shader.TrySetWorldProbeLevelParams(i, origins[i], rings[i]))
+            var o = origins[i];
+            var originRel = new Vec3f(o.X - camPos.X, o.Y - camPos.Y, o.Z - camPos.Z);
+
+            if (!shader.TrySetWorldProbeLevelParams(i, originRel, rings[i]))
             {
                 return;
             }
