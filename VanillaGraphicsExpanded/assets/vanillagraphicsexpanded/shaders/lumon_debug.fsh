@@ -1291,7 +1291,9 @@ vec4 renderWorldProbeSpheresDebug()
     for (int level = 0; level < levels; level++)
     {
         float spacing = lumonWorldProbeSpacing(baseSpacing, level);
-        // Stored relative to absolute camera position; convert back to camera-matrix world space for ray math.
+        // Origins are stored relative to the absolute camera position (originAbs - cameraAbs).
+        // Convert back into camera-matrix world space for ray math:
+        //   originCm = originRel + cameraCm
         vec3 origin = worldProbeOriginMinCorner[level] + worldProbeCameraPosWS;
 
         float size = spacing * float(resolution);
@@ -1369,7 +1371,9 @@ vec4 renderWorldProbeSpheresDebug()
         }
     }
 
-    if (!hit) return vec4(0.0, 0.0, 0.0, 1.0);
+    // Do not overwrite the scene when no sphere is hit.
+    // This keeps the underlying world visible and allows the clipmap bounds wireframe overlay to be seen.
+    if (!hit) discard;
 
     vec3 hitPosWS = rayOriginWS + rayDirWS * bestT;
     vec3 N = hitPosWS - bestCenterWS;

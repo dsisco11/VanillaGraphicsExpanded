@@ -42,7 +42,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     private const int MaxWorldProbeLevels = 8;
     private const int ClipmapBoundsVerticesPerLevel = 48; // Outer clip volume + inner probe-center bounds (2 * 12 edges * 2 vertices)
-    private const int FrozenMarkerVertices = 24; // camera axes + L0 center + L0 min + L0 max (3*2 each)
+    private const int FrozenMarkerVertices = 36; // camera axes + L0 center + L0 min + L0 max + L0 first/last probe centers (3*2 each)
 
     #endregion
 
@@ -145,6 +145,18 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         MatrixHelper.Multiply(tempProjectionMatrix, tempModelViewMatrix, currentViewProjMatrix);
     }
 
+    private void UpdateCurrentViewProjMatrixNoTranslate()
+    {
+        // Bounds vertices are in camera-relative space (originAbs - cameraAbs).
+        // Render with a view matrix that has translation removed so we don't apply camera translation twice.
+        Array.Copy(capi.Render.CurrentProjectionMatrix, tempProjectionMatrix, 16);
+        Array.Copy(capi.Render.CameraMatrixOriginf, tempModelViewMatrix, 16);
+        tempModelViewMatrix[12] = 0;
+        tempModelViewMatrix[13] = 0;
+        tempModelViewMatrix[14] = 0;
+        MatrixHelper.Multiply(tempProjectionMatrix, tempModelViewMatrix, currentViewProjMatrix);
+    }
+
     #endregion
 
     #region IRenderer
@@ -157,6 +169,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             if (config.DebugMode == LumOnDebugMode.WorldProbeClipmapBounds)
             {
                 RenderWorldProbeClipmapBoundsFrozen();
+            }
+            else if (config.DebugMode == LumOnDebugMode.WorldProbeSpheres)
+            {
+                RenderWorldProbeClipmapBoundsLive();
             }
 
             return;
@@ -226,7 +242,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         // Update matrices
         MatrixHelper.Invert(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
         MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invViewMatrix);
-        UpdateCurrentViewProjMatrix();
+        UpdateCurrentViewProjMatrixNoTranslate();
 
         // Define-backed toggles must be set before Use() so the correct variant is bound.
         shader.EnablePbrComposite = config.EnablePbrComposite;
@@ -348,7 +364,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 shader.WorldProbeDebugState0 = worldProbeClipmapBufferManager.Resources.ProbeDebugState0TextureId;
 
                 // Shaders reconstruct world positions in the engine's camera-matrix world space (invViewMatrix).
-                // If runtime params are missing, fall back to the current inverse view translation.
+                // Always derive camera position from the *current* inverse view matrix (matches reconstruction in shaders).
+                // Runtime params may be from a different renderer pass / slightly different matrix state.
                 if (!hasWorldProbeRuntimeParams || wpOrigins is null || wpRings is null)
                 {
                     shader.WorldProbeCameraPosWS = new Vec3f(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
@@ -360,7 +377,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 }
                 else
                 {
-                    shader.WorldProbeCameraPosWS = new Vec3f(wpCamPosWS.X, wpCamPosWS.Y, wpCamPosWS.Z);
+                    shader.WorldProbeCameraPosWS = new Vec3f(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
 
                     for (int i = 0; i < 8; i++)
                     {
@@ -546,6 +563,25 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             frozenCameraPosWorld.X, frozenCameraPosWorld.Y, frozenCameraPosWorld.Z,
             frozenBaseSpacing * frozenResolution,
             frozenLevels);
+
+        // Extra diagnostics to catch origin/extent sign mistakes.
+        // If probe centers appear to start at the max-corner, these numbers will make it unambiguous.
+        if (frozenLevels > 0 && frozenResolution > 0)
+        {
+            var o0 = frozenOriginsWorld[0];
+            double spacing0 = frozenBaseSpacing;
+            double size0 = spacing0 * frozenResolution;
+            var max0 = new Vec3d(o0.X + size0, o0.Y + size0, o0.Z + size0);
+            var firstCenter0 = new Vec3d(o0.X + 0.5 * spacing0, o0.Y + 0.5 * spacing0, o0.Z + 0.5 * spacing0);
+            var lastCenter0 = new Vec3d(o0.X + (frozenResolution - 0.5) * spacing0, o0.Y + (frozenResolution - 0.5) * spacing0, o0.Z + (frozenResolution - 0.5) * spacing0);
+
+            capi.Logger.Debug(
+                "[VGE] Frozen world-probe L0: originMin=({0:0.###},{1:0.###},{2:0.###}) max=({3:0.###},{4:0.###},{5:0.###}) firstCenter=({6:0.###},{7:0.###},{8:0.###}) lastCenter=({9:0.###},{10:0.###},{11:0.###})",
+                o0.X, o0.Y, o0.Z,
+                max0.X, max0.Y, max0.Z,
+                firstCenter0.X, firstCenter0.Y, firstCenter0.Z,
+                lastCenter0.X, lastCenter0.Y, lastCenter0.Z);
+        }
     }
 
     private void RenderWorldProbeClipmapBoundsFrozen()
@@ -671,6 +707,115 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         }
 
         StorePrevViewProjMatrix();
+    }
+
+    private void RenderWorldProbeClipmapBoundsLive()
+    {
+        // Live bounds overlay (for WorldProbeSpheres mode) so we can compare bounds + spheres in the same frame.
+        if (worldProbeClipmapBufferManager?.Resources is null)
+        {
+            return;
+        }
+
+        if (!worldProbeClipmapBufferManager.TryGetRuntimeParams(
+                out _,
+                out float baseSpacing,
+                out int levels,
+                out int resolution,
+                out var origins,
+                out _))
+        {
+            return;
+        }
+
+        var shader = capi.Shader.GetProgramByName("vge_debug_lines") as VgeDebugLinesShaderProgram;
+        if (shader is null || shader.LoadError)
+        {
+            return;
+        }
+
+        EnsureClipmapBoundsLineGlObjects();
+        if (clipmapBoundsVao == 0 || clipmapBoundsVbo == 0)
+        {
+            return;
+        }
+
+        levels = Math.Clamp(levels, 1, MaxWorldProbeLevels);
+
+        // Convert runtime origins (originAbs - cameraAbs) into camera-matrix world space so the wireframe lines
+        // match the sphere debug shader (which ray-marches in camera-matrix world space).
+        MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invViewMatrix);
+        var camPosMatrix = new System.Numerics.Vector3(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
+
+        for (int i = 0; i < MaxWorldProbeLevels; i++)
+        {
+            frozenOrigins[i] = (i < origins.Length) ? (origins[i] + camPosMatrix) : default;
+        }
+
+        UpdateCurrentViewProjMatrix();
+
+        int vertexCount = BuildClipmapBoundsVertices(
+            baseSpacing: baseSpacing,
+            levels: levels,
+            resolution: resolution,
+            origins: frozenOrigins,
+            frozenCameraMarkerPos: camPosMatrix);
+
+        if (vertexCount <= 0)
+        {
+            return;
+        }
+
+        using var cpuScope = Profiler.BeginScope("Debug.WorldProbeClipmapBoundsLive", "Render");
+        using (GlGpuProfiler.Instance.Scope("Debug.WorldProbeClipmapBoundsLive"))
+        {
+            bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
+            bool prevBlend = GL.IsEnabled(EnableCap.Blend);
+            bool prevDepthMask = GL.GetBoolean(GetPName.DepthWritemask);
+            int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
+            int prevDepthFunc = GL.GetInteger(GetPName.DepthFunc);
+
+            bool shaderUsed = false;
+            try
+            {
+                GL.Enable(EnableCap.DepthTest);
+                GL.DepthFunc(DepthFunction.Lequal);
+                capi.Render.GlToggleBlend(false);
+                capi.Render.GLDepthMask(false);
+
+                shader.Use();
+                shaderUsed = true;
+                shader.ModelViewProjectionMatrix = currentViewProjMatrix;
+
+                GL.BindVertexArray(clipmapBoundsVao);
+
+                int stride = Marshal.SizeOf<LineVertex>();
+                GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapBoundsVbo);
+                GL.BufferData(BufferTarget.ArrayBuffer, vertexCount * stride, clipmapBoundsVertices, BufferUsageHint.StreamDraw);
+
+                GL.LineWidth(2f);
+                GL.DrawArrays(PrimitiveType.Lines, 0, vertexCount);
+                GL.LineWidth(1f);
+
+                GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+                GL.BindVertexArray(0);
+            }
+            finally
+            {
+                if (shaderUsed)
+                {
+                    shader.Stop();
+                }
+
+                if (prevDepthTest) GL.Enable(EnableCap.DepthTest);
+                else GL.Disable(EnableCap.DepthTest);
+
+                GL.DepthFunc((DepthFunction)prevDepthFunc);
+                capi.Render.GLDepthMask(prevDepthMask);
+                capi.Render.GlToggleBlend(prevBlend);
+                GL.ActiveTexture((TextureUnit)prevActiveTexture);
+            }
+        }
     }
 
     private void EnsureClipmapBoundsLineGlObjects()
@@ -814,6 +959,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         // - a small RGB axis tripod at the frozen camera position (so you can move away and still see where it was captured)
         // - a small YUV-ish axis tripod at the L0 clipmap center (to reveal any offset/bias)
         // - a small axis tripod at the L0 min-corner and max-corner (to make it obvious which corner is which)
+        // - a small axis tripod at the L0 first/last probe center (to disambiguate "probes start at max-corner")
         // This makes it obvious the overlay is in world space when you move away.
         if ((uint)written + FrozenMarkerVertices <= (uint)clipmapBoundsVertices.Length)
         {
@@ -862,6 +1008,22 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 AddMarkerLine(maxX, maxY, maxZ, maxX + axisLen, maxY, maxZ, 0.6f, 0.6f, 0.6f);
                 AddMarkerLine(maxX, maxY, maxZ, maxX, maxY + axisLen, maxZ, 0.6f, 0.6f, 0.6f);
                 AddMarkerLine(maxX, maxY, maxZ, maxX, maxY, maxZ + axisLen, 0.6f, 0.6f, 0.6f);
+
+                // L0 first probe center marker (bright orange-ish)
+                float firstX = o0.X + baseSpacing * 0.5f;
+                float firstY = o0.Y + baseSpacing * 0.5f;
+                float firstZ = o0.Z + baseSpacing * 0.5f;
+                AddMarkerLine(firstX, firstY, firstZ, firstX + axisLen, firstY, firstZ, 1f, 0.55f, 0.2f);
+                AddMarkerLine(firstX, firstY, firstZ, firstX, firstY + axisLen, firstZ, 1f, 0.55f, 0.2f);
+                AddMarkerLine(firstX, firstY, firstZ, firstX, firstY, firstZ + axisLen, 1f, 0.55f, 0.2f);
+
+                // L0 last probe center marker (bright white)
+                float lastX = o0.X + size0 - baseSpacing * 0.5f;
+                float lastY = o0.Y + size0 - baseSpacing * 0.5f;
+                float lastZ = o0.Z + size0 - baseSpacing * 0.5f;
+                AddMarkerLine(lastX, lastY, lastZ, lastX + axisLen, lastY, lastZ, 0.95f, 0.95f, 0.95f);
+                AddMarkerLine(lastX, lastY, lastZ, lastX, lastY + axisLen, lastZ, 0.95f, 0.95f, 0.95f);
+                AddMarkerLine(lastX, lastY, lastZ, lastX, lastY, lastZ + axisLen, 0.95f, 0.95f, 0.95f);
             }
         }
 
