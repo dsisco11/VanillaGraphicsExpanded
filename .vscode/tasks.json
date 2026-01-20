@@ -104,14 +104,11 @@
         },
         {
             "label": "build",
-            "command": "dotnet",
-            "type": "process",
-            "args": [
-                "build",
-                "-c",
-                "Debug",
-                "${workspaceFolder}/VanillaGraphicsExpanded/VanillaGraphicsExpanded.csproj"
-            ],
+            "type": "dotnet",
+            "task": "build",
+            "options": {
+                "cwd": "${workspaceFolder}/VanillaGraphicsExpanded"
+            },
             "problemMatcher": "$msCompile",
             "presentation": {
                 "panel": "dedicated",
@@ -160,14 +157,11 @@
         },
         {
             "label": "clean",
-            "command": "dotnet",
-            "type": "process",
-            "args": [
-                "clean",
-                "-c",
-                "Debug",
-                "${workspaceFolder}/VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj"
-            ],
+            "type": "dotnet",
+            "task": "clean",
+            "options": {
+                "cwd": "${workspaceFolder}/VanillaGraphicsExpanded.Tests"
+            },
             "problemMatcher": "$msCompile",
             "presentation": {
                 "panel": "new",
@@ -179,20 +173,15 @@
         },
         {
             "label": "Test",
-            "command": "dotnet",
-            "type": "process",
+            "type": "dotnet",
+            "task": "test",
             "dependsOn": [
                 "Clean"
             ],
             "dependsOrder": "sequence",
-            "args": [
-                "test",
-                "-c",
-                "Debug",
-                "${workspaceFolder}/VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj",
-                "-v",
-                "normal"
-            ],
+            "options": {
+                "cwd": "${workspaceFolder}/VanillaGraphicsExpanded.Tests"
+            },
             "problemMatcher": "$msCompile",
             "presentation": {
                 "panel": "new",
