@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
@@ -8,6 +9,7 @@ using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.Rendering.Profiling;
+using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 
@@ -38,6 +40,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private const double DEBUG_RENDER_ORDER = 1.1; // After other debug overlays
     private const int RENDER_RANGE = 1;
 
+    private const int MaxWorldProbeLevels = 8;
+    private const int ClipmapBoundsVerticesPerLevel = 24; // 12 edges * 2 vertices
+    private const int FrozenMarkerVertices = 6; // 3 axes * 2 vertices
+
     #endregion
 
     #region Fields
@@ -51,6 +57,20 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager;
 
     private MeshRef? quadMeshRef;
+
+    private LumOnDebugMode lastMode = LumOnDebugMode.Off;
+
+    private bool hasFrozenClipmapBounds;
+    private System.Numerics.Vector3 frozenCameraPosWS;
+    private float frozenBaseSpacing;
+    private int frozenLevels;
+    private int frozenResolution;
+    private readonly System.Numerics.Vector3[] frozenOrigins = new System.Numerics.Vector3[MaxWorldProbeLevels];
+
+    // World-probe bounds debug line rendering (GL_LINES, camera-relative coords).
+    private readonly LineVertex[] clipmapBoundsVertices = new LineVertex[MaxWorldProbeLevels * ClipmapBoundsVerticesPerLevel + FrozenMarkerVertices];
+    private int clipmapBoundsVao;
+    private int clipmapBoundsVbo;
 
     // Matrix buffers
     private readonly float[] invProjectionMatrix = new float[16];
@@ -127,10 +147,22 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
+        if (config.DebugMode != lastMode)
+        {
+            OnDebugModeChanged(prev: lastMode, current: config.DebugMode);
+            lastMode = config.DebugMode;
+        }
+
         // VGE-only debug views that do not rely on lumon_debug.fsh.
         if (config.DebugMode == LumOnDebugMode.VgeNormalDepthAtlas)
         {
             RenderVgeNormalDepthAtlas();
+            return;
+        }
+
+        if (config.DebugMode == LumOnDebugMode.WorldProbeClipmapBounds)
+        {
+            RenderWorldProbeClipmapBoundsFrozen();
             return;
         }
 
@@ -336,6 +368,288 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         StorePrevViewProjMatrix();
     }
 
+    private void OnDebugModeChanged(LumOnDebugMode prev, LumOnDebugMode current)
+    {
+        if (current == LumOnDebugMode.WorldProbeClipmapBounds)
+        {
+            CaptureFrozenClipmapBounds();
+        }
+        else if (prev == LumOnDebugMode.WorldProbeClipmapBounds)
+        {
+            hasFrozenClipmapBounds = false;
+        }
+    }
+
+    private void CaptureFrozenClipmapBounds()
+    {
+        hasFrozenClipmapBounds = false;
+
+        if (worldProbeClipmapBufferManager?.Resources is null)
+        {
+            return;
+        }
+
+        if (!worldProbeClipmapBufferManager.TryGetRuntimeParams(
+                out frozenCameraPosWS,
+                out frozenBaseSpacing,
+                out frozenLevels,
+                out frozenResolution,
+                out var origins,
+                out _))
+        {
+            return;
+        }
+
+        frozenLevels = Math.Clamp(frozenLevels, 1, MaxWorldProbeLevels);
+        for (int i = 0; i < MaxWorldProbeLevels; i++)
+        {
+            frozenOrigins[i] = (i < origins.Length) ? origins[i] : default;
+        }
+
+        hasFrozenClipmapBounds = true;
+
+        capi.Logger.Notification(
+            "[VGE] Frozen world-probe clipmap bounds captured (camera={0:0.0},{1:0.0},{2:0.0}; L0 size={3:0.0}m; levels={4})",
+            frozenCameraPosWS.X, frozenCameraPosWS.Y, frozenCameraPosWS.Z,
+            frozenBaseSpacing * frozenResolution,
+            frozenLevels);
+    }
+
+    private void RenderWorldProbeClipmapBoundsFrozen()
+    {
+        if (!hasFrozenClipmapBounds)
+        {
+            // Try once per frame until data becomes available (e.g. switching modes before Phase 18 has produced params).
+            CaptureFrozenClipmapBounds();
+            if (!hasFrozenClipmapBounds)
+            {
+                return;
+            }
+        }
+
+        var shader = capi.Shader.GetProgramByName("vge_debug_lines") as VgeDebugLinesShaderProgram;
+        if (shader is null || shader.LoadError)
+        {
+            return;
+        }
+
+        EnsureClipmapBoundsLineGlObjects();
+        if (clipmapBoundsVao == 0 || clipmapBoundsVbo == 0)
+        {
+            return;
+        }
+
+        UpdateCurrentViewProjMatrix();
+
+        // Use current camera position so the frozen world-space bounds appear to move as you move around.
+        if (capi.Render.CameraMatrixOrigin is null)
+        {
+            StorePrevViewProjMatrix();
+            return;
+        }
+
+        var origin = capi.Render.CameraMatrixOrigin;
+        var currentCamPosWS = new System.Numerics.Vector3((float)origin[0], (float)origin[1], (float)origin[2]);
+
+        int vertexCount = BuildClipmapBoundsVertices(
+            cameraPosWS: currentCamPosWS,
+            baseSpacing: frozenBaseSpacing,
+            levels: frozenLevels,
+            resolution: frozenResolution,
+            origins: frozenOrigins);
+
+        if (vertexCount <= 0)
+        {
+            StorePrevViewProjMatrix();
+            return;
+        }
+
+        using var cpuScope = Profiler.BeginScope("Debug.WorldProbeClipmapBounds", "Render");
+        using (GlGpuProfiler.Instance.Scope("Debug.WorldProbeClipmapBounds"))
+        {
+            GL.Disable(EnableCap.DepthTest);
+            capi.Render.GlToggleBlend(false);
+            capi.Render.GLDepthMask(false);
+
+            shader.Use();
+            shader.ModelViewProjectionMatrix = currentViewProjMatrix;
+
+            GL.BindVertexArray(clipmapBoundsVao);
+
+            int stride = Marshal.SizeOf<LineVertex>();
+            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapBoundsVbo);
+            GL.BufferData(BufferTarget.ArrayBuffer, vertexCount * stride, clipmapBoundsVertices, BufferUsageHint.StreamDraw);
+
+            GL.LineWidth(2f);
+            GL.DrawArrays(PrimitiveType.Lines, 0, vertexCount);
+            GL.LineWidth(1f);
+
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+            GL.BindVertexArray(0);
+
+            shader.Stop();
+
+            GL.Enable(EnableCap.DepthTest);
+            capi.Render.GLDepthMask(true);
+        }
+
+        StorePrevViewProjMatrix();
+    }
+
+    private void EnsureClipmapBoundsLineGlObjects()
+    {
+        if (clipmapBoundsVao != 0 && clipmapBoundsVbo != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            clipmapBoundsVao = GL.GenVertexArray();
+            clipmapBoundsVbo = GL.GenBuffer();
+
+            GL.BindVertexArray(clipmapBoundsVao);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapBoundsVbo);
+
+            int stride = Marshal.SizeOf<LineVertex>();
+
+            // vec3 position
+            GL.EnableVertexAttribArray(0);
+            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, stride, 0);
+
+            // vec4 color
+            GL.EnableVertexAttribArray(1);
+            GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, stride, 12);
+
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+            GL.BindVertexArray(0);
+
+            GlDebug.TryLabel(ObjectLabelIdentifier.VertexArray, clipmapBoundsVao, "VGE_WorldProbeClipmapBoundsLines_VAO");
+            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapBoundsVbo, "VGE_WorldProbeClipmapBoundsLines_VBO");
+        }
+        catch
+        {
+            // Best-effort only; fall back to no-op if GL objects can't be created.
+            if (clipmapBoundsVbo != 0) GL.DeleteBuffer(clipmapBoundsVbo);
+            if (clipmapBoundsVao != 0) GL.DeleteVertexArray(clipmapBoundsVao);
+            clipmapBoundsVao = 0;
+            clipmapBoundsVbo = 0;
+        }
+    }
+
+    private int BuildClipmapBoundsVertices(
+        System.Numerics.Vector3 cameraPosWS,
+        float baseSpacing,
+        int levels,
+        int resolution,
+        System.Numerics.Vector3[] origins)
+    {
+        levels = Math.Clamp(levels, 1, MaxWorldProbeLevels);
+
+        int written = 0;
+        for (int level = 0; level < levels; level++)
+        {
+            float spacing = baseSpacing * (1 << level);
+            float size = spacing * resolution;
+
+            // Camera-relative so we can use the engine's camera-relative view matrix.
+            var o = origins[level];
+            float minX = o.X - cameraPosWS.X;
+            float minY = o.Y - cameraPosWS.Y;
+            float minZ = o.Z - cameraPosWS.Z;
+
+            float maxX = minX + size;
+            float maxY = minY + size;
+            float maxZ = minZ + size;
+
+            (float r, float g, float b, float a) = GetDebugColorForLevel(level);
+
+            void AddVertex(float x, float y, float z)
+            {
+                if ((uint)written >= (uint)clipmapBoundsVertices.Length)
+                {
+                    return;
+                }
+
+                clipmapBoundsVertices[written++] = new LineVertex
+                {
+                    X = x,
+                    Y = y,
+                    Z = z,
+                    R = r,
+                    G = g,
+                    B = b,
+                    A = a
+                };
+            }
+
+            void AddLine(float ax, float ay, float az, float bx, float by, float bz)
+            {
+                AddVertex(ax, ay, az);
+                AddVertex(bx, by, bz);
+            }
+
+            // 8 corners
+            float x0 = minX, x1 = maxX;
+            float y0 = minY, y1 = maxY;
+            float z0 = minZ, z1 = maxZ;
+
+            // bottom (z0)
+            AddLine(x0, y0, z0, x1, y0, z0);
+            AddLine(x1, y0, z0, x1, y1, z0);
+            AddLine(x1, y1, z0, x0, y1, z0);
+            AddLine(x0, y1, z0, x0, y0, z0);
+
+            // top (z1)
+            AddLine(x0, y0, z1, x1, y0, z1);
+            AddLine(x1, y0, z1, x1, y1, z1);
+            AddLine(x1, y1, z1, x0, y1, z1);
+            AddLine(x0, y1, z1, x0, y0, z1);
+
+            // verticals
+            AddLine(x0, y0, z0, x0, y0, z1);
+            AddLine(x1, y0, z0, x1, y0, z1);
+            AddLine(x1, y1, z0, x1, y1, z1);
+            AddLine(x0, y1, z0, x0, y1, z1);
+        }
+
+        // Frozen capture marker: a small RGB axis tripod at the frozen camera position.
+        // This makes it obvious the overlay is in world space when you move away.
+        if ((uint)written + FrozenMarkerVertices <= (uint)clipmapBoundsVertices.Length)
+        {
+            float axisLen = Math.Clamp(baseSpacing * 2f, 1f, 8f);
+
+            float ox = frozenCameraPosWS.X - cameraPosWS.X;
+            float oy = frozenCameraPosWS.Y - cameraPosWS.Y;
+            float oz = frozenCameraPosWS.Z - cameraPosWS.Z;
+
+            void AddMarkerLine(float ax, float ay, float az, float bx, float by, float bz, float r, float g, float b)
+            {
+                clipmapBoundsVertices[written++] = new LineVertex { X = ax, Y = ay, Z = az, R = r, G = g, B = b, A = 1f };
+                clipmapBoundsVertices[written++] = new LineVertex { X = bx, Y = by, Z = bz, R = r, G = g, B = b, A = 1f };
+            }
+
+            // X (red), Y (green), Z (blue)
+            AddMarkerLine(ox, oy, oz, ox + axisLen, oy, oz, 1f, 0.25f, 0.25f);
+            AddMarkerLine(ox, oy, oz, ox, oy + axisLen, oz, 0.25f, 1f, 0.25f);
+            AddMarkerLine(ox, oy, oz, ox, oy, oz + axisLen, 0.25f, 0.6f, 1f);
+        }
+
+        return Math.Min(written, clipmapBoundsVertices.Length);
+    }
+
+    private static (float r, float g, float b, float a) GetDebugColorForLevel(int level) => level switch
+    {
+        0 => (1f, 0.25f, 0.25f, 1f),
+        1 => (0.25f, 1f, 0.25f, 1f),
+        2 => (0.25f, 0.6f, 1f, 1f),
+        3 => (1f, 0.85f, 0.25f, 1f),
+        4 => (1f, 0.25f, 1f, 1f),
+        5 => (0.25f, 1f, 1f, 1f),
+        6 => (1f, 0.55f, 0.25f, 1f),
+        _ => (0.9f, 0.9f, 0.9f, 1f),
+    };
+
     private void RenderVgeNormalDepthAtlas()
     {
         if (quadMeshRef is null)
@@ -412,7 +726,31 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             quadMeshRef = null;
         }
 
+        if (clipmapBoundsVbo != 0)
+        {
+            GL.DeleteBuffer(clipmapBoundsVbo);
+            clipmapBoundsVbo = 0;
+        }
+
+        if (clipmapBoundsVao != 0)
+        {
+            GL.DeleteVertexArray(clipmapBoundsVao);
+            clipmapBoundsVao = 0;
+        }
+
         capi.Event.UnregisterRenderer(this, EnumRenderStage.AfterBlit);
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    private struct LineVertex
+    {
+        public float X;
+        public float Y;
+        public float Z;
+        public float R;
+        public float G;
+        public float B;
+        public float A;
     }
 
     #endregion

@@ -3,7 +3,8 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// <summary>
 /// Debug visualization modes for the LumOn debug overlay.
 /// 
-/// Values map directly to the shader's <c>debugMode</c> switch in <c>lumon_debug.fsh</c>.
+/// Most values map directly to the shader's <c>debugMode</c> switch in <c>lumon_debug.fsh</c>.
+/// Some modes are VGE-only and are special-cased by the C# debug renderer.
 /// </summary>
 public enum LumOnDebugMode
 {
@@ -69,4 +70,7 @@ public enum LumOnDebugMode
     WorldProbeMetaFlagsHeatmap = 37,
     WorldProbeBlendWeights = 38,
     WorldProbeCrossLevelBlend = 39,
+
+    // VGE-only (line rendering; not driven by lumon_debug.fsh)
+    WorldProbeClipmapBounds = 40,
 }

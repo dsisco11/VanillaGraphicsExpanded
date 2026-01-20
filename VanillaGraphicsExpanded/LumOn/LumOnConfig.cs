@@ -116,7 +116,7 @@ public class LumOnConfig
         /// This initial implementation uses a cubic grid: (N×N×N).
         /// </summary>
         [JsonProperty]
-        public int ClipmapResolution { get; set; } = 32;
+        public int ClipmapResolution { get; set; } = 16;
 
         /// <summary>
         /// Number of clipmap levels (L0..L{N-1}).
@@ -130,14 +130,14 @@ public class LumOnConfig
         /// Hot-reloadable.
         /// </summary>
         [JsonProperty]
-        public int[] PerLevelProbeUpdateBudget { get; set; } = [256, 128, 64, 32];
+        public int[] PerLevelProbeUpdateBudget { get; set; } = [64, 32, 16, 8];
 
         /// <summary>
         /// Global CPU cap for the number of probes traced per frame across all levels.
         /// Hot-reloadable.
         /// </summary>
         [JsonProperty]
-        public int TraceMaxProbesPerFrame { get; set; } = 512;
+        public int TraceMaxProbesPerFrame { get; set; } = 128;
 
         /// <summary>
         /// Global GPU upload bandwidth cap for world-probe updates.

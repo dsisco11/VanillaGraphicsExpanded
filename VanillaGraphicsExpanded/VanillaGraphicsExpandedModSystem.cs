@@ -6,6 +6,7 @@ using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.Rendering.Profiling;
 
 using Vintagestory.API.Client;
@@ -122,6 +123,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
     private static bool LoadShaders(ICoreClientAPI api)
     {
+        // General-purpose debug line shader (C#-rendered overlays).
+        VgeDebugLinesShaderProgram.Register(api);
+
         // PBR direct lighting shader
         PBRDirectLightingShaderProgram.Register(api);
 
