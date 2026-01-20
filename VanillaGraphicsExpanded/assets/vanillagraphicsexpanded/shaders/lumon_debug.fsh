@@ -1279,7 +1279,7 @@ vec4 renderWorldProbeSpheresDebug()
     }
 
     // Fixed world-space sphere radius so clip levels don't explode in size.
-    float radius = max(baseSpacing * 0.35, 0.05);
+    float radius = max(baseSpacing * 0.12, 0.03);
 
     // Find the closest sphere hit across levels.
     float bestT = 1e20;

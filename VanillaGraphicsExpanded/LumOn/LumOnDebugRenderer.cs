@@ -43,6 +43,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private const int MaxWorldProbeLevels = 8;
     private const int ClipmapBoundsVerticesPerLevel = 48; // Outer clip volume + inner probe-center bounds (2 * 12 edges * 2 vertices)
     private const int FrozenMarkerVertices = 36; // camera axes + L0 center + L0 min + L0 max + L0 first/last probe centers (3*2 each)
+    private const int MaxProbePointVertices = 300_000; // Safety cap to avoid pathological allocations (e.g., res>64).
 
     #endregion
 
@@ -72,6 +73,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private readonly LineVertex[] clipmapBoundsVertices = new LineVertex[MaxWorldProbeLevels * ClipmapBoundsVerticesPerLevel + FrozenMarkerVertices];
     private int clipmapBoundsVao;
     private int clipmapBoundsVbo;
+
+    // World-probe per-probe point rendering (GL_POINTS, camera-matrix world space).
+    private LineVertex[]? clipmapProbePointVertices;
+    private int clipmapProbePointsVao;
+    private int clipmapProbePointsVbo;
 
     // Matrix buffers
     private readonly float[] invProjectionMatrix = new float[16];
@@ -168,7 +174,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         {
             if (config.DebugMode == LumOnDebugMode.WorldProbeClipmapBounds)
             {
-                RenderWorldProbeClipmapBoundsFrozen();
+                RenderWorldProbeClipmapBoundsLive();
             }
             else if (config.DebugMode == LumOnDebugMode.WorldProbeSpheres)
             {
@@ -496,21 +502,16 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 float camLocalX = -o0.X / denom;
                 float camLocalY = -o0.Y / denom;
                 float camLocalZ = -o0.Z / denom;
-                float expected = resolutionL0 * 0.5f;
+                float expectedMin = resolutionL0 * 0.5f;
+                float expectedMax = expectedMin + 1f;
 
                 capi.Logger.Debug(
-                    $"[VGE] World-probe L0: originRel=({o0.X:0.###},{o0.Y:0.###},{o0.Z:0.###}), ring=({r0.X},{r0.Y},{r0.Z}), camLocal=({camLocalX:0.##},{camLocalY:0.##},{camLocalZ:0.##}) expected~{expected:0.##}");
+                    $"[VGE] World-probe L0: originRel=({o0.X:0.###},{o0.Y:0.###},{o0.Z:0.###}), ring=({r0.X},{r0.Y},{r0.Z}), camLocal=({camLocalX:0.##},{camLocalY:0.##},{camLocalZ:0.##}) expected≈[{expectedMin:0.##},{expectedMax:0.##})");
             }
         }
 
-        if (current == LumOnDebugMode.WorldProbeClipmapBounds)
-        {
-            CaptureFrozenClipmapBounds();
-        }
-        else if (prev == LumOnDebugMode.WorldProbeClipmapBounds)
-        {
-            hasFrozenClipmapBounds = false;
-        }
+        // WorldProbeClipmapBounds is live now; keep frozen capture code around for future use,
+        // but do not auto-capture when entering the mode.
     }
 
     private void CaptureFrozenClipmapBounds()
@@ -718,7 +719,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         }
 
         if (!worldProbeClipmapBufferManager.TryGetRuntimeParams(
-                out _,
+                out var camPosWS,
                 out float baseSpacing,
                 out int levels,
                 out int resolution,
@@ -744,8 +745,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         // Convert runtime origins (originAbs - cameraAbs) into camera-matrix world space so the wireframe lines
         // match the sphere debug shader (which ray-marches in camera-matrix world space).
-        MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invViewMatrix);
-        var camPosMatrix = new System.Numerics.Vector3(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
+        // Use the published camera position from the runtime params so the conversion matches the same frame's
+        // world-probe uniforms (avoids per-pass camera bob/weave).
+        var camPosMatrix = camPosWS;
 
         for (int i = 0; i < MaxWorldProbeLevels; i++)
         {
@@ -766,6 +768,19 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
+        // Also render per-probe GL_POINTS so we can compare "actual probe centers" against the bounds without
+        // any ray-march selection quirks from the sphere debug shader.
+        EnsureClipmapProbePointsGlObjects();
+        int pointCount = 0;
+        if (clipmapProbePointsVao != 0 && clipmapProbePointsVbo != 0)
+        {
+            pointCount = BuildClipmapProbePointVertices(
+                baseSpacing: baseSpacing,
+                levels: levels,
+                resolution: resolution,
+                origins: frozenOrigins);
+        }
+
         using var cpuScope = Profiler.BeginScope("Debug.WorldProbeClipmapBoundsLive", "Render");
         using (GlGpuProfiler.Instance.Scope("Debug.WorldProbeClipmapBoundsLive"))
         {
@@ -774,6 +789,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             bool prevDepthMask = GL.GetBoolean(GetPName.DepthWritemask);
             int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
             int prevDepthFunc = GL.GetInteger(GetPName.DepthFunc);
+            float prevPointSize = GL.GetFloat(GetPName.PointSize);
 
             bool shaderUsed = false;
             try
@@ -799,6 +815,20 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
                 GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
                 GL.BindVertexArray(0);
+
+                if (pointCount > 0 && clipmapProbePointVertices is not null)
+                {
+                    GL.PointSize(3.5f);
+
+                    GL.BindVertexArray(clipmapProbePointsVao);
+
+                    GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbePointsVbo);
+                    GL.BufferData(BufferTarget.ArrayBuffer, pointCount * stride, clipmapProbePointVertices, BufferUsageHint.StreamDraw);
+                    GL.DrawArrays(PrimitiveType.Points, 0, pointCount);
+
+                    GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+                    GL.BindVertexArray(0);
+                }
             }
             finally
             {
@@ -811,6 +841,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 else GL.Disable(EnableCap.DepthTest);
 
                 GL.DepthFunc((DepthFunction)prevDepthFunc);
+                GL.PointSize(prevPointSize);
                 capi.Render.GLDepthMask(prevDepthMask);
                 capi.Render.GlToggleBlend(prevBlend);
                 GL.ActiveTexture((TextureUnit)prevActiveTexture);
@@ -857,6 +888,105 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             clipmapBoundsVao = 0;
             clipmapBoundsVbo = 0;
         }
+    }
+
+    private void EnsureClipmapProbePointsGlObjects()
+    {
+        if (clipmapProbePointsVao != 0 && clipmapProbePointsVbo != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            clipmapProbePointsVao = GL.GenVertexArray();
+            clipmapProbePointsVbo = GL.GenBuffer();
+
+            GL.BindVertexArray(clipmapProbePointsVao);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbePointsVbo);
+
+            int stride = Marshal.SizeOf<LineVertex>();
+
+            // vec3 position
+            GL.EnableVertexAttribArray(0);
+            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, stride, 0);
+
+            // vec4 color
+            GL.EnableVertexAttribArray(1);
+            GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, stride, 12);
+
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+            GL.BindVertexArray(0);
+
+            GlDebug.TryLabel(ObjectLabelIdentifier.VertexArray, clipmapProbePointsVao, "VGE_WorldProbeClipmapProbePoints_VAO");
+            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapProbePointsVbo, "VGE_WorldProbeClipmapProbePoints_VBO");
+        }
+        catch
+        {
+            // Best-effort only; fall back to no-op if GL objects can't be created.
+            if (clipmapProbePointsVbo != 0) GL.DeleteBuffer(clipmapProbePointsVbo);
+            if (clipmapProbePointsVao != 0) GL.DeleteVertexArray(clipmapProbePointsVao);
+            clipmapProbePointsVao = 0;
+            clipmapProbePointsVbo = 0;
+        }
+    }
+
+    private int BuildClipmapProbePointVertices(
+        float baseSpacing,
+        int levels,
+        int resolution,
+        System.Numerics.Vector3[] origins)
+    {
+        levels = Math.Clamp(levels, 1, MaxWorldProbeLevels);
+        resolution = Math.Max(1, resolution);
+
+        long requested = (long)levels * resolution * resolution * resolution;
+        if (requested <= 0 || requested > MaxProbePointVertices)
+        {
+            return 0;
+        }
+
+        clipmapProbePointVertices ??= Array.Empty<LineVertex>();
+        if (clipmapProbePointVertices.Length < requested)
+        {
+            clipmapProbePointVertices = new LineVertex[requested];
+        }
+
+        int written = 0;
+        for (int level = 0; level < levels; level++)
+        {
+            float spacing = baseSpacing * (1 << level);
+            var o = origins[level];
+
+            (float r, float g, float b, float a) = GetDebugColorForLevel(level);
+            (r, g, b, a) = (r * 0.85f, g * 0.85f, b * 0.85f, 1f);
+
+            for (int z = 0; z < resolution; z++)
+            {
+                for (int y = 0; y < resolution; y++)
+                {
+                    for (int x = 0; x < resolution; x++)
+                    {
+                        float px = o.X + (x + 0.5f) * spacing;
+                        float py = o.Y + (y + 0.5f) * spacing;
+                        float pz = o.Z + (z + 0.5f) * spacing;
+
+                        clipmapProbePointVertices[written++] = new LineVertex
+                        {
+                            X = px,
+                            Y = py,
+                            Z = pz,
+                            R = r,
+                            G = g,
+                            B = b,
+                            A = a
+                        };
+                    }
+                }
+            }
+        }
+
+        return written;
     }
 
     private int BuildClipmapBoundsVertices(
@@ -913,23 +1043,24 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
             void AddBox(float x0, float y0, float z0, float x1, float y1, float z1)
             {
-                // bottom (z0)
+                // Vintage Story uses Y-up. Draw bottom/top in the XZ plane at Y=y0/y1.
+                // bottom (y0)
                 AddLine(x0, y0, z0, x1, y0, z0);
-                AddLine(x1, y0, z0, x1, y1, z0);
-                AddLine(x1, y1, z0, x0, y1, z0);
-                AddLine(x0, y1, z0, x0, y0, z0);
-
-                // top (z1)
-                AddLine(x0, y0, z1, x1, y0, z1);
-                AddLine(x1, y0, z1, x1, y1, z1);
-                AddLine(x1, y1, z1, x0, y1, z1);
-                AddLine(x0, y1, z1, x0, y0, z1);
-
-                // verticals
-                AddLine(x0, y0, z0, x0, y0, z1);
                 AddLine(x1, y0, z0, x1, y0, z1);
+                AddLine(x1, y0, z1, x0, y0, z1);
+                AddLine(x0, y0, z1, x0, y0, z0);
+
+                // top (y1)
+                AddLine(x0, y1, z0, x1, y1, z0);
                 AddLine(x1, y1, z0, x1, y1, z1);
-                AddLine(x0, y1, z0, x0, y1, z1);
+                AddLine(x1, y1, z1, x0, y1, z1);
+                AddLine(x0, y1, z1, x0, y1, z0);
+
+                // verticals (along Y)
+                AddLine(x0, y0, z0, x0, y1, z0);
+                AddLine(x1, y0, z0, x1, y1, z0);
+                AddLine(x1, y0, z1, x1, y1, z1);
+                AddLine(x0, y0, z1, x0, y1, z1);
             }
 
             // Outer clip volume bounds: [originMinCorner, originMinCorner + resolution*spacing]
@@ -1143,6 +1274,18 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         {
             GL.DeleteVertexArray(clipmapBoundsVao);
             clipmapBoundsVao = 0;
+        }
+
+        if (clipmapProbePointsVbo != 0)
+        {
+            GL.DeleteBuffer(clipmapProbePointsVbo);
+            clipmapProbePointsVbo = 0;
+        }
+
+        if (clipmapProbePointsVao != 0)
+        {
+            GL.DeleteVertexArray(clipmapProbePointsVao);
+            clipmapProbePointsVao = 0;
         }
 
         capi.Event.UnregisterRenderer(this, EnumRenderStage.AfterBlit);
