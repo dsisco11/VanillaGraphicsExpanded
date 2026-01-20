@@ -192,31 +192,31 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
             pendingNormalDepthGpuJobs.Enqueue(completedNd.Priority, completedNd);
         }
 
-        float materialBudgetMs = ConfigModSystem.Config.MaterialAtlasAsyncBudgetMs;
+        float materialBudgetMs = ConfigModSystem.Config.MaterialAtlas.MaterialAtlasAsyncBudgetMs;
         if (materialBudgetMs <= 0)
         {
             materialBudgetMs = 0.5f;
         }
 
-        int materialMaxUploads = ConfigModSystem.Config.MaterialAtlasAsyncMaxUploadsPerFrame;
+        int materialMaxUploads = ConfigModSystem.Config.MaterialAtlas.MaterialAtlasAsyncMaxUploadsPerFrame;
         if (materialMaxUploads <= 0)
         {
             materialMaxUploads = 1;
         }
 
-        float normalDepthBudgetMs = ConfigModSystem.Config.NormalDepthAtlasAsyncBudgetMs;
+        float normalDepthBudgetMs = ConfigModSystem.Config.MaterialAtlas.NormalDepthAtlasAsyncBudgetMs;
         if (normalDepthBudgetMs <= 0)
         {
             normalDepthBudgetMs = 0.5f;
         }
 
-        int normalDepthMaxUploads = ConfigModSystem.Config.NormalDepthAtlasAsyncMaxUploadsPerFrame;
+        int normalDepthMaxUploads = ConfigModSystem.Config.MaterialAtlas.NormalDepthAtlasAsyncMaxUploadsPerFrame;
         if (normalDepthMaxUploads <= 0)
         {
             normalDepthMaxUploads = 1;
         }
 
-        int maxCpuJobsPerFrame = ConfigModSystem.Config.MaterialAtlasAsyncMaxCpuJobsPerFrame;
+        int maxCpuJobsPerFrame = ConfigModSystem.Config.MaterialAtlas.MaterialAtlasAsyncMaxCpuJobsPerFrame;
         if (maxCpuJobsPerFrame <= 0)
         {
             maxCpuJobsPerFrame = 1;
@@ -390,7 +390,7 @@ internal sealed class MaterialAtlasBuildScheduler : IDisposable
 
         if (active.IsComplete
             && lastLoggedCompleteGenerationId != active.GenerationId
-            && ConfigModSystem.Config.EnableMaterialAtlasDiskCache
+            && ConfigModSystem.Config.MaterialAtlas.EnableCaching
             && capi is not null
             && active.CacheCounters is not null)
         {

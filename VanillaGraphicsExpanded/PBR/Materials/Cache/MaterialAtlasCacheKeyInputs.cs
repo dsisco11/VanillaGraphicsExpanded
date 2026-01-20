@@ -12,6 +12,7 @@ internal readonly record struct MaterialAtlasCacheKeyInputs(int SchemaVersion, s
 {
     public static MaterialAtlasCacheKeyInputs Create(LumOnConfig config, AtlasSnapshot snapshot, PbrMaterialRegistry registry)
     {
+            LumOnConfig.MaterialAtlasConfig atlas = config.MaterialAtlas;
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(registry);
@@ -19,8 +20,8 @@ internal readonly record struct MaterialAtlasCacheKeyInputs(int SchemaVersion, s
         // Bump whenever the stable prefix contract changes.
         const int SchemaVersion = 4;
 
-        string prefix = FormattableString.Invariant(
-            $"schema={SchemaVersion}|atlas=(reload={snapshot.ReloadIteration},nonNull={snapshot.NonNullPositionCount})|matDefs={registry.MaterialById.Count}|mapRules={registry.MappingRules.Count}|defScale=({registry.DefaultScale.Roughness:R},{registry.DefaultScale.Metallic:R},{registry.DefaultScale.Emissive:R},{registry.DefaultScale.Normal:R},{registry.DefaultScale.Depth:R})|ndEnabled={config.EnableNormalDepthAtlas}|ndBake=({config.NormalDepthBake.SigmaBig:R},{config.NormalDepthBake.Sigma1:R},{config.NormalDepthBake.Sigma2:R},{config.NormalDepthBake.Sigma3:R},{config.NormalDepthBake.Sigma4:R},{config.NormalDepthBake.W1:R},{config.NormalDepthBake.W2:R},{config.NormalDepthBake.W3:R},{config.NormalDepthBake.Gain:R},{config.NormalDepthBake.MaxSlope:R},{config.NormalDepthBake.EdgeT0:R},{config.NormalDepthBake.EdgeT1:R},{config.NormalDepthBake.MultigridVCycles},{config.NormalDepthBake.MultigridPreSmooth},{config.NormalDepthBake.MultigridPostSmooth},{config.NormalDepthBake.MultigridCoarsestIters},{config.NormalDepthBake.HeightStrength:R},{config.NormalDepthBake.Gamma:R},{config.NormalDepthBake.NormalStrength:R})");
+            string prefix = FormattableString.Invariant(
+                $"schema={SchemaVersion}|atlas=(reload={snapshot.ReloadIteration},nonNull={snapshot.NonNullPositionCount})|matDefs={registry.MaterialById.Count}|mapRules={registry.MappingRules.Count}|defScale=({registry.DefaultScale.Roughness:R},{registry.DefaultScale.Metallic:R},{registry.DefaultScale.Emissive:R},{registry.DefaultScale.Normal:R},{registry.DefaultScale.Depth:R})|ndEnabled={atlas.EnableNormalMaps}|ndBake=({atlas.NormalDepthBake.SigmaBig:R},{atlas.NormalDepthBake.Sigma1:R},{atlas.NormalDepthBake.Sigma2:R},{atlas.NormalDepthBake.Sigma3:R},{atlas.NormalDepthBake.Sigma4:R},{atlas.NormalDepthBake.W1:R},{atlas.NormalDepthBake.W2:R},{atlas.NormalDepthBake.W3:R},{atlas.NormalDepthBake.Gain:R},{atlas.NormalDepthBake.MaxSlope:R},{atlas.NormalDepthBake.EdgeT0:R},{atlas.NormalDepthBake.EdgeT1:R},{atlas.NormalDepthBake.MultigridVCycles},{atlas.NormalDepthBake.MultigridPreSmooth},{atlas.NormalDepthBake.MultigridPostSmooth},{atlas.NormalDepthBake.MultigridCoarsestIters},{atlas.NormalDepthBake.HeightStrength:R},{atlas.NormalDepthBake.Gamma:R},{atlas.NormalDepthBake.NormalStrength:R})");
 
         return new MaterialAtlasCacheKeyInputs(SchemaVersion, prefix);
     }

@@ -71,7 +71,7 @@ Registry + Atlas Snapshot + Config
 
 The disk cache can be toggled via config:
 
-- `EnableMaterialAtlasDiskCache`: `true` by default.
+- `MaterialAtlas.EnableCaching`: `true` by default.
 
 When disabled, the cache behaves as a no-op store (always miss; no writes).
 
@@ -297,7 +297,7 @@ To reduce time-to-first-frame after loading (and to keep heavy misses deferred),
 **cache-only warmup** pass during the loading screen.
 
 - The warmup pass builds the same tile plans as the normal pipeline.
-- It performs *index-only* probes first and schedules CPU jobs **only** for tiles whose cache keys exist in `meta.json`.
+- It performs _index-only_ probes first and schedules CPU jobs **only** for tiles whose cache keys exist in `meta.json`.
 - Scheduled warmup jobs read cached `.dds` payloads and enqueue GPU uploads.
 - Cache misses are ignored in warmup (no procedural material params work and no normal+depth bakes are triggered).
 

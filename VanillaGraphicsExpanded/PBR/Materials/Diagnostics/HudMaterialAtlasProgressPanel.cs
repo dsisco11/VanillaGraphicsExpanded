@@ -92,7 +92,7 @@ internal sealed class HudMaterialAtlasProgressPanel : HudElement
 
     private void OnGameTick(float dt)
     {
-        if (!ConfigModSystem.Config.ShowMaterialAtlasProgressPanel)
+        if (!ConfigModSystem.Config.MaterialAtlas.ShowMaterialAtlasProgressPanel)
         {
             HideImmediate();
             return;

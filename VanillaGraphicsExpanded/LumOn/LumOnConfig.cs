@@ -104,6 +104,122 @@ public class LumOnConfig
     }
 
     [JsonObject(MemberSerialization.OptIn)]
+    public sealed class MaterialAtlasConfig
+    {
+        /// <summary>
+        /// Enables progressive async population of the material params atlas (RGB16F).
+        /// When disabled, the atlas is populated synchronously during loading.
+        /// </summary>
+        [JsonProperty]
+        public bool EnableAsync { get; set; } = true;
+
+        /// <summary>
+        /// Per-frame time budget (ms) for the async material atlas scheduler.
+        /// This caps render-thread work (job dispatch + texture sub-region uploads).
+        /// </summary>
+        [JsonProperty]
+        public float MaterialAtlasAsyncBudgetMs { get; set; } = 1.0f;
+
+        /// <summary>
+        /// Maximum number of texture sub-region uploads per frame.
+        /// Limits GL work and reduces hitching.
+        /// </summary>
+        [JsonProperty]
+        public int MaterialAtlasAsyncMaxUploadsPerFrame { get; set; } = 32;
+
+        /// <summary>
+        /// Maximum number of CPU tile jobs dispatched per frame.
+        /// Limits task churn and keeps background work paced.
+        /// </summary>
+        [JsonProperty]
+        public int MaterialAtlasAsyncMaxCpuJobsPerFrame { get; set; } = 32;
+
+        /// <summary>
+        /// Per-frame time budget (ms) for the async normal+depth atlas jobs.
+        /// This caps render-thread work for normal+depth uploads/bakes.
+        /// </summary>
+        [JsonProperty]
+        public float NormalDepthAtlasAsyncBudgetMs { get; set; } = 1.0f;
+
+        /// <summary>
+        /// Maximum number of normal+depth atlas jobs executed per frame.
+        /// Limits GL work and reduces hitching during the bake.
+        /// </summary>
+        [JsonProperty]
+        public int NormalDepthAtlasAsyncMaxUploadsPerFrame { get; set; } = 32;
+
+        /// <summary>
+        /// Enables building and binding the VGE normal+depth sidecar atlas.
+        /// Pixels are generated during loading from tileable albedo textures (per texture rect).
+        /// Requires restart / re-entering the world to fully apply.
+        /// </summary>
+        [JsonProperty]
+        public bool EnableNormalMaps { get; set; } = true;
+
+        /// <summary>
+        /// Enables the material atlas disk cache.
+        /// When enabled, material params and normal+depth tiles can be loaded from and persisted to disk
+        /// so subsequent sessions can skip expensive work.
+        /// </summary>
+        [JsonProperty]
+        public bool EnableCaching { get; set; } = true;
+
+        /// <summary>
+        /// Enables debug logging for disk cache hit/miss counters.
+        /// </summary>
+        [JsonProperty]
+        public bool DebugLogMaterialAtlasDiskCache { get; set; } = true;
+
+        /// <summary>
+        /// Shows an in-game progress panel while the material atlas is building.
+        /// Intended for development/diagnostics; off by default.
+        /// </summary>
+        [JsonProperty]
+        public bool ShowMaterialAtlasProgressPanel { get; set; } = true;
+
+        /// <summary>
+        /// Enables parallax mapping in patched vanilla chunk shaders.
+        /// Requires shader reload / re-entering the world to fully apply.
+        /// </summary>
+        [JsonProperty]
+        public bool EnableParallaxMapping { get; set; } = false;
+
+        /// <summary>
+        /// Parallax UV offset scale (in atlas UV units).
+        /// This is intentionally small; typical range: 0.005 .. 0.05.
+        /// </summary>
+        [JsonProperty]
+        public float ParallaxScale { get; set; } = 0.03f;
+
+        /// <summary>
+        /// Parameters for generating a tileable height/normal field from albedo.
+        /// Applied during loading when <see cref="EnableNormalMaps"/> is enabled.
+        /// </summary>
+        [JsonProperty]
+        public NormalDepthBakeConfig NormalDepthBake { get; set; } = new();
+
+        /// <summary>
+        /// Enables additional debug logging for normal+depth atlas build/bind plumbing.
+        /// </summary>
+        [JsonProperty]
+        public bool DebugLogNormalDepthAtlas { get; set; } = true;
+
+        internal void Sanitize()
+        {
+            // Keep existing behavior for NaNs: clamp/guards are conservative.
+            MaterialAtlasAsyncBudgetMs = Math.Clamp(MaterialAtlasAsyncBudgetMs, 0.0f, 100.0f);
+            MaterialAtlasAsyncMaxUploadsPerFrame = Math.Clamp(MaterialAtlasAsyncMaxUploadsPerFrame, 0, 512);
+            MaterialAtlasAsyncMaxCpuJobsPerFrame = Math.Clamp(MaterialAtlasAsyncMaxCpuJobsPerFrame, 0, 512);
+            NormalDepthAtlasAsyncBudgetMs = Math.Clamp(NormalDepthAtlasAsyncBudgetMs, 0.0f, 100.0f);
+            NormalDepthAtlasAsyncMaxUploadsPerFrame = Math.Clamp(NormalDepthAtlasAsyncMaxUploadsPerFrame, 0, 512);
+
+            ParallaxScale = Math.Clamp(ParallaxScale, 0.0f, 0.25f);
+
+            NormalDepthBake ??= new NormalDepthBakeConfig();
+        }
+    }
+
+    [JsonObject(MemberSerialization.OptIn)]
     public sealed class WorldProbeClipmapConfig
     {
         /// <summary>
@@ -288,102 +404,11 @@ public class LumOnConfig
     // ═══════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// Enables progressive async population of the material params atlas (RGB16F).
-    /// When disabled, the atlas is populated synchronously during loading.
+    /// Configuration for VGE's material atlas + normal/depth sidecar atlases.
+    /// Persisted under: MaterialAtlas
     /// </summary>
     [JsonProperty]
-    public bool EnableMaterialAtlasAsyncBuild { get; set; } = true;
-
-    /// <summary>
-    /// Per-frame time budget (ms) for the async material atlas scheduler.
-    /// This caps render-thread work (job dispatch + texture sub-region uploads).
-    /// </summary>
-    [JsonProperty]
-    public float MaterialAtlasAsyncBudgetMs { get; set; } = 1.0f;
-
-    /// <summary>
-    /// Maximum number of texture sub-region uploads per frame.
-    /// Limits GL work and reduces hitching.
-    /// </summary>
-    [JsonProperty]
-    public int MaterialAtlasAsyncMaxUploadsPerFrame { get; set; } = 32;
-
-    /// <summary>
-    /// Maximum number of CPU tile jobs dispatched per frame.
-    /// Limits task churn and keeps background work paced.
-    /// </summary>
-    [JsonProperty]
-    public int MaterialAtlasAsyncMaxCpuJobsPerFrame { get; set; } = 32;
-
-    /// <summary>
-    /// Per-frame time budget (ms) for the async normal+depth atlas jobs.
-    /// This caps render-thread work for normal+depth uploads/bakes.
-    /// </summary>
-    [JsonProperty]
-    public float NormalDepthAtlasAsyncBudgetMs { get; set; } = 1.0f;
-
-    /// <summary>
-    /// Maximum number of normal+depth atlas jobs executed per frame.
-    /// Limits GL work and reduces hitching during the bake.
-    /// </summary>
-    [JsonProperty]
-    public int NormalDepthAtlasAsyncMaxUploadsPerFrame { get; set; } = 32;
-
-    /// <summary>
-    /// Enables building and binding the VGE normal+depth sidecar atlas.
-    /// Pixels are generated during loading from tileable albedo textures (per texture rect).
-    /// Requires restart / re-entering the world to fully apply.
-    /// </summary>
-    [JsonProperty]
-    public bool EnableNormalDepthAtlas { get; set; } = true;
-
-    /// <summary>
-    /// Enables the material atlas disk cache.
-    /// When enabled, material params and normal+depth tiles can be loaded from and persisted to disk
-    /// so subsequent sessions can skip expensive work.
-    /// </summary>
-    [JsonProperty]
-    public bool EnableMaterialAtlasDiskCache { get; set; } = true;
-
-    /// <summary>
-    /// Enables debug logging for disk cache hit/miss counters.
-    /// </summary>
-    [JsonProperty]
-    public bool DebugLogMaterialAtlasDiskCache { get; set; } = true;
-
-    /// <summary>
-    /// Shows an in-game progress panel while the material atlas is building.
-    /// Intended for development/diagnostics; off by default.
-    /// </summary>
-    [JsonProperty]
-    public bool ShowMaterialAtlasProgressPanel { get; set; } = true;
-
-    /// <summary>
-    /// Enables parallax mapping in patched vanilla chunk shaders.
-    /// Requires shader reload / re-entering the world to fully apply.
-    /// </summary>
-    [JsonProperty]
-    public bool EnableParallaxMapping { get; set; } = false;
-
-    /// <summary>
-    /// Parallax UV offset scale (in atlas UV units).
-    /// This is intentionally small; typical range: 0.005 .. 0.05.
-    /// </summary>
-    [JsonProperty]
-    public float ParallaxScale { get; set; } = 0.03f;
-
-    /// <summary>
-    /// Parameters for generating a tileable height/normal field from albedo.
-    /// Applied during loading when <see cref="EnableNormalDepthAtlas"/> is enabled.
-    /// </summary>
-    [JsonProperty]
-    public NormalDepthBakeConfig NormalDepthBake { get; set; } = new();
-
-    /// <summary>
-    /// Enables additional debug logging for normal+depth atlas build/bind plumbing.
-    /// </summary>
-    [JsonProperty]
-    public bool DebugLogNormalDepthAtlas { get; set; } = true;
+    public MaterialAtlasConfig MaterialAtlas { get; set; } = new();
 
     // ════════════════════════════════════════════════════════════════════════
     // Texture Streaming (PBO)
@@ -813,7 +838,8 @@ public class LumOnConfig
         // Ensure nested config objects are initialized
         TextureStreaming ??= new TextureStreamingConfig();
         WorldProbeClipmap ??= new WorldProbeClipmapConfig();
-        NormalDepthBake ??= new NormalDepthBakeConfig();
+        MaterialAtlas ??= new MaterialAtlasConfig();
+        MaterialAtlas.NormalDepthBake ??= new NormalDepthBakeConfig();
 
         // No additional migration logic needed here since the legacy proxy properties
         // automatically forward to TextureStreaming, and Newtonsoft will deserialize
@@ -845,16 +871,11 @@ public class LumOnConfig
         VelocityRejectThreshold = Math.Clamp(VelocityRejectThreshold, 0.0f, 1.0f);
         CameraTeleportResetThreshold = Math.Clamp(CameraTeleportResetThreshold, 0.0f, 10_000.0f);
 
-        MaterialAtlasAsyncBudgetMs = Math.Clamp(MaterialAtlasAsyncBudgetMs, 0.0f, 100.0f);
-        MaterialAtlasAsyncMaxUploadsPerFrame = Math.Clamp(MaterialAtlasAsyncMaxUploadsPerFrame, 0, 512);
-        MaterialAtlasAsyncMaxCpuJobsPerFrame = Math.Clamp(MaterialAtlasAsyncMaxCpuJobsPerFrame, 0, 512);
-        NormalDepthAtlasAsyncBudgetMs = Math.Clamp(NormalDepthAtlasAsyncBudgetMs, 0.0f, 100.0f);
-        NormalDepthAtlasAsyncMaxUploadsPerFrame = Math.Clamp(NormalDepthAtlasAsyncMaxUploadsPerFrame, 0, 512);
+        MaterialAtlas ??= new MaterialAtlasConfig();
+        MaterialAtlas.Sanitize();
 
         TextureStreaming ??= new TextureStreamingConfig();
         TextureStreaming.Sanitize();
-
-        ParallaxScale = Math.Clamp(ParallaxScale, 0.0f, 0.25f);
 
         Intensity = Math.Clamp(Intensity, 0.0f, 16.0f);
         EmissiveGiBoost = Math.Clamp(EmissiveGiBoost, 0.0f, 64.0f);

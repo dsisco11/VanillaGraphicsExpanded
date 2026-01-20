@@ -218,13 +218,13 @@ uniform sampler2D vge_normalDepthTex;
 
     private static void InjectParallaxDefines(SyntaxTree tree)
     {
-        if (!ConfigModSystem.Config.EnableParallaxMapping) return;
-        if (!ConfigModSystem.Config.EnableNormalDepthAtlas) return;
+        if (!ConfigModSystem.Config.MaterialAtlas.EnableParallaxMapping) return;
+        if (!ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps) return;
 
         var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
         if (!tree.Select(versionQuery).Any()) return;
 
-        string scale = ConfigModSystem.Config.ParallaxScale.ToString("0.0####", CultureInfo.InvariantCulture);
+        string scale = ConfigModSystem.Config.MaterialAtlas.ParallaxScale.ToString("0.0####", CultureInfo.InvariantCulture);
 
         string defineBlock = $@"
 

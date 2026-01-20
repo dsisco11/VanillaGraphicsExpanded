@@ -189,7 +189,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
                 mg ??= new MultigridResources();
                 mg.EnsureSize(solverW, solverH);
 
-                var cfg = ConfigModSystem.Config;
+                var cfg = ConfigModSystem.Config.MaterialAtlas;
                 var bake = cfg.NormalDepthBake;
 
                 // Adaptive clamp: SigmaBig as configured can be too aggressive for small tiles (e.g. 32x32),
@@ -426,7 +426,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
                 }
             }
 
-            if (ConfigModSystem.Config.DebugLogNormalDepthAtlas &&
+            if (ConfigModSystem.Config.MaterialAtlas.DebugLogNormalDepthAtlas &&
                 (skippedTinyRects != 0 || skippedInvalidRects != 0 || flatSampledRects != 0))
             {
                 capi.Logger.Debug(
@@ -627,7 +627,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             mg ??= new MultigridResources();
             mg.EnsureSize(solverW, solverH);
 
-            var cfg = ConfigModSystem.Config;
+            var cfg = ConfigModSystem.Config.MaterialAtlas;
             var bake = cfg.NormalDepthBake;
 
             float sigmaBig = ClampSigmaToTile(bake.SigmaBig, solverW, solverH, maxFractionOfMinDim: 0.25f);

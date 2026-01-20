@@ -63,11 +63,9 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
                 textureLocations: new[] { new AssetLocation("game", "textures/block/test.png") },
                 strict: true);
 
-            var cfg = new LumOnConfig
-            {
-                EnableMaterialAtlasAsyncBuild = true,
-                EnableNormalDepthAtlas = true
-            };
+            var cfg = new LumOnConfig();
+            cfg.MaterialAtlas.EnableAsync = true;
+            cfg.MaterialAtlas.EnableNormalMaps = true;
 
             var snapshot = new AtlasSnapshot(
                 Pages: new[] { new AtlasSnapshot.AtlasPage(AtlasTextureId: 101, Width: 16, Height: 16) },
@@ -92,11 +90,9 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
             Assert.Equal(k1, k2);
 
             // Async scheduling is a performance concern and must not affect cache keys.
-            var cfg2 = new LumOnConfig
-            {
-                EnableMaterialAtlasAsyncBuild = false,
-                EnableNormalDepthAtlas = true
-            };
+            var cfg2 = new LumOnConfig();
+            cfg2.MaterialAtlas.EnableAsync = false;
+            cfg2.MaterialAtlas.EnableNormalMaps = true;
 
             var inputs2 = MaterialAtlasCacheKeyInputs.Create(cfg2, snapshot, PbrMaterialRegistry.Instance);
             AtlasCacheKey k3 = builder.BuildMaterialParamsTileKey(inputs2, 101, rect, texture, def, scale);
@@ -104,11 +100,9 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
             Assert.Equal(k1, k3);
 
             // Output-affecting config should change inputs => change key.
-            var cfg3 = new LumOnConfig
-            {
-                EnableMaterialAtlasAsyncBuild = true,
-                EnableNormalDepthAtlas = false
-            };
+            var cfg3 = new LumOnConfig();
+            cfg3.MaterialAtlas.EnableAsync = true;
+            cfg3.MaterialAtlas.EnableNormalMaps = false;
 
             var inputs3 = MaterialAtlasCacheKeyInputs.Create(cfg3, snapshot, PbrMaterialRegistry.Instance);
             AtlasCacheKey k4 = builder.BuildMaterialParamsTileKey(inputs3, 101, rect, texture, def, scale);
@@ -154,11 +148,9 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
                 textureLocations: new[] { new AssetLocation("game", "textures/block/test.png") },
                 strict: true);
 
-            var cfg = new LumOnConfig
-            {
-                EnableMaterialAtlasAsyncBuild = true,
-                EnableNormalDepthAtlas = true
-            };
+            var cfg = new LumOnConfig();
+            cfg.MaterialAtlas.EnableAsync = true;
+            cfg.MaterialAtlas.EnableNormalMaps = true;
 
             var snapshotA = new AtlasSnapshot(
                 Pages: new[] { new AtlasSnapshot.AtlasPage(AtlasTextureId: 101, Width: 16, Height: 16) },
@@ -219,11 +211,9 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
                 textureLocations: new[] { new AssetLocation("game", "textures/block/test.png") },
                 strict: true);
 
-            var cfg = new LumOnConfig
-            {
-                EnableMaterialAtlasAsyncBuild = true,
-                EnableNormalDepthAtlas = true
-            };
+            var cfg = new LumOnConfig();
+            cfg.MaterialAtlas.EnableAsync = true;
+            cfg.MaterialAtlas.EnableNormalMaps = true;
 
             var snapshot = new AtlasSnapshot(
                 Pages: new[] { new AtlasSnapshot.AtlasPage(AtlasTextureId: 101, Width: 16, Height: 16) },
@@ -311,27 +301,23 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
 
             var builder = new MaterialAtlasCacheKeyBuilder();
 
-            var cfgA = new LumOnConfig
-            {
-                EnableMaterialAtlasAsyncBuild = true,
-                EnableNormalDepthAtlas = true,
-                MaterialAtlasAsyncBudgetMs = 1.5f,
-                MaterialAtlasAsyncMaxUploadsPerFrame = 8,
-                MaterialAtlasAsyncMaxCpuJobsPerFrame = 2,
-                NormalDepthAtlasAsyncBudgetMs = 0.75f,
-                NormalDepthAtlasAsyncMaxUploadsPerFrame = 2
-            };
+            var cfgA = new LumOnConfig();
+            cfgA.MaterialAtlas.EnableAsync = true;
+            cfgA.MaterialAtlas.EnableNormalMaps = true;
+            cfgA.MaterialAtlas.MaterialAtlasAsyncBudgetMs = 1.5f;
+            cfgA.MaterialAtlas.MaterialAtlasAsyncMaxUploadsPerFrame = 8;
+            cfgA.MaterialAtlas.MaterialAtlasAsyncMaxCpuJobsPerFrame = 2;
+            cfgA.MaterialAtlas.NormalDepthAtlasAsyncBudgetMs = 0.75f;
+            cfgA.MaterialAtlas.NormalDepthAtlasAsyncMaxUploadsPerFrame = 2;
 
-            var cfgB = new LumOnConfig
-            {
-                EnableMaterialAtlasAsyncBuild = true,
-                EnableNormalDepthAtlas = true,
-                MaterialAtlasAsyncBudgetMs = 3.0f,
-                MaterialAtlasAsyncMaxUploadsPerFrame = 32,
-                MaterialAtlasAsyncMaxCpuJobsPerFrame = 8,
-                NormalDepthAtlasAsyncBudgetMs = 2.0f,
-                NormalDepthAtlasAsyncMaxUploadsPerFrame = 8
-            };
+            var cfgB = new LumOnConfig();
+            cfgB.MaterialAtlas.EnableAsync = true;
+            cfgB.MaterialAtlas.EnableNormalMaps = true;
+            cfgB.MaterialAtlas.MaterialAtlasAsyncBudgetMs = 3.0f;
+            cfgB.MaterialAtlas.MaterialAtlasAsyncMaxUploadsPerFrame = 32;
+            cfgB.MaterialAtlas.MaterialAtlasAsyncMaxCpuJobsPerFrame = 8;
+            cfgB.MaterialAtlas.NormalDepthAtlasAsyncBudgetMs = 2.0f;
+            cfgB.MaterialAtlas.NormalDepthAtlasAsyncMaxUploadsPerFrame = 8;
 
             var inputsA = MaterialAtlasCacheKeyInputs.Create(cfgA, snapshot, PbrMaterialRegistry.Instance);
             var inputsB = MaterialAtlasCacheKeyInputs.Create(cfgB, snapshot, PbrMaterialRegistry.Instance);

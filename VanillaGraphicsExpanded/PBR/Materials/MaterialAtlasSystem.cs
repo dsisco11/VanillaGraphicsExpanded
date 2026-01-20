@@ -52,7 +52,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
     private void EnsureDiskCacheInitialized()
     {
-        if (!ConfigModSystem.Config.EnableMaterialAtlasDiskCache)
+        if (!ConfigModSystem.Config.MaterialAtlas.EnableCaching)
         {
             diskCache = MaterialAtlasDiskCacheNoOp.Instance;
             return;
@@ -92,7 +92,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
         if (capi is null) throw new ArgumentNullException(nameof(capi));
 
         // Warmup is intended to be cache-only and async; if either is disabled, it provides no value.
-        if (!ConfigModSystem.Config.EnableMaterialAtlasDiskCache || !ConfigModSystem.Config.EnableMaterialAtlasAsyncBuild)
+        if (!ConfigModSystem.Config.MaterialAtlas.EnableCaching || !ConfigModSystem.Config.MaterialAtlas.EnableAsync)
         {
             return;
         }
@@ -144,7 +144,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
             enableNormalDepth: false);
 
         MaterialAtlasNormalDepthBuildPlan? normalDepthPlan = null;
-        if (ConfigModSystem.Config.EnableNormalDepthAtlas)
+        if (ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps)
         {
             snapshot = AtlasSnapshot.Capture(atlas);
             var ndPlanner = new MaterialAtlasNormalDepthBuildPlanner();
@@ -249,7 +249,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
     public void RebakeNormalDepthAtlas(ICoreClientAPI capi)
     {
         if (capi is null) throw new ArgumentNullException(nameof(capi));
-        if (!ConfigModSystem.Config.EnableNormalDepthAtlas)
+        if (!ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps)
         {
             return;
         }
@@ -292,9 +292,9 @@ internal sealed class MaterialAtlasSystem : IDisposable
         MaterialAtlasCacheKeyInputs cacheInputs = MaterialAtlasCacheKeyInputs.Create(ConfigModSystem.Config, snapshot, PbrMaterialRegistry.Instance);
 
         var runner = new MaterialAtlasNormalDepthBuildRunner(textureStore, new MaterialOverrideTextureLoader(), diskCache, cacheKeyBuilder);
-        _ = runner.ExecutePlan(capi, plan, cacheInputs, enableCache: ConfigModSystem.Config.EnableMaterialAtlasDiskCache);
+        _ = runner.ExecutePlan(capi, plan, cacheInputs, enableCache: ConfigModSystem.Config.MaterialAtlas.EnableCaching);
 
-        if (ConfigModSystem.Config.DebugLogNormalDepthAtlas)
+        if (ConfigModSystem.Config.MaterialAtlas.DebugLogNormalDepthAtlas)
         {
             capi.Logger.Debug("[VGE] Normal+depth atlas rebake requested (forced)");
         }
@@ -341,12 +341,12 @@ internal sealed class MaterialAtlasSystem : IDisposable
             return;
         }
 
-        if (textureStore.NeedsResync(atlasPages, ConfigModSystem.Config.EnableNormalDepthAtlas))
+        if (textureStore.NeedsResync(atlasPages, ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps))
         {
             CancelActiveBuildSession();
         }
 
-        textureStore.SyncToAtlasPages(atlasPages, ConfigModSystem.Config.EnableNormalDepthAtlas);
+        textureStore.SyncToAtlasPages(atlasPages, ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps);
 
         texturesCreated = textureStore.HasAnyTextures;
         IsInitialized = texturesCreated;
@@ -442,7 +442,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
             enableNormalDepth: false);
 
         MaterialAtlasNormalDepthBuildPlan? normalDepthPlan = null;
-        if (ConfigModSystem.Config.EnableNormalDepthAtlas)
+        if (ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps)
         {
             snapshot = AtlasSnapshot.Capture(atlas);
             var ndPlanner = new MaterialAtlasNormalDepthBuildPlanner();
@@ -457,7 +457,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
         int overriddenRects;
         MaterialAtlasCacheKeyInputs cacheInputs = MaterialAtlasCacheKeyInputs.Create(ConfigModSystem.Config, snapshot, PbrMaterialRegistry.Instance);
 
-        if (ConfigModSystem.Config.EnableMaterialAtlasAsyncBuild)
+        if (ConfigModSystem.Config.MaterialAtlas.EnableAsync)
         {
             filledRects = StartMaterialParamsAsyncBuild(
                 atlasPages,
@@ -476,14 +476,14 @@ internal sealed class MaterialAtlasSystem : IDisposable
                 cacheInputs);
         }
 
-        if (normalDepthPlan is not null && !ConfigModSystem.Config.EnableMaterialAtlasAsyncBuild)
+        if (normalDepthPlan is not null && !ConfigModSystem.Config.MaterialAtlas.EnableAsync)
         {
             var runner = new MaterialAtlasNormalDepthBuildRunner(textureStore, new MaterialOverrideTextureLoader(), diskCache, cacheKeyBuilder);
             (int bakedRects, int appliedOverrides, int bakeCacheHits, int bakeCacheMisses, int overrideCacheHits, int overrideCacheMisses) = runner.ExecutePlan(
                 capi,
                 normalDepthPlan,
                 cacheInputs,
-                enableCache: ConfigModSystem.Config.EnableMaterialAtlasDiskCache);
+                enableCache: ConfigModSystem.Config.MaterialAtlas.EnableCaching);
 
             if (appliedOverrides > 0)
             {
@@ -492,7 +492,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
                     appliedOverrides);
             }
 
-            if (ConfigModSystem.Config.DebugLogNormalDepthAtlas)
+            if (ConfigModSystem.Config.MaterialAtlas.DebugLogNormalDepthAtlas)
             {
                 capi.Logger.Debug(
                     "[VGE] Normal+depth atlas plan: pages={0} bakeJobs={1} overrideJobs={2} skippedByOverrides={3}",
@@ -507,7 +507,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
                     appliedOverrides);
             }
 
-            if (ConfigModSystem.Config.EnableMaterialAtlasDiskCache)
+            if (ConfigModSystem.Config.MaterialAtlas.EnableCaching)
             {
                 capi.Logger.Debug(
                     "[VGE] Material atlas disk cache (normal+depth): bake hits={0} misses={1}; override hits={2} misses={3}",
@@ -516,7 +516,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
                     overrideCacheHits,
                     overrideCacheMisses);
 
-                if (ConfigModSystem.Config.DebugLogMaterialAtlasDiskCache)
+                if (ConfigModSystem.Config.MaterialAtlas.DebugLogMaterialAtlasDiskCache)
                 {
                     MaterialAtlasDiskCacheStats stats = diskCache.GetStatsSnapshot();
                     capi.Logger.Debug(
@@ -535,7 +535,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
             }
         }
 
-        if (normalDepthPlan is not null && ConfigModSystem.Config.EnableMaterialAtlasAsyncBuild && ConfigModSystem.Config.DebugLogNormalDepthAtlas)
+        if (normalDepthPlan is not null && ConfigModSystem.Config.MaterialAtlas.EnableAsync && ConfigModSystem.Config.MaterialAtlas.DebugLogNormalDepthAtlas)
         {
             capi.Logger.Debug(
                 "[VGE] Normal+depth atlas plan (async): pages={0} bakeJobs={1} overrideJobs={2} skippedByOverrides={3}",
@@ -546,14 +546,14 @@ internal sealed class MaterialAtlasSystem : IDisposable
         }
 
         capi.Logger.Notification(
-            ConfigModSystem.Config.EnableMaterialAtlasAsyncBuild
+            ConfigModSystem.Config.MaterialAtlas.EnableAsync
                 ? "[VGE] Material params async build scheduled: {0} atlas page(s), {1} tile(s) queued ({2} overrides deferred)"
                 : "[VGE] Built material param atlas textures: {0} atlas page(s), {1} texture rect(s) filled ({2} overridden)",
             textureStore.PageCount,
             filledRects,
             overriddenRects);
 
-        if (ConfigModSystem.Config.DebugLogNormalDepthAtlas)
+        if (ConfigModSystem.Config.MaterialAtlas.DebugLogNormalDepthAtlas)
         {
             var sizeCounts = new Dictionary<(int Width, int Height), int>();
             foreach ((int _, int width, int height) in atlasPages)
@@ -571,13 +571,13 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
             capi.Logger.Debug(
                 "[VGE] Normal+depth atlas: enabled={0}, pages={1}, pageSizes=[{2}]",
-                ConfigModSystem.Config.EnableNormalDepthAtlas,
+                ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps,
                 textureStore.PageCount,
                 string.Join(", ", sizeCounts.Select(kvp => $"{kvp.Key.Width}x{kvp.Key.Height}*{kvp.Value}")));
         }
 
         IsInitialized = textureStore.PageCount > 0;
-        IsBuildComplete = !ConfigModSystem.Config.EnableMaterialAtlasAsyncBuild || (scheduler?.ActiveSession?.IsComplete ?? false);
+        IsBuildComplete = !ConfigModSystem.Config.MaterialAtlas.EnableAsync || (scheduler?.ActiveSession?.IsComplete ?? false);
         if (currentReload >= 0)
         {
             lastBlockAtlasReloadIteration = currentReload;
@@ -682,7 +682,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
             overridesByRect[(ov.AtlasTextureId, ov.Rect)] = ov;
         }
 
-        bool enableCache = ConfigModSystem.Config.EnableMaterialAtlasDiskCache;
+        bool enableCache = ConfigModSystem.Config.MaterialAtlas.EnableCaching;
         var cacheCounters = enableCache ? new MaterialAtlasAsyncCacheCounters() : null;
 
         var tileRects = new HashSet<(int atlasTexId, AtlasRect rect)>(capacity: plan.MaterialParamsTiles.Count);
@@ -912,7 +912,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
         var overriddenRectsByCache = new HashSet<(int atlasTexId, AtlasRect rect)>();
 
-        bool enableCache = ConfigModSystem.Config.EnableMaterialAtlasDiskCache;
+        bool enableCache = ConfigModSystem.Config.MaterialAtlas.EnableCaching;
         int baseHits = 0;
         int baseMisses = 0;
         int overrideHits = 0;
@@ -1081,7 +1081,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
                 overrideHits,
                 overrideMisses);
 
-            if (ConfigModSystem.Config.DebugLogMaterialAtlasDiskCache)
+            if (ConfigModSystem.Config.MaterialAtlas.DebugLogMaterialAtlasDiskCache)
             {
                 MaterialAtlasDiskCacheStats stats = diskCache.GetStatsSnapshot();
                 capi.Logger.Debug(

@@ -100,8 +100,8 @@
         "weight": 20.1
       },
       "ENABLE_MATERIAL_ATLAS_DISK_CACHE": {
-        "code": "EnableMaterialAtlasDiskCache",
-        "name": "EnableMaterialAtlasDiskCache",
+        "code": "EnableCaching",
+        "name": "EnableCaching",
         "ingui": "vanillagraphicsexpanded:config-material-atlas-disk-cache-enabled",
         "comment": "vanillagraphicsexpanded:config-material-atlas-disk-cache-enabled-tooltip",
         "default": true,
