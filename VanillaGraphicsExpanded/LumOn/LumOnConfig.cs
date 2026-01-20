@@ -227,14 +227,14 @@ public class LumOnConfig
     /// Limits GL work and reduces hitching.
     /// </summary>
     [JsonProperty]
-    public int MaterialAtlasAsyncMaxUploadsPerFrame { get; set; } = 2;
+    public int MaterialAtlasAsyncMaxUploadsPerFrame { get; set; } = 32;
 
     /// <summary>
     /// Maximum number of CPU tile jobs dispatched per frame.
     /// Limits task churn and keeps background work paced.
     /// </summary>
     [JsonProperty]
-    public int MaterialAtlasAsyncMaxCpuJobsPerFrame { get; set; } = 2;
+    public int MaterialAtlasAsyncMaxCpuJobsPerFrame { get; set; } = 32;
 
     /// <summary>
     /// Per-frame time budget (ms) for the async normal+depth atlas jobs.
@@ -248,7 +248,7 @@ public class LumOnConfig
     /// Limits GL work and reduces hitching during the bake.
     /// </summary>
     [JsonProperty]
-    public int NormalDepthAtlasAsyncMaxUploadsPerFrame { get; set; } = 2;
+    public int NormalDepthAtlasAsyncMaxUploadsPerFrame { get; set; } = 32;
 
     /// <summary>
     /// Enables building and binding the VGE normal+depth sidecar atlas.
@@ -341,7 +341,7 @@ public class LumOnConfig
     /// Maximum number of texture sub-region uploads per frame.
     /// </summary>
     [JsonProperty]
-    public int TextureStreamingMaxUploadsPerFrame { get; set; } = 32;
+    public int TextureStreamingMaxUploadsPerFrame { get; set; } = 64;
 
     /// <summary>
     /// Maximum total bytes uploaded per frame.
