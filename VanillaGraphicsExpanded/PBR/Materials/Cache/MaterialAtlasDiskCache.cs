@@ -19,6 +19,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
 
     private readonly string root;
     private readonly long maxBytes;
+    private readonly IMaterialAtlasFileSystem fileSystem;
 
     private readonly ReaderWriterLockSlim indexLock = new(LockRecursionPolicy.NoRecursion);
     private MaterialAtlasDiskCacheIndex index;
@@ -45,15 +46,17 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         NormalDepth = 2,
     }
 
-    public MaterialAtlasDiskCache(string rootDirectory, long maxBytes)
+    public MaterialAtlasDiskCache(string rootDirectory, long maxBytes, IMaterialAtlasFileSystem? fileSystem = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootDirectory);
         if (maxBytes <= 0) throw new ArgumentOutOfRangeException(nameof(maxBytes));
 
+        this.fileSystem = fileSystem ?? new MaterialAtlasRealFileSystem();
+
         root = rootDirectory;
         this.maxBytes = maxBytes;
 
-        Directory.CreateDirectory(root);
+        this.fileSystem.CreateDirectory(root);
 
         index = MaterialAtlasDiskCacheIndex.CreateEmpty(DateTime.UtcNow.Ticks);
         LoadAndValidateIndex();
@@ -66,7 +69,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
     {
         string indexPath = Path.Combine(root, MetaIndexFileName);
 
-        if (!MaterialAtlasDiskCacheIndex.TryLoad(indexPath, out MaterialAtlasDiskCacheIndex loaded))
+        if (!MaterialAtlasDiskCacheIndex.TryLoad(fileSystem, indexPath, out MaterialAtlasDiskCacheIndex loaded))
         {
             return;
         }
@@ -81,7 +84,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             string ddsFileName = entry.DdsFileName ?? (entryId + ".dds");
             string ddsPath = Path.Combine(root, ddsFileName);
 
-            if (!File.Exists(ddsPath))
+            if (!fileSystem.FileExists(ddsPath))
             {
                 loaded.Entries.Remove(entryId);
                 changed = true;
@@ -116,7 +119,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
 
             try
             {
-                long payloadBytes = new FileInfo(ddsPath).Length;
+                long payloadBytes = fileSystem.GetFileLength(ddsPath);
                 if (payloadBytes != entry.SizeBytes)
                 {
                     loaded.Entries[entryId] = entry with { SizeBytes = payloadBytes };
@@ -152,7 +155,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             try
             {
                 loaded.SetSavedNow(nowTicks);
-                loaded.SaveAtomic(indexPath);
+                loaded.SaveAtomic(fileSystem, indexPath);
             }
             catch
             {
@@ -176,9 +179,9 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
     {
         try
         {
-            if (Directory.Exists(root))
+            if (fileSystem.DirectoryExists(root))
             {
-                Directory.Delete(root, recursive: true);
+                fileSystem.DeleteDirectory(root, recursive: true);
             }
         }
         catch
@@ -186,7 +189,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             // Best-effort.
         }
 
-        Directory.CreateDirectory(root);
+        fileSystem.CreateDirectory(root);
 
         indexLock.EnterWriteLock();
         try
@@ -195,7 +198,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             try
             {
                 index.SetSavedNow(DateTime.UtcNow.Ticks);
-                index.SaveAtomic(Path.Combine(root, MetaIndexFileName));
+                index.SaveAtomic(fileSystem, Path.Combine(root, MetaIndexFileName));
             }
             catch
             {
@@ -429,7 +432,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         string ddsFileName = entry.DdsFileName ?? (entryId + ".dds");
         string ddsPath = Path.Combine(root, ddsFileName);
 
-        if (!File.Exists(ddsPath))
+        if (!fileSystem.FileExists(ddsPath))
         {
             RemoveIndexEntry(entryId, deletePayload: false);
             return false;
@@ -439,7 +442,8 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         {
             if (kind == PayloadKind.MaterialParams)
             {
-                byte[] rgbaU8 = DdsBc7Rgba8Codec.ReadRgba8FromDds(ddsPath, out int w, out int h);
+                using Stream s = fileSystem.OpenRead(ddsPath);
+                byte[] rgbaU8 = DdsBc7Rgba8Codec.ReadRgba8FromDds(s, out int w, out int h);
                 if (w != entry.Width || h != entry.Height)
                 {
                     throw new InvalidDataException("Cached DDS dimensions did not match index entry.");
@@ -455,7 +459,8 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             }
             else
             {
-                ushort[] rgbaU16 = DdsRgba16UnormCodec.ReadRgba16Unorm(ddsPath, out int w, out int h);
+                using Stream s = fileSystem.OpenRead(ddsPath);
+                ushort[] rgbaU16 = DdsRgba16UnormCodec.ReadRgba16Unorm(s, out int w, out int h);
                 if (w != entry.Width || h != entry.Height)
                 {
                     throw new InvalidDataException("Cached DDS dimensions did not match index entry.");
@@ -488,7 +493,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
     {
         try
         {
-            Directory.CreateDirectory(root);
+            fileSystem.CreateDirectory(root);
 
             string stem = GetFileStem(key);
             string entryId = stem + GetKindSuffix(kind);
@@ -501,7 +506,12 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
 
             try
             {
-                DdsRgba16UnormCodec.WriteRgba16Unorm(tmpDds, width, height, rgbaU16);
+                using (Stream s = fileSystem.OpenWrite(tmpDds))
+                {
+                    DdsRgba16UnormCodec.WriteRgba16Unorm(s, width, height, rgbaU16);
+                    s.Flush();
+                }
+
                 ReplaceAtomic(tmpDds, ddsPath);
 
                 payloadBytes = TryGetFileLength(ddsPath);
@@ -538,7 +548,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
     {
         try
         {
-            Directory.CreateDirectory(root);
+            fileSystem.CreateDirectory(root);
 
             string stem = GetFileStem(key);
             string entryId = stem + GetKindSuffix(kind);
@@ -551,7 +561,12 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
 
             try
             {
-                DdsBc7Rgba8Codec.WriteBc7Dds(tmpDds, width, height, rgbaU8);
+                using (Stream s = fileSystem.OpenWrite(tmpDds))
+                {
+                    DdsBc7Rgba8Codec.WriteBc7Dds(s, width, height, rgbaU8);
+                    s.Flush();
+                }
+
                 ReplaceAtomic(tmpDds, ddsPath);
 
                 payloadBytes = TryGetFileLength(ddsPath);
@@ -592,11 +607,11 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             _ => "unknown",
         };
 
-    private static long TryGetFileLength(string path)
+    private long TryGetFileLength(string path)
     {
         try
         {
-            return new FileInfo(path).Length;
+            return fileSystem.GetFileLength(path);
         }
         catch
         {
@@ -639,7 +654,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             try
             {
                 index.SetSavedNow(nowTicks);
-                index.SaveAtomic(indexPath);
+                index.SaveAtomic(fileSystem, indexPath);
             }
             catch
             {
@@ -674,7 +689,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             try
             {
                 index.SetSavedNow(nowTicks);
-                index.SaveAtomic(indexPath);
+                index.SaveAtomic(fileSystem, indexPath);
             }
             catch
             {
@@ -812,7 +827,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             try
             {
                 index.SetSavedNow(DateTime.UtcNow.Ticks);
-                index.SaveAtomic(Path.Combine(root, MetaIndexFileName));
+                index.SaveAtomic(fileSystem, Path.Combine(root, MetaIndexFileName));
             }
             catch
             {
@@ -848,14 +863,11 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         // Windows-safe (':' is invalid in filenames).
         => string.Format(CultureInfo.InvariantCulture, "v{0}-{1:x16}", key.SchemaVersion, key.Hash64);
 
-    private static void TryDelete(string path)
+    private void TryDelete(string path)
     {
         try
         {
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
+            if (fileSystem.FileExists(path)) fileSystem.DeleteFile(path);
         }
         catch
         {
@@ -863,14 +875,14 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         }
     }
 
-    private static void ReplaceAtomic(string tempPath, string targetPath)
+    private void ReplaceAtomic(string tempPath, string targetPath)
     {
-        if (File.Exists(targetPath))
+        if (fileSystem.FileExists(targetPath))
         {
-            File.Replace(tempPath, targetPath, destinationBackupFileName: null, ignoreMetadataErrors: true);
+            fileSystem.ReplaceFile(tempPath, targetPath);
             return;
         }
 
-        File.Move(tempPath, targetPath);
+        fileSystem.MoveFile(tempPath, targetPath, overwrite: false);
     }
 }

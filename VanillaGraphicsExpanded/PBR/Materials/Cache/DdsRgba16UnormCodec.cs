@@ -45,6 +45,13 @@ internal static class DdsRgba16UnormCodec
         Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
 
         using var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
+        WriteRgba16Unorm(fs, width, height, rgba);
+        fs.Flush(flushToDisk: true);
+    }
+
+    public static void WriteRgba16Unorm(Stream stream, int width, int height, ReadOnlySpan<ushort> rgba)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
 
         Span<byte> header = stackalloc byte[4 + DdsHeaderSize + 20];
         header.Clear();
@@ -80,7 +87,7 @@ internal static class DdsRgba16UnormCodec
         BinaryPrimitives.WriteUInt32LittleEndian(dx10[12..16], 1u); // arraySize
         BinaryPrimitives.WriteUInt32LittleEndian(dx10[16..20], 0u); // miscFlags2
 
-        fs.Write(header);
+        stream.Write(header);
 
         Span<byte> outBytes = stackalloc byte[8 * 256]; // 256 pixels at a time
         int u16PerChunk = outBytes.Length / 2;
@@ -100,11 +107,9 @@ internal static class DdsRgba16UnormCodec
                 bi += 2;
             }
 
-            fs.Write(buf);
+            stream.Write(buf);
             i += u16This;
         }
-
-        fs.Flush(flushToDisk: true);
     }
 
     public static ushort[] ReadRgba16Unorm(string filePath, out int width, out int height)

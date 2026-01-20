@@ -42,17 +42,21 @@ internal sealed class MaterialAtlasDiskCacheIndex
         };
 
     public static bool TryLoad(string filePath, out MaterialAtlasDiskCacheIndex index)
+        => TryLoad(new MaterialAtlasRealFileSystem(), filePath, out index);
+
+    public static bool TryLoad(IMaterialAtlasFileSystem fileSystem, string filePath, out MaterialAtlasDiskCacheIndex index)
     {
+        ArgumentNullException.ThrowIfNull(fileSystem);
         index = CreateEmpty(DateTime.UtcNow.Ticks);
 
         try
         {
-            if (!File.Exists(filePath))
+            if (!fileSystem.FileExists(filePath))
             {
                 return false;
             }
 
-            byte[] bytes = File.ReadAllBytes(filePath);
+            byte[] bytes = fileSystem.ReadAllBytes(filePath);
             MetaJsonDto? dto = JsonSerializer.Deserialize<MetaJsonDto>(bytes, JsonOptions);
             if (dto is null || dto.SchemaVersion != CurrentSchemaVersion || dto.Entries is null)
             {
@@ -115,10 +119,14 @@ internal sealed class MaterialAtlasDiskCacheIndex
     }
 
     public void SaveAtomic(string filePath)
+        => SaveAtomic(new MaterialAtlasRealFileSystem(), filePath);
+
+    public void SaveAtomic(IMaterialAtlasFileSystem fileSystem, string filePath)
     {
+        ArgumentNullException.ThrowIfNull(fileSystem);
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
-        Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+        fileSystem.CreateDirectory(Path.GetDirectoryName(filePath)!);
 
         var dto = new MetaJsonDto
         {
@@ -153,28 +161,28 @@ internal sealed class MaterialAtlasDiskCacheIndex
         string tmpPath = filePath + "." + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture) + ".tmp";
         try
         {
-            using (var fs = new FileStream(tmpPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (Stream s = fileSystem.OpenWrite(tmpPath))
             {
-                fs.Write(bytes, 0, bytes.Length);
-                fs.Flush(flushToDisk: true);
+                s.Write(bytes, 0, bytes.Length);
+                s.Flush();
             }
 
-            if (File.Exists(filePath))
+            if (fileSystem.FileExists(filePath))
             {
-                File.Replace(tmpPath, filePath, destinationBackupFileName: null, ignoreMetadataErrors: true);
+                fileSystem.ReplaceFile(tmpPath, filePath);
             }
             else
             {
-                File.Move(tmpPath, filePath);
+                fileSystem.MoveFile(tmpPath, filePath, overwrite: false);
             }
         }
         finally
         {
             try
             {
-                if (File.Exists(tmpPath))
+                if (fileSystem.FileExists(tmpPath))
                 {
-                    File.Delete(tmpPath);
+                    fileSystem.DeleteFile(tmpPath);
                 }
             }
             catch

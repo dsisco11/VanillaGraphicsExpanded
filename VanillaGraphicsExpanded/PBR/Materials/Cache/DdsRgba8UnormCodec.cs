@@ -41,6 +41,13 @@ internal static class DdsRgba8UnormCodec
         Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
 
         using var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
+        WriteRgba8Unorm(fs, width, height, rgba);
+        fs.Flush(flushToDisk: true);
+    }
+
+    public static void WriteRgba8Unorm(Stream stream, int width, int height, ReadOnlySpan<byte> rgba)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
 
         Span<byte> header = stackalloc byte[4 + DdsHeaderSize + 20];
         header.Clear();
@@ -76,17 +83,22 @@ internal static class DdsRgba8UnormCodec
         BinaryPrimitives.WriteUInt32LittleEndian(dx10[12..16], 1u); // arraySize
         BinaryPrimitives.WriteUInt32LittleEndian(dx10[16..20], 0u); // miscFlags2
 
-        fs.Write(header);
-        fs.Write(rgba);
-        fs.Flush(flushToDisk: true);
+        stream.Write(header);
+        stream.Write(rgba);
     }
 
     public static byte[] ReadRgba8Unorm(string filePath, out int width, out int height)
     {
         using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return ReadRgba8Unorm(fs, out width, out height);
+    }
+
+    public static byte[] ReadRgba8Unorm(Stream stream, out int width, out int height)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
 
         Span<byte> prefix = stackalloc byte[4 + DdsHeaderSize + 20];
-        fs.ReadExactly(prefix);
+        stream.ReadExactly(prefix);
 
         uint magic = BinaryPrimitives.ReadUInt32LittleEndian(prefix[0..4]);
         if (magic != DdsMagic)
@@ -132,7 +144,7 @@ internal static class DdsRgba8UnormCodec
 
         int bytes = checked(width * height * 4);
         byte[] payload = new byte[bytes];
-        fs.ReadExactly(payload);
+        stream.ReadExactly(payload);
 
         return payload;
     }

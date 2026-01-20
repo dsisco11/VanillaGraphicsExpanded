@@ -1,28 +1,20 @@
 using System;
-using System.IO;
 
 using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.PBR.Materials.Cache;
+using VanillaGraphicsExpanded.Tests.TestSupport;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.PBR.Materials;
 
 [Trait("Category", "Unit")]
 public sealed class MaterialAtlasDiskCacheRoundTripTests
 {
-    private static string NewTempDir()
-    {
-        string dir = Path.Combine(Path.GetTempPath(), "vge-tests", "diskcache", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir);
-        return dir;
-    }
-
     [Fact]
     public void StoreAndLoad_MaterialParams_RoundTripsWithinQuantization()
     {
-        string dir = NewTempDir();
-        try
-        {
-            var cache = new MaterialAtlasDiskCache(dir, maxBytes: 64L * 1024 * 1024);
+        var fs = new InMemoryMaterialAtlasFileSystem();
+        string root = $"memcache/{Guid.NewGuid():N}";
+        var cache = new MaterialAtlasDiskCache(root, maxBytes: 64L * 1024 * 1024, fs);
 
             var key = AtlasCacheKey.FromUtf8(1, "test|matparams|a");
 
@@ -59,20 +51,14 @@ public sealed class MaterialAtlasDiskCacheRoundTripTests
                 {
                     Assert.InRange(MathF.Abs(loaded[i] - quantized[i]), 0f, Eps);
                 }
-        }
-        finally
-        {
-            try { Directory.Delete(dir, recursive: true); } catch { }
-        }
     }
 
     [Fact]
     public void StoreAndLoad_NormalDepth_RoundTripsWithinQuantization()
     {
-        string dir = NewTempDir();
-        try
-        {
-            var cache = new MaterialAtlasDiskCache(dir, maxBytes: 64L * 1024 * 1024);
+        var fs = new InMemoryMaterialAtlasFileSystem();
+        string root = $"memcache/{Guid.NewGuid():N}";
+        var cache = new MaterialAtlasDiskCache(root, maxBytes: 64L * 1024 * 1024, fs);
 
             var key = AtlasCacheKey.FromUtf8(1, "test|normaldepth|a");
 
@@ -95,20 +81,14 @@ public sealed class MaterialAtlasDiskCacheRoundTripTests
             {
                 Assert.InRange(MathF.Abs(loaded[i] - rgba[i]), 0f, Eps);
             }
-        }
-        finally
-        {
-            try { Directory.Delete(dir, recursive: true); } catch { }
-        }
     }
 
     [Fact]
     public void StatsSnapshot_TracksHitsMissesStoresAndTotals()
     {
-        string dir = NewTempDir();
-        try
-        {
-            var cache = new MaterialAtlasDiskCache(dir, maxBytes: 64L * 1024 * 1024);
+        var fs = new InMemoryMaterialAtlasFileSystem();
+        string root = $"memcache/{Guid.NewGuid():N}";
+        var cache = new MaterialAtlasDiskCache(root, maxBytes: 64L * 1024 * 1024, fs);
 
             var matKey = AtlasCacheKey.FromUtf8(1, "test|matparams|stats");
             var ndKey = AtlasCacheKey.FromUtf8(1, "test|normaldepth|stats");
@@ -136,20 +116,14 @@ public sealed class MaterialAtlasDiskCacheRoundTripTests
 
             Assert.True(stats.TotalEntries >= 2);
             Assert.True(stats.TotalBytes > 0);
-        }
-        finally
-        {
-            try { Directory.Delete(dir, recursive: true); } catch { }
-        }
     }
 
     [Fact]
     public void CachedMaterialParams_MatchesFreshBake_WithinQuantization()
     {
-        string dir = NewTempDir();
-        try
-        {
-            var cache = new MaterialAtlasDiskCache(dir, maxBytes: 64L * 1024 * 1024);
+        var fs = new InMemoryMaterialAtlasFileSystem();
+        string root = $"memcache/{Guid.NewGuid():N}";
+        var cache = new MaterialAtlasDiskCache(root, maxBytes: 64L * 1024 * 1024, fs);
             var key = AtlasCacheKey.FromUtf8(1, "test|matparams|parity");
 
             var texture = new Vintagestory.API.Common.AssetLocation("game", "textures/block/test.png");
@@ -187,10 +161,5 @@ public sealed class MaterialAtlasDiskCacheRoundTripTests
                 {
                     Assert.InRange(MathF.Abs(cached[i] - quantized[i]), 0f, Eps);
                 }
-        }
-        finally
-        {
-            try { Directory.Delete(dir, recursive: true); } catch { }
-        }
     }
 }
