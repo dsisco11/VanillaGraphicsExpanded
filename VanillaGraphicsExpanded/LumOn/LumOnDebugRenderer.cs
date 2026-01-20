@@ -209,11 +209,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invViewMatrix);
         UpdateCurrentViewProjMatrix();
 
-        // Disable depth test for fullscreen overlay
-        capi.Render.GLDepthMask(false);
-        GL.Disable(EnableCap.DepthTest);
-        capi.Render.GlToggleBlend(false);
-
         // Define-backed toggles must be set before Use() so the correct variant is bound.
         shader.EnablePbrComposite = config.EnablePbrComposite;
         shader.EnableAO = config.EnableAO;
@@ -251,120 +246,143 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
         }
 
-        shader.Use();
+        bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
+        bool prevBlend = GL.IsEnabled(EnableCap.Blend);
+        bool prevDepthMask = GL.GetBoolean(GetPName.DepthWritemask);
+        int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
 
-        // Bind textures
-        shader.PrimaryDepth = primaryFb.DepthTextureId;
-        // Use VGE's G-buffer normal (ColorAttachment4) which contains world-space normals
-        // encoded to [0,1] via the shader patching system
-        shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
-        shader.ProbeAnchorPosition = bufferManager?.ProbeAnchorPositionTex?.TextureId ?? 0;
-        shader.ProbeAnchorNormal = bufferManager?.ProbeAnchorNormalTex?.TextureId ?? 0;
-        shader.RadianceTexture0 = bufferManager?.RadianceHistoryTex0?.TextureId ?? 0;
-        shader.RadianceTexture1 = bufferManager?.RadianceHistoryTex1?.TextureId ?? 0;
-        shader.IndirectHalf = bufferManager?.IndirectHalfTex?.TextureId ?? 0;
-        shader.HistoryMeta = bufferManager?.ProbeMetaHistoryTex?.TextureId ?? 0;
-
-        shader.ProbeAtlasMeta = bufferManager?.ScreenProbeAtlasMetaHistoryTex?.TextureId ?? 0;
-
-        // Probe-atlas debug textures (raw/current/filtered + the actual gather input selection)
-        int probeAtlasTrace = bufferManager?.ScreenProbeAtlasTraceTex?.TextureId ?? 0;
-        int probeAtlasCurrent = bufferManager?.ScreenProbeAtlasCurrentTex?.TextureId ?? probeAtlasTrace;
-        int probeAtlasFiltered = bufferManager?.ScreenProbeAtlasFilteredTex?.TextureId ?? 0;
-
-        int gatherAtlasSource = 0;
-        int gatherInput = probeAtlasTrace;
-        if (probeAtlasFiltered != 0)
+        bool shaderUsed = false;
+        try
         {
-            gatherAtlasSource = 2;
-            gatherInput = probeAtlasFiltered;
-        }
-        else if (probeAtlasCurrent != 0)
-        {
-            gatherAtlasSource = 1;
-            gatherInput = probeAtlasCurrent;
-        }
+            // Fullscreen overlays should not disturb global GL state even on early-return paths.
+            capi.Render.GLDepthMask(false);
+            GL.Disable(EnableCap.DepthTest);
+            capi.Render.GlToggleBlend(false);
 
-        shader.ProbeAtlasCurrent = probeAtlasCurrent;
-        shader.ProbeAtlasFiltered = probeAtlasFiltered;
-        shader.ProbeAtlasGatherInput = gatherInput;
-        shader.GatherAtlasSource = gatherAtlasSource;
+            shader.Use();
+            shaderUsed = true;
 
-        // Phase 18 world-probe debug inputs (only bound if available + active in the compiled shader).
-         if (wantWorldProbe && worldProbeClipmapBufferManager?.Resources is not null && wpOrigins != null && wpRings != null)
-         {
-             shader.WorldProbeSH0 = worldProbeClipmapBufferManager.Resources.ProbeSh0TextureId;
-             shader.WorldProbeSH1 = worldProbeClipmapBufferManager.Resources.ProbeSh1TextureId;
-            shader.WorldProbeSH2 = worldProbeClipmapBufferManager.Resources.ProbeSh2TextureId;
-            shader.WorldProbeVis0 = worldProbeClipmapBufferManager.Resources.ProbeVis0TextureId;
-             shader.WorldProbeDist0 = worldProbeClipmapBufferManager.Resources.ProbeDist0TextureId;
-             shader.WorldProbeMeta0 = worldProbeClipmapBufferManager.Resources.ProbeMeta0TextureId;
-             shader.WorldProbeDebugState0 = worldProbeClipmapBufferManager.Resources.ProbeDebugState0TextureId;
+            // Bind textures
+            shader.PrimaryDepth = primaryFb.DepthTextureId;
+            // Use VGE's G-buffer normal (ColorAttachment4) which contains world-space normals
+            // encoded to [0,1] via the shader patching system
+            shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
+            shader.ProbeAnchorPosition = bufferManager?.ProbeAnchorPositionTex?.TextureId ?? 0;
+            shader.ProbeAnchorNormal = bufferManager?.ProbeAnchorNormalTex?.TextureId ?? 0;
+            shader.RadianceTexture0 = bufferManager?.RadianceHistoryTex0?.TextureId ?? 0;
+            shader.RadianceTexture1 = bufferManager?.RadianceHistoryTex1?.TextureId ?? 0;
+            shader.IndirectHalf = bufferManager?.IndirectHalfTex?.TextureId ?? 0;
+            shader.HistoryMeta = bufferManager?.ProbeMetaHistoryTex?.TextureId ?? 0;
 
-            // Shaders reconstruct world positions in the engine's camera-matrix space via invViewMatrix.
-            // Bind clipmap parameters in that same space (do not apply additional camera-relative shifts).
-            shader.WorldProbeCameraPosWS = new Vec3f(wpCamPosWS.X, wpCamPosWS.Y, wpCamPosWS.Z);
+            shader.ProbeAtlasMeta = bufferManager?.ScreenProbeAtlasMetaHistoryTex?.TextureId ?? 0;
 
-            for (int i = 0; i < 8; i++)
+            // Probe-atlas debug textures (raw/current/filtered + the actual gather input selection)
+            int probeAtlasTrace = bufferManager?.ScreenProbeAtlasTraceTex?.TextureId ?? 0;
+            int probeAtlasCurrent = bufferManager?.ScreenProbeAtlasCurrentTex?.TextureId ?? probeAtlasTrace;
+            int probeAtlasFiltered = bufferManager?.ScreenProbeAtlasFilteredTex?.TextureId ?? 0;
+
+            int gatherAtlasSource = 0;
+            int gatherInput = probeAtlasTrace;
+            if (probeAtlasFiltered != 0)
             {
-                var o = wpOrigins[i];
-                var r = wpRings[i];
-                if (!shader.TrySetWorldProbeLevelParams(
-                        i,
-                        new Vec3f(o.X, o.Y, o.Z),
-                        new Vec3f(r.X, r.Y, r.Z)))
+                gatherAtlasSource = 2;
+                gatherInput = probeAtlasFiltered;
+            }
+            else if (probeAtlasCurrent != 0)
+            {
+                gatherAtlasSource = 1;
+                gatherInput = probeAtlasCurrent;
+            }
+
+            shader.ProbeAtlasCurrent = probeAtlasCurrent;
+            shader.ProbeAtlasFiltered = probeAtlasFiltered;
+            shader.ProbeAtlasGatherInput = gatherInput;
+            shader.GatherAtlasSource = gatherAtlasSource;
+
+            // Phase 18 world-probe debug inputs (only bound if available + active in the compiled shader).
+            if (wantWorldProbe && worldProbeClipmapBufferManager?.Resources is not null && wpOrigins != null && wpRings != null)
+            {
+                shader.WorldProbeSH0 = worldProbeClipmapBufferManager.Resources.ProbeSh0TextureId;
+                shader.WorldProbeSH1 = worldProbeClipmapBufferManager.Resources.ProbeSh1TextureId;
+                shader.WorldProbeSH2 = worldProbeClipmapBufferManager.Resources.ProbeSh2TextureId;
+                shader.WorldProbeVis0 = worldProbeClipmapBufferManager.Resources.ProbeVis0TextureId;
+                shader.WorldProbeDist0 = worldProbeClipmapBufferManager.Resources.ProbeDist0TextureId;
+                shader.WorldProbeMeta0 = worldProbeClipmapBufferManager.Resources.ProbeMeta0TextureId;
+                shader.WorldProbeDebugState0 = worldProbeClipmapBufferManager.Resources.ProbeDebugState0TextureId;
+
+                // Shaders reconstruct world positions in the engine's camera-matrix space via invViewMatrix.
+                // Bind clipmap parameters in that same space (do not apply additional camera-relative shifts).
+                shader.WorldProbeCameraPosWS = new Vec3f(wpCamPosWS.X, wpCamPosWS.Y, wpCamPosWS.Z);
+
+                for (int i = 0; i < 8; i++)
                 {
-                    break;
+                    var o = wpOrigins[i];
+                    var r = wpRings[i];
+                    if (!shader.TrySetWorldProbeLevelParams(
+                            i,
+                            new Vec3f(o.X, o.Y, o.Z),
+                            new Vec3f(r.X, r.Y, r.Z)))
+                    {
+                        break;
+                    }
                 }
             }
+
+            // Phase 15 composite debug inputs
+            shader.IndirectDiffuseFull = bufferManager?.IndirectFullTex?.TextureId ?? 0;
+            shader.GBufferAlbedo = bufferManager?.CapturedSceneTex?.TextureId ?? 0;
+            shader.GBufferMaterial = gBufferManager?.MaterialTextureId ?? 0;
+
+            // Phase 16 direct lighting debug inputs
+            shader.DirectDiffuse = directLightingBufferManager?.DirectDiffuseTex?.TextureId ?? 0;
+            shader.DirectSpecular = directLightingBufferManager?.DirectSpecularTex?.TextureId ?? 0;
+            shader.Emissive = directLightingBufferManager?.EmissiveTex?.TextureId ?? 0;
+
+            // Phase 14 velocity debug input
+            shader.VelocityTex = bufferManager?.VelocityTex?.TextureId ?? 0;
+
+            // Pass uniforms
+            shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
+            shader.ProbeGridSize = new Vec2i(bufferManager?.ProbeCountX ?? 0, bufferManager?.ProbeCountY ?? 0);
+            shader.ProbeSpacing = config.ProbeSpacingPx;
+            shader.ZNear = capi.Render.ShaderUniforms.ZNear;
+            shader.ZFar = capi.Render.ShaderUniforms.ZFar;
+            shader.DebugMode = (int)config.DebugMode;
+            shader.InvProjectionMatrix = invProjectionMatrix;
+            shader.InvViewMatrix = invViewMatrix;
+            shader.PrevViewProjMatrix = prevViewProjMatrix;
+            shader.TemporalAlpha = config.TemporalAlpha;
+            shader.DepthRejectThreshold = config.DepthRejectThreshold;
+            shader.NormalRejectThreshold = config.NormalRejectThreshold;
+            shader.VelocityRejectThreshold = config.VelocityRejectThreshold;
+
+            // Phase 15 composite params (now compile-time defines)
+            shader.IndirectIntensity = config.Intensity;
+            shader.IndirectTint = new Vec3f(config.IndirectTint[0], config.IndirectTint[1], config.IndirectTint[2]);
+            shader.DiffuseAOStrength = Math.Clamp(config.DiffuseAOStrength, 0f, 1f);
+            shader.SpecularAOStrength = Math.Clamp(config.SpecularAOStrength, 0f, 1f);
+
+            // Render fullscreen quad
+            using var cpuScope = Profiler.BeginScope("Debug.LumOn", "Render");
+            using (GlGpuProfiler.Instance.Scope("Debug.LumOn"))
+            {
+                capi.Render.RenderMesh(quadMeshRef);
+            }
         }
-
-        // Phase 15 composite debug inputs
-        shader.IndirectDiffuseFull = bufferManager?.IndirectFullTex?.TextureId ?? 0;
-        shader.GBufferAlbedo = bufferManager?.CapturedSceneTex?.TextureId ?? 0;
-        shader.GBufferMaterial = gBufferManager?.MaterialTextureId ?? 0;
-
-        // Phase 16 direct lighting debug inputs
-        shader.DirectDiffuse = directLightingBufferManager?.DirectDiffuseTex?.TextureId ?? 0;
-        shader.DirectSpecular = directLightingBufferManager?.DirectSpecularTex?.TextureId ?? 0;
-        shader.Emissive = directLightingBufferManager?.EmissiveTex?.TextureId ?? 0;
-
-        // Phase 14 velocity debug input
-        shader.VelocityTex = bufferManager?.VelocityTex?.TextureId ?? 0;
-
-        // Pass uniforms
-        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
-        shader.ProbeGridSize = new Vec2i(bufferManager?.ProbeCountX ?? 0, bufferManager?.ProbeCountY ?? 0);
-        shader.ProbeSpacing = config.ProbeSpacingPx;
-        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
-        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
-        shader.DebugMode = (int)config.DebugMode;
-        shader.InvProjectionMatrix = invProjectionMatrix;
-        shader.InvViewMatrix = invViewMatrix;
-        shader.PrevViewProjMatrix = prevViewProjMatrix;
-        shader.TemporalAlpha = config.TemporalAlpha;
-        shader.DepthRejectThreshold = config.DepthRejectThreshold;
-        shader.NormalRejectThreshold = config.NormalRejectThreshold;
-        shader.VelocityRejectThreshold = config.VelocityRejectThreshold;
-
-        // Phase 15 composite params (now compile-time defines)
-        shader.IndirectIntensity = config.Intensity;
-        shader.IndirectTint = new Vec3f(config.IndirectTint[0], config.IndirectTint[1], config.IndirectTint[2]);
-        shader.DiffuseAOStrength = Math.Clamp(config.DiffuseAOStrength, 0f, 1f);
-        shader.SpecularAOStrength = Math.Clamp(config.SpecularAOStrength, 0f, 1f);
-
-        // Render fullscreen quad
-        using var cpuScope = Profiler.BeginScope("Debug.LumOn", "Render");
-        using (GlGpuProfiler.Instance.Scope("Debug.LumOn"))
+        finally
         {
-            capi.Render.RenderMesh(quadMeshRef);
+            if (shaderUsed)
+            {
+                shader.Stop();
+            }
+
+            if (prevDepthTest) GL.Enable(EnableCap.DepthTest);
+            else GL.Disable(EnableCap.DepthTest);
+
+            capi.Render.GLDepthMask(prevDepthMask);
+            capi.Render.GlToggleBlend(prevBlend);
+            GL.ActiveTexture((TextureUnit)prevActiveTexture);
         }
-
-        shader.Stop();
-
-        // Restore state
-        GL.Enable(EnableCap.DepthTest);
-        capi.Render.GLDepthMask(true);
 
         // Store current matrix for next frame's reprojection
         StorePrevViewProjMatrix();
@@ -372,6 +390,23 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     private void OnDebugModeChanged(LumOnDebugMode prev, LumOnDebugMode current)
     {
+        if (current is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeSpheres
+            || current == LumOnDebugMode.WorldProbeClipmapBounds)
+        {
+            if (worldProbeClipmapBufferManager?.Resources is null)
+            {
+                capi.ShowChatMessage("[VGE] World-probe clipmap resources not available yet.");
+            }
+            else if (worldProbeClipmapBufferManager.TryGetRuntimeParams(out var camPos, out var baseSpacing, out var levels, out var resolution, out _, out _))
+            {
+                capi.ShowChatMessage($"[VGE] World-probe clipmap params: levels={levels}, res={resolution}, baseSpacing={baseSpacing:0.###}, cam=({camPos.X:0.#},{camPos.Y:0.#},{camPos.Z:0.#})");
+            }
+            else
+            {
+                capi.ShowChatMessage("[VGE] World-probe clipmap params not published yet (runtime params missing).");
+            }
+        }
+
         if (current == LumOnDebugMode.WorldProbeClipmapBounds)
         {
             CaptureFrozenClipmapBounds();
@@ -458,30 +493,49 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         using var cpuScope = Profiler.BeginScope("Debug.WorldProbeClipmapBounds", "Render");
         using (GlGpuProfiler.Instance.Scope("Debug.WorldProbeClipmapBounds"))
         {
-            GL.Disable(EnableCap.DepthTest);
-            capi.Render.GlToggleBlend(false);
-            capi.Render.GLDepthMask(false);
+            bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
+            bool prevBlend = GL.IsEnabled(EnableCap.Blend);
+            bool prevDepthMask = GL.GetBoolean(GetPName.DepthWritemask);
+            int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
 
-            shader.Use();
-            shader.ModelViewProjectionMatrix = currentViewProjMatrix;
+            bool shaderUsed = false;
+            try
+            {
+                GL.Disable(EnableCap.DepthTest);
+                capi.Render.GlToggleBlend(false);
+                capi.Render.GLDepthMask(false);
 
-            GL.BindVertexArray(clipmapBoundsVao);
+                shader.Use();
+                shaderUsed = true;
+                shader.ModelViewProjectionMatrix = currentViewProjMatrix;
 
-            int stride = Marshal.SizeOf<LineVertex>();
-            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapBoundsVbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, vertexCount * stride, clipmapBoundsVertices, BufferUsageHint.StreamDraw);
+                GL.BindVertexArray(clipmapBoundsVao);
 
-            GL.LineWidth(2f);
-            GL.DrawArrays(PrimitiveType.Lines, 0, vertexCount);
-            GL.LineWidth(1f);
+                int stride = Marshal.SizeOf<LineVertex>();
+                GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapBoundsVbo);
+                GL.BufferData(BufferTarget.ArrayBuffer, vertexCount * stride, clipmapBoundsVertices, BufferUsageHint.StreamDraw);
 
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-            GL.BindVertexArray(0);
+                GL.LineWidth(2f);
+                GL.DrawArrays(PrimitiveType.Lines, 0, vertexCount);
+                GL.LineWidth(1f);
 
-            shader.Stop();
+                GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+                GL.BindVertexArray(0);
+            }
+            finally
+            {
+                if (shaderUsed)
+                {
+                    shader.Stop();
+                }
 
-            GL.Enable(EnableCap.DepthTest);
-            capi.Render.GLDepthMask(true);
+                if (prevDepthTest) GL.Enable(EnableCap.DepthTest);
+                else GL.Disable(EnableCap.DepthTest);
+
+                capi.Render.GLDepthMask(prevDepthMask);
+                capi.Render.GlToggleBlend(prevBlend);
+                GL.ActiveTexture((TextureUnit)prevActiveTexture);
+            }
         }
 
         StorePrevViewProjMatrix();
@@ -662,27 +716,41 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        capi.Render.GLDepthMask(false);
-        GL.Disable(EnableCap.DepthTest);
-        capi.Render.GlToggleBlend(false);
+        bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
+        bool prevBlend = GL.IsEnabled(EnableCap.Blend);
+        bool prevDepthMask = GL.GetBoolean(GetPName.DepthWritemask);
+        int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
 
         var blitShader = capi.Render.GetEngineShader(EnumShaderProgram.Blit);
         blitShader.Use();
 
-        GL.ActiveTexture(TextureUnit.Texture0);
-        GL.BindTexture(TextureTarget.Texture2D, texId);
-        blitShader.BindTexture2D("scene", texId, 0);
-
-        using var cpuScope = Profiler.BeginScope("Debug.VGE.NormalDepthAtlas", "Render");
-        using (GlGpuProfiler.Instance.Scope("Debug.VGE.NormalDepthAtlas"))
+        try
         {
-            capi.Render.RenderMesh(quadMeshRef);
+            capi.Render.GLDepthMask(false);
+            GL.Disable(EnableCap.DepthTest);
+            capi.Render.GlToggleBlend(false);
+
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, texId);
+            blitShader.BindTexture2D("scene", texId, 0);
+
+            using var cpuScope = Profiler.BeginScope("Debug.VGE.NormalDepthAtlas", "Render");
+            using (GlGpuProfiler.Instance.Scope("Debug.VGE.NormalDepthAtlas"))
+            {
+                capi.Render.RenderMesh(quadMeshRef);
+            }
         }
+        finally
+        {
+            blitShader.Stop();
 
-        blitShader.Stop();
+            if (prevDepthTest) GL.Enable(EnableCap.DepthTest);
+            else GL.Disable(EnableCap.DepthTest);
 
-        GL.Enable(EnableCap.DepthTest);
-        capi.Render.GLDepthMask(true);
+            capi.Render.GLDepthMask(prevDepthMask);
+            capi.Render.GlToggleBlend(prevBlend);
+            GL.ActiveTexture((TextureUnit)prevActiveTexture);
+        }
     }
 
     private static bool IsDirectLightingMode(LumOnDebugMode mode) =>

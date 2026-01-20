@@ -1261,6 +1261,10 @@ public class LumOnRenderer : IRenderer, IDisposable
             worldProbeScheduler.UpdateOrigins(camPosMatrixSpace, baseSpacing);
         }
 
+        // Publish runtime params every frame so debug overlays can bind world-probe uniforms
+        // even if the main gather shader path skips binding (e.g., due to a queued recompile).
+        UpdateWorldProbeClipmapRuntimeParams(resources, camPosMatrixSpace, baseSpacing);
+
         // Build per-frame update list.
         int[] perLevelBudgets = cfg.PerLevelProbeUpdateBudget ?? Array.Empty<int>();
         var requests = new System.Collections.Generic.List<LumOnWorldProbeUpdateRequest>();
@@ -1341,6 +1345,46 @@ public class LumOnRenderer : IRenderer, IDisposable
             using var heatmapScope = Profiler.BeginScope("LumOn.WorldProbe.DebugHeatmap", "LumOn");
             UpdateWorldProbeDebugHeatmap(resources);
         }
+    }
+
+    private void UpdateWorldProbeClipmapRuntimeParams(
+        LumOnWorldProbeClipmapGpuResources resources,
+        Vec3d camPosMatrixSpace,
+        double baseSpacing)
+    {
+        if (worldProbeClipmapBufferManager is null || worldProbeScheduler is null)
+        {
+            return;
+        }
+
+        int levels = Math.Clamp(resources.Levels, 1, 8);
+        int resolution = resources.Resolution;
+        float baseSpacingF = (float)Math.Max(1e-6, baseSpacing);
+
+        Span<System.Numerics.Vector3> originsSpan = stackalloc System.Numerics.Vector3[8];
+        Span<System.Numerics.Vector3> ringsSpan = stackalloc System.Numerics.Vector3[8];
+
+        for (int i = 0; i < 8; i++)
+        {
+            if (i < levels && worldProbeScheduler.TryGetLevelParams(i, out var o, out var r))
+            {
+                originsSpan[i] = new System.Numerics.Vector3((float)o.X, (float)o.Y, (float)o.Z);
+                ringsSpan[i] = new System.Numerics.Vector3(r.X, r.Y, r.Z);
+            }
+            else
+            {
+                originsSpan[i] = default;
+                ringsSpan[i] = default;
+            }
+        }
+
+        worldProbeClipmapBufferManager.UpdateRuntimeParams(
+            new System.Numerics.Vector3((float)camPosMatrixSpace.X, (float)camPosMatrixSpace.Y, (float)camPosMatrixSpace.Z),
+            baseSpacingF,
+            levels,
+            resolution,
+            originsSpan,
+            ringsSpan);
     }
 
     private void UpdateWorldProbeDebugHeatmap(LumOnWorldProbeClipmapGpuResources resources)

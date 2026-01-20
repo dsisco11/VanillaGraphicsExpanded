@@ -918,6 +918,15 @@ vec4 renderGatherWeightDebug() {
 // Debug Modes 31-39, 41: World-Probe Clipmap (Phase 18)
 // ============================================================================
 
+vec4 lumonWorldProbeDebugDisabledColor()
+{
+    // Visual cue that the world-probe debug path is compile-time disabled (vs just "no data in bounds").
+    float v = 0.5 + 0.5 * sin(uv.x * 80.0) * sin(uv.y * 80.0);
+    vec3 a = vec3(0.15, 0.0, 0.2);
+    vec3 b = vec3(0.55, 0.0, 0.7);
+    return vec4(mix(a, b, v), 1.0);
+}
+
 bool lumonWorldProbeDebugNearest(in vec3 worldPosWS, out int outLevel, out ivec2 outAtlasCoord)
 {
 #if !VGE_LUMON_WORLDPROBE_ENABLED
@@ -975,7 +984,7 @@ vec4 renderWorldProbeIrradianceCombinedDebug()
     if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
 
 #if !VGE_LUMON_WORLDPROBE_ENABLED
-    return vec4(0.0, 0.0, 0.0, 1.0);
+    return lumonWorldProbeDebugDisabledColor();
 #else
     vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
     vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
@@ -993,7 +1002,7 @@ vec4 renderWorldProbeIrradianceLevelDebug()
     if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
 
 #if !VGE_LUMON_WORLDPROBE_ENABLED
-    return vec4(0.0, 0.0, 0.0, 1.0);
+    return lumonWorldProbeDebugDisabledColor();
 #else
     vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
     vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
@@ -1027,7 +1036,7 @@ vec4 renderWorldProbeConfidenceDebug()
     if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
 
 #if !VGE_LUMON_WORLDPROBE_ENABLED
-    return vec4(0.0, 0.0, 0.0, 1.0);
+    return lumonWorldProbeDebugDisabledColor();
 #else
     vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
     vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
@@ -1043,6 +1052,10 @@ vec4 renderWorldProbeAoDirectionDebug()
 {
     float depth = texture(primaryDepth, uv).r;
     if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
+
+#if !VGE_LUMON_WORLDPROBE_ENABLED
+    return lumonWorldProbeDebugDisabledColor();
+#endif
 
     vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
     vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
@@ -1068,6 +1081,10 @@ vec4 renderWorldProbeAoConfidenceDebug()
     float depth = texture(primaryDepth, uv).r;
     if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
 
+#if !VGE_LUMON_WORLDPROBE_ENABLED
+    return lumonWorldProbeDebugDisabledColor();
+#endif
+
     vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
     vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
 
@@ -1086,6 +1103,10 @@ vec4 renderWorldProbeDistanceDebug()
 {
     float depth = texture(primaryDepth, uv).r;
     if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
+
+#if !VGE_LUMON_WORLDPROBE_ENABLED
+    return lumonWorldProbeDebugDisabledColor();
+#endif
 
     vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
     vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
@@ -1115,6 +1136,10 @@ vec4 renderWorldProbeFlagsHeatmapDebug()
     float depth = texture(primaryDepth, uv).r;
     if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
 
+#if !VGE_LUMON_WORLDPROBE_ENABLED
+    return lumonWorldProbeDebugDisabledColor();
+#endif
+
     vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
     vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
 
@@ -1136,7 +1161,7 @@ vec4 renderWorldProbeBlendWeightsDebug()
     if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
 
 #if !VGE_LUMON_WORLDPROBE_ENABLED
-    return vec4(0.0, 0.0, 0.0, 1.0);
+    return lumonWorldProbeDebugDisabledColor();
 #else
     vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
     vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
@@ -1165,7 +1190,7 @@ vec4 renderWorldProbeCrossLevelBlendDebug()
     if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
 
 #if !VGE_LUMON_WORLDPROBE_ENABLED
-    return vec4(0.0, 0.0, 0.0, 1.0);
+    return lumonWorldProbeDebugDisabledColor();
 #else
     vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
     vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
@@ -1193,7 +1218,7 @@ vec4 renderWorldProbeCrossLevelBlendDebug()
 vec4 renderWorldProbeSpheresDebug()
 {
 #if !VGE_LUMON_WORLDPROBE_ENABLED
-    return vec4(0.0, 0.0, 0.0, 1.0);
+    return lumonWorldProbeDebugDisabledColor();
 #else
     int levels = VGE_LUMON_WORLDPROBE_LEVELS;
     int resolution = VGE_LUMON_WORLDPROBE_RESOLUTION;
