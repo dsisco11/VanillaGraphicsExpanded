@@ -44,12 +44,12 @@ Material Atlas Disk Cache - Meta Index + Cache-Only Warmup:
 
   Phase 2 - Refactor Cache Ops to Use Index:
   Exit artifacts: All reads/writes/prunes/stats operate on meta.json + index only.
-  ☐ Remove per-file .meta read/write logic and file timestamp LRU.
-  ☐ Update TryLoad* to consult index before reading .dds; update lastAccess on hit.
+  ☑ Remove per-file .meta read/write logic and file timestamp LRU.
+  ☑ Update TryLoad* to consult index before reading .dds; update lastAccess on hit.
     - On read failure (missing/corrupt/wrong dims): delete payload best-effort, remove index entry, and return miss
-  ☐ Update Store* to add/update entries and totalBytes; persist index.
-  ☐ Update TryPruneIfNeeded to use index LRU ordering; delete .dds and drop entries.
-  ☐ Update GetStatsSnapshot to read from index totals (no directory walk).
+  ☑ Update Store* to add/update entries and totalBytes; persist index.
+  ☑ Update TryPruneIfNeeded to use index LRU ordering; delete .dds and drop entries.
+  ☑ Update GetStatsSnapshot to read from index totals (no directory walk).
 
 
   Phase 3 - Cache-Only Warmup Planning:

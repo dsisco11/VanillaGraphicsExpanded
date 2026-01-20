@@ -15,11 +15,7 @@ namespace VanillaGraphicsExpanded.PBR.Materials.Cache;
 
 internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
 {
-    private const int MetaFormatVersion = 1;
-
     private const string MetaIndexFileName = "meta.json";
-
-    private static readonly byte[] MetaMagic = "VGEDC1\0\0"u8.ToArray();
 
     private readonly string root;
     private readonly long maxBytes;
@@ -188,24 +184,41 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         }
 
         Directory.CreateDirectory(root);
+
+        indexLock.EnterWriteLock();
+        try
+        {
+            index = MaterialAtlasDiskCacheIndex.CreateEmpty(DateTime.UtcNow.Ticks);
+            try
+            {
+                index.SetSavedNow(DateTime.UtcNow.Ticks);
+                index.SaveAtomic(Path.Combine(root, MetaIndexFileName));
+            }
+            catch
+            {
+                // Best-effort.
+            }
+        }
+        finally
+        {
+            indexLock.ExitWriteLock();
+        }
     }
 
     public MaterialAtlasDiskCacheStats GetStatsSnapshot()
     {
-        long totalEntries = 0;
-        long totalBytes = 0;
+        long totalEntries;
+        long totalBytes;
 
+        indexLock.EnterReadLock();
         try
         {
-            foreach (CacheEntry entry in EnumerateEntries())
-            {
-                totalEntries++;
-                totalBytes += entry.SizeBytes;
-            }
+            totalEntries = index.Entries.Count;
+            totalBytes = index.TotalBytes;
         }
-        catch
+        finally
         {
-            // Best-effort.
+            indexLock.ExitReadLock();
         }
 
         return new MaterialAtlasDiskCacheStats(
@@ -225,14 +238,14 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
 
     public bool TryLoadMaterialParamsTile(AtlasCacheKey key, out float[] rgbTriplets)
     {
-        if (!TryLoadTile(PayloadKind.MaterialParams, key, out TileMeta meta, out float[] rgba))
+        if (!TryLoadTile(PayloadKind.MaterialParams, key, out TileInfo info, out float[] rgba))
         {
             rgbTriplets = Array.Empty<float>();
             Interlocked.Increment(ref materialParamsMisses);
             return false;
         }
 
-        int pixels = checked(meta.Width * meta.Height);
+        int pixels = checked(info.Width * info.Height);
         int expectedRgba = checked(pixels * 4);
 
         if (rgba.Length != expectedRgba)
@@ -290,7 +303,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
 
     public bool TryLoadNormalDepthTile(AtlasCacheKey key, out float[] rgbaQuads)
     {
-        if (!TryLoadTile(PayloadKind.NormalDepth, key, out TileMeta meta, out float[] rgba))
+        if (!TryLoadTile(PayloadKind.NormalDepth, key, out TileInfo info, out float[] rgba))
         {
             rgbaQuads = Array.Empty<float>();
             Interlocked.Increment(ref normalDepthMisses);
@@ -318,9 +331,11 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         StoreTile(PayloadKind.NormalDepth, key, width, height, channels: 4, rgbaU16);
     }
 
-    private bool TryLoadTile(PayloadKind kind, AtlasCacheKey key, out TileMeta meta, out float[] rgba)
+    private readonly record struct TileInfo(int Width, int Height, int Channels);
+
+    private bool TryLoadTile(PayloadKind kind, AtlasCacheKey key, out TileInfo info, out float[] rgba)
     {
-        meta = default;
+        info = default;
         rgba = Array.Empty<float>();
 
         using var cacheReadScope = Profiler.BeginScope(
@@ -329,97 +344,99 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
                 : "MaterialAtlasDiskCache.Read.NormalDepth",
             category: "Cache");
 
+        string stem;
+        string entryId;
+        MaterialAtlasDiskCacheIndex.Entry entry;
+
         try
         {
-            string stem = GetFileStem(key);
+            stem = GetFileStem(key);
+            entryId = stem + GetKindSuffix(kind);
 
-            string metaPath = GetMetaPath(root, stem, kind);
-            string ddsPath = GetDdsPath(root, stem, kind);
-
-            bool hasMeta = File.Exists(metaPath);
-            bool hasDds = File.Exists(ddsPath);
-
-            if (!hasMeta || !hasDds)
-            {
-                // Clean up orphans from interrupted writes.
-                if (hasMeta && !hasDds)
-                {
-                    TryDelete(metaPath);
-                }
-                else if (!hasMeta && hasDds)
-                {
-                    TryDelete(ddsPath);
-                }
-
-                return false;
-            }
-
-            if (!TryReadMeta(metaPath, out meta))
-            {
-                TryDeletePair(metaPath, ddsPath);
-                return false;
-            }
-
-            if (meta.Kind != kind || meta.SchemaVersion != key.SchemaVersion || meta.Hash64 != key.Hash64)
-            {
-                TryDeletePair(metaPath, ddsPath);
-                return false;
-            }
-
+            indexLock.EnterReadLock();
             try
             {
-                if (kind == PayloadKind.MaterialParams)
+                if (!index.Entries.TryGetValue(entryId, out entry))
                 {
-                    byte[] rgbaU8 = DdsBc7Rgba8Codec.ReadRgba8FromDds(ddsPath, out int w, out int h);
-                    if (w != meta.Width || h != meta.Height)
-                    {
-                        TryDeletePair(metaPath, ddsPath);
-                        rgba = Array.Empty<float>();
-                        return false;
-                    }
-
-                    rgba = new float[rgbaU8.Length];
-                    for (int i = 0; i < rgbaU8.Length; i++)
-                    {
-                        rgba[i] = rgbaU8[i] * InvU8Max;
-                    }
-                }
-                else
-                {
-                    ushort[] rgbaU16 = DdsRgba16UnormCodec.ReadRgba16Unorm(ddsPath, out int w, out int h);
-                    if (w != meta.Width || h != meta.Height)
-                    {
-                        TryDeletePair(metaPath, ddsPath);
-                        rgba = Array.Empty<float>();
-                        return false;
-                    }
-
-                    rgba = new float[rgbaU16.Length];
-                    for (int i = 0; i < rgbaU16.Length; i++)
-                    {
-                        rgba[i] = rgbaU16[i] * InvU16Max;
-                    }
+                    return false;
                 }
             }
-            catch
+            finally
             {
-                TryDeletePair(metaPath, ddsPath);
-                rgba = Array.Empty<float>();
-                return false;
+                indexLock.ExitReadLock();
             }
-
-            // Touch meta timestamp for LRU.
-            TouchMeta(metaPath);
-
-            return true;
         }
         catch
         {
-            // If anything looks wrong, treat as a cache miss.
-            meta = default;
-            rgba = Array.Empty<float>();
             return false;
         }
+
+        string expectedKind = GetIndexKind(kind);
+        if (!string.Equals(entry.Kind, expectedKind, StringComparison.Ordinal)
+            || entry.SchemaVersion != key.SchemaVersion
+            || entry.Hash64 != key.Hash64)
+        {
+            // Stale/mismatched index record.
+            RemoveIndexEntry(entryId, deletePayload: false);
+            return false;
+        }
+
+        string ddsFileName = entry.DdsFileName ?? (entryId + ".dds");
+        string ddsPath = Path.Combine(root, ddsFileName);
+
+        if (!File.Exists(ddsPath))
+        {
+            RemoveIndexEntry(entryId, deletePayload: false);
+            return false;
+        }
+
+        try
+        {
+            if (kind == PayloadKind.MaterialParams)
+            {
+                byte[] rgbaU8 = DdsBc7Rgba8Codec.ReadRgba8FromDds(ddsPath, out int w, out int h);
+                if (w != entry.Width || h != entry.Height)
+                {
+                    throw new InvalidDataException("Cached DDS dimensions did not match index entry.");
+                }
+
+                rgba = new float[rgbaU8.Length];
+                for (int i = 0; i < rgbaU8.Length; i++)
+                {
+                    rgba[i] = rgbaU8[i] * InvU8Max;
+                }
+
+                info = new TileInfo(entry.Width, entry.Height, Channels: 3);
+            }
+            else
+            {
+                ushort[] rgbaU16 = DdsRgba16UnormCodec.ReadRgba16Unorm(ddsPath, out int w, out int h);
+                if (w != entry.Width || h != entry.Height)
+                {
+                    throw new InvalidDataException("Cached DDS dimensions did not match index entry.");
+                }
+
+                rgba = new float[rgbaU16.Length];
+                for (int i = 0; i < rgbaU16.Length; i++)
+                {
+                    rgba[i] = rgbaU16[i] * InvU16Max;
+                }
+
+                info = new TileInfo(entry.Width, entry.Height, Channels: 4);
+            }
+        }
+        catch
+        {
+            // Corrupt/unreadable payload; treat as a cache miss and evict the bad entry.
+            TryDelete(ddsPath);
+            RemoveIndexEntry(entryId, deletePayload: false);
+            rgba = Array.Empty<float>();
+            info = default;
+            return false;
+        }
+
+        TryUpdateIndexAccess(entryId, ddsPath);
+        return true;
     }
 
     private void StoreTile(PayloadKind kind, AtlasCacheKey key, int width, int height, int channels, ushort[] rgbaU16)
@@ -429,40 +446,26 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             Directory.CreateDirectory(root);
 
             string stem = GetFileStem(key);
+            string entryId = stem + GetKindSuffix(kind);
+            string ddsPath = Path.Combine(root, entryId + ".dds");
 
-            string metaPath = GetMetaPath(root, stem, kind);
-            string ddsPath = GetDdsPath(root, stem, kind);
-
-            var meta = new TileMeta(
-                Kind: kind,
-                SchemaVersion: key.SchemaVersion,
-                Hash64: key.Hash64,
-                Width: width,
-                Height: height,
-                Channels: channels,
-                CreatedUtcTicks: DateTime.UtcNow.Ticks);
-
-            byte[] metaBytes = WriteMeta(meta);
-
-            string tmpMeta = metaPath + "." + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture) + ".tmp";
             string tmpDds = ddsPath + "." + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture) + ".tmp";
 
             bool stored = false;
+            long payloadBytes = 0;
 
             try
             {
-                // Write payload first, then publish metadata last.
                 DdsRgba16UnormCodec.WriteRgba16Unorm(tmpDds, width, height, rgbaU16);
                 ReplaceAtomic(tmpDds, ddsPath);
 
-                WriteAllBytesAtomic(tmpMeta, metaBytes, metaPath);
-                TouchMeta(metaPath);
+                payloadBytes = TryGetFileLength(ddsPath);
+                UpsertIndexEntry(kind, key, entryId, width, height, channels, payloadBytes);
 
                 stored = true;
             }
             finally
             {
-                TryDelete(tmpMeta);
                 TryDelete(tmpDds);
             }
 
@@ -493,39 +496,26 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             Directory.CreateDirectory(root);
 
             string stem = GetFileStem(key);
+            string entryId = stem + GetKindSuffix(kind);
+            string ddsPath = Path.Combine(root, entryId + ".dds");
 
-            string metaPath = GetMetaPath(root, stem, kind);
-            string ddsPath = GetDdsPath(root, stem, kind);
-
-            var meta = new TileMeta(
-                Kind: kind,
-                SchemaVersion: key.SchemaVersion,
-                Hash64: key.Hash64,
-                Width: width,
-                Height: height,
-                Channels: channels,
-                CreatedUtcTicks: DateTime.UtcNow.Ticks);
-
-            byte[] metaBytes = WriteMeta(meta);
-
-            string tmpMeta = metaPath + "." + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture) + ".tmp";
             string tmpDds = ddsPath + "." + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture) + ".tmp";
 
             bool stored = false;
+            long payloadBytes = 0;
 
             try
             {
                 DdsBc7Rgba8Codec.WriteBc7Dds(tmpDds, width, height, rgbaU8);
                 ReplaceAtomic(tmpDds, ddsPath);
 
-                WriteAllBytesAtomic(tmpMeta, metaBytes, metaPath);
-                TouchMeta(metaPath);
+                payloadBytes = TryGetFileLength(ddsPath);
+                UpsertIndexEntry(kind, key, entryId, width, height, channels, payloadBytes);
 
                 stored = true;
             }
             finally
             {
-                TryDelete(tmpMeta);
                 TryDelete(tmpDds);
             }
 
@@ -546,6 +536,142 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         catch
         {
             // Best-effort.
+        }
+    }
+
+    private static string GetIndexKind(PayloadKind kind)
+        => kind switch
+        {
+            PayloadKind.MaterialParams => "materialParams",
+            PayloadKind.NormalDepth => "normalDepth",
+            _ => "unknown",
+        };
+
+    private static long TryGetFileLength(string path)
+    {
+        try
+        {
+            return new FileInfo(path).Length;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private void UpsertIndexEntry(PayloadKind kind, AtlasCacheKey key, string entryId, int width, int height, int channels, long payloadBytes)
+    {
+        long nowTicks = DateTime.UtcNow.Ticks;
+        string indexPath = Path.Combine(root, MetaIndexFileName);
+
+        indexLock.EnterWriteLock();
+        try
+        {
+            long createdTicks = nowTicks;
+
+            if (index.Entries.TryGetValue(entryId, out MaterialAtlasDiskCacheIndex.Entry existing))
+            {
+                createdTicks = existing.CreatedUtcTicks != 0 ? existing.CreatedUtcTicks : nowTicks;
+                index.TotalBytes -= existing.SizeBytes;
+            }
+
+            index.Entries[entryId] = new MaterialAtlasDiskCacheIndex.Entry(
+                Kind: GetIndexKind(kind),
+                SchemaVersion: key.SchemaVersion,
+                Hash64: key.Hash64,
+                Width: width,
+                Height: height,
+                Channels: channels,
+                CreatedUtcTicks: createdTicks,
+                LastAccessUtcTicks: nowTicks,
+                SizeBytes: payloadBytes,
+                DdsFileName: null,
+                Provenance: null,
+                MetadataPresent: null);
+
+            index.TotalBytes += payloadBytes;
+
+            try
+            {
+                index.SetSavedNow(nowTicks);
+                index.SaveAtomic(indexPath);
+            }
+            catch
+            {
+                // Best-effort.
+            }
+        }
+        finally
+        {
+            indexLock.ExitWriteLock();
+        }
+    }
+
+    private void RemoveIndexEntry(string entryId, bool deletePayload)
+    {
+        string? ddsPath = null;
+        long nowTicks = DateTime.UtcNow.Ticks;
+        string indexPath = Path.Combine(root, MetaIndexFileName);
+
+        indexLock.EnterWriteLock();
+        try
+        {
+            if (!index.Entries.TryGetValue(entryId, out MaterialAtlasDiskCacheIndex.Entry existing))
+            {
+                return;
+            }
+
+            ddsPath = Path.Combine(root, existing.DdsFileName ?? (entryId + ".dds"));
+
+            index.TotalBytes -= existing.SizeBytes;
+            index.Entries.Remove(entryId);
+
+            try
+            {
+                index.SetSavedNow(nowTicks);
+                index.SaveAtomic(indexPath);
+            }
+            catch
+            {
+                // Best-effort.
+            }
+        }
+        finally
+        {
+            indexLock.ExitWriteLock();
+        }
+
+        if (deletePayload && ddsPath is not null)
+        {
+            TryDelete(ddsPath);
+        }
+    }
+
+    private void TryUpdateIndexAccess(string entryId, string ddsPath)
+    {
+        long nowTicks = DateTime.UtcNow.Ticks;
+        long payloadBytes = TryGetFileLength(ddsPath);
+
+        indexLock.EnterWriteLock();
+        try
+        {
+            if (!index.Entries.TryGetValue(entryId, out MaterialAtlasDiskCacheIndex.Entry existing))
+            {
+                return;
+            }
+
+            if (payloadBytes != 0 && payloadBytes != existing.SizeBytes)
+            {
+                index.TotalBytes -= existing.SizeBytes;
+                index.TotalBytes += payloadBytes;
+                existing = existing with { SizeBytes = payloadBytes };
+            }
+
+            index.Entries[entryId] = existing with { LastAccessUtcTicks = nowTicks };
+        }
+        finally
+        {
+            indexLock.ExitWriteLock();
         }
     }
 
@@ -599,7 +725,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
 
     private void TryPruneIfNeeded()
     {
-        // Avoid scanning every tile write.
+        // Avoid pruning on every tile write.
         DateTime now = DateTime.UtcNow;
         if ((now - lastPruneUtc).TotalSeconds < 10)
         {
@@ -608,118 +734,60 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
 
         lastPruneUtc = now;
 
+        var payloadsToDelete = new List<(string Path, long SizeBytes)>();
+        long evictedEntryCount = 0;
+        long evictedByteCount = 0;
+
+        indexLock.EnterWriteLock();
         try
         {
-            long totalBytes = GetTotalCacheBytes();
-            if (totalBytes <= maxBytes)
+            if (index.TotalBytes <= maxBytes)
             {
                 return;
             }
 
-            // Oldest meta timestamp == least recently used.
-            List<CacheEntry> entries = EnumerateEntries().OrderBy(e => e.LastAccessUtc).ToList();
-
-            foreach (CacheEntry entry in entries)
+            // Oldest access tick == least recently used.
+            foreach ((string entryId, MaterialAtlasDiskCacheIndex.Entry entry) in index.Entries.OrderBy(kvp => kvp.Value.LastAccessUtcTicks).ToList())
             {
-                if (totalBytes <= maxBytes)
+                if (index.TotalBytes <= maxBytes)
                 {
                     break;
                 }
 
-                long freed = entry.SizeBytes;
-                TryDeletePair(entry.MetaPath, entry.DdsPath);
-                totalBytes -= freed;
+                string ddsPath = Path.Combine(root, entry.DdsFileName ?? (entryId + ".dds"));
+                payloadsToDelete.Add((ddsPath, entry.SizeBytes));
 
-                Interlocked.Increment(ref evictedEntries);
-                Interlocked.Add(ref evictedBytes, freed);
+                index.TotalBytes -= entry.SizeBytes;
+                index.Entries.Remove(entryId);
+
+                evictedEntryCount++;
+                evictedByteCount += entry.SizeBytes;
             }
-        }
-        catch
-        {
-            // Best-effort.
-        }
-    }
-
-    private long GetTotalCacheBytes()
-    {
-        long total = 0;
-        foreach (CacheEntry entry in EnumerateEntries())
-        {
-            total += entry.SizeBytes;
-        }
-
-        return total;
-    }
-
-    private IEnumerable<CacheEntry> EnumerateEntries()
-    {
-        foreach (CacheEntry entry in EnumerateEntriesInDir(root, useSuffixedNames: true))
-        {
-            yield return entry;
-        }
-    }
-
-    private IEnumerable<CacheEntry> EnumerateEntriesInDir(string dir, bool useSuffixedNames)
-    {
-        if (!Directory.Exists(dir))
-        {
-            yield break;
-        }
-
-        foreach (string metaPath in Directory.EnumerateFiles(dir, "*.meta", SearchOption.TopDirectoryOnly))
-        {
-            string file = Path.GetFileName(metaPath);
-
-            PayloadKind kind;
-            string stem;
-
-            if (useSuffixedNames)
-            {
-                if (file.EndsWith(".material.meta", StringComparison.OrdinalIgnoreCase))
-                {
-                    kind = PayloadKind.MaterialParams;
-                    stem = file[..^(".material.meta".Length)];
-                }
-                else if (file.EndsWith(".norm.meta", StringComparison.OrdinalIgnoreCase))
-                {
-                    kind = PayloadKind.NormalDepth;
-                    stem = file[..^(".norm.meta".Length)];
-                }
-                else
-                {
-                    continue;
-                }
-            }
-            else
-            {
-                kind = dir.EndsWith("normaldepth", StringComparison.OrdinalIgnoreCase)
-                    ? PayloadKind.NormalDepth
-                    : PayloadKind.MaterialParams;
-                stem = Path.GetFileNameWithoutExtension(metaPath);
-            }
-
-            string ddsPath = useSuffixedNames
-                ? GetDdsPath(dir, stem, kind)
-                : Path.Combine(dir, stem + ".dds");
-
-            if (!File.Exists(ddsPath))
-            {
-                continue;
-            }
-
-            DateTime lastAccess = File.GetLastWriteTimeUtc(metaPath);
-            long size;
 
             try
             {
-                size = new FileInfo(metaPath).Length + new FileInfo(ddsPath).Length;
+                index.SetSavedNow(DateTime.UtcNow.Ticks);
+                index.SaveAtomic(Path.Combine(root, MetaIndexFileName));
             }
             catch
             {
-                continue;
+                // Best-effort.
             }
+        }
+        finally
+        {
+            indexLock.ExitWriteLock();
+        }
 
-            yield return new CacheEntry(kind, metaPath, ddsPath, lastAccess, size);
+        foreach ((string path, long _) in payloadsToDelete)
+        {
+            TryDelete(path);
+        }
+
+        if (evictedEntryCount != 0)
+        {
+            Interlocked.Add(ref evictedEntries, evictedEntryCount);
+            Interlocked.Add(ref evictedBytes, evictedByteCount);
         }
     }
 
@@ -731,27 +799,9 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             _ => ".unknown",
         };
 
-    private static string GetMetaPath(string dir, string stem, PayloadKind kind)
-        => Path.Combine(dir, stem + GetKindSuffix(kind) + ".meta");
-
-    private static string GetDdsPath(string dir, string stem, PayloadKind kind)
-        => Path.Combine(dir, stem + GetKindSuffix(kind) + ".dds");
-
     private static string GetFileStem(AtlasCacheKey key)
         // Windows-safe (':' is invalid in filenames).
         => string.Format(CultureInfo.InvariantCulture, "v{0}-{1:x16}", key.SchemaVersion, key.Hash64);
-
-    private static void TouchMeta(string metaPath)
-    {
-        try
-        {
-            File.SetLastWriteTimeUtc(metaPath, DateTime.UtcNow);
-        }
-        catch
-        {
-            // Best-effort.
-        }
-    }
 
     private static void TryDelete(string path)
     {
@@ -768,12 +818,6 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         }
     }
 
-    private static void TryDeletePair(string metaPath, string ddsPath)
-    {
-        TryDelete(metaPath);
-        TryDelete(ddsPath);
-    }
-
     private static void ReplaceAtomic(string tempPath, string targetPath)
     {
         if (File.Exists(targetPath))
@@ -784,138 +828,4 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
 
         File.Move(tempPath, targetPath);
     }
-
-    private static void WriteAllBytesAtomic(string tempPath, byte[] data, string targetPath)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-
-        using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
-        {
-            fs.Write(data, 0, data.Length);
-            fs.Flush(flushToDisk: true);
-        }
-
-        ReplaceAtomic(tempPath, targetPath);
-    }
-
-    private static bool TryReadMeta(string metaPath, out TileMeta meta)
-    {
-        meta = default;
-
-        byte[] bytes;
-        try
-        {
-            bytes = File.ReadAllBytes(metaPath);
-        }
-        catch
-        {
-            return false;
-        }
-
-        if (bytes.Length < 8 + 4 + 1 + 4 + 8 + 4 + 4 + 1 + 8)
-        {
-            return false;
-        }
-
-        try
-        {
-            int o = 0;
-
-            // magic
-            for (int i = 0; i < MetaMagic.Length; i++)
-            {
-                if (bytes[o + i] != MetaMagic[i])
-                {
-                    return false;
-                }
-            }
-
-            o += MetaMagic.Length;
-
-            int version = BitConverter.ToInt32(bytes, o);
-            o += 4;
-
-            if (version != MetaFormatVersion)
-            {
-                return false;
-            }
-
-            PayloadKind kind = (PayloadKind)bytes[o++];
-            int schemaVersion = BitConverter.ToInt32(bytes, o);
-            o += 4;
-
-            ulong hash64 = BitConverter.ToUInt64(bytes, o);
-            o += 8;
-
-            int width = BitConverter.ToInt32(bytes, o);
-            o += 4;
-
-            int height = BitConverter.ToInt32(bytes, o);
-            o += 4;
-
-            int channels = bytes[o++];
-
-            long createdTicks = BitConverter.ToInt64(bytes, o);
-
-            if (width <= 0 || height <= 0)
-            {
-                return false;
-            }
-
-            meta = new TileMeta(kind, schemaVersion, hash64, width, height, channels, createdTicks);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static byte[] WriteMeta(TileMeta meta)
-    {
-        byte[] bytes = new byte[checked(MetaMagic.Length + 4 + 1 + 4 + 8 + 4 + 4 + 1 + 8)];
-        int o = 0;
-
-        Array.Copy(MetaMagic, 0, bytes, 0, MetaMagic.Length);
-        o += MetaMagic.Length;
-
-        BitConverter.GetBytes(MetaFormatVersion).CopyTo(bytes, o);
-        o += 4;
-
-        bytes[o++] = (byte)meta.Kind;
-
-        BitConverter.GetBytes(meta.SchemaVersion).CopyTo(bytes, o);
-        o += 4;
-
-        BitConverter.GetBytes(meta.Hash64).CopyTo(bytes, o);
-        o += 8;
-
-        BitConverter.GetBytes(meta.Width).CopyTo(bytes, o);
-        o += 4;
-
-        BitConverter.GetBytes(meta.Height).CopyTo(bytes, o);
-        o += 4;
-
-        bytes[o++] = (byte)meta.Channels;
-
-        BitConverter.GetBytes(meta.CreatedUtcTicks).CopyTo(bytes, o);
-
-        return bytes;
-    }
-
-    private readonly record struct TileMeta(
-        PayloadKind Kind,
-        int SchemaVersion,
-        ulong Hash64,
-        int Width,
-        int Height,
-        int Channels,
-        long CreatedUtcTicks);
-
-    private readonly record struct CacheEntry(
-        PayloadKind Kind,
-        string MetaPath,
-        string DdsPath,
-        DateTime LastAccessUtc,
-        long SizeBytes);
 }

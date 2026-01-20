@@ -24,7 +24,7 @@ internal sealed class MaterialAtlasDiskCacheIndex
 
     public long LastSavedUtcTicks { get; private set; }
 
-    public long TotalBytes { get; private set; }
+    public long TotalBytes { get; internal set; }
 
     public Dictionary<string, Entry> Entries { get; } = new(StringComparer.Ordinal);
 
