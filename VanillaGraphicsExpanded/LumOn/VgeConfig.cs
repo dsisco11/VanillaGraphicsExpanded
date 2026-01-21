@@ -168,14 +168,14 @@ public class VgeConfig
         /// Requires shader reload / re-entering the world to fully apply.
         /// </summary>
         [JsonProperty]
-        public bool EnableParallaxMapping { get; set; } = false;
+        public bool EnableParallaxMapping { get; set; } = true;
 
         /// <summary>
         /// Parallax UV offset scale (in atlas UV units).
         /// This is intentionally small; typical range: 0.005 .. 0.05.
         /// </summary>
         [JsonProperty]
-        public float ParallaxScale { get; set; } = 0.03f;
+        public float ParallaxScale { get; set; } = 0.05f;
 
         /// <summary>
         /// Enables Parallax Occlusion Mapping (POM) in patched vanilla chunk shaders.
@@ -183,20 +183,20 @@ public class VgeConfig
         /// Requires shader reload / re-entering the world to fully apply.
         /// </summary>
         [JsonProperty]
-        public bool EnableParallaxOcclusionMapping { get; set; } = false;
+        public bool EnableParallaxOcclusionMapping { get; set; } = true;
 
         /// <summary>
         /// POM UV offset scale (in atlas UV units).
         /// Defaults to the parallax scale for convenience.
         /// </summary>
         [JsonProperty]
-        public float PomScale { get; set; } = 0.03f;
+        public float PomScale { get; set; } = 0.05f;
 
         /// <summary>
         /// Minimum ray-march steps for POM.
         /// </summary>
         [JsonProperty]
-        public int PomMinSteps { get; set; } = 8;
+        public int PomMinSteps { get; set; } = 6;
 
         /// <summary>
         /// Maximum ray-march steps for POM (used at grazing angles).
@@ -227,7 +227,7 @@ public class VgeConfig
         /// Keeps mip/derivative stability and prevents cross-tile bleeding.
         /// </summary>
         [JsonProperty]
-        public float PomMaxTexels { get; set; } = 2.0f;
+        public float PomMaxTexels { get; set; } = 4.0f;
 
         /// <summary>
         /// POM debug metric selector (written to gBufferNormal.w for visualization).
