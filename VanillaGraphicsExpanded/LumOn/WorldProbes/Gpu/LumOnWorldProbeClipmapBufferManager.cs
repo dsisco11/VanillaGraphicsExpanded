@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 
 using Vintagestory.API.Client;
+using VanillaGraphicsExpanded.LumOn.WorldProbes;
 
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 
@@ -39,6 +40,12 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
 
     public LumOnWorldProbeClipmapGpuResources? Resources => resources;
     public LumOnWorldProbeClipmapGpuUploader? Uploader => uploader;
+
+    /// <summary>
+    /// Fired whenever the snapped clipmap anchor shifts (origin and ring offsets change).
+    /// Intended for debug visualization rebuilds; does not imply any particular GPU upload timing.
+    /// </summary>
+    public event Action<LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent>? AnchorShifted;
 
     public bool TryGetRuntimeParams(
         out Vector3 cameraPosWS,
@@ -100,6 +107,11 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
                 runtimeResolution,
                 runtimeBaseSpacing);
         }
+    }
+
+    internal void NotifyAnchorShifted(in LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent evt)
+    {
+        AnchorShifted?.Invoke(evt);
     }
 
     public LumOnWorldProbeClipmapBufferManager(ICoreClientAPI capi, VgeConfig config)

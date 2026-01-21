@@ -12,6 +12,7 @@ using VanillaGraphicsExpanded.Rendering.Profiling;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
+using VanillaGraphicsExpanded.LumOn.WorldProbes;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -56,6 +57,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private readonly DirectLightingBufferManager? directLightingBufferManager;
 
     private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager;
+    private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManagerEventSource;
 
     private MeshRef? quadMeshRef;
 
@@ -83,6 +85,18 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private ProbeOrbVertex[]? clipmapProbeOrbVertices;
     private int clipmapProbeOrbsVao;
     private int clipmapProbeOrbsVbo;
+    private int clipmapProbeOrbsCount;
+
+    private bool worldProbeClipmapDebugDirty = true;
+    private int clipmapBoundsCount;
+    private int clipmapProbePointsCount;
+    private float clipmapDebugBaseSpacing;
+    private int clipmapDebugLevels;
+    private int clipmapDebugResolution;
+    private System.Numerics.Vector3 clipmapDebugBuildOriginRelL0;
+    private bool hasClipmapDebugBuildOriginRelL0;
+    private Vec3d clipmapDebugBuildCameraPosWorld;
+    private bool hasClipmapDebugBuildCameraPosWorld;
 
     // Matrix buffers
     private readonly float[] invProjectionMatrix = new float[16];
@@ -134,7 +148,211 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     internal void SetWorldProbeClipmapBufferManager(LumOnWorldProbeClipmapBufferManager? bufferManager)
     {
+        if (worldProbeClipmapBufferManagerEventSource is not null)
+        {
+            worldProbeClipmapBufferManagerEventSource.AnchorShifted -= OnWorldProbeClipmapAnchorShifted;
+            worldProbeClipmapBufferManagerEventSource = null;
+        }
+
         worldProbeClipmapBufferManager = bufferManager;
+
+        if (worldProbeClipmapBufferManager is not null)
+        {
+            worldProbeClipmapBufferManager.AnchorShifted += OnWorldProbeClipmapAnchorShifted;
+            worldProbeClipmapBufferManagerEventSource = worldProbeClipmapBufferManager;
+            worldProbeClipmapDebugDirty = true;
+        }
+    }
+
+    private void OnWorldProbeClipmapAnchorShifted(LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent _)
+    {
+        worldProbeClipmapDebugDirty = true;
+    }
+
+    private void EnsureWorldProbeClipmapManagerBound(string reason)
+    {
+        if (worldProbeClipmapBufferManager is not null && worldProbeClipmapBufferManager.Resources is not null)
+        {
+            return;
+        }
+
+        var clipmapMs = capi.ModLoader.GetModSystem<ModSystems.WorldProbeModSystem>();
+        SetWorldProbeClipmapBufferManager(clipmapMs.EnsureClipmapResources(capi, reason));
+    }
+
+    private void EnsureWorldProbeClipmapDebugBuffers()
+    {
+        if (worldProbeClipmapBufferManager?.Resources is null)
+        {
+            clipmapBoundsCount = 0;
+            clipmapProbePointsCount = 0;
+            clipmapProbeOrbsCount = 0;
+            worldProbeClipmapDebugDirty = true;
+            return;
+        }
+
+        if (!worldProbeClipmapBufferManager.TryGetRuntimeParams(
+                out _,
+                out float baseSpacing,
+                out int levels,
+                out int resolution,
+                out var origins,
+                out var rings))
+        {
+            clipmapBoundsCount = 0;
+            clipmapProbePointsCount = 0;
+            clipmapProbeOrbsCount = 0;
+            worldProbeClipmapDebugDirty = true;
+            return;
+        }
+
+        levels = Math.Clamp(levels, 1, MaxWorldProbeLevels);
+        resolution = Math.Max(1, resolution);
+
+        if (MathF.Abs(baseSpacing - clipmapDebugBaseSpacing) > 1e-6f ||
+            levels != clipmapDebugLevels ||
+            resolution != clipmapDebugResolution)
+        {
+            worldProbeClipmapDebugDirty = true;
+        }
+
+        if (!worldProbeClipmapDebugDirty)
+        {
+            return;
+        }
+
+        clipmapDebugBaseSpacing = baseSpacing;
+        clipmapDebugLevels = levels;
+        clipmapDebugResolution = resolution;
+
+        clipmapDebugBuildOriginRelL0 = (origins.Length > 0) ? origins[0] : default;
+        hasClipmapDebugBuildOriginRelL0 = origins.Length > 0;
+
+        if (TryGetCameraPosWorld(out var camBuildWorld))
+        {
+            clipmapDebugBuildCameraPosWorld = camBuildWorld;
+            hasClipmapDebugBuildCameraPosWorld = true;
+        }
+        else
+        {
+            clipmapDebugBuildCameraPosWorld = default;
+            hasClipmapDebugBuildCameraPosWorld = false;
+        }
+
+        // Runtime origins are already camera-relative: originAbs - cameraWorld.
+        // Keep vertices camera-relative and render with a no-translate view matrix to avoid bob/weave from
+        // camera-matrix origin shifts (head-bob, smoothing, floating-origin offsets, etc).
+        for (int i = 0; i < MaxWorldProbeLevels; i++)
+        {
+            frozenOrigins[i] = (i < origins.Length) ? origins[i] : default;
+        }
+
+        EnsureClipmapBoundsLineGlObjects();
+        EnsureClipmapProbePointsGlObjects();
+        EnsureClipmapProbeOrbsGlObjects();
+
+        if (clipmapBoundsVao == 0 || clipmapBoundsVbo == 0)
+        {
+            clipmapBoundsCount = 0;
+            clipmapProbePointsCount = 0;
+            clipmapProbeOrbsCount = 0;
+            worldProbeClipmapDebugDirty = true;
+            return;
+        }
+
+        clipmapBoundsCount = BuildClipmapBoundsVertices(
+            baseSpacing: baseSpacing,
+            levels: levels,
+            resolution: resolution,
+            origins: frozenOrigins,
+            frozenCameraMarkerPos: default);
+
+        int lineStride = Marshal.SizeOf<LineVertex>();
+        GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapBoundsVbo);
+        GL.BufferData(BufferTarget.ArrayBuffer, clipmapBoundsCount * lineStride, clipmapBoundsVertices, BufferUsageHint.DynamicDraw);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+
+        clipmapProbePointsCount = 0;
+        if (clipmapProbePointsVao != 0 && clipmapProbePointsVbo != 0)
+        {
+            clipmapProbePointsCount = BuildClipmapProbePointVertices(
+                baseSpacing: baseSpacing,
+                levels: levels,
+                resolution: resolution,
+                origins: frozenOrigins);
+
+            if (clipmapProbePointsCount > 0 && clipmapProbePointVertices is not null)
+            {
+                GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbePointsVbo);
+                GL.BufferData(BufferTarget.ArrayBuffer, clipmapProbePointsCount * lineStride, clipmapProbePointVertices, BufferUsageHint.DynamicDraw);
+                GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+            }
+        }
+
+        clipmapProbeOrbsCount = 0;
+        if (clipmapProbeOrbsVao != 0 && clipmapProbeOrbsVbo != 0)
+        {
+            clipmapProbeOrbsCount = BuildClipmapProbeOrbVertices(
+                baseSpacing: baseSpacing,
+                levels: levels,
+                resolution: resolution,
+                originsCm: frozenOrigins,
+                rings: rings);
+
+            if (clipmapProbeOrbsCount > 0 && clipmapProbeOrbVertices is not null)
+            {
+                int orbStride = Marshal.SizeOf<ProbeOrbVertex>();
+                GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbeOrbsVbo);
+                GL.BufferData(BufferTarget.ArrayBuffer, clipmapProbeOrbsCount * orbStride, clipmapProbeOrbVertices, BufferUsageHint.DynamicDraw);
+                GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+            }
+        }
+
+        worldProbeClipmapDebugDirty = false;
+    }
+
+    private bool TryGetCameraPosWorld(out Vec3d camPosWorld)
+    {
+        var player = capi.World?.Player;
+        if (player?.Entity is null)
+        {
+            camPosWorld = default;
+            return false;
+        }
+
+        camPosWorld = player.Entity.CameraPos;
+        return true;
+    }
+
+    private Vec3f GetClipmapDebugWorldOffset()
+    {
+        // Prefer originRel deltas from the same published runtime params used to build the vertices.
+        // This stays consistent even if the engine updates camera/world positions at different points
+        // in the frame (and avoids mixing "world" vs "matrix-space" camera positions).
+        if (hasClipmapDebugBuildOriginRelL0
+            && worldProbeClipmapBufferManager is not null
+            && worldProbeClipmapBufferManager.TryGetRuntimeParams(
+                out _,
+                out _,
+                out _,
+                out _,
+                out var origins,
+                out _)
+            && origins.Length > 0)
+        {
+            // originRelNow - originRelBuild == (originAbs - camNow) - (originAbs - camBuild) == camBuild - camNow
+            var delta = origins[0] - clipmapDebugBuildOriginRelL0;
+            return new Vec3f(delta.X, delta.Y, delta.Z);
+        }
+
+        // Fallback: use camera world position deltas.
+        if (hasClipmapDebugBuildCameraPosWorld && TryGetCameraPosWorld(out var camNowWorld))
+        {
+            Vec3d d = clipmapDebugBuildCameraPosWorld - camNowWorld;
+            return new Vec3f((float)d.X, (float)d.Y, (float)d.Z);
+        }
+
+        return new Vec3f(0, 0, 0);
     }
 
     /// <summary>
@@ -182,6 +400,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         {
             if (mode == LumOnDebugMode.WorldProbeOrbsPoints)
             {
+                EnsureWorldProbeClipmapManagerBound("LumOnDebugRenderer AfterOIT bind");
+                EnsureWorldProbeClipmapDebugBuffers();
                 RenderWorldProbeClipmapBoundsLive();
                 RenderWorldProbeOrbsPointsLive();
             }
@@ -266,7 +486,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         if (worldProbeClipmapBufferManager is null || worldProbeClipmapBufferManager.Resources is null)
         {
             var clipmapMs = capi.ModLoader.GetModSystem<ModSystems.WorldProbeModSystem>();
-            worldProbeClipmapBufferManager = clipmapMs.EnsureClipmapResources(capi, "LumOnDebugRenderer bind");
+            SetWorldProbeClipmapBufferManager(clipmapMs.EnsureClipmapResources(capi, "LumOnDebugRenderer bind"));
         }
 
         // Keep resources alive for debug modes even if the main renderer is temporarily not running.
@@ -469,6 +689,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     {
         if (current is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeOrbsPoints)
         {
+            worldProbeClipmapDebugDirty = true;
+
             if (worldProbeClipmapBufferManager is null)
             {
                 capi.Logger.Debug("[VGE] World-probe clipmap manager: null (debug renderer)");
@@ -643,7 +865,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             (float)(frozenCameraPosWorld.Y - camPosWorldNow.Y),
             (float)(frozenCameraPosWorld.Z - camPosWorldNow.Z));
 
-        UpdateCurrentViewProjMatrix();
+        UpdateCurrentViewProjMatrixNoTranslate();
 
         int vertexCount = BuildClipmapBoundsVertices(
             baseSpacing: frozenBaseSpacing,
@@ -679,6 +901,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 shader.Use();
                 shaderUsed = true;
                 shader.ModelViewProjectionMatrix = currentViewProjMatrix;
+                shader.WorldOffset = GetClipmapDebugWorldOffset();
 
                 GL.BindVertexArray(clipmapBoundsVao);
 
@@ -716,18 +939,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private void RenderWorldProbeClipmapBoundsLive()
     {
         // Live bounds overlay so we can compare bounds + probe debug visualizations in the same frame.
-        if (worldProbeClipmapBufferManager?.Resources is null)
-        {
-            return;
-        }
-
-        if (!worldProbeClipmapBufferManager.TryGetRuntimeParams(
-                out var camPosWS,
-                out float baseSpacing,
-                out int levels,
-                out int resolution,
-                out var origins,
-                out _))
+        if (worldProbeClipmapBufferManager?.Resources is null || clipmapBoundsCount <= 0)
         {
             return;
         }
@@ -738,51 +950,12 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        EnsureClipmapBoundsLineGlObjects();
         if (clipmapBoundsVao == 0 || clipmapBoundsVbo == 0)
         {
             return;
         }
 
-        levels = Math.Clamp(levels, 1, MaxWorldProbeLevels);
-
-        // Convert runtime origins (originAbs - cameraAbs) into camera-matrix world space so the wireframe lines
-        // match the sphere debug shader (which ray-marches in camera-matrix world space).
-        // Use the published camera position from the runtime params so the conversion matches the same frame's
-        // world-probe uniforms (avoids per-pass camera bob/weave).
-        var camPosMatrix = camPosWS;
-
-        for (int i = 0; i < MaxWorldProbeLevels; i++)
-        {
-            frozenOrigins[i] = (i < origins.Length) ? (origins[i] + camPosMatrix) : default;
-        }
-
-        UpdateCurrentViewProjMatrix();
-
-        int vertexCount = BuildClipmapBoundsVertices(
-            baseSpacing: baseSpacing,
-            levels: levels,
-            resolution: resolution,
-            origins: frozenOrigins,
-            frozenCameraMarkerPos: camPosMatrix);
-
-        if (vertexCount <= 0)
-        {
-            return;
-        }
-
-        // Also render per-probe GL_POINTS so we can compare "actual probe centers" against the bounds without
-        // any ray-march selection quirks from the sphere debug shader.
-        EnsureClipmapProbePointsGlObjects();
-        int pointCount = 0;
-        if (clipmapProbePointsVao != 0 && clipmapProbePointsVbo != 0)
-        {
-            pointCount = BuildClipmapProbePointVertices(
-                baseSpacing: baseSpacing,
-                levels: levels,
-                resolution: resolution,
-                origins: frozenOrigins);
-        }
+        UpdateCurrentViewProjMatrixNoTranslate();
 
         using var cpuScope = Profiler.BeginScope("Debug.WorldProbeClipmapBoundsLive", "Render");
         using (GlGpuProfiler.Instance.Scope("Debug.WorldProbeClipmapBoundsLive"))
@@ -805,31 +978,24 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 shader.Use();
                 shaderUsed = true;
                 shader.ModelViewProjectionMatrix = currentViewProjMatrix;
+                shader.WorldOffset = GetClipmapDebugWorldOffset();
 
                 GL.BindVertexArray(clipmapBoundsVao);
 
                 int stride = Marshal.SizeOf<LineVertex>();
-                GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapBoundsVbo);
-                GL.BufferData(BufferTarget.ArrayBuffer, vertexCount * stride, clipmapBoundsVertices, BufferUsageHint.StreamDraw);
 
                 GL.LineWidth(2f);
-                GL.DrawArrays(PrimitiveType.Lines, 0, vertexCount);
+                GL.DrawArrays(PrimitiveType.Lines, 0, clipmapBoundsCount);
                 GL.LineWidth(1f);
 
-                GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
                 GL.BindVertexArray(0);
 
-                if (pointCount > 0 && clipmapProbePointVertices is not null)
+                if (clipmapProbePointsCount > 0 && clipmapProbePointVertices is not null && clipmapProbePointsVao != 0)
                 {
                     GL.PointSize(3.5f);
 
                     GL.BindVertexArray(clipmapProbePointsVao);
-
-                    GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbePointsVbo);
-                    GL.BufferData(BufferTarget.ArrayBuffer, pointCount * stride, clipmapProbePointVertices, BufferUsageHint.StreamDraw);
-                    GL.DrawArrays(PrimitiveType.Points, 0, pointCount);
-
-                    GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+                    GL.DrawArrays(PrimitiveType.Points, 0, clipmapProbePointsCount);
                     GL.BindVertexArray(0);
                 }
             }
@@ -1116,18 +1282,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     private void RenderWorldProbeOrbsPointsLive()
     {
-        if (worldProbeClipmapBufferManager?.Resources is null)
-        {
-            return;
-        }
-
-        if (!worldProbeClipmapBufferManager.TryGetRuntimeParams(
-                out var camPosWS,
-                out float baseSpacing,
-                out int levels,
-                out int resolution,
-                out var origins,
-                out var rings))
+        if (worldProbeClipmapBufferManager?.Resources is null || clipmapProbeOrbsCount <= 0)
         {
             return;
         }
@@ -1138,34 +1293,12 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        EnsureClipmapProbeOrbsGlObjects();
         if (clipmapProbeOrbsVao == 0 || clipmapProbeOrbsVbo == 0)
         {
             return;
         }
 
-        levels = Math.Clamp(levels, 1, MaxWorldProbeLevels);
-
-        // Render probe orbs in camera-relative space to avoid camera-matrix translation jitter.
-        for (int i = 0; i < MaxWorldProbeLevels; i++)
-        {
-            frozenOrigins[i] = (i < origins.Length) ? origins[i] : default;
-        }
-
-        int vertexCount = BuildClipmapProbeOrbVertices(
-            baseSpacing: baseSpacing,
-            levels: levels,
-            resolution: resolution,
-            originsCm: frozenOrigins,
-            rings: rings);
-
-        if (vertexCount <= 0 || clipmapProbeOrbVertices is null)
-        {
-            return;
-        }
-
-        // UpdateCurrentViewProjMatrixNoTranslate();
-        UpdateCurrentViewProjMatrix();
+        UpdateCurrentViewProjMatrixNoTranslate();
         MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invViewMatrix);
 
         using var cpuScope = Profiler.BeginScope("Debug.WorldProbeOrbsPoints", "Render");
@@ -1192,9 +1325,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
                 shader.ModelViewProjectionMatrix = currentViewProjMatrix;
                 shader.InvViewMatrix = invViewMatrix;
+                shader.WorldOffset = GetClipmapDebugWorldOffset();
+                shader.CameraPos = new Vec3f(0, 0, 0);
                 shader.PointSize = 18f;
-                float maxSpacing = baseSpacing * (1 << Math.Max(levels - 1, 0));
-                float maxSize = maxSpacing * resolution;
+                float maxSpacing = clipmapDebugBaseSpacing * (1 << Math.Max(clipmapDebugLevels - 1, 0));
+                float maxSize = maxSpacing * clipmapDebugResolution;
                 shader.FadeNear = maxSize * 0.5f;
                 shader.FadeFar = maxSize * 1.05f;
 
@@ -1215,16 +1350,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 GL.BindTexture(TextureTarget.Texture2D, sh2);
                 shader.WorldProbeSH2 = 2;
 
-                int stride = Marshal.SizeOf<ProbeOrbVertex>();
-
                 GL.BindVertexArray(clipmapProbeOrbsVao);
-                GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbeOrbsVbo);
-                GL.BufferData(BufferTarget.ArrayBuffer, vertexCount * stride, clipmapProbeOrbVertices, BufferUsageHint.StreamDraw);
 
                 GL.PointSize(18f);
-                GL.DrawArrays(PrimitiveType.Points, 0, vertexCount);
+                GL.DrawArrays(PrimitiveType.Points, 0, clipmapProbeOrbsCount);
 
-                GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
                 GL.BindVertexArray(0);
             }
             finally
@@ -1509,6 +1639,12 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     public void Dispose()
     {
+        if (worldProbeClipmapBufferManagerEventSource is not null)
+        {
+            worldProbeClipmapBufferManagerEventSource.AnchorShifted -= OnWorldProbeClipmapAnchorShifted;
+            worldProbeClipmapBufferManagerEventSource = null;
+        }
+
         if (quadMeshRef is not null)
         {
             capi.Render.DeleteMesh(quadMeshRef);

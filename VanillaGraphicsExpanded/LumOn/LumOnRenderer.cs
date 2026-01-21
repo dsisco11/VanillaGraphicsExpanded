@@ -48,6 +48,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager;
 
     private LumOnWorldProbeScheduler? worldProbeScheduler;
+    private Action<LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent>? worldProbeSchedulerAnchorShiftHandler;
     private LumOnWorldProbeTraceService? worldProbeTraceService;
     private BlockAccessorWorldProbeTraceScene? worldProbeTraceScene;
 
@@ -1235,7 +1236,15 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Lazily create scheduler when topology becomes known.
         if (worldProbeScheduler is null || worldProbeScheduler.LevelCount != resources.Levels || worldProbeScheduler.Resolution != resources.Resolution)
         {
+            if (worldProbeScheduler is not null && worldProbeSchedulerAnchorShiftHandler is not null)
+            {
+                worldProbeScheduler.AnchorShifted -= worldProbeSchedulerAnchorShiftHandler;
+            }
+
             worldProbeScheduler = new LumOnWorldProbeScheduler(resources.Levels, resources.Resolution);
+
+            worldProbeSchedulerAnchorShiftHandler ??= OnWorldProbeSchedulerAnchorShifted;
+            worldProbeScheduler.AnchorShifted += worldProbeSchedulerAnchorShiftHandler;
         }
 
         if (!TryGetCameraPositions(out Vec3d camPosWorld, out Vec3d camPosMatrixSpace))
@@ -1687,6 +1696,11 @@ public class LumOnRenderer : IRenderer, IDisposable
         return true;
     }
 
+    private void OnWorldProbeSchedulerAnchorShifted(LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent evt)
+    {
+        worldProbeClipmapBufferManager?.NotifyAnchorShifted(evt);
+    }
+
     /// <summary>
     /// Pass 3.5 (Screen-Probe Atlas mode): Probe-space filtering/denoise.
     /// Operates within each probe's 8x8 octahedral tile with edge-stopping based on hit distance and meta.
@@ -1849,6 +1863,15 @@ public class LumOnRenderer : IRenderer, IDisposable
         pmjJitter.Dispose();
         // Unregister world events
         capi.Event.LeaveWorld -= OnLeaveWorld;
+
+        if (worldProbeScheduler is not null && worldProbeSchedulerAnchorShiftHandler is not null)
+        {
+            worldProbeScheduler.AnchorShifted -= worldProbeSchedulerAnchorShiftHandler;
+        }
+
+        worldProbeTraceService?.Dispose();
+        worldProbeTraceService = null;
+        worldProbeTraceScene = null;
 
         if (quadMeshRef is not null)
         {

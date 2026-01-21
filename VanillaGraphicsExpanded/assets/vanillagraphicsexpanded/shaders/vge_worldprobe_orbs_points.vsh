@@ -6,6 +6,8 @@ layout(location = 1) in vec4 color;
 layout(location = 2) in vec2 atlasCoord;
 
 uniform mat4 modelViewProjectionMatrix;
+uniform vec3 cameraPos;
+uniform vec3 worldOffset;
 uniform float pointSize;
 uniform float fadeNear;
 uniform float fadeFar;
@@ -17,8 +19,9 @@ void main(void)
 {
     vColor = color;
     vAtlasCoord = atlasCoord;
-    gl_Position = modelViewProjectionMatrix * vec4(vertex, 1.0);
-    float dist = length(vertex);
+    vec3 pos = vertex + worldOffset;
+    gl_Position = modelViewProjectionMatrix * vec4(pos, 1.0);
+    float dist = length(pos - cameraPos);
     float t = smoothstep(fadeNear, fadeFar, dist);
     gl_PointSize = mix(pointSize, pointSize * 0.1, t);
 }

@@ -1,4 +1,5 @@
 using Vintagestory.API.Client;
+using Vintagestory.API.MathTools;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
 
@@ -21,4 +22,5 @@ public sealed class VgeDebugLinesShaderProgram : VgeShaderProgram
     }
 
     public float[] ModelViewProjectionMatrix { set => UniformMatrix("modelViewProjectionMatrix", value); }
+    public Vec3f WorldOffset { set => Uniform("worldOffset", value); }
 }

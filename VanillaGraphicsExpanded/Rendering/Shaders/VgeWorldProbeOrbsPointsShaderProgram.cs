@@ -1,4 +1,5 @@
 using Vintagestory.API.Client;
+using Vintagestory.API.MathTools;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
 
@@ -19,6 +20,8 @@ public sealed class VgeWorldProbeOrbsPointsShaderProgram : VgeShaderProgram
 
     public float[] ModelViewProjectionMatrix { set => UniformMatrix("modelViewProjectionMatrix", value); }
     public float[] InvViewMatrix { set => UniformMatrix("invViewMatrix", value); }
+    public Vec3f CameraPos { set => Uniform("cameraPos", value); }
+    public Vec3f WorldOffset { set => Uniform("worldOffset", value); }
     public float PointSize { set => Uniform("pointSize", value); }
     public float FadeNear { set => Uniform("fadeNear", value); }
     public float FadeFar { set => Uniform("fadeFar", value); }
