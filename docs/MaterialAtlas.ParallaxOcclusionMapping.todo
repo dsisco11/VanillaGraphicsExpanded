@@ -46,18 +46,19 @@ PBR / MaterialAtlas - Parallax Occlusion Mapping (POM) + Atlas-Stable UV Rects:
 
   Phase 0 - Requirements + Success Criteria:
   Exit artifacts: We can define “done” and avoid regressions.
-  ☐ Define feature tiers:
-    - Tier 0: no parallax (baseline)
-    - Tier 1: offset mapping (current)
-    - Tier 2: POM (ray-march + refine)
-  ☐ Define acceptance criteria:
-    - No cross-tile sampling (verified by debug visualization)
-    - No obvious swimming at mid/far distance (distance fade)
-    - Grazing-angle shimmer controlled (angle-based step count + clamp)
-    - Configurable quality/perf knobs (steps, refine iterations, scale)
-  ☐ Decide per-shader coverage:
-    - chunkopaque/chunktransparent/chunktopsoil first
-    - chunkliquid optional (liquid flow UV logic is special)
+  ✔ Define feature tiers: @done
+    - Tier 0: No parallax (baseline; raw atlas UV sampling)
+    - Tier 1: Offset mapping (single-sample UV indirection; cheap)
+    - Tier 2: POM (ray-march in heightfield + refine; atlas-rect clamped)
+  ✔ Define acceptance criteria: @done
+    - No cross-tile sampling (POM/offset UV always clamped to the face’s tile rect; verify via debug view)
+    - No obvious swimming at mid/far distance (distance fade-out; stable mip behavior)
+    - Grazing-angle shimmer controlled (angle-based step count + max offset clamp)
+    - Configurable quality/perf knobs (scale, min/max steps, refinement steps, fade distances)
+    - Safe failure mode (when prerequisites are missing/invalid, fall back to Tier 0/1 without visual corruption)
+  ✔ Decide per-shader coverage: @done
+    - First: chunkopaque/chunktransparent/chunktopsoil (terrain/blocks)
+    - Deferred: chunkliquid (liquid flow UV logic is special; revisit after rect plumbing is proven)
 
 
   Phase 1 - UV Rect Plumbing (uvBase/uvSize) for Non-Liquid Shaders:
