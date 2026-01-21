@@ -32,6 +32,19 @@ vec2 VgeApplyParallaxUv_WithTbn(vec2 uv, mat3 tbn, float handedness, vec3 worldP
     float denom = max(viewDirTs.z, 0.25);
     vec2 offset = (viewDirTs.xy / denom) * (height * float(VGE_PBR_PARALLAX_SCALE));
 
+    // VGE: Terrain UVs are atlas UVs. A too-large parallax scale will jump across atlas tiles,
+    // which looks like global texture corruption. Clamp to a small number of atlas texels.
+    // Note: this intentionally keeps behavior stable even if config scale is set too high.
+    vec2 texel = 1.0 / vec2(textureSize(vge_normalDepthTex, 0));
+    vec2 maxOffset = texel * 2.0;
+    offset = clamp(offset, -maxOffset, maxOffset);
+
+    // Extra safety: if anything goes invalid, disable parallax for this fragment.
+    if (any(isnan(offset)) || any(isinf(offset)))
+    {
+      return uv;
+    }
+
     return uv + offset;
 #else
     return uv;
