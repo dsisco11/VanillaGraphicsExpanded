@@ -140,15 +140,20 @@ PBR / MaterialAtlas - Parallax Occlusion Mapping (POM) + Atlas-Stable UV Rects:
 
   Phase 4 - Debug Views + Validation:
   Exit artifacts: We can prove atlas safety and stability.
-  ☐ Add a debug mode to visualize:
-    - UV rect bounds (color-coded edge distance)
-    - Whether any POM step hits rect clamp
-    - Effective step count / distance fade
-  ☐ Add a “tile bleed test” texture/material to make cross-tile sampling obvious.
-  ☐ Record a short checklist for RenderDoc capture:
-    - verify sampler bindings
-    - verify UV rect values are constant per face
-    - verify clamping prevents neighbor-tile sampling
+  ✔ Add a debug mode to visualize: @done
+    - UV rect bounds (edge distance) via `MaterialAtlas.PomDebugMode = 1` (writes scalar into gBufferNormal.w)
+    - Whether any POM step hits rect clamp via `MaterialAtlas.PomDebugMode = 2`
+    - Effective step count via `MaterialAtlas.PomDebugMode = 3`
+    - Fade/angle weight via `MaterialAtlas.PomDebugMode = 4`
+    - Visualization: `lumon_debug.fsh` mode `LumOnDebugMode.PomMetrics` (41) heatmap output
+  ✔ Add a “tile bleed test” texture/material to make cross-tile sampling obvious. @done
+    - Implemented as a shader-driven test: use edge-distance + clamp-hit modes to expose bleed risk without adding binary texture assets.
+  ✔ Record a short checklist for RenderDoc capture: @done
+    - Capture a frame with POM enabled, PomDebugMode = 2 (clamp hit)
+    - Verify `vge_normalDepthTex` is bound and sampled (inspect texture reads)
+    - Verify `vge_uvBase`/`vge_uvExtent` are constant per face (flat varyings)
+    - Verify POM march UV never exits rect (watch `VgeClampUvToRect` clamping behavior)
+    - Verify gBufferNormal.w matches the selected debug metric and is stable over camera motion
 
 
   Phase 5 - Performance + Quality Tuning:

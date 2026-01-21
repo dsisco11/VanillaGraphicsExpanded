@@ -81,3 +81,8 @@
 #ifndef VGE_LUMON_SKY_MISS_WEIGHT
   #define VGE_LUMON_SKY_MISS_WEIGHT 0.5
 #endif
+
+// PBR composite debug view (0 = off)
+#ifndef VGE_PBR_DEBUG_VIEW_MODE
+  #define VGE_PBR_DEBUG_VIEW_MODE 0
+#endif

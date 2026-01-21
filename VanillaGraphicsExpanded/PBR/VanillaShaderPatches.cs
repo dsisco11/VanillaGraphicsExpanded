@@ -188,6 +188,10 @@ flat in vec2 vge_uvExtent;
     // Also sample the per-texel normal+depth atlas so the sampler uniform stays live.
     // We store encoded height01 (0..1) in the otherwise-unused W channel for optional debugging.
     vge_outNormal = VgeComputePackedWorldNormal01Height01_WithTbn(vge_uv, normal, worldPos.xyz, vge_tbn, vge_tbnHandedness);
+#if VGE_PBR_ENABLE_POM && VGE_PBR_POM_DEBUG_MODE > 0
+    // VGE: POM debug metric (scalar) in the otherwise-unused W channel.
+    vge_outNormal.w = clamp(vge_pomDebugValue, 0.0, 1.0);
+#endif
     
     // Material: per-texel params stored in vge_materialParamsTex (RGB16F)
     vec3 vge_params = ReadMaterialParams(vge_uv);
@@ -335,6 +339,7 @@ flat in vec2 vge_uvExtent;
 #define {VgeShaderDefines.PbrPomFadeStart} {fadeStart}
 #define {VgeShaderDefines.PbrPomFadeEnd} {fadeEnd}
 #define {VgeShaderDefines.PbrPomMaxTexels} {maxTexels}
+#define {VgeShaderDefines.PbrPomDebugMode} {cfg.PomDebugMode}
 ";
 
         tree.CreateEditor()

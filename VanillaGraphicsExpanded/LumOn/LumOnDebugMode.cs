@@ -74,4 +74,7 @@ public enum LumOnDebugMode
     // VGE-only: render probe "orbs" as GL_POINTS point sprites using CPU-generated probe centers + atlas coords.
     // Also renders the clipmap bounds overlay.
     WorldProbeOrbsPoints = 40,
+
+    // POM debug visualization (reads gBufferNormal.w written by patched chunk shaders)
+    PomMetrics = 41,
 }

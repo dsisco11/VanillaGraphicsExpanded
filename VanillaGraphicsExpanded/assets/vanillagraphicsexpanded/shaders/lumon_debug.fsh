@@ -45,6 +45,7 @@ out vec4 outColor;
 // 37 = World-Probe Meta Flags (heatmap)
 // 38 = Blend Weights (screen vs world)
 // 39 = Cross-Level Blend (selected L and weights)
+// 41 = POM Metrics (heatmap from gBufferNormal.w)
 // ============================================================================
 
 // Import common utilities
@@ -266,6 +267,19 @@ vec4 renderCompositeIndirectSpecularDebug()
     vec3 spec;
     computeCompositeSplit(ao, roughness, metallic, diff, spec);
     return vec4(spec, 1.0);
+}
+
+// ============================================================================
+// Debug Mode 41: POM Metrics
+// ============================================================================
+
+vec4 renderPomMetricsDebug()
+{
+    // Patched chunk shaders optionally write a scalar diagnostic into gBufferNormal.w.
+    // Interpretation is controlled by MaterialAtlas.PomDebugMode.
+    float v = clamp(texture(gBufferNormal, uv).w, 0.0, 1.0);
+    vec3 c = vec3(1.0 - v, v, 0.0);
+    return vec4(c, 1.0);
 }
 
 vec4 renderCompositeMaterialDebug()
@@ -1341,6 +1355,9 @@ void main(void)
             break;
         case 39:
             outColor = renderWorldProbeCrossLevelBlendDebug();
+            break;
+        case 41:
+            outColor = renderPomMetricsDebug();
             break;
         default:
             outColor = vec4(1.0, 0.0, 1.0, 1.0);  // Magenta = unknown mode

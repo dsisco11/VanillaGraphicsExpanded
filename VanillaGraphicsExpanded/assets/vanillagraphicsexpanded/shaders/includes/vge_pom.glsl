@@ -42,6 +42,34 @@
   #define VGE_PBR_POM_MAX_TEXELS 2.0
 #endif
 
+#ifndef VGE_PBR_POM_DEBUG_MODE
+  // 0 = off
+  // 1 = rect edge distance
+  // 2 = clamp hit
+  // 3 = steps
+  // 4 = fade/angle weight
+  #define VGE_PBR_POM_DEBUG_MODE 0
+#endif
+
+#if VGE_PBR_POM_DEBUG_MODE > 0
+// Debug scalar in [0..1] (written by VgeApplyPomUv_WithTbn).
+// Intended to be stored into gBufferNormal.w for visualization.
+float vge_pomDebugValue;
+#endif
+
+float VgeUvRectEdgeDistance01(vec2 uv, vec2 uvBase, vec2 uvExtent)
+{
+    vec2 uvMin = uvBase;
+    vec2 uvMax = uvBase + uvExtent;
+
+    vec2 texel = 1.0 / vec2(textureSize(vge_normalDepthTex, 0));
+    vec2 dUv = min(uv - uvMin, uvMax - uv);
+    float dTexels = min(dUv.x / max(texel.x, 1e-8), dUv.y / max(texel.y, 1e-8));
+
+    // Normalize so 0..4 texels maps to 0..1.
+    return clamp(dTexels / 4.0, 0.0, 1.0);
+}
+
 vec2 VgeClampUvToRect(vec2 uv, vec2 uvBase, vec2 uvExtent)
 {
     vec2 uvMin = uvBase;
@@ -64,6 +92,10 @@ float VgeReadPomDepth01(vec2 uv)
 vec2 VgeApplyPomUv_WithTbn(vec2 uv, mat3 tbn, float handedness, vec3 worldPosWs, vec2 uvBase, vec2 uvExtent)
 {
 #if VGE_PBR_ENABLE_POM
+#if VGE_PBR_POM_DEBUG_MODE > 0
+  vge_pomDebugValue = 0.0;
+#endif
+
     // Rect is required for atlas safety.
     if (uvBase.x < 0.0 || uvExtent.x <= 0.0 || uvExtent.y <= 0.0)
     {
@@ -83,6 +115,10 @@ vec2 VgeApplyPomUv_WithTbn(vec2 uv, mat3 tbn, float handedness, vec3 worldPosWs,
     float distWeight = 1.0 - smoothstep(float(VGE_PBR_POM_FADE_START), float(VGE_PBR_POM_FADE_END), dist);
     float weight = angleWeight * distWeight;
 
+  #if VGE_PBR_POM_DEBUG_MODE == 4
+    vge_pomDebugValue = clamp(weight, 0.0, 1.0);
+  #endif
+
     if (weight <= 0.0)
     {
         return uv;
@@ -99,6 +135,10 @@ vec2 VgeApplyPomUv_WithTbn(vec2 uv, mat3 tbn, float handedness, vec3 worldPosWs,
     float grazing = 1.0 - clamp(viewDirTs.z, 0.0, 1.0);
     int steps = int(mix(float(VGE_PBR_POM_MIN_STEPS), float(VGE_PBR_POM_MAX_STEPS), grazing));
     steps = max(1, steps);
+
+  #if VGE_PBR_POM_DEBUG_MODE == 3
+    vge_pomDebugValue = clamp(float(steps) / max(float(VGE_PBR_POM_MAX_STEPS), 1.0), 0.0, 1.0);
+  #endif
 
     float layerHeight = 1.0 / float(steps);
     float currentLayerDepth = 0.0;
@@ -118,12 +158,16 @@ vec2 VgeApplyPomUv_WithTbn(vec2 uv, mat3 tbn, float handedness, vec3 worldPosWs,
     vec2 prevUv = currUv;
     float prevDepth = currDepth;
 
+    float clampHit = 0.0;
+
     while (currentLayerDepth < currDepth && currentLayerDepth < 1.0)
     {
         prevUv = currUv;
         prevDepth = currDepth;
 
-        currUv = VgeClampUvToRect(currUv - deltaUv, uvBase, uvExtent);
+        vec2 unclamped = currUv - deltaUv;
+        currUv = VgeClampUvToRect(unclamped, uvBase, uvExtent);
+        clampHit = max(clampHit, float(any(notEqual(currUv, unclamped))));
         currentLayerDepth += layerHeight;
         currDepth = VgeReadPomDepth01(currUv);
     }
@@ -165,7 +209,16 @@ vec2 VgeApplyPomUv_WithTbn(vec2 uv, mat3 tbn, float handedness, vec3 worldPosWs,
         return uv;
     }
 
-    return VgeClampUvToRect(hitUv, uvBase, uvExtent);
+    vec2 finalUv = VgeClampUvToRect(hitUv, uvBase, uvExtent);
+    clampHit = max(clampHit, float(any(notEqual(finalUv, hitUv))));
+
+  #if VGE_PBR_POM_DEBUG_MODE == 2
+    vge_pomDebugValue = clampHit;
+  #elif VGE_PBR_POM_DEBUG_MODE == 1
+    vge_pomDebugValue = VgeUvRectEdgeDistance01(finalUv, uvBase, uvExtent);
+  #endif
+
+    return finalUv;
 #else
     return uv;
 #endif

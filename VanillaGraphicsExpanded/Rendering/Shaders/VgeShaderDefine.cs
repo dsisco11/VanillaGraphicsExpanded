@@ -45,4 +45,9 @@ public static class VgeShaderDefines
     public const string PbrPomFadeStart = "VGE_PBR_POM_FADE_START";
     public const string PbrPomFadeEnd = "VGE_PBR_POM_FADE_END";
     public const string PbrPomMaxTexels = "VGE_PBR_POM_MAX_TEXELS";
+
+    public const string PbrPomDebugMode = "VGE_PBR_POM_DEBUG_MODE";
+
+    // PBR composite debug (full-screen output override)
+    public const string PbrDebugViewMode = "VGE_PBR_DEBUG_VIEW_MODE";
 }

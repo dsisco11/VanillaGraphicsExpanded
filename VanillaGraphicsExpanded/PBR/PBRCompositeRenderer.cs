@@ -8,6 +8,7 @@ using Vintagestory.Client.NoObf;
 
 using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Profiling;
 

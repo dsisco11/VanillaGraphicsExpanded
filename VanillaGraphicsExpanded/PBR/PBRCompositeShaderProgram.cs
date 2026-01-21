@@ -88,5 +88,7 @@ public sealed class PBRCompositeShaderProgram : VgeShaderProgram
 
     public float SpecularAOStrength { set => Uniform("specularAOStrength", value); }
 
+    public int DebugViewMode { set => SetDefine(VgeShaderDefines.PbrDebugViewMode, value.ToString()); }
+
     #endregion
 }

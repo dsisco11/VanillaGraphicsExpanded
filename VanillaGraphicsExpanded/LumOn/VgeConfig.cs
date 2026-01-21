@@ -230,6 +230,17 @@ public class VgeConfig
         public float PomMaxTexels { get; set; } = 2.0f;
 
         /// <summary>
+        /// POM debug metric selector (written to gBufferNormal.w for visualization).
+        /// 0 = off
+        /// 1 = UV rect edge distance (0 near edge .. 1 away)
+        /// 2 = clamp hit (0/1)
+        /// 3 = effective step count (0..1)
+        /// 4 = distance/angle weight (0..1)
+        /// </summary>
+        [JsonProperty]
+        public int PomDebugMode { get; set; } = 0;
+
+        /// <summary>
         /// Parameters for generating a tileable height/normal field from albedo.
         /// Applied during loading when <see cref="EnableNormalMaps"/> is enabled.
         /// </summary>
@@ -260,6 +271,8 @@ public class VgeConfig
             PomFadeEnd = Math.Clamp(PomFadeEnd, PomFadeStart, 512.0f);
 
             PomMaxTexels = Math.Clamp(PomMaxTexels, 0.0f, 16.0f);
+
+            PomDebugMode = Math.Clamp(PomDebugMode, 0, 4);
 
             NormalDepthBake ??= new NormalDepthBakeConfig();
         }

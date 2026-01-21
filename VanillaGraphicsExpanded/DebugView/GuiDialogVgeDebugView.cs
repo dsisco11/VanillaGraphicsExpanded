@@ -322,6 +322,7 @@ public sealed class GuiDialogVgeDebugView : GuiDialog
         LumOnDebugMode.WorldProbeBlendWeights => "Blend Weights: screen vs world (Phase 18)",
         LumOnDebugMode.WorldProbeCrossLevelBlend => "Cross-Level Blend: selected L + weights (Phase 18)",
         LumOnDebugMode.WorldProbeOrbsPoints => "World-Probe Probes (orbs, GL_POINTS) (Phase 18)",
+        LumOnDebugMode.PomMetrics => "POM Metrics (heatmap from gBufferNormal.w)",
         _ => mode.ToString()
     };
 }
