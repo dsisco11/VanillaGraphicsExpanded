@@ -43,7 +43,8 @@ void main()
     float aAlbedo = texelFetch(u_albedoAtlas, u_viewportOrigin + p, 0).a;
     if (aAlbedo <= u_alphaCutoff)
     {
-        outColor = vec4(0.5, 0.5, 1.0, 0.0);
+        // Neutral height prevents parallax/normal artifacts if UVs ever sample into padding.
+        outColor = vec4(0.5, 0.5, 1.0, 0.5);
         return;
     }
 

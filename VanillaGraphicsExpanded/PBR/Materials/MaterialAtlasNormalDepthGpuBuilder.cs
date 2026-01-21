@@ -716,8 +716,8 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
     private static void ClearAtlasPageUnsafe(int destNormalDepthTexId, int atlasWidth, int atlasHeight)
     {
         BindAtlasTarget(destNormalDepthTexId, 0, 0, atlasWidth, atlasHeight);
-        // Identity defaults: flat normal and zero depth.
-        GL.ClearColor(0.5f, 0.5f, 1.0f, 0.0f);
+        // Identity defaults: flat normal and neutral height (0.5 encoded).
+        GL.ClearColor(0.5f, 0.5f, 1.0f, 0.5f);
         GL.Clear(ClearBufferMask.ColorBufferBit);
     }
 

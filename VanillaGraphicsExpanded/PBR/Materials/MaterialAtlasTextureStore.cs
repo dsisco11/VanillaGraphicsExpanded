@@ -197,10 +197,11 @@ internal sealed class MaterialAtlasTextureStore : IDisposable
         Texture2D? normalDepthTex = null;
         if (enableNormalDepth)
         {
-            // Initialize to an identity normal with zero depth so terrain shading stays stable
+            // Initialize to an identity normal with neutral height so terrain shading stays stable
             // while the async normal+depth pipeline populates tiles.
             float[] defaultNormalDepth = new float[checked(width * height * 4)];
-            SimdSpanMath.FillInterleaved4(defaultNormalDepth, 0.5f, 0.5f, 1.0f, 0.0f);
+            // Height is encoded into [0,1] where 0.5 is neutral (signed height 0).
+            SimdSpanMath.FillInterleaved4(defaultNormalDepth, 0.5f, 0.5f, 1.0f, 0.5f);
 
             normalDepthTex = Texture2D.CreateWithData(
                 width,
