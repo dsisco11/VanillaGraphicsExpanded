@@ -65,26 +65,37 @@ PBR / MaterialAtlas - Parallax Occlusion Mapping (POM) + Atlas-Stable UV Rects:
   Exit artifacts: chunk opaque/transparent/topsoil have stable per-face UV rects available in fragment.
 
   1.1 - Document liquid semantics (ground truth):
-  ☐ Record the exact meaning of liquid `uvBase`/`uvSize` and how they are used in chunkliquid.fsh.
-  ☐ Confirm what the waterFlags bitfields represent and why `uvBase` must be `flat`.
+  ✔ Record the exact meaning of liquid `uvBase`/`uvSize` and how they are used in chunkliquid.fsh. @done
+    - In chunkliquid.vsh:
+      - `uvSize` is computed per-vertex from `waterFlagsIn` bits 10..17 (x) and 18..26 (y):
+        it encodes the distance from the tile’s upper-left corner in units of 1/255 * `blockTextureSize`.
+      - `uvBase = uv - uvSize` yields the atlas tile origin for the quad.
+      - `uvBase` is `flat out` so the per-quad base does not drift via interpolation.
+    - In chunkliquid.fsh:
+      - Flow UV math is performed in tile-local space via `(uv - uvBase)` and then reassembled as `uvBase + uvxOffset`.
+      - Offsets are clamped into the tile bounds using `blockTextureSize` and `textureAtlasSize`.
+  ✔ Confirm what the waterFlags bitfields represent and why `uvBase` must be `flat`. @done
+    - waterFlagsIn packs both behavior flags and the per-vertex “distance to upper-left” used to reconstruct the tile rect.
+    - Because those distances differ per vertex, `uvBase` must be `flat` to remain a single stable per-face value.
 
   1.2 - Determine how to compute UV rect for non-liquid faces:
-  ☐ SSBO path (`USESSBO > 0`): compute UV rect from `FaceData`.
+    ✔ SSBO path (`USESSBO > 0`): compute UV rect from `FaceData`. @done
      - Add a helper in an include (or injected code) to compute:
        - `uvBase` (tile origin in atlas UV space)
        - `uvExtent` (tile size in atlas UV space)
        - rotation/mirroring handling (from `vdata.uvSize` flags)
-  ☐ Non-SSBO path (`USESSBO == 0`): decide fallback policy.
-     - Option A: disable POM (keep Tier 1 offset mapping) when SSBO isn’t active.
-     - Option B: attempt approximation from `uvIn` (only if a reliable tile-size uniform exists).
+    ✔ Non-SSBO path (`USESSBO == 0`): decide fallback policy. @done
+      - Decision: Option A for now (treat rect as unavailable; disable Tier 2 POM when rect is missing).
+      - Rationale: non-SSBO chunk shaders do not expose packed `FaceData` UV extents or a reliable tile-size uniform.
 
   1.3 - Add varyings to non-liquid vertex shaders:
-  ☐ Patch `chunkopaque.vsh`, `chunktransparent.vsh`, `chunktopsoil.vsh` to output:
+  ✔ Patch `chunkopaque.vsh`, `chunktransparent.vsh`, `chunktopsoil.vsh` to output: @done
     - `flat out vec2 vge_uvBase;`
     - `flat out vec2 vge_uvExtent;`
     - (optional) `out vec2 vge_uvLocal;` (atlas-local uv offset = uv - uvBase)
-  ☐ Patch corresponding fragment shaders to consume these varyings.
-  ☐ Decide naming conventions to avoid collisions and keep patches easy to grep.
+  ✔ Patch corresponding fragment shaders to consume these varyings. @done
+  ✔ Decide naming conventions to avoid collisions and keep patches easy to grep. @done
+    - Use `vge_uvBase` / `vge_uvExtent` (avoid collision with liquid’s existing `uvBase`)
 
   Notes:
   - VGE currently patches `.fsh` only. This phase likely requires extending the patch pipeline to also patch `.vsh`.

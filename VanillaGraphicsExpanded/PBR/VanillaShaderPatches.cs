@@ -27,6 +27,13 @@ internal static class VanillaShaderPatches
         "chunkliquid.fsh"
     ];
 
+    private static readonly ImmutableArray<string> PatchedChunkVertexShaders =
+    [
+        "chunktransparent.vsh",
+        "chunkopaque.vsh",
+        "chunktopsoil.vsh"
+    ];
+
     private static readonly ImmutableArray<string> PatchedGenericShaders =
     [
         "instanced.fsh",
@@ -51,6 +58,32 @@ layout(location = 5) out vec4 vge_outMaterial;  // Roughness, Metallic, Emissive
 uniform sampler2D vge_materialParamsTex;
 // VGE: Per-texel normal+depth for block atlas (RGBA16F: normalXYZ_packed01, depth01)
 uniform sampler2D vge_normalDepthTex;
+";
+
+    private const string UvRectVaryings_Vsh = @"
+
+// VGE: Per-face atlas tile rect (base + extent in atlas UV space)
+flat out vec2 vge_uvBase;
+flat out vec2 vge_uvExtent;
+";
+
+    private const string UvRectVaryings_Fsh = @"
+
+// VGE: Per-face atlas tile rect (base + extent in atlas UV space)
+flat in vec2 vge_uvBase;
+flat in vec2 vge_uvExtent;
+";
+
+    private const string UvRectAssign_Vsh = @"
+
+    // VGE: Compute per-face atlas UV rect.
+    // Prefer SSBO path (FaceData has the packed UV origin/extent); non-SSBO lacks the required information.
+    #if USESSBO > 0
+        VgeComputeFaceUvRect(vdata.uv, vdata.uvSize, subpixelPaddingX, subpixelPaddingY, vge_uvBase, vge_uvExtent);
+    #else
+        vge_uvBase = vec2(-1.0);
+        vge_uvExtent = vec2(0.0);
+    #endif
 ";
 
     private const string ParallaxUvProlog_Chunk = @"
@@ -178,6 +211,18 @@ uniform sampler2D vge_normalDepthTex;
     {
         try
         {
+            // Chunk vertex shaders - inject only vertex-safe helpers
+            if (PatchedChunkVertexShaders.Contains(sourceName))
+            {
+                var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
+                tree.CreateEditor()
+                    .InsertBefore(mainQuery, "@import \"./includes/vge_uvrect.glsl\"\n")
+                    .Commit();
+
+                log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");
+                return true;
+            }
+
             // Chunk shaders - inject vsFunctions AND vge_material imports
             if (PatchedChunkShaders.Contains(sourceName))
             {
@@ -249,10 +294,26 @@ uniform sampler2D vge_normalDepthTex;
     {
         try
         {
+            if (PatchedChunkVertexShaders.Contains(sourceName))
+            {
+                InjectUvRectVaryings_Vsh(tree);
+                InjectUvRectAssign_Vsh(tree);
+
+                log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
+                return true;
+            }
+
             if (PatchedChunkShaders.Contains(sourceName))
             {// Chunk shaders - inject G-buffer inputs, material sampler, and outputs
                 InjectGBufferInputs(tree);
                 InjectChunkMaterialSampler(tree);
+
+                // Provide uv rect varyings for POM/atlas-safe UV indirection (even if currently unused).
+                // chunkliquid already has its own `uvBase`/`uvSize` plumbing.
+                if (sourceName != "chunkliquid.fsh")
+                {
+                    InjectUvRectVaryings_Fsh(tree);
+                }
 
                 string outputWrites = sourceName == "chunkliquid.fsh"
                     ? GBufferOutputWrites_ChunkLiquid
@@ -319,6 +380,30 @@ uniform sampler2D vge_normalDepthTex;
 
         tree.CreateEditor()
             .InsertAfter(versionQuery, ChunkMaterialParamsSamplerDeclaration)
+            .Commit();
+    }
+
+    private static void InjectUvRectVaryings_Vsh(SyntaxTree tree)
+    {
+        var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
+        tree.CreateEditor()
+            .InsertAfter(versionQuery, UvRectVaryings_Vsh)
+            .Commit();
+    }
+
+    private static void InjectUvRectVaryings_Fsh(SyntaxTree tree)
+    {
+        var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
+        tree.CreateEditor()
+            .InsertAfter(versionQuery, UvRectVaryings_Fsh)
+            .Commit();
+    }
+
+    private static void InjectUvRectAssign_Vsh(SyntaxTree tree)
+    {
+        var mainEnd = Query.Syntax<GlFunctionNode>().Named("main").InnerEnd("body");
+        tree.CreateEditor()
+            .InsertBefore(mainEnd, UvRectAssign_Vsh)
             .Commit();
     }
 

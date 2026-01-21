@@ -28,9 +28,17 @@ vec2 VgeApplyParallaxUv_WithTbn(vec2 uv, mat3 tbn, float handedness, vec3 worldP
     // Height is centered around 0 (signed) and scaled.
     float height = ReadHeightSigned(uv);
 
+    // VGE: Reduce shimmer/swimming by fading parallax at grazing angles and with distance.
+    // - Parallax is most unstable/noticeable when viewDirTs.z is small (grazing).
+    // - Far away, sub-texel offsets shimmer due to screen-space sampling.
+    float angleWeight = smoothstep(0.35, 0.85, viewDirTs.z);
+    float dist = length(worldPosWs);
+    float distWeight = 1.0 - smoothstep(3.0, 14.0, dist);
+    float weight = angleWeight * distWeight;
+
     // Basic parallax offset mapping (cheap, stable).
-    float denom = max(viewDirTs.z, 0.25);
-    vec2 offset = (viewDirTs.xy / denom) * (height * float(VGE_PBR_PARALLAX_SCALE));
+    float denom = max(viewDirTs.z, 0.6);
+    vec2 offset = (viewDirTs.xy / denom) * (height * float(VGE_PBR_PARALLAX_SCALE) * weight);
 
     // VGE: Terrain UVs are atlas UVs. A too-large parallax scale will jump across atlas tiles,
     // which looks like global texture corruption. Clamp to a small number of atlas texels.
