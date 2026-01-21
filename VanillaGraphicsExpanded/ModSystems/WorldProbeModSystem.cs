@@ -1,20 +1,29 @@
 using System;
+using System.Collections.Generic;
 
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
+using Vintagestory.API.Config;
+using Vintagestory.API.MathTools;
 
 namespace VanillaGraphicsExpanded.ModSystems;
 
 public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
 {
+    private const int MaxPendingWorldProbeDirtyChunks = 2048;
+
     private ICoreClientAPI? capi;
+    private IEventAPI? commonEvents;
 
     private LumOnWorldProbeClipmapBufferManager? clipmapBufferManager;
 
     private WorldProbeLiveConfigSnapshot? lastSnapshot;
+
+    private readonly HashSet<ulong> pendingWorldProbeDirtyChunkKeys = new();
+    private int pendingWorldProbeDirtyChunkOverflow;
 
     private readonly record struct WorldProbeLiveConfigSnapshot(
         bool LumOnEnabled,
@@ -57,6 +66,11 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
     public override void StartClientSide(ICoreClientAPI api)
     {
         capi = api;
+        commonEvents = ((ICoreAPI)api).Event;
+
+        // Track world changes so the world-probe clipmap can re-trace affected regions.
+        api.Event.BlockChanged += OnClientBlockChanged;
+        commonEvents.ChunkDirty += OnChunkDirty;
 
         // Snapshot initial config state so live reload deltas are correct.
         ConfigModSystem.Config.Sanitize();
@@ -82,6 +96,44 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
         clipmapBufferManager.EnsureResources();
         capi.Logger.Debug("[VGE] World-probe clipmap resources ensured: {0}", reason);
         return clipmapBufferManager;
+    }
+
+    internal void NotifyWorldProbeChunkDirty(int chunkX, int chunkY, int chunkZ, string reason)
+    {
+        // Buffering only; LumOnRenderer will drain + apply to the scheduler.
+        if (!ConfigModSystem.Config.LumOn.Enabled)
+        {
+            return;
+        }
+
+        ulong key = EncodeChunkKey(chunkX, chunkY, chunkZ);
+        if (pendingWorldProbeDirtyChunkKeys.Count < MaxPendingWorldProbeDirtyChunks)
+        {
+            pendingWorldProbeDirtyChunkKeys.Add(key);
+        }
+        else
+        {
+            pendingWorldProbeDirtyChunkOverflow++;
+        }
+    }
+
+    internal void DrainPendingWorldProbeDirtyChunks(Action<int, int, int> onChunk, out int overflowCount)
+    {
+        if (pendingWorldProbeDirtyChunkKeys.Count == 0 && pendingWorldProbeDirtyChunkOverflow == 0)
+        {
+            overflowCount = 0;
+            return;
+        }
+
+        foreach (ulong key in pendingWorldProbeDirtyChunkKeys)
+        {
+            DecodeChunkKey(key, out int cx, out int cy, out int cz);
+            onChunk(cx, cy, cz);
+        }
+
+        pendingWorldProbeDirtyChunkKeys.Clear();
+        overflowCount = pendingWorldProbeDirtyChunkOverflow;
+        pendingWorldProbeDirtyChunkOverflow = 0;
     }
 
     public void OnConfigReloaded(ICoreAPI api)
@@ -148,9 +200,72 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
     {
         base.Dispose();
 
+        if (capi is not null)
+        {
+            capi.Event.BlockChanged -= OnClientBlockChanged;
+        }
+
+        if (commonEvents is not null)
+        {
+            commonEvents.ChunkDirty -= OnChunkDirty;
+            commonEvents = null;
+        }
+
         clipmapBufferManager?.Dispose();
         clipmapBufferManager = null;
         capi = null;
         lastSnapshot = null;
+    }
+
+    private void OnClientBlockChanged(BlockPos pos, Block oldBlock)
+    {
+        // Coalesce at chunk granularity; the scheduler invalidation works on probe centers.
+        // Right shift works for negatives because chunk size is a power-of-two.
+        int shift = 5; // log2(GlobalConstants.ChunkSize) (32)
+        int cx = pos.X >> shift;
+        int cy = pos.Y >> shift;
+        int cz = pos.Z >> shift;
+
+        NotifyWorldProbeChunkDirty(cx, cy, cz, reason: "BlockChanged");
+    }
+
+    private void OnChunkDirty(Vec3i chunkCoord, IWorldChunk chunk, EnumChunkDirtyReason reason)
+    {
+        // NewlyLoaded is effectively "chunk loaded"; MarkedDirty covers late-arriving edits.
+        if (reason != EnumChunkDirtyReason.NewlyLoaded &&
+            reason != EnumChunkDirtyReason.MarkedDirty &&
+            reason != EnumChunkDirtyReason.NewlyCreated)
+        {
+            return;
+        }
+
+        NotifyWorldProbeChunkDirty(chunkCoord.X, chunkCoord.Y, chunkCoord.Z, reason: $"ChunkDirty:{reason}");
+    }
+
+    private static ulong EncodeChunkKey(int chunkX, int chunkY, int chunkZ)
+    {
+        const ulong mask = (1ul << 21) - 1ul;
+
+        static ulong ZigZag(int v) => (ulong)((v << 1) ^ (v >> 31));
+
+        ulong x = ZigZag(chunkX) & mask;
+        ulong y = ZigZag(chunkY) & mask;
+        ulong z = ZigZag(chunkZ) & mask;
+
+        return x | (y << 21) | (z << 42);
+    }
+
+    private static int DecodeZigZag(ulong v)
+    {
+        // (v >> 1) ^ -(v & 1)
+        return (int)((v >> 1) ^ (ulong)-(long)(v & 1ul));
+    }
+
+    private static void DecodeChunkKey(ulong key, out int chunkX, out int chunkY, out int chunkZ)
+    {
+        const ulong mask = (1ul << 21) - 1ul;
+        chunkX = DecodeZigZag(key & mask);
+        chunkY = DecodeZigZag((key >> 21) & mask);
+        chunkZ = DecodeZigZag((key >> 42) & mask);
     }
 }

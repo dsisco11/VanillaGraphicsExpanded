@@ -226,6 +226,7 @@ internal sealed class LumOnWorldProbeScheduler
 
         private readonly LumOnWorldProbeLifecycleState[] lifecycle;
         private readonly int[] lastUpdatedFrame;
+        private readonly bool[] dirtyAfterInFlight;
 
         private Vec3d? anchor;
         private Vec3d? originMinCorner;
@@ -241,6 +242,7 @@ internal sealed class LumOnWorldProbeScheduler
 
             lifecycle = new LumOnWorldProbeLifecycleState[probesPerLevel];
             lastUpdatedFrame = new int[probesPerLevel];
+            dirtyAfterInFlight = new bool[probesPerLevel];
 
             anchor = null;
             originMinCorner = null;
@@ -251,6 +253,7 @@ internal sealed class LumOnWorldProbeScheduler
         {
             Array.Fill(lifecycle, LumOnWorldProbeLifecycleState.Uninitialized);
             Array.Fill(lastUpdatedFrame, 0);
+            Array.Fill(dirtyAfterInFlight, false);
             anchor = null;
             originMinCorner = null;
             ringOffset = new Vec3i(0, 0, 0);
@@ -447,6 +450,13 @@ internal sealed class LumOnWorldProbeScheduler
         {
             if ((uint)storageLinearIndex >= (uint)probesPerLevel) throw new ArgumentOutOfRangeException(nameof(storageLinearIndex));
 
+            if (dirtyAfterInFlight[storageLinearIndex])
+            {
+                dirtyAfterInFlight[storageLinearIndex] = false;
+                lifecycle[storageLinearIndex] = LumOnWorldProbeLifecycleState.Dirty;
+                return;
+            }
+
             lifecycle[storageLinearIndex] = success ? LumOnWorldProbeLifecycleState.Valid : LumOnWorldProbeLifecycleState.Dirty;
             if (success)
             {
@@ -486,6 +496,10 @@ internal sealed class LumOnWorldProbeScheduler
                         if (lifecycle[storageLinear] != LumOnWorldProbeLifecycleState.InFlight)
                         {
                             lifecycle[storageLinear] = LumOnWorldProbeLifecycleState.Dirty;
+                        }
+                        else
+                        {
+                            dirtyAfterInFlight[storageLinear] = true;
                         }
                     }
                 }
@@ -555,6 +569,10 @@ internal sealed class LumOnWorldProbeScheduler
                         if (lifecycle[storageLinear] != LumOnWorldProbeLifecycleState.InFlight)
                         {
                             lifecycle[storageLinear] = LumOnWorldProbeLifecycleState.Dirty;
+                        }
+                        else
+                        {
+                            dirtyAfterInFlight[storageLinear] = true;
                         }
                     }
                 }

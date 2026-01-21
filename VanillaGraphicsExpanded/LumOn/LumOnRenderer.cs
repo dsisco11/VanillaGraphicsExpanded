@@ -3,12 +3,14 @@ using System.Globalization;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.Client;
+using Vintagestory.API.Config;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.LumOn.WorldProbes;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
+using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
@@ -163,6 +165,46 @@ public class LumOnRenderer : IRenderer, IDisposable
     internal void SetWorldProbeClipmapBufferManager(LumOnWorldProbeClipmapBufferManager? bufferManager)
     {
         worldProbeClipmapBufferManager = bufferManager;
+    }
+
+    private void ApplyPendingWorldProbeDirtyChunks(double baseSpacing)
+    {
+        if (worldProbeScheduler is null)
+        {
+            return;
+        }
+
+        var wpms = capi.ModLoader.GetModSystem<WorldProbeModSystem>();
+        if (wpms is null)
+        {
+            return;
+        }
+
+        int chunkSize = GlobalConstants.ChunkSize;
+        int levels = worldProbeScheduler.LevelCount;
+
+        wpms.DrainPendingWorldProbeDirtyChunks(
+            onChunk: (cx, cy, cz) =>
+            {
+                var min = new Vec3d(cx * chunkSize, cy * chunkSize, cz * chunkSize);
+                var max = new Vec3d(min.X + chunkSize, min.Y + chunkSize, min.Z + chunkSize);
+
+                for (int level = 0; level < levels; level++)
+                {
+                    worldProbeScheduler.MarkDirtyWorldAabb(level, min, max, baseSpacing);
+                }
+            },
+            overflowCount: out int overflow);
+
+        // If we overflowed, conservatively invalidate everything at L0 by marking the current clip volume dirty.
+        if (overflow > 0 && worldProbeScheduler.TryGetLevelParams(0, out var originMin, out _))
+        {
+            double spacing0 = LumOnClipmapTopology.GetSpacing(baseSpacing, level: 0);
+            double size = spacing0 * worldProbeScheduler.Resolution;
+            var min = originMin;
+            var max = new Vec3d(min.X + size, min.Y + size, min.Z + size);
+            worldProbeScheduler.MarkDirtyWorldAabb(level: 0, min, max, baseSpacing);
+        }
     }
 
     private void RegisterWorldEvents()
@@ -1260,6 +1302,9 @@ public class LumOnRenderer : IRenderer, IDisposable
         {
             worldProbeScheduler.UpdateOrigins(camPosWorld, baseSpacing);
         }
+
+        // Apply external invalidations (chunk load / block changes) before selecting work for this frame.
+        ApplyPendingWorldProbeDirtyChunks(baseSpacing);
 
         // Publish runtime params every frame so debug overlays can bind world-probe uniforms
         // even if the main gather shader path skips binding (e.g., due to a queued recompile).

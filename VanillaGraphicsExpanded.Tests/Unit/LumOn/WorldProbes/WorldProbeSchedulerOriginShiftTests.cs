@@ -188,4 +188,43 @@ public sealed class WorldProbeSchedulerOriginShiftTests
             }
         }
     }
+
+    [Fact]
+    public void MarkDirtyWorldAabb_WhenProbeInFlight_MarksDirtyAfterComplete()
+    {
+        const int resolution = 4;
+        const double baseSpacing = 2.0;
+
+        var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution);
+
+        // Initialize params so origin exists.
+        scheduler.UpdateOrigins(new Vec3d(0.0, 0.0, 0.0), baseSpacing);
+
+        int probesPerLevel = scheduler.ProbesPerLevel;
+        int[] perLevelBudgets = [probesPerLevel];
+
+        // Force everything into InFlight by selecting all probes.
+        var requests = scheduler.BuildUpdateList(
+            frameIndex: 1,
+            cameraPos: new Vec3d(0.0, 0.0, 0.0),
+            baseSpacing: baseSpacing,
+            perLevelProbeBudgets: perLevelBudgets,
+            traceMaxProbesPerFrame: probesPerLevel,
+            uploadBudgetBytesPerFrame: int.MaxValue);
+
+        Assert.Equal(probesPerLevel, requests.Count);
+
+        // Invalidate the whole clip volume while probes are in-flight.
+        Assert.True(scheduler.TryGetLevelParams(0, out var originMin, out _));
+        double size = baseSpacing * resolution;
+        scheduler.MarkDirtyWorldAabb(0, originMin, new Vec3d(originMin.X + size, originMin.Y + size, originMin.Z + size), baseSpacing);
+
+        // Completing an in-flight probe should yield Dirty, not Valid.
+        var req = requests[0];
+        scheduler.Complete(req, frameIndex: 2, success: true);
+
+        var states = new LumOnWorldProbeLifecycleState[probesPerLevel];
+        Assert.True(scheduler.TryCopyLifecycleStates(0, states));
+        Assert.Equal(LumOnWorldProbeLifecycleState.Dirty, states[req.StorageLinearIndex]);
+    }
 }
