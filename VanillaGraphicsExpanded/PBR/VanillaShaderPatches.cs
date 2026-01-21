@@ -93,7 +93,17 @@ flat in vec2 vge_uvExtent;
     mat3 vge_tbn;
     float vge_tbnHandedness;
     VgeTryBuildTbnFromDerivatives(worldPos.xyz, vge_uv, normalize(normal), vge_tbn, vge_tbnHandedness);
-#if VGE_PBR_ENABLE_PARALLAX
+
+    // Tier 2: POM (requires per-face rect). Tier 1 fallback: offset mapping.
+#if VGE_PBR_ENABLE_POM
+    vge_uv = VgeApplyPomUv_WithTbn(vge_uv, vge_tbn, vge_tbnHandedness, worldPos.xyz, vge_uvBase, vge_uvExtent);
+    if (vge_uvBase.x < 0.0 || vge_uvExtent.x <= 0.0 || vge_uvExtent.y <= 0.0)
+    {
+        #if VGE_PBR_ENABLE_PARALLAX
+        vge_uv = VgeApplyParallaxUv_WithTbn(vge_uv, vge_tbn, vge_tbnHandedness, worldPos.xyz);
+        #endif
+    }
+#elif VGE_PBR_ENABLE_PARALLAX
     vge_uv = VgeApplyParallaxUv_WithTbn(vge_uv, vge_tbn, vge_tbnHandedness, worldPos.xyz);
 #endif
 
@@ -117,7 +127,21 @@ flat in vec2 vge_uvExtent;
     mat3 vge_tbn2;
     float vge_tbnHandedness2;
     VgeTryBuildTbnFromDerivatives(worldPos.xyz, vge_uv2, normalize(normal), vge_tbn2, vge_tbnHandedness2);
-#if VGE_PBR_ENABLE_PARALLAX
+
+    // Tier 2: POM for the primary topsoil uv (requires per-face rect).
+    // For uv2 (grass overlay), we do not yet have a dedicated rect, so it stays on Tier 1.
+#if VGE_PBR_ENABLE_POM
+    vge_uv = VgeApplyPomUv_WithTbn(vge_uv, vge_tbn, vge_tbnHandedness, worldPos.xyz, vge_uvBase, vge_uvExtent);
+    if (vge_uvBase.x < 0.0 || vge_uvExtent.x <= 0.0 || vge_uvExtent.y <= 0.0)
+    {
+        #if VGE_PBR_ENABLE_PARALLAX
+        vge_uv = VgeApplyParallaxUv_WithTbn(vge_uv, vge_tbn, vge_tbnHandedness, worldPos.xyz);
+        #endif
+    }
+    #if VGE_PBR_ENABLE_PARALLAX
+    vge_uv2 = VgeApplyParallaxUv_WithTbn(vge_uv2, vge_tbn2, vge_tbnHandedness2, worldPos.xyz);
+    #endif
+#elif VGE_PBR_ENABLE_PARALLAX
     vge_uv = VgeApplyParallaxUv_WithTbn(vge_uv, vge_tbn, vge_tbnHandedness, worldPos.xyz);
     vge_uv2 = VgeApplyParallaxUv_WithTbn(vge_uv2, vge_tbn2, vge_tbnHandedness2, worldPos.xyz);
 #endif
@@ -227,6 +251,7 @@ flat in vec2 vge_uvExtent;
             if (PatchedChunkShaders.Contains(sourceName))
             {
                 InjectParallaxDefines(tree);
+                InjectPomDefines(tree);
 
                 // Find main function and insert @import before it
                 var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
@@ -235,6 +260,7 @@ flat in vec2 vge_uvExtent;
                     .InsertBefore(mainQuery, "@import \"./includes/vge_material.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_normaldepth.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_parallax.glsl\"\n")
+                    .InsertBefore(mainQuery, "@import \"./includes/vge_pom.glsl\"\n")
                     .Commit();
 
                 log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");
@@ -276,6 +302,39 @@ flat in vec2 vge_uvExtent;
 // VGE: Parallax settings
 #define {VgeShaderDefines.PbrEnableParallax} 1
 #define {VgeShaderDefines.PbrParallaxScale} {scale}
+";
+
+        tree.CreateEditor()
+            .InsertAfter(versionQuery, defineBlock)
+            .Commit();
+    }
+
+    private static void InjectPomDefines(SyntaxTree tree)
+    {
+        if (!ConfigModSystem.Config.MaterialAtlas.EnableParallaxOcclusionMapping) return;
+        if (!ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps) return;
+
+        var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
+        if (!tree.Select(versionQuery).Any()) return;
+
+        var cfg = ConfigModSystem.Config.MaterialAtlas;
+
+        string scale = cfg.PomScale.ToString("0.0####", CultureInfo.InvariantCulture);
+        string fadeStart = cfg.PomFadeStart.ToString("0.0####", CultureInfo.InvariantCulture);
+        string fadeEnd = cfg.PomFadeEnd.ToString("0.0####", CultureInfo.InvariantCulture);
+        string maxTexels = cfg.PomMaxTexels.ToString("0.0####", CultureInfo.InvariantCulture);
+
+        string defineBlock = $@"
+
+// VGE: POM settings
+#define {VgeShaderDefines.PbrEnablePom} 1
+#define {VgeShaderDefines.PbrPomScale} {scale}
+#define {VgeShaderDefines.PbrPomMinSteps} {cfg.PomMinSteps}
+#define {VgeShaderDefines.PbrPomMaxSteps} {cfg.PomMaxSteps}
+#define {VgeShaderDefines.PbrPomRefinementSteps} {cfg.PomRefinementSteps}
+#define {VgeShaderDefines.PbrPomFadeStart} {fadeStart}
+#define {VgeShaderDefines.PbrPomFadeEnd} {fadeEnd}
+#define {VgeShaderDefines.PbrPomMaxTexels} {maxTexels}
 ";
 
         tree.CreateEditor()

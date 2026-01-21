@@ -178,6 +178,58 @@ public class VgeConfig
         public float ParallaxScale { get; set; } = 0.03f;
 
         /// <summary>
+        /// Enables Parallax Occlusion Mapping (POM) in patched vanilla chunk shaders.
+        /// POM is only applied when a stable per-face UV rect is available (SSBO path).
+        /// Requires shader reload / re-entering the world to fully apply.
+        /// </summary>
+        [JsonProperty]
+        public bool EnableParallaxOcclusionMapping { get; set; } = false;
+
+        /// <summary>
+        /// POM UV offset scale (in atlas UV units).
+        /// Defaults to the parallax scale for convenience.
+        /// </summary>
+        [JsonProperty]
+        public float PomScale { get; set; } = 0.03f;
+
+        /// <summary>
+        /// Minimum ray-march steps for POM.
+        /// </summary>
+        [JsonProperty]
+        public int PomMinSteps { get; set; } = 8;
+
+        /// <summary>
+        /// Maximum ray-march steps for POM (used at grazing angles).
+        /// </summary>
+        [JsonProperty]
+        public int PomMaxSteps { get; set; } = 24;
+
+        /// <summary>
+        /// Binary refinement steps after the initial march.
+        /// </summary>
+        [JsonProperty]
+        public int PomRefinementSteps { get; set; } = 4;
+
+        /// <summary>
+        /// Distance fade start (world units, camera-relative).
+        /// </summary>
+        [JsonProperty]
+        public float PomFadeStart { get; set; } = 3.0f;
+
+        /// <summary>
+        /// Distance fade end (world units, camera-relative). Beyond this POM is disabled.
+        /// </summary>
+        [JsonProperty]
+        public float PomFadeEnd { get; set; } = 14.0f;
+
+        /// <summary>
+        /// Hard clamp for max UV offset, in texels of the normal/depth atlas.
+        /// Keeps mip/derivative stability and prevents cross-tile bleeding.
+        /// </summary>
+        [JsonProperty]
+        public float PomMaxTexels { get; set; } = 2.0f;
+
+        /// <summary>
         /// Parameters for generating a tileable height/normal field from albedo.
         /// Applied during loading when <see cref="EnableNormalMaps"/> is enabled.
         /// </summary>
@@ -198,6 +250,16 @@ public class VgeConfig
             AsyncMaxJobsPerFrame = Math.Clamp(AsyncMaxJobsPerFrame, 0, 512);
 
             ParallaxScale = Math.Clamp(ParallaxScale, 0.0f, 0.25f);
+
+            PomScale = Math.Clamp(PomScale, 0.0f, 0.25f);
+            PomMinSteps = Math.Clamp(PomMinSteps, 1, 128);
+            PomMaxSteps = Math.Clamp(PomMaxSteps, PomMinSteps, 256);
+            PomRefinementSteps = Math.Clamp(PomRefinementSteps, 0, 16);
+
+            PomFadeStart = Math.Clamp(PomFadeStart, 0.0f, 256.0f);
+            PomFadeEnd = Math.Clamp(PomFadeEnd, PomFadeStart, 512.0f);
+
+            PomMaxTexels = Math.Clamp(PomMaxTexels, 0.0f, 16.0f);
 
             NormalDepthBake ??= new NormalDepthBakeConfig();
         }

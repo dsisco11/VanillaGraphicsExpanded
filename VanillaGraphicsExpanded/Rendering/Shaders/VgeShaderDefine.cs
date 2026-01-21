@@ -36,4 +36,13 @@ public static class VgeShaderDefines
 
     public const string PbrEnableParallax = "VGE_PBR_ENABLE_PARALLAX";
     public const string PbrParallaxScale = "VGE_PBR_PARALLAX_SCALE";
+
+    public const string PbrEnablePom = "VGE_PBR_ENABLE_POM";
+    public const string PbrPomScale = "VGE_PBR_POM_SCALE";
+    public const string PbrPomMinSteps = "VGE_PBR_POM_MIN_STEPS";
+    public const string PbrPomMaxSteps = "VGE_PBR_POM_MAX_STEPS";
+    public const string PbrPomRefinementSteps = "VGE_PBR_POM_REFINEMENT_STEPS";
+    public const string PbrPomFadeStart = "VGE_PBR_POM_FADE_START";
+    public const string PbrPomFadeEnd = "VGE_PBR_POM_FADE_END";
+    public const string PbrPomMaxTexels = "VGE_PBR_POM_MAX_TEXELS";
 }

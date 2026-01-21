@@ -123,15 +123,16 @@ PBR / MaterialAtlas - Parallax Occlusion Mapping (POM) + Atlas-Stable UV Rects:
 
   Phase 3 - Integrate POM into Vanilla Shader Patches:
   Exit artifacts: POM can be enabled per config and works end-to-end.
-  ☐ Extend `VanillaShaderPatches` to patch both stages:
-    - Preprocess: insert `@import` for `vge_pom.glsl` and any rect helpers
+  ✔ Extend `VanillaShaderPatches` to patch both stages: @done
+    - Preprocess: insert `@import` for `vge_pom.glsl` (fragment) and rect helpers (vertex)
     - Patch `.vsh` to emit UV rect varyings
-    - Patch `.fsh` to use POM UV instead of raw `uv` for atlas sampling
-  ☐ Define shader `#define`s for POM:
+    - Patch `.fsh` to use POM UV (with rect clamp) instead of raw `uv` for atlas sampling
+  ✔ Define shader `#define`s for POM: @done
     - `VGE_PBR_ENABLE_POM`
     - `VGE_PBR_POM_SCALE`
     - `VGE_PBR_POM_MIN_STEPS`, `VGE_PBR_POM_MAX_STEPS`, `VGE_PBR_POM_REFINEMENT_STEPS`
-  ☐ Ensure POM UV indirection applies consistently to:
+    - `VGE_PBR_POM_FADE_START`, `VGE_PBR_POM_FADE_END`, `VGE_PBR_POM_MAX_TEXELS`
+  ✔ Ensure POM UV indirection applies consistently to: @done
     - terrainTex sampling
     - vge_normalDepthTex sampling (height/normal atlas)
     - vge_materialParamsTex sampling
