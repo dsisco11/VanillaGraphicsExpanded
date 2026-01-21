@@ -9,7 +9,7 @@ public sealed class DebugViewConfigTests
     [Fact]
     public void LumOnConfig_DoesNotSerialize_DebugMode()
     {
-        var cfg = new LumOnConfig
+        var cfg = new VgeConfig
         {
             LumOn =
             {

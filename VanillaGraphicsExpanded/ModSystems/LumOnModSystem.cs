@@ -28,7 +28,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         int ProbeSpacingPx,
         bool HalfResolution)
     {
-        public static LumOnLiveConfigSnapshot From(LumOnConfig cfg)
+        public static LumOnLiveConfigSnapshot From(VgeConfig cfg)
         {
             var c = cfg.LumOn;
             return new LumOnLiveConfigSnapshot(

@@ -19,7 +19,7 @@ internal sealed class ConfigModSystem : ModSystem
     /// <summary>
     /// The mod configuration. Loaded on startup.
     /// </summary>
-    public static LumOnConfig Config { get; private set; } = new();
+    public static VgeConfig Config { get; private set; } = new();
     private static bool configLoaded = false;
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
@@ -35,10 +35,10 @@ internal sealed class ConfigModSystem : ModSystem
         
         try
         {
-            var loadedConfig = api.LoadModConfig<LumOnConfig>(Constants.ConfigFileName);
+            var loadedConfig = api.LoadModConfig<VgeConfig>(Constants.ConfigFileName);
             if (loadedConfig is null)
             {
-                Config = new LumOnConfig();
+                Config = new VgeConfig();
                 api.StoreModConfig(Config, Constants.ConfigFileName);
                 api.Logger.Notification("[VGE] Created default LumOn config");
             }
@@ -52,7 +52,7 @@ internal sealed class ConfigModSystem : ModSystem
         catch (Exception ex)
         {
             api.Logger.Error("[VGE] Failed to load configuration: {0}", ex.Message);
-            Config = new LumOnConfig();
+            Config = new VgeConfig();
             Config.Sanitize();
         }
         

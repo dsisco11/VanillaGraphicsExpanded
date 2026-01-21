@@ -14,7 +14,7 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
     private const int LayoutVersion = 1;
 
     private readonly ICoreClientAPI capi;
-    private readonly LumOnConfig config;
+    private readonly VgeConfig config;
 
     private LumOnWorldProbeClipmapGpuResources? resources;
     private LumOnWorldProbeClipmapGpuUploader? uploader;
@@ -102,7 +102,7 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
         }
     }
 
-    public LumOnWorldProbeClipmapBufferManager(ICoreClientAPI capi, LumOnConfig config)
+    public LumOnWorldProbeClipmapBufferManager(ICoreClientAPI capi, VgeConfig config)
     {
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
         this.config = config ?? throw new ArgumentNullException(nameof(config));

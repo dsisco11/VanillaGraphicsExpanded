@@ -63,7 +63,7 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
                 textureLocations: new[] { new AssetLocation("game", "textures/block/test.png") },
                 strict: true);
 
-            var cfg = new LumOnConfig();
+            var cfg = new VgeConfig();
             cfg.MaterialAtlas.EnableAsync = true;
             cfg.MaterialAtlas.EnableNormalMaps = true;
 
@@ -90,7 +90,7 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
             Assert.Equal(k1, k2);
 
             // Async scheduling is a performance concern and must not affect cache keys.
-            var cfg2 = new LumOnConfig();
+            var cfg2 = new VgeConfig();
             cfg2.MaterialAtlas.EnableAsync = false;
             cfg2.MaterialAtlas.EnableNormalMaps = true;
 
@@ -100,7 +100,7 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
             Assert.Equal(k1, k3);
 
             // Output-affecting config should change inputs => change key.
-            var cfg3 = new LumOnConfig();
+            var cfg3 = new VgeConfig();
             cfg3.MaterialAtlas.EnableAsync = true;
             cfg3.MaterialAtlas.EnableNormalMaps = false;
 
@@ -148,7 +148,7 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
                 textureLocations: new[] { new AssetLocation("game", "textures/block/test.png") },
                 strict: true);
 
-            var cfg = new LumOnConfig();
+            var cfg = new VgeConfig();
             cfg.MaterialAtlas.EnableAsync = true;
             cfg.MaterialAtlas.EnableNormalMaps = true;
 
@@ -211,7 +211,7 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
                 textureLocations: new[] { new AssetLocation("game", "textures/block/test.png") },
                 strict: true);
 
-            var cfg = new LumOnConfig();
+            var cfg = new VgeConfig();
             cfg.MaterialAtlas.EnableAsync = true;
             cfg.MaterialAtlas.EnableNormalMaps = true;
 
@@ -301,7 +301,7 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
 
             var builder = new MaterialAtlasCacheKeyBuilder();
 
-            var cfgA = new LumOnConfig();
+            var cfgA = new VgeConfig();
             cfgA.MaterialAtlas.EnableAsync = true;
             cfgA.MaterialAtlas.EnableNormalMaps = true;
             cfgA.MaterialAtlas.AsyncBudgetMs = 1.5f;
@@ -310,7 +310,7 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
             cfgA.MaterialAtlas.AsyncBudgetMs = 0.75f;
             cfgA.MaterialAtlas.AsyncMaxUploadsPerFrame = 2;
 
-            var cfgB = new LumOnConfig();
+            var cfgB = new VgeConfig();
             cfgB.MaterialAtlas.EnableAsync = true;
             cfgB.MaterialAtlas.EnableNormalMaps = true;
             cfgB.MaterialAtlas.AsyncBudgetMs = 3.0f;

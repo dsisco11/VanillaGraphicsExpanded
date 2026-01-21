@@ -8,9 +8,9 @@ public sealed class WorldProbeClipmapConfigTests
     [Fact]
     public void Sanitize_ClampsWorldProbeClipmapConfig_AndResizesBudgets()
     {
-        var cfg = new LumOnConfig
+        var cfg = new VgeConfig
         {
-            WorldProbeClipmap = new LumOnConfig.WorldProbeClipmapConfig
+            WorldProbeClipmap = new VgeConfig.WorldProbeClipmapConfig
             {
                 ClipmapBaseSpacing = -123f,
                 ClipmapResolution = 1,

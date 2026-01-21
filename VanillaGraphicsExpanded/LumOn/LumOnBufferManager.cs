@@ -17,7 +17,7 @@ public sealed class LumOnBufferManager : IDisposable
     #region Fields
 
     private readonly ICoreClientAPI capi;
-    private readonly LumOnConfig config;
+    private readonly VgeConfig config;
 
     // Screen dimensions tracking
     private int lastScreenWidth;
@@ -442,7 +442,7 @@ public sealed class LumOnBufferManager : IDisposable
 
     #region Constructor
 
-    public LumOnBufferManager(ICoreClientAPI capi, LumOnConfig config)
+    public LumOnBufferManager(ICoreClientAPI capi, VgeConfig config)
     {
         this.capi = capi;
         this.config = config;

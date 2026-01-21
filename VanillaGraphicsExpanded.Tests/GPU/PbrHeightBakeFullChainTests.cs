@@ -38,7 +38,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
         using (helper)
         {
-            var cfg = new LumOnConfig.NormalDepthBakeConfig();
+            var cfg = new VgeConfig.NormalDepthBakeConfig();
 
             var progL = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_luminance.fsh");
             var progG = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_gauss1d.fsh");
@@ -185,7 +185,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
         using (helper)
         {
-            var cfg = new LumOnConfig.NormalDepthBakeConfig
+            var cfg = new VgeConfig.NormalDepthBakeConfig
             {
                 HeightStrength = 64f,
                 Gamma = 1f,
@@ -267,7 +267,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
         using (helper)
         {
-            var cfg = new LumOnConfig.NormalDepthBakeConfig();
+            var cfg = new VgeConfig.NormalDepthBakeConfig();
 
             var progL = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_luminance.fsh");
             var progG = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_gauss1d.fsh");
@@ -428,7 +428,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
         using (helper)
         {
-            var cfg = new LumOnConfig.NormalDepthBakeConfig
+            var cfg = new VgeConfig.NormalDepthBakeConfig
             {
                 // Ensure normals are actually generated (otherwise normalScale doesn't matter).
                 NormalStrength = 4f

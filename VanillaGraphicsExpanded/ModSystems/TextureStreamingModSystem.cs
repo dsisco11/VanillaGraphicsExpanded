@@ -62,7 +62,7 @@ public sealed class TextureStreamingModSystem : ModSystem, ILiveConfigurable
         capi = null;
     }
 
-    private static TextureStreamingSettings BuildTextureStreamingSettings(LumOnConfig cfg)
+    private static TextureStreamingSettings BuildTextureStreamingSettings(VgeConfig cfg)
     {
         return new TextureStreamingSettings(
             EnablePboStreaming: cfg.TextureStreaming.Enabled,

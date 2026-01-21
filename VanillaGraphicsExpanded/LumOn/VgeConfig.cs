@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Persisted to: ModConfig/VanillaGraphicsExpanded.json
 /// </summary>
 [JsonObject(MemberSerialization.OptIn)]
-public class LumOnConfig
+public class VgeConfig
 {
     public enum ProbeAtlasGatherMode
     {

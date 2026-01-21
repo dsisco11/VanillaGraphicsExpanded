@@ -25,7 +25,7 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
         int ClipmapTraceMaxProbesPerFrame,
         int ClipmapUploadBudgetBytesPerFrame)
     {
-        public static WorldProbeLiveConfigSnapshot From(LumOnConfig cfg)
+        public static WorldProbeLiveConfigSnapshot From(VgeConfig cfg)
         {
             var c = cfg.WorldProbeClipmap;
             return new WorldProbeLiveConfigSnapshot(

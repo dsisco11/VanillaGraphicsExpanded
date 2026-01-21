@@ -50,7 +50,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     #region Fields
 
     private readonly ICoreClientAPI capi;
-    private readonly LumOnConfig config;
+    private readonly VgeConfig config;
     private readonly LumOnBufferManager? bufferManager;
     private readonly GBufferManager? gBufferManager;
     private readonly DirectLightingBufferManager? directLightingBufferManager;
@@ -105,7 +105,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     internal LumOnDebugRenderer(
         ICoreClientAPI capi,
-        LumOnConfig config,
+        VgeConfig config,
         LumOnBufferManager? bufferManager,
         GBufferManager? gBufferManager,
         DirectLightingBufferManager? directLightingBufferManager,

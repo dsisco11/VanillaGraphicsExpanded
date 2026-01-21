@@ -1306,7 +1306,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             }
         }
 
-        public void Solve(DynamicTexture2D rhs, DynamicTexture2D outH, LumOnConfig.NormalDepthBakeConfig bake)
+        public void Solve(DynamicTexture2D rhs, DynamicTexture2D outH, VgeConfig.NormalDepthBakeConfig bake)
         {
             // Copy rhs into bLevel[0] (keep a stable reference for residual).
             RunCopy(rhs, bLevel[0]);
@@ -1324,7 +1324,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             RunCopy(hLevel[0], outH);
         }
 
-        private void VCycle(int level, LumOnConfig.NormalDepthBakeConfig bake)
+        private void VCycle(int level, VgeConfig.NormalDepthBakeConfig bake)
         {
             // Pre-smooth.
             for (int i = 0; i < bake.MultigridPreSmooth; i++)

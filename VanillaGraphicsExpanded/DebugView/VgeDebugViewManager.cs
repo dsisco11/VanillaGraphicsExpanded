@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.DebugView;
 public static class VgeDebugViewManager
 {
     private static ICoreClientAPI? capi;
-    private static LumOnConfig? lumOnConfig;
+    private static VgeConfig? lumOnConfig;
 
     private static LumOnDebugMode currentMode = LumOnDebugMode.Off;
 
@@ -17,7 +17,7 @@ public static class VgeDebugViewManager
 
     public static void Initialize(
         ICoreClientAPI capi,
-        LumOnConfig? lumOnConfig)
+        VgeConfig? lumOnConfig)
     {
         VgeDebugViewManager.capi = capi;
         VgeDebugViewManager.lumOnConfig = lumOnConfig;

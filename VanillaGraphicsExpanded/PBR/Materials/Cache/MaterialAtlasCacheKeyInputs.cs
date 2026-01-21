@@ -10,9 +10,9 @@ namespace VanillaGraphicsExpanded.PBR.Materials.Cache;
 /// </summary>
 internal readonly record struct MaterialAtlasCacheKeyInputs(int SchemaVersion, string StablePrefix)
 {
-    public static MaterialAtlasCacheKeyInputs Create(LumOnConfig config, AtlasSnapshot snapshot, PbrMaterialRegistry registry)
+    public static MaterialAtlasCacheKeyInputs Create(VgeConfig config, AtlasSnapshot snapshot, PbrMaterialRegistry registry)
     {
-            LumOnConfig.MaterialAtlasConfig atlas = config.MaterialAtlas;
+            VgeConfig.MaterialAtlasConfig atlas = config.MaterialAtlas;
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(registry);

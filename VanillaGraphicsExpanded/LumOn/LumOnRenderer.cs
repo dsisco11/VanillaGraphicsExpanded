@@ -41,7 +41,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     #region Fields
 
     private readonly ICoreClientAPI capi;
-    private readonly LumOnConfig config;
+    private readonly VgeConfig config;
     private readonly LumOnBufferManager bufferManager;
     private readonly GBufferManager? gBufferManager;
 
@@ -122,7 +122,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     internal LumOnRenderer(
         ICoreClientAPI capi,
-        LumOnConfig config,
+        VgeConfig config,
         LumOnBufferManager bufferManager,
         GBufferManager? gBufferManager,
         LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager = null)
@@ -371,7 +371,7 @@ public class LumOnRenderer : IRenderer, IDisposable
             }
 
             // === Pass 3.75: Probe-Atlas Projection (Option B) ===
-            if (config.LumOn.UseProbeAtlas && config.LumOn.ProbeAtlasGather == LumOnConfig.ProbeAtlasGatherMode.EvaluateProjectedSH)
+            if (config.LumOn.UseProbeAtlas && config.LumOn.ProbeAtlasGather == VgeConfig.ProbeAtlasGatherMode.EvaluateProjectedSH)
             {
                 using var cpuAtlasProject = Profiler.BeginScope("LumOn.AtlasProjectSH9", "Render");
                 using (GlGpuProfiler.Instance.Scope("LumOn.AtlasProjectSH9"))
@@ -940,7 +940,7 @@ public class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (config.LumOn.ProbeAtlasGather == LumOnConfig.ProbeAtlasGatherMode.EvaluateProjectedSH)
+        if (config.LumOn.ProbeAtlasGather == VgeConfig.ProbeAtlasGatherMode.EvaluateProjectedSH)
         {
             RenderProbeSh9GatherPass(primaryFb);
             return;

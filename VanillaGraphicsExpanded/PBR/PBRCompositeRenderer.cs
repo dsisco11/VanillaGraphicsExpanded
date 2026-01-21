@@ -27,7 +27,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
     private readonly ICoreClientAPI capi;
     private readonly GBufferManager gBufferManager;
     private readonly DirectLightingBufferManager directLightingBuffers;
-    private readonly LumOnConfig? lumOnConfig;
+    private readonly VgeConfig? lumOnConfig;
     private readonly LumOnBufferManager? lumOnBuffers;
 
     private MeshRef? quadMeshRef;
@@ -46,7 +46,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         ICoreClientAPI capi,
         GBufferManager gBufferManager,
         DirectLightingBufferManager directLightingBuffers,
-        LumOnConfig? lumOnConfig,
+        VgeConfig? lumOnConfig,
         LumOnBufferManager? lumOnBuffers)
     {
         this.capi = capi;
