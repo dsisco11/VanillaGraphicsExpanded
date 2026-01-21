@@ -104,15 +104,23 @@
         },
         {
             "label": "build",
-            "type": "dotnet",
-            "task": "build",
+            "type": "process",
+            "command": "dotnet",
+            "args": [
+                "build",
+                "-c",
+                "Debug"
+            ],
             "options": {
-                "cwd": "${workspaceFolder}/VanillaGraphicsExpanded"
+                "cwd": "${workspaceFolder}/VanillaGraphicsExpanded",
+                "env": {
+                    "MSBUILDDISABLENODEREUSE": "1"
+                }
             },
             "problemMatcher": "$msCompile",
             "presentation": {
                 "panel": "dedicated",
-                "reveal": "never",
+                "reveal": "always",
                 "focus": false,
                 "close": false,
                 "showReuseMessage": false
