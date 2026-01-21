@@ -104,19 +104,20 @@ PBR / MaterialAtlas - Parallax Occlusion Mapping (POM) + Atlas-Stable UV Rects:
 
   Phase 2 - Implement POM in Shared GLSL Include:
   Exit artifacts: A reusable POM function exists with strict rect-clamp and stable defaults.
-  ☐ Add a new include (e.g. `vge_pom.glsl`) or expand `vge_parallax.glsl` with:
+  ✔ Add a new include (e.g. `vge_pom.glsl`) or expand `vge_parallax.glsl` with: @done
     - `VgeApplyPomUv_WithTbn(uv, tbn, handedness, worldPosWs, uvBase, uvExtent)`
-  ☐ Implement algorithm:
+    - Implemented as `assets/vanillagraphicsexpanded/shaders/includes/vge_pom.glsl`
+  ✔ Implement algorithm: @done
     - View vector in tangent space
     - Angle-scaled step count (more at grazing angles)
-    - Height ray-march in [0..1] height space
+    - Height ray-march in [0..1] depth space (derived from baked height)
     - Refine hit point (linear interpolate + small binary search)
-  ☐ Enforce atlas safety:
-    - Clamp final UV to `[uvBase + epsilon, uvBase + uvExtent - epsilon]`
+  ✔ Enforce atlas safety: @done
+    - Clamp final UV to the rect
     - Clamp per-step UV to rect to avoid “escape” during march
-  ☐ Add stability controls:
-    - Distance fade (disable POM beyond a configured distance)
-    - Max UV offset clamp in texels (avoid mip/derivative thrash)
+  ✔ Add stability controls: @done
+    - Distance fade (configurable defaults)
+    - Max UV offset clamp in texels
     - Guard NaN/Inf
 
 
