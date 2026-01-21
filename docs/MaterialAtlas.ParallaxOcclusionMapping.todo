@@ -106,7 +106,7 @@ PBR / MaterialAtlas - Parallax Occlusion Mapping (POM) + Atlas-Stable UV Rects:
   Exit artifacts: A reusable POM function exists with strict rect-clamp and stable defaults.
   ✔ Add a new include (e.g. `vge_pom.glsl`) or expand `vge_parallax.glsl` with: @done
     - `VgeApplyPomUv_WithTbn(uv, tbn, handedness, worldPosWs, uvBase, uvExtent)`
-    - Implemented as `assets/vanillagraphicsexpanded/shaders/includes/vge_pom.glsl`
+    - Implemented as `assets/vanillagraphicsexpanded/shaders/includes/vge_parallax.glsl`
   ✔ Implement algorithm: @done
     - View vector in tangent space
     - Angle-scaled step count (more at grazing angles)
@@ -124,7 +124,7 @@ PBR / MaterialAtlas - Parallax Occlusion Mapping (POM) + Atlas-Stable UV Rects:
   Phase 3 - Integrate POM into Vanilla Shader Patches:
   Exit artifacts: POM can be enabled per config and works end-to-end.
   ✔ Extend `VanillaShaderPatches` to patch both stages: @done
-    - Preprocess: insert `@import` for `vge_pom.glsl` (fragment) and rect helpers (vertex)
+    - Preprocess: insert `@import` for `vge_parallax.glsl` (fragment) and rect helpers (vertex)
     - Patch `.vsh` to emit UV rect varyings
     - Patch `.fsh` to use POM UV (with rect clamp) instead of raw `uv` for atlas sampling
   ✔ Define shader `#define`s for POM: @done

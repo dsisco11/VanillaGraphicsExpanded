@@ -3,11 +3,13 @@
 
 // Parallax Occlusion Mapping (POM) helpers for atlas-based terrain shaders.
 //
+// Note: File name is `vge_parallax.glsl` for compatibility with prior naming,
+// but the feature implemented here is Tier-2 POM.
+//
 // Requirements:
 // - vge_normaldepth.glsl for ReadHeight01/ReadHeightSigned and VgeTryBuildTbnFromDerivatives
 // - `uniform sampler2D vge_normalDepthTex;`
 // - Per-face atlas tile rect: (uvBase, uvExtent) in atlas UV space.
-//   If rect is unavailable, call sites should fall back to Tier 0/1.
 
 #ifndef VGE_PBR_ENABLE_POM
   #define VGE_PBR_ENABLE_POM 0

@@ -243,7 +243,7 @@ flat in vec2 vge_uvExtent;
                     .InsertBefore(mainQuery, "@import \"./includes/vsfunctions.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_material.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_normaldepth.glsl\"\n")
-                    .InsertBefore(mainQuery, "@import \"./includes/vge_pom.glsl\"\n")
+                    .InsertBefore(mainQuery, "@import \"./includes/vge_parallax.glsl\"\n")
                     .Commit();
 
                 log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");
