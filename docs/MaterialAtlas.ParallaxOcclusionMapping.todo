@@ -1,0 +1,156 @@
+PBR / MaterialAtlas - Parallax Occlusion Mapping (POM) + Atlas-Stable UV Rects:
+
+  Goal:
+  Add Parallax Occlusion Mapping (POM) support to VGE’s block/terrain shading in an atlas-safe way.
+  “Atlas-safe” means: ray-marched UVs must stay within the current face’s atlas tile rect, avoiding
+  cross-tile sampling, shimmer, and “swimming” under camera motion.
+
+  Why this is needed:
+  - Liquids already carry `uvBase`/`uvSize` for stable atlas-local UV math.
+  - Non-liquid chunk shaders currently only expose `uv`, so any parallax UV indirection can easily
+    cross tile boundaries or become temporally unstable.
+
+
+  References (repo):
+  - docs/MaterialAtlas.Architecture.md
+  - docs/MaterialAtlas.BuildPipeline.md
+  - docs/NormalDepthBake.md
+  - VanillaGraphicsExpanded/PBR/VanillaShaderPatches.cs
+  - VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/vge_normaldepth.glsl
+  - VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/vge_parallax.glsl
+
+  References (engine shader sources):
+  - g:/Vintagestory/assets/game/shaders/chunkliquid.vsh (source of `uvBase`/`uvSize`)
+  - g:/Vintagestory/assets/game/shaders/chunkliquid.fsh (consumes `uvBase`/`uvSize`)
+  - g:/Vintagestory/assets/game/shaders/chunkopaque.vsh
+  - g:/Vintagestory/assets/game/shaderincludes/vertexflagbits.ash (FaceData + UnpackUv)
+
+  References (external docs):
+  - LearnOpenGL (Parallax Mapping): https://learnopengl.com/Advanced-Lighting/Parallax-Mapping
+  - GPU Gems 3 (Parallax Occlusion Mapping / relief mapping variants): https://developer.nvidia.com/gpugems/gpugems3
+  - UE docs (POM material function overview): https://docs.unrealengine.com/ (search: "Parallax Occlusion Mapping")
+
+
+  Key Findings (current state):
+  - Liquid shader path:
+    - chunkliquid.vsh computes:
+      - `uvSize = vec2((waterFlagsIn >> 10) & 0xff, (waterFlagsIn >> 18) & 0xff) * (1/255) * blockTextureSize`
+      - `uvBase = uv - uvSize`
+    - `uvBase` is declared `flat out` so it is constant for the quad.
+    - `uvSize` is interpolated and represents the per-vertex offset from `uvBase` to the current corner.
+  - Non-liquid chunk shaders:
+    - chunkopaque.vsh / chunktransparent.vsh / chunktopsoil.vsh output only `uv` (and `uv2` for topsoil).
+    - In the SSBO path (`USESSBO > 0`), UVs are derived from `FaceData` via `UnpackUv(...)`.
+      `FaceData` contains packed UV origin (`vdata.uv`) and packed signed sizes/flags (`vdata.uvSize`).
+
+
+  Phase 0 - Requirements + Success Criteria:
+  Exit artifacts: We can define “done” and avoid regressions.
+  ☐ Define feature tiers:
+    - Tier 0: no parallax (baseline)
+    - Tier 1: offset mapping (current)
+    - Tier 2: POM (ray-march + refine)
+  ☐ Define acceptance criteria:
+    - No cross-tile sampling (verified by debug visualization)
+    - No obvious swimming at mid/far distance (distance fade)
+    - Grazing-angle shimmer controlled (angle-based step count + clamp)
+    - Configurable quality/perf knobs (steps, refine iterations, scale)
+  ☐ Decide per-shader coverage:
+    - chunkopaque/chunktransparent/chunktopsoil first
+    - chunkliquid optional (liquid flow UV logic is special)
+
+
+  Phase 1 - UV Rect Plumbing (uvBase/uvSize) for Non-Liquid Shaders:
+  Exit artifacts: chunk opaque/transparent/topsoil have stable per-face UV rects available in fragment.
+
+  1.1 - Document liquid semantics (ground truth):
+  ☐ Record the exact meaning of liquid `uvBase`/`uvSize` and how they are used in chunkliquid.fsh.
+  ☐ Confirm what the waterFlags bitfields represent and why `uvBase` must be `flat`.
+
+  1.2 - Determine how to compute UV rect for non-liquid faces:
+  ☐ SSBO path (`USESSBO > 0`): compute UV rect from `FaceData`.
+     - Add a helper in an include (or injected code) to compute:
+       - `uvBase` (tile origin in atlas UV space)
+       - `uvExtent` (tile size in atlas UV space)
+       - rotation/mirroring handling (from `vdata.uvSize` flags)
+  ☐ Non-SSBO path (`USESSBO == 0`): decide fallback policy.
+     - Option A: disable POM (keep Tier 1 offset mapping) when SSBO isn’t active.
+     - Option B: attempt approximation from `uvIn` (only if a reliable tile-size uniform exists).
+
+  1.3 - Add varyings to non-liquid vertex shaders:
+  ☐ Patch `chunkopaque.vsh`, `chunktransparent.vsh`, `chunktopsoil.vsh` to output:
+    - `flat out vec2 vge_uvBase;`
+    - `flat out vec2 vge_uvExtent;`
+    - (optional) `out vec2 vge_uvLocal;` (atlas-local uv offset = uv - uvBase)
+  ☐ Patch corresponding fragment shaders to consume these varyings.
+  ☐ Decide naming conventions to avoid collisions and keep patches easy to grep.
+
+  Notes:
+  - VGE currently patches `.fsh` only. This phase likely requires extending the patch pipeline to also patch `.vsh`.
+  - Use `flat` for base/extent to avoid interpolation drift across the quad.
+
+
+  Phase 2 - Implement POM in Shared GLSL Include:
+  Exit artifacts: A reusable POM function exists with strict rect-clamp and stable defaults.
+  ☐ Add a new include (e.g. `vge_pom.glsl`) or expand `vge_parallax.glsl` with:
+    - `VgeApplyPomUv_WithTbn(uv, tbn, handedness, worldPosWs, uvBase, uvExtent)`
+  ☐ Implement algorithm:
+    - View vector in tangent space
+    - Angle-scaled step count (more at grazing angles)
+    - Height ray-march in [0..1] height space
+    - Refine hit point (linear interpolate + small binary search)
+  ☐ Enforce atlas safety:
+    - Clamp final UV to `[uvBase + epsilon, uvBase + uvExtent - epsilon]`
+    - Clamp per-step UV to rect to avoid “escape” during march
+  ☐ Add stability controls:
+    - Distance fade (disable POM beyond a configured distance)
+    - Max UV offset clamp in texels (avoid mip/derivative thrash)
+    - Guard NaN/Inf
+
+
+  Phase 3 - Integrate POM into Vanilla Shader Patches:
+  Exit artifacts: POM can be enabled per config and works end-to-end.
+  ☐ Extend `VanillaShaderPatches` to patch both stages:
+    - Preprocess: insert `@import` for `vge_pom.glsl` and any rect helpers
+    - Patch `.vsh` to emit UV rect varyings
+    - Patch `.fsh` to use POM UV instead of raw `uv` for atlas sampling
+  ☐ Define shader `#define`s for POM:
+    - `VGE_PBR_ENABLE_POM`
+    - `VGE_PBR_POM_SCALE`
+    - `VGE_PBR_POM_MIN_STEPS`, `VGE_PBR_POM_MAX_STEPS`, `VGE_PBR_POM_REFINEMENT_STEPS`
+  ☐ Ensure POM UV indirection applies consistently to:
+    - terrainTex sampling
+    - vge_normalDepthTex sampling (height/normal atlas)
+    - vge_materialParamsTex sampling
+
+
+  Phase 4 - Debug Views + Validation:
+  Exit artifacts: We can prove atlas safety and stability.
+  ☐ Add a debug mode to visualize:
+    - UV rect bounds (color-coded edge distance)
+    - Whether any POM step hits rect clamp
+    - Effective step count / distance fade
+  ☐ Add a “tile bleed test” texture/material to make cross-tile sampling obvious.
+  ☐ Record a short checklist for RenderDoc capture:
+    - verify sampler bindings
+    - verify UV rect values are constant per face
+    - verify clamping prevents neighbor-tile sampling
+
+
+  Phase 5 - Performance + Quality Tuning:
+  Exit artifacts: Defaults are stable and performant.
+  ☐ Profile GPU cost by view angle and distance.
+  ☐ Tune step counts and fade thresholds.
+  ☐ Add config validation bounds (avoid extreme scales).
+
+
+  Phase 6 - Documentation + Modder/Config Surface:
+  Exit artifacts: Feature is documented and safe for users.
+  ☐ Update docs/NormalDepthBake.md with POM notes (height interpretation and scale).
+  ☐ Document config knobs + recommended presets:
+    - Low (few steps, strong fade)
+    - Medium
+    - High
+  ☐ Document limitations:
+    - SSBO dependency (if applicable)
+    - liquid compatibility (if deferred)
