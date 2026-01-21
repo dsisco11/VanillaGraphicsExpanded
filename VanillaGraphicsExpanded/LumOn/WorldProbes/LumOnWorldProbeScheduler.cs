@@ -53,6 +53,23 @@ internal sealed class LumOnWorldProbeScheduler
 
     #region Public API
 
+    public readonly record struct WorldProbeAnchorShiftEvent(
+        int Level,
+        Vec3d PrevAnchor,
+        Vec3d NewAnchor,
+        Vec3i DeltaProbes,
+        double Spacing,
+        Vec3d PrevOriginMinCorner,
+        Vec3d NewOriginMinCorner,
+        Vec3i PrevRingOffset,
+        Vec3i NewRingOffset);
+
+    /// <summary>
+    /// Fired whenever a level's snapped clipmap anchor shifts (and the ring offset/origin updates).
+    /// Not fired for first-time initialization.
+    /// </summary>
+    public event Action<WorldProbeAnchorShiftEvent>? AnchorShifted;
+
     public int LevelCount => levels.Length;
 
     public int Resolution => resolution;
@@ -109,7 +126,21 @@ internal sealed class LumOnWorldProbeScheduler
         {
             ref LevelState state = ref levels[level];
             double spacing = LumOnClipmapTopology.GetSpacing(baseSpacing, level);
-            state.UpdateOrigin(cameraPos, spacing);
+            if (!state.UpdateOrigin(cameraPos, spacing, out var shiftInfo))
+            {
+                continue;
+            }
+
+            AnchorShifted?.Invoke(new WorldProbeAnchorShiftEvent(
+                Level: level,
+                PrevAnchor: shiftInfo.PrevAnchor,
+                NewAnchor: shiftInfo.NewAnchor,
+                DeltaProbes: shiftInfo.DeltaProbes,
+                Spacing: spacing,
+                PrevOriginMinCorner: shiftInfo.PrevOriginMinCorner,
+                NewOriginMinCorner: shiftInfo.NewOriginMinCorner,
+                PrevRingOffset: shiftInfo.PrevRingOffset,
+                NewRingOffset: shiftInfo.NewRingOffset));
         }
     }
 
@@ -244,7 +275,16 @@ internal sealed class LumOnWorldProbeScheduler
             return true;
         }
 
-        public void UpdateOrigin(Vec3d cameraPos, double spacing)
+        public readonly record struct AnchorShiftInfo(
+            Vec3d PrevAnchor,
+            Vec3d NewAnchor,
+            Vec3i DeltaProbes,
+            Vec3d PrevOriginMinCorner,
+            Vec3d NewOriginMinCorner,
+            Vec3i PrevRingOffset,
+            Vec3i NewRingOffset);
+
+        public bool UpdateOrigin(Vec3d cameraPos, double spacing, out AnchorShiftInfo shiftInfo)
         {
             Vec3d newAnchor = LumOnClipmapTopology.SnapAnchor(cameraPos, spacing);
 
@@ -255,7 +295,8 @@ internal sealed class LumOnWorldProbeScheduler
 
                 // First-time init: everything is dirty/uninitialized.
                 Array.Fill(lifecycle, LumOnWorldProbeLifecycleState.Uninitialized);
-                return;
+                shiftInfo = default;
+                return false;
             }
 
             Vec3d prevAnchor = anchor!;
@@ -267,20 +308,36 @@ internal sealed class LumOnWorldProbeScheduler
             if (dx == 0 && dy == 0 && dz == 0)
             {
                 // No origin shift.
-                return;
+                shiftInfo = default;
+                return false;
             }
+
+            Vec3d prevOrigin = originMinCorner ?? new Vec3d();
+            Vec3i prevRing = ringOffset;
 
             // Update anchor/origin.
             anchor = newAnchor;
-            originMinCorner = LumOnClipmapTopology.GetOriginMinCorner(newAnchor, spacing, resolution);
+            Vec3d newOrigin = LumOnClipmapTopology.GetOriginMinCorner(newAnchor, spacing, resolution);
+            originMinCorner = newOrigin;
 
             // Preserve overlapping region by shifting the ring offset.
-            ringOffset = LumOnClipmapTopology.WrapIndex(
+            Vec3i newRing = LumOnClipmapTopology.WrapIndex(
                 new Vec3i(ringOffset.X + dx, ringOffset.Y + dy, ringOffset.Z + dz),
                 resolution);
+            ringOffset = newRing;
 
             // Mark newly introduced slabs dirty.
             MarkIntroducedSlabsDirty(dx, dy, dz);
+
+            shiftInfo = new AnchorShiftInfo(
+                PrevAnchor: new Vec3d(prevAnchor.X, prevAnchor.Y, prevAnchor.Z),
+                NewAnchor: new Vec3d(newAnchor.X, newAnchor.Y, newAnchor.Z),
+                DeltaProbes: new Vec3i(dx, dy, dz),
+                PrevOriginMinCorner: new Vec3d(prevOrigin.X, prevOrigin.Y, prevOrigin.Z),
+                NewOriginMinCorner: new Vec3d(newOrigin.X, newOrigin.Y, newOrigin.Z),
+                PrevRingOffset: new Vec3i(prevRing.X, prevRing.Y, prevRing.Z),
+                NewRingOffset: new Vec3i(newRing.X, newRing.Y, newRing.Z));
+            return true;
         }
 
         public void Select(

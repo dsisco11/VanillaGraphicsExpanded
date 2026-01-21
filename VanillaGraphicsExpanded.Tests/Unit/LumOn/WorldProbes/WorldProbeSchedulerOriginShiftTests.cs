@@ -70,6 +70,51 @@ public sealed class WorldProbeSchedulerOriginShiftTests
         Assert.Equal(origin0.X + baseSpacing, origin1.X, 10);
     }
 
+    [Fact]
+    public void UpdateOrigins_ShiftEmitsAnchorShiftedEvent()
+    {
+        const int resolution = 8;
+        const double baseSpacing = 4.0;
+
+        var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution);
+
+        var events = new List<LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent>();
+        scheduler.AnchorShifted += e => events.Add(e);
+
+        // First-time init should not fire.
+        scheduler.UpdateOrigins(new Vec3d(0.0, 0.0, 0.0), baseSpacing);
+        Assert.Empty(events);
+
+        Assert.True(scheduler.TryGetLevelParams(0, out var origin0, out var ring0));
+
+        // Shift by +1 probe cell in X.
+        scheduler.UpdateOrigins(new Vec3d(4.01, 0.0, 0.0), baseSpacing);
+
+        Assert.Single(events);
+        var ev = events[0];
+
+        Assert.Equal(0, ev.Level);
+        Assert.Equal(new Vec3i(1, 0, 0), ev.DeltaProbes);
+        Assert.Equal(baseSpacing, ev.Spacing, 10);
+
+        // Anchors are snapped.
+        Assert.Equal(0.0, ev.PrevAnchor.X, 10);
+        Assert.Equal(0.0, ev.PrevAnchor.Y, 10);
+        Assert.Equal(0.0, ev.PrevAnchor.Z, 10);
+        Assert.Equal(4.0, ev.NewAnchor.X, 10);
+
+        // Origin min-corner changes by +spacing in X.
+        Assert.Equal(origin0.X, ev.PrevOriginMinCorner.X, 10);
+        Assert.Equal(origin0.Y, ev.PrevOriginMinCorner.Y, 10);
+        Assert.Equal(origin0.Z, ev.PrevOriginMinCorner.Z, 10);
+        Assert.Equal(origin0.X + baseSpacing, ev.NewOriginMinCorner.X, 10);
+
+        // Ring offset matches scheduler's update.
+        Assert.Equal(ring0, ev.PrevRingOffset);
+        Assert.True(scheduler.TryGetLevelParams(0, out _, out var ring1));
+        Assert.Equal(ring1, ev.NewRingOffset);
+    }
+
     [Theory]
     [InlineData(+1, 0, 0)]
     [InlineData(-1, 0, 0)]
