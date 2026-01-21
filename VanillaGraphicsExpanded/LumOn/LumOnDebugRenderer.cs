@@ -1505,12 +1505,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     #endregion
 
-    #region Matrix Utilities
-
-    // Matrix utilities moved to VanillaGraphicsExpanded.Rendering.MatrixHelper
-
-    #endregion
-
     #region IDisposable
 
     public void Dispose()
