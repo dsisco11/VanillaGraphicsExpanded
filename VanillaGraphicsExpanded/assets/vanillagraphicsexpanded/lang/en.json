@@ -165,6 +165,33 @@
   "config-material-atlas-progress-panel": "Show Material Atlas Progress Panel",
   "config-material-atlas-progress-panel-tooltip": "Shows a small in-game overlay reporting material atlas build progress while async builds are running.",
 
+  "config-parallax-occlusion-enabled": "Enable Parallax Occlusion Mapping (POM)",
+  "config-parallax-occlusion-enabled-tooltip": "Enables Parallax Occlusion Mapping in patched vanilla chunk shaders. Requires shader reload / re-entering the world to fully apply.",
+
+  "config-parallax-scale": "POM Scale",
+  "config-parallax-scale-tooltip": "UV offset scale for POM in atlas UV units. Higher values increase depth effect but can cause artifacts.",
+
+  "config-parallax-min-steps": "POM Min Steps",
+  "config-parallax-min-steps-tooltip": "Minimum ray-march steps for POM.",
+
+  "config-parallax-max-steps": "POM Max Steps",
+  "config-parallax-max-steps-tooltip": "Maximum ray-march steps for POM (used at grazing angles).",
+
+  "config-parallax-refinement-steps": "POM Refinement Steps",
+  "config-parallax-refinement-steps-tooltip": "Binary refinement steps after the initial march.",
+
+  "config-parallax-fade-start": "POM Fade Start (m)",
+  "config-parallax-fade-start-tooltip": "Distance fade start in world units (camera-relative). POM effect fades out starting at this distance.",
+
+  "config-parallax-fade-end": "POM Fade End (m)",
+  "config-parallax-fade-end-tooltip": "Distance fade end in world units (camera-relative). Beyond this distance POM is disabled.",
+
+  "config-parallax-max-texels": "POM Max Offset (texels)",
+  "config-parallax-max-texels-tooltip": "Hard clamp for max UV offset in texels of the normal/height atlas. Prevents cross-tile bleeding and improves stability.",
+
+  "config-parallax-debug-mode": "POM Debug Mode",
+  "config-parallax-debug-mode-tooltip": "Debug metric written to gBufferNormal.w. 0=Off, 1=UV rect edge distance, 2=Clamp hit, 3=Step count, 4=Fade/angle weight.",
+
   "config-material-atlas-async-budget-ms": "Material Atlas Async Budget (ms)",
   "config-material-atlas-async-budget-ms-tooltip": "Per-frame time budget (milliseconds) for material params async jobs (CPU dispatch + tile uploads). Lower = less hitching, slower build.",
 

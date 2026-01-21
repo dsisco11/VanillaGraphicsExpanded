@@ -280,23 +280,23 @@ flat in vec2 vge_uvExtent;
 
         var cfg = ConfigModSystem.Config.MaterialAtlas;
 
-        string scale = cfg.PomScale.ToString("0.0####", CultureInfo.InvariantCulture);
-        string fadeStart = cfg.PomFadeStart.ToString("0.0####", CultureInfo.InvariantCulture);
-        string fadeEnd = cfg.PomFadeEnd.ToString("0.0####", CultureInfo.InvariantCulture);
-        string maxTexels = cfg.PomMaxTexels.ToString("0.0####", CultureInfo.InvariantCulture);
+        string scale = cfg.ParallaxScale.ToString("0.0####", CultureInfo.InvariantCulture);
+        string fadeStart = cfg.ParallaxFadeStart.ToString("0.0####", CultureInfo.InvariantCulture);
+        string fadeEnd = cfg.ParallaxFadeEnd.ToString("0.0####", CultureInfo.InvariantCulture);
+        string maxTexels = cfg.ParallaxMaxTexels.ToString("0.0####", CultureInfo.InvariantCulture);
 
         string defineBlock = $@"
 
 // VGE: POM settings
 #define {VgeShaderDefines.PbrEnablePom} 1
 #define {VgeShaderDefines.PbrPomScale} {scale}
-#define {VgeShaderDefines.PbrPomMinSteps} {cfg.PomMinSteps}
-#define {VgeShaderDefines.PbrPomMaxSteps} {cfg.PomMaxSteps}
-#define {VgeShaderDefines.PbrPomRefinementSteps} {cfg.PomRefinementSteps}
+#define {VgeShaderDefines.PbrPomMinSteps} {cfg.ParallaxMinSteps}
+#define {VgeShaderDefines.PbrPomMaxSteps} {cfg.ParallaxMaxSteps}
+#define {VgeShaderDefines.PbrPomRefinementSteps} {cfg.ParallaxRefinementSteps}
 #define {VgeShaderDefines.PbrPomFadeStart} {fadeStart}
 #define {VgeShaderDefines.PbrPomFadeEnd} {fadeEnd}
 #define {VgeShaderDefines.PbrPomMaxTexels} {maxTexels}
-#define {VgeShaderDefines.PbrPomDebugMode} {cfg.PomDebugMode}
+#define {VgeShaderDefines.PbrPomDebugMode} {cfg.ParallaxDebugMode}
 ";
 
         tree.CreateEditor()

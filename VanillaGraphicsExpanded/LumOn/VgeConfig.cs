@@ -176,44 +176,44 @@ public class VgeConfig
         /// Defaults to the parallax scale for convenience.
         /// </summary>
         [JsonProperty]
-        public float PomScale { get; set; } = 0.03f;
+        public float ParallaxScale { get; set; } = 0.03f;
 
         /// <summary>
         /// Minimum ray-march steps for POM.
         /// </summary>
         [JsonProperty]
-        public int PomMinSteps { get; set; } = 6;
+        public int ParallaxMinSteps { get; set; } = 6;
 
         /// <summary>
         /// Maximum ray-march steps for POM (used at grazing angles).
         /// </summary>
         [JsonProperty]
-        public int PomMaxSteps { get; set; } = 24;
+        public int ParallaxMaxSteps { get; set; } = 24;
 
         /// <summary>
         /// Binary refinement steps after the initial march.
         /// </summary>
         [JsonProperty]
-        public int PomRefinementSteps { get; set; } = 4;
+        public int ParallaxRefinementSteps { get; set; } = 4;
 
         /// <summary>
         /// Distance fade start (world units, camera-relative).
         /// </summary>
         [JsonProperty]
-        public float PomFadeStart { get; set; } = 3.0f;
+        public float ParallaxFadeStart { get; set; } = 3.0f;
 
         /// <summary>
         /// Distance fade end (world units, camera-relative). Beyond this POM is disabled.
         /// </summary>
         [JsonProperty]
-        public float PomFadeEnd { get; set; } = 14.0f;
+        public float ParallaxFadeEnd { get; set; } = 14.0f;
 
         /// <summary>
         /// Hard clamp for max UV offset, in texels of the normal/depth atlas.
         /// Keeps mip/derivative stability and prevents cross-tile bleeding.
         /// </summary>
         [JsonProperty]
-        public float PomMaxTexels { get; set; } = 4.0f;
+        public float ParallaxMaxTexels { get; set; } = 4.0f;
 
         /// <summary>
         /// POM debug metric selector (written to gBufferNormal.w for visualization).
@@ -224,7 +224,7 @@ public class VgeConfig
         /// 4 = distance/angle weight (0..1)
         /// </summary>
         [JsonProperty]
-        public int PomDebugMode { get; set; } = 0;
+        public int ParallaxDebugMode { get; set; } = 0;
 
         /// <summary>
         /// Parameters for generating a tileable height/normal field from albedo.
@@ -246,17 +246,17 @@ public class VgeConfig
             AsyncMaxUploadsPerFrame = Math.Clamp(AsyncMaxUploadsPerFrame, 0, 512);
             AsyncMaxJobsPerFrame = Math.Clamp(AsyncMaxJobsPerFrame, 0, 512);
 
-            PomScale = Math.Clamp(PomScale, 0.0f, 0.25f);
-            PomMinSteps = Math.Clamp(PomMinSteps, 1, 128);
-            PomMaxSteps = Math.Clamp(PomMaxSteps, PomMinSteps, 256);
-            PomRefinementSteps = Math.Clamp(PomRefinementSteps, 0, 16);
+            ParallaxScale = Math.Clamp(ParallaxScale, 0.0f, 0.25f);
+            ParallaxMinSteps = Math.Clamp(ParallaxMinSteps, 1, 128);
+            ParallaxMaxSteps = Math.Clamp(ParallaxMaxSteps, ParallaxMinSteps, 256);
+            ParallaxRefinementSteps = Math.Clamp(ParallaxRefinementSteps, 0, 16);
 
-            PomFadeStart = Math.Clamp(PomFadeStart, 0.0f, 256.0f);
-            PomFadeEnd = Math.Clamp(PomFadeEnd, PomFadeStart, 512.0f);
+            ParallaxFadeStart = Math.Clamp(ParallaxFadeStart, 0.0f, 256.0f);
+            ParallaxFadeEnd = Math.Clamp(ParallaxFadeEnd, ParallaxFadeStart, 512.0f);
 
-            PomMaxTexels = Math.Clamp(PomMaxTexels, 0.0f, 16.0f);
+            ParallaxMaxTexels = Math.Clamp(ParallaxMaxTexels, 0.0f, 16.0f);
 
-            PomDebugMode = Math.Clamp(PomDebugMode, 0, 4);
+            ParallaxDebugMode = Math.Clamp(ParallaxDebugMode, 0, 4);
 
             NormalDepthBake ??= new NormalDepthBakeConfig();
         }
