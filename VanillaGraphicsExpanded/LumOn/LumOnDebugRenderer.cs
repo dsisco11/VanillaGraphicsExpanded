@@ -324,11 +324,18 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         return true;
     }
 
+    private bool TryGetCameraPosFromViewMatrix(out Vec3d camPosFromView)
+    {
+        // Derive from the inverse view matrix translation. This captures camera sway/head-bob, etc.
+        Array.Copy(capi.Render.CameraMatrixOriginf, tempModelViewMatrix, 16);
+        MatrixHelper.Invert(tempModelViewMatrix, invViewMatrix);
+        camPosFromView = new Vec3d(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
+        return true;
+    }
+
     private Vec3f GetClipmapDebugWorldOffset()
     {
-        // Prefer originRel deltas from the same published runtime params used to build the vertices.
-        // This stays consistent even if the engine updates camera/world positions at different points
-        // in the frame (and avoids mixing "world" vs "matrix-space" camera positions).
+        // Base offset: originRel deltas from the same published runtime params used to build the vertices.
         if (hasClipmapDebugBuildOriginRelL0
             && worldProbeClipmapBufferManager is not null
             && worldProbeClipmapBufferManager.TryGetRuntimeParams(
@@ -342,7 +349,22 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         {
             // originRelNow - originRelBuild == (originAbs - camNow) - (originAbs - camBuild) == camBuild - camNow
             var delta = origins[0] - clipmapDebugBuildOriginRelL0;
-            return new Vec3f(delta.X, delta.Y, delta.Z);
+            var offset = new Vec3f(delta.X, delta.Y, delta.Z);
+
+            // Camera sway/head-bob: the camera matrix can include an additional small translation that is not
+            // reflected in the absolute camera position used to publish originRel. Since we render with a
+            // no-translate view matrix, we must subtract that sway translation here so debug geometry matches
+            // the main world render exactly (no "bob/weave" relative to blocks).
+            var origin = capi.Render.CameraMatrixOrigin;
+            if (origin is not null && origin.Length >= 3 && TryGetCameraPosFromViewMatrix(out var camFromView))
+            {
+                var sway = new Vec3d(camFromView.X - origin[0], camFromView.Y - origin[1], camFromView.Z - origin[2]);
+                offset.X -= (float)sway.X;
+                offset.Y -= (float)sway.Y;
+                offset.Z -= (float)sway.Z;
+            }
+
+            return offset;
         }
 
         // Fallback: use camera world position deltas.
