@@ -19,19 +19,21 @@ void main(void)
 {
     // Orb impostor in point sprite space.
     vec2 p = gl_PointCoord * 2.0 - 1.0;
+    // gl_PointCoord has its origin at the lower-left; flip so +Y is "up" on screen.
+    p.y = -p.y;
     float r2 = dot(p, p);
     if (r2 > 1.0) discard;
 
     float z = sqrt(max(1.0 - r2, 0.0));
 
     // Convert view-facing normal into world-space direction.
-    // invViewMatrix maps view axes into world space (column-major in GLSL).
-    vec3 rightWS = normalize(invViewMatrix[0].xyz);
-    vec3 upWS = normalize(invViewMatrix[1].xyz);
-    vec3 forwardWS = normalize(invViewMatrix[2].xyz);
-    vec3 viewForwardWS = -forwardWS;
+    // Use explicit matrix-vector multiplies to avoid row/column-major confusion.
+    // Note: view-space +Z points toward the camera (OpenGL camera looks down -Z).
+    vec3 rightWS = normalize((invViewMatrix * vec4(1.0, 0.0, 0.0, 0.0)).xyz);
+    vec3 upWS = normalize((invViewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+    vec3 viewZWS = normalize((invViewMatrix * vec4(0.0, 0.0, 1.0, 0.0)).xyz);
 
-    vec3 N = normalize(rightWS * p.x + upWS * p.y + viewForwardWS * z);
+    vec3 N = normalize(rightWS * p.x + upWS * p.y + viewZWS * z);
 
     ivec2 ac = ivec2(floor(vAtlasCoord + vec2(0.5)));
     vec4 t0 = texelFetch(worldProbeSH0, ac, 0);
@@ -50,4 +52,3 @@ void main(void)
 
     outColor = vec4(col, 1.0);
 }
-

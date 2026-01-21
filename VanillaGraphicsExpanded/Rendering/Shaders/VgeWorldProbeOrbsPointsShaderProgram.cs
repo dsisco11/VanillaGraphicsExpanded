@@ -20,9 +20,10 @@ public sealed class VgeWorldProbeOrbsPointsShaderProgram : VgeShaderProgram
     public float[] ModelViewProjectionMatrix { set => UniformMatrix("modelViewProjectionMatrix", value); }
     public float[] InvViewMatrix { set => UniformMatrix("invViewMatrix", value); }
     public float PointSize { set => Uniform("pointSize", value); }
+    public float FadeNear { set => Uniform("fadeNear", value); }
+    public float FadeFar { set => Uniform("fadeFar", value); }
 
     public int WorldProbeSH0 { set => Uniform("worldProbeSH0", value); }
     public int WorldProbeSH1 { set => Uniform("worldProbeSH1", value); }
     public int WorldProbeSH2 { set => Uniform("worldProbeSH2", value); }
 }
-

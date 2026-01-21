@@ -1146,11 +1146,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         levels = Math.Clamp(levels, 1, MaxWorldProbeLevels);
 
-        // Convert runtime origins (originAbs - cameraAbs) into camera-matrix world space (originRel + camPosMatrix).
-        var camPosMatrix = camPosWS;
+        // Render probe orbs in camera-relative space to avoid camera-matrix translation jitter.
         for (int i = 0; i < MaxWorldProbeLevels; i++)
         {
-            frozenOrigins[i] = (i < origins.Length) ? (origins[i] + camPosMatrix) : default;
+            frozenOrigins[i] = (i < origins.Length) ? origins[i] : default;
         }
 
         int vertexCount = BuildClipmapProbeOrbVertices(
@@ -1165,6 +1164,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
+        // UpdateCurrentViewProjMatrixNoTranslate();
         UpdateCurrentViewProjMatrix();
         MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invViewMatrix);
 
@@ -1185,7 +1185,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 GL.DepthFunc(DepthFunction.Lequal);
                 capi.Render.GlToggleBlend(true);
                 GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-                capi.Render.GLDepthMask(false);
+                capi.Render.GLDepthMask(true);
 
                 shader.Use();
                 shaderUsed = true;
@@ -1193,6 +1193,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 shader.ModelViewProjectionMatrix = currentViewProjMatrix;
                 shader.InvViewMatrix = invViewMatrix;
                 shader.PointSize = 18f;
+                float maxSpacing = baseSpacing * (1 << Math.Max(levels - 1, 0));
+                float maxSize = maxSpacing * resolution;
+                shader.FadeNear = maxSize * 0.5f;
+                shader.FadeFar = maxSize * 1.05f;
 
                 // Bind SH textures.
                 int sh0 = worldProbeClipmapBufferManager.Resources.ProbeSh0TextureId;
