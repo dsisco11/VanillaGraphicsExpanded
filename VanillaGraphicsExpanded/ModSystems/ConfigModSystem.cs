@@ -1,11 +1,14 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 
 using VanillaGraphicsExpanded;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.ModSystems;
 using Vintagestory.API.Common;
+using Vintagestory.API.Config;
 using Vintagestory.API.Datastructures;
 
 namespace VanillaGraphicsExpanded.ModSystems;
@@ -15,6 +18,7 @@ internal sealed class ConfigModSystem : ModSystem
     private ICoreAPI? api;
     private bool registered;
     private object? configLibConfig;
+    private int persistQueued;
     
     /// <summary>
     /// The mod configuration. Loaded on startup.
@@ -82,7 +86,7 @@ internal sealed class ConfigModSystem : ModSystem
         TrySyncConfigFromConfigLib();
         Config.Sanitize();
         LiveConfigReload.NotifyAll(api);
-        PersistConfigAndNotifyReloadRequired(api, source: "ConfigLib");
+        QueuePersistConfigAndNotifyReloadRequired(api, source: "ConfigLib");
     }
 
     private void TryRegisterConfigWithConfigLib()
@@ -120,7 +124,7 @@ internal sealed class ConfigModSystem : ModSystem
                 if (api is null) return;
                 TrySyncConfigFromConfigLib();
                 LiveConfigReload.NotifyAll(api);
-                PersistConfigAndNotifyReloadRequired(api, source: "ConfigLib (server sync)");
+                QueuePersistConfigAndNotifyReloadRequired(api, source: "ConfigLib (server sync)");
             };
 
             Action onConfigSaved = () =>
@@ -128,7 +132,7 @@ internal sealed class ConfigModSystem : ModSystem
                 if (api is null) return;
                 TrySyncConfigFromConfigLib();
                 LiveConfigReload.NotifyAll(api);
-                PersistConfigAndNotifyReloadRequired(api, source: "ConfigLib");
+                QueuePersistConfigAndNotifyReloadRequired(api, source: "ConfigLib");
             };
 
             object?[] args = BuildArgs(method, onSyncedFromServer, onConfigSaved);
@@ -224,6 +228,24 @@ internal sealed class ConfigModSystem : ModSystem
         if (parameters.Length >= 6) args[5] = onConfigSaved;
 
         return args;
+    }
+
+    private void QueuePersistConfigAndNotifyReloadRequired(ICoreAPI api, string source)
+    {
+        // ConfigLib may write its own file after emitting "config-saved" / invoking callbacks.
+        // Queue our persistence to run after the current event finishes to ensure our config JSON wins.
+        if (Interlocked.Exchange(ref persistQueued, 1) != 0)
+        {
+            return;
+        }
+
+        api.Event.EnqueueMainThreadTask(
+            () =>
+            {
+                Interlocked.Exchange(ref persistQueued, 0);
+                PersistConfigAndNotifyReloadRequired(api, source);
+            },
+            $"vge:persist-config:{source}");
     }
     
     internal static void PersistConfigAndNotifyReloadRequired(ICoreAPI api, string source)
