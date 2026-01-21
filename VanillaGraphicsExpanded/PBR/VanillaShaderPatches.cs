@@ -96,17 +96,9 @@ flat in vec2 vge_uvExtent;
     float vge_tbnHandedness;
     VgeTryBuildTbnFromDerivatives(worldPos.xyz, vge_uv, normalize(normal), vge_tbn, vge_tbnHandedness);
 
-    // Tier 2: POM (requires per-face rect). Tier 1 fallback: offset mapping.
+    // Tier 2: POM (requires per-face rect).
 #if VGE_PBR_ENABLE_POM
     vge_uv = VgeApplyPomUv_WithTbn(vge_uv, vge_tbn, vge_tbnHandedness, worldPos.xyz, vge_uvBase, vge_uvExtent);
-    if (vge_uvBase.x < 0.0 || vge_uvExtent.x <= 0.0 || vge_uvExtent.y <= 0.0)
-    {
-        #if VGE_PBR_ENABLE_PARALLAX
-        vge_uv = VgeApplyParallaxUv_WithTbn(vge_uv, vge_tbn, vge_tbnHandedness, worldPos.xyz);
-        #endif
-    }
-#elif VGE_PBR_ENABLE_PARALLAX
-    vge_uv = VgeApplyParallaxUv_WithTbn(vge_uv, vge_tbn, vge_tbnHandedness, worldPos.xyz);
 #endif
 
 #define uv vge_uv
@@ -131,21 +123,8 @@ flat in vec2 vge_uvExtent;
     VgeTryBuildTbnFromDerivatives(worldPos.xyz, vge_uv2, normalize(normal), vge_tbn2, vge_tbnHandedness2);
 
     // Tier 2: POM for the primary topsoil uv (requires per-face rect).
-    // For uv2 (grass overlay), we do not yet have a dedicated rect, so it stays on Tier 1.
 #if VGE_PBR_ENABLE_POM
     vge_uv = VgeApplyPomUv_WithTbn(vge_uv, vge_tbn, vge_tbnHandedness, worldPos.xyz, vge_uvBase, vge_uvExtent);
-    if (vge_uvBase.x < 0.0 || vge_uvExtent.x <= 0.0 || vge_uvExtent.y <= 0.0)
-    {
-        #if VGE_PBR_ENABLE_PARALLAX
-        vge_uv = VgeApplyParallaxUv_WithTbn(vge_uv, vge_tbn, vge_tbnHandedness, worldPos.xyz);
-        #endif
-    }
-    #if VGE_PBR_ENABLE_PARALLAX
-    vge_uv2 = VgeApplyParallaxUv_WithTbn(vge_uv2, vge_tbn2, vge_tbnHandedness2, worldPos.xyz);
-    #endif
-#elif VGE_PBR_ENABLE_PARALLAX
-    vge_uv = VgeApplyParallaxUv_WithTbn(vge_uv, vge_tbn, vge_tbnHandedness, worldPos.xyz);
-    vge_uv2 = VgeApplyParallaxUv_WithTbn(vge_uv2, vge_tbn2, vge_tbnHandedness2, worldPos.xyz);
 #endif
 
 #define uv vge_uv
@@ -256,7 +235,6 @@ flat in vec2 vge_uvExtent;
             // Chunk shaders - inject vsFunctions AND vge_material imports
             if (PatchedChunkShaders.Contains(sourceName))
             {
-                InjectParallaxDefines(tree);
                 InjectPomDefines(tree);
 
                 // Find main function and insert @import before it
@@ -265,7 +243,6 @@ flat in vec2 vge_uvExtent;
                     .InsertBefore(mainQuery, "@import \"./includes/vsfunctions.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_material.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_normaldepth.glsl\"\n")
-                    .InsertBefore(mainQuery, "@import \"./includes/vge_parallax.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_pom.glsl\"\n")
                     .Commit();
 
@@ -291,28 +268,6 @@ flat in vec2 vge_uvExtent;
             log?.Warning($"[VGE] Failed to pre-process shader '{sourceName}': {ex.Message}");
             return false;
         }
-    }
-
-    private static void InjectParallaxDefines(SyntaxTree tree)
-    {
-        if (!ConfigModSystem.Config.MaterialAtlas.EnableParallaxMapping) return;
-        if (!ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps) return;
-
-        var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
-        if (!tree.Select(versionQuery).Any()) return;
-
-        string scale = ConfigModSystem.Config.MaterialAtlas.ParallaxScale.ToString("0.0####", CultureInfo.InvariantCulture);
-
-        string defineBlock = $@"
-
-// VGE: Parallax settings
-#define {VgeShaderDefines.PbrEnableParallax} 1
-#define {VgeShaderDefines.PbrParallaxScale} {scale}
-";
-
-        tree.CreateEditor()
-            .InsertAfter(versionQuery, defineBlock)
-            .Commit();
     }
 
     private static void InjectPomDefines(SyntaxTree tree)

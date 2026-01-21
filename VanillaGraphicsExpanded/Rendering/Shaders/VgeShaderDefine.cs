@@ -34,9 +34,6 @@ public static class VgeShaderDefines
 
     public const string LumOnEmissiveBoost = "LUMON_EMISSIVE_BOOST";
 
-    public const string PbrEnableParallax = "VGE_PBR_ENABLE_PARALLAX";
-    public const string PbrParallaxScale = "VGE_PBR_PARALLAX_SCALE";
-
     public const string PbrEnablePom = "VGE_PBR_ENABLE_POM";
     public const string PbrPomScale = "VGE_PBR_POM_SCALE";
     public const string PbrPomMinSteps = "VGE_PBR_POM_MIN_STEPS";
