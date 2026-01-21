@@ -78,8 +78,10 @@ flat in vec2 vge_uvExtent;
 
     // VGE: Compute per-face atlas UV rect.
     // Prefer SSBO path (FaceData has the packed UV origin/extent); non-SSBO lacks the required information.
+    // NOTE: Do not rely on a local `vdata` variable; re-fetch from `faces[...]` to keep this injection location-stable.
     #if USESSBO > 0
-        VgeComputeFaceUvRect(vdata.uv, vdata.uvSize, subpixelPaddingX, subpixelPaddingY, vge_uvBase, vge_uvExtent);
+        FaceData vge_face = faces[gl_VertexID / 4];
+        VgeComputeFaceUvRect(vge_face.uv, vge_face.uvSize, subpixelPaddingX, subpixelPaddingY, vge_uvBase, vge_uvExtent);
     #else
         vge_uvBase = vec2(-1.0);
         vge_uvExtent = vec2(0.0);
@@ -465,9 +467,11 @@ flat in vec2 vge_uvExtent;
 
     private static void InjectUvRectAssign_Vsh(SyntaxTree tree)
     {
-        var mainEnd = Query.Syntax<GlFunctionNode>().Named("main").InnerEnd("body");
+        // Insert at the start of main() body to avoid AST editor wrapping issues.
+        // We re-fetch FaceData from the SSBO so this does not depend on local variable ordering.
+        var mainStart = Query.Syntax<GlFunctionNode>().Named("main").InnerStart("body");
         tree.CreateEditor()
-            .InsertBefore(mainEnd, UvRectAssign_Vsh)
+            .InsertAfter(mainStart, UvRectAssign_Vsh)
             .Commit();
     }
 
