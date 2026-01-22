@@ -2,7 +2,6 @@ using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Reflection;
 
 using OpenTK.Graphics.OpenGL;
 
@@ -971,41 +970,7 @@ internal abstract class GpuBufferObject : IDisposable
 
     private static class BufferMapDsa
     {
-        private static readonly Func<int, IntPtr, IntPtr, MapBufferAccessMask, IntPtr>? mapPtr;
-        private static readonly Func<int, int, int, MapBufferAccessMask, IntPtr>? mapInt;
-        private static readonly Func<int, bool>? unmap;
-        private static readonly Action<int, IntPtr, IntPtr>? flushPtr;
-        private static readonly Action<int, int, int>? flushInt;
-
         private static int enabledState;
-
-        static BufferMapDsa()
-        {
-            mapPtr =
-                TryCreateMapPtr("MapNamedBufferRange") ??
-                TryCreateMapPtr("MapNamedBufferRangeEXT");
-
-            mapInt =
-                TryCreateMapInt("MapNamedBufferRange") ??
-                TryCreateMapInt("MapNamedBufferRangeEXT");
-
-            unmap =
-                TryCreateUnmap("UnmapNamedBuffer") ??
-                TryCreateUnmap("UnmapNamedBufferEXT");
-
-            flushPtr =
-                TryCreateFlushPtr("FlushMappedNamedBufferRange") ??
-                TryCreateFlushPtr("FlushMappedNamedBufferRangeEXT");
-
-            flushInt =
-                TryCreateFlushInt("FlushMappedNamedBufferRange") ??
-                TryCreateFlushInt("FlushMappedNamedBufferRangeEXT");
-
-            if ((mapPtr is null && mapInt is null) || unmap is null)
-            {
-                enabledState = -1;
-            }
-        }
 
         public static bool TryMapNamedBufferRange(int bufferId, int offsetBytes, int byteCount, MapBufferAccessMask access, out IntPtr ptr)
         {
@@ -1018,19 +983,7 @@ internal abstract class GpuBufferObject : IDisposable
 
             try
             {
-                if (mapPtr is not null)
-                {
-                    ptr = mapPtr(bufferId, (IntPtr)offsetBytes, (IntPtr)byteCount, access);
-                }
-                else if (mapInt is not null)
-                {
-                    ptr = mapInt(bufferId, offsetBytes, byteCount, access);
-                }
-                else
-                {
-                    enabledState = -1;
-                    return false;
-                }
+                ptr = GL.MapNamedBufferRange(bufferId, (IntPtr)offsetBytes, byteCount, (BufferAccessMask)(int)access);
 
                 if (ptr == IntPtr.Zero)
                 {
@@ -1049,14 +1002,14 @@ internal abstract class GpuBufferObject : IDisposable
 
         public static bool TryUnmapNamedBuffer(int bufferId)
         {
-            if (enabledState == -1 || unmap is null)
+            if (enabledState == -1)
             {
                 return false;
             }
 
             try
             {
-                bool ok = unmap(bufferId);
+                bool ok = GL.UnmapNamedBuffer(bufferId);
                 enabledState = 1;
                 return ok;
             }
@@ -1076,18 +1029,7 @@ internal abstract class GpuBufferObject : IDisposable
 
             try
             {
-                if (flushPtr is not null)
-                {
-                    flushPtr(bufferId, (IntPtr)offsetBytes, (IntPtr)byteCount);
-                }
-                else if (flushInt is not null)
-                {
-                    flushInt(bufferId, offsetBytes, byteCount);
-                }
-                else
-                {
-                    return false;
-                }
+                GL.FlushMappedNamedBufferRange(bufferId, (IntPtr)offsetBytes, byteCount);
 
                 enabledState = 1;
                 return true;
@@ -1096,130 +1038,6 @@ internal abstract class GpuBufferObject : IDisposable
             {
                 enabledState = -1;
                 return false;
-            }
-        }
-
-        private static Func<int, IntPtr, IntPtr, MapBufferAccessMask, IntPtr>? TryCreateMapPtr(string name)
-        {
-            MethodInfo? method = typeof(GL).GetMethod(
-                name,
-                BindingFlags.Public | BindingFlags.Static,
-                binder: null,
-                types: new[] { typeof(int), typeof(IntPtr), typeof(IntPtr), typeof(MapBufferAccessMask) },
-                modifiers: null);
-
-            if (method is null)
-            {
-                return null;
-            }
-
-            try
-            {
-                return (Func<int, IntPtr, IntPtr, MapBufferAccessMask, IntPtr>)Delegate.CreateDelegate(
-                    typeof(Func<int, IntPtr, IntPtr, MapBufferAccessMask, IntPtr>),
-                    method);
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static Func<int, int, int, MapBufferAccessMask, IntPtr>? TryCreateMapInt(string name)
-        {
-            MethodInfo? method = typeof(GL).GetMethod(
-                name,
-                BindingFlags.Public | BindingFlags.Static,
-                binder: null,
-                types: new[] { typeof(int), typeof(int), typeof(int), typeof(MapBufferAccessMask) },
-                modifiers: null);
-
-            if (method is null)
-            {
-                return null;
-            }
-
-            try
-            {
-                return (Func<int, int, int, MapBufferAccessMask, IntPtr>)Delegate.CreateDelegate(
-                    typeof(Func<int, int, int, MapBufferAccessMask, IntPtr>),
-                    method);
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static Func<int, bool>? TryCreateUnmap(string name)
-        {
-            MethodInfo? method = typeof(GL).GetMethod(
-                name,
-                BindingFlags.Public | BindingFlags.Static,
-                binder: null,
-                types: new[] { typeof(int) },
-                modifiers: null);
-
-            if (method is null || method.ReturnType != typeof(bool))
-            {
-                return null;
-            }
-
-            try
-            {
-                return (Func<int, bool>)Delegate.CreateDelegate(typeof(Func<int, bool>), method);
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static Action<int, IntPtr, IntPtr>? TryCreateFlushPtr(string name)
-        {
-            MethodInfo? method = typeof(GL).GetMethod(
-                name,
-                BindingFlags.Public | BindingFlags.Static,
-                binder: null,
-                types: new[] { typeof(int), typeof(IntPtr), typeof(IntPtr) },
-                modifiers: null);
-
-            if (method is null)
-            {
-                return null;
-            }
-
-            try
-            {
-                return (Action<int, IntPtr, IntPtr>)Delegate.CreateDelegate(typeof(Action<int, IntPtr, IntPtr>), method);
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static Action<int, int, int>? TryCreateFlushInt(string name)
-        {
-            MethodInfo? method = typeof(GL).GetMethod(
-                name,
-                BindingFlags.Public | BindingFlags.Static,
-                binder: null,
-                types: new[] { typeof(int), typeof(int), typeof(int) },
-                modifiers: null);
-
-            if (method is null)
-            {
-                return null;
-            }
-
-            try
-            {
-                return (Action<int, int, int>)Delegate.CreateDelegate(typeof(Action<int, int, int>), method);
-            }
-            catch
-            {
-                return null;
             }
         }
     }
@@ -1430,37 +1248,7 @@ internal abstract class GpuBufferObject : IDisposable
 
     private static class BufferDsa
     {
-        private static readonly Action<int, IntPtr, IntPtr, BufferUsageHint>? namedBufferDataPtr;
-        private static readonly Action<int, int, IntPtr, BufferUsageHint>? namedBufferDataInt;
-        private static readonly Action<int, IntPtr, IntPtr, IntPtr>? namedBufferSubDataPtr;
-        private static readonly Action<int, int, int, IntPtr>? namedBufferSubDataInt;
-
         private static int enabledState;
-
-        static BufferDsa()
-        {
-            namedBufferDataPtr =
-                TryCreateNamedBufferDataPtr("NamedBufferData") ??
-                TryCreateNamedBufferDataPtr("NamedBufferDataEXT");
-
-            namedBufferDataInt =
-                TryCreateNamedBufferDataInt("NamedBufferData") ??
-                TryCreateNamedBufferDataInt("NamedBufferDataEXT");
-
-            namedBufferSubDataPtr =
-                TryCreateNamedBufferSubDataPtr("NamedBufferSubData") ??
-                TryCreateNamedBufferSubDataPtr("NamedBufferSubDataEXT");
-
-            namedBufferSubDataInt =
-                TryCreateNamedBufferSubDataInt("NamedBufferSubData") ??
-                TryCreateNamedBufferSubDataInt("NamedBufferSubDataEXT");
-
-            if ((namedBufferDataPtr is null && namedBufferDataInt is null)
-                || (namedBufferSubDataPtr is null && namedBufferSubDataInt is null))
-            {
-                enabledState = -1;
-            }
-        }
 
         public static bool TryNamedBufferData(int bufferId, int byteCount, IntPtr data, BufferUsageHint usage)
         {
@@ -1471,19 +1259,7 @@ internal abstract class GpuBufferObject : IDisposable
 
             try
             {
-                if (namedBufferDataPtr is not null)
-                {
-                    namedBufferDataPtr(bufferId, (IntPtr)byteCount, data, usage);
-                }
-                else if (namedBufferDataInt is not null)
-                {
-                    namedBufferDataInt(bufferId, byteCount, data, usage);
-                }
-                else
-                {
-                    enabledState = -1;
-                    return false;
-                }
+                GL.NamedBufferData(bufferId, byteCount, data, usage);
 
                 enabledState = 1;
                 return true;
@@ -1504,19 +1280,7 @@ internal abstract class GpuBufferObject : IDisposable
 
             try
             {
-                if (namedBufferSubDataPtr is not null)
-                {
-                    namedBufferSubDataPtr(bufferId, (IntPtr)dstOffsetBytes, (IntPtr)byteCount, data);
-                }
-                else if (namedBufferSubDataInt is not null)
-                {
-                    namedBufferSubDataInt(bufferId, dstOffsetBytes, byteCount, data);
-                }
-                else
-                {
-                    enabledState = -1;
-                    return false;
-                }
+                GL.NamedBufferSubData(bufferId, (IntPtr)dstOffsetBytes, byteCount, data);
 
                 enabledState = 1;
                 return true;
@@ -1525,110 +1289,6 @@ internal abstract class GpuBufferObject : IDisposable
             {
                 enabledState = -1;
                 return false;
-            }
-        }
-
-        private static Action<int, IntPtr, IntPtr, BufferUsageHint>? TryCreateNamedBufferDataPtr(string name)
-        {
-            MethodInfo? method = typeof(GL).GetMethod(
-                name,
-                BindingFlags.Public | BindingFlags.Static,
-                binder: null,
-                types: new[] { typeof(int), typeof(IntPtr), typeof(IntPtr), typeof(BufferUsageHint) },
-                modifiers: null);
-
-            if (method is null)
-            {
-                return null;
-            }
-
-            try
-            {
-                return (Action<int, IntPtr, IntPtr, BufferUsageHint>)Delegate.CreateDelegate(
-                    typeof(Action<int, IntPtr, IntPtr, BufferUsageHint>),
-                    method);
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static Action<int, int, IntPtr, BufferUsageHint>? TryCreateNamedBufferDataInt(string name)
-        {
-            MethodInfo? method = typeof(GL).GetMethod(
-                name,
-                BindingFlags.Public | BindingFlags.Static,
-                binder: null,
-                types: new[] { typeof(int), typeof(int), typeof(IntPtr), typeof(BufferUsageHint) },
-                modifiers: null);
-
-            if (method is null)
-            {
-                return null;
-            }
-
-            try
-            {
-                return (Action<int, int, IntPtr, BufferUsageHint>)Delegate.CreateDelegate(
-                    typeof(Action<int, int, IntPtr, BufferUsageHint>),
-                    method);
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static Action<int, IntPtr, IntPtr, IntPtr>? TryCreateNamedBufferSubDataPtr(string name)
-        {
-            MethodInfo? method = typeof(GL).GetMethod(
-                name,
-                BindingFlags.Public | BindingFlags.Static,
-                binder: null,
-                types: new[] { typeof(int), typeof(IntPtr), typeof(IntPtr), typeof(IntPtr) },
-                modifiers: null);
-
-            if (method is null)
-            {
-                return null;
-            }
-
-            try
-            {
-                return (Action<int, IntPtr, IntPtr, IntPtr>)Delegate.CreateDelegate(
-                    typeof(Action<int, IntPtr, IntPtr, IntPtr>),
-                    method);
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static Action<int, int, int, IntPtr>? TryCreateNamedBufferSubDataInt(string name)
-        {
-            MethodInfo? method = typeof(GL).GetMethod(
-                name,
-                BindingFlags.Public | BindingFlags.Static,
-                binder: null,
-                types: new[] { typeof(int), typeof(int), typeof(int), typeof(IntPtr) },
-                modifiers: null);
-
-            if (method is null)
-            {
-                return null;
-            }
-
-            try
-            {
-                return (Action<int, int, int, IntPtr>)Delegate.CreateDelegate(
-                    typeof(Action<int, int, int, IntPtr>),
-                    method);
-            }
-            catch
-            {
-                return null;
             }
         }
     }

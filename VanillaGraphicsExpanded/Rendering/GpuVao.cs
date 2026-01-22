@@ -123,8 +123,11 @@ internal sealed class GpuVao : IDisposable
             return;
         }
 
-        Bind();
-        GL.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
+        if (!VaoDsa.TryVertexArrayElementBuffer(vertexArrayId, bufferId))
+        {
+            Bind();
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
+        }
     }
 
     public void BindElementBuffer(GpuEbo ebo)
@@ -146,8 +149,11 @@ internal sealed class GpuVao : IDisposable
             return;
         }
 
-        Bind();
-        GL.EnableVertexAttribArray(index);
+        if (!VaoDsa.TryEnableVertexArrayAttrib(vertexArrayId, index))
+        {
+            Bind();
+            GL.EnableVertexAttribArray(index);
+        }
     }
 
     public void DisableAttrib(int index)
@@ -158,8 +164,11 @@ internal sealed class GpuVao : IDisposable
             return;
         }
 
-        Bind();
-        GL.DisableVertexAttribArray(index);
+        if (!VaoDsa.TryDisableVertexArrayAttrib(vertexArrayId, index))
+        {
+            Bind();
+            GL.DisableVertexAttribArray(index);
+        }
     }
 
     public void AttribPointer(
@@ -173,6 +182,24 @@ internal sealed class GpuVao : IDisposable
         if (!IsValid)
         {
             Debug.WriteLine("[GpuVao] Attempted to set attrib pointer on disposed or invalid VAO");
+            return;
+        }
+
+        int vboId = 0;
+        try
+        {
+            GL.GetInteger(GetPName.ArrayBufferBinding, out vboId);
+        }
+        catch
+        {
+            vboId = 0;
+        }
+
+        if (vboId != 0
+            && strideBytes >= 0
+            && offsetBytes >= 0
+            && VaoDsa.TryAttribPointer(vertexArrayId, vboId, index, size, type, normalized, strideBytes, offsetBytes))
+        {
             return;
         }
 
@@ -194,6 +221,24 @@ internal sealed class GpuVao : IDisposable
             return;
         }
 
+        int vboId = 0;
+        try
+        {
+            GL.GetInteger(GetPName.ArrayBufferBinding, out vboId);
+        }
+        catch
+        {
+            vboId = 0;
+        }
+
+        if (vboId != 0
+            && strideBytes >= 0
+            && offsetBytes >= 0
+            && VaoDsa.TryAttribIPointer(vertexArrayId, vboId, index, size, type, strideBytes, offsetBytes))
+        {
+            return;
+        }
+
         Bind();
         GL.EnableVertexAttribArray(index);
         GL.VertexAttribIPointer(index, size, type, strideBytes, (IntPtr)offsetBytes);
@@ -207,8 +252,11 @@ internal sealed class GpuVao : IDisposable
             return;
         }
 
-        Bind();
-        GL.VertexAttribDivisor(index, divisor);
+        if (!VaoDsa.TryAttribDivisor(vertexArrayId, index, divisor))
+        {
+            Bind();
+            GL.VertexAttribDivisor(index, divisor);
+        }
     }
 
     public void DrawElements(PrimitiveType primitiveType, DrawElementsType indexType, int indexCount, int offsetBytes = 0)
@@ -332,6 +380,158 @@ internal sealed class GpuVao : IDisposable
     public override string ToString()
     {
         return $"{GetType().Name}(id={vertexArrayId}, name={debugName}, disposed={isDisposed})";
+    }
+
+    private static class VaoDsa
+    {
+        private static int enabledState;
+
+        public static bool TryVertexArrayElementBuffer(int vaoId, int bufferId)
+        {
+            if (enabledState == -1)
+            {
+                return false;
+            }
+
+            try
+            {
+                GL.VertexArrayElementBuffer(vaoId, bufferId);
+                enabledState = 1;
+                return true;
+            }
+            catch
+            {
+                enabledState = -1;
+                return false;
+            }
+        }
+
+        public static bool TryEnableVertexArrayAttrib(int vaoId, int index)
+        {
+            if (enabledState == -1)
+            {
+                return false;
+            }
+
+            try
+            {
+                GL.EnableVertexArrayAttrib(vaoId, index);
+                enabledState = 1;
+                return true;
+            }
+            catch
+            {
+                enabledState = -1;
+                return false;
+            }
+        }
+
+        public static bool TryDisableVertexArrayAttrib(int vaoId, int index)
+        {
+            if (enabledState == -1)
+            {
+                return false;
+            }
+
+            try
+            {
+                GL.DisableVertexArrayAttrib(vaoId, index);
+                enabledState = 1;
+                return true;
+            }
+            catch
+            {
+                enabledState = -1;
+                return false;
+            }
+        }
+
+        public static bool TryAttribPointer(
+            int vaoId,
+            int vboId,
+            int attribIndex,
+            int size,
+            VertexAttribPointerType type,
+            bool normalized,
+            int strideBytes,
+            int offsetBytes)
+        {
+            if (enabledState == -1)
+            {
+                return false;
+            }
+
+            try
+            {
+                GL.VertexArrayVertexBuffer(vaoId, attribIndex, vboId, (IntPtr)offsetBytes, strideBytes);
+                VertexAttribType attribType = (VertexAttribType)(int)type;
+                GL.VertexArrayAttribFormat(vaoId, attribIndex, size, attribType, normalized, 0);
+                GL.VertexArrayAttribBinding(vaoId, attribIndex, attribIndex);
+                GL.EnableVertexArrayAttrib(vaoId, attribIndex);
+
+                enabledState = 1;
+                return true;
+            }
+            catch
+            {
+                enabledState = -1;
+                return false;
+            }
+        }
+
+        public static bool TryAttribIPointer(
+            int vaoId,
+            int vboId,
+            int attribIndex,
+            int size,
+            VertexAttribIntegerType type,
+            int strideBytes,
+            int offsetBytes)
+        {
+            if (enabledState == -1)
+            {
+                return false;
+            }
+
+            try
+            {
+                GL.VertexArrayVertexBuffer(vaoId, attribIndex, vboId, (IntPtr)offsetBytes, strideBytes);
+                VertexAttribIType attribType = (VertexAttribIType)(int)type;
+                GL.VertexArrayAttribIFormat(vaoId, attribIndex, size, attribType, 0);
+                GL.VertexArrayAttribBinding(vaoId, attribIndex, attribIndex);
+                GL.EnableVertexArrayAttrib(vaoId, attribIndex);
+
+                enabledState = 1;
+                return true;
+            }
+            catch
+            {
+                enabledState = -1;
+                return false;
+            }
+        }
+
+        public static bool TryAttribDivisor(int vaoId, int index, int divisor)
+        {
+            if (enabledState == -1)
+            {
+                return false;
+            }
+
+            try
+            {
+                GL.VertexArrayBindingDivisor(vaoId, index, divisor);
+
+                enabledState = 1;
+                return true;
+            }
+            catch
+            {
+                enabledState = -1;
+                return false;
+            }
+        }
+
     }
 
     public readonly struct BindingScope : IDisposable
