@@ -306,6 +306,24 @@ internal readonly struct Vector3d : IEquatable<Vector3d>
     }
 
     /// <summary>
+    /// Component-wise absolute value.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector3d Abs(Vector3d value)
+    {
+        if (Avx.IsSupported)
+        {
+            // abs(x) = x & ~signBit
+            // For doubles, the sign bit mask corresponds to -0.0.
+            Vector256<double> signMask = Vector256.Create(-0.0);
+            Vector256<double> abs = Avx.AndNot(signMask, value.v);
+            return new Vector3d(ZeroW(abs));
+        }
+
+        return new Vector3d(Math.Abs(value.X), Math.Abs(value.Y), Math.Abs(value.Z));
+    }
+
+    /// <summary>
     /// Clamps each component between <paramref name="min"/> and <paramref name="max"/>.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
