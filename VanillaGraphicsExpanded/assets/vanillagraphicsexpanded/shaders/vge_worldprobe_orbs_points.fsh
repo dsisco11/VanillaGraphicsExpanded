@@ -43,7 +43,13 @@ void main(void)
     vec4 shR, shG, shB;
     lumonWorldProbeDecodeShL1(t0, t1, t2, shR, shG, shB);
 
-    vec3 irr = shEvaluateDiffuseRGB(shR, shG, shB, N);
+    // World probes now store block light and sky light separately.
+    vec3 irrBlock = shEvaluateDiffuseRGB(shR, shG, shB, N);
+
+    vec4 shSky = texelFetch(worldProbeSky0, ac, 0);
+    float irrSky = shEvaluateDiffuse(shSky, N);
+
+    vec3 irr = max(irrBlock, vec3(0.0)) + worldProbeSkyTint * max(irrSky, 0.0);
     vec3 col = tonemap(irr);
 
     // Slight level tint + minimum visibility.
