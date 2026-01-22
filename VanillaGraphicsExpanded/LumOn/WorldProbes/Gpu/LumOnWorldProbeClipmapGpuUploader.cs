@@ -18,7 +18,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
     private readonly ICoreClientAPI capi;
 
     private readonly GpuVao vao;
-    private readonly int vbo;
+    private readonly GpuVbo vbo;
 
     private bool isDisposed;
 
@@ -27,55 +27,52 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
 
         vao = GpuVao.Create(debugName: "VGE_WorldProbeClipmapUpload_VAO");
-        vbo = GL.GenBuffer();
+        vbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, debugName: "VGE_WorldProbeClipmapUpload_VBO");
 
-        vao.Bind();
-        GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
+        using var vaoScope = vao.BindScope();
+        using var vboScope = vbo.BindScope();
 
         int stride = Marshal.SizeOf<UploadVertex>();
 
         // vec2 atlasCoord
-        GL.EnableVertexAttribArray(0);
-        GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, normalized: false, stride, 0);
+        vao.EnableAttrib(0);
+        vao.AttribPointer(0, 2, VertexAttribPointerType.Float, normalized: false, stride, 0);
 
         // vec4 shR
-        GL.EnableVertexAttribArray(1);
-        GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, stride, 8);
+        vao.EnableAttrib(1);
+        vao.AttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, stride, 8);
 
         // vec4 shG
-        GL.EnableVertexAttribArray(2);
-        GL.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, stride, 24);
+        vao.EnableAttrib(2);
+        vao.AttribPointer(2, 4, VertexAttribPointerType.Float, normalized: false, stride, 24);
 
         // vec4 shB
-        GL.EnableVertexAttribArray(3);
-        GL.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, stride, 40);
+        vao.EnableAttrib(3);
+        vao.AttribPointer(3, 4, VertexAttribPointerType.Float, normalized: false, stride, 40);
 
         // vec3 aoDir
-        GL.EnableVertexAttribArray(4);
-        GL.VertexAttribPointer(4, 3, VertexAttribPointerType.Float, false, stride, 56);
+        vao.EnableAttrib(4);
+        vao.AttribPointer(4, 3, VertexAttribPointerType.Float, normalized: false, stride, 56);
 
         // float aoConfidence
-        GL.EnableVertexAttribArray(5);
-        GL.VertexAttribPointer(5, 1, VertexAttribPointerType.Float, false, stride, 68);
+        vao.EnableAttrib(5);
+        vao.AttribPointer(5, 1, VertexAttribPointerType.Float, normalized: false, stride, 68);
 
         // float confidence
-        GL.EnableVertexAttribArray(6);
-        GL.VertexAttribPointer(6, 1, VertexAttribPointerType.Float, false, stride, 72);
+        vao.EnableAttrib(6);
+        vao.AttribPointer(6, 1, VertexAttribPointerType.Float, normalized: false, stride, 72);
 
         // float meanLogHitDistance
-        GL.EnableVertexAttribArray(7);
-        GL.VertexAttribPointer(7, 1, VertexAttribPointerType.Float, false, stride, 76);
+        vao.EnableAttrib(7);
+        vao.AttribPointer(7, 1, VertexAttribPointerType.Float, normalized: false, stride, 76);
 
         // vec4 shSky
-        GL.EnableVertexAttribArray(8);
-        GL.VertexAttribPointer(8, 4, VertexAttribPointerType.Float, false, stride, 80);
+        vao.EnableAttrib(8);
+        vao.AttribPointer(8, 4, VertexAttribPointerType.Float, normalized: false, stride, 80);
 
         // uint flags (integer attribute)
-        GL.EnableVertexAttribArray(9);
-        GL.VertexAttribIPointer(9, 1, VertexAttribIntegerType.UnsignedInt, stride, (IntPtr)96);
-
-        GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-        vao.Unbind();
+        vao.EnableAttrib(9);
+        vao.AttribIPointer(9, 1, VertexAttribIntegerType.UnsignedInt, stride, 96);
     }
 
     public void Upload(
@@ -136,7 +133,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         prog.Use();
         prog.AtlasSize = new Vec2f(resources.AtlasWidth, resources.AtlasHeight);
 
-        vao.Bind();
+        using var vaoScope = vao.BindScope();
 
         var fbo = resources.GetFbo();
         fbo.Bind();
@@ -144,15 +141,10 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
 
         UploadVertex[] data = vertices.ToArray();
 
-        GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-        GL.BufferData(BufferTarget.ArrayBuffer, data.Length * bytesPerVertex, data, BufferUsageHint.StreamDraw);
+        vbo.UploadData(data);
 
         GL.DrawArrays(PrimitiveType.Points, 0, data.Length);
-
-        GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
         Rendering.GBuffer.Unbind();
-
-        vao.Unbind();
         prog.Stop();
     }
 
@@ -161,7 +153,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         if (isDisposed) return;
         isDisposed = true;
 
-        GL.DeleteBuffer(vbo);
+        vbo.Dispose();
         vao.Dispose();
     }
 
