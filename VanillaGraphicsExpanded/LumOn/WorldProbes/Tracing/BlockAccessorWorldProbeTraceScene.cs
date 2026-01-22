@@ -33,36 +33,34 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
             return false;
         }
 
-        double dx = dir.X;
-        double dy = dir.Y;
-        double dz = dir.Z;
-
         // Amanatides & Woo voxel traversal through 1x1x1 blocks.
         int x = (int)Math.Floor(originWorld.X);
         int y = (int)Math.Floor(originWorld.Y);
         int z = (int)Math.Floor(originWorld.Z);
 
-        int stepX = dx >= 0 ? 1 : -1;
-        int stepY = dy >= 0 ? 1 : -1;
-        int stepZ = dz >= 0 ? 1 : -1;
+        double dx = dir.X;
+        double dy = dir.Y;
+        double dz = dir.Z;
 
-        double nextVoxBoundaryX = x + (dx >= 0 ? 1.0 : 0.0);
-        double nextVoxBoundaryY = y + (dy >= 0 ? 1.0 : 0.0);
-        double nextVoxBoundaryZ = z + (dz >= 0 ? 1.0 : 0.0);
+        var step = new VectorInt3(
+            dx >= 0 ? 1 : -1,
+            dy >= 0 ? 1 : -1,
+            dz >= 0 ? 1 : -1);
 
-        double tMaxX = dx == 0 ? double.PositiveInfinity : (nextVoxBoundaryX - originWorld.X) / dx;
-        double tMaxY = dy == 0 ? double.PositiveInfinity : (nextVoxBoundaryY - originWorld.Y) / dy;
-        double tMaxZ = dz == 0 ? double.PositiveInfinity : (nextVoxBoundaryZ - originWorld.Z) / dz;
+        // Vectorized initial tMax/tDelta.
+        // - nextBoundary is the next voxel boundary in the ray direction for each axis.
+        // - tMax is the t at which the ray crosses that boundary.
+        // - tDelta is the t distance between successive crossings for that axis.
+        var voxel = new Vector3d(x, y, z);
+        var step01 = new Vector3d(step.X > 0 ? 1d : 0d, step.Y > 0 ? 1d : 0d, step.Z > 0 ? 1d : 0d);
+        Vector3d nextBoundary = voxel + step01;
 
-        double tDeltaX = dx == 0 ? double.PositiveInfinity : Math.Abs(1.0 / dx);
-        double tDeltaY = dy == 0 ? double.PositiveInfinity : Math.Abs(1.0 / dy);
-        double tDeltaZ = dz == 0 ? double.PositiveInfinity : Math.Abs(1.0 / dz);
+        Vector3d tMax = (nextBoundary - originWorld) / dir;
+        Vector3d tDelta = Vector3d.Abs(Vector3d.One / dir);
 
         // Track which face we entered the current voxel through. For the first voxel,
         // this remains zero unless we step.
-        int faceNx = 0;
-        int faceNy = 0;
-        int faceNz = 0;
+        var faceN = new VectorInt3(0, 0, 0);
 
         double t = 0.0;
 
@@ -92,29 +90,30 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
                 {
                     // If we hit inside the first voxel, synthesize a reasonable face normal based on ray direction.
                     // This ensures the "adjacent sample voxel" is outside the hit voxel.
-                    if (faceNx == 0 && faceNy == 0 && faceNz == 0)
+                    if (faceN.X == 0 && faceN.Y == 0 && faceN.Z == 0)
                     {
-                        double ax = Math.Abs(dx);
-                        double ay = Math.Abs(dy);
-                        double az = Math.Abs(dz);
+                        Vector3d a = Vector3d.Abs(dir);
+                        double ax = a.X;
+                        double ay = a.Y;
+                        double az = a.Z;
 
                         if (ax >= ay && ax >= az)
                         {
-                            faceNx = dx >= 0 ? -1 : 1;
+                            faceN = new VectorInt3(dx >= 0 ? -1 : 1, 0, 0);
                         }
                         else if (ay >= az)
                         {
-                            faceNy = dy >= 0 ? -1 : 1;
+                            faceN = new VectorInt3(0, dy >= 0 ? -1 : 1, 0);
                         }
                         else
                         {
-                            faceNz = dz >= 0 ? -1 : 1;
+                            faceN = new VectorInt3(0, 0, dz >= 0 ? -1 : 1);
                         }
                     }
 
-                    int sx = x + faceNx;
-                    int sy = y + faceNy;
-                    int sz = z + faceNz;
+                    int sx = x + faceN.X;
+                    int sy = y + faceN.Y;
+                    int sz = z + faceN.Z;
 
                     Vector4 light = Vector4.Zero;
 
@@ -129,7 +128,7 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
                     hit = new LumOnWorldProbeTraceHit(
                         HitDistance: t,
                         HitBlockPos: new VectorInt3(x, y, z),
-                        HitFaceNormal: new VectorInt3(faceNx, faceNy, faceNz),
+                        HitFaceNormal: faceN,
                         SampleBlockPos: new VectorInt3(sx, sy, sz),
                         SampleLightRgbS: light);
                     return true;
@@ -137,46 +136,38 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
             }
 
             // Advance to next voxel boundary.
-            if (tMaxX < tMaxY)
+            if (tMax.X < tMax.Y)
             {
-                if (tMaxX < tMaxZ)
+                if (tMax.X < tMax.Z)
                 {
-                    x += stepX;
-                    t = tMaxX;
-                    tMaxX += tDeltaX;
-                    faceNx = -stepX;
-                    faceNy = 0;
-                    faceNz = 0;
+                    x += step.X;
+                    t = tMax.X;
+                    tMax = tMax + new Vector3d(tDelta.X, 0d, 0d);
+                    faceN = new VectorInt3(-step.X, 0, 0);
                 }
                 else
                 {
-                    z += stepZ;
-                    t = tMaxZ;
-                    tMaxZ += tDeltaZ;
-                    faceNx = 0;
-                    faceNy = 0;
-                    faceNz = -stepZ;
+                    z += step.Z;
+                    t = tMax.Z;
+                    tMax = tMax + new Vector3d(0d, 0d, tDelta.Z);
+                    faceN = new VectorInt3(0, 0, -step.Z);
                 }
             }
             else
             {
-                if (tMaxY < tMaxZ)
+                if (tMax.Y < tMax.Z)
                 {
-                    y += stepY;
-                    t = tMaxY;
-                    tMaxY += tDeltaY;
-                    faceNx = 0;
-                    faceNy = -stepY;
-                    faceNz = 0;
+                    y += step.Y;
+                    t = tMax.Y;
+                    tMax = tMax + new Vector3d(0d, tDelta.Y, 0d);
+                    faceN = new VectorInt3(0, -step.Y, 0);
                 }
                 else
                 {
-                    z += stepZ;
-                    t = tMaxZ;
-                    tMaxZ += tDeltaZ;
-                    faceNx = 0;
-                    faceNy = 0;
-                    faceNz = -stepZ;
+                    z += step.Z;
+                    t = tMax.Z;
+                    tMax = tMax + new Vector3d(0d, 0d, tDelta.Z);
+                    faceN = new VectorInt3(0, 0, -step.Z);
                 }
             }
         }
