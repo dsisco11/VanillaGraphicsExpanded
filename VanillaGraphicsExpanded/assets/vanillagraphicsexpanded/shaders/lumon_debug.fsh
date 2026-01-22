@@ -46,6 +46,7 @@ out vec4 outColor;
 // 38 = Blend Weights (screen vs world)
 // 39 = Cross-Level Blend (selected L and weights)
 // 41 = POM Metrics (heatmap from gBufferNormal.w)
+// 42 = Raw Confidences (R=screenConf, G=worldConf, B=sumW)
 // ============================================================================
 
 // Import common utilities
@@ -1200,6 +1201,35 @@ vec4 renderWorldProbeBlendWeightsDebug()
 #endif
 }
 
+vec4 renderWorldProbeRawConfidencesDebug()
+{
+    float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
+
+#if !VGE_LUMON_WORLDPROBE_ENABLED
+    return lumonWorldProbeDebugDisabledColor();
+#else
+    vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+    vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
+    vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
+
+    // Final confidence from gather (screen-first blend result).
+    float sumW = clamp(texture(indirectHalf, uv).a, 0.0, 1.0);
+
+    LumOnWorldProbeSample wp = lumonWorldProbeSampleClipmapBound(posWS, normalWS);
+    float worldConf = clamp(wp.confidence, 0.0, 1.0);
+
+    // Reconstruct the screen confidence (screenW) from sumW and worldConf.
+    // This matches the gather blend:
+    //   sumW = screenW + worldConf * (1 - screenW)
+    float screenConf = (worldConf >= 0.999)
+        ? 0.0
+        : clamp((sumW - worldConf) / max(1.0 - worldConf, 1e-6), 0.0, 1.0);
+
+    return vec4(screenConf, worldConf, sumW, 1.0);
+#endif
+}
+
 vec4 renderWorldProbeCrossLevelBlendDebug()
 {
     float depth = texture(primaryDepth, uv).r;
@@ -1249,6 +1279,10 @@ void main(void)
             outColor = renderProbeDepthDebug(screenPos);
             break;
         case 3:
+
+        case 42:
+            outColor = renderWorldProbeRawConfidencesDebug();
+            break;
             outColor = renderProbeNormalDebug(screenPos);
             break;
         case 4:

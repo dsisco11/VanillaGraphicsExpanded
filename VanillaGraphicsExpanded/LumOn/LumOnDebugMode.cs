@@ -77,4 +77,8 @@ public enum LumOnDebugMode
 
     // POM debug visualization (reads gBufferNormal.w written by patched chunk shaders)
     PomMetrics = 41,
+
+    // Phase 18: diagnostics
+    // R = reconstructed screen confidence (screenW), G = raw world-probe confidence, B = final confidence (sumW)
+    WorldProbeRawConfidences = 42,
 }

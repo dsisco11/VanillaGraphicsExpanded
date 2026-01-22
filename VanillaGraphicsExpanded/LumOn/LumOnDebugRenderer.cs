@@ -819,7 +819,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     private void OnDebugModeChanged(LumOnDebugMode prev, LumOnDebugMode current)
     {
-        if (current is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeOrbsPoints)
+        if (current is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeOrbsPoints
+            || current == LumOnDebugMode.WorldProbeRawConfidences)
         {
             worldProbeClipmapDebugDirty = true;
 
@@ -2105,7 +2106,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         // Anything involving probes/atlases/temporal/indirect assumes LumOn is enabled.
         return (mode is >= LumOnDebugMode.ProbeGrid and <= LumOnDebugMode.CompositeMaterial)
             || (mode is >= LumOnDebugMode.VelocityMagnitude and <= LumOnDebugMode.VelocityPrevUv)
-            || (mode is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeOrbsPoints);
+            || (mode is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeOrbsPoints)
+            || mode == LumOnDebugMode.WorldProbeRawConfidences;
     }
 
     #endregion
