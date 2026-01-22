@@ -93,6 +93,26 @@ public sealed class Vector3dTests
     }
 
     [Fact]
+    public void Abs_Works()
+    {
+        Assert.Equal(new Vector3d(1.5, 2.25, 3.75), Vector3d.Abs(new Vector3d(-1.5, 2.25, -3.75)));
+    }
+
+    [Fact]
+    public void Floor_Works()
+    {
+        var v = new Vector3d(1.9, -2.1, 3.0);
+        Assert.Equal(new Vector3d(1, -3, 3), Vector3d.Floor(v));
+    }
+
+    [Fact]
+    public void FloorToInt3_Works()
+    {
+        var v = new Vector3d(1.9, -2.1, 3.0);
+        Assert.Equal(new VectorInt3(1, -3, 3), Vector3d.FloorToInt3(v));
+    }
+
+    [Fact]
     public void Dot_Length_Distance_Work()
     {
         var a = new Vector3d(2, 3, 4);

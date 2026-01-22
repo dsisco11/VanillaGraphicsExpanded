@@ -324,6 +324,54 @@ internal readonly struct Vector3d : IEquatable<Vector3d>
     }
 
     /// <summary>
+    /// Component-wise floor.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector3d Floor(Vector3d value)
+    {
+        if (Avx.IsSupported)
+        {
+            Vector256<double> floored = Avx.RoundToNegativeInfinity(value.v);
+            return new Vector3d(ZeroW(floored));
+        }
+
+        return new Vector3d(Math.Floor(value.X), Math.Floor(value.Y), Math.Floor(value.Z));
+    }
+
+    /// <summary>
+    /// Floors each component and converts to a <see cref="VectorInt3"/>.
+    /// Uses SIMD when available.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static VectorInt3 FloorToInt3(Vector3d value)
+    {
+        if (Avx.IsSupported)
+        {
+            // Guard against undefined conversion results for non-finite or out-of-range values.
+            // In normal world coordinates we expect these to be in-range.
+            double x = value.X;
+            double y = value.Y;
+            double z = value.Z;
+
+            if (double.IsFinite(x) && double.IsFinite(y) && double.IsFinite(z)
+                && x >= int.MinValue && x <= int.MaxValue
+                && y >= int.MinValue && y <= int.MaxValue
+                && z >= int.MinValue && z <= int.MaxValue)
+            {
+                Vector256<double> floored = Avx.RoundToNegativeInfinity(value.v);
+                // Convert 4 doubles to 4 int32s with truncation. Since we pre-floor, truncation is correct.
+                Vector128<int> ints = Avx.ConvertToVector128Int32WithTruncation(floored);
+                return new VectorInt3(ints.GetElement(0), ints.GetElement(1), ints.GetElement(2));
+            }
+        }
+
+        return new VectorInt3(
+            (int)Math.Floor(value.X),
+            (int)Math.Floor(value.Y),
+            (int)Math.Floor(value.Z));
+    }
+
+    /// <summary>
     /// Clamps each component between <paramref name="min"/> and <paramref name="max"/>.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
