@@ -8,6 +8,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Profiling;
 
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
@@ -16,7 +17,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
 {
     private readonly ICoreClientAPI capi;
 
-    private readonly int vao;
+    private readonly GpuVao vao;
     private readonly int vbo;
 
     private bool isDisposed;
@@ -25,10 +26,10 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
     {
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
 
-        vao = GL.GenVertexArray();
+        vao = GpuVao.Create(debugName: "VGE_WorldProbeClipmapUpload_VAO");
         vbo = GL.GenBuffer();
 
-        GL.BindVertexArray(vao);
+        vao.Bind();
         GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
 
         int stride = Marshal.SizeOf<UploadVertex>();
@@ -70,7 +71,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         GL.VertexAttribIPointer(8, 1, VertexAttribIntegerType.UnsignedInt, stride, (IntPtr)80);
 
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-        GL.BindVertexArray(0);
+        vao.Unbind();
     }
 
     public void Upload(
@@ -131,7 +132,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         prog.Use();
         prog.AtlasSize = new Vec2f(resources.AtlasWidth, resources.AtlasHeight);
 
-        GL.BindVertexArray(vao);
+        vao.Bind();
 
         var fbo = resources.GetFbo();
         fbo.Bind();
@@ -147,7 +148,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
         Rendering.GBuffer.Unbind();
 
-        GL.BindVertexArray(0);
+        vao.Unbind();
         prog.Stop();
     }
 
@@ -157,7 +158,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         isDisposed = true;
 
         GL.DeleteBuffer(vbo);
-        GL.DeleteVertexArray(vao);
+        vao.Dispose();
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
