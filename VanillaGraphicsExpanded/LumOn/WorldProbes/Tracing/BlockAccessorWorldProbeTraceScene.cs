@@ -87,52 +87,55 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
             }
 
             Block b = blockAccessor.GetMostSolidBlock(pos);
-            Cuboidf[] boxes = b.GetCollisionBoxes(blockAccessor, pos);
-
-            if (b.Id != 0 && boxes != null && boxes.Length > 0)
+            if (b.Id != 0)
             {
-                // If we hit inside the first voxel, synthesize a reasonable face normal based on ray direction.
-                // This ensures the "adjacent sample voxel" is outside the hit voxel.
-                if (faceNx == 0 && faceNy == 0 && faceNz == 0)
+                // Avoid querying collision boxes for air.
+                Cuboidf[] boxes = b.GetCollisionBoxes(blockAccessor, pos);
+                if (boxes != null && boxes.Length > 0)
                 {
-                    double ax = Math.Abs(dx);
-                    double ay = Math.Abs(dy);
-                    double az = Math.Abs(dz);
+                    // If we hit inside the first voxel, synthesize a reasonable face normal based on ray direction.
+                    // This ensures the "adjacent sample voxel" is outside the hit voxel.
+                    if (faceNx == 0 && faceNy == 0 && faceNz == 0)
+                    {
+                        double ax = Math.Abs(dx);
+                        double ay = Math.Abs(dy);
+                        double az = Math.Abs(dz);
 
-                    if (ax >= ay && ax >= az)
-                    {
-                        faceNx = dx >= 0 ? -1 : 1;
+                        if (ax >= ay && ax >= az)
+                        {
+                            faceNx = dx >= 0 ? -1 : 1;
+                        }
+                        else if (ay >= az)
+                        {
+                            faceNy = dy >= 0 ? -1 : 1;
+                        }
+                        else
+                        {
+                            faceNz = dz >= 0 ? -1 : 1;
+                        }
                     }
-                    else if (ay >= az)
+
+                    int sx = x + faceNx;
+                    int sy = y + faceNy;
+                    int sz = z + faceNz;
+
+                    Vec4f light = new Vec4f();
+
+                    samplePos.Set(sx, sy, sz);
+                    if (blockAccessor.GetChunkAtBlockPos(samplePos) != null)
                     {
-                        faceNy = dy >= 0 ? -1 : 1;
+                        // Vec4f: XYZ = block light rgb, W = sun light brightness.
+                        light = blockAccessor.GetLightRGBs(samplePos);
                     }
-                    else
-                    {
-                        faceNz = dz >= 0 ? -1 : 1;
-                    }
+
+                    hit = new LumOnWorldProbeTraceHit(
+                        HitDistance: t,
+                        HitBlockPos: new Vec3i(x, y, z),
+                        HitFaceNormal: new Vec3i(faceNx, faceNy, faceNz),
+                        SampleBlockPos: new Vec3i(sx, sy, sz),
+                        SampleLightRgbS: light);
+                    return true;
                 }
-
-                int sx = x + faceNx;
-                int sy = y + faceNy;
-                int sz = z + faceNz;
-
-                Vec4f light = new Vec4f();
-
-                samplePos.Set(sx, sy, sz);
-                if (blockAccessor.GetChunkAtBlockPos(samplePos) != null)
-                {
-                    // Vec4f: XYZ = block light rgb, W = sun light brightness.
-                    light = blockAccessor.GetLightRGBs(samplePos);
-                }
-
-                hit = new LumOnWorldProbeTraceHit(
-                    HitDistance: t,
-                    HitBlockPos: new Vec3i(x, y, z),
-                    HitFaceNormal: new Vec3i(faceNx, faceNy, faceNz),
-                    SampleBlockPos: new Vec3i(sx, sy, sz),
-                    SampleLightRgbS: light);
-                return true;
             }
 
             // Advance to next voxel boundary.
