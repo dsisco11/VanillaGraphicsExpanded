@@ -789,6 +789,72 @@ internal abstract class GpuBufferObject : IDisposable
         }
     }
 
+    public unsafe MappedRange<T> MapRange<T>(int dstOffsetBytes, int elementCount, MapBufferAccessMask access) where T : unmanaged
+    {
+        if (!IsValid)
+        {
+            throw new InvalidOperationException("Cannot map buffer: buffer is not valid.");
+        }
+
+        if (dstOffsetBytes < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(dstOffsetBytes), dstOffsetBytes, "Offset must be >= 0.");
+        }
+
+        if (elementCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(elementCount), elementCount, "Element count must be >= 0.");
+        }
+
+        int byteCount = checked(elementCount * sizeof(T));
+        if (byteCount == 0)
+        {
+            return new MappedRange<T>(bufferId, target, access, dstOffsetBytes, elementCount, IntPtr.Zero, isMapped: false);
+        }
+
+        if (sizeBytes < checked(dstOffsetBytes + byteCount))
+        {
+            throw new InvalidOperationException(
+                $"MapRange range [{dstOffsetBytes}, {dstOffsetBytes + byteCount}) exceeds allocated buffer size {sizeBytes}.");
+        }
+
+        if (BufferMapDsa.TryMapNamedBufferRange(bufferId, dstOffsetBytes, byteCount, access, out IntPtr ptr))
+        {
+            return new MappedRange<T>(bufferId, target, access, dstOffsetBytes, elementCount, ptr, isMapped: true);
+        }
+
+        if (target == BufferTarget.ElementArrayBuffer)
+        {
+            ptr = MapElementArrayBufferRange(bufferId, dstOffsetBytes, byteCount, access);
+        }
+        else
+        {
+            using var scope = BindScope();
+            ptr = GL.MapBufferRange(target, (IntPtr)dstOffsetBytes, (IntPtr)byteCount, access);
+        }
+
+        if (ptr == IntPtr.Zero)
+        {
+            throw new InvalidOperationException("glMapBufferRange failed.");
+        }
+
+        return new MappedRange<T>(bufferId, target, access, dstOffsetBytes, elementCount, ptr, isMapped: true);
+    }
+
+    public bool TryMapRange<T>(int dstOffsetBytes, int elementCount, MapBufferAccessMask access, out MappedRange<T> range) where T : unmanaged
+    {
+        try
+        {
+            range = MapRange<T>(dstOffsetBytes, elementCount, access);
+            return range.IsMapped;
+        }
+        catch
+        {
+            range = default;
+            return false;
+        }
+    }
+
     public virtual void Dispose()
     {
         if (isDisposed)
@@ -809,6 +875,40 @@ internal abstract class GpuBufferObject : IDisposable
     public override string ToString()
     {
         return $"{GetType().Name}(id={bufferId}, target={target}, sizeBytes={sizeBytes}, usage={usage}, name={debugName}, disposed={isDisposed})";
+    }
+
+    private static IntPtr MapElementArrayBufferRange(int bufferId, int offsetBytes, int byteCount, MapBufferAccessMask access)
+    {
+        int previousVao = 0;
+        try
+        {
+            GL.GetInteger(GetPName.VertexArrayBinding, out previousVao);
+        }
+        catch
+        {
+            previousVao = 0;
+        }
+
+        GL.BindVertexArray(0);
+
+        int previousEbo0 = 0;
+        try
+        {
+            GL.GetInteger(GetPName.ElementArrayBufferBinding, out previousEbo0);
+        }
+        catch
+        {
+            previousEbo0 = 0;
+        }
+
+        GL.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
+
+        IntPtr ptr = GL.MapBufferRange(BufferTarget.ElementArrayBuffer, (IntPtr)offsetBytes, (IntPtr)byteCount, access);
+
+        GL.BindBuffer(BufferTarget.ElementArrayBuffer, previousEbo0);
+        GL.BindVertexArray(previousVao);
+
+        return ptr;
     }
 
     private static bool TryGetBindingQuery(BufferTarget target, out GetPName pname)
@@ -867,6 +967,465 @@ internal abstract class GpuBufferObject : IDisposable
     private bool TryDsaBufferSubData(int dstOffsetBytes, int byteCount, IntPtr data)
     {
         return bufferId != 0 && BufferDsa.TryNamedBufferSubData(bufferId, dstOffsetBytes, byteCount, data);
+    }
+
+    private static class BufferMapDsa
+    {
+        private static readonly Func<int, IntPtr, IntPtr, MapBufferAccessMask, IntPtr>? mapPtr;
+        private static readonly Func<int, int, int, MapBufferAccessMask, IntPtr>? mapInt;
+        private static readonly Func<int, bool>? unmap;
+        private static readonly Action<int, IntPtr, IntPtr>? flushPtr;
+        private static readonly Action<int, int, int>? flushInt;
+
+        private static int enabledState;
+
+        static BufferMapDsa()
+        {
+            mapPtr =
+                TryCreateMapPtr("MapNamedBufferRange") ??
+                TryCreateMapPtr("MapNamedBufferRangeEXT");
+
+            mapInt =
+                TryCreateMapInt("MapNamedBufferRange") ??
+                TryCreateMapInt("MapNamedBufferRangeEXT");
+
+            unmap =
+                TryCreateUnmap("UnmapNamedBuffer") ??
+                TryCreateUnmap("UnmapNamedBufferEXT");
+
+            flushPtr =
+                TryCreateFlushPtr("FlushMappedNamedBufferRange") ??
+                TryCreateFlushPtr("FlushMappedNamedBufferRangeEXT");
+
+            flushInt =
+                TryCreateFlushInt("FlushMappedNamedBufferRange") ??
+                TryCreateFlushInt("FlushMappedNamedBufferRangeEXT");
+
+            if ((mapPtr is null && mapInt is null) || unmap is null)
+            {
+                enabledState = -1;
+            }
+        }
+
+        public static bool TryMapNamedBufferRange(int bufferId, int offsetBytes, int byteCount, MapBufferAccessMask access, out IntPtr ptr)
+        {
+            ptr = IntPtr.Zero;
+
+            if (enabledState == -1)
+            {
+                return false;
+            }
+
+            try
+            {
+                if (mapPtr is not null)
+                {
+                    ptr = mapPtr(bufferId, (IntPtr)offsetBytes, (IntPtr)byteCount, access);
+                }
+                else if (mapInt is not null)
+                {
+                    ptr = mapInt(bufferId, offsetBytes, byteCount, access);
+                }
+                else
+                {
+                    enabledState = -1;
+                    return false;
+                }
+
+                if (ptr == IntPtr.Zero)
+                {
+                    return false;
+                }
+
+                enabledState = 1;
+                return true;
+            }
+            catch
+            {
+                enabledState = -1;
+                return false;
+            }
+        }
+
+        public static bool TryUnmapNamedBuffer(int bufferId)
+        {
+            if (enabledState == -1 || unmap is null)
+            {
+                return false;
+            }
+
+            try
+            {
+                bool ok = unmap(bufferId);
+                enabledState = 1;
+                return ok;
+            }
+            catch
+            {
+                enabledState = -1;
+                return false;
+            }
+        }
+
+        public static bool TryFlushMappedNamedBufferRange(int bufferId, int offsetBytes, int byteCount)
+        {
+            if (enabledState == -1)
+            {
+                return false;
+            }
+
+            try
+            {
+                if (flushPtr is not null)
+                {
+                    flushPtr(bufferId, (IntPtr)offsetBytes, (IntPtr)byteCount);
+                }
+                else if (flushInt is not null)
+                {
+                    flushInt(bufferId, offsetBytes, byteCount);
+                }
+                else
+                {
+                    return false;
+                }
+
+                enabledState = 1;
+                return true;
+            }
+            catch
+            {
+                enabledState = -1;
+                return false;
+            }
+        }
+
+        private static Func<int, IntPtr, IntPtr, MapBufferAccessMask, IntPtr>? TryCreateMapPtr(string name)
+        {
+            MethodInfo? method = typeof(GL).GetMethod(
+                name,
+                BindingFlags.Public | BindingFlags.Static,
+                binder: null,
+                types: new[] { typeof(int), typeof(IntPtr), typeof(IntPtr), typeof(MapBufferAccessMask) },
+                modifiers: null);
+
+            if (method is null)
+            {
+                return null;
+            }
+
+            try
+            {
+                return (Func<int, IntPtr, IntPtr, MapBufferAccessMask, IntPtr>)Delegate.CreateDelegate(
+                    typeof(Func<int, IntPtr, IntPtr, MapBufferAccessMask, IntPtr>),
+                    method);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static Func<int, int, int, MapBufferAccessMask, IntPtr>? TryCreateMapInt(string name)
+        {
+            MethodInfo? method = typeof(GL).GetMethod(
+                name,
+                BindingFlags.Public | BindingFlags.Static,
+                binder: null,
+                types: new[] { typeof(int), typeof(int), typeof(int), typeof(MapBufferAccessMask) },
+                modifiers: null);
+
+            if (method is null)
+            {
+                return null;
+            }
+
+            try
+            {
+                return (Func<int, int, int, MapBufferAccessMask, IntPtr>)Delegate.CreateDelegate(
+                    typeof(Func<int, int, int, MapBufferAccessMask, IntPtr>),
+                    method);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static Func<int, bool>? TryCreateUnmap(string name)
+        {
+            MethodInfo? method = typeof(GL).GetMethod(
+                name,
+                BindingFlags.Public | BindingFlags.Static,
+                binder: null,
+                types: new[] { typeof(int) },
+                modifiers: null);
+
+            if (method is null || method.ReturnType != typeof(bool))
+            {
+                return null;
+            }
+
+            try
+            {
+                return (Func<int, bool>)Delegate.CreateDelegate(typeof(Func<int, bool>), method);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static Action<int, IntPtr, IntPtr>? TryCreateFlushPtr(string name)
+        {
+            MethodInfo? method = typeof(GL).GetMethod(
+                name,
+                BindingFlags.Public | BindingFlags.Static,
+                binder: null,
+                types: new[] { typeof(int), typeof(IntPtr), typeof(IntPtr) },
+                modifiers: null);
+
+            if (method is null)
+            {
+                return null;
+            }
+
+            try
+            {
+                return (Action<int, IntPtr, IntPtr>)Delegate.CreateDelegate(typeof(Action<int, IntPtr, IntPtr>), method);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static Action<int, int, int>? TryCreateFlushInt(string name)
+        {
+            MethodInfo? method = typeof(GL).GetMethod(
+                name,
+                BindingFlags.Public | BindingFlags.Static,
+                binder: null,
+                types: new[] { typeof(int), typeof(int), typeof(int) },
+                modifiers: null);
+
+            if (method is null)
+            {
+                return null;
+            }
+
+            try
+            {
+                return (Action<int, int, int>)Delegate.CreateDelegate(typeof(Action<int, int, int>), method);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+    }
+
+    public struct MappedRange<T> : IDisposable where T : unmanaged
+    {
+        private readonly int bufferId;
+        private readonly BufferTarget target;
+        private readonly MapBufferAccessMask access;
+        private readonly int offsetBytes;
+        private readonly int elementCount;
+        private readonly IntPtr ptr;
+        private bool isMapped;
+
+        internal MappedRange(
+            int bufferId,
+            BufferTarget target,
+            MapBufferAccessMask access,
+            int offsetBytes,
+            int elementCount,
+            IntPtr ptr,
+            bool isMapped)
+        {
+            this.bufferId = bufferId;
+            this.target = target;
+            this.access = access;
+            this.offsetBytes = offsetBytes;
+            this.elementCount = elementCount;
+            this.ptr = ptr;
+            this.isMapped = isMapped;
+        }
+
+        public int BufferId => bufferId;
+        public int OffsetBytes => offsetBytes;
+        public int ElementCount => elementCount;
+        public unsafe int ByteCount => checked(elementCount * sizeof(T));
+        public bool IsMapped => isMapped;
+        public IntPtr Pointer => ptr;
+
+        public unsafe Span<T> Span
+        {
+            get
+            {
+                if (!isMapped)
+                {
+                    return Span<T>.Empty;
+                }
+
+                return new Span<T>((void*)ptr, elementCount);
+            }
+        }
+
+        public void Flush()
+        {
+            Flush(relativeOffsetBytes: 0, byteCount: ByteCount);
+        }
+
+        public void Flush(int relativeOffsetBytes, int byteCount)
+        {
+            if (!isMapped || byteCount <= 0)
+            {
+                return;
+            }
+
+            if ((access & MapBufferAccessMask.MapFlushExplicitBit) == 0)
+            {
+                return;
+            }
+
+            int absOffset = checked(offsetBytes + relativeOffsetBytes);
+            if (BufferMapDsa.TryFlushMappedNamedBufferRange(bufferId, absOffset, byteCount))
+            {
+                return;
+            }
+
+            if (target == BufferTarget.ElementArrayBuffer)
+            {
+                FlushElementArrayBufferRange(bufferId, absOffset, byteCount);
+                return;
+            }
+
+            FlushBoundRange(bufferId, target, absOffset, byteCount);
+        }
+
+        public void Dispose()
+        {
+            if (!isMapped)
+            {
+                return;
+            }
+
+            isMapped = false;
+
+            if (BufferMapDsa.TryUnmapNamedBuffer(bufferId))
+            {
+                return;
+            }
+
+            if (target == BufferTarget.ElementArrayBuffer)
+            {
+                UnmapElementArrayBuffer(bufferId);
+                return;
+            }
+
+            UnmapBound(bufferId, target);
+        }
+
+        private static void FlushBoundRange(int bufferId, BufferTarget target, int offsetBytes, int byteCount)
+        {
+            int previous = 0;
+            try
+            {
+                if (TryGetBindingQuery(target, out GetPName pname))
+                {
+                    GL.GetInteger(pname, out previous);
+                }
+            }
+            catch
+            {
+                previous = 0;
+            }
+
+            GL.BindBuffer(target, bufferId);
+            GL.FlushMappedBufferRange(target, (IntPtr)offsetBytes, (IntPtr)byteCount);
+            GL.BindBuffer(target, previous);
+        }
+
+        private static void FlushElementArrayBufferRange(int bufferId, int offsetBytes, int byteCount)
+        {
+            int previousVao = 0;
+            try
+            {
+                GL.GetInteger(GetPName.VertexArrayBinding, out previousVao);
+            }
+            catch
+            {
+                previousVao = 0;
+            }
+
+            GL.BindVertexArray(0);
+
+            int previousEbo0 = 0;
+            try
+            {
+                GL.GetInteger(GetPName.ElementArrayBufferBinding, out previousEbo0);
+            }
+            catch
+            {
+                previousEbo0 = 0;
+            }
+
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
+            GL.FlushMappedBufferRange(BufferTarget.ElementArrayBuffer, (IntPtr)offsetBytes, (IntPtr)byteCount);
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, previousEbo0);
+            GL.BindVertexArray(previousVao);
+        }
+
+        private static void UnmapBound(int bufferId, BufferTarget target)
+        {
+            int previous = 0;
+            try
+            {
+                if (TryGetBindingQuery(target, out GetPName pname))
+                {
+                    GL.GetInteger(pname, out previous);
+                }
+            }
+            catch
+            {
+                previous = 0;
+            }
+
+            GL.BindBuffer(target, bufferId);
+            _ = GL.UnmapBuffer(target);
+            GL.BindBuffer(target, previous);
+        }
+
+        private static void UnmapElementArrayBuffer(int bufferId)
+        {
+            int previousVao = 0;
+            try
+            {
+                GL.GetInteger(GetPName.VertexArrayBinding, out previousVao);
+            }
+            catch
+            {
+                previousVao = 0;
+            }
+
+            GL.BindVertexArray(0);
+
+            int previousEbo0 = 0;
+            try
+            {
+                GL.GetInteger(GetPName.ElementArrayBufferBinding, out previousEbo0);
+            }
+            catch
+            {
+                previousEbo0 = 0;
+            }
+
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
+            _ = GL.UnmapBuffer(BufferTarget.ElementArrayBuffer);
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, previousEbo0);
+            GL.BindVertexArray(previousVao);
+        }
     }
 
     private static class BufferDsa
