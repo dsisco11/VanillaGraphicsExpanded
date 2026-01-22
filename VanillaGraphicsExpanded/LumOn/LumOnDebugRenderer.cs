@@ -84,15 +84,21 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private int clipmapBoundsVao;
     private int clipmapBoundsVbo;
 
-    // World-probe per-probe point rendering (GL_POINTS).
-    private LineVertex[]? clipmapProbePointVertices;
-    private int clipmapProbePointsVao;
-    private int clipmapProbePointsVbo;
+    // World-probe per-probe rendering (shared positions + per-mode attributes).
+    private System.Numerics.Vector3[]? clipmapProbePositions;
+    private int clipmapProbePositionsVbo;
 
-    // World-probe per-probe orb rendering (GL_POINTS + point sprite shading).
-    private ProbeOrbVertex[]? clipmapProbeOrbVertices;
+    // Probe point cloud (GL_POINTS) attributes.
+    private ColorVertex[]? clipmapProbePointColors;
+    private int clipmapProbePointsVao;
+    private int clipmapProbePointsColorVbo;
+
+    // Probe orb impostors (GL_POINTS + point sprite shading) attributes.
+    private ColorVertex[]? clipmapProbeOrbColors;
+    private UvVertex[]? clipmapProbeOrbAtlasCoords;
     private int clipmapProbeOrbsVao;
-    private int clipmapProbeOrbsVbo;
+    private int clipmapProbeOrbsColorVbo;
+    private int clipmapProbeOrbsAtlasVbo;
     private int clipmapProbeOrbsCount;
 
     private bool worldProbeClipmapDebugDirty = true;
@@ -314,38 +320,49 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         GL.BufferData(BufferTarget.ArrayBuffer, clipmapBoundsCount * lineStride, clipmapBoundsVertices, BufferUsageHint.DynamicDraw);
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
 
-        clipmapProbePointsCount = 0;
-        if (clipmapProbePointsVao != 0 && clipmapProbePointsVbo != 0)
-        {
-            clipmapProbePointsCount = BuildClipmapProbePointVertices(
-                baseSpacing: baseSpacing,
-                levels: levels,
-                resolution: resolution,
-                origins: clipmapDebugOriginsMatBuildF);
+        int probeCount = ComputeClipmapProbeCount(levels: levels, resolution: resolution);
+        EnsureClipmapProbePositionsArray(probeCount);
 
-            if (clipmapProbePointsCount > 0 && clipmapProbePointVertices is not null)
+        clipmapProbePointsCount = 0;
+        if (clipmapProbePointsVao != 0 && clipmapProbePointsColorVbo != 0)
+        {
+            clipmapProbePointsCount = probeCount;
+            if (clipmapProbePointsCount > 0)
             {
-                GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbePointsVbo);
-                GL.BufferData(BufferTarget.ArrayBuffer, clipmapProbePointsCount * lineStride, clipmapProbePointVertices, BufferUsageHint.DynamicDraw);
+                BuildClipmapProbePointColors(levels: levels, resolution: resolution);
+            }
+
+            if (clipmapProbePointsCount > 0 && clipmapProbePointColors is not null)
+            {
+                int colorStride = Marshal.SizeOf<ColorVertex>();
+                GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbePointsColorVbo);
+                GL.BufferData(BufferTarget.ArrayBuffer, clipmapProbePointsCount * colorStride, clipmapProbePointColors, BufferUsageHint.DynamicDraw);
                 GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
             }
         }
 
         clipmapProbeOrbsCount = 0;
-        if (clipmapProbeOrbsVao != 0 && clipmapProbeOrbsVbo != 0)
+        if (clipmapProbeOrbsVao != 0 && clipmapProbeOrbsColorVbo != 0 && clipmapProbeOrbsAtlasVbo != 0)
         {
-            clipmapProbeOrbsCount = BuildClipmapProbeOrbVertices(
-                baseSpacing: baseSpacing,
-                levels: levels,
-                resolution: resolution,
-                originsCm: clipmapDebugOriginsMatBuildF,
-                rings: rings);
-
-            if (clipmapProbeOrbsCount > 0 && clipmapProbeOrbVertices is not null)
+            clipmapProbeOrbsCount = probeCount;
+            if (clipmapProbeOrbsCount > 0)
             {
-                int orbStride = Marshal.SizeOf<ProbeOrbVertex>();
-                GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbeOrbsVbo);
-                GL.BufferData(BufferTarget.ArrayBuffer, clipmapProbeOrbsCount * orbStride, clipmapProbeOrbVertices, BufferUsageHint.DynamicDraw);
+                BuildClipmapProbeOrbAttributes(
+                    levels: levels,
+                    resolution: resolution,
+                    rings: rings);
+            }
+
+            if (clipmapProbeOrbsCount > 0 && clipmapProbeOrbColors is not null && clipmapProbeOrbAtlasCoords is not null)
+            {
+                int colorStride = Marshal.SizeOf<ColorVertex>();
+                GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbeOrbsColorVbo);
+                GL.BufferData(BufferTarget.ArrayBuffer, clipmapProbeOrbsCount * colorStride, clipmapProbeOrbColors, BufferUsageHint.DynamicDraw);
+
+                int uvStride = Marshal.SizeOf<UvVertex>();
+                GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbeOrbsAtlasVbo);
+                GL.BufferData(BufferTarget.ArrayBuffer, clipmapProbeOrbsCount * uvStride, clipmapProbeOrbAtlasCoords, BufferUsageHint.DynamicDraw);
+
                 GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
             }
         }
@@ -1067,7 +1084,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
                 GL.BindVertexArray(0);
 
-                if (clipmapProbePointsCount > 0 && clipmapProbePointVertices is not null && clipmapProbePointsVao != 0)
+                if (clipmapProbePointsCount > 0 && clipmapProbePointsVao != 0)
                 {
                     GL.PointSize(3.5f);
 
@@ -1149,7 +1166,13 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     private void EnsureClipmapProbePointsGlObjects()
     {
-        if (clipmapProbePointsVao != 0 && clipmapProbePointsVbo != 0)
+        if (clipmapProbePointsVao != 0 && clipmapProbePointsColorVbo != 0)
+        {
+            return;
+        }
+
+        EnsureClipmapProbePositionsGlObjects();
+        if (clipmapProbePositionsVbo == 0)
         {
             return;
         }
@@ -1157,42 +1180,57 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         try
         {
             clipmapProbePointsVao = GL.GenVertexArray();
-            clipmapProbePointsVbo = GL.GenBuffer();
+            clipmapProbePointsColorVbo = GL.GenBuffer();
 
             GL.BindVertexArray(clipmapProbePointsVao);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbePointsVbo);
 
-            int stride = Marshal.SizeOf<LineVertex>();
-
-            // vec3 position
+            int posStride = Marshal.SizeOf<System.Numerics.Vector3>();
+            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbePositionsVbo);
             GL.EnableVertexAttribArray(0);
-            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, stride, 0);
+            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, posStride, 0);
 
-            // vec4 color
+            int colorStride = Marshal.SizeOf<ColorVertex>();
+            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbePointsColorVbo);
             GL.EnableVertexAttribArray(1);
-            GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, stride, 12);
+            GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, colorStride, 0);
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
             GL.BindVertexArray(0);
 
             GlDebug.TryLabel(ObjectLabelIdentifier.VertexArray, clipmapProbePointsVao, "VGE_WorldProbeClipmapProbePoints_VAO");
-            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapProbePointsVbo, "VGE_WorldProbeClipmapProbePoints_VBO");
+            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapProbePositionsVbo, "VGE_WorldProbeClipmapProbePositions_VBO");
+            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapProbePointsColorVbo, "VGE_WorldProbeClipmapProbePoints_Color_VBO");
         }
         catch
         {
             // Best-effort only; fall back to no-op if GL objects can't be created.
-            if (clipmapProbePointsVbo != 0) GL.DeleteBuffer(clipmapProbePointsVbo);
+            if (clipmapProbePointsColorVbo != 0) GL.DeleteBuffer(clipmapProbePointsColorVbo);
             if (clipmapProbePointsVao != 0) GL.DeleteVertexArray(clipmapProbePointsVao);
             clipmapProbePointsVao = 0;
-            clipmapProbePointsVbo = 0;
+            clipmapProbePointsColorVbo = 0;
         }
     }
 
-    private int BuildClipmapProbePointVertices(
-        float baseSpacing,
-        int levels,
-        int resolution,
-        System.Numerics.Vector3[] origins)
+    private void EnsureClipmapProbePositionsGlObjects()
+    {
+        if (clipmapProbePositionsVbo != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            clipmapProbePositionsVbo = GL.GenBuffer();
+            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapProbePositionsVbo, "VGE_WorldProbeClipmapProbePositions_VBO");
+        }
+        catch
+        {
+            if (clipmapProbePositionsVbo != 0) GL.DeleteBuffer(clipmapProbePositionsVbo);
+            clipmapProbePositionsVbo = 0;
+        }
+    }
+
+    private static int ComputeClipmapProbeCount(int levels, int resolution)
     {
         levels = Math.Clamp(levels, 1, MaxWorldProbeLevels);
         resolution = Math.Max(1, resolution);
@@ -1203,52 +1241,66 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return 0;
         }
 
-        clipmapProbePointVertices ??= Array.Empty<LineVertex>();
-        if (clipmapProbePointVertices.Length < requested)
+        return (int)requested;
+    }
+
+    private void EnsureClipmapProbePositionsArray(int count)
+    {
+        if (count <= 0)
         {
-            clipmapProbePointVertices = new LineVertex[requested];
+            return;
+        }
+
+        clipmapProbePositions ??= Array.Empty<System.Numerics.Vector3>();
+        if (clipmapProbePositions.Length < count)
+        {
+            clipmapProbePositions = new System.Numerics.Vector3[count];
+        }
+    }
+
+    private void BuildClipmapProbePointColors(int levels, int resolution)
+    {
+        int count = ComputeClipmapProbeCount(levels: levels, resolution: resolution);
+        if (count <= 0)
+        {
+            clipmapProbePointColors = null;
+            return;
+        }
+
+        clipmapProbePointColors ??= Array.Empty<ColorVertex>();
+        if (clipmapProbePointColors.Length < count)
+        {
+            clipmapProbePointColors = new ColorVertex[count];
         }
 
         int written = 0;
         for (int level = 0; level < levels; level++)
         {
-            float spacing = baseSpacing * (1 << level);
-            var o = origins[level];
-
             (float r, float g, float b, float a) = GetDebugColorForLevel(level);
             (r, g, b, a) = (r * 0.85f, g * 0.85f, b * 0.85f, 1f);
 
-            for (int z = 0; z < resolution; z++)
+            int levelCount = resolution * resolution * resolution;
+            for (int i = 0; i < levelCount; i++)
             {
-                for (int y = 0; y < resolution; y++)
+                if (written >= count)
                 {
-                    for (int x = 0; x < resolution; x++)
-                    {
-                        float px = o.X + (x + 0.5f) * spacing;
-                        float py = o.Y + (y + 0.5f) * spacing;
-                        float pz = o.Z + (z + 0.5f) * spacing;
-
-                        clipmapProbePointVertices[written++] = new LineVertex
-                        {
-                            X = px,
-                            Y = py,
-                            Z = pz,
-                            R = r,
-                            G = g,
-                            B = b,
-                            A = a
-                        };
-                    }
+                    return;
                 }
+
+                clipmapProbePointColors[written++] = new ColorVertex { R = r, G = g, B = b, A = a };
             }
         }
-
-        return written;
     }
 
     private void EnsureClipmapProbeOrbsGlObjects()
     {
-        if (clipmapProbeOrbsVao != 0 && clipmapProbeOrbsVbo != 0)
+        if (clipmapProbeOrbsVao != 0 && clipmapProbeOrbsColorVbo != 0 && clipmapProbeOrbsAtlasVbo != 0)
+        {
+            return;
+        }
+
+        EnsureClipmapProbePositionsGlObjects();
+        if (clipmapProbePositionsVbo == 0)
         {
             return;
         }
@@ -1256,37 +1308,42 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         try
         {
             clipmapProbeOrbsVao = GL.GenVertexArray();
-            clipmapProbeOrbsVbo = GL.GenBuffer();
+            clipmapProbeOrbsColorVbo = GL.GenBuffer();
+            clipmapProbeOrbsAtlasVbo = GL.GenBuffer();
 
             GL.BindVertexArray(clipmapProbeOrbsVao);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbeOrbsVbo);
 
-            int stride = Marshal.SizeOf<ProbeOrbVertex>();
-
-            // vec3 position
+            int posStride = Marshal.SizeOf<System.Numerics.Vector3>();
+            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbePositionsVbo);
             GL.EnableVertexAttribArray(0);
-            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, stride, 0);
+            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, posStride, 0);
 
-            // vec4 color
+            int colorStride = Marshal.SizeOf<ColorVertex>();
+            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbeOrbsColorVbo);
             GL.EnableVertexAttribArray(1);
-            GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, stride, 12);
+            GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, colorStride, 0);
 
-            // vec2 atlasCoord
+            int uvStride = Marshal.SizeOf<UvVertex>();
+            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbeOrbsAtlasVbo);
             GL.EnableVertexAttribArray(2);
-            GL.VertexAttribPointer(2, 2, VertexAttribPointerType.Float, normalized: false, stride, 28);
+            GL.VertexAttribPointer(2, 2, VertexAttribPointerType.Float, normalized: false, uvStride, 0);
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
             GL.BindVertexArray(0);
 
             GlDebug.TryLabel(ObjectLabelIdentifier.VertexArray, clipmapProbeOrbsVao, "VGE_WorldProbeClipmapProbeOrbs_VAO");
-            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapProbeOrbsVbo, "VGE_WorldProbeClipmapProbeOrbs_VBO");
+            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapProbePositionsVbo, "VGE_WorldProbeClipmapProbePositions_VBO");
+            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapProbeOrbsColorVbo, "VGE_WorldProbeClipmapProbeOrbs_Color_VBO");
+            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapProbeOrbsAtlasVbo, "VGE_WorldProbeClipmapProbeOrbs_Atlas_VBO");
         }
         catch
         {
-            if (clipmapProbeOrbsVbo != 0) GL.DeleteBuffer(clipmapProbeOrbsVbo);
+            if (clipmapProbeOrbsAtlasVbo != 0) GL.DeleteBuffer(clipmapProbeOrbsAtlasVbo);
+            if (clipmapProbeOrbsColorVbo != 0) GL.DeleteBuffer(clipmapProbeOrbsColorVbo);
             if (clipmapProbeOrbsVao != 0) GL.DeleteVertexArray(clipmapProbeOrbsVao);
             clipmapProbeOrbsVao = 0;
-            clipmapProbeOrbsVbo = 0;
+            clipmapProbeOrbsColorVbo = 0;
+            clipmapProbeOrbsAtlasVbo = 0;
         }
     }
 
@@ -1296,34 +1353,34 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         return m < 0 ? m + resolution : m;
     }
 
-    private int BuildClipmapProbeOrbVertices(
-        float baseSpacing,
+    private void BuildClipmapProbeOrbAttributes(
         int levels,
         int resolution,
-        System.Numerics.Vector3[] originsCm,
         System.Numerics.Vector3[] rings)
     {
-        levels = Math.Clamp(levels, 1, MaxWorldProbeLevels);
-        resolution = Math.Max(1, resolution);
-
-        long requested = (long)levels * resolution * resolution * resolution;
-        if (requested <= 0 || requested > MaxProbePointVertices)
+        int count = ComputeClipmapProbeCount(levels: levels, resolution: resolution);
+        if (count <= 0)
         {
-            return 0;
+            clipmapProbeOrbColors = null;
+            clipmapProbeOrbAtlasCoords = null;
+            return;
         }
 
-        clipmapProbeOrbVertices ??= Array.Empty<ProbeOrbVertex>();
-        if (clipmapProbeOrbVertices.Length < requested)
+        clipmapProbeOrbColors ??= Array.Empty<ColorVertex>();
+        if (clipmapProbeOrbColors.Length < count)
         {
-            clipmapProbeOrbVertices = new ProbeOrbVertex[requested];
+            clipmapProbeOrbColors = new ColorVertex[count];
+        }
+
+        clipmapProbeOrbAtlasCoords ??= Array.Empty<UvVertex>();
+        if (clipmapProbeOrbAtlasCoords.Length < count)
+        {
+            clipmapProbeOrbAtlasCoords = new UvVertex[count];
         }
 
         int written = 0;
         for (int level = 0; level < levels; level++)
         {
-            float spacing = baseSpacing * (1 << level);
-            var o = originsCm[level];
-
             var ring = (level < rings.Length) ? rings[level] : default;
             int rx = (int)MathF.Round(ring.X);
             int ry = (int)MathF.Round(ring.Y);
@@ -1337,10 +1394,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 {
                     for (int x = 0; x < resolution; x++)
                     {
-                        float px = o.X + (x + 0.5f) * spacing;
-                        float py = o.Y + (y + 0.5f) * spacing;
-                        float pz = o.Z + (z + 0.5f) * spacing;
-
                         int sx = WrapIndex(x + rx, resolution);
                         int sy = WrapIndex(y + ry, resolution);
                         int sz = WrapIndex(z + rz, resolution);
@@ -1348,24 +1401,18 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                         int u = sx + sz * resolution;
                         int v = sy + level * resolution;
 
-                        clipmapProbeOrbVertices[written++] = new ProbeOrbVertex
+                        if (written >= count)
                         {
-                            X = px,
-                            Y = py,
-                            Z = pz,
-                            R = r,
-                            G = g,
-                            B = b,
-                            A = a,
-                            U = u,
-                            V = v
-                        };
+                            return;
+                        }
+
+                        clipmapProbeOrbColors[written] = new ColorVertex { R = r, G = g, B = b, A = a };
+                        clipmapProbeOrbAtlasCoords[written] = new UvVertex { U = u, V = v };
+                        written++;
                     }
                 }
             }
         }
-
-        return written;
     }
 
     private void RenderWorldProbeOrbsPointsLive()
@@ -1386,7 +1433,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (clipmapProbeOrbsVao == 0 || clipmapProbeOrbsVbo == 0)
+        if (clipmapProbeOrbsVao == 0 ||
+            clipmapProbePositionsVbo == 0 ||
+            clipmapProbeOrbsColorVbo == 0 ||
+            clipmapProbeOrbsAtlasVbo == 0)
         {
             RateLimitedClipmapDebugLog("World-probe orbs: missing vao/vbo");
             return;
@@ -1518,10 +1568,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         }
 
         bool canUpdateBounds = clipmapBoundsVao != 0 && clipmapBoundsVbo != 0;
-        bool canUpdateOrbs = clipmapProbeOrbsVao != 0 && clipmapProbeOrbsVbo != 0 && clipmapProbeOrbVertices is not null && clipmapProbeOrbsCount > 0;
-        bool canUpdatePoints = clipmapProbePointsVao != 0 && clipmapProbePointsVbo != 0 && clipmapProbePointVertices is not null && clipmapProbePointsCount > 0;
+        int probeCount = Math.Max(clipmapProbePointsCount, clipmapProbeOrbsCount);
+        bool canUpdateProbes = clipmapProbePositionsVbo != 0 && clipmapProbePositions is not null && probeCount > 0;
 
-        if (!canUpdateBounds && !canUpdateOrbs && !canUpdatePoints)
+        if (!canUpdateBounds && !canUpdateProbes)
         {
             return;
         }
@@ -1559,9 +1609,13 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
         }
 
-        // Update probe point + orb positions in-place into camera-relative space.
-        int writtenOrbs = 0;
-        int writtenPoints = 0;
+        if (!canUpdateProbes)
+        {
+            return;
+        }
+
+        // Update shared probe positions into camera-relative space.
+        int written = 0;
         int resolution = clipmapDebugResolution;
         int levels = clipmapDebugLevels;
         float baseSpacing = clipmapDebugBaseSpacing;
@@ -1582,42 +1636,21 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     for (int x = 0; x < resolution; x++)
                     {
                         double px = oAbs.X + (x + 0.5) * spacing - renderOriginWorld.X;
-
-                        if (canUpdateOrbs && writtenOrbs < clipmapProbeOrbsCount)
+                        if (written >= probeCount || written >= clipmapProbePositions.Length)
                         {
-                            ref ProbeOrbVertex v = ref clipmapProbeOrbVertices[writtenOrbs++];
-                            v.X = (float)px;
-                            v.Y = (float)py;
-                            v.Z = (float)pz;
+                            break;
                         }
 
-                        if (canUpdatePoints && writtenPoints < clipmapProbePointsCount)
-                        {
-                            ref LineVertex v = ref clipmapProbePointVertices[writtenPoints++];
-                            v.X = (float)px;
-                            v.Y = (float)py;
-                            v.Z = (float)pz;
-                        }
+                        clipmapProbePositions[written++] = new System.Numerics.Vector3((float)px, (float)py, (float)pz);
                     }
                 }
             }
         }
 
-        if (canUpdateOrbs)
-        {
-            int orbStride = Marshal.SizeOf<ProbeOrbVertex>();
-            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbeOrbsVbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, clipmapProbeOrbsCount * orbStride, clipmapProbeOrbVertices, BufferUsageHint.StreamDraw);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-        }
-
-        if (canUpdatePoints)
-        {
-            int lineStride = Marshal.SizeOf<LineVertex>();
-            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbePointsVbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, clipmapProbePointsCount * lineStride, clipmapProbePointVertices, BufferUsageHint.StreamDraw);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-        }
+        int posStride = Marshal.SizeOf<System.Numerics.Vector3>();
+        GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbePositionsVbo);
+        GL.BufferData(BufferTarget.ArrayBuffer, probeCount * posStride, clipmapProbePositions, BufferUsageHint.StreamDraw);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
     }
 
     private int BuildClipmapBoundsVertices(
@@ -1907,10 +1940,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             clipmapBoundsVao = 0;
         }
 
-        if (clipmapProbePointsVbo != 0)
+        if (clipmapProbePointsColorVbo != 0)
         {
-            GL.DeleteBuffer(clipmapProbePointsVbo);
-            clipmapProbePointsVbo = 0;
+            GL.DeleteBuffer(clipmapProbePointsColorVbo);
+            clipmapProbePointsColorVbo = 0;
         }
 
         if (clipmapProbePointsVao != 0)
@@ -1919,16 +1952,28 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             clipmapProbePointsVao = 0;
         }
 
-        if (clipmapProbeOrbsVbo != 0)
+        if (clipmapProbeOrbsAtlasVbo != 0)
         {
-            GL.DeleteBuffer(clipmapProbeOrbsVbo);
-            clipmapProbeOrbsVbo = 0;
+            GL.DeleteBuffer(clipmapProbeOrbsAtlasVbo);
+            clipmapProbeOrbsAtlasVbo = 0;
+        }
+
+        if (clipmapProbeOrbsColorVbo != 0)
+        {
+            GL.DeleteBuffer(clipmapProbeOrbsColorVbo);
+            clipmapProbeOrbsColorVbo = 0;
         }
 
         if (clipmapProbeOrbsVao != 0)
         {
             GL.DeleteVertexArray(clipmapProbeOrbsVao);
             clipmapProbeOrbsVao = 0;
+        }
+
+        if (clipmapProbePositionsVbo != 0)
+        {
+            GL.DeleteBuffer(clipmapProbePositionsVbo);
+            clipmapProbePositionsVbo = 0;
         }
 
         capi.Event.UnregisterRenderer(this, EnumRenderStage.AfterBlit);
@@ -1948,15 +1993,17 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
-    private struct ProbeOrbVertex
+    private struct ColorVertex
     {
-        public float X;
-        public float Y;
-        public float Z;
         public float R;
         public float G;
         public float B;
         public float A;
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    private struct UvVertex
+    {
         public float U;
         public float V;
     }
