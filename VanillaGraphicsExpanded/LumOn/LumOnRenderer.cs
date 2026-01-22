@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.Client;
+using Vintagestory.API.Common;
 using Vintagestory.API.Config;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
@@ -1377,6 +1378,12 @@ public class LumOnRenderer : IRenderer, IDisposable
                 double spacing = LumOnClipmapTopology.GetSpacing(baseSpacing, req.Level);
                 Vec3d probePosWorld = LumOnClipmapTopology.IndexToProbeCenterWorld(req.LocalIndex, originMinCorner, spacing);
 
+                if (IsWorldProbeCenterInsideSolidBlock(probePosWorld))
+                {
+                    worldProbeScheduler.Disable(req);
+                    continue;
+                }
+
                 // Conservative max distance: one clipmap diameter for this level.
                 double maxDist = spacing * resources.Resolution;
 
@@ -1387,6 +1394,53 @@ public class LumOnRenderer : IRenderer, IDisposable
                     worldProbeScheduler.Complete(req, frameIndex, success: false);
                 }
             }
+        }
+
+        // Local helper: treat probe centers inside solid blocks as disabled.
+        // This avoids spending trace budget on locations that cannot represent empty space lighting.
+        bool IsWorldProbeCenterInsideSolidBlock(Vec3d probePosWorld)
+        {
+            var blockAccessor = capi.World?.BlockAccessor;
+            if (blockAccessor is null) return false;
+
+            var pos = new BlockPos(0);
+            pos.Set((int)Math.Floor(probePosWorld.X), (int)Math.Floor(probePosWorld.Y), (int)Math.Floor(probePosWorld.Z));
+
+            // Avoid forcing chunk loads; if it's not loaded, don't permanently disable.
+            if (blockAccessor.GetChunkAtBlockPos(pos) == null)
+            {
+                return false;
+            }
+
+            Block b = blockAccessor.GetMostSolidBlock(pos);
+            if (b.Id == 0)
+            {
+                return false;
+            }
+
+            Cuboidf[] boxes = b.GetCollisionBoxes(blockAccessor, pos);
+            if (boxes is null || boxes.Length == 0)
+            {
+                return false;
+            }
+
+            float lx = (float)(probePosWorld.X - pos.X);
+            float ly = (float)(probePosWorld.Y - pos.Y);
+            float lz = (float)(probePosWorld.Z - pos.Z);
+
+            const float eps = 1e-4f;
+            for (int i = 0; i < boxes.Length; i++)
+            {
+                var c = boxes[i];
+                if (lx >= c.X1 - eps && lx <= c.X2 + eps &&
+                    ly >= c.Y1 - eps && ly <= c.Y2 + eps &&
+                    lz >= c.Z1 - eps && lz <= c.Z2 + eps)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         // Drain completed results.
@@ -1596,6 +1650,11 @@ public class LumOnRenderer : IRenderer, IDisposable
                         break;
                     case LumOnWorldProbeLifecycleState.InFlight:
                         g = On;
+                        break;
+                    case LumOnWorldProbeLifecycleState.Disabled:
+                        // Disabled: magenta (R+B)
+                        r = On;
+                        b = On;
                         break;
                     default:
                         // Uninitialized/unknown -> black.

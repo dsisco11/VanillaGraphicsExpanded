@@ -200,6 +200,14 @@ internal sealed class LumOnWorldProbeScheduler
         state.Complete(request.StorageLinearIndex, frameIndex, success);
     }
 
+    public void Disable(in LumOnWorldProbeUpdateRequest request)
+    {
+        if ((uint)request.Level >= (uint)levels.Length) throw new ArgumentOutOfRangeException(nameof(request));
+
+        ref LevelState state = ref levels[request.Level];
+        state.Disable(request.StorageLinearIndex);
+    }
+
     /// <summary>
     /// Optional hook for block/chunk changes: mark all probes whose centers fall inside the world AABB dirty.
     /// </summary>
@@ -227,6 +235,7 @@ internal sealed class LumOnWorldProbeScheduler
         private readonly LumOnWorldProbeLifecycleState[] lifecycle;
         private readonly int[] lastUpdatedFrame;
         private readonly bool[] dirtyAfterInFlight;
+        private readonly bool[] disableAfterInFlight;
 
         private Vec3d? anchor;
         private Vec3d? originMinCorner;
@@ -243,6 +252,7 @@ internal sealed class LumOnWorldProbeScheduler
             lifecycle = new LumOnWorldProbeLifecycleState[probesPerLevel];
             lastUpdatedFrame = new int[probesPerLevel];
             dirtyAfterInFlight = new bool[probesPerLevel];
+            disableAfterInFlight = new bool[probesPerLevel];
 
             anchor = null;
             originMinCorner = null;
@@ -254,9 +264,26 @@ internal sealed class LumOnWorldProbeScheduler
             Array.Fill(lifecycle, LumOnWorldProbeLifecycleState.Uninitialized);
             Array.Fill(lastUpdatedFrame, 0);
             Array.Fill(dirtyAfterInFlight, false);
+            Array.Fill(disableAfterInFlight, false);
             anchor = null;
             originMinCorner = null;
             ringOffset = new Vec3i(0, 0, 0);
+        }
+
+        public void Disable(int storageLinearIndex)
+        {
+            if ((uint)storageLinearIndex >= (uint)probesPerLevel) throw new ArgumentOutOfRangeException(nameof(storageLinearIndex));
+
+            // If this probe is currently in-flight, defer until completion.
+            if (lifecycle[storageLinearIndex] == LumOnWorldProbeLifecycleState.InFlight)
+            {
+                disableAfterInFlight[storageLinearIndex] = true;
+                return;
+            }
+
+            dirtyAfterInFlight[storageLinearIndex] = false;
+            disableAfterInFlight[storageLinearIndex] = false;
+            lifecycle[storageLinearIndex] = LumOnWorldProbeLifecycleState.Disabled;
         }
 
         public void CopyLifecycleTo(LumOnWorldProbeLifecycleState[] destination)
@@ -406,7 +433,9 @@ internal sealed class LumOnWorldProbeScheduler
                         int storageLinear = LumOnClipmapTopology.LinearIndex(storage, resolution);
 
                         LumOnWorldProbeLifecycleState s = lifecycle[storageLinear];
-                        if (s is LumOnWorldProbeLifecycleState.InFlight or LumOnWorldProbeLifecycleState.Valid)
+                        if (s is LumOnWorldProbeLifecycleState.InFlight
+                            or LumOnWorldProbeLifecycleState.Valid
+                            or LumOnWorldProbeLifecycleState.Disabled)
                         {
                             continue;
                         }
@@ -449,6 +478,14 @@ internal sealed class LumOnWorldProbeScheduler
         public void Complete(int storageLinearIndex, int frameIndex, bool success)
         {
             if ((uint)storageLinearIndex >= (uint)probesPerLevel) throw new ArgumentOutOfRangeException(nameof(storageLinearIndex));
+
+            if (disableAfterInFlight[storageLinearIndex])
+            {
+                disableAfterInFlight[storageLinearIndex] = false;
+                dirtyAfterInFlight[storageLinearIndex] = false;
+                lifecycle[storageLinearIndex] = LumOnWorldProbeLifecycleState.Disabled;
+                return;
+            }
 
             if (dirtyAfterInFlight[storageLinearIndex])
             {

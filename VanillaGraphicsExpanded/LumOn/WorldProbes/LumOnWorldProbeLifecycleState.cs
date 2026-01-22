@@ -7,4 +7,5 @@ internal enum LumOnWorldProbeLifecycleState : byte
     Stale = 2,
     Dirty = 3,
     InFlight = 4,
+    Disabled = 5,
 }
