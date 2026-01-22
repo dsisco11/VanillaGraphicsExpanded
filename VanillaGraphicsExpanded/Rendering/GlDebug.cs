@@ -55,6 +55,25 @@ internal static class GlDebug
 
         try
         {
+            // Guard against KHR_debug errors when labeling IDs that aren't valid in the current context
+            // (e.g., after disposal, context switches, or driver limitations).
+            bool valid = identifier switch
+            {
+                ObjectLabelIdentifier.VertexArray => GL.IsVertexArray(id),
+                ObjectLabelIdentifier.Buffer => GL.IsBuffer(id),
+                ObjectLabelIdentifier.Texture => GL.IsTexture(id),
+                ObjectLabelIdentifier.Framebuffer => GL.IsFramebuffer(id),
+                ObjectLabelIdentifier.Renderbuffer => GL.IsRenderbuffer(id),
+                ObjectLabelIdentifier.Program => GL.IsProgram(id),
+                ObjectLabelIdentifier.Shader => GL.IsShader(id),
+                _ => true
+            };
+
+            if (!valid)
+            {
+                return;
+            }
+
             GL.ObjectLabel(identifier, id, -1, name);
         }
         catch
