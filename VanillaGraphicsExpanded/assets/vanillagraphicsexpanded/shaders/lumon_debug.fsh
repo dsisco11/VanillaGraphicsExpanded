@@ -1034,7 +1034,7 @@ vec4 renderWorldProbeIrradianceLevelDebug()
     vec3 posRel = posWS - worldProbeCameraPosWS;
 
     LumOnWorldProbeSample sL = lumonWorldProbeSampleLevelTrilinear(
-        worldProbeSH0, worldProbeSH1, worldProbeSH2, worldProbeVis0, worldProbeMeta0,
+        worldProbeSH0, worldProbeSH1, worldProbeSH2, worldProbeSky0, worldProbeVis0, worldProbeMeta0,
         posRel, normalWS,
         worldProbeOriginMinCorner[level], worldProbeRingOffset[level],
         spacing, resolution, level);
