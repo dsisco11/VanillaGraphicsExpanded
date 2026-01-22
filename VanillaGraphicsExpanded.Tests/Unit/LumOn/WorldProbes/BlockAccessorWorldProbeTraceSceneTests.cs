@@ -310,6 +310,56 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
     }
 
     [Fact]
+    public void Trace_WhenHitInFirstVoxelAndOriginNearTopFace_PrefersNearestFaceForSampleVoxel()
+    {
+        var cfg = new ScriptedBlockAccessorProxy.Config();
+        cfg.LoadedChunks.Add((0, 0, 0));
+        cfg.Blocks[(0, 0, 0)] = TestBlocks.SolidFull;
+
+        // Load the +Y sample voxel and give it light.
+        cfg.LoadedChunks.Add((0, 1, 0));
+        cfg.Lights[(0, 1, 0)] = new Vec4f(5, 6, 7, 8);
+
+        var blockAccessor = ScriptedBlockAccessorProxy.Create(cfg);
+        var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
+
+        // Origin is inside the full block but very close to its top face.
+        // Direction is mostly +X: older behavior would have sampled (-X), but we want to sample out of the solid (+Y).
+        bool hit = scene.Trace(new Vector3d(0.5, 0.999999999, 0.5), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+
+        Assert.True(hit);
+        Assert.Equal(0.0, traceHit.HitDistance, 12);
+        Assert.Equal(new VectorInt3(0, 0, 0), traceHit.HitBlockPos);
+        Assert.Equal(new VectorInt3(0, 1, 0), traceHit.HitFaceNormal);
+        Assert.Equal(new VectorInt3(0, 1, 0), traceHit.SampleBlockPos);
+        Assert.Equal(new Vector4(5, 6, 7, 8), traceHit.SampleLightRgbS);
+    }
+
+    [Fact]
+    public void Trace_WhenRayPassesThroughEmptyPartOfVoxel_DoesNotFalseHitCollisionBox()
+    {
+        var cfg = new ScriptedBlockAccessorProxy.Config();
+        cfg.LoadedChunks.Add((0, 0, 0));
+        cfg.LoadedChunks.Add((1, 0, 0));
+        cfg.LoadedChunks.Add((2, 0, 0));
+
+        cfg.Blocks[(0, 0, 0)] = TestBlocks.Air;
+        cfg.Blocks[(1, 0, 0)] = TestBlocks.ThinNearZ0;
+        cfg.Blocks[(2, 0, 0)] = TestBlocks.SolidFull;
+
+        var blockAccessor = ScriptedBlockAccessorProxy.Create(cfg);
+        var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
+
+        // Ray runs along +X at Z=0.9, so it should miss the thin slab near Z=0 and hit the solid at x==2.
+        bool hit = scene.Trace(new Vector3d(0.5, 0.5, 0.9), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+
+        Assert.True(hit);
+        Assert.Equal(new VectorInt3(2, 0, 0), traceHit.HitBlockPos);
+        Assert.Equal(1.5, traceHit.HitDistance, 12);
+        Assert.Equal(new VectorInt3(-1, 0, 0), traceHit.HitFaceNormal);
+    }
+
+    [Fact]
     public void Trace_WhenCancellationRequested_ThrowsOperationCanceledException()
     {
         var cfg = new ScriptedBlockAccessorProxy.Config();
@@ -358,6 +408,7 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         public static readonly Block SolidFull = new() { BlockId = 1, CollisionBoxes = Block.DefaultCollisionSelectionBoxes };
         public static readonly Block SolidEmptyCollision = new() { BlockId = 1, CollisionBoxes = Array.Empty<Cuboidf>() };
         public static readonly Block SolidNullCollision = new CollisionBoxesOverrideBlock { BlockId = 1, Boxes = null };
+        public static readonly Block ThinNearZ0 = new() { BlockId = 1, CollisionBoxes = new[] { new Cuboidf { X1 = 0f, Y1 = 0f, Z1 = 0f, X2 = 1f, Y2 = 1f, Z2 = 0.2f } } };
 
         private sealed class CollisionBoxesOverrideBlock : Block
         {
