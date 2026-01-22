@@ -34,9 +34,10 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
         }
 
         // Amanatides & Woo voxel traversal through 1x1x1 blocks.
-        int x = (int)Math.Floor(originWorld.X);
-        int y = (int)Math.Floor(originWorld.Y);
-        int z = (int)Math.Floor(originWorld.Z);
+        VectorInt3 voxelIndex = Vector3d.FloorToInt3(originWorld);
+        int x = voxelIndex.X;
+        int y = voxelIndex.Y;
+        int z = voxelIndex.Z;
 
         double dx = dir.X;
         double dy = dir.Y;
@@ -136,39 +137,27 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
             }
 
             // Advance to next voxel boundary.
-            if (tMax.X < tMax.Y)
+            int axis = Vector3d.ArgMinAxis(tMax);
+            switch (axis)
             {
-                if (tMax.X < tMax.Z)
-                {
+                case 0:
                     x += step.X;
                     t = tMax.X;
                     tMax = tMax + new Vector3d(tDelta.X, 0d, 0d);
                     faceN = new VectorInt3(-step.X, 0, 0);
-                }
-                else
-                {
-                    z += step.Z;
-                    t = tMax.Z;
-                    tMax = tMax + new Vector3d(0d, 0d, tDelta.Z);
-                    faceN = new VectorInt3(0, 0, -step.Z);
-                }
-            }
-            else
-            {
-                if (tMax.Y < tMax.Z)
-                {
+                    break;
+                case 1:
                     y += step.Y;
                     t = tMax.Y;
                     tMax = tMax + new Vector3d(0d, tDelta.Y, 0d);
                     faceN = new VectorInt3(0, -step.Y, 0);
-                }
-                else
-                {
+                    break;
+                default:
                     z += step.Z;
                     t = tMax.Z;
                     tMax = tMax + new Vector3d(0d, 0d, tDelta.Z);
                     faceN = new VectorInt3(0, 0, -step.Z);
-                }
+                    break;
             }
         }
 
