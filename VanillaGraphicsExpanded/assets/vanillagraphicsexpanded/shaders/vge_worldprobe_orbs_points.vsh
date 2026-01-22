@@ -20,8 +20,12 @@ void main(void)
     vColor = color;
     vAtlasCoord = atlasCoord;
     vec3 pos = vertex + worldOffset;
-    gl_Position = modelViewProjectionMatrix * vec4(pos, 1.0);
-    float dist = length(pos - cameraPos);
-    float t = smoothstep(fadeNear, fadeFar, dist);
+    vec4 clip = modelViewProjectionMatrix * vec4(pos, 1.0);
+    gl_Position = clip;
+
+    // Use view-axis depth (≈ -viewSpaceZ) instead of Euclidean distance so points don't
+    // shrink/grow just because they're further off-center in the view frustum.
+    float depth = abs(clip.w);
+    float t = smoothstep(fadeNear, fadeFar, depth);
     gl_PointSize = mix(pointSize, pointSize * 0.1, t);
 }

@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 
 using Vintagestory.API.Client;
+using Vintagestory.API.MathTools;
 using VanillaGraphicsExpanded.LumOn.WorldProbes;
 
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
@@ -24,6 +25,7 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
     // This enables debug overlays and other passes to bind world-probe uniforms
     // without needing direct access to the scheduler.
     private bool hasRuntimeParams;
+    private Vec3d runtimeCameraPosWorld = new Vec3d();
     private Vector3 runtimeCameraPosWS;
     private float runtimeBaseSpacing;
     private int runtimeLevels;
@@ -48,6 +50,7 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
     public event Action<LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent>? AnchorShifted;
 
     public bool TryGetRuntimeParams(
+        out Vec3d cameraPosWorld,
         out Vector3 cameraPosWS,
         out float baseSpacing,
         out int levels,
@@ -57,6 +60,7 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
     {
         if (!hasRuntimeParams)
         {
+            cameraPosWorld = default;
             cameraPosWS = default;
             baseSpacing = 0;
             levels = 0;
@@ -66,6 +70,7 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
             return false;
         }
 
+        cameraPosWorld = runtimeCameraPosWorld;
         cameraPosWS = runtimeCameraPosWS;
         baseSpacing = runtimeBaseSpacing;
         levels = runtimeLevels;
@@ -76,6 +81,7 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
     }
 
     public void UpdateRuntimeParams(
+        Vec3d cameraPosWorld,
         Vector3 cameraPosWS,
         float baseSpacing,
         int levels,
@@ -85,6 +91,7 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
     {
         bool wasMissing = !hasRuntimeParams;
 
+        runtimeCameraPosWorld = cameraPosWorld;
         runtimeCameraPosWS = cameraPosWS;
         runtimeBaseSpacing = baseSpacing;
         runtimeLevels = levels;

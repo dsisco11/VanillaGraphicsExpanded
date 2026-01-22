@@ -473,13 +473,14 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private bool DetectTeleport()
     {
-        var origin = capi.Render.CameraMatrixOrigin;
-        if (origin == null)
+        var player = capi.World?.Player;
+        if (player?.Entity is null)
             return false;
 
-        double dx = origin[0] - lastCameraX;
-        double dy = origin[1] - lastCameraY;
-        double dz = origin[2] - lastCameraZ;
+        var camPos = player.Entity.CameraPos;
+        double dx = camPos.X - lastCameraX;
+        double dy = camPos.Y - lastCameraY;
+        double dz = camPos.Z - lastCameraZ;
         double distance = Math.Sqrt(dx * dx + dy * dy + dz * dz);
 
         return distance > config.LumOn.CameraTeleportResetThreshold;
@@ -490,13 +491,14 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void StoreCameraPosition()
     {
-        var origin = capi.Render.CameraMatrixOrigin;
-        if (origin == null)
+        var player = capi.World?.Player;
+        if (player?.Entity is null)
             return;
 
-        lastCameraX = origin[0];
-        lastCameraY = origin[1];
-        lastCameraZ = origin[2];
+        var camPos = player.Entity.CameraPos;
+        lastCameraX = camPos.X;
+        lastCameraY = camPos.Y;
+        lastCameraZ = camPos.Z;
     }
 
     private void UpdateMatrices()
@@ -1436,6 +1438,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         }
 
         worldProbeClipmapBufferManager.UpdateRuntimeParams(
+            camPosWorld,
             new System.Numerics.Vector3((float)camPosMatrixSpace.X, (float)camPosMatrixSpace.Y, (float)camPosMatrixSpace.Z),
             baseSpacingF,
             levels,
@@ -1715,6 +1718,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         }
 
         worldProbeClipmapBufferManager.UpdateRuntimeParams(
+            camPosWorld,
             new System.Numerics.Vector3(camPos.X, camPos.Y, camPos.Z),
             baseSpacing,
             levels,
