@@ -57,6 +57,61 @@ internal sealed class GpuEbo : GpuBufferObject
         indexType = DrawElementsType.UnsignedByte;
     }
 
+    public void DrawElements(PrimitiveType primitiveType, int indexCount = 0, int offsetBytes = 0)
+    {
+        if (!IsValid)
+        {
+            return;
+        }
+
+        if (offsetBytes < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offsetBytes), offsetBytes, "Offset must be >= 0.");
+        }
+
+        int count = indexCount > 0 ? indexCount : this.indexCount;
+        if (count <= 0)
+        {
+            return;
+        }
+
+        GL.DrawElements(primitiveType, count, indexType, (IntPtr)offsetBytes);
+    }
+
+    public void DrawElementsInstanced(PrimitiveType primitiveType, int instanceCount, int indexCount = 0, int offsetBytes = 0)
+    {
+        if (!IsValid)
+        {
+            return;
+        }
+
+        if (instanceCount <= 0)
+        {
+            return;
+        }
+
+        if (offsetBytes < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offsetBytes), offsetBytes, "Offset must be >= 0.");
+        }
+
+        int count = indexCount > 0 ? indexCount : this.indexCount;
+        if (count <= 0)
+        {
+            return;
+        }
+
+        GL.DrawElementsInstanced(primitiveType, count, indexType, (IntPtr)offsetBytes, instanceCount);
+    }
+
+    public override int Detach()
+    {
+        int id = base.Detach();
+        indexCount = 0;
+        indexType = default;
+        return id;
+    }
+
     public override void Dispose()
     {
         base.Dispose();
@@ -64,4 +119,3 @@ internal sealed class GpuEbo : GpuBufferObject
         indexType = default;
     }
 }
-

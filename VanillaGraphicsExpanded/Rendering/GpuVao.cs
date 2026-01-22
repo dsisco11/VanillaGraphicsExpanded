@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class GpuVao : IDisposable
 {
     private int vertexArrayId;
-    private readonly string? debugName;
+    private string? debugName;
     private bool isDisposed;
 
     public int VertexArrayId => vertexArrayId;
@@ -40,6 +40,36 @@ internal sealed class GpuVao : IDisposable
 #endif
 
         return new GpuVao(id, debugName);
+    }
+
+    public int Detach()
+    {
+        if (isDisposed)
+        {
+            return 0;
+        }
+
+        int id = vertexArrayId;
+        vertexArrayId = 0;
+        isDisposed = true;
+        return id;
+    }
+
+    public int ReleaseHandle()
+    {
+        return Detach();
+    }
+
+    public void SetDebugName(string? debugName)
+    {
+        this.debugName = debugName;
+
+#if DEBUG
+        if (vertexArrayId != 0)
+        {
+            GlDebug.TryLabel(ObjectLabelIdentifier.VertexArray, vertexArrayId, debugName);
+        }
+#endif
     }
 
     public BindingScope BindScope()
@@ -168,6 +198,74 @@ internal sealed class GpuVao : IDisposable
 
         Bind();
         GL.VertexAttribDivisor(index, divisor);
+    }
+
+    public void DrawElements(PrimitiveType primitiveType, DrawElementsType indexType, int indexCount, int offsetBytes = 0)
+    {
+        if (!IsValid)
+        {
+            return;
+        }
+
+        if (indexCount <= 0)
+        {
+            return;
+        }
+
+        if (offsetBytes < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offsetBytes), offsetBytes, "Offset must be >= 0.");
+        }
+
+        Bind();
+        GL.DrawElements(primitiveType, indexCount, indexType, (IntPtr)offsetBytes);
+    }
+
+    public void DrawElements(PrimitiveType primitiveType, GpuEbo ebo, int indexCount = 0, int offsetBytes = 0)
+    {
+        ArgumentNullException.ThrowIfNull(ebo);
+        int count = indexCount > 0 ? indexCount : ebo.IndexCount;
+        BindElementBuffer(ebo);
+        DrawElements(primitiveType, ebo.IndexType, count, offsetBytes);
+    }
+
+    public void DrawElementsInstanced(
+        PrimitiveType primitiveType,
+        DrawElementsType indexType,
+        int indexCount,
+        int instanceCount,
+        int offsetBytes = 0)
+    {
+        if (!IsValid)
+        {
+            return;
+        }
+
+        if (indexCount <= 0 || instanceCount <= 0)
+        {
+            return;
+        }
+
+        if (offsetBytes < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offsetBytes), offsetBytes, "Offset must be >= 0.");
+        }
+
+        Bind();
+        GL.DrawElementsInstanced(primitiveType, indexCount, indexType, (IntPtr)offsetBytes, instanceCount);
+    }
+
+    public void DrawElementsInstanced(
+        PrimitiveType primitiveType,
+        GpuEbo ebo,
+        int instanceCount,
+        int indexCount = 0,
+        int offsetBytes = 0)
+    {
+        ArgumentNullException.ThrowIfNull(ebo);
+        int count = indexCount > 0 ? indexCount : ebo.IndexCount;
+        BindElementBuffer(ebo);
+        DrawElementsInstanced(primitiveType, ebo.IndexType, count, instanceCount, offsetBytes);
     }
 
     public void Dispose()

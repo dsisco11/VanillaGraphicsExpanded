@@ -34,6 +34,68 @@ public abstract class GpuTexture : IDisposable
     public bool IsDisposed => isDisposed;
     public bool IsValid => textureId != 0 && !isDisposed;
 
+    public int Detach()
+    {
+        if (isDisposed)
+        {
+            return 0;
+        }
+
+        int id = textureId;
+        textureId = 0;
+        isDisposed = true;
+        return id;
+    }
+
+    public int ReleaseHandle()
+    {
+        return Detach();
+    }
+
+    public void SetDebugName(string? debugName)
+    {
+        this.debugName = debugName;
+
+#if DEBUG
+        if (textureId != 0)
+        {
+            GlDebug.TryLabel(ObjectLabelIdentifier.Texture, textureId, debugName);
+        }
+#endif
+    }
+
+    public BindingScope BindScope(int unit)
+    {
+        int previousActive = 0;
+        bool hasPreviousActive = false;
+        try
+        {
+            GL.GetInteger(GetPName.ActiveTexture, out previousActive);
+            hasPreviousActive = true;
+        }
+        catch
+        {
+            previousActive = 0;
+        }
+
+        int previousBinding = 0;
+        try
+        {
+            GL.ActiveTexture(TextureUnit.Texture0 + unit);
+            if (TryGetBindingQuery(textureTarget, out GetPName bindingQuery))
+            {
+                GL.GetInteger(bindingQuery, out previousBinding);
+            }
+        }
+        catch
+        {
+            previousBinding = 0;
+        }
+
+        Bind(unit);
+        return new BindingScope(textureTarget, unit, previousBinding, previousActive, hasPreviousActive);
+    }
+
     #region Allocation Helpers
 
     protected void AllocateOrReallocate2DTexture(int mipLevels)
@@ -804,6 +866,62 @@ public abstract class GpuTexture : IDisposable
             && textureTarget != TextureTarget.TextureCubeMapArray)
         {
             throw new InvalidOperationException($"3D upload is not supported for target {textureTarget}.");
+        }
+    }
+
+    private static bool TryGetBindingQuery(TextureTarget target, out GetPName pname)
+    {
+        pname = target switch
+        {
+            TextureTarget.Texture1D => GetPName.TextureBinding1D,
+            TextureTarget.Texture1DArray => GetPName.TextureBinding1DArray,
+            TextureTarget.Texture2D => GetPName.TextureBinding2D,
+            TextureTarget.Texture2DArray => GetPName.TextureBinding2DArray,
+            TextureTarget.Texture3D => GetPName.TextureBinding3D,
+            TextureTarget.TextureRectangle => GetPName.TextureBindingRectangle,
+            TextureTarget.TextureCubeMap => GetPName.TextureBindingCubeMap,
+            _ => default
+        };
+
+        return pname != default;
+    }
+
+    public readonly struct BindingScope : IDisposable
+    {
+        private readonly TextureTarget target;
+        private readonly int unit;
+        private readonly int previousBinding;
+        private readonly int previousActive;
+        private readonly bool restoreActive;
+
+        public BindingScope(TextureTarget target, int unit, int previousBinding, int previousActive, bool restoreActive)
+        {
+            this.target = target;
+            this.unit = unit;
+            this.previousBinding = previousBinding;
+            this.previousActive = previousActive;
+            this.restoreActive = restoreActive;
+        }
+
+        public void Dispose()
+        {
+            if (restoreActive)
+            {
+                try
+                {
+                    GL.ActiveTexture(TextureUnit.Texture0 + unit);
+                    GL.BindTexture(target, previousBinding);
+                }
+                finally
+                {
+                    GL.ActiveTexture((TextureUnit)previousActive);
+                }
+            }
+            else
+            {
+                GL.ActiveTexture(TextureUnit.Texture0 + unit);
+                GL.BindTexture(target, previousBinding);
+            }
         }
     }
 }
