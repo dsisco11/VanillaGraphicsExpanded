@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using System.Reflection;
 using System.Threading;
 
@@ -19,7 +20,7 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var blockAccessor = NullObjectProxy.Create<IBlockAccessor>();
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
 
-        bool hit = scene.Trace(new Vec3d(0, 0, 0), new Vec3f(0, 0, 0), 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = scene.Trace(new Vec3d(0, 0, 0), new Vector3(0, 0, 0), 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
 
         Assert.False(hit);
         Assert.Equal(default, traceHit);

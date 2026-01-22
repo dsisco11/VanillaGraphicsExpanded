@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using System.Threading;
 
 using Vintagestory.API.MathTools;
@@ -31,7 +32,7 @@ public sealed class WorldProbeTraceServiceTests
 
     private sealed class NeverHitScene : IWorldProbeTraceScene
     {
-        public bool Trace(Vec3d originWorld, Vec3f dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
+        public bool Trace(Vec3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
         {
             hit = default;
             return false;
