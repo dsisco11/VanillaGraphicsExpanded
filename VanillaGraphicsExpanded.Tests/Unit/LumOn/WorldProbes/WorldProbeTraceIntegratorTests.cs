@@ -58,9 +58,9 @@ public sealed class WorldProbeTraceIntegratorTests
 
     private sealed class NeverHitScene : IWorldProbeTraceScene
     {
-        public bool Trace(Vec3d originWorld, Vec3f dirWorld, double maxDistance, CancellationToken cancellationToken, out double hitDistance)
+        public bool Trace(Vec3d originWorld, Vec3f dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
         {
-            hitDistance = 0;
+            hit = default;
             return false;
         }
     }
@@ -74,9 +74,14 @@ public sealed class WorldProbeTraceIntegratorTests
             this.hitDistance = hitDistance;
         }
 
-        public bool Trace(Vec3d originWorld, Vec3f dirWorld, double maxDistance, CancellationToken cancellationToken, out double hitDistance)
+        public bool Trace(Vec3d originWorld, Vec3f dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
         {
-            hitDistance = this.hitDistance;
+            hit = new LumOnWorldProbeTraceHit(
+                HitDistance: this.hitDistance,
+                HitBlockPos: new Vec3i(0, 0, 0),
+                HitFaceNormal: new Vec3i(0, 1, 0),
+                SampleBlockPos: new Vec3i(0, 0, 0),
+                SampleLightRgbS: new Vec4f(0, 0, 0, 0));
             return true;
         }
     }

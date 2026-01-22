@@ -19,10 +19,10 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var blockAccessor = NullObjectProxy.Create<IBlockAccessor>();
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
 
-        bool hit = scene.Trace(new Vec3d(0, 0, 0), new Vec3f(0, 0, 0), 10, CancellationToken.None, out double dist);
+        bool hit = scene.Trace(new Vec3d(0, 0, 0), new Vec3f(0, 0, 0), 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
 
         Assert.False(hit);
-        Assert.Equal(0, dist);
+        Assert.Equal(default, traceHit);
     }
 
     private static class NullObjectProxy

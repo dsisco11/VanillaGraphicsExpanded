@@ -31,9 +31,9 @@ public sealed class WorldProbeTraceServiceTests
 
     private sealed class NeverHitScene : IWorldProbeTraceScene
     {
-        public bool Trace(Vec3d originWorld, Vec3f dirWorld, double maxDistance, CancellationToken cancellationToken, out double hitDistance)
+        public bool Trace(Vec3d originWorld, Vec3f dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
         {
-            hitDistance = 0;
+            hit = default;
             return false;
         }
     }
