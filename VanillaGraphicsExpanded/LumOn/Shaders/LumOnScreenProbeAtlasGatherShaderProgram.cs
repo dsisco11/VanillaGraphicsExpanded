@@ -198,18 +198,9 @@ public class LumOnScreenProbeAtlasGatherShaderProgram : VgeShaderProgram
 
     public bool TrySetWorldProbeLevelParams(int level, Vec3f originMinCorner, Vec3f ringOffset)
     {
-        try
-        {
-            Uniform($"worldProbeOriginMinCorner[{level}]", originMinCorner);
-            Uniform($"worldProbeRingOffset[{level}]", ringOffset);
-            return true;
-        }
-        catch (KeyNotFoundException)
-        {
-            // Shader may have been compiled without world-probe uniforms (defines not applied yet)
-            // or uniforms got optimized out. Never crash the client.
-            return false;
-        }
+        bool ok0 = TryUniformArrayElement("worldProbeOriginMinCorner", level, originMinCorner);
+        bool ok1 = TryUniformArrayElement("worldProbeRingOffset", level, ringOffset);
+        return ok0 && ok1;
     }
 
     #endregion

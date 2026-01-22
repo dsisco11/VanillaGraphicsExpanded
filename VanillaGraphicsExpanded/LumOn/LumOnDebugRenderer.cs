@@ -628,6 +628,27 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         bool prevBlend = GL.IsEnabled(EnableCap.Blend);
         bool prevDepthMask = GL.GetBoolean(GetPName.DepthWritemask);
         int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
+        bool prevScissorTest = GL.IsEnabled(EnableCap.ScissorTest);
+
+        int[] prevViewport = new int[4];
+        int[] prevScissorBox = new int[4];
+        try
+        {
+            GL.GetInteger(GetPName.Viewport, prevViewport);
+            GL.GetInteger(GetPName.ScissorBox, prevScissorBox);
+        }
+        catch
+        {
+            prevViewport[0] = 0;
+            prevViewport[1] = 0;
+            prevViewport[2] = capi.Render.FrameWidth;
+            prevViewport[3] = capi.Render.FrameHeight;
+
+            prevScissorBox[0] = 0;
+            prevScissorBox[1] = 0;
+            prevScissorBox[2] = capi.Render.FrameWidth;
+            prevScissorBox[3] = capi.Render.FrameHeight;
+        }
 
         bool shaderUsed = false;
         try
@@ -636,6 +657,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             capi.Render.GLDepthMask(false);
             GL.Disable(EnableCap.DepthTest);
             capi.Render.GlToggleBlend(false);
+            GL.Disable(EnableCap.ScissorTest);
+            GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
 
             shader.Use();
             shaderUsed = true;
@@ -775,6 +798,19 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             capi.Render.GLDepthMask(prevDepthMask);
             capi.Render.GlToggleBlend(prevBlend);
             GL.ActiveTexture((TextureUnit)prevActiveTexture);
+
+            if (prevScissorTest) GL.Enable(EnableCap.ScissorTest);
+            else GL.Disable(EnableCap.ScissorTest);
+
+            try
+            {
+                GL.Scissor(prevScissorBox[0], prevScissorBox[1], prevScissorBox[2], prevScissorBox[3]);
+                GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+            }
+            catch
+            {
+                // ignore restore failures
+            }
         }
 
         // Store current matrix for next frame's reprojection
