@@ -269,8 +269,9 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 
 	irradiance = max(irradiance, vec3(0.0)) * aoWeight;
 
+	// ShortRangeAO is a leak-reduction factor applied to irradiance only; it should not 
+	// tank confidence, otherwise world-probes get blended out in enclosed spaces.
 	float conf = clamp(metaConfAccum, 0.0, 1.0);
-	conf *= aoConf;
 
 	s.irradiance = irradiance;
 	s.confidence = conf;
