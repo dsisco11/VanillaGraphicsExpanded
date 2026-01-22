@@ -176,7 +176,7 @@ public class VgeConfig
         /// Defaults to the parallax scale for convenience.
         /// </summary>
         [JsonProperty]
-        public float ParallaxScale { get; set; } = 0.03f;
+        public float ParallaxScale { get; set; } = 0.05f;
 
         /// <summary>
         /// Minimum ray-march steps for POM.
@@ -224,7 +224,7 @@ public class VgeConfig
         /// 4 = distance/angle weight (0..1)
         /// </summary>
         [JsonProperty]
-        public int ParallaxDebugMode { get; set; } = 0;
+        public int ParallaxDebugMode { get; set; } = 3;
 
         /// <summary>
         /// Parameters for generating a tileable height/normal field from albedo.
@@ -269,20 +269,20 @@ public class VgeConfig
         /// World units between probes at L0.
         /// </summary>
         [JsonProperty]
-        public float ClipmapBaseSpacing { get; set; } = 2.0f;
+        public float ClipmapBaseSpacing { get; set; } = 1.5f;
 
         /// <summary>
         /// Per-level resolution of the clipmap grid.
         /// This initial implementation uses a cubic grid: (N×N×N).
         /// </summary>
         [JsonProperty]
-        public int ClipmapResolution { get; set; } = 16;
+        public int ClipmapResolution { get; set; } = 20;
 
         /// <summary>
         /// Number of clipmap levels (L0..L{N-1}).
         /// </summary>
         [JsonProperty]
-        public int ClipmapLevels { get; set; } = 4;
+        public int ClipmapLevels { get; set; } = 3;
 
         /// <summary>
         /// Per-level max number of probes selected for CPU update per frame.
@@ -304,7 +304,7 @@ public class VgeConfig
         /// Hot-reloadable.
         /// </summary>
         [JsonProperty]
-        public int UploadBudgetBytesPerFrame { get; set; } = 2 * 1024 * 1024;
+        public int UploadBudgetBytesPerFrame { get; set; } = 4 * 1024 * 1024;
 
         [JsonIgnore]
         public int LevelsClamped => Math.Clamp(ClipmapLevels, 1, 8);
@@ -388,7 +388,7 @@ public class VgeConfig
         /// Maximum number of texture sub-region uploads per frame.
         /// </summary>
         [JsonProperty]
-        public int MaxUploadsPerFrame { get; set; } = 64;
+        public int MaxUploadsPerFrame { get; set; } = 128;
 
         /// <summary>
         /// Maximum total bytes uploaded per frame.
@@ -463,7 +463,7 @@ public class VgeConfig
         /// Hot-reloadable.
         /// </summary>
         [JsonProperty]
-        public bool AnchorJitterEnabled { get; set; } = false;
+        public bool AnchorJitterEnabled { get; set; } = true;
 
         /// <summary>
         /// Jitter amount as a fraction of probe cell size.
@@ -472,7 +472,7 @@ public class VgeConfig
         /// Hot-reloadable.
         /// </summary>
         [JsonProperty]
-        public float AnchorJitterScale { get; set; } = 0.15f;
+        public float AnchorJitterScale { get; set; } = 0.01f;
 
         /// <summary>
         /// PMJ jitter cycle length (number of frames before the sequence repeats).
@@ -480,7 +480,7 @@ public class VgeConfig
         /// Requires restart to change.
         /// </summary>
         [JsonProperty]
-        public int PmjJitterCycleLength { get; set; } = 1024;
+        public int PmjJitterCycleLength { get; set; } = 256;
 
         /// <summary>
         /// Seed for the PMJ jitter sequence.
@@ -516,7 +516,7 @@ public class VgeConfig
         /// Hot-reloadable.
         /// </summary>
         [JsonProperty]
-        public int HzbCoarseMip { get; set; } = 4;
+        public int HzbCoarseMip { get; set; } = 3;
 
         /// <summary>
         /// Number of probe-atlas texels to trace per probe per frame.
@@ -531,7 +531,7 @@ public class VgeConfig
         /// More rays = faster convergence but higher cost.
         /// </summary>
         [JsonProperty]
-        public int RaysPerProbePerFrame { get; set; } = 12;
+        public int RaysPerProbePerFrame { get; set; } = 16;
 
         /// <summary>
         /// Number of steps per ray during screen-space marching.
@@ -543,13 +543,13 @@ public class VgeConfig
         /// Maximum ray travel distance in world units (meters).
         /// </summary>
         [JsonProperty]
-        public float RayMaxDistance { get; set; } = 4.0f;
+        public float RayMaxDistance { get; set; } = 2.0f;
 
         /// <summary>
         /// Thickness of ray for depth comparison (view-space units).
         /// </summary>
         [JsonProperty]
-        public float RayThickness { get; set; } = 0.5f;
+        public float RayThickness { get; set; } = 0.1f;
 
         // ═══════════════════════════════════════════════════════════════
         // Temporal Settings (SPG-005/006)
@@ -561,7 +561,7 @@ public class VgeConfig
         /// Hot-reloadable.
         /// </summary>
         [JsonProperty]
-        public float TemporalAlpha { get; set; } = 0.2f;
+        public float TemporalAlpha { get; set; } = 0.95f;
 
         /// <summary>
         /// Depth difference threshold for history rejection (view-space).
@@ -657,7 +657,7 @@ public class VgeConfig
         /// Lower = less sky influence. Hot-reloadable.
         /// </summary>
         [JsonProperty]
-        public float SkyMissWeight { get; set; } = 0.5f;
+        public float SkyMissWeight { get; set; } = 0.1f;
 
         // ═══════════════════════════════════════════════════════════════
         // Edge-Aware Gather Settings (SPG-007 Section 2.3)
@@ -729,7 +729,7 @@ public class VgeConfig
         /// Hot-reloadable.
         /// </summary>
         [JsonProperty]
-        public int UpsampleHoleFillRadius { get; set; } = 2;
+        public int UpsampleHoleFillRadius { get; set; } = 4;
 
         /// <summary>
         /// Minimum confidence required for neighbor samples to be used during hole filling.
