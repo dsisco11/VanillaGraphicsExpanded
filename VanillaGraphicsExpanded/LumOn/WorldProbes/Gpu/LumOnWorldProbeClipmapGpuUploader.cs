@@ -66,9 +66,13 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         GL.EnableVertexAttribArray(7);
         GL.VertexAttribPointer(7, 1, VertexAttribPointerType.Float, false, stride, 76);
 
-        // uint flags (integer attribute)
+        // vec4 shSky
         GL.EnableVertexAttribArray(8);
-        GL.VertexAttribIPointer(8, 1, VertexAttribIntegerType.UnsignedInt, stride, (IntPtr)80);
+        GL.VertexAttribPointer(8, 4, VertexAttribPointerType.Float, false, stride, 80);
+
+        // uint flags (integer attribute)
+        GL.EnableVertexAttribArray(9);
+        GL.VertexAttribIPointer(9, 1, VertexAttribIntegerType.UnsignedInt, stride, (IntPtr)96);
 
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
         vao.Unbind();
@@ -190,6 +194,11 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         public float Confidence;
         public float MeanLogHitDistance;
 
+        public float ShSky0;
+        public float ShSky1;
+        public float ShSky2;
+        public float ShSky3;
+
         public uint Flags;
 
         public static UploadVertex From(in LumOnWorldProbeTraceResult r, int atlasU, int atlasV, uint flags)
@@ -221,6 +230,11 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
                 AoConfidence = r.ShortRangeAoConfidence,
                 Confidence = r.Confidence,
                 MeanLogHitDistance = r.MeanLogHitDistance,
+
+                ShSky0 = r.ShSky.X,
+                ShSky1 = r.ShSky.Y,
+                ShSky2 = r.ShSky.Z,
+                ShSky3 = r.ShSky.W,
 
                 Flags = flags,
             };

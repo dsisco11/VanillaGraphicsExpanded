@@ -687,6 +687,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 shader.WorldProbeDist0 = worldProbeClipmapBufferManager.Resources.ProbeDist0TextureId;
                 shader.WorldProbeMeta0 = worldProbeClipmapBufferManager.Resources.ProbeMeta0TextureId;
                 shader.WorldProbeDebugState0 = worldProbeClipmapBufferManager.Resources.ProbeDebugState0TextureId;
+                shader.WorldProbeSky0 = worldProbeClipmapBufferManager.Resources.ProbeSky0TextureId;
+                shader.WorldProbeSkyTint = capi.Render.AmbientColor;
 
                 // Shaders reconstruct world positions in the engine's camera-matrix world space (invViewMatrix).
                 // Always derive camera position from the *current* inverse view matrix (matches reconstruction in shaders).

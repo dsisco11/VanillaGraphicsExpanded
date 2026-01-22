@@ -59,8 +59,11 @@ public class LumOnDebugShaderProgram : VgeShaderProgram
     public int WorldProbeDist0 { set => BindTexture2D("worldProbeDist0", value, 23); }
     public int WorldProbeMeta0 { set => BindTexture2D("worldProbeMeta0", value, 24); }
     public int WorldProbeDebugState0 { set => BindTexture2D("worldProbeDebugState0", value, 25); }
+    public int WorldProbeSky0 { set => BindTexture2D("worldProbeSky0", value, 26); }
 
     public Vec3f WorldProbeCameraPosWS { set => Uniform("worldProbeCameraPosWS", value); }
+
+    public Vec3f WorldProbeSkyTint { set => Uniform("worldProbeSkyTint", value); }
 
     public float WorldProbeBaseSpacing { set => SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, value.ToString("0.0####", CultureInfo.InvariantCulture)); }
 

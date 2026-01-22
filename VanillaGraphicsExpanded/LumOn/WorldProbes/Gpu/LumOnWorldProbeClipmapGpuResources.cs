@@ -14,6 +14,7 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
     private readonly DynamicTexture2D sh0;
     private readonly DynamicTexture2D sh1;
     private readonly DynamicTexture2D sh2;
+    private readonly DynamicTexture2D sky0;
     private readonly DynamicTexture2D vis0;
     private readonly DynamicTexture2D dist0;
     private readonly DynamicTexture2D meta0;
@@ -32,6 +33,7 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
     public int ProbeSh0TextureId => sh0.TextureId;
     public int ProbeSh1TextureId => sh1.TextureId;
     public int ProbeSh2TextureId => sh2.TextureId;
+    public int ProbeSky0TextureId => sky0.TextureId;
     public int ProbeVis0TextureId => vis0.TextureId;
     public int ProbeDist0TextureId => dist0.TextureId;
     public int ProbeMeta0TextureId => meta0.TextureId;
@@ -51,6 +53,9 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
         sh0 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSH0");
         sh1 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSH1");
         sh2 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSH2");
+
+        // Sky lighting: scalar intensity projected into L1 SH (RGBA16F).
+        sky0 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSky0");
 
         // Visibility: RGBA16F (octU, octV, reserved, aoConfidence)
         vis0 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeVis0");
@@ -72,11 +77,13 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
             sh2,
             vis0,
             dist0,
-            meta0) ?? throw new InvalidOperationException("Failed to create world-probe MRT FBO");
+            meta0,
+            sky0) ?? throw new InvalidOperationException("Failed to create world-probe MRT FBO");
 
         Label(sh0);
         Label(sh1);
         Label(sh2);
+        Label(sky0);
         Label(vis0);
         Label(dist0);
         Label(meta0);
@@ -110,6 +117,7 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
         sh0.Dispose();
         sh1.Dispose();
         sh2.Dispose();
+        sky0.Dispose();
 
         vis0.Dispose();
         dist0.Dispose();

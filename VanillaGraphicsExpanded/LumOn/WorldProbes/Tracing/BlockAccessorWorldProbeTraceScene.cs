@@ -15,13 +15,13 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
         this.blockAccessor = blockAccessor ?? throw new ArgumentNullException(nameof(blockAccessor));
     }
 
-    public bool Trace(Vec3d originWorld, Vec3f dirWorld, double maxDistance, CancellationToken cancellationToken, out double hitDistance)
+    public bool Trace(Vec3d originWorld, Vec3f dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
     {
         ArgumentNullException.ThrowIfNull(originWorld);
 
         if (maxDistance <= 0)
         {
-            hitDistance = 0;
+            hit = default;
             return false;
         }
 
@@ -32,7 +32,7 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
         double len = Math.Sqrt(dx * dx + dy * dy + dz * dz);
         if (len < 1e-9)
         {
-            hitDistance = 0;
+            hit = default;
             return false;
         }
 
@@ -61,19 +61,28 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
         double tDeltaY = dy == 0 ? double.PositiveInfinity : Math.Abs(1.0 / dy);
         double tDeltaZ = dz == 0 ? double.PositiveInfinity : Math.Abs(1.0 / dz);
 
-        // Skip the starting cell if origin is inside solid.
+        // Track which face we entered the current voxel through. For the first voxel,
+        // this remains zero unless we step.
+        int faceNx = 0;
+        int faceNy = 0;
+        int faceNz = 0;
+
         double t = 0.0;
+
+        // World-probe tracing operates in the primary world dimension.
+        var pos = new BlockPos(0);
+        var samplePos = new BlockPos(0);
 
         while (t <= maxDistance)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var pos = new BlockPos(x, y, z);
+            pos.Set(x, y, z);
 
             // Avoid forcing chunk loads; treat unloaded as miss.
             if (blockAccessor.GetChunkAtBlockPos(pos) == null)
             {
-                hitDistance = 0;
+                hit = default;
                 return false;
             }
 
@@ -82,7 +91,47 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
 
             if (b.Id != 0 && boxes != null && boxes.Length > 0)
             {
-                hitDistance = t;
+                // If we hit inside the first voxel, synthesize a reasonable face normal based on ray direction.
+                // This ensures the "adjacent sample voxel" is outside the hit voxel.
+                if (faceNx == 0 && faceNy == 0 && faceNz == 0)
+                {
+                    double ax = Math.Abs(dx);
+                    double ay = Math.Abs(dy);
+                    double az = Math.Abs(dz);
+
+                    if (ax >= ay && ax >= az)
+                    {
+                        faceNx = dx >= 0 ? -1 : 1;
+                    }
+                    else if (ay >= az)
+                    {
+                        faceNy = dy >= 0 ? -1 : 1;
+                    }
+                    else
+                    {
+                        faceNz = dz >= 0 ? -1 : 1;
+                    }
+                }
+
+                int sx = x + faceNx;
+                int sy = y + faceNy;
+                int sz = z + faceNz;
+
+                Vec4f light = new Vec4f();
+
+                samplePos.Set(sx, sy, sz);
+                if (blockAccessor.GetChunkAtBlockPos(samplePos) != null)
+                {
+                    // Vec4f: XYZ = block light rgb, W = sun light brightness.
+                    light = blockAccessor.GetLightRGBs(samplePos);
+                }
+
+                hit = new LumOnWorldProbeTraceHit(
+                    HitDistance: t,
+                    HitBlockPos: new Vec3i(x, y, z),
+                    HitFaceNormal: new Vec3i(faceNx, faceNy, faceNz),
+                    SampleBlockPos: new Vec3i(sx, sy, sz),
+                    SampleLightRgbS: light);
                 return true;
             }
 
@@ -94,12 +143,18 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
                     x += stepX;
                     t = tMaxX;
                     tMaxX += tDeltaX;
+                    faceNx = -stepX;
+                    faceNy = 0;
+                    faceNz = 0;
                 }
                 else
                 {
                     z += stepZ;
                     t = tMaxZ;
                     tMaxZ += tDeltaZ;
+                    faceNx = 0;
+                    faceNy = 0;
+                    faceNz = -stepZ;
                 }
             }
             else
@@ -109,17 +164,23 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
                     y += stepY;
                     t = tMaxY;
                     tMaxY += tDeltaY;
+                    faceNx = 0;
+                    faceNy = -stepY;
+                    faceNz = 0;
                 }
                 else
                 {
                     z += stepZ;
                     t = tMaxZ;
                     tMaxZ += tDeltaZ;
+                    faceNx = 0;
+                    faceNy = 0;
+                    faceNz = -stepZ;
                 }
             }
         }
 
-        hitDistance = 0;
+        hit = default;
         return false;
     }
 }

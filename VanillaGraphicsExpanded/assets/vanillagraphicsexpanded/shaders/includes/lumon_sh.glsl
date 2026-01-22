@@ -214,6 +214,27 @@ vec3 shEvaluateDiffuseRGB(vec4 shR, vec4 shG, vec4 shB, vec3 normal)
     )) / 3.141592654;
 }
 
+/**
+ * Evaluate cosine-weighted irradiance for diffuse surfaces (scalar SH).
+ * @param sh SH L1 coefficients
+ * @param normal Surface normal direction
+ * @return Scalar irradiance
+ */
+float shEvaluateDiffuse(vec4 sh, vec3 normal)
+{
+    vec4 basis = shEncode(normal);
+
+    vec4 cosineWeights = vec4(
+        SH_COSINE_A0,
+        SH_COSINE_A1,
+        SH_COSINE_A1,
+        SH_COSINE_A1
+    );
+
+    vec4 convolved = basis * cosineWeights;
+    return max(0.0, dot(sh, convolved)) / 3.141592654;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Accumulation & Blending
 // ═══════════════════════════════════════════════════════════════════════════

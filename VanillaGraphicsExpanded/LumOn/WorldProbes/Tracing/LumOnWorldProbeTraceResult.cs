@@ -12,6 +12,7 @@ internal readonly record struct LumOnWorldProbeTraceResult(
     Vector4 ShR,
     Vector4 ShG,
     Vector4 ShB,
+    Vector4 ShSky,
     Vec3f ShortRangeAoDirWorld,
     float ShortRangeAoConfidence,
     float Confidence,

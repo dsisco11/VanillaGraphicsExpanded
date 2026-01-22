@@ -1639,10 +1639,12 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.WorldProbeSH2 = resources.ProbeSh2TextureId;
         shader.WorldProbeVis0 = resources.ProbeVis0TextureId;
         shader.WorldProbeMeta0 = resources.ProbeMeta0TextureId;
+        shader.WorldProbeSky0 = resources.ProbeSky0TextureId;
 
         // Shaders reconstruct world positions in the engine's camera-matrix space via invViewMatrix.
         // Use the matching camera position/origins in that same space (do not apply additional camera-relative shifts).
         shader.WorldProbeCameraPosWS = camPos;
+        shader.WorldProbeSkyTint = capi.Render.AmbientColor;
 
         for (int i = 0; i < 8; i++)
         {
@@ -1678,7 +1680,9 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.WorldProbeSH2 = resources.ProbeSh2TextureId;
         shader.WorldProbeVis0 = resources.ProbeVis0TextureId;
         shader.WorldProbeMeta0 = resources.ProbeMeta0TextureId;
+        shader.WorldProbeSky0 = resources.ProbeSky0TextureId;
         shader.WorldProbeCameraPosWS = camPos;
+        shader.WorldProbeSkyTint = capi.Render.AmbientColor;
 
         for (int i = 0; i < 8; i++)
         {
@@ -1714,7 +1718,9 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.WorldProbeSH2 = resources.ProbeSh2TextureId;
         shader.WorldProbeVis0 = resources.ProbeVis0TextureId;
         shader.WorldProbeMeta0 = resources.ProbeMeta0TextureId;
+        shader.WorldProbeSky0 = resources.ProbeSky0TextureId;
         shader.WorldProbeCameraPosWS = camPos;
+        shader.WorldProbeSkyTint = capi.Render.AmbientColor;
 
         for (int i = 0; i < 8; i++)
         {

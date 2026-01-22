@@ -51,6 +51,10 @@ uniform sampler2D worldProbeSH2;
 uniform sampler2D worldProbeVis0;
 uniform sampler2D worldProbeDist0;
 uniform sampler2D worldProbeMeta0;
+uniform sampler2D worldProbeSky0;
+
+// Tint applied to skylight contribution (time-of-day / weather hook).
+uniform vec3 worldProbeSkyTint;
 
 // Camera position in the engine's camera-matrix world space (as produced by invViewMatrix reconstruction).
 uniform vec3 worldProbeCameraPosWS;
@@ -134,6 +138,7 @@ void lumonWorldProbeAccumulateCorner(
 	sampler2D probeSH0,
 	sampler2D probeSH1,
 	sampler2D probeSH2,
+	sampler2D probeSky0,
 	sampler2D probeVis0,
 	sampler2D probeMeta0,
 	ivec3 localIdx,
@@ -144,6 +149,7 @@ void lumonWorldProbeAccumulateCorner(
 	inout vec4 shR,
 	inout vec4 shG,
 	inout vec4 shB,
+	inout vec4 shSky,
 	inout vec3 aoDirAccum,
 	inout float aoConfAccum,
 	inout float metaConfAccum)
@@ -162,6 +168,9 @@ void lumonWorldProbeAccumulateCorner(
 	shG += cG * wt;
 	shB += cB * wt;
 
+	vec4 sky = texelFetch(probeSky0, ac, 0);
+	shSky += sky * wt;
+
 	vec2 meta = texelFetch(probeMeta0, ac, 0).xy;
 	float conf = meta.x;
 	metaConfAccum += conf * wt;
@@ -176,6 +185,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 	sampler2D probeSH0,
 	sampler2D probeSH1,
 	sampler2D probeSH2,
+	sampler2D probeSky0,
 	sampler2D probeVis0,
 	sampler2D probeMeta0,
 	vec3 worldPosRel,
@@ -231,22 +241,25 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 	vec4 shR = vec4(0.0);
 	vec4 shG = vec4(0.0);
 	vec4 shB = vec4(0.0);
+	vec4 shSky = vec4(0.0);
 
 	vec3 aoDirAccum = vec3(0.0);
 	float aoConfAccum = 0.0;
 	float metaConfAccum = 0.0;
 
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i0.z), ring, resolution, level, w000, shR, shG, shB, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i0.z), ring, resolution, level, w100, shR, shG, shB, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i0.z), ring, resolution, level, w010, shR, shG, shB, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i0.z), ring, resolution, level, w110, shR, shG, shB, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i1.z), ring, resolution, level, w001, shR, shG, shB, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i1.z), ring, resolution, level, w101, shR, shG, shB, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i1.z), ring, resolution, level, w011, shR, shG, shB, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i1.z), ring, resolution, level, w111, shR, shG, shB, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i0.z), ring, resolution, level, w000, shR, shG, shB, shSky, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i0.z), ring, resolution, level, w100, shR, shG, shB, shSky, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i0.z), ring, resolution, level, w010, shR, shG, shB, shSky, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i0.z), ring, resolution, level, w110, shR, shG, shB, shSky, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i1.z), ring, resolution, level, w001, shR, shG, shB, shSky, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i1.z), ring, resolution, level, w101, shR, shG, shB, shSky, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i1.z), ring, resolution, level, w011, shR, shG, shB, shSky, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i1.z), ring, resolution, level, w111, shR, shG, shB, shSky, aoDirAccum, aoConfAccum, metaConfAccum);
 
 	// Evaluate SH in WORLD space.
-	vec3 irradiance = shEvaluateDiffuseRGB(shR, shG, shB, normalWS);
+	vec3 irradianceBlock = shEvaluateDiffuseRGB(shR, shG, shB, normalWS);
+	float irradianceSky = shEvaluateDiffuse(shSky, normalWS);
+	vec3 irradiance = max(irradianceBlock, vec3(0.0)) + worldProbeSkyTint * max(irradianceSky, 0.0);
 
 	// ShortRangeAO directional weight (leak reduction proxy).
 	// Guard against undefined normalize(0) behavior on some drivers.
@@ -268,6 +281,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
 	sampler2D probeSH0,
 	sampler2D probeSH1,
 	sampler2D probeSH2,
+	sampler2D probeSky0,
 	sampler2D probeVis0,
 	sampler2D probeMeta0,
 	vec3 worldPos,
@@ -305,7 +319,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
 	float wL = lumonWorldProbeCrossLevelBlendWeight(edgeDist, 2.0, 2.0);
 
 	LumOnWorldProbeSample sL = lumonWorldProbeSampleLevelTrilinear(
-		probeSH0, probeSH1, probeSH2, probeVis0, probeMeta0,
+		probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0,
 		worldPosRel, normalWS,
 		originL, ringL,
 		spacingL, resolution, level);
@@ -318,7 +332,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
 		vec3 ring2 = ringOffset[level2];
 
 		LumOnWorldProbeSample s2 = lumonWorldProbeSampleLevelTrilinear(
-			probeSH0, probeSH1, probeSH2, probeVis0, probeMeta0,
+			probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0,
 			worldPosRel, normalWS,
 			origin2, ring2,
 			spacing2, resolution, level2);
@@ -338,6 +352,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmapBound(vec3 worldPos, vec3 norm
 		worldProbeSH0,
 		worldProbeSH1,
 		worldProbeSH2,
+		worldProbeSky0,
 		worldProbeVis0,
 		worldProbeMeta0,
 		worldPos,
