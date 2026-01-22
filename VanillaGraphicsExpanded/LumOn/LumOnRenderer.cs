@@ -63,6 +63,8 @@ public class LumOnRenderer : IRenderer, IDisposable
     // Cache arrays to avoid per-frame allocations in TryBindWorldProbeClipmapCommon.
     private readonly Vec3f[] worldProbeOriginsCache = new Vec3f[8];
     private readonly Vec3f[] worldProbeRingsCache = new Vec3f[8];
+    private readonly LumOnWorldProbeClipmapBufferManager.DebugTraceRay[] worldProbeDebugQueuedTraceRaysScratch =
+        new LumOnWorldProbeClipmapBufferManager.DebugTraceRay[LumOnWorldProbeClipmapBufferManager.MaxDebugTraceRays];
 
     private bool worldProbeClipmapStartupLogged;
 
@@ -1349,6 +1351,17 @@ public class LumOnRenderer : IRenderer, IDisposable
                 cfg.UploadBudgetBytesPerFrame);
         }
 
+        // Debug: publish a small capped set of "queued trace rays" for live preview.
+        // This is derived from the requests list (not from per-ray hit results).
+        if (config.LumOn.DebugMode == LumOnDebugMode.WorldProbeOrbsPoints)
+        {
+            PublishWorldProbeQueuedTraceRaysForDebug(resources, baseSpacing, requests);
+        }
+        else
+        {
+            worldProbeClipmapBufferManager.ClearDebugTraceRays(frameIndex);
+        }
+
         // Enqueue trace work.
         using (Profiler.BeginScope("LumOn.WorldProbe.Trace.Enqueue", "LumOn"))
         {
@@ -1445,6 +1458,73 @@ public class LumOnRenderer : IRenderer, IDisposable
             resolution,
             originsSpan,
             ringsSpan);
+    }
+
+    private void PublishWorldProbeQueuedTraceRaysForDebug(
+        LumOnWorldProbeClipmapGpuResources resources,
+        double baseSpacing,
+        System.Collections.Generic.List<LumOnWorldProbeUpdateRequest> requests)
+    {
+        if (worldProbeClipmapBufferManager is null || worldProbeScheduler is null)
+        {
+            return;
+        }
+
+        var dirs = LumOnWorldProbeTraceDirections.GetDirections();
+        if (dirs.Length <= 0)
+        {
+            worldProbeClipmapBufferManager.ClearDebugTraceRays(frameIndex);
+            return;
+        }
+
+        const int maxPreviewProbes = 3;
+        const int maxRaysPerProbe = 64;
+        const int maxTotalRays = LumOnWorldProbeClipmapBufferManager.MaxDebugTraceRays;
+
+        int probesToShow = Math.Min(maxPreviewProbes, requests.Count);
+        int raysPerProbe = Math.Min(maxRaysPerProbe, dirs.Length);
+        int dirStride = Math.Max(1, dirs.Length / raysPerProbe);
+
+        var rays = worldProbeDebugQueuedTraceRaysScratch;
+        int written = 0;
+
+        for (int i = 0; i < probesToShow; i++)
+        {
+            var req = requests[i];
+            if (!worldProbeScheduler.TryGetLevelParams(req.Level, out var originMinCorner, out _))
+            {
+                continue;
+            }
+
+            double spacing = LumOnClipmapTopology.GetSpacing(baseSpacing, req.Level);
+            Vec3d probePosWorld = LumOnClipmapTopology.IndexToProbeCenterWorld(req.LocalIndex, originMinCorner, spacing);
+            double maxDist = spacing * resources.Resolution;
+
+            int writtenThisProbe = 0;
+            for (int d = 0; d < dirs.Length && written < maxTotalRays; d += dirStride)
+            {
+                Vec3f dir = dirs[d];
+                var end = new Vec3d(
+                    probePosWorld.X + dir.X * maxDist,
+                    probePosWorld.Y + dir.Y * maxDist,
+                    probePosWorld.Z + dir.Z * maxDist);
+
+                // Color by direction (abs) so it's easy to see the lobe distribution.
+                float r = MathF.Abs(dir.X);
+                float g = MathF.Abs(dir.Y);
+                float b = MathF.Abs(dir.Z);
+                rays[written++] = new LumOnWorldProbeClipmapBufferManager.DebugTraceRay(probePosWorld, end, r, g, b, 0.9f);
+                writtenThisProbe++;
+
+                // Keep rays per probe capped even if dirStride doesn't divide evenly.
+                if (writtenThisProbe >= raysPerProbe)
+                {
+                    break;
+                }
+            }
+        }
+
+        worldProbeClipmapBufferManager.PublishDebugTraceRays(frameIndex, rays.AsSpan(0, written));
     }
 
     private void UpdateWorldProbeDebugHeatmap(LumOnWorldProbeClipmapGpuResources resources)

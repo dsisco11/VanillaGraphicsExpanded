@@ -84,6 +84,12 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private int clipmapBoundsVao;
     private int clipmapBoundsVbo;
 
+    // World-probe queued trace rays (GL_LINES).
+    private LineVertex[]? clipmapQueuedTraceRayVertices;
+    private int clipmapQueuedTraceRaysVao;
+    private int clipmapQueuedTraceRaysVbo;
+    private int clipmapQueuedTraceRayVertexCount;
+
     // World-probe per-probe rendering (shared positions + per-mode attributes).
     private System.Numerics.Vector3[]? clipmapProbePositions;
     private int clipmapProbePositionsVbo;
@@ -488,6 +494,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 EnsureWorldProbeClipmapDebugBuffers();
                 UpdateWorldProbeClipmapDebugVerticesForCurrentCameraOrigin();
                 RenderWorldProbeClipmapBoundsLive();
+                RenderWorldProbeQueuedTraceRaysLive();
                 RenderWorldProbeOrbsPointsLive();
             }
 
@@ -1120,6 +1127,152 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         if (err != ErrorCode.NoError)
         {
             RateLimitedClipmapDebugLog($"World-probe bounds: GL error {err}");
+        }
+    }
+
+    private void RenderWorldProbeQueuedTraceRaysLive()
+    {
+        if (worldProbeClipmapBufferManager?.Resources is null)
+        {
+            return;
+        }
+
+        if (!worldProbeClipmapBufferManager.TryGetDebugTraceRays(out var rays, out int rayCount, out _))
+        {
+            clipmapQueuedTraceRayVertexCount = 0;
+            return;
+        }
+
+        if (rayCount <= 0)
+        {
+            clipmapQueuedTraceRayVertexCount = 0;
+            return;
+        }
+
+        if (!TryGetRenderCameraWorldOrigin(out var camWorld))
+        {
+            return;
+        }
+
+        var shader = capi.Shader.GetProgramByName("vge_debug_lines") as VgeDebugLinesShaderProgram;
+        if (shader is null || shader.LoadError)
+        {
+            return;
+        }
+
+        EnsureClipmapQueuedTraceRaysGlObjects();
+        if (clipmapQueuedTraceRaysVao == 0 || clipmapQueuedTraceRaysVbo == 0)
+        {
+            return;
+        }
+
+        int neededVerts = Math.Min(rayCount, LumOnWorldProbeClipmapBufferManager.MaxDebugTraceRays) * 2;
+        clipmapQueuedTraceRayVertices ??= Array.Empty<LineVertex>();
+        if (clipmapQueuedTraceRayVertices.Length < neededVerts)
+        {
+            clipmapQueuedTraceRayVertices = new LineVertex[neededVerts];
+        }
+
+        for (int i = 0; i < rayCount && (i * 2 + 1) < clipmapQueuedTraceRayVertices.Length; i++)
+        {
+            var r = rays[i];
+            float sx = (float)(r.StartWorld.X - camWorld.X);
+            float sy = (float)(r.StartWorld.Y - camWorld.Y);
+            float sz = (float)(r.StartWorld.Z - camWorld.Z);
+            float ex = (float)(r.EndWorld.X - camWorld.X);
+            float ey = (float)(r.EndWorld.Y - camWorld.Y);
+            float ez = (float)(r.EndWorld.Z - camWorld.Z);
+
+            int vi = i * 2;
+            clipmapQueuedTraceRayVertices[vi] = new LineVertex { X = sx, Y = sy, Z = sz, R = r.R, G = r.G, B = r.B, A = r.A };
+            clipmapQueuedTraceRayVertices[vi + 1] = new LineVertex { X = ex, Y = ey, Z = ez, R = r.R, G = r.G, B = r.B, A = r.A };
+        }
+
+        clipmapQueuedTraceRayVertexCount = neededVerts;
+
+        int stride = Marshal.SizeOf<LineVertex>();
+        GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapQueuedTraceRaysVbo);
+        GL.BufferData(BufferTarget.ArrayBuffer, clipmapQueuedTraceRayVertexCount * stride, clipmapQueuedTraceRayVertices, BufferUsageHint.StreamDraw);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+
+        UpdateCurrentViewProjMatrixNoTranslate();
+
+        bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
+        bool prevBlend = GL.IsEnabled(EnableCap.Blend);
+        bool prevDepthMask = GL.GetBoolean(GetPName.DepthWritemask);
+        int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
+        int prevDepthFunc = GL.GetInteger(GetPName.DepthFunc);
+
+        bool shaderUsed = false;
+        try
+        {
+            GL.Enable(EnableCap.DepthTest);
+            GL.DepthFunc(DepthFunction.Lequal);
+            capi.Render.GlToggleBlend(false);
+            capi.Render.GLDepthMask(false);
+
+            shader.Use();
+            shaderUsed = true;
+            shader.ModelViewProjectionMatrix = currentViewProjMatrix;
+            shader.WorldOffset = new Vec3f(0, 0, 0);
+
+            GL.BindVertexArray(clipmapQueuedTraceRaysVao);
+            GL.LineWidth(1.5f);
+            GL.DrawArrays(PrimitiveType.Lines, 0, clipmapQueuedTraceRayVertexCount);
+            GL.LineWidth(1f);
+            GL.BindVertexArray(0);
+        }
+        finally
+        {
+            if (shaderUsed) shader.Stop();
+
+            if (prevDepthTest) GL.Enable(EnableCap.DepthTest);
+            else GL.Disable(EnableCap.DepthTest);
+
+            GL.DepthFunc((DepthFunction)prevDepthFunc);
+            capi.Render.GLDepthMask(prevDepthMask);
+            capi.Render.GlToggleBlend(prevBlend);
+            GL.ActiveTexture((TextureUnit)prevActiveTexture);
+        }
+    }
+
+    private void EnsureClipmapQueuedTraceRaysGlObjects()
+    {
+        if (clipmapQueuedTraceRaysVao != 0 && clipmapQueuedTraceRaysVbo != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            clipmapQueuedTraceRaysVao = GL.GenVertexArray();
+            clipmapQueuedTraceRaysVbo = GL.GenBuffer();
+
+            GL.BindVertexArray(clipmapQueuedTraceRaysVao);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapQueuedTraceRaysVbo);
+
+            int stride = Marshal.SizeOf<LineVertex>();
+
+            // vec3 position
+            GL.EnableVertexAttribArray(0);
+            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, stride, 0);
+
+            // vec4 color
+            GL.EnableVertexAttribArray(1);
+            GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, stride, 12);
+
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+            GL.BindVertexArray(0);
+
+            GlDebug.TryLabel(ObjectLabelIdentifier.VertexArray, clipmapQueuedTraceRaysVao, "VGE_WorldProbeQueuedTraceRays_VAO");
+            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapQueuedTraceRaysVbo, "VGE_WorldProbeQueuedTraceRays_VBO");
+        }
+        catch
+        {
+            if (clipmapQueuedTraceRaysVbo != 0) GL.DeleteBuffer(clipmapQueuedTraceRaysVbo);
+            if (clipmapQueuedTraceRaysVao != 0) GL.DeleteVertexArray(clipmapQueuedTraceRaysVao);
+            clipmapQueuedTraceRaysVao = 0;
+            clipmapQueuedTraceRaysVbo = 0;
         }
     }
 
@@ -1938,6 +2091,18 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         {
             GL.DeleteVertexArray(clipmapBoundsVao);
             clipmapBoundsVao = 0;
+        }
+
+        if (clipmapQueuedTraceRaysVbo != 0)
+        {
+            GL.DeleteBuffer(clipmapQueuedTraceRaysVbo);
+            clipmapQueuedTraceRaysVbo = 0;
+        }
+
+        if (clipmapQueuedTraceRaysVao != 0)
+        {
+            GL.DeleteVertexArray(clipmapQueuedTraceRaysVao);
+            clipmapQueuedTraceRaysVao = 0;
         }
 
         if (clipmapProbePointsColorVbo != 0)

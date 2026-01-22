@@ -14,6 +14,27 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
 {
     private const int LayoutVersion = 1;
+    internal const int MaxDebugTraceRays = 512;
+
+    internal readonly struct DebugTraceRay
+    {
+        public readonly Vec3d StartWorld;
+        public readonly Vec3d EndWorld;
+        public readonly float R;
+        public readonly float G;
+        public readonly float B;
+        public readonly float A;
+
+        public DebugTraceRay(Vec3d startWorld, Vec3d endWorld, float r, float g, float b, float a)
+        {
+            StartWorld = startWorld;
+            EndWorld = endWorld;
+            R = r;
+            G = g;
+            B = b;
+            A = a;
+        }
+    }
 
     private readonly ICoreClientAPI capi;
     private readonly VgeConfig config;
@@ -32,6 +53,11 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
     private int runtimeResolution;
     private readonly Vector3[] runtimeOrigins = new Vector3[8];
     private readonly Vector3[] runtimeRings = new Vector3[8];
+
+    // Debug-only: preview rays currently queued for tracing.
+    private readonly DebugTraceRay[] debugTraceRays = new DebugTraceRay[MaxDebugTraceRays];
+    private int debugTraceRayCount;
+    private int debugTraceRayFrameIndex;
 
     private bool forceRecreate;
     private bool isDisposed;
@@ -114,6 +140,40 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
                 runtimeResolution,
                 runtimeBaseSpacing);
         }
+    }
+
+    public void PublishDebugTraceRays(int frameIndex, ReadOnlySpan<DebugTraceRay> rays)
+    {
+        int count = Math.Clamp(rays.Length, 0, MaxDebugTraceRays);
+        for (int i = 0; i < count; i++)
+        {
+            debugTraceRays[i] = rays[i];
+        }
+
+        debugTraceRayCount = count;
+        debugTraceRayFrameIndex = frameIndex;
+    }
+
+    public void ClearDebugTraceRays(int frameIndex)
+    {
+        debugTraceRayCount = 0;
+        debugTraceRayFrameIndex = frameIndex;
+    }
+
+    public bool TryGetDebugTraceRays(out DebugTraceRay[] rays, out int count, out int frameIndex)
+    {
+        if (debugTraceRayCount <= 0)
+        {
+            rays = Array.Empty<DebugTraceRay>();
+            count = 0;
+            frameIndex = debugTraceRayFrameIndex;
+            return false;
+        }
+
+        rays = debugTraceRays;
+        count = debugTraceRayCount;
+        frameIndex = debugTraceRayFrameIndex;
+        return true;
     }
 
     internal void NotifyAnchorShifted(in LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent evt)
