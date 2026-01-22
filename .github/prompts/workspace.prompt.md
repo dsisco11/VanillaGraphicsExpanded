@@ -52,7 +52,13 @@ This repo contains the mod code and tests for **VanillaGraphicsExpanded**, a ren
 - ConfigLib event hook: `ModSystems/ConfigModSystem.cs` (config-saved bus listener)
 
 ## GPU Abstractions (Rendering/)
-- `DynamicTexture` / `DynamicTexture3D` - RAII wrappers for 2D + 2D-array/3D textures; allocate, resize, upload, readback, debug labels
+- `GpuBufferObject` - RAII wrapper for GL buffer objects; allocate, resize, map, debug labels
+- `GpuVbo` - RAII wrapper for VBOs; allocate, resize, attribute setup, debug labels
+- `GpuVao` - RAII wrapper for VAOs; attribute binding, debug labels
+- `GpuEbo` - RAII wrapper for EBOs; allocate, resize, debug labels
+- `VgeShaderProgram` - Shader program base; compile/link, uniform setters, debug labels
+- `Texture2D` / `Texture3D` - RAII wrappers for 'static' 2D + 2D-array/3D textures; allocate, resize, upload, readback, debug labels
+- `DynamicTexture2D` / `DynamicTexture3D` - RAII wrappers for 'dynamic' 2D + 2D-array/3D textures; allocate, resize, upload, readback, debug labels
 - `GBuffer` - FBO wrapper (single, MRT, depth-only) with attach/resize/blit and wrapper support for engine-owned FBOs
 - `GBufferManager` - Injects extra MRT targets (normal/material) into the engine Primary framebuffer
 - `TextureStreamingManager` - PBO-backed upload queue with per-frame budgets, persistent-mapped ring or triple-buffer fallback
