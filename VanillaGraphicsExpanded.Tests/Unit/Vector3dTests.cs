@@ -113,6 +113,27 @@ public sealed class Vector3dTests
     }
 
     [Fact]
+    public void ArgMinAxis_SelectsSmallestComponent()
+    {
+        Assert.Equal(0, Vector3d.ArgMinAxis(new Vector3d(1, 2, 3)));
+        Assert.Equal(1, Vector3d.ArgMinAxis(new Vector3d(3, 1, 2)));
+        Assert.Equal(2, Vector3d.ArgMinAxis(new Vector3d(3, 2, 1)));
+    }
+
+    [Fact]
+    public void ArgMinAxis_TieBreaking_MatchesTracerLogic()
+    {
+        // X ties with Z => Z
+        Assert.Equal(2, Vector3d.ArgMinAxis(new Vector3d(1, 2, 1)));
+        // Y ties with Z => Z
+        Assert.Equal(2, Vector3d.ArgMinAxis(new Vector3d(2, 1, 1)));
+        // X ties with Y (both < Z) => Y
+        Assert.Equal(1, Vector3d.ArgMinAxis(new Vector3d(1, 1, 2)));
+        // X ties with Y ties with Z => Z
+        Assert.Equal(2, Vector3d.ArgMinAxis(new Vector3d(1, 1, 1)));
+    }
+
+    [Fact]
     public void Dot_Length_Distance_Work()
     {
         var a = new Vector3d(2, 3, 4);

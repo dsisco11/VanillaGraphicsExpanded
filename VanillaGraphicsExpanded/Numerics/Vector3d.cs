@@ -372,6 +372,56 @@ internal readonly struct Vector3d : IEquatable<Vector3d>
     }
 
     /// <summary>
+    /// Returns the axis index (0=X, 1=Y, 2=Z) of the smallest component.
+    /// Tie-breaking:
+    /// - X ties with Z => Z
+    /// - Y ties with Z => Z
+    /// - X ties with Y => Y (unless Z is smaller)
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int ArgMinAxis(Vector3d value)
+    {
+        if (Avx2.IsSupported)
+        {
+            // Compare against permuted variants so we can derive x<y, y<z, x<z without scalar comparisons.
+            // value is packed as (x,y,z,0).
+
+            // Note: Avx.Permute for doubles permutes within 128-bit lanes only.
+            // We need a full 4x64-bit permute, so use Avx2.Permute4x64.
+            // yzx = (y,z,x,0)
+            Vector256<double> yzx = Avx2.Permute4x64(value.v.AsInt64(), 0xC9).AsDouble();
+            // zxy = (z,x,y,0)
+            Vector256<double> zxy = Avx2.Permute4x64(value.v.AsInt64(), 0xD2).AsDouble();
+
+            int maskXY = Avx.MoveMask(Avx.Compare(value.v, yzx, FloatComparisonMode.OrderedLessThanNonSignaling));
+            int maskXZ = Avx.MoveMask(Avx.Compare(value.v, zxy, FloatComparisonMode.OrderedLessThanNonSignaling));
+
+            bool xLessY = (maskXY & 0b0001) != 0;
+            bool yLessZ = (maskXY & 0b0010) != 0;
+            bool xLessZ = (maskXZ & 0b0001) != 0;
+
+            // Match the existing branch structure used in BlockAccessorWorldProbeTraceScene.
+            if (xLessY)
+            {
+                return xLessZ ? 0 : 2;
+            }
+
+            return yLessZ ? 1 : 2;
+        }
+
+        double x = value.X;
+        double y = value.Y;
+        double z = value.Z;
+
+        if (x < y)
+        {
+            return x < z ? 0 : 2;
+        }
+
+        return y < z ? 1 : 2;
+    }
+
+    /// <summary>
     /// Clamps each component between <paramref name="min"/> and <paramref name="max"/>.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
