@@ -47,7 +47,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
 
             Vector3 blockRadiance = hit
                 ? EvaluateBlockLightRadiance(hitInfo)
-                : Vector3.Zero;
+                : EvaluateSkyRadiance(dir);
 
             float skyIntensity = hit
                 ? EvaluateSkyLightIntensity(hitInfo)
