@@ -6,6 +6,7 @@ using Vintagestory.API.MathTools;
 
 using VanillaGraphicsExpanded.LumOn.WorldProbes;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
+using VanillaGraphicsExpanded.Numerics;
 
 using Xunit;
 
@@ -23,7 +24,7 @@ public sealed class WorldProbeTraceIntegratorTests
         var item = new LumOnWorldProbeTraceWorkItem(
             FrameIndex: 1,
             Request: request,
-            ProbePosWorld: new Vec3d(0.5, 0.5, 0.5),
+            ProbePosWorld: new Vector3d(0.5, 0.5, 0.5),
             MaxTraceDistanceWorld: 32);
 
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
@@ -45,7 +46,7 @@ public sealed class WorldProbeTraceIntegratorTests
         var item = new LumOnWorldProbeTraceWorkItem(
             FrameIndex: 2,
             Request: request,
-            ProbePosWorld: new Vec3d(0.5, 0.5, 0.5),
+            ProbePosWorld: new Vector3d(0.5, 0.5, 0.5),
             MaxTraceDistanceWorld: 32);
 
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
@@ -59,7 +60,7 @@ public sealed class WorldProbeTraceIntegratorTests
 
     private sealed class NeverHitScene : IWorldProbeTraceScene
     {
-        public bool Trace(Vec3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
+        public bool Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
         {
             hit = default;
             return false;
@@ -75,13 +76,13 @@ public sealed class WorldProbeTraceIntegratorTests
             this.hitDistance = hitDistance;
         }
 
-        public bool Trace(Vec3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
+        public bool Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
         {
             hit = new LumOnWorldProbeTraceHit(
                 HitDistance: this.hitDistance,
-                HitBlockPos: new Vec3i(0, 0, 0),
-                HitFaceNormal: new Vec3i(0, 1, 0),
-                SampleBlockPos: new Vec3i(0, 0, 0),
+                HitBlockPos: new VectorInt3(0, 0, 0),
+                HitFaceNormal: new VectorInt3(0, 1, 0),
+                SampleBlockPos: new VectorInt3(0, 0, 0),
                 SampleLightRgbS: new Vector4(0, 0, 0, 0));
             return true;
         }

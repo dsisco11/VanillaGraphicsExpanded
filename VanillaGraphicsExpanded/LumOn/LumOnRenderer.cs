@@ -1376,7 +1376,8 @@ public class LumOnRenderer : IRenderer, IDisposable
                 }
 
                 double spacing = LumOnClipmapTopology.GetSpacing(baseSpacing, req.Level);
-                Vec3d probePosWorld = LumOnClipmapTopology.IndexToProbeCenterWorld(req.LocalIndex, originMinCorner, spacing);
+                Vec3d probePosWorldVs = LumOnClipmapTopology.IndexToProbeCenterWorld(req.LocalIndex, originMinCorner, spacing);
+                var probePosWorld = new VanillaGraphicsExpanded.Numerics.Vector3d(probePosWorldVs.X, probePosWorldVs.Y, probePosWorldVs.Z);
 
                 if (IsWorldProbeCenterInsideSolidBlock(probePosWorld))
                 {
@@ -1398,7 +1399,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Local helper: treat probe centers inside solid blocks as disabled.
         // This avoids spending trace budget on locations that cannot represent empty space lighting.
-        bool IsWorldProbeCenterInsideSolidBlock(Vec3d probePosWorld)
+        bool IsWorldProbeCenterInsideSolidBlock(VanillaGraphicsExpanded.Numerics.Vector3d probePosWorld)
         {
             var blockAccessor = capi.World?.BlockAccessor;
             if (blockAccessor is null) return false;

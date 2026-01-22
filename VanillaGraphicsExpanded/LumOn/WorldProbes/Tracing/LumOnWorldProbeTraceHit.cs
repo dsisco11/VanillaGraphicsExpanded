@@ -1,12 +1,12 @@
 using System.Numerics;
 
-using Vintagestory.API.MathTools;
+using VanillaGraphicsExpanded.Numerics;
 
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 
 internal readonly record struct LumOnWorldProbeTraceHit(
     double HitDistance,
-    Vec3i HitBlockPos,
-    Vec3i HitFaceNormal,
-    Vec3i SampleBlockPos,
+    VectorInt3 HitBlockPos,
+    VectorInt3 HitFaceNormal,
+    VectorInt3 SampleBlockPos,
     Vector4 SampleLightRgbS);

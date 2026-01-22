@@ -4,9 +4,9 @@ using System.Reflection;
 using System.Threading;
 
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
+using VanillaGraphicsExpanded.Numerics;
 
 using Vintagestory.API.Common;
-using Vintagestory.API.MathTools;
 
 using Xunit;
 
@@ -20,7 +20,7 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var blockAccessor = NullObjectProxy.Create<IBlockAccessor>();
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
 
-        bool hit = scene.Trace(new Vec3d(0, 0, 0), new Vector3(0, 0, 0), 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = scene.Trace(new Vector3d(0, 0, 0), new Vector3(0, 0, 0), 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
 
         Assert.False(hit);
         Assert.Equal(default, traceHit);

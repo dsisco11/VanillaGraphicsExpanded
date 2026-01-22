@@ -6,6 +6,7 @@ using Vintagestory.API.MathTools;
 
 using VanillaGraphicsExpanded.LumOn.WorldProbes;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
+using VanillaGraphicsExpanded.Numerics;
 
 using Xunit;
 
@@ -21,7 +22,7 @@ public sealed class WorldProbeTraceServiceTests
         using var svc = new LumOnWorldProbeTraceService(scene, maxQueuedWorkItems: 8);
 
         var request = new LumOnWorldProbeUpdateRequest(0, new Vec3i(0, 0, 0), new Vec3i(0, 0, 0), 0);
-        Assert.True(svc.TryEnqueue(new LumOnWorldProbeTraceWorkItem(0, request, new Vec3d(0.5, 0.5, 0.5), 8)));
+        Assert.True(svc.TryEnqueue(new LumOnWorldProbeTraceWorkItem(0, request, new Vector3d(0.5, 0.5, 0.5), 8)));
 
         LumOnWorldProbeTraceResult res = default;
         bool got = SpinWait.SpinUntil(() => svc.TryDequeueResult(out res), TimeSpan.FromSeconds(1));
@@ -32,7 +33,7 @@ public sealed class WorldProbeTraceServiceTests
 
     private sealed class NeverHitScene : IWorldProbeTraceScene
     {
-        public bool Trace(Vec3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
+        public bool Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
         {
             hit = default;
             return false;

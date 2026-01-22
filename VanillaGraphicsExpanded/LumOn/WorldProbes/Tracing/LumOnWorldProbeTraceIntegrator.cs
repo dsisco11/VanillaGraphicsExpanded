@@ -2,8 +2,6 @@ using System;
 using System.Numerics;
 using System.Threading;
 
-using Vintagestory.API.MathTools;
-
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 
 internal sealed class LumOnWorldProbeTraceIntegrator

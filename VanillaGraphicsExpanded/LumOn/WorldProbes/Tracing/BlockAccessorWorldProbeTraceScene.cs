@@ -2,6 +2,8 @@ using System;
 using System.Numerics;
 using System.Threading;
 
+using VanillaGraphicsExpanded.Numerics;
+
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 
@@ -16,30 +18,24 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
         this.blockAccessor = blockAccessor ?? throw new ArgumentNullException(nameof(blockAccessor));
     }
 
-    public bool Trace(Vec3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
+    public bool Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
     {
-        ArgumentNullException.ThrowIfNull(originWorld);
-
         if (maxDistance <= 0)
         {
             hit = default;
             return false;
         }
 
-        double dx = dirWorld.X;
-        double dy = dirWorld.Y;
-        double dz = dirWorld.Z;
-
-        double len = Math.Sqrt(dx * dx + dy * dy + dz * dz);
-        if (len < 1e-9)
+        Vector3d dir = Vector3d.Normalize(Vector3d.FromVector3(dirWorld));
+        if (dir.LengthSquared() < 1e-18)
         {
             hit = default;
             return false;
         }
 
-        dx /= len;
-        dy /= len;
-        dz /= len;
+        double dx = dir.X;
+        double dy = dir.Y;
+        double dz = dir.Z;
 
         // Amanatides & Woo voxel traversal through 1x1x1 blocks.
         int x = (int)Math.Floor(originWorld.X);
@@ -132,9 +128,9 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
 
                     hit = new LumOnWorldProbeTraceHit(
                         HitDistance: t,
-                        HitBlockPos: new Vec3i(x, y, z),
-                        HitFaceNormal: new Vec3i(faceNx, faceNy, faceNz),
-                        SampleBlockPos: new Vec3i(sx, sy, sz),
+                        HitBlockPos: new VectorInt3(x, y, z),
+                        HitFaceNormal: new VectorInt3(faceNx, faceNy, faceNz),
+                        SampleBlockPos: new VectorInt3(sx, sy, sz),
                         SampleLightRgbS: light);
                     return true;
                 }
