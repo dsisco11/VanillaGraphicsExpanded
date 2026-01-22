@@ -1557,7 +1557,7 @@ public class LumOnRenderer : IRenderer, IDisposable
             int writtenThisProbe = 0;
             for (int d = 0; d < dirs.Length && written < maxTotalRays; d += dirStride)
             {
-                Vec3f dir = dirs[d];
+                var dir = dirs[d];
                 var end = new Vec3d(
                     probePosWorld.X + dir.X * maxDist,
                     probePosWorld.Y + dir.Y * maxDist,

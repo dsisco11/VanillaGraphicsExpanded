@@ -1,3 +1,5 @@
+using System.Numerics;
+
 using Vintagestory.API.MathTools;
 
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
@@ -7,4 +9,4 @@ internal readonly record struct LumOnWorldProbeTraceHit(
     Vec3i HitBlockPos,
     Vec3i HitFaceNormal,
     Vec3i SampleBlockPos,
-    Vec4f SampleLightRgbS);
+    Vector4 SampleLightRgbS);

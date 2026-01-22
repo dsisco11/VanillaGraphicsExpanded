@@ -19,7 +19,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
     {
         if (scene is null) throw new ArgumentNullException(nameof(scene));
 
-        ReadOnlySpan<Vec3f> directions = LumOnWorldProbeTraceDirections.GetDirections();
+        ReadOnlySpan<Vector3> directions = LumOnWorldProbeTraceDirections.GetDirections();
         int n = directions.Length;
 
         // Uniform weights over the sphere.
@@ -30,7 +30,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         Vector4 shB = Vector4.Zero;
         Vector4 shSky = Vector4.Zero;
 
-        Vec3f bent = new(0, 0, 0);
+        Vector3 bent = Vector3.Zero;
         int unoccludedCount = 0;
 
         double hitDistSum = 0;
@@ -40,14 +40,14 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            Vec3f dir = directions[i];
+            Vector3 dir = directions[i];
 
             bool hit = scene.Trace(item.ProbePosWorld, dir, item.MaxTraceDistanceWorld, cancellationToken, out var hitInfo);
             double hitDist = hitInfo.HitDistance;
 
-            Vec3f blockRadiance = hit
+            Vector3 blockRadiance = hit
                 ? EvaluateBlockLightRadiance(hitInfo)
-                : new Vec3f(0, 0, 0);
+                : Vector3.Zero;
 
             float skyIntensity = hit
                 ? EvaluateSkyLightIntensity(hitInfo)
@@ -69,9 +69,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
 
             if (!hit)
             {
-                bent.X += dir.X;
-                bent.Y += dir.Y;
-                bent.Z += dir.Z;
+                bent += dir;
                 unoccludedCount++;
             }
             else if (hitDist > 0)
@@ -81,7 +79,15 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             }
         }
 
-        Vec3f aoDir = unoccludedCount > 0 ? bent.Normalize() : new Vec3f(0, 1, 0);
+        Vector3 aoDir;
+        if (unoccludedCount > 0 && bent.LengthSquared() > 1e-12f)
+        {
+            aoDir = Vector3.Normalize(bent);
+        }
+        else
+        {
+            aoDir = Vector3.UnitY;
+        }
         float aoConfidence = (float)unoccludedCount / n;
 
         float confidence = ComputeUnifiedConfidence(aoConfidence, hitCount, n);
@@ -106,12 +112,12 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             MeanLogHitDistance: meanLogDist);
     }
 
-    private static Vec3f EvaluateBlockLightRadiance(in LumOnWorldProbeTraceHit hit)
+    private static Vector3 EvaluateBlockLightRadiance(in LumOnWorldProbeTraceHit hit)
     {
         // hit.SampleLightRgbS: XYZ = block light rgb, W = sun brightness.
-        Vec4f ls = hit.SampleLightRgbS;
+        Vector4 ls = hit.SampleLightRgbS;
 
-        return new Vec3f(
+        return new Vector3(
             Math.Clamp(ls.X / LightLevelMax, 0f, 1f),
             Math.Clamp(ls.Y / LightLevelMax, 0f, 1f),
             Math.Clamp(ls.Z / LightLevelMax, 0f, 1f));
@@ -122,16 +128,16 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         return Math.Clamp(hit.SampleLightRgbS.W / LightLevelMax, 0f, 1f);
     }
 
-    private static Vec3f EvaluateSkyRadiance(Vec3f dir)
+    private static Vector3 EvaluateSkyRadiance(Vector3 dir)
     {
         // Placeholder sky model for Phase 18.6 bring-up.
         // Later phases can sample game lighting / sky / time-of-day.
         float t = Math.Clamp(dir.Y * 0.5f + 0.5f, 0f, 1f);
 
-        Vec3f horizon = new(0.25f, 0.28f, 0.30f);
-        Vec3f zenith = new(0.55f, 0.65f, 0.85f);
+        Vector3 horizon = new(0.25f, 0.28f, 0.30f);
+        Vector3 zenith = new(0.55f, 0.65f, 0.85f);
 
-        return new Vec3f(
+        return new Vector3(
             horizon.X + (zenith.X - horizon.X) * t,
             horizon.Y + (zenith.Y - horizon.Y) * t,
             horizon.Z + (zenith.Z - horizon.Z) * t);

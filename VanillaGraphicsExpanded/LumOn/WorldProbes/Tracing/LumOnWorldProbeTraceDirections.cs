@@ -1,6 +1,5 @@
 using System;
-
-using Vintagestory.API.MathTools;
+using System.Numerics;
 
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 
@@ -9,14 +8,14 @@ internal static class LumOnWorldProbeTraceDirections
     // Keep in sync with LUMON_OCTAHEDRAL_SIZE in lumon_octahedral.glsl.
     public const int OctahedralSize = 8;
 
-    private static readonly Vec3f[] Directions = BuildDirections();
+    private static readonly Vector3[] Directions = BuildDirections();
 
-    public static ReadOnlySpan<Vec3f> GetDirections() => Directions;
+    public static ReadOnlySpan<Vector3> GetDirections() => Directions;
 
-    private static Vec3f[] BuildDirections()
+    private static Vector3[] BuildDirections()
     {
         int n = OctahedralSize;
-        var dirs = new Vec3f[n * n];
+        var dirs = new Vector3[n * n];
 
         int i = 0;
         for (int y = 0; y < n; y++)
@@ -34,7 +33,7 @@ internal static class LumOnWorldProbeTraceDirections
         return dirs;
     }
 
-    private static Vec3f OctahedralUVToDirection(float u, float v)
+    private static Vector3 OctahedralUVToDirection(float u, float v)
     {
         // Matches lumonOctahedralUVToDirection() in lumon_octahedral.glsl.
         float ox = u * 2f - 1f;
@@ -53,8 +52,8 @@ internal static class LumOnWorldProbeTraceDirections
         }
 
         float len = MathF.Sqrt(x * x + y * y + z * z);
-        if (len < 1e-6f) return new Vec3f(0, 1, 0);
+        if (len < 1e-6f) return Vector3.UnitY;
 
-        return new Vec3f(x / len, y / len, z / len);
+        return new Vector3(x / len, y / len, z / len);
     }
 }

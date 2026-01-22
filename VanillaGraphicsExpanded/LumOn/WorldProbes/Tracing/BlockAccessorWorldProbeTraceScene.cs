@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using System.Threading;
 
 using Vintagestory.API.Common;
@@ -15,7 +16,7 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
         this.blockAccessor = blockAccessor ?? throw new ArgumentNullException(nameof(blockAccessor));
     }
 
-    public bool Trace(Vec3d originWorld, Vec3f dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
+    public bool Trace(Vec3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
     {
         ArgumentNullException.ThrowIfNull(originWorld);
 
@@ -119,13 +120,14 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
                     int sy = y + faceNy;
                     int sz = z + faceNz;
 
-                    Vec4f light = new Vec4f();
+                    Vector4 light = Vector4.Zero;
 
                     samplePos.Set(sx, sy, sz);
                     if (blockAccessor.GetChunkAtBlockPos(samplePos) != null)
                     {
                         // Vec4f: XYZ = block light rgb, W = sun light brightness.
-                        light = blockAccessor.GetLightRGBs(samplePos);
+                        Vec4f ls = blockAccessor.GetLightRGBs(samplePos);
+                        light = new Vector4(ls.X, ls.Y, ls.Z, ls.W);
                     }
 
                     hit = new LumOnWorldProbeTraceHit(
