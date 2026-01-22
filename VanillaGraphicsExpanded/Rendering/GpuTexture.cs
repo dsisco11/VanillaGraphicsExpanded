@@ -285,6 +285,18 @@ public abstract class GpuTexture : IDisposable
         GL.BindTexture(textureTarget, textureId);
     }
 
+    public bool TryBind(int unit)
+    {
+        if (!IsValid)
+        {
+            return false;
+        }
+
+        GL.ActiveTexture(TextureUnit.Texture0 + unit);
+        GL.BindTexture(textureTarget, textureId);
+        return true;
+    }
+
     public virtual void Unbind(int unit)
     {
         GL.ActiveTexture(TextureUnit.Texture0 + unit);
@@ -805,6 +817,11 @@ public abstract class GpuTexture : IDisposable
         }
 
         isDisposed = true;
+    }
+
+    public override string ToString()
+    {
+        return $"{GetType().Name}(id={textureId}, target={textureTarget}, size={width}x{height}x{depth}, format={internalFormat}, name={debugName}, disposed={isDisposed})";
     }
 
     internal static TextureUploadPriority MapUploadPriority(int priority)

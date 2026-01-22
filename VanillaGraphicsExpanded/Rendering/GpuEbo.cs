@@ -39,6 +39,42 @@ internal sealed class GpuEbo : GpuBufferObject
         indexType = DrawElementsType.UnsignedInt;
     }
 
+    public bool TryUploadIndices(uint[] indices)
+    {
+        if (indices is null)
+        {
+            return false;
+        }
+
+        if (!TryUploadData(indices))
+        {
+            return false;
+        }
+
+        indexCount = indices.Length;
+        indexType = DrawElementsType.UnsignedInt;
+        return true;
+    }
+
+    public void UploadIndices(ReadOnlySpan<uint> indices)
+    {
+        UploadData(indices);
+        indexCount = indices.Length;
+        indexType = DrawElementsType.UnsignedInt;
+    }
+
+    public bool TryUploadIndices(ReadOnlySpan<uint> indices)
+    {
+        if (!TryUploadData(indices))
+        {
+            return false;
+        }
+
+        indexCount = indices.Length;
+        indexType = DrawElementsType.UnsignedInt;
+        return true;
+    }
+
     public void UploadIndices(ushort[] indices)
     {
         ArgumentNullException.ThrowIfNull(indices);
@@ -48,6 +84,42 @@ internal sealed class GpuEbo : GpuBufferObject
         indexType = DrawElementsType.UnsignedShort;
     }
 
+    public bool TryUploadIndices(ushort[] indices)
+    {
+        if (indices is null)
+        {
+            return false;
+        }
+
+        if (!TryUploadData(indices))
+        {
+            return false;
+        }
+
+        indexCount = indices.Length;
+        indexType = DrawElementsType.UnsignedShort;
+        return true;
+    }
+
+    public void UploadIndices(ReadOnlySpan<ushort> indices)
+    {
+        UploadData(indices);
+        indexCount = indices.Length;
+        indexType = DrawElementsType.UnsignedShort;
+    }
+
+    public bool TryUploadIndices(ReadOnlySpan<ushort> indices)
+    {
+        if (!TryUploadData(indices))
+        {
+            return false;
+        }
+
+        indexCount = indices.Length;
+        indexType = DrawElementsType.UnsignedShort;
+        return true;
+    }
+
     public void UploadIndices(byte[] indices)
     {
         ArgumentNullException.ThrowIfNull(indices);
@@ -55,6 +127,42 @@ internal sealed class GpuEbo : GpuBufferObject
         UploadData(indices);
         indexCount = indices.Length;
         indexType = DrawElementsType.UnsignedByte;
+    }
+
+    public bool TryUploadIndices(byte[] indices)
+    {
+        if (indices is null)
+        {
+            return false;
+        }
+
+        if (!TryUploadData(indices))
+        {
+            return false;
+        }
+
+        indexCount = indices.Length;
+        indexType = DrawElementsType.UnsignedByte;
+        return true;
+    }
+
+    public void UploadIndices(ReadOnlySpan<byte> indices)
+    {
+        UploadData(indices);
+        indexCount = indices.Length;
+        indexType = DrawElementsType.UnsignedByte;
+    }
+
+    public bool TryUploadIndices(ReadOnlySpan<byte> indices)
+    {
+        if (!TryUploadData(indices))
+        {
+            return false;
+        }
+
+        indexCount = indices.Length;
+        indexType = DrawElementsType.UnsignedByte;
+        return true;
     }
 
     public void DrawElements(PrimitiveType primitiveType, int indexCount = 0, int offsetBytes = 0)
@@ -117,5 +225,10 @@ internal sealed class GpuEbo : GpuBufferObject
         base.Dispose();
         indexCount = 0;
         indexType = default;
+    }
+
+    public override string ToString()
+    {
+        return $"{GetType().Name}(id={bufferId}, sizeBytes={sizeBytes}, usage={usage}, indexCount={indexCount}, indexType={indexType}, name={debugName}, disposed={isDisposed})";
     }
 }

@@ -99,6 +99,17 @@ internal sealed class GpuVao : IDisposable
         GL.BindVertexArray(vertexArrayId);
     }
 
+    public bool TryBind()
+    {
+        if (!IsValid)
+        {
+            return false;
+        }
+
+        GL.BindVertexArray(vertexArrayId);
+        return true;
+    }
+
     public void Unbind()
     {
         GL.BindVertexArray(0);
@@ -223,10 +234,27 @@ internal sealed class GpuVao : IDisposable
 
     public void DrawElements(PrimitiveType primitiveType, GpuEbo ebo, int indexCount = 0, int offsetBytes = 0)
     {
+        if (!IsValid)
+        {
+            return;
+        }
+
         ArgumentNullException.ThrowIfNull(ebo);
+
         int count = indexCount > 0 ? indexCount : ebo.IndexCount;
-        BindElementBuffer(ebo);
-        DrawElements(primitiveType, ebo.IndexType, count, offsetBytes);
+        if (count <= 0)
+        {
+            return;
+        }
+
+        if (offsetBytes < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offsetBytes), offsetBytes, "Offset must be >= 0.");
+        }
+
+        Bind();
+        GL.BindBuffer(BufferTarget.ElementArrayBuffer, ebo.BufferId);
+        GL.DrawElements(primitiveType, count, ebo.IndexType, (IntPtr)offsetBytes);
     }
 
     public void DrawElementsInstanced(
@@ -262,10 +290,27 @@ internal sealed class GpuVao : IDisposable
         int indexCount = 0,
         int offsetBytes = 0)
     {
+        if (!IsValid)
+        {
+            return;
+        }
+
         ArgumentNullException.ThrowIfNull(ebo);
+
         int count = indexCount > 0 ? indexCount : ebo.IndexCount;
-        BindElementBuffer(ebo);
-        DrawElementsInstanced(primitiveType, ebo.IndexType, count, instanceCount, offsetBytes);
+        if (count <= 0 || instanceCount <= 0)
+        {
+            return;
+        }
+
+        if (offsetBytes < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offsetBytes), offsetBytes, "Offset must be >= 0.");
+        }
+
+        Bind();
+        GL.BindBuffer(BufferTarget.ElementArrayBuffer, ebo.BufferId);
+        GL.DrawElementsInstanced(primitiveType, count, ebo.IndexType, (IntPtr)offsetBytes, instanceCount);
     }
 
     public void Dispose()
@@ -282,6 +327,11 @@ internal sealed class GpuVao : IDisposable
         }
 
         isDisposed = true;
+    }
+
+    public override string ToString()
+    {
+        return $"{GetType().Name}(id={vertexArrayId}, name={debugName}, disposed={isDisposed})";
     }
 
     public readonly struct BindingScope : IDisposable
