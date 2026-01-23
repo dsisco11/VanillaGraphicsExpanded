@@ -21,19 +21,19 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
         this.blockAccessor = blockAccessor ?? throw new ArgumentNullException(nameof(blockAccessor));
     }
 
-    public bool Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
+    public WorldProbeTraceOutcome Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
     {
         if (maxDistance <= 0)
         {
             hit = default;
-            return false;
+            return WorldProbeTraceOutcome.Miss;
         }
 
         Vector3d dir = Vector3d.Normalize(Vector3d.FromVector3(dirWorld));
         if (dir.LengthSquared() < 1e-18)
         {
             hit = default;
-            return false;
+            return WorldProbeTraceOutcome.Miss;
         }
 
         // Amanatides & Woo voxel traversal through 1x1x1 blocks.
@@ -78,50 +78,62 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
 
             pos.Set(x, y, z);
 
-            // Avoid forcing chunk loads; treat unloaded as miss.
-            if (blockAccessor.GetChunkAtBlockPos(pos) == null)
+            try
             {
-                hit = default;
-                return false;
-            }
-
-            Block b = blockAccessor.GetMostSolidBlock(pos);
-            if (b.Id != 0)
-            {
-                // Avoid querying collision boxes for air.
-                Cuboidf[] boxes = b.GetCollisionBoxes(blockAccessor, pos);
-                if (boxes != null && boxes.Length > 0)
+                // Avoid forcing chunk loads; treat unloaded as miss.
+                // Note: some implementations may surface placeholder chunk objects that do not support all queries.
+                if (blockAccessor.GetChunkAtBlockPos(pos) == null)
                 {
-                    // Only treat as a hit if the ray actually intersects a collision box within the segment
-                    // that lies inside the current voxel.
-                    double tExit = Math.Min(tMax.X, Math.Min(tMax.Y, tMax.Z));
-                    double tSegEnd = Math.Min(tExit, maxDistance);
+                    hit = default;
+                    return WorldProbeTraceOutcome.Miss;
+                }
 
-                    if (TryIntersectCollisionBoxes(originWorld, dir, x, y, z, boxes, t, tSegEnd, faceN, dx, dy, dz, out double tHit, out VectorInt3 hitNormal))
+                Block b = blockAccessor.GetMostSolidBlock(pos);
+                if (b.Id != 0)
+                {
+                    // Avoid querying collision boxes for air.
+                    Cuboidf[] boxes = b.GetCollisionBoxes(blockAccessor, pos);
+                    if (boxes != null && boxes.Length > 0)
                     {
-                        int sx = x + hitNormal.X;
-                        int sy = y + hitNormal.Y;
-                        int sz = z + hitNormal.Z;
+                        // Only treat as a hit if the ray actually intersects a collision box within the segment
+                        // that lies inside the current voxel.
+                        double tExit = Math.Min(tMax.X, Math.Min(tMax.Y, tMax.Z));
+                        double tSegEnd = Math.Min(tExit, maxDistance);
 
-                        Vector4 light = Vector4.Zero;
-
-                        samplePos.Set(sx, sy, sz);
-                        if (blockAccessor.GetChunkAtBlockPos(samplePos) != null)
+                        if (TryIntersectCollisionBoxes(originWorld, dir, x, y, z, boxes, t, tSegEnd, faceN, dx, dy, dz, out double tHit, out VectorInt3 hitNormal))
                         {
-                            // Vec4f: XYZ = block light rgb, W = sun light brightness.
-                            Vec4f ls = blockAccessor.GetLightRGBs(samplePos);
-                            light = new Vector4(ls.X, ls.Y, ls.Z, ls.W);
-                        }
+                            int sx = x + hitNormal.X;
+                            int sy = y + hitNormal.Y;
+                            int sz = z + hitNormal.Z;
 
-                        hit = new LumOnWorldProbeTraceHit(
-                            HitDistance: tHit,
-                            HitBlockPos: new VectorInt3(x, y, z),
-                            HitFaceNormal: hitNormal,
-                            SampleBlockPos: new VectorInt3(sx, sy, sz),
-                            SampleLightRgbS: light);
-                        return true;
+                            Vector4 light = Vector4.Zero;
+
+                            samplePos.Set(sx, sy, sz);
+                            if (blockAccessor.GetChunkAtBlockPos(samplePos) != null)
+                            {
+                                // Vec4f: XYZ = block light rgb, W = sun light brightness.
+                                Vec4f ls = blockAccessor.GetLightRGBs(samplePos);
+                                light = new Vector4(ls.X, ls.Y, ls.Z, ls.W);
+                                WorldProbeLightSampleStats.Record(light);
+                            }
+
+                            hit = new LumOnWorldProbeTraceHit(
+                                HitDistance: tHit,
+                                HitBlockPos: new VectorInt3(x, y, z),
+                                HitFaceNormal: hitNormal,
+                                SampleBlockPos: new VectorInt3(sx, sy, sz),
+                                SampleLightRgbS: light);
+                            return WorldProbeTraceOutcome.Hit;
+                        }
                     }
                 }
+            }
+            catch (NotImplementedException)
+            {
+                // The lock-free accessor can surface placeholder chunk data (e.g., NoChunkData) that throws for certain queries.
+                // Don't substitute sky/horizon lighting for missing world data: abort this probe trace so it can be retried later.
+                hit = default;
+                return WorldProbeTraceOutcome.Aborted;
             }
 
             // Advance to next voxel boundary.
@@ -150,7 +162,7 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
         }
 
         hit = default;
-        return false;
+        return WorldProbeTraceOutcome.Miss;
     }
 
     private static bool TryIntersectCollisionBoxes(

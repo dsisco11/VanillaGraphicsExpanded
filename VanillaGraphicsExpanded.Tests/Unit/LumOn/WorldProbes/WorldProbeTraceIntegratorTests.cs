@@ -58,33 +58,65 @@ public sealed class WorldProbeTraceIntegratorTests
         Assert.True(res.MeanLogHitDistance > 1.0f);
     }
 
+    [Fact]
+    public void TraceProbe_WhenAllHitsWithSkylight_ProducesNonZeroRadianceSh()
+    {
+        var scene = new AlwaysHitScene(hitDistance: 4.0, sampleLight: new Vector4(0, 0, 0, 0.9f), hitFaceNormal: new VectorInt3(0, 1, 0));
+        var integrator = new LumOnWorldProbeTraceIntegrator();
+
+        var request = new LumOnWorldProbeUpdateRequest(0, new Vec3i(0, 0, 0), new Vec3i(0, 0, 0), 0);
+        var item = new LumOnWorldProbeTraceWorkItem(
+            FrameIndex: 3,
+            Request: request,
+            ProbePosWorld: new Vector3d(0.5, 0.5, 0.5),
+            MaxTraceDistanceWorld: 32);
+
+        var res = integrator.TraceProbe(scene, item, CancellationToken.None);
+
+        Assert.True(res.ShortRangeAoConfidence < 0.01f);
+        Assert.True(res.ShR.Length() > 1e-5f);
+        Assert.True(res.ShG.Length() > 1e-5f);
+        Assert.True(res.ShB.Length() > 1e-5f);
+    }
+
     private sealed class NeverHitScene : IWorldProbeTraceScene
     {
-        public bool Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
+        public WorldProbeTraceOutcome Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
         {
             hit = default;
-            return false;
+            return WorldProbeTraceOutcome.Miss;
         }
     }
 
     private sealed class AlwaysHitScene : IWorldProbeTraceScene
     {
         private readonly double hitDistance;
+        private readonly Vector4 sampleLight;
+        private readonly VectorInt3 hitFaceNormal;
 
         public AlwaysHitScene(double hitDistance)
         {
             this.hitDistance = hitDistance;
+            sampleLight = new Vector4(0, 0, 0, 0);
+            hitFaceNormal = new VectorInt3(0, 1, 0);
         }
 
-        public bool Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
+        public AlwaysHitScene(double hitDistance, Vector4 sampleLight, VectorInt3 hitFaceNormal)
+        {
+            this.hitDistance = hitDistance;
+            this.sampleLight = sampleLight;
+            this.hitFaceNormal = hitFaceNormal;
+        }
+
+        public WorldProbeTraceOutcome Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
         {
             hit = new LumOnWorldProbeTraceHit(
                 HitDistance: this.hitDistance,
                 HitBlockPos: new VectorInt3(0, 0, 0),
-                HitFaceNormal: new VectorInt3(0, 1, 0),
+                HitFaceNormal: hitFaceNormal,
                 SampleBlockPos: new VectorInt3(0, 0, 0),
-                SampleLightRgbS: new Vector4(0, 0, 0, 0));
-            return true;
+                SampleLightRgbS: sampleLight);
+            return WorldProbeTraceOutcome.Hit;
         }
     }
 }

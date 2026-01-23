@@ -13,6 +13,9 @@ internal sealed class LumOnWorldProbeTraceService : IDisposable
 
     private readonly Channel<LumOnWorldProbeTraceResult> results;
 
+    private int approxQueuedWorkItems;
+    private int approxQueuedResults;
+
     private readonly CancellationTokenSource cts = new();
 
     private readonly Task workerTask;
@@ -27,7 +30,10 @@ internal sealed class LumOnWorldProbeTraceService : IDisposable
 
         var workOpts = new BoundedChannelOptions(Math.Max(1, maxQueuedWorkItems))
         {
-            FullMode = BoundedChannelFullMode.DropOldest,
+            // IMPORTANT: Never silently drop queued work.
+            // Dropping would leave the corresponding probe "InFlight" forever on the scheduler side.
+            // Use Wait so TryWrite fails when full (non-blocking backpressure).
+            FullMode = BoundedChannelFullMode.Wait,
             SingleReader = true,
             SingleWriter = false,
         };
@@ -40,13 +46,29 @@ internal sealed class LumOnWorldProbeTraceService : IDisposable
 
     public bool TryEnqueue(in LumOnWorldProbeTraceWorkItem item)
     {
-        return work.Writer.TryWrite(item);
+        if (!work.Writer.TryWrite(item))
+        {
+            return false;
+        }
+
+        Interlocked.Increment(ref approxQueuedWorkItems);
+        return true;
     }
 
     public bool TryDequeueResult(out LumOnWorldProbeTraceResult result)
     {
-        return results.Reader.TryRead(out result);
+        if (!results.Reader.TryRead(out result))
+        {
+            return false;
+        }
+
+        Interlocked.Decrement(ref approxQueuedResults);
+        return true;
     }
+
+    public int ApproxQueuedWorkItems => Volatile.Read(ref approxQueuedWorkItems);
+
+    public int ApproxQueuedResults => Volatile.Read(ref approxQueuedResults);
 
     public void CancelOutstanding()
     {
@@ -80,9 +102,38 @@ internal sealed class LumOnWorldProbeTraceService : IDisposable
             {
                 while (work.Reader.TryRead(out var item))
                 {
+                    Interlocked.Decrement(ref approxQueuedWorkItems);
+
                     using var scope = Profiler.BeginScope("LumOn.WorldProbe.Trace.Run", "LumOn");
-                    LumOnWorldProbeTraceResult res = integrator.TraceProbe(scene, item, cts.Token);
+                    LumOnWorldProbeTraceResult res;
+                    try
+                    {
+                        res = integrator.TraceProbe(scene, item, cts.Token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch
+                    {
+                        // Ensure the scheduler can recover by retrying later.
+                        res = new LumOnWorldProbeTraceResult(
+                            FrameIndex: item.FrameIndex,
+                            Request: item.Request,
+                            Success: false,
+                            FailureReason: WorldProbeTraceFailureReason.Exception,
+                            ShR: default,
+                            ShG: default,
+                            ShB: default,
+                            ShSky: default,
+                            ShortRangeAoDirWorld: default,
+                            ShortRangeAoConfidence: 0f,
+                            Confidence: 0f,
+                            MeanLogHitDistance: 0f);
+                    }
+
                     await results.Writer.WriteAsync(res, cts.Token).ConfigureAwait(false);
+                    Interlocked.Increment(ref approxQueuedResults);
                 }
             }
         }

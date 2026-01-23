@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -54,6 +55,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     private Action<LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent>? worldProbeSchedulerAnchorShiftHandler;
     private LumOnWorldProbeTraceService? worldProbeTraceService;
     private BlockAccessorWorldProbeTraceScene? worldProbeTraceScene;
+    private IBlockAccessor? worldProbeTraceBlockAccessor;
 
     private readonly System.Collections.Generic.List<LumOnWorldProbeTraceResult> worldProbeResults = new();
 
@@ -1317,13 +1319,23 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // World-space tracing requires the game world to be ready. Even if it's not,
         // we still publish clipmap params so debug views can show bounds/selection.
-        if (capi.World?.BlockAccessor is null)
+        //
+        // IMPORTANT: tracing runs off-thread.
+        worldProbeTraceBlockAccessor ??= capi.World?.BlockAccessor;
+        var traceBlockAccessor = worldProbeTraceBlockAccessor;
+        if (traceBlockAccessor is null)
+        {
+            return;
+        }
+
+        var mainThreadBlockAccessor = capi.World?.BlockAccessor;
+        if (mainThreadBlockAccessor is null)
         {
             return;
         }
 
         // Lazily create trace service.
-        worldProbeTraceScene ??= new BlockAccessorWorldProbeTraceScene(capi.World.BlockAccessor);
+        worldProbeTraceScene ??= new BlockAccessorWorldProbeTraceScene(traceBlockAccessor);
         worldProbeTraceService ??= new LumOnWorldProbeTraceService(worldProbeTraceScene, maxQueuedWorkItems: 2048);
 
         // Build per-frame update list.
@@ -1363,6 +1375,11 @@ public class LumOnRenderer : IRenderer, IDisposable
             worldProbeClipmapBufferManager.ClearDebugTraceRays(frameIndex);
         }
 
+        int requestedCount = requests.Count;
+        int enqueuedOk = 0;
+        int enqueuedFail = 0;
+        int disabledSolid = 0;
+
         // Enqueue trace work.
         using (Profiler.BeginScope("LumOn.WorldProbe.Trace.Enqueue", "LumOn"))
         {
@@ -1379,9 +1396,10 @@ public class LumOnRenderer : IRenderer, IDisposable
                 Vec3d probePosWorldVs = LumOnClipmapTopology.IndexToProbeCenterWorld(req.LocalIndex, originMinCorner, spacing);
                 var probePosWorld = new VanillaGraphicsExpanded.Numerics.Vector3d(probePosWorldVs.X, probePosWorldVs.Y, probePosWorldVs.Z);
 
-                if (IsWorldProbeCenterInsideSolidBlock(probePosWorld))
+                if (IsWorldProbeCenterInsideSolidBlock(mainThreadBlockAccessor, probePosWorld))
                 {
                     worldProbeScheduler.Disable(req);
+                    disabledSolid++;
                     continue;
                 }
 
@@ -1393,16 +1411,23 @@ public class LumOnRenderer : IRenderer, IDisposable
                 {
                     // Backpressure: re-mark dirty so we try again next frame.
                     worldProbeScheduler.Complete(req, frameIndex, success: false);
+                    enqueuedFail++;
+                }
+                else
+                {
+                    enqueuedOk++;
                 }
             }
         }
 
         // Local helper: treat probe centers inside solid blocks as disabled.
         // This avoids spending trace budget on locations that cannot represent empty space lighting.
-        bool IsWorldProbeCenterInsideSolidBlock(VanillaGraphicsExpanded.Numerics.Vector3d probePosWorld)
+        bool IsWorldProbeCenterInsideSolidBlock(IBlockAccessor blockAccessor, VanillaGraphicsExpanded.Numerics.Vector3d probePosWorld)
         {
-            var blockAccessor = capi.World?.BlockAccessor;
             if (blockAccessor is null) return false;
+
+            try
+            {
 
             var pos = new BlockPos(0);
             pos.Set((int)Math.Floor(probePosWorld.X), (int)Math.Floor(probePosWorld.Y), (int)Math.Floor(probePosWorld.Z));
@@ -1442,6 +1467,14 @@ public class LumOnRenderer : IRenderer, IDisposable
             }
 
             return false;
+
+            }
+            catch (NotImplementedException)
+            {
+                // Some accessors may surface placeholder chunk data that doesn't support all queries.
+                // Treat this as "unknown/unloaded" so we don't crash and we don't permanently disable the probe.
+                return false;
+            }
         }
 
         // Drain completed results.
@@ -1450,16 +1483,25 @@ public class LumOnRenderer : IRenderer, IDisposable
             worldProbeResults.Clear();
             while (worldProbeTraceService.TryDequeueResult(out var res))
             {
-                worldProbeResults.Add(res);
-                worldProbeScheduler.Complete(res.Request, frameIndex, success: true);
+                if (res.Success)
+                {
+                    worldProbeResults.Add(res);
+                    worldProbeScheduler.Complete(res.Request, frameIndex, success: true);
+                }
+                else
+                {
+                    bool aborted = res.FailureReason == WorldProbeTraceFailureReason.Aborted;
+                    worldProbeScheduler.Complete(res.Request, frameIndex, success: false, aborted);
+                }
             }
         }
 
         // Upload to GPU.
+        int uploaded = 0;
         if (worldProbeResults.Count > 0)
         {
             using var uploadScope = Profiler.BeginScope("LumOn.WorldProbe.Upload", "LumOn");
-            uploader.Upload(resources, worldProbeResults, cfg.UploadBudgetBytesPerFrame);
+            uploaded = uploader.Upload(resources, worldProbeResults, cfg.UploadBudgetBytesPerFrame);
         }
 
         if (config.LumOn.DebugMode == LumOnDebugMode.WorldProbeMetaFlagsHeatmap)
@@ -1467,6 +1509,11 @@ public class LumOnRenderer : IRenderer, IDisposable
             using var heatmapScope = Profiler.BeginScope("LumOn.WorldProbe.DebugHeatmap", "LumOn");
             UpdateWorldProbeDebugHeatmap(resources);
         }
+    }
+
+    private static bool IsWorldProbeDebugMode(LumOnDebugMode mode)
+    {
+        return mode >= LumOnDebugMode.WorldProbeIrradianceCombined && mode <= LumOnDebugMode.WorldProbeRawConfidences;
     }
 
     private void UpdateWorldProbeClipmapRuntimeParams(

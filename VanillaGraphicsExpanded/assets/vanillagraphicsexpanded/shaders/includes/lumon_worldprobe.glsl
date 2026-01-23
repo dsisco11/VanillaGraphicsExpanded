@@ -256,18 +256,24 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i1.z), ring, resolution, level, w011, shR, shG, shB, shSky, aoDirAccum, aoConfAccum, metaConfAccum);
 	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i1.z), ring, resolution, level, w111, shR, shG, shB, shSky, aoDirAccum, aoConfAccum, metaConfAccum);
 
-	// Evaluate SH in WORLD space.
-	vec3 irradianceBlock = shEvaluateDiffuseRGB(shR, shG, shB, normalWS);
-	float irradianceSky = shEvaluateDiffuse(shSky, normalWS);
-	vec3 irradiance = max(irradianceBlock, vec3(0.0)) + worldProbeSkyTint * max(irradianceSky, 0.0);
-
-	// ShortRangeAO directional weight (leak reduction proxy).
+	// ShortRangeAO: use a bent-normal evaluation rather than a hard directional multiplier.
+	// The old multiplier (max(dot(n, aoDir),0) * aoConf) can go to zero for side faces outdoors
+	// (aoDir tends to be "up"), which incorrectly kills world-probe contribution on walls.
+	//
+	// Instead, evaluate irradiance in the bent direction and apply AO confidence as openness.
 	// Guard against undefined normalize(0) behavior on some drivers.
 	vec3 aoDir = (dot(aoDirAccum, aoDirAccum) > 1e-8) ? normalize(aoDirAccum) : normalWS;
 	float aoConf = clamp(aoConfAccum, 0.0, 1.0);
-	float aoWeight = max(dot(normalWS, aoDir), 0.0) * aoConf;
+	vec3 bentNormalWS = (aoConf > 1e-6)
+		? normalize(mix(normalWS, aoDir, aoConf))
+		: normalWS;
 
-	irradiance = max(irradiance, vec3(0.0)) * aoWeight;
+	// Evaluate SH in WORLD space.
+	vec3 irradianceBlock = shEvaluateDiffuseRGB(shR, shG, shB, bentNormalWS);
+	float irradianceSky = shEvaluateDiffuse(shSky, bentNormalWS);
+	vec3 irradiance = max(irradianceBlock, vec3(0.0)) + worldProbeSkyTint * max(irradianceSky, 0.0);
+
+	irradiance = max(irradiance, vec3(0.0)) * aoConf;
 
 	// ShortRangeAO is a leak-reduction factor applied to irradiance only; it should not 
 	// tank confidence, otherwise world-probes get blended out in enclosed spaces.

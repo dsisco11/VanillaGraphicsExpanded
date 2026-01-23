@@ -13,5 +13,5 @@ internal interface IWorldProbeTraceScene
     /// Traces a ray from <paramref name="originWorld"/> in the direction <paramref name="dirWorld"/>.
     /// Returns a hit record if a hit is found.
     /// </summary>
-    bool Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit);
+    WorldProbeTraceOutcome Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit);
 }

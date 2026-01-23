@@ -22,7 +22,8 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var blockAccessor = NullObjectProxy.Create<IBlockAccessor>();
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
 
-        bool hit = scene.Trace(new Vector3d(0, 0, 0), new Vector3(0, 0, 0), 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        var outcome = scene.Trace(new Vector3d(0, 0, 0), new Vector3(0, 0, 0), 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.False(hit);
         Assert.Equal(default, traceHit);
@@ -36,7 +37,8 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var blockAccessor = NullObjectProxy.Create<IBlockAccessor>();
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
 
-        bool hit = scene.Trace(new Vector3d(0, 0, 0), Vector3.UnitX, maxDistance, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        var outcome = scene.Trace(new Vector3d(0, 0, 0), Vector3.UnitX, maxDistance, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.False(hit);
         Assert.Equal(default, traceHit);
@@ -56,7 +58,8 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
 
         // First boundary crossing along +X from (0.5,...) occurs at t=0.5.
-        bool hit = scene.Trace(new Vector3d(0.5, 0.5, 0.5), Vector3.UnitX, maxDistance: 0.49, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        var outcome = scene.Trace(new Vector3d(0.5, 0.5, 0.5), Vector3.UnitX, maxDistance: 0.49, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.False(hit);
         Assert.Equal(default, traceHit);
@@ -76,7 +79,8 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
 
         // Origin is exactly on a voxel boundary for Y.
-        bool hit = scene.Trace(new Vector3d(0.25, 0.0, 0.25), Vector3.UnitY, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        var outcome = scene.Trace(new Vector3d(0.25, 0.0, 0.25), Vector3.UnitY, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.True(hit);
         Assert.Equal(new VectorInt3(0, 1, 0), traceHit.HitBlockPos);
@@ -90,7 +94,8 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var blockAccessor = ScriptedBlockAccessorProxy.Create(new ScriptedBlockAccessorProxy.Config());
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
 
-        bool hit = scene.Trace(new Vector3d(0.5, 0.5, 0.5), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        var outcome = scene.Trace(new Vector3d(0.5, 0.5, 0.5), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.False(hit);
         Assert.Equal(default, traceHit);
@@ -107,7 +112,8 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var blockAccessor = ScriptedBlockAccessorProxy.Create(cfg);
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
 
-        bool hit = scene.Trace(new Vector3d(0.5, 0.5, 0.5), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        var outcome = scene.Trace(new Vector3d(0.5, 0.5, 0.5), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.False(hit);
         Assert.Equal(default, traceHit);
@@ -132,7 +138,8 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var blockAccessor = ScriptedBlockAccessorProxy.Create(cfg);
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
 
-        bool hit = scene.Trace(new Vector3d(0.5, 0.5, 0.5), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        var outcome = scene.Trace(new Vector3d(0.5, 0.5, 0.5), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.True(hit);
         Assert.Equal(0.5, traceHit.HitDistance, 12);
@@ -154,7 +161,8 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var blockAccessor = ScriptedBlockAccessorProxy.Create(cfg);
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
 
-        bool hit = scene.Trace(new Vector3d(0.5, 0.5, 0.5), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        var outcome = scene.Trace(new Vector3d(0.5, 0.5, 0.5), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.True(hit);
         Assert.Equal(Vector4.Zero, traceHit.SampleLightRgbS);
@@ -174,7 +182,8 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var blockAccessor = ScriptedBlockAccessorProxy.Create(cfg);
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
 
-        bool hit = scene.Trace(new Vector3d(0.5, 0.5, 0.5), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        var outcome = scene.Trace(new Vector3d(0.5, 0.5, 0.5), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.True(hit);
         Assert.Equal(new Vector4(0, 0, 0, 0), traceHit.SampleLightRgbS);
@@ -195,7 +204,8 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var blockAccessor = ScriptedBlockAccessorProxy.Create(cfg);
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
 
-        bool hit = scene.Trace(new Vector3d(0.5, 0.5, 0.5), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        var outcome = scene.Trace(new Vector3d(0.5, 0.5, 0.5), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.True(hit);
         Assert.Equal(new VectorInt3(2, 0, 0), traceHit.HitBlockPos);
@@ -218,7 +228,8 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var blockAccessor = ScriptedBlockAccessorProxy.Create(cfg);
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
 
-        bool hit = scene.Trace(new Vector3d(0.5, 0.5, 0.5), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        var outcome = scene.Trace(new Vector3d(0.5, 0.5, 0.5), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.True(hit);
         Assert.Equal(new VectorInt3(2, 0, 0), traceHit.HitBlockPos);
@@ -241,7 +252,8 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var origin = new Vector3d(0.1, 0.1, 0.1);
         var dir = new Vector3(1, 10, 1);
 
-        bool hit = scene.Trace(origin, dir, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        var outcome = scene.Trace(origin, dir, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = outcome == WorldProbeTraceOutcome.Hit;
         Assert.True(hit);
 
         Assert.Equal(new VectorInt3(0, 1, 0), traceHit.HitBlockPos);
@@ -271,7 +283,8 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var blockAccessor = ScriptedBlockAccessorProxy.Create(cfg);
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
 
-        bool hit = scene.Trace(new Vector3d(0.1, 0.1, 0.1), new Vector3(1, 1, 0.1f), 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        var outcome = scene.Trace(new Vector3d(0.1, 0.1, 0.1), new Vector3(1, 1, 0.1f), 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.True(hit);
         Assert.Equal(new VectorInt3(0, 1, 0), traceHit.HitBlockPos);
@@ -299,7 +312,8 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var blockAccessor = ScriptedBlockAccessorProxy.Create(cfg);
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
 
-        bool hit = scene.Trace(new Vector3d(0.5, 0.5, 0.5), new Vector3(dx, dy, dz), 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        var outcome = scene.Trace(new Vector3d(0.5, 0.5, 0.5), new Vector3(dx, dy, dz), 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.True(hit);
         Assert.Equal(0.0, traceHit.HitDistance, 12);
@@ -325,7 +339,8 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
 
         // Origin is inside the full block but very close to its top face.
         // Direction is mostly +X: older behavior would have sampled (-X), but we want to sample out of the solid (+Y).
-        bool hit = scene.Trace(new Vector3d(0.5, 0.999999999, 0.5), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        var outcome = scene.Trace(new Vector3d(0.5, 0.999999999, 0.5), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.True(hit);
         Assert.Equal(0.0, traceHit.HitDistance, 12);
@@ -351,7 +366,8 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
 
         // Ray runs along +X at Z=0.9, so it should miss the thin slab near Z=0 and hit the solid at x==2.
-        bool hit = scene.Trace(new Vector3d(0.5, 0.5, 0.9), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        var outcome = scene.Trace(new Vector3d(0.5, 0.5, 0.9), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.True(hit);
         Assert.Equal(new VectorInt3(2, 0, 0), traceHit.HitBlockPos);
@@ -384,7 +400,8 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var blockAccessor = NullObjectProxy.Create<IBlockAccessor>();
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
 
-        bool hit = scene.Trace(new Vector3d(0, 0, 0), new Vector3(float.NaN, 1, 0), 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        var outcome = scene.Trace(new Vector3d(0, 0, 0), new Vector3(float.NaN, 1, 0), 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.False(hit);
         Assert.Equal(default, traceHit);
@@ -396,7 +413,8 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var blockAccessor = NullObjectProxy.Create<IBlockAccessor>();
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
 
-        bool hit = scene.Trace(new Vector3d(0, 0, 0), new Vector3(float.PositiveInfinity, 1, 0), 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        var outcome = scene.Trace(new Vector3d(0, 0, 0), new Vector3(float.PositiveInfinity, 1, 0), 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.False(hit);
         Assert.Equal(default, traceHit);

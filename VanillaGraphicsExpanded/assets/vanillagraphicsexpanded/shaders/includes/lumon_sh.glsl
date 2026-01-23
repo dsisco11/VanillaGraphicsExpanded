@@ -235,6 +235,48 @@ float shEvaluateDiffuse(vec4 sh, vec3 normal)
     return max(0.0, dot(sh, convolved)) / 3.141592654;
 }
 
+/**
+ * Evaluate cosine-weighted hemisphere irradiance (no 1/pi diffuse BRDF factor).
+ * Use this when you want the integrated incoming energy over the hemisphere.
+ */
+vec3 shEvaluateHemisphereIrradianceRGB(vec4 shR, vec4 shG, vec4 shB, vec3 normal)
+{
+    vec4 basis = shEncode(normal);
+
+    vec4 cosineWeights = vec4(
+        SH_COSINE_A0,
+        SH_COSINE_A1,
+        SH_COSINE_A1,
+        SH_COSINE_A1
+    );
+
+    vec4 convolved = basis * cosineWeights;
+
+    return max(vec3(0.0), vec3(
+        dot(shR, convolved),
+        dot(shG, convolved),
+        dot(shB, convolved)
+    ));
+}
+
+/**
+ * Evaluate cosine-weighted hemisphere irradiance (scalar SH, no 1/pi factor).
+ */
+float shEvaluateHemisphereIrradiance(vec4 sh, vec3 normal)
+{
+    vec4 basis = shEncode(normal);
+
+    vec4 cosineWeights = vec4(
+        SH_COSINE_A0,
+        SH_COSINE_A1,
+        SH_COSINE_A1,
+        SH_COSINE_A1
+    );
+
+    vec4 convolved = basis * cosineWeights;
+    return max(0.0, dot(sh, convolved));
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Accumulation & Blending
 // ═══════════════════════════════════════════════════════════════════════════

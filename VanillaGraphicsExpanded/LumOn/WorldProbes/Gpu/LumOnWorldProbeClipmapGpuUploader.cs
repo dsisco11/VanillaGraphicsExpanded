@@ -75,7 +75,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         vao.AttribIPointer(9, 1, VertexAttribIntegerType.UnsignedInt, stride, 96);
     }
 
-    public void Upload(
+    public int Upload(
         LumOnWorldProbeClipmapGpuResources resources,
         IReadOnlyList<LumOnWorldProbeTraceResult> results,
         int uploadBudgetBytesPerFrame)
@@ -86,7 +86,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         var prog = capi.Shader.GetProgramByName("lumon_worldprobe_clipmap_resolve") as LumOnWorldProbeClipmapResolveShaderProgram;
         if (prog is null || prog.LoadError || prog.Disposed)
         {
-            return;
+            return 0;
         }
 
         int maxVertices = results.Count;
@@ -121,7 +121,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
 
         if (vertices.Count == 0)
         {
-            return;
+            return 0;
         }
 
         using var gpuScope = GlGpuProfiler.Instance.Scope("LumOn.WorldProbe.UploadResolve");
@@ -146,6 +146,8 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         GL.DrawArrays(PrimitiveType.Points, 0, data.Length);
         Rendering.GBuffer.Unbind();
         prog.Stop();
+
+        return data.Length;
     }
 
     public void Dispose()

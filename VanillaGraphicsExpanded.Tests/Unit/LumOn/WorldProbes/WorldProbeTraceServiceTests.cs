@@ -29,14 +29,15 @@ public sealed class WorldProbeTraceServiceTests
 
         Assert.True(got);
         Assert.Equal(0, res.FrameIndex);
+        Assert.True(res.Success);
     }
 
     private sealed class NeverHitScene : IWorldProbeTraceScene
     {
-        public bool Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
+        public WorldProbeTraceOutcome Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
         {
             hit = default;
-            return false;
+            return WorldProbeTraceOutcome.Miss;
         }
     }
 }

@@ -16,6 +16,10 @@ internal sealed class LumOnWorldProbeScheduler
 
     private const int DefaultStaleAfterFramesL0 = 600; // ~10s @ 60fps
 
+    // If a probe trace aborts due to unsafe/placeholder chunk data, back off before retrying.
+    // This prevents thrashing while chunks are streaming/unpacking.
+    private const int AbortedRetryDelayFrames = 60; // ~1s @ 60fps
+
     // Conservative estimate for CPU->GPU upload per probe update (headers + samples + resolve writes).
     // This will be refined once Phase 18.7 defines concrete SSBO payload sizes.
     private const int EstimatedUploadBytesPerProbe = 64;
@@ -192,12 +196,18 @@ internal sealed class LumOnWorldProbeScheduler
     /// Mark a probe update request as completed.
     /// This is a Phase 18.5 hook; Phase 18.6+ will drive this from the async trace backend.
     /// </summary>
-    public void Complete(in LumOnWorldProbeUpdateRequest request, int frameIndex, bool success)
+    public void Complete(in LumOnWorldProbeUpdateRequest request, int frameIndex, bool success, bool aborted)
     {
         if ((uint)request.Level >= (uint)levels.Length) throw new ArgumentOutOfRangeException(nameof(request));
 
         ref LevelState state = ref levels[request.Level];
-        state.Complete(request.StorageLinearIndex, frameIndex, success);
+        int retryDelayFrames = (!success && aborted) ? AbortedRetryDelayFrames : 0;
+        state.Complete(request.StorageLinearIndex, frameIndex, success, retryDelayFrames);
+    }
+
+    public void Complete(in LumOnWorldProbeUpdateRequest request, int frameIndex, bool success)
+    {
+        Complete(request, frameIndex, success, aborted: false);
     }
 
     public void Disable(in LumOnWorldProbeUpdateRequest request)
@@ -234,6 +244,7 @@ internal sealed class LumOnWorldProbeScheduler
 
         private readonly LumOnWorldProbeLifecycleState[] lifecycle;
         private readonly int[] lastUpdatedFrame;
+        private readonly int[] retryAfterFrame;
         private readonly bool[] dirtyAfterInFlight;
         private readonly bool[] disableAfterInFlight;
 
@@ -251,6 +262,7 @@ internal sealed class LumOnWorldProbeScheduler
 
             lifecycle = new LumOnWorldProbeLifecycleState[probesPerLevel];
             lastUpdatedFrame = new int[probesPerLevel];
+            retryAfterFrame = new int[probesPerLevel];
             dirtyAfterInFlight = new bool[probesPerLevel];
             disableAfterInFlight = new bool[probesPerLevel];
 
@@ -263,6 +275,7 @@ internal sealed class LumOnWorldProbeScheduler
         {
             Array.Fill(lifecycle, LumOnWorldProbeLifecycleState.Uninitialized);
             Array.Fill(lastUpdatedFrame, 0);
+            Array.Fill(retryAfterFrame, 0);
             Array.Fill(dirtyAfterInFlight, false);
             Array.Fill(disableAfterInFlight, false);
             anchor = null;
@@ -283,6 +296,7 @@ internal sealed class LumOnWorldProbeScheduler
 
             dirtyAfterInFlight[storageLinearIndex] = false;
             disableAfterInFlight[storageLinearIndex] = false;
+            retryAfterFrame[storageLinearIndex] = 0;
             lifecycle[storageLinearIndex] = LumOnWorldProbeLifecycleState.Disabled;
         }
 
@@ -440,6 +454,12 @@ internal sealed class LumOnWorldProbeScheduler
                             continue;
                         }
 
+                        // Backoff for aborted traces: don't immediately retry the same probe.
+                        if (frameIndex < retryAfterFrame[storageLinear])
+                        {
+                            continue;
+                        }
+
                         int statePri = s switch
                         {
                             LumOnWorldProbeLifecycleState.Dirty => 0,
@@ -475,7 +495,7 @@ internal sealed class LumOnWorldProbeScheduler
             }
         }
 
-        public void Complete(int storageLinearIndex, int frameIndex, bool success)
+        public void Complete(int storageLinearIndex, int frameIndex, bool success, int retryDelayFrames)
         {
             if ((uint)storageLinearIndex >= (uint)probesPerLevel) throw new ArgumentOutOfRangeException(nameof(storageLinearIndex));
 
@@ -483,6 +503,7 @@ internal sealed class LumOnWorldProbeScheduler
             {
                 disableAfterInFlight[storageLinearIndex] = false;
                 dirtyAfterInFlight[storageLinearIndex] = false;
+                retryAfterFrame[storageLinearIndex] = 0;
                 lifecycle[storageLinearIndex] = LumOnWorldProbeLifecycleState.Disabled;
                 return;
             }
@@ -490,6 +511,7 @@ internal sealed class LumOnWorldProbeScheduler
             if (dirtyAfterInFlight[storageLinearIndex])
             {
                 dirtyAfterInFlight[storageLinearIndex] = false;
+                retryAfterFrame[storageLinearIndex] = 0;
                 lifecycle[storageLinearIndex] = LumOnWorldProbeLifecycleState.Dirty;
                 return;
             }
@@ -498,6 +520,11 @@ internal sealed class LumOnWorldProbeScheduler
             if (success)
             {
                 lastUpdatedFrame[storageLinearIndex] = frameIndex;
+                retryAfterFrame[storageLinearIndex] = 0;
+            }
+            else if (retryDelayFrames > 0)
+            {
+                retryAfterFrame[storageLinearIndex] = frameIndex + retryDelayFrames;
             }
         }
 
@@ -533,6 +560,7 @@ internal sealed class LumOnWorldProbeScheduler
                         if (lifecycle[storageLinear] != LumOnWorldProbeLifecycleState.InFlight)
                         {
                             lifecycle[storageLinear] = LumOnWorldProbeLifecycleState.Dirty;
+                            retryAfterFrame[storageLinear] = 0;
                         }
                         else
                         {
@@ -567,6 +595,7 @@ internal sealed class LumOnWorldProbeScheduler
             if (ax == resolution || ay == resolution || az == resolution)
             {
                 Array.Fill(lifecycle, LumOnWorldProbeLifecycleState.Dirty);
+                Array.Fill(retryAfterFrame, 0);
                 return;
             }
 
@@ -606,6 +635,7 @@ internal sealed class LumOnWorldProbeScheduler
                         if (lifecycle[storageLinear] != LumOnWorldProbeLifecycleState.InFlight)
                         {
                             lifecycle[storageLinear] = LumOnWorldProbeLifecycleState.Dirty;
+                            retryAfterFrame[storageLinear] = 0;
                         }
                         else
                         {
