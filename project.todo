@@ -1,18 +1,28 @@
 Issues:
   ☐ Mod settings not live reloading properly (e.g. changes to Lumon shader settings dont always take effect).
-  ☐ Need better material override system, consider allowing material definitions to specify a "base material" to inherit from.
-  ☐ Allow material definitions "emissive" property to accept values > 1.0 for glowing materials (should be a real measurement like 'lumens' or something).
-  ☐ Allow material definitions to specify emissive colors (not just grayscale intensity).
-  ☐ Create new `GpuResourceManager` system as a new IRenderer registered for the `After` stage, which manages GPU resource lifecycles (creation, disposal) in a thread-safe manner.
-  ☐ Move texture streaming uploader to the new `GpuResourceManager`.
-  ☐ Move `GpuBufferObject` DSA uploading to the new `GpuResourceManager`.
-  ☐ Update rendering systems to use the new GPU resource RAII classes (e.g. GpuVbo, GpuVao, etc).
   ☐ Refactor debug viewer UI. we should have a "Debug View" abstraction that can be registered with the renderer, and a single debug viewer UI that lists all registered debug views.
       ☐ Debug Views should have a name, category, description, and an `IRenderer` registration delegate, as well as the ability to specify a debug-view-sub-panel (for complex debug views that need more UI).
       ☐ The main debug viewer UI should allow filtering by category, searching by name/description, and selecting a debug view to activate.
-  ☐ pbr-direct-lighting doesnt include flood-filled block-light.
-  ☐ pbr-direct-lighting doesnt include flood-filled sun-light.
-  ☐ pbr-direct-lighting doesnt include shadow map.
+  
+  PBR Shading:
+    ☐ pbr-direct-lighting doesnt include flood-filled block-light.
+    ☐ pbr-direct-lighting doesnt include flood-filled sun-light.
+    ☐ pbr-direct-lighting doesnt include shadow map.
+
+  GpuResources:
+    ☐ Create new `GpuResourceManager` system as a new IRenderer registered for the `After` stage, which manages GPU resource lifecycles (creation, disposal) in a thread-safe manner.
+    ☐ Move texture streaming uploader to the new `GpuResourceManager`.
+    ☐ Move `GpuBufferObject` DSA uploading to the new `GpuResourceManager`.
+    ☐ Update rendering systems to use the new GPU resource RAII classes (e.g. GpuVbo, GpuVao, etc).
+
+  WorldProbes:
+    ☐ PBR material system need to provide precomputed diffuse albedo and specular F0 values for probe tracing.
+    ☐ PBR Matrial system integration for probe tracing (material properties affecting probe radiance).
+
+  PBR Material System:
+    ☐ Need better material override system, consider allowing material definitions to specify a "base material" to inherit from.
+    ☐ Allow material definitions "emissive" property to accept values > 1.0 for glowing materials (should be a real measurement like 'lumens' or something).
+    ☐ Allow material definitions to specify emissive colors (not just grayscale intensity).
   
 New Features:
   PBR Material Definitions:
