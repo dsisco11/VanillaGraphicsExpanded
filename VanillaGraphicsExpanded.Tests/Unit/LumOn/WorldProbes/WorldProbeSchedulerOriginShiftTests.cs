@@ -203,7 +203,7 @@ public sealed class WorldProbeSchedulerOriginShiftTests
         int probesPerLevel = scheduler.ProbesPerLevel;
         int[] perLevelBudgets = [probesPerLevel];
 
-        // Force everything into InFlight by selecting all probes.
+        // Force everything into InFlight by selecting and then claiming all probes.
         var requests = scheduler.BuildUpdateList(
             frameIndex: 1,
             cameraPos: new Vec3d(0.0, 0.0, 0.0),
@@ -213,6 +213,11 @@ public sealed class WorldProbeSchedulerOriginShiftTests
             uploadBudgetBytesPerFrame: int.MaxValue);
 
         Assert.Equal(probesPerLevel, requests.Count);
+
+        for (int i = 0; i < requests.Count; i++)
+        {
+            Assert.True(scheduler.TryClaim(requests[i], frameIndex: 1));
+        }
 
         // Invalidate the whole clip volume while probes are in-flight.
         Assert.True(scheduler.TryGetLevelParams(0, out var originMin, out _));

@@ -20,6 +20,8 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
 
     private LumOnWorldProbeClipmapBufferManager? clipmapBufferManager;
 
+    private VanillaGraphicsExpanded.LumOn.WorldProbes.LumOnWorldProbeUpdateRenderer? worldProbeUpdateRenderer;
+
     private WorldProbeLiveConfigSnapshot? lastSnapshot;
 
     private readonly HashSet<ulong> pendingWorldProbeDirtyChunkKeys = new();
@@ -79,7 +81,11 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
         // If LumOn starts enabled, initialize clipmap resources immediately so the renderer can run Phase 18.
         if (ConfigModSystem.Config.LumOn.Enabled)
         {
-            EnsureClipmapResources(api, "startup");
+            var clipmap = EnsureClipmapResources(api, "startup");
+            worldProbeUpdateRenderer ??= new VanillaGraphicsExpanded.LumOn.WorldProbes.LumOnWorldProbeUpdateRenderer(
+                api,
+                ConfigModSystem.Config,
+                clipmap);
         }
     }
 
@@ -100,7 +106,7 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
 
     internal void NotifyWorldProbeChunkDirty(int chunkX, int chunkY, int chunkZ, string reason)
     {
-        // Buffering only; LumOnRenderer will drain + apply to the scheduler.
+        // Buffering only; the world-probe update renderer will drain + apply to the scheduler.
         if (!ConfigModSystem.Config.LumOn.Enabled)
         {
             return;
@@ -158,6 +164,16 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
             return;
         }
 
+        // Ensure the update renderer exists when LumOn is enabled.
+        if (worldProbeUpdateRenderer is null)
+        {
+            var clipmap = clipmapBufferManager ?? EnsureClipmapResources(clientApi, "live config reload");
+            worldProbeUpdateRenderer = new VanillaGraphicsExpanded.LumOn.WorldProbes.LumOnWorldProbeUpdateRenderer(
+                clientApi,
+                ConfigModSystem.Config,
+                clipmap);
+        }
+
         // Phase 18 world-probe config: classify hot-reload behavior.
         // - Budgets are safe live updates.
         // - Topology changes (spacing/resolution/levels) require resource reallocation + invalidation.
@@ -210,6 +226,9 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
             commonEvents.ChunkDirty -= OnChunkDirty;
             commonEvents = null;
         }
+
+        worldProbeUpdateRenderer?.Dispose();
+        worldProbeUpdateRenderer = null;
 
         clipmapBufferManager?.Dispose();
         clipmapBufferManager = null;

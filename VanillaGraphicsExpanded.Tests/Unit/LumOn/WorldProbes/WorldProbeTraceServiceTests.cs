@@ -19,7 +19,10 @@ public sealed class WorldProbeTraceServiceTests
     {
         var scene = new NeverHitScene();
 
-        using var svc = new LumOnWorldProbeTraceService(scene, maxQueuedWorkItems: 8);
+        using var svc = new LumOnWorldProbeTraceService(
+            scene,
+            maxQueuedWorkItems: 8,
+            tryClaim: (_, _) => true);
 
         var request = new LumOnWorldProbeUpdateRequest(0, new Vec3i(0, 0, 0), new Vec3i(0, 0, 0), 0);
         Assert.True(svc.TryEnqueue(new LumOnWorldProbeTraceWorkItem(0, request, new Vector3d(0.5, 0.5, 0.5), 8)));

@@ -99,6 +99,12 @@ public sealed class WorldProbeSchedulerBudgetTests
 
         var lifecycle = new LumOnWorldProbeLifecycleState[scheduler.ProbesPerLevel];
         Assert.True(scheduler.TryCopyLifecycleStates(level: 0, lifecycle));
+
+        // BuildUpdateList marks probes as Queued; they become InFlight once the worker claims them.
+        Assert.Equal(LumOnWorldProbeLifecycleState.Queued, lifecycle[req.StorageLinearIndex]);
+        Assert.True(scheduler.TryClaim(req, frameIndex: 0));
+
+        Assert.True(scheduler.TryCopyLifecycleStates(level: 0, lifecycle));
         Assert.Equal(LumOnWorldProbeLifecycleState.InFlight, lifecycle[req.StorageLinearIndex]);
 
         scheduler.Complete(req, frameIndex: 1, success: true);
