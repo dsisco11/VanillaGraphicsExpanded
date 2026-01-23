@@ -20,7 +20,7 @@ VGE - Debug Viewer Refactor (Debug View Registry + Unified UI):
 
   Exit artifacts:
   - A `DebugView` abstraction + registry that any system can register into
-  - A single `GuiDialog` that lists all views with category filtering + search
+  - A single `GuiDialog` that lists all views with category filtering
   - Selecting a view activates it (and deactivates the previous view), via its registration delegate
   - Complex views can expose additional UI via an optional sub-panel host
   - Existing debug mode + GPU profiler UI are migrated into the new system
@@ -41,7 +41,6 @@ VGE - Debug Viewer Refactor (Debug View Registry + Unified UI):
       - Non-exclusive tools (toggle): can be enabled alongside an overlay (e.g., GPU profiler panel)
     - “Off/None” is represented as an explicit “Deactivate” action (and/or a built-in `Off` view for exclusive overlays)
   ✔ Spike Vintage Story GUI capabilities (reflection against `VintagestoryAPI.dll`):
-    - Search input supported: `GuiElementTextInput` + `GuiComposerHelpers.AddTextInput(...)`
     - Scrollable list supported: `GuiElementCellList<T>` + `GuiComposerHelpers.AddCellList(...)`
     - Scrollbars supported: `GuiElementScrollbar` / `GuiElementCompactScrollbar` + `GuiComposerHelpers.AddVerticalScrollbar(...)`
   ✔ Decide which views are registered when dependencies are missing:
@@ -80,26 +79,27 @@ VGE - Debug Viewer Refactor (Debug View Registry + Unified UI):
 
   Phase 2 - Registry + Activation Runtime:
   Exit artifacts: A global registry exists; a single active view can be switched reliably.
-  ☐ Add `DebugViewRegistry`:
+  ✔ Add `DebugViewRegistry`:
     - `Register(DebugViewDefinition)` / `Unregister(id)`
     - Uniqueness enforcement (id collisions are logged and rejected)
     - `GetAll()` snapshot (stable ordering: Category then Name)
     - `Changed` event so UI can refresh dynamically
-  ☐ Add `DebugViewController` (or repurpose `VgeDebugViewManager`) to manage:
+    - Implemented in: `VanillaGraphicsExpanded/DebugView/DebugViewRegistry.cs`
+  ✔ Add `DebugViewController` (or repurpose `VgeDebugViewManager`) to manage:
     - Current active view id
     - Current activation handle (dispose on deactivate/switch)
     - Activation flow: Deactivate → Activate → update UI state
     - Shutdown behavior: dispose active handle; close dialog safely
-  ☐ Add pure helper(s) for querying:
-    - Category filter (“All” + stable category list)
-    - Search term match (case-insensitive contains on name/description)
-    - Unit-test these helpers without VS engine dependencies
+    - Implemented in: `VanillaGraphicsExpanded/DebugView/DebugViewController.cs`
+    - Note: dialog close remains a Phase 3 UI concern; controller handles view activation + disposal.
+  Note:
+  - Search is intentionally not part of the design (category dropdown only).
 
 
   Phase 3 - Unified Debug Viewer UI:
-  Exit artifacts: A single dialog that lists + filters + searches + activates debug views.
+  Exit artifacts: A single dialog that lists + filters by category + activates debug views.
   ☐ Add new `GuiDialogVgeDebugViewer` (replaces `GuiDialogVgeDebugView`):
-    - Left: category dropdown + search input + scroll list of views
+    - Left: category dropdown + scroll list of views
     - Right: selected view details (name/category/description) + activate/deactivate controls
     - Optional sub-panel host area (selected view’s panel, if any)
   ☐ UX details:
@@ -107,7 +107,7 @@ VGE - Debug Viewer Refactor (Debug View Registry + Unified UI):
     - Handle “unavailable” views (disabled button + reason)
     - Keyboard navigation: Up/Down in list, Enter to activate, Esc to close
   ☐ Refresh plumbing:
-    - Rebuild list on registry changes, category change, or search change
+    - Rebuild list on registry changes or category change
     - If using recomposition: preserve selection where possible
   ☐ Move GPU-profiler refresh behavior to panel lifecycle:
     - Register/unregister tick listener inside the panel or dialog based on visibility
@@ -146,15 +146,14 @@ VGE - Debug Viewer Refactor (Debug View Registry + Unified UI):
 
   Phase 6 - Tests + Validation:
   Exit artifacts: Core registry/query logic is tested; existing behavior remains correct.
-  ☐ Add unit tests for registry/query helpers:
+  ☐ Add unit tests for registry/controller helpers:
     - Category list generation
-    - Search matching (name + description)
     - Sorting and stable ordering
     - Collision handling (duplicate ids)
   ☐ Keep/extend existing test:
     - `VanillaGraphicsExpanded.Tests/DebugViewConfigTests.cs` (DebugMode remains non-serialized)
   ☐ Manual validation checklist (in-game):
-    - Open viewer, search/filter works
+    - Open viewer, category dropdown filtering works
     - Switching views cleans up previous renderer state
     - LumOn debug overlay matches expected mode
     - GPU profiler panel updates and filters correctly
