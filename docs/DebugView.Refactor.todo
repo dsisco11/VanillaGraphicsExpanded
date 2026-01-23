@@ -1,0 +1,147 @@
+VGE - Debug Viewer Refactor (Debug View Registry + Unified UI):
+
+  Goal:
+  Replace the current single-purpose debug dialog with a unified debug viewer that lists all registered Debug Views.
+  Debug Views are self-describing (name/category/description), provide an IRenderer registration delegate, and can optionally
+  provide a sub-panel for complex UI (e.g., GPU profiler controls).
+
+  Reference (current implementation / touch points):
+  - VanillaGraphicsExpanded/DebugView/VgeDebugViewManager.cs (current dialog + LumOn debug mode wiring)
+  - VanillaGraphicsExpanded/DebugView/GuiDialogVgeDebugView.cs (current UI: LumOn dropdown + GPU profiler text)
+  - VanillaGraphicsExpanded/LumOn/LumOnDebugRenderer.cs (debug overlay renderer driven by config.LumOn.DebugMode)
+  - VanillaGraphicsExpanded/LumOn/LumOnDebugMode.cs (existing debug modes to migrate)
+  - VanillaGraphicsExpanded/LumOn/VgeConfig.cs (LumOnSettingsConfig.DebugMode is runtime-only)
+  - VanillaGraphicsExpanded/Rendering/Profiling/GlGpuProfiler.cs (snapshot/query used by current UI)
+  - VanillaGraphicsExpanded/Rendering/Profiling/GlGpuProfilerRenderer.cs (frame begin hook)
+  - VanillaGraphicsExpanded/Rendering/Profiling/GpuDebugLabelRenderer.cs (debug groups around render stages)
+  - VanillaGraphicsExpanded/DebugOverlays/DebugGBufferRenderer.cs (candidate debug view; currently hotkey-driven)
+  - VanillaGraphicsExpanded/VanillaGraphicsExpandedModSystem.cs (debug view hotkey + initialization)
+  - VanillaGraphicsExpanded/ModSystems/LumOnModSystem.cs (owns LumOnDebugRenderer lifetime)
+
+  Exit artifacts:
+  - A `DebugView` abstraction + registry that any system can register into
+  - A single `GuiDialog` that lists all views with category filtering + search
+  - Selecting a view activates it (and deactivates the previous view), via its registration delegate
+  - Complex views can expose additional UI via an optional sub-panel host
+  - Existing debug mode + GPU profiler UI are migrated into the new system
+
+
+  Phase 0 - Inventory + Constraints (Codebase-informed decisions):
+  Exit artifacts: Concrete list of debug features to migrate, and confirmed UI/engine constraints.
+  ☐ Inventory current debug features and ownership:
+    - LumOn debug overlay (config.LumOn.DebugMode → LumOnDebugRenderer)
+    - GPU profiler viewer (GlGpuProfiler snapshot + filters)
+    - Hotkeys with potential conflicts (currently multiple F8 registrations)
+    - Any other debug overlays intended to be user-facing
+  ☐ Decide activation semantics:
+    - Single active debug view at a time (default), or allow “tools” to run alongside overlays
+    - How “Off/None” is represented (special view vs “Deactivate” button)
+  ☐ Spike Vintage Story GUI capabilities (quick prototype in a throwaway branch):
+    - Text input element for search (and events for on-change)
+    - Scrollable list element (or fallback to recomposing the dialog)
+    - Practical max list size (e.g., 50–200 items) and keyboard navigation support
+  ☐ Decide which views are registered when dependencies are missing:
+    - Always registered but shown as “Unavailable (missing dependency)”
+    - Only registered when a feature is enabled (e.g., LumOn disabled)
+
+
+  Phase 1 - Core `DebugView` Abstractions:
+  Exit artifacts: Types exist to represent debug views, activation, and optional UI subpanels.
+  ☐ Add `DebugViewDefinition` (or `IDebugView`) with:
+    - `Id` (stable string identifier)
+    - `Name`, `Category`, `Description`
+    - `RegisterRenderer` delegate (activation hook; returns an `IDisposable`/handle)
+    - Optional `CreatePanel` / `PanelFactory` for sub-panel UI
+  ☐ Define `DebugViewActivationContext`:
+    - `ICoreClientAPI` + access to `VgeConfig`
+    - Optional dependency access patterns (closure-capture vs explicit service container)
+  ☐ Define `IDebugViewPanel` contract (if using object-based panels):
+    - `Compose(...)` into bounds / composer
+    - `OnOpened` / `OnClosed` lifecycle hooks
+    - Optional “needs tick” support for dynamic panels (e.g., GPU profiler text refresh)
+  ☐ Define error-handling expectations:
+    - Activation failures should surface in UI without hard-crashing
+    - Deactivation must be best-effort (safe during shutdown)
+
+
+  Phase 2 - Registry + Activation Runtime:
+  Exit artifacts: A global registry exists; a single active view can be switched reliably.
+  ☐ Add `DebugViewRegistry`:
+    - `Register(DebugViewDefinition)` / `Unregister(id)`
+    - Uniqueness enforcement (id collisions are logged and rejected)
+    - `GetAll()` snapshot (stable ordering: Category then Name)
+    - `Changed` event so UI can refresh dynamically
+  ☐ Add `DebugViewController` (or repurpose `VgeDebugViewManager`) to manage:
+    - Current active view id
+    - Current activation handle (dispose on deactivate/switch)
+    - Activation flow: Deactivate → Activate → update UI state
+    - Shutdown behavior: dispose active handle; close dialog safely
+  ☐ Add pure helper(s) for querying:
+    - Category filter (“All” + stable category list)
+    - Search term match (case-insensitive contains on name/description)
+    - Unit-test these helpers without VS engine dependencies
+
+
+  Phase 3 - Unified Debug Viewer UI:
+  Exit artifacts: A single dialog that lists + filters + searches + activates debug views.
+  ☐ Add new `GuiDialogVgeDebugViewer` (replaces `GuiDialogVgeDebugView`):
+    - Left: category dropdown + search input + scroll list of views
+    - Right: selected view details (name/category/description) + activate/deactivate controls
+    - Optional sub-panel host area (selected view’s panel, if any)
+  ☐ UX details:
+    - Show which view is currently active
+    - Handle “unavailable” views (disabled button + reason)
+    - Keyboard navigation: Up/Down in list, Enter to activate, Esc to close
+  ☐ Refresh plumbing:
+    - Rebuild list on registry changes, category change, or search change
+    - If using recomposition: preserve selection where possible
+  ☐ Move GPU-profiler refresh behavior to panel lifecycle:
+    - Register/unregister tick listener inside the panel or dialog based on visibility
+
+
+  Phase 4 - Migrate Existing Debug Functionality to Registered Views:
+  Exit artifacts: Legacy debug UI paths are replaced by view registrations.
+  ☐ Register LumOn debug views:
+    - Option A: one view per `LumOnDebugMode` (except Off), auto-generated from enum + display-name map
+    - Option B: one “LumOn Debug” view with a sub-panel dropdown for mode selection
+    - Ensure activation sets `config.LumOn.DebugMode`, and deactivation sets it to Off
+  ☐ Register GPU Profiler view:
+    - Sub-panel: Enabled toggle + category filter + sort + snapshot text (ported from current dialog)
+    - Decide if activating the view should force-enable the profiler (and restore previous state on deactivate)
+  ☐ Register GBuffer overlay view(s):
+    - Decide whether to reuse `DebugGBufferRenderer` or replace with a view-owned renderer
+    - Ensure renderer unregisters itself cleanly on dispose (may require fixing `DebugGBufferRenderer.Dispose`)
+    - Consider splitting into multiple views (“Normals”, “Material”, “Depth”, etc.) vs one view with a mode sub-panel
+  ☐ (Optional) Register “Render Stage Debug Groups” tooling:
+    - Toggle `GlGpuProfiler.EmitDebugGroups`
+    - (If feasible outside DEBUG) toggle `GpuDebugLabelManager` registration
+
+
+  Phase 5 - Wiring + Cleanup:
+  Exit artifacts: Single entry point; no duplicate hotkeys; legacy dialog removed.
+  ☐ Update `VanillaGraphicsExpandedModSystem`:
+    - Keep a single hotkey to open the new debug viewer
+    - Initialize the registry/controller early enough for other systems to register views
+  ☐ Remove or repurpose legacy classes:
+    - `GuiDialogVgeDebugView` (replace)
+    - `GuiElementDropDownCycleOnArrow` (keep only if still used)
+    - `VgeDebugViewManager` → controller/registry owner naming alignment
+  ☐ Resolve hotkey conflicts (current state registers multiple DevTool hotkeys on F8)
+  ☐ Update any docs that reference the old debug view UI / controls
+
+
+  Phase 6 - Tests + Validation:
+  Exit artifacts: Core registry/query logic is tested; existing behavior remains correct.
+  ☐ Add unit tests for registry/query helpers:
+    - Category list generation
+    - Search matching (name + description)
+    - Sorting and stable ordering
+    - Collision handling (duplicate ids)
+  ☐ Keep/extend existing test:
+    - `VanillaGraphicsExpanded.Tests/DebugViewConfigTests.cs` (DebugMode remains non-serialized)
+  ☐ Manual validation checklist (in-game):
+    - Open viewer, search/filter works
+    - Switching views cleans up previous renderer state
+    - LumOn debug overlay matches expected mode
+    - GPU profiler panel updates and filters correctly
+
