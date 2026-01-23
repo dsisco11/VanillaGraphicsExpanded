@@ -1336,7 +1336,10 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Lazily create trace service.
         worldProbeTraceScene ??= new BlockAccessorWorldProbeTraceScene(traceBlockAccessor);
-        worldProbeTraceService ??= new LumOnWorldProbeTraceService(worldProbeTraceScene, maxQueuedWorkItems: 2048);
+        worldProbeTraceService ??= new LumOnWorldProbeTraceService(
+            worldProbeTraceScene,
+            maxQueuedWorkItems: 2048,
+            tryClaim: (req, frame) => worldProbeScheduler?.TryClaim(req, frame) == true);
 
         // Build per-frame update list.
         int[] perLevelBudgets = cfg.PerLevelProbeUpdateBudget ?? Array.Empty<int>();
@@ -1410,7 +1413,7 @@ public class LumOnRenderer : IRenderer, IDisposable
                 if (!worldProbeTraceService.TryEnqueue(item))
                 {
                     // Backpressure: re-mark dirty so we try again next frame.
-                    worldProbeScheduler.Complete(req, frameIndex, success: false);
+                    worldProbeScheduler.Unqueue(req);
                     enqueuedFail++;
                 }
                 else
@@ -1695,6 +1698,11 @@ public class LumOnRenderer : IRenderer, IDisposable
                     case LumOnWorldProbeLifecycleState.Dirty:
                         r = On;
                         g = On;
+                        break;
+                    case LumOnWorldProbeLifecycleState.Queued:
+                        // Queued: cyan (G+B)
+                        g = On;
+                        b = On;
                         break;
                     case LumOnWorldProbeLifecycleState.InFlight:
                         g = On;

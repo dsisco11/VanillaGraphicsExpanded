@@ -20,6 +20,10 @@ internal sealed class LumOnWorldProbeScheduler
     // This prevents thrashing while chunks are streaming/unpacking.
     private const int AbortedRetryDelayFrames = 60; // ~1s @ 60fps
 
+    // Claim-based scheduling: if queued work is dropped or never claimed, do not leave probes stuck forever.
+    // After this timeout, queued probes become eligible for rescheduling.
+    private const int QueuedExpiryFrames = 30;
+
     // Conservative estimate for CPU->GPU upload per probe update (headers + samples + resolve writes).
     // This will be refined once Phase 18.7 defines concrete SSBO payload sizes.
     private const int EstimatedUploadBytesPerProbe = 64;
@@ -29,6 +33,8 @@ internal sealed class LumOnWorldProbeScheduler
     #region Fields
 
     private readonly LevelState[] levels;
+
+    private readonly object[] levelLocks;
 
     private readonly int resolution;
 
@@ -47,9 +53,11 @@ internal sealed class LumOnWorldProbeScheduler
         probesPerLevel = checked(resolution * resolution * resolution);
 
         levels = new LevelState[levelCount];
+        levelLocks = new object[levelCount];
         for (int level = 0; level < levels.Length; level++)
         {
             levels[level] = new LevelState(resolution, probesPerLevel);
+            levelLocks[level] = new object();
         }
     }
 
@@ -93,7 +101,10 @@ internal sealed class LumOnWorldProbeScheduler
             throw new ArgumentException($"Destination must be at least {probesPerLevel} elements.", nameof(destination));
         }
 
-        levels[level].CopyLifecycleTo(destination);
+        lock (levelLocks[level])
+        {
+            levels[level].CopyLifecycleTo(destination);
+        }
         return true;
     }
 
@@ -106,15 +117,21 @@ internal sealed class LumOnWorldProbeScheduler
             return false;
         }
 
-        ref LevelState state = ref levels[level];
-        return state.TryGetParams(out originMinCorner, out ringOffset);
+        lock (levelLocks[level])
+        {
+            ref LevelState state = ref levels[level];
+            return state.TryGetParams(out originMinCorner, out ringOffset);
+        }
     }
 
     public void ResetAll()
     {
-        foreach (ref LevelState level in levels.AsSpan())
+        for (int level = 0; level < levels.Length; level++)
         {
-            level.Reset();
+            lock (levelLocks[level])
+            {
+                levels[level].Reset();
+            }
         }
     }
 
@@ -128,9 +145,17 @@ internal sealed class LumOnWorldProbeScheduler
 
         for (int level = 0; level < levels.Length; level++)
         {
-            ref LevelState state = ref levels[level];
             double spacing = LumOnClipmapTopology.GetSpacing(baseSpacing, level);
-            if (!state.UpdateOrigin(cameraPos, spacing, out var shiftInfo))
+
+            bool shifted;
+            LevelState.AnchorShiftInfo shiftInfo;
+            lock (levelLocks[level])
+            {
+                ref LevelState state = ref levels[level];
+                shifted = state.UpdateOrigin(cameraPos, spacing, out shiftInfo);
+            }
+
+            if (!shifted)
             {
                 continue;
             }
@@ -182,9 +207,14 @@ internal sealed class LumOnWorldProbeScheduler
             int take = Math.Min(budgetL, globalRemaining);
             if (take <= 0) continue;
 
-            ref LevelState state = ref levels[level];
             double spacing = LumOnClipmapTopology.GetSpacing(baseSpacing, level);
-            state.Select(level, frameIndex, cameraPos, spacing, take, list, out int taken);
+
+            int taken;
+            lock (levelLocks[level])
+            {
+                ref LevelState state = ref levels[level];
+                state.Select(level, frameIndex, cameraPos, spacing, take, list, out taken);
+            }
 
             globalRemaining -= taken;
         }
@@ -200,9 +230,12 @@ internal sealed class LumOnWorldProbeScheduler
     {
         if ((uint)request.Level >= (uint)levels.Length) throw new ArgumentOutOfRangeException(nameof(request));
 
-        ref LevelState state = ref levels[request.Level];
-        int retryDelayFrames = (!success && aborted) ? AbortedRetryDelayFrames : 0;
-        state.Complete(request.StorageLinearIndex, frameIndex, success, retryDelayFrames);
+        lock (levelLocks[request.Level])
+        {
+            ref LevelState state = ref levels[request.Level];
+            int retryDelayFrames = (!success && aborted) ? AbortedRetryDelayFrames : 0;
+            state.Complete(request.StorageLinearIndex, frameIndex, success, retryDelayFrames);
+        }
     }
 
     public void Complete(in LumOnWorldProbeUpdateRequest request, int frameIndex, bool success)
@@ -214,8 +247,48 @@ internal sealed class LumOnWorldProbeScheduler
     {
         if ((uint)request.Level >= (uint)levels.Length) throw new ArgumentOutOfRangeException(nameof(request));
 
-        ref LevelState state = ref levels[request.Level];
-        state.Disable(request.StorageLinearIndex);
+        lock (levelLocks[request.Level])
+        {
+            ref LevelState state = ref levels[request.Level];
+            state.Disable(request.StorageLinearIndex);
+        }
+    }
+
+    /// <summary>
+    /// Worker-thread claim: transition a queued probe to in-flight.
+    /// Probes are marked <see cref="LumOnWorldProbeLifecycleState.Queued"/> during selection, and only become
+    /// <see cref="LumOnWorldProbeLifecycleState.InFlight"/> once the worker actually begins processing.
+    /// </summary>
+    public bool TryClaim(in LumOnWorldProbeUpdateRequest request, int frameIndex)
+    {
+        if ((uint)request.Level >= (uint)levels.Length)
+        {
+            return false;
+        }
+
+        lock (levelLocks[request.Level])
+        {
+            ref LevelState state = ref levels[request.Level];
+            return state.TryClaim(request.StorageLinearIndex, frameIndex);
+        }
+    }
+
+    /// <summary>
+    /// Producer-side backpressure: if the trace service queue is full and enqueue fails,
+    /// revert the queued state so the probe can be rescheduled.
+    /// </summary>
+    public void Unqueue(in LumOnWorldProbeUpdateRequest request)
+    {
+        if ((uint)request.Level >= (uint)levels.Length)
+        {
+            return;
+        }
+
+        lock (levelLocks[request.Level])
+        {
+            ref LevelState state = ref levels[request.Level];
+            state.Unqueue(request.StorageLinearIndex);
+        }
     }
 
     /// <summary>
@@ -228,9 +301,12 @@ internal sealed class LumOnWorldProbeScheduler
         ArgumentNullException.ThrowIfNull(maxWorld);
         if (baseSpacing <= 0) throw new ArgumentOutOfRangeException(nameof(baseSpacing));
 
-        ref LevelState state = ref levels[level];
         double spacing = LumOnClipmapTopology.GetSpacing(baseSpacing, level);
-        state.MarkDirtyWorldAabb(minWorld, maxWorld, spacing);
+        lock (levelLocks[level])
+        {
+            ref LevelState state = ref levels[level];
+            state.MarkDirtyWorldAabb(minWorld, maxWorld, spacing);
+        }
     }
 
     #endregion
@@ -247,6 +323,8 @@ internal sealed class LumOnWorldProbeScheduler
         private readonly int[] retryAfterFrame;
         private readonly bool[] dirtyAfterInFlight;
         private readonly bool[] disableAfterInFlight;
+
+        private readonly int[] queuedAtFrame;
 
         private Vec3d? anchor;
         private Vec3d? originMinCorner;
@@ -265,6 +343,7 @@ internal sealed class LumOnWorldProbeScheduler
             retryAfterFrame = new int[probesPerLevel];
             dirtyAfterInFlight = new bool[probesPerLevel];
             disableAfterInFlight = new bool[probesPerLevel];
+            queuedAtFrame = new int[probesPerLevel];
 
             anchor = null;
             originMinCorner = null;
@@ -278,6 +357,7 @@ internal sealed class LumOnWorldProbeScheduler
             Array.Fill(retryAfterFrame, 0);
             Array.Fill(dirtyAfterInFlight, false);
             Array.Fill(disableAfterInFlight, false);
+            Array.Fill(queuedAtFrame, 0);
             anchor = null;
             originMinCorner = null;
             ringOffset = new Vec3i(0, 0, 0);
@@ -292,6 +372,12 @@ internal sealed class LumOnWorldProbeScheduler
             {
                 disableAfterInFlight[storageLinearIndex] = true;
                 return;
+            }
+
+            // If queued but not yet claimed, disable immediately.
+            if (lifecycle[storageLinearIndex] == LumOnWorldProbeLifecycleState.Queued)
+            {
+                queuedAtFrame[storageLinearIndex] = 0;
             }
 
             dirtyAfterInFlight[storageLinearIndex] = false;
@@ -317,6 +403,44 @@ internal sealed class LumOnWorldProbeScheduler
             origin = originMinCorner!;
             ring = ringOffset;
             return true;
+        }
+
+        public bool TryClaim(int storageLinearIndex, int frameIndex)
+        {
+            if ((uint)storageLinearIndex >= (uint)probesPerLevel)
+            {
+                return false;
+            }
+
+            if (lifecycle[storageLinearIndex] != LumOnWorldProbeLifecycleState.Queued)
+            {
+                return false;
+            }
+
+            // If this queued entry is very old, let it be re-scheduled instead of claiming.
+            // This protects against edge cases where a dropped work item would otherwise block.
+            int age = frameIndex - queuedAtFrame[storageLinearIndex];
+            if (age >= QueuedExpiryFrames)
+            {
+                queuedAtFrame[storageLinearIndex] = 0;
+                lifecycle[storageLinearIndex] = LumOnWorldProbeLifecycleState.Dirty;
+                return false;
+            }
+
+            queuedAtFrame[storageLinearIndex] = 0;
+            lifecycle[storageLinearIndex] = LumOnWorldProbeLifecycleState.InFlight;
+            return true;
+        }
+
+        public void Unqueue(int storageLinearIndex)
+        {
+            if ((uint)storageLinearIndex >= (uint)probesPerLevel) throw new ArgumentOutOfRangeException(nameof(storageLinearIndex));
+
+            if (lifecycle[storageLinearIndex] == LumOnWorldProbeLifecycleState.Queued)
+            {
+                queuedAtFrame[storageLinearIndex] = 0;
+                lifecycle[storageLinearIndex] = LumOnWorldProbeLifecycleState.Dirty;
+            }
         }
 
         public readonly record struct AnchorShiftInfo(
@@ -447,6 +571,23 @@ internal sealed class LumOnWorldProbeScheduler
                         int storageLinear = LumOnClipmapTopology.LinearIndex(storage, resolution);
 
                         LumOnWorldProbeLifecycleState s = lifecycle[storageLinear];
+
+                        if (s == LumOnWorldProbeLifecycleState.Queued)
+                        {
+                            int queuedAge = frameIndex - queuedAtFrame[storageLinear];
+                            if (queuedAge >= QueuedExpiryFrames)
+                            {
+                                // Dropped/never-claimed queued work: re-eligible.
+                                queuedAtFrame[storageLinear] = 0;
+                                lifecycle[storageLinear] = LumOnWorldProbeLifecycleState.Dirty;
+                                s = LumOnWorldProbeLifecycleState.Dirty;
+                            }
+                            else
+                            {
+                                continue;
+                            }
+                        }
+
                         if (s is LumOnWorldProbeLifecycleState.InFlight
                             or LumOnWorldProbeLifecycleState.Valid
                             or LumOnWorldProbeLifecycleState.Disabled)
@@ -484,7 +625,8 @@ internal sealed class LumOnWorldProbeScheduler
             {
                 Candidate c = best[i];
 
-                lifecycle[c.StorageLinearIndex] = LumOnWorldProbeLifecycleState.InFlight;
+                lifecycle[c.StorageLinearIndex] = LumOnWorldProbeLifecycleState.Queued;
+                queuedAtFrame[c.StorageLinearIndex] = frameIndex;
                 output.Add(new LumOnWorldProbeUpdateRequest(
                     Level: level,
                     LocalIndex: c.LocalIndex,
@@ -498,6 +640,8 @@ internal sealed class LumOnWorldProbeScheduler
         public void Complete(int storageLinearIndex, int frameIndex, bool success, int retryDelayFrames)
         {
             if ((uint)storageLinearIndex >= (uint)probesPerLevel) throw new ArgumentOutOfRangeException(nameof(storageLinearIndex));
+
+            queuedAtFrame[storageLinearIndex] = 0;
 
             if (disableAfterInFlight[storageLinearIndex])
             {
@@ -559,6 +703,7 @@ internal sealed class LumOnWorldProbeScheduler
 
                         if (lifecycle[storageLinear] != LumOnWorldProbeLifecycleState.InFlight)
                         {
+                            queuedAtFrame[storageLinear] = 0;
                             lifecycle[storageLinear] = LumOnWorldProbeLifecycleState.Dirty;
                             retryAfterFrame[storageLinear] = 0;
                         }
@@ -596,6 +741,7 @@ internal sealed class LumOnWorldProbeScheduler
             {
                 Array.Fill(lifecycle, LumOnWorldProbeLifecycleState.Dirty);
                 Array.Fill(retryAfterFrame, 0);
+                Array.Fill(queuedAtFrame, 0);
                 return;
             }
 
@@ -634,6 +780,7 @@ internal sealed class LumOnWorldProbeScheduler
 
                         if (lifecycle[storageLinear] != LumOnWorldProbeLifecycleState.InFlight)
                         {
+                            queuedAtFrame[storageLinear] = 0;
                             lifecycle[storageLinear] = LumOnWorldProbeLifecycleState.Dirty;
                             retryAfterFrame[storageLinear] = 0;
                         }

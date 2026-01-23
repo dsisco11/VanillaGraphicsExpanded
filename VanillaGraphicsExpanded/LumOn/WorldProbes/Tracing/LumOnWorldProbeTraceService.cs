@@ -22,17 +22,22 @@ internal sealed class LumOnWorldProbeTraceService : IDisposable
 
     private readonly IWorldProbeTraceScene scene;
 
+    private readonly Func<LumOnWorldProbeUpdateRequest, int, bool> tryClaim;
+
     private readonly LumOnWorldProbeTraceIntegrator integrator = new();
 
-    public LumOnWorldProbeTraceService(IWorldProbeTraceScene scene, int maxQueuedWorkItems)
+    public LumOnWorldProbeTraceService(
+        IWorldProbeTraceScene scene,
+        int maxQueuedWorkItems,
+        Func<LumOnWorldProbeUpdateRequest, int, bool> tryClaim)
     {
         this.scene = scene ?? throw new ArgumentNullException(nameof(scene));
+        this.tryClaim = tryClaim ?? throw new ArgumentNullException(nameof(tryClaim));
 
         var workOpts = new BoundedChannelOptions(Math.Max(1, maxQueuedWorkItems))
         {
-            // IMPORTANT: Never silently drop queued work.
-            // Dropping would leave the corresponding probe "InFlight" forever on the scheduler side.
-            // Use Wait so TryWrite fails when full (non-blocking backpressure).
+            // IMPORTANT: Claim-based scheduling means dropped work items no longer create permanent "InFlight" zombies.
+            // We still prefer backpressure here so we don't waste work generating/queuing items that won't be processed.
             FullMode = BoundedChannelFullMode.Wait,
             SingleReader = true,
             SingleWriter = false,
@@ -103,6 +108,13 @@ internal sealed class LumOnWorldProbeTraceService : IDisposable
                 while (work.Reader.TryRead(out var item))
                 {
                     Interlocked.Decrement(ref approxQueuedWorkItems);
+
+                    // Claim-based scheduling: only transition Queued -> InFlight once the worker actually starts.
+                    // If the probe is no longer queued (e.g., disabled/invalidated/replaced), drop the work item.
+                    if (!tryClaim(item.Request, item.FrameIndex))
+                    {
+                        continue;
+                    }
 
                     using var scope = Profiler.BeginScope("LumOn.WorldProbe.Trace.Run", "LumOn");
                     LumOnWorldProbeTraceResult res;
