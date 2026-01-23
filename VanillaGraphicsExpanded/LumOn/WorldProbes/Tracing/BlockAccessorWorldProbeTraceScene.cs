@@ -119,6 +119,8 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
 
                             hit = new LumOnWorldProbeTraceHit(
                                 HitDistance: tHit,
+                                HitBlockId: b.Id,
+                                HitFace: ProbeHitFaceUtil.FromAxisNormal(hitNormal),
                                 HitBlockPos: new VectorInt3(x, y, z),
                                 HitFaceNormal: hitNormal,
                                 SampleBlockPos: new VectorInt3(sx, sy, sz),

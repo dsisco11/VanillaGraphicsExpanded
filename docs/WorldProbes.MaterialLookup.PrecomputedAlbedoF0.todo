@@ -26,13 +26,13 @@ WorldProbes - Precomputed DiffuseAlbedo + Specular F0 (CPU) + BlockId/Face Rever
 
   Phase 1 - Data Contracts: Hit Face + BlockId:
   Exit artifacts: Trace hit records carry enough data for O(1) material lookup.
-  ☐ Add a new `enum : byte` for probe-hit faces with a stable canonical ordering (±X/±Y/±Z), use the same names and backing numeric values as the base games face enum.
-  ☐ Extend the world-probe trace hit struct to include:
+  ✔ Add a new `enum : byte` for probe-hit faces with a stable canonical ordering (±X/±Y/±Z), use the same names and backing numeric values as the base games face enum.
+  ✔ Extend the world-probe trace hit struct to include:
     - `int HitBlockId`
     - `ProbeHitFace HitFace`
-  ☐ Populate `HitBlockId` during traversal from the traced block (avoid re-querying world in the integrator).
-  ☐ Populate `HitFace` deterministically from the axis-aligned hit normal / DDA step.
-  ☐ Add TODO: Consider storing additional hit metadata needed for future upgrades (e.g., isLiquid, isTransparent).
+  ✔ Populate `HitBlockId` during traversal from the traced block (avoid re-querying world in the integrator).
+  ✔ Populate `HitFace` deterministically from the axis-aligned hit normal / DDA step.
+  ✔ Add TODO: Consider storing additional hit metadata needed for future upgrades (e.g., isLiquid, isTransparent).
 
 
   Phase 2 - CPU Precompute: DiffuseAlbedo + Specular F0 Per Texture:

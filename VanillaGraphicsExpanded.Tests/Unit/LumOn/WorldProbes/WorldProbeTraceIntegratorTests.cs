@@ -112,6 +112,8 @@ public sealed class WorldProbeTraceIntegratorTests
         {
             hit = new LumOnWorldProbeTraceHit(
                 HitDistance: this.hitDistance,
+                HitBlockId: 1,
+                HitFace: ProbeHitFaceUtil.FromAxisNormal(hitFaceNormal),
                 HitBlockPos: new VectorInt3(0, 0, 0),
                 HitFaceNormal: hitFaceNormal,
                 SampleBlockPos: new VectorInt3(0, 0, 0),
