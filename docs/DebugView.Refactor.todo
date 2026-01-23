@@ -51,21 +51,31 @@ VGE - Debug Viewer Refactor (Debug View Registry + Unified UI):
 
   Phase 1 - Core `DebugView` Abstractions:
   Exit artifacts: Types exist to represent debug views, activation, and optional UI subpanels.
-  ☐ Add `DebugViewDefinition` (or `IDebugView`) with:
+  ✔ Add `DebugViewDefinition` (or `IDebugView`) with:
     - `Id` (stable string identifier)
     - `Name`, `Category`, `Description`
     - `RegisterRenderer` delegate (activation hook; returns an `IDisposable`/handle)
     - Optional `CreatePanel` / `PanelFactory` for sub-panel UI
-  ☐ Define `DebugViewActivationContext`:
+    - Implemented in:
+      - `VanillaGraphicsExpanded/DebugView/DebugViewDefinition.cs`
+      - `VanillaGraphicsExpanded/DebugView/DebugViewActivationMode.cs` (Exclusive vs Toggle)
+      - `VanillaGraphicsExpanded/DebugView/DebugViewAvailability.cs` (availability + reason)
+  ✔ Define `DebugViewActivationContext`:
     - `ICoreClientAPI` + access to `VgeConfig`
     - Optional dependency access patterns (closure-capture vs explicit service container)
-  ☐ Define `IDebugViewPanel` contract (if using object-based panels):
+    - Implemented in: `VanillaGraphicsExpanded/DebugView/DebugViewActivationContext.cs` (`Services` supports optional service container later)
+  ✔ Define `IDebugViewPanel` contract (if using object-based panels):
     - `Compose(...)` into bounds / composer
     - `OnOpened` / `OnClosed` lifecycle hooks
     - Optional “needs tick” support for dynamic panels (e.g., GPU profiler text refresh)
-  ☐ Define error-handling expectations:
+    - Implemented in: `VanillaGraphicsExpanded/DebugView/IDebugViewPanel.cs` (+ `DebugViewPanelBase` convenience base)
+  ✔ Define error-handling expectations:
     - Activation failures should surface in UI without hard-crashing
     - Deactivation must be best-effort (safe during shutdown)
+    - Contract expectations for Phase 2 controller:
+      - UI calls `GetAvailability(...)` first; “Unavailable” must not attempt activation
+      - Activation (`RegisterRenderer`) may throw; controller catches and surfaces message in the viewer UI/log
+      - Deactivation disposes the activation handle inside a try/catch (dispose must be best-effort; exceptions are swallowed/logged)
 
 
   Phase 2 - Registry + Activation Runtime:
