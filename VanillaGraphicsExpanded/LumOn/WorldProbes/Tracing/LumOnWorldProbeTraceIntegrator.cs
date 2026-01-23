@@ -23,10 +23,10 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         if (scene is null) throw new ArgumentNullException(nameof(scene));
 
         ReadOnlySpan<Vector3> directions = LumOnWorldProbeTraceDirections.GetDirections();
-        int n = directions.Length;
+        const int DirectionCount = LumOnWorldProbeTraceDirections.DirectionCount;
 
         // Uniform weights over the sphere.
-        float w = (float)(4.0 * Math.PI / n);
+        const float w = (float)(4.0 * Math.PI / LumOnWorldProbeTraceDirections.DirectionCount);
 
         Vector4 shR = Vector4.Zero;
         Vector4 shG = Vector4.Zero;
@@ -39,7 +39,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         double hitDistSum = 0;
         int hitCount = 0;
 
-        for (int i = 0; i < n; i++)
+        for (int i = 0; i < DirectionCount; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -111,9 +111,9 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         {
             aoDir = Vector3.UnitY;
         }
-        float aoConfidence = (float)unoccludedCount / n;
+        float aoConfidence = (float)unoccludedCount / DirectionCount;
 
-        float confidence = ComputeUnifiedConfidence(aoConfidence, hitCount, n);
+        float confidence = ComputeUnifiedConfidence(aoConfidence, hitCount, DirectionCount);
 
         float meanLogDist = 0;
         if (hitCount > 0)
@@ -174,11 +174,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
 
         Vector3 horizon = new(0.25f, 0.28f, 0.30f);
         Vector3 zenith = new(0.55f, 0.65f, 0.85f);
-
-        return new Vector3(
-            horizon.X + (zenith.X - horizon.X) * t,
-            horizon.Y + (zenith.Y - horizon.Y) * t,
-            horizon.Z + (zenith.Z - horizon.Z) * t);
+        return Vector3.Lerp(horizon, zenith, t);
     }
 
     private static float ComputeUnifiedConfidence(float aoConfidence, int hitCount, int sampleCount)

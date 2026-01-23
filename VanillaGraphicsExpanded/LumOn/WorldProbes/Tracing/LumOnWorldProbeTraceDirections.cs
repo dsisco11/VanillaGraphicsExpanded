@@ -7,6 +7,7 @@ internal static class LumOnWorldProbeTraceDirections
 {
     // Keep in sync with LUMON_OCTAHEDRAL_SIZE in lumon_octahedral.glsl.
     public const int OctahedralSize = 8;
+    public const int DirectionCount = OctahedralSize * OctahedralSize;
 
     private static readonly Vector3[] Directions = BuildDirections();
 
@@ -14,17 +15,16 @@ internal static class LumOnWorldProbeTraceDirections
 
     private static Vector3[] BuildDirections()
     {
-        int n = OctahedralSize;
-        var dirs = new Vector3[n * n];
+        var dirs = new Vector3[DirectionCount];
 
         int i = 0;
-        for (int y = 0; y < n; y++)
+        for (int y = 0; y < OctahedralSize; y++)
         {
-            for (int x = 0; x < n; x++)
+            for (int x = 0; x < OctahedralSize; x++)
             {
                 // Texel-center UV in [0,1].
-                float u = (x + 0.5f) / n;
-                float v = (y + 0.5f) / n;
+                float u = (x + 0.5f) / OctahedralSize;
+                float v = (y + 0.5f) / OctahedralSize;
 
                 dirs[i++] = OctahedralUVToDirection(u, v);
             }
