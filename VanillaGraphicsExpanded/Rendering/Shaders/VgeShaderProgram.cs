@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Threading;
 
+using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
 using StageShader = VanillaGraphicsExpanded.Rendering.Shaders.Stages.Shader;
@@ -36,6 +37,9 @@ public abstract class VgeShaderProgram : ShaderProgram
 
     private readonly Dictionary<string, string?> defines = new(StringComparer.Ordinal);
     private readonly object defineLock = new();
+
+    private readonly Dictionary<string, int> uniformLocationCache = new(StringComparer.Ordinal);
+    private int uniformLocationCacheProgramId;
 
     private ICoreClientAPI? capi;
     private ILogger? log;
@@ -144,6 +148,248 @@ public abstract class VgeShaderProgram : ShaderProgram
 
         return changed;
     }
+
+
+    #region Uniform Setters (VGE Numerics)
+
+    /// <summary>
+    /// Sets a <c>dvec3</c>/<c>vec3</c>-compatible uniform from a VGE <see cref="Vector3d"/>.
+    /// No-ops if the uniform is not active in the linked program.
+    /// </summary>
+    protected void SetUniform(string uniformName, in Vector3d value)
+    {
+        SetUniform3(uniformName, value.X, value.Y, value.Z);
+    }
+
+    /// <summary>
+    /// Sets a <c>dvec4</c>/<c>vec4</c>-compatible uniform from a VGE <see cref="Vector4d"/>.
+    /// No-ops if the uniform is not active in the linked program.
+    /// </summary>
+    protected void SetUniform(string uniformName, in Vector4d value)
+    {
+        SetUniform4(uniformName, value.X, value.Y, value.Z, value.W);
+    }
+
+    /// <summary>
+    /// Sets an <c>ivec3</c>-compatible uniform from a VGE <see cref="VectorInt3"/>.
+    /// No-ops if the uniform is not active in the linked program.
+    /// </summary>
+    protected void SetUniform(string uniformName, in VectorInt3 value)
+    {
+        SetUniform3(uniformName, value.X, value.Y, value.Z);
+    }
+
+    /// <summary>
+    /// Sets an <c>ivec4</c>-compatible uniform from a VGE <see cref="VectorInt4"/>.
+    /// No-ops if the uniform is not active in the linked program.
+    /// </summary>
+    protected void SetUniform(string uniformName, in VectorInt4 value)
+    {
+        SetUniform4(uniformName, value.X, value.Y, value.Z, value.W);
+    }
+
+    /// <summary>
+    /// Sets a <c>uvec3</c>-compatible uniform from a VGE <see cref="VectorUInt3"/>.
+    /// No-ops if the uniform is not active in the linked program.
+    /// </summary>
+    protected void SetUniform(string uniformName, in VectorUInt3 value)
+    {
+        SetUniform3u(uniformName, value.X, value.Y, value.Z);
+    }
+
+    /// <summary>
+    /// Sets a <c>uvec4</c>-compatible uniform from a VGE <see cref="VectorUInt4"/>.
+    /// No-ops if the uniform is not active in the linked program.
+    /// </summary>
+    protected void SetUniform(string uniformName, in VectorUInt4 value)
+    {
+        SetUniform4u(uniformName, value.X, value.Y, value.Z, value.W);
+    }
+
+    private void SetUniform3(string uniformName, double x, double y, double z)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(uniformName);
+
+        int loc = GetUniformLocationOrArray0(uniformName);
+        if (loc < 0) return;
+
+        int prevProgram = 0;
+        try
+        {
+            prevProgram = GL.GetInteger(GetPName.CurrentProgram);
+            if (prevProgram != ProgramId)
+            {
+                GL.UseProgram(ProgramId);
+            }
+
+            GL.Uniform3(loc, x, y, z);
+        }
+        catch (Exception ex)
+        {
+            log?.Warning($"[VGE][{ShaderName}] Failed to set uniform '{uniformName}' (dvec3): {ex.Message}");
+        }
+        finally
+        {
+            TryRestoreProgram(prevProgram);
+        }
+    }
+
+    private void SetUniform4(string uniformName, double x, double y, double z, double w)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(uniformName);
+
+        int loc = GetUniformLocationOrArray0(uniformName);
+        if (loc < 0) return;
+
+        int prevProgram = 0;
+        try
+        {
+            prevProgram = GL.GetInteger(GetPName.CurrentProgram);
+            if (prevProgram != ProgramId)
+            {
+                GL.UseProgram(ProgramId);
+            }
+
+            GL.Uniform4(loc, x, y, z, w);
+        }
+        catch (Exception ex)
+        {
+            log?.Warning($"[VGE][{ShaderName}] Failed to set uniform '{uniformName}' (dvec4): {ex.Message}");
+        }
+        finally
+        {
+            TryRestoreProgram(prevProgram);
+        }
+    }
+
+    private void SetUniform3(string uniformName, int x, int y, int z)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(uniformName);
+
+        int loc = GetUniformLocationOrArray0(uniformName);
+        if (loc < 0) return;
+
+        int prevProgram = 0;
+        try
+        {
+            prevProgram = GL.GetInteger(GetPName.CurrentProgram);
+            if (prevProgram != ProgramId)
+            {
+                GL.UseProgram(ProgramId);
+            }
+
+            GL.Uniform3(loc, x, y, z);
+        }
+        catch (Exception ex)
+        {
+            log?.Warning($"[VGE][{ShaderName}] Failed to set uniform '{uniformName}' (ivec3): {ex.Message}");
+        }
+        finally
+        {
+            TryRestoreProgram(prevProgram);
+        }
+    }
+
+    private void SetUniform4(string uniformName, int x, int y, int z, int w)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(uniformName);
+
+        int loc = GetUniformLocationOrArray0(uniformName);
+        if (loc < 0) return;
+
+        int prevProgram = 0;
+        try
+        {
+            prevProgram = GL.GetInteger(GetPName.CurrentProgram);
+            if (prevProgram != ProgramId)
+            {
+                GL.UseProgram(ProgramId);
+            }
+
+            GL.Uniform4(loc, x, y, z, w);
+        }
+        catch (Exception ex)
+        {
+            log?.Warning($"[VGE][{ShaderName}] Failed to set uniform '{uniformName}' (ivec4): {ex.Message}");
+        }
+        finally
+        {
+            TryRestoreProgram(prevProgram);
+        }
+    }
+
+    private void SetUniform3u(string uniformName, uint x, uint y, uint z)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(uniformName);
+
+        int loc = GetUniformLocationOrArray0(uniformName);
+        if (loc < 0) return;
+
+        int prevProgram = 0;
+        try
+        {
+            prevProgram = GL.GetInteger(GetPName.CurrentProgram);
+            if (prevProgram != ProgramId)
+            {
+                GL.UseProgram(ProgramId);
+            }
+
+            GL.Uniform3(loc, x, y, z);
+        }
+        catch (Exception ex)
+        {
+            log?.Warning($"[VGE][{ShaderName}] Failed to set uniform '{uniformName}' (uvec3): {ex.Message}");
+        }
+        finally
+        {
+            TryRestoreProgram(prevProgram);
+        }
+    }
+
+    private void SetUniform4u(string uniformName, uint x, uint y, uint z, uint w)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(uniformName);
+
+        int loc = GetUniformLocationOrArray0(uniformName);
+        if (loc < 0) return;
+
+        int prevProgram = 0;
+        try
+        {
+            prevProgram = GL.GetInteger(GetPName.CurrentProgram);
+            if (prevProgram != ProgramId)
+            {
+                GL.UseProgram(ProgramId);
+            }
+
+            GL.Uniform4(loc, x, y, z, w);
+        }
+        catch (Exception ex)
+        {
+            log?.Warning($"[VGE][{ShaderName}] Failed to set uniform '{uniformName}' (uvec4): {ex.Message}");
+        }
+        finally
+        {
+            TryRestoreProgram(prevProgram);
+        }
+    }
+
+    private void TryRestoreProgram(int prevProgram)
+    {
+        try
+        {
+            if (prevProgram != 0 && prevProgram != ProgramId)
+            {
+                GL.UseProgram(prevProgram);
+            }
+        }
+        catch
+        {
+            // Best-effort restore.
+        }
+    }
+
+    #endregion
 
 
     #region Uniform Arrays
@@ -262,12 +508,31 @@ public abstract class VgeShaderProgram : ShaderProgram
 
     private int GetUniformLocationOrArray0(string uniformName)
     {
+        if (ProgramId == 0)
+        {
+            return -1;
+        }
+
+        if (uniformLocationCacheProgramId != ProgramId)
+        {
+            uniformLocationCache.Clear();
+            uniformLocationCacheProgramId = ProgramId;
+        }
+
+        if (uniformLocationCache.TryGetValue(uniformName, out int cached))
+        {
+            return cached;
+        }
+
         // Spec allows querying the base name OR the [0] name.
         // Some compilers only expose one of these names.
         int loc = GL.GetUniformLocation(ProgramId, uniformName);
-        if (loc >= 0) return loc;
+        if (loc < 0)
+        {
+            loc = GL.GetUniformLocation(ProgramId, $"{uniformName}[0]");
+        }
 
-        loc = GL.GetUniformLocation(ProgramId, $"{uniformName}[0]");
+        uniformLocationCache[uniformName] = loc;
         return loc;
     }
 
