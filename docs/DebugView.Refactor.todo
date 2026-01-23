@@ -28,21 +28,25 @@ VGE - Debug Viewer Refactor (Debug View Registry + Unified UI):
 
   Phase 0 - Inventory + Constraints (Codebase-informed decisions):
   Exit artifacts: Concrete list of debug features to migrate, and confirmed UI/engine constraints.
-  ☐ Inventory current debug features and ownership:
+  ✔ Inventory current debug features and ownership:
     - LumOn debug overlay (config.LumOn.DebugMode → LumOnDebugRenderer)
     - GPU profiler viewer (GlGpuProfiler snapshot + filters)
-    - Hotkeys with potential conflicts (currently multiple F8 registrations)
-    - Any other debug overlays intended to be user-facing
-  ☐ Decide activation semantics:
-    - Single active debug view at a time (default), or allow “tools” to run alongside overlays
-    - How “Off/None” is represented (special view vs “Deactivate” button)
-  ☐ Spike Vintage Story GUI capabilities (quick prototype in a throwaway branch):
-    - Text input element for search (and events for on-change)
-    - Scrollable list element (or fallback to recomposing the dialog)
-    - Practical max list size (e.g., 50–200 items) and keyboard navigation support
-  ☐ Decide which views are registered when dependencies are missing:
-    - Always registered but shown as “Unavailable (missing dependency)”
-    - Only registered when a feature is enabled (e.g., LumOn disabled)
+    - Hotkeys with potential conflicts: `VanillaGraphicsExpandedModSystem` uses F8 for debug viewer; `DebugGBufferRenderer` also registers F8 (and Shift+F8)
+    - Other debug-facing overlays/tools:
+      - Render-stage debug groups: `GpuDebugLabelManager` (DEBUG-only)
+      - Material atlas progress HUD: `HudMaterialAtlasProgressPanel` (config-gated overlay)
+  ✔ Decide activation semantics:
+    - Two activation modes:
+      - Exclusive overlays (radio selection): only one active overlay view at a time
+      - Non-exclusive tools (toggle): can be enabled alongside an overlay (e.g., GPU profiler panel)
+    - “Off/None” is represented as an explicit “Deactivate” action (and/or a built-in `Off` view for exclusive overlays)
+  ✔ Spike Vintage Story GUI capabilities (reflection against `VintagestoryAPI.dll`):
+    - Search input supported: `GuiElementTextInput` + `GuiComposerHelpers.AddTextInput(...)`
+    - Scrollable list supported: `GuiElementCellList<T>` + `GuiComposerHelpers.AddCellList(...)`
+    - Scrollbars supported: `GuiElementScrollbar` / `GuiElementCompactScrollbar` + `GuiComposerHelpers.AddVerticalScrollbar(...)`
+  ✔ Decide which views are registered when dependencies are missing:
+    - Views remain registered, but expose availability via `IsAvailable(...)` / `TryActivate(...)` so UI can show “Unavailable” with a reason
+    - Example: LumOn debug views are unavailable when `ConfigModSystem.Config.LumOn.Enabled == false` (unless later we decide to auto-enable LumOn on activation)
 
 
   Phase 1 - Core `DebugView` Abstractions:
@@ -144,4 +148,3 @@ VGE - Debug Viewer Refactor (Debug View Registry + Unified UI):
     - Switching views cleans up previous renderer state
     - LumOn debug overlay matches expected mode
     - GPU profiler panel updates and filters correctly
-
