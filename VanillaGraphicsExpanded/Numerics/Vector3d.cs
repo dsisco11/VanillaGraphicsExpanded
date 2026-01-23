@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 
@@ -10,7 +11,8 @@ namespace VanillaGraphicsExpanded.Numerics;
 /// 3D double-precision vector.
 /// Uses AVX (<see cref="Vector256{T}"/>) to accelerate vector math when available.
 /// </summary>
-internal readonly struct Vector3d : IEquatable<Vector3d>
+[StructLayout(LayoutKind.Sequential)]
+public readonly struct Vector3d : IEquatable<Vector3d>
 {
     /// <summary>
     /// Packed as (X,Y,Z,0).

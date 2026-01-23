@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Numerics;
 /// Stores the vector in a 128-bit lane as (X,Y,Z,0).
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-internal readonly struct VectorUInt3 : IEquatable<VectorUInt3>
+public readonly struct VectorUInt3 : IEquatable<VectorUInt3>
 {
     private readonly Vector128<uint> v;
 
