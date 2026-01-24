@@ -248,6 +248,8 @@ public static class VgeBuiltInDebugViews
             LumOnDebugMode.WorldProbeOrbsPoints => "World-Probe Probes (orbs, GL_POINTS) (Phase 18)",
             LumOnDebugMode.PomMetrics => "POM Metrics (heatmap from gBufferNormal.w)",
             LumOnDebugMode.WorldProbeRawConfidences => "World-Probe Raw Confidences (Phase 18)",
+            LumOnDebugMode.WorldProbeContributionOnly => "Contribution Only: world-probe (Phase 18)",
+            LumOnDebugMode.ScreenSpaceContributionOnly => "Contribution Only: screen-space (Phase 18)",
             _ => mode.ToString()
         };
     }

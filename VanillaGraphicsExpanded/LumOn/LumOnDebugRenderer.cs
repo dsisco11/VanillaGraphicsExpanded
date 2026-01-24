@@ -819,7 +819,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private void OnDebugModeChanged(LumOnDebugMode prev, LumOnDebugMode current)
     {
         if (current is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeOrbsPoints
-            || current == LumOnDebugMode.WorldProbeRawConfidences)
+            || current == LumOnDebugMode.WorldProbeRawConfidences
+            || current == LumOnDebugMode.WorldProbeContributionOnly
+            || current == LumOnDebugMode.ScreenSpaceContributionOnly)
         {
             worldProbeClipmapDebugDirty = true;
 
@@ -2128,7 +2130,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         return (mode is >= LumOnDebugMode.ProbeGrid and <= LumOnDebugMode.CompositeMaterial)
             || (mode is >= LumOnDebugMode.VelocityMagnitude and <= LumOnDebugMode.VelocityPrevUv)
             || (mode is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeOrbsPoints)
-            || mode == LumOnDebugMode.WorldProbeRawConfidences;
+            || mode is LumOnDebugMode.WorldProbeRawConfidences
+                or LumOnDebugMode.WorldProbeContributionOnly
+                or LumOnDebugMode.ScreenSpaceContributionOnly;
     }
 
     #endregion

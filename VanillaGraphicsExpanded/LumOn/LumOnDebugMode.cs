@@ -81,4 +81,8 @@ public enum LumOnDebugMode
     // Phase 18: diagnostics
     // R = reconstructed screen confidence (screenW), G = raw world-probe confidence, B = final confidence (sumW)
     WorldProbeRawConfidences = 42,
+
+    // Phase 18: contribution split (screen vs world-probe)
+    WorldProbeContributionOnly = 43,
+    ScreenSpaceContributionOnly = 44,
 }

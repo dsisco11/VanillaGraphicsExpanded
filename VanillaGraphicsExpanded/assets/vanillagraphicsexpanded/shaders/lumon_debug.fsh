@@ -47,6 +47,8 @@ out vec4 outColor;
 // 39 = Cross-Level Blend (selected L and weights)
 // 41 = POM Metrics (heatmap from gBufferNormal.w)
 // 42 = Raw Confidences (R=screenConf, G=worldConf, B=sumW)
+// 43 = Contribution Only: world-probe (Phase 18)
+// 44 = Contribution Only: screen-space (Phase 18)
 // ============================================================================
 
 // Import common utilities
@@ -930,6 +932,84 @@ vec4 renderGatherWeightDebug() {
 }
 
 // ============================================================================
+// Debug Modes 43-44: Contribution Split (Phase 18)
+// Shows only the world-probe or only the screen-space portion of the final
+// screen-first blend written into indirectHalf.
+// ============================================================================
+
+vec3 lumonTonemapReinhard(vec3 hdr)
+{
+    hdr = max(hdr, vec3(0.0));
+    return hdr / (hdr + vec3(1.0));
+}
+
+vec3 lumonComputeWorldProbeContributionOnly()
+{
+    float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth))
+    {
+        return vec3(0.0);
+    }
+
+    float sumW = clamp(texture(indirectHalf, uv).a, 0.0, 1.0);
+    if (sumW <= 1e-6)
+    {
+        return vec3(0.0);
+    }
+
+#if !VGE_LUMON_WORLDPROBE_ENABLED
+    return vec3(0.0);
+#else
+    vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+    vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
+    vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
+
+    LumOnWorldProbeSample wp = lumonWorldProbeSampleClipmapBound(posWS, normalWS);
+    float worldConf = clamp(wp.confidence, 0.0, 1.0);
+
+    // Reconstruct the screen-first blend weights using the stored final confidence (sumW)
+    // and the raw world confidence (worldConf). This matches the derivation used by
+    // renderWorldProbeBlendWeightsDebug().
+    float screenW = (worldConf >= 0.999)
+        ? 0.0
+        : clamp((sumW - worldConf) / max(1.0 - worldConf, 1e-6), 0.0, 1.0);
+    float worldW = worldConf * (1.0 - screenW);
+
+    vec3 worldContrib = wp.irradiance * (worldW / max(sumW, 1e-6));
+
+    // Match the gather output space (gather pass applies these before writing indirectHalf).
+    worldContrib *= indirectIntensity;
+    worldContrib *= indirectTint;
+
+    return max(worldContrib, vec3(0.0));
+#endif
+}
+
+vec4 renderWorldProbeContributionOnlyDebug()
+{
+    vec3 worldContrib = lumonComputeWorldProbeContributionOnly();
+    return vec4(lumonTonemapReinhard(worldContrib), 1.0);
+}
+
+vec4 renderScreenSpaceContributionOnlyDebug()
+{
+    float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    // indirectHalf.rgb contains the *blended* (screen+world) irradiance in gather output space.
+    vec3 blended = texture(indirectHalf, uv).rgb;
+
+    // Derive screen portion as blended - worldContribution.
+    vec3 worldContrib = lumonComputeWorldProbeContributionOnly();
+    vec3 screenContrib = max(blended - worldContrib, vec3(0.0));
+
+    return vec4(lumonTonemapReinhard(screenContrib), 1.0);
+}
+
+// ============================================================================
 // Debug Modes 31-39, 41: World-Probe Clipmap (Phase 18)
 // ============================================================================
 
@@ -1279,11 +1359,16 @@ void main(void)
             outColor = renderProbeDepthDebug(screenPos);
             break;
         case 3:
-
+            outColor = renderProbeNormalDebug(screenPos);
+            break;
         case 42:
             outColor = renderWorldProbeRawConfidencesDebug();
             break;
-            outColor = renderProbeNormalDebug(screenPos);
+        case 43:
+            outColor = renderWorldProbeContributionOnlyDebug();
+            break;
+        case 44:
+            outColor = renderScreenSpaceContributionOnlyDebug();
             break;
         case 4:
             outColor = renderSceneDepthDebug();
