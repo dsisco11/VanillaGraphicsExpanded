@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Threading;
 
 using VanillaGraphicsExpanded.PBR.Materials;
+using VanillaGraphicsExpanded.Numerics;
 
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 
@@ -11,13 +12,23 @@ internal sealed class LumOnWorldProbeTraceIntegrator
     private const float ShC0 = 0.282095f;
     private const float ShC1 = 0.488603f;
 
-    // Simple bounce model (Phase 18): treat skylight as an incident diffuse source and
-    // emit a Lambertian reflected radiance from hit surfaces.
+    // Simple bounce model (Phase 18): treat skylight as an incident diffuse source and emit a Lambertian
+    // reflected radiance from hit surfaces.
     //
-    // This intentionally ensures that outdoors, rays hitting the ground return nonzero radiance
-    // proportional to skylight visibility, even when block light is ~0.
+    // The initial bring-up used a hard "up-only" gate (HitFaceNormal.Y), which systematically under-lit
+    // vertical faces. We now estimate skylight visibility with a small set of secondary traces toward
+    // the sky hemisphere and use that to drive bounce energy for all face orientations.
     private const float InvPi = 0.318309886f;
     private static readonly Vector3 SkyBounceTint = Vector3.One;
+
+    // Secondary "sky visibility" traces per hit are intentionally low-count and deterministic.
+    // These directions are uniform-ish over the +Y hemisphere; visibility is traced against the voxel scene.
+    private const int SkyBounceSampleCount = 2;
+    private const double SkyBounceMaxDistanceClamp = 16.0;
+    private const double SkyBounceOriginEpsilon = 1e-3;
+
+    private static readonly Vector3[] SkyBounceSampleDirections = BuildSkyBounceSampleDirections();
+    private static readonly float SkyBounceNormalizationDenom = ComputeSkyBounceNormalizationDenom();
 
     public LumOnWorldProbeTraceResult TraceProbe(IWorldProbeTraceScene scene, in LumOnWorldProbeTraceWorkItem item, CancellationToken cancellationToken)
     {
@@ -71,7 +82,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
 
             Vector3 specularF0 = Vector3.Zero;
             Vector3 blockRadiance = hit
-                ? EvaluateHitRadiance(hitInfo, out specularF0)
+                ? EvaluateHitRadiance(scene, item.ProbePosWorld, dir, item.MaxTraceDistanceWorld, hitInfo, cancellationToken, out specularF0)
                 : EvaluateSkyRadiance(dir);
 
             // @todo (WorldProbes): Define the correct specular-GI path (separate SH vs directional lobe)
@@ -143,7 +154,14 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             MeanLogHitDistance: meanLogDist);
     }
 
-    private static Vector3 EvaluateHitRadiance(in LumOnWorldProbeTraceHit hit, out Vector3 specularF0)
+    private static Vector3 EvaluateHitRadiance(
+        IWorldProbeTraceScene scene,
+        Vector3d probePosWorld,
+        Vector3 primaryDirWorld,
+        double maxTraceDistanceWorld,
+        in LumOnWorldProbeTraceHit hit,
+        CancellationToken cancellationToken,
+        out Vector3 specularF0)
     {
         DerivedSurface ds;
         if (!PbrMaterialRegistry.Instance.TryGetDerivedSurface(hit.HitBlockId, (byte)hit.HitFace, out ds))
@@ -164,16 +182,122 @@ internal sealed class LumOnWorldProbeTraceIntegrator
 
         float skyI = Math.Clamp(ls.W, 0f, 1f);
 
-        // Face normal is axis-aligned; use upward-facing weight so ceilings don't "bounce" skylight.
-        float ny = hit.HitFaceNormal.Y;
-        float upWeight = Math.Clamp(ny, 0f, 1f);
+        float skyBounceFactor = 0f;
+        if (skyI > 1e-6f && ds.DiffuseAlbedo.LengthSquared() > 1e-12f)
+        {
+            skyBounceFactor = EstimateSkyBounceFactor(
+                scene,
+                probePosWorld,
+                primaryDirWorld,
+                maxTraceDistanceWorld,
+                hit,
+                cancellationToken);
+        }
 
         // Approximate outgoing radiance from a sun/sky lit diffuse surface.
         // Apply per-face diffuse albedo from the registry-derived surface terms.
-        Vector3 skyBounce = SkyBounceTint * (skyI * InvPi * upWeight);
+        Vector3 skyBounce = SkyBounceTint * (skyI * InvPi * skyBounceFactor);
         skyBounce *= ds.DiffuseAlbedo;
 
         return blockLight + skyBounce;
+    }
+
+    private static float EstimateSkyBounceFactor(
+        IWorldProbeTraceScene scene,
+        Vector3d probePosWorld,
+        Vector3 primaryDirWorld,
+        double maxTraceDistanceWorld,
+        in LumOnWorldProbeTraceHit hit,
+        CancellationToken cancellationToken)
+    {
+        // NOTE: We assume "sky" is the +Y hemisphere in world space.
+        // Estimate cosine-weighted visibility from the hit point toward that hemisphere and normalize
+        // relative to an upward-facing surface with full sky visibility.
+        //
+        // For face normals with Y <= 0, dot(n, dirSky) is <= 0 for all dirSky.Y > 0, so the factor is 0
+        // (down-facing surfaces don't receive direct skylight in this model).
+        if (SkyBounceNormalizationDenom <= 1e-6f)
+        {
+            return 0f;
+        }
+
+        var n = new Vector3(hit.HitFaceNormal.X, hit.HitFaceNormal.Y, hit.HitFaceNormal.Z);
+        if (n.LengthSquared() < 1e-12f)
+        {
+            return 0f;
+        }
+
+        double maxDist = Math.Min(maxTraceDistanceWorld, SkyBounceMaxDistanceClamp);
+        if (maxDist <= 0)
+        {
+            return 0f;
+        }
+
+        // Primary ray hit world-space position, then offset slightly outward from the hit face.
+        var hitPosWorld = probePosWorld + new Vector3d(primaryDirWorld.X * hit.HitDistance, primaryDirWorld.Y * hit.HitDistance, primaryDirWorld.Z * hit.HitDistance);
+        var originWorld = hitPosWorld + new Vector3d(n.X * SkyBounceOriginEpsilon, n.Y * SkyBounceOriginEpsilon, n.Z * SkyBounceOriginEpsilon);
+
+        float accum = 0f;
+
+        for (int i = 0; i < SkyBounceSampleDirections.Length; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            Vector3 dir = SkyBounceSampleDirections[i];
+
+            float cos = Vector3.Dot(n, dir);
+            if (cos <= 0f)
+            {
+                continue;
+            }
+
+            // Secondary trace: treat a miss as "sky-visible" and any hit/abort as occluded.
+            var outcome = scene.Trace(originWorld, dir, maxDist, cancellationToken, out _);
+            if (outcome == WorldProbeTraceOutcome.Miss)
+            {
+                accum += cos;
+            }
+        }
+
+        float factor = accum / SkyBounceNormalizationDenom;
+        return Math.Clamp(factor, 0f, 1f);
+    }
+
+    private static Vector3[] BuildSkyBounceSampleDirections()
+    {
+        var dirs = new Vector3[SkyBounceSampleCount];
+
+        // Fibonacci spiral on a hemisphere: deterministic, low-discrepancy-ish.
+        // We map the hemisphere's polar axis to +Y so "sky" is world-up.
+        const float goldenAngle = 2.39996323f; // ~pi*(3-sqrt(5))
+
+        for (int i = 0; i < dirs.Length; i++)
+        {
+            float t = (i + 0.5f) / dirs.Length; // in (0,1)
+            float y = t;                        // cos(theta) in [0,1]
+            float r = MathF.Sqrt(MathF.Max(0f, 1f - y * y));
+
+            float phi = i * goldenAngle;
+
+            float x = r * MathF.Cos(phi);
+            float z = r * MathF.Sin(phi);
+
+            dirs[i] = new Vector3(x, y, z);
+        }
+
+        return dirs;
+    }
+
+    private static float ComputeSkyBounceNormalizationDenom()
+    {
+        // Normalization target: cosine-weighted integral of the sky hemisphere for an upward-facing surface,
+        // approximated with the discrete sample set. Since all samples are in +Y, dot(up,dir)=dir.Y.
+        float sum = 0f;
+        for (int i = 0; i < SkyBounceSampleDirections.Length; i++)
+        {
+            sum += Math.Max(SkyBounceSampleDirections[i].Y, 0f);
+        }
+        return sum;
     }
 
     private static float EvaluateSkyLightIntensity(in LumOnWorldProbeTraceHit hit)

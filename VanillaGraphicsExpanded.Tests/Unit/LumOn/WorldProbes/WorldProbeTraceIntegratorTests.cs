@@ -40,7 +40,8 @@ public sealed class WorldProbeTraceIntegratorTests
     [Fact]
     public void TraceProbe_WhenAllHitsWithSkylightButDownFacingNormals_ProducesZeroRadianceSh()
     {
-        // Skylight bounce is intentionally gated by HitFaceNormal.Y so ceilings don't "bounce" skylight.
+        // In the world-probe bounce model, skylight is an upper-hemisphere (+Y) source.
+        // Down-facing normals have zero cosine term for all sky directions, so they receive no direct skylight.
         // With a down-facing normal and no block light, all hit radiance should be zero.
         var scene = new AlwaysHitScene(hitDistance: 4.0, sampleLight: new Vector4(0, 0, 0, 1f), hitFaceNormal: new VectorInt3(0, -1, 0));
         var integrator = new LumOnWorldProbeTraceIntegrator();
@@ -85,7 +86,6 @@ public sealed class WorldProbeTraceIntegratorTests
     [Fact]
     public void TraceProbe_WhenAllHitsWithSkylight_ProducesNonZeroRadianceSh()
     {
-        var scene = new AlwaysHitScene(hitDistance: 4.0, sampleLight: new Vector4(0, 0, 0, 0.9f), hitFaceNormal: new VectorInt3(0, 1, 0));
         var integrator = new LumOnWorldProbeTraceIntegrator();
 
         var request = new LumOnWorldProbeUpdateRequest(0, new Vec3i(0, 0, 0), new Vec3i(0, 0, 0), 0);
@@ -95,12 +95,46 @@ public sealed class WorldProbeTraceIntegratorTests
             ProbePosWorld: new Vector3d(0.5, 0.5, 0.5),
             MaxTraceDistanceWorld: 32);
 
+        // Primary rays always hit a surface that samples skylight.
+        // Secondary sky-visibility rays always miss, so the skylight bounce factor is non-zero.
+        var scene = new PrimaryOnlyHitScene(
+            primaryOrigin: item.ProbePosWorld,
+            hitDistance: 4.0,
+            sampleLight: new Vector4(0, 0, 0, 0.9f),
+            hitFaceNormal: new VectorInt3(0, 1, 0));
+
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
         Assert.True(res.ShortRangeAoConfidence < 0.01f);
         Assert.True(res.ShR.Length() > 1e-5f);
         Assert.True(res.ShG.Length() > 1e-5f);
         Assert.True(res.ShB.Length() > 1e-5f);
+    }
+
+    [Fact]
+    public void TraceProbe_WhenAllHitsWithSkylightButSideFacingNormals_ProducesNonZeroRadianceSh()
+    {
+        // Regression test for 1.1: vertical surfaces should bounce some skylight when the sky hemisphere is visible.
+        var integrator = new LumOnWorldProbeTraceIntegrator();
+
+        var request = new LumOnWorldProbeUpdateRequest(0, new Vec3i(0, 0, 0), new Vec3i(0, 0, 0), 0);
+        var item = new LumOnWorldProbeTraceWorkItem(
+            FrameIndex: 6,
+            Request: request,
+            ProbePosWorld: new Vector3d(0.5, 0.5, 0.5),
+            MaxTraceDistanceWorld: 32);
+
+        var scene = new PrimaryOnlyHitScene(
+            primaryOrigin: item.ProbePosWorld,
+            hitDistance: 4.0,
+            sampleLight: new Vector4(0, 0, 0, 1f),
+            hitFaceNormal: new VectorInt3(1, 0, 0));
+
+        var res = integrator.TraceProbe(scene, item, CancellationToken.None);
+
+        Assert.True(res.ShR.Length() > 1e-6f);
+        Assert.True(res.ShG.Length() > 1e-6f);
+        Assert.True(res.ShB.Length() > 1e-6f);
     }
 
     [Fact]
@@ -128,7 +162,7 @@ public sealed class WorldProbeTraceIntegratorTests
 
         // Scene is symmetric in Z, but not in X/Y.
         Assert.True(res.ShR.Y < 0f);
-        Assert.True(res.ShR.W > 0f);
+        Assert.True(res.ShR.W < 0f);
         Assert.InRange(MathF.Abs(res.ShR.Z), 0f, 0.05f);
     }
 
@@ -165,6 +199,43 @@ public sealed class WorldProbeTraceIntegratorTests
         {
             hit = new LumOnWorldProbeTraceHit(
                 HitDistance: this.hitDistance,
+                HitBlockId: 1,
+                HitFace: ProbeHitFaceUtil.FromAxisNormal(hitFaceNormal),
+                HitBlockPos: new VectorInt3(0, 0, 0),
+                HitFaceNormal: hitFaceNormal,
+                SampleBlockPos: new VectorInt3(0, 0, 0),
+                SampleLightRgbS: sampleLight);
+            return WorldProbeTraceOutcome.Hit;
+        }
+    }
+
+    private sealed class PrimaryOnlyHitScene : IWorldProbeTraceScene
+    {
+        private readonly Vector3d primaryOrigin;
+        private readonly double hitDistance;
+        private readonly Vector4 sampleLight;
+        private readonly VectorInt3 hitFaceNormal;
+
+        public PrimaryOnlyHitScene(Vector3d primaryOrigin, double hitDistance, Vector4 sampleLight, VectorInt3 hitFaceNormal)
+        {
+            this.primaryOrigin = primaryOrigin;
+            this.hitDistance = hitDistance;
+            this.sampleLight = sampleLight;
+            this.hitFaceNormal = hitFaceNormal;
+        }
+
+        public WorldProbeTraceOutcome Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
+        {
+            // Simulate "primary hit + secondary miss" behavior: any trace not originating from the probe center
+            // is considered a sky-visible miss (used by the integrator's skylight-visibility sampling).
+            if (!originWorld.Equals(primaryOrigin))
+            {
+                hit = default;
+                return WorldProbeTraceOutcome.Miss;
+            }
+
+            hit = new LumOnWorldProbeTraceHit(
+                HitDistance: hitDistance,
                 HitBlockId: 1,
                 HitFace: ProbeHitFaceUtil.FromAxisNormal(hitFaceNormal),
                 HitBlockPos: new VectorInt3(0, 0, 0),

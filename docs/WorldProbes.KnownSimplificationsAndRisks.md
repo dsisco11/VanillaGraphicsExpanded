@@ -20,7 +20,6 @@ Priorities are scoped to **Phase 18 diffuse GI correctness + debuggability**:
 
 ### P0 (Critical)
 
-- [1.1 Upward-only skylight bounce at hit points](#wp-1-1)
 - [2.2 Unloaded chunks treated as misses; placeholder chunk objects can abort traces](#wp-2-2)
 - [2.3 Probe disabled when its center lies inside a solid collision box](#wp-2-3)
 - [5.1 ShortRangeAO multiplies irradiance by `aoConf`](#wp-5-1)
@@ -29,6 +28,7 @@ Priorities are scoped to **Phase 18 diffuse GI correctness + debuggability**:
 
 ### P1 (High)
 
+- [1.1 Skylight bounce uses limited secondary sky visibility traces](#wp-1-1)
 - [1.2 Placeholder sky radiance model (miss shader)](#wp-1-2)
 - [1.3 Miss sky intensity hard-coded to `1.0`](#wp-1-3)
 - [1.5 Material factors are simplified (base-texture-only resolution)](#wp-1-5)
@@ -57,27 +57,30 @@ Priorities are scoped to **Phase 18 diffuse GI correctness + debuggability**:
 ## 1. Lighting / Integration Heuristics
 
 <a id="wp-1-1"></a>
-### 1.1 (P0) Upward-only skylight bounce at hit points
+### 1.1 (P1) Skylight bounce uses limited secondary sky visibility traces
 
 **Where**: `VanillaGraphicsExpanded/LumOn/WorldProbes/Tracing/LumOnWorldProbeTraceIntegrator.cs` (`EvaluateHitRadiance`)
 
-**What**: Skylight “bounce” is gated by `upWeight = clamp(hitNormal.Y, 0..1)`, so only upward-facing hit normals
-contribute any sky-bounce energy.
+**What**: Skylight “bounce” at hit points is estimated by launching a small, fixed set of **secondary traces** toward the
+sky hemisphere (+Y) and computing a cosine-weighted visibility factor. This replaces the earlier “up-only” gating, but
+remains simplified (low sample count, fixed max distance).
 
 **Why this is an issue**
 
-- **Systematically under-lights vertical surfaces** outdoors: walls can only receive block light (or the probe’s own
-  “sky” channel via SH evaluation), so probes near terrain/buildings tend to look too dark compared to “open sky” probes.
-- **Non-physical energy distribution**: skylight is a hemispherical environment illumination; diffuse reflection should
-  not drop to zero merely because a surface is vertical.
-- **Creates lighting discontinuities** around corners: the same material can appear to “stop bouncing skylight” when its
-  voxel-face normal changes from +Y to ±X/±Z.
+- **Limited accuracy**: a low sample count can under/over-estimate sky visibility in tight geometry (thin overhangs,
+  small apertures) and can miss distant occluders.
+- **Fixed distance clamp**: secondary traces use a clamped max distance, so “sky visibility” becomes a local heuristic
+  rather than a true line-of-sight to open sky.
+- **Added CPU cost**: secondary traces increase per-probe work and can reduce the number of probes updated per frame if
+  budgets are tight.
 
 **Options to address**
 
-- **Option A (cheap)**: Replace the hard “up-only” gate with a biased weight so side faces still bounce some skylight (e.g., a small minimum, or a smooth ramp instead of `max(ny, 0)`).
-- **Option B (better)**: Drive bounce from a directional sky model (engine sky/ambient as a function of direction) and evaluate incident sky at the hit normal instead of using face-type gating.
-- **Option C (ideal)**: Estimate skylight visibility at the hit with additional occlusion sampling (or secondary bounces) and use that to drive bounce energy.
+- **Option A (tuning)**: Increase sample count and/or max distance; make them configurable and consider per-level scaling.
+- **Option B (adaptive)**: Use fewer traces for near-up normals and more for side normals, or early-out when sampled
+  skylight intensity is ~0.
+- **Option C (hybrid)**: Add a cheap sky-visibility signal derived from voxel skylight levels and reserve ray tracing
+  for edge cases (overhangs, near-geometry probes).
 
 <a id="wp-1-2"></a>
 ### 1.2 (P1) Placeholder sky radiance model (miss shader)
