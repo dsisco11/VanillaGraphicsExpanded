@@ -174,25 +174,25 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
         string[] viewValues = filteredViews.Select(v => v.Id).ToArray();
         string[] viewNames = filteredViews.Select(v => BuildListEntryName(v)).ToArray();
 
-        // Main layout
-        ElementBounds catLabelBounds = ElementBounds.Fixed(0, 0, LeftColumnWidth, RowH);
-        ElementBounds catDropBounds = ElementBounds.Fixed(0, RowH, LeftColumnWidth, RowH);
+        // Main layout (important: use ForkChildOffseted so bounds have a parent; VS UI crashes if bounds are parentless)
+        ElementBounds catLabelBounds = bgBounds.ForkChildOffseted(0, 0, LeftColumnWidth, RowH);
+        ElementBounds catDropBounds = bgBounds.ForkChildOffseted(0, RowH, LeftColumnWidth, RowH);
 
         double listY = RowH * 2 + GapY;
         double listH = Math.Max(100, innerH - listY);
-        ElementBounds listBounds = ElementBounds.Fixed(0, listY, LeftColumnWidth, listH);
+        ElementBounds listBounds = bgBounds.ForkChildOffseted(0, listY, LeftColumnWidth, listH);
 
-        ElementBounds titleBounds = ElementBounds.Fixed(rightX, 0, rightW, RowH);
-        ElementBounds statusBounds = ElementBounds.Fixed(rightX, RowH, rightW, RowH);
-        ElementBounds descBounds = ElementBounds.Fixed(rightX, RowH * 2, rightW, 120);
+        ElementBounds titleBounds = bgBounds.ForkChildOffseted(rightX, 0, rightW, RowH);
+        ElementBounds statusBounds = bgBounds.ForkChildOffseted(rightX, RowH, rightW, RowH);
+        ElementBounds descBounds = bgBounds.ForkChildOffseted(rightX, RowH * 2, rightW, 120);
 
-        ElementBounds buttonBounds = ElementBounds.Fixed(rightX, RowH * 2 + 120 + GapY, 160, RowH);
-        ElementBounds errorBounds = ElementBounds.Fixed(rightX, RowH * 2 + 120 + GapY + RowH + GapY, rightW, 60);
+        ElementBounds buttonBounds = bgBounds.ForkChildOffseted(rightX, RowH * 2 + 120 + GapY, 160, RowH);
+        ElementBounds errorBounds = bgBounds.ForkChildOffseted(rightX, RowH * 2 + 120 + GapY + RowH + GapY, rightW, 60);
 
         double panelY = RowH * 2 + 120 + GapY + RowH + GapY + 60 + GapY;
         double panelH = Math.Max(0, innerH - panelY);
-        ElementBounds panelTitleBounds = ElementBounds.Fixed(rightX, panelY, rightW, RowH);
-        ElementBounds panelBounds = ElementBounds.Fixed(rightX, panelY + RowH + GapY, rightW, Math.Max(0, panelH - RowH - GapY));
+        ElementBounds panelTitleBounds = bgBounds.ForkChildOffseted(rightX, panelY, rightW, RowH);
+        ElementBounds panelBounds = bgBounds.ForkChildOffseted(rightX, panelY + RowH + GapY, rightW, Math.Max(0, panelH - RowH - GapY));
 
         SingleComposer?.Dispose();
         var composer = capi.Gui
