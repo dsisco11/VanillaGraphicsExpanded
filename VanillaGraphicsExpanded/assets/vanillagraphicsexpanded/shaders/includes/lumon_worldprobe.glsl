@@ -150,6 +150,7 @@ void lumonWorldProbeAccumulateCorner(
 	inout vec4 shG,
 	inout vec4 shB,
 	inout vec4 shSky,
+	inout float skyIntensityAccum,
 	inout vec3 aoDirAccum,
 	inout float aoConfAccum,
 	inout float metaConfAccum)
@@ -178,6 +179,7 @@ void lumonWorldProbeAccumulateCorner(
 	vec4 vis = texelFetch(probeVis0, ac, 0);
 	vec3 aoDir = lumonOctahedralUVToDirection(vis.xy);
 	aoDirAccum += aoDir * wt;
+	skyIntensityAccum += clamp(vis.z, 0.0, 1.0) * wt;
 	aoConfAccum += vis.w * wt;
 }
 
@@ -242,19 +244,20 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 	vec4 shG = vec4(0.0);
 	vec4 shB = vec4(0.0);
 	vec4 shSky = vec4(0.0);
+	float skyIntensityAccum = 0.0;
 
 	vec3 aoDirAccum = vec3(0.0);
 	float aoConfAccum = 0.0;
 	float metaConfAccum = 0.0;
 
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i0.z), ring, resolution, level, w000, shR, shG, shB, shSky, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i0.z), ring, resolution, level, w100, shR, shG, shB, shSky, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i0.z), ring, resolution, level, w010, shR, shG, shB, shSky, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i0.z), ring, resolution, level, w110, shR, shG, shB, shSky, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i1.z), ring, resolution, level, w001, shR, shG, shB, shSky, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i1.z), ring, resolution, level, w101, shR, shG, shB, shSky, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i1.z), ring, resolution, level, w011, shR, shG, shB, shSky, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i1.z), ring, resolution, level, w111, shR, shG, shB, shSky, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i0.z), ring, resolution, level, w000, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i0.z), ring, resolution, level, w100, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i0.z), ring, resolution, level, w010, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i0.z), ring, resolution, level, w110, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i1.z), ring, resolution, level, w001, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i1.z), ring, resolution, level, w101, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i1.z), ring, resolution, level, w011, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i1.z), ring, resolution, level, w111, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
 
 	// ShortRangeAO: use a bent-normal evaluation rather than a hard directional multiplier.
 	// The old multiplier (max(dot(n, aoDir),0) * aoConf) can go to zero for side faces outdoors
@@ -270,8 +273,9 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 
 	// Evaluate SH in WORLD space.
 	vec3 irradianceBlock = shEvaluateDiffuseRGB(shR, shG, shB, bentNormalWS);
-	float irradianceSky = shEvaluateDiffuse(shSky, bentNormalWS);
-	vec3 irradiance = max(irradianceBlock, vec3(0.0)) + worldProbeSkyTint * max(irradianceSky, 0.0);
+	float irradianceSkyVisibility = shEvaluateDiffuse(shSky, bentNormalWS);
+	float skyIntensity = clamp(skyIntensityAccum, 0.0, 1.0);
+	vec3 irradiance = max(irradianceBlock, vec3(0.0)) + worldProbeSkyTint * (max(irradianceSkyVisibility, 0.0) * skyIntensity);
 
 	irradiance = max(irradiance, vec3(0.0)) * aoConf;
 

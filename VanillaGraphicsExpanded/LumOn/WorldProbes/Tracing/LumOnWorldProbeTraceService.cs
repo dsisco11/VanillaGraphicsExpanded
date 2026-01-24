@@ -138,6 +138,7 @@ internal sealed class LumOnWorldProbeTraceService : IDisposable
                             ShG: default,
                             ShB: default,
                             ShSky: default,
+                            SkyIntensity: 0f,
                             ShortRangeAoDirWorld: default,
                             ShortRangeAoConfidence: 0f,
                             Confidence: 0f,

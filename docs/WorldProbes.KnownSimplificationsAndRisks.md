@@ -30,7 +30,7 @@ Priorities are scoped to **Phase 18 diffuse GI correctness + debuggability**:
 
 - [1.1 Skylight bounce uses limited secondary sky visibility traces](#wp-1-1)
 - [1.2 Placeholder sky radiance model (miss shader)](#wp-1-2)
-- [1.3 Miss sky intensity hard-coded to `1.0`](#wp-1-3)
+- [1.3 Sky visibility/intensity split still heuristic](#wp-1-3)
 - [1.5 Material factors are simplified (base-texture-only resolution)](#wp-1-5)
 - [2.1 “Most solid block + collision boxes” as geometry](#wp-2-1)
 - [2.4 Fixed max trace distance per probe: `spacing * resolution`](#wp-2-4)
@@ -103,25 +103,31 @@ remains simplified (low sample count, fixed max distance).
 - **Option C (simplify)**: Remove the separate sky channel and bake sky radiance entirely into RGB SH (then `worldProbeSkyTint` becomes unnecessary or purely a post-tint).
 
 <a id="wp-1-3"></a>
-### 1.3 (P1) Miss sky intensity hard-coded to `1.0`
+### 1.3 (P1) Sky visibility/intensity split still heuristic
 
-**Where**: `VanillaGraphicsExpanded/LumOn/WorldProbes/Tracing/LumOnWorldProbeTraceIntegrator.cs` (`skyIntensity`)
+**Where**:
+- CPU: `VanillaGraphicsExpanded/LumOn/WorldProbes/Tracing/LumOnWorldProbeTraceIntegrator.cs` (`ShSky`, `SkyIntensity`)
+- GPU: `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_worldprobe_clipmap_resolve.fsh` (`ProbeVis0.z`)
+- Shader: `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_worldprobe.glsl` (`skyIntensityAccum`)
 
-**What**: For misses, the “sky visibility/intensity” scalar uses `1f` (full sky) rather than sampling a sky visibility
-metric consistent with the hit path.
+**What**: The probe payload now separates:
+- **Sky visibility**: stored in `ShSky` (L1 SH), accumulated as **miss = 1, hit = 0**
+- **Sky intensity**: stored as a **scalar** (`SkyIntensity`) and packed into `ProbeVis0.z`
 
 **Why this is an issue**
 
-- **Inconsistent semantics** between “hit” and “miss” samples: hits use `GetLightRGBs().W` as a skylight scalar; misses
-  always assume full skylight. This can bias the `ShSky` channel and create discontinuities near geometry.
-- **Amplifies artifacts near streaming boundaries** when combined with “unloaded chunk == miss” (see 2.2), because
-  missing world data becomes indistinguishable from true sky visibility.
+- **`SkyIntensity` is still a heuristic**: it is currently derived from hit sample skylight values, which can be
+  unstable when few hits occur or when hit samples are not representative of the probe’s “true” skylight intensity.
+- **Consumes a reserved channel** (`ProbeVis0.z`) that could otherwise be used for future visibility/cone metadata.
 
 **Options to address**
 
-- **Option A (define semantics)**: Treat `ShSky` as *visibility only*: miss = `1`, hit = a thresholded/normalized visibility measure, and apply global sky intensity/time-of-day only via shader uniforms.
-- **Option B (match engine intensity)**: Scale miss intensity by a global skylight brightness factor (time-of-day/weather) instead of `1.0` so night/dusk doesn’t look like “full sky” in the sky channel.
-- **Option C (separate signals)**: Store both a visibility SH and an intensity/tint factor (or additional SH) so “open sky” and “bright sky” aren’t conflated.
+- **Option A (probe-sample intensity)**: Sample skylight intensity at the probe position (or a small neighborhood)
+  rather than using a hit-average heuristic.
+- **Option B (visibility-only)**: Treat sky intensity as purely global (uniform-driven) and set `SkyIntensity = 1`,
+  using `ShSky` as sky visibility only.
+- **Option C (higher fidelity)**: Store a separate sky *intensity SH* (or a higher-order sky representation) rather than
+  a single scalar multiplier.
 
 <a id="wp-1-4"></a>
 ### 1.4 (P2) Specular GI path is not implemented

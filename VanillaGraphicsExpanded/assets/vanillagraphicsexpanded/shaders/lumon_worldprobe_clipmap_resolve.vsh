@@ -9,7 +9,8 @@ layout(location = 5) in float inAoConfidence;
 layout(location = 6) in float inConfidence;
 layout(location = 7) in float inMeanLogHitDistance;
 layout(location = 8) in vec4 inShSky;
-layout(location = 9) in uint inFlags;
+layout(location = 9) in float inSkyIntensity;
+layout(location = 10) in uint inFlags;
 
 uniform vec2 atlasSize;
 
@@ -21,6 +22,7 @@ out float vAoConfidence;
 out float vConfidence;
 out float vMeanLogHitDistance;
 out vec4 vShSky;
+out float vSkyIntensity;
 flat out uint vFlags;
 
 void main()
@@ -40,5 +42,6 @@ void main()
     vConfidence = inConfidence;
     vMeanLogHitDistance = inMeanLogHitDistance;
     vShSky = inShSky;
+    vSkyIntensity = inSkyIntensity;
     vFlags = inFlags;
 }

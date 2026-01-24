@@ -6,6 +6,7 @@ in vec4 vShR;
 in vec4 vShG;
 in vec4 vShB;
 in vec4 vShSky;
+in float vSkyIntensity;
 in vec3 vAoDirWorld;
 in float vAoConfidence;
 in float vConfidence;
@@ -30,7 +31,7 @@ void main()
     // ShortRangeAO: oct-encoded direction + confidence.
     vec3 dir = normalize(vAoDirWorld);
     vec2 aoUv = lumonDirectionToOctahedralUV(dir);
-    outProbeVis0 = vec4(aoUv, 0.0, vAoConfidence);
+    outProbeVis0 = vec4(aoUv, vSkyIntensity, vAoConfidence);
 
     // Distance: log(dist+1), reserved.
     outProbeDist0 = vec2(vMeanLogHitDistance, 0.0);

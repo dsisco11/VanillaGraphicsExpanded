@@ -70,9 +70,13 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         vao.EnableAttrib(8);
         vao.AttribPointer(8, 4, VertexAttribPointerType.Float, normalized: false, stride, 80);
 
-        // uint flags (integer attribute)
+        // float skyIntensity
         vao.EnableAttrib(9);
-        vao.AttribIPointer(9, 1, VertexAttribIntegerType.UnsignedInt, stride, 96);
+        vao.AttribPointer(9, 1, VertexAttribPointerType.Float, normalized: false, stride, 96);
+
+        // uint flags (integer attribute)
+        vao.EnableAttrib(10);
+        vao.AttribIPointer(10, 1, VertexAttribIntegerType.UnsignedInt, stride, 100);
     }
 
     public int Upload(
@@ -193,6 +197,8 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         public float ShSky2;
         public float ShSky3;
 
+        public float SkyIntensity;
+
         public uint Flags;
 
         public static UploadVertex From(in LumOnWorldProbeTraceResult r, int atlasU, int atlasV, uint flags)
@@ -229,6 +235,8 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
                 ShSky1 = r.ShSky.Y,
                 ShSky2 = r.ShSky.Z,
                 ShSky3 = r.ShSky.W,
+
+                SkyIntensity = r.SkyIntensity,
 
                 Flags = flags,
             };

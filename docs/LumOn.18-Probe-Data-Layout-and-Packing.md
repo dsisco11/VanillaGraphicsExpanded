@@ -123,9 +123,10 @@ Visibility and confidence:
 
 | Texture     | Channels | Content                                      |
 | ----------- | -------- | -------------------------------------------- |
-| `ProbeVis0` | RGBA16F  | octU, octV, reserved, shortRangeAOConfidence |
+| `ProbeVis0` | RGBA16F  | octU, octV, skyIntensity, shortRangeAOConfidence |
 
-The reserved channel is for a future cone angle or scalar visibility value.
+The `skyIntensity` channel is a per-probe scalar used to decouple sky visibility (stored in `ProbeSky0`) from sky intensity
+when evaluating sky contribution in shaders.
 
 Hit distance:
 

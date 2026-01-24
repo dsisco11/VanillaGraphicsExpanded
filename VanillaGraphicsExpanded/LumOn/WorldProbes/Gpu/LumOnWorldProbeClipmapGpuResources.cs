@@ -54,10 +54,10 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
         sh1 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSH1");
         sh2 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSH2");
 
-        // Sky lighting: scalar intensity projected into L1 SH (RGBA16F).
+        // Sky lighting: scalar sky visibility projected into L1 SH (RGBA16F).
         sky0 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSky0");
 
-        // Visibility: RGBA16F (octU, octV, reserved, aoConfidence)
+        // Visibility: RGBA16F (octU, octV, skyIntensity, aoConfidence)
         vis0 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeVis0");
 
         // Distance: RG16F (meanLogDist, reserved)

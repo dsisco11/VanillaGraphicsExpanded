@@ -16,9 +16,10 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.WorldProbes;
 public sealed class WorldProbeTraceEndToEndVoxelArrangementTests
 {
     private const float ShC0 = 0.282095f;
+    private const float ShC1 = 0.488603f;
 
     [Fact]
-    public void TraceProbe_VoxelFloor_SamplesSkylightFromAboveFace_AndProducesDcOnlySkySh()
+    public void TraceProbe_VoxelFloor_SamplesSkylightFromAboveFace_AndProducesHemisphereSkyVisibilitySh()
     {
         // World: infinite solid floor at y=0.
         // Light: skylight exists only above the floor (y>=1). If sampling uses the wrong face normal,
@@ -37,17 +38,25 @@ public sealed class WorldProbeTraceEndToEndVoxelArrangementTests
 
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
-        float expectedSkyDc = ShC0 * 4f * MathF.PI;
+        // Sky visibility from the probe center: floor occludes the -Y hemisphere.
+        // L1 SH for a perfect hemisphere visibility is:
+        //   c0 = ShC0 * 2π
+        //   cY = ShC1 * π
+        //   cZ = 0
+        //   cX = 0
+        float expectedSkyDc = ShC0 * 2f * MathF.PI;
+        float expectedSkyY = ShC1 * MathF.PI;
 
         Assert.Equal(0.5f, res.ShortRangeAoConfidence, 6);
-        Assert.InRange(res.ShSky.X, expectedSkyDc - 0.01f, expectedSkyDc + 0.01f);
-        Assert.InRange(MathF.Abs(res.ShSky.Y), 0f, 0.01f);
+        Assert.InRange(res.ShSky.X, expectedSkyDc - 0.05f, expectedSkyDc + 0.05f);
+        Assert.InRange(res.ShSky.Y, expectedSkyY - 0.05f, expectedSkyY + 0.05f);
         Assert.InRange(MathF.Abs(res.ShSky.Z), 0f, 0.01f);
         Assert.InRange(MathF.Abs(res.ShSky.W), 0f, 0.01f);
+        Assert.InRange(res.SkyIntensity, 0.99f, 1.0f);
     }
 
     [Fact]
-    public void TraceProbe_VoxelWall_SamplesSkylightFromOutsideFace_AndProducesDcOnlySkySh()
+    public void TraceProbe_VoxelWall_SamplesSkylightFromOutsideFace_AndProducesHemisphereSkyVisibilitySh()
     {
         // World: infinite solid wall plane at x=0.
         // Light: skylight exists only on the +X side of the wall (x>=1).
@@ -65,13 +74,21 @@ public sealed class WorldProbeTraceEndToEndVoxelArrangementTests
 
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
-        float expectedSkyDc = ShC0 * 4f * MathF.PI;
+        // Sky visibility from the probe center: wall occludes the -X hemisphere.
+        // L1 SH for a perfect hemisphere visibility is:
+        //   c0 = ShC0 * 2π
+        //   cY = 0
+        //   cZ = 0
+        //   cX = ShC1 * π
+        float expectedSkyDc = ShC0 * 2f * MathF.PI;
+        float expectedSkyX = ShC1 * MathF.PI;
 
         Assert.Equal(0.5f, res.ShortRangeAoConfidence, 6);
-        Assert.InRange(res.ShSky.X, expectedSkyDc - 0.01f, expectedSkyDc + 0.01f);
+        Assert.InRange(res.ShSky.X, expectedSkyDc - 0.05f, expectedSkyDc + 0.05f);
         Assert.InRange(MathF.Abs(res.ShSky.Y), 0f, 0.01f);
         Assert.InRange(MathF.Abs(res.ShSky.Z), 0f, 0.01f);
-        Assert.InRange(MathF.Abs(res.ShSky.W), 0f, 0.01f);
+        Assert.InRange(res.ShSky.W, expectedSkyX - 0.05f, expectedSkyX + 0.05f);
+        Assert.InRange(res.SkyIntensity, 0.99f, 1.0f);
     }
 
     private static LumOnWorldProbeTraceWorkItem CreateWorkItem(int frameIndex, Vector3d probePosWorld, double maxTraceDistanceWorld)

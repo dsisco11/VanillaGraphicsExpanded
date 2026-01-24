@@ -45,6 +45,9 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         Vector4 shB = Vector4.Zero;
         Vector4 shSky = Vector4.Zero;
 
+        float skyIntensitySum = 0f;
+        int skyIntensityCount = 0;
+
         Vector3 bent = Vector3.Zero;
         int unoccludedCount = 0;
 
@@ -71,6 +74,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
                     ShG: Vector4.Zero,
                     ShB: Vector4.Zero,
                     ShSky: Vector4.Zero,
+                    SkyIntensity: 0f,
                     ShortRangeAoDirWorld: Vector3.UnitY,
                     ShortRangeAoConfidence: 0f,
                     Confidence: 0f,
@@ -89,9 +93,12 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             // before consuming specularF0. For now, we thread it through the hit evaluation so that
             // specular integration can be added without re-plumbing the hit shading path.
 
-            float skyIntensity = hit
-                ? EvaluateSkyLightIntensity(hitInfo)
-                : 1f;
+            float skyVisibility = hit ? 0f : 1f;
+            if (hit)
+            {
+                skyIntensitySum += EvaluateSkyLightIntensity(hitInfo);
+                skyIntensityCount++;
+            }
 
             // SH L1 basis vector: (Y00, Y1-1(y), Y10(z), Y11(x))
             var basis = new Vector4(
@@ -105,7 +112,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             shR += bw * blockRadiance.X;
             shG += bw * blockRadiance.Y;
             shB += bw * blockRadiance.Z;
-            shSky += bw * skyIntensity;
+            shSky += bw * skyVisibility;
 
             if (!hit)
             {
@@ -132,6 +139,17 @@ internal sealed class LumOnWorldProbeTraceIntegrator
 
         float confidence = ComputeUnifiedConfidence(aoConfidence, hitCount, DirectionCount);
 
+        float skyIntensity;
+        if (skyIntensityCount > 0)
+        {
+            skyIntensity = Math.Clamp(skyIntensitySum / skyIntensityCount, 0f, 1f);
+        }
+        else
+        {
+            // Pure-sky probes: treat as full sky intensity.
+            skyIntensity = 1f;
+        }
+
         float meanLogDist = 0;
         if (hitCount > 0)
         {
@@ -148,6 +166,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             ShG: shG,
             ShB: shB,
             ShSky: shSky,
+            SkyIntensity: skyIntensity,
             ShortRangeAoDirWorld: aoDir,
             ShortRangeAoConfidence: aoConfidence,
             Confidence: confidence,
@@ -308,7 +327,8 @@ internal sealed class LumOnWorldProbeTraceIntegrator
     private static Vector3 EvaluateSkyRadiance(Vector3 dir)
     {
         // Phase 18 (Option B): keep *sky radiance* out of RGB SH and represent it only via:
-        // - ShSky (scalar skylight visibility/intensity, projected into L1)
+        // - ShSky (sky visibility, projected into L1)
+        // - SkyIntensity (separate scalar packed alongside AO)
         // - worldProbeSkyTint (shader uniform, time-of-day/weather/ambient tint)
         //
         // This avoids double-counting sky (RGB + ShSky) and keeps world-probe sky color consistent

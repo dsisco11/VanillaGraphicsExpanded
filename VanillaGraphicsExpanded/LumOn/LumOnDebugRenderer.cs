@@ -1687,6 +1687,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 int sh1 = worldProbeClipmapBufferManager.Resources.ProbeSh1TextureId;
                 int sh2 = worldProbeClipmapBufferManager.Resources.ProbeSh2TextureId;
                 int sky0 = worldProbeClipmapBufferManager.Resources.ProbeSky0TextureId;
+                int vis0 = worldProbeClipmapBufferManager.Resources.ProbeVis0TextureId;
 
                 GL.ActiveTexture(TextureUnit.Texture0);
                 GL.BindTexture(TextureTarget.Texture2D, sh0);
@@ -1703,6 +1704,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 GL.ActiveTexture(TextureUnit.Texture3);
                 GL.BindTexture(TextureTarget.Texture2D, sky0);
                 shader.WorldProbeSky0 = 3;
+
+                GL.ActiveTexture(TextureUnit.Texture4);
+                GL.BindTexture(TextureTarget.Texture2D, vis0);
+                shader.WorldProbeVis0 = 4;
 
                 shader.WorldProbeSkyTint = capi.Render.AmbientColor;
 

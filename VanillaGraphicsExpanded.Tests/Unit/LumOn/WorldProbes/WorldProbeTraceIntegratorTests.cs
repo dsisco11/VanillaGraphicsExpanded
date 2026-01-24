@@ -34,6 +34,7 @@ public sealed class WorldProbeTraceIntegratorTests
         Assert.True(res.ShG.Length() < 1e-6f);
         Assert.True(res.ShB.Length() < 1e-6f);
         Assert.True(res.ShSky.Length() > 1e-3f);
+        Assert.Equal(1f, res.SkyIntensity, 6);
         Assert.Equal(0f, res.MeanLogHitDistance, 6);
     }
 
@@ -58,7 +59,8 @@ public sealed class WorldProbeTraceIntegratorTests
         Assert.True(res.ShR.Length() < 1e-6f);
         Assert.True(res.ShG.Length() < 1e-6f);
         Assert.True(res.ShB.Length() < 1e-6f);
-        Assert.True(res.ShSky.Length() > 1e-3f);
+        Assert.True(res.ShSky.Length() < 1e-6f);
+        Assert.Equal(1f, res.SkyIntensity, 6);
     }
 
     [Fact]
@@ -80,6 +82,8 @@ public sealed class WorldProbeTraceIntegratorTests
         Assert.True(res.ShR.Length() < 1e-3f);
         Assert.True(res.ShG.Length() < 1e-3f);
         Assert.True(res.ShB.Length() < 1e-3f);
+        Assert.True(res.ShSky.Length() < 1e-6f);
+        Assert.Equal(0f, res.SkyIntensity, 6);
         Assert.True(res.MeanLogHitDistance > 1.0f);
     }
 
@@ -143,7 +147,7 @@ public sealed class WorldProbeTraceIntegratorTests
         // "Voxel-like" arrangement: a floor at y=-1 and a wall at x=-1.
         // Rays with x<0 or y<0 hit; rays with x>=0 AND y>=0 miss.
         var scene = new AxisAlignedPlanesScene(
-            sampleLight: new Vector4(0, 0, 0, 1f),
+            sampleLight: new Vector4(1f, 0f, 0f, 0f),
             new AxisAlignedPlanesScene.Plane(AxisAlignedPlanesScene.Axis.X, -1),
             new AxisAlignedPlanesScene.Plane(AxisAlignedPlanesScene.Axis.Y, -1));
 

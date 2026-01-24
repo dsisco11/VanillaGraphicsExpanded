@@ -55,10 +55,12 @@ void main(void)
     vec3 irrBlock = shEvaluateHemisphereIrradianceRGB(shR, shG, shB, Nsample);
 
     vec4 shSky = texelFetch(worldProbeSky0, ac, 0);
-    float irrSky = shEvaluateHemisphereIrradiance(shSky, Nsample);
+    float irrSkyVisibility = shEvaluateHemisphereIrradiance(shSky, Nsample);
+    float skyIntensity = clamp(texelFetch(worldProbeVis0, ac, 0).z, 0.0, 1.0);
+    float irrSky = irrSkyVisibility * skyIntensity;
 
-    // Debug visualization: treat the sky-intensity channel as "how much sky/sun reaches here".
-    // Use a neutral, bright tint so probes near the ground don't appear black simply because
+    // Debug visualization: show sky contribution as (sky visibility SH) * (sky intensity scalar).
+    // Use a neutral, bright tint so probes near the ground don't appear black just because
     // the engine's ambient tint is dark.
     vec3 skyVizTint = vec3(1.0);
     vec3 irr = max(irrBlock, vec3(0.0)) + skyVizTint * max(irrSky, 0.0);
