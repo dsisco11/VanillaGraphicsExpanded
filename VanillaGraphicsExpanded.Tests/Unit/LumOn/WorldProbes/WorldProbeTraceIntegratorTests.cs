@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.WorldProbes;
 public sealed class WorldProbeTraceIntegratorTests
 {
     [Fact]
-    public void TraceProbe_WhenNoHits_ProducesNonZeroSkySh_AndAoConfidenceOne()
+    public void TraceProbe_WhenNoHits_ProducesZeroRadianceSh_AndNonZeroSkySh_AndAoConfidenceOne()
     {
         var scene = new NeverHitScene();
         var integrator = new LumOnWorldProbeTraceIntegrator();
@@ -30,9 +30,10 @@ public sealed class WorldProbeTraceIntegratorTests
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
         Assert.True(res.ShortRangeAoConfidence > 0.99f);
-        Assert.True(res.ShR.Length() > 0.001f);
-        Assert.True(res.ShG.Length() > 0.001f);
-        Assert.True(res.ShB.Length() > 0.001f);
+        Assert.True(res.ShR.Length() < 1e-6f);
+        Assert.True(res.ShG.Length() < 1e-6f);
+        Assert.True(res.ShB.Length() < 1e-6f);
+        Assert.True(res.ShSky.Length() > 1e-3f);
         Assert.Equal(0f, res.MeanLogHitDistance, 6);
     }
 
@@ -126,7 +127,7 @@ public sealed class WorldProbeTraceIntegratorTests
         Assert.Equal(0.25f, res.ShortRangeAoConfidence, 6);
 
         // Scene is symmetric in Z, but not in X/Y.
-        Assert.True(res.ShR.Y > 0f);
+        Assert.True(res.ShR.Y < 0f);
         Assert.True(res.ShR.W > 0f);
         Assert.InRange(MathF.Abs(res.ShR.Z), 0f, 0.05f);
     }

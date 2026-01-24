@@ -183,13 +183,14 @@ internal sealed class LumOnWorldProbeTraceIntegrator
 
     private static Vector3 EvaluateSkyRadiance(Vector3 dir)
     {
-        // Placeholder sky model for Phase 18.6 bring-up.
-        // Later phases can sample game lighting / sky / time-of-day.
-        float t = Math.Clamp(dir.Y * 0.5f + 0.5f, 0f, 1f);
-
-        Vector3 horizon = new(0.25f, 0.28f, 0.30f);
-        Vector3 zenith = new(0.55f, 0.65f, 0.85f);
-        return Vector3.Lerp(horizon, zenith, t);
+        // Phase 18 (Option B): keep *sky radiance* out of RGB SH and represent it only via:
+        // - ShSky (scalar skylight visibility/intensity, projected into L1)
+        // - worldProbeSkyTint (shader uniform, time-of-day/weather/ambient tint)
+        //
+        // This avoids double-counting sky (RGB + ShSky) and keeps world-probe sky color consistent
+        // with the engine's ambient/sky settings.
+        _ = dir;
+        return Vector3.Zero;
     }
 
     private static float ComputeUnifiedConfidence(float aoConfidence, int hitCount, int sampleCount)
