@@ -2,6 +2,8 @@ using System;
 using System.Numerics;
 using System.Threading;
 
+using VanillaGraphicsExpanded.PBR.Materials;
+
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 
 internal sealed class LumOnWorldProbeTraceIntegrator
@@ -15,7 +17,6 @@ internal sealed class LumOnWorldProbeTraceIntegrator
     // This intentionally ensures that outdoors, rays hitting the ground return nonzero radiance
     // proportional to skylight visibility, even when block light is ~0.
     private const float InvPi = 0.318309886f;
-    private const float DiffuseAlbedo = 0.55f;
     private static readonly Vector3 SkyBounceTint = Vector3.One;
 
     public LumOnWorldProbeTraceResult TraceProbe(IWorldProbeTraceScene scene, in LumOnWorldProbeTraceWorkItem item, CancellationToken cancellationToken)
@@ -68,9 +69,14 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             bool hit = outcome == WorldProbeTraceOutcome.Hit;
             double hitDist = hitInfo.HitDistance;
 
+            Vector3 specularF0 = Vector3.Zero;
             Vector3 blockRadiance = hit
-                ? EvaluateHitRadiance(hitInfo)
+                ? EvaluateHitRadiance(hitInfo, out specularF0)
                 : EvaluateSkyRadiance(dir);
+
+            // @todo (WorldProbes): Define the correct specular-GI path (separate SH vs directional lobe)
+            // before consuming specularF0. For now, we thread it through the hit evaluation so that
+            // specular integration can be added without re-plumbing the hit shading path.
 
             float skyIntensity = hit
                 ? EvaluateSkyLightIntensity(hitInfo)
@@ -137,8 +143,16 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             MeanLogHitDistance: meanLogDist);
     }
 
-    private static Vector3 EvaluateHitRadiance(in LumOnWorldProbeTraceHit hit)
+    private static Vector3 EvaluateHitRadiance(in LumOnWorldProbeTraceHit hit, out Vector3 specularF0)
     {
+        DerivedSurface ds;
+        if (!PbrMaterialRegistry.Instance.TryGetDerivedSurface(hit.HitBlockId, (byte)hit.HitFace, out ds))
+        {
+            ds = DerivedSurface.Default;
+        }
+
+        specularF0 = ds.SpecularF0;
+
         // Vintage Story (client) encodes block light as HSV -> RGB already scaled by brightness,
         // returning normalized RGB in [0, 1]. W is sampled from SunLightLevels[level].
         Vector4 ls = hit.SampleLightRgbS;
@@ -155,8 +169,9 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         float upWeight = Math.Clamp(ny, 0f, 1f);
 
         // Approximate outgoing radiance from a sun/sky lit diffuse surface.
-        // (We don't have true surface albedo here yet, so use a conservative constant.)
-        Vector3 skyBounce = SkyBounceTint * (skyI * DiffuseAlbedo * InvPi * upWeight);
+        // Apply per-face diffuse albedo from the registry-derived surface terms.
+        Vector3 skyBounce = SkyBounceTint * (skyI * InvPi * upWeight);
+        skyBounce *= ds.DiffuseAlbedo;
 
         return blockLight + skyBounce;
     }

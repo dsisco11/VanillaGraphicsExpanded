@@ -63,10 +63,10 @@ WorldProbes - Precomputed DiffuseAlbedo + Specular F0 (CPU) + BlockId/Face Rever
 
   Phase 4 - Integrator: Apply Factors at Trace Hits:
   Exit artifacts: World-probe integration uses precomputed material terms per hit.
-  ☐ Update the world-probe trace integrator to lookup `DerivedSurface` by (HitBlockId, HitFace).
-  ☐ Apply `diffuseAlbedo` to hit contribution for diffuse SH accumulation.
-  ☐ Thread `specularF0` through hit shading path (even if initially unused) so specular GI can be added later.
-  ☐ Add TODO: Define the correct specular-GI path (separate SH vs directional lobe) before consuming specularF0.
+  ✔ Update the world-probe trace integrator to lookup `DerivedSurface` by (HitBlockId, HitFace).
+  ✔ Apply `diffuseAlbedo` to hit contribution for diffuse SH accumulation.
+  ✔ Thread `specularF0` through hit shading path (even if initially unused) so specular GI can be added later.
+  ✔ Add TODO: Define the correct specular-GI path (separate SH vs directional lobe) before consuming specularF0.
 
 
   Phase 5 - Debug + Validation:
