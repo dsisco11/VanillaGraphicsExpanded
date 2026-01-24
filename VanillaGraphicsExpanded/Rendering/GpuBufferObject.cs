@@ -11,14 +11,13 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// Base class for OpenGL buffer object wrappers.
 /// All methods require a current GL context on the calling thread.
 /// </summary>
-internal abstract class GpuBufferObject : IDisposable
+internal abstract class GpuBufferObject : GpuResource, IDisposable
 {
     protected int bufferId;
     protected int sizeBytes;
     protected BufferTarget target;
     protected BufferUsageHint usage;
     protected string? debugName;
-    protected bool isDisposed;
 
     public int BufferId => bufferId;
     public int SizeBytes => sizeBytes;
@@ -26,8 +25,13 @@ internal abstract class GpuBufferObject : IDisposable
     public BufferUsageHint Usage => usage;
     public string? DebugName => debugName;
 
-    public bool IsDisposed => isDisposed;
-    public bool IsValid => bufferId != 0 && !isDisposed;
+    protected override int ResourceId
+    {
+        get => bufferId;
+        set => bufferId = value;
+    }
+
+    protected override GpuResourceKind ResourceKind => GpuResourceKind.Buffer;
 
     protected static int CreateBufferId(string? debugName)
     {
@@ -42,25 +46,6 @@ internal abstract class GpuBufferObject : IDisposable
 #endif
 
         return id;
-    }
-
-    public virtual int Detach()
-    {
-        if (isDisposed)
-        {
-            return 0;
-        }
-
-        int id = bufferId;
-        bufferId = 0;
-        sizeBytes = 0;
-        isDisposed = true;
-        return id;
-    }
-
-    public int ReleaseHandle()
-    {
-        return Detach();
     }
 
     public void SetDebugName(string? debugName)
@@ -854,26 +839,19 @@ internal abstract class GpuBufferObject : IDisposable
         }
     }
 
-    public virtual void Dispose()
+    protected override void OnDetached(int id)
     {
-        if (isDisposed)
-        {
-            return;
-        }
-
-        if (bufferId != 0)
-        {
-            GL.DeleteBuffer(bufferId);
-            bufferId = 0;
-        }
-
         sizeBytes = 0;
-        isDisposed = true;
+    }
+
+    protected override void OnAfterDelete()
+    {
+        sizeBytes = 0;
     }
 
     public override string ToString()
     {
-        return $"{GetType().Name}(id={bufferId}, target={target}, sizeBytes={sizeBytes}, usage={usage}, name={debugName}, disposed={isDisposed})";
+        return $"{GetType().Name}(id={bufferId}, target={target}, sizeBytes={sizeBytes}, usage={usage}, name={debugName}, disposed={IsDisposed})";
     }
 
     private static IntPtr MapElementArrayBufferRange(int bufferId, int offsetBytes, int byteCount, MapBufferAccessMask access)

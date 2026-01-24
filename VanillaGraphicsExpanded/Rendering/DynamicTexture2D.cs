@@ -662,19 +662,7 @@ public sealed class DynamicTexture2D : GpuTexture
     /// <summary>
     /// Releases the GPU texture resource.
     /// </summary>
-    public override void Dispose()
-    {
-        if (isDisposed)
-            return;
-
-        if (textureId != 0)
-        {
-            GL.DeleteTexture(textureId);
-            textureId = 0;
-        }
-
-        isDisposed = true;
-    }
+    // Uses base GpuTexture.Dispose() / GpuResource.Dispose().
 
     #endregion
 

@@ -212,23 +212,22 @@ internal sealed class GpuEbo : GpuBufferObject
         GL.DrawElementsInstanced(primitiveType, count, indexType, (IntPtr)offsetBytes, instanceCount);
     }
 
-    public override int Detach()
+    protected override void OnDetached(int id)
     {
-        int id = base.Detach();
+        base.OnDetached(id);
         indexCount = 0;
         indexType = default;
-        return id;
     }
 
-    public override void Dispose()
+    protected override void OnAfterDelete()
     {
-        base.Dispose();
+        base.OnAfterDelete();
         indexCount = 0;
         indexType = default;
     }
 
     public override string ToString()
     {
-        return $"{GetType().Name}(id={bufferId}, sizeBytes={sizeBytes}, usage={usage}, indexCount={indexCount}, indexType={indexType}, name={debugName}, disposed={isDisposed})";
+        return $"{GetType().Name}(id={bufferId}, sizeBytes={sizeBytes}, usage={usage}, indexCount={indexCount}, indexType={indexType}, name={debugName}, disposed={IsDisposed})";
     }
 }

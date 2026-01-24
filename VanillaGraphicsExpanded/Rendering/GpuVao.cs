@@ -9,17 +9,21 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// RAII wrapper around an OpenGL vertex array object (VAO).
 /// All methods require a current GL context on the calling thread.
 /// </summary>
-internal sealed class GpuVao : IDisposable
+internal sealed class GpuVao : GpuResource, IDisposable
 {
     private int vertexArrayId;
     private string? debugName;
-    private bool isDisposed;
 
     public int VertexArrayId => vertexArrayId;
     public string? DebugName => debugName;
 
-    public bool IsDisposed => isDisposed;
-    public bool IsValid => vertexArrayId != 0 && !isDisposed;
+    protected override int ResourceId
+    {
+        get => vertexArrayId;
+        set => vertexArrayId = value;
+    }
+
+    protected override GpuResourceKind ResourceKind => GpuResourceKind.VertexArray;
 
     private GpuVao(int vertexArrayId, string? debugName)
     {
@@ -40,24 +44,6 @@ internal sealed class GpuVao : IDisposable
 #endif
 
         return new GpuVao(id, debugName);
-    }
-
-    public int Detach()
-    {
-        if (isDisposed)
-        {
-            return 0;
-        }
-
-        int id = vertexArrayId;
-        vertexArrayId = 0;
-        isDisposed = true;
-        return id;
-    }
-
-    public int ReleaseHandle()
-    {
-        return Detach();
     }
 
     public void SetDebugName(string? debugName)
@@ -361,25 +347,9 @@ internal sealed class GpuVao : IDisposable
         GL.DrawElementsInstanced(primitiveType, count, ebo.IndexType, (IntPtr)offsetBytes, instanceCount);
     }
 
-    public void Dispose()
-    {
-        if (isDisposed)
-        {
-            return;
-        }
-
-        if (vertexArrayId != 0)
-        {
-            GL.DeleteVertexArray(vertexArrayId);
-            vertexArrayId = 0;
-        }
-
-        isDisposed = true;
-    }
-
     public override string ToString()
     {
-        return $"{GetType().Name}(id={vertexArrayId}, name={debugName}, disposed={isDisposed})";
+        return $"{GetType().Name}(id={vertexArrayId}, name={debugName}, disposed={IsDisposed})";
     }
 
     private static class VaoDsa

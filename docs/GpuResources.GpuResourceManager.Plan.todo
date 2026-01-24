@@ -5,7 +5,7 @@ Scope: VGE client-side OpenGL resource lifecycle + upload plumbing
 
 ## Checklist (from `project.todo`)
 
-- [ ] Create new `GpuResourceManager` system as a new `IRenderer` registered for the **After** stage, which manages GPU resource lifecycles (creation, disposal) in a thread-safe manner.
+- [x] Create new `GpuResourceManager` system as a new `IRenderer` registered for the **After** stage, which manages GPU resource lifecycles (creation, disposal) in a thread-safe manner.
 - [ ] Move texture streaming uploader to the new `GpuResourceManager`.
 - [ ] Move `GpuBufferObject` DSA uploading to the new `GpuResourceManager`.
 - [ ] Update rendering systems to use the new GPU resource RAII classes (e.g. `GpuVbo`, `GpuVao`, etc).
@@ -206,45 +206,45 @@ Do **not** block the render thread waiting on uploads; completions are primarily
 
 ### Phase 1 — Introduce `GpuResourceManager` skeleton
 
-- Add `GpuResourceManager` (`IRenderer`, `IDisposable`) and registration via `GpuResourceManagerModSystem`.
-- Decide and document the exact stage mapping (“After” == `Done` vs `AfterFinalComposition`).
-- Add queues:
-  - `ConcurrentQueue<DeletionCommand>`
-  - (optional placeholder) `ConcurrentQueue<BufferUploadCommand>`
-- In `OnRenderFrame`, drain queues (no-op until wired).
+✔ Add `GpuResourceManager` (`IRenderer`, `IDisposable`) and registration via `GpuResourceManagerModSystem`.
+✔ Decide and document the exact stage mapping (“After” == `Done` vs `AfterFinalComposition`). (Chosen: `EnumRenderStage.AfterFinalComposition`)
+✔ Add queues:
+  ✔ `ConcurrentQueue<DeletionCommand>`
+  ☐ (optional placeholder) `ConcurrentQueue<BufferUploadCommand>`
+✔ In `OnRenderFrame`, drain queues (no-op until wired).
 
 ### Phase 2 — Move texture streaming tick
 
-- Move `TextureStreamingManager` ownership into manager.
-- Update `TextureStreamingSystem` to delegate into manager-owned instance.
-- Retire `TextureStreamingManagerRenderer` and unregister/remove `TextureStreamingModSystem` renderer hook.
-- Keep config plumbing: on config reload, update the manager’s streaming settings.
+☐ Move `TextureStreamingManager` ownership into manager.
+☐ Update `TextureStreamingSystem` to delegate into manager-owned instance.
+☐ Retire `TextureStreamingManagerRenderer` and unregister/remove `TextureStreamingModSystem` renderer hook.
+☐ Keep config plumbing: on config reload, update the manager’s streaming settings.
 
 ### Phase 3 — Centralize buffer DSA uploading
 
-- Add `GpuBufferUploader` (manager-owned) that encapsulates:
-  - DSA support cache
-  - `BufferData/SubData` operations (DSA preferred, bind fallback)
-- Update `GpuBufferObject` to:
-  - Prepare owned CPU-side upload buffers when called off-thread.
-  - Expose a “try swap pending upload” method for the manager to consume on tick.
-  - Call the uploader directly only when already on the render thread.
+☐ Add `GpuBufferUploader` (manager-owned) that encapsulates:
+  ☐ DSA support cache
+  ☐ `BufferData/SubData` operations (DSA preferred, bind fallback)
+☐ Update `GpuBufferObject` to:
+  ☐ Prepare owned CPU-side upload buffers when called off-thread.
+  ☐ Expose a “try swap pending upload” method for the manager to consume on tick.
+  ☐ Call the uploader directly only when already on the render thread.
 
 ### Phase 4 — Migrate key renderers to RAII wrappers
 
-- `LumOnDebugRenderer`:
-  - Convert to `GpuVao/GpuVbo` ownership.
-  - Replace raw create/delete logic with wrapper lifecycle.
-- `MaterialAtlasNormalDepthGpuBuilder`:
-  - Convert static VAO to `GpuVao`.
+☐ `LumOnDebugRenderer`:
+  ☐ Convert to `GpuVao/GpuVbo` ownership.
+  ☐ Replace raw create/delete logic with wrapper lifecycle.
+☐ `MaterialAtlasNormalDepthGpuBuilder`:
+  ☐ Convert static VAO to `GpuVao`.
 
 ### Phase 5 — Validation and regression checks
 
-- Run existing tests:
-  - Unit tests (`VanillaGraphicsExpanded.Tests/Unit/*`)
-  - GPU integration tests (`VanillaGraphicsExpanded.Tests/GPU/*`) when available in CI/dev.
-- Add a small GPU test (if practical) that:
-  - Creates a wrapper, disposes it from a background thread (enqueues delete), ticks manager, and verifies no GL errors.
+☐ Run existing tests:
+  ☐ Unit tests (`VanillaGraphicsExpanded.Tests/Unit/*`)
+  ☐ GPU integration tests (`VanillaGraphicsExpanded.Tests/GPU/*`) when available in CI/dev.
+☐ Add a small GPU test (if practical) that:
+  ☐ Creates a wrapper, disposes it from a background thread (enqueues delete), ticks manager, and verifies no GL errors.
 
 ## 7. Expected File/Module Touch List
 

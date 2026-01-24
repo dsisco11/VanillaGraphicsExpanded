@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// By default, upload APIs use streamed <c>StageCopy</c> (deep-copy immediately, GPU upload deferred).
 /// "Dynamic" textures can override upload methods to default to immediate GL uploads.
 /// </summary>
-public abstract class GpuTexture : IDisposable
+public abstract class GpuTexture : GpuResource, IDisposable
 {
     protected int textureId;
     protected int width;
@@ -20,7 +20,6 @@ public abstract class GpuTexture : IDisposable
     protected TextureTarget textureTarget;
     protected TextureFilterMode filterMode;
     protected string? debugName;
-    protected bool isDisposed;
 
     public int TextureId => textureId;
     public int Width => width;
@@ -31,26 +30,13 @@ public abstract class GpuTexture : IDisposable
     public TextureFilterMode FilterMode => filterMode;
     public string? DebugName => debugName;
 
-    public bool IsDisposed => isDisposed;
-    public bool IsValid => textureId != 0 && !isDisposed;
-
-    public int Detach()
+    protected override int ResourceId
     {
-        if (isDisposed)
-        {
-            return 0;
-        }
-
-        int id = textureId;
-        textureId = 0;
-        isDisposed = true;
-        return id;
+        get => textureId;
+        set => textureId = value;
     }
 
-    public int ReleaseHandle()
-    {
-        return Detach();
-    }
+    protected override GpuResourceKind ResourceKind => GpuResourceKind.Texture;
 
     public void SetDebugName(string? debugName)
     {
@@ -803,25 +789,9 @@ public abstract class GpuTexture : IDisposable
 
     #endregion
 
-    public virtual void Dispose()
-    {
-        if (isDisposed)
-        {
-            return;
-        }
-
-        if (textureId != 0)
-        {
-            GL.DeleteTexture(textureId);
-            textureId = 0;
-        }
-
-        isDisposed = true;
-    }
-
     public override string ToString()
     {
-        return $"{GetType().Name}(id={textureId}, target={textureTarget}, size={width}x{height}x{depth}, format={internalFormat}, name={debugName}, disposed={isDisposed})";
+        return $"{GetType().Name}(id={textureId}, target={textureTarget}, size={width}x{height}x{depth}, format={internalFormat}, name={debugName}, disposed={IsDisposed})";
     }
 
     internal static TextureUploadPriority MapUploadPriority(int priority)
