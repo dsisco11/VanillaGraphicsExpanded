@@ -1,7 +1,10 @@
 using System;
+using System.Buffers;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 using OpenTK.Graphics.OpenGL;
 
@@ -18,6 +21,9 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
     protected BufferTarget target;
     protected BufferUsageHint usage;
     protected string? debugName;
+
+    private readonly ConcurrentQueue<PendingUpload> pendingUploads = new();
+    private int uploadsQueued;
 
     public int BufferId => bufferId;
     public int SizeBytes => sizeBytes;
@@ -134,12 +140,7 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
             throw new ArgumentOutOfRangeException(nameof(sizeBytes), sizeBytes, "Size must be >= 0.");
         }
 
-        if (!TryDsaBufferData(sizeBytes, IntPtr.Zero))
-        {
-            Bind();
-            GL.BufferData(target, sizeBytes, IntPtr.Zero, usage);
-            Unbind();
-        }
+        _ = GpuBufferUploader.BufferData(this, sizeBytes, IntPtr.Zero);
 
         this.sizeBytes = sizeBytes;
     }
@@ -186,12 +187,7 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
             newCapacity = Math.Max(newCapacity, checked(sizeBytes * 2));
         }
 
-        if (!TryDsaBufferData(newCapacity, IntPtr.Zero))
-        {
-            Bind();
-            GL.BufferData(target, newCapacity, IntPtr.Zero, usage);
-            Unbind();
-        }
+        _ = GpuBufferUploader.BufferData(this, newCapacity, IntPtr.Zero);
 
         sizeBytes = newCapacity;
     }
@@ -285,15 +281,20 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
                 $"Byte count exceeds source array size ({maxByteCount} bytes for {data.Length}×{typeof(T).Name}).");
         }
 
+        if (GpuResourceManagerSystem.IsInitialized && !GpuResourceManagerSystem.IsRenderThread)
+        {
+            EnqueueUpload(PendingUpload.ForBufferData(CopyToPooledBytes(data, byteCount), byteCount));
+            sizeBytes = byteCount;
+            return;
+        }
+
         if (TryGetBlittableArrayPointer(data, out GCHandle handle, out IntPtr ptr))
         {
             try
             {
-                if (TryDsaBufferData(byteCount, ptr))
-                {
-                    sizeBytes = byteCount;
-                    return;
-                }
+                _ = GpuBufferUploader.BufferData(this, byteCount, ptr);
+                sizeBytes = byteCount;
+                return;
             }
             finally
             {
@@ -351,14 +352,16 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
                 $"Byte count exceeds source span size ({maxByteCount} bytes for {data.Length}x{typeof(T).Name}).");
         }
 
+        if (GpuResourceManagerSystem.IsInitialized && !GpuResourceManagerSystem.IsRenderThread)
+        {
+            EnqueueUpload(PendingUpload.ForBufferData(CopyToPooledBytes(data, byteCount), byteCount));
+            sizeBytes = byteCount;
+            return;
+        }
+
         if (byteCount == 0)
         {
-            if (!TryDsaBufferData(0, IntPtr.Zero))
-            {
-                Bind();
-                GL.BufferData(target, IntPtr.Zero, IntPtr.Zero, usage);
-                Unbind();
-            }
+            _ = GpuBufferUploader.BufferData(this, 0, IntPtr.Zero);
 
             sizeBytes = 0;
             return;
@@ -366,12 +369,7 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
 
         fixed (T* ptr = data)
         {
-            if (!TryDsaBufferData(byteCount, (IntPtr)ptr))
-            {
-                Bind();
-                GL.BufferData(target, (IntPtr)byteCount, (IntPtr)ptr, usage);
-                Unbind();
-            }
+            _ = GpuBufferUploader.BufferData(this, byteCount, (IntPtr)ptr);
         }
 
         sizeBytes = byteCount;
@@ -424,6 +422,12 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
                 $"Byte count exceeds source array size ({maxByteCount} bytes for {data.Length}x{typeof(T).Name}).");
         }
 
+        if (GpuResourceManagerSystem.IsInitialized && !GpuResourceManagerSystem.IsRenderThread)
+        {
+            EnqueueUpload(PendingUpload.ForUploadOrResize(CopyToPooledBytes(data, byteCount), byteCount, growExponentially));
+            return;
+        }
+
         if (sizeBytes < byteCount)
         {
             EnsureCapacity(byteCount, growExponentially);
@@ -433,10 +437,8 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
         {
             try
             {
-                if (TryDsaBufferSubData(0, byteCount, ptr))
-                {
-                    return;
-                }
+                _ = GpuBufferUploader.BufferSubData(this, 0, byteCount, ptr);
+                return;
             }
             finally
             {
@@ -521,6 +523,12 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
                 $"Byte count exceeds source span size ({maxByteCount} bytes for {data.Length}x{typeof(T).Name}).");
         }
 
+        if (GpuResourceManagerSystem.IsInitialized && !GpuResourceManagerSystem.IsRenderThread)
+        {
+            EnqueueUpload(PendingUpload.ForUploadOrResize(CopyToPooledBytes(data, byteCount), byteCount, growExponentially));
+            return;
+        }
+
         if (sizeBytes < byteCount)
         {
             EnsureCapacity(byteCount, growExponentially);
@@ -528,12 +536,7 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
 
         fixed (T* ptr = data)
         {
-            if (!TryDsaBufferSubData(0, byteCount, (IntPtr)ptr))
-            {
-                Bind();
-                GL.BufferSubData(target, IntPtr.Zero, (IntPtr)byteCount, (IntPtr)ptr);
-                Unbind();
-            }
+            _ = GpuBufferUploader.BufferSubData(this, 0, byteCount, (IntPtr)ptr);
         }
     }
 
@@ -618,14 +621,18 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
                 $"UploadSubData range [{dstOffsetBytes}, {dstOffsetBytes + byteCount}) exceeds allocated buffer size {sizeBytes}.");
         }
 
+        if (GpuResourceManagerSystem.IsInitialized && !GpuResourceManagerSystem.IsRenderThread)
+        {
+            EnqueueUpload(PendingUpload.ForBufferSubData(CopyToPooledBytes(data, byteCount), dstOffsetBytes, byteCount));
+            return;
+        }
+
         if (TryGetBlittableArrayPointer(data, out GCHandle handle, out IntPtr ptr))
         {
             try
             {
-                if (TryDsaBufferSubData(dstOffsetBytes, byteCount, ptr))
-                {
-                    return;
-                }
+                _ = GpuBufferUploader.BufferSubData(this, dstOffsetBytes, byteCount, ptr);
+                return;
             }
             finally
             {
@@ -721,14 +728,15 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
                 $"UploadSubData range [{dstOffsetBytes}, {dstOffsetBytes + byteCount}) exceeds allocated buffer size {sizeBytes}.");
         }
 
+        if (GpuResourceManagerSystem.IsInitialized && !GpuResourceManagerSystem.IsRenderThread)
+        {
+            EnqueueUpload(PendingUpload.ForBufferSubData(CopyToPooledBytes(data, byteCount), dstOffsetBytes, byteCount));
+            return;
+        }
+
         fixed (T* ptr = data)
         {
-            if (!TryDsaBufferSubData(dstOffsetBytes, byteCount, (IntPtr)ptr))
-            {
-                Bind();
-                GL.BufferSubData(target, (IntPtr)dstOffsetBytes, (IntPtr)byteCount, (IntPtr)ptr);
-                Unbind();
-            }
+            _ = GpuBufferUploader.BufferSubData(this, dstOffsetBytes, byteCount, (IntPtr)ptr);
         }
     }
 
@@ -841,11 +849,15 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
 
     protected override void OnDetached(int id)
     {
+        DropPendingUploads();
+        Volatile.Write(ref uploadsQueued, 0);
         sizeBytes = 0;
     }
 
     protected override void OnAfterDelete()
     {
+        DropPendingUploads();
+        Volatile.Write(ref uploadsQueued, 0);
         sizeBytes = 0;
     }
 
@@ -936,14 +948,173 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
         }
     }
 
-    private bool TryDsaBufferData(int byteCount, IntPtr data)
+    internal void DrainPendingUploadsOnRenderThread()
     {
-        return bufferId != 0 && BufferDsa.TryNamedBufferData(bufferId, byteCount, data, usage);
+        if (IsDisposed || bufferId == 0)
+        {
+            DropPendingUploads();
+            Volatile.Write(ref uploadsQueued, 0);
+            return;
+        }
+
+        while (pendingUploads.TryDequeue(out PendingUpload upload))
+        {
+            try
+            {
+                ExecutePendingUploadOnRenderThread(upload);
+            }
+            finally
+            {
+                upload.Return();
+            }
+        }
+
+        Volatile.Write(ref uploadsQueued, 0);
+
+        if (!pendingUploads.IsEmpty && Interlocked.Exchange(ref uploadsQueued, 1) == 0)
+        {
+            GpuResourceManagerSystem.EnqueueBufferUpload(this);
+        }
     }
 
-    private bool TryDsaBufferSubData(int dstOffsetBytes, int byteCount, IntPtr data)
+    private void EnqueueUpload(in PendingUpload upload)
     {
-        return bufferId != 0 && BufferDsa.TryNamedBufferSubData(bufferId, dstOffsetBytes, byteCount, data);
+        pendingUploads.Enqueue(upload);
+
+        if (Interlocked.Exchange(ref uploadsQueued, 1) == 0)
+        {
+            GpuResourceManagerSystem.EnqueueBufferUpload(this);
+        }
+    }
+
+    private void DropPendingUploads()
+    {
+        while (pendingUploads.TryDequeue(out PendingUpload upload))
+        {
+            upload.Return();
+        }
+    }
+
+    private void ExecutePendingUploadOnRenderThread(in PendingUpload upload)
+    {
+        if (upload.Kind == PendingUploadKind.UploadOrResize)
+        {
+            EnsureCapacity(upload.ByteCount, upload.GrowExponentially);
+        }
+
+        if (upload.Kind == PendingUploadKind.BufferData)
+        {
+            if (upload.ByteCount == 0)
+            {
+                _ = GpuBufferUploader.BufferData(this, 0, IntPtr.Zero);
+                sizeBytes = 0;
+                return;
+            }
+
+            if (upload.Buffer is null)
+            {
+                return;
+            }
+
+            unsafe
+            {
+                fixed (byte* ptr = upload.Buffer)
+                {
+                    _ = GpuBufferUploader.BufferData(this, upload.ByteCount, (IntPtr)ptr);
+                }
+            }
+
+            sizeBytes = upload.ByteCount;
+            return;
+        }
+
+        if (upload.ByteCount == 0 || upload.Buffer is null)
+        {
+            return;
+        }
+
+        unsafe
+        {
+            fixed (byte* ptr = upload.Buffer)
+            {
+                _ = GpuBufferUploader.BufferSubData(this, upload.DstOffsetBytes, upload.ByteCount, (IntPtr)ptr);
+            }
+        }
+    }
+
+    private static byte[]? CopyToPooledBytes<T>(T[] data, int byteCount) where T : struct
+    {
+        if (byteCount <= 0)
+        {
+            return null;
+        }
+
+        if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+        {
+            throw new InvalidOperationException($"Cannot stage buffer upload for non-blittable element type {typeof(T).Name}.");
+        }
+
+        ReadOnlySpan<byte> bytes = MemoryMarshal.AsBytes(new ReadOnlySpan<T>(data));
+        byte[] rented = ArrayPool<byte>.Shared.Rent(byteCount);
+        bytes.Slice(0, byteCount).CopyTo(rented.AsSpan(0, byteCount));
+        return rented;
+    }
+
+    private static byte[]? CopyToPooledBytes<T>(ReadOnlySpan<T> data, int byteCount) where T : unmanaged
+    {
+        if (byteCount <= 0)
+        {
+            return null;
+        }
+
+        ReadOnlySpan<byte> bytes = MemoryMarshal.AsBytes(data);
+        byte[] rented = ArrayPool<byte>.Shared.Rent(byteCount);
+        bytes.Slice(0, byteCount).CopyTo(rented.AsSpan(0, byteCount));
+        return rented;
+    }
+
+    private readonly struct PendingUpload
+    {
+        public PendingUploadKind Kind { get; }
+        public byte[]? Buffer { get; }
+        public int DstOffsetBytes { get; }
+        public int ByteCount { get; }
+        public bool GrowExponentially { get; }
+
+        private PendingUpload(PendingUploadKind kind, byte[]? buffer, int dstOffsetBytes, int byteCount, bool growExponentially)
+        {
+            Kind = kind;
+            Buffer = buffer;
+            DstOffsetBytes = dstOffsetBytes;
+            ByteCount = byteCount;
+            GrowExponentially = growExponentially;
+        }
+
+        public static PendingUpload ForBufferData(byte[]? buffer, int byteCount)
+            => new(PendingUploadKind.BufferData, buffer, dstOffsetBytes: 0, byteCount, growExponentially: false);
+
+        public static PendingUpload ForBufferSubData(byte[]? buffer, int dstOffsetBytes, int byteCount)
+            => new(PendingUploadKind.BufferSubData, buffer, dstOffsetBytes, byteCount, growExponentially: false);
+
+        public static PendingUpload ForUploadOrResize(byte[]? buffer, int byteCount, bool growExponentially)
+            => new(PendingUploadKind.UploadOrResize, buffer, dstOffsetBytes: 0, byteCount, growExponentially);
+
+        public void Return()
+        {
+            if (Buffer is null)
+            {
+                return;
+            }
+
+            ArrayPool<byte>.Shared.Return(Buffer);
+        }
+    }
+
+    private enum PendingUploadKind
+    {
+        BufferData = 0,
+        BufferSubData = 1,
+        UploadOrResize = 2,
     }
 
     private static class BufferMapDsa
@@ -1221,53 +1392,6 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
             _ = GL.UnmapBuffer(BufferTarget.ElementArrayBuffer);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, previousEbo0);
             GL.BindVertexArray(previousVao);
-        }
-    }
-
-    private static class BufferDsa
-    {
-        private static int enabledState;
-
-        public static bool TryNamedBufferData(int bufferId, int byteCount, IntPtr data, BufferUsageHint usage)
-        {
-            if (enabledState == -1)
-            {
-                return false;
-            }
-
-            try
-            {
-                GL.NamedBufferData(bufferId, byteCount, data, usage);
-
-                enabledState = 1;
-                return true;
-            }
-            catch
-            {
-                enabledState = -1;
-                return false;
-            }
-        }
-
-        public static bool TryNamedBufferSubData(int bufferId, int dstOffsetBytes, int byteCount, IntPtr data)
-        {
-            if (enabledState == -1)
-            {
-                return false;
-            }
-
-            try
-            {
-                GL.NamedBufferSubData(bufferId, (IntPtr)dstOffsetBytes, byteCount, data);
-
-                enabledState = 1;
-                return true;
-            }
-            catch
-            {
-                enabledState = -1;
-                return false;
-            }
         }
     }
 

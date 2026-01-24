@@ -13,6 +13,7 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
     internal const EnumRenderStage Stage = EnumRenderStage.AfterFinalComposition;
     private const double RenderOrderValue = 0.9999;
 
+    private readonly ConcurrentQueue<GpuBufferObject> bufferUploadQueue = new();
     private readonly ConcurrentQueue<GpuDeletionCommand> deletionQueue = new();
     private int renderThreadId;
     private int isDisposed;
@@ -44,7 +45,20 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
         // Phase 2: drive texture streaming uploads from the GPU manager tick.
         TextureStreamingSystem.TickOnRenderThread();
 
+        // Phase 3: drain pending CPU-staged buffer uploads (glNamedBufferData/SubData + fallback binds).
+        DrainBufferUploads();
+
         DrainDeletionQueue();
+    }
+
+    internal void EnqueueBufferUpload(GpuBufferObject buffer)
+    {
+        if (IsDisposed || buffer is null)
+        {
+            return;
+        }
+
+        bufferUploadQueue.Enqueue(buffer);
     }
 
     public void EnqueueDeleteBuffer(int bufferId)
@@ -123,6 +137,26 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
             catch
             {
                 // Best-effort. Context might be gone during shutdown.
+            }
+        }
+    }
+
+    private void DrainBufferUploads()
+    {
+        while (bufferUploadQueue.TryDequeue(out GpuBufferObject? buffer))
+        {
+            try
+            {
+                if (buffer is null)
+                {
+                    continue;
+                }
+
+                buffer.DrainPendingUploadsOnRenderThread();
+            }
+            catch
+            {
+                // Best-effort: ignore GL errors during shutdown.
             }
         }
     }

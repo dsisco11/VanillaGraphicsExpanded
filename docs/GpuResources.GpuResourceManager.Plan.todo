@@ -6,8 +6,8 @@ Scope: VGE client-side OpenGL resource lifecycle + upload plumbing
 ## Checklist (from `project.todo`)
 
 - [x] Create new `GpuResourceManager` system as a new `IRenderer` registered for the **After** stage, which manages GPU resource lifecycles (creation, disposal) in a thread-safe manner.
-- [ ] Move texture streaming uploader to the new `GpuResourceManager`.
-- [ ] Move `GpuBufferObject` DSA uploading to the new `GpuResourceManager`.
+- [x] Move texture streaming uploader to the new `GpuResourceManager`.
+- [x] Move `GpuBufferObject` DSA uploading to the new `GpuResourceManager`.
 - [ ] Update rendering systems to use the new GPU resource RAII classes (e.g. `GpuVbo`, `GpuVao`, etc).
 
 ## 0. Codebase Findings (Current State)
@@ -222,13 +222,13 @@ Do **not** block the render thread waiting on uploads; completions are primarily
 
 ### Phase 3 — Centralize buffer DSA uploading
 
-☐ Add `GpuBufferUploader` (manager-owned) that encapsulates:
-  ☐ DSA support cache
-  ☐ `BufferData/SubData` operations (DSA preferred, bind fallback)
-☐ Update `GpuBufferObject` to:
-  ☐ Prepare owned CPU-side upload buffers when called off-thread.
-  ☐ Expose a “try swap pending upload” method for the manager to consume on tick.
-  ☐ Call the uploader directly only when already on the render thread.
+✔ Add `GpuBufferUploader` (manager-owned) that encapsulates:
+  ✔ DSA support cache
+  ✔ `BufferData/SubData` operations (DSA preferred, bind fallback)
+✔ Update `GpuBufferObject` to:
+  ✔ Prepare owned CPU-side upload buffers when called off-thread.
+  ✔ Expose a “try swap pending upload” method for the manager to consume on tick.
+  ✔ Call the uploader directly only when already on the render thread.
 
 ### Phase 4 — Migrate key renderers to RAII wrappers
 
