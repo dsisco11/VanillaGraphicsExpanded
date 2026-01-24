@@ -1634,7 +1634,7 @@ internal sealed class TextureStreamingManager : IDisposable
         private readonly bool coherent;
         private readonly Queue<PendingRegion> inFlight = new();
 
-        private int bufferId;
+        private GpuPixelUnpackBuffer? buffer;
         private IntPtr mappedPtr;
         private int head;
         private int tail;
@@ -1650,38 +1650,19 @@ internal sealed class TextureStreamingManager : IDisposable
             this.alignment = Math.Max(1, alignment);
             this.coherent = coherent;
 
-            bufferId = GL.GenBuffer();
-            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, bufferId);
-
-            BufferStorageFlags storageFlags = BufferStorageFlags.MapWriteBit | BufferStorageFlags.MapPersistentBit;
-            if (coherent)
-            {
-                storageFlags |= BufferStorageFlags.MapCoherentBit;
-            }
-
-            GL.BufferStorage(BufferTarget.PixelUnpackBuffer, bufferSizeBytes, IntPtr.Zero, storageFlags);
-
-            MapBufferAccessMask mapFlags = MapBufferAccessMask.MapWriteBit | MapBufferAccessMask.MapPersistentBit;
-            if (coherent)
-            {
-                mapFlags |= MapBufferAccessMask.MapCoherentBit;
-            }
-            else
-            {
-                mapFlags |= MapBufferAccessMask.MapFlushExplicitBit;
-            }
-
-            mappedPtr = GL.MapBufferRange(BufferTarget.PixelUnpackBuffer, IntPtr.Zero, bufferSizeBytes, mapFlags);
-            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
+            buffer = GpuPixelUnpackBuffer.Create(debugName: "VGE_TextureStreaming_PersistentPboRing");
+            mappedPtr = buffer.AllocateAndMapPersistent(bufferSizeBytes, coherent);
 
             if (mappedPtr == IntPtr.Zero)
             {
+                buffer.Dispose();
+                buffer = null;
                 throw new InvalidOperationException("Failed to map persistent PBO.");
             }
         }
         public TextureStreamingBackendKind Kind => TextureStreamingBackendKind.PersistentMappedRing;
 
-        public int BufferId => bufferId;
+        public int BufferId => buffer?.BufferId ?? 0;
 
         public bool TryStageUpload(in PreparedUpload prepared, out PboUpload upload)
         {
@@ -1704,12 +1685,10 @@ internal sealed class TextureStreamingManager : IDisposable
 
             if (!coherent)
             {
-                GL.BindBuffer(BufferTarget.PixelUnpackBuffer, bufferId);
-                GL.FlushMappedBufferRange(BufferTarget.PixelUnpackBuffer, (IntPtr)offset, prepared.ByteCount);
-                GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
+                buffer!.FlushMappedRange(offset, prepared.ByteCount);
             }
 
-            upload = new PboUpload(bufferId, offset, allocationSize, -1);
+            upload = new PboUpload(BufferId, offset, allocationSize, -1);
             return true;
         }
 
@@ -1750,7 +1729,7 @@ internal sealed class TextureStreamingManager : IDisposable
                 flushRange = new MappedFlushRange(offset, byteCount);
             }
 
-            upload = new PboUpload(bufferId, offset, allocationSize, -1);
+            upload = new PboUpload(BufferId, offset, allocationSize, -1);
             return true;
         }
 
@@ -1761,9 +1740,7 @@ internal sealed class TextureStreamingManager : IDisposable
                 return;
             }
 
-            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, bufferId);
-            GL.FlushMappedBufferRange(BufferTarget.PixelUnpackBuffer, (IntPtr)range.OffsetBytes, range.SizeBytes);
-            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
+            buffer!.FlushMappedRange(range.OffsetBytes, range.SizeBytes);
         }
 
         public void SubmitUpload(in PboUpload upload)
@@ -1788,14 +1765,14 @@ internal sealed class TextureStreamingManager : IDisposable
                 region.Fence.Dispose();
             }
 
-            if (bufferId != 0)
+            if (buffer is not null && buffer.IsValid && mappedPtr != IntPtr.Zero)
             {
-                GL.BindBuffer(BufferTarget.PixelUnpackBuffer, bufferId);
-                GL.UnmapBuffer(BufferTarget.PixelUnpackBuffer);
-                GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
-                GL.DeleteBuffer(bufferId);
-                bufferId = 0;
+                _ = buffer.Unmap();
             }
+
+            mappedPtr = IntPtr.Zero;
+            buffer?.Dispose();
+            buffer = null;
         }
 
         private void ReleaseCompleted()
@@ -1904,11 +1881,10 @@ internal sealed class TextureStreamingManager : IDisposable
 
             for (int i = 0; i < slots.Length; i++)
             {
-                int id = GL.GenBuffer();
-                GL.BindBuffer(BufferTarget.PixelUnpackBuffer, id);
-                GL.BufferData(BufferTarget.PixelUnpackBuffer, bufferSizeBytes, IntPtr.Zero, BufferUsageHint.StreamDraw);
-                GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
-                slots[i] = new PboSlot(id);
+                var buffer = GpuPixelUnpackBuffer.Create(BufferUsageHint.StreamDraw, debugName: $"VGE_TextureStreaming_TriplePbo_{i}");
+                buffer.AllocateOrphan(bufferSizeBytes);
+
+                slots[i] = new PboSlot(buffer);
             }
         }
 
@@ -1932,20 +1908,22 @@ internal sealed class TextureStreamingManager : IDisposable
                 return false;
             }
 
-            int bufferId = slots[index].BufferId;
+            GpuPixelUnpackBuffer? buffer = slots[index].Buffer;
+            if (buffer is null || !buffer.IsValid)
+            {
+                return false;
+            }
 
-            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, bufferId);
-            GL.BufferData(BufferTarget.PixelUnpackBuffer, bufferSizeBytes, IntPtr.Zero, BufferUsageHint.StreamDraw);
+            using var scope = buffer.BindScope();
+            buffer.AllocateOrphan(bufferSizeBytes);
 
-            IntPtr ptr = GL.MapBufferRange(
-                BufferTarget.PixelUnpackBuffer,
-                IntPtr.Zero,
-                prepared.ByteCount,
-                MapBufferAccessMask.MapWriteBit | MapBufferAccessMask.MapInvalidateBufferBit);
+            IntPtr ptr = buffer.MapRange(
+                offsetBytes: 0,
+                byteCount: prepared.ByteCount,
+                access: MapBufferAccessMask.MapWriteBit | MapBufferAccessMask.MapInvalidateBufferBit);
 
             if (ptr == IntPtr.Zero)
             {
-                GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
                 return false;
             }
 
@@ -1955,10 +1933,9 @@ internal sealed class TextureStreamingManager : IDisposable
                 prepared.Request.Data.CopyTo(dst);
             }
 
-            GL.UnmapBuffer(BufferTarget.PixelUnpackBuffer);
-            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
+            _ = buffer.Unmap();
 
-            upload = new PboUpload(bufferId, 0, prepared.ByteCount, index);
+            upload = new PboUpload(buffer.BufferId, 0, prepared.ByteCount, index);
             return true;
         }
 
@@ -1981,20 +1958,22 @@ internal sealed class TextureStreamingManager : IDisposable
                 return false;
             }
 
-            int bufferId = slots[index].BufferId;
+            GpuPixelUnpackBuffer? buffer = slots[index].Buffer;
+            if (buffer is null || !buffer.IsValid)
+            {
+                return false;
+            }
 
-            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, bufferId);
-            GL.BufferData(BufferTarget.PixelUnpackBuffer, bufferSizeBytes, IntPtr.Zero, BufferUsageHint.StreamDraw);
+            using var scope = buffer.BindScope();
+            buffer.AllocateOrphan(bufferSizeBytes);
 
-            IntPtr ptr = GL.MapBufferRange(
-                BufferTarget.PixelUnpackBuffer,
-                IntPtr.Zero,
-                byteCount,
-                MapBufferAccessMask.MapWriteBit | MapBufferAccessMask.MapInvalidateBufferBit);
+            IntPtr ptr = buffer.MapRange(
+                offsetBytes: 0,
+                byteCount: byteCount,
+                access: MapBufferAccessMask.MapWriteBit | MapBufferAccessMask.MapInvalidateBufferBit);
 
             if (ptr == IntPtr.Zero)
             {
-                GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
                 return false;
             }
 
@@ -2004,10 +1983,9 @@ internal sealed class TextureStreamingManager : IDisposable
                 bytes.Slice(0, byteCount).CopyTo(dst);
             }
 
-            GL.UnmapBuffer(BufferTarget.PixelUnpackBuffer);
-            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
+            _ = buffer.Unmap();
 
-            upload = new PboUpload(bufferId, 0, byteCount, index);
+            upload = new PboUpload(buffer.BufferId, 0, byteCount, index);
             return true;
         }
 
@@ -2029,10 +2007,8 @@ internal sealed class TextureStreamingManager : IDisposable
             {
                 slots[i].Fence?.Dispose();
 
-                if (slots[i].BufferId != 0)
-                {
-                    GL.DeleteBuffer(slots[i].BufferId);
-                }
+                slots[i].Buffer?.Dispose();
+                slots[i] = slots[i] with { Buffer = null };
             }
         }
 
@@ -2081,7 +2057,7 @@ internal sealed class TextureStreamingManager : IDisposable
             return false;
         }
 
-        private readonly record struct PboSlot(int BufferId)
+        private readonly record struct PboSlot(GpuPixelUnpackBuffer? Buffer)
         {
             public GpuFence? Fence { get; init; }
         }
