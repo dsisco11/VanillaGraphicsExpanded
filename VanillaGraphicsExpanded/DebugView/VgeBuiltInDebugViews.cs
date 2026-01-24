@@ -157,10 +157,11 @@ public static class VgeBuiltInDebugViews
             const double rowH = 30;
             const double gap = 10;
 
-            double controlW = Math.Max(200, bounds.OuterWidth - labelW - gap);
+            double boundsW = bounds.fixedWidth > 0 ? bounds.fixedWidth : bounds.OuterWidth;
+            double controlW = Math.Min(280, Math.Max(200, boundsW - labelW - gap));
 
-            ElementBounds labelBounds = bounds.ForkChildOffseted(0, 0, labelW, rowH);
-            ElementBounds dropBounds = bounds.ForkChildOffseted(labelW + gap, 0, controlW, rowH);
+            ElementBounds labelBounds = ElementBounds.Fixed(0, 0, labelW, rowH).WithParent(bounds);
+            ElementBounds dropBounds = ElementBounds.Fixed(labelW + gap, 0, controlW, rowH).WithParent(bounds);
 
             var fontLabel = CairoFont.WhiteDetailText();
             var fontSmall = CairoFont.WhiteSmallText();
@@ -284,21 +285,23 @@ public static class VgeBuiltInDebugViews
             const double rowH = 30;
             const double labelW = 120;
             const double gap = 10;
-            double controlW = Math.Max(200, bounds.OuterWidth - labelW - gap);
+            double boundsW = bounds.fixedWidth > 0 ? bounds.fixedWidth : bounds.OuterWidth;
+            double boundsH = bounds.fixedHeight > 0 ? bounds.fixedHeight : bounds.OuterHeight;
+            double controlW = Math.Min(280, Math.Max(200, boundsW - labelW - gap));
 
             var fontLabel = CairoFont.WhiteDetailText();
             var fontSmall = CairoFont.WhiteSmallText();
 
-            ElementBounds labelEnabled = bounds.ForkChildOffseted(0, 0, labelW, rowH);
-            ElementBounds ctrlEnabled = bounds.ForkChildOffseted(labelW + gap, 0, controlW, rowH);
+            ElementBounds labelEnabled = ElementBounds.Fixed(0, 0, labelW, rowH).WithParent(bounds);
+            ElementBounds ctrlEnabled = ElementBounds.Fixed(labelW + gap, 0, controlW, rowH).WithParent(bounds);
 
-            ElementBounds labelCat = bounds.ForkChildOffseted(0, rowH + 8, labelW, rowH);
-            ElementBounds ctrlCat = bounds.ForkChildOffseted(labelW + gap, rowH + 8, controlW, rowH);
+            ElementBounds labelCat = ElementBounds.Fixed(0, rowH + 8, labelW, rowH).WithParent(bounds);
+            ElementBounds ctrlCat = ElementBounds.Fixed(labelW + gap, rowH + 8, controlW, rowH).WithParent(bounds);
 
-            ElementBounds labelSort = bounds.ForkChildOffseted(0, (rowH + 8) * 2, labelW, rowH);
-            ElementBounds ctrlSort = bounds.ForkChildOffseted(labelW + gap, (rowH + 8) * 2, controlW, rowH);
+            ElementBounds labelSort = ElementBounds.Fixed(0, (rowH + 8) * 2, labelW, rowH).WithParent(bounds);
+            ElementBounds ctrlSort = ElementBounds.Fixed(labelW + gap, (rowH + 8) * 2, controlW, rowH).WithParent(bounds);
 
-            ElementBounds textBounds = bounds.ForkChildOffseted(0, (rowH + 8) * 3 + 8, bounds.OuterWidth, Math.Max(60, bounds.OuterHeight - ((rowH + 8) * 3 + 8)));
+            ElementBounds textBounds = ElementBounds.Fixed(0, (rowH + 8) * 3 + 8, boundsW, Math.Max(60, boundsH - ((rowH + 8) * 3 + 8))).WithParent(bounds);
 
             int enabledIndex = DebugViewController.Instance.IsActive(viewId) ? 0 : 1;
 
@@ -487,10 +490,11 @@ public static class VgeBuiltInDebugViews
             const double rowH = 30;
             const double gap = 10;
 
-            double controlW = Math.Max(200, bounds.OuterWidth - labelW - gap);
+            double boundsW = bounds.fixedWidth > 0 ? bounds.fixedWidth : bounds.OuterWidth;
+            double controlW = Math.Min(280, Math.Max(200, boundsW - labelW - gap));
 
-            ElementBounds labelBounds = bounds.ForkChildOffseted(0, 0, labelW, rowH);
-            ElementBounds dropBounds = bounds.ForkChildOffseted(labelW + gap, 0, controlW, rowH);
+            ElementBounds labelBounds = ElementBounds.Fixed(0, 0, labelW, rowH).WithParent(bounds);
+            ElementBounds dropBounds = ElementBounds.Fixed(labelW + gap, 0, controlW, rowH).WithParent(bounds);
 
             var fontLabel = CairoFont.WhiteDetailText();
             var fontSmall = CairoFont.WhiteSmallText();

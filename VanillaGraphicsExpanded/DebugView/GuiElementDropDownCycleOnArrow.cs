@@ -15,6 +15,9 @@ internal sealed class GuiElementDropDownCycleOnArrow : GuiElementDropDown
         CairoFont font)
         : base(capi, values, names, selectedIndex, onSelectionChanged, bounds, font, multiSelect: false)
     {
+        // Debug UI: keep drop-down menus compact (the engine default can get very large).
+        // Value is in "unscaled" GUI units, consistent with how GuiElementListMenu uses MaxHeight.
+        listMenu.MaxHeight = 220;
     }
 
     public override void OnKeyDown(ICoreClientAPI api, KeyEvent args)
