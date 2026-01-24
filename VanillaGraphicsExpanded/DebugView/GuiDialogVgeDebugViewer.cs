@@ -180,7 +180,9 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
         const double scrollBarW = 20;
         const double scrollBarGap = 7;
         double listY = y;
-        double listH = 240;
+        const int listVisibleRows = 4;
+        const int listUnscaledCellSpacing = 5;
+        double listH = listVisibleRows * RowH + (listVisibleRows - 1) * listUnscaledCellSpacing;
         double listViewportW = Math.Max(1, contentW - scrollBarW - scrollBarGap);
         ElementBounds listClipBounds = ElementBounds.Fixed(0, listY, listViewportW, listH);
         ElementBounds listBounds = ElementBounds.Fixed(0, 0, listViewportW, listH);
@@ -191,8 +193,8 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
         y += RowH;
         ElementBounds statusBounds = ElementBounds.Fixed(0, y, contentW, RowH);
         y += RowH;
-        ElementBounds descBounds = ElementBounds.Fixed(0, y, contentW, 80);
-        y += 80 + GapY;
+        ElementBounds descBounds = ElementBounds.Fixed(0, y, contentW, RowH);
+        y += RowH + GapY;
 
         ElementBounds buttonBounds = ElementBounds.Fixed(0, y, 160, RowH);
         y += RowH + GapY;
@@ -281,7 +283,7 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
         {
             var list = SingleComposer.GetCellList<DebugViewDefinition>(ViewListMenuKey);
             list.UnscaledCellVerPadding = 0;
-            list.unscaledCellSpacing = 5;
+            list.unscaledCellSpacing = listUnscaledCellSpacing;
             list.BeforeCalcBounds();
 
             var sb = SingleComposer.GetScrollbar(ViewListScrollBarKey);
