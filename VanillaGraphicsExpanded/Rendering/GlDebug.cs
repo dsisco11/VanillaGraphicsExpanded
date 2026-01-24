@@ -66,6 +66,9 @@ internal static class GlDebug
                 ObjectLabelIdentifier.Renderbuffer => GL.IsRenderbuffer(id),
                 ObjectLabelIdentifier.Program => GL.IsProgram(id),
                 ObjectLabelIdentifier.Shader => GL.IsShader(id),
+                ObjectLabelIdentifier.Query => GL.IsQuery(id),
+                ObjectLabelIdentifier.ProgramPipeline => GL.IsProgramPipeline(id),
+                ObjectLabelIdentifier.TransformFeedback => GL.IsTransformFeedback(id),
                 _ => true
             };
 
