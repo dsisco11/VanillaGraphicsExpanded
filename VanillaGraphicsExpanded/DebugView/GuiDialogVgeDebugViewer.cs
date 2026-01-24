@@ -26,11 +26,8 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
     private const string ViewErrorTextKey = "viewerror";
     private const string ActivateButtonKey = "activate";
 
-    private const double DialogWidth = 920;
-    private const double DialogHeight = 620;
-
-    private const double LeftColumnWidth = 320;
-    private const double ColumnGap = 20;
+    private const double DialogWidth = 520;
+    private const double DialogHeight = 680;
 
     private const double RowH = 30;
     private const double GapY = 10;
@@ -159,9 +156,6 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
         var fontLabel = CairoFont.WhiteDetailText();
         var fontSmall = CairoFont.WhiteSmallText();
 
-        double rightX = LeftColumnWidth + ColumnGap;
-        double rightW = Math.Max(1, DialogWidth - rightX);
-
         string[] categories = BuildCategoryList(registry.GetAll(), AllCategory);
         int selectedCategoryIndex = Math.Max(0, Array.IndexOf(categories, selectedCategory));
 
@@ -171,31 +165,44 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
 
         EnsurePanelForSelection(selectedView);
 
-        // Main layout
+        // Main layout (single column)
         const double titleBarH = 30;
-        ElementBounds catLabelBounds = ElementBounds.Fixed(0, titleBarH, LeftColumnWidth, RowH);
-        ElementBounds catDropBounds = ElementBounds.Fixed(0, titleBarH + RowH, LeftColumnWidth, RowH);
+        const double labelW = 120;
+        const double gapX = 10;
+
+        double contentW = DialogWidth;
+        double y = titleBarH;
+
+        ElementBounds catLabelBounds = ElementBounds.Fixed(0, y, labelW, RowH);
+        ElementBounds catDropBounds = ElementBounds.Fixed(labelW + gapX, y, Math.Max(1, contentW - labelW - gapX), RowH);
+        y += RowH + GapY;
 
         const double scrollBarW = 20;
         const double scrollBarGap = 7;
-        double listY = titleBarH + RowH * 2 + GapY;
-        double listH = Math.Max(100, DialogHeight - listY);
-        double listViewportW = Math.Max(1, LeftColumnWidth - scrollBarW - scrollBarGap);
+        double listY = y;
+        double listH = 240;
+        double listViewportW = Math.Max(1, contentW - scrollBarW - scrollBarGap);
         ElementBounds listClipBounds = ElementBounds.Fixed(0, listY, listViewportW, listH);
         ElementBounds listBounds = ElementBounds.Fixed(0, 0, listViewportW, listH);
         ElementBounds listScrollBarBounds = ElementBounds.Fixed(listViewportW + scrollBarGap, listY, scrollBarW, listH);
+        y += listH + GapY;
 
-        ElementBounds titleBounds = ElementBounds.Fixed(rightX, titleBarH, rightW, RowH);
-        ElementBounds statusBounds = ElementBounds.Fixed(rightX, titleBarH + RowH, rightW, RowH);
-        ElementBounds descBounds = ElementBounds.Fixed(rightX, titleBarH + RowH * 2, rightW, 120);
+        ElementBounds titleBounds = ElementBounds.Fixed(0, y, contentW, RowH);
+        y += RowH;
+        ElementBounds statusBounds = ElementBounds.Fixed(0, y, contentW, RowH);
+        y += RowH;
+        ElementBounds descBounds = ElementBounds.Fixed(0, y, contentW, 80);
+        y += 80 + GapY;
 
-        ElementBounds buttonBounds = ElementBounds.Fixed(rightX, titleBarH + RowH * 2 + 120 + GapY, 160, RowH);
-        ElementBounds errorBounds = ElementBounds.Fixed(rightX, titleBarH + RowH * 2 + 120 + GapY + RowH + GapY, rightW, 60);
+        ElementBounds buttonBounds = ElementBounds.Fixed(0, y, 160, RowH);
+        y += RowH + GapY;
+        ElementBounds errorBounds = ElementBounds.Fixed(0, y, contentW, 60);
+        y += 60 + GapY;
 
-        double panelY = titleBarH + RowH * 2 + 120 + GapY + RowH + GapY + 60 + GapY;
+        double panelY = y;
         double panelH = Math.Max(0, DialogHeight - panelY);
-        ElementBounds panelTitleBounds = ElementBounds.Fixed(rightX, panelY, rightW, RowH);
-        ElementBounds panelParentBounds = ElementBounds.Fixed(rightX, panelY + RowH + GapY, rightW, Math.Max(0, panelH - RowH - GapY));
+        ElementBounds panelTitleBounds = ElementBounds.Fixed(0, panelY, contentW, RowH);
+        ElementBounds panelParentBounds = ElementBounds.Fixed(0, panelY + RowH + GapY, contentW, Math.Max(0, panelH - RowH - GapY));
         ElementBounds panelContentBounds = ElementBounds.Fixed(0, 0, panelParentBounds.fixedWidth, panelParentBounds.fixedHeight);
 
         string activateText = selectedView is null
