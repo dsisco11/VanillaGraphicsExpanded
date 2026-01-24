@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 
 using VanillaGraphicsExpanded.Imaging;
+using VanillaGraphicsExpanded.PBR.Materials.WorldProbes;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -29,6 +31,7 @@ internal sealed class PbrMaterialRegistry
     // Dense lookup: [blockId * 6 + faceIndex] -> derived surface terms.
     // Built once blocks + textures are available, and rebuilt on texture reload.
     private DerivedSurface[] derivedSurfaceByBlockFace = Array.Empty<DerivedSurface>();
+    public BlockFaceDerivedSurfaceLookupBuilder.Stats BlockFaceLookupStats { get; private set; } = BlockFaceDerivedSurfaceLookupBuilder.Stats.Empty;
     private readonly Dictionary<string, int> materialIndexById = new(StringComparer.Ordinal);
     private PbrMaterialDefinition[] materialsByIndex = Array.Empty<PbrMaterialDefinition>();
 
@@ -270,151 +273,31 @@ internal sealed class PbrMaterialRegistry
             BuildDerivedSurfaces(capi);
         }
 
-        IList<Block> blocks = capi.World?.Blocks;
-        if (blocks is null || blocks.Count == 0)
+        IList<Block> blocks = capi.World?.Blocks ?? Array.Empty<Block>();
+        if (blocks.Count == 0)
         {
             derivedSurfaceByBlockFace = Array.Empty<DerivedSurface>();
+            BlockFaceLookupStats = BlockFaceDerivedSurfaceLookupBuilder.Stats.Empty;
             return;
         }
 
-        int maxId = 0;
-        for (int i = 0; i < blocks.Count; i++)
-        {
-            Block? b = blocks[i];
-            if (b is null) continue;
-            if (b.BlockId > maxId) maxId = b.BlockId;
-        }
-
-        int len = checked((maxId + 1) * FacesPerBlock);
-        var arr = new DerivedSurface[len];
-
-        // Initialize to default.
-        for (int i = 0; i < arr.Length; i++)
-        {
-            arr[i] = DerivedSurface.Default;
-        }
-
-        int resolved = 0;
-        int missing = 0;
-
-        for (int i = 0; i < blocks.Count; i++)
-        {
-            Block? block = blocks[i];
-            if (block is null) continue;
-
-            int blockId = block.BlockId;
-            if (blockId < 0 || blockId > maxId) continue;
-
-            for (byte face = 0; face < FacesPerBlock; face++)
-            {
-                DerivedSurface ds = DerivedSurface.Default;
-
-                if (TryResolveBaseTextureLocation(block, face, out AssetLocation texLoc)
-                    && surfaceByTexture.TryGetValue(texLoc, out PbrMaterialSurface surf))
-                {
-                    ds = new DerivedSurface(surf.DiffuseAlbedo, surf.SpecularF0);
-                    resolved++;
-                }
-                else
-                {
-                    missing++;
-                }
-
-                arr[blockId * FacesPerBlock + face] = ds;
-            }
-        }
+        DerivedSurface[] arr = BlockFaceDerivedSurfaceLookupBuilder.Build(blocks, surfaceByTexture, out var stats);
 
         // TODO(WorldProbes): Base-texture resolution only; composites/overlays are not handled yet.
         // TODO(WorldProbes): Alternate variants selected by RNG/position are not accounted for;
         // consider averaging across variants for stability.
 
         derivedSurfaceByBlockFace = arr;
+        BlockFaceLookupStats = stats;
 
         capi.Logger.Debug(
-            "[VGE] Block-face derived surface lookup built: blocks={0}, resolved={1}, missing={2}",
-            maxId + 1,
-            resolved,
-            missing);
-    }
-
-    private static bool TryResolveBaseTextureLocation(Block block, byte faceIndex, out AssetLocation texture)
-    {
-        texture = default!;
-
-        IDictionary<string, CompositeTexture>? textures = block.Textures;
-        if (textures is null || textures.Count == 0)
-        {
-            return false;
-        }
-
-        string faceKey = faceIndex switch
-        {
-            0 => "north",
-            1 => "east",
-            2 => "south",
-            3 => "west",
-            4 => "up",
-            5 => "down",
-            _ => "all",
-        };
-
-        // Deterministic fallback order per face:
-        // face-specific -> all-faces -> first texture.
-        // For side faces, insert "side" between face-specific and "all".
-        ReadOnlySpan<string> keys = faceIndex is 0 or 1 or 2 or 3
-            ? [faceKey, "side", "all"]
-            : [faceKey, "all"];
-
-        CompositeTexture? chosen = null;
-        foreach (string key in keys)
-        {
-            if (textures.TryGetValue(key, out CompositeTexture ct) && ct?.Base is not null)
-            {
-                chosen = ct;
-                break;
-            }
-        }
-
-        if (chosen is null)
-        {
-            // Last resort: first declared texture.
-            foreach (CompositeTexture ct in textures.Values)
-            {
-                if (ct?.Base is null) continue;
-                chosen = ct;
-                break;
-            }
-        }
-
-        if (chosen?.Base is null)
-        {
-            return false;
-        }
-
-        string domain = !string.IsNullOrWhiteSpace(chosen.Base.Domain)
-            ? chosen.Base.Domain
-            : block.Code?.Domain ?? "game";
-
-        string path = (chosen.Base.Path ?? string.Empty).Replace('\\', '/');
-
-        // Base textures are typically authored as "block/..." (without the textures/ prefix).
-        if (!path.StartsWith("textures/", StringComparison.OrdinalIgnoreCase))
-        {
-            path = "textures/" + path.TrimStart('/');
-        }
-
-        // Mapping keys in the registry are file-like and include the extension.
-        // CompositeTexture.Base often omits it, so default to .png when absent.
-        int lastSlash = path.LastIndexOf('/');
-        int lastDot = path.LastIndexOf('.');
-        bool hasExt = lastDot > lastSlash;
-        if (!hasExt)
-        {
-            path += ".png";
-        }
-
-        texture = new AssetLocation(domain.ToLowerInvariant(), path.ToLowerInvariant());
-        return true;
+            "[VGE] Block-face derived surface lookup built: maxBlockId={0}, totalFaces={1}, resolvedFaces={2}, keyResolutionFailed={3}, surfaceMissing={4}, defaultsUsed={5}",
+            stats.MaxBlockId,
+            stats.TotalFaces,
+            stats.ResolvedFaces,
+            stats.TextureKeyResolutionFailed,
+            stats.SurfaceMissingForResolvedKey,
+            stats.DefaultsUsed);
     }
 
     public void BuildDerivedSurfaces(ICoreClientAPI capi)
@@ -446,17 +329,20 @@ internal sealed class PbrMaterialRegistry
             {
                 failed++;
                 Vector3 fallbackBaseColor = PbrMaterialSurface.Default.DiffuseAlbedo;
+                fallbackBaseColor = Clamp01(fallbackBaseColor);
                 surfaceByTexture[texture] = new PbrMaterialSurface(
                     Roughness: roughness,
                     Metallic: metallic,
                     Emissive: emissive,
-                    DiffuseAlbedo: fallbackBaseColor * (1f - metallic),
-                    SpecularF0: Vector3.Lerp(new Vector3(0.04f), fallbackBaseColor, metallic));
+                    DiffuseAlbedo: Clamp01(fallbackBaseColor * (1f - metallic)),
+                    SpecularF0: Clamp01(Vector3.Lerp(new Vector3(0.04f), fallbackBaseColor, metallic)));
                 continue;
             }
 
-            Vector3 diffuseAlbedo = baseColorLinear * (1f - metallic);
-            Vector3 specularF0 = Vector3.Lerp(new Vector3(0.04f), baseColorLinear, metallic);
+            baseColorLinear = Clamp01(baseColorLinear);
+
+            Vector3 diffuseAlbedo = Clamp01(baseColorLinear * (1f - metallic));
+            Vector3 specularF0 = Clamp01(Vector3.Lerp(new Vector3(0.04f), baseColorLinear, metallic));
 
             // TODO(PBR): Upgrade from simple average to a more robust statistic (median/trimmed mean)
             // to reduce outliers from small bright features in albedo textures.
@@ -477,6 +363,12 @@ internal sealed class PbrMaterialRegistry
             ok,
             failed,
             materialIdByTexture.Count);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static Vector3 Clamp01(in Vector3 v)
+    {
+        return Vector3.Clamp(v, Vector3.Zero, Vector3.One);
     }
 
     private static bool TryComputeAverageAlbedoLinear(

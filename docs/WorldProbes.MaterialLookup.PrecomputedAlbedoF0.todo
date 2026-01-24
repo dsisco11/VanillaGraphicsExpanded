@@ -71,11 +71,11 @@ WorldProbes - Precomputed DiffuseAlbedo + Specular F0 (CPU) + BlockId/Face Rever
 
   Phase 5 - Debug + Validation:
   Exit artifacts: Easy to verify mapping correctness and catch regressions.
-  ☐ Add debug counters/logging (once) for:
+  ✔ Add debug counters/logging (once) for:
     - Missing texture key resolution
     - Blocks/faces falling back to defaults
-  ☐ Add a debug view or diagnostic printout that shows (blockId, face) -> resolved texture key -> derived terms.
-  ☐ Add a small deterministic test/diagnostic (if a test harness exists) that validates:
+  ✔ Add a debug view or diagnostic printout that shows (blockId, face) -> resolved texture key -> derived terms.
+  ✔ Add a small deterministic test/diagnostic (if a test harness exists) that validates:
     - hit face encoding correctness (normal -> face enum)
     - lookup stability across reload
     - derived values are in sane ranges (diffuseAlbedo in [0,1], F0 in [0,1])
