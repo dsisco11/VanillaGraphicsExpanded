@@ -215,10 +215,10 @@ Do **not** block the render thread waiting on uploads; completions are primarily
 
 ### Phase 2 — Move texture streaming tick
 
-☐ Move `TextureStreamingManager` ownership into manager.
-☐ Update `TextureStreamingSystem` to delegate into manager-owned instance.
-☐ Retire `TextureStreamingManagerRenderer` and unregister/remove `TextureStreamingModSystem` renderer hook.
-☐ Keep config plumbing: on config reload, update the manager’s streaming settings.
+✔ Move texture streaming tick under `GpuResourceManager` (render-thread driver).
+✔ Retire `TextureStreamingManagerRenderer` and remove `TextureStreamingModSystem` renderer hook.
+✔ Keep config plumbing: `TextureStreamingModSystem` still calls `TextureStreamingSystem.Configure(...)` on start + config reload.
+✔ Move streaming dispose ownership to `GpuResourceManagerModSystem` (calls `TextureStreamingSystem.Dispose()` on shutdown).
 
 ### Phase 3 — Centralize buffer DSA uploading
 

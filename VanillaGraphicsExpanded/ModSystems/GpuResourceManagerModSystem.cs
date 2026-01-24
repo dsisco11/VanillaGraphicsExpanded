@@ -49,9 +49,12 @@ public sealed class GpuResourceManagerModSystem : ModSystem
         renderer = null;
         rendererRegistered = false;
 
+        // Texture streaming is driven by GpuResourceManager; dispose it when the manager is shutting down
+        // to avoid recreating the singleton from other code paths.
+        TextureStreamingSystem.Dispose();
+
         GpuResourceManagerSystem.Shutdown();
 
         capi = null;
     }
 }
-

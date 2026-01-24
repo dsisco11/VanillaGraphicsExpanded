@@ -9,18 +9,12 @@ namespace VanillaGraphicsExpanded.ModSystems;
 public sealed class TextureStreamingModSystem : ModSystem, ILiveConfigurable
 {
     private ICoreClientAPI? capi;
-    private TextureStreamingManagerRenderer? renderer;
-    private bool rendererRegistered;
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
     public override void StartClientSide(ICoreClientAPI api)
     {
         capi = api;
-
-        renderer ??= new TextureStreamingManagerRenderer();
-        api.Event.RegisterRenderer(renderer, EnumRenderStage.Before, "vge_texture_streaming");
-        rendererRegistered = true;
 
         ConfigModSystem.Config.Sanitize();
         TextureStreamingSystem.Configure(BuildTextureStreamingSettings(ConfigModSystem.Config));
@@ -40,24 +34,6 @@ public sealed class TextureStreamingModSystem : ModSystem, ILiveConfigurable
     public override void Dispose()
     {
         base.Dispose();
-
-        if (capi != null && rendererRegistered && renderer is not null)
-        {
-            try
-            {
-                capi.Event.UnregisterRenderer(renderer, EnumRenderStage.Before);
-            }
-            catch
-            {
-                // Best-effort.
-            }
-        }
-
-        renderer?.Dispose();
-        renderer = null;
-        rendererRegistered = false;
-
-        TextureStreamingSystem.Dispose();
 
         capi = null;
     }

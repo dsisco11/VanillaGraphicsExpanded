@@ -40,6 +40,10 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
         }
 
         EnsureRenderThreadId();
+
+        // Phase 2: drive texture streaming uploads from the GPU manager tick.
+        TextureStreamingSystem.TickOnRenderThread();
+
         DrainDeletionQueue();
     }
 
@@ -134,4 +138,3 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
         Renderbuffer = 4,
     }
 }
-
