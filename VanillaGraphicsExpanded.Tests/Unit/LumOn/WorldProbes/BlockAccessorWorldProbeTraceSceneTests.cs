@@ -89,6 +89,35 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
     }
 
     [Fact]
+    public void Trace_WhenHitInNextVoxelAlongNegativeY_ReturnsExpectedHitDistanceAndNormal_AndSamplesLightIfLoaded()
+    {
+        var cfg = new ScriptedBlockAccessorProxy.Config();
+
+        // Loaded along path.
+        cfg.LoadedChunks.Add((0, 1, 0));
+        cfg.LoadedChunks.Add((0, 0, 0));
+
+        cfg.Blocks[(0, 1, 0)] = TestBlocks.Air;
+        cfg.Blocks[(0, 0, 0)] = TestBlocks.SolidFull;
+
+        // Sample position should be (0,1,0) since we enter the hit voxel from +Y.
+        cfg.Lights[(0, 1, 0)] = new Vec4f(10, 20, 30, 40);
+
+        var blockAccessor = ScriptedBlockAccessorProxy.Create(cfg);
+        var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
+
+        var outcome = scene.Trace(new Vector3d(0.5, 1.5, 0.5), new Vector3(0, -1, 0), 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
+        bool hit = outcome == WorldProbeTraceOutcome.Hit;
+
+        Assert.True(hit);
+        Assert.Equal(0.5, traceHit.HitDistance, 12);
+        Assert.Equal(new VectorInt3(0, 0, 0), traceHit.HitBlockPos);
+        Assert.Equal(new VectorInt3(0, 1, 0), traceHit.HitFaceNormal);
+        Assert.Equal(new VectorInt3(0, 1, 0), traceHit.SampleBlockPos);
+        Assert.Equal(new Vector4(10, 20, 30, 40), traceHit.SampleLightRgbS);
+    }
+
+    [Fact]
     public void Trace_WhenChunkUnloadedAtOrigin_ReturnsMiss()
     {
         var blockAccessor = ScriptedBlockAccessorProxy.Create(new ScriptedBlockAccessorProxy.Config());

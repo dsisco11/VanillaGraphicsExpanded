@@ -358,7 +358,6 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
         if (t1 > t2)
         {
             (t1, t2) = (t2, t1);
-            sign = -sign;
         }
 
         // Update global near/far.
