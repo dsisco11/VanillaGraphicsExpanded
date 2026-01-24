@@ -245,6 +245,29 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
         return buffer;
     }
 
+    /// <summary>
+    /// Creates an empty framebuffer object that owns the underlying OpenGL FBO id but owns no textures.
+    /// </summary>
+    /// <remarks>
+    /// Intended for temporary/scratch use (e.g. readback helpers) where attachments are set via
+    /// <see cref="AttachColor"/> / <see cref="AttachColorTextureId"/> / <see cref="AttachDepth"/>.
+    /// </remarks>
+    public static GpuFramebuffer CreateEmpty(string? debugName = null)
+    {
+        var buffer = new GpuFramebuffer(ownsFramebuffer: true, ownsTextures: false)
+        {
+            debugName = debugName
+        };
+
+        buffer.fboId = GL.GenFramebuffer();
+
+#if DEBUG
+        GlDebug.TryLabelFramebuffer(buffer.fboId, debugName);
+#endif
+
+        return buffer;
+    }
+
     #endregion
 
     #region Public Methods

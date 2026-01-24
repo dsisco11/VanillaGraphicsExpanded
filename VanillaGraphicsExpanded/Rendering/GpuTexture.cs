@@ -664,14 +664,9 @@ public abstract class GpuTexture : GpuResource, IDisposable
         int channelCount = GetChannelCount();
         float[] data = new float[checked(width * height * channelCount)];
 
-        int tempFbo = GL.GenFramebuffer();
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, tempFbo);
-        GL.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment0,
-            textureTarget,
-            textureId,
-            0);
+        using var tempFbo = GpuFramebuffer.CreateEmpty("VGE_GpuTexture_Readback_FBO");
+        tempFbo.Bind();
+        tempFbo.AttachColorTextureId(textureId, attachmentIndex: 0, mipLevel: 0);
 
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
         GL.ReadPixels(
@@ -683,8 +678,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
             PixelType.Float,
             data);
 
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-        GL.DeleteFramebuffer(tempFbo);
+        GpuFramebuffer.Unbind();
 
         return data;
     }
@@ -712,14 +706,9 @@ public abstract class GpuTexture : GpuResource, IDisposable
         int channelCount = GetChannelCount();
         float[] data = new float[checked(regionWidth * regionHeight * channelCount)];
 
-        int tempFbo = GL.GenFramebuffer();
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, tempFbo);
-        GL.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment0,
-            textureTarget,
-            textureId,
-            0);
+        using var tempFbo = GpuFramebuffer.CreateEmpty("VGE_GpuTexture_Readback_FBO");
+        tempFbo.Bind();
+        tempFbo.AttachColorTextureId(textureId, attachmentIndex: 0, mipLevel: 0);
 
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
         GL.ReadPixels(
@@ -731,8 +720,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
             PixelType.Float,
             data);
 
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-        GL.DeleteFramebuffer(tempFbo);
+        GpuFramebuffer.Unbind();
 
         return data;
     }
@@ -762,14 +750,9 @@ public abstract class GpuTexture : GpuResource, IDisposable
         int channelCount = GetChannelCount();
         float[] data = new float[checked(mipWidth * mipHeight * channelCount)];
 
-        int tempFbo = GL.GenFramebuffer();
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, tempFbo);
-        GL.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment0,
-            TextureTarget.Texture2D,
-            textureId,
-            mipLevel);
+        using var tempFbo = GpuFramebuffer.CreateEmpty("VGE_GpuTexture_Readback_FBO");
+        tempFbo.Bind();
+        tempFbo.AttachColorTextureId(textureId, attachmentIndex: 0, mipLevel: mipLevel);
 
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
         GL.ReadPixels(
@@ -781,8 +764,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
             PixelType.Float,
             data);
 
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-        GL.DeleteFramebuffer(tempFbo);
+        GpuFramebuffer.Unbind();
 
         return data;
     }

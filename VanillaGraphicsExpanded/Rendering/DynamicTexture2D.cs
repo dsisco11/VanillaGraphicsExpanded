@@ -518,14 +518,9 @@ public sealed class DynamicTexture2D : GpuTexture
         float[] data = new float[width * height * channelCount];
 
         // Create temporary FBO for readback
-        int tempFbo = GL.GenFramebuffer();
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, tempFbo);
-        GL.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment0,
-            TextureTarget.Texture2D,
-            textureId,
-            0);
+        using var tempFbo = GpuFramebuffer.CreateEmpty("VGE_DynamicTexture2D_Readback_FBO");
+        tempFbo.Bind();
+        tempFbo.AttachColorTextureId(textureId, attachmentIndex: 0, mipLevel: 0);
 
         // Explicitly select the attachment as the read source.
         // Some drivers/context states may otherwise read from an undefined buffer.
@@ -538,8 +533,7 @@ public sealed class DynamicTexture2D : GpuTexture
             data);
 
         // Cleanup
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-        GL.DeleteFramebuffer(tempFbo);
+        GpuFramebuffer.Unbind();
 
         return data;
     }
@@ -565,14 +559,9 @@ public sealed class DynamicTexture2D : GpuTexture
         int channelCount = GetChannelCount();
         float[] data = new float[regionWidth * regionHeight * channelCount];
 
-        int tempFbo = GL.GenFramebuffer();
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, tempFbo);
-        GL.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment0,
-            TextureTarget.Texture2D,
-            textureId,
-            0);
+        using var tempFbo = GpuFramebuffer.CreateEmpty("VGE_DynamicTexture2D_Readback_FBO");
+        tempFbo.Bind();
+        tempFbo.AttachColorTextureId(textureId, attachmentIndex: 0, mipLevel: 0);
 
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
         GL.ReadPixels(
@@ -584,8 +573,7 @@ public sealed class DynamicTexture2D : GpuTexture
             PixelType.Float,
             data);
 
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-        GL.DeleteFramebuffer(tempFbo);
+        GpuFramebuffer.Unbind();
 
         return data;
     }
@@ -608,14 +596,9 @@ public sealed class DynamicTexture2D : GpuTexture
         int channelCount = GetChannelCount();
         float[] data = new float[mipWidth * mipHeight * channelCount];
 
-        int tempFbo = GL.GenFramebuffer();
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, tempFbo);
-        GL.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment0,
-            TextureTarget.Texture2D,
-            textureId,
-            mipLevel);
+        using var tempFbo = GpuFramebuffer.CreateEmpty("VGE_DynamicTexture2D_Readback_FBO");
+        tempFbo.Bind();
+        tempFbo.AttachColorTextureId(textureId, attachmentIndex: 0, mipLevel: mipLevel);
 
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
         GL.ReadPixels(0, 0, mipWidth, mipHeight,
@@ -623,8 +606,7 @@ public sealed class DynamicTexture2D : GpuTexture
             PixelType.Float,
             data);
 
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-        GL.DeleteFramebuffer(tempFbo);
+        GpuFramebuffer.Unbind();
 
         return data;
     }
