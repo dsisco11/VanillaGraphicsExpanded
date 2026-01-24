@@ -85,7 +85,8 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
                 if (blockAccessor.GetChunkAtBlockPos(pos) == null)
                 {
                     hit = default;
-                    return WorldProbeTraceOutcome.Miss;
+                    // Option A (2.2): treat missing world data as aborted so it never turns into "open sky".
+                    return WorldProbeTraceOutcome.Aborted;
                 }
 
                 Block b = blockAccessor.GetMostSolidBlock(pos);
@@ -109,13 +110,18 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
                             Vector4 light = Vector4.Zero;
 
                             samplePos.Set(sx, sy, sz);
-                            if (blockAccessor.GetChunkAtBlockPos(samplePos) != null)
+                            if (blockAccessor.GetChunkAtBlockPos(samplePos) == null)
                             {
-                                // Vec4f: XYZ = block light rgb, W = sun light brightness.
-                                Vec4f ls = blockAccessor.GetLightRGBs(samplePos);
-                                light = new Vector4(ls.X, ls.Y, ls.Z, ls.W);
-                                WorldProbeLightSampleStats.Record(light);
+                                // If we cannot sample light at the "outside" face due to missing chunk data,
+                                // abort so we don't bake a biased/dark lighting sample at streaming boundaries.
+                                hit = default;
+                                return WorldProbeTraceOutcome.Aborted;
                             }
+
+                            // Vec4f: XYZ = block light rgb, W = sun light brightness.
+                            Vec4f ls = blockAccessor.GetLightRGBs(samplePos);
+                            light = new Vector4(ls.X, ls.Y, ls.Z, ls.W);
+                            WorldProbeLightSampleStats.Record(light);
 
                             hit = new LumOnWorldProbeTraceHit(
                                 HitDistance: tHit,

@@ -199,20 +199,19 @@ composite “++0~” variants, RNG/position-dependent variants, etc.
 
 **What**:
 
-- If `GetChunkAtBlockPos()` returns null, the trace returns **Miss** (interpretable as “open sky”).
+- If `GetChunkAtBlockPos()` returns null, the trace returns **Aborted** (probe is retried later).
 - If the accessor surfaces placeholder chunk data that throws `NotImplementedException`, the trace returns **Aborted**
   (probe is retried later).
 
 **Why this is an issue**
 
-- **Sky leaking at streaming boundaries**: “unloaded == miss” makes missing data look like open space, over-brightening
-  or skewing sky visibility near chunk edges.
-- **Temporal instability**: probes can oscillate between “sky-like” and “occluded” as chunks load/unload.
+- **Can create temporary “holes”**: aborting defers probe updates until world data is readable, which can reduce
+  world-probe coverage near rapidly streaming chunk boundaries.
 - **Hard to diagnose**: visual artifacts may look like a lighting bug but are actually a data-availability policy.
 
 **Options to address**
 
-- **Option A (safe)**: Treat *unloaded* as **Aborted** (retry later) rather than **Miss**, so missing world data never turns into “open sky” lighting.
+- **Option A (safe)**: Treat *unloaded* as **Aborted** (retry later) rather than **Miss**, so missing world data never turns into “open sky” lighting. **(Implemented)**
 - **Option B (conservative)**: Treat unloaded as “occluded” (hit/blocked) to avoid bright leaks, optionally only on near levels where correctness matters most.
 - **Option C (streaming-aware)**: Use a policy that distinguishes “truly out of world/sky” from “temporarily missing chunk”, and add per-probe exponential backoff + telemetry so failures are diagnosable.
 

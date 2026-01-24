@@ -118,7 +118,7 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
     }
 
     [Fact]
-    public void Trace_WhenChunkUnloadedAtOrigin_ReturnsMiss()
+    public void Trace_WhenChunkUnloadedAtOrigin_ReturnsAborted()
     {
         var blockAccessor = ScriptedBlockAccessorProxy.Create(new ScriptedBlockAccessorProxy.Config());
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
@@ -127,11 +127,12 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.False(hit);
+        Assert.Equal(WorldProbeTraceOutcome.Aborted, outcome);
         Assert.Equal(default, traceHit);
     }
 
     [Fact]
-    public void Trace_WhenChunkBecomesUnloadedMidTrace_ReturnsMiss()
+    public void Trace_WhenChunkBecomesUnloadedMidTrace_ReturnsAborted()
     {
         var cfg = new ScriptedBlockAccessorProxy.Config();
         cfg.LoadedChunks.Add((0, 0, 0));
@@ -145,6 +146,7 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.False(hit);
+        Assert.Equal(WorldProbeTraceOutcome.Aborted, outcome);
         Assert.Equal(default, traceHit);
     }
 
@@ -179,7 +181,7 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
     }
 
     [Fact]
-    public void Trace_WhenSampleChunkUnloaded_EmitsZeroSampleLight()
+    public void Trace_WhenSampleChunkUnloaded_ReturnsAborted()
     {
         var cfg = new ScriptedBlockAccessorProxy.Config();
         cfg.LoadedChunks.Add((0, 0, 0));
@@ -193,8 +195,9 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         var outcome = scene.Trace(new Vector3d(0.5, 0.5, 0.5), Vector3.UnitX, 10, CancellationToken.None, out LumOnWorldProbeTraceHit traceHit);
         bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
-        Assert.True(hit);
-        Assert.Equal(Vector4.Zero, traceHit.SampleLightRgbS);
+        Assert.False(hit);
+        Assert.Equal(WorldProbeTraceOutcome.Aborted, outcome);
+        Assert.Equal(default, traceHit);
     }
 
     [Fact]
