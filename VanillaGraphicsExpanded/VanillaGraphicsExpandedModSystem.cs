@@ -77,6 +77,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
         ConfigModSystem.Config.Sanitize();
 
+        // Register built-in debug views for the unified debug viewer.
+        VgeBuiltInDebugViews.RegisterAll(api, gBufferManager);
+
         // PBR (direct lighting + composite) is managed by PbrModSystem.
         api.ModLoader.GetModSystem<PbrModSystem>().SetDependencies(api, gBufferManager);
 

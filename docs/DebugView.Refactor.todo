@@ -110,24 +110,24 @@ VGE - Debug Viewer Refactor (Debug View Registry + Unified UI):
   ✔ Refresh plumbing:
     - Rebuild list on registry changes or category change
     - If using recomposition: preserve selection where possible
-  ☐ Move GPU-profiler refresh behavior to panel lifecycle:
-    - Panel lifecycle + tick plumbing exists in `GuiDialogVgeDebugViewer`; migrate the profiler panel in Phase 4
+  ✔ Move GPU-profiler refresh behavior to panel lifecycle:
+    - Implemented in `VanillaGraphicsExpanded/DebugView/VgeBuiltInDebugViews.cs` (`GpuProfilerPanel` + `WantsGameTick`)
 
 
   Phase 4 - Migrate Existing Debug Functionality to Registered Views:
-  Exit artifacts: Legacy debug UI paths are replaced by view registrations.
-  ☐ Register LumOn debug views:
+  Exit artifacts: Existing debug features are exposed as registered views (legacy UI cleanup is Phase 5).
+  ✔ Register LumOn debug views:
     - Option A: one view per `LumOnDebugMode` (except Off), auto-generated from enum + display-name map
     - Option B: one “LumOn Debug” view with a sub-panel dropdown for mode selection
     - Ensure activation sets `config.LumOn.DebugMode`, and deactivation sets it to Off
-  ☐ Register GPU Profiler view:
+  ✔ Register GPU Profiler view:
     - Sub-panel: Enabled toggle + category filter + sort + snapshot text (ported from current dialog)
     - Decide if activating the view should force-enable the profiler (and restore previous state on deactivate)
-  ☐ Register GBuffer overlay view(s):
+  ✔ Register GBuffer overlay view(s):
     - Decide whether to reuse `DebugGBufferRenderer` or replace with a view-owned renderer
     - Ensure renderer unregisters itself cleanly on dispose (may require fixing `DebugGBufferRenderer.Dispose`)
     - Consider splitting into multiple views (“Normals”, “Material”, “Depth”, etc.) vs one view with a mode sub-panel
-  ☐ (Optional) Register “Render Stage Debug Groups” tooling:
+  ✔ (Optional) Register “Render Stage Debug Groups” tooling:
     - Toggle `GlGpuProfiler.EmitDebugGroups`
     - (If feasible outside DEBUG) toggle `GpuDebugLabelManager` registration
 
