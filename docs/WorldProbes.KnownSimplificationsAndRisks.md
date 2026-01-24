@@ -24,6 +24,7 @@ Priorities are scoped to **Phase 18 diffuse GI correctness + debuggability**:
 - [2.2 Unloaded chunks treated as misses; placeholder chunk objects can abort traces](#wp-2-2)
 - [2.3 Probe disabled when its center lies inside a solid collision box](#wp-2-3)
 - [5.1 ShortRangeAO multiplies irradiance by `aoConf`](#wp-5-1)
+- [5.5 Screen-probe miss fallback assumes sky radiance (miss != sky)](#wp-5-5)
 - [6.1 Orb visualizer samples irradiance with a fixed “up” normal](#wp-6-1)
 
 ### P1 (High)
@@ -493,6 +494,39 @@ block at that voxel.
 - **Option A (diagnostic)**: Add a config/debug switch to force “world-only”, “screen-only”, or “equal-weight” blending for validation.
 - **Option B (smoother mix)**: Use a symmetric blend (`normalize(screenConf, worldConf)`) with a bias term, rather than strictly “screen-first”, to reduce abrupt handoffs.
 - **Option C (temporal hysteresis)**: Add hysteresis/temporal smoothing in the blend weights so confidence drops don’t instantly flip sources.
+
+<a id="wp-5-5"></a>
+### 5.5 (P0) Screen-probe miss fallback assumes sky radiance (miss != sky)
+
+**Where**:
+
+- `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_trace.fsh`
+- `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_trace.fsh`
+- `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_common.glsl` (`lumonGetSkyColor`)
+- `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_gather.fsh`
+- `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_gather.fsh`
+
+**What**: Screen-probe tracing is screen-space depth marching. When a ray “misses” it can mean “off-screen”, “occluded by
+screen depth”, or “no depth match”, not necessarily “this direction reached the sky”. Today, miss handling injects sky
+radiance (`lumonGetSkyColor`) into the screen-probe cache, and the screen↔world blend does not account for miss rates, so
+world-probes do not reliably act as a fallback when screen traces fail.
+
+**Why this is an issue**
+
+- **Sky leaking from screen limitations**: off-screen/failed rays can contribute sky radiance, brightening regions that
+  are not actually sky-visible.
+- **World-probe fallback is not triggered by misses**: screen confidence is derived from geometric interpolation weights,
+  so the blend can remain screen-dominated even when screen-space tracing is unreliable for that pixel/probe.
+- **Hard to tune globally**: changing `VGE_LUMON_SKY_MISS_WEIGHT` trades “black indirect” vs “sky leaking”, and the
+  balance shifts with camera framing/disocclusion.
+- **Diverges from hierarchical GI designs (e.g., Lumen)**: screen-trace failure is typically treated as “unknown” and
+  followed by a world-space fallback before using sky/environment on final miss.
+
+**Options to address**
+
+- **Option A (cheap)**: Make screen-probe miss radiance less “sky-like” (e.g., ambient-only tint, lower `VGE_LUMON_SKY_MISS_WEIGHT`, or no sun lobe) to reduce sky leaking.
+- **Option B (better)**: Store and use miss diagnostics (miss ratio, screen-exit ratio, avg hit distance) to down-weight `screenConfidence` so world probes take over when screen-space is unreliable.
+- **Option C (Lumen-like)**: On screen miss, perform a secondary world-space query (hardware RT, distance fields, or a proxy scene) and only fall back to sky/environment when that also misses.
 
 ## 6. Debug Visualizer / Tooling Limitations
 
