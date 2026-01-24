@@ -49,5 +49,17 @@ public sealed class DebugViewRegistryTests
 
         Assert.Equal(new[] { "3", "1", "2" }, Array.ConvertAll(all, v => v.Id));
     }
-}
 
+    [Fact]
+    public void GetAll_SortsByCategoryThenNameThenId_CaseInsensitive()
+    {
+        var registry = new DebugViewRegistry();
+
+        registry.Register(View("b", "Same", "pbr"));
+        registry.Register(View("A", "same", "PBR"));
+
+        DebugViewDefinition[] all = registry.GetAll();
+
+        Assert.Equal(new[] { "A", "b" }, Array.ConvertAll(all, v => v.Id));
+    }
+}

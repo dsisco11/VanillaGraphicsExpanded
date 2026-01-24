@@ -148,14 +148,15 @@ VGE - Debug Viewer Refactor (Debug View Registry + Unified UI):
 
   Phase 6 - Tests + Validation:
   Exit artifacts: Core registry/query logic is tested; existing behavior remains correct.
-  ☐ Add unit tests for registry/controller helpers:
-    - Category list generation
-    - Sorting and stable ordering
-    - Collision handling (duplicate ids)
-  ☐ Keep/extend existing test:
+  ✔ Add unit tests for registry/controller helpers:
+    - Category list generation (`VanillaGraphicsExpanded.Tests/DebugViewerCategoryTests.cs`)
+    - Sorting and stable ordering (`VanillaGraphicsExpanded.Tests/DebugViewRegistryTests.cs`)
+    - Collision handling (duplicate ids) (`VanillaGraphicsExpanded.Tests/DebugViewRegistryTests.cs`)
+    - Controller activation/disposal (`VanillaGraphicsExpanded.Tests/DebugViewControllerTests.cs`)
+  ✔ Keep/extend existing test:
     - `VanillaGraphicsExpanded.Tests/DebugViewConfigTests.cs` (DebugMode remains non-serialized)
   ☐ Manual validation checklist (in-game):
-    - Open viewer, category dropdown filtering works
+    - Open viewer (F8), category dropdown filtering works
     - Switching views cleans up previous renderer state
     - LumOn debug overlay matches expected mode
     - GPU profiler panel updates and filters correctly

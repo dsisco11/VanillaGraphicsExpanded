@@ -162,7 +162,7 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
         double rightX = LeftColumnWidth + ColumnGap;
         double rightW = Math.Max(1, innerW - rightX);
 
-        string[] categories = BuildCategoryList();
+        string[] categories = BuildCategoryList(registry.GetAll(), AllCategory);
         int selectedCategoryIndex = Math.Max(0, Array.IndexOf(categories, selectedCategory));
 
         DebugViewDefinition[] filteredViews = GetFilteredViews(selectedCategory);
@@ -302,17 +302,16 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
         activateBtn.Text = BuildActivateButtonText(selected, isActive);
     }
 
-    private string[] BuildCategoryList()
+    internal static string[] BuildCategoryList(DebugViewDefinition[] all, string allCategory)
     {
-        DebugViewDefinition[] all = registry.GetAll();
         if (all.Length == 0)
         {
-            return [AllCategory];
+            return [allCategory];
         }
 
         var unique = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            [AllCategory] = AllCategory
+            [allCategory] = allCategory
         };
 
         foreach (var v in all)
@@ -331,8 +330,8 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
         string[] cats = unique.Values.ToArray();
         Array.Sort(cats, (a, b) =>
         {
-            if (string.Equals(a, AllCategory, StringComparison.OrdinalIgnoreCase)) return -1;
-            if (string.Equals(b, AllCategory, StringComparison.OrdinalIgnoreCase)) return 1;
+            if (string.Equals(a, allCategory, StringComparison.OrdinalIgnoreCase)) return -1;
+            if (string.Equals(b, allCategory, StringComparison.OrdinalIgnoreCase)) return 1;
             return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
         });
 
