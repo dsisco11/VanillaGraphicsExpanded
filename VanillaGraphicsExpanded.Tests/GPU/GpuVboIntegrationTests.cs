@@ -222,7 +222,7 @@ public class GpuVboIntegrationTests
         int originalBufferId = vbo.BufferId;
 
         // Act
-        int detachedId = vbo.Detach();
+        int detachedId = (int)vbo.Detach();
 
         // Assert
         Assert.Equal(originalBufferId, detachedId);
@@ -375,7 +375,7 @@ public class GpuVboIntegrationTests
         vbo.Dispose();
 
         // Act
-        int result = vbo.Detach();
+        int result = (int)vbo.Detach();
 
         // Assert
         Assert.Equal(0, result);
@@ -419,8 +419,8 @@ public class GpuVboIntegrationTests
         int bufferId2 = vbo2.BufferId;
 
         // Act
-        int detachResult = vbo1.Detach();
-        int releaseResult = vbo2.ReleaseHandle();
+        int detachResult = (int)vbo1.Detach();
+        int releaseResult = (int)vbo2.ReleaseHandle();
 
         // Assert
         Assert.Equal(bufferId1, detachResult);

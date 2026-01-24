@@ -46,10 +46,10 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     /// </summary>
     public int FboId => fboId;
 
-    protected override int ResourceId
+    protected override nint ResourceId
     {
         get => fboId;
-        set => fboId = value;
+        set => fboId = (int)value;
     }
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Framebuffer;

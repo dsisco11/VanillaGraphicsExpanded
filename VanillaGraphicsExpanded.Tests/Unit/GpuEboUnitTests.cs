@@ -246,7 +246,7 @@ public class GpuEboUnitTests
         Assert.NotNull(disposeMethod);
         Assert.NotNull(toStringMethod);
         
-        Assert.Equal(typeof(int), detachMethod.ReturnType);
+        Assert.Equal(typeof(nint), detachMethod.ReturnType);
         Assert.Equal(typeof(void), disposeMethod.ReturnType);
         Assert.Equal(typeof(string), toStringMethod.ReturnType);
     }

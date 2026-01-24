@@ -76,6 +76,9 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
     public void EnqueueDeleteRenderbuffer(int renderbufferId)
         => EnqueueDeletion(new GpuDeletionCommand(GpuDeletionKind.Renderbuffer, renderbufferId));
 
+    public void EnqueueDeleteSync(IntPtr sync)
+        => EnqueueDeletion(new GpuDeletionCommand(GpuDeletionKind.Sync, (nint)sync));
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref isDisposed, 1) != 0)
@@ -118,19 +121,22 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
                 switch (command.Kind)
                 {
                     case GpuDeletionKind.Buffer:
-                        GL.DeleteBuffer(command.Id);
+                        GL.DeleteBuffer((int)command.Id);
                         break;
                     case GpuDeletionKind.VertexArray:
-                        GL.DeleteVertexArray(command.Id);
+                        GL.DeleteVertexArray((int)command.Id);
                         break;
                     case GpuDeletionKind.Texture:
-                        GL.DeleteTexture(command.Id);
+                        GL.DeleteTexture((int)command.Id);
                         break;
                     case GpuDeletionKind.Framebuffer:
-                        GL.DeleteFramebuffer(command.Id);
+                        GL.DeleteFramebuffer((int)command.Id);
                         break;
                     case GpuDeletionKind.Renderbuffer:
-                        GL.DeleteRenderbuffer(command.Id);
+                        GL.DeleteRenderbuffer((int)command.Id);
+                        break;
+                    case GpuDeletionKind.Sync:
+                        GL.DeleteSync((IntPtr)command.Id);
                         break;
                 }
             }
@@ -161,7 +167,7 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
         }
     }
 
-    private readonly record struct GpuDeletionCommand(GpuDeletionKind Kind, int Id);
+    private readonly record struct GpuDeletionCommand(GpuDeletionKind Kind, nint Id);
 
     private enum GpuDeletionKind
     {
@@ -170,5 +176,6 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
         Texture = 2,
         Framebuffer = 3,
         Renderbuffer = 4,
+        Sync = 5,
     }
 }

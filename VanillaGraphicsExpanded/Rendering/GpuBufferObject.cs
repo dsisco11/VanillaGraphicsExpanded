@@ -31,10 +31,10 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
     public BufferUsageHint Usage => usage;
     public string? DebugName => debugName;
 
-    protected override int ResourceId
+    protected override nint ResourceId
     {
         get => bufferId;
-        set => bufferId = value;
+        set => bufferId = (int)value;
     }
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Buffer;
@@ -859,7 +859,7 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
         }
     }
 
-    protected override void OnDetached(int id)
+    protected override void OnDetached(nint id)
     {
         DropPendingUploads();
         Volatile.Write(ref uploadsQueued, 0);

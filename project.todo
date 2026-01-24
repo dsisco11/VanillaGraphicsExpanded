@@ -17,7 +17,7 @@ Issues:
     ✔ Update `GpuFramebuffer` to inherit from `GpuResource` (deferred disposal queue support).
     ✔ Encapsulate `PixelUnpackBuffer` usage into a small RAII wrapper (e.g. `GpuPbo` / `GpuPixelUnpackBuffer`).
     ✔ Replace temporary readback FBOs with `GpuFramebuffer` instances.
-    ☐ Refactor `GpuFence` into a proper RAII wrapper (inherits `GpuResource`, deferred disposal).
+    ✔ Refactor `GpuFence` into a proper RAII wrapper (inherits `GpuResource`, deferred disposal).
     ☐ Refactor GPU queries into an RAII wrapper (create/delete + deferred disposal).
 
   WorldProbes:

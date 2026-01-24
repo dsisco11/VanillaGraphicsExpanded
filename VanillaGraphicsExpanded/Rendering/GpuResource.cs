@@ -13,27 +13,27 @@ public abstract class GpuResource : IDisposable
 
     public bool IsValid => ResourceId != 0 && !IsDisposed;
 
-    protected abstract int ResourceId { get; set; }
+    protected abstract nint ResourceId { get; set; }
 
     protected abstract GpuResourceKind ResourceKind { get; }
 
     protected virtual bool OwnsResource => true;
 
-    public virtual int Detach()
+    public virtual nint Detach()
     {
         if (IsDisposed)
         {
             return 0;
         }
 
-        int id = ResourceId;
+        nint id = ResourceId;
         ResourceId = 0;
         Interlocked.Exchange(ref disposed, 1);
         OnDetached(id);
         return id;
     }
 
-    public int ReleaseHandle()
+    public nint ReleaseHandle()
     {
         return Detach();
     }
@@ -45,7 +45,7 @@ public abstract class GpuResource : IDisposable
             return;
         }
 
-        int id = ResourceId;
+        nint id = ResourceId;
         ResourceId = 0;
 
         OnBeforeDelete(id);
@@ -58,11 +58,11 @@ public abstract class GpuResource : IDisposable
         OnAfterDelete();
     }
 
-    protected virtual void OnDetached(int id)
+    protected virtual void OnDetached(nint id)
     {
     }
 
-    protected virtual void OnBeforeDelete(int id)
+    protected virtual void OnBeforeDelete(nint id)
     {
     }
 
@@ -70,7 +70,7 @@ public abstract class GpuResource : IDisposable
     {
     }
 
-    private static void DeleteOrEnqueue(GpuResourceKind kind, int id)
+    private static void DeleteOrEnqueue(GpuResourceKind kind, nint id)
     {
         // If the manager is initialized and we're not on the render thread, enqueue deletion.
         // Otherwise, do immediate deletion (legacy behavior).
@@ -81,19 +81,22 @@ public abstract class GpuResource : IDisposable
             switch (kind)
             {
                 case GpuResourceKind.Buffer:
-                    GpuResourceManagerSystem.EnqueueDeleteBuffer(id);
+                    GpuResourceManagerSystem.EnqueueDeleteBuffer((int)id);
                     return;
                 case GpuResourceKind.VertexArray:
-                    GpuResourceManagerSystem.EnqueueDeleteVertexArray(id);
+                    GpuResourceManagerSystem.EnqueueDeleteVertexArray((int)id);
                     return;
                 case GpuResourceKind.Texture:
-                    GpuResourceManagerSystem.EnqueueDeleteTexture(id);
+                    GpuResourceManagerSystem.EnqueueDeleteTexture((int)id);
                     return;
                 case GpuResourceKind.Framebuffer:
-                    GpuResourceManagerSystem.EnqueueDeleteFramebuffer(id);
+                    GpuResourceManagerSystem.EnqueueDeleteFramebuffer((int)id);
                     return;
                 case GpuResourceKind.Renderbuffer:
-                    GpuResourceManagerSystem.EnqueueDeleteRenderbuffer(id);
+                    GpuResourceManagerSystem.EnqueueDeleteRenderbuffer((int)id);
+                    return;
+                case GpuResourceKind.Sync:
+                    GpuResourceManagerSystem.EnqueueDeleteSync((IntPtr)id);
                     return;
             }
         }
@@ -103,19 +106,22 @@ public abstract class GpuResource : IDisposable
             switch (kind)
             {
                 case GpuResourceKind.Buffer:
-                    GL.DeleteBuffer(id);
+                    GL.DeleteBuffer((int)id);
                     break;
                 case GpuResourceKind.VertexArray:
-                    GL.DeleteVertexArray(id);
+                    GL.DeleteVertexArray((int)id);
                     break;
                 case GpuResourceKind.Texture:
-                    GL.DeleteTexture(id);
+                    GL.DeleteTexture((int)id);
                     break;
                 case GpuResourceKind.Framebuffer:
-                    GL.DeleteFramebuffer(id);
+                    GL.DeleteFramebuffer((int)id);
                     break;
                 case GpuResourceKind.Renderbuffer:
-                    GL.DeleteRenderbuffer(id);
+                    GL.DeleteRenderbuffer((int)id);
+                    break;
+                case GpuResourceKind.Sync:
+                    GL.DeleteSync((IntPtr)id);
                     break;
             }
         }
@@ -133,4 +139,5 @@ public enum GpuResourceKind
     Texture = 2,
     Framebuffer = 3,
     Renderbuffer = 4,
+    Sync = 5,
 }

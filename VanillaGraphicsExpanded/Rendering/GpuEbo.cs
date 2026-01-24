@@ -212,7 +212,7 @@ internal sealed class GpuEbo : GpuBufferObject
         GL.DrawElementsInstanced(primitiveType, count, indexType, (IntPtr)offsetBytes, instanceCount);
     }
 
-    protected override void OnDetached(int id)
+    protected override void OnDetached(nint id)
     {
         base.OnDetached(id);
         indexCount = 0;

@@ -536,7 +536,7 @@ public class GpuVaoIntegrationTests
         int originalId = vao.VertexArrayId;
 
         // Act
-        int detachedId = vao.Detach();
+        int detachedId = (int)vao.Detach();
 
         // Assert
         Assert.Equal(originalId, detachedId);
@@ -561,8 +561,8 @@ public class GpuVaoIntegrationTests
         int id2 = vao2.VertexArrayId;
 
         // Act
-        int detachResult = vao1.Detach();
-        int releaseResult = vao2.ReleaseHandle();
+        int detachResult = (int)vao1.Detach();
+        int releaseResult = (int)vao2.ReleaseHandle();
 
         // Assert
         Assert.Equal(id1, detachResult);
@@ -587,7 +587,7 @@ public class GpuVaoIntegrationTests
         vao.Dispose();
 
         // Act
-        int result = vao.Detach();
+        int result = (int)vao.Detach();
 
         // Assert
         Assert.Equal(0, result);

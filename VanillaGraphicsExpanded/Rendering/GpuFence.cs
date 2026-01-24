@@ -8,13 +8,21 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// Small wrapper around an OpenGL sync object created by <c>glFenceSync</c>.
 /// All methods require a current GL context on the calling thread.
 /// </summary>
-internal sealed class GpuFence : IDisposable
+internal sealed class GpuFence : GpuResource, IDisposable
 {
-    private IntPtr handle;
+    private nint handle;
 
-    public bool IsValid => handle != IntPtr.Zero;
+    protected override nint ResourceId
+    {
+        get => handle;
+        set => handle = value;
+    }
 
-    private GpuFence(IntPtr handle)
+    protected override GpuResourceKind ResourceKind => GpuResourceKind.Sync;
+
+    public new bool IsValid => handle != 0 && !IsDisposed;
+
+    private GpuFence(nint handle)
     {
         this.handle = handle;
     }
@@ -27,17 +35,17 @@ internal sealed class GpuFence : IDisposable
             throw new InvalidOperationException("glFenceSync failed.");
         }
 
-        return new GpuFence(sync);
+        return new GpuFence((nint)sync);
     }
 
     public WaitSyncStatus Poll()
     {
-        if (handle == IntPtr.Zero)
+        if (handle == 0)
         {
             return WaitSyncStatus.AlreadySignaled;
         }
 
-        return GL.ClientWaitSync(handle, ClientWaitSyncFlags.None, 0);
+        return GL.ClientWaitSync((IntPtr)handle, ClientWaitSyncFlags.None, 0);
     }
 
     public bool TryConsumeIfSignaled()
@@ -52,15 +60,5 @@ internal sealed class GpuFence : IDisposable
         return true;
     }
 
-    public void Dispose()
-    {
-        if (handle == IntPtr.Zero)
-        {
-            return;
-        }
-
-        GL.DeleteSync(handle);
-        handle = IntPtr.Zero;
-    }
+    // Uses base GpuResource.Dispose() / deferred deletion via GpuResourceManager.
 }
-

@@ -603,7 +603,7 @@ public class GpuEboIntegrationTests
         DrawElementsType originalIndexType = ebo.IndexType;
 
         // Act
-        int detachedId = ebo.Detach();
+        int detachedId = (int)ebo.Detach();
 
         // Assert
         Assert.Equal(originalBufferId, detachedId);
