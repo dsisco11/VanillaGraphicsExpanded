@@ -1,0 +1,269 @@
+# GpuResourceManager Implementation Plan
+
+Status: Draft  
+Scope: VGE client-side OpenGL resource lifecycle + upload plumbing
+
+## Checklist (from `project.todo`)
+
+- [ ] Create new `GpuResourceManager` system as a new `IRenderer` registered for the **After** stage, which manages GPU resource lifecycles (creation, disposal) in a thread-safe manner.
+- [ ] Move texture streaming uploader to the new `GpuResourceManager`.
+- [ ] Move `GpuBufferObject` DSA uploading to the new `GpuResourceManager`.
+- [ ] Update rendering systems to use the new GPU resource RAII classes (e.g. `GpuVbo`, `GpuVao`, etc).
+
+## 0. Codebase Findings (Current State)
+
+### 0.1 Renderer integration patterns
+
+- Render-thread “tick” hooks are implemented as `IRenderer` wrappers that call a system/service:
+  - `VanillaGraphicsExpanded/Rendering/TextureStreamingManagerRenderer.cs` calls `TextureStreamingSystem.TickOnRenderThread()`.
+  - `VanillaGraphicsExpanded/PBR/Materials/Async/MaterialAtlasBuildSchedulerRenderer.cs` calls `MaterialAtlasBuildScheduler.TickOnRenderThread()`.
+- Renderers are registered by `ModSystem` instances:
+  - Texture streaming: `VanillaGraphicsExpanded/ModSystems/TextureStreamingModSystem.cs` registers at `EnumRenderStage.Before`.
+  - World-probe update: `VanillaGraphicsExpanded/LumOn/WorldProbes/LumOnWorldProbeUpdateRenderer.cs` registers at `EnumRenderStage.Done`.
+
+### 0.2 Texture streaming uploader
+
+- Producer API: `TextureStreamingSystem.StageCopy(...)` (thread-safe enqueue + “stage copy” fast path).
+- Render-thread execution: `TextureStreamingManager.TickOnRenderThread()` is driven by `TextureStreamingManagerRenderer` registered by `TextureStreamingModSystem`.
+- Primary implementation: `VanillaGraphicsExpanded/Rendering/TextureStreamingManager.cs` (PBO backends, fences, budgets, diagnostics).
+
+### 0.3 GPU RAII wrappers exist but are not used everywhere
+
+Existing RAII wrappers (render-thread-only today):
+- Buffers: `VanillaGraphicsExpanded/Rendering/GpuBufferObject.cs`, `GpuVbo.cs`, `GpuEbo.cs`
+- VAO: `VanillaGraphicsExpanded/Rendering/GpuVao.cs`
+- Textures: `VanillaGraphicsExpanded/Rendering/GpuTexture.cs` (base), `DynamicTexture2D.cs`, `DynamicTexture3D.cs`, `Texture2D.cs`, `Texture3D.cs`
+- Sync: `VanillaGraphicsExpanded/Rendering/GpuFence.cs`
+
+Notable non-RAII / raw GL handle usage still present:
+- `VanillaGraphicsExpanded/LumOn/LumOnDebugRenderer.cs` uses `GL.GenBuffer/GenVertexArray` and `GL.DeleteBuffer/DeleteVertexArray`.
+- `VanillaGraphicsExpanded/PBR/Materials/MaterialAtlasNormalDepthGpuBuilder.cs` uses a static VAO `int vao = GL.GenVertexArray()`.
+
+### 0.4 `GpuBufferObject` uses DSA for uploads (locally)
+
+- DSA calls are currently contained inside `GpuBufferObject`:
+  - `GL.NamedBufferData` and `GL.NamedBufferSubData`, with exception-driven “supported/unsupported” caching.
+- Many call sites still use `GL.BufferData(...)` directly (not via `GpuBufferObject`), especially in `LumOnDebugRenderer`.
+
+### 0.5 Render stage naming ambiguity (“After stage”)
+
+This repo currently uses `EnumRenderStage.Before`, `EnumRenderStage.After*` variants (e.g. `AfterBlit`, `AfterFinalComposition`), and `EnumRenderStage.Done`.
+
+There is **no** existing usage of `EnumRenderStage.After` in this codebase. Two plausible mappings:
+- “After” == `EnumRenderStage.AfterFinalComposition` (after compositing, before `Done`)
+- “After” == `EnumRenderStage.Done` (very end of frame; already used by world-probe updater)
+
+This plan assumes the new manager should run at the *end of frame*; implementation should confirm the intended engine stage and adjust registration accordingly.
+
+## 1. Goals / Non-Goals
+
+### Goals
+
+1. Provide a single render-thread “GPU pump” (`GpuResourceManager`) that:
+   - Drains queued GPU work (uploads and deletions) on the render thread.
+   - Makes **disposal safe from any thread** (no GL calls from non-GL threads).
+   - Does **not** replace existing GPU resource wrapper classes (they still own handles/state).
+2. Consolidate existing render-thread tick hooks:
+   - Texture streaming tick moves under `GpuResourceManager`.
+3. Centralize DSA upload logic:
+   - `GpuBufferObject` delegates render-thread GL mutation calls (DSA `NamedBufferData/SubData` + fallback binds) to the manager-owned uploader (single capability cache, single codepath).
+   - Manager is also responsible for executing the “buffer swap” boundary (consume pending CPU-side upload buffers and perform the GL upload on the render thread).
+4. Reduce raw OpenGL handle usage in renderers:
+   - Migrate high-risk spots (debug renderers, baking helper) to `GpuVao/GpuVbo/GpuEbo`.
+
+### Non-Goals (initially)
+
+- Replacing existing GPU resource wrapper classes with a new resource model.
+- Redesigning texture streaming internals (`TextureStreamingManager.cs`) beyond changing ownership/tick location.
+- Adding new GL features (buffer storage for general VBOs, bindless, etc.) beyond what already exists.
+
+## 2. Proposed Architecture
+
+### 2.1 New components
+
+1. `GpuResourceManager` (new): `IRenderer`, registered at the chosen “After” stage.
+   - Responsible for executing render-thread-only OpenGL calls submitted from any thread.
+   - Does **not** create GPU resources; creation stays in existing RAII wrappers / systems.
+   - Owns sub-systems that must tick on the render thread:
+     - `TextureStreamingManager` (existing)
+     - `GpuBufferUploadQueue` (new; executes pending uploads for `GpuBufferObject`, plus legacy migrations)
+   - Owns a `GpuDeletionQueue` (new; cross-thread-safe disposal of handles).
+
+2. `GpuResourceManagerModSystem` (new): registers/unregisters the renderer and wires config reload.
+   - Takes over the texture streaming configuration currently in `TextureStreamingModSystem`.
+
+3. `GpuResourceManagerSystem` (optional but recommended): a static façade similar to `TextureStreamingSystem` for easy access from core code.
+
+### 2.2 Render-thread execution model
+
+- `GpuResourceManager` captures the render thread identity on first `OnRenderFrame` call (e.g., `int renderThreadId = Environment.CurrentManagedThreadId;`).
+- Public APIs focus on **deferred disposal** and **deferred upload** execution:
+  - If on render thread, work can execute immediately.
+  - If off render thread, work is enqueued; the manager executes it on the next tick.
+
+Recommended implementation detail:
+- Use typed, allocation-light work items (`readonly struct` commands) stored in `ConcurrentQueue<T>`.
+- Avoid closure-heavy `Action` queues for hot paths (uploads, deletions).
+
+### 2.3 Thread-safe disposal (RAII integration)
+
+Update resource wrappers so `.Dispose()` is safe on any thread:
+- If `GpuResourceManager.IsRenderThread == true`: call `GL.Delete*` immediately (current behavior).
+- Else: enqueue deletion to `GpuResourceManager` and “logically dispose” immediately (set handle to 0; mark disposed).
+
+Targets (initial pass):
+- `GpuBufferObject.Dispose()` → enqueue `DeleteBuffer(bufferId)`
+- `GpuVao.Dispose()` → enqueue `DeleteVertexArray(vertexArrayId)`
+- `GpuTexture.Dispose()` (and derived overrides) → enqueue `DeleteTexture(textureId)` (optional for first pass, but recommended for consistency)
+
+### 2.4 Creation stays in existing wrappers
+
+Per clarified requirement: `GpuResourceManager` should not be responsible for creating GPU resources.
+
+Creation remains where it is today:
+- `GpuVao.Create(...)`, `GpuVbo.Create(...)`, `GpuEbo.Create(...)`, texture constructors/factories, etc.
+
+If any code is currently creating GL objects off-thread, the fix is to marshal that creation to the render thread (outside the manager’s responsibilities) or refactor the caller so resource creation happens during a render-stage tick.
+
+## 3. Moving Texture Streaming Into `GpuResourceManager`
+
+### 3.1 Ownership change
+
+- `GpuResourceManager` creates and owns a `TextureStreamingManager` instance.
+- The render-loop call site becomes: `GpuResourceManager.OnRenderFrame(...)` → `textureStreaming.TickOnRenderThread()`.
+
+### 3.2 Public API compatibility
+
+Keep `TextureStreamingSystem` as the producer-facing façade to avoid touching all call sites:
+- Internally route `TextureStreamingSystem.Manager` to the manager-owned instance (or delegate calls).
+- Remove/retire `TextureStreamingManagerRenderer` and stop registering `TextureStreamingModSystem`’s renderer hook.
+
+### 3.3 Stage considerations
+
+Texture streaming currently ticks at `EnumRenderStage.Before`. Moving to end-of-frame changes timing:
+- Before-stage tick can make uploads visible earlier in the same frame.
+- End-of-frame tick makes uploads visible starting the next frame (often acceptable for streaming).
+
+If same-frame visibility is required for some callers, keep a small “early tick” option:
+- Either keep a lightweight `Before`-stage tick that only drains urgent uploads, or
+- Add a `GpuResourceManager.TickEarly()` hook used by a tiny `Before` renderer that shares the same manager instance.
+
+## 4. Moving `GpuBufferObject` DSA Uploading Into `GpuResourceManager`
+
+### 4.1 What “move DSA uploading” means in practice
+
+Extract and centralize:
+- DSA capability detection/cache (`GL.NamedBufferData`, `GL.NamedBufferSubData`)
+- The fallback logic (bind target + `GL.BufferData/SubData`)
+
+Resulting structure:
+- `GpuBufferObject` no longer calls `GL.NamedBuffer*` directly.
+- It calls something like `GpuResourceManager.Buffers.BufferData(...)` / `BufferSubData(...)`.
+
+### 4.2 Thread-safety and semantics
+
+Maintain current semantics for existing call sites:
+- If called on render thread: upload executes immediately (same behavior as today).
+- If called off-thread: the upload request is captured into an owned CPU buffer and **swapped** into a per-buffer pending slot; the manager consumes that pending buffer on the next tick and performs the GL call (`glNamedBufferData` / `glNamedBufferSubData` with bind-based fallback).
+
+Definition (“buffer swap”):
+- This refers to swapping **CPU-side staged upload buffers** (owned byte arrays / pinned blocks), not swapping between two GL buffer object IDs.
+
+Recommended incremental path:
+1. Centralize DSA + fallback in manager-owned helper (no semantic change).
+2. Add an internal pending-upload mechanism to `GpuBufferObject` (CPU buffer swap + metadata).
+3. Add manager tick logic to consume pending uploads and execute DSA GL calls.
+4. Migrate raw `GL.BufferData` call sites (e.g., debug renderers) to use the wrappers so their uploads also funnel through the manager.
+
+### 4.3 Completion model (if needed)
+
+If any code needs to know “upload reached GPU”, add an opt-in completion primitive:
+- Return a lightweight `GpuUploadToken` that can be polled on the render thread.
+- Or insert a `GpuFence` after upload and return it (render-thread only).
+
+Do **not** block the render thread waiting on uploads; completions are primarily for background job orchestration.
+
+## 5. Updating Rendering Systems to Use RAII Wrappers
+
+### 5.1 Target migrations (highest value / risk)
+
+1. `VanillaGraphicsExpanded/LumOn/LumOnDebugRenderer.cs`
+   - Replace raw `int` VAO/VBO fields with `GpuVao`/`GpuVbo`.
+   - Replace direct `GL.BufferData` uploads with `GpuVbo.UploadOrResize(...)` (which routes through manager-owned DSA uploader).
+   - Ensure disposal is safe via manager queue (important during shutdown/reload).
+
+2. `VanillaGraphicsExpanded/PBR/Materials/MaterialAtlasNormalDepthGpuBuilder.cs`
+   - Replace static `int vao` with a `GpuVao` instance.
+   - Ensure lifetime is explicit (create on first use; dispose on reload/shutdown via manager).
+
+### 5.2 “Nice to have” follow-ups
+
+- Audit for other direct `GL.Gen*/Delete*` usage and migrate opportunistically:
+  - Framebuffers created ad-hoc in readback helpers are acceptable to remain immediate.
+  - Long-lived objects used across frames should strongly prefer RAII wrappers.
+
+## 6. Implementation Steps (Phased)
+
+### Phase 1 — Introduce `GpuResourceManager` skeleton
+
+- Add `GpuResourceManager` (`IRenderer`, `IDisposable`) and registration via `GpuResourceManagerModSystem`.
+- Decide and document the exact stage mapping (“After” == `Done` vs `AfterFinalComposition`).
+- Add queues:
+  - `ConcurrentQueue<DeletionCommand>`
+  - (optional placeholder) `ConcurrentQueue<BufferUploadCommand>`
+- In `OnRenderFrame`, drain queues (no-op until wired).
+
+### Phase 2 — Move texture streaming tick
+
+- Move `TextureStreamingManager` ownership into manager.
+- Update `TextureStreamingSystem` to delegate into manager-owned instance.
+- Retire `TextureStreamingManagerRenderer` and unregister/remove `TextureStreamingModSystem` renderer hook.
+- Keep config plumbing: on config reload, update the manager’s streaming settings.
+
+### Phase 3 — Centralize buffer DSA uploading
+
+- Add `GpuBufferUploader` (manager-owned) that encapsulates:
+  - DSA support cache
+  - `BufferData/SubData` operations (DSA preferred, bind fallback)
+- Update `GpuBufferObject` to:
+  - Prepare owned CPU-side upload buffers when called off-thread.
+  - Expose a “try swap pending upload” method for the manager to consume on tick.
+  - Call the uploader directly only when already on the render thread.
+
+### Phase 4 — Migrate key renderers to RAII wrappers
+
+- `LumOnDebugRenderer`:
+  - Convert to `GpuVao/GpuVbo` ownership.
+  - Replace raw create/delete logic with wrapper lifecycle.
+- `MaterialAtlasNormalDepthGpuBuilder`:
+  - Convert static VAO to `GpuVao`.
+
+### Phase 5 — Validation and regression checks
+
+- Run existing tests:
+  - Unit tests (`VanillaGraphicsExpanded.Tests/Unit/*`)
+  - GPU integration tests (`VanillaGraphicsExpanded.Tests/GPU/*`) when available in CI/dev.
+- Add a small GPU test (if practical) that:
+  - Creates a wrapper, disposes it from a background thread (enqueues delete), ticks manager, and verifies no GL errors.
+
+## 7. Expected File/Module Touch List
+
+New:
+- `VanillaGraphicsExpanded/Rendering/GpuResourceManager.cs`
+- `VanillaGraphicsExpanded/ModSystems/GpuResourceManagerModSystem.cs`
+- (Optional) `VanillaGraphicsExpanded/Rendering/GpuResourceManagerSystem.cs`
+- (Optional) `VanillaGraphicsExpanded/Rendering/GpuBufferUploader.cs` / `GpuDeletionQueue.cs`
+
+Refactors:
+- `VanillaGraphicsExpanded/ModSystems/TextureStreamingModSystem.cs` (fold into manager, or reduce to config-only wrapper)
+- `VanillaGraphicsExpanded/Rendering/TextureStreamingSystem.cs` (delegate to manager)
+- `VanillaGraphicsExpanded/Rendering/GpuBufferObject.cs` (delegate DSA uploads)
+- `VanillaGraphicsExpanded/LumOn/LumOnDebugRenderer.cs` (RAII migration)
+- `VanillaGraphicsExpanded/PBR/Materials/MaterialAtlasNormalDepthGpuBuilder.cs` (RAII migration)
+
+## 8. Risks / Edge Cases
+
+- **Stage mismatch:** picking the wrong “After” stage can cause GL state issues or incorrect timing. Verify with runtime logs and/or profiler markers.
+- **Semantic change (uploads):** moving texture streaming from `Before` to end-of-frame changes when updates become visible.
+- **Dispose timing:** deferred deletion means GL objects persist until the next tick; ensure no unbounded queue growth during shutdown (drain queue in `Dispose()` best-effort when on render thread).
+- **Shutdown order:** mod disposal may happen when GL context is already gone; queued deletes must be best-effort and tolerate failure.
