@@ -33,13 +33,13 @@ void main(void)
     vec3 upWS = normalize((invViewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
     vec3 viewZWS = normalize((invViewMatrix * vec4(0.0, 0.0, 1.0, 0.0)).xyz);
 
-    // Camera-facing sphere normal for *shape* only.
+    // Camera-facing sphere normal in world space.
     vec3 N = normalize(rightWS * p.x + upWS * p.y + viewZWS * z);
 
     // For probe visualization, sample irradiance using a stable world-space normal.
     // Using the per-fragment sphere normal makes the underside of probes (near the ground) look black
     // even when the probe's overall lighting is reasonable.
-    vec3 Nsample = vec3(0.0, 1.0, 0.0);
+    vec3 Nsample = N; //vec3(0.0, 1.0, 0.0);
 
     ivec2 ac = ivec2(floor(vAtlasCoord + vec2(0.5)));
     vec4 t0 = texelFetch(worldProbeSH0, ac, 0);
