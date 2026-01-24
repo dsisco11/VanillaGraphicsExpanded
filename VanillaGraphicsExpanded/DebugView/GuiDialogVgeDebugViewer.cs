@@ -1,0 +1,598 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+using VanillaGraphicsExpanded.ModSystems;
+
+using Vintagestory.API.Client;
+using Vintagestory.API.Common;
+using Vintagestory.API.MathTools;
+
+namespace VanillaGraphicsExpanded.DebugView;
+
+public sealed class GuiDialogVgeDebugViewer : GuiDialog
+{
+    private const string AllCategory = "All";
+
+    private const string CategoryDropDownKey = "category";
+    private const string ViewListMenuKey = "viewlist";
+    private const string ViewTitleTextKey = "viewtitle";
+    private const string ViewDescriptionTextKey = "viewdesc";
+    private const string ViewStatusTextKey = "viewstatus";
+    private const string ViewErrorTextKey = "viewerror";
+    private const string ActivateButtonKey = "activate";
+
+    private const double DialogWidth = 920;
+    private const double DialogHeight = 620;
+
+    private const double LeftColumnWidth = 320;
+    private const double ColumnGap = 20;
+
+    private const double RowH = 30;
+    private const double GapY = 10;
+
+    private readonly DebugViewRegistry registry;
+    private readonly DebugViewController controller;
+
+    private string selectedCategory = AllCategory;
+    private string? selectedViewId;
+
+    private IDebugViewPanel? panel;
+    private string? panelViewId;
+    private long panelTickListenerId;
+
+    private string? lastError;
+
+    public GuiDialogVgeDebugViewer(
+        ICoreClientAPI capi,
+        DebugViewRegistry? registry = null,
+        DebugViewController? controller = null)
+        : base(capi)
+    {
+        this.registry = registry ?? DebugViewRegistry.Instance;
+        this.controller = controller ?? DebugViewController.Instance;
+
+        Compose();
+    }
+
+    public override string ToggleKeyCombinationCode => null!;
+
+    public override void OnGuiOpened()
+    {
+        base.OnGuiOpened();
+
+        controller.Initialize(CreateContext());
+
+        registry.Changed += OnRegistryChanged;
+        controller.StateChanged += OnControllerStateChanged;
+
+        EnsureListMenuOpen();
+        RefreshFromState();
+
+        SingleComposer?.FocusElement(0);
+
+        panel?.OnOpened();
+        TryStartPanelTick();
+    }
+
+    public override void OnGuiClosed()
+    {
+        base.OnGuiClosed();
+
+        registry.Changed -= OnRegistryChanged;
+        controller.StateChanged -= OnControllerStateChanged;
+
+        StopPanelTick();
+        panel?.OnClosed();
+    }
+
+    public override void Dispose()
+    {
+        try
+        {
+            registry.Changed -= OnRegistryChanged;
+            controller.StateChanged -= OnControllerStateChanged;
+        }
+        catch
+        {
+            // Ignore during shutdown.
+        }
+
+        try
+        {
+            panel?.Dispose();
+        }
+        catch
+        {
+            // Ignore during shutdown.
+        }
+        finally
+        {
+            panel = null;
+            panelViewId = null;
+            StopPanelTick();
+        }
+
+        base.Dispose();
+    }
+
+    public override void OnKeyDown(KeyEvent args)
+    {
+        base.OnKeyDown(args);
+
+        if (args.Handled)
+        {
+            return;
+        }
+
+        if (args.KeyCode == (int)GlKeys.Escape)
+        {
+            TryClose();
+            args.Handled = true;
+            return;
+        }
+
+        if (args.KeyCode == (int)GlKeys.Enter || args.KeyCode == (int)GlKeys.KeypadEnter)
+        {
+            _ = OnActivateClicked();
+            args.Handled = true;
+        }
+    }
+
+    private DebugViewActivationContext CreateContext()
+        => new DebugViewActivationContext(capi, ConfigModSystem.Config);
+
+    private void Compose()
+    {
+        ElementBounds bgBounds = ElementBounds.Fixed(0, 0, DialogWidth, DialogHeight)
+            .WithFixedPadding(GuiStyle.ElementToDialogPadding);
+
+        ElementBounds dialogBounds = bgBounds
+            .ForkBoundingParent()
+            .WithAlignment(EnumDialogArea.CenterMiddle)
+            .WithFixedAlignmentOffset(GuiStyle.DialogToScreenPadding, 0);
+
+        var fontLabel = CairoFont.WhiteDetailText();
+        var fontSmall = CairoFont.WhiteSmallText();
+
+        double pad = GuiStyle.ElementToDialogPadding;
+        double innerW = Math.Max(1, DialogWidth - pad * 2);
+        double innerH = Math.Max(1, DialogHeight - pad * 2);
+
+        double rightX = LeftColumnWidth + ColumnGap;
+        double rightW = Math.Max(1, innerW - rightX);
+
+        string[] categories = BuildCategoryList();
+        int selectedCategoryIndex = Math.Max(0, Array.IndexOf(categories, selectedCategory));
+
+        DebugViewDefinition[] filteredViews = GetFilteredViews(selectedCategory);
+        int selectedViewIndex = GetSelectedViewIndex(filteredViews);
+        DebugViewDefinition? selectedView = selectedViewIndex >= 0 && selectedViewIndex < filteredViews.Length ? filteredViews[selectedViewIndex] : null;
+
+        EnsurePanelForSelection(selectedView);
+
+        string[] viewValues = filteredViews.Select(v => v.Id).ToArray();
+        string[] viewNames = filteredViews.Select(v => BuildListEntryName(v)).ToArray();
+
+        // Main layout
+        ElementBounds catLabelBounds = ElementBounds.Fixed(0, 0, LeftColumnWidth, RowH);
+        ElementBounds catDropBounds = ElementBounds.Fixed(0, RowH, LeftColumnWidth, RowH);
+
+        double listY = RowH * 2 + GapY;
+        double listH = Math.Max(100, innerH - listY);
+        ElementBounds listBounds = ElementBounds.Fixed(0, listY, LeftColumnWidth, listH);
+
+        ElementBounds titleBounds = ElementBounds.Fixed(rightX, 0, rightW, RowH);
+        ElementBounds statusBounds = ElementBounds.Fixed(rightX, RowH, rightW, RowH);
+        ElementBounds descBounds = ElementBounds.Fixed(rightX, RowH * 2, rightW, 120);
+
+        ElementBounds buttonBounds = ElementBounds.Fixed(rightX, RowH * 2 + 120 + GapY, 160, RowH);
+        ElementBounds errorBounds = ElementBounds.Fixed(rightX, RowH * 2 + 120 + GapY + RowH + GapY, rightW, 60);
+
+        double panelY = RowH * 2 + 120 + GapY + RowH + GapY + 60 + GapY;
+        double panelH = Math.Max(0, innerH - panelY);
+        ElementBounds panelTitleBounds = ElementBounds.Fixed(rightX, panelY, rightW, RowH);
+        ElementBounds panelBounds = ElementBounds.Fixed(rightX, panelY + RowH + GapY, rightW, Math.Max(0, panelH - RowH - GapY));
+
+        SingleComposer?.Dispose();
+        var composer = capi.Gui
+            .CreateCompo("vge-debug-viewer", dialogBounds)
+            .AddShadedDialogBG(bgBounds, true)
+            .AddDialogTitleBar("VGE Debug Viewer", OnTitleBarClose)
+            .BeginChildElements(bgBounds)
+                // Left column: category + view list
+                .AddStaticText("Category", fontLabel, catLabelBounds)
+                .AddInteractiveElement(
+                    new GuiElementDropDownCycleOnArrow(
+                        capi,
+                        categories,
+                        categories,
+                        selectedCategoryIndex,
+                        OnCategoryChanged,
+                        catDropBounds,
+                        fontSmall),
+                    CategoryDropDownKey)
+                .AddInteractiveElement(
+                    new GuiElementListMenu(
+                        capi,
+                        viewValues.Length == 0 ? ["(none)"] : viewValues,
+                        viewNames.Length == 0 ? ["(no debug views registered)"] : viewNames,
+                        viewValues.Length == 0 ? 0 : Math.Max(0, selectedViewIndex),
+                        OnViewSelected,
+                        listBounds,
+                        fontSmall,
+                        multiSelect: false),
+                    ViewListMenuKey)
+
+                // Right column: selection details
+                .AddDynamicText("", fontLabel, titleBounds, ViewTitleTextKey)
+                .AddDynamicText("", fontSmall, statusBounds, ViewStatusTextKey)
+                .AddDynamicText("", fontSmall, descBounds, ViewDescriptionTextKey)
+                .AddButton("Activate", OnActivateClicked, buttonBounds, EnumButtonStyle.Normal, ActivateButtonKey)
+                .AddDynamicText("", fontSmall, errorBounds, ViewErrorTextKey)
+                .AddStaticText("Options", fontLabel, panelTitleBounds)
+        ;
+
+        panel?.Compose(composer, panelBounds, keyPrefix: "panel");
+
+        SingleComposer = composer
+            .EndChildElements()
+            .Compose();
+
+        EnsureListMenuOpen();
+
+        if (IsOpened())
+        {
+            TryStartPanelTick();
+        }
+
+        RefreshFromState();
+    }
+
+    private void RefreshFromState()
+    {
+        if (SingleComposer is null)
+        {
+            return;
+        }
+
+        DebugViewDefinition[] filtered = GetFilteredViews(selectedCategory);
+        int idx = GetSelectedViewIndex(filtered);
+        DebugViewDefinition? selected = idx >= 0 && idx < filtered.Length ? filtered[idx] : null;
+
+        var title = SingleComposer.GetDynamicText(ViewTitleTextKey);
+        var status = SingleComposer.GetDynamicText(ViewStatusTextKey);
+        var desc = SingleComposer.GetDynamicText(ViewDescriptionTextKey);
+        var err = SingleComposer.GetDynamicText(ViewErrorTextKey);
+        var activateBtn = SingleComposer.GetButton(ActivateButtonKey);
+
+        if (selected is null)
+        {
+            title.SetNewText("(No debug view selected)");
+            status.SetNewText(string.Empty);
+            desc.SetNewText(string.Empty);
+            err.SetNewText(string.Empty);
+            activateBtn.Enabled = false;
+            activateBtn.Text = "Activate";
+            return;
+        }
+
+        bool isActive = controller.IsActive(selected.Id);
+        DebugViewAvailability availability = selected.GetAvailability(CreateContext());
+
+        title.SetNewText(selected.Name);
+        desc.SetNewText(string.IsNullOrWhiteSpace(selected.Description) ? "(No description)" : selected.Description);
+
+        string availabilityText = availability.IsAvailable ? "Available" : $"Unavailable: {availability.Reason}";
+        string activeText = selected.ActivationMode == DebugViewActivationMode.Toggle
+            ? (isActive ? "Enabled" : "Disabled")
+            : (isActive ? "Active" : "Inactive");
+        status.SetNewText($"{selected.Category} | {activeText} | {availabilityText}");
+
+        if (!string.IsNullOrWhiteSpace(lastError))
+        {
+            err.SetNewText($"Error: {lastError}");
+        }
+        else
+        {
+            err.SetNewText(string.Empty);
+        }
+
+        activateBtn.Enabled = availability.IsAvailable;
+        activateBtn.Text = BuildActivateButtonText(selected, isActive);
+    }
+
+    private string[] BuildCategoryList()
+    {
+        DebugViewDefinition[] all = registry.GetAll();
+        if (all.Length == 0)
+        {
+            return [AllCategory];
+        }
+
+        var unique = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [AllCategory] = AllCategory
+        };
+
+        foreach (var v in all)
+        {
+            if (string.IsNullOrWhiteSpace(v.Category))
+            {
+                continue;
+            }
+
+            if (!unique.ContainsKey(v.Category))
+            {
+                unique[v.Category] = v.Category;
+            }
+        }
+
+        string[] cats = unique.Values.ToArray();
+        Array.Sort(cats, (a, b) =>
+        {
+            if (string.Equals(a, AllCategory, StringComparison.OrdinalIgnoreCase)) return -1;
+            if (string.Equals(b, AllCategory, StringComparison.OrdinalIgnoreCase)) return 1;
+            return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+        });
+
+        return cats;
+    }
+
+    private DebugViewDefinition[] GetFilteredViews(string category)
+    {
+        DebugViewDefinition[] all = registry.GetAll();
+        if (all.Length == 0)
+        {
+            return [];
+        }
+
+        if (string.IsNullOrWhiteSpace(category) || string.Equals(category, AllCategory, StringComparison.OrdinalIgnoreCase))
+        {
+            return all;
+        }
+
+        return all.Where(v => string.Equals(v.Category, category, StringComparison.OrdinalIgnoreCase)).ToArray();
+    }
+
+    private int GetSelectedViewIndex(DebugViewDefinition[] filtered)
+    {
+        if (filtered.Length == 0)
+        {
+            selectedViewId = null;
+            return -1;
+        }
+
+        if (!string.IsNullOrWhiteSpace(selectedViewId))
+        {
+            for (int i = 0; i < filtered.Length; i++)
+            {
+                if (string.Equals(filtered[i].Id, selectedViewId, StringComparison.Ordinal))
+                {
+                    return i;
+                }
+            }
+        }
+
+        selectedViewId = filtered[0].Id;
+        return 0;
+    }
+
+    private string BuildListEntryName(DebugViewDefinition view)
+    {
+        bool isActive = controller.IsActive(view.Id);
+        DebugViewAvailability availability = view.GetAvailability(CreateContext());
+
+        string activePrefix = isActive ? "[*] " : "    ";
+        string unavailableSuffix = availability.IsAvailable ? string.Empty : " (unavailable)";
+
+        return $"{activePrefix}{view.Name}{unavailableSuffix}";
+    }
+
+    private static string BuildActivateButtonText(DebugViewDefinition view, bool isActive)
+    {
+        if (view.ActivationMode == DebugViewActivationMode.Toggle)
+        {
+            return isActive ? "Disable" : "Enable";
+        }
+
+        return isActive ? "Deactivate" : "Activate";
+    }
+
+    private void EnsurePanelForSelection(DebugViewDefinition? selectedView)
+    {
+        string? id = selectedView?.Id;
+        if (string.Equals(panelViewId, id, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (panel is not null)
+        {
+            if (IsOpened())
+            {
+                panel.OnClosed();
+            }
+
+            panel.Dispose();
+        }
+
+        panel = null;
+        panelViewId = null;
+        StopPanelTick();
+
+        if (selectedView?.CreatePanel is null)
+        {
+            return;
+        }
+
+        try
+        {
+            panel = selectedView.CreatePanel(CreateContext());
+            panelViewId = selectedView.Id;
+
+            if (IsOpened() && panel is not null)
+            {
+                panel.OnOpened();
+                TryStartPanelTick();
+            }
+        }
+        catch (Exception ex)
+        {
+            lastError = ex.Message;
+            panel = null;
+            panelViewId = null;
+        }
+    }
+
+    private void TryStartPanelTick()
+    {
+        if (panelTickListenerId != 0)
+        {
+            return;
+        }
+
+        if (panel is null || !panel.WantsGameTick)
+        {
+            return;
+        }
+
+        panelTickListenerId = capi.Event.RegisterGameTickListener(dt =>
+        {
+            try
+            {
+                panel?.OnGameTick(dt);
+            }
+            catch
+            {
+                // Ignore panel tick exceptions.
+            }
+        }, 200);
+    }
+
+    private void StopPanelTick()
+    {
+        if (panelTickListenerId == 0)
+        {
+            return;
+        }
+
+        capi.Event.UnregisterGameTickListener(panelTickListenerId);
+        panelTickListenerId = 0;
+    }
+
+    private void EnsureListMenuOpen()
+    {
+        if (SingleComposer is null)
+        {
+            return;
+        }
+
+        if (SingleComposer.GetElement(ViewListMenuKey) is not GuiElementListMenu listMenu)
+        {
+            return;
+        }
+
+        if (!listMenu.IsOpened)
+        {
+            listMenu.Open();
+        }
+    }
+
+    private void OnRegistryChanged()
+    {
+        if (!IsOpened())
+        {
+            return;
+        }
+
+        capi.Event.EnqueueMainThreadTask(() =>
+        {
+            if (IsOpened())
+            {
+                Compose();
+            }
+        }, "vge:debugviewer:registry-changed");
+    }
+
+    private void OnControllerStateChanged()
+    {
+        if (!IsOpened())
+        {
+            return;
+        }
+
+        capi.Event.EnqueueMainThreadTask(() =>
+        {
+            if (IsOpened())
+            {
+                Compose();
+            }
+        }, "vge:debugviewer:state-changed");
+    }
+
+    private void OnTitleBarClose()
+    {
+        TryClose();
+    }
+
+    private void OnCategoryChanged(string code, bool selected)
+    {
+        if (!selected)
+        {
+            return;
+        }
+
+        selectedCategory = string.IsNullOrWhiteSpace(code) ? AllCategory : code;
+        lastError = null;
+        Compose();
+    }
+
+    private void OnViewSelected(string code, bool selected)
+    {
+        if (!selected)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(code) || code == "(none)")
+        {
+            return;
+        }
+
+        selectedViewId = code;
+        lastError = null;
+        Compose();
+    }
+
+    private bool OnActivateClicked()
+    {
+        if (string.IsNullOrWhiteSpace(selectedViewId))
+        {
+            return true;
+        }
+
+        DebugViewDefinition[] filtered = GetFilteredViews(selectedCategory);
+        DebugViewDefinition? selected = filtered.FirstOrDefault(v => string.Equals(v.Id, selectedViewId, StringComparison.Ordinal));
+
+        if (selected is null)
+        {
+            return true;
+        }
+
+        bool isActive = controller.IsActive(selected.Id);
+
+        if (selected.ActivationMode == DebugViewActivationMode.Exclusive && isActive)
+        {
+            _ = controller.TryDeactivateExclusive(out _);
+            lastError = null;
+            Compose();
+            return true;
+        }
+
+        bool ok = controller.TryActivate(selected.Id, out string? err);
+        lastError = ok ? null : err;
+        Compose();
+        return true;
+    }
+}

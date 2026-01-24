@@ -98,19 +98,20 @@ VGE - Debug Viewer Refactor (Debug View Registry + Unified UI):
 
   Phase 3 - Unified Debug Viewer UI:
   Exit artifacts: A single dialog that lists + filters by category + activates debug views.
-  ☐ Add new `GuiDialogVgeDebugViewer` (replaces `GuiDialogVgeDebugView`):
+  ✔ Add new `GuiDialogVgeDebugViewer` (replaces `GuiDialogVgeDebugView`):
     - Left: category dropdown + scroll list of views
     - Right: selected view details (name/category/description) + activate/deactivate controls
     - Optional sub-panel host area (selected view’s panel, if any)
-  ☐ UX details:
+    - Implemented in: `VanillaGraphicsExpanded/DebugView/GuiDialogVgeDebugViewer.cs`
+  ✔ UX details:
     - Show which view is currently active
     - Handle “unavailable” views (disabled button + reason)
     - Keyboard navigation: Up/Down in list, Enter to activate, Esc to close
-  ☐ Refresh plumbing:
+  ✔ Refresh plumbing:
     - Rebuild list on registry changes or category change
     - If using recomposition: preserve selection where possible
   ☐ Move GPU-profiler refresh behavior to panel lifecycle:
-    - Register/unregister tick listener inside the panel or dialog based on visibility
+    - Panel lifecycle + tick plumbing exists in `GuiDialogVgeDebugViewer`; migrate the profiler panel in Phase 4
 
 
   Phase 4 - Migrate Existing Debug Functionality to Registered Views:
