@@ -52,7 +52,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
 
     private static bool initialized;
     private static GpuVao? vao;
-    private static GBuffer? scratchFbo;
+    private static GpuFramebuffer? scratchFbo;
     private const int MaxDebugTilesPerPage = 3;
     private const int FlatnessSampleStride = 128;
     private const float FlatnessVarianceEpsilon = 0.0025f;
@@ -122,7 +122,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         // Save minimal GL state.
         int[] prevViewport = new int[4];
         GL.GetInteger(GetPName.Viewport, prevViewport);
-        int prevFbo = GBuffer.SaveBinding();
+        int prevFbo = GpuFramebuffer.SaveBinding();
         GL.GetInteger(GetPName.VertexArrayBinding, out int prevVao);
         GL.GetInteger(GetPName.CurrentProgram, out int prevProgram);
         GL.GetInteger(GetPName.ActiveTexture, out int prevActiveTex);
@@ -459,7 +459,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
 
             GL.UseProgram(prevProgram);
             GL.BindVertexArray(prevVao);
-                GBuffer.RestoreBinding(prevFbo);
+                GpuFramebuffer.RestoreBinding(prevFbo);
             GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
 
             GL.ActiveTexture((TextureUnit)prevActiveTex);
@@ -499,7 +499,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
 
         int[] prevViewport = new int[4];
         GL.GetInteger(GetPName.Viewport, prevViewport);
-        int prevFbo = GBuffer.SaveBinding();
+        int prevFbo = GpuFramebuffer.SaveBinding();
         GL.GetInteger(GetPName.VertexArrayBinding, out int prevVao);
         GL.GetInteger(GetPName.CurrentProgram, out int prevProgram);
         GL.GetInteger(GetPName.ActiveTexture, out int prevActiveTex);
@@ -535,7 +535,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
 
             GL.UseProgram(prevProgram);
             GL.BindVertexArray(prevVao);
-            GBuffer.RestoreBinding(prevFbo);
+            GpuFramebuffer.RestoreBinding(prevFbo);
             GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
 
             GL.ActiveTexture((TextureUnit)prevActiveTex);
@@ -594,7 +594,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
 
         int[] prevViewport = new int[4];
         GL.GetInteger(GetPName.Viewport, prevViewport);
-        int prevFbo = GBuffer.SaveBinding();
+        int prevFbo = GpuFramebuffer.SaveBinding();
         GL.GetInteger(GetPName.VertexArrayBinding, out int prevVao);
         GL.GetInteger(GetPName.CurrentProgram, out int prevProgram);
         GL.GetInteger(GetPName.ActiveTexture, out int prevActiveTex);
@@ -699,7 +699,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
 
             GL.UseProgram(prevProgram);
             GL.BindVertexArray(prevVao);
-            GBuffer.RestoreBinding(prevFbo);
+            GpuFramebuffer.RestoreBinding(prevFbo);
             GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
 
             GL.ActiveTexture((TextureUnit)prevActiveTex);
@@ -772,7 +772,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
 
         // Minimal GL objects.
         vao = GpuVao.Create("VGE_MaterialAtlasNormalDepthBake_VAO");
-        scratchFbo = GBuffer.Wrap(GL.GenFramebuffer(), debugName: "vge_bake_scratch");
+        scratchFbo = GpuFramebuffer.Wrap(GL.GenFramebuffer(), debugName: "vge_bake_scratch");
 
         // Compile all programs using VGE's shader pipeline (imports, diagnostics, debug labels).
         // Each pass shares the same fullscreen vertex stage, but has its own fragment stage.

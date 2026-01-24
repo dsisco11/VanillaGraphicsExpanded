@@ -33,7 +33,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
 
     private MeshRef? quadMeshRef;
 
-    private GBuffer? compositeFbo;
+    private GpuFramebuffer? compositeFbo;
     private DynamicTexture2D? compositeColorTex;
 
     private readonly float[] invProjectionMatrix = new float[16];
@@ -110,7 +110,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
                 return;
             }
 
-            compositeFbo = GBuffer.CreateSingle(compositeColorTex, depthTexture: null, ownsTextures: false, debugName: "PBRCompositeFBO");
+            compositeFbo = GpuFramebuffer.CreateSingle(compositeColorTex, depthTexture: null, ownsTextures: false, debugName: "PBRCompositeFBO");
             if (compositeFbo is null || !compositeFbo.IsValid)
             {
                 compositeFbo?.Dispose();

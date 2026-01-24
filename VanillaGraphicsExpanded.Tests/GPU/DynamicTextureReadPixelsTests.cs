@@ -21,7 +21,7 @@ public sealed class DynamicTextureReadPixelsTests : RenderTestBase
         EnsureContextValid();
 
         using var tex = DynamicTexture2D.Create(8, 8, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var fbo = GBuffer.CreateSingle(tex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create GBuffer");
+        using var fbo = GpuFramebuffer.CreateSingle(tex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create GBuffer");
 
         fbo.Bind();
         GL.Viewport(0, 0, tex.Width, tex.Height);
@@ -30,7 +30,7 @@ public sealed class DynamicTextureReadPixelsTests : RenderTestBase
         GL.ClearColor(0.25f, 0f, 0f, 0f);
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
 
         float[] pixels = tex.ReadPixels();
         Assert.Equal(tex.Width * tex.Height * 1, pixels.Length);
@@ -55,7 +55,7 @@ public sealed class DynamicTextureReadPixelsTests : RenderTestBase
         EnsureContextValid();
 
         using var tex = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
-        using var fbo = GBuffer.CreateSingle(tex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create GBuffer");
+        using var fbo = GpuFramebuffer.CreateSingle(tex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create GBuffer");
 
         fbo.Bind();
         GL.Viewport(0, 0, tex.Width, tex.Height);
@@ -63,7 +63,7 @@ public sealed class DynamicTextureReadPixelsTests : RenderTestBase
         GL.ClearColor(0.1f, 0.2f, 0.3f, 0.4f);
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
 
         float[] pixels = tex.ReadPixels();
         Assert.Equal(tex.Width * tex.Height * 4, pixels.Length);

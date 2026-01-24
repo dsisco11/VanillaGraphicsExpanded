@@ -39,7 +39,7 @@ public sealed class DirectLightingBufferManager : IDisposable
     private DynamicTexture2D? emissiveTex;
 
     // Framebuffer for MRT output
-    private GBuffer? directLightingFbo;
+    private GpuFramebuffer? directLightingFbo;
 
     private bool isInitialized;
 
@@ -89,7 +89,7 @@ public sealed class DirectLightingBufferManager : IDisposable
     /// Framebuffer for direct lighting MRT output.
     /// Attachment0 = DirectDiffuse, Attachment1 = DirectSpecular, Attachment2 = Emissive.
     /// </summary>
-    public GBuffer? DirectLightingFbo => directLightingFbo;
+    public GpuFramebuffer? DirectLightingFbo => directLightingFbo;
 
     #endregion
 
@@ -144,7 +144,7 @@ public sealed class DirectLightingBufferManager : IDisposable
     /// </summary>
     public void Unbind()
     {
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
     }
 
     /// <summary>
@@ -163,7 +163,7 @@ public sealed class DirectLightingBufferManager : IDisposable
         GL.ClearBuffer(ClearBuffer.Color, 1, clearColor); // DirectSpecular
         GL.ClearBuffer(ClearBuffer.Color, 2, clearColor); // Emissive
 
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
     }
 
     #endregion
@@ -193,7 +193,7 @@ public sealed class DirectLightingBufferManager : IDisposable
         }
 
         // Create MRT framebuffer
-        directLightingFbo = GBuffer.CreateMRT(
+        directLightingFbo = GpuFramebuffer.CreateMRT(
             [directDiffuseTex, directSpecularTex, emissiveTex],
             depthTexture: null,
             ownsTextures: false,
@@ -209,7 +209,7 @@ public sealed class DirectLightingBufferManager : IDisposable
         // Verify FBO completeness
         directLightingFbo.Bind();
         var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
 
         if (status != FramebufferErrorCode.FramebufferComplete)
         {

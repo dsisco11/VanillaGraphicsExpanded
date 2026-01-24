@@ -21,7 +21,7 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
 
     private readonly Texture2D debugState0;
 
-    private readonly GBuffer fbo;
+    private readonly GpuFramebuffer fbo;
 
     public int Resolution => resolution;
     public int Levels => levels;
@@ -70,7 +70,7 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
         // R=stale, G=in-flight, B=valid, A=1.
         debugState0 = Texture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16, TextureFilterMode.Nearest, "WorldProbe_DebugState0");
 
-        fbo = GBuffer.CreateMRT(
+        fbo = GpuFramebuffer.CreateMRT(
             "WorldProbe_ClipmapFbo",
             sh0,
             sh1,
@@ -93,7 +93,7 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
         ClearAll();
     }
 
-    public GBuffer GetFbo() => fbo;
+    public GpuFramebuffer GetFbo() => fbo;
 
     public void UploadDebugState0(ushort[] data)
     {
@@ -107,7 +107,7 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
         GL.Viewport(0, 0, AtlasWidth, AtlasHeight);
         GL.ClearColor(0, 0, 0, 0);
         GL.Clear(ClearBufferMask.ColorBufferBit);
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
     }
 
     public void Dispose()

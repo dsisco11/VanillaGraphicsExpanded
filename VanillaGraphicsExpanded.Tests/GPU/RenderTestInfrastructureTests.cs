@@ -107,7 +107,7 @@ public class RenderTestInfrastructureTests : RenderTestBase
         gBuffer.Bind();
         AssertNoGLError("Bind");
 
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
         AssertNoGLError("Unbind");
     }
 
@@ -125,7 +125,7 @@ public class RenderTestInfrastructureTests : RenderTestBase
         gBuffer.Clear(1.0f, 0.5f, 0.25f, 1.0f);
         AssertNoGLError("Clear");
         
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
         AssertNoGLError("Unbind");
 
         // Verify cleared color
@@ -176,7 +176,7 @@ void main() {
         RenderFullscreenQuad(programId);
         AssertNoGLError("RenderFullscreenQuad");
 
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
 
         // Verify output - top-right corner should have high UV values
         var (r, g, _, _) = ReadPixel(gBuffer, 63, 63);
@@ -206,7 +206,7 @@ void main() {
         // Clear to a known color
         gBuffer.Bind();
         gBuffer.Clear(0.25f, 0.5f, 0.75f, 1.0f);
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
 
         var pixels = ReadPixelsFloat(gBuffer);
 
@@ -230,7 +230,7 @@ void main() {
         // Clear to a known color (roughly 64, 128, 192, 255 in byte values)
         gBuffer.Bind();
         gBuffer.Clear(0.25f, 0.5f, 0.75f, 1.0f);
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
 
         var pixels = ReadPixelsByte(gBuffer);
 
@@ -251,7 +251,7 @@ void main() {
         using var gBuffer = CreateRenderTarget(8, 8, PixelInternalFormat.Rgba16f);
         gBuffer.Bind();
         gBuffer.Clear(0.1f, 0.2f, 0.3f, 0.4f);
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
 
         var (r, g, b, a) = ReadPixel(gBuffer, 4, 4);
 

@@ -789,7 +789,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         Assert.Equal(expectedTexture.TextureId, boundTexId);
     }
 
-    private static void AssertGBufferFboAttachments(string stage, GBuffer target)
+    private static void AssertGBufferFboAttachments(string stage, GpuFramebuffer target)
     {
         ArgumentNullException.ThrowIfNull(target);
         Assert.True(target.IsValid, $"{stage}: target GBuffer is invalid/disposed");
@@ -822,7 +822,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 expectedHeight: expected.Height);
         }
 
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
     }
 
     private static void AssertFboColorAttachment0(string stage, int expectedTextureId, int expectedMipLevel)

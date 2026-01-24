@@ -406,7 +406,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         return program;
     }
 
-    private static (float R, float G, float B, float A) ReadPixelFromAttachment(GBuffer target, int attachmentIndex)
+    private static (float R, float G, float B, float A) ReadPixelFromAttachment(GpuFramebuffer target, int attachmentIndex)
     {
         GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, target.FboId);
         GL.ReadBuffer((ReadBufferMode)((int)ReadBufferMode.ColorAttachment0 + attachmentIndex));
@@ -431,7 +431,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
 
     private void RenderDirectLighting(
         int programId,
-        GBuffer output,
+        GpuFramebuffer output,
         DynamicTexture2D primaryScene,
         DynamicTexture2D primaryDepth,
         DynamicTexture2D gBufferNormal,
@@ -507,12 +507,12 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         TestFramework.RenderQuad(programId);
 
         GL.UseProgram(0);
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
     }
 
     private void RenderComposite(
         int programId,
-        GBuffer output,
+        GpuFramebuffer output,
         DynamicTexture2D directDiffuse,
         DynamicTexture2D directSpecular,
         DynamicTexture2D emissive,
@@ -569,7 +569,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         TestFramework.RenderQuad(programId);
 
         GL.UseProgram(0);
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
     }
 
     private static void BindSampler(int programId, string name, int unit, int textureId)

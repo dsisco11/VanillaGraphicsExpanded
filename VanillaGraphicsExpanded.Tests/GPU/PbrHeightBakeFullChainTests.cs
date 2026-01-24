@@ -613,7 +613,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
     private void RenderTo(DynamicTexture2D dst, int programId, Action setup)
     {
-        using var fbo = GBuffer.CreateSingle(dst, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
+        using var fbo = GpuFramebuffer.CreateSingle(dst, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
 
         fbo.Bind();
         GL.Viewport(0, 0, dst.Width, dst.Height);
@@ -629,7 +629,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         RenderFullscreenQuad();
 
         GL.UseProgram(0);
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
     }
 
     private void RunGaussian1D(DynamicTexture2D src, DynamicTexture2D dst, int programId, float sigma, bool dirX)
@@ -685,12 +685,12 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
     private void ClearR32f(DynamicTexture2D tex, float value)
     {
-        using var fbo = GBuffer.CreateSingle(tex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
+        using var fbo = GpuFramebuffer.CreateSingle(tex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
         fbo.Bind();
         GL.Viewport(0, 0, tex.Width, tex.Height);
         GL.ClearColor(value, 0f, 0f, 0f);
         GL.Clear(ClearBufferMask.ColorBufferBit);
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
     }
 
     private static float MeanR32f(DynamicTexture2D tex)

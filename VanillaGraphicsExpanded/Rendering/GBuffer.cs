@@ -26,7 +26,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// fbo.Unbind();
 /// </code>
 /// </remarks>
-public sealed class GBuffer : IDisposable
+public sealed class GpuFramebuffer : IDisposable
 {
     #region Fields
 
@@ -100,7 +100,7 @@ public sealed class GBuffer : IDisposable
 
     #region Constructor (private - use factory methods)
 
-    private GBuffer(bool ownsTextures)
+    private GpuFramebuffer(bool ownsTextures)
     {
         colorAttachments = [];
         this.ownsTextures = ownsTextures;
@@ -117,7 +117,7 @@ public sealed class GBuffer : IDisposable
     /// <param name="depthTexture">Optional depth texture to attach.</param>
     /// <param name="ownsTextures">If true, textures will be disposed when the GBuffer is disposed.</param>
     /// <returns>A new GBuffer instance.</returns>
-    public static GBuffer? CreateSingle(
+    public static GpuFramebuffer? CreateSingle(
         DynamicTexture2D? colorTexture,
         DynamicTexture2D? depthTexture = null,
         bool ownsTextures = false,
@@ -129,7 +129,7 @@ public sealed class GBuffer : IDisposable
             return null;
         }
 
-        var buffer = new GBuffer(ownsTextures);
+        var buffer = new GpuFramebuffer(ownsTextures);
         buffer.colorAttachments.Add(colorTexture);
         buffer.depthAttachment = depthTexture;
         buffer.debugName = debugName;
@@ -145,7 +145,7 @@ public sealed class GBuffer : IDisposable
     /// <param name="depthTexture">Optional depth texture to attach.</param>
     /// <param name="ownsTextures">If true, textures will be disposed when the GBuffer is disposed.</param>
     /// <returns>A new GBuffer instance.</returns>
-    public static GBuffer? CreateMRT(
+    public static GpuFramebuffer? CreateMRT(
         DynamicTexture2D[]? colorTextures,
         DynamicTexture2D? depthTexture = null,
         bool ownsTextures = false,
@@ -173,7 +173,7 @@ public sealed class GBuffer : IDisposable
             return null;
         }
 
-        var buffer = new GBuffer(ownsTextures);
+        var buffer = new GpuFramebuffer(ownsTextures);
         buffer.colorAttachments.AddRange(validTextures);
         buffer.depthAttachment = depthTexture;
         buffer.debugName = debugName;
@@ -187,12 +187,12 @@ public sealed class GBuffer : IDisposable
     /// </summary>
     /// <param name="colorTextures">Color textures to attach.</param>
     /// <returns>A new GBuffer instance.</returns>
-    public static GBuffer? CreateMRT(params DynamicTexture2D[] colorTextures)
+    public static GpuFramebuffer? CreateMRT(params DynamicTexture2D[] colorTextures)
     {
         return CreateMRT(colorTextures, null, false);
     }
 
-    public static GBuffer? CreateMRT(string? debugName, params DynamicTexture2D[] colorTextures)
+    public static GpuFramebuffer? CreateMRT(string? debugName, params DynamicTexture2D[] colorTextures)
     {
         return CreateMRT(colorTextures, null, false, debugName);
     }
@@ -203,7 +203,7 @@ public sealed class GBuffer : IDisposable
     /// <param name="depthTexture">The depth texture to attach.</param>
     /// <param name="ownsTextures">If true, texture will be disposed when the GBuffer is disposed.</param>
     /// <returns>A new GBuffer instance.</returns>
-    public static GBuffer? CreateDepthOnly(
+    public static GpuFramebuffer? CreateDepthOnly(
         DynamicTexture2D? depthTexture,
         bool ownsTextures = false,
         string? debugName = null)
@@ -220,7 +220,7 @@ public sealed class GBuffer : IDisposable
             return null;
         }
 
-        var buffer = new GBuffer(ownsTextures);
+        var buffer = new GpuFramebuffer(ownsTextures);
         buffer.depthAttachment = depthTexture;
         buffer.debugName = debugName;
         buffer.CreateFramebuffer();
@@ -234,9 +234,9 @@ public sealed class GBuffer : IDisposable
     /// </summary>
     /// <param name="existingFboId">The existing FBO ID to wrap.</param>
     /// <returns>A GBuffer wrapper (does not own the FBO).</returns>
-    public static GBuffer Wrap(int existingFboId, string? debugName = null)
+    public static GpuFramebuffer Wrap(int existingFboId, string? debugName = null)
     {
-        var buffer = new GBuffer(ownsTextures: false)
+        var buffer = new GpuFramebuffer(ownsTextures: false)
         {
             fboId = existingFboId,
             debugName = debugName
@@ -514,7 +514,7 @@ public sealed class GBuffer : IDisposable
     /// <param name="source">Source GBuffer to copy from.</param>
     /// <param name="mask">Buffer mask to copy (Color, Depth, or Stencil).</param>
     /// <param name="filter">Blit filter (Nearest or Linear).</param>
-    public void BlitFrom(GBuffer source,
+    public void BlitFrom(GpuFramebuffer source,
         ClearBufferMask mask = ClearBufferMask.ColorBufferBit,
         BlitFramebufferFilter filter = BlitFramebufferFilter.Nearest)
     {
@@ -561,7 +561,7 @@ public sealed class GBuffer : IDisposable
     /// <param name="dest">Destination GBuffer.</param>
     /// <param name="mask">Buffer mask to copy.</param>
     /// <param name="filter">Blit filter.</param>
-    public void BlitTo(GBuffer dest,
+    public void BlitTo(GpuFramebuffer dest,
         ClearBufferMask mask = ClearBufferMask.ColorBufferBit,
         BlitFramebufferFilter filter = BlitFramebufferFilter.Nearest)
     {
@@ -799,7 +799,7 @@ public sealed class GBuffer : IDisposable
     /// <summary>
     /// Allows implicit conversion to int for use with existing APIs expecting FBO IDs.
     /// </summary>
-    public static implicit operator int(GBuffer buffer)
+    public static implicit operator int(GpuFramebuffer buffer)
     {
         return buffer?.fboId ?? 0;
     }

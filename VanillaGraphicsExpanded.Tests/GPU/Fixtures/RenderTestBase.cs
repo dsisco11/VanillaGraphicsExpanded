@@ -69,11 +69,11 @@ public abstract class RenderTestBase : IDisposable
     /// <param name="height">Height in pixels.</param>
     /// <param name="format">Internal format (e.g., PixelInternalFormat.Rgba16f).</param>
     /// <returns>A disposable GBuffer instance that owns its texture.</returns>
-    protected GBuffer CreateRenderTarget(int width, int height, PixelInternalFormat format)
+    protected GpuFramebuffer CreateRenderTarget(int width, int height, PixelInternalFormat format)
     {
         EnsureContextValid();
         var texture = DynamicTexture2D.Create(width, height, format);
-        var gBuffer = GBuffer.CreateSingle(texture, ownsTextures: true);
+        var gBuffer = GpuFramebuffer.CreateSingle(texture, ownsTextures: true);
         return gBuffer ?? throw new InvalidOperationException("Failed to create GBuffer");
     }
 
@@ -84,7 +84,7 @@ public abstract class RenderTestBase : IDisposable
     /// <param name="height">Height in pixels.</param>
     /// <param name="formats">Internal formats for each color attachment.</param>
     /// <returns>A disposable GBuffer instance that owns its textures.</returns>
-    protected GBuffer CreateMRTRenderTarget(int width, int height, params PixelInternalFormat[] formats)
+    protected GpuFramebuffer CreateMRTRenderTarget(int width, int height, params PixelInternalFormat[] formats)
     {
         EnsureContextValid();
         var textures = new DynamicTexture2D[formats.Length];
@@ -92,7 +92,7 @@ public abstract class RenderTestBase : IDisposable
         {
             textures[i] = DynamicTexture2D.Create(width, height, formats[i]);
         }
-        var gBuffer = GBuffer.CreateMRT(textures, ownsTextures: true);
+        var gBuffer = GpuFramebuffer.CreateMRT(textures, ownsTextures: true);
         return gBuffer ?? throw new InvalidOperationException("Failed to create MRT GBuffer");
     }
 
@@ -183,7 +183,7 @@ public abstract class RenderTestBase : IDisposable
     /// </summary>
     /// <param name="gBuffer">The GBuffer to read from.</param>
     /// <returns>Array of RGBA float values (4 floats per pixel).</returns>
-    protected float[] ReadPixelsFloat(GBuffer gBuffer)
+    protected float[] ReadPixelsFloat(GpuFramebuffer gBuffer)
     {
         EnsureContextValid();
 
@@ -202,7 +202,7 @@ public abstract class RenderTestBase : IDisposable
     /// </summary>
     /// <param name="gBuffer">The GBuffer to read from.</param>
     /// <returns>Array of RGBA byte values (4 bytes per pixel).</returns>
-    protected byte[] ReadPixelsByte(GBuffer gBuffer)
+    protected byte[] ReadPixelsByte(GpuFramebuffer gBuffer)
     {
         EnsureContextValid();
 
@@ -223,7 +223,7 @@ public abstract class RenderTestBase : IDisposable
     /// <param name="x">X coordinate.</param>
     /// <param name="y">Y coordinate.</param>
     /// <returns>RGBA float values for the pixel.</returns>
-    protected (float R, float G, float B, float A) ReadPixel(GBuffer gBuffer, int x, int y)
+    protected (float R, float G, float B, float A) ReadPixel(GpuFramebuffer gBuffer, int x, int y)
     {
         EnsureContextValid();
 

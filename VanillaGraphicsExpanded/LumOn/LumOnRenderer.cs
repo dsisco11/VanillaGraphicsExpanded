@@ -726,7 +726,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (copy is null || down is null || copy.LoadError || down.LoadError)
             return;
 
-        int previousFbo = Rendering.GBuffer.SaveBinding();
+        int previousFbo = Rendering.GpuFramebuffer.SaveBinding();
 
         var hzb = bufferManager.HzbDepthTex;
         int fboId = bufferManager.HzbFboId;
@@ -764,7 +764,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         down.Stop();
 
-        Rendering.GBuffer.RestoreBinding(previousFbo);
+        Rendering.GpuFramebuffer.RestoreBinding(previousFbo);
         GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
     }
 

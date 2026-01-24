@@ -144,7 +144,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         vbo.UploadData(data);
 
         GL.DrawArrays(PrimitiveType.Points, 0, data.Length);
-        Rendering.GBuffer.Unbind();
+        Rendering.GpuFramebuffer.Unbind();
         prog.Stop();
 
         return data.Length;

@@ -461,7 +461,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
 
     private void RenderTo(DynamicTexture2D dst, int programId, Action setup)
     {
-        using var fbo = GBuffer.CreateSingle(dst, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
+        using var fbo = GpuFramebuffer.CreateSingle(dst, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
 
         int vao = GL.GenVertexArray();
         GL.BindVertexArray(vao);
@@ -481,7 +481,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
 
         GL.UseProgram(0);
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
 
         GL.BindVertexArray(0);
         GL.DeleteVertexArray(vao);
@@ -489,14 +489,14 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
 
     private void ClearR32f(DynamicTexture2D tex, float value)
     {
-        using var fbo = GBuffer.CreateSingle(tex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
+        using var fbo = GpuFramebuffer.CreateSingle(tex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
         fbo.Bind();
         GL.Viewport(0, 0, tex.Width, tex.Height);
         GL.Disable(EnableCap.Blend);
         GL.Disable(EnableCap.DepthTest);
         GL.ClearColor(value, 0f, 0f, 0f);
         GL.Clear(ClearBufferMask.ColorBufferBit);
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
     }
 
     private DynamicTexture2D RunJacobiIterationsFrom(int progJacobi, DynamicTexture2D b, DynamicTexture2D start, DynamicTexture2D scratch, int iterations)

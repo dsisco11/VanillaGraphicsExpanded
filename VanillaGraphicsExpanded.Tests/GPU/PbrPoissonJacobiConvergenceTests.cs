@@ -70,7 +70,7 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         int vao = GL.GenVertexArray();
         GL.BindVertexArray(vao);
 
-        using (var fbo = GBuffer.CreateSingle(outTex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO"))
+        using (var fbo = GpuFramebuffer.CreateSingle(outTex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO"))
         {
             fbo.Bind();
             GL.Viewport(0, 0, input.Width, input.Height);
@@ -89,7 +89,7 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
             GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
 
             GL.UseProgram(0);
-            GBuffer.Unbind();
+            GpuFramebuffer.Unbind();
         }
 
         GL.BindVertexArray(0);
@@ -153,7 +153,7 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
             DynamicTexture2D src = (i % 2 == 0) ? h0 : h1;
             DynamicTexture2D dst = (i % 2 == 0) ? h1 : h0;
 
-            using var fbo = GBuffer.CreateSingle(dst, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
+            using var fbo = GpuFramebuffer.CreateSingle(dst, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
 
             fbo.Bind();
             GL.Viewport(0, 0, rhs.Width, rhs.Height);
@@ -173,7 +173,7 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
             GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
 
             GL.UseProgram(0);
-            GBuffer.Unbind();
+            GpuFramebuffer.Unbind();
         }
 
         GL.BindVertexArray(0);
@@ -213,13 +213,13 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
 
     private void ClearR32f(DynamicTexture2D tex, float value)
     {
-        using var fbo = GBuffer.CreateSingle(tex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
+        using var fbo = GpuFramebuffer.CreateSingle(tex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
         fbo.Bind();
         GL.Viewport(0, 0, tex.Width, tex.Height);
         GL.Disable(EnableCap.Blend);
         GL.ClearColor(value, 0f, 0f, 0f);
         GL.Clear(ClearBufferMask.ColorBufferBit);
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
     }
 
     private static (float RmsResidual, float RmsB) ComputeResidualStats(float[] h, float[] b, int width, int height)

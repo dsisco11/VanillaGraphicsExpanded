@@ -99,7 +99,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         RenderFullscreenQuad();
 
         GL.UseProgram(0);
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
 
         float[] pixels = target[0].ReadPixels();
         Assert.NotEmpty(pixels);
@@ -266,7 +266,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         RenderFullscreenQuad();
 
         GL.UseProgram(0);
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
 
         float[] pixels = target[0].ReadPixels();
         float minA = float.PositiveInfinity;
@@ -320,7 +320,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         RenderFullscreenQuad();
 
         GL.UseProgram(0);
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
 
         float[] pixels = target[0].ReadPixels();
         return new[] { pixels[0], pixels[1], pixels[2] };
@@ -371,7 +371,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
         using var hTex = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, hData, TextureFilterMode.Nearest);
         using var hnTex = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var hnFbo = GBuffer.CreateSingle(hnTex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create Hn FBO");
+        using var hnFbo = GpuFramebuffer.CreateSingle(hnTex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create Hn FBO");
 
         // Pass 1: normalize into hnTex
         hnFbo.Bind();
@@ -409,7 +409,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
         RenderFullscreenQuad();
         GL.UseProgram(0);
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
 
         // Pass 2: pack into RGBA16F output
         using var outFbo = CreateRenderTarget(w, h, PixelInternalFormat.Rgba16f);
@@ -448,7 +448,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         RenderFullscreenQuad();
 
         GL.UseProgram(0);
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
 
         float[] pixels = outFbo[0].ReadPixels();
         Assert.NotEmpty(pixels);
@@ -546,7 +546,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         RenderFullscreenQuad();
 
         GL.UseProgram(0);
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
         GL.Disable(EnableCap.Blend);
 
         float[] pixels = target[0].ReadPixels();

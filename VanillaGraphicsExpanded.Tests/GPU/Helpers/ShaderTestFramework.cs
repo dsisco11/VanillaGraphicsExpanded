@@ -102,7 +102,7 @@ public sealed class ShaderTestFramework : IDisposable
     /// <param name="attachmentCount">Number of color attachments (MRT).</param>
     /// <returns>A new GBuffer with the specified attachments.</returns>
     /// <exception cref="InvalidOperationException">Thrown if GBuffer creation fails.</exception>
-    public GBuffer CreateTestGBuffer(
+    public GpuFramebuffer CreateTestGBuffer(
         int width,
         int height,
         PixelInternalFormat format,
@@ -114,7 +114,7 @@ public sealed class ShaderTestFramework : IDisposable
             textures[i] = DynamicTexture2D.Create(width, height, format);
         }
 
-        var gBuffer = GBuffer.CreateMRT(textures, null, ownsTextures: true);
+        var gBuffer = GpuFramebuffer.CreateMRT(textures, null, ownsTextures: true);
         if (gBuffer == null)
         {
             // Clean up textures if GBuffer creation failed
@@ -136,7 +136,7 @@ public sealed class ShaderTestFramework : IDisposable
     /// <param name="formats">Array of internal pixel formats, one per attachment.</param>
     /// <returns>A new GBuffer with the specified attachments.</returns>
     /// <exception cref="InvalidOperationException">Thrown if GBuffer creation fails.</exception>
-    public GBuffer CreateTestGBuffer(
+    public GpuFramebuffer CreateTestGBuffer(
         int width,
         int height,
         params PixelInternalFormat[] formats)
@@ -147,7 +147,7 @@ public sealed class ShaderTestFramework : IDisposable
             textures[i] = DynamicTexture2D.Create(width, height, formats[i]);
         }
 
-        var gBuffer = GBuffer.CreateMRT(textures, null, ownsTextures: true);
+        var gBuffer = GpuFramebuffer.CreateMRT(textures, null, ownsTextures: true);
         if (gBuffer == null)
         {
             foreach (var tex in textures)
@@ -187,7 +187,7 @@ public sealed class ShaderTestFramework : IDisposable
     /// <param name="programId">Compiled and linked shader program ID.</param>
     /// <param name="target">Target GBuffer to render to.</param>
     /// <param name="clearColor">Optional clear color (default: black with alpha 0).</param>
-    public void RenderQuadTo(int programId, GBuffer target, (float r, float g, float b, float a)? clearColor = null)
+    public void RenderQuadTo(int programId, GpuFramebuffer target, (float r, float g, float b, float a)? clearColor = null)
     {
         target.BindWithViewport();
 
@@ -197,7 +197,7 @@ public sealed class ShaderTestFramework : IDisposable
 
         RenderQuad(programId);
 
-        GBuffer.Unbind();
+        GpuFramebuffer.Unbind();
     }
 
     /// <summary>
