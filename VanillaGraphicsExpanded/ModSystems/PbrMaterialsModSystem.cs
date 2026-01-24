@@ -1,5 +1,6 @@
 using VanillaGraphicsExpanded.PBR.Materials;
 
+using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.ModSystems;
@@ -12,6 +13,11 @@ public sealed class PbrMaterialsModSystem : ModSystem
     {
         // Load PBR material definitions (config/vge/material_definitions.json)
         PbrMaterialRegistry.Instance.Initialize(api);
+
+        if (api is ICoreClientAPI capi)
+        {
+            PbrMaterialRegistry.Instance.BuildDerivedSurfaces(capi);
+        }
     }
 
     public override void Dispose()

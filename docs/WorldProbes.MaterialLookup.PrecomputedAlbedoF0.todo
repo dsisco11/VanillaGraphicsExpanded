@@ -37,15 +37,15 @@ WorldProbes - Precomputed DiffuseAlbedo + Specular F0 (CPU) + BlockId/Face Rever
 
   Phase 2 - CPU Precompute: DiffuseAlbedo + Specular F0 Per Texture:
   Exit artifacts: Registry computes and stores derived surface terms per mapped texture key.
-  ☐ Decide where derived values live in the registry data model (alongside existing roughness/metallic/emissive).
-  ☐ Implement CPU precompute for each mapped base texture (albedoTex):
+  ✔ Decide where derived values live in the registry data model (alongside existing roughness/metallic/emissive).
+  ✔ Implement CPU precompute for each mapped base texture (albedoTex):
     - Load bitmap for the base texture asset
     - Compute average baseColor (sRGB) and convert to linear
     - `diffuseAlbedo = baseColorLinear * (1 - metallic)`
     - `specularF0 = lerp(0.04, baseColorLinear, metallic)` (vector3)
-  ☐ Define behavior for alpha-cutout textures (e.g., ignore pixels below alpha threshold).
-  ☐ Add TODO: Upgrade from simple average to a more robust statistic (median/trimmed mean) to reduce outliers.
-  ☐ Add TODO: If/when a dielectric specular/IOR parameter is added, incorporate it into F0 for non-metals.
+  ✔ Define behavior for alpha-cutout textures (e.g., ignore pixels below alpha threshold).
+  ✔ Add TODO: Upgrade from simple average to a more robust statistic (median/trimmed mean) to reduce outliers.
+  ✔ Add TODO: If/when a dielectric specular/IOR parameter is added, incorporate it into F0 for non-metals.
 
 
   Phase 3 - Reverse Lookup: blockId × face -> DerivedSurface:

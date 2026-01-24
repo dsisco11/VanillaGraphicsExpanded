@@ -2,8 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Numerics;
 using System.Text.RegularExpressions;
 
+using VanillaGraphicsExpanded.Imaging;
+
+using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.PBR.Materials;
@@ -18,6 +22,7 @@ internal sealed class PbrMaterialRegistry
     private readonly Dictionary<AssetLocation, string> materialIdByTexture = new();
     private readonly Dictionary<AssetLocation, PbrMaterialTextureOverrides> overridesByTexture = new();
     private readonly Dictionary<AssetLocation, PbrOverrideScale> scaleByTexture = new();
+    private readonly Dictionary<AssetLocation, PbrMaterialSurface> surfaceByTexture = new();
     private readonly Dictionary<string, int> materialIndexById = new(StringComparer.Ordinal);
     private PbrMaterialDefinition[] materialsByIndex = Array.Empty<PbrMaterialDefinition>();
 
@@ -36,6 +41,8 @@ internal sealed class PbrMaterialRegistry
     public IReadOnlyDictionary<AssetLocation, PbrMaterialTextureOverrides> OverridesByTexture => overridesByTexture;
 
     public IReadOnlyDictionary<AssetLocation, PbrOverrideScale> ScaleByTexture => scaleByTexture;
+
+    public IReadOnlyDictionary<AssetLocation, PbrMaterialSurface> SurfaceByTexture => surfaceByTexture;
 
     public IReadOnlyDictionary<string, int> MaterialIndexById => materialIndexById;
 
@@ -88,6 +95,7 @@ internal sealed class PbrMaterialRegistry
         materialIdByTexture.Clear();
         overridesByTexture.Clear();
         scaleByTexture.Clear();
+        surfaceByTexture.Clear();
         materialIndexById.Clear();
         materialsByIndex = Array.Empty<PbrMaterialDefinition>();
         mappingRules.Clear();
@@ -115,6 +123,17 @@ internal sealed class PbrMaterialRegistry
             mappingRules.Count);
 
         IsInitialized = true;
+    }
+
+    public bool TryGetSurface(AssetLocation texture, out PbrMaterialSurface surface)
+    {
+        if (surfaceByTexture.TryGetValue(texture, out surface))
+        {
+            return true;
+        }
+
+        AssetLocation normalized = NormalizeTextureLocation(texture);
+        return surfaceByTexture.TryGetValue(normalized, out surface);
     }
 
     private PbrOverrideScale ComputeMergedDefaultScale(ILogger logger)
@@ -200,10 +219,118 @@ internal sealed class PbrMaterialRegistry
         materialById.Clear();
         materialIdByTexture.Clear();
         overridesByTexture.Clear();
+        scaleByTexture.Clear();
+        surfaceByTexture.Clear();
         materialIndexById.Clear();
         materialsByIndex = Array.Empty<PbrMaterialDefinition>();
         mappingRules.Clear();
         IsInitialized = false;
+    }
+
+    public void BuildDerivedSurfaces(ICoreClientAPI capi)
+    {
+        ArgumentNullException.ThrowIfNull(capi);
+
+        surfaceByTexture.Clear();
+
+        int ok = 0;
+        int failed = 0;
+
+        foreach ((AssetLocation texture, string materialId) in materialIdByTexture)
+        {
+            if (!materialById.TryGetValue(materialId, out PbrMaterialDefinition material))
+            {
+                failed++;
+                continue;
+            }
+
+            PbrOverrideScale scale = scaleByTexture.TryGetValue(texture, out PbrOverrideScale s)
+                ? s
+                : DefaultScale;
+
+            float roughness = Math.Clamp(material.Roughness * scale.Roughness, 0f, 1f);
+            float metallic = Math.Clamp(material.Metallic * scale.Metallic, 0f, 1f);
+            float emissive = Math.Clamp(material.Emissive * scale.Emissive, 0f, 1f);
+
+            if (!TryComputeAverageAlbedoLinear(capi, texture, out Vector3 baseColorLinear, out _))
+            {
+                failed++;
+                Vector3 fallbackBaseColor = PbrMaterialSurface.Default.DiffuseAlbedo;
+                surfaceByTexture[texture] = new PbrMaterialSurface(
+                    Roughness: roughness,
+                    Metallic: metallic,
+                    Emissive: emissive,
+                    DiffuseAlbedo: fallbackBaseColor * (1f - metallic),
+                    SpecularF0: Vector3.Lerp(new Vector3(0.04f), fallbackBaseColor, metallic));
+                continue;
+            }
+
+            Vector3 diffuseAlbedo = baseColorLinear * (1f - metallic);
+            Vector3 specularF0 = Vector3.Lerp(new Vector3(0.04f), baseColorLinear, metallic);
+
+            // TODO(PBR): Upgrade from simple average to a more robust statistic (median/trimmed mean)
+            // to reduce outliers from small bright features in albedo textures.
+            // TODO(PBR): If/when a dielectric specular/IOR parameter is added, incorporate it into F0
+            // for non-metals instead of the fixed 0.04 constant.
+
+            surfaceByTexture[texture] = new PbrMaterialSurface(
+                Roughness: roughness,
+                Metallic: metallic,
+                Emissive: emissive,
+                DiffuseAlbedo: diffuseAlbedo,
+                SpecularF0: specularF0);
+            ok++;
+        }
+
+        capi.Logger.Debug(
+            "[VGE] PBR derived surfaces built: {0} ok, {1} failed (from {2} mapped textures)",
+            ok,
+            failed,
+            materialIdByTexture.Count);
+    }
+
+    private static bool TryComputeAverageAlbedoLinear(
+        ICoreClientAPI capi,
+        AssetLocation texture,
+        out Vector3 baseColorLinear,
+        out string? reason)
+    {
+        baseColorLinear = default;
+        reason = null;
+
+        IAsset? asset = capi.Assets.TryGet(texture, loadAsset: true);
+        if (asset == null)
+        {
+            reason = "asset not found";
+            return false;
+        }
+
+        try
+        {
+            using BitmapRef bmp = asset.ToBitmap(capi);
+
+            int width = bmp.Width;
+            int height = bmp.Height;
+            int[] pixels = bmp.Pixels;
+
+            if (pixels is null || pixels.Length < width * height)
+            {
+                reason = "bitmap decode returned insufficient pixel data";
+                return false;
+            }
+
+            return AlbedoAverager.TryComputeAverageLinearRgb(
+                argbPixels: pixels,
+                width: width,
+                height: height,
+                averageLinearRgb: out baseColorLinear,
+                reason: out reason);
+        }
+        catch (Exception ex)
+        {
+            reason = ex.Message;
+            return false;
+        }
     }
 
     private static IReadOnlyList<PbrMaterialDefinitionsSource> ParseSources(ILogger logger, List<IAsset> assets, bool strict)
