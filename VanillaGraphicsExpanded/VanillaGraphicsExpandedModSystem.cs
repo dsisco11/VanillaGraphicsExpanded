@@ -56,10 +56,10 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         // Single, always-available debug view entry point.
         api.Input.RegisterHotKey(
             "vgedebugview",
-            "VGE Debug View",
+            "VGE Debug Viewer",
             GlKeys.F8,
             HotkeyType.DevTool);
-        api.Input.SetHotKeyHandler("vgedebugview", VgeDebugViewManager.ToggleDialog);
+        api.Input.SetHotKeyHandler("vgedebugview", VgeDebugViewerManager.ToggleDialog);
 
         // Create G-buffer manager (Harmony hooks will call into this)
         gBufferManager = new GBufferManager(api);
@@ -83,10 +83,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         // PBR (direct lighting + composite) is managed by PbrModSystem.
         api.ModLoader.GetModSystem<PbrModSystem>().SetDependencies(api, gBufferManager);
 
-        // Initialize the debug view manager (GUI)
-        VgeDebugViewManager.Initialize(
-            api,
-            ConfigModSystem.Config);
+        // Initialize the debug viewer manager (GUI)
+        VgeDebugViewerManager.Initialize(api);
     }
 
     public void OnConfigReloaded(ICoreAPI api)
@@ -99,7 +97,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         base.Dispose();
         try
         {
-            VgeDebugViewManager.Dispose();
+            VgeDebugViewerManager.Dispose();
 
             // Unregister GPU debug label renderers
             if (capi != null)

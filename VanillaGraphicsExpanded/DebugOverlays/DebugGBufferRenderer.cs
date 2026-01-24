@@ -53,14 +53,14 @@ public sealed class DebugGBufferRenderer : IRenderer, IDisposable
         capi.Input.RegisterHotKey(
             "vgegbufferoverlay",
             "VGE GBuffer Overlay",
-            GlKeys.F8,
+            GlKeys.F6,
             HotkeyType.DevTool);
         capi.Input.SetHotKeyHandler("vgegbufferoverlay", OnDebugHotkey);
 
         capi.Input.RegisterHotKey(
             "vgegbufferoverlayprev",
             "VGE GBuffer Overlay (Previous)",
-            GlKeys.F8,
+            GlKeys.F6,
             HotkeyType.DevTool,
             shiftPressed: true);
         capi.Input.SetHotKeyHandler("vgegbufferoverlayprev", OnDebugHotkeyPrev);

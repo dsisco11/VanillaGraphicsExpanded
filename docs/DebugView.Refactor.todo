@@ -6,8 +6,9 @@ VGE - Debug Viewer Refactor (Debug View Registry + Unified UI):
   provide a sub-panel for complex UI (e.g., GPU profiler controls).
 
   Reference (current implementation / touch points):
-  - VanillaGraphicsExpanded/DebugView/VgeDebugViewManager.cs (current dialog + LumOn debug mode wiring)
-  - VanillaGraphicsExpanded/DebugView/GuiDialogVgeDebugView.cs (current UI: LumOn dropdown + GPU profiler text)
+  - VanillaGraphicsExpanded/DebugView/VgeDebugViewerManager.cs (hotkey entry point + dialog lifetime)
+  - VanillaGraphicsExpanded/DebugView/GuiDialogVgeDebugViewer.cs (unified viewer UI)
+  - VanillaGraphicsExpanded/DebugView/VgeBuiltInDebugViews.cs (built-in debug view registrations)
   - VanillaGraphicsExpanded/LumOn/LumOnDebugRenderer.cs (debug overlay renderer driven by config.LumOn.DebugMode)
   - VanillaGraphicsExpanded/LumOn/LumOnDebugMode.cs (existing debug modes to migrate)
   - VanillaGraphicsExpanded/LumOn/VgeConfig.cs (LumOnSettingsConfig.DebugMode is runtime-only)
@@ -31,7 +32,7 @@ VGE - Debug Viewer Refactor (Debug View Registry + Unified UI):
   ✔ Inventory current debug features and ownership:
     - LumOn debug overlay (config.LumOn.DebugMode → LumOnDebugRenderer)
     - GPU profiler viewer (GlGpuProfiler snapshot + filters)
-    - Hotkeys with potential conflicts: `VanillaGraphicsExpandedModSystem` uses F8 for debug viewer; `DebugGBufferRenderer` also registers F8 (and Shift+F8)
+    - Hotkeys: `VanillaGraphicsExpandedModSystem` uses F8 for debug viewer; `DebugGBufferRenderer` uses F6 (and Shift+F6)
     - Other debug-facing overlays/tools:
       - Render-stage debug groups: `GpuDebugLabelManager` (DEBUG-only)
       - Material atlas progress HUD: `HudMaterialAtlasProgressPanel` (config-gated overlay)
@@ -134,15 +135,15 @@ VGE - Debug Viewer Refactor (Debug View Registry + Unified UI):
 
   Phase 5 - Wiring + Cleanup:
   Exit artifacts: Single entry point; no duplicate hotkeys; legacy dialog removed.
-  ☐ Update `VanillaGraphicsExpandedModSystem`:
+  ✔ Update `VanillaGraphicsExpandedModSystem`:
     - Keep a single hotkey to open the new debug viewer
     - Initialize the registry/controller early enough for other systems to register views
-  ☐ Remove or repurpose legacy classes:
-    - `GuiDialogVgeDebugView` (replace)
+  ✔ Remove or repurpose legacy classes:
+    - `GuiDialogVgeDebugView` (removed)
     - `GuiElementDropDownCycleOnArrow` (keep only if still used)
-    - `VgeDebugViewManager` → controller/registry owner naming alignment
-  ☐ Resolve hotkey conflicts (current state registers multiple DevTool hotkeys on F8)
-  ☐ Update any docs that reference the old debug view UI / controls
+    - `VgeDebugViewManager` (removed; replaced by `VgeDebugViewerManager`)
+  ✔ Resolve hotkey conflicts (current state registers multiple DevTool hotkeys on F8)
+  ✔ Update any docs that reference the old debug view UI / controls
 
 
   Phase 6 - Tests + Validation:
