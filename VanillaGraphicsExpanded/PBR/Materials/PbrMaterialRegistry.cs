@@ -16,6 +16,8 @@ internal sealed class PbrMaterialRegistry
 {
     public static PbrMaterialRegistry Instance { get; } = new();
 
+    private const int FacesPerBlock = 6;
+
     private readonly List<PbrMaterialDefinitionsSource> sources = new();
 
     private readonly Dictionary<string, PbrMaterialDefinition> materialById = new(StringComparer.Ordinal);
@@ -23,6 +25,10 @@ internal sealed class PbrMaterialRegistry
     private readonly Dictionary<AssetLocation, PbrMaterialTextureOverrides> overridesByTexture = new();
     private readonly Dictionary<AssetLocation, PbrOverrideScale> scaleByTexture = new();
     private readonly Dictionary<AssetLocation, PbrMaterialSurface> surfaceByTexture = new();
+
+    // Dense lookup: [blockId * 6 + faceIndex] -> derived surface terms.
+    // Built once blocks + textures are available, and rebuilt on texture reload.
+    private DerivedSurface[] derivedSurfaceByBlockFace = Array.Empty<DerivedSurface>();
     private readonly Dictionary<string, int> materialIndexById = new(StringComparer.Ordinal);
     private PbrMaterialDefinition[] materialsByIndex = Array.Empty<PbrMaterialDefinition>();
 
@@ -221,10 +227,194 @@ internal sealed class PbrMaterialRegistry
         overridesByTexture.Clear();
         scaleByTexture.Clear();
         surfaceByTexture.Clear();
+        derivedSurfaceByBlockFace = Array.Empty<DerivedSurface>();
         materialIndexById.Clear();
         materialsByIndex = Array.Empty<PbrMaterialDefinition>();
         mappingRules.Clear();
         IsInitialized = false;
+    }
+
+    public bool TryGetDerivedSurface(int blockId, byte faceIndex, out DerivedSurface surface)
+    {
+        // Face ordering is stable and matches base game: N/E/S/W/U/D in [0..5].
+        if ((uint)faceIndex >= FacesPerBlock)
+        {
+            surface = DerivedSurface.Default;
+            return false;
+        }
+
+        if (derivedSurfaceByBlockFace.Length == 0)
+        {
+            surface = DerivedSurface.Default;
+            return false;
+        }
+
+        int idx = blockId * FacesPerBlock + faceIndex;
+        if ((uint)idx >= (uint)derivedSurfaceByBlockFace.Length)
+        {
+            surface = DerivedSurface.Default;
+            return false;
+        }
+
+        surface = derivedSurfaceByBlockFace[idx];
+        return true;
+    }
+
+    public void BuildBlockFaceDerivedSurfaceLookup(ICoreClientAPI capi)
+    {
+        ArgumentNullException.ThrowIfNull(capi);
+
+        // Ensure surfaces are available.
+        if (surfaceByTexture.Count == 0)
+        {
+            BuildDerivedSurfaces(capi);
+        }
+
+        IList<Block> blocks = capi.World?.Blocks;
+        if (blocks is null || blocks.Count == 0)
+        {
+            derivedSurfaceByBlockFace = Array.Empty<DerivedSurface>();
+            return;
+        }
+
+        int maxId = 0;
+        for (int i = 0; i < blocks.Count; i++)
+        {
+            Block? b = blocks[i];
+            if (b is null) continue;
+            if (b.BlockId > maxId) maxId = b.BlockId;
+        }
+
+        int len = checked((maxId + 1) * FacesPerBlock);
+        var arr = new DerivedSurface[len];
+
+        // Initialize to default.
+        for (int i = 0; i < arr.Length; i++)
+        {
+            arr[i] = DerivedSurface.Default;
+        }
+
+        int resolved = 0;
+        int missing = 0;
+
+        for (int i = 0; i < blocks.Count; i++)
+        {
+            Block? block = blocks[i];
+            if (block is null) continue;
+
+            int blockId = block.BlockId;
+            if (blockId < 0 || blockId > maxId) continue;
+
+            for (byte face = 0; face < FacesPerBlock; face++)
+            {
+                DerivedSurface ds = DerivedSurface.Default;
+
+                if (TryResolveBaseTextureLocation(block, face, out AssetLocation texLoc)
+                    && surfaceByTexture.TryGetValue(texLoc, out PbrMaterialSurface surf))
+                {
+                    ds = new DerivedSurface(surf.DiffuseAlbedo, surf.SpecularF0);
+                    resolved++;
+                }
+                else
+                {
+                    missing++;
+                }
+
+                arr[blockId * FacesPerBlock + face] = ds;
+            }
+        }
+
+        // TODO(WorldProbes): Base-texture resolution only; composites/overlays are not handled yet.
+        // TODO(WorldProbes): Alternate variants selected by RNG/position are not accounted for;
+        // consider averaging across variants for stability.
+
+        derivedSurfaceByBlockFace = arr;
+
+        capi.Logger.Debug(
+            "[VGE] Block-face derived surface lookup built: blocks={0}, resolved={1}, missing={2}",
+            maxId + 1,
+            resolved,
+            missing);
+    }
+
+    private static bool TryResolveBaseTextureLocation(Block block, byte faceIndex, out AssetLocation texture)
+    {
+        texture = default!;
+
+        IDictionary<string, CompositeTexture>? textures = block.Textures;
+        if (textures is null || textures.Count == 0)
+        {
+            return false;
+        }
+
+        string faceKey = faceIndex switch
+        {
+            0 => "north",
+            1 => "east",
+            2 => "south",
+            3 => "west",
+            4 => "up",
+            5 => "down",
+            _ => "all",
+        };
+
+        // Deterministic fallback order per face:
+        // face-specific -> all-faces -> first texture.
+        // For side faces, insert "side" between face-specific and "all".
+        ReadOnlySpan<string> keys = faceIndex is 0 or 1 or 2 or 3
+            ? [faceKey, "side", "all"]
+            : [faceKey, "all"];
+
+        CompositeTexture? chosen = null;
+        foreach (string key in keys)
+        {
+            if (textures.TryGetValue(key, out CompositeTexture ct) && ct?.Base is not null)
+            {
+                chosen = ct;
+                break;
+            }
+        }
+
+        if (chosen is null)
+        {
+            // Last resort: first declared texture.
+            foreach (CompositeTexture ct in textures.Values)
+            {
+                if (ct?.Base is null) continue;
+                chosen = ct;
+                break;
+            }
+        }
+
+        if (chosen?.Base is null)
+        {
+            return false;
+        }
+
+        string domain = !string.IsNullOrWhiteSpace(chosen.Base.Domain)
+            ? chosen.Base.Domain
+            : block.Code?.Domain ?? "game";
+
+        string path = (chosen.Base.Path ?? string.Empty).Replace('\\', '/');
+
+        // Base textures are typically authored as "block/..." (without the textures/ prefix).
+        if (!path.StartsWith("textures/", StringComparison.OrdinalIgnoreCase))
+        {
+            path = "textures/" + path.TrimStart('/');
+        }
+
+        // Mapping keys in the registry are file-like and include the extension.
+        // CompositeTexture.Base often omits it, so default to .png when absent.
+        int lastSlash = path.LastIndexOf('/');
+        int lastDot = path.LastIndexOf('.');
+        bool hasExt = lastDot > lastSlash;
+        if (!hasExt)
+        {
+            path += ".png";
+        }
+
+        texture = new AssetLocation(domain.ToLowerInvariant(), path.ToLowerInvariant());
+        return true;
     }
 
     public void BuildDerivedSurfaces(ICoreClientAPI capi)

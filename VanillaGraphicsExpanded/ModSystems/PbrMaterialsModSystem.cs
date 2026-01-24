@@ -16,7 +16,21 @@ public sealed class PbrMaterialsModSystem : ModSystem
 
         if (api is ICoreClientAPI capi)
         {
+            // Derived terms can be computed as soon as assets exist.
             PbrMaterialRegistry.Instance.BuildDerivedSurfaces(capi);
+
+            // BlockId×face lookup requires blocks + textures. Build when block textures are ready.
+            capi.Event.BlockTexturesLoaded += () =>
+            {
+                PbrMaterialRegistry.Instance.BuildDerivedSurfaces(capi);
+                PbrMaterialRegistry.Instance.BuildBlockFaceDerivedSurfaceLookup(capi);
+            };
+
+            capi.Event.ReloadTextures += () =>
+            {
+                PbrMaterialRegistry.Instance.BuildDerivedSurfaces(capi);
+                PbrMaterialRegistry.Instance.BuildBlockFaceDerivedSurfaceLookup(capi);
+            };
         }
     }
 

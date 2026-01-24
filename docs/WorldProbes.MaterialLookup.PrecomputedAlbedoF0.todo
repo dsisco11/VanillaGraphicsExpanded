@@ -50,15 +50,15 @@ WorldProbes - Precomputed DiffuseAlbedo + Specular F0 (CPU) + BlockId/Face Rever
 
   Phase 3 - Reverse Lookup: blockId × face -> DerivedSurface:
   Exit artifacts: A fast lookup map exists for the integrator.
-  ☐ Choose reverse lookup layout:
+  ✔ Choose reverse lookup layout:
     - `DerivedSurface[blockCount][6]` (dense; fastest)
     - or `Dictionary<int, DerivedSurface[6]>` (sparse; lower memory)
-  ☐ Build the reverse lookup once the block list + textures are available (and rebuild on texture reload).
-  ☐ Resolve each block face to a base texture key that matches registry mapping key-space.
-  ☐ Implement a deterministic fallback order per face (face-specific -> all-faces -> first texture).
-  ☐ Store a default DerivedSurface for blocks/faces with no resolved mapping.
-  ☐ Add TODO: Base-texture resolution only; composites/overlays are not handled yet.
-  ☐ Add TODO: Alternate variants selected by RNG/position are not accounted for; consider averaging across variants.
+  ✔ Build the reverse lookup once the block list + textures are available (and rebuild on texture reload).
+  ✔ Resolve each block face to a base texture key that matches registry mapping key-space.
+  ✔ Implement a deterministic fallback order per face (face-specific -> all-faces -> first texture).
+  ✔ Store a default DerivedSurface for blocks/faces with no resolved mapping.
+  ✔ Add TODO: Base-texture resolution only; composites/overlays are not handled yet.
+  ✔ Add TODO: Alternate variants selected by RNG/position are not accounted for; consider averaging across variants.
 
 
   Phase 4 - Integrator: Apply Factors at Trace Hits:
