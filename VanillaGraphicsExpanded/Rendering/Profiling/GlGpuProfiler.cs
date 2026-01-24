@@ -252,8 +252,8 @@ public sealed class GlGpuProfiler : IDisposable
     {
         private readonly string name;
 
-        private readonly int[] beginQueries = new int[FramesInFlight];
-        private readonly int[] endQueries = new int[FramesInFlight];
+        private readonly GpuQuery?[] beginQueries = new GpuQuery?[FramesInFlight];
+        private readonly GpuQuery?[] endQueries = new GpuQuery?[FramesInFlight];
         private readonly bool[] pending = new bool[FramesInFlight];
 
         private readonly float[] window = new float[RollingWindow];
@@ -305,14 +305,14 @@ public sealed class GlGpuProfiler : IDisposable
                 return false;
             }
 
-            int id = beginQueries[slot];
-            if (id == 0)
+            GpuQuery? query = beginQueries[slot];
+            if (query is null || !query.IsValid)
             {
-                id = GL.GenQuery();
-                beginQueries[slot] = id;
+                query = GpuQuery.Create(debugName: $"{name}.Begin[{slot}]");
+                beginQueries[slot] = query;
             }
 
-            queryId = id;
+            queryId = query.QueryId;
             return true;
         }
 
@@ -320,14 +320,14 @@ public sealed class GlGpuProfiler : IDisposable
         {
             queryId = 0;
 
-            int id = endQueries[slot];
-            if (id == 0)
+            GpuQuery? query = endQueries[slot];
+            if (query is null || !query.IsValid)
             {
-                id = GL.GenQuery();
-                endQueries[slot] = id;
+                query = GpuQuery.Create(debugName: $"{name}.End[{slot}]");
+                endQueries[slot] = query;
             }
 
-            queryId = id;
+            queryId = query.QueryId;
             return true;
         }
 
@@ -345,8 +345,8 @@ public sealed class GlGpuProfiler : IDisposable
                     continue;
                 }
 
-                int bq = beginQueries[slot];
-                int eq = endQueries[slot];
+                int bq = beginQueries[slot]?.QueryId ?? 0;
+                int eq = endQueries[slot]?.QueryId ?? 0;
                 if (bq == 0 || eq == 0)
                 {
                     pending[slot] = false;
@@ -465,17 +465,11 @@ public sealed class GlGpuProfiler : IDisposable
         {
             for (int i = 0; i < FramesInFlight; i++)
             {
-                if (beginQueries[i] != 0)
-                {
-                    GL.DeleteQuery(beginQueries[i]);
-                    beginQueries[i] = 0;
-                }
+                beginQueries[i]?.Dispose();
+                beginQueries[i] = null;
 
-                if (endQueries[i] != 0)
-                {
-                    GL.DeleteQuery(endQueries[i]);
-                    endQueries[i] = 0;
-                }
+                endQueries[i]?.Dispose();
+                endQueries[i] = null;
 
                 pending[i] = false;
             }

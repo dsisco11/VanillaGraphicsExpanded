@@ -95,6 +95,9 @@ public abstract class GpuResource : IDisposable
                 case GpuResourceKind.Renderbuffer:
                     GpuResourceManagerSystem.EnqueueDeleteRenderbuffer((int)id);
                     return;
+                case GpuResourceKind.Query:
+                    GpuResourceManagerSystem.EnqueueDeleteQuery((int)id);
+                    return;
                 case GpuResourceKind.Sync:
                     GpuResourceManagerSystem.EnqueueDeleteSync((IntPtr)id);
                     return;
@@ -120,6 +123,9 @@ public abstract class GpuResource : IDisposable
                 case GpuResourceKind.Renderbuffer:
                     GL.DeleteRenderbuffer((int)id);
                     break;
+                case GpuResourceKind.Query:
+                    GL.DeleteQuery((int)id);
+                    break;
                 case GpuResourceKind.Sync:
                     GL.DeleteSync((IntPtr)id);
                     break;
@@ -139,5 +145,6 @@ public enum GpuResourceKind
     Texture = 2,
     Framebuffer = 3,
     Renderbuffer = 4,
-    Sync = 5,
+    Query = 5,
+    Sync = 6,
 }

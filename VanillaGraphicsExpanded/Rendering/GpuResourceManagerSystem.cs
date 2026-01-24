@@ -70,6 +70,12 @@ internal static class GpuResourceManagerSystem
         m?.EnqueueDeleteRenderbuffer(renderbufferId);
     }
 
+    public static void EnqueueDeleteQuery(int queryId)
+    {
+        var m = Volatile.Read(ref manager);
+        m?.EnqueueDeleteQuery(queryId);
+    }
+
     public static void EnqueueDeleteSync(IntPtr sync)
     {
         var m = Volatile.Read(ref manager);

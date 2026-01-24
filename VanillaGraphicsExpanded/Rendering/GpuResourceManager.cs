@@ -76,6 +76,9 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
     public void EnqueueDeleteRenderbuffer(int renderbufferId)
         => EnqueueDeletion(new GpuDeletionCommand(GpuDeletionKind.Renderbuffer, renderbufferId));
 
+    public void EnqueueDeleteQuery(int queryId)
+        => EnqueueDeletion(new GpuDeletionCommand(GpuDeletionKind.Query, queryId));
+
     public void EnqueueDeleteSync(IntPtr sync)
         => EnqueueDeletion(new GpuDeletionCommand(GpuDeletionKind.Sync, (nint)sync));
 
@@ -135,6 +138,9 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
                     case GpuDeletionKind.Renderbuffer:
                         GL.DeleteRenderbuffer((int)command.Id);
                         break;
+                    case GpuDeletionKind.Query:
+                        GL.DeleteQuery((int)command.Id);
+                        break;
                     case GpuDeletionKind.Sync:
                         GL.DeleteSync((IntPtr)command.Id);
                         break;
@@ -176,6 +182,7 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
         Texture = 2,
         Framebuffer = 3,
         Renderbuffer = 4,
-        Sync = 5,
+        Query = 5,
+        Sync = 6,
     }
 }
