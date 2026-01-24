@@ -26,16 +26,16 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// fbo.Unbind();
 /// </code>
 /// </remarks>
-public sealed class GpuFramebuffer : IDisposable
+public sealed class GpuFramebuffer : GpuResource, IDisposable
 {
     #region Fields
 
     private int fboId;
     private readonly List<DynamicTexture2D> colorAttachments;
     private DynamicTexture2D? depthAttachment;
+    private readonly bool ownsFramebuffer;
     private readonly bool ownsTextures;
     private string? debugName;
-    private bool isDisposed;
 
     #endregion
 
@@ -46,6 +46,16 @@ public sealed class GpuFramebuffer : IDisposable
     /// </summary>
     public int FboId => fboId;
 
+    protected override int ResourceId
+    {
+        get => fboId;
+        set => fboId = value;
+    }
+
+    protected override GpuResourceKind ResourceKind => GpuResourceKind.Framebuffer;
+
+    protected override bool OwnsResource => ownsFramebuffer;
+
     /// <summary>
     /// Number of color attachments.
     /// </summary>
@@ -55,16 +65,6 @@ public sealed class GpuFramebuffer : IDisposable
     /// Whether this FBO has a depth attachment.
     /// </summary>
     public bool HasDepthAttachment => depthAttachment != null;
-
-    /// <summary>
-    /// Whether this framebuffer has been disposed.
-    /// </summary>
-    public bool IsDisposed => isDisposed;
-
-    /// <summary>
-    /// Whether this is a valid, allocated framebuffer.
-    /// </summary>
-    public bool IsValid => fboId != 0 && !isDisposed;
 
     public string? DebugName => debugName;
 
@@ -100,9 +100,10 @@ public sealed class GpuFramebuffer : IDisposable
 
     #region Constructor (private - use factory methods)
 
-    private GpuFramebuffer(bool ownsTextures)
+    private GpuFramebuffer(bool ownsFramebuffer, bool ownsTextures)
     {
         colorAttachments = [];
+        this.ownsFramebuffer = ownsFramebuffer;
         this.ownsTextures = ownsTextures;
     }
 
@@ -129,7 +130,7 @@ public sealed class GpuFramebuffer : IDisposable
             return null;
         }
 
-        var buffer = new GpuFramebuffer(ownsTextures);
+        var buffer = new GpuFramebuffer(ownsFramebuffer: true, ownsTextures: ownsTextures);
         buffer.colorAttachments.Add(colorTexture);
         buffer.depthAttachment = depthTexture;
         buffer.debugName = debugName;
@@ -173,7 +174,7 @@ public sealed class GpuFramebuffer : IDisposable
             return null;
         }
 
-        var buffer = new GpuFramebuffer(ownsTextures);
+        var buffer = new GpuFramebuffer(ownsFramebuffer: true, ownsTextures: ownsTextures);
         buffer.colorAttachments.AddRange(validTextures);
         buffer.depthAttachment = depthTexture;
         buffer.debugName = debugName;
@@ -220,7 +221,7 @@ public sealed class GpuFramebuffer : IDisposable
             return null;
         }
 
-        var buffer = new GpuFramebuffer(ownsTextures);
+        var buffer = new GpuFramebuffer(ownsFramebuffer: true, ownsTextures: ownsTextures);
         buffer.depthAttachment = depthTexture;
         buffer.debugName = debugName;
         buffer.CreateFramebuffer();
@@ -236,7 +237,7 @@ public sealed class GpuFramebuffer : IDisposable
     /// <returns>A GBuffer wrapper (does not own the FBO).</returns>
     public static GpuFramebuffer Wrap(int existingFboId, string? debugName = null)
     {
-        var buffer = new GpuFramebuffer(ownsTextures: false)
+        var buffer = new GpuFramebuffer(ownsFramebuffer: false, ownsTextures: false)
         {
             fboId = existingFboId,
             debugName = debugName
@@ -767,29 +768,22 @@ public sealed class GpuFramebuffer : IDisposable
     /// Releases the GPU framebuffer resource.
     /// If ownsTextures was true during creation, also disposes attached textures.
     /// </summary>
-    public void Dispose()
+    // Uses base GpuResource.Dispose(), with cleanup handled in OnAfterDelete().
+
+    protected override void OnAfterDelete()
     {
-        if (isDisposed)
-            return;
-
-        if (fboId != 0)
-        {
-            GL.DeleteFramebuffer(fboId);
-            fboId = 0;
-        }
-
         if (ownsTextures)
         {
             foreach (var texture in colorAttachments)
             {
-                texture.Dispose();
+                try { texture.Dispose(); } catch { }
             }
-            depthAttachment?.Dispose();
+
+            try { depthAttachment?.Dispose(); } catch { }
         }
 
         colorAttachments.Clear();
         depthAttachment = null;
-        isDisposed = true;
     }
 
     #endregion

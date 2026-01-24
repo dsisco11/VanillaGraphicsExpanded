@@ -17,6 +17,8 @@ public abstract class GpuResource : IDisposable
 
     protected abstract GpuResourceKind ResourceKind { get; }
 
+    protected virtual bool OwnsResource => true;
+
     public virtual int Detach()
     {
         if (IsDisposed)
@@ -48,7 +50,7 @@ public abstract class GpuResource : IDisposable
 
         OnBeforeDelete(id);
 
-        if (id != 0)
+        if (id != 0 && OwnsResource)
         {
             DeleteOrEnqueue(ResourceKind, id);
         }
