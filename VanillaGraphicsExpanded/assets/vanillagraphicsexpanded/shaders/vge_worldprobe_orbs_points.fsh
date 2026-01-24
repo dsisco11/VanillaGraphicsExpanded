@@ -36,10 +36,11 @@ void main(void)
     // Camera-facing sphere normal in world space.
     vec3 N = normalize(rightWS * p.x + upWS * p.y + viewZWS * z);
 
-    // For probe visualization, sample irradiance using a stable world-space normal.
-    // Using the per-fragment sphere normal makes the underside of probes (near the ground) look black
-    // even when the probe's overall lighting is reasonable.
-    vec3 Nsample = N; //vec3(0.0, 1.0, 0.0);
+    // Approximate view direction from the fragment toward the camera.
+    // (The sphere is a camera-facing impostor; using the camera forward axis is stable and fast.)
+    vec3 V = normalize(viewZWS);
+    float NoV = clamp(dot(N, V), 0.0, 1.0);
+    vec3 R = normalize(reflect(-V, N));
 
     ivec2 ac = ivec2(floor(vAtlasCoord + vec2(0.5)));
     vec4 t0 = texelFetch(worldProbeSH0, ac, 0);
@@ -49,30 +50,25 @@ void main(void)
     vec4 shR, shG, shB;
     lumonWorldProbeDecodeShL1(t0, t1, t2, shR, shG, shB);
 
-    // Display hemisphere-integrated irradiance (cosine-weighted), not Lambert outgoing radiance.
-    // This avoids negative-lobe artifacts from direct SH evaluation and better matches "how much light hits"
-    // a surface with normal N.
-    vec3 irrBlock = shEvaluateHemisphereIrradianceRGB(shR, shG, shB, Nsample);
+    // Envmap-style visualization (specular-like): evaluate SH in the reflection direction.
+    // Note: the world-probe cache stores low-order SH (L1), so this is intentionally low-frequency.
+    vec3 reflBlock = shEvaluateRGB(shR, shG, shB, R);
 
     vec4 shSky = texelFetch(worldProbeSky0, ac, 0);
-    float irrSkyVisibility = shEvaluateHemisphereIrradiance(shSky, Nsample);
     float skyIntensity = clamp(texelFetch(worldProbeVis0, ac, 0).z, 0.0, 1.0);
-    float irrSky = irrSkyVisibility * skyIntensity;
+    float reflSky = shEvaluate(shSky, R) * skyIntensity;
 
-    // Debug visualization: show sky contribution as (sky visibility SH) * (sky intensity scalar).
-    // Use a neutral, bright tint so probes near the ground don't appear black just because
-    // the engine's ambient tint is dark.
-    vec3 skyVizTint = vec3(1.0);
-    vec3 irr = max(irrBlock, vec3(0.0)) + skyVizTint * max(irrSky, 0.0);
-    vec3 col = tonemap(irr);
+    vec3 refl = max(reflBlock, vec3(0.0)) + max(reflSky, 0.0) * max(worldProbeSkyTint, vec3(0.0));
 
-    // Apply a gentle shading term so the point sprite still reads as a sphere.
-    float shade = 0.75 + 0.25 * clamp(z, 0.0, 1.0);
-    col *= shade;
+    // Simple Fresnel to make the orb read as a reflective sphere.
+    float F0 = 0.04;
+    float fresnel = F0 + (1.0 - F0) * pow(1.0 - NoV, 5.0);
+
+    vec3 col = tonemap(refl) * (0.25 + 0.75 * fresnel);
 
     // Slight level tint + minimum visibility.
     col = max(col, vec3(0.04));
-    col *= mix(vec3(1.0), vColor.rgb, 0.25);
+    col *= mix(vec3(1.0), vColor.rgb, 0.20);
 
     outColor = vec4(col, 1.0);
 }
