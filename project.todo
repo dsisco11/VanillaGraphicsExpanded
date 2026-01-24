@@ -13,7 +13,7 @@ Issues:
     ✔ Create new `GpuResourceManager` system as a new IRenderer registered for the `After` stage, which manages GPU resource lifecycles (creation, disposal) in a thread-safe manner.
     ✔ Move texture streaming uploader to the new `GpuResourceManager`.
     ✔ Move `GpuBufferObject` DSA uploading to the new `GpuResourceManager`.
-    ☐ Update rendering systems to use the new GPU resource RAII classes (e.g. GpuVbo, GpuVao, etc).
+    ✔ Update rendering systems to use the new GPU resource RAII classes (e.g. GpuVbo, GpuVao, etc).
 
   WorldProbes:
     ☐ Rename world-probe classes to remove `LumOn` prefix.

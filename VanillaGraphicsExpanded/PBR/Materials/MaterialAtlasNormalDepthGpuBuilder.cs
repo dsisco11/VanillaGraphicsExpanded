@@ -51,7 +51,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
     private const int MaxRadius = 64;
 
     private static bool initialized;
-    private static int vao;
+    private static GpuVao? vao;
     private static GBuffer? scratchFbo;
     private const int MaxDebugTilesPerPage = 3;
     private const int FlatnessSampleStride = 128;
@@ -149,7 +149,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             GL.ColorMask(true, true, true, true);
 
             scratchFbo!.Bind();
-            GL.BindVertexArray(vao);
+            vao!.Bind();
 
             // Clear entire atlas sidecar first (deterministic baseline).
             ClearAtlasPageUnsafe(destNormalDepthTexId, atlasWidth, atlasHeight);
@@ -521,7 +521,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             GL.ColorMask(true, true, true, true);
 
             scratchFbo!.Bind();
-            GL.BindVertexArray(vao);
+            vao!.Bind();
 
             ClearAtlasPageUnsafe(destNormalDepthTexId, atlasWidth, atlasHeight);
         }
@@ -616,7 +616,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             GL.ColorMask(true, true, true, true);
 
             scratchFbo!.Bind();
-            GL.BindVertexArray(vao);
+            vao!.Bind();
 
             int solverW = rectWidth;
             int solverH = rectHeight;
@@ -771,7 +771,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         }
 
         // Minimal GL objects.
-        vao = GL.GenVertexArray();
+        vao = GpuVao.Create("VGE_MaterialAtlasNormalDepthBake_VAO");
         scratchFbo = GBuffer.Wrap(GL.GenFramebuffer(), debugName: "vge_bake_scratch");
 
         // Compile all programs using VGE's shader pipeline (imports, diagnostics, debug labels).

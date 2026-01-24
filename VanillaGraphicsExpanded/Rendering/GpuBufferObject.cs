@@ -281,7 +281,9 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
                 $"Byte count exceeds source array size ({maxByteCount} bytes for {data.Length}×{typeof(T).Name}).");
         }
 
-        if (GpuResourceManagerSystem.IsInitialized && !GpuResourceManagerSystem.IsRenderThread)
+        if (GpuResourceManagerSystem.IsInitialized
+            && GpuResourceManagerSystem.IsRenderThreadKnown
+            && !GpuResourceManagerSystem.IsRenderThread)
         {
             EnqueueUpload(PendingUpload.ForBufferData(CopyToPooledBytes(data, byteCount), byteCount));
             sizeBytes = byteCount;
@@ -352,7 +354,9 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
                 $"Byte count exceeds source span size ({maxByteCount} bytes for {data.Length}x{typeof(T).Name}).");
         }
 
-        if (GpuResourceManagerSystem.IsInitialized && !GpuResourceManagerSystem.IsRenderThread)
+        if (GpuResourceManagerSystem.IsInitialized
+            && GpuResourceManagerSystem.IsRenderThreadKnown
+            && !GpuResourceManagerSystem.IsRenderThread)
         {
             EnqueueUpload(PendingUpload.ForBufferData(CopyToPooledBytes(data, byteCount), byteCount));
             sizeBytes = byteCount;
@@ -422,7 +426,9 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
                 $"Byte count exceeds source array size ({maxByteCount} bytes for {data.Length}x{typeof(T).Name}).");
         }
 
-        if (GpuResourceManagerSystem.IsInitialized && !GpuResourceManagerSystem.IsRenderThread)
+        if (GpuResourceManagerSystem.IsInitialized
+            && GpuResourceManagerSystem.IsRenderThreadKnown
+            && !GpuResourceManagerSystem.IsRenderThread)
         {
             EnqueueUpload(PendingUpload.ForUploadOrResize(CopyToPooledBytes(data, byteCount), byteCount, growExponentially));
             return;
@@ -523,7 +529,9 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
                 $"Byte count exceeds source span size ({maxByteCount} bytes for {data.Length}x{typeof(T).Name}).");
         }
 
-        if (GpuResourceManagerSystem.IsInitialized && !GpuResourceManagerSystem.IsRenderThread)
+        if (GpuResourceManagerSystem.IsInitialized
+            && GpuResourceManagerSystem.IsRenderThreadKnown
+            && !GpuResourceManagerSystem.IsRenderThread)
         {
             EnqueueUpload(PendingUpload.ForUploadOrResize(CopyToPooledBytes(data, byteCount), byteCount, growExponentially));
             return;
@@ -621,7 +629,9 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
                 $"UploadSubData range [{dstOffsetBytes}, {dstOffsetBytes + byteCount}) exceeds allocated buffer size {sizeBytes}.");
         }
 
-        if (GpuResourceManagerSystem.IsInitialized && !GpuResourceManagerSystem.IsRenderThread)
+        if (GpuResourceManagerSystem.IsInitialized
+            && GpuResourceManagerSystem.IsRenderThreadKnown
+            && !GpuResourceManagerSystem.IsRenderThread)
         {
             EnqueueUpload(PendingUpload.ForBufferSubData(CopyToPooledBytes(data, byteCount), dstOffsetBytes, byteCount));
             return;
@@ -728,7 +738,9 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
                 $"UploadSubData range [{dstOffsetBytes}, {dstOffsetBytes + byteCount}) exceeds allocated buffer size {sizeBytes}.");
         }
 
-        if (GpuResourceManagerSystem.IsInitialized && !GpuResourceManagerSystem.IsRenderThread)
+        if (GpuResourceManagerSystem.IsInitialized
+            && GpuResourceManagerSystem.IsRenderThreadKnown
+            && !GpuResourceManagerSystem.IsRenderThread)
         {
             EnqueueUpload(PendingUpload.ForBufferSubData(CopyToPooledBytes(data, byteCount), dstOffsetBytes, byteCount));
             return;

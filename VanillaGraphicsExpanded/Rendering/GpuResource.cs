@@ -72,7 +72,9 @@ public abstract class GpuResource : IDisposable
     {
         // If the manager is initialized and we're not on the render thread, enqueue deletion.
         // Otherwise, do immediate deletion (legacy behavior).
-        if (GpuResourceManagerSystem.IsInitialized && !GpuResourceManagerSystem.IsRenderThread)
+        if (GpuResourceManagerSystem.IsInitialized
+            && GpuResourceManagerSystem.IsRenderThreadKnown
+            && !GpuResourceManagerSystem.IsRenderThread)
         {
             switch (kind)
             {
@@ -130,4 +132,3 @@ public enum GpuResourceKind
     Framebuffer = 3,
     Renderbuffer = 4,
 }
-

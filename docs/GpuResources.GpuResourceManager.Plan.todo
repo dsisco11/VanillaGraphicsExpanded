@@ -8,7 +8,7 @@ Scope: VGE client-side OpenGL resource lifecycle + upload plumbing
 - [x] Create new `GpuResourceManager` system as a new `IRenderer` registered for the **After** stage, which manages GPU resource lifecycles (creation, disposal) in a thread-safe manner.
 - [x] Move texture streaming uploader to the new `GpuResourceManager`.
 - [x] Move `GpuBufferObject` DSA uploading to the new `GpuResourceManager`.
-- [ ] Update rendering systems to use the new GPU resource RAII classes (e.g. `GpuVbo`, `GpuVao`, etc).
+- [x] Update rendering systems to use the new GPU resource RAII classes (e.g. `GpuVbo`, `GpuVao`, etc).
 
 ## 0. Codebase Findings (Current State)
 
@@ -35,9 +35,9 @@ Existing RAII wrappers (render-thread-only today):
 - Textures: `VanillaGraphicsExpanded/Rendering/GpuTexture.cs` (base), `DynamicTexture2D.cs`, `DynamicTexture3D.cs`, `Texture2D.cs`, `Texture3D.cs`
 - Sync: `VanillaGraphicsExpanded/Rendering/GpuFence.cs`
 
-Notable non-RAII / raw GL handle usage still present:
-- `VanillaGraphicsExpanded/LumOn/LumOnDebugRenderer.cs` uses `GL.GenBuffer/GenVertexArray` and `GL.DeleteBuffer/DeleteVertexArray`.
-- `VanillaGraphicsExpanded/PBR/Materials/MaterialAtlasNormalDepthGpuBuilder.cs` uses a static VAO `int vao = GL.GenVertexArray()`.
+Notable non-RAII / raw GL handle usage (resolved in Phase 4):
+- ✔ `VanillaGraphicsExpanded/LumOn/LumOnDebugRenderer.cs` migrated to `GpuVao/GpuVbo`.
+- ✔ `VanillaGraphicsExpanded/PBR/Materials/MaterialAtlasNormalDepthGpuBuilder.cs` migrated static VAO to `GpuVao`.
 
 ### 0.4 `GpuBufferObject` uses DSA for uploads (locally)
 
@@ -232,11 +232,11 @@ Do **not** block the render thread waiting on uploads; completions are primarily
 
 ### Phase 4 — Migrate key renderers to RAII wrappers
 
-☐ `LumOnDebugRenderer`:
-  ☐ Convert to `GpuVao/GpuVbo` ownership.
-  ☐ Replace raw create/delete logic with wrapper lifecycle.
-☐ `MaterialAtlasNormalDepthGpuBuilder`:
-  ☐ Convert static VAO to `GpuVao`.
+✔ `LumOnDebugRenderer`:
+  ✔ Convert to `GpuVao/GpuVbo` ownership.
+  ✔ Replace raw create/delete logic with wrapper lifecycle.
+✔ `MaterialAtlasNormalDepthGpuBuilder`:
+  ✔ Convert static VAO to `GpuVao`.
 
 ### Phase 5 — Validation and regression checks
 

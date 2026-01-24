@@ -9,6 +9,17 @@ internal static class GpuResourceManagerSystem
 
     public static bool IsInitialized => Volatile.Read(ref manager) is not null;
 
+    public static int RenderThreadId
+    {
+        get
+        {
+            var m = Volatile.Read(ref manager);
+            return m?.RenderThreadId ?? 0;
+        }
+    }
+
+    public static bool IsRenderThreadKnown => RenderThreadId != 0;
+
     public static bool IsRenderThread
     {
         get

@@ -81,30 +81,30 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     // World-probe bounds debug line rendering (GL_LINES).
     private readonly LineVertex[] clipmapBoundsVertices = new LineVertex[MaxWorldProbeLevels * ClipmapBoundsVerticesPerLevel + FrozenMarkerVertices];
-    private int clipmapBoundsVao;
-    private int clipmapBoundsVbo;
+    private GpuVao? clipmapBoundsVao;
+    private GpuVbo? clipmapBoundsVbo;
 
     // World-probe queued trace rays (GL_LINES).
     private LineVertex[]? clipmapQueuedTraceRayVertices;
-    private int clipmapQueuedTraceRaysVao;
-    private int clipmapQueuedTraceRaysVbo;
+    private GpuVao? clipmapQueuedTraceRaysVao;
+    private GpuVbo? clipmapQueuedTraceRaysVbo;
     private int clipmapQueuedTraceRayVertexCount;
 
     // World-probe per-probe rendering (shared positions + per-mode attributes).
     private System.Numerics.Vector3[]? clipmapProbePositions;
-    private int clipmapProbePositionsVbo;
+    private GpuVbo? clipmapProbePositionsVbo;
 
     // Probe point cloud (GL_POINTS) attributes.
     private ColorVertex[]? clipmapProbePointColors;
-    private int clipmapProbePointsVao;
-    private int clipmapProbePointsColorVbo;
+    private GpuVao? clipmapProbePointsVao;
+    private GpuVbo? clipmapProbePointsColorVbo;
 
     // Probe orb impostors (GL_POINTS + point sprite shading) attributes.
     private ColorVertex[]? clipmapProbeOrbColors;
     private UvVertex[]? clipmapProbeOrbAtlasCoords;
-    private int clipmapProbeOrbsVao;
-    private int clipmapProbeOrbsColorVbo;
-    private int clipmapProbeOrbsAtlasVbo;
+    private GpuVao? clipmapProbeOrbsVao;
+    private GpuVbo? clipmapProbeOrbsColorVbo;
+    private GpuVbo? clipmapProbeOrbsAtlasVbo;
     private int clipmapProbeOrbsCount;
 
     private bool worldProbeClipmapDebugDirty = true;
@@ -295,7 +295,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             }
             else
             {
-                clipmapDebugOriginsAbsWorld[i] = default;
+                clipmapDebugOriginsAbsWorld[i] = new Vec3d();
                 clipmapDebugOriginsMatBuildF[i] = default;
             }
         }
@@ -304,7 +304,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         EnsureClipmapProbePointsGlObjects();
         EnsureClipmapProbeOrbsGlObjects();
 
-        if (clipmapBoundsVao == 0 || clipmapBoundsVbo == 0)
+        if (clipmapBoundsVao is null || !clipmapBoundsVao.IsValid || clipmapBoundsVbo is null || !clipmapBoundsVbo.IsValid)
         {
             clipmapBoundsCount = 0;
             clipmapProbePointsCount = 0;
@@ -322,15 +322,16 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             frozenCameraMarkerPos: default);
 
         int lineStride = Marshal.SizeOf<LineVertex>();
-        GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapBoundsVbo);
-        GL.BufferData(BufferTarget.ArrayBuffer, clipmapBoundsCount * lineStride, clipmapBoundsVertices, BufferUsageHint.DynamicDraw);
-        GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+        clipmapBoundsVbo.UploadData(clipmapBoundsVertices, clipmapBoundsCount * lineStride);
 
         int probeCount = ComputeClipmapProbeCount(levels: levels, resolution: resolution);
         EnsureClipmapProbePositionsArray(probeCount);
 
         clipmapProbePointsCount = 0;
-        if (clipmapProbePointsVao != 0 && clipmapProbePointsColorVbo != 0)
+        if (clipmapProbePointsVao is not null
+            && clipmapProbePointsVao.IsValid
+            && clipmapProbePointsColorVbo is not null
+            && clipmapProbePointsColorVbo.IsValid)
         {
             clipmapProbePointsCount = probeCount;
             if (clipmapProbePointsCount > 0)
@@ -341,14 +342,17 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             if (clipmapProbePointsCount > 0 && clipmapProbePointColors is not null)
             {
                 int colorStride = Marshal.SizeOf<ColorVertex>();
-                GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbePointsColorVbo);
-                GL.BufferData(BufferTarget.ArrayBuffer, clipmapProbePointsCount * colorStride, clipmapProbePointColors, BufferUsageHint.DynamicDraw);
-                GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+                clipmapProbePointsColorVbo.UploadData(clipmapProbePointColors, clipmapProbePointsCount * colorStride);
             }
         }
 
         clipmapProbeOrbsCount = 0;
-        if (clipmapProbeOrbsVao != 0 && clipmapProbeOrbsColorVbo != 0 && clipmapProbeOrbsAtlasVbo != 0)
+        if (clipmapProbeOrbsVao is not null
+            && clipmapProbeOrbsVao.IsValid
+            && clipmapProbeOrbsColorVbo is not null
+            && clipmapProbeOrbsColorVbo.IsValid
+            && clipmapProbeOrbsAtlasVbo is not null
+            && clipmapProbeOrbsAtlasVbo.IsValid)
         {
             clipmapProbeOrbsCount = probeCount;
             if (clipmapProbeOrbsCount > 0)
@@ -362,14 +366,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             if (clipmapProbeOrbsCount > 0 && clipmapProbeOrbColors is not null && clipmapProbeOrbAtlasCoords is not null)
             {
                 int colorStride = Marshal.SizeOf<ColorVertex>();
-                GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbeOrbsColorVbo);
-                GL.BufferData(BufferTarget.ArrayBuffer, clipmapProbeOrbsCount * colorStride, clipmapProbeOrbColors, BufferUsageHint.DynamicDraw);
-
                 int uvStride = Marshal.SizeOf<UvVertex>();
-                GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbeOrbsAtlasVbo);
-                GL.BufferData(BufferTarget.ArrayBuffer, clipmapProbeOrbsCount * uvStride, clipmapProbeOrbAtlasCoords, BufferUsageHint.DynamicDraw);
-
-                GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+                clipmapProbeOrbsColorVbo.UploadData(clipmapProbeOrbColors, clipmapProbeOrbsCount * colorStride);
+                clipmapProbeOrbsAtlasVbo.UploadData(clipmapProbeOrbAtlasCoords, clipmapProbeOrbsCount * uvStride);
             }
         }
 
@@ -589,7 +588,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         // Runtime params are optional; debug overlays can still compile the enabled variant from the known topology.
         // (If runtime params are missing, sampling will likely show no contribution, but it should not force-disable.)
-        Vec3d wpCamPosWorld = default;
+        Vec3d wpCamPosWorld = new Vec3d();
         System.Numerics.Vector3 wpCamPosWS = default;
         float wpBaseSpacing = 0;
         int wpLevels = 0;
@@ -958,7 +957,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         }
 
         EnsureClipmapBoundsLineGlObjects();
-        if (clipmapBoundsVao == 0 || clipmapBoundsVbo == 0)
+        if (clipmapBoundsVao is null || !clipmapBoundsVao.IsValid || clipmapBoundsVbo is null || !clipmapBoundsVbo.IsValid)
         {
             return;
         }
@@ -1032,17 +1031,14 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 shader.ModelViewProjectionMatrix = currentViewProjMatrix;
                 shader.WorldOffset = GetClipmapDebugWorldOffset();
 
-                GL.BindVertexArray(clipmapBoundsVao);
-
                 int stride = Marshal.SizeOf<LineVertex>();
-                GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapBoundsVbo);
-                GL.BufferData(BufferTarget.ArrayBuffer, vertexCount * stride, clipmapBoundsVertices, BufferUsageHint.StreamDraw);
+                clipmapBoundsVbo.UploadData(clipmapBoundsVertices, vertexCount * stride);
 
+                clipmapBoundsVao.Bind();
                 GL.LineWidth(2f);
                 GL.DrawArrays(PrimitiveType.Lines, 0, vertexCount);
                 GL.LineWidth(1f);
 
-                GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
                 GL.BindVertexArray(0);
             }
             finally
@@ -1084,7 +1080,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (clipmapBoundsVao == 0 || clipmapBoundsVbo == 0)
+        if (clipmapBoundsVao is null || !clipmapBoundsVao.IsValid || clipmapBoundsVbo is null || !clipmapBoundsVbo.IsValid)
         {
             RateLimitedClipmapDebugLog("World-probe bounds: missing vao/vbo");
             return;
@@ -1120,9 +1116,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 shader.ModelViewProjectionMatrix = currentViewProjMatrix;
                 shader.WorldOffset = new Vec3f(0, 0, 0);
 
-                GL.BindVertexArray(clipmapBoundsVao);
-
-                int stride = Marshal.SizeOf<LineVertex>();
+                clipmapBoundsVao.Bind();
 
                 GL.LineWidth(2f);
                 GL.DrawArrays(PrimitiveType.Lines, 0, clipmapBoundsCount);
@@ -1130,11 +1124,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
                 GL.BindVertexArray(0);
 
-                if (clipmapProbePointsCount > 0 && clipmapProbePointsVao != 0)
+                if (clipmapProbePointsCount > 0 && clipmapProbePointsVao is not null && clipmapProbePointsVao.IsValid)
                 {
                     GL.PointSize(3.5f);
 
-                    GL.BindVertexArray(clipmapProbePointsVao);
+                    clipmapProbePointsVao.Bind();
                     GL.DrawArrays(PrimitiveType.Points, 0, clipmapProbePointsCount);
                     GL.BindVertexArray(0);
                 }
@@ -1200,7 +1194,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         }
 
         EnsureClipmapQueuedTraceRaysGlObjects();
-        if (clipmapQueuedTraceRaysVao == 0 || clipmapQueuedTraceRaysVbo == 0)
+        if (clipmapQueuedTraceRaysVao is null || !clipmapQueuedTraceRaysVao.IsValid || clipmapQueuedTraceRaysVbo is null || !clipmapQueuedTraceRaysVbo.IsValid)
         {
             return;
         }
@@ -1230,9 +1224,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         clipmapQueuedTraceRayVertexCount = neededVerts;
 
         int stride = Marshal.SizeOf<LineVertex>();
-        GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapQueuedTraceRaysVbo);
-        GL.BufferData(BufferTarget.ArrayBuffer, clipmapQueuedTraceRayVertexCount * stride, clipmapQueuedTraceRayVertices, BufferUsageHint.StreamDraw);
-        GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+        clipmapQueuedTraceRaysVbo.UploadData(clipmapQueuedTraceRayVertices, clipmapQueuedTraceRayVertexCount * stride);
 
         UpdateCurrentViewProjMatrixNoTranslate();
 
@@ -1255,7 +1247,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             shader.ModelViewProjectionMatrix = currentViewProjMatrix;
             shader.WorldOffset = new Vec3f(0, 0, 0);
 
-            GL.BindVertexArray(clipmapQueuedTraceRaysVao);
+            clipmapQueuedTraceRaysVao.Bind();
             GL.LineWidth(1.5f);
             GL.DrawArrays(PrimitiveType.Lines, 0, clipmapQueuedTraceRayVertexCount);
             GL.LineWidth(1f);
@@ -1277,148 +1269,153 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     private void EnsureClipmapQueuedTraceRaysGlObjects()
     {
-        if (clipmapQueuedTraceRaysVao != 0 && clipmapQueuedTraceRaysVbo != 0)
+        if (clipmapQueuedTraceRaysVao is not null
+            && clipmapQueuedTraceRaysVao.IsValid
+            && clipmapQueuedTraceRaysVbo is not null
+            && clipmapQueuedTraceRaysVbo.IsValid)
         {
             return;
         }
 
+        clipmapQueuedTraceRaysVao?.Dispose();
+        clipmapQueuedTraceRaysVbo?.Dispose();
+        clipmapQueuedTraceRaysVao = null;
+        clipmapQueuedTraceRaysVbo = null;
+
         try
         {
-            clipmapQueuedTraceRaysVao = GL.GenVertexArray();
-            clipmapQueuedTraceRaysVbo = GL.GenBuffer();
+            clipmapQueuedTraceRaysVao = GpuVao.Create("VGE_WorldProbeQueuedTraceRays_VAO");
+            clipmapQueuedTraceRaysVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, "VGE_WorldProbeQueuedTraceRays_VBO");
 
-            GL.BindVertexArray(clipmapQueuedTraceRaysVao);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapQueuedTraceRaysVbo);
+            using var vaoScope = clipmapQueuedTraceRaysVao.BindScope();
+            using var vboScope = clipmapQueuedTraceRaysVbo.BindScope();
 
             int stride = Marshal.SizeOf<LineVertex>();
 
             // vec3 position
-            GL.EnableVertexAttribArray(0);
-            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, stride, 0);
+            clipmapQueuedTraceRaysVao.AttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, stride, 0);
 
             // vec4 color
-            GL.EnableVertexAttribArray(1);
-            GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, stride, 12);
-
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-            GL.BindVertexArray(0);
-
-            GlDebug.TryLabel(ObjectLabelIdentifier.VertexArray, clipmapQueuedTraceRaysVao, "VGE_WorldProbeQueuedTraceRays_VAO");
-            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapQueuedTraceRaysVbo, "VGE_WorldProbeQueuedTraceRays_VBO");
+            clipmapQueuedTraceRaysVao.AttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, stride, 12);
         }
         catch
         {
-            if (clipmapQueuedTraceRaysVbo != 0) GL.DeleteBuffer(clipmapQueuedTraceRaysVbo);
-            if (clipmapQueuedTraceRaysVao != 0) GL.DeleteVertexArray(clipmapQueuedTraceRaysVao);
-            clipmapQueuedTraceRaysVao = 0;
-            clipmapQueuedTraceRaysVbo = 0;
+            clipmapQueuedTraceRaysVao?.Dispose();
+            clipmapQueuedTraceRaysVbo?.Dispose();
+            clipmapQueuedTraceRaysVao = null;
+            clipmapQueuedTraceRaysVbo = null;
         }
     }
 
     private void EnsureClipmapBoundsLineGlObjects()
     {
-        if (clipmapBoundsVao != 0 && clipmapBoundsVbo != 0)
+        if (clipmapBoundsVao is not null
+            && clipmapBoundsVao.IsValid
+            && clipmapBoundsVbo is not null
+            && clipmapBoundsVbo.IsValid)
         {
             return;
         }
 
+        clipmapBoundsVao?.Dispose();
+        clipmapBoundsVbo?.Dispose();
+        clipmapBoundsVao = null;
+        clipmapBoundsVbo = null;
+
         try
         {
-            clipmapBoundsVao = GL.GenVertexArray();
-            clipmapBoundsVbo = GL.GenBuffer();
+            clipmapBoundsVao = GpuVao.Create("VGE_WorldProbeClipmapBoundsLines_VAO");
+            clipmapBoundsVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, "VGE_WorldProbeClipmapBoundsLines_VBO");
 
-            GL.BindVertexArray(clipmapBoundsVao);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapBoundsVbo);
+            using var vaoScope = clipmapBoundsVao.BindScope();
+            using var vboScope = clipmapBoundsVbo.BindScope();
 
             int stride = Marshal.SizeOf<LineVertex>();
 
             // vec3 position
-            GL.EnableVertexAttribArray(0);
-            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, stride, 0);
+            clipmapBoundsVao.AttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, stride, 0);
 
             // vec4 color
-            GL.EnableVertexAttribArray(1);
-            GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, stride, 12);
-
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-            GL.BindVertexArray(0);
-
-            GlDebug.TryLabel(ObjectLabelIdentifier.VertexArray, clipmapBoundsVao, "VGE_WorldProbeClipmapBoundsLines_VAO");
-            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapBoundsVbo, "VGE_WorldProbeClipmapBoundsLines_VBO");
+            clipmapBoundsVao.AttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, stride, 12);
         }
         catch
         {
             // Best-effort only; fall back to no-op if GL objects can't be created.
-            if (clipmapBoundsVbo != 0) GL.DeleteBuffer(clipmapBoundsVbo);
-            if (clipmapBoundsVao != 0) GL.DeleteVertexArray(clipmapBoundsVao);
-            clipmapBoundsVao = 0;
-            clipmapBoundsVbo = 0;
+            clipmapBoundsVao?.Dispose();
+            clipmapBoundsVbo?.Dispose();
+            clipmapBoundsVao = null;
+            clipmapBoundsVbo = null;
         }
     }
 
     private void EnsureClipmapProbePointsGlObjects()
     {
-        if (clipmapProbePointsVao != 0 && clipmapProbePointsColorVbo != 0)
+        if (clipmapProbePointsVao is not null
+            && clipmapProbePointsVao.IsValid
+            && clipmapProbePointsColorVbo is not null
+            && clipmapProbePointsColorVbo.IsValid)
         {
             return;
         }
 
         EnsureClipmapProbePositionsGlObjects();
-        if (clipmapProbePositionsVbo == 0)
+        if (clipmapProbePositionsVbo is null || !clipmapProbePositionsVbo.IsValid)
         {
             return;
         }
 
+        clipmapProbePointsVao?.Dispose();
+        clipmapProbePointsColorVbo?.Dispose();
+        clipmapProbePointsVao = null;
+        clipmapProbePointsColorVbo = null;
+
         try
         {
-            clipmapProbePointsVao = GL.GenVertexArray();
-            clipmapProbePointsColorVbo = GL.GenBuffer();
+            clipmapProbePointsVao = GpuVao.Create("VGE_WorldProbeClipmapProbePoints_VAO");
+            clipmapProbePointsColorVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, "VGE_WorldProbeClipmapProbePoints_Color_VBO");
 
-            GL.BindVertexArray(clipmapProbePointsVao);
+            using var vaoScope = clipmapProbePointsVao.BindScope();
 
             int posStride = Marshal.SizeOf<System.Numerics.Vector3>();
-            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbePositionsVbo);
-            GL.EnableVertexAttribArray(0);
-            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, posStride, 0);
+            using (clipmapProbePositionsVbo.BindScope())
+            {
+                clipmapProbePointsVao.AttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, posStride, 0);
+            }
 
             int colorStride = Marshal.SizeOf<ColorVertex>();
-            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbePointsColorVbo);
-            GL.EnableVertexAttribArray(1);
-            GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, colorStride, 0);
-
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-            GL.BindVertexArray(0);
-
-            GlDebug.TryLabel(ObjectLabelIdentifier.VertexArray, clipmapProbePointsVao, "VGE_WorldProbeClipmapProbePoints_VAO");
-            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapProbePositionsVbo, "VGE_WorldProbeClipmapProbePositions_VBO");
-            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapProbePointsColorVbo, "VGE_WorldProbeClipmapProbePoints_Color_VBO");
+            using (clipmapProbePointsColorVbo.BindScope())
+            {
+                clipmapProbePointsVao.AttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, colorStride, 0);
+            }
         }
         catch
         {
             // Best-effort only; fall back to no-op if GL objects can't be created.
-            if (clipmapProbePointsColorVbo != 0) GL.DeleteBuffer(clipmapProbePointsColorVbo);
-            if (clipmapProbePointsVao != 0) GL.DeleteVertexArray(clipmapProbePointsVao);
-            clipmapProbePointsVao = 0;
-            clipmapProbePointsColorVbo = 0;
+            clipmapProbePointsVao?.Dispose();
+            clipmapProbePointsColorVbo?.Dispose();
+            clipmapProbePointsVao = null;
+            clipmapProbePointsColorVbo = null;
         }
     }
 
     private void EnsureClipmapProbePositionsGlObjects()
     {
-        if (clipmapProbePositionsVbo != 0)
+        if (clipmapProbePositionsVbo is not null && clipmapProbePositionsVbo.IsValid)
         {
             return;
         }
 
+        clipmapProbePositionsVbo?.Dispose();
+        clipmapProbePositionsVbo = null;
+
         try
         {
-            clipmapProbePositionsVbo = GL.GenBuffer();
-            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapProbePositionsVbo, "VGE_WorldProbeClipmapProbePositions_VBO");
+            clipmapProbePositionsVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, "VGE_WorldProbeClipmapProbePositions_VBO");
         }
         catch
         {
-            if (clipmapProbePositionsVbo != 0) GL.DeleteBuffer(clipmapProbePositionsVbo);
-            clipmapProbePositionsVbo = 0;
+            clipmapProbePositionsVbo?.Dispose();
+            clipmapProbePositionsVbo = null;
         }
     }
 
@@ -1486,56 +1483,63 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     private void EnsureClipmapProbeOrbsGlObjects()
     {
-        if (clipmapProbeOrbsVao != 0 && clipmapProbeOrbsColorVbo != 0 && clipmapProbeOrbsAtlasVbo != 0)
+        if (clipmapProbeOrbsVao is not null
+            && clipmapProbeOrbsVao.IsValid
+            && clipmapProbeOrbsColorVbo is not null
+            && clipmapProbeOrbsColorVbo.IsValid
+            && clipmapProbeOrbsAtlasVbo is not null
+            && clipmapProbeOrbsAtlasVbo.IsValid)
         {
             return;
         }
 
         EnsureClipmapProbePositionsGlObjects();
-        if (clipmapProbePositionsVbo == 0)
+        if (clipmapProbePositionsVbo is null || !clipmapProbePositionsVbo.IsValid)
         {
             return;
         }
 
+        clipmapProbeOrbsVao?.Dispose();
+        clipmapProbeOrbsColorVbo?.Dispose();
+        clipmapProbeOrbsAtlasVbo?.Dispose();
+        clipmapProbeOrbsVao = null;
+        clipmapProbeOrbsColorVbo = null;
+        clipmapProbeOrbsAtlasVbo = null;
+
         try
         {
-            clipmapProbeOrbsVao = GL.GenVertexArray();
-            clipmapProbeOrbsColorVbo = GL.GenBuffer();
-            clipmapProbeOrbsAtlasVbo = GL.GenBuffer();
+            clipmapProbeOrbsVao = GpuVao.Create("VGE_WorldProbeClipmapProbeOrbs_VAO");
+            clipmapProbeOrbsColorVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, "VGE_WorldProbeClipmapProbeOrbs_Color_VBO");
+            clipmapProbeOrbsAtlasVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, "VGE_WorldProbeClipmapProbeOrbs_Atlas_VBO");
 
-            GL.BindVertexArray(clipmapProbeOrbsVao);
+            using var vaoScope = clipmapProbeOrbsVao.BindScope();
 
             int posStride = Marshal.SizeOf<System.Numerics.Vector3>();
-            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbePositionsVbo);
-            GL.EnableVertexAttribArray(0);
-            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, posStride, 0);
+            using (clipmapProbePositionsVbo.BindScope())
+            {
+                clipmapProbeOrbsVao.AttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, posStride, 0);
+            }
 
             int colorStride = Marshal.SizeOf<ColorVertex>();
-            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbeOrbsColorVbo);
-            GL.EnableVertexAttribArray(1);
-            GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, colorStride, 0);
+            using (clipmapProbeOrbsColorVbo.BindScope())
+            {
+                clipmapProbeOrbsVao.AttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, colorStride, 0);
+            }
 
             int uvStride = Marshal.SizeOf<UvVertex>();
-            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbeOrbsAtlasVbo);
-            GL.EnableVertexAttribArray(2);
-            GL.VertexAttribPointer(2, 2, VertexAttribPointerType.Float, normalized: false, uvStride, 0);
-
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-            GL.BindVertexArray(0);
-
-            GlDebug.TryLabel(ObjectLabelIdentifier.VertexArray, clipmapProbeOrbsVao, "VGE_WorldProbeClipmapProbeOrbs_VAO");
-            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapProbePositionsVbo, "VGE_WorldProbeClipmapProbePositions_VBO");
-            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapProbeOrbsColorVbo, "VGE_WorldProbeClipmapProbeOrbs_Color_VBO");
-            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, clipmapProbeOrbsAtlasVbo, "VGE_WorldProbeClipmapProbeOrbs_Atlas_VBO");
+            using (clipmapProbeOrbsAtlasVbo.BindScope())
+            {
+                clipmapProbeOrbsVao.AttribPointer(2, 2, VertexAttribPointerType.Float, normalized: false, uvStride, 0);
+            }
         }
         catch
         {
-            if (clipmapProbeOrbsAtlasVbo != 0) GL.DeleteBuffer(clipmapProbeOrbsAtlasVbo);
-            if (clipmapProbeOrbsColorVbo != 0) GL.DeleteBuffer(clipmapProbeOrbsColorVbo);
-            if (clipmapProbeOrbsVao != 0) GL.DeleteVertexArray(clipmapProbeOrbsVao);
-            clipmapProbeOrbsVao = 0;
-            clipmapProbeOrbsColorVbo = 0;
-            clipmapProbeOrbsAtlasVbo = 0;
+            clipmapProbeOrbsVao?.Dispose();
+            clipmapProbeOrbsColorVbo?.Dispose();
+            clipmapProbeOrbsAtlasVbo?.Dispose();
+            clipmapProbeOrbsVao = null;
+            clipmapProbeOrbsColorVbo = null;
+            clipmapProbeOrbsAtlasVbo = null;
         }
     }
 
@@ -1625,10 +1629,14 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (clipmapProbeOrbsVao == 0 ||
-            clipmapProbePositionsVbo == 0 ||
-            clipmapProbeOrbsColorVbo == 0 ||
-            clipmapProbeOrbsAtlasVbo == 0)
+        if (clipmapProbeOrbsVao is null
+            || !clipmapProbeOrbsVao.IsValid
+            || clipmapProbePositionsVbo is null
+            || !clipmapProbePositionsVbo.IsValid
+            || clipmapProbeOrbsColorVbo is null
+            || !clipmapProbeOrbsColorVbo.IsValid
+            || clipmapProbeOrbsAtlasVbo is null
+            || !clipmapProbeOrbsAtlasVbo.IsValid)
         {
             RateLimitedClipmapDebugLog("World-probe orbs: missing vao/vbo");
             return;
@@ -1698,7 +1706,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
                 shader.WorldProbeSkyTint = capi.Render.AmbientColor;
 
-                GL.BindVertexArray(clipmapProbeOrbsVao);
+                clipmapProbeOrbsVao.Bind();
 
                 GL.PointSize(18f);
                 GL.DrawArrays(PrimitiveType.Points, 0, clipmapProbeOrbsCount);
@@ -1750,7 +1758,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return true;
         }
 
-        originWorld = default;
+        originWorld = new Vec3d();
         return false;
     }
 
@@ -1766,9 +1774,15 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        bool canUpdateBounds = clipmapBoundsVao != 0 && clipmapBoundsVbo != 0;
+        bool canUpdateBounds = clipmapBoundsVao is not null
+            && clipmapBoundsVao.IsValid
+            && clipmapBoundsVbo is not null
+            && clipmapBoundsVbo.IsValid;
         int probeCount = Math.Max(clipmapProbePointsCount, clipmapProbeOrbsCount);
-        bool canUpdateProbes = clipmapProbePositionsVbo != 0 && clipmapProbePositions is not null && probeCount > 0;
+        bool canUpdateProbes = clipmapProbePositionsVbo is not null
+            && clipmapProbePositionsVbo.IsValid
+            && clipmapProbePositions is not null
+            && probeCount > 0;
 
         if (!canUpdateBounds && !canUpdateProbes)
         {
@@ -1803,12 +1817,16 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 frozenCameraMarkerPos: default);
 
             int lineStride = Marshal.SizeOf<LineVertex>();
-            GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapBoundsVbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, clipmapBoundsCount * lineStride, clipmapBoundsVertices, BufferUsageHint.StreamDraw);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+            clipmapBoundsVbo!.UploadData(clipmapBoundsVertices, clipmapBoundsCount * lineStride);
         }
 
         if (!canUpdateProbes)
+        {
+            return;
+        }
+
+        var probePositions = clipmapProbePositions;
+        if (probePositions is null)
         {
             return;
         }
@@ -1835,21 +1853,19 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     for (int x = 0; x < resolution; x++)
                     {
                         double px = oAbs.X + (x + 0.5) * spacing - renderOriginWorld.X;
-                        if (written >= probeCount || written >= clipmapProbePositions.Length)
+                        if (written >= probeCount || written >= probePositions.Length)
                         {
                             break;
                         }
 
-                        clipmapProbePositions[written++] = new System.Numerics.Vector3((float)px, (float)py, (float)pz);
+                        probePositions[written++] = new System.Numerics.Vector3((float)px, (float)py, (float)pz);
                     }
                 }
             }
         }
 
         int posStride = Marshal.SizeOf<System.Numerics.Vector3>();
-        GL.BindBuffer(BufferTarget.ArrayBuffer, clipmapProbePositionsVbo);
-        GL.BufferData(BufferTarget.ArrayBuffer, probeCount * posStride, clipmapProbePositions, BufferUsageHint.StreamDraw);
-        GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+        clipmapProbePositionsVbo!.UploadData(probePositions, probeCount * posStride);
     }
 
     private int BuildClipmapBoundsVertices(
@@ -2128,65 +2144,30 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             quadMeshRef = null;
         }
 
-        if (clipmapBoundsVbo != 0)
-        {
-            GL.DeleteBuffer(clipmapBoundsVbo);
-            clipmapBoundsVbo = 0;
-        }
+        clipmapBoundsVbo?.Dispose();
+        clipmapBoundsVbo = null;
+        clipmapBoundsVao?.Dispose();
+        clipmapBoundsVao = null;
 
-        if (clipmapBoundsVao != 0)
-        {
-            GL.DeleteVertexArray(clipmapBoundsVao);
-            clipmapBoundsVao = 0;
-        }
+        clipmapQueuedTraceRaysVbo?.Dispose();
+        clipmapQueuedTraceRaysVbo = null;
+        clipmapQueuedTraceRaysVao?.Dispose();
+        clipmapQueuedTraceRaysVao = null;
 
-        if (clipmapQueuedTraceRaysVbo != 0)
-        {
-            GL.DeleteBuffer(clipmapQueuedTraceRaysVbo);
-            clipmapQueuedTraceRaysVbo = 0;
-        }
+        clipmapProbePointsColorVbo?.Dispose();
+        clipmapProbePointsColorVbo = null;
+        clipmapProbePointsVao?.Dispose();
+        clipmapProbePointsVao = null;
 
-        if (clipmapQueuedTraceRaysVao != 0)
-        {
-            GL.DeleteVertexArray(clipmapQueuedTraceRaysVao);
-            clipmapQueuedTraceRaysVao = 0;
-        }
+        clipmapProbeOrbsAtlasVbo?.Dispose();
+        clipmapProbeOrbsAtlasVbo = null;
+        clipmapProbeOrbsColorVbo?.Dispose();
+        clipmapProbeOrbsColorVbo = null;
+        clipmapProbeOrbsVao?.Dispose();
+        clipmapProbeOrbsVao = null;
 
-        if (clipmapProbePointsColorVbo != 0)
-        {
-            GL.DeleteBuffer(clipmapProbePointsColorVbo);
-            clipmapProbePointsColorVbo = 0;
-        }
-
-        if (clipmapProbePointsVao != 0)
-        {
-            GL.DeleteVertexArray(clipmapProbePointsVao);
-            clipmapProbePointsVao = 0;
-        }
-
-        if (clipmapProbeOrbsAtlasVbo != 0)
-        {
-            GL.DeleteBuffer(clipmapProbeOrbsAtlasVbo);
-            clipmapProbeOrbsAtlasVbo = 0;
-        }
-
-        if (clipmapProbeOrbsColorVbo != 0)
-        {
-            GL.DeleteBuffer(clipmapProbeOrbsColorVbo);
-            clipmapProbeOrbsColorVbo = 0;
-        }
-
-        if (clipmapProbeOrbsVao != 0)
-        {
-            GL.DeleteVertexArray(clipmapProbeOrbsVao);
-            clipmapProbeOrbsVao = 0;
-        }
-
-        if (clipmapProbePositionsVbo != 0)
-        {
-            GL.DeleteBuffer(clipmapProbePositionsVbo);
-            clipmapProbePositionsVbo = 0;
-        }
+        clipmapProbePositionsVbo?.Dispose();
+        clipmapProbePositionsVbo = null;
 
         capi.Event.UnregisterRenderer(this, EnumRenderStage.AfterBlit);
         capi.Event.UnregisterRenderer(this, EnumRenderStage.OIT);
