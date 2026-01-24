@@ -240,11 +240,11 @@ Do **not** block the render thread waiting on uploads; completions are primarily
 
 ### Phase 5 — Validation and regression checks
 
-☐ Run existing tests:
-  ☐ Unit tests (`VanillaGraphicsExpanded.Tests/Unit/*`)
-  ☐ GPU integration tests (`VanillaGraphicsExpanded.Tests/GPU/*`) when available in CI/dev.
-☐ Add a small GPU test (if practical) that:
-  ☐ Creates a wrapper, disposes it from a background thread (enqueues delete), ticks manager, and verifies no GL errors.
+✔ Run existing tests:
+  ✔ Unit tests (`VanillaGraphicsExpanded.Tests/Unit/*`)
+  ✔ GPU integration tests (`VanillaGraphicsExpanded.Tests/GPU/*`) when available in CI/dev.
+✔ Add a small GPU test (if practical) that:
+  ✔ Creates a wrapper, disposes it from a background thread (enqueues delete), ticks manager, and verifies no GL errors.
 
 ## 7. Expected File/Module Touch List
 

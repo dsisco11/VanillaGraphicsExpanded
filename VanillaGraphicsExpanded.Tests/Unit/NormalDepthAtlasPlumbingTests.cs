@@ -110,13 +110,27 @@ public sealed class NormalDepthAtlasPlumbingTests
         SetPrivateInstanceField(tex, "height", 1);
         SetPrivateInstanceField(tex, "internalFormat", internalFormat);
         SetPrivateInstanceField(tex, "filterMode", TextureFilterMode.Nearest);
-        SetPrivateInstanceField(tex, "isDisposed", false);
+        // GpuResource uses an int disposal sentinel.
+        SetPrivateInstanceField(tex, "disposed", 0);
         return tex;
     }
 
     private static void SetPrivateInstanceField<T>(object instance, string fieldName, T value)
     {
-        FieldInfo? field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Type? type = instance.GetType();
+        FieldInfo? field = null;
+
+        while (type is not null)
+        {
+            field = type.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            if (field is not null)
+            {
+                break;
+            }
+
+            type = type.BaseType;
+        }
+
         Assert.NotNull(field);
         field!.SetValue(instance, value);
     }
