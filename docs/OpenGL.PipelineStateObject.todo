@@ -55,17 +55,18 @@ Docs:
       - viewport, scissor box, FBO binds, textures/samplers, uniforms
       - Even when “dynamic”, route these binds through the PSO/GlStateCache scope APIs for caching/stacking.
 
-☐ Phase 1 — State ID Layout + Bitsets
+☑ Phase 1 — State ID Layout + Bitsets
   Exit artifacts:
     - A stable enum/ID mapping from “state knob” → bit index
     - Two compact bitsets in PSO (and optionally in cache snapshot)
+    - Phase 1 details: `docs/OpenGL.PipelineStateObject.Phase1.md`
 
   Work items:
-    ☐ Define a `GlPipelineStateId` (or similar) enum for each tracked knob
-    ☐ Choose a bitset representation:
+    ☑ Define a `GlPipelineStateId` (or similar) enum for each tracked knob
+    ☑ Choose a bitset representation:
       - Prefer `ulong` (<= 64 knobs) or a small fixed `ulong[]` for extension
       - Avoid `bool[]` for hot-path comparisons
-    ☐ Define PSO invariants and validation checks (debug-only):
+    ☑ Define PSO invariants and validation checks (debug-only):
       - No overlap between defaultMask/nonDefaultMask
       - All required value fields are populated when their bits are set
 

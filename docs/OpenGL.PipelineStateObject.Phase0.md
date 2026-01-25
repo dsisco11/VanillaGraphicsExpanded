@@ -20,15 +20,15 @@ Baseline defaults (GL spec):
 | Depth write mask | `true` |
 | Blend (global) | Disabled |
 | Blend func (global) | `src=ONE`, `dst=ZERO` (and same for alpha) |
-| Blend equation (global) | `FUNC_ADD` |
 | Blend (per-RT / indexed) | Disabled (per attachment) |
 | Blend func (per-RT / indexed) | `src=ONE`, `dst=ZERO` (and same for alpha) |
-| Blend equation (per-RT / indexed) | `FUNC_ADD` |
 | Cull face | Disabled |
 | Color mask | `RGBA = true,true,true,true` |
 | Scissor test | Disabled |
 | Line width (optional debug knob) | `1.0` |
 | Point size (optional debug knob) | `1.0` |
+
+Note: blend equations are currently assumed to remain at the GL-spec default (`FUNC_ADD`) and are not tracked in Phase 0/1.
 
 Rationale: VGE already has multiple “force known-good state + restore” callsites for offscreen/debug paths. Using spec defaults makes the `defaultMask` semantics unambiguous and aligns with those callsites (e.g. `MaterialAtlasNormalDepthGpuBuilder` disables `Blend/DepthTest/Scissor/Cull` and forces `ColorMask` to all-true).
 
@@ -68,9 +68,9 @@ Dynamic state is not part of the immutable PSO descriptor, but should still be r
 
 Not currently tracked because VGE isn’t explicitly controlling them today (can be added later if a renderer needs them):
 
+- Blend equations (global and indexed)
 - Stencil test and stencil ops
 - Polygon offset and depth range
 - Alpha-to-coverage / multisample toggles
 - sRGB framebuffer enable, dithering, logic op
 - Clip control, provoking vertex, primitive restart
-
