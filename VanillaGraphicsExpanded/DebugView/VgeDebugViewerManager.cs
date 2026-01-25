@@ -41,6 +41,11 @@ public static class VgeDebugViewerManager
 
     public static bool ToggleDialog(KeyCombination _)
     {
+        return ToggleDialog();
+    }
+
+    public static bool ToggleDialog()
+    {
         if (capi is null)
         {
             return false;
@@ -59,4 +64,7 @@ public static class VgeDebugViewerManager
 
         return true;
     }
+
+    public static bool IsDialogOpen()
+        => dialog?.IsOpened() ?? false;
 }

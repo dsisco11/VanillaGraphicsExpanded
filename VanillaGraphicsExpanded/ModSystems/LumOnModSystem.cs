@@ -2,6 +2,7 @@ using System;
 
 using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.LumOn.Diagnostics;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR;
 
@@ -20,6 +21,8 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
     private LumOnBufferManager? lumOnBufferManager;
     private LumOnRenderer? lumOnRenderer;
     private LumOnDebugRenderer? lumOnDebugRenderer;
+
+    private HudLumOnStatsPanel? lumOnStatsPanel;
 
     private LumOnLiveConfigSnapshot? lastLiveConfigSnapshot;
 
@@ -48,6 +51,70 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         lastLiveConfigSnapshot = LumOnLiveConfigSnapshot.From(ConfigModSystem.Config);
 
         EnsureInitializedIfReady("startup");
+
+        EnsureLumOnStatsPanelInitialized("startup");
+    }
+
+    internal bool IsLumOnEnabled()
+        => ConfigModSystem.Config.LumOn.Enabled;
+
+    internal void ToggleLumOnEnabled()
+    {
+        if (capi is null)
+        {
+            return;
+        }
+
+        ConfigModSystem.Config.LumOn.Enabled = !ConfigModSystem.Config.LumOn.Enabled;
+        string status = ConfigModSystem.Config.LumOn.Enabled ? "enabled" : "disabled";
+        capi.TriggerIngameError(this, "vgelumon", $"[LumOn] {status}");
+
+        if (ConfigModSystem.Config.LumOn.Enabled)
+        {
+            EnsureInitializedIfReady("tools toggle enable");
+            TryBindWorldProbeClipmap(capi, reason: "tools toggle enable");
+        }
+    }
+
+    internal bool IsLumOnStatsOverlayShown()
+        => lumOnStatsPanel?.IsOpened() ?? false;
+
+    internal void ToggleLumOnStatsOverlay()
+    {
+        if (capi is null)
+        {
+            return;
+        }
+
+        EnsureLumOnStatsPanelInitialized("toggle");
+        if (lumOnStatsPanel is null)
+        {
+            return;
+        }
+
+        if (lumOnStatsPanel.IsOpened())
+        {
+            lumOnStatsPanel.Hide();
+        }
+        else
+        {
+            lumOnStatsPanel.Show();
+        }
+    }
+
+    internal string[] GetLumOnStatsOverlayLines()
+    {
+        if (!ConfigModSystem.Config.LumOn.Enabled)
+        {
+            return ["LumOn: Disabled", string.Empty, string.Empty, string.Empty];
+        }
+
+        if (lumOnRenderer is null)
+        {
+            return ["LumOn: Enabled (not initialized)", "Waiting for renderer dependencies...", string.Empty, string.Empty];
+        }
+
+        return lumOnRenderer.DebugCounters.GetDebugLines();
     }
 
     internal LumOnBufferManager? GetLumOnBufferManagerOrNull()
@@ -113,6 +180,9 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
     {
         base.Dispose();
 
+        lumOnStatsPanel?.Dispose();
+        lumOnStatsPanel = null;
+
         lumOnDebugRenderer?.Dispose();
         lumOnDebugRenderer = null;
 
@@ -126,6 +196,17 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         directLightingBufferManager = null;
         capi = null;
         lastLiveConfigSnapshot = null;
+    }
+
+    private void EnsureLumOnStatsPanelInitialized(string reason)
+    {
+        if (capi is null)
+        {
+            return;
+        }
+
+        lumOnStatsPanel ??= new HudLumOnStatsPanel(capi, this);
+        capi.Logger.Debug("[VGE] LumOn stats panel ensured ({0})", reason);
     }
 
     private void EnsureInitializedIfReady(string reason)

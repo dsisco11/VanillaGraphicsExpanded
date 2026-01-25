@@ -200,12 +200,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     private bool OnShowStats(KeyCombination keyCombination)
     {
-        var c = debugCounters;
-        string stats = $"[LumOn] Probes: {c.TotalProbes} | " +
-                       $"Time: {c.TotalFrameMs:F2}ms (HZB:{c.HzbPassMs:F2} A:{c.ProbeAnchorPassMs:F2} T:{c.ProbeTracePassMs:F2} " +
-                       $"Tp:{c.TemporalPassMs:F2} F:{c.ProbeAtlasFilterPassMs:F2} P:{c.ProbeAtlasProjectionPassMs:F2} " +
-                       $"G:{c.GatherPassMs:F2} U:{c.UpsamplePassMs:F2})";
-        capi.ShowChatMessage(stats);
+        capi.ModLoader.GetModSystem<LumOnModSystem>().ToggleLumOnStatsOverlay();
         return true;
     }
 

@@ -16,6 +16,7 @@ public static class VgeBuiltInDebugViews
     private const string CategoryMotion = "Motion";
     private const string CategoryProfiling = "Profiling";
     private const string CategoryGBuffer = "GBuffer";
+    private const string CategoryTools = "Tools";
 
     private const string ProbesDebugViewId = "vge.lumon.probes";
     private const string PbrDebugViewId = "vge.lumon.pbr";
@@ -24,6 +25,7 @@ public static class VgeBuiltInDebugViews
     private const string GpuProfilerViewId = "vge.profiling.gpu";
     private const string GpuDebugGroupsViewId = "vge.profiling.gpuDebugGroups";
     private const string GBufferOverlayViewId = "vge.gbuffer.overlay";
+    private const string ToolsViewId = "vge.tools";
 
     public static void RegisterAll(
         ICoreClientAPI capi,
@@ -42,6 +44,126 @@ public static class VgeBuiltInDebugViews
         DebugViewRegistry.Instance.Register(CreateGpuProfilerView());
         DebugViewRegistry.Instance.Register(CreateGpuDebugGroupsView());
         DebugViewRegistry.Instance.Register(CreateGBufferOverlayView(gBufferManager));
+        DebugViewRegistry.Instance.Register(CreateToolsView());
+    }
+
+    private static DebugViewDefinition CreateToolsView()
+        => new(
+            id: ToolsViewId,
+            name: "Tools",
+            category: CategoryTools,
+            description: "State-aware debug tools not covered by other debug views.",
+            registerRenderer: _ => new ActionDisposable(() => { }),
+            activationMode: DebugViewActivationMode.Toggle,
+            createPanel: ctx => new ToolsPanel(ctx.Capi));
+
+    private sealed class ToolsPanel : DebugViewPanelBase
+    {
+        private readonly ICoreClientAPI capi;
+
+        private GuiComposer? composer;
+
+        private bool lastViewerOpen;
+        private bool lastLumOnEnabled;
+        private bool lastStatsShown;
+
+        public ToolsPanel(ICoreClientAPI capi)
+        {
+            this.capi = capi;
+        }
+
+        public override bool WantsGameTick => true;
+
+        public override void Compose(GuiComposer composer, ElementBounds bounds, string keyPrefix)
+        {
+            this.composer = composer;
+
+            const double rowH = 28;
+            const double rowGapY = 8;
+            const double buttonW = 340;
+
+            var fontLabel = CairoFont.WhiteSmallText();
+
+            ElementBounds b0 = ElementBounds.Fixed(0, 0, buttonW, rowH).WithParent(bounds);
+            ElementBounds b1 = ElementBounds.Fixed(0, rowH + rowGapY, buttonW, rowH).WithParent(bounds);
+            ElementBounds b2 = ElementBounds.Fixed(0, (rowH + rowGapY) * 2, buttonW, rowH).WithParent(bounds);
+
+            bool viewerOpen = VgeDebugViewerManager.IsDialogOpen();
+
+            var lumOn = capi.ModLoader.GetModSystem<LumOnModSystem>();
+            bool lumOnEnabled = lumOn.IsLumOnEnabled();
+            bool statsShown = lumOn.IsLumOnStatsOverlayShown();
+
+            lastViewerOpen = viewerOpen;
+            lastLumOnEnabled = lumOnEnabled;
+            lastStatsShown = statsShown;
+
+            composer
+                .AddSmallButton(
+                    text: $"Debug Viewer: {(viewerOpen ? "Open" : "Closed")}",
+                    onClick: () =>
+                    {
+                        VgeDebugViewerManager.ToggleDialog();
+                        TryRecompose();
+                        return true;
+                    },
+                    bounds: b0,
+                    style: EnumButtonStyle.Normal,
+                    key: $"{keyPrefix}-viewer")
+                .AddSmallButton(
+                    text: $"LumOn: {(lumOnEnabled ? "Enabled" : "Disabled")}",
+                    onClick: () =>
+                    {
+                        lumOn.ToggleLumOnEnabled();
+                        TryRecompose();
+                        return true;
+                    },
+                    bounds: b1,
+                    style: EnumButtonStyle.Normal,
+                    key: $"{keyPrefix}-lumon")
+                .AddSmallButton(
+                    text: $"LumOn Stats: {(statsShown ? "Shown" : "Hidden")}",
+                    onClick: () =>
+                    {
+                        lumOn.ToggleLumOnStatsOverlay();
+                        TryRecompose();
+                        return true;
+                    },
+                    bounds: b2,
+                    style: EnumButtonStyle.Normal,
+                    key: $"{keyPrefix}-lumonstats");
+
+            _ = fontLabel;
+        }
+
+        public override void OnGameTick(float dt)
+        {
+            var lumOn = capi.ModLoader.GetModSystem<LumOnModSystem>();
+
+            bool viewerOpen = VgeDebugViewerManager.IsDialogOpen();
+            bool lumOnEnabled = lumOn.IsLumOnEnabled();
+            bool statsShown = lumOn.IsLumOnStatsOverlayShown();
+
+            if (viewerOpen != lastViewerOpen || lumOnEnabled != lastLumOnEnabled || statsShown != lastStatsShown)
+            {
+                lastViewerOpen = viewerOpen;
+                lastLumOnEnabled = lumOnEnabled;
+                lastStatsShown = statsShown;
+                TryRecompose();
+            }
+        }
+
+        private void TryRecompose()
+        {
+            try
+            {
+                composer?.ReCompose();
+            }
+            catch
+            {
+                // Ignore UI refresh failures.
+            }
+        }
     }
 
     private static DebugViewDefinition CreateProbesDebugView()

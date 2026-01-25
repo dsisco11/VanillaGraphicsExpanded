@@ -96,7 +96,7 @@
     - Probes modes have symmetric atlas/world variants where feasible
     - Shader changes are isolated to new mode cases and (optionally) one new sampler binding
 
-☐ Phase 4 - Tools Debug View (State-Aware Buttons Only)
+✔ Phase 4 - Tools Debug View (State-Aware Buttons Only) @done(26-01-24 17:54)
   Goal: Add clickable state-aware tools that are NOT already covered by existing debug views.
   Requirement notes:
     - Buttons are label-only (no icons/colors)
@@ -107,13 +107,13 @@
     - LumOn Enabled/Disabled (F9 hotkey functionality)
     - LumOn Stats Shown/Hidden (persistent overlay; replaces/extends Ctrl+F9 behavior)
   Work items:
-    ☐ Create a `Tools` debug view (panel) in an appropriate category (e.g., Profiling/Tools)
-    ☐ Add buttons:
-      ☐ “Debug Viewer: Open/Close” (reflects dialog visibility)
-      ☐ “LumOn: Enabled/Disabled” (reflects enabled state)
-      ☐ “LumOn Stats: Shown/Hidden” (reflects stats overlay state)
-    ☐ Add minimal public/internal hook points so buttons can call actions directly (do not attempt to simulate hotkeys)
-    ☐ Implement persistent stats overlay rendering/updating path
+    ✔ Create a `Tools` debug view (panel) in an appropriate category (e.g., Profiling/Tools)
+    ✔ Add buttons:
+      ✔ “Debug Viewer: Open/Close” (reflects dialog visibility)
+      ✔ “LumOn: Enabled/Disabled” (reflects enabled state)
+      ✔ “LumOn Stats: Shown/Hidden” (reflects stats overlay state)
+    ✔ Add minimal public/internal hook points so buttons can call actions directly (do not attempt to simulate hotkeys)
+    ✔ Implement persistent stats overlay rendering/updating path
   Exit artifacts:
     - Tools buttons correctly reflect and toggle state
     - Stats overlay persists until toggled off
