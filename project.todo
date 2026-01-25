@@ -33,7 +33,7 @@ Issues:
     ✔ Add `GpuAtomicCounterBuffer` RAII wrapper.
     ✔ Add `GpuShaderStorageBuffer` RAII wrapper.
     ✔ Add `GpuIndirectBuffer` RAII wrapper.
-    ☐ Add `GpuUniformBuffer` RAII wrapper.
+    ✔ Add `GpuUniformBuffer` RAII wrapper.
     ☐ Add `GpuPipelineLayout` RAII wrapper.
     ☐ Add `GpuComputePipeline` RAII wrapper.
     ✔ Refactor `VgeShaderProgram` into `GpuProgram` (rename + RAII + deferred disposal).
