@@ -62,5 +62,44 @@ public sealed class GpuImageUnitBindingIntegrationTests
             try { GL.DeleteBuffer(bufferId); } catch { }
         }
     }
-}
 
+    [Fact]
+    public void GpuImageUnitBinding_Scope_RestoresPreviousState()
+    {
+        _fixture.EnsureContextValid();
+        _fixture.MakeCurrent();
+
+        using var texA = Texture2D.Create(4, 4, PixelInternalFormat.Rgba8, debugName: "ScopeTexA");
+        using var texB = Texture2D.Create(4, 4, PixelInternalFormat.Rgba8, debugName: "ScopeTexB");
+
+        // Establish a known previous binding for unit 2.
+        texA.BindImageUnit(unit: 2, access: TextureAccess.ReadOnly, level: 0, layered: false, layer: 0, format: SizedInternalFormat.Rgba8);
+
+        GL.GetInteger((GetIndexedPName)All.ImageBindingName, 2, out int prevName);
+        GL.GetInteger((GetIndexedPName)All.ImageBindingAccess, 2, out int prevAccess);
+        GL.GetInteger((GetIndexedPName)All.ImageBindingFormat, 2, out int prevFormat);
+
+        Assert.Equal(texA.TextureId, prevName);
+        Assert.Equal((int)TextureAccess.ReadOnly, prevAccess);
+        Assert.Equal((int)SizedInternalFormat.Rgba8, prevFormat);
+
+        using (GpuImageUnitBinding.Bind(unit: 2, texture: texB, access: TextureAccess.ReadWrite, level: 0, layered: false, layer: 0, formatOverride: SizedInternalFormat.Rgba8))
+        {
+            GL.GetInteger((GetIndexedPName)All.ImageBindingName, 2, out int boundName);
+            GL.GetInteger((GetIndexedPName)All.ImageBindingAccess, 2, out int boundAccess);
+            GL.GetInteger((GetIndexedPName)All.ImageBindingFormat, 2, out int boundFormat);
+
+            Assert.Equal(texB.TextureId, boundName);
+            Assert.Equal((int)TextureAccess.ReadWrite, boundAccess);
+            Assert.Equal((int)SizedInternalFormat.Rgba8, boundFormat);
+        }
+
+        GL.GetInteger((GetIndexedPName)All.ImageBindingName, 2, out int restoredName);
+        GL.GetInteger((GetIndexedPName)All.ImageBindingAccess, 2, out int restoredAccess);
+        GL.GetInteger((GetIndexedPName)All.ImageBindingFormat, 2, out int restoredFormat);
+
+        Assert.Equal(prevName, restoredName);
+        Assert.Equal(prevAccess, restoredAccess);
+        Assert.Equal(prevFormat, restoredFormat);
+    }
+}

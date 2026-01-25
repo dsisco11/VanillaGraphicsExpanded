@@ -39,7 +39,7 @@ Issues:
     ✔ Refactor `VgeShaderProgram` into `GpuProgram` (rename + RAII + deferred disposal).
     ✔ GpuProgram: need to add unit tests to verify that the shader preprocessing system emits the correct "#line" directives for error reporting.
     ✔ Add `GpuBufferTexture` API surface (alias/rename of `GpuBufferView`) + image-unit binding helpers (glBindImageTexture).
-    ☐ Add `GpuImageUnitBinding` binding-scope helper (restore previous image binding/state on dispose).
+    ✔ Add `GpuImageUnitBinding` binding-scope helper (restore previous image binding/state on dispose).
     ☐ Add `GpuMappedBuffer` / `GpuMappedBufferScope` wrapper for map/unmap (and optional persistent mapping + flush ranges).
     ☐ Add specialized query wrappers (`GpuTimestampQuery`, `GpuTimerQuery`) built on `GpuQuery`.
     ☐ Add unified base class for binding scopes (“Scope Trackers”) to enable future scope-stack/PSO integration.
