@@ -62,26 +62,22 @@ internal sealed partial class GlStateCache
 
     public ProgramScope UseProgramScope(int programId)
     {
-        int previous = 0;
-        try { previous = GL.GetInteger(GetPName.CurrentProgram); } catch { previous = 0; }
-        UseProgram(programId);
-        return new ProgramScope(this, previous);
+        int previous = ProgramScopeTracker.Begin(programId);
+        return new ProgramScope(previous);
     }
 
     public readonly struct ProgramScope : IDisposable
     {
-        private readonly GlStateCache cache;
         private readonly int previous;
 
-        public ProgramScope(GlStateCache cache, int previous)
+        public ProgramScope(int previous)
         {
-            this.cache = cache;
             this.previous = previous;
         }
 
         public void Dispose()
         {
-            cache.UseProgram(previous);
+            ProgramScopeTracker.End(previous);
         }
     }
 
@@ -116,26 +112,22 @@ internal sealed partial class GlStateCache
 
     public VaoScope BindVertexArrayScope(int vaoId)
     {
-        int previous = 0;
-        try { GL.GetInteger(GetPName.VertexArrayBinding, out previous); } catch { previous = 0; }
-        BindVertexArray(vaoId);
-        return new VaoScope(this, previous);
+        int previous = VaoScopeTracker.Begin(vaoId);
+        return new VaoScope(previous);
     }
 
     public readonly struct VaoScope : IDisposable
     {
-        private readonly GlStateCache cache;
         private readonly int previous;
 
-        public VaoScope(GlStateCache cache, int previous)
+        public VaoScope(int previous)
         {
-            this.cache = cache;
             this.previous = previous;
         }
 
         public void Dispose()
         {
-            cache.BindVertexArray(previous);
+            VaoScopeTracker.End(previous);
         }
     }
 
@@ -267,26 +259,22 @@ internal sealed partial class GlStateCache
 
     public ProgramPipelineScope BindProgramPipelineScope(int pipelineId)
     {
-        int previous = 0;
-        try { previous = GL.GetInteger(GetPName.ProgramPipelineBinding); } catch { previous = 0; }
-        BindProgramPipeline(pipelineId);
-        return new ProgramPipelineScope(this, previous);
+        int previous = ProgramPipelineScopeTracker.Begin(pipelineId);
+        return new ProgramPipelineScope(previous);
     }
 
     public readonly struct ProgramPipelineScope : IDisposable
     {
-        private readonly GlStateCache cache;
         private readonly int previous;
 
-        public ProgramPipelineScope(GlStateCache cache, int previous)
+        public ProgramPipelineScope(int previous)
         {
-            this.cache = cache;
             this.previous = previous;
         }
 
         public void Dispose()
         {
-            cache.BindProgramPipeline(previous);
+            ProgramPipelineScopeTracker.End(previous);
         }
     }
 
@@ -314,26 +302,22 @@ internal sealed partial class GlStateCache
 
     public RenderbufferScope BindRenderbufferScope(int renderbufferId)
     {
-        int previous = 0;
-        try { previous = GL.GetInteger(GetPName.RenderbufferBinding); } catch { previous = 0; }
-        BindRenderbuffer(renderbufferId);
-        return new RenderbufferScope(this, previous);
+        int previous = RenderbufferScopeTracker.Begin(renderbufferId);
+        return new RenderbufferScope(previous);
     }
 
     public readonly struct RenderbufferScope : IDisposable
     {
-        private readonly GlStateCache cache;
         private readonly int previous;
 
-        public RenderbufferScope(GlStateCache cache, int previous)
+        public RenderbufferScope(int previous)
         {
-            this.cache = cache;
             this.previous = previous;
         }
 
         public void Dispose()
         {
-            cache.BindRenderbuffer(previous);
+            RenderbufferScopeTracker.End(previous);
         }
     }
 
@@ -361,27 +345,58 @@ internal sealed partial class GlStateCache
 
     public TransformFeedbackScope BindTransformFeedbackScope(int transformFeedbackId)
     {
-        int previous = 0;
-        try { previous = GL.GetInteger(GetPName.TransformFeedbackBinding); } catch { previous = 0; }
-        BindTransformFeedback(transformFeedbackId);
-        return new TransformFeedbackScope(this, previous);
+        int previous = TransformFeedbackScopeTracker.Begin(transformFeedbackId);
+        return new TransformFeedbackScope(previous);
     }
 
     public readonly struct TransformFeedbackScope : IDisposable
     {
-        private readonly GlStateCache cache;
         private readonly int previous;
 
-        public TransformFeedbackScope(GlStateCache cache, int previous)
+        public TransformFeedbackScope(int previous)
         {
-            this.cache = cache;
             this.previous = previous;
         }
 
         public void Dispose()
         {
-            cache.BindTransformFeedback(previous);
+            TransformFeedbackScopeTracker.End(previous);
         }
+    }
+
+    private sealed class ProgramScopeTracker : BindScopeTracker<ProgramScopeTracker>
+    {
+        protected override int GetCurrent() => GlStateCache.Current.GetCurrentProgram();
+
+        protected override void Bind(int id) => GlStateCache.Current.UseProgram(id);
+    }
+
+    private sealed class VaoScopeTracker : BindScopeTracker<VaoScopeTracker>
+    {
+        protected override int GetCurrent() => GlStateCache.Current.GetCurrentVao();
+
+        protected override void Bind(int id) => GlStateCache.Current.BindVertexArray(id);
+    }
+
+    private sealed class ProgramPipelineScopeTracker : BindScopeTracker<ProgramPipelineScopeTracker>
+    {
+        protected override int GetCurrent() => GlStateCache.Current.GetCurrentProgramPipeline();
+
+        protected override void Bind(int id) => GlStateCache.Current.BindProgramPipeline(id);
+    }
+
+    private sealed class RenderbufferScopeTracker : BindScopeTracker<RenderbufferScopeTracker>
+    {
+        protected override int GetCurrent() => GlStateCache.Current.GetCurrentRenderbuffer();
+
+        protected override void Bind(int id) => GlStateCache.Current.BindRenderbuffer(id);
+    }
+
+    private sealed class TransformFeedbackScopeTracker : BindScopeTracker<TransformFeedbackScopeTracker>
+    {
+        protected override int GetCurrent() => GlStateCache.Current.GetCurrentTransformFeedback();
+
+        protected override void Bind(int id) => GlStateCache.Current.BindTransformFeedback(id);
     }
 
     public int GetActiveTextureUnit()
