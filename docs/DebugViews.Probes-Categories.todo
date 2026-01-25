@@ -1,4 +1,4 @@
-☐ Phase 0 - Baseline + Inventory
+✔ Phase 0 - Baseline + Inventory
   Goal: Identify current debug visualizations, modes, and state that will be split into finer categories.
   Reference:
     - docs/LumOn.02-Probe-Grid.md
@@ -6,13 +6,42 @@
     - docs/LumOn.18-Probe-Data-Layout-and-Packing.md
     - docs/WorldProbes.KnownSimplificationsAndRisks.md
   Work items:
-    ☐ Enumerate current debug views registered in VanillaGraphicsExpanded/DebugView/VgeBuiltInDebugViews.cs
-    ☐ Enumerate current LumOn debug modes in VanillaGraphicsExpanded/LumOn/LumOnDebugMode.cs
-    ☐ Confirm shader switch coverage in assets/vanillagraphicsexpanded/shaders/lumon_debug.fsh
-    ☐ Identify any debug overlays not registered as a debug view (e.g., Debug Viewer dialog toggle, LumOn enable/stats)
+    ✔ Enumerate current debug views registered in VanillaGraphicsExpanded/DebugView/VgeBuiltInDebugViews.cs
+    ✔ Enumerate current LumOn debug modes in VanillaGraphicsExpanded/LumOn/LumOnDebugMode.cs
+    ✔ Confirm shader switch coverage in assets/vanillagraphicsexpanded/shaders/lumon_debug.fsh
+    ✔ Identify any debug overlays not registered as a debug view (e.g., Debug Viewer dialog toggle, LumOn enable/stats)
   Exit artifacts:
     - A written mapping of existing visualizations → target categories
     - A list of probe-related modes grouped into “conceptual modes” (dedup candidates)
+
+  Notes (Phase 0 mapping):
+    - Current registered debug views (VgeBuiltInDebugViews.RegisterAll):
+      - vge.lumon.debug (Category: LumOn) (exclusive) -> selects LumOn.DebugMode (many modes)
+      - vge.profiling.gpu (Category: Profiling) (toggle) -> GlGpuProfiler.Enabled
+      - vge.profiling.gpuDebugGroups (Category: Profiling) (toggle) -> GlGpuProfiler.EmitDebugGroups
+      - vge.gbuffer.overlay (Category: GBuffer) (exclusive) -> fullscreen attachment blit
+
+    - LumOnDebugMode shader coverage:
+      - assets/vanillagraphicsexpanded/shaders/lumon_debug.fsh implements: 1-29, 31-39, 41-44
+      - Not implemented in shader (C# special-case): 30 (VgeNormalDepthAtlas), 40 (WorldProbeOrbsPoints)
+      - 0 is Off
+
+    - Non-debug-view “tools” currently exposed only via hotkeys:
+      - F8: Debug Viewer dialog toggle (vgedebugview -> VgeDebugViewerManager.ToggleDialog)
+      - F9: LumOn enable toggle (vgelumon -> LumOnRenderer.OnToggleLumOn)
+      - Ctrl+F9: LumOn stats (vgelumonstats -> LumOnRenderer.OnShowStats) (currently prints once; will become persistent overlay)
+
+    - Target category mapping (high level):
+      - Probes: ProbeGrid/Depth/Normal (1-3), ProbeAtlas* (12-17), WorldProbe* (31-40, 42-44), plus probe blend/diagnostic modes as appropriate
+      - PBR: Composite* (18-21), Direct* (22-25)
+      - GBuffer: SceneDepth/Normal (4-5), MaterialBands (29), PomMetrics (41), plus any future gbuffer channels
+      - Profiling: vge.profiling.*
+      - Tools: only actions not already covered by debug views (Debug Viewer open/close, LumOn enabled, LumOn stats overlay)
+
+    - Probe “conceptual modes” (dedup candidates for Phase 2):
+      - Contribution Only (toggle World vs Screen): WorldProbeContributionOnly (43) <-> ScreenSpaceContributionOnly (44)
+      - World-only (toggle hidden): WorldProbeIrradianceCombined/Level, Confidence, AO direction/confidence, HitDistance, Flags, BlendWeights, CrossLevelBlend, OrbsPoints
+      - Screen-only (toggle hidden): ProbeGrid/Depth/Normal, TemporalWeight/Rejection, SHCoefficients, InterpolationWeights, RadianceOverlay, GatherWeight, ProbeAtlas* (until symmetric atlas/world variants are added in Phase 3)
 
 ☐ Phase 1 - Replace Mixed Debug Overlay With Categories
   Goal: Remove the existing all-in-one LumOn debug view and expose debug visualizations under finer-grained categories.
