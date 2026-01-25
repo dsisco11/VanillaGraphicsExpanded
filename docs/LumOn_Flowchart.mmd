@@ -1,0 +1,69 @@
+flowchart TD
+  %% =========================
+  %% LumOn: Screen Probe Gather + Caches (high-level)
+  %% =========================
+
+  subgraph A["Frame N: Screen Probe Gather (SPG)"]
+    A0["GBuffer (depth/normal/albedo/roughness/emissive)\n+ View/PrevView transforms"] --> A1["Place Screen Probes (downsampled grid)"]
+    A1 --> A2["For each Screen Probe:\nBuild ray-direction PDF (PIS)"]
+    A2 --> A3{"History valid?\n(reprojection ok, not disoccluded)"}
+    A3 -- "Yes" --> A4["Incoming radiance estimate\nfrom SSRC (prev frame reprojected)"]
+    A3 -- "No" --> A5["Fallback incoming radiance estimate\nfrom WSRC (world probes)"]
+    A4 --> A6["PIS: importance ∝ Li(dir) * BRDF(dir) * cosθ\n(discretized bins → CDF/alias)"]
+    A5 --> A6
+    A6 --> A7["Trace rays for this probe\n(HWRT or SDF)"]
+    A7 --> A8{"Ray hits scene geometry?"}
+  end
+
+  %% =========================
+  %% Surface Cache / LumOn Scene
+  %% =========================
+  subgraph B["Surface Cache (LumOn Scene)"]
+    B0["Mesh Cards / Surface Parameterization\n(materials captured into atlases)"] --> B1["LumOn Scene Lighting:\nupdate direct + indirect on cards\n(amortized over frames)"]
+    B1 --> B2["Surface Cache lookup:\nshading at ray-hit points\n(used by GI + reflections)"]
+  end
+
+  %% =========================
+  %% World Space Radiance Cache
+  %% =========================
+  subgraph C["World Space Radiance Cache (WSRC)"]
+    C0["3D clipmap grids around camera\n(probe origins)"] --> C1["Probe index → Octahedral radiance atlas\n(+ distance/occlusion info)"]
+    C1 --> C2["Per-frame probe tracing budget\n(update subset each frame)"]
+  end
+
+  %% =========================
+  %% Screen Space Radiance Cache
+  %% =========================
+  subgraph D["Screen Space Radiance Cache (SSRC)"]
+    D0["Per-screen-probe directional radiance\n(octahedral atlas in screen-probe space)"] --> D1["Temporal reprojection + accumulation"]
+    D1 --> D2["Probe-space spatial filtering\n+ resolve to shading"]
+  end
+
+  %% =========================
+  %% Ray outcomes + cache updates
+  %% =========================
+  A8 -- "Hit" --> B2
+  B2 --> A9["Write sample result into SSRC for this probe"]
+  A8 -- "Miss / very far" --> C1
+  C1 --> A10["Use WSRC radiance as distant lighting / fallback contribution"]
+  A10 --> A9
+
+  A9 --> D0
+  D2 --> A11["Final Gather result:\nDiffuse GI + rough specular (as supported)"]
+  A11 --> A12["Compose lighting into main frame\n(then TAA etc.)"]
+
+  %% =========================
+  %% WSRC update path (separate budgeted work)
+  %% =========================
+  C2 --> A13["Trace rays from selected world probes\n(1-hit)"]
+  A13 --> B2
+  B2 --> C1
+
+  %% =========================
+  %% Notes / legend (compact)
+  %% =========================
+  subgraph E["Legend (what each cache *means*)"]
+    E1["SSRC: incoming radiance *at primary-visible points*\n(view-dependent, heavily temporally filtered)"]
+    E2["WSRC: incoming/distant radiance *in world space*\n(persistent probes, sparse updates)"]
+    E3["Surface Cache: outgoing radiance / lighting *on surfaces*\n(cards store lit surfaces; lights ray hits)"]
+  end
