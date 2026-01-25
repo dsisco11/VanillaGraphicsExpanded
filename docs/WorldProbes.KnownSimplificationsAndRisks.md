@@ -5,7 +5,7 @@
 
 This document inventories intentionally “cheap”, placeholder, or otherwise simplified pieces of the world-probe system.
 
-These are not necessarily *bugs*—many were introduced to get Phase 18 running end-to-end—but they *are issues* in the
+These are not necessarily _bugs_—many were introduced to get Phase 18 running end-to-end—but they _are issues_ in the
 sense that they can produce incorrect lighting, unstable behavior, misleading debug output, or performance/scalability
 problems.
 
@@ -57,6 +57,7 @@ Priorities are scoped to **Phase 18 diffuse GI correctness + debuggability**:
 ## 1. Lighting / Integration Heuristics
 
 <a id="wp-1-1"></a>
+
 ### 1.1 (P1) Skylight bounce uses limited secondary sky visibility traces
 
 **Where**: `VanillaGraphicsExpanded/LumOn/WorldProbes/Tracing/LumOnWorldProbeTraceIntegrator.cs` (`EvaluateHitRadiance`)
@@ -83,6 +84,7 @@ remains simplified (low sample count, fixed max distance).
   for edge cases (overhangs, near-geometry probes).
 
 <a id="wp-1-2"></a>
+
 ### 1.2 (P1) Placeholder sky radiance model (miss shader)
 
 **Where**: `VanillaGraphicsExpanded/LumOn/WorldProbes/Tracing/LumOnWorldProbeTraceIntegrator.cs` (`EvaluateSkyRadiance`)
@@ -105,14 +107,17 @@ remains simplified (low sample count, fixed max distance).
 - **Option C (simplify)**: Remove the separate sky channel and bake sky radiance entirely into RGB SH (then `worldProbeSkyTint` becomes unnecessary or purely a post-tint).
 
 <a id="wp-1-3"></a>
+
 ### 1.3 (P1) Sky visibility/intensity split still heuristic
 
 **Where**:
+
 - CPU: `VanillaGraphicsExpanded/LumOn/WorldProbes/Tracing/LumOnWorldProbeTraceIntegrator.cs` (`ShSky`, `SkyIntensity`)
 - GPU: `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_worldprobe_clipmap_resolve.fsh` (`ProbeVis0.z`)
 - Shader: `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_worldprobe.glsl` (`skyIntensityAccum`)
 
 **What**: The probe payload now separates:
+
 - **Sky visibility**: stored in `ShSky` (L1 SH), accumulated as **miss = 1, hit = 0**
 - **Sky intensity**: stored as a **scalar** (`SkyIntensity`) and packed into `ProbeVis0.z`
 
@@ -128,10 +133,11 @@ remains simplified (low sample count, fixed max distance).
   rather than using a hit-average heuristic.
 - **Option B (visibility-only)**: Treat sky intensity as purely global (uniform-driven) and set `SkyIntensity = 1`,
   using `ShSky` as sky visibility only.
-- **Option C (higher fidelity)**: Store a separate sky *intensity SH* (or a higher-order sky representation) rather than
+- **Option C (higher fidelity)**: Store a separate sky _intensity SH_ (or a higher-order sky representation) rather than
   a single scalar multiplier.
 
 <a id="wp-1-4"></a>
+
 ### 1.4 (P2) Specular GI path is not implemented
 
 **Where**: `VanillaGraphicsExpanded/LumOn/WorldProbes/Tracing/LumOnWorldProbeTraceIntegrator.cs` (`specularF0` TODO)
@@ -147,11 +153,12 @@ payloads.
 
 **Options to address**
 
-- **Option A (cheap)**: Use world-probe diffuse irradiance as a fallback for *very rough* specular only (high roughness), and keep glossy specular screen-space only.
+- **Option A (cheap)**: Use world-probe diffuse irradiance as a fallback for _very rough_ specular only (high roughness), and keep glossy specular screen-space only.
 - **Option B (directional lobe)**: Extend the probe payload with a compact directional specular representation (e.g., dominant direction + RGB intensity + cone/roughness), and evaluate it in shading.
 - **Option C (higher fidelity)**: Store higher-order angular data (e.g., L2/L3 SH, spherical Gaussians, or a small prefiltered lobe set) specifically for specular.
 
 <a id="wp-1-5"></a>
+
 ### 1.5 (P1) Material factors are simplified (base-texture-only resolution)
 
 **Where**: `VanillaGraphicsExpanded/PBR/Materials/WorldProbes/BlockFaceTextureKeyResolver.cs`
@@ -168,13 +175,14 @@ composite “++0~” variants, RNG/position-dependent variants, etc.
 
 **Options to address**
 
-- **Option A (pragmatic)**: Extend the resolver to understand composite/overlay keys (including “++0~” combiner forms) and resolve the *actual* authored texture key space used by the material atlas/registry.
+- **Option A (pragmatic)**: Extend the resolver to understand composite/overlay keys (including “++0~” combiner forms) and resolve the _actual_ authored texture key space used by the material atlas/registry.
 - **Option B (approximate)**: When exact per-face mapping is hard, compute a per-block (or per-blockgroup) averaged derived surface across all resolved textures/variants to reduce systematic bias.
 - **Option C (override map)**: Add an explicit mapping/override table for blocks/material groups that are known to be mis-resolved, to close gaps incrementally.
 
 ## 2. Tracing / Scene Representation Simplifications
 
 <a id="wp-2-1"></a>
+
 ### 2.1 (P1) “Most solid block + collision boxes” as geometry
 
 **Where**: `VanillaGraphicsExpanded/LumOn/WorldProbes/Tracing/BlockAccessorWorldProbeTraceScene.cs`
@@ -195,6 +203,7 @@ composite “++0~” variants, RNG/position-dependent variants, etc.
 - **Option C (material-aware)**: Introduce per-block transmittance categories (solid/leaf/liquid/glass) so “hit” can attenuate rather than fully block, improving GI around translucent content.
 
 <a id="wp-2-2"></a>
+
 ### 2.2 (P0) Unloaded chunks treated as misses; placeholder chunk objects can abort traces
 
 **Where**: `VanillaGraphicsExpanded/LumOn/WorldProbes/Tracing/BlockAccessorWorldProbeTraceScene.cs`
@@ -215,11 +224,12 @@ composite “++0~” variants, RNG/position-dependent variants, etc.
 
 **Options to address**
 
-- **Option A (safe)**: Treat *unloaded* as **Aborted** (retry later) rather than **Miss**, so missing world data never turns into “open sky” lighting. **(Implemented)**
+- **Option A (safe)**: Treat _unloaded_ as **Aborted** (retry later) rather than **Miss**, so missing world data never turns into “open sky” lighting. **(Implemented)**
 - **Option B (conservative)**: Treat unloaded as “occluded” (hit/blocked) to avoid bright leaks, optionally only on near levels where correctness matters most.
 - **Option C (streaming-aware)**: Use a policy that distinguishes “truly out of world/sky” from “temporarily missing chunk”, and add per-probe exponential backoff + telemetry so failures are diagnosable.
 
 <a id="wp-2-3"></a>
+
 ### 2.3 (P0) Probe disabled when its center lies inside a solid collision box
 
 **Where**: `VanillaGraphicsExpanded/LumOn/WorldProbes/LumOnWorldProbeUpdateRenderer.cs`
@@ -236,11 +246,12 @@ block at that voxel.
 
 **Options to address**
 
-- **Option A (minimal)**: Make this a *temporary invalidation* (e.g., keep as Dirty/Uninitialized) instead of permanent `Disabled`, so it can recover as the world changes.
+- **Option A (minimal)**: Make this a _temporary invalidation_ (e.g., keep as Dirty/Uninitialized) instead of permanent `Disabled`, so it can recover as the world changes.
 - **Option B (relocate)**: Offset/relocate the probe sample position to the nearest valid point (push out of solids) rather than disabling the probe.
 - **Option C (reduce false positives)**: Only disable on clearly solid/opaque full-cube blocks; for complex collision shapes, keep the probe but clamp confidence or treat results conservatively.
 
 <a id="wp-2-4"></a>
+
 ### 2.4 (P1) Fixed max trace distance per probe: `spacing * resolution`
 
 **Where**: `VanillaGraphicsExpanded/LumOn/WorldProbes/LumOnWorldProbeUpdateRenderer.cs`
@@ -261,6 +272,7 @@ block at that voxel.
 - **Option C (adaptive)**: Stop tracing early based on convergence (enough hits/misses) or importance, rather than a fixed distance.
 
 <a id="wp-2-5"></a>
+
 ### 2.5 (P1) Fixed 64-direction sampling pattern with uniform weights
 
 **Where**:
@@ -283,6 +295,7 @@ block at that voxel.
 - **Option C (importance sampling)**: Sample directions with cosine-weighting and/or basis-aware importance so L1 coefficients converge faster for diffuse.
 
 <a id="wp-2-6"></a>
+
 ### 2.6 (P3) Hit face decoding fallback to `Up`
 
 **Where**: `VanillaGraphicsExpanded/LumOn/WorldProbes/Tracing/ProbeHitFaceUtil.cs`
@@ -305,6 +318,7 @@ block at that voxel.
 ## 3. Scheduler / Update Policy Simplifications
 
 <a id="wp-3-1"></a>
+
 ### 3.1 (P2) O(N) selection scan over the entire 3D grid each frame
 
 **Where**: `VanillaGraphicsExpanded/LumOn/WorldProbes/LumOnWorldProbeScheduler.cs`
@@ -324,6 +338,7 @@ block at that voxel.
 - **Option C (stable iterator)**: Use a deterministic scan order with a moving pointer (round-robin) plus priority overrides for dirty/stale, making selection closer to O(budget).
 
 <a id="wp-3-2"></a>
+
 ### 3.2 (P2) Hard-coded staleness and retry/backoff constants
 
 **Where**: `VanillaGraphicsExpanded/LumOn/WorldProbes/LumOnWorldProbeScheduler.cs`
@@ -347,6 +362,7 @@ block at that voxel.
 - **Option C (better retries)**: Use per-probe exponential backoff and a “give up until chunk loaded” signal instead of a fixed delay.
 
 <a id="wp-3-3"></a>
+
 ### 3.3 (P2) Upload budget is enforced using an estimated bytes-per-probe constant
 
 **Where**: `VanillaGraphicsExpanded/LumOn/WorldProbes/LumOnWorldProbeScheduler.cs`
@@ -366,6 +382,7 @@ block at that voxel.
 - **Option C (budget by count)**: Budget purely by probe count (with a separate fixed upper bound) to avoid drifting estimates.
 
 <a id="wp-3-4"></a>
+
 ### 3.4 (P2) Dirty-chunk overflow invalidates an entire L0 volume
 
 **Where**: `VanillaGraphicsExpanded/LumOn/WorldProbes/LumOnWorldProbeUpdateRenderer.cs`
@@ -386,6 +403,7 @@ block at that voxel.
 ## 4. GPU Upload / Metadata Simplifications
 
 <a id="wp-4-1"></a>
+
 ### 4.1 (P2) `SkyOnly` flag is a heuristic based on AO+distance
 
 **Where**: `VanillaGraphicsExpanded/LumOn/WorldProbes/Gpu/LumOnWorldProbeClipmapGpuUploader.cs`
@@ -406,6 +424,7 @@ block at that voxel.
 - **Option C (defer usage)**: Treat `SkyOnly` as debug-only (or remove it) until a consumer actually needs it and semantics are locked.
 
 <a id="wp-4-2"></a>
+
 ### 4.2 (P1) Meta flags are written but not consumed by shading
 
 **Where**: `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_worldprobe.glsl`
@@ -428,6 +447,7 @@ block at that voxel.
 ## 5. Shader Sampling / Blending Simplifications
 
 <a id="wp-5-1"></a>
+
 ### 5.1 (P0) ShortRangeAO multiplies irradiance by `aoConf`
 
 **Where**: `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_worldprobe.glsl`
@@ -444,10 +464,11 @@ block at that voxel.
 **Options to address**
 
 - **Option A (minimal)**: Remove the `* aoConf` irradiance scale and use `aoConf` only to blend between `normalWS` and `aoDir` (bent normal).
-- **Option B (targeted)**: Apply `aoConf` only to the *sky* term (or apply a much softer curve), so block/indirect contributions aren’t crushed near geometry.
+- **Option B (targeted)**: Apply `aoConf` only to the _sky_ term (or apply a much softer curve), so block/indirect contributions aren’t crushed near geometry.
 - **Option C (better signal)**: Replace `aoConf` with a more physically interpretable visibility metric (e.g., cone angle + visibility) computed from more rays and distance-aware weighting.
 
 <a id="wp-5-2"></a>
+
 ### 5.2 (P1) Outside-clip-volume returns zero contribution (hard cutoff)
 
 **Where**: `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_worldprobe.glsl`
@@ -466,6 +487,7 @@ block at that voxel.
 - **Option C (selection fix)**: Change level selection to prefer levels that actually contain the sample point (within the clip volume) rather than distance-only selection.
 
 <a id="wp-5-3"></a>
+
 ### 5.3 (P1) Cross-level blend band is hard-coded
 
 **Where**: `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_worldprobe.glsl`
@@ -486,6 +508,7 @@ block at that voxel.
 - **Option C (more robust blending)**: Blend more than two levels or use a smoother weighting curve to reduce seams under rapid origin shifts.
 
 <a id="wp-5-4"></a>
+
 ### 5.4 (P2) Screen-first blending is a policy (can hide world-probe problems)
 
 **Where**:
@@ -508,6 +531,7 @@ block at that voxel.
 - **Option C (temporal hysteresis)**: Add hysteresis/temporal smoothing in the blend weights so confidence drops don’t instantly flip sources.
 
 <a id="wp-5-5"></a>
+
 ### 5.5 (P0) Screen-probe miss fallback assumes sky radiance (miss != sky)
 
 **Where**:
@@ -543,6 +567,7 @@ world-probes do not reliably act as a fallback when screen traces fail.
 ## 6. Debug Visualizer / Tooling Limitations
 
 <a id="wp-6-1"></a>
+
 ### 6.1 (P0) Orb visualizer samples irradiance with a fixed “up” normal
 
 **Where**: `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/vge_worldprobe_orbs_points.fsh`
@@ -567,12 +592,14 @@ reappear if the visualizer is refactored.
 - **Option C (show magnitude)**: Display a direction-independent metric (e.g., total hemisphere irradiance, luminance, or SH energy) rather than irradiance for a single normal.
 
 <a id="wp-6-2"></a>
+
 ### 6.2 (P2) Debug tone-mapping is non-photographic and compresses differences
 
 **Where**:
 
 - `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/vge_worldprobe_orbs_points.fsh`
-- `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_debug.fsh`
+- `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_debug.fsh` (legacy dispatcher)
+- `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_debug_worldprobe.fsh` (world-probe debug category entrypoint)
 
 **What**: Debug views use a simple `hdr/(hdr+1)` mapping with no exposure/white-point.
 

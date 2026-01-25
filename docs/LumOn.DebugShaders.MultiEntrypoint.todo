@@ -146,11 +146,11 @@ Reference / Docs:
 
 ---
 
-☐ Phase 6 - Cleanup and docs
+✔ Phase 6 - Cleanup and docs
   Exit artifacts:
   - Debug shaders are discoverable and easy to extend.
 
   Work items:
-  ☐ Document how to add a new debug view category and entrypoint.
-  ☐ Update any internal docs referencing `lumon_debug` to mention the program family.
-  ☐ Optional: keep `lumon_debug` as a legacy dispatcher that forwards to the new includes (if you want a single fallback entrypoint).
+  ✔ Document how to add a new debug view category and entrypoint.
+  ✔ Update any internal docs referencing `lumon_debug` to mention the program family.
+  ✔ Optional: keep `lumon_debug` as a legacy dispatcher that forwards to the new includes (if you want a single fallback entrypoint).
