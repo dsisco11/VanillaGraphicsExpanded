@@ -131,15 +131,15 @@ Docs:
     ☑ Apply PSO to G-buffer creation/usage paths
     ☑ Verify per-attachment blending remains correct across frames
 
-☐ Phase 6 — Debugging, Naming, and Documentation
+☑ Phase 6 — Debugging, Naming, and Documentation
   Exit artifacts:
     - Easy to debug “what state did we think we set?”
     - A short doc describing default baseline + included knobs + dynamic knobs
 
   Work items:
-    ☐ Add a `Name` field and optional KHR_debug labels for related GL objects
-    ☐ Add `ToString()` / dump helper for masks + values (debug-only)
-    ☐ Document the baseline default and the tracked knob list in a markdown note
+    ☑ Add a `Name` field and optional KHR_debug labels for related GL objects
+    ☑ Add `ToString()` / dump helper for masks + values (debug-only)
+    ☑ Document the baseline default and the tracked knob list in a markdown note
 
 ☐ Phase 7 — Validation + Performance
   Exit artifacts:

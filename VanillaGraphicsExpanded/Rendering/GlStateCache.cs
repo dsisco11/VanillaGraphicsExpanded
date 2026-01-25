@@ -80,6 +80,20 @@ internal sealed partial class GlStateCache
 
     public void Apply(in GlPipelineDesc desc)
     {
+#if DEBUG
+        if (!string.IsNullOrWhiteSpace(desc.Name))
+        {
+            using var _ = GlDebug.Group($"PSO.Apply: {desc.Name}");
+            ApplyInternal(desc);
+            return;
+        }
+#endif
+
+        ApplyInternal(desc);
+    }
+
+    private void ApplyInternal(in GlPipelineDesc desc)
+    {
         // Apply order: enables/disables first, then funcs/masks, and global blend before per-RT blend.
         ApplyEnableBit(desc, GlPipelineStateId.DepthTestEnable, EnableCap.DepthTest, ref depthTestEnabled);
         ApplyEnableBit(desc, GlPipelineStateId.CullFaceEnable, EnableCap.CullFace, ref cullFaceEnabled);
@@ -458,4 +472,3 @@ internal sealed partial class GlStateCache
 
     #endregion
 }
-

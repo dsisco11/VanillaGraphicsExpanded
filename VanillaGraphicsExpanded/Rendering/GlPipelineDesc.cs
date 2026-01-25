@@ -10,8 +10,10 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// This intentionally stores only values needed for the bits present in the intent masks.
 /// (Some knobs, like indexed blend, also require attachment indices when forcing baseline defaults.)
 /// </remarks>
-internal readonly struct GlPipelineDesc
+internal readonly partial struct GlPipelineDesc
 {
+    public string? Name { get; }
+
     public GlPipelineStateMask DefaultMask { get; }
     public GlPipelineStateMask NonDefaultMask { get; }
 
@@ -44,8 +46,10 @@ internal readonly struct GlPipelineDesc
         GlColorMask? colorMask = null,
         float? lineWidth = null,
         float? pointSize = null,
+        string? name = null,
         bool validate = true)
     {
+        Name = name;
         DefaultMask = defaultMask;
         NonDefaultMask = nonDefaultMask;
 
