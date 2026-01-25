@@ -118,17 +118,17 @@
     - Tools buttons correctly reflect and toggle state
     - Stats overlay persists until toggled off
 
-☐ Phase 5 - Validation + Polish
+✔ Phase 5 - Validation + Polish
   Goal: Ensure the new categories are easy to use and don’t introduce regressions.
   Reference:
     - docs/Profiling.EventSource.md
     - docs/VgeShaderProgram.md
   Work items:
-    ☐ Verify category ordering and readability in the Debug Viewer UI
-    ☐ Verify Probes toggle hiding behavior matches symmetry availability
-    ☐ Verify new shader modes work with world probes enabled/disabled (graceful fallback)
-    ☐ Add/adjust unit tests if suitable test infra exists for debug view registration/state
-    ☐ Run `dotnet test` (at least Unit category filter) to ensure no breakage
+    ✔ Verify category ordering and readability in the Debug Viewer UI
+    ✔ Verify Probes toggle hiding behavior matches symmetry availability
+    ✔ Verify new shader modes work with world probes enabled/disabled (graceful fallback)
+    ✔ Add/adjust unit tests if suitable test infra exists for debug view registration/state
+    ✔ Run `dotnet test` (at least Unit category filter) to ensure no breakage
   Exit artifacts:
     - Debug viewer shows correct categories and entries
     - Probe visualization workflow is unified and deduplicated
