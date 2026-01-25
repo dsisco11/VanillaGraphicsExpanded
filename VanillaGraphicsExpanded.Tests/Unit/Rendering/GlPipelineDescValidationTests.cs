@@ -5,7 +5,7 @@ using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests;
 
-public class GlPipelineDescPhase2Tests
+public class GlPipelineDescValidationTests
 {
     [Fact]
     public void ValidateDesc_NonDefaultBlendFunc_RequiresValue()
@@ -97,3 +97,4 @@ public class GlPipelineDescPhase2Tests
         Assert.Equal((byte)5, desc.BlendFuncIndexed![1].AttachmentIndex);
     }
 }
+

@@ -4,7 +4,7 @@ using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests;
 
-public class GlPipelineDescPhase1Tests
+public class GlPipelineStateMaskTests
 {
     [Fact]
     public void GlPipelineStateId_BitIndices_AreStable()
