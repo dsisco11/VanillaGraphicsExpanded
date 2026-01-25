@@ -25,7 +25,7 @@ Issues:
     ✔ Add `GpuTransformFeedback` RAII wrapper.
     ✔ Add `GpuSampler` RAII wrapper.
     ☐ Add `GpuShaderModule` RAII wrapper.
-    ☐ Add `GpuProgramPipeline` RAII wrapper.
+    ✔ Add `GpuProgramPipeline` RAII wrapper.
     ☐ Add `GpuTextureView` RAII wrapper.
     ☐ Add `GpuBufferView` RAII wrapper.
     ☐ Add `GpuVertexAttribBinding` RAII wrapper.
