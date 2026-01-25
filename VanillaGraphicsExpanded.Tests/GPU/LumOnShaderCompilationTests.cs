@@ -54,6 +54,18 @@ public class LumOnShaderCompilationTests : IDisposable
         { "lumon_upsample.vsh", "lumon_upsample.fsh" },
         { "lumon_combine.vsh", "lumon_combine.fsh" },
         { "lumon_debug.vsh", "lumon_debug.fsh" },
+
+        // LumOn debug multi-entrypoint split: one program per debug category.
+        { "lumon_debug_probe_anchors.vsh", "lumon_debug_probe_anchors.fsh" },
+        { "lumon_debug_gbuffer.vsh", "lumon_debug_gbuffer.fsh" },
+        { "lumon_debug_temporal.vsh", "lumon_debug_temporal.fsh" },
+        { "lumon_debug_sh.vsh", "lumon_debug_sh.fsh" },
+        { "lumon_debug_indirect.vsh", "lumon_debug_indirect.fsh" },
+        { "lumon_debug_probe_atlas.vsh", "lumon_debug_probe_atlas.fsh" },
+        { "lumon_debug_composite.vsh", "lumon_debug_composite.fsh" },
+        { "lumon_debug_direct.vsh", "lumon_debug_direct.fsh" },
+        { "lumon_debug_velocity.vsh", "lumon_debug_velocity.fsh" },
+        { "lumon_debug_worldprobe.vsh", "lumon_debug_worldprobe.fsh" },
     };
 
     [Theory]

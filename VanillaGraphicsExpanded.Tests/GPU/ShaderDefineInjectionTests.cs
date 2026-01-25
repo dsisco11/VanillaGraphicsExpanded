@@ -1,5 +1,9 @@
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using TinyPreprocessor.Core;
+using TinyTokenizer.Ast;
+using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.Tests.Helpers;
 using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -94,6 +98,122 @@ public class ShaderDefineInjectionTests
 
         Assert.True(result.IsSuccess, result.ErrorMessage);
         Assert.True(result.ProgramId > 0, "Program ID should be valid");
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("1")]
+    public void LumOnDebugWorldProbe_Compiles_WithWorldProbeEnabledVariant(string enabledValue)
+    {
+        _fixture.EnsureContextValid();
+
+        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
+        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
+
+        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+
+        using var helper = new ShaderTestHelper(shaderPath, includePath);
+
+        // World-probe program uses compile-time gating; compile representative enabled/disabled variants.
+        var defines = new Dictionary<string, string?>
+        {
+            ["VGE_LUMON_WORLDPROBE_ENABLED"] = enabledValue,
+            ["VGE_LUMON_WORLDPROBE_LEVELS"] = enabledValue == "1" ? "2" : "0",
+            ["VGE_LUMON_WORLDPROBE_RESOLUTION"] = enabledValue == "1" ? "16" : "0",
+            ["VGE_LUMON_WORLDPROBE_BASE_SPACING"] = enabledValue == "1" ? "4.0" : "0.0",
+        };
+
+        var result = helper.CompileAndLink("lumon_debug_worldprobe.vsh", "lumon_debug_worldprobe.fsh", defines);
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+    }
+
+    [Fact]
+    public void DebugEntrypoint_Preprocess_EmitsLineDirectives_ForAccurateErrorLocations()
+    {
+        // This does not require a GL context; it validates source mapping for shader error reporting.
+        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
+        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
+
+        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+
+        string filename = "lumon_debug_worldprobe.fsh";
+        string filePath = Path.Combine(shaderPath, filename);
+        Assert.SkipWhen(!File.Exists(filePath), $"Shader file not found: {filePath}");
+
+        string rawSource = File.ReadAllText(filePath);
+
+        var sources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var includeFilePath in Directory.EnumerateFiles(includePath, "*.glsl", SearchOption.TopDirectoryOnly))
+        {
+            string fileName = Path.GetFileName(includeFilePath);
+            sources[$"shaders/includes/{fileName}"] = File.ReadAllText(includeFilePath);
+        }
+        foreach (var includeFilePath in Directory.EnumerateFiles(includePath, "*.fsh", SearchOption.TopDirectoryOnly))
+        {
+            string fileName = Path.GetFileName(includeFilePath);
+            sources[$"shaders/includes/{fileName}"] = File.ReadAllText(includeFilePath);
+        }
+        foreach (var includeFilePath in Directory.EnumerateFiles(includePath, "*.vsh", SearchOption.TopDirectoryOnly))
+        {
+            string fileName = Path.GetFileName(includeFilePath);
+            sources[$"shaders/includes/{fileName}"] = File.ReadAllText(includeFilePath);
+        }
+
+        var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
+        var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
+
+        var cache = new Dictionary<ResourceId, SyntaxTree>();
+        SyntaxTree ContentProvider(ResourceId id)
+        {
+            if (cache.TryGetValue(id, out var cached))
+            {
+                return cached;
+            }
+
+            string idText = id.ToString();
+            string path = idText;
+            int colon = idText.IndexOf(':');
+            if (colon >= 0)
+            {
+                path = idText[(colon + 1)..];
+            }
+
+            // Root shader stage.
+            if (string.Equals(path, $"shaders/{filename}", StringComparison.Ordinal))
+            {
+                var tree = ShaderImportsSystem.Instance.CreateSyntaxTree(rawSource, filename)
+                           ?? SyntaxTree.Parse(string.Empty, GlslSchema.Instance);
+                cache[id] = tree;
+                return tree;
+            }
+
+            // Imported resources.
+            if (sources.TryGetValue(path, out var text))
+            {
+                var tree = ShaderImportsSystem.Instance.CreateSyntaxTree(text, path)
+                           ?? SyntaxTree.Parse(string.Empty, GlslSchema.Instance);
+                cache[id] = tree;
+                return tree;
+            }
+
+            var empty = SyntaxTree.Parse(string.Empty, GlslSchema.Instance);
+            cache[id] = empty;
+            return empty;
+        }
+
+        var code = ShaderSourceCode.FromSource(
+            shaderName: "lumon_debug_worldprobe",
+            stageExtension: "fsh",
+            rawSource: rawSource,
+            sourceName: filename,
+            importPreprocessor: preprocessor,
+            contentProvider: ContentProvider,
+            ct: TestContext.Current.CancellationToken);
+
+        Assert.Contains("#line ", code.EmittedSource);
+        Assert.NotEmpty(code.LineDirectiveSourceIdToResource);
     }
 
     [Theory]

@@ -131,15 +131,15 @@ Reference / Docs:
 
 ---
 
-☐ Phase 5 - Validation: GPU shader compilation tests + RenderDoc sanity
+✔ Phase 5 - Validation: GPU shader compilation tests + RenderDoc sanity
   Exit artifacts:
   - Automated coverage that every debug entrypoint compiles with representative define sets.
   - A quick manual capture checklist for sanity.
 
   Work items:
-  ☐ Add/extend GPU tests to compile each `lumon_debug_<category>` shader program.
+  ✔ Add/extend GPU tests to compile each `lumon_debug_<category>` shader program.
     - Include at least: worldprobe enabled/disabled, probe-atlas enabled/disabled if applicable.
-  ☐ Ensure test output points to correct source via `#line` (ties into existing GpuProgram preprocessor work).
+  ✔ Ensure test output points to correct source via `#line` (ties into existing GpuProgram preprocessor work).
   ☐ Manual sanity steps (RenderDoc):
     - Capture a frame with each category active
     - Verify no missing textures/uniform warnings and the overlay is correct
