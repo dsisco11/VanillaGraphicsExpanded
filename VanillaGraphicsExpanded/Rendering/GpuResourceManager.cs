@@ -97,6 +97,12 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
     public void EnqueueDeleteSync(IntPtr sync)
         => EnqueueDeletion(new GpuDeletionCommand(GpuDeletionKind.Sync, (nint)sync));
 
+    public void EnqueueDeleteSemaphore(int semaphoreId)
+        => EnqueueDeletion(new GpuDeletionCommand(GpuDeletionKind.Semaphore, semaphoreId));
+
+    public void EnqueueDeleteMemoryObject(int memoryObjectId)
+        => EnqueueDeletion(new GpuDeletionCommand(GpuDeletionKind.MemoryObject, memoryObjectId));
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref isDisposed, 1) != 0)
@@ -174,6 +180,12 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
                     case GpuDeletionKind.Sync:
                         GL.DeleteSync((IntPtr)command.Id);
                         break;
+                    case GpuDeletionKind.Semaphore:
+                        GL.Ext.DeleteSemaphore((int)command.Id);
+                        break;
+                    case GpuDeletionKind.MemoryObject:
+                        GL.Ext.DeleteMemoryObject((int)command.Id);
+                        break;
                 }
             }
             catch
@@ -219,5 +231,7 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
         ProgramPipeline = 9,
         Shader = 10,
         Sync = 11,
+        Semaphore = 12,
+        MemoryObject = 13,
     }
 }

@@ -43,7 +43,7 @@ Issues:
     ✔ Add `GpuMappedBuffer` / `GpuMappedBufferScope` wrapper for map/unmap (and optional persistent mapping + flush ranges).
     ✔ Add specialized query wrappers (`GpuTimestampQuery`, `GpuTimerQuery`) built on `GpuQuery`.
     ✔ Add unified base class for binding scopes (“Scope Trackers”) to enable future scope-stack/PSO integration.
-    ☐ Add extension-gated wrappers (bindless textures, sparse textures, semaphores/memory objects).
+    ✔ Add extension-gated wrappers (bindless textures, sparse textures, semaphores/memory objects).
     ☐ Update GpuTexture wrappers to use GpuSampler's for filtering/wrapping state.
     ☐ Update GpuFramebuffer to support per-attachment blend state.
 

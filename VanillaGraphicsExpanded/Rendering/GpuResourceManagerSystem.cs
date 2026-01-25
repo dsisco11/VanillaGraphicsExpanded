@@ -112,6 +112,18 @@ internal static class GpuResourceManagerSystem
         m?.EnqueueDeleteSync(sync);
     }
 
+    public static void EnqueueDeleteSemaphore(int semaphoreId)
+    {
+        var m = Volatile.Read(ref manager);
+        m?.EnqueueDeleteSemaphore(semaphoreId);
+    }
+
+    public static void EnqueueDeleteMemoryObject(int memoryObjectId)
+    {
+        var m = Volatile.Read(ref manager);
+        m?.EnqueueDeleteMemoryObject(memoryObjectId);
+    }
+
     internal static void EnqueueBufferUpload(GpuBufferObject buffer)
     {
         var m = Volatile.Read(ref manager);

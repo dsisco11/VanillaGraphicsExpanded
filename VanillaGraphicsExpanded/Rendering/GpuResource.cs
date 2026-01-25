@@ -121,6 +121,12 @@ public abstract class GpuResource : IDisposable
                 case GpuResourceKind.Sync:
                     GpuResourceManagerSystem.EnqueueDeleteSync((IntPtr)id);
                     return;
+                case GpuResourceKind.Semaphore:
+                    GpuResourceManagerSystem.EnqueueDeleteSemaphore((int)id);
+                    return;
+                case GpuResourceKind.MemoryObject:
+                    GpuResourceManagerSystem.EnqueueDeleteMemoryObject((int)id);
+                    return;
             }
         }
 
@@ -164,6 +170,12 @@ public abstract class GpuResource : IDisposable
                 case GpuResourceKind.Sync:
                     GL.DeleteSync((IntPtr)id);
                     break;
+                case GpuResourceKind.Semaphore:
+                    GL.Ext.DeleteSemaphore((int)id);
+                    break;
+                case GpuResourceKind.MemoryObject:
+                    GL.Ext.DeleteMemoryObject((int)id);
+                    break;
             }
         }
         catch
@@ -187,4 +199,6 @@ public enum GpuResourceKind
     Sampler = 9,
     ProgramPipeline = 10,
     Shader = 11,
+    Semaphore = 12,
+    MemoryObject = 13,
 }
