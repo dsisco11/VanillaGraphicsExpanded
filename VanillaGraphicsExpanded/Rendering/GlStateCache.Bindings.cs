@@ -60,6 +60,11 @@ internal sealed partial class GlStateCache
         }
     }
 
+    public void UnbindProgram()
+    {
+        UseProgram(0);
+    }
+
     public ProgramScope UseProgramScope(int programId)
     {
         int previous = ProgramScopeTracker.Begin(programId);
@@ -108,6 +113,11 @@ internal sealed partial class GlStateCache
         catch
         {
         }
+    }
+
+    public void UnbindVertexArray()
+    {
+        BindVertexArray(0);
     }
 
     public VaoScope BindVertexArrayScope(int vaoId)
@@ -171,6 +181,11 @@ internal sealed partial class GlStateCache
         catch
         {
         }
+    }
+
+    public void UnbindFramebuffer(FramebufferTarget target)
+    {
+        BindFramebuffer(target, 0);
     }
 
     public FramebufferScope BindFramebufferScope(FramebufferTarget target, int fboId)
@@ -257,6 +272,11 @@ internal sealed partial class GlStateCache
         }
     }
 
+    public void UnbindProgramPipeline()
+    {
+        BindProgramPipeline(0);
+    }
+
     public ProgramPipelineScope BindProgramPipelineScope(int pipelineId)
     {
         int previous = ProgramPipelineScopeTracker.Begin(pipelineId);
@@ -300,6 +320,11 @@ internal sealed partial class GlStateCache
         }
     }
 
+    public void UnbindRenderbuffer()
+    {
+        BindRenderbuffer(0);
+    }
+
     public RenderbufferScope BindRenderbufferScope(int renderbufferId)
     {
         int previous = RenderbufferScopeTracker.Begin(renderbufferId);
@@ -341,6 +366,11 @@ internal sealed partial class GlStateCache
         catch
         {
         }
+    }
+
+    public void UnbindTransformFeedback()
+    {
+        BindTransformFeedback(0);
     }
 
     public TransformFeedbackScope BindTransformFeedbackScope(int transformFeedbackId)
@@ -477,6 +507,11 @@ internal sealed partial class GlStateCache
         catch
         {
         }
+    }
+
+    public void UnbindTexture(TextureTarget target, int unit)
+    {
+        BindTexture(target, unit, 0);
     }
 
     public TextureScope BindTextureScope(TextureTarget target, int unit, int textureId)
@@ -678,6 +713,11 @@ internal sealed partial class GlStateCache
         catch
         {
         }
+    }
+
+    public void UnbindBuffer(BufferTarget target)
+    {
+        BindBuffer(target, 0);
     }
 
     public BufferScope BindBufferScope(BufferTarget target, int bufferId)

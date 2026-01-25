@@ -46,7 +46,7 @@ Issues:
     ✔ Add extension-gated wrappers (bindless textures, sparse textures, semaphores/memory objects).
     ✔ Update GpuTexture wrappers to use GpuSampler's for filtering/wrapping state.
     ✔ Update GpuFramebuffer to support per-attachment blend state.
-    ☐ Update GlStateCache to include an "Unbind..." method for each "Bind..." method, to unbind the currently bound resource of that type.
+    ✔ Update GlStateCache to include an "Unbind..." method for each "Bind..." method, to unbind the currently bound resource of that type.
     ☐ Update all GpuResource classes to use the GlStateCache for binding/unbinding.
 
   WorldProbes:
