@@ -31,7 +31,7 @@ Issues:
     ✔ Add `GpuBufferView` RAII wrapper.
     ✔ Add `GpuVertexAttribBinding` RAII wrapper.
     ✔ Add `GpuAtomicCounterBuffer` RAII wrapper.
-    ☐ Add `GpuShaderStorageBuffer` RAII wrapper.
+    ✔ Add `GpuShaderStorageBuffer` RAII wrapper.
     ☐ Add `GpuIndirectBuffer` RAII wrapper.
     ☐ Add `GpuUniformBuffer` RAII wrapper.
     ☐ Add `GpuPipelineLayout` RAII wrapper.
