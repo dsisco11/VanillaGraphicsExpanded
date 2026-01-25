@@ -46,10 +46,13 @@ Issues:
     ☐ Add extension-gated wrappers (bindless textures, sparse textures, semaphores/memory objects).
 
   WorldProbes:
-    ☐ Screen-probes should sample world probes on misses, so that the final screen-probe octahedral atlas actually includes world-probe data where screen-probes miss.
     ☐ Rename world-probe classes to remove `LumOn` prefix.
-    ☐ PBR material system need to provide precomputed diffuse albedo and specular F0 values for probe tracing.
     ☐ PBR Matrial system integration for probe tracing (material properties affecting probe radiance).
+    ☐ World probes should use an octahedral atlas instead of spherical harmonics.
+
+  LumonScene:
+    ☐ Need VirtualPagedAtlas system to manage allocation of "pages" in a large virtual atlas texture for many different systems.
+    ☐ Need a LumonScene system which accumulates world-space lighting traces onto geometry.
 
   PBR Material System:
     ☐ Need better material override system, consider allowing material definitions to specify a "base material" to inherit from.
