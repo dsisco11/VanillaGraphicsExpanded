@@ -102,3 +102,6 @@ This repo contains the mod code and tests for **VanillaGraphicsExpanded**, a ren
 ## Current Focus
 - `project.todo` - Active feature work (LumOn alignment, PBR pipeline, material atlas)
 - `docs/*.todo` - Phase-specific design and implementation tasks
+
+## VintageStory References
+- API documentation: https://apidocs.vintagestory.at/api
