@@ -11,11 +11,16 @@ namespace VanillaGraphicsExpanded.DebugView;
 
 public static class VgeBuiltInDebugViews
 {
-    private const string CategoryLumOn = "LumOn";
+    private const string CategoryProbes = "Probes";
+    private const string CategoryPbr = "PBR";
+    private const string CategoryMotion = "Motion";
     private const string CategoryProfiling = "Profiling";
     private const string CategoryGBuffer = "GBuffer";
 
-    private const string LumOnDebugViewId = "vge.lumon.debug";
+    private const string ProbesDebugViewId = "vge.lumon.probes";
+    private const string PbrDebugViewId = "vge.lumon.pbr";
+    private const string GBufferDebugViewId = "vge.lumon.gbuffers";
+    private const string MotionDebugViewId = "vge.lumon.motion";
     private const string GpuProfilerViewId = "vge.profiling.gpu";
     private const string GpuDebugGroupsViewId = "vge.profiling.gpuDebugGroups";
     private const string GBufferOverlayViewId = "vge.gbuffer.overlay";
@@ -30,21 +35,118 @@ public static class VgeBuiltInDebugViews
         DebugViewRegistry.Instance.LogWarning ??= msg => capi.Logger.Warning(msg);
         DebugViewController.Instance.LogWarning ??= msg => capi.Logger.Warning(msg);
 
-        DebugViewRegistry.Instance.Register(CreateLumOnDebugView());
+        DebugViewRegistry.Instance.Register(CreateProbesDebugView());
+        DebugViewRegistry.Instance.Register(CreatePbrDebugView());
+        DebugViewRegistry.Instance.Register(CreateGBufferDebugView());
+        DebugViewRegistry.Instance.Register(CreateMotionDebugView());
         DebugViewRegistry.Instance.Register(CreateGpuProfilerView());
         DebugViewRegistry.Instance.Register(CreateGpuDebugGroupsView());
         DebugViewRegistry.Instance.Register(CreateGBufferOverlayView(gBufferManager));
     }
 
-    private static DebugViewDefinition CreateLumOnDebugView()
+    private static DebugViewDefinition CreateProbesDebugView()
+        => CreateLumOnModeSelectorDebugView(
+            id: ProbesDebugViewId,
+            name: "Debug Probes",
+            category: CategoryProbes,
+            description: "Probe-related debug overlays (screen probes, probe atlas, world probes).",
+            viewState: ProbesDebugViewState.Instance,
+            allowedModes:
+            [
+                LumOnDebugMode.ProbeGrid,
+                LumOnDebugMode.ProbeDepth,
+                LumOnDebugMode.ProbeNormal,
+                LumOnDebugMode.TemporalWeight,
+                LumOnDebugMode.TemporalRejection,
+                LumOnDebugMode.ShCoefficients,
+                LumOnDebugMode.InterpolationWeights,
+                LumOnDebugMode.RadianceOverlay,
+                LumOnDebugMode.GatherWeight,
+                LumOnDebugMode.ProbeAtlasMetaConfidence,
+                LumOnDebugMode.ProbeAtlasTemporalAlpha,
+                LumOnDebugMode.ProbeAtlasMetaFlags,
+                LumOnDebugMode.ProbeAtlasFilteredRadiance,
+                LumOnDebugMode.ProbeAtlasFilterDelta,
+                LumOnDebugMode.ProbeAtlasGatherInputSource,
+                LumOnDebugMode.WorldProbeIrradianceCombined,
+                LumOnDebugMode.WorldProbeIrradianceLevel,
+                LumOnDebugMode.WorldProbeConfidence,
+                LumOnDebugMode.WorldProbeShortRangeAoDirection,
+                LumOnDebugMode.WorldProbeShortRangeAoConfidence,
+                LumOnDebugMode.WorldProbeHitDistance,
+                LumOnDebugMode.WorldProbeMetaFlagsHeatmap,
+                LumOnDebugMode.WorldProbeBlendWeights,
+                LumOnDebugMode.WorldProbeCrossLevelBlend,
+                LumOnDebugMode.WorldProbeOrbsPoints,
+                LumOnDebugMode.WorldProbeRawConfidences,
+                LumOnDebugMode.WorldProbeContributionOnly,
+                LumOnDebugMode.ScreenSpaceContributionOnly,
+            ]);
+
+    private static DebugViewDefinition CreatePbrDebugView()
+        => CreateLumOnModeSelectorDebugView(
+            id: PbrDebugViewId,
+            name: "Debug PBR",
+            category: CategoryPbr,
+            description: "PBR direct lighting and composite debug overlays.",
+            viewState: PbrDebugViewState.Instance,
+            allowedModes:
+            [
+                LumOnDebugMode.CompositeAO,
+                LumOnDebugMode.CompositeIndirectDiffuse,
+                LumOnDebugMode.CompositeIndirectSpecular,
+                LumOnDebugMode.CompositeMaterial,
+                LumOnDebugMode.DirectDiffuse,
+                LumOnDebugMode.DirectSpecular,
+                LumOnDebugMode.DirectEmissive,
+                LumOnDebugMode.DirectTotal,
+            ]);
+
+    private static DebugViewDefinition CreateGBufferDebugView()
+        => CreateLumOnModeSelectorDebugView(
+            id: GBufferDebugViewId,
+            name: "Debug G-Buffers",
+            category: CategoryGBuffer,
+            description: "G-buffer and material-related debug overlays.",
+            viewState: GBufferDebugViewState.Instance,
+            allowedModes:
+            [
+                LumOnDebugMode.SceneDepth,
+                LumOnDebugMode.SceneNormal,
+                LumOnDebugMode.MaterialBands,
+                LumOnDebugMode.VgeNormalDepthAtlas,
+                LumOnDebugMode.PomMetrics,
+            ]);
+
+    private static DebugViewDefinition CreateMotionDebugView()
+        => CreateLumOnModeSelectorDebugView(
+            id: MotionDebugViewId,
+            name: "Debug Motion",
+            category: CategoryMotion,
+            description: "Velocity/motion-vector related debug overlays.",
+            viewState: MotionDebugViewState.Instance,
+            allowedModes:
+            [
+                LumOnDebugMode.VelocityMagnitude,
+                LumOnDebugMode.VelocityValidity,
+                LumOnDebugMode.VelocityPrevUv,
+            ]);
+
+    private static DebugViewDefinition CreateLumOnModeSelectorDebugView(
+        string id,
+        string name,
+        string category,
+        string description,
+        ILumOnDebugViewState viewState,
+        LumOnDebugMode[] allowedModes)
         => new(
-            id: LumOnDebugViewId,
-            name: "Debug Overlay",
-            category: CategoryLumOn,
-            description: "Select and render a LumOn fullscreen debug visualization (AfterBlit).",
+            id: id,
+            name: name,
+            category: category,
+            description: description,
             registerRenderer: ctx =>
             {
-                LumOnDebugMode mode = LumOnDebugViewState.GetSelectedModeOrDefault();
+                LumOnDebugMode mode = viewState.GetSelectedModeOrDefault();
                 ctx.Config.LumOn.DebugMode = mode;
                 return new ActionDisposable(() => ctx.Config.LumOn.DebugMode = LumOnDebugMode.Off);
             },
@@ -58,7 +160,12 @@ public static class VgeBuiltInDebugViews
 
                 return DebugViewAvailability.Available();
             },
-            createPanel: ctx => new LumOnDebugPanel(viewId: LumOnDebugViewId, ctx.Capi, ctx.Config));
+            createPanel: ctx => new LumOnDebugPanel(
+                viewId: id,
+                capi: ctx.Capi,
+                config: ctx.Config,
+                viewState: viewState,
+                allowedModes: allowedModes));
 
     private static DebugViewDefinition CreateGpuProfilerView()
         => new(
@@ -102,22 +209,35 @@ public static class VgeBuiltInDebugViews
             createPanel: ctx => new GBufferOverlayPanel(viewId: GBufferOverlayViewId, ctx.Capi));
 
 
-    private static class LumOnDebugViewState
+    private interface ILumOnDebugViewState
     {
-        private static LumOnDebugMode selectedMode = LumOnDebugMode.ProbeGrid;
+        LumOnDebugMode GetSelectedModeOrDefault();
+        void SetSelectedMode(LumOnDebugMode mode);
+    }
 
-        public static LumOnDebugMode GetSelectedModeOrDefault()
+    private abstract class LumOnDebugViewStateBase : ILumOnDebugViewState
+    {
+        private readonly LumOnDebugMode defaultMode;
+        private LumOnDebugMode selectedMode;
+
+        protected LumOnDebugViewStateBase(LumOnDebugMode defaultMode)
+        {
+            this.defaultMode = defaultMode;
+            selectedMode = defaultMode;
+        }
+
+        public LumOnDebugMode GetSelectedModeOrDefault()
         {
             LumOnDebugMode mode = selectedMode;
             if (!Enum.IsDefined(typeof(LumOnDebugMode), mode) || mode == LumOnDebugMode.Off)
             {
-                return LumOnDebugMode.ProbeGrid;
+                return defaultMode;
             }
 
             return mode;
         }
 
-        public static void SetSelectedMode(LumOnDebugMode mode)
+        public void SetSelectedMode(LumOnDebugMode mode)
         {
             if (!Enum.IsDefined(typeof(LumOnDebugMode), mode) || mode == LumOnDebugMode.Off)
             {
@@ -128,23 +248,56 @@ public static class VgeBuiltInDebugViews
         }
     }
 
+    private sealed class ProbesDebugViewState : LumOnDebugViewStateBase
+    {
+        public static readonly ProbesDebugViewState Instance = new(defaultMode: LumOnDebugMode.ProbeGrid);
+        private ProbesDebugViewState(LumOnDebugMode defaultMode) : base(defaultMode) { }
+    }
+
+    private sealed class PbrDebugViewState : LumOnDebugViewStateBase
+    {
+        public static readonly PbrDebugViewState Instance = new(defaultMode: LumOnDebugMode.CompositeAO);
+        private PbrDebugViewState(LumOnDebugMode defaultMode) : base(defaultMode) { }
+    }
+
+    private sealed class GBufferDebugViewState : LumOnDebugViewStateBase
+    {
+        public static readonly GBufferDebugViewState Instance = new(defaultMode: LumOnDebugMode.SceneNormal);
+        private GBufferDebugViewState(LumOnDebugMode defaultMode) : base(defaultMode) { }
+    }
+
+    private sealed class MotionDebugViewState : LumOnDebugViewStateBase
+    {
+        public static readonly MotionDebugViewState Instance = new(defaultMode: LumOnDebugMode.VelocityMagnitude);
+        private MotionDebugViewState(LumOnDebugMode defaultMode) : base(defaultMode) { }
+    }
+
     private sealed class LumOnDebugPanel : DebugViewPanelBase
     {
         private readonly string viewId;
         private readonly ICoreClientAPI capi;
         private readonly VgeConfig config;
 
+        private readonly ILumOnDebugViewState viewState;
+
         private readonly string[] values;
         private readonly string[] names;
 
-        public LumOnDebugPanel(string viewId, ICoreClientAPI capi, VgeConfig config)
+        public LumOnDebugPanel(
+            string viewId,
+            ICoreClientAPI capi,
+            VgeConfig config,
+            ILumOnDebugViewState viewState,
+            LumOnDebugMode[] allowedModes)
         {
             this.viewId = viewId;
             this.capi = capi;
             this.config = config;
+            this.viewState = viewState;
 
-            var modes = Enum.GetValues(typeof(LumOnDebugMode)).Cast<LumOnDebugMode>()
+            var modes = (allowedModes ?? Array.Empty<LumOnDebugMode>())
                 .Where(m => m != LumOnDebugMode.Off)
+                .Distinct()
                 .ToArray();
 
             values = modes.Select(m => m.ToString()).ToArray();
@@ -166,7 +319,7 @@ public static class VgeBuiltInDebugViews
             var fontLabel = CairoFont.WhiteDetailText();
             var fontSmall = CairoFont.WhiteSmallText();
 
-            int selectedIndex = Array.IndexOf(values, LumOnDebugViewState.GetSelectedModeOrDefault().ToString());
+            int selectedIndex = Array.IndexOf(values, viewState.GetSelectedModeOrDefault().ToString());
             if (selectedIndex < 0) selectedIndex = 0;
 
             composer
@@ -195,7 +348,7 @@ public static class VgeBuiltInDebugViews
                 return;
             }
 
-            LumOnDebugViewState.SetSelectedMode(mode);
+            viewState.SetSelectedMode(mode);
 
             if (string.Equals(DebugViewController.Instance.ActiveExclusiveViewId, viewId, StringComparison.Ordinal))
             {

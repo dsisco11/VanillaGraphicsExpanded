@@ -43,16 +43,16 @@
       - World-only (toggle hidden): WorldProbeIrradianceCombined/Level, Confidence, AO direction/confidence, HitDistance, Flags, BlendWeights, CrossLevelBlend, OrbsPoints
       - Screen-only (toggle hidden): ProbeGrid/Depth/Normal, TemporalWeight/Rejection, SHCoefficients, InterpolationWeights, RadianceOverlay, GatherWeight, ProbeAtlas* (until symmetric atlas/world variants are added in Phase 3)
 
-☐ Phase 1 - Replace Mixed Debug Overlay With Categories
+✔ Phase 1 - Replace Mixed Debug Overlay With Categories
   Goal: Remove the existing all-in-one LumOn debug view and expose debug visualizations under finer-grained categories.
   Work items:
-    ☐ Remove/replace `vge.lumon.debug` registration (no legacy entry)
-    ☐ Add new debug-view registrations with categories including (minimum):
+    ✔ Remove/replace `vge.lumon.debug` registration (no legacy entry)
+    ✔ Add new debug-view registrations with categories including (minimum):
       - Probes (includes probe atlas views)
       - PBR
       - GBuffer
       - Profiling
-    ☐ Ensure every existing visualization remains reachable via some debug view after removal
+    ✔ Ensure every existing visualization remains reachable via some debug view after removal
   Exit artifacts:
     - Debug Viewer lists multiple categories with expected entries
     - No code references remain to the removed view id `vge.lumon.debug`
