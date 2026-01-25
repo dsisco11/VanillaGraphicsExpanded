@@ -24,7 +24,17 @@ Issues:
     ✔ Add `GpuPixelPackBuffer` RAII wrapper for async readback workflows.
     ✔ Add `GpuTransformFeedback` RAII wrapper.
     ☐ Add `GpuSampler` RAII wrapper.
+    ☐ Add `GpuShaderModule` RAII wrapper.
     ☐ Add `GpuProgramPipeline` RAII wrapper.
+    ☐ Add `GpuTextureView` RAII wrapper.
+    ☐ Add `GpuBufferView` RAII wrapper.
+    ☐ Add `GpuVertexAttribBinding` RAII wrapper.
+    ☐ Add `GpuAtomicCounterBuffer` RAII wrapper.
+    ☐ Add `GpuShaderStorageBuffer` RAII wrapper.
+    ☐ Add `GpuIndirectBuffer` RAII wrapper.
+    ☐ Add `GpuUniformBuffer` RAII wrapper.
+    ☐ Add `GpuPipelineLayout` RAII wrapper.
+    ☐ Add `GpuComputePipeline` RAII wrapper.
     ✔ Refactor `VgeShaderProgram` into `GpuProgram` (rename + RAII + deferred disposal).
     ☐ GpuProgram: need to add unit tests to verify that the shader preprocessing system emits the correct "#line" directives for error reporting.
 
