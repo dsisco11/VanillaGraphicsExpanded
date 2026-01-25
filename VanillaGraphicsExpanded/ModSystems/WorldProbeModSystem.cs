@@ -24,6 +24,7 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
 
     private WorldProbeLiveConfigSnapshot? lastSnapshot;
 
+    private readonly object pendingWorldProbeDirtyChunkLock = new();
     private readonly HashSet<ulong> pendingWorldProbeDirtyChunkKeys = new();
     private int pendingWorldProbeDirtyChunkOverflow;
 
@@ -113,33 +114,48 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
         }
 
         ulong key = EncodeChunkKey(chunkX, chunkY, chunkZ);
-        if (pendingWorldProbeDirtyChunkKeys.Count < MaxPendingWorldProbeDirtyChunks)
+
+        lock (pendingWorldProbeDirtyChunkLock)
         {
-            pendingWorldProbeDirtyChunkKeys.Add(key);
-        }
-        else
-        {
-            pendingWorldProbeDirtyChunkOverflow++;
+            if (pendingWorldProbeDirtyChunkKeys.Count < MaxPendingWorldProbeDirtyChunks)
+            {
+                pendingWorldProbeDirtyChunkKeys.Add(key);
+            }
+            else
+            {
+                pendingWorldProbeDirtyChunkOverflow++;
+            }
         }
     }
 
     internal void DrainPendingWorldProbeDirtyChunks(Action<int, int, int> onChunk, out int overflowCount)
     {
-        if (pendingWorldProbeDirtyChunkKeys.Count == 0 && pendingWorldProbeDirtyChunkOverflow == 0)
+        ulong[] keysToDrain;
+        int overflow;
+
+        lock (pendingWorldProbeDirtyChunkLock)
         {
-            overflowCount = 0;
-            return;
+            if (pendingWorldProbeDirtyChunkKeys.Count == 0 && pendingWorldProbeDirtyChunkOverflow == 0)
+            {
+                overflowCount = 0;
+                return;
+            }
+
+            keysToDrain = new ulong[pendingWorldProbeDirtyChunkKeys.Count];
+            pendingWorldProbeDirtyChunkKeys.CopyTo(keysToDrain);
+            pendingWorldProbeDirtyChunkKeys.Clear();
+
+            overflow = pendingWorldProbeDirtyChunkOverflow;
+            pendingWorldProbeDirtyChunkOverflow = 0;
         }
 
-        foreach (ulong key in pendingWorldProbeDirtyChunkKeys)
+        foreach (ulong key in keysToDrain)
         {
             DecodeChunkKey(key, out int cx, out int cy, out int cz);
             onChunk(cx, cy, cz);
         }
 
-        pendingWorldProbeDirtyChunkKeys.Clear();
-        overflowCount = pendingWorldProbeDirtyChunkOverflow;
-        pendingWorldProbeDirtyChunkOverflow = 0;
+        overflowCount = overflow;
     }
 
     public void OnConfigReloaded(ICoreAPI api)
