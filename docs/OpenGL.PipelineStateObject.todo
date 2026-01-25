@@ -33,16 +33,17 @@ Docs:
   - OpenGL Wiki (per-buffer blending, glBlendFunci): https://www.khronos.org/opengl/wiki/GLAPI/glBlendFunc
   - KHR_debug (object labels): https://registry.khronos.org/OpenGL/extensions/KHR/KHR_debug.txt
 
-☐ Phase 0 — Inventory + Baseline Defaults
+☑ Phase 0 — Inventory + Baseline Defaults
   Exit artifacts:
     - A single “default baseline” definition agreed upon (GL-spec defaults vs engine baseline)
     - Enumerated list of state knobs included in PSO, aligned with current VGE usage
+    - Phase 0 details: `docs/OpenGL.PipelineStateObject.Phase0.md`
 
   Work items:
-    ☐ Decide baseline default semantics:
+    ☑ Decide baseline default semantics:
       - Option A: OpenGL specification defaults (portable, but may not match engine expectations)
       - Option B: Vintagestory/VGE render baseline (safer integration; document how to restore)
-    ☐ Enumerate PSO state knobs based on existing code:
+    ☑ Enumerate PSO state knobs based on existing code:
       - Depth test enable, depth func, depth write mask
       - Blend enable + blend factors (global)
       - Per-render-target blend enable/factors (MRT)
@@ -50,7 +51,7 @@ Docs:
       - Color mask (RGBA)
       - Scissor enable (scissor box remains dynamic unless explicitly included)
       - (Optional) line width / point size for debug-only pipelines
-    ☐ Decide what is “dynamic state” (set outside PSO):
+    ☑ Decide what is “dynamic state” (set outside PSO):
       - viewport, scissor box, FBO binds, textures/samplers, uniforms
       - Even when “dynamic”, route these binds through the PSO/GlStateCache scope APIs for caching/stacking.
 
