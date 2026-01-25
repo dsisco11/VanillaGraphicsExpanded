@@ -319,6 +319,159 @@ public sealed class ShaderSourceCode
         };
     }
 
+    /// <summary>
+    /// Creates a <see cref="ShaderSourceCode"/> instance from raw shader text while resolving <c>@import</c> directives
+    /// via VGE's production import system (asset-backed; requires <see cref="ShaderImportsSystem.Initialize"/> to have run).
+    /// </summary>
+    /// <remarks>
+    /// This is intended for runtime-generated shader sources that still want to participate in VGE's import inlining and
+    /// <c>#line</c> directive injection for improved error reporting.
+    /// </remarks>
+    public static ShaderSourceCode FromSourceAssetBacked(
+        ICoreAPI api,
+        string shaderName,
+        string stageExtension,
+        string rawSource,
+        string sourceName,
+        IReadOnlyDictionary<string, string?>? defines = null,
+        ILogger? log = null,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(api);
+        ArgumentException.ThrowIfNullOrWhiteSpace(shaderName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(stageExtension);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceName);
+
+        if (string.IsNullOrEmpty(rawSource))
+        {
+            throw new InvalidOperationException($"Shader stage source was empty: {sourceName}");
+        }
+
+        var parsed = ShaderImportsSystem.Instance.CreateSyntaxTree(rawSource, sourceName)
+            ?? throw new InvalidOperationException($"Failed to parse GLSL for '{sourceName}'");
+
+        ct.ThrowIfCancellationRequested();
+
+        IReadOnlyDictionary<string, string?> defineMap = defines is null
+            ? new Dictionary<string, string?>()
+            : new Dictionary<string, string?>(defines);
+
+        if (defineMap.Count > 0)
+        {
+            InjectDefinesAfterVersion(parsed, defineMap);
+        }
+
+        bool hadImports = parsed.Select(Query.Syntax<GlImportNode>()).Any();
+
+        PreprocessResult<SyntaxTree>? rawResult = null;
+        SyntaxTree outputTree = parsed;
+        string[] diagnostics = Array.Empty<string>();
+
+        if (hadImports)
+        {
+            rawResult = ShaderImportsSystem.Instance.ProcessImports(parsed, sourceName, ct);
+            if (!rawResult.Success)
+            {
+                string diagText = string.Join("\n", rawResult.Diagnostics.Select(static d => d.ToString() ?? string.Empty));
+                log?.Error($"[VGE] GLSL preprocessing failed for '{sourceName}':\n{diagText}");
+                throw new InvalidOperationException($"GLSL preprocessing failed for '{sourceName}'");
+            }
+
+            outputTree = rawResult.Content;
+            diagnostics = rawResult.Diagnostics.Select(static d => d.ToString() ?? string.Empty).ToArray();
+        }
+
+        var preprocess = new GlslPreprocessor.Result
+        {
+            SourceName = sourceName,
+            Tree = parsed,
+            HadImports = hadImports,
+            Success = true,
+            OutputTree = outputTree,
+            Diagnostics = diagnostics,
+            RawResult = rawResult
+        };
+
+        IReadOnlyDictionary<int, string> lineDirectiveSourceIds = new Dictionary<int, string>();
+
+        if (preprocess.RawResult is not null)
+        {
+            var cache = new Dictionary<ResourceId, SyntaxTree>();
+
+            SyntaxTree ContentProvider(ResourceId id)
+            {
+                if (cache.TryGetValue(id, out var cached))
+                {
+                    return cached;
+                }
+
+                string idText = id.ToString();
+                string domain = ShaderImportsSystem.DefaultDomain;
+                string path = idText;
+
+                int colon = idText.IndexOf(':');
+                if (colon >= 0)
+                {
+                    domain = idText[..colon];
+                    path = idText[(colon + 1)..];
+                }
+
+                // Root (in-memory) source.
+                if (string.Equals(path, $"shaders/{sourceName}", StringComparison.Ordinal))
+                {
+                    var tree = ShaderImportsSystem.Instance.CreateSyntaxTree(rawSource, sourceName)
+                        ?? SyntaxTree.Parse(string.Empty, GlslSchema.Instance);
+
+                    cache[id] = tree;
+                    return tree;
+                }
+
+                var loc = AssetLocation.Create(path, domain);
+                var asset = api.Assets.TryGet(loc, loadAsset: true);
+                string text = asset?.ToText() ?? string.Empty;
+
+                var importedTree = ShaderImportsSystem.Instance.CreateSyntaxTree(text, sourceName: path)
+                    ?? SyntaxTree.Parse(string.Empty, GlslSchema.Instance);
+
+                cache[id] = importedTree;
+                return importedTree;
+            }
+
+            var injected = LineDirectiveInjector.TryInject(preprocess.OutputTree, preprocess.RawResult.SourceMap, ContentProvider);
+            if (injected.Success)
+            {
+                lineDirectiveSourceIds = injected.SourceIdToResource;
+                preprocess = new GlslPreprocessor.Result
+                {
+                    SourceName = preprocess.SourceName,
+                    Tree = preprocess.Tree,
+                    HadImports = preprocess.HadImports,
+                    Success = preprocess.Success,
+                    OutputTree = injected.OutputTree,
+                    Diagnostics = preprocess.Diagnostics,
+                    RawResult = preprocess.RawResult
+                };
+            }
+        }
+
+        string emittedUnstripped = preprocess.OutputTree.ToText();
+        string emitted = SourceCodeImportsProcessor.StripNonAscii(emittedUnstripped);
+
+        return new ShaderSourceCode
+        {
+            ShaderName = shaderName,
+            StageExtension = stageExtension,
+            AssetDomain = ShaderImportsSystem.DefaultDomain,
+            RawSource = rawSource,
+            ParsedTree = parsed,
+            Defines = defineMap,
+            ImportInlining = preprocess,
+            EmittedSourceUnstripped = emittedUnstripped,
+            EmittedSource = emitted,
+            LineDirectiveSourceIdToResource = lineDirectiveSourceIds
+        };
+    }
+
     private static void InjectDefinesAfterVersion(SyntaxTree tree, IReadOnlyDictionary<string, string?> defines)
     {
         ArgumentNullException.ThrowIfNull(tree);

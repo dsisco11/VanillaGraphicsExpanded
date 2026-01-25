@@ -1,6 +1,10 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
 
 using OpenTK.Graphics.OpenGL;
+
+using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -66,6 +70,7 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
 
     /// <summary>
     /// Creates a new shader module by compiling GLSL source via <c>glCompileShader</c>.
+    /// This overload does not run VGE shader preprocessing; use <see cref="TryCompileGlslPreprocessed"/> to support <c>@import</c> and <c>#line</c> directives.
     /// </summary>
     /// <param name="shaderType">Shader stage type.</param>
     /// <param name="glslSource">GLSL source.</param>
@@ -130,6 +135,92 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
             module = null;
             return false;
         }
+    }
+
+    /// <summary>
+    /// Creates a new shader module by running VGE preprocessing (defines + <c>@import</c> + optional <c>#line</c> injection)
+    /// and then compiling the resulting GLSL source via <c>glCompileShader</c>.
+    /// </summary>
+    /// <param name="api">Vintage Story API (used to load imported shader assets for <c>@import</c> and <c>#line</c> mapping).</param>
+    /// <param name="shaderType">Shader stage type.</param>
+    /// <param name="shaderName">Logical shader name (used for bookkeeping; can be the program name).</param>
+    /// <param name="stageExtension">Stage extension (e.g. <c>vsh</c>, <c>fsh</c>).</param>
+    /// <param name="glslSource">Raw GLSL source text (may contain <c>@import</c> directives).</param>
+    /// <param name="module">The created module on success; otherwise null.</param>
+    /// <param name="sourceCode">The preprocessed source bundle (includes emitted GLSL + optional source-id mapping).</param>
+    /// <param name="infoLog">The shader compiler info log (may be empty).</param>
+    /// <param name="defines">Optional preprocessor defines injected after <c>#version</c>.</param>
+    /// <param name="debugName">Optional KHR_debug label (debug builds only).</param>
+    /// <param name="log">Optional logger for preprocessing diagnostics.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>True on successful preprocessing + compilation.</returns>
+    public static bool TryCompileGlslPreprocessed(
+        ICoreAPI api,
+        ShaderType shaderType,
+        string shaderName,
+        string stageExtension,
+        string glslSource,
+        out GpuShaderModule? module,
+        out global::VanillaGraphicsExpanded.ShaderSourceCode? sourceCode,
+        out string infoLog,
+        IReadOnlyDictionary<string, string?>? defines = null,
+        string? debugName = null,
+        ILogger? log = null,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(api);
+        ArgumentException.ThrowIfNullOrWhiteSpace(shaderName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(stageExtension);
+
+        module = null;
+        sourceCode = null;
+        infoLog = string.Empty;
+
+        if (string.IsNullOrEmpty(glslSource))
+        {
+            return false;
+        }
+
+        string sourceName = $"{shaderName}.{stageExtension}";
+
+        try
+        {
+            sourceCode = global::VanillaGraphicsExpanded.ShaderSourceCode.FromSourceAssetBacked(
+                api: api,
+                shaderName: shaderName,
+                stageExtension: stageExtension,
+                sourceName: sourceName,
+                rawSource: glslSource,
+                defines: defines,
+                log: log,
+                ct: ct);
+        }
+        catch (Exception ex)
+        {
+            infoLog = $"[VGE] Shader preprocessing failed for '{shaderName}.{stageExtension}': {ex.Message}";
+            return false;
+        }
+
+        // Compile the emitted source after preprocessing.
+        if (!TryCompileGlsl(shaderType, sourceCode.EmittedSource, out module, out infoLog, debugName))
+        {
+            // Preserve preprocessing diagnostics when compilation fails.
+            if (sourceCode.ImportInlining.Diagnostics.Length > 0)
+            {
+                infoLog = infoLog + "\n[VGE] Preprocessor diagnostics:\n" + string.Join("\n", sourceCode.ImportInlining.Diagnostics);
+            }
+
+            module = null;
+            return false;
+        }
+
+        if (module is null)
+        {
+            infoLog = "[VGE] Shader compilation succeeded but module was null (unexpected).";
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>
