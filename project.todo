@@ -19,7 +19,7 @@ Issues:
     ✔ Replace temporary readback FBOs with `GpuFramebuffer` instances.
     ✔ Refactor `GpuFence` into a proper RAII wrapper (inherits `GpuResource`, deferred disposal).
     ✔ Refactor GPU queries into an RAII wrapper (create/delete + deferred disposal).
-    ☐ Add `GpuRenderbuffer` RAII wrapper (create/delete + deferred disposal).
+    ✔ Add `GpuRenderbuffer` RAII wrapper (create/delete + deferred disposal).
     ☐ Refactor `VgeShaderProgram` into `GpuProgram` (rename + RAII + deferred disposal).
     ☐ Add `GpuPixelPackBuffer` RAII wrapper for async readback workflows.
     ☐ Add `GpuSampler` RAII wrapper (if/when used).
