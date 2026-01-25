@@ -8,11 +8,11 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>
 /// Captures a snapshot of binding-related program resources after link (UBO/SSBO bindings, sampler/image units).
 /// </summary>
-internal sealed class GpuProgramResourceBindingCache
+internal sealed class GpuProgramLayout
 {
     private static readonly IReadOnlyDictionary<string, int> EmptyBindings = new Dictionary<string, int>(StringComparer.Ordinal);
 
-    public static GpuProgramResourceBindingCache Empty { get; } = new(null, null, null, null);
+    public static GpuProgramLayout Empty { get; } = new(null, null, null, null);
 
     /// <summary>
     /// Gets cached uniform block binding points (<c>layout(binding=...)</c> for UBOs).
@@ -34,7 +34,7 @@ internal sealed class GpuProgramResourceBindingCache
     /// </summary>
     public IReadOnlyDictionary<string, int> ImageBindings { get; }
 
-    private GpuProgramResourceBindingCache(
+    private GpuProgramLayout(
         IReadOnlyDictionary<string, int>? uniformBlockBindings,
         IReadOnlyDictionary<string, int>? shaderStorageBlockBindings,
         IReadOnlyDictionary<string, int>? samplerBindings,
@@ -50,7 +50,7 @@ internal sealed class GpuProgramResourceBindingCache
     /// Attempts to build a binding cache for a successfully linked program.
     /// Returns an empty cache if program interface queries are unavailable or if the GL call fails.
     /// </summary>
-    public static GpuProgramResourceBindingCache TryBuild(int programId)
+    public static GpuProgramLayout TryBuild(int programId)
     {
         if (programId == 0)
         {
@@ -64,7 +64,7 @@ internal sealed class GpuProgramResourceBindingCache
 
             var (samplers, images) = TryBuildTextureUnitBindings(programId);
 
-            return new GpuProgramResourceBindingCache(uniformBlocks, storageBlocks, samplers, images);
+            return new GpuProgramLayout(uniformBlocks, storageBlocks, samplers, images);
         }
         catch
         {
@@ -280,5 +280,114 @@ internal sealed class GpuProgramResourceBindingCache
             or ActiveUniformType.ImageCubeMapArray
             or ActiveUniformType.IntImageCubeMapArray
             or ActiveUniformType.UnsignedIntImageCubeMapArray;
+    }
+
+    /// <summary>
+    /// Attempts to get the UBO binding point for a uniform block by name.
+    /// </summary>
+    public bool TryGetUniformBlockBinding(string blockName, out int bindingIndex)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
+        return UniformBlockBindings.TryGetValue(blockName, out bindingIndex);
+    }
+
+    /// <summary>
+    /// Attempts to get the SSBO binding point for a shader storage block by name.
+    /// </summary>
+    public bool TryGetShaderStorageBlockBinding(string blockName, out int bindingIndex)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
+        return ShaderStorageBlockBindings.TryGetValue(blockName, out bindingIndex);
+    }
+
+    /// <summary>
+    /// Attempts to get the texture unit for a sampler uniform by name.
+    /// </summary>
+    public bool TryGetSamplerUnit(string samplerUniformName, out int unit)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(samplerUniformName);
+        return SamplerBindings.TryGetValue(samplerUniformName, out unit);
+    }
+
+    /// <summary>
+    /// Attempts to get the image unit for an image uniform by name.
+    /// </summary>
+    public bool TryGetImageUnit(string imageUniformName, out int unit)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(imageUniformName);
+        return ImageBindings.TryGetValue(imageUniformName, out unit);
+    }
+
+    /// <summary>
+    /// Binds a UBO to the binding point for the named uniform block.
+    /// </summary>
+    public bool TryBindUniformBlock(string blockName, GpuUniformBuffer buffer)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
+        ArgumentNullException.ThrowIfNull(buffer);
+
+        if (!TryGetUniformBlockBinding(blockName, out int binding))
+        {
+            return false;
+        }
+
+        buffer.BindBase(binding);
+        return true;
+    }
+
+    /// <summary>
+    /// Binds an SSBO to the binding point for the named shader storage block.
+    /// </summary>
+    public bool TryBindShaderStorageBlock(string blockName, GpuShaderStorageBuffer buffer)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
+        ArgumentNullException.ThrowIfNull(buffer);
+
+        if (!TryGetShaderStorageBlockBinding(blockName, out int binding))
+        {
+            return false;
+        }
+
+        buffer.BindBase(binding);
+        return true;
+    }
+
+    /// <summary>
+    /// Binds a texture (and optional sampler object) to the texture unit used by the named sampler uniform.
+    /// </summary>
+    /// <remarks>
+    /// The sampler unit is read from the linked program at cache-build time; if the program later changes
+    /// sampler uniforms via <c>glUniform1i</c>, the cache can become stale.
+    /// </remarks>
+    public bool TryBindSamplerTexture(string samplerUniformName, TextureTarget target, int textureId, int samplerId = 0)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(samplerUniformName);
+
+        if (textureId == 0)
+        {
+            return false;
+        }
+
+        if (!TryGetSamplerUnit(samplerUniformName, out int unit))
+        {
+            return false;
+        }
+
+        try
+        {
+            GL.BindTextureUnit(unit, textureId);
+        }
+        catch
+        {
+            GL.ActiveTexture(TextureUnit.Texture0 + unit);
+            GL.BindTexture(target, textureId);
+        }
+
+        if (samplerId != 0)
+        {
+            try { GL.BindSampler(unit, samplerId); } catch { }
+        }
+
+        return true;
     }
 }

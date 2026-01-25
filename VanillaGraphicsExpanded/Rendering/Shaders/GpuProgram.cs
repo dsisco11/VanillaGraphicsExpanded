@@ -41,7 +41,7 @@ public abstract class GpuProgram : ShaderProgram
     private readonly Dictionary<string, int> uniformLocationCache = new(StringComparer.Ordinal);
     private int uniformLocationCacheProgramId;
 
-    private GpuProgramResourceBindingCache resourceBindings = GpuProgramResourceBindingCache.Empty;
+    private GpuProgramLayout resourceBindings = GpuProgramLayout.Empty;
 
     private ICoreClientAPI? capi;
     private ILogger? log;
@@ -86,7 +86,7 @@ public abstract class GpuProgram : ShaderProgram
     /// Gets cached binding-related resources for the currently linked program.
     /// Updated after successful <see cref="CompileAndLink"/>.
     /// </summary>
-    internal GpuProgramResourceBindingCache ResourceBindings => resourceBindings;
+    internal GpuProgramLayout ResourceBindings => resourceBindings;
 
     /// <summary>
     /// Call from the program's Register method to enable define-triggered recompiles.
@@ -901,13 +901,13 @@ public abstract class GpuProgram : ShaderProgram
             bool ok = Compile();
             if (ok)
             {
-                resourceBindings = GpuProgramResourceBindingCache.TryBuild(ProgramId);
+                resourceBindings = GpuProgramLayout.TryBuild(ProgramId);
                 GlDebug.TryLabel(OpenTK.Graphics.OpenGL.ObjectLabelIdentifier.Program, ProgramId, ShaderName);
                 OnAfterCompile();
             }
             else
             {
-                resourceBindings = GpuProgramResourceBindingCache.Empty;
+                resourceBindings = GpuProgramLayout.Empty;
                 log?.Warning($"[VGE] Shader compile failed: {ShaderName}");
                 LogDiagnostics();
             }

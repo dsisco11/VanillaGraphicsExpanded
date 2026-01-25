@@ -13,7 +13,7 @@ internal sealed class GpuProgramObject : GpuResource, IDisposable
 {
     private int programId;
     private string? debugName;
-    private GpuProgramResourceBindingCache bindingCache = GpuProgramResourceBindingCache.Empty;
+    private GpuProgramLayout bindingCache = GpuProgramLayout.Empty;
 
     protected override nint ResourceId
     {
@@ -32,7 +32,7 @@ internal sealed class GpuProgramObject : GpuResource, IDisposable
     /// Gets cached binding-related program resources (UBO/SSBO bindings, sampler/image units).
     /// Populated on successful <see cref="TryLink"/>.
     /// </summary>
-    public GpuProgramResourceBindingCache BindingCache => bindingCache;
+    public GpuProgramLayout BindingCache => bindingCache;
 
     /// <summary>
     /// Gets the debug name used for KHR_debug labeling (debug builds only).
@@ -143,7 +143,7 @@ internal sealed class GpuProgramObject : GpuResource, IDisposable
             bool ok = linkStatus != 0;
             if (ok)
             {
-                bindingCache = GpuProgramResourceBindingCache.TryBuild(programId);
+                bindingCache = GpuProgramLayout.TryBuild(programId);
             }
             return ok;
         }

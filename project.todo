@@ -34,7 +34,7 @@ Issues:
     ✔ Add `GpuShaderStorageBuffer` RAII wrapper.
     ✔ Add `GpuIndirectBuffer` RAII wrapper.
     ✔ Add `GpuUniformBuffer` RAII wrapper.
-    ☐ Add `GpuPipelineLayout` RAII wrapper.
+    ✔ Add `GpuProgramLayout` RAII wrapper.
     ☐ Add `GpuComputePipeline` RAII wrapper.
     ✔ Refactor `VgeShaderProgram` into `GpuProgram` (rename + RAII + deferred disposal).
     ☐ GpuProgram: need to add unit tests to verify that the shader preprocessing system emits the correct "#line" directives for error reporting.
