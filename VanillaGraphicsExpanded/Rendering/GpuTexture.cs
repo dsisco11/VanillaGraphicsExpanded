@@ -20,6 +20,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
     protected TextureTarget textureTarget;
     protected TextureFilterMode filterMode;
     protected string? debugName;
+    private GpuSampler? sampler;
 
     public int TextureId => textureId;
     public int Width => width;
@@ -29,6 +30,8 @@ public abstract class GpuTexture : GpuResource, IDisposable
     public TextureTarget TextureTarget => textureTarget;
     public TextureFilterMode FilterMode => filterMode;
     public string? DebugName => debugName;
+
+    internal int SamplerId => sampler?.SamplerId ?? 0;
 
     protected override nint ResourceId
     {
@@ -48,6 +51,11 @@ public abstract class GpuTexture : GpuResource, IDisposable
             GlDebug.TryLabel(ObjectLabelIdentifier.Texture, textureId, debugName);
         }
 #endif
+
+        if (sampler is not null && sampler.IsValid)
+        {
+            sampler.SetDebugName(debugName is null ? null : $"{debugName}.Sampler");
+        }
     }
 
     /// <summary>
@@ -105,6 +113,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         }
 
         int previousBinding = 0;
+        int previousSampler = 0;
         try
         {
             GL.ActiveTexture(TextureUnit.Texture0 + unit);
@@ -112,10 +121,20 @@ public abstract class GpuTexture : GpuResource, IDisposable
             {
                 GL.GetInteger(bindingQuery, out previousBinding);
             }
+
+            try
+            {
+                previousSampler = GL.GetInteger(GetPName.SamplerBinding);
+            }
+            catch
+            {
+                previousSampler = 0;
+            }
         }
         catch
         {
             previousBinding = 0;
+            previousSampler = 0;
         }
         finally
         {
@@ -126,7 +145,13 @@ public abstract class GpuTexture : GpuResource, IDisposable
         }
 
         GlStateCache.Current.BindTexture(textureTarget, unit, textureId);
-        return new BindingScope(textureTarget, unit, previousBinding, previousActive, hasPreviousActive);
+        int samplerId = SamplerId;
+        if (samplerId != 0)
+        {
+            GlStateCache.Current.BindSampler(unit, samplerId);
+        }
+
+        return new BindingScope(textureTarget, unit, previousBinding, previousSampler, previousActive, hasPreviousActive);
     }
 
     #region Allocation Helpers
@@ -271,37 +296,56 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
     private void Apply2DSamplerParamsBound(int mipLevels)
     {
-        if (mipLevels <= 1)
-        {
-            int filterParam = TextureFormatHelper.GetFilterParameter(filterMode);
-            GL.TexParameter(textureTarget, TextureParameterName.TextureMinFilter, filterParam);
-            GL.TexParameter(textureTarget, TextureParameterName.TextureMagFilter, filterParam);
-        }
-        else
+        EnsureSamplerCreated();
+        ConfigureSampler(mipLevels, is3D: false);
+
+        if (mipLevels > 1)
         {
             GL.TexParameter(textureTarget, TextureParameterName.TextureBaseLevel, 0);
             GL.TexParameter(textureTarget, TextureParameterName.TextureMaxLevel, mipLevels - 1);
-
-            // Mipmapped sampling is typically explicit (texelFetch/textureLod) for these usage patterns.
-            GL.TexParameter(textureTarget, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.NearestMipmapNearest);
-            GL.TexParameter(textureTarget, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
         }
-
-        GL.TexParameter(textureTarget, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-        GL.TexParameter(textureTarget, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
     }
 
     private void Apply3DSamplerParamsBound()
     {
-        int filterParam = TextureFormatHelper.GetFilterParameter(filterMode);
-        GL.TexParameter(textureTarget, TextureParameterName.TextureMinFilter, filterParam);
-        GL.TexParameter(textureTarget, TextureParameterName.TextureMagFilter, filterParam);
-        GL.TexParameter(textureTarget, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-        GL.TexParameter(textureTarget, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-        if (textureTarget == TextureTarget.Texture3D)
+        EnsureSamplerCreated();
+        ConfigureSampler(mipLevels: 1, is3D: true);
+    }
+
+    private void EnsureSamplerCreated()
+    {
+        if (sampler is not null && sampler.IsValid)
         {
-            GL.TexParameter(textureTarget, TextureParameterName.TextureWrapR, (int)TextureWrapMode.ClampToEdge);
+            return;
         }
+
+        sampler?.Dispose();
+        sampler = GpuSampler.Create(debugName is null ? null : $"{debugName}.Sampler");
+    }
+
+    private void ConfigureSampler(int mipLevels, bool is3D)
+    {
+        if (sampler is null || !sampler.IsValid)
+        {
+            return;
+        }
+
+        if (mipLevels <= 1)
+        {
+            TextureMinFilter min = filterMode == TextureFilterMode.Linear ? TextureMinFilter.Linear : TextureMinFilter.Nearest;
+            TextureMagFilter mag = filterMode == TextureFilterMode.Linear ? TextureMagFilter.Linear : TextureMagFilter.Nearest;
+            sampler.SetFilter(min, mag);
+        }
+        else
+        {
+            // Keep parity with the legacy texture-parameter path.
+            sampler.SetFilter(TextureMinFilter.NearestMipmapNearest, TextureMagFilter.Nearest);
+        }
+
+        sampler.SetWrap(
+            TextureWrapMode.ClampToEdge,
+            TextureWrapMode.ClampToEdge,
+            is3D && textureTarget == TextureTarget.Texture3D ? TextureWrapMode.ClampToEdge : null);
     }
 
     #endregion
@@ -315,6 +359,11 @@ public abstract class GpuTexture : GpuResource, IDisposable
         }
 
         GlStateCache.Current.BindTexture(textureTarget, unit, textureId);
+        int samplerId = SamplerId;
+        if (samplerId != 0)
+        {
+            GlStateCache.Current.BindSampler(unit, samplerId);
+        }
     }
 
     public bool TryBind(int unit)
@@ -325,12 +374,18 @@ public abstract class GpuTexture : GpuResource, IDisposable
         }
 
         GlStateCache.Current.BindTexture(textureTarget, unit, textureId);
+        int samplerId = SamplerId;
+        if (samplerId != 0)
+        {
+            GlStateCache.Current.BindSampler(unit, samplerId);
+        }
         return true;
     }
 
     public virtual void Unbind(int unit)
     {
         GlStateCache.Current.BindTexture(textureTarget, unit, 0);
+        GlStateCache.Current.UnbindSampler(unit);
     }
 
     public virtual void UploadData(float[] data)
@@ -820,6 +875,18 @@ public abstract class GpuTexture : GpuResource, IDisposable
         return $"{GetType().Name}(id={textureId}, target={textureTarget}, size={width}x{height}x{depth}, format={internalFormat}, name={debugName}, disposed={IsDisposed})";
     }
 
+    protected override void OnDetached(nint id)
+    {
+        sampler?.Dispose();
+        sampler = null;
+    }
+
+    protected override void OnAfterDelete()
+    {
+        sampler?.Dispose();
+        sampler = null;
+    }
+
     internal static TextureUploadPriority MapUploadPriority(int priority)
     {
         return priority switch
@@ -904,14 +971,22 @@ public abstract class GpuTexture : GpuResource, IDisposable
         private readonly TextureTarget target;
         private readonly int unit;
         private readonly int previousBinding;
+        private readonly int previousSampler;
         private readonly int previousActive;
         private readonly bool restoreActive;
 
-        public BindingScope(TextureTarget target, int unit, int previousBinding, int previousActive, bool restoreActive)
+        public BindingScope(
+            TextureTarget target,
+            int unit,
+            int previousBinding,
+            int previousSampler,
+            int previousActive,
+            bool restoreActive)
         {
             this.target = target;
             this.unit = unit;
             this.previousBinding = previousBinding;
+            this.previousSampler = previousSampler;
             this.previousActive = previousActive;
             this.restoreActive = restoreActive;
         }
@@ -919,6 +994,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         public void Dispose()
         {
             GlStateCache.Current.BindTexture(target, unit, previousBinding);
+            GlStateCache.Current.BindSampler(unit, previousSampler);
 
             if (restoreActive)
             {

@@ -99,7 +99,7 @@ internal sealed class GpuSampler : GpuResource, IDisposable
     /// </summary>
     public static void Unbind(int unit)
     {
-        GlStateCache.Current.BindSampler(unit, 0);
+        GlStateCache.Current.UnbindSampler(unit);
     }
 
     /// <summary>

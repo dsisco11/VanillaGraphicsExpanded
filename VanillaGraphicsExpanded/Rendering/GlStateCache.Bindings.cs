@@ -579,6 +579,11 @@ internal sealed partial class GlStateCache
         }
     }
 
+    public void UnbindSampler(int unit)
+    {
+        BindSampler(unit, 0);
+    }
+
     public SamplerScope BindSamplerScope(int unit, int samplerId)
     {
         int previous = 0;

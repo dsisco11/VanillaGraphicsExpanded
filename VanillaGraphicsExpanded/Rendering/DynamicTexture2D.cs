@@ -187,8 +187,8 @@ public sealed class DynamicTexture2D : GpuTexture
     /// <param name="unit">Texture unit to unbind.</param>
     public static new void Unbind(int unit)
     {
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(TextureTarget.Texture2D, 0);
+        GlStateCache.Current.BindTexture(TextureTarget.Texture2D, unit, 0);
+        GlStateCache.Current.UnbindSampler(unit);
     }
 
     /// <summary>
