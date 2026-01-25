@@ -37,6 +37,18 @@ public sealed class GBufferManager : IDisposable
     private const int MaterialSlotId = 5;
     private readonly float[] clearColor = [0f, 0f, 0f, 0f];
 
+    private static readonly GlPipelineDesc GBufferBlendPso = new(
+        defaultMask: default(GlPipelineStateMask)
+            .With(GlPipelineStateId.BlendEnableIndexed)
+            .With(GlPipelineStateId.BlendFuncIndexed),
+        nonDefaultMask: default,
+        blendEnableIndexedAttachments: [(byte)NormalSlotId, (byte)MaterialSlotId],
+        blendFuncIndexed:
+        [
+            new GlBlendFuncIndexed((byte)NormalSlotId, GlBlendFunc.Default),
+            new GlBlendFuncIndexed((byte)MaterialSlotId, GlBlendFunc.Default)
+        ]);
+
     private int lastWidth;
     private int lastHeight;
     
@@ -151,7 +163,7 @@ public sealed class GBufferManager : IDisposable
         GL.DrawBuffers(6, drawBuffers);        
         
         // Per-buffer blend control requires GL 4.0+ / ARB_draw_buffers_blend
-        ApplyGBufferBlendState();
+        ApplyGBufferBlendState(forceDirty: true);
 
         // Verify the blend state was actually set
         VerifyBlendState();
@@ -160,16 +172,18 @@ public sealed class GBufferManager : IDisposable
     /// <summary>
     /// Applies the correct blend state for G-buffer attachments (One/Zero, disabled).
     /// </summary>
-    private void ApplyGBufferBlendState()
+    private void ApplyGBufferBlendState(bool forceDirty)
     {
         var gl = GlStateCache.Current;
 
-        // Per-buffer blend control requires GL 4.0+ / ARB_draw_buffers_blend.
-        // We use One/Zero and disable blending for our attachments to ensure direct writes.
-        gl.SetBlendFuncIndexed(NormalSlotId, GlBlendFunc.Default);
-        gl.SetBlendFuncIndexed(MaterialSlotId, GlBlendFunc.Default);
-        gl.SetBlendEnabledIndexed(NormalSlotId, enabled: false);
-        gl.SetBlendEnabledIndexed(MaterialSlotId, enabled: false);
+        if (forceDirty)
+        {
+            // Engine/global glBlendFunc calls can stomp indexed blend factors. Mark them dirty so the cache re-emits.
+            gl.DirtyIndexedBlendFunc();
+            gl.DirtyIndexedBlendEnable();
+        }
+
+        gl.Apply(GBufferBlendPso);
     }
 
     /// <summary>
@@ -187,12 +201,7 @@ public sealed class GBufferManager : IDisposable
         if (primaryFb is null || currentFbo != primaryFb.FboId)
             return;
 
-        // Engine/global glBlendFunc calls can stomp indexed blend factors. Mark them dirty so the cache re-emits.
-        var gl = GlStateCache.Current;
-        gl.DirtyIndexedBlendFunc();
-        gl.DirtyIndexedBlendEnable();
-
-        ApplyGBufferBlendState();
+        ApplyGBufferBlendState(forceDirty: true);
     }
 
     private bool hasLoggedBlendState;
@@ -390,10 +399,8 @@ public sealed class GBufferManager : IDisposable
     /// <param name="fboId">The framebuffer ID to attach to</param>
     private void AttachToFramebuffer(int fboId)
     {
-        // stash the currently bound framebuffer
-        var prevFbo = GL.GetInteger(GetPName.FramebufferBinding);
-        // Bind the Primary framebuffer
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
+        var gl = GlStateCache.Current;
+        using var _ = gl.BindFramebufferScope(FramebufferTarget.Framebuffer, fboId);
 
         // Attach normal texture as ColorAttachment4 (matches layout(location = 4))
         GL.FramebufferTexture2D(
@@ -411,7 +418,7 @@ public sealed class GBufferManager : IDisposable
             MaterialTextureId,
             0);
 
-        ApplyGBufferBlendState();
+        ApplyGBufferBlendState(forceDirty: true);
 
         // Verify framebuffer is complete
         var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
@@ -423,9 +430,6 @@ public sealed class GBufferManager : IDisposable
         {
             capi.Logger.Notification("[VGE] G-buffer textures attached to Primary framebuffer (Normal@4, Material@5)");
         }
-
-        // Restore previous framebuffer binding
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
     }
 
     /// <summary>
@@ -434,7 +438,8 @@ public sealed class GBufferManager : IDisposable
     /// <param name="fboId">The framebuffer ID to detach from</param>
     private void DetachFromFramebuffer(int fboId)
     {
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
+        var gl = GlStateCache.Current;
+        gl.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
 
         // Detach our color textures (ColorAttachment4-5)
         GL.FramebufferTexture2D(
@@ -460,7 +465,7 @@ public sealed class GBufferManager : IDisposable
         };
         GL.DrawBuffers(4, drawBuffers);
 
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         
         capi.Logger.Notification("[VGE] G-buffer detached from Primary framebuffer");
     }

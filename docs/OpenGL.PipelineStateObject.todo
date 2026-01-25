@@ -121,15 +121,15 @@ Docs:
       - Debug-only dynamic state: viewport, point size, line width
     ☑ Remove per-frame save/restore where PSO makes it redundant (keep minimal safe restore if needed)
 
-☐ Phase 5 — Expand to Offscreen Passes + MRT Blend
+☑ Phase 5 — Expand to Offscreen Passes + MRT Blend
   Exit artifacts:
     - Offscreen passes use PSO for their fixed state
     - MRT blend state is robust against engine/global state stomps
 
   Work items:
-    ☐ Apply PSO to atlas bake path “known-good state”
-    ☐ Apply PSO to G-buffer creation/usage paths
-    ☐ Verify per-attachment blending remains correct across frames
+    ☑ Apply PSO to atlas bake path “known-good state”
+    ☑ Apply PSO to G-buffer creation/usage paths
+    ☑ Verify per-attachment blending remains correct across frames
 
 ☐ Phase 6 — Debugging, Naming, and Documentation
   Exit artifacts:

@@ -32,6 +32,15 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
     // Asset domain for shader source.
     private const string Domain = "vanillagraphicsexpanded";
 
+    private static readonly GlPipelineDesc BakeKnownGoodPso = new(
+        defaultMask: default(GlPipelineStateMask)
+            .With(GlPipelineStateId.BlendEnable)
+            .With(GlPipelineStateId.DepthTestEnable)
+            .With(GlPipelineStateId.ScissorTestEnable)
+            .With(GlPipelineStateId.CullFaceEnable)
+            .With(GlPipelineStateId.ColorMask),
+        nonDefaultMask: default);
+
     // Shader asset names (without extension).
     private const string Vsh = "pbr_heightbake_fullscreen";
     private const string FshLuminance = "pbr_heightbake_luminance";
@@ -129,24 +138,14 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         GL.GetInteger(GetPName.TextureBinding2D, out int prevTex2D);
 
         // Engine GL state can leak into the bake. Force a known-good state and restore after.
-        bool prevBlend = GL.IsEnabled(EnableCap.Blend);
-        bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
-        bool prevScissor = GL.IsEnabled(EnableCap.ScissorTest);
-        bool prevCull = GL.IsEnabled(EnableCap.CullFace);
-        GL.GetBoolean(GetPName.ColorWritemask, out bool prevColorMaskR);
-        // Note: GetBoolean(ColorWritemask) returns 4 values in native OpenGL; OpenTK overload differs.
-        // We'll restore via GetBooleanv to be safe.
-        bool[] prevColorMask = new bool[4];
-        GL.GetBoolean(GetPName.ColorWritemask, prevColorMask);
+        using var fixedFunctionScope = GlStateCache.Current.CaptureLegacyFixedFunctionState();
 
         try
         {
             // Known-good state for offscreen full-screen passes.
-            GL.Disable(EnableCap.Blend);
-            GL.Disable(EnableCap.DepthTest);
-            GL.Disable(EnableCap.ScissorTest);
-            GL.Disable(EnableCap.CullFace);
-            GL.ColorMask(true, true, true, true);
+            var gl = GlStateCache.Current;
+            gl.InvalidateAll();
+            gl.Apply(BakeKnownGoodPso);
 
             scratchFbo!.Bind();
             vao!.Bind();
@@ -457,19 +456,16 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             // "Already a different shader (...) in use!" on the next render pass.
             StopAllBakerPrograms();
 
-            GL.UseProgram(prevProgram);
-            GL.BindVertexArray(prevVao);
-                GpuFramebuffer.RestoreBinding(prevFbo);
+            var gl = GlStateCache.Current;
+
+            gl.UseProgram(prevProgram);
+            gl.BindVertexArray(prevVao);
+            GpuFramebuffer.RestoreBinding(prevFbo);
             GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
 
-            GL.ActiveTexture((TextureUnit)prevActiveTex);
-            GL.BindTexture(TextureTarget.Texture2D, prevTex2D);
-
-            if (prevBlend) GL.Enable(EnableCap.Blend); else GL.Disable(EnableCap.Blend);
-            if (prevDepthTest) GL.Enable(EnableCap.DepthTest); else GL.Disable(EnableCap.DepthTest);
-            if (prevScissor) GL.Enable(EnableCap.ScissorTest); else GL.Disable(EnableCap.ScissorTest);
-            if (prevCull) GL.Enable(EnableCap.CullFace); else GL.Disable(EnableCap.CullFace);
-            GL.ColorMask(prevColorMask[0], prevColorMask[1], prevColorMask[2], prevColorMask[3]);
+            int prevActiveUnit = prevActiveTex - (int)TextureUnit.Texture0;
+            if (prevActiveUnit < 0) prevActiveUnit = 0;
+            gl.BindTexture(TextureTarget.Texture2D, prevActiveUnit, prevTex2D);
         }
     }
 
@@ -505,20 +501,13 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         GL.GetInteger(GetPName.ActiveTexture, out int prevActiveTex);
         GL.GetInteger(GetPName.TextureBinding2D, out int prevTex2D);
 
-        bool prevBlend = GL.IsEnabled(EnableCap.Blend);
-        bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
-        bool prevScissor = GL.IsEnabled(EnableCap.ScissorTest);
-        bool prevCull = GL.IsEnabled(EnableCap.CullFace);
-        bool[] prevColorMask = new bool[4];
-        GL.GetBoolean(GetPName.ColorWritemask, prevColorMask);
+        using var fixedFunctionScope = GlStateCache.Current.CaptureLegacyFixedFunctionState();
 
         try
         {
-            GL.Disable(EnableCap.Blend);
-            GL.Disable(EnableCap.DepthTest);
-            GL.Disable(EnableCap.ScissorTest);
-            GL.Disable(EnableCap.CullFace);
-            GL.ColorMask(true, true, true, true);
+            var gl = GlStateCache.Current;
+            gl.InvalidateAll();
+            gl.Apply(BakeKnownGoodPso);
 
             scratchFbo!.Bind();
             vao!.Bind();
@@ -533,19 +522,16 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         {
             StopAllBakerPrograms();
 
-            GL.UseProgram(prevProgram);
-            GL.BindVertexArray(prevVao);
+            var gl = GlStateCache.Current;
+
+            gl.UseProgram(prevProgram);
+            gl.BindVertexArray(prevVao);
             GpuFramebuffer.RestoreBinding(prevFbo);
             GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
 
-            GL.ActiveTexture((TextureUnit)prevActiveTex);
-            GL.BindTexture(TextureTarget.Texture2D, prevTex2D);
-
-            if (prevBlend) GL.Enable(EnableCap.Blend); else GL.Disable(EnableCap.Blend);
-            if (prevDepthTest) GL.Enable(EnableCap.DepthTest); else GL.Disable(EnableCap.DepthTest);
-            if (prevScissor) GL.Enable(EnableCap.ScissorTest); else GL.Disable(EnableCap.ScissorTest);
-            if (prevCull) GL.Enable(EnableCap.CullFace); else GL.Disable(EnableCap.CullFace);
-            GL.ColorMask(prevColorMask[0], prevColorMask[1], prevColorMask[2], prevColorMask[3]);
+            int prevActiveUnit = prevActiveTex - (int)TextureUnit.Texture0;
+            if (prevActiveUnit < 0) prevActiveUnit = 0;
+            gl.BindTexture(TextureTarget.Texture2D, prevActiveUnit, prevTex2D);
         }
     }
 
@@ -600,20 +586,13 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         GL.GetInteger(GetPName.ActiveTexture, out int prevActiveTex);
         GL.GetInteger(GetPName.TextureBinding2D, out int prevTex2D);
 
-        bool prevBlend = GL.IsEnabled(EnableCap.Blend);
-        bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
-        bool prevScissor = GL.IsEnabled(EnableCap.ScissorTest);
-        bool prevCull = GL.IsEnabled(EnableCap.CullFace);
-        bool[] prevColorMask = new bool[4];
-        GL.GetBoolean(GetPName.ColorWritemask, prevColorMask);
+        using var fixedFunctionScope = GlStateCache.Current.CaptureLegacyFixedFunctionState();
 
         try
         {
-            GL.Disable(EnableCap.Blend);
-            GL.Disable(EnableCap.DepthTest);
-            GL.Disable(EnableCap.ScissorTest);
-            GL.Disable(EnableCap.CullFace);
-            GL.ColorMask(true, true, true, true);
+            var gl = GlStateCache.Current;
+            gl.InvalidateAll();
+            gl.Apply(BakeKnownGoodPso);
 
             scratchFbo!.Bind();
             vao!.Bind();
@@ -697,19 +676,16 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         {
             StopAllBakerPrograms();
 
-            GL.UseProgram(prevProgram);
-            GL.BindVertexArray(prevVao);
+            var gl = GlStateCache.Current;
+
+            gl.UseProgram(prevProgram);
+            gl.BindVertexArray(prevVao);
             GpuFramebuffer.RestoreBinding(prevFbo);
             GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
 
-            GL.ActiveTexture((TextureUnit)prevActiveTex);
-            GL.BindTexture(TextureTarget.Texture2D, prevTex2D);
-
-            if (prevBlend) GL.Enable(EnableCap.Blend); else GL.Disable(EnableCap.Blend);
-            if (prevDepthTest) GL.Enable(EnableCap.DepthTest); else GL.Disable(EnableCap.DepthTest);
-            if (prevScissor) GL.Enable(EnableCap.ScissorTest); else GL.Disable(EnableCap.ScissorTest);
-            if (prevCull) GL.Enable(EnableCap.CullFace); else GL.Disable(EnableCap.CullFace);
-            GL.ColorMask(prevColorMask[0], prevColorMask[1], prevColorMask[2], prevColorMask[3]);
+            int prevActiveUnit = prevActiveTex - (int)TextureUnit.Texture0;
+            if (prevActiveUnit < 0) prevActiveUnit = 0;
+            gl.BindTexture(TextureTarget.Texture2D, prevActiveUnit, prevTex2D);
         }
     }
 
