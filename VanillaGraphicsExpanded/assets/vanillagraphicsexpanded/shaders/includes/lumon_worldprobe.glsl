@@ -269,7 +269,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 	// The old multiplier (max(dot(n, aoDir),0) * aoConf) can go to zero for side faces outdoors
 	// (aoDir tends to be "up"), which incorrectly kills world-probe contribution on walls.
 	//
-	// Instead, evaluate irradiance in the bent direction and apply AO confidence as openness.
+	// Instead, evaluate irradiance in a bent direction and use AO confidence only as the bend amount.
 	// Guard against undefined normalize(0) behavior on some drivers.
 	vec3 aoDir = (dot(aoDirAccum, aoDirAccum) > 1e-8) ? normalize(aoDirAccum) : normalWS;
 	float aoConf = clamp(aoConfAccum, 0.0, 1.0);
@@ -282,8 +282,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 	float irradianceSkyVisibility = shEvaluateDiffuse(shSky, bentNormalWS);
 	float skyIntensity = clamp(skyIntensityAccum, 0.0, 1.0);
 	vec3 irradiance = max(irradianceBlock, vec3(0.0)) + worldProbeSkyTint * (max(irradianceSkyVisibility, 0.0) * skyIntensity);
-
-	irradiance = max(irradiance, vec3(0.0)) * aoConf;
+	irradiance = max(irradiance, vec3(0.0));
 
 	// ShortRangeAO is a leak-reduction factor applied to irradiance only; it should not 
 	// tank confidence, otherwise world-probes get blended out in enclosed spaces.
@@ -377,8 +376,7 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleLevelTrilinearRadiance(
 	float radianceSkyVisibility = shEvaluate(shSky, dirWS);
 	float skyIntensity = clamp(skyIntensityAccum, 0.0, 1.0);
 	vec3 radiance = max(radianceBlock, vec3(0.0)) + worldProbeSkyTint * (max(radianceSkyVisibility, 0.0) * skyIntensity);
-
-	radiance = max(radiance, vec3(0.0)) * aoConf;
+	radiance = max(radiance, vec3(0.0));
 
 	float conf = clamp(metaConfAccum, 0.0, 1.0);
 

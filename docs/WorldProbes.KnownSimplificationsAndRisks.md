@@ -22,7 +22,7 @@ Priorities are scoped to **Phase 18 diffuse GI correctness + debuggability**:
 
 - [x] [2.2 Unloaded chunks treated as misses; placeholder chunk objects can abort traces](#wp-2-2) — Implemented (Option A)
 - [ ] [2.3 Probe disabled when its center lies inside a solid collision box](#wp-2-3)
-- [ ] [5.1 ShortRangeAO multiplies irradiance by `aoConf`](#wp-5-1)
+- [x] [5.1 ShortRangeAO multiplies irradiance by `aoConf`](#wp-5-1) — Implemented (Option A)
 - [ ] [5.5 Screen-probe miss fallback assumes sky radiance (miss != sky)](#wp-5-5)
 - [x] [6.1 Orb visualizer samples irradiance with a fixed “up” normal](#wp-6-1) — Resolved (outdated)
 
@@ -452,7 +452,9 @@ block at that voxel.
 
 **Where**: `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_worldprobe.glsl`
 
-**What**: After evaluating SH in a bent-normal direction, the shader does `irradiance *= aoConf`.
+**Status**: Implemented (Option A)
+
+**What**: World-probe sampling no longer scales irradiance by `aoConf`; `aoConf` is only used as the bend amount between `normalWS` and the bent direction.
 
 **Why this is an issue**
 
