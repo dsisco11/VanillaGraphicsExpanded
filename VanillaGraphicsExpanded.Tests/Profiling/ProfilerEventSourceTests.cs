@@ -144,6 +144,7 @@ public sealed class ProfilerEventSourceTests
 
         EventWrittenEventArgs? start = null;
         EventWrittenEventArgs? stop = null;
+        long expectedId = 0;
 
         var deadline = DateTime.UtcNow.AddSeconds(2);
         while (DateTime.UtcNow < deadline && (start is null || stop is null))
@@ -157,11 +158,21 @@ public sealed class ProfilerEventSourceTests
 
                 if (evt.EventId == 1)
                 {
-                    start ??= evt;
+                    // Avoid flakiness from other profiled scopes in parallel tests by selecting the expected scope by name/category.
+                    if (evt.Payload is { Count: >= 3 }
+                        && string.Equals((string)evt.Payload[1]!, "Test.Scope", StringComparison.Ordinal)
+                        && string.Equals((string)evt.Payload[2]!, "UnitTest", StringComparison.Ordinal))
+                    {
+                        start ??= evt;
+                        expectedId = (long)evt.Payload[0]!;
+                    }
                 }
                 else if (evt.EventId == 2)
                 {
-                    stop ??= evt;
+                    if (expectedId != 0 && evt.Payload is { Count: >= 1 } && (long)evt.Payload[0]! == expectedId)
+                    {
+                        stop ??= evt;
+                    }
                 }
             }
 
