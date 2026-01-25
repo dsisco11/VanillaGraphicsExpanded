@@ -19,14 +19,8 @@ public class LumOnDebugShaderProgram : GpuProgram
 
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new LumOnDebugShaderProgram
-        {
-            PassName = "lumon_debug",
-            AssetDomain = "vanillagraphicsexpanded"
-        };
-        instance.Initialize(api);
-        instance.CompileAndLink();
-        api.Shader.RegisterMemoryShaderProgram("lumon_debug", instance);
+        // Register all per-program-kind entrypoints (plus the legacy dispatcher).
+        LumOnDebugShaderProgramFamily.Register(api);
     }
 
     #endregion

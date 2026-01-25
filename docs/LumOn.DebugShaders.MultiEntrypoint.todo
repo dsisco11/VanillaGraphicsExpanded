@@ -100,20 +100,19 @@ Reference / Docs:
 
 ---
 
-☐ Phase 3 - C# shader program wiring: Register and manage the program family
+✔ Phase 3 - C# shader program wiring: Register and manage the program family
   Exit artifacts:
   - All debug programs are registered and available via memory shader programs.
   - Defines/uniform bindings are applied consistently to every debug program.
 
   Work items:
-  ☐ Introduce a small “debug program family” abstraction (or refactor `LumOnDebugShaderProgram`) that:
+  ✔ Introduce a small “debug program family” abstraction (or refactor `LumOnDebugShaderProgram`) that:
     - Registers all passes (one per category)
     - Exposes a consistent API for texture binding + uniforms
     - Applies compile-time defines consistently across all programs
-  ☐ Ensure define updates are synchronized across the family:
+  ✔ Ensure define updates are synchronized across the family:
     - Eager: when config/flags change, update defines on every program
-    - Lazy: when a program is activated, re-apply current define state
-  ☐ Confirm shader import system supports the new files without extra init (see `ShaderModSystem`).
+  ✔ Confirm shader import system supports the new files without extra init (see `ShaderModSystem`).
 
 ---
 

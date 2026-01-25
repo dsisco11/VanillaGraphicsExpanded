@@ -567,9 +567,12 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         UpdateCurrentViewProjMatrixNoTranslate();
 
         // Define-backed toggles must be set before Use() so the correct variant is bound.
-        shader.EnablePbrComposite = lum.EnablePbrComposite;
-        shader.EnableAO = lum.EnableAO;
-        shader.EnableShortRangeAo = lum.EnableShortRangeAo;
+        // Keep defines synchronized across the entire debug shader family so switching entrypoints
+        // later doesn't hit missing/mismatched variants.
+        LumOnDebugShaderProgramFamily.ApplyCompositeDefines(
+            enablePbrComposite: lum.EnablePbrComposite,
+            enableAo: lum.EnableAO,
+            enableShortRangeAo: lum.EnableShortRangeAo);
 
         // Phase 18 world-probe defines must be set before Use() as well.
         // Make this robust across initialization order / live reloads: if the renderer's buffer manager reference
@@ -612,15 +615,26 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             int levels = Math.Clamp(worldProbeClipmapBufferManager.Resources!.Levels, 1, MaxWorldProbeLevels);
             int resolution = Math.Max(1, worldProbeClipmapBufferManager.Resources!.Resolution);
 
-            // If defines changed, a recompile has been queued; skip rendering this frame.
-            if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, baseSpacing, levels, resolution))
+            // If defines changed for the active program, a recompile has been queued; skip rendering this frame.
+            // Apply to all debug programs so switching kinds later is consistent.
+            if (!LumOnDebugShaderProgramFamily.ApplyWorldProbeClipmapDefines(
+                enabled: true,
+                baseSpacing,
+                levels,
+                resolution,
+                activeProgram: shader))
             {
                 return;
             }
         }
         else
         {
-            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
+            LumOnDebugShaderProgramFamily.ApplyWorldProbeClipmapDefines(
+                enabled: false,
+                baseSpacing: 0,
+                levels: 0,
+                resolution: 0,
+                activeProgram: shader);
         }
 
         bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
