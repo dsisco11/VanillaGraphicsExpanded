@@ -7,6 +7,11 @@ Goal:
 
 Notes:
   - In OpenGL this is an emulation: GL has a global implicit state machine.
+  - Integration note (RAII scopes):
+      - Many VGE GPU wrappers expose `BindScope()` / `UseScope()` patterns today (program/VAO/FBO/buffer/etc).
+      - When PSO/GlStateCache is implemented, these scope helpers should delegate to PSO/GlStateCache scope APIs
+        (e.g. `Pso.BindVaoScope(...)`, `Pso.BindFramebufferScope(...)`, `Pso.BindBufferScope(...)`, `Pso.UseProgramScope(...)`)
+        so redundant state changes can be skipped and future scope-stack/debug tracking can be centralized.
   - The PSO should support 3-way intent per state knob:
       (A) Force default baseline
       (B) Force a specific non-default value
@@ -45,7 +50,9 @@ Docs:
       - Color mask (RGBA)
       - Scissor enable (scissor box remains dynamic unless explicitly included)
       - (Optional) line width / point size for debug-only pipelines
-    ☐ Decide what is “dynamic state” (set outside PSO): viewport, scissor box, FBO binds, textures/samplers, uniforms
+    ☐ Decide what is “dynamic state” (set outside PSO):
+      - viewport, scissor box, FBO binds, textures/samplers, uniforms
+      - Even when “dynamic”, route these binds through the PSO/GlStateCache scope APIs for caching/stacking.
 
 ☐ Phase 1 — State ID Layout + Bitsets
   Exit artifacts:
@@ -82,6 +89,12 @@ Docs:
 
   Work items:
     ☐ Implement cached setters per knob (Enable/Disable depth, blend, cull, scissor, etc.)
+    ☐ Add cached bind/scope APIs for dynamic bindings:
+      - Program use, VAO bind, framebuffer bind (read/draw), buffer binds, active texture/unit + texture binds
+      - These should return scope structs that restore previous state and optionally update a debug-only scope stack.
+    ☐ Refactor GPU wrappers to delegate scope helpers:
+      - `GpuVao.BindScope()` / `GpuFramebuffer.BindScope()` / `GpuBufferObject.BindScope()` / `GpuTexture.BindScope()` etc
+        become thin wrappers around PSO/GlStateCache scope methods.
     ☐ Apply order definition (consistent & predictable):
       - Enables/disables, funcs/masks, then per-RT blend (or vice versa, but be consistent)
     ☐ Implement “dirtying rules” for external stomps:
