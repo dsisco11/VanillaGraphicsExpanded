@@ -27,6 +27,9 @@ layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFlo
 // Import probe-atlas meta helpers
 @import "./includes/lumon_probe_atlas_meta.glsl"
 
+// World-probe clipmap helpers
+@import "./includes/lumon_worldprobe.glsl"
+
 // Import noise for ray jittering
 @import "./includes/squirrel3.glsl"
 
@@ -247,14 +250,31 @@ void main(void)
     
     vec3 radiance;
     float hitDistance;
+    bool usedWorldProbeFallback = false;
+    float worldProbeFallbackConfidence = 0.0;
     
     if (hit.hit) {
         // Hit radiance (no distance falloff; rayMaxDistance is the only cutoff)
         radiance = hit.color * indirectTint;
         hitDistance = hit.distance;
     } else {
-        // Sky fallback - use world-space direction for consistent sky color
-        radiance = lumonGetSkyColor(rayDirWS, sunPosition, sunColor, ambientColor, VGE_LUMON_SKY_MISS_WEIGHT);
+        // Miss fallback:
+        // - First try world-probes (represents "scene" / off-screen lighting).
+        // - If unavailable, fall back to the legacy sky approximation.
+#if VGE_LUMON_WORLDPROBE_ENABLED
+        LumOnWorldProbeRadianceSample wp = lumonWorldProbeSampleClipmapRadianceBound(probePosWS, rayDirWS);
+        if (wp.confidence > 1e-3)
+        {
+            radiance = wp.radiance;
+            usedWorldProbeFallback = true;
+            worldProbeFallbackConfidence = wp.confidence;
+        }
+        else
+#endif
+        {
+            // Sky fallback - use world-space direction for consistent sky color
+            radiance = lumonGetSkyColor(rayDirWS, sunPosition, sunColor, ambientColor, VGE_LUMON_SKY_MISS_WEIGHT);
+        }
         hitDistance = VGE_LUMON_RAY_MAX_DISTANCE;
     }
     
@@ -272,11 +292,22 @@ void main(void)
         flags |= LUMON_META_HIT;
         confidence = 1.0;
     } else {
-        flags |= LUMON_META_SKY_MISS;
-        confidence = 0.25;
+        if (usedWorldProbeFallback)
+        {
+            flags |= LUMON_META_WORLDPROBE_FALLBACK;
+            confidence = worldProbeFallbackConfidence;
+        }
+        else
+        {
+            flags |= LUMON_META_SKY_MISS;
+            confidence = 0.25;
+        }
         if (hit.exitedScreen) {
             flags |= LUMON_META_SCREEN_EXIT;
-            confidence = 0.05;
+            if (!usedWorldProbeFallback)
+            {
+                confidence = 0.05;
+            }
         }
     }
 

@@ -75,6 +75,12 @@ struct LumOnWorldProbeSample
 	float confidence;
 };
 
+struct LumOnWorldProbeRadianceSample
+{
+	vec3 radiance;
+	float confidence;
+};
+
 float lumonWorldProbeSpacing(float baseSpacing, int level)
 {
 	return baseSpacing * exp2(float(level));
@@ -286,6 +292,183 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 	s.irradiance = irradiance;
 	s.confidence = conf;
 	return s;
+}
+
+LumOnWorldProbeRadianceSample lumonWorldProbeSampleLevelTrilinearRadiance(
+	sampler2D probeSH0,
+	sampler2D probeSH1,
+	sampler2D probeSH2,
+	sampler2D probeSky0,
+	sampler2D probeVis0,
+	sampler2D probeMeta0,
+	vec3 worldPosRel,
+	vec3 dirWS,
+	vec3 originMinCorner,
+	vec3 ringOffset,
+	float spacing,
+	int resolution,
+	int level)
+{
+	LumOnWorldProbeRadianceSample s;
+	s.radiance = vec3(0.0);
+	s.confidence = 0.0;
+
+	vec3 local = (worldPosRel - originMinCorner) / max(spacing, 1e-6);
+
+	// Outside clip volume: no contribution.
+	if (any(lessThan(local, vec3(0.0))) || any(greaterThanEqual(local, vec3(float(resolution)))))
+	{
+		return s;
+	}
+
+	ivec3 i0 = ivec3(floor(local));
+	vec3 f = fract(local);
+	ivec3 i1 = i0 + ivec3(1);
+
+	ivec3 ring = ivec3(floor(ringOffset + 0.5));
+
+	int maxIdx = resolution - 1;
+
+	// Clamp for safe trilinear at edges.
+	if (i0.x >= maxIdx) { i0.x = maxIdx; i1.x = maxIdx; f.x = 0.0; }
+	if (i0.y >= maxIdx) { i0.y = maxIdx; i1.y = maxIdx; f.y = 0.0; }
+	if (i0.z >= maxIdx) { i0.z = maxIdx; i1.z = maxIdx; f.z = 0.0; }
+
+	// Trilinear weights.
+	float wx0 = 1.0 - f.x;
+	float wy0 = 1.0 - f.y;
+	float wz0 = 1.0 - f.z;
+	float wx1 = f.x;
+	float wy1 = f.y;
+	float wz1 = f.z;
+
+	float w000 = wx0 * wy0 * wz0;
+	float w100 = wx1 * wy0 * wz0;
+	float w010 = wx0 * wy1 * wz0;
+	float w110 = wx1 * wy1 * wz0;
+	float w001 = wx0 * wy0 * wz1;
+	float w101 = wx1 * wy0 * wz1;
+	float w011 = wx0 * wy1 * wz1;
+	float w111 = wx1 * wy1 * wz1;
+
+	vec4 shR = vec4(0.0);
+	vec4 shG = vec4(0.0);
+	vec4 shB = vec4(0.0);
+	vec4 shSky = vec4(0.0);
+	float skyIntensityAccum = 0.0;
+
+	vec3 aoDirAccum = vec3(0.0);
+	float aoConfAccum = 0.0;
+	float metaConfAccum = 0.0;
+
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i0.z), ring, resolution, level, w000, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i0.z), ring, resolution, level, w100, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i0.z), ring, resolution, level, w010, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i0.z), ring, resolution, level, w110, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i1.z), ring, resolution, level, w001, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i1.z), ring, resolution, level, w101, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i1.z), ring, resolution, level, w011, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
+	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i1.z), ring, resolution, level, w111, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
+
+	float aoConf = clamp(aoConfAccum, 0.0, 1.0);
+
+	// Evaluate SH in WORLD space.
+	vec3 radianceBlock = shEvaluateRGB(shR, shG, shB, dirWS);
+	float radianceSkyVisibility = shEvaluate(shSky, dirWS);
+	float skyIntensity = clamp(skyIntensityAccum, 0.0, 1.0);
+	vec3 radiance = max(radianceBlock, vec3(0.0)) + worldProbeSkyTint * (max(radianceSkyVisibility, 0.0) * skyIntensity);
+
+	radiance = max(radiance, vec3(0.0)) * aoConf;
+
+	float conf = clamp(metaConfAccum, 0.0, 1.0);
+
+	s.radiance = radiance;
+	s.confidence = conf;
+	return s;
+}
+
+LumOnWorldProbeRadianceSample lumonWorldProbeSampleClipmapRadiance(
+	sampler2D probeSH0,
+	sampler2D probeSH1,
+	sampler2D probeSH2,
+	sampler2D probeSky0,
+	sampler2D probeVis0,
+	sampler2D probeMeta0,
+	vec3 worldPos,
+	vec3 dirWS,
+	vec3 cameraPosWS,
+	vec3 originMinCorner[LUMON_WORLDPROBE_MAX_LEVELS],
+	vec3 ringOffset[LUMON_WORLDPROBE_MAX_LEVELS])
+{
+	LumOnWorldProbeRadianceSample outS;
+	outS.radiance = vec3(0.0);
+	outS.confidence = 0.0;
+
+	const float baseSpacing = VGE_LUMON_WORLDPROBE_BASE_SPACING;
+	const int levels = VGE_LUMON_WORLDPROBE_LEVELS;
+	const int resolution = VGE_LUMON_WORLDPROBE_RESOLUTION;
+
+	if (levels <= 0 || resolution <= 0)
+	{
+		return outS;
+	}
+
+	// Work in camera-relative space for stable float precision.
+	vec3 worldPosRel = worldPos - cameraPosWS;
+
+	int maxLevel = max(levels - 1, 0);
+	int level = lumonWorldProbeSelectLevelByDistance(worldPos, cameraPosWS, baseSpacing, maxLevel);
+
+	float spacingL = lumonWorldProbeSpacing(baseSpacing, level);
+	vec3 originL = originMinCorner[level];
+	vec3 ringL = ringOffset[level];
+
+	// Cross-level overlap smoothing: blend to L+1 near boundary.
+	vec3 localL = (worldPosRel - originL) / max(spacingL, 1e-6);
+	float edgeDist = lumonWorldProbeDistanceToBoundaryProbeUnits(localL, resolution);
+	float wL = lumonWorldProbeCrossLevelBlendWeight(edgeDist, 2.0, 2.0);
+
+	LumOnWorldProbeRadianceSample sL = lumonWorldProbeSampleLevelTrilinearRadiance(
+		probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0,
+		worldPosRel, dirWS,
+		originL, ringL,
+		spacingL, resolution, level);
+
+	if (level < maxLevel)
+	{
+		int level2 = level + 1;
+		float spacing2 = lumonWorldProbeSpacing(baseSpacing, level2);
+		vec3 origin2 = originMinCorner[level2];
+		vec3 ring2 = ringOffset[level2];
+
+		LumOnWorldProbeRadianceSample s2 = lumonWorldProbeSampleLevelTrilinearRadiance(
+			probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0,
+			worldPosRel, dirWS,
+			origin2, ring2,
+			spacing2, resolution, level2);
+
+		outS.radiance = sL.radiance * wL + s2.radiance * (1.0 - wL);
+		outS.confidence = sL.confidence * wL + s2.confidence * (1.0 - wL);
+		return outS;
+	}
+
+	return sL;
+}
+
+LumOnWorldProbeRadianceSample lumonWorldProbeSampleClipmapRadianceBound(vec3 worldPos, vec3 dirWS)
+{
+	return lumonWorldProbeSampleClipmapRadiance(
+		worldProbeSH0,
+		worldProbeSH1,
+		worldProbeSH2,
+		worldProbeSky0,
+		worldProbeVis0,
+		worldProbeMeta0,
+		worldPos,
+		dirWS,
+		worldProbeCameraPosWS,
+		worldProbeOriginMinCorner,
+		worldProbeRingOffset);
 }
 
 LumOnWorldProbeSample lumonWorldProbeSampleClipmap(

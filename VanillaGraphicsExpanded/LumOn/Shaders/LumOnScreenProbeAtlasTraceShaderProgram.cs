@@ -206,4 +206,43 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
     public Vec3f IndirectTint { set => Uniform("indirectTint", value); }
 
     #endregion
+
+    #region World Probes (Phase 18)
+
+    public bool EnsureWorldProbeClipmapDefines(bool enabled, float baseSpacing, int levels, int resolution)
+    {
+        if (!enabled)
+        {
+            baseSpacing = 0;
+            levels = 0;
+            resolution = 0;
+        }
+
+        bool changed = false;
+        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeEnabled, enabled ? "1" : "0");
+        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapLevels, levels.ToString(CultureInfo.InvariantCulture));
+        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, resolution.ToString(CultureInfo.InvariantCulture));
+        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, baseSpacing.ToString("0.0####", CultureInfo.InvariantCulture));
+        return !changed;
+    }
+
+    public int WorldProbeSH0 { set => BindTexture2D("worldProbeSH0", value, 8); }
+    public int WorldProbeSH1 { set => BindTexture2D("worldProbeSH1", value, 9); }
+    public int WorldProbeSH2 { set => BindTexture2D("worldProbeSH2", value, 10); }
+    public int WorldProbeVis0 { set => BindTexture2D("worldProbeVis0", value, 11); }
+    public int WorldProbeMeta0 { set => BindTexture2D("worldProbeMeta0", value, 12); }
+    public int WorldProbeSky0 { set => BindTexture2D("worldProbeSky0", value, 13); }
+
+    public Vec3f WorldProbeCameraPosWS { set => Uniform("worldProbeCameraPosWS", value); }
+
+    public Vec3f WorldProbeSkyTint { set => Uniform("worldProbeSkyTint", value); }
+
+    public bool TrySetWorldProbeLevelParams(int level, Vec3f originMinCorner, Vec3f ringOffset)
+    {
+        bool ok0 = TryUniformArrayElement("worldProbeOriginMinCorner", level, originMinCorner);
+        bool ok1 = TryUniformArrayElement("worldProbeRingOffset", level, ringOffset);
+        return ok0 && ok1;
+    }
+
+    #endregion
 }

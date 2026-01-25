@@ -21,9 +21,6 @@ out vec4 outColor;
 // Import octahedral mapping utilities
 @import "./includes/lumon_octahedral.glsl"
 
-// World-probe clipmap helpers
-@import "./includes/lumon_worldprobe.glsl"
-
 // ============================================================================
 // Uniforms
 // ============================================================================
@@ -316,27 +313,8 @@ void main(void)
     vec3 screenIrradiance = irr00 * w00 + irr10 * w10 + irr01 * w01 + irr11 * w11;
     screenIrradiance = max(screenIrradiance, vec3(0.0));
 
-    // World-probe sample (WORLD space)
-    vec3 worldIrradiance = vec3(0.0);
-    float worldConfidence = 0.0;
-
-#if VGE_LUMON_WORLDPROBE_ENABLED
-    vec3 pixelPosWS = (invViewMatrix * vec4(pixelPosVS, 1.0)).xyz;
-    LumOnWorldProbeSample wp = lumonWorldProbeSampleClipmapBound(pixelPosWS, pixelNormalWS);
-
-    worldIrradiance = wp.irradiance;
-    worldConfidence = wp.confidence;
-#endif
-
-    float screenW = screenConfidence;
-    float worldW = worldConfidence * (1.0 - screenW);
-    float sumW = screenW + worldW;
-
-    vec3 blended = (sumW > 1e-3)
-        ? (screenIrradiance * screenW + worldIrradiance * worldW) / sumW
-        : vec3(0.0);
-
-    float outConfidence = clamp(sumW, 0.0, 1.0);
+    vec3 blended = screenIrradiance;
+    float outConfidence = screenConfidence;
 
     blended *= intensity;
     blended *= indirectTint;

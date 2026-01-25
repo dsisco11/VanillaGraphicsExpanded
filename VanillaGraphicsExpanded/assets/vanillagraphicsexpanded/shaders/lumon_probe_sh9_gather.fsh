@@ -16,8 +16,6 @@ out vec4 outColor;
 @import "./includes/lumon_common.glsl"
 @import "./includes/lumon_sh9.glsl"
 
-@import "./includes/lumon_worldprobe.glsl"
-
 // SH9 packed textures (7 MRT attachments from projection pass)
 uniform sampler2D probeSh0;
 uniform sampler2D probeSh1;
@@ -201,27 +199,8 @@ void main(void)
         screenConfidence = 0.0;
     }
 
-    // World-probe sample (WORLD space)
-    vec3 worldIrradiance = vec3(0.0);
-    float worldConfidence = 0.0;
-
-#if VGE_LUMON_WORLDPROBE_ENABLED
-    vec3 pixelPosWS = (invViewMatrix * vec4(pixelPosVS, 1.0)).xyz;
-    LumOnWorldProbeSample wp = lumonWorldProbeSampleClipmapBound(pixelPosWS, pixelNormalWS);
-
-    worldIrradiance = wp.irradiance;
-    worldConfidence = wp.confidence;
-#endif
-
-    float screenW = screenConfidence;
-    float worldW = worldConfidence * (1.0 - screenW);
-    float sumW = screenW + worldW;
-
-    vec3 blended = (sumW > 1e-3)
-        ? (screenIrradiance * screenW + worldIrradiance * worldW) / sumW
-        : vec3(0.0);
-
-    float outConfidence = clamp(sumW, 0.0, 1.0);
+    vec3 blended = screenIrradiance;
+    float outConfidence = screenConfidence;
 
     blended *= intensity;
     blended *= indirectTint;

@@ -12,6 +12,7 @@ const uint LUMON_META_SKY_MISS          = 1u << 1;
 const uint LUMON_META_SCREEN_EXIT       = 1u << 2;
 const uint LUMON_META_EARLY_TERMINATED  = 1u << 3;
 const uint LUMON_META_THICKNESS_UNCERT  = 1u << 4;
+const uint LUMON_META_WORLDPROBE_FALLBACK = 1u << 5;
 
 vec2 lumonEncodeMeta(float confidence, uint flags)
 {

@@ -647,6 +647,27 @@ public class LumOnRenderer : IRenderer, IDisposable
             shader.HzbCoarseMip = Math.Clamp(config.LumOn.HzbCoarseMip, 0, Math.Max(0, bufferManager.HzbDepthTex.MipLevels - 1));
         }
 
+        // World-probe clipmap uses compile-time defines. They must be configured before Use().
+        // If defines change, VGE will queue a recompile; skip this pass (do not clear) to avoid black flicker.
+        if (TryBindWorldProbeClipmapCommon(
+                out _,
+                out _,
+                out var wpBaseSpacing,
+                out var wpLevels,
+                out var wpResolution,
+                out _,
+                out _))
+        {
+            if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, wpBaseSpacing, wpLevels, wpResolution))
+            {
+                return;
+            }
+        }
+        else
+        {
+            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
+        }
+
         shader.Use();
 
         // Bind probe anchor textures
@@ -705,6 +726,8 @@ public class LumOnRenderer : IRenderer, IDisposable
             config.LumOn.IndirectTint[0],
             config.LumOn.IndirectTint[1],
             config.LumOn.IndirectTint[2]);
+
+        BindWorldProbeClipmap(shader);
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);
@@ -975,25 +998,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (bufferManager.ProbeSh9Tex0 is null || bufferManager.ProbeSh9Tex6 is null)
             return;
 
-        if (TryBindWorldProbeClipmapCommon(
-                out _,
-                out _,
-                out var wpBaseSpacing,
-                out var wpLevels,
-                out var wpResolution,
-                out _,
-                out _))
-        {
-            if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, wpBaseSpacing, wpLevels, wpResolution))
-            {
-                return;
-            }
-        }
-        else
-        {
-            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
-        }
-
         fbo.BindWithViewport();
         fbo.Clear();
 
@@ -1026,8 +1030,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.Intensity = config.LumOn.Intensity;
         shader.IndirectTint = config.LumOn.IndirectTint;
 
-        BindWorldProbeClipmap(shader);
-
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
     }
@@ -1044,27 +1046,6 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         var fbo = bufferManager.IndirectHalfFbo;
         if (fbo is null) return;
-
-        // World-probe clipmap uses compile-time defines. They must be configured before Use().
-        // If defines change, a recompile is queued; skip this pass (do not clear) to avoid black flicker.
-        if (TryBindWorldProbeClipmapCommon(
-                out _,
-                out _,
-                out var wpBaseSpacing,
-                out var wpLevels,
-                out var wpResolution,
-                out _,
-                out _))
-        {
-            if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, wpBaseSpacing, wpLevels, wpResolution))
-            {
-                return;
-            }
-        }
-        else
-        {
-            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
-        }
 
         fbo.BindWithViewport();
         fbo.Clear();
@@ -1102,8 +1083,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.DepthSigma = config.LumOn.GatherDepthSigma;
         shader.NormalSigma = config.LumOn.GatherNormalSigma;
 
-        BindWorldProbeClipmap(shader);
-
         // Render
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
@@ -1128,25 +1107,6 @@ public class LumOnRenderer : IRenderer, IDisposable
             ?? bufferManager.ScreenProbeAtlasCurrentTex
             ?? bufferManager.ScreenProbeAtlasTraceTex;
         if (probeAtlas is null) return;
-
-        if (TryBindWorldProbeClipmapCommon(
-                out _,
-                out _,
-                out var wpBaseSpacing,
-                out var wpLevels,
-                out var wpResolution,
-                out _,
-                out _))
-        {
-            if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, wpBaseSpacing, wpLevels, wpResolution))
-            {
-                return;
-            }
-        }
-        else
-        {
-            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
-        }
 
         fbo.BindWithViewport();
         fbo.Clear();
@@ -1182,11 +1142,47 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.LeakThreshold = config.LumOn.ProbeAtlasLeakThreshold;
         shader.SampleStride = config.LumOn.ProbeAtlasSampleStride;
 
-        BindWorldProbeClipmap(shader);
-
         // Render
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
+    }
+
+    private void BindWorldProbeClipmap(LumOnScreenProbeAtlasTraceShaderProgram shader)
+    {
+        if (!TryBindWorldProbeClipmapCommon(
+                out var resources,
+                out var camPos,
+                out var baseSpacing,
+                out var levels,
+                out var resolution,
+                out var origins,
+                out var rings))
+        {
+            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
+            return;
+        }
+
+        if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, baseSpacing, levels, resolution))
+        {
+            return;
+        }
+
+        shader.WorldProbeSH0 = resources.ProbeSh0TextureId;
+        shader.WorldProbeSH1 = resources.ProbeSh1TextureId;
+        shader.WorldProbeSH2 = resources.ProbeSh2TextureId;
+        shader.WorldProbeVis0 = resources.ProbeVis0TextureId;
+        shader.WorldProbeMeta0 = resources.ProbeMeta0TextureId;
+        shader.WorldProbeSky0 = resources.ProbeSky0TextureId;
+        shader.WorldProbeCameraPosWS = camPos;
+        shader.WorldProbeSkyTint = capi.Render.AmbientColor;
+
+        for (int i = 0; i < 8; i++)
+        {
+            if (!shader.TrySetWorldProbeLevelParams(i, origins[i], rings[i]))
+            {
+                return;
+            }
+        }
     }
 
     private void BindWorldProbeClipmap(LumOnGatherShaderProgram shader)

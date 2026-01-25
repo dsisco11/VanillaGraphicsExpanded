@@ -21,14 +21,15 @@ vec4 renderProbeAtlasMetaFlagsDebug()
 
     float hit = (flags & LUMON_META_HIT) != 0u ? 1.0 : 0.0;
     float sky = (flags & LUMON_META_SKY_MISS) != 0u ? 1.0 : 0.0;
-    float exit = (flags & LUMON_META_SCREEN_EXIT) != 0u ? 1.0 : 0.0;
+    float world = (flags & LUMON_META_WORLDPROBE_FALLBACK) != 0u ? 1.0 : 0.0;
 
     // Encode additional bits as brightness boost so they pop without hiding base flags.
+    float exit = (flags & LUMON_META_SCREEN_EXIT) != 0u ? 0.25 : 0.0;
     float early = (flags & LUMON_META_EARLY_TERMINATED) != 0u ? 0.25 : 0.0;
     float thick = (flags & LUMON_META_THICKNESS_UNCERT) != 0u ? 0.25 : 0.0;
 
-    vec3 base = vec3(hit, sky, exit);
-    base = clamp(base + vec3(early + thick), 0.0, 1.0);
+    vec3 base = vec3(hit, sky, world);
+    base = clamp(base + vec3(exit + early + thick), 0.0, 1.0);
     return vec4(base, 1.0);
 }
 
