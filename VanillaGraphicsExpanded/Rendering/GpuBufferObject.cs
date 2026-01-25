@@ -921,6 +921,10 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
             BufferTarget.PixelPackBuffer => GetPName.PixelPackBufferBinding,
             BufferTarget.PixelUnpackBuffer => GetPName.PixelUnpackBufferBinding,
             BufferTarget.UniformBuffer => GetPName.UniformBufferBinding,
+            BufferTarget.ShaderStorageBuffer => GetPName.ShaderStorageBufferBinding,
+            BufferTarget.TransformFeedbackBuffer => GetPName.TransformFeedbackBufferBinding,
+            BufferTarget.DrawIndirectBuffer => GetPName.DrawIndirectBufferBinding,
+            BufferTarget.DispatchIndirectBuffer => GetPName.DispatchIndirectBufferBinding,
             _ => default
         };
 
