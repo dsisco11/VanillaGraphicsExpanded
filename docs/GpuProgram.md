@@ -1,15 +1,14 @@
-# VGE Shader Programs (VgeShaderProgram)
+# VGE Shader Programs (GpuProgram)
 
-This mod compiles all VGE-owned shaders through a unified pipeline implemented by `VgeShaderProgram` + `ShaderSourceCode`.
+This mod compiles all VGE-owned shaders through a unified pipeline implemented by `GpuProgram` + `ShaderSourceCode`.
 
 ## Add a new shader program
 
 1. Add stage files under:
-
    - `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/`
    - Names must match the program name: `{PassName}.vsh` and `{PassName}.fsh` (optional `{PassName}.gsh`).
 
-2. Create a C# program inheriting `VgeShaderProgram`.
+2. Create a C# program inheriting `GpuProgram`.
 
 3. Register it using **memory shader registration** (important):
 

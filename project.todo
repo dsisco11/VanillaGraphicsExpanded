@@ -26,6 +26,7 @@ Issues:
     ☐ Add `GpuSampler` RAII wrapper.
     ☐ Add `GpuProgramPipeline` RAII wrapper.
     ✔ Refactor `VgeShaderProgram` into `GpuProgram` (rename + RAII + deferred disposal).
+    ☐ GpuProgram: need to add unit tests to verify that the shader preprocessing system emits the correct "#line" directives for error reporting.
 
   WorldProbes:
     ☐ Rename world-probe classes to remove `LumOn` prefix.
