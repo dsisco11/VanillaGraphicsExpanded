@@ -20,39 +20,39 @@ Priorities are scoped to **Phase 18 diffuse GI correctness + debuggability**:
 
 ### P0 (Critical)
 
-- [2.2 Unloaded chunks treated as misses; placeholder chunk objects can abort traces](#wp-2-2)
-- [2.3 Probe disabled when its center lies inside a solid collision box](#wp-2-3)
-- [5.1 ShortRangeAO multiplies irradiance by `aoConf`](#wp-5-1)
-- [5.5 Screen-probe miss fallback assumes sky radiance (miss != sky)](#wp-5-5)
-- [6.1 Orb visualizer samples irradiance with a fixed “up” normal](#wp-6-1)
+- [x] [2.2 Unloaded chunks treated as misses; placeholder chunk objects can abort traces](#wp-2-2) — Implemented (Option A)
+- [ ] [2.3 Probe disabled when its center lies inside a solid collision box](#wp-2-3)
+- [ ] [5.1 ShortRangeAO multiplies irradiance by `aoConf`](#wp-5-1)
+- [ ] [5.5 Screen-probe miss fallback assumes sky radiance (miss != sky)](#wp-5-5)
+- [x] [6.1 Orb visualizer samples irradiance with a fixed “up” normal](#wp-6-1) — Resolved (outdated)
 
 ### P1 (High)
 
-- [1.1 Skylight bounce uses limited secondary sky visibility traces](#wp-1-1)
-- [1.2 Placeholder sky radiance model (miss shader)](#wp-1-2)
-- [1.3 Sky visibility/intensity split still heuristic](#wp-1-3)
-- [1.5 Material factors are simplified (base-texture-only resolution)](#wp-1-5)
-- [2.1 “Most solid block + collision boxes” as geometry](#wp-2-1)
-- [2.4 Fixed max trace distance per probe: `spacing * resolution`](#wp-2-4)
-- [2.5 Fixed 64-direction sampling pattern with uniform weights](#wp-2-5)
-- [4.2 Meta flags are written but not consumed by shading](#wp-4-2)
-- [5.2 Outside-clip-volume returns zero contribution (hard cutoff)](#wp-5-2)
-- [5.3 Cross-level blend band is hard-coded](#wp-5-3)
+- [ ] [1.1 Skylight bounce uses limited secondary sky visibility traces](#wp-1-1)
+- [x] [1.2 Placeholder sky radiance model (miss shader)](#wp-1-2) — Implemented (Option B)
+- [ ] [1.3 Sky visibility/intensity split still heuristic](#wp-1-3)
+- [ ] [1.5 Material factors are simplified (base-texture-only resolution)](#wp-1-5)
+- [ ] [2.1 “Most solid block + collision boxes” as geometry](#wp-2-1)
+- [ ] [2.4 Fixed max trace distance per probe: `spacing * resolution`](#wp-2-4)
+- [ ] [2.5 Fixed 64-direction sampling pattern with uniform weights](#wp-2-5)
+- [ ] [4.2 Meta flags are written but not consumed by shading](#wp-4-2)
+- [ ] [5.2 Outside-clip-volume returns zero contribution (hard cutoff)](#wp-5-2)
+- [ ] [5.3 Cross-level blend band is hard-coded](#wp-5-3)
 
 ### P2 (Medium)
 
-- [1.4 Specular GI path is not implemented](#wp-1-4)
-- [3.1 O(N) selection scan over the entire 3D grid each frame](#wp-3-1)
-- [3.2 Hard-coded staleness and retry/backoff constants](#wp-3-2)
-- [3.3 Upload budget is enforced using an estimated bytes-per-probe constant](#wp-3-3)
-- [3.4 Dirty-chunk overflow invalidates an entire L0 volume](#wp-3-4)
-- [4.1 `SkyOnly` flag is a heuristic based on AO+distance](#wp-4-1)
-- [5.4 Screen-first blending is a policy (can hide world-probe problems)](#wp-5-4)
-- [6.2 Debug tone-mapping is non-photographic and compresses differences](#wp-6-2)
+- [ ] [1.4 Specular GI path is not implemented](#wp-1-4)
+- [ ] [3.1 O(N) selection scan over the entire 3D grid each frame](#wp-3-1)
+- [ ] [3.2 Hard-coded staleness and retry/backoff constants](#wp-3-2)
+- [ ] [3.3 Upload budget is enforced using an estimated bytes-per-probe constant](#wp-3-3)
+- [ ] [3.4 Dirty-chunk overflow invalidates an entire L0 volume](#wp-3-4)
+- [ ] [4.1 `SkyOnly` flag is a heuristic based on AO+distance](#wp-4-1)
+- [ ] [5.4 Screen-first blending is a policy (can hide world-probe problems)](#wp-5-4)
+- [ ] [6.2 Debug tone-mapping is non-photographic and compresses differences](#wp-6-2)
 
 ### P3 (Low)
 
-- [2.6 Hit face decoding fallback to `Up`](#wp-2-6)
+- [ ] [2.6 Hit face decoding fallback to `Up`](#wp-2-6)
 
 ## 1. Lighting / Integration Heuristics
 
@@ -87,7 +87,9 @@ remains simplified (low sample count, fixed max distance).
 
 **Where**: `VanillaGraphicsExpanded/LumOn/WorldProbes/Tracing/LumOnWorldProbeTraceIntegrator.cs` (`EvaluateSkyRadiance`)
 
-**What**: Ray misses return a simple horizon→zenith gradient, not a sky model derived from game lighting/time-of-day.
+**Status**: Implemented (Option B)
+
+**What**: Ray misses no longer emit sky radiance into RGB SH; sky is represented via `ShSky` + `worldProbeSkyTint`.
 
 **Why this is an issue**
 
@@ -196,6 +198,8 @@ composite “++0~” variants, RNG/position-dependent variants, etc.
 ### 2.2 (P0) Unloaded chunks treated as misses; placeholder chunk objects can abort traces
 
 **Where**: `VanillaGraphicsExpanded/LumOn/WorldProbes/Tracing/BlockAccessorWorldProbeTraceScene.cs`
+
+**Status**: Implemented (Option A)
 
 **What**:
 
@@ -543,7 +547,12 @@ world-probes do not reliably act as a fallback when screen traces fail.
 
 **Where**: `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/vge_worldprobe_orbs_points.fsh`
 
-**What**: For probe rendering, SH is evaluated using `Nsample = (0,1,0)` (not the orb’s sphere normal).
+**Status**: Resolved (outdated)
+
+**What**: This issue is no longer true: the orb visualizer does not evaluate SH with a fixed “up” normal.
+
+**Note**: The text below is kept as a historical note because it describes a real class of “debug view lies” that can
+reappear if the visualizer is refactored.
 
 **Why this is an issue**
 
