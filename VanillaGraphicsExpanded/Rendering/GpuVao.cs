@@ -85,6 +85,25 @@ internal sealed class GpuVao : GpuResource, IDisposable
         GL.BindVertexArray(vertexArrayId);
     }
 
+    /// <summary>
+    /// Gets a helper for configuring a VAO vertex buffer binding index.
+    /// </summary>
+    public GpuVertexAttribBinding GetBinding(int bindingIndex)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GpuVao] Attempted to get binding on disposed or invalid VAO");
+            return default;
+        }
+
+        if (bindingIndex < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(bindingIndex), bindingIndex, "Binding index must be >= 0.");
+        }
+
+        return new GpuVertexAttribBinding(vertexArrayId, bindingIndex);
+    }
+
     public bool TryBind()
     {
         if (!IsValid)
