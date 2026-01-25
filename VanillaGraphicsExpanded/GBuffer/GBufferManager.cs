@@ -162,10 +162,14 @@ public sealed class GBufferManager : IDisposable
     /// </summary>
     private void ApplyGBufferBlendState()
     {
-        GL.BlendFunc(NormalSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
-        GL.BlendFunc(MaterialSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
-        GL.Disable(IndexedEnableCap.Blend, NormalSlotId);
-        GL.Disable(IndexedEnableCap.Blend, MaterialSlotId);
+        var gl = GlStateCache.Current;
+
+        // Per-buffer blend control requires GL 4.0+ / ARB_draw_buffers_blend.
+        // We use One/Zero and disable blending for our attachments to ensure direct writes.
+        gl.SetBlendFuncIndexed(NormalSlotId, GlBlendFunc.Default);
+        gl.SetBlendFuncIndexed(MaterialSlotId, GlBlendFunc.Default);
+        gl.SetBlendEnabledIndexed(NormalSlotId, enabled: false);
+        gl.SetBlendEnabledIndexed(MaterialSlotId, enabled: false);
     }
 
     /// <summary>
@@ -182,6 +186,11 @@ public sealed class GBufferManager : IDisposable
         FrameBufferRef? primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primaryFb is null || currentFbo != primaryFb.FboId)
             return;
+
+        // Engine/global glBlendFunc calls can stomp indexed blend factors. Mark them dirty so the cache re-emits.
+        var gl = GlStateCache.Current;
+        gl.DirtyIndexedBlendFunc();
+        gl.DirtyIndexedBlendEnable();
 
         ApplyGBufferBlendState();
     }
@@ -402,12 +411,7 @@ public sealed class GBufferManager : IDisposable
             MaterialTextureId,
             0);
 
-        // Disable blending for VGE attachments to ensure direct writes
-        // Per-buffer blend control requires GL 4.0+ / ARB_draw_buffers_blend
-        GL.BlendFunc(NormalSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
-        GL.BlendFunc(MaterialSlotId, BlendingFactorSrc.One, BlendingFactorDest.Zero);
-        GL.Disable(IndexedEnableCap.Blend, NormalSlotId);
-        GL.Disable(IndexedEnableCap.Blend, MaterialSlotId);
+        ApplyGBufferBlendState();
 
         // Verify framebuffer is complete
         var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);

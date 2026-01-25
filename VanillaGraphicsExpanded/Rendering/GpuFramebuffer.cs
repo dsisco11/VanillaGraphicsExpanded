@@ -431,7 +431,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
             Debug.WriteLine("[GBuffer] Attempted to bind disposed or invalid framebuffer");
             return;
         }
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
+        GlStateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
     }
 
     /// <summary>
@@ -439,7 +439,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     /// </summary>
     public static void Unbind()
     {
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        GlStateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     }
 
     /// <summary>
@@ -660,9 +660,9 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
             return false;
         }
         
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
+        GlStateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
         var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        GlStateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
 
         if (status != FramebufferErrorCode.FramebufferComplete)
         {
@@ -885,8 +885,8 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
         int prevReadBuffer = GL.GetInteger(GetPName.ReadBuffer);
         int prevDrawBuffer = GL.GetInteger(GetPName.DrawBuffer);
 
-        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, sourceFboId);
-        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, fboId);
+        GlStateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, sourceFboId);
+        GlStateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, fboId);
 
         // For color blits, make sure we read/write from the expected attachment.
         // VS primary FB is an MRT; without this, glBlitFramebuffer may copy the wrong attachment.
@@ -903,14 +903,14 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
             filter);
 
         // Restore previous bindings/state
-        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, prevReadFbo);
-        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, prevDrawFbo);
+        GlStateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, prevReadFbo);
+        GlStateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, prevDrawFbo);
         if ((mask & ClearBufferMask.ColorBufferBit) != 0)
         {
             GL.ReadBuffer((ReadBufferMode)prevReadBuffer);
             GL.DrawBuffer((DrawBufferMode)prevDrawBuffer);
         }
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
+        GlStateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
     }
 
     private void BlitToInternal(int destFboId, int dstWidth, int dstHeight,
@@ -922,8 +922,8 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
         int prevReadBuffer = GL.GetInteger(GetPName.ReadBuffer);
         int prevDrawBuffer = GL.GetInteger(GetPName.DrawBuffer);
 
-        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, fboId);
-        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, destFboId);
+        GlStateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, fboId);
+        GlStateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, destFboId);
 
         // For color blits, make sure we read/write from the expected attachment.
         // VS primary FB is an MRT; without this, glBlitFramebuffer may copy the wrong attachment.
@@ -940,14 +940,14 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
             filter);
 
         // Restore previous bindings/state
-        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, prevReadFbo);
-        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, prevDrawFbo);
+        GlStateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, prevReadFbo);
+        GlStateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, prevDrawFbo);
         if ((mask & ClearBufferMask.ColorBufferBit) != 0)
         {
             GL.ReadBuffer((ReadBufferMode)prevReadBuffer);
             GL.DrawBuffer((DrawBufferMode)prevDrawBuffer);
         }
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
+        GlStateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
     }
 
     /// <summary>
@@ -965,7 +965,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     /// <param name="fboId">The framebuffer ID to restore.</param>
     public static void RestoreBinding(int fboId)
     {
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
+        GlStateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
     }
 
     #endregion
@@ -975,7 +975,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     private void CreateFramebuffer()
     {
         fboId = GL.GenFramebuffer();
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
+        GlStateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
 
 #if DEBUG
         GlDebug.TryLabelFramebuffer(fboId, debugName);
@@ -1042,7 +1042,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
             System.Diagnostics.Debug.WriteLine($"[GBuffer] {errorMessage}");
         }
 
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        GlStateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     }
 
     #endregion

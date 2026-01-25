@@ -77,7 +77,7 @@ internal sealed class GpuProgramPipeline : GpuResource, IDisposable
             return;
         }
 
-        GL.BindProgramPipeline(pipelineId);
+        GlStateCache.Current.BindProgramPipeline(pipelineId);
     }
 
     /// <summary>
@@ -90,7 +90,7 @@ internal sealed class GpuProgramPipeline : GpuResource, IDisposable
             return false;
         }
 
-        GL.BindProgramPipeline(pipelineId);
+        GlStateCache.Current.BindProgramPipeline(pipelineId);
         return true;
     }
 
@@ -99,7 +99,7 @@ internal sealed class GpuProgramPipeline : GpuResource, IDisposable
     /// </summary>
     public static void Unbind()
     {
-        GL.BindProgramPipeline(0);
+        GlStateCache.Current.BindProgramPipeline(0);
     }
 
     /// <summary>
@@ -107,18 +107,9 @@ internal sealed class GpuProgramPipeline : GpuResource, IDisposable
     /// </summary>
     public BindingScope BindScope()
     {
-        int previous = 0;
-        try
-        {
-            GL.GetInteger(GetPName.ProgramPipelineBinding, out previous);
-        }
-        catch
-        {
-            previous = 0;
-        }
-
-        Bind();
-        return new BindingScope(previous);
+        var gl = GlStateCache.Current;
+        var scope = gl.BindProgramPipelineScope(pipelineId);
+        return new BindingScope(scope);
     }
 
     /// <summary>
@@ -199,22 +190,16 @@ internal sealed class GpuProgramPipeline : GpuResource, IDisposable
     /// </summary>
     public readonly struct BindingScope : IDisposable
     {
-        private readonly int previous;
+        private readonly GlStateCache.ProgramPipelineScope scope;
 
-        public BindingScope(int previous)
+        public BindingScope(GlStateCache.ProgramPipelineScope scope)
         {
-            this.previous = previous;
+            this.scope = scope;
         }
 
         public void Dispose()
         {
-            try
-            {
-                GL.BindProgramPipeline(previous);
-            }
-            catch
-            {
-            }
+            scope.Dispose();
         }
     }
 }

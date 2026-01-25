@@ -227,7 +227,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             return;
         }
 
-        GL.UseProgram(programId);
+        GlStateCache.Current.UseProgram(programId);
     }
 
     /// <summary>
@@ -240,7 +240,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             return false;
         }
 
-        GL.UseProgram(programId);
+        GlStateCache.Current.UseProgram(programId);
         return true;
     }
 
@@ -249,7 +249,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
     /// </summary>
     public static void Unuse()
     {
-        GL.UseProgram(0);
+        GlStateCache.Current.UseProgram(0);
     }
 
     /// <summary>
@@ -257,11 +257,8 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
     /// </summary>
     public ProgramScope UseScope()
     {
-        int previous = 0;
-        try { previous = GL.GetInteger(GetPName.CurrentProgram); } catch { }
-
-        Use();
-        return new ProgramScope(previous);
+        var scope = GlStateCache.Current.UseProgramScope(programId);
+        return new ProgramScope(scope);
     }
 
     /// <summary>
@@ -321,23 +318,16 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
     /// </summary>
     public readonly struct ProgramScope : IDisposable
     {
-        private readonly int previousProgramId;
+        private readonly GlStateCache.ProgramScope scope;
 
-        public ProgramScope(int previousProgramId)
+        public ProgramScope(GlStateCache.ProgramScope scope)
         {
-            this.previousProgramId = previousProgramId;
+            this.scope = scope;
         }
 
         public void Dispose()
         {
-            try
-            {
-                GL.UseProgram(previousProgramId);
-            }
-            catch
-            {
-            }
+            scope.Dispose();
         }
     }
 }
-

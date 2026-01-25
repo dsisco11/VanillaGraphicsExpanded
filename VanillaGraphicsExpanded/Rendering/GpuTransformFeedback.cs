@@ -77,7 +77,7 @@ internal sealed class GpuTransformFeedback : GpuResource, IDisposable
             return;
         }
 
-        GL.BindTransformFeedback(TransformFeedbackTarget.TransformFeedback, transformFeedbackId);
+        GlStateCache.Current.BindTransformFeedback(transformFeedbackId);
     }
 
     /// <summary>
@@ -90,7 +90,7 @@ internal sealed class GpuTransformFeedback : GpuResource, IDisposable
             return false;
         }
 
-        GL.BindTransformFeedback(TransformFeedbackTarget.TransformFeedback, transformFeedbackId);
+        GlStateCache.Current.BindTransformFeedback(transformFeedbackId);
         return true;
     }
 
@@ -99,7 +99,7 @@ internal sealed class GpuTransformFeedback : GpuResource, IDisposable
     /// </summary>
     public void Unbind()
     {
-        GL.BindTransformFeedback(TransformFeedbackTarget.TransformFeedback, 0);
+        GlStateCache.Current.BindTransformFeedback(0);
     }
 
     /// <summary>
@@ -107,18 +107,9 @@ internal sealed class GpuTransformFeedback : GpuResource, IDisposable
     /// </summary>
     public BindingScope BindScope()
     {
-        int previous = 0;
-        try
-        {
-            GL.GetInteger(GetPName.TransformFeedbackBinding, out previous);
-        }
-        catch
-        {
-            previous = 0;
-        }
-
-        Bind();
-        return new BindingScope(previous);
+        var gl = GlStateCache.Current;
+        var scope = gl.BindTransformFeedbackScope(transformFeedbackId);
+        return new BindingScope(scope);
     }
 
     /// <summary>
@@ -222,16 +213,16 @@ internal sealed class GpuTransformFeedback : GpuResource, IDisposable
     /// </summary>
     public readonly struct BindingScope : IDisposable
     {
-        private readonly int previous;
+        private readonly GlStateCache.TransformFeedbackScope scope;
 
-        public BindingScope(int previous)
+        public BindingScope(GlStateCache.TransformFeedbackScope scope)
         {
-            this.previous = previous;
+            this.scope = scope;
         }
 
         public void Dispose()
         {
-            GL.BindTransformFeedback(TransformFeedbackTarget.TransformFeedback, previous);
+            scope.Dispose();
         }
     }
 }

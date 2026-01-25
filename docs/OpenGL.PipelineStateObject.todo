@@ -85,25 +85,25 @@ Docs:
     ☑ Decide ownership model for bindings:
       - PSO references program/VAO (owned elsewhere) vs PSO owns and disposes
 
-☐ Phase 3 — GlStateCache + Apply/Diff Algorithm
+☑ Phase 3 — GlStateCache + Apply/Diff Algorithm
   Exit artifacts:
     - A `GlStateCache` (or similar) that remembers the last applied state and skips redundant GL calls
     - `Apply(pso)` sets only what’s needed using the masks
 
   Work items:
-    ☐ Implement cached setters per knob (Enable/Disable depth, blend, cull, scissor, etc.)
-    ☐ Add cached bind/scope APIs for dynamic bindings:
+    ☑ Implement cached setters per knob (Enable/Disable depth, blend, cull, scissor, etc.)
+    ☑ Add cached bind/scope APIs for dynamic bindings:
       - Program use, VAO bind, framebuffer bind (read/draw), buffer binds, active texture/unit + texture binds
       - These should return scope structs that restore previous state and optionally update a debug-only scope stack.
-    ☐ Refactor GPU wrappers to delegate scope helpers:
+    ☑ Refactor GPU wrappers to delegate scope helpers:
       - `GpuVao.BindScope()` / `GpuFramebuffer.BindScope()` / `GpuBufferObject.BindScope()` / `GpuTexture.BindScope()` etc
         become thin wrappers around PSO/GlStateCache scope methods.
-    ☐ Apply order definition (consistent & predictable):
+    ☑ Apply order definition (consistent & predictable):
       - Enables/disables, funcs/masks, then per-RT blend (or vice versa, but be consistent)
-    ☐ Implement “dirtying rules” for external stomps:
+    ☑ Implement “dirtying rules” for external stomps:
       - When a global blend func changes, mark MRT per-attachment blend state as dirty so it can be re-emitted
       - Keep in sync with `GBufferManager` behavior
-    ☐ Optional: provide a scoped state restore helper for legacy code paths
+    ☑ Optional: provide a scoped state restore helper for legacy code paths
 
 ☐ Phase 4 — Integrate in One Renderer (Low Risk)
   Exit artifacts:

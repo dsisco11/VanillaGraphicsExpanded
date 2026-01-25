@@ -77,7 +77,7 @@ internal sealed class GpuSampler : GpuResource, IDisposable
             return;
         }
 
-        GL.BindSampler(unit, samplerId);
+        GlStateCache.Current.BindSampler(unit, samplerId);
     }
 
     /// <summary>
@@ -90,7 +90,7 @@ internal sealed class GpuSampler : GpuResource, IDisposable
             return false;
         }
 
-        GL.BindSampler(unit, samplerId);
+        GlStateCache.Current.BindSampler(unit, samplerId);
         return true;
     }
 
@@ -99,7 +99,7 @@ internal sealed class GpuSampler : GpuResource, IDisposable
     /// </summary>
     public static void Unbind(int unit)
     {
-        GL.BindSampler(unit, 0);
+        GlStateCache.Current.BindSampler(unit, 0);
     }
 
     /// <summary>
@@ -107,39 +107,8 @@ internal sealed class GpuSampler : GpuResource, IDisposable
     /// </summary>
     public BindingScope BindScope(int unit)
     {
-        int prevSampler = 0;
-
-        // Best-effort: query via active texture + GL_SAMPLER_BINDING.
-        int prevActive = 0;
-        bool hasPrevActive = false;
-        try
-        {
-            prevActive = GL.GetInteger(GetPName.ActiveTexture);
-            hasPrevActive = true;
-        }
-        catch
-        {
-        }
-
-        try
-        {
-            GL.ActiveTexture(TextureUnit.Texture0 + unit);
-            GL.GetInteger(GetPName.SamplerBinding, out prevSampler);
-        }
-        catch
-        {
-            prevSampler = 0;
-        }
-        finally
-        {
-            if (hasPrevActive)
-            {
-                try { GL.ActiveTexture((TextureUnit)prevActive); } catch { }
-            }
-        }
-
-        Bind(unit);
-        return new BindingScope(unit, prevSampler);
+        var scope = GlStateCache.Current.BindSamplerScope(unit, samplerId);
+        return new BindingScope(scope);
     }
 
     /// <summary>
@@ -211,24 +180,16 @@ internal sealed class GpuSampler : GpuResource, IDisposable
     /// </summary>
     public readonly struct BindingScope : IDisposable
     {
-        private readonly int unit;
-        private readonly int previousSampler;
+        private readonly GlStateCache.SamplerScope scope;
 
-        public BindingScope(int unit, int previousSampler)
+        public BindingScope(GlStateCache.SamplerScope scope)
         {
-            this.unit = unit;
-            this.previousSampler = previousSampler;
+            this.scope = scope;
         }
 
         public void Dispose()
         {
-            try
-            {
-                GL.BindSampler(unit, previousSampler);
-            }
-            catch
-            {
-            }
+            scope.Dispose();
         }
     }
 }

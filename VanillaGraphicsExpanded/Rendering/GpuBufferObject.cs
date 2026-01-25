@@ -68,6 +68,7 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
 
     public BindingScope BindScope()
     {
+        var gl = GlStateCache.Current;
         int previous = 0;
         int previousVao = 0;
 
@@ -97,7 +98,7 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
         }
 
         Bind();
-        return new BindingScope(target, previous, previousVao);
+        return new BindingScope(gl, target, previous, previousVao);
     }
 
     public void Bind()
@@ -108,7 +109,7 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
             return;
         }
 
-        GL.BindBuffer(target, bufferId);
+        GlStateCache.Current.BindBuffer(target, bufferId);
     }
 
     public bool TryBind()
@@ -118,13 +119,13 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
             return false;
         }
 
-        GL.BindBuffer(target, bufferId);
+        GlStateCache.Current.BindBuffer(target, bufferId);
         return true;
     }
 
     public void Unbind()
     {
-        GL.BindBuffer(target, 0);
+        GlStateCache.Current.BindBuffer(target, 0);
     }
 
     public void Allocate(int sizeBytes)
@@ -1413,12 +1414,14 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
 
     public readonly struct BindingScope : IDisposable
     {
+        private readonly GlStateCache gl;
         private readonly BufferTarget target;
         private readonly int previous;
         private readonly int previousVao;
 
-        public BindingScope(BufferTarget target, int previous, int previousVao)
+        public BindingScope(GlStateCache gl, BufferTarget target, int previous, int previousVao)
         {
+            this.gl = gl;
             this.target = target;
             this.previous = previous;
             this.previousVao = previousVao;
@@ -1428,10 +1431,13 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
         {
             if (target == BufferTarget.ElementArrayBuffer)
             {
-                GL.BindVertexArray(previousVao);
+                gl.BindVertexArray(previousVao);
+                // EBO binding is VAO state; GlStateCache doesn't track it yet.
+                GL.BindBuffer(target, previous);
+                return;
             }
 
-            GL.BindBuffer(target, previous);
+            gl.BindBuffer(target, previous);
         }
     }
 }

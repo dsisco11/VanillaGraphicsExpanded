@@ -155,7 +155,7 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
             return;
         }
 
-        GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, renderbufferId);
+        GlStateCache.Current.BindRenderbuffer(renderbufferId);
     }
 
     /// <summary>
@@ -168,7 +168,7 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
             return false;
         }
 
-        GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, renderbufferId);
+        GlStateCache.Current.BindRenderbuffer(renderbufferId);
         return true;
     }
 
@@ -177,7 +177,7 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
     /// </summary>
     public void Unbind()
     {
-        GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, 0);
+        GlStateCache.Current.BindRenderbuffer(0);
     }
 
     /// <summary>
@@ -188,14 +188,14 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
         int previous = 0;
         try
         {
-            GL.GetInteger(GetPName.RenderbufferBinding, out previous);
+            previous = GL.GetInteger(GetPName.RenderbufferBinding);
         }
         catch
         {
             previous = 0;
         }
 
-        Bind();
+        GlStateCache.Current.BindRenderbuffer(renderbufferId);
         return new BindingScope(previous);
     }
 
@@ -273,7 +273,7 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
 
         public void Dispose()
         {
-            GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, previous);
+            GlStateCache.Current.BindRenderbuffer(previous);
         }
     }
 }

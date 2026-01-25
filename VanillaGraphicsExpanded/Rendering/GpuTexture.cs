@@ -56,7 +56,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         bool hasPreviousActive = false;
         try
         {
-            GL.GetInteger(GetPName.ActiveTexture, out previousActive);
+            previousActive = GL.GetInteger(GetPName.ActiveTexture);
             hasPreviousActive = true;
         }
         catch
@@ -77,8 +77,15 @@ public abstract class GpuTexture : GpuResource, IDisposable
         {
             previousBinding = 0;
         }
+        finally
+        {
+            if (hasPreviousActive)
+            {
+                try { GL.ActiveTexture((TextureUnit)previousActive); } catch { }
+            }
+        }
 
-        Bind(unit);
+        GlStateCache.Current.BindTexture(textureTarget, unit, textureId);
         return new BindingScope(textureTarget, unit, previousBinding, previousActive, hasPreviousActive);
     }
 
@@ -267,8 +274,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
             return;
         }
 
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(textureTarget, textureId);
+        GlStateCache.Current.BindTexture(textureTarget, unit, textureId);
     }
 
     public bool TryBind(int unit)
@@ -278,15 +284,13 @@ public abstract class GpuTexture : GpuResource, IDisposable
             return false;
         }
 
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(textureTarget, textureId);
+        GlStateCache.Current.BindTexture(textureTarget, unit, textureId);
         return true;
     }
 
     public virtual void Unbind(int unit)
     {
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(textureTarget, 0);
+        GlStateCache.Current.BindTexture(textureTarget, unit, 0);
     }
 
     public virtual void UploadData(float[] data)
@@ -874,22 +878,18 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
         public void Dispose()
         {
+            GlStateCache.Current.BindTexture(target, unit, previousBinding);
+
             if (restoreActive)
             {
                 try
                 {
-                    GL.ActiveTexture(TextureUnit.Texture0 + unit);
-                    GL.BindTexture(target, previousBinding);
+                    int prevUnit = previousActive - (int)TextureUnit.Texture0;
+                    GlStateCache.Current.ActiveTexture(prevUnit);
                 }
-                finally
+                catch
                 {
-                    GL.ActiveTexture((TextureUnit)previousActive);
                 }
-            }
-            else
-            {
-                GL.ActiveTexture(TextureUnit.Texture0 + unit);
-                GL.BindTexture(target, previousBinding);
             }
         }
     }

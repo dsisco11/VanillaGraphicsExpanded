@@ -60,18 +60,8 @@ internal sealed class GpuVao : GpuResource, IDisposable
 
     public BindingScope BindScope()
     {
-        int previous = 0;
-        try
-        {
-            GL.GetInteger(GetPName.VertexArrayBinding, out previous);
-        }
-        catch
-        {
-            previous = 0;
-        }
-
-        Bind();
-        return new BindingScope(previous);
+        var scope = GlStateCache.Current.BindVertexArrayScope(vertexArrayId);
+        return new BindingScope(scope);
     }
 
     public void Bind()
@@ -82,7 +72,7 @@ internal sealed class GpuVao : GpuResource, IDisposable
             return;
         }
 
-        GL.BindVertexArray(vertexArrayId);
+        GlStateCache.Current.BindVertexArray(vertexArrayId);
     }
 
     /// <summary>
@@ -111,13 +101,13 @@ internal sealed class GpuVao : GpuResource, IDisposable
             return false;
         }
 
-        GL.BindVertexArray(vertexArrayId);
+        GlStateCache.Current.BindVertexArray(vertexArrayId);
         return true;
     }
 
     public void Unbind()
     {
-        GL.BindVertexArray(0);
+        GlStateCache.Current.BindVertexArray(0);
     }
 
     public void BindElementBuffer(int bufferId)
@@ -525,16 +515,16 @@ internal sealed class GpuVao : GpuResource, IDisposable
 
     public readonly struct BindingScope : IDisposable
     {
-        private readonly int previous;
+        private readonly GlStateCache.VaoScope scope;
 
-        public BindingScope(int previous)
+        public BindingScope(GlStateCache.VaoScope scope)
         {
-            this.previous = previous;
+            this.scope = scope;
         }
 
         public void Dispose()
         {
-            GL.BindVertexArray(previous);
+            scope.Dispose();
         }
     }
 }
