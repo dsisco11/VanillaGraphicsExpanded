@@ -535,7 +535,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 return;
         }
 
-        var shader = capi.Shader.GetProgramByName("lumon_debug") as LumOnDebugShaderProgram;
+        var programKind = GetCategoryForDebugMode(mode);
+        var shader = GetProgramForCategory(capi, programKind)
+            ?? capi.Shader.GetProgramByName("lumon_debug") as LumOnDebugShaderProgram;
         if (shader is null || shader.LoadError)
             return;
 
@@ -2245,6 +2247,20 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         LumOnDebugShaderProgramKind.WorldProbe => "lumon_debug_worldprobe",
         _ => "lumon_debug",
     };
+
+    // Phase 4 naming (todo): keep these as thin wrappers around the existing helpers.
+    private static LumOnDebugShaderProgramKind GetCategoryForDebugMode(LumOnDebugMode mode) => GetShaderProgramKind(mode);
+
+    private static LumOnDebugShaderProgram? GetProgramForCategory(ICoreClientAPI capi, LumOnDebugShaderProgramKind category)
+    {
+        if (category == LumOnDebugShaderProgramKind.None)
+        {
+            return null;
+        }
+
+        string programName = GetShaderProgramName(category);
+        return capi.Shader.GetProgramByName(programName) as LumOnDebugShaderProgram;
+    }
 
     private static bool RequiresLumOnBuffers(LumOnDebugMode mode)
     {

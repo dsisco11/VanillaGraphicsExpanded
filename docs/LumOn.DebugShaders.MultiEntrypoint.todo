@@ -116,18 +116,18 @@ Reference / Docs:
 
 ---
 
-☐ Phase 4 - Renderer selection: Switch program by active debug category
+✔ Phase 4 - Renderer selection: Switch program by active debug category
   Exit artifacts:
   - `LumOnDebugRenderer` chooses the correct shader program by category and binds the same textures.
   - Switching views does not cause missing-define or missing-uniform issues.
 
   Work items:
-  ☐ Implement `GetCategoryForDebugMode(mode)` and `GetProgramForCategory(category)`.
-  ☐ On render:
+  ✔ Implement `GetCategoryForDebugMode(mode)` and `GetProgramForCategory(category)`.
+  ✔ On render:
     - Select active program based on debug mode
     - Bind shared textures/uniforms (same as today)
     - Only bind category-specific textures when needed (optional optimization)
-  ☐ Keep special-cased paths consistent (wireframe/other overlays).
+  ✔ Keep special-cased paths consistent (wireframe/other overlays).
 
 ---
 
