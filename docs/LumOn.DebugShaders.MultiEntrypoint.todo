@@ -85,18 +85,18 @@ Reference / Docs:
 
 ---
 
-☐ Phase 2 - Shader entrypoints: One program per category
+✔ Phase 2 - Shader entrypoints: One program per category
   Exit artifacts:
   - Each category has its own `.vsh`/`.fsh` pair as a thin wrapper around the category include.
 
   Work items:
-  ☐ Add `lumon_debug_<category>.vsh` wrappers (typically shared full-screen quad pass-through).
-  ☐ Add `lumon_debug_<category>.fsh` wrappers that:
+  ✔ Add `lumon_debug_<category>.vsh` wrappers (typically shared full-screen quad pass-through).
+  ✔ Add `lumon_debug_<category>.fsh` wrappers that:
     - `@import` existing shared LumOn includes as needed (no duplication)
     - `@import` `lumon_debug_uniforms.glsl` + `lumon_debug_common.glsl`
     - `@import` the category include
     - call `RenderDebug_<Category>(...)` and output.
-  ☐ Remove category-specific code from the old `lumon_debug.fsh` (or keep it as a legacy/compat entrypoint).
+  ✔ Keep `lumon_debug.fsh` as a legacy/compat dispatcher that forwards into the new program-kind entry functions.
 
 ---
 

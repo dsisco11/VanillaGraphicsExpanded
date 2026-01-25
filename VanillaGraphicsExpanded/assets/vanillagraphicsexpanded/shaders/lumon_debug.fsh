@@ -101,148 +101,88 @@ void main(void)
 {
     uv = gl_FragCoord.xy / screenSize;
     vec2 screenPos = uv * screenSize;
-    
-    switch (debugMode) {
+
+    // Legacy dispatcher: select the program-kind implementation based on debugMode.
+    switch (debugMode)
+    {
         case 1:
-            outColor = renderProbeGridDebug(screenPos);
-            break;
         case 2:
-            outColor = renderProbeDepthDebug(screenPos);
-            break;
         case 3:
-            outColor = renderProbeNormalDebug(screenPos);
+            outColor = RenderDebug_ProbeAnchors(screenPos);
             break;
-        case 42:
-            outColor = renderWorldProbeRawConfidencesDebug();
-            break;
-        case 43:
-            outColor = renderWorldProbeContributionOnlyDebug();
-            break;
-        case 44:
-            outColor = renderScreenSpaceContributionOnlyDebug();
-            break;
+
         case 4:
-            outColor = renderSceneDepthDebug();
-            break;
         case 5:
-            outColor = renderSceneNormalDebug();
-            break;
-        case 6:
-            outColor = renderTemporalWeightDebug(screenPos);
-            break;
-        case 7:
-            outColor = renderTemporalRejectionDebug(screenPos);
-            break;
-        case 8:
-            outColor = renderSHCoefficientsDebug(screenPos);
-            break;
-        case 9:
-            outColor = renderInterpolationWeightsDebug(screenPos);
-            break;
-        case 10:
-            outColor = renderRadianceOverlayDebug();
-            break;
-        case 11:
-            outColor = renderGatherWeightDebug();
-            break;
-        case 12:
-            outColor = renderProbeAtlasMetaConfidenceDebug();
-            break;
-        case 13:
-            outColor = renderProbeAtlasTemporalAlphaDebug();
-            break;
-        case 14:
-            outColor = renderProbeAtlasMetaFlagsDebug();
-            break;
-        case 15:
-            outColor = renderProbeAtlasFilteredRadianceDebug();
-            break;
-        case 16:
-            outColor = renderProbeAtlasFilterDeltaDebug();
-            break;
-        case 17:
-            outColor = renderProbeAtlasGatherInputSourceDebug();
-            break;
-        case 45:
-            outColor = renderProbeAtlasCurrentRadianceDebug();
-            break;
-        case 46:
-            outColor = renderProbeAtlasGatherInputRadianceDebug();
-            break;
-        case 47:
-            outColor = renderProbeAtlasHitDistanceDebug();
-            break;
-        case 48:
-            outColor = renderProbeAtlasTraceRadianceDebug();
-            break;
-        case 18:
-            outColor = renderCompositeAoDebug();
-            break;
-        case 19:
-            outColor = renderCompositeIndirectDiffuseDebug();
-            break;
-        case 20:
-            outColor = renderCompositeIndirectSpecularDebug();
-            break;
-        case 21:
-            outColor = renderCompositeMaterialDebug();
-            break;
-        case 22:
-            outColor = renderDirectDiffuseDebug();
-            break;
-        case 23:
-            outColor = renderDirectSpecularDebug();
-            break;
-        case 24:
-            outColor = renderDirectEmissiveDebug();
-            break;
-        case 25:
-            outColor = renderDirectTotalDebug();
-            break;
-        case 26:
-            outColor = renderVelocityMagnitudeDebug();
-            break;
-        case 27:
-            outColor = renderVelocityValidityDebug();
-            break;
-        case 28:
-            outColor = renderVelocityPrevUvDebug();
-            break;
         case 29:
-            outColor = renderMaterialBandsDebug();
-            break;
-        case 31:
-            outColor = renderWorldProbeIrradianceCombinedDebug();
-            break;
-        case 32:
-            outColor = renderWorldProbeIrradianceLevelDebug();
-            break;
-        case 33:
-            outColor = renderWorldProbeConfidenceDebug();
-            break;
-        case 34:
-            outColor = renderWorldProbeAoDirectionDebug();
-            break;
-        case 35:
-            outColor = renderWorldProbeAoConfidenceDebug();
-            break;
-        case 36:
-            outColor = renderWorldProbeDistanceDebug();
-            break;
-        case 37:
-            outColor = renderWorldProbeFlagsHeatmapDebug();
-            break;
-        case 38:
-            outColor = renderWorldProbeBlendWeightsDebug();
-            break;
-        case 39:
-            outColor = renderWorldProbeCrossLevelBlendDebug();
-            break;
         case 41:
-            outColor = renderPomMetricsDebug();
+            outColor = RenderDebug_SceneGBuffer(screenPos);
             break;
+
+        case 6:
+        case 7:
+            outColor = RenderDebug_Temporal(screenPos);
+            break;
+
+        case 8:
+        case 9:
+            outColor = RenderDebug_ShInterpolation(screenPos);
+            break;
+
+        case 10:
+        case 11:
+            outColor = RenderDebug_Indirect(screenPos);
+            break;
+
+        case 12:
+        case 13:
+        case 14:
+        case 15:
+        case 16:
+        case 17:
+        case 45:
+        case 46:
+        case 47:
+        case 48:
+            outColor = RenderDebug_ProbeAtlas(screenPos);
+            break;
+
+        case 18:
+        case 19:
+        case 20:
+        case 21:
+            outColor = RenderDebug_Composite(screenPos);
+            break;
+
+        case 22:
+        case 23:
+        case 24:
+        case 25:
+            outColor = RenderDebug_Direct(screenPos);
+            break;
+
+        case 26:
+        case 27:
+        case 28:
+            outColor = RenderDebug_Velocity(screenPos);
+            break;
+
+        case 31:
+        case 32:
+        case 33:
+        case 34:
+        case 35:
+        case 36:
+        case 37:
+        case 38:
+        case 39:
+        case 42:
+        case 43:
+        case 44:
+            outColor = RenderDebug_WorldProbe(screenPos);
+            break;
+
         default:
-            outColor = vec4(1.0, 0.0, 1.0, 1.0);  // Magenta = unknown mode
+            outColor = vec4(1.0, 0.0, 1.0, 1.0);
             break;
     }
 }
