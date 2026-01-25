@@ -20,7 +20,7 @@ Issues:
     ✔ Refactor `GpuFence` into a proper RAII wrapper (inherits `GpuResource`, deferred disposal).
     ✔ Refactor GPU queries into an RAII wrapper (create/delete + deferred disposal).
     ✔ Add `GpuRenderbuffer` RAII wrapper (create/delete + deferred disposal).
-    ☐ Refactor `LumOnBufferManager` HZB FBO to use `GpuFramebuffer`.
+    ✔ Refactor `LumOnBufferManager` HZB FBO to use `GpuFramebuffer`.
     ☐ Add `GpuPixelPackBuffer` RAII wrapper for async readback workflows.
     ☐ Add `GpuTransformFeedback` RAII wrapper.
     ☐ Add `GpuSampler` RAII wrapper.

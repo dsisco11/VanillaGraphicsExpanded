@@ -718,7 +718,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     private void BuildHzb(FrameBufferRef primaryFb)
     {
-        if (bufferManager.HzbDepthTex is null || bufferManager.HzbFboId == 0)
+        if (bufferManager.HzbDepthTex is null || bufferManager.HzbFbo is null || !bufferManager.HzbFbo.IsValid)
             return;
 
         var copy = capi.Shader.GetProgramByName("lumon_hzb_copy") as LumOnHzbCopyShaderProgram;
@@ -729,14 +729,13 @@ public class LumOnRenderer : IRenderer, IDisposable
         int previousFbo = Rendering.GpuFramebuffer.SaveBinding();
 
         var hzb = bufferManager.HzbDepthTex;
-        int fboId = bufferManager.HzbFboId;
+        var fbo = bufferManager.HzbFbo!;
 
         capi.Render.GlToggleBlend(false);
 
         // Copy mip 0 from the primary depth texture.
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
-        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, hzb.TextureId, 0);
-        GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+        fbo.Bind();
+        fbo.AttachColorTextureId(hzb.TextureId, attachmentIndex: 0, mipLevel: 0);
         GL.Viewport(0, 0, hzb.Width, hzb.Height);
 
         copy.Use();
@@ -753,9 +752,8 @@ public class LumOnRenderer : IRenderer, IDisposable
             int dstW = Math.Max(1, hzb.Width >> dstMip);
             int dstH = Math.Max(1, hzb.Height >> dstMip);
 
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
-            GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, hzb.TextureId, dstMip);
-            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+            fbo.Bind();
+            fbo.AttachColorTextureId(hzb.TextureId, attachmentIndex: 0, mipLevel: dstMip);
             GL.Viewport(0, 0, dstW, dstH);
 
             down.SrcMip = dstMip - 1;

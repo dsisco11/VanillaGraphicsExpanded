@@ -152,7 +152,7 @@ public sealed class LumOnBufferManager : IDisposable
     // ═══════════════════════════════════════════════════════════════
 
     private DynamicTexture2D? hzbDepthTex;
-    private int hzbFboId;
+    private Rendering.GpuFramebuffer? hzbFbo;
 
     // Double-buffer swap index (0 or 1)
     private int currentBufferIndex;
@@ -415,9 +415,14 @@ public sealed class LumOnBufferManager : IDisposable
     public DynamicTexture2D? HzbDepthTex => hzbDepthTex;
 
     /// <summary>
+    /// FBO used for rendering into HZB mip levels.
+    /// </summary>
+    public Rendering.GpuFramebuffer? HzbFbo => hzbFbo;
+
+    /// <summary>
     /// FBO id used for rendering into HZB mip levels.
     /// </summary>
-    public int HzbFboId => hzbFboId;
+    public int HzbFboId => hzbFbo?.FboId ?? 0;
 
     // ═══════════════════════════════════════════════════════════════
     // Dimensions
@@ -706,7 +711,7 @@ public sealed class LumOnBufferManager : IDisposable
         while ((maxDim >>= 1) > 0) mipLevels++;
 
         hzbDepthTex = DynamicTexture2D.CreateMipmapped(screenWidth, screenHeight, PixelInternalFormat.R32f, mipLevels, debugName: "HZBDepth");
-        hzbFboId = GL.GenFramebuffer();
+        hzbFbo = Rendering.GpuFramebuffer.CreateEmpty(debugName: "HZBFBO");
 
         isInitialized = true;
         currentBufferIndex = 0;
@@ -763,12 +768,7 @@ public sealed class LumOnBufferManager : IDisposable
         screenProbeAtlasHistoryFbo?.Dispose();
         screenProbeAtlasFilteredFbo?.Dispose();
         probeSh9Fbo?.Dispose();
-
-        if (hzbFboId != 0)
-        {
-            GL.DeleteFramebuffer(hzbFboId);
-            hzbFboId = 0;
-        }
+        hzbFbo?.Dispose();
 
         probeAnchorFbo = null;
         radianceTraceFbo = null;
@@ -785,6 +785,7 @@ public sealed class LumOnBufferManager : IDisposable
         screenProbeAtlasHistoryFbo = null;
         screenProbeAtlasFilteredFbo = null;
         probeSh9Fbo = null;
+        hzbFbo = null;
 
         // Dispose 2D textures
         probeAnchorPositionTex?.Dispose();
