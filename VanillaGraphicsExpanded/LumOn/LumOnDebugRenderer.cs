@@ -2125,6 +2125,113 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             or LumOnDebugMode.DirectEmissive
             or LumOnDebugMode.DirectTotal;
 
+    // Planned multi-entrypoint shader split: debugMode -> shader program kind -> program name.
+    // NOTE: Some modes are special-cased and do not use the LumOn debug fullscreen shader program:
+    // - VgeNormalDepthAtlas (engine blit shader)
+    // - WorldProbeOrbsPoints (dedicated point-sprite shader + OIT stage)
+    private static LumOnDebugShaderProgramKind GetShaderProgramKind(LumOnDebugMode mode) => mode switch
+    {
+        LumOnDebugMode.Off => LumOnDebugShaderProgramKind.None,
+
+        // Probe anchors/grid
+        LumOnDebugMode.ProbeGrid
+            or LumOnDebugMode.ProbeDepth
+            or LumOnDebugMode.ProbeNormal
+            => LumOnDebugShaderProgramKind.ProbeAnchors,
+
+        // Scene / GBuffer
+        LumOnDebugMode.SceneDepth
+            or LumOnDebugMode.SceneNormal
+            or LumOnDebugMode.MaterialBands
+            or LumOnDebugMode.PomMetrics
+            => LumOnDebugShaderProgramKind.SceneGBuffer,
+
+        // Temporal
+        LumOnDebugMode.TemporalWeight
+            or LumOnDebugMode.TemporalRejection
+            => LumOnDebugShaderProgramKind.Temporal,
+
+        // SH / interpolation
+        LumOnDebugMode.ShCoefficients
+            or LumOnDebugMode.InterpolationWeights
+            => LumOnDebugShaderProgramKind.ShInterpolation,
+
+        // Indirect (fullscreen)
+        LumOnDebugMode.RadianceOverlay
+            or LumOnDebugMode.GatherWeight
+            => LumOnDebugShaderProgramKind.Indirect,
+
+        // Screen-probe atlas
+        LumOnDebugMode.ProbeAtlasMetaConfidence
+            or LumOnDebugMode.ProbeAtlasTemporalAlpha
+            or LumOnDebugMode.ProbeAtlasMetaFlags
+            or LumOnDebugMode.ProbeAtlasFilteredRadiance
+            or LumOnDebugMode.ProbeAtlasFilterDelta
+            or LumOnDebugMode.ProbeAtlasGatherInputSource
+            or LumOnDebugMode.ProbeAtlasCurrentRadiance
+            or LumOnDebugMode.ProbeAtlasGatherInputRadiance
+            or LumOnDebugMode.ProbeAtlasHitDistance
+            or LumOnDebugMode.ProbeAtlasTraceRadiance
+            => LumOnDebugShaderProgramKind.ProbeAtlas,
+
+        // Composite (Phase 15)
+        LumOnDebugMode.CompositeAO
+            or LumOnDebugMode.CompositeIndirectDiffuse
+            or LumOnDebugMode.CompositeIndirectSpecular
+            or LumOnDebugMode.CompositeMaterial
+            => LumOnDebugShaderProgramKind.Composite,
+
+        // Direct lighting (Phase 16)
+        LumOnDebugMode.DirectDiffuse
+            or LumOnDebugMode.DirectSpecular
+            or LumOnDebugMode.DirectEmissive
+            or LumOnDebugMode.DirectTotal
+            => LumOnDebugShaderProgramKind.Direct,
+
+        // Velocity (Phase 14)
+        LumOnDebugMode.VelocityMagnitude
+            or LumOnDebugMode.VelocityValidity
+            or LumOnDebugMode.VelocityPrevUv
+            => LumOnDebugShaderProgramKind.Velocity,
+
+        // World probes (Phase 18)
+        LumOnDebugMode.WorldProbeIrradianceCombined
+            or LumOnDebugMode.WorldProbeIrradianceLevel
+            or LumOnDebugMode.WorldProbeConfidence
+            or LumOnDebugMode.WorldProbeShortRangeAoDirection
+            or LumOnDebugMode.WorldProbeShortRangeAoConfidence
+            or LumOnDebugMode.WorldProbeHitDistance
+            or LumOnDebugMode.WorldProbeMetaFlagsHeatmap
+            or LumOnDebugMode.WorldProbeBlendWeights
+            or LumOnDebugMode.WorldProbeCrossLevelBlend
+            or LumOnDebugMode.WorldProbeRawConfidences
+            or LumOnDebugMode.WorldProbeContributionOnly
+            or LumOnDebugMode.ScreenSpaceContributionOnly
+            => LumOnDebugShaderProgramKind.WorldProbe,
+
+        // Special-cased / not a fullscreen debug shader
+        LumOnDebugMode.VgeNormalDepthAtlas
+            or LumOnDebugMode.WorldProbeOrbsPoints
+            => LumOnDebugShaderProgramKind.None,
+
+        _ => LumOnDebugShaderProgramKind.None,
+    };
+
+    private static string GetShaderProgramName(LumOnDebugShaderProgramKind programKind) => programKind switch
+    {
+        LumOnDebugShaderProgramKind.ProbeAnchors => "lumon_debug_probe_anchors",
+        LumOnDebugShaderProgramKind.SceneGBuffer => "lumon_debug_gbuffer",
+        LumOnDebugShaderProgramKind.Temporal => "lumon_debug_temporal",
+        LumOnDebugShaderProgramKind.ShInterpolation => "lumon_debug_sh",
+        LumOnDebugShaderProgramKind.Indirect => "lumon_debug_indirect",
+        LumOnDebugShaderProgramKind.ProbeAtlas => "lumon_debug_probe_atlas",
+        LumOnDebugShaderProgramKind.Composite => "lumon_debug_composite",
+        LumOnDebugShaderProgramKind.Direct => "lumon_debug_direct",
+        LumOnDebugShaderProgramKind.Velocity => "lumon_debug_velocity",
+        LumOnDebugShaderProgramKind.WorldProbe => "lumon_debug_worldprobe",
+        _ => "lumon_debug",
+    };
+
     private static bool RequiresLumOnBuffers(LumOnDebugMode mode)
     {
         // Anything involving probes/atlases/temporal/indirect assumes LumOn is enabled.

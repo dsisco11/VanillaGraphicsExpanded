@@ -22,34 +22,39 @@ Reference / Docs:
 
 ---
 
-☐ Phase 0 - Design: Categories, naming, and selection
+✔ Phase 0 - Design: Program kinds, naming, and selection
   Exit artifacts:
-  - A category list and a deterministic mapping: debugMode -> category -> shader program name.
+  - A program-kind list and a deterministic mapping: debugMode -> program kind -> shader program name.
   - A naming convention for shader entrypoints and includes.
 
   Work items:
-  ☐ Define debug categories (proposed):
-    - Probes/Anchors
-    - SceneDepth + GBuffer
+  ✔ Define debug shader program kinds:
+    - ProbeAnchors
+    - SceneGBuffer
     - Temporal
-    - SH/Interpolation
-    - ScreenProbeAtlas
-    - Composite/PBR
-    - DirectLighting
-    - Velocity/Motion
-    - WorldProbes (clipmap)
-  ☐ Map `LumOnDebugMode` values to categories (document the mapping in code near selection logic).
-  ☐ Choose entrypoint names per category (example):
-    - `lumon_debug_probes`
-    - `lumon_debug_gbuffer`
-    - `lumon_debug_temporal`
-    - `lumon_debug_sh`
-    - `lumon_debug_probe_atlas`
-    - `lumon_debug_composite`
-    - `lumon_debug_direct`
-    - `lumon_debug_velocity`
-    - `lumon_debug_worldprobe`
-  ☐ Decide how to handle modes currently special-cased in C# (keep special-case vs new category program).
+    - ShInterpolation
+    - Indirect
+    - ProbeAtlas
+    - Composite
+    - Direct
+    - Velocity
+    - WorldProbe
+  ✔ Map `LumOnDebugMode` values to program kinds (documented in code near selection logic).
+    - Code anchor: `LumOnDebugRenderer.GetShaderProgramKind()` + `GetShaderProgramName()`
+  ✔ Choose entrypoint names per category:
+    - ProbeAnchors: `lumon_debug_probe_anchors`
+    - SceneGBuffer: `lumon_debug_gbuffer`
+    - Temporal: `lumon_debug_temporal`
+    - ShInterpolation: `lumon_debug_sh`
+    - Indirect: `lumon_debug_indirect`
+    - ProbeAtlas: `lumon_debug_probe_atlas`
+    - Composite: `lumon_debug_composite`
+    - Direct: `lumon_debug_direct`
+    - Velocity: `lumon_debug_velocity`
+    - WorldProbe: `lumon_debug_worldprobe`
+  ✔ Decide how to handle modes currently special-cased in C#:
+    - `VgeNormalDepthAtlas` (30): keep special-cased (engine blit shader; no LumOn debug program)
+    - `WorldProbeOrbsPoints` (40): keep special-cased (`vge_worldprobe_orbs_points`; OIT stage)
 
 ---
 
