@@ -628,20 +628,20 @@ public sealed class LumOnBufferManager : IDisposable
         int atlasHeight = probeCountY * 8;
         screenProbeAtlasTraceTex = DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasTrace");
         screenProbeAtlasMetaTraceTex = DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaTrace");
-        screenProbeAtlasTraceFbo = Rendering.GpuFramebuffer.CreateMRT([screenProbeAtlasTraceTex, screenProbeAtlasMetaTraceTex], null, ownsTextures: false, debugName: "ScreenProbeAtlasTraceFBO");
+        screenProbeAtlasTraceFbo = Rendering.GpuFramebuffer.CreateMRT([screenProbeAtlasTraceTex, screenProbeAtlasMetaTraceTex], depthTexture: null, ownsTextures: false, debugName: "ScreenProbeAtlasTraceFBO");
 
         screenProbeAtlasCurrentTex = DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasCurrent");
         screenProbeAtlasMetaCurrentTex = DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaCurrent");
-        screenProbeAtlasCurrentFbo = Rendering.GpuFramebuffer.CreateMRT([screenProbeAtlasCurrentTex, screenProbeAtlasMetaCurrentTex], null, ownsTextures: false, debugName: "ScreenProbeAtlasCurrentFBO");
+        screenProbeAtlasCurrentFbo = Rendering.GpuFramebuffer.CreateMRT([screenProbeAtlasCurrentTex, screenProbeAtlasMetaCurrentTex], depthTexture: null, ownsTextures: false, debugName: "ScreenProbeAtlasCurrentFBO");
 
         screenProbeAtlasHistoryTex = DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasHistory");
         screenProbeAtlasMetaHistoryTex = DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaHistory");
-        screenProbeAtlasHistoryFbo = Rendering.GpuFramebuffer.CreateMRT([screenProbeAtlasHistoryTex, screenProbeAtlasMetaHistoryTex], null, ownsTextures: false, debugName: "ScreenProbeAtlasHistoryFBO");
+        screenProbeAtlasHistoryFbo = Rendering.GpuFramebuffer.CreateMRT([screenProbeAtlasHistoryTex, screenProbeAtlasMetaHistoryTex], depthTexture: null, ownsTextures: false, debugName: "ScreenProbeAtlasHistoryFBO");
 
         // Filtered atlas output (Pass 3.5): derived from temporal output each frame
         screenProbeAtlasFilteredTex = DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasFiltered");
         screenProbeAtlasMetaFilteredTex = DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaFiltered");
-        screenProbeAtlasFilteredFbo = Rendering.GpuFramebuffer.CreateMRT([screenProbeAtlasFilteredTex, screenProbeAtlasMetaFilteredTex], null, ownsTextures: false, debugName: "ScreenProbeAtlasFilteredFBO");
+        screenProbeAtlasFilteredFbo = Rendering.GpuFramebuffer.CreateMRT([screenProbeAtlasFilteredTex, screenProbeAtlasMetaFilteredTex], depthTexture: null, ownsTextures: false, debugName: "ScreenProbeAtlasFilteredFBO");
 
         // Probe-atlas → SH9 projection output (Option B)
         // 7 RGBA16F attachments to pack 27 floats (9 RGB coeffs)

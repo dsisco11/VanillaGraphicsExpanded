@@ -33,8 +33,11 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     private int fboId;
     private readonly List<DynamicTexture2D> colorAttachments;
     private DynamicTexture2D? depthAttachment;
+    private GpuRenderbuffer? depthRenderbuffer;
+    private FramebufferAttachment? depthRenderbufferAttachmentOverride;
     private readonly bool ownsFramebuffer;
     private readonly bool ownsTextures;
+    private readonly bool ownsRenderbuffers;
     private string? debugName;
 
     #endregion
@@ -64,7 +67,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     /// <summary>
     /// Whether this FBO has a depth attachment.
     /// </summary>
-    public bool HasDepthAttachment => depthAttachment != null;
+    public bool HasDepthAttachment => depthAttachment != null || depthRenderbuffer != null;
 
     public string? DebugName => debugName;
 
@@ -73,14 +76,14 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     /// </summary>
     public int Width => colorAttachments.Count > 0 
         ? colorAttachments[0].Width 
-        : depthAttachment?.Width ?? 0;
+        : depthAttachment?.Width ?? depthRenderbuffer?.Width ?? 0;
 
     /// <summary>
     /// Height of the framebuffer (from first color attachment or depth).
     /// </summary>
     public int Height => colorAttachments.Count > 0 
         ? colorAttachments[0].Height 
-        : depthAttachment?.Height ?? 0;
+        : depthAttachment?.Height ?? depthRenderbuffer?.Height ?? 0;
 
     #endregion
 
@@ -96,15 +99,21 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     /// </summary>
     public DynamicTexture2D? DepthTexture => depthAttachment;
 
+    /// <summary>
+    /// Gets the depth attachment renderbuffer (may be null).
+    /// </summary>
+    public GpuRenderbuffer? DepthRenderbuffer => depthRenderbuffer;
+
     #endregion
 
     #region Constructor (private - use factory methods)
 
-    private GpuFramebuffer(bool ownsFramebuffer, bool ownsTextures)
+    private GpuFramebuffer(bool ownsFramebuffer, bool ownsTextures, bool ownsRenderbuffers = false)
     {
         colorAttachments = [];
         this.ownsFramebuffer = ownsFramebuffer;
         this.ownsTextures = ownsTextures;
+        this.ownsRenderbuffers = ownsRenderbuffers;
     }
 
     #endregion
@@ -133,6 +142,46 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
         var buffer = new GpuFramebuffer(ownsFramebuffer: true, ownsTextures: ownsTextures);
         buffer.colorAttachments.Add(colorTexture);
         buffer.depthAttachment = depthTexture;
+        buffer.depthRenderbuffer = null;
+        buffer.depthRenderbufferAttachmentOverride = null;
+        buffer.debugName = debugName;
+        buffer.CreateFramebuffer();
+
+        return buffer;
+    }
+
+    /// <summary>
+    /// Creates a framebuffer with a single color attachment and an optional depth renderbuffer attachment.
+    /// </summary>
+    /// <param name="colorTexture">The color texture to attach.</param>
+    /// <param name="depthRenderbuffer">Optional depth renderbuffer to attach.</param>
+    /// <param name="ownsTextures">If true, textures will be disposed when the GBuffer is disposed.</param>
+    /// <param name="ownsRenderbuffers">If true, renderbuffers will be disposed when the GBuffer is disposed.</param>
+    /// <returns>A new GBuffer instance.</returns>
+    public static GpuFramebuffer? CreateSingle(
+        DynamicTexture2D? colorTexture,
+        GpuRenderbuffer? depthRenderbuffer,
+        bool ownsTextures = false,
+        bool ownsRenderbuffers = false,
+        string? debugName = null)
+    {
+        if (colorTexture == null || !colorTexture.IsValid)
+        {
+            Debug.WriteLine("[GBuffer] CreateSingle called with null or invalid color texture");
+            return null;
+        }
+
+        if (depthRenderbuffer != null && !depthRenderbuffer.IsValid)
+        {
+            Debug.WriteLine("[GBuffer] CreateSingle called with invalid depth renderbuffer");
+            return null;
+        }
+
+        var buffer = new GpuFramebuffer(ownsFramebuffer: true, ownsTextures: ownsTextures, ownsRenderbuffers: ownsRenderbuffers);
+        buffer.colorAttachments.Add(colorTexture);
+        buffer.depthAttachment = null;
+        buffer.depthRenderbuffer = depthRenderbuffer;
+        buffer.depthRenderbufferAttachmentOverride = null;
         buffer.debugName = debugName;
         buffer.CreateFramebuffer();
 
@@ -177,6 +226,62 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
         var buffer = new GpuFramebuffer(ownsFramebuffer: true, ownsTextures: ownsTextures);
         buffer.colorAttachments.AddRange(validTextures);
         buffer.depthAttachment = depthTexture;
+        buffer.depthRenderbuffer = null;
+        buffer.depthRenderbufferAttachmentOverride = null;
+        buffer.debugName = debugName;
+        buffer.CreateFramebuffer();
+
+        return buffer;
+    }
+
+    /// <summary>
+    /// Creates a framebuffer with multiple render targets (MRT) and an optional depth renderbuffer attachment.
+    /// </summary>
+    /// <param name="colorTextures">Array of color textures to attach.</param>
+    /// <param name="depthRenderbuffer">Optional depth renderbuffer to attach.</param>
+    /// <param name="ownsTextures">If true, textures will be disposed when the GBuffer is disposed.</param>
+    /// <param name="ownsRenderbuffers">If true, renderbuffers will be disposed when the GBuffer is disposed.</param>
+    /// <returns>A new GBuffer instance.</returns>
+    public static GpuFramebuffer? CreateMRT(
+        DynamicTexture2D[]? colorTextures,
+        GpuRenderbuffer? depthRenderbuffer,
+        bool ownsTextures = false,
+        bool ownsRenderbuffers = false,
+        string? debugName = null)
+    {
+        if (colorTextures == null || colorTextures.Length == 0)
+        {
+            Debug.WriteLine("[GBuffer] CreateMRT called with null or empty texture array");
+            return null;
+        }
+
+        if (depthRenderbuffer != null && !depthRenderbuffer.IsValid)
+        {
+            Debug.WriteLine("[GBuffer] CreateMRT called with invalid depth renderbuffer");
+            return null;
+        }
+
+        // Filter out invalid textures
+        var validTextures = new List<DynamicTexture2D>();
+        foreach (var tex in colorTextures)
+        {
+            if (tex != null && tex.IsValid)
+                validTextures.Add(tex);
+            else
+                Debug.WriteLine("[GBuffer] CreateMRT: skipping null or invalid texture");
+        }
+
+        if (validTextures.Count == 0)
+        {
+            Debug.WriteLine("[GBuffer] CreateMRT: no valid textures provided");
+            return null;
+        }
+
+        var buffer = new GpuFramebuffer(ownsFramebuffer: true, ownsTextures: ownsTextures, ownsRenderbuffers: ownsRenderbuffers);
+        buffer.colorAttachments.AddRange(validTextures);
+        buffer.depthAttachment = null;
+        buffer.depthRenderbuffer = depthRenderbuffer;
+        buffer.depthRenderbufferAttachmentOverride = null;
         buffer.debugName = debugName;
         buffer.CreateFramebuffer();
 
@@ -190,12 +295,12 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     /// <returns>A new GBuffer instance.</returns>
     public static GpuFramebuffer? CreateMRT(params DynamicTexture2D[] colorTextures)
     {
-        return CreateMRT(colorTextures, null, false);
+        return CreateMRT(colorTextures, depthTexture: null, ownsTextures: false);
     }
 
     public static GpuFramebuffer? CreateMRT(string? debugName, params DynamicTexture2D[] colorTextures)
     {
-        return CreateMRT(colorTextures, null, false, debugName);
+        return CreateMRT(colorTextures, depthTexture: null, ownsTextures: false, debugName: debugName);
     }
 
     /// <summary>
@@ -223,6 +328,35 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
 
         var buffer = new GpuFramebuffer(ownsFramebuffer: true, ownsTextures: ownsTextures);
         buffer.depthAttachment = depthTexture;
+        buffer.depthRenderbuffer = null;
+        buffer.depthRenderbufferAttachmentOverride = null;
+        buffer.debugName = debugName;
+        buffer.CreateFramebuffer();
+
+        return buffer;
+    }
+
+    /// <summary>
+    /// Creates a depth-only framebuffer (no color attachments) with a depth renderbuffer attachment.
+    /// </summary>
+    /// <param name="depthRenderbuffer">The depth renderbuffer to attach.</param>
+    /// <param name="ownsRenderbuffers">If true, the renderbuffer will be disposed when the GBuffer is disposed.</param>
+    /// <returns>A new GBuffer instance.</returns>
+    public static GpuFramebuffer? CreateDepthOnly(
+        GpuRenderbuffer? depthRenderbuffer,
+        bool ownsRenderbuffers = false,
+        string? debugName = null)
+    {
+        if (depthRenderbuffer == null || !depthRenderbuffer.IsValid)
+        {
+            Debug.WriteLine("[GBuffer] CreateDepthOnly called with null or invalid depth renderbuffer");
+            return null;
+        }
+
+        var buffer = new GpuFramebuffer(ownsFramebuffer: true, ownsTextures: false, ownsRenderbuffers: ownsRenderbuffers);
+        buffer.depthAttachment = null;
+        buffer.depthRenderbuffer = depthRenderbuffer;
+        buffer.depthRenderbufferAttachmentOverride = null;
         buffer.debugName = debugName;
         buffer.CreateFramebuffer();
 
@@ -250,7 +384,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     /// </summary>
     /// <remarks>
     /// Intended for temporary/scratch use (e.g. readback helpers) where attachments are set via
-    /// <see cref="AttachColor"/> / <see cref="AttachColorTextureId"/> / <see cref="AttachDepth"/>.
+    /// <see cref="AttachColor"/> / <see cref="AttachColorTextureId"/> / <see cref="AttachDepth"/> / <see cref="AttachDepthRenderbuffer"/>.
     /// </remarks>
     public static GpuFramebuffer CreateEmpty(string? debugName = null)
     {
@@ -387,6 +521,86 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     }
 
     /// <summary>
+    /// Attaches a depth texture to this framebuffer.
+    /// Useful for reusing a single FBO as a scratch target.
+    /// </summary>
+    /// <remarks>
+    /// This updates the framebuffer attachment in OpenGL. It does not take ownership of the texture.
+    /// Any previously attached depth renderbuffer reference is cleared.
+    /// </remarks>
+    public void AttachDepth(DynamicTexture2D texture, int mipLevel = 0)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to attach depth texture to disposed or invalid framebuffer");
+            return;
+        }
+
+        if (texture is null || !texture.IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to attach null/invalid depth texture");
+            return;
+        }
+
+        Bind();
+
+        var attachment = TextureFormatHelper.IsDepthFormat(texture.InternalFormat)
+            && texture.InternalFormat is PixelInternalFormat.Depth24Stencil8
+                or PixelInternalFormat.Depth32fStencil8
+            ? FramebufferAttachment.DepthStencilAttachment
+            : FramebufferAttachment.DepthAttachment;
+
+        GL.FramebufferTexture2D(
+            FramebufferTarget.Framebuffer,
+            attachment,
+            TextureTarget.Texture2D,
+            texture.TextureId,
+            mipLevel);
+
+        depthAttachment = texture;
+        depthRenderbuffer = null;
+        depthRenderbufferAttachmentOverride = null;
+    }
+
+    /// <summary>
+    /// Attaches a depth renderbuffer to this framebuffer.
+    /// Useful for cases where depth does not need to be sampled as a texture.
+    /// </summary>
+    /// <remarks>
+    /// This updates the framebuffer attachment in OpenGL. It does not take ownership of the renderbuffer.
+    /// Any previously attached depth texture reference is cleared.
+    /// </remarks>
+    public void AttachDepthRenderbuffer(GpuRenderbuffer renderbuffer, bool isDepthStencil = false)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to attach depth renderbuffer to disposed or invalid framebuffer");
+            return;
+        }
+
+        if (renderbuffer is null || !renderbuffer.IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to attach null/invalid depth renderbuffer");
+            return;
+        }
+
+        Bind();
+        var attachment = isDepthStencil || IsDepthStencilStorage(renderbuffer.Storage)
+            ? FramebufferAttachment.DepthStencilAttachment
+            : FramebufferAttachment.DepthAttachment;
+
+        GL.FramebufferRenderbuffer(
+            FramebufferTarget.Framebuffer,
+            attachment,
+            RenderbufferTarget.Renderbuffer,
+            renderbuffer.RenderbufferId);
+
+        depthAttachment = null;
+        depthRenderbuffer = renderbuffer;
+        depthRenderbufferAttachmentOverride = isDepthStencil ? FramebufferAttachment.DepthStencilAttachment : null;
+    }
+
+    /// <summary>
     /// Clears the framebuffer with the specified mask.
     /// The framebuffer must be bound first.
     /// </summary>
@@ -480,6 +694,21 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     }
 
     /// <summary>
+    /// Gets the renderbuffer ID of the depth attachment.
+    /// </summary>
+    /// <returns>OpenGL renderbuffer ID, or 0 if no depth renderbuffer attachment.</returns>
+    public int GetDepthRenderbufferId()
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to get depth renderbuffer from disposed or invalid framebuffer");
+            return 0;
+        }
+
+        return depthRenderbuffer?.RenderbufferId ?? 0;
+    }
+
+    /// <summary>
     /// Resizes all attached textures.
     /// </summary>
     /// <param name="newWidth">New width in pixels.</param>
@@ -503,6 +732,12 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
         if (depthAttachment != null)
         {
             resized |= depthAttachment.Resize(newWidth, newHeight);
+        }
+
+        if (depthRenderbuffer != null)
+        {
+            depthRenderbuffer.Resize(newWidth, newHeight);
+            resized = true;
         }
 
         return resized;
@@ -773,6 +1008,18 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
                 depthAttachment.TextureId,
                 0);
         }
+        else if (depthRenderbuffer != null && depthRenderbuffer.IsValid)
+        {
+            var depthAttachmentType = depthRenderbufferAttachmentOverride ?? (IsDepthStencilStorage(depthRenderbuffer.Storage)
+                ? FramebufferAttachment.DepthStencilAttachment
+                : FramebufferAttachment.DepthAttachment);
+
+            GL.FramebufferRenderbuffer(
+                FramebufferTarget.Framebuffer,
+                depthAttachmentType,
+                RenderbufferTarget.Renderbuffer,
+                depthRenderbuffer.RenderbufferId);
+        }
 
         // Validate in debug mode
         if (!CheckStatus(out string? errorMessage))
@@ -805,8 +1052,15 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
             try { depthAttachment?.Dispose(); } catch { }
         }
 
+        if (ownsRenderbuffers)
+        {
+            try { depthRenderbuffer?.Dispose(); } catch { }
+        }
+
         colorAttachments.Clear();
         depthAttachment = null;
+        depthRenderbuffer = null;
+        depthRenderbufferAttachmentOverride = null;
     }
 
     #endregion
@@ -822,4 +1076,9 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     }
 
     #endregion
+
+    private static bool IsDepthStencilStorage(RenderbufferStorage storage)
+    {
+        return storage is RenderbufferStorage.Depth24Stencil8 or RenderbufferStorage.Depth32fStencil8;
+    }
 }

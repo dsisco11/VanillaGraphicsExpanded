@@ -114,7 +114,7 @@ public sealed class ShaderTestFramework : IDisposable
             textures[i] = DynamicTexture2D.Create(width, height, format);
         }
 
-        var gBuffer = GpuFramebuffer.CreateMRT(textures, null, ownsTextures: true);
+        var gBuffer = GpuFramebuffer.CreateMRT(textures, depthTexture: null, ownsTextures: true);
         if (gBuffer == null)
         {
             // Clean up textures if GBuffer creation failed
@@ -147,7 +147,7 @@ public sealed class ShaderTestFramework : IDisposable
             textures[i] = DynamicTexture2D.Create(width, height, formats[i]);
         }
 
-        var gBuffer = GpuFramebuffer.CreateMRT(textures, null, ownsTextures: true);
+        var gBuffer = GpuFramebuffer.CreateMRT(textures, depthTexture: null, ownsTextures: true);
         if (gBuffer == null)
         {
             foreach (var tex in textures)

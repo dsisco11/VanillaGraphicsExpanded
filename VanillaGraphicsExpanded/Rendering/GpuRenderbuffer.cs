@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
 /// All methods require a current GL context on the calling thread.
 /// </summary>
-internal sealed class GpuRenderbuffer : GpuResource, IDisposable
+public sealed class GpuRenderbuffer : GpuResource, IDisposable
 {
     private int renderbufferId;
     private readonly bool ownsRenderbuffer;
