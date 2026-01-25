@@ -2190,27 +2190,27 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             or LumOnDebugMode.ProbeAtlasTraceRadiance
             => LumOnDebugShaderProgramKind.ProbeAtlas,
 
-        // Composite (Phase 15)
+        // Composite
         LumOnDebugMode.CompositeAO
             or LumOnDebugMode.CompositeIndirectDiffuse
             or LumOnDebugMode.CompositeIndirectSpecular
             or LumOnDebugMode.CompositeMaterial
             => LumOnDebugShaderProgramKind.Composite,
 
-        // Direct lighting (Phase 16)
+        // Direct lighting
         LumOnDebugMode.DirectDiffuse
             or LumOnDebugMode.DirectSpecular
             or LumOnDebugMode.DirectEmissive
             or LumOnDebugMode.DirectTotal
             => LumOnDebugShaderProgramKind.Direct,
 
-        // Velocity (Phase 14)
+        // Velocity
         LumOnDebugMode.VelocityMagnitude
             or LumOnDebugMode.VelocityValidity
             or LumOnDebugMode.VelocityPrevUv
             => LumOnDebugShaderProgramKind.Velocity,
 
-        // World probes (Phase 18)
+        // World probes
         LumOnDebugMode.WorldProbeIrradianceCombined
             or LumOnDebugMode.WorldProbeIrradianceLevel
             or LumOnDebugMode.WorldProbeConfidence
@@ -2248,7 +2248,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         _ => "lumon_debug",
     };
 
-    // Phase 4 naming (todo): keep these as thin wrappers around the existing helpers.
+    // Naming (todo): keep these as thin wrappers around the existing helpers.
     private static LumOnDebugShaderProgramKind GetCategoryForDebugMode(LumOnDebugMode mode) => GetShaderProgramKind(mode);
 
     private static LumOnDebugShaderProgram? GetProgramForCategory(ICoreClientAPI capi, LumOnDebugShaderProgramKind category)

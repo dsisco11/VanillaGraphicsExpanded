@@ -37,30 +37,30 @@ public enum LumOnDebugMode
     ProbeAtlasFilterDelta = 16,
     ProbeAtlasGatherInputSource = 17,
 
-    // Phase 15 composite debug views (implemented in lumon_debug.fsh)
+    // Composite debug views.
     CompositeAO = 18,
     CompositeIndirectDiffuse = 19,
     CompositeIndirectSpecular = 20,
     CompositeMaterial = 21,
 
-    // Phase 16 direct lighting debug views (implemented in lumon_debug.fsh)
+    // Direct lighting debug views.
     DirectDiffuse = 22,
     DirectSpecular = 23,
     DirectEmissive = 24,
     DirectTotal = 25,
 
-    // Phase 14 velocity debug views
+    // Velocity debug views.
     VelocityMagnitude = 26,
     VelocityValidity = 27,
     VelocityPrevUv = 28,
    
-    // Phase 7: pseudo material-id visualization (hash of gBufferMaterial)
+    // Pseudo material-id visualization (hash of gBufferMaterial)
     MaterialBands = 29,
 
     // VGE-only debug views (special-cased by C# debug renderer; not driven by lumon_debug.fsh)
     VgeNormalDepthAtlas = 30,
 
-    // Phase 18: world-probe clipmap debug views (implemented in lumon_debug.fsh)
+    // World-probe clipmap debug views.
     WorldProbeIrradianceCombined = 31,
     WorldProbeIrradianceLevel = 32,
     WorldProbeConfidence = 33,
@@ -78,15 +78,15 @@ public enum LumOnDebugMode
     // POM debug visualization (reads gBufferNormal.w written by patched chunk shaders)
     PomMetrics = 41,
 
-    // Phase 18: diagnostics
+    // World-probe diagnostics.
     // R = reconstructed screen confidence (screenW), G = raw world-probe confidence, B = final confidence (sumW)
     WorldProbeRawConfidences = 42,
 
-    // Phase 18: contribution split (screen vs world-probe)
+    // Contribution split (screen vs world-probe)
     WorldProbeContributionOnly = 43,
     ScreenSpaceContributionOnly = 44,
 
-    // Phase 3: additional probe-atlas debug views (append-only)
+    // Additional probe-atlas debug views (append-only)
     ProbeAtlasCurrentRadiance = 45,
     ProbeAtlasGatherInputRadiance = 46,
     ProbeAtlasHitDistance = 47,

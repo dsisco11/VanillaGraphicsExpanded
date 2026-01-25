@@ -162,17 +162,17 @@ public class LumOnDebugShaderProgram : GpuProgram
     public int GBufferMaterial { set => BindTexture2D("gBufferMaterial", value, 14); }
 
     /// <summary>
-    /// Direct diffuse radiance (Phase 16 debug views).
+    /// Direct diffuse radiance (direct lighting debug views).
     /// </summary>
     public int DirectDiffuse { set => BindTexture2D("directDiffuse", value, 15); }
 
     /// <summary>
-    /// Direct specular radiance (Phase 16 debug views).
+    /// Direct specular radiance (direct lighting debug views).
     /// </summary>
     public int DirectSpecular { set => BindTexture2D("directSpecular", value, 16); }
 
     /// <summary>
-    /// Emissive radiance (Phase 16 debug views).
+    /// Emissive radiance (direct lighting debug views).
     /// </summary>
     public int Emissive { set => BindTexture2D("emissive", value, 17); }
 
@@ -275,7 +275,7 @@ public class LumOnDebugShaderProgram : GpuProgram
 
     #endregion
 
-    #region Composite Debug Defines (Phase 15 → SetDefine migration)
+    #region Composite Debug Defines (SetDefine migration)
 
     public float IndirectIntensity { set => Uniform("indirectIntensity", value); }
 
