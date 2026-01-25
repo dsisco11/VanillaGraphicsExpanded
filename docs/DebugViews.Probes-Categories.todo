@@ -57,7 +57,7 @@
     - Debug Viewer lists multiple categories with expected entries
     - No code references remain to the removed view id `vge.lumon.debug`
 
-☐ Phase 2 - Probes Debug View (Dedup + World/Screen Toggle)
+✔ Phase 2 - Probes Debug View (Dedup + World/Screen Toggle)
   Goal: Implement a single “Probes” debug visualization that deduplicates probe modes and uses a World/Screen toggle only when both sides exist.
   Implementation notes:
     - Use an IDebugViewPanel (DebugViewDefinition supports custom panels)
@@ -65,12 +65,12 @@
     - Map (ProbeVizMode, ProbeSource) → LumOnDebugMode
     - Hide the World/Screen toggle when the selected mode is not symmetric
   Work items:
-    ☐ Create a new debug view (e.g., `vge.lumon.probes`) in category `Probes`
-    ☐ Implement panel UI:
-      ☐ “Mode” dropdown (deduplicated conceptual probe modes)
-      ☐ “World probes” toggle (hidden unless both variants exist)
-    ☐ Implement mapping using existing LumOnDebugMode values where available (e.g., ContributionOnly already has both)
-    ☐ Include probe atlas views in the same category and mode list
+    ✔ Create a new debug view (e.g., `vge.lumon.probes`) in category `Probes`
+    ✔ Implement panel UI:
+      ✔ “Mode” dropdown (deduplicated conceptual probe modes)
+      ✔ “World probes” toggle (hidden unless both variants exist)
+    ✔ Implement mapping using existing LumOnDebugMode values where available (e.g., ContributionOnly already has both)
+    ✔ Include probe atlas views in the same category and mode list
   Exit artifacts:
     - Probes view can switch modes without exposing duplicate world/screen entries
     - World/Screen toggle appears only for symmetric modes

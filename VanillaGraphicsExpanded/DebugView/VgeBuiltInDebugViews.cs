@@ -45,43 +45,27 @@ public static class VgeBuiltInDebugViews
     }
 
     private static DebugViewDefinition CreateProbesDebugView()
-        => CreateLumOnModeSelectorDebugView(
+        => new(
             id: ProbesDebugViewId,
-            name: "Debug Probes",
+            name: "Probes",
             category: CategoryProbes,
             description: "Probe-related debug overlays (screen probes, probe atlas, world probes).",
-            viewState: ProbesDebugViewState.Instance,
-            allowedModes:
-            [
-                LumOnDebugMode.ProbeGrid,
-                LumOnDebugMode.ProbeDepth,
-                LumOnDebugMode.ProbeNormal,
-                LumOnDebugMode.TemporalWeight,
-                LumOnDebugMode.TemporalRejection,
-                LumOnDebugMode.ShCoefficients,
-                LumOnDebugMode.InterpolationWeights,
-                LumOnDebugMode.RadianceOverlay,
-                LumOnDebugMode.GatherWeight,
-                LumOnDebugMode.ProbeAtlasMetaConfidence,
-                LumOnDebugMode.ProbeAtlasTemporalAlpha,
-                LumOnDebugMode.ProbeAtlasMetaFlags,
-                LumOnDebugMode.ProbeAtlasFilteredRadiance,
-                LumOnDebugMode.ProbeAtlasFilterDelta,
-                LumOnDebugMode.ProbeAtlasGatherInputSource,
-                LumOnDebugMode.WorldProbeIrradianceCombined,
-                LumOnDebugMode.WorldProbeIrradianceLevel,
-                LumOnDebugMode.WorldProbeConfidence,
-                LumOnDebugMode.WorldProbeShortRangeAoDirection,
-                LumOnDebugMode.WorldProbeShortRangeAoConfidence,
-                LumOnDebugMode.WorldProbeHitDistance,
-                LumOnDebugMode.WorldProbeMetaFlagsHeatmap,
-                LumOnDebugMode.WorldProbeBlendWeights,
-                LumOnDebugMode.WorldProbeCrossLevelBlend,
-                LumOnDebugMode.WorldProbeOrbsPoints,
-                LumOnDebugMode.WorldProbeRawConfidences,
-                LumOnDebugMode.WorldProbeContributionOnly,
-                LumOnDebugMode.ScreenSpaceContributionOnly,
-            ]);
+            registerRenderer: ctx =>
+            {
+                ctx.Config.LumOn.DebugMode = ProbesDebugViewState.Instance.GetSelectedDebugModeOrDefault();
+                return new ActionDisposable(() => ctx.Config.LumOn.DebugMode = LumOnDebugMode.Off);
+            },
+            activationMode: DebugViewActivationMode.Exclusive,
+            availability: ctx =>
+            {
+                if (!ctx.Config.LumOn.Enabled)
+                {
+                    return DebugViewAvailability.Unavailable("LumOn is disabled in config.");
+                }
+
+                return DebugViewAvailability.Available();
+            },
+            createPanel: ctx => new ProbesDebugPanel(viewId: ProbesDebugViewId, ctx.Capi, ctx.Config));
 
     private static DebugViewDefinition CreatePbrDebugView()
         => CreateLumOnModeSelectorDebugView(
@@ -250,8 +234,300 @@ public static class VgeBuiltInDebugViews
 
     private sealed class ProbesDebugViewState : LumOnDebugViewStateBase
     {
-        public static readonly ProbesDebugViewState Instance = new(defaultMode: LumOnDebugMode.ProbeGrid);
-        private ProbesDebugViewState(LumOnDebugMode defaultMode) : base(defaultMode) { }
+        public static readonly ProbesDebugViewState Instance = new();
+
+        private ProbeVizMode selectedMode = ProbeVizMode.ScreenProbeGrid;
+        private bool worldProbes;
+
+        private ProbesDebugViewState() : base(defaultMode: LumOnDebugMode.ProbeGrid)
+        {
+        }
+
+        public ProbeVizMode GetSelectedProbeVizModeOrDefault()
+        {
+            ProbeVizMode mode = selectedMode;
+            if (!Enum.IsDefined(typeof(ProbeVizMode), mode))
+            {
+                return ProbeVizMode.ScreenProbeGrid;
+            }
+
+            return mode;
+        }
+
+        public void SetSelectedProbeVizMode(ProbeVizMode mode)
+        {
+            if (!Enum.IsDefined(typeof(ProbeVizMode), mode))
+            {
+                return;
+            }
+
+            selectedMode = mode;
+        }
+
+        public bool GetWorldProbesEnabled() => worldProbes;
+
+        public void SetWorldProbesEnabled(bool enabled) => worldProbes = enabled;
+
+        public bool IsWorldToggleVisibleForCurrentMode()
+        {
+            ProbeModeMapping m = GetProbeModeMapping(GetSelectedProbeVizModeOrDefault());
+            return m.World is not null;
+        }
+
+        public LumOnDebugMode GetSelectedDebugModeOrDefault()
+        {
+            ProbeModeMapping m = GetProbeModeMapping(GetSelectedProbeVizModeOrDefault());
+            if (worldProbes && m.World is not null)
+            {
+                return m.World.Value;
+            }
+
+            return m.Screen;
+        }
+    }
+
+    private enum ProbeVizMode
+    {
+        // Screen probes
+        ScreenProbeGrid,
+        ScreenProbeDepth,
+        ScreenProbeNormal,
+        TemporalWeight,
+        TemporalRejection,
+        ShCoefficients,
+        InterpolationWeights,
+        RadianceOverlay,
+        GatherWeight,
+
+        // Probe atlas
+        ProbeAtlasMetaConfidence,
+        ProbeAtlasTemporalAlpha,
+        ProbeAtlasMetaFlags,
+        ProbeAtlasFilteredRadiance,
+        ProbeAtlasFilterDelta,
+        ProbeAtlasGatherInputSource,
+
+        // World probes
+        WorldProbeIrradianceCombined,
+        WorldProbeIrradianceLevel,
+        WorldProbeConfidence,
+        WorldProbeShortRangeAoDirection,
+        WorldProbeShortRangeAoConfidence,
+        WorldProbeHitDistance,
+        WorldProbeMetaFlagsHeatmap,
+        WorldProbeBlendWeights,
+        WorldProbeCrossLevelBlend,
+        WorldProbeOrbsPoints,
+        WorldProbeRawConfidences,
+
+        // Symmetric where applicable (World vs Screen toggle)
+        ContributionOnly,
+    }
+
+    private readonly record struct ProbeModeMapping(LumOnDebugMode Screen, LumOnDebugMode? World);
+
+    private static ProbeModeMapping GetProbeModeMapping(ProbeVizMode mode) => mode switch
+    {
+        ProbeVizMode.ScreenProbeGrid => new(LumOnDebugMode.ProbeGrid, null),
+        ProbeVizMode.ScreenProbeDepth => new(LumOnDebugMode.ProbeDepth, null),
+        ProbeVizMode.ScreenProbeNormal => new(LumOnDebugMode.ProbeNormal, null),
+        ProbeVizMode.TemporalWeight => new(LumOnDebugMode.TemporalWeight, null),
+        ProbeVizMode.TemporalRejection => new(LumOnDebugMode.TemporalRejection, null),
+        ProbeVizMode.ShCoefficients => new(LumOnDebugMode.ShCoefficients, null),
+        ProbeVizMode.InterpolationWeights => new(LumOnDebugMode.InterpolationWeights, null),
+        ProbeVizMode.RadianceOverlay => new(LumOnDebugMode.RadianceOverlay, null),
+        ProbeVizMode.GatherWeight => new(LumOnDebugMode.GatherWeight, null),
+
+        ProbeVizMode.ProbeAtlasMetaConfidence => new(LumOnDebugMode.ProbeAtlasMetaConfidence, null),
+        ProbeVizMode.ProbeAtlasTemporalAlpha => new(LumOnDebugMode.ProbeAtlasTemporalAlpha, null),
+        ProbeVizMode.ProbeAtlasMetaFlags => new(LumOnDebugMode.ProbeAtlasMetaFlags, null),
+        ProbeVizMode.ProbeAtlasFilteredRadiance => new(LumOnDebugMode.ProbeAtlasFilteredRadiance, null),
+        ProbeVizMode.ProbeAtlasFilterDelta => new(LumOnDebugMode.ProbeAtlasFilterDelta, null),
+        ProbeVizMode.ProbeAtlasGatherInputSource => new(LumOnDebugMode.ProbeAtlasGatherInputSource, null),
+
+        ProbeVizMode.WorldProbeIrradianceCombined => new(LumOnDebugMode.WorldProbeIrradianceCombined, null),
+        ProbeVizMode.WorldProbeIrradianceLevel => new(LumOnDebugMode.WorldProbeIrradianceLevel, null),
+        ProbeVizMode.WorldProbeConfidence => new(LumOnDebugMode.WorldProbeConfidence, null),
+        ProbeVizMode.WorldProbeShortRangeAoDirection => new(LumOnDebugMode.WorldProbeShortRangeAoDirection, null),
+        ProbeVizMode.WorldProbeShortRangeAoConfidence => new(LumOnDebugMode.WorldProbeShortRangeAoConfidence, null),
+        ProbeVizMode.WorldProbeHitDistance => new(LumOnDebugMode.WorldProbeHitDistance, null),
+        ProbeVizMode.WorldProbeMetaFlagsHeatmap => new(LumOnDebugMode.WorldProbeMetaFlagsHeatmap, null),
+        ProbeVizMode.WorldProbeBlendWeights => new(LumOnDebugMode.WorldProbeBlendWeights, null),
+        ProbeVizMode.WorldProbeCrossLevelBlend => new(LumOnDebugMode.WorldProbeCrossLevelBlend, null),
+        ProbeVizMode.WorldProbeOrbsPoints => new(LumOnDebugMode.WorldProbeOrbsPoints, null),
+        ProbeVizMode.WorldProbeRawConfidences => new(LumOnDebugMode.WorldProbeRawConfidences, null),
+
+        // Symmetric pair: screen-space vs world-probe contribution.
+        ProbeVizMode.ContributionOnly => new(LumOnDebugMode.ScreenSpaceContributionOnly, LumOnDebugMode.WorldProbeContributionOnly),
+
+        _ => new(LumOnDebugMode.ProbeGrid, null)
+    };
+
+    private sealed class ProbesDebugPanel : DebugViewPanelBase
+    {
+        private readonly string viewId;
+        private readonly ICoreClientAPI capi;
+        private readonly VgeConfig config;
+
+        private GuiComposer? composer;
+        private string? keyPrefix;
+
+        private readonly string[] values;
+        private readonly string[] names;
+
+        private bool lastToggleVisible;
+
+        public ProbesDebugPanel(string viewId, ICoreClientAPI capi, VgeConfig config)
+        {
+            this.viewId = viewId;
+            this.capi = capi;
+            this.config = config;
+
+            var modes = Enum.GetValues(typeof(ProbeVizMode)).Cast<ProbeVizMode>().ToArray();
+            values = modes.Select(m => m.ToString()).ToArray();
+            names = modes.Select(GetProbeVizModeDisplayName).ToArray();
+        }
+
+        public override void Compose(GuiComposer composer, ElementBounds bounds, string keyPrefix)
+        {
+            this.composer = composer;
+            this.keyPrefix = keyPrefix;
+
+            const double labelW = 140;
+            const double rowH = 30;
+            const double gap = 10;
+            const double rowGapY = 8;
+
+            double boundsW = bounds.fixedWidth > 0 ? bounds.fixedWidth : bounds.OuterWidth;
+            double controlW = Math.Min(280, Math.Max(200, boundsW - labelW - gap));
+
+            var fontLabel = CairoFont.WhiteDetailText();
+            var fontSmall = CairoFont.WhiteSmallText();
+
+            ProbeVizMode selectedMode = ProbesDebugViewState.Instance.GetSelectedProbeVizModeOrDefault();
+            int selectedIndex = Array.IndexOf(values, selectedMode.ToString());
+            if (selectedIndex < 0) selectedIndex = 0;
+
+            ElementBounds labelMode = ElementBounds.Fixed(0, 0, labelW, rowH).WithParent(bounds);
+            ElementBounds dropMode = ElementBounds.Fixed(labelW + gap, 0, controlW, rowH).WithParent(bounds);
+
+            composer
+                .AddStaticText("Mode", fontLabel, labelMode)
+                .AddInteractiveElement(
+                    new GuiElementDropDownCycleOnArrow(
+                        capi,
+                        values,
+                        names,
+                        selectedIndex,
+                        OnModeChanged,
+                        dropMode,
+                        fontSmall),
+                    $"{keyPrefix}-mode");
+
+            bool toggleVisible = ProbesDebugViewState.Instance.IsWorldToggleVisibleForCurrentMode();
+            lastToggleVisible = toggleVisible;
+
+            if (!toggleVisible)
+            {
+                return;
+            }
+
+            ElementBounds labelWorld = ElementBounds.Fixed(0, rowH + rowGapY, labelW, rowH).WithParent(bounds);
+            ElementBounds ctrlWorld = ElementBounds.Fixed(labelW + gap, rowH + rowGapY, 30, rowH).WithParent(bounds);
+
+            var sw = new GuiElementSwitch(capi, OnWorldToggled, ctrlWorld, size: 26, padding: 4);
+            sw.SetValue(ProbesDebugViewState.Instance.GetWorldProbesEnabled());
+
+            composer
+                .AddStaticText("World probes", fontLabel, labelWorld)
+                .AddInteractiveElement(sw, $"{keyPrefix}-world");
+        }
+
+        private void OnModeChanged(string code, bool selected)
+        {
+            if (!selected)
+            {
+                return;
+            }
+
+            if (!Enum.TryParse(code, out ProbeVizMode mode))
+            {
+                return;
+            }
+
+            bool prevToggleVisible = ProbesDebugViewState.Instance.IsWorldToggleVisibleForCurrentMode();
+            ProbesDebugViewState.Instance.SetSelectedProbeVizMode(mode);
+            bool nextToggleVisible = ProbesDebugViewState.Instance.IsWorldToggleVisibleForCurrentMode();
+
+            if (string.Equals(DebugViewController.Instance.ActiveExclusiveViewId, viewId, StringComparison.Ordinal))
+            {
+                config.LumOn.DebugMode = ProbesDebugViewState.Instance.GetSelectedDebugModeOrDefault();
+            }
+
+            if (prevToggleVisible != nextToggleVisible || lastToggleVisible != nextToggleVisible)
+            {
+                lastToggleVisible = nextToggleVisible;
+                try
+                {
+                    composer?.ReCompose();
+                }
+                catch
+                {
+                    // Ignore UI refresh failures.
+                }
+            }
+        }
+
+        private void OnWorldToggled(bool on)
+        {
+            ProbesDebugViewState.Instance.SetWorldProbesEnabled(on);
+
+            if (string.Equals(DebugViewController.Instance.ActiveExclusiveViewId, viewId, StringComparison.Ordinal))
+            {
+                config.LumOn.DebugMode = ProbesDebugViewState.Instance.GetSelectedDebugModeOrDefault();
+            }
+
+            try
+            {
+                composer?.ReCompose();
+            }
+            catch
+            {
+                // Ignore UI refresh failures.
+            }
+        }
+
+        private static string GetProbeVizModeDisplayName(ProbeVizMode mode) => mode switch
+        {
+            ProbeVizMode.ScreenProbeGrid => "Probe Grid",
+            ProbeVizMode.ScreenProbeDepth => "Probe Depth",
+            ProbeVizMode.ScreenProbeNormal => "Probe Normals",
+            ProbeVizMode.TemporalWeight => "Temporal Weight",
+            ProbeVizMode.TemporalRejection => "Temporal Rejection",
+            ProbeVizMode.ShCoefficients => "SH Coefficients",
+            ProbeVizMode.InterpolationWeights => "Interpolation Weights",
+            ProbeVizMode.RadianceOverlay => "Radiance Overlay",
+            ProbeVizMode.GatherWeight => "Gather Weight (diagnostic)",
+            ProbeVizMode.ProbeAtlasMetaConfidence => "Probe-Atlas Meta Confidence",
+            ProbeVizMode.ProbeAtlasTemporalAlpha => "Probe-Atlas Temporal Alpha",
+            ProbeVizMode.ProbeAtlasMetaFlags => "Probe-Atlas Meta Flags",
+            ProbeVizMode.ProbeAtlasFilteredRadiance => "Probe-Atlas Filtered Radiance",
+            ProbeVizMode.ProbeAtlasFilterDelta => "Probe-Atlas Filter Delta",
+            ProbeVizMode.ProbeAtlasGatherInputSource => "Probe-Atlas Gather Input Source",
+            ProbeVizMode.WorldProbeIrradianceCombined => "World-Probe Irradiance (combined)",
+            ProbeVizMode.WorldProbeIrradianceLevel => "World-Probe Irradiance (selected level)",
+            ProbeVizMode.WorldProbeConfidence => "World-Probe Confidence",
+            ProbeVizMode.WorldProbeShortRangeAoDirection => "World-Probe ShortRangeAO Direction",
+            ProbeVizMode.WorldProbeShortRangeAoConfidence => "World-Probe ShortRangeAO Confidence",
+            ProbeVizMode.WorldProbeHitDistance => "World-Probe Hit Distance (normalized)",
+            ProbeVizMode.WorldProbeMetaFlagsHeatmap => "World-Probe Meta Flags (heatmap)",
+            ProbeVizMode.WorldProbeBlendWeights => "Blend Weights: screen vs world",
+            ProbeVizMode.WorldProbeCrossLevelBlend => "Cross-Level Blend: selected L + weights",
+            ProbeVizMode.WorldProbeOrbsPoints => "World-Probe Probes (orbs, GL_POINTS)",
+            ProbeVizMode.WorldProbeRawConfidences => "World-Probe Raw Confidences",
+            ProbeVizMode.ContributionOnly => "Contribution Only",
+            _ => mode.ToString()
+        };
     }
 
     private sealed class PbrDebugViewState : LumOnDebugViewStateBase
