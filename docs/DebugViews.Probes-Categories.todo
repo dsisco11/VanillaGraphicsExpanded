@@ -1,0 +1,106 @@
+☐ Phase 0 - Baseline + Inventory
+  Goal: Identify current debug visualizations, modes, and state that will be split into finer categories.
+  Reference:
+    - docs/LumOn.02-Probe-Grid.md
+    - docs/LumOn.16-World-Space-Clipmap-Probes.md
+    - docs/LumOn.18-Probe-Data-Layout-and-Packing.md
+    - docs/WorldProbes.KnownSimplificationsAndRisks.md
+  Work items:
+    ☐ Enumerate current debug views registered in VanillaGraphicsExpanded/DebugView/VgeBuiltInDebugViews.cs
+    ☐ Enumerate current LumOn debug modes in VanillaGraphicsExpanded/LumOn/LumOnDebugMode.cs
+    ☐ Confirm shader switch coverage in assets/vanillagraphicsexpanded/shaders/lumon_debug.fsh
+    ☐ Identify any debug overlays not registered as a debug view (e.g., Debug Viewer dialog toggle, LumOn enable/stats)
+  Exit artifacts:
+    - A written mapping of existing visualizations → target categories
+    - A list of probe-related modes grouped into “conceptual modes” (dedup candidates)
+
+☐ Phase 1 - Replace Mixed Debug Overlay With Categories
+  Goal: Remove the existing all-in-one LumOn debug view and expose debug visualizations under finer-grained categories.
+  Work items:
+    ☐ Remove/replace `vge.lumon.debug` registration (no legacy entry)
+    ☐ Add new debug-view registrations with categories including (minimum):
+      - Probes (includes probe atlas views)
+      - PBR
+      - GBuffer
+      - Profiling
+    ☐ Ensure every existing visualization remains reachable via some debug view after removal
+  Exit artifacts:
+    - Debug Viewer lists multiple categories with expected entries
+    - No code references remain to the removed view id `vge.lumon.debug`
+
+☐ Phase 2 - Probes Debug View (Dedup + World/Screen Toggle)
+  Goal: Implement a single “Probes” debug visualization that deduplicates probe modes and uses a World/Screen toggle only when both sides exist.
+  Implementation notes:
+    - Use an IDebugViewPanel (DebugViewDefinition supports custom panels)
+    - Add a UI-only conceptual enum/list (e.g., ProbeVizMode)
+    - Map (ProbeVizMode, ProbeSource) → LumOnDebugMode
+    - Hide the World/Screen toggle when the selected mode is not symmetric
+  Work items:
+    ☐ Create a new debug view (e.g., `vge.lumon.probes`) in category `Probes`
+    ☐ Implement panel UI:
+      ☐ “Mode” dropdown (deduplicated conceptual probe modes)
+      ☐ “World probes” toggle (hidden unless both variants exist)
+    ☐ Implement mapping using existing LumOnDebugMode values where available (e.g., ContributionOnly already has both)
+    ☐ Include probe atlas views in the same category and mode list
+  Exit artifacts:
+    - Probes view can switch modes without exposing duplicate world/screen entries
+    - World/Screen toggle appears only for symmetric modes
+
+☐ Phase 3 - Add Symmetric Shader Modes (Append-Only)
+  Goal: Add new shader debug modes so screen/atlas counterparts exist when the underlying data is available.
+  Reference:
+    - docs/LumOn.03-Radiance-Cache.md
+    - docs/LumOn.06-Gather-Upsample.md
+    - docs/ShaderDefines.UniformVsDefine.md
+  Work items:
+    ☐ Append new LumOnDebugMode entries (do not renumber existing values):
+      ☐ ProbeAtlasCurrentRadiance
+      ☐ ProbeAtlasGatherInputRadiance
+      ☐ ProbeAtlasHitDistance
+      ☐ ProbeAtlasTraceRadiance (only if raw trace texture can be bound cleanly)
+    ☐ Implement shader cases in assets/vanillagraphicsexpanded/shaders/lumon_debug.fsh
+    ☐ If ProbeAtlasTraceRadiance is added:
+      ☐ Add sampler uniform + binding in LumOnDebugShaderProgram.cs
+      ☐ Bind the trace atlas texture in LumOnDebugRenderer.cs
+    ☐ Integrate the new modes into the Probes view mapping so symmetric toggle works where applicable
+  Exit artifacts:
+    - Probes modes have symmetric atlas/world variants where feasible
+    - Shader changes are isolated to new mode cases and (optionally) one new sampler binding
+
+☐ Phase 4 - Tools Debug View (State-Aware Buttons Only)
+  Goal: Add clickable state-aware tools that are NOT already covered by existing debug views.
+  Requirement notes:
+    - Buttons are label-only (no icons/colors)
+    - Buttons reflect current state (Enabled/Disabled, Shown/Hidden)
+    - LumOn stats must be a persistent overlay
+  Candidates (expected):
+    - Debug Viewer dialog Open/Close (F8 hotkey functionality)
+    - LumOn Enabled/Disabled (F9 hotkey functionality)
+    - LumOn Stats Shown/Hidden (persistent overlay; replaces/extends Ctrl+F9 behavior)
+  Work items:
+    ☐ Create a `Tools` debug view (panel) in an appropriate category (e.g., Profiling/Tools)
+    ☐ Add buttons:
+      ☐ “Debug Viewer: Open/Close” (reflects dialog visibility)
+      ☐ “LumOn: Enabled/Disabled” (reflects enabled state)
+      ☐ “LumOn Stats: Shown/Hidden” (reflects stats overlay state)
+    ☐ Add minimal public/internal hook points so buttons can call actions directly (do not attempt to simulate hotkeys)
+    ☐ Implement persistent stats overlay rendering/updating path
+  Exit artifacts:
+    - Tools buttons correctly reflect and toggle state
+    - Stats overlay persists until toggled off
+
+☐ Phase 5 - Validation + Polish
+  Goal: Ensure the new categories are easy to use and don’t introduce regressions.
+  Reference:
+    - docs/Profiling.EventSource.md
+    - docs/VgeShaderProgram.md
+  Work items:
+    ☐ Verify category ordering and readability in the Debug Viewer UI
+    ☐ Verify Probes toggle hiding behavior matches symmetry availability
+    ☐ Verify new shader modes work with world probes enabled/disabled (graceful fallback)
+    ☐ Add/adjust unit tests if suitable test infra exists for debug view registration/state
+    ☐ Run `dotnet test` (at least Unit category filter) to ensure no breakage
+  Exit artifacts:
+    - Debug viewer shows correct categories and entries
+    - Probe visualization workflow is unified and deduplicated
+    - Tools view provides only the missing actions with accurate state labels
