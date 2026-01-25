@@ -57,7 +57,7 @@ Issues:
     ☐ Need a LumonScene system which accumulates world-space lighting traces onto geometry.
 
   PBR Material System:
-    ☐ NEED TO CACHE DIFFUSE-ALBEDO VALUES TO DISK!
+    ☐ NEED TO CACHE DIFFUSE-ALBEDO VALUES TO DISK! (see docs/PBRMaterialRegistry.BaseColorCache.todo)
     ☐ Need better material override system, consider allowing material definitions to specify a "base material" to inherit from.
     ☐ Allow material definitions "emissive" property to accept values > 1.0 for glowing materials (should be a real measurement like 'lumens' or something).
     ☐ Allow material definitions to specify emissive colors (not just grayscale intensity).

@@ -1,0 +1,112 @@
+PBR Material System - Average Base Color Disk Cache (DiffuseAlbedo Input)
+
+Goal:
+  Cache the *average base color* (linear RGB) derived from a texture’s bitmap to disk.
+  On startup/reload: eagerly preload cached base colors.
+  During runtime/loading: a background worker lazily evaluates staleness and regenerates cache misses off-thread.
+
+Decisions (locked in for this todo):
+  - Cache average base color, not final DiffuseAlbedo.
+  - Treat AVX2 vs fallback averaging paths as equivalent (no CPU-path keying).
+  - Reuse the existing cache key *type/hashing approach* (schema + Hash64), but use a purpose-built key string
+    that does NOT include atlas-only inputs (normal/depth bake config, atlas sizing, etc).
+
+Reference docs:
+  - docs/MaterialSystem.Cache.Architecture.md (cache key + disk store patterns)
+  - docs/MaterialAtlas.Architecture.md (threading model + session cancellation)
+  - docs/MaterialAtlas.BuildPipeline.md (budgeted async execution patterns)
+  - docs/PBRMaterialRegistry.ModderGuide.md (material definitions + mapping rules)
+
+Code touchpoints (expected):
+  - VanillaGraphicsExpanded/PBR/Materials/PbrMaterialRegistry.cs (ComputeAverageAlbedo / ComputeDiffuseAlbedo)
+  - VanillaGraphicsExpanded/PBR/Materials/PbrMaterialsModSystem.cs (startup/reload integration)
+  - VanillaGraphicsExpanded/Imaging/AlbedoAverager.cs (bitmap averaging algorithm)
+  - VanillaGraphicsExpanded/PBR/Materials/MaterialAtlasCacheKeyBuilder.cs (key type / hashing approach reference)
+
+☐ Phase 0 - Design & Contracts
+  Exit artifacts: key schema v1; value encoding; staleness rules; threading constraints documented.
+  ☐ Confirm the exact cache unit:
+    - Keyed by resolved base texture identity (canonical `assets/<domain>/<path>` string)
+    - Value = average base color in linear space (RGB)
+  ☐ Decide persistence location and tiering:
+    - Global-only cache vs global + per-world overlay (match MaterialSystem cache architecture)
+  ☐ Define cache staleness rule:
+    - A cache entry is valid iff its computed cache key matches the current inputs
+    - No asset byte hashing; rely on metadata/provenance signals
+  ☐ Define value encoding:
+    - Prefer compact encoding (e.g., 3x float16 or quantized 3x uint16) with documented error bounds
+    - Round-trip safe enough that it won’t create visible flicker when the value changes
+  ☐ Config + knobs:
+    - Enable/disable base color cache reads
+    - Enable/disable background regeneration
+    - Worker concurrency + optional rate limits
+
+☐ Phase 1 - Cache Key + Disk Store
+  Exit artifacts: deterministic base-color cache keys; read/write store with atomic writes + corruption handling.
+  ☐ Add cache key inputs + builder (new types, reuse existing key container/hash approach):
+    - `BaseColorCacheKeyInputs`
+    - `BaseColorCacheKeyBuilder`
+  ☐ Key contents (minimum viable):
+    - baseColorSchemaVersion
+    - normalized asset id (domain + path)
+    - pack/mod fingerprint and minimal metadata/provenance fields required by the chosen policy
+    - averaging algorithm version stamp (single integer; bump only when intentionally changing behavior)
+  ☐ Add disk cache store:
+    - index format (`meta.json` or equivalent) storing: key -> value, plus any provenance/metadata presence flags
+    - atomic writes (write temp + rename)
+    - graceful handling of corrupt entries (skip + optionally purge)
+  ☐ Unit tests:
+    - stable key determinism across runs
+    - key changes when inputs change
+    - store round-trip read/write
+
+☐ Phase 2 - Registry Integration + Eager Preload
+  Exit artifacts: computed DiffuseAlbedo uses cached base color when available; preload happens before first use.
+  ☐ Add an in-memory map: `BaseColorCacheKey -> baseColorLinear` loaded at startup
+  ☐ Eager preload path:
+    - On StartClientSide/BlockTexturesLoaded: load disk cache index into memory
+    - On ReloadTextures: clear in-memory derived surfaces and re-preload base color cache
+  ☐ Compute path integration:
+    - `ComputeAverageAlbedo`: return cached base color when present
+    - If missing: compute base color and enqueue a write (don’t block gameplay frames)
+  ☐ Confirm invariants:
+    - Cache does not change gameplay outputs (only avoids recomputation)
+    - Any cache miss behaves exactly like today
+
+☐ Phase 3 - Background Staleness Evaluation + Regeneration
+  Exit artifacts: low-priority worker fills missing/stale base colors without blocking render thread.
+  ☐ Add worker lifecycle:
+    - Start after eager preload
+    - Cancel on ReloadTextures and Dispose
+    - Use “session id”/cancellation token model (drop stale results)
+  ☐ Build regeneration worklist:
+    - Enumerate all texture ids referenced by mapping rules/material plan (resolved, canonical)
+    - Deduplicate keys
+  ☐ Background job flow:
+    - For each key: if missing/stale -> compute base color off-thread
+    - Write-through to disk cache store
+    - Marshal update back to main thread to update the in-memory map
+  ☐ Budgeting:
+    - Limit concurrent workers
+    - Rate-limit disk writes if needed
+    - Prefer doing the bulk of regeneration during loading (but still off-thread)
+  ☐ Telemetry/debug:
+    - counts: preload hits/misses, regen scheduled/completed, errors
+    - timings: avg compute time, IO time
+
+☐ Phase 4 - Validation, Diagnostics, and Docs
+  Exit artifacts: tests + debug surfaces/stats; documented behavior and knobs.
+  ☐ Add tests for:
+    - corrupt cache entry recovery
+    - session cancellation drops stale results
+    - cache hit avoids calling the expensive averaging path (where testable)
+  ☐ Add a debug view and/or log line summarizing:
+    - preload stats (hits/misses)
+    - regen progress + completion
+  ☐ Document in docs:
+    - cache scope/policy
+    - schema bump procedure when changing averaging behavior
+
+Notes:
+  - `DiffuseAlbedo` remains derived at runtime from (baseColorLinear, metallic).
+  - CPU averaging path differences are treated as equivalent by design.
