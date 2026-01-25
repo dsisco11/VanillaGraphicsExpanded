@@ -100,6 +100,12 @@ internal static class GpuResourceManagerSystem
         m?.EnqueueDeleteProgramPipeline(programPipelineId);
     }
 
+    public static void EnqueueDeleteShader(int shaderId)
+    {
+        var m = Volatile.Read(ref manager);
+        m?.EnqueueDeleteShader(shaderId);
+    }
+
     public static void EnqueueDeleteSync(IntPtr sync)
     {
         var m = Volatile.Read(ref manager);

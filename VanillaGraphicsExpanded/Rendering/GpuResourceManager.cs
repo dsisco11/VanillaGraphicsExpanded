@@ -91,6 +91,9 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
     public void EnqueueDeleteProgramPipeline(int programPipelineId)
         => EnqueueDeletion(new GpuDeletionCommand(GpuDeletionKind.ProgramPipeline, programPipelineId));
 
+    public void EnqueueDeleteShader(int shaderId)
+        => EnqueueDeletion(new GpuDeletionCommand(GpuDeletionKind.Shader, shaderId));
+
     public void EnqueueDeleteSync(IntPtr sync)
         => EnqueueDeletion(new GpuDeletionCommand(GpuDeletionKind.Sync, (nint)sync));
 
@@ -165,6 +168,9 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
                     case GpuDeletionKind.ProgramPipeline:
                         GL.DeleteProgramPipeline((int)command.Id);
                         break;
+                    case GpuDeletionKind.Shader:
+                        GL.DeleteShader((int)command.Id);
+                        break;
                     case GpuDeletionKind.Sync:
                         GL.DeleteSync((IntPtr)command.Id);
                         break;
@@ -211,6 +217,7 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
         TransformFeedback = 7,
         Sampler = 8,
         ProgramPipeline = 9,
-        Sync = 10,
+        Shader = 10,
+        Sync = 11,
     }
 }

@@ -115,6 +115,9 @@ public abstract class GpuResource : IDisposable
                 case GpuResourceKind.ProgramPipeline:
                     GpuResourceManagerSystem.EnqueueDeleteProgramPipeline((int)id);
                     return;
+                case GpuResourceKind.Shader:
+                    GpuResourceManagerSystem.EnqueueDeleteShader((int)id);
+                    return;
                 case GpuResourceKind.Sync:
                     GpuResourceManagerSystem.EnqueueDeleteSync((IntPtr)id);
                     return;
@@ -155,6 +158,9 @@ public abstract class GpuResource : IDisposable
                 case GpuResourceKind.ProgramPipeline:
                     GL.DeleteProgramPipeline((int)id);
                     break;
+                case GpuResourceKind.Shader:
+                    GL.DeleteShader((int)id);
+                    break;
                 case GpuResourceKind.Sync:
                     GL.DeleteSync((IntPtr)id);
                     break;
@@ -180,4 +186,5 @@ public enum GpuResourceKind
     TransformFeedback = 8,
     Sampler = 9,
     ProgramPipeline = 10,
+    Shader = 11,
 }
