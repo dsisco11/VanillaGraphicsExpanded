@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// A buffer view is a texture object that exposes a buffer object's data as texels for sampling in shaders.
 /// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
 /// </summary>
-public sealed class GpuBufferView : GpuResource, IDisposable
+public class GpuBufferView : GpuResource, IDisposable
 {
     private int textureId;
     private int bufferId;
@@ -56,7 +56,7 @@ public sealed class GpuBufferView : GpuResource, IDisposable
     /// </summary>
     public new bool IsValid => textureId != 0 && !IsDisposed;
 
-    private GpuBufferView(int textureId, int bufferId, SizedInternalFormat format, nint offsetBytes, nint sizeBytes)
+    protected GpuBufferView(int textureId, int bufferId, SizedInternalFormat format, nint offsetBytes, nint sizeBytes)
     {
         this.textureId = textureId;
         this.bufferId = bufferId;
@@ -99,8 +99,20 @@ public sealed class GpuBufferView : GpuResource, IDisposable
 
         try
         {
-            // DSA path.
-            GL.TextureBuffer(id, format, bufferId);
+            // Ensure the texture name has a target.
+            GL.BindTexture(TextureTarget.TextureBuffer, id);
+
+            // Prefer DSA when available, otherwise fall back to bind-to-edit.
+            try
+            {
+                GL.TextureBuffer(id, format, bufferId);
+            }
+            catch
+            {
+                GL.TexBuffer(TextureBufferTarget.TextureBuffer, format, bufferId);
+            }
+
+            GL.BindTexture(TextureTarget.TextureBuffer, 0);
 
             var view = new GpuBufferView(id, bufferId, format, offsetBytes: 0, sizeBytes: 0);
             view.SetDebugName(debugName);
@@ -150,8 +162,21 @@ public sealed class GpuBufferView : GpuResource, IDisposable
 
         try
         {
-            // DSA path.
-            GL.TextureBufferRange(id, format, bufferId, (IntPtr)offsetBytes, (IntPtr)sizeBytes);
+            // Ensure the texture name has a target.
+            GL.BindTexture(TextureTarget.TextureBuffer, id);
+
+            // Prefer DSA when available, otherwise fall back to bind-to-edit.
+            try
+            {
+                GL.TextureBufferRange(id, format, bufferId, (IntPtr)offsetBytes, (IntPtr)sizeBytes);
+            }
+            catch
+            {
+                int size = checked((int)sizeBytes);
+                GL.TexBufferRange(TextureBufferTarget.TextureBuffer, format, bufferId, (IntPtr)offsetBytes, size);
+            }
+
+            GL.BindTexture(TextureTarget.TextureBuffer, 0);
 
             var view = new GpuBufferView(id, bufferId, format, offsetBytes, sizeBytes);
             view.SetDebugName(debugName);
@@ -185,5 +210,26 @@ public sealed class GpuBufferView : GpuResource, IDisposable
             GL.BindTexture(TextureTarget.TextureBuffer, textureId);
         }
     }
-}
 
+    /// <summary>
+    /// Binds this buffer texture to an image unit via <c>glBindImageTexture</c>.
+    /// </summary>
+    /// <remarks>
+    /// Buffer textures always bind with <c>level=0</c>, <c>layered=false</c>, <c>layer=0</c>.
+    /// </remarks>
+    public void BindImageUnit(int unit, TextureAccess access = TextureAccess.ReadOnly)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GpuBufferView] Attempted to bind disposed or invalid view as image");
+            return;
+        }
+
+        if (unit < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(unit), unit, "Image unit must be >= 0.");
+        }
+
+        GL.BindImageTexture(unit, textureId, level: 0, layered: false, layer: 0, access: access, format: format);
+    }
+}

@@ -50,6 +50,46 @@ public abstract class GpuTexture : GpuResource, IDisposable
 #endif
     }
 
+    /// <summary>
+    /// Binds this texture to an image unit via <c>glBindImageTexture</c>.
+    /// </summary>
+    /// <remarks>
+    /// The <paramref name="format"/> must be a sized internal format compatible with the texture storage.
+    /// If not specified, this uses <see cref="InternalFormat"/> cast to <see cref="SizedInternalFormat"/>.
+    /// </remarks>
+    public void BindImageUnit(
+        int unit,
+        TextureAccess access = TextureAccess.ReadOnly,
+        int level = 0,
+        bool layered = false,
+        int layer = 0,
+        SizedInternalFormat? format = null)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GpuTexture] Attempted to bind disposed or invalid texture as image");
+            return;
+        }
+
+        if (unit < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(unit), unit, "Image unit must be >= 0.");
+        }
+
+        if (level < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(level), level, "Level must be >= 0.");
+        }
+
+        if (layer < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(layer), layer, "Layer must be >= 0.");
+        }
+
+        var sizedFormat = format ?? (SizedInternalFormat)internalFormat;
+        GL.BindImageTexture(unit, textureId, level, layered, layer, access, sizedFormat);
+    }
+
     public BindingScope BindScope(int unit)
     {
         int previousActive = 0;

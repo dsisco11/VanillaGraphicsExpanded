@@ -390,4 +390,82 @@ internal sealed class GpuProgramLayout
 
         return true;
     }
+
+    /// <summary>
+    /// Binds a texture to the image unit used by the named image uniform via <c>glBindImageTexture</c>.
+    /// </summary>
+    public bool TryBindImageTexture(
+        string imageUniformName,
+        int textureId,
+        int level,
+        bool layered,
+        int layer,
+        TextureAccess access,
+        SizedInternalFormat format)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(imageUniformName);
+
+        if (textureId == 0)
+        {
+            return false;
+        }
+
+        if (!TryGetImageUnit(imageUniformName, out int unit))
+        {
+            return false;
+        }
+
+        GL.BindImageTexture(unit, textureId, level, layered, layer, access, format);
+        return true;
+    }
+
+    /// <summary>
+    /// Binds a <see cref="GpuTexture"/> to the image unit used by the named image uniform.
+    /// </summary>
+    public bool TryBindImageTexture(
+        string imageUniformName,
+        GpuTexture texture,
+        TextureAccess access = TextureAccess.ReadOnly,
+        int level = 0,
+        bool layered = false,
+        int layer = 0,
+        SizedInternalFormat? formatOverride = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(imageUniformName);
+        ArgumentNullException.ThrowIfNull(texture);
+
+        if (!texture.IsValid)
+        {
+            return false;
+        }
+
+        var format = formatOverride ?? (SizedInternalFormat)texture.InternalFormat;
+        return TryBindImageTexture(imageUniformName, texture.TextureId, level, layered, layer, access, format);
+    }
+
+    /// <summary>
+    /// Binds a <see cref="GpuBufferView"/> to the image unit used by the named image uniform.
+    /// </summary>
+    public bool TryBindImageTexture(
+        string imageUniformName,
+        GpuBufferView bufferTexture,
+        TextureAccess access = TextureAccess.ReadOnly)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(imageUniformName);
+        ArgumentNullException.ThrowIfNull(bufferTexture);
+
+        if (!bufferTexture.IsValid)
+        {
+            return false;
+        }
+
+        return TryBindImageTexture(
+            imageUniformName,
+            bufferTexture.TextureId,
+            level: 0,
+            layered: false,
+            layer: 0,
+            access: access,
+            format: bufferTexture.Format);
+    }
 }
