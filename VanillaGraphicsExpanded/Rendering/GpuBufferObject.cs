@@ -41,7 +41,26 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
 
     protected static int CreateBufferId(string? debugName)
     {
-        int id = GL.GenBuffer();
+        int id = 0;
+        bool supportsDsa = GlExtensions.Supports("GL_ARB_direct_state_access");
+
+        if (supportsDsa)
+        {
+            try
+            {
+                GL.CreateBuffers(1, out id);
+            }
+            catch
+            {
+                id = 0;
+            }
+        }
+
+        if (id == 0)
+        {
+            id = GL.GenBuffer();
+        }
+
         if (id == 0)
         {
             throw new InvalidOperationException("glGenBuffers failed.");
@@ -844,6 +863,33 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
         }
 
         return new MappedRange<T>(bufferId, target, access, dstOffsetBytes, elementCount, ptr, isMapped: true);
+    }
+
+    /// <summary>
+    /// Maps a range of the buffer and returns an RAII scope that will unmap on dispose.
+    /// </summary>
+    public GpuMappedBufferScope<T> MapScope<T>(int dstOffsetBytes, int elementCount, MapBufferAccessMask access) where T : unmanaged
+    {
+        return new GpuMappedBufferScope<T>(MapRange<T>(dstOffsetBytes, elementCount, access));
+    }
+
+    /// <summary>
+    /// Attempts to map a range of the buffer and returns an RAII scope that will unmap on dispose.
+    /// </summary>
+    public bool TryMapScope<T>(
+        int dstOffsetBytes,
+        int elementCount,
+        MapBufferAccessMask access,
+        out GpuMappedBufferScope<T> scope) where T : unmanaged
+    {
+        if (TryMapRange(dstOffsetBytes, elementCount, access, out MappedRange<T> range))
+        {
+            scope = new GpuMappedBufferScope<T>(range);
+            return scope.IsMapped;
+        }
+
+        scope = default;
+        return false;
     }
 
     public bool TryMapRange<T>(int dstOffsetBytes, int elementCount, MapBufferAccessMask access, out MappedRange<T> range) where T : unmanaged

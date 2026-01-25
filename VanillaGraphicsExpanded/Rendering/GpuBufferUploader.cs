@@ -42,7 +42,17 @@ internal static class GpuBufferUploader
 
     private static bool TryNamedBufferData(int bufferId, int byteCount, IntPtr data, BufferUsageHint usage)
     {
-        if (bufferId == 0 || dsaEnabledState == -1)
+        if (bufferId == 0)
+        {
+            return false;
+        }
+
+        if (dsaEnabledState == 0)
+        {
+            dsaEnabledState = GlExtensions.Supports("GL_ARB_direct_state_access") ? 1 : -1;
+        }
+
+        if (dsaEnabledState == -1)
         {
             return false;
         }
@@ -62,7 +72,17 @@ internal static class GpuBufferUploader
 
     private static bool TryNamedBufferSubData(int bufferId, int dstOffsetBytes, int byteCount, IntPtr data)
     {
-        if (bufferId == 0 || dsaEnabledState == -1)
+        if (bufferId == 0)
+        {
+            return false;
+        }
+
+        if (dsaEnabledState == 0)
+        {
+            dsaEnabledState = GlExtensions.Supports("GL_ARB_direct_state_access") ? 1 : -1;
+        }
+
+        if (dsaEnabledState == -1)
         {
             return false;
         }
@@ -80,4 +100,3 @@ internal static class GpuBufferUploader
         }
     }
 }
-
