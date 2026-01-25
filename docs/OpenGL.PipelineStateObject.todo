@@ -105,21 +105,21 @@ Docs:
       - Keep in sync with `GBufferManager` behavior
     ☑ Optional: provide a scoped state restore helper for legacy code paths
 
-☐ Phase 4 — Integrate in One Renderer (Low Risk)
+☑ Phase 4 — Integrate in One Renderer (Low Risk)
   Exit artifacts:
     - One concrete renderer uses PSO apply instead of ad-hoc state pokes
     - Output is identical to pre-PSO behavior
 
   Suggested target:
-    ☐ Convert LumOn debug overlay path (point size/line width + depth/blend/scissor) to use a PSO
+    ☑ Convert LumOn debug overlay path (point size/line width + depth/blend/scissor) to use a PSO
 
   Work items:
-    ☐ Create a dedicated debug PSO descriptor:
+    ☑ Create a dedicated debug PSO descriptor:
       - Depth test off or configured as needed
       - Blend enabled (if overlay), plus blend func
       - Scissor forced disabled (if overlay must ignore engine scissor)
       - Debug-only dynamic state: viewport, point size, line width
-    ☐ Remove per-frame save/restore where PSO makes it redundant (keep minimal safe restore if needed)
+    ☑ Remove per-frame save/restore where PSO makes it redundant (keep minimal safe restore if needed)
 
 ☐ Phase 5 — Expand to Offscreen Passes + MRT Blend
   Exit artifacts:

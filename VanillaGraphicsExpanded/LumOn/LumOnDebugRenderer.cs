@@ -50,6 +50,38 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     #region Fields
 
+    private static readonly GlPipelineDesc FullscreenOverlayPso = new(
+        defaultMask: default(GlPipelineStateMask)
+            .With(GlPipelineStateId.DepthTestEnable)
+            .With(GlPipelineStateId.CullFaceEnable)
+            .With(GlPipelineStateId.ScissorTestEnable)
+            .With(GlPipelineStateId.ColorMask),
+        nonDefaultMask: default);
+
+    private static readonly GlPipelineDesc ClipmapBoundsLinesPso = new(
+        defaultMask: default(GlPipelineStateMask)
+            .With(GlPipelineStateId.CullFaceEnable)
+            .With(GlPipelineStateId.ScissorTestEnable)
+            .With(GlPipelineStateId.ColorMask),
+        nonDefaultMask: default(GlPipelineStateMask)
+            .With(GlPipelineStateId.DepthTestEnable)
+            .With(GlPipelineStateId.DepthFunc)
+            .With(GlPipelineStateId.LineWidth),
+        depthFunc: DepthFunction.Lequal,
+        lineWidth: 2f);
+
+    private static readonly GlPipelineDesc WorldProbeOrbsPointsPso = new(
+        defaultMask: default(GlPipelineStateMask)
+            .With(GlPipelineStateId.CullFaceEnable)
+            .With(GlPipelineStateId.ScissorTestEnable)
+            .With(GlPipelineStateId.ColorMask),
+        nonDefaultMask: default(GlPipelineStateMask)
+            .With(GlPipelineStateId.DepthTestEnable)
+            .With(GlPipelineStateId.DepthFunc)
+            .With(GlPipelineStateId.PointSize),
+        depthFunc: DepthFunction.Lequal,
+        pointSize: 18f);
+
     private readonly ICoreClientAPI capi;
     private readonly VgeConfig config;
     private readonly LumOnBufferManager? bufferManager;
@@ -669,10 +701,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         try
         {
             // Fullscreen overlays should not disturb global GL state even on early-return paths.
+            GlStateCache.Current.InvalidateAll();
+            GlStateCache.Current.Apply(FullscreenOverlayPso);
+
             capi.Render.GLDepthMask(false);
-            GL.Disable(EnableCap.DepthTest);
             capi.Render.GlToggleBlend(false);
-            GL.Disable(EnableCap.ScissorTest);
             GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
 
             shader.Use();
@@ -827,6 +860,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             {
                 // ignore restore failures
             }
+
+            // This pass restores previous engine state via raw GL/wrappers, so the cache must be considered stale.
+            GlStateCache.Current.InvalidateAll();
         }
 
         // Store current matrix for next frame's reprojection
@@ -1039,9 +1075,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             bool shaderUsed = false;
             try
             {
-                // Depth-test so the bounds don't draw over all geometry.
-                GL.Enable(EnableCap.DepthTest);
-                GL.DepthFunc(DepthFunction.Lequal);
+                GlStateCache.Current.InvalidateAll();
+                GlStateCache.Current.Apply(ClipmapBoundsLinesPso);
                 capi.Render.GlToggleBlend(false);
                 capi.Render.GLDepthMask(false);
 
@@ -1054,9 +1089,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 clipmapBoundsVbo.UploadData(clipmapBoundsVertices, vertexCount * stride);
 
                 clipmapBoundsVao.Bind();
-                GL.LineWidth(2f);
                 GL.DrawArrays(PrimitiveType.Lines, 0, vertexCount);
-                GL.LineWidth(1f);
+                GlStateCache.Current.SetLineWidth(1f);
 
                 GL.BindVertexArray(0);
             }
@@ -1074,6 +1108,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 capi.Render.GLDepthMask(prevDepthMask);
                 capi.Render.GlToggleBlend(prevBlend);
                 GL.ActiveTexture((TextureUnit)prevActiveTexture);
+
+                GlStateCache.Current.InvalidateAll();
             }
         }
 
@@ -1682,8 +1718,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             bool shaderUsed = false;
             try
             {
-                GL.Enable(EnableCap.DepthTest);
-                GL.DepthFunc(DepthFunction.Lequal);
+                GlStateCache.Current.InvalidateAll();
+                GlStateCache.Current.Apply(WorldProbeOrbsPointsPso);
                 capi.Render.GlToggleBlend(true);
                 GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
                 capi.Render.GLDepthMask(true);
@@ -1732,7 +1768,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
                 clipmapProbeOrbsVao.Bind();
 
-                GL.PointSize(18f);
                 GL.DrawArrays(PrimitiveType.Points, 0, clipmapProbeOrbsCount);
 
                 GL.BindVertexArray(0);
@@ -1757,6 +1792,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 capi.Render.GLDepthMask(prevDepthMask);
                 capi.Render.GlToggleBlend(prevBlend);
                 GL.ActiveTexture((TextureUnit)prevActiveTexture);
+
+                GlStateCache.Current.InvalidateAll();
             }
         }
 
