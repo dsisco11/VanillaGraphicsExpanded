@@ -38,7 +38,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Texture;
 
-    public void SetDebugName(string? debugName)
+    public override void SetDebugName(string? debugName)
     {
         this.debugName = debugName;
 

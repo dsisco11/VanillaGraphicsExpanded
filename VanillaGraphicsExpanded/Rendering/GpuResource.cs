@@ -13,6 +13,11 @@ public abstract class GpuResource : IDisposable
 
     public bool IsValid => ResourceId != 0 && !IsDisposed;
 
+    /// <summary>
+    /// Sets a debug label for this resource (best-effort; typically only active in debug builds).
+    /// </summary>
+    public abstract void SetDebugName(string? debugName);
+
     protected abstract nint ResourceId { get; set; }
 
     protected abstract GpuResourceKind ResourceKind { get; }

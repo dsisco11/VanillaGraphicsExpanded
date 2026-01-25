@@ -54,7 +54,7 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
         return id;
     }
 
-    public void SetDebugName(string? debugName)
+    public override void SetDebugName(string? debugName)
     {
         this.debugName = debugName;
 

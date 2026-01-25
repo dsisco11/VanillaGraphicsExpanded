@@ -72,6 +72,21 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     public string? DebugName => debugName;
 
     /// <summary>
+    /// Sets the debug label for this framebuffer (debug builds only).
+    /// </summary>
+    public override void SetDebugName(string? debugName)
+    {
+        this.debugName = debugName;
+
+#if DEBUG
+        if (fboId != 0)
+        {
+            GlDebug.TryLabelFramebuffer(fboId, debugName);
+        }
+#endif
+    }
+
+    /// <summary>
     /// Width of the framebuffer (from first color attachment or depth).
     /// </summary>
     public int Width => colorAttachments.Count > 0 

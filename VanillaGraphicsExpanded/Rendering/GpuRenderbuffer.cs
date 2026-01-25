@@ -132,7 +132,7 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
     /// <summary>
     /// Sets the debug label for this renderbuffer (debug builds only).
     /// </summary>
-    public void SetDebugName(string? debugName)
+    public override void SetDebugName(string? debugName)
     {
         this.debugName = debugName;
 

@@ -46,7 +46,7 @@ internal sealed class GpuVao : GpuResource, IDisposable
         return new GpuVao(id, debugName);
     }
 
-    public void SetDebugName(string? debugName)
+    public override void SetDebugName(string? debugName)
     {
         this.debugName = debugName;
 

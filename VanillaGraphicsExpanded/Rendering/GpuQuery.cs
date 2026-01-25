@@ -30,6 +30,16 @@ internal sealed class GpuQuery : GpuResource, IDisposable
     /// </summary>
     public new bool IsValid => queryId != 0 && !IsDisposed;
 
+    public override void SetDebugName(string? debugName)
+    {
+#if DEBUG
+        if (queryId != 0)
+        {
+            GlDebug.TryLabel(ObjectLabelIdentifier.Query, queryId, debugName);
+        }
+#endif
+    }
+
     private GpuQuery(int queryId)
     {
         this.queryId = queryId;
@@ -46,8 +56,8 @@ internal sealed class GpuQuery : GpuResource, IDisposable
             throw new InvalidOperationException("glGenQuery returned 0.");
         }
 
-        GlDebug.TryLabel(ObjectLabelIdentifier.Query, id, debugName);
-        return new GpuQuery(id);
+        var query = new GpuQuery(id);
+        query.SetDebugName(debugName);
+        return query;
     }
 }
-

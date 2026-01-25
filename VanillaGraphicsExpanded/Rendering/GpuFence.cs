@@ -11,6 +11,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class GpuFence : GpuResource, IDisposable
 {
     private nint handle;
+    private string? debugName;
 
     protected override nint ResourceId
     {
@@ -21,6 +22,13 @@ internal sealed class GpuFence : GpuResource, IDisposable
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Sync;
 
     public new bool IsValid => handle != 0 && !IsDisposed;
+
+    public override void SetDebugName(string? debugName)
+    {
+        // GLsync objects are not labelable via KHR_debug object labels in core GL.
+        // Keep the name for debugging/logging only.
+        this.debugName = debugName;
+    }
 
     private GpuFence(nint handle)
     {
