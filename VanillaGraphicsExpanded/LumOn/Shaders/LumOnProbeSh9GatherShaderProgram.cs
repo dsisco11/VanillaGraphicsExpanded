@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for cheap gather from per-probe SH9 coefficients.
 /// Intended for ProbeAtlasGatherMode.EvaluateProjectedSH.
 /// </summary>
-public class LumOnProbeSh9GatherShaderProgram : VgeShaderProgram
+public class LumOnProbeSh9GatherShaderProgram : GpuProgram
 {
     #region Static
 

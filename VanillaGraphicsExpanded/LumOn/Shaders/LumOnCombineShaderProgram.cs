@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Combines indirect diffuse lighting with direct lighting and applies
 /// proper material modulation (albedo, metallic rejection).
 /// </summary>
-public class LumOnCombineShaderProgram : VgeShaderProgram
+public class LumOnCombineShaderProgram : GpuProgram
 {
     #region Static
 

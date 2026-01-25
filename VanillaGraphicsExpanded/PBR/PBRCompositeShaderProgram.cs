@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.PBR;
 /// Shader program for final compositing of PBR direct buffers + optional indirect lighting,
 /// applying fog once and writing to the primary framebuffer.
 /// </summary>
-public sealed class PBRCompositeShaderProgram : VgeShaderProgram
+public sealed class PBRCompositeShaderProgram : GpuProgram
 {
     #region Static
 

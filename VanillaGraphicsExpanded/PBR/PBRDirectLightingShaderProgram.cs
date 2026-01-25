@@ -16,7 +16,7 @@ namespace VanillaGraphicsExpanded.PBR;
 /// - MRT1: Direct specular
 /// - MRT2: Emissive
 /// </summary>
-public sealed class PBRDirectLightingShaderProgram : VgeShaderProgram
+public sealed class PBRDirectLightingShaderProgram : GpuProgram
 {
     private int cachedUniformProgramId;
     private int locPointLightsCount = -1;

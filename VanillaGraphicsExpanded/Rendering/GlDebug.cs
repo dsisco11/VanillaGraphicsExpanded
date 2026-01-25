@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Text;
 using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
@@ -84,6 +86,69 @@ internal static class GlDebug
             // Best-effort only: labels depend on context + driver support.
         }
 #endif
+    }
+
+    /// <summary>
+    /// Drains and returns any pending OpenGL errors on the current thread/context.
+    /// </summary>
+    public static ErrorCode[] GetErrors(int max = 64)
+    {
+        if (max <= 0)
+        {
+            return [];
+        }
+
+        var errors = new List<ErrorCode>(Math.Min(max, 8));
+        try
+        {
+            for (int i = 0; i < max; i++)
+            {
+                ErrorCode err = GL.GetError();
+                if (err == ErrorCode.NoError)
+                {
+                    break;
+                }
+
+                errors.Add(err);
+            }
+        }
+        catch
+        {
+            // Best-effort only: depends on context + driver support.
+        }
+
+        return errors.Count == 0 ? [] : errors.ToArray();
+    }
+
+    /// <summary>
+    /// Drains pending OpenGL errors and returns a formatted string (empty when no errors).
+    /// </summary>
+    public static string GetErrorsString(string? context = null, int max = 64)
+    {
+        ErrorCode[] errors = GetErrors(max);
+        if (errors.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var sb = new StringBuilder();
+        if (!string.IsNullOrWhiteSpace(context))
+        {
+            sb.Append(context);
+            sb.Append(": ");
+        }
+
+        for (int i = 0; i < errors.Length; i++)
+        {
+            if (i != 0)
+            {
+                sb.Append(", ");
+            }
+
+            sb.Append(errors[i]);
+        }
+
+        return sb.ToString();
     }
 
     public static void TryLabelFramebuffer(int framebufferId, string? name)

@@ -20,7 +20,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// - Edge detection via depth discontinuity (reduces temporal weight)
 /// - Invalid normal rejection
 /// </summary>
-public class LumOnProbeAnchorShaderProgram : VgeShaderProgram
+public class LumOnProbeAnchorShaderProgram : GpuProgram
 {
     #region Static
 

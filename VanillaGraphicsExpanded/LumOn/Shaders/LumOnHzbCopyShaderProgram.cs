@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for building HZB mip 0 from the primary depth texture.
 /// Outputs raw depth (0..1) into an R32F render target.
 /// </summary>
-public sealed class LumOnHzbCopyShaderProgram : VgeShaderProgram
+public sealed class LumOnHzbCopyShaderProgram : GpuProgram
 {
     public static void Register(ICoreClientAPI api)
     {

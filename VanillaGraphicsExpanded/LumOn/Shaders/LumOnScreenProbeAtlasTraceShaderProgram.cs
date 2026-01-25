@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Ray traces from each probe and stores radiance + hit distance in the probe atlas.
 /// Uses temporal distribution to trace a subset of directions each frame.
 /// </summary>
-public class LumOnScreenProbeAtlasTraceShaderProgram : VgeShaderProgram
+public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
 {
     #region Static
 

@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for LumOn velocity generation pass.
 /// Produces a per-pixel screen-space velocity (UV delta per frame) and packed reprojection flags.
 /// </summary>
-public class LumOnVelocityShaderProgram : VgeShaderProgram
+public class LumOnVelocityShaderProgram : GpuProgram
 {
     #region Static
 

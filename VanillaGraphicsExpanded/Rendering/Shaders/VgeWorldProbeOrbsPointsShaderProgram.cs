@@ -3,7 +3,7 @@ using Vintagestory.API.MathTools;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
 
-public sealed class VgeWorldProbeOrbsPointsShaderProgram : VgeShaderProgram
+public sealed class VgeWorldProbeOrbsPointsShaderProgram : GpuProgram
 {
     public static void Register(ICoreClientAPI api)
     {

@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for LumOn debug visualization overlay.
 /// Renders probe grid, depth, normals, and other debug views.
 /// </summary>
-public class LumOnDebugShaderProgram : VgeShaderProgram
+public class LumOnDebugShaderProgram : GpuProgram
 {
     #region Static
 

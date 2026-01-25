@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for LumOn Probe Trace pass.
 /// Ray marches from each probe and accumulates radiance into SH coefficients.
 /// </summary>
-public class LumOnProbeTraceShaderProgram : VgeShaderProgram
+public class LumOnProbeTraceShaderProgram : GpuProgram
 {
     #region Static
 

@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for LumOn Upsample pass.
 /// Bilateral upsamples half-res indirect diffuse to full resolution.
 /// </summary>
-public class LumOnUpsampleShaderProgram : VgeShaderProgram
+public class LumOnUpsampleShaderProgram : GpuProgram
 {
     #region Static
 

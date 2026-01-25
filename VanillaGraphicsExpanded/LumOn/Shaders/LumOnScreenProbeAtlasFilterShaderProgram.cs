@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for the LumOn screen-probe atlas filter pass.
 /// Performs an edge-stopped denoise within each probe's octahedral tile.
 /// </summary>
-public class LumOnScreenProbeAtlasFilterShaderProgram : VgeShaderProgram
+public class LumOnScreenProbeAtlasFilterShaderProgram : GpuProgram
 {
     #region Static
 

@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 ///
 /// Intended for multi-pass pipelines that share a common fullscreen vertex stage.
 /// </summary>
-internal sealed class VgeStageNamedShaderProgram : VgeShaderProgram
+internal sealed class VgeStageNamedShaderProgram : GpuProgram
 {
     private readonly string vertexStageShaderName;
     private readonly string fragmentStageShaderName;

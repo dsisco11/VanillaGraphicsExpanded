@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for downsampling an HZB mip level into the next mip.
 /// Uses MIN depth over a 2x2 block.
 /// </summary>
-public sealed class LumOnHzbDownsampleShaderProgram : VgeShaderProgram
+public sealed class LumOnHzbDownsampleShaderProgram : GpuProgram
 {
     public static void Register(ICoreClientAPI api)
     {

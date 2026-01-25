@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program that resolves CPU-produced world-probe coefficients into per-level clipmap textures.
 /// Implementation strategy: render 1px points into an MRT FBO, one point per probe update.
 /// </summary>
-public sealed class LumOnWorldProbeClipmapResolveShaderProgram : VgeShaderProgram
+public sealed class LumOnWorldProbeClipmapResolveShaderProgram : GpuProgram
 {
     #region Static
 

@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for projecting the screen-probe atlas to SH9 coefficients per probe.
 /// Used for the "EvaluateProjectedSH" gather mode (Phase 12 Option B).
 /// </summary>
-public class LumOnScreenProbeAtlasProjectSh9ShaderProgram : VgeShaderProgram
+public class LumOnScreenProbeAtlasProjectSh9ShaderProgram : GpuProgram
 {
     #region Static
 

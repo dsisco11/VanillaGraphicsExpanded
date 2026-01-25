@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Only blends texels traced this frame; preserves non-traced texels.
 /// Uses hit-distance delta for disocclusion detection.
 /// </summary>
-public class LumOnScreenProbeAtlasTemporalShaderProgram : VgeShaderProgram
+public class LumOnScreenProbeAtlasTemporalShaderProgram : GpuProgram
 {
     #region Static
 

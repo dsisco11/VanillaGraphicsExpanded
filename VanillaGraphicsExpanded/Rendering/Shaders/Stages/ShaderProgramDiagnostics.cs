@@ -2,6 +2,8 @@ using System;
 
 using OpenTK.Graphics.OpenGL;
 
+using VanillaGraphicsExpanded.Rendering;
+
 namespace VanillaGraphicsExpanded.Rendering.Shaders.Stages;
 
 internal static class ShaderProgramDiagnostics
@@ -14,24 +16,23 @@ internal static class ShaderProgramDiagnostics
 
     public static LinkDiagnostics LinkDiagnosticsOnly(int vertexShaderId, int fragmentShaderId, int geometryShaderId = 0)
     {
-        int program = 0;
+        GpuProgramObject? program = null;
+        int programId = 0;
 
         try
         {
-            program = GL.CreateProgram();
+            program = GpuProgramObject.Create(debugName: "vge_diag_link_program");
+            programId = program.ProgramId;
 
-            if (vertexShaderId != 0) GL.AttachShader(program, vertexShaderId);
-            if (fragmentShaderId != 0) GL.AttachShader(program, fragmentShaderId);
-            if (geometryShaderId != 0) GL.AttachShader(program, geometryShaderId);
+            if (vertexShaderId != 0) program.AttachShader(vertexShaderId);
+            if (fragmentShaderId != 0) program.AttachShader(fragmentShaderId);
+            if (geometryShaderId != 0) program.AttachShader(geometryShaderId);
 
-            GL.LinkProgram(program);
-
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linkStatus);
-            string log = GL.GetProgramInfoLog(program) ?? string.Empty;
+            bool ok = program.TryLink(out string log);
 
             return new LinkDiagnostics
             {
-                Success = linkStatus != 0,
+                Success = ok,
                 ProgramInfoLog = log
             };
         }
@@ -47,18 +48,20 @@ internal static class ShaderProgramDiagnostics
         {
             try
             {
-                if (program != 0)
+                if (programId != 0)
                 {
-                    if (vertexShaderId != 0) GL.DetachShader(program, vertexShaderId);
-                    if (fragmentShaderId != 0) GL.DetachShader(program, fragmentShaderId);
-                    if (geometryShaderId != 0) GL.DetachShader(program, geometryShaderId);
-
-                    GL.DeleteProgram(program);
+                    if (vertexShaderId != 0) program?.DetachShader(vertexShaderId);
+                    if (fragmentShaderId != 0) program?.DetachShader(fragmentShaderId);
+                    if (geometryShaderId != 0) program?.DetachShader(geometryShaderId);
                 }
             }
             catch
             {
                 // ignore
+            }
+            finally
+            {
+                try { program?.Dispose(); } catch { }
             }
         }
     }

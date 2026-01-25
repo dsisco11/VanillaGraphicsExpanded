@@ -2,6 +2,8 @@ using System;
 
 using OpenTK.Graphics.OpenGL;
 
+using VanillaGraphicsExpanded.Rendering;
+
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
 
 internal static class GlslCompileDiagnostics
@@ -34,7 +36,8 @@ internal static class GlslCompileDiagnostics
         int vsh = 0;
         int fsh = 0;
         int gsh = 0;
-        int program = 0;
+        GpuProgramObject? program = null;
+        int programId = 0;
 
         try
         {
@@ -50,17 +53,17 @@ internal static class GlslCompileDiagnostics
 
             bool ok = vOk && fOk && gOk;
 
-            program = GL.CreateProgram();
-            if (vsh != 0) GL.AttachShader(program, vsh);
-            if (fsh != 0) GL.AttachShader(program, fsh);
-            if (gsh != 0) GL.AttachShader(program, gsh);
-            GL.LinkProgram(program);
+            program = GpuProgramObject.Create(debugName: "vge_diag_compile_program");
+            programId = program.ProgramId;
 
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linkStatus);
-            string pLog = GL.GetProgramInfoLog(program) ?? string.Empty;
+            if (vsh != 0) program.AttachShader(vsh);
+            if (fsh != 0) program.AttachShader(fsh);
+            if (gsh != 0) program.AttachShader(gsh);
+
+            bool linkOk = program.TryLink(out string pLog);
 
             // If compilation already failed, linking will likely fail as well.
-            ok = ok && linkStatus != 0;
+            ok = ok && linkOk;
 
             return new Result
             {
@@ -86,12 +89,11 @@ internal static class GlslCompileDiagnostics
         {
             try
             {
-                if (program != 0)
+                if (programId != 0)
                 {
-                    if (vsh != 0) GL.DetachShader(program, vsh);
-                    if (fsh != 0) GL.DetachShader(program, fsh);
-                    if (gsh != 0) GL.DetachShader(program, gsh);
-                    GL.DeleteProgram(program);
+                    if (vsh != 0) program?.DetachShader(vsh);
+                    if (fsh != 0) program?.DetachShader(fsh);
+                    if (gsh != 0) program?.DetachShader(gsh);
                 }
 
                 if (vsh != 0) GL.DeleteShader(vsh);
@@ -101,6 +103,10 @@ internal static class GlslCompileDiagnostics
             catch
             {
                 // ignore
+            }
+            finally
+            {
+                try { program?.Dispose(); } catch { }
             }
         }
     }

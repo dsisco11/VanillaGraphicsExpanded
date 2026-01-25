@@ -25,7 +25,7 @@ Issues:
     ☐ Add `GpuTransformFeedback` RAII wrapper.
     ☐ Add `GpuSampler` RAII wrapper.
     ☐ Add `GpuProgramPipeline` RAII wrapper.
-    ☐ Refactor `VgeShaderProgram` into `GpuProgram` (rename + RAII + deferred disposal).
+    ✔ Refactor `VgeShaderProgram` into `GpuProgram` (rename + RAII + deferred disposal).
 
   WorldProbes:
     ☐ Rename world-probe classes to remove `LumOn` prefix.

@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for projecting the screen-probe atlas into packed SH L1 coefficients.
 /// Used for Phase 12 Option B (cheap gather).
 /// </summary>
-public class LumOnScreenProbeAtlasProjectSHShaderProgram : VgeShaderProgram
+public class LumOnScreenProbeAtlasProjectSHShaderProgram : GpuProgram
 {
     #region Static
 

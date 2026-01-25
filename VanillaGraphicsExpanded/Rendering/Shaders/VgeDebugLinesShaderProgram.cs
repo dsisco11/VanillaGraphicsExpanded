@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 /// <summary>
 /// Minimal shader program for debug line rendering in clip space.
 /// </summary>
-public sealed class VgeDebugLinesShaderProgram : VgeShaderProgram
+public sealed class VgeDebugLinesShaderProgram : GpuProgram
 {
     public static void Register(ICoreClientAPI api)
     {

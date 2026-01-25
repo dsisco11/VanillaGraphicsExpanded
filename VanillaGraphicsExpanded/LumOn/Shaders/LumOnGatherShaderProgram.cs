@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for LumOn Gather pass.
 /// Interpolates nearby probes to compute per-pixel irradiance.
 /// </summary>
-public class LumOnGatherShaderProgram : VgeShaderProgram
+public class LumOnGatherShaderProgram : GpuProgram
 {
     #region Static
 

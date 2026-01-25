@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Implementation detail: integrates radiance from an octahedral-mapped probe atlas.
 /// This replaces the SH-based gather when UseProbeAtlas is enabled.
 /// </summary>
-public class LumOnScreenProbeAtlasGatherShaderProgram : VgeShaderProgram
+public class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
 {
     #region Static
 

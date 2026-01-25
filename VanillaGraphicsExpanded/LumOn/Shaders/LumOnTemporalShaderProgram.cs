@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Implements reprojection, validation, and neighborhood clamping.
 /// See: LumOn.05-Temporal.md
 /// </summary>
-public class LumOnTemporalShaderProgram : VgeShaderProgram
+public class LumOnTemporalShaderProgram : GpuProgram
 {
     #region Static
 
