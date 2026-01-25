@@ -77,25 +77,20 @@ internal static class LineDirectiveInjector
                 continue;
             }
 
-            // Resolve the original boundary location for the generated offset.
-            var boundary = sourceMap.ResolveOriginalBoundaryLocation(
-                generatedOffset: range.GeneratedStartOffset,
-                contentProvider: contentProvider,
-                boundaryResolver: boundaryResolver);
-
-            if (boundary is null)
+            // If we had to clamp to a later position (e.g. after #version) and that falls outside this segment,
+            // skip this segment and let the later segment(s) contribute an insertion point.
+            if (offset >= range.GeneratedEndOffset)
             {
                 continue;
             }
 
-            int sourceId = NextId(boundary.Resource);
-            int originalLineOneBased = boundary.BoundaryIndex + 1;
+            int segmentDelta = offset - range.GeneratedStartOffset;
+            int originalOffset = range.OriginalStartOffset + segmentDelta;
 
-            // Skip pathological or zero values.
-            if (originalLineOneBased <= 0)
-            {
-                originalLineOneBased = 1;
-            }
+            int sourceId = NextId(range.Resource);
+
+            var content = contentProvider(range.Resource);
+            int originalLineOneBased = GetOriginalLineOneBased(content, range.Resource, originalOffset, boundaryResolver);
 
             inserts.Add((offset, $"#line {originalLineOneBased} {sourceId}\n"));
         }
@@ -137,13 +132,71 @@ internal static class LineDirectiveInjector
         };
     }
 
+    private static int GetOriginalLineOneBased(
+        SyntaxTree content,
+        ResourceId resource,
+        int originalOffset,
+        IContentBoundaryResolver<SyntaxTree, LineBoundary> boundaryResolver)
+    {
+        if (content.TextLength <= 0)
+        {
+            return 1;
+        }
+
+        int safeOffset = Math.Clamp(originalOffset, 0, Math.Max(0, content.TextLength - 1));
+        int safeEndExclusive = Math.Min(safeOffset + 1, content.TextLength);
+
+        var range = safeOffset..safeEndExclusive;
+        if (SyntaxTreeLineColumnMapper.TryGetLineColumnRange(
+                content,
+                resource,
+                range,
+                boundaryResolver,
+                out var start,
+                out _))
+        {
+            return Math.Max(1, start.Line);
+        }
+
+        return 1;
+    }
+
     private static int GetMinInsertOffset(SyntaxTree tree)
     {
         // #version must be the first directive in GLSL.
-        // We clamp injection offsets to be at/after the version directive token.
+        // We clamp injection offsets to be at/after the #version line.
         var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
         var version = tree.Select(versionQuery).FirstOrDefault();
 
-        return version is null ? 0 : Math.Max(0, version.EndPosition);
+        if (version is null)
+        {
+            return 0;
+        }
+
+        int start = Math.Max(0, version.Position);
+        if (tree.TextLength <= 0)
+        {
+            return 0;
+        }
+
+        // Ensure we don't insert before the newline that terminates the #version directive,
+        // otherwise the line resolver will correctly report line 1.
+        // We want "#line 2 ..." to apply to subsequent lines.
+        try
+        {
+            string text = tree.ToText();
+            int searchStart = Math.Clamp(start, 0, Math.Max(0, text.Length - 1));
+            int newline = text.IndexOf('\n', searchStart);
+            if (newline >= 0)
+            {
+                int afterNewline = newline + 1;
+                return Math.Clamp(afterNewline, 0, Math.Max(0, tree.TextLength - 1));
+            }
+        }
+        catch
+        {
+        }
+
+        return Math.Clamp(start, 0, Math.Max(0, tree.TextLength - 1));
     }
 }
