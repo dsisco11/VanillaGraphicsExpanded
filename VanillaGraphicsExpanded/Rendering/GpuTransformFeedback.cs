@@ -123,7 +123,7 @@ internal sealed class GpuTransformFeedback : GpuResource, IDisposable
         }
 
         using var _ = BindScope();
-        GL.BindBufferBase(BufferRangeTarget.TransformFeedbackBuffer, index, bufferId);
+        GlStateCache.Current.BindBufferBase(BufferRangeTarget.TransformFeedbackBuffer, index, bufferId);
     }
 
     /// <summary>
@@ -146,7 +146,7 @@ internal sealed class GpuTransformFeedback : GpuResource, IDisposable
         }
 
         using var _ = BindScope();
-        GL.BindBufferRange(BufferRangeTarget.TransformFeedbackBuffer, index, bufferId, (IntPtr)offsetBytes, (IntPtr)sizeBytes);
+        GlStateCache.Current.BindBufferRange(BufferRangeTarget.TransformFeedbackBuffer, index, bufferId, offsetBytes, sizeBytes);
     }
 
     /// <summary>

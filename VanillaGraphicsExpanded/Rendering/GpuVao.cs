@@ -121,7 +121,7 @@ internal sealed class GpuVao : GpuResource, IDisposable
         if (!VaoDsa.TryVertexArrayElementBuffer(vertexArrayId, bufferId))
         {
             Bind();
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
+            GlStateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
         }
     }
 
@@ -296,7 +296,7 @@ internal sealed class GpuVao : GpuResource, IDisposable
         }
 
         Bind();
-        GL.BindBuffer(BufferTarget.ElementArrayBuffer, ebo.BufferId);
+        GlStateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, ebo.BufferId);
         GL.DrawElements(primitiveType, count, ebo.IndexType, (IntPtr)offsetBytes);
     }
 
@@ -352,7 +352,7 @@ internal sealed class GpuVao : GpuResource, IDisposable
         }
 
         Bind();
-        GL.BindBuffer(BufferTarget.ElementArrayBuffer, ebo.BufferId);
+        GlStateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, ebo.BufferId);
         GL.DrawElementsInstanced(primitiveType, count, ebo.IndexType, (IntPtr)offsetBytes, instanceCount);
     }
 

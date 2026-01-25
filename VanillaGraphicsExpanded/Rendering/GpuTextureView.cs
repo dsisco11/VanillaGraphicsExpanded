@@ -217,16 +217,6 @@ public sealed class GpuTextureView : GpuResource, IDisposable
             return;
         }
 
-        try
-        {
-            GL.BindTextureUnit(unit, textureId);
-        }
-        catch
-        {
-            // Fallback path for non-DSA contexts.
-            GL.ActiveTexture(TextureUnit.Texture0 + unit);
-            GL.BindTexture(target, textureId);
-        }
+        GlStateCache.Current.BindTexture(target, unit, textureId);
     }
 }
-

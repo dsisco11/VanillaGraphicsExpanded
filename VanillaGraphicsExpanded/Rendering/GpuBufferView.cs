@@ -99,8 +99,7 @@ public class GpuBufferView : GpuResource, IDisposable
 
         try
         {
-            // Ensure the texture name has a target.
-            GL.BindTexture(TextureTarget.TextureBuffer, id);
+            using var _ = GlStateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, unit: 0, id);
 
             // Prefer DSA when available, otherwise fall back to bind-to-edit.
             try
@@ -111,8 +110,6 @@ public class GpuBufferView : GpuResource, IDisposable
             {
                 GL.TexBuffer(TextureBufferTarget.TextureBuffer, format, bufferId);
             }
-
-            GL.BindTexture(TextureTarget.TextureBuffer, 0);
 
             var view = new GpuBufferView(id, bufferId, format, offsetBytes: 0, sizeBytes: 0);
             view.SetDebugName(debugName);
@@ -162,8 +159,7 @@ public class GpuBufferView : GpuResource, IDisposable
 
         try
         {
-            // Ensure the texture name has a target.
-            GL.BindTexture(TextureTarget.TextureBuffer, id);
+            using var _ = GlStateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, unit: 0, id);
 
             // Prefer DSA when available, otherwise fall back to bind-to-edit.
             try
@@ -175,8 +171,6 @@ public class GpuBufferView : GpuResource, IDisposable
                 int size = checked((int)sizeBytes);
                 GL.TexBufferRange(TextureBufferTarget.TextureBuffer, format, bufferId, (IntPtr)offsetBytes, size);
             }
-
-            GL.BindTexture(TextureTarget.TextureBuffer, 0);
 
             var view = new GpuBufferView(id, bufferId, format, offsetBytes, sizeBytes);
             view.SetDebugName(debugName);
@@ -200,15 +194,7 @@ public class GpuBufferView : GpuResource, IDisposable
             return;
         }
 
-        try
-        {
-            GL.BindTextureUnit(unit, textureId);
-        }
-        catch
-        {
-            GL.ActiveTexture(TextureUnit.Texture0 + unit);
-            GL.BindTexture(TextureTarget.TextureBuffer, textureId);
-        }
+        GlStateCache.Current.BindTexture(TextureTarget.TextureBuffer, unit, textureId);
     }
 
     /// <summary>

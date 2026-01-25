@@ -373,19 +373,11 @@ internal sealed class GpuProgramLayout
             return false;
         }
 
-        try
-        {
-            GL.BindTextureUnit(unit, textureId);
-        }
-        catch
-        {
-            GL.ActiveTexture(TextureUnit.Texture0 + unit);
-            GL.BindTexture(target, textureId);
-        }
+        GlStateCache.Current.BindTexture(target, unit, textureId);
 
         if (samplerId != 0)
         {
-            try { GL.BindSampler(unit, samplerId); } catch { }
+            GlStateCache.Current.BindSampler(unit, samplerId);
         }
 
         return true;

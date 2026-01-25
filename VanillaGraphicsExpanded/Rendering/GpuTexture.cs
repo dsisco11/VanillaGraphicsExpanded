@@ -176,7 +176,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         DeleteTextureIfAllocated();
 
         textureId = GL.GenTexture();
-        GL.BindTexture(textureTarget, textureId);
+        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
 
 #if DEBUG
         GlDebug.TryLabel(ObjectLabelIdentifier.Texture, textureId, debugName);
@@ -184,8 +184,6 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
         Allocate2DStorageBound(mipLevels);
         Apply2DSamplerParamsBound(mipLevels);
-
-        GL.BindTexture(textureTarget, 0);
     }
 
     protected void Reallocate2DStorageInPlace(int mipLevels)
@@ -210,10 +208,9 @@ public abstract class GpuTexture : GpuResource, IDisposable
             throw new InvalidOperationException("TextureRectangle does not support mipmaps.");
         }
 
-        GL.BindTexture(textureTarget, textureId);
+        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         Allocate2DStorageBound(mipLevels);
         Apply2DSamplerParamsBound(mipLevels);
-        GL.BindTexture(textureTarget, 0);
     }
 
     protected void AllocateOrReallocate3DTexture()
@@ -223,7 +220,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         DeleteTextureIfAllocated();
 
         textureId = GL.GenTexture();
-        GL.BindTexture(textureTarget, textureId);
+        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
 
 #if DEBUG
         GlDebug.TryLabel(ObjectLabelIdentifier.Texture, textureId, debugName);
@@ -231,8 +228,6 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
         Allocate3DStorageBound();
         Apply3DSamplerParamsBound();
-
-        GL.BindTexture(textureTarget, 0);
     }
 
     private void DeleteTextureIfAllocated()
@@ -607,7 +602,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
                 nameof(data));
         }
 
-        GL.BindTexture(textureTarget, textureId);
+        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         GL.TexSubImage3D(
             textureTarget,
             mipLevel,
@@ -620,7 +615,6 @@ public abstract class GpuTexture : GpuResource, IDisposable
             TextureFormatHelper.GetPixelFormat(internalFormat),
             PixelType.Float,
             data);
-        GL.BindTexture(textureTarget, 0);
     }
 
     /// <summary>
@@ -647,7 +641,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
         Ensure2DLike();
 
-        GL.BindTexture(textureTarget, textureId);
+        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         GL.TexSubImage2D(
             textureTarget,
             level: 0,
@@ -658,7 +652,6 @@ public abstract class GpuTexture : GpuResource, IDisposable
             format: TextureFormatHelper.GetPixelFormat(internalFormat),
             type: PixelType.Float,
             pixels: data);
-        GL.BindTexture(textureTarget, 0);
     }
 
     public virtual void UploadDataImmediate(float[] data, int x, int y, int regionWidth, int regionHeight)
@@ -688,7 +681,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
                 nameof(data));
         }
 
-        GL.BindTexture(textureTarget, textureId);
+        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         GL.TexSubImage2D(
             textureTarget,
             level: 0,
@@ -699,7 +692,6 @@ public abstract class GpuTexture : GpuResource, IDisposable
             format: TextureFormatHelper.GetPixelFormat(internalFormat),
             type: PixelType.Float,
             pixels: data);
-        GL.BindTexture(textureTarget, 0);
     }
 
     public virtual void UploadDataImmediate(ushort[] data)
@@ -729,7 +721,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
                 nameof(data));
         }
 
-        GL.BindTexture(textureTarget, textureId);
+        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
         GL.TexSubImage2D(
             textureTarget,
@@ -741,7 +733,6 @@ public abstract class GpuTexture : GpuResource, IDisposable
             format: TextureFormatHelper.GetPixelFormat(internalFormat),
             type: pixelType,
             pixels: data);
-        GL.BindTexture(textureTarget, 0);
     }
 
     #region Readback

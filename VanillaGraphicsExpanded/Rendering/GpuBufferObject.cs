@@ -937,7 +937,7 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
             previousVao = 0;
         }
 
-        GL.BindVertexArray(0);
+        GlStateCache.Current.BindVertexArray(0);
 
         int previousEbo0 = 0;
         try
@@ -949,12 +949,12 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
             previousEbo0 = 0;
         }
 
-        GL.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
+        GlStateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
 
         IntPtr ptr = GL.MapBufferRange(BufferTarget.ElementArrayBuffer, (IntPtr)offsetBytes, (IntPtr)byteCount, access);
 
-        GL.BindBuffer(BufferTarget.ElementArrayBuffer, previousEbo0);
-        GL.BindVertexArray(previousVao);
+        GlStateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, previousEbo0);
+        GlStateCache.Current.BindVertexArray(previousVao);
 
         return ptr;
     }
@@ -1372,9 +1372,9 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
                 previous = 0;
             }
 
-            GL.BindBuffer(target, bufferId);
+            GlStateCache.Current.BindBuffer(target, bufferId);
             GL.FlushMappedBufferRange(target, (IntPtr)offsetBytes, (IntPtr)byteCount);
-            GL.BindBuffer(target, previous);
+            GlStateCache.Current.BindBuffer(target, previous);
         }
 
         private static void FlushElementArrayBufferRange(int bufferId, int offsetBytes, int byteCount)
@@ -1389,7 +1389,7 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
                 previousVao = 0;
             }
 
-            GL.BindVertexArray(0);
+            GlStateCache.Current.BindVertexArray(0);
 
             int previousEbo0 = 0;
             try
@@ -1401,10 +1401,10 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
                 previousEbo0 = 0;
             }
 
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
+            GlStateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
             GL.FlushMappedBufferRange(BufferTarget.ElementArrayBuffer, (IntPtr)offsetBytes, (IntPtr)byteCount);
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, previousEbo0);
-            GL.BindVertexArray(previousVao);
+            GlStateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, previousEbo0);
+            GlStateCache.Current.BindVertexArray(previousVao);
         }
 
         private static void UnmapBound(int bufferId, BufferTarget target)
@@ -1422,9 +1422,9 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
                 previous = 0;
             }
 
-            GL.BindBuffer(target, bufferId);
+            GlStateCache.Current.BindBuffer(target, bufferId);
             _ = GL.UnmapBuffer(target);
-            GL.BindBuffer(target, previous);
+            GlStateCache.Current.BindBuffer(target, previous);
         }
 
         private static void UnmapElementArrayBuffer(int bufferId)
@@ -1439,7 +1439,7 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
                 previousVao = 0;
             }
 
-            GL.BindVertexArray(0);
+            GlStateCache.Current.BindVertexArray(0);
 
             int previousEbo0 = 0;
             try
@@ -1451,10 +1451,10 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
                 previousEbo0 = 0;
             }
 
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
+            GlStateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
             _ = GL.UnmapBuffer(BufferTarget.ElementArrayBuffer);
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, previousEbo0);
-            GL.BindVertexArray(previousVao);
+            GlStateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, previousEbo0);
+            GlStateCache.Current.BindVertexArray(previousVao);
         }
     }
 
@@ -1479,7 +1479,7 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
             {
                 gl.BindVertexArray(previousVao);
                 // EBO binding is VAO state; GlStateCache doesn't track it yet.
-                GL.BindBuffer(target, previous);
+                GlStateCache.Current.BindBuffer(target, previous);
                 return;
             }
 

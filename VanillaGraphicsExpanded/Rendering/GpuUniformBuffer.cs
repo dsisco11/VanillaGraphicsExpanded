@@ -46,7 +46,7 @@ internal sealed class GpuUniformBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(bindingIndex), bindingIndex, "Binding index must be >= 0.");
         }
 
-        GL.BindBufferBase(BufferRangeTarget.UniformBuffer, bindingIndex, bufferId);
+        GlStateCache.Current.BindBufferBase(BufferRangeTarget.UniformBuffer, bindingIndex, bufferId);
     }
 
     /// <summary>
@@ -70,7 +70,7 @@ internal sealed class GpuUniformBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(offsetBytes), "Offset must be >= 0 and size must be > 0.");
         }
 
-        GL.BindBufferRange(BufferRangeTarget.UniformBuffer, bindingIndex, bufferId, (IntPtr)offsetBytes, (IntPtr)sizeBytes);
+        GlStateCache.Current.BindBufferRange(BufferRangeTarget.UniformBuffer, bindingIndex, bufferId, offsetBytes, sizeBytes);
     }
 
     /// <summary>
@@ -83,7 +83,6 @@ internal sealed class GpuUniformBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(bindingIndex), bindingIndex, "Binding index must be >= 0.");
         }
 
-        GL.BindBufferBase(BufferRangeTarget.UniformBuffer, bindingIndex, 0);
+        GlStateCache.Current.UnbindBufferBase(BufferRangeTarget.UniformBuffer, bindingIndex);
     }
 }
-

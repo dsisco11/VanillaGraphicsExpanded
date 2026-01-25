@@ -720,6 +720,33 @@ internal sealed partial class GlStateCache
         BindBuffer(target, 0);
     }
 
+    public void BindBufferBase(BufferRangeTarget target, int index, int bufferId)
+    {
+        try
+        {
+            GL.BindBufferBase(target, index, bufferId);
+        }
+        catch
+        {
+        }
+    }
+
+    public void UnbindBufferBase(BufferRangeTarget target, int index)
+    {
+        BindBufferBase(target, index, 0);
+    }
+
+    public void BindBufferRange(BufferRangeTarget target, int index, int bufferId, nint offsetBytes, nint sizeBytes)
+    {
+        try
+        {
+            GL.BindBufferRange(target, index, bufferId, (IntPtr)offsetBytes, (IntPtr)sizeBytes);
+        }
+        catch
+        {
+        }
+    }
+
     public BufferScope BindBufferScope(BufferTarget target, int bufferId)
     {
         int previous = 0;
@@ -801,6 +828,7 @@ internal sealed partial class GlStateCache
             TextureTarget.Texture2D => GetPName.TextureBinding2D,
             TextureTarget.Texture2DArray => GetPName.TextureBinding2DArray,
             TextureTarget.Texture3D => GetPName.TextureBinding3D,
+            TextureTarget.TextureBuffer => (GetPName)0x8C2C, // GL_TEXTURE_BINDING_BUFFER
             TextureTarget.TextureRectangle => GetPName.TextureBindingRectangle,
             TextureTarget.TextureCubeMap => GetPName.TextureBindingCubeMap,
             // Not present in some OpenTK builds; use raw GL enum value.
@@ -824,7 +852,7 @@ internal sealed partial class GlStateCache
             BufferTarget.PixelUnpackBuffer => GetPName.PixelUnpackBufferBinding,
             BufferTarget.UniformBuffer => GetPName.UniformBufferBinding,
             BufferTarget.ShaderStorageBuffer => GetPName.ShaderStorageBufferBinding,
-            BufferTarget.TextureBuffer => GetPName.TextureBuffer,
+            BufferTarget.TextureBuffer => (GetPName)0x8C2A, // GL_TEXTURE_BUFFER_BINDING
             BufferTarget.AtomicCounterBuffer => (GetPName)0x92C2, // GL_ATOMIC_COUNTER_BUFFER_BINDING
             BufferTarget.TransformFeedbackBuffer => GetPName.TransformFeedbackBufferBinding,
             _ => default

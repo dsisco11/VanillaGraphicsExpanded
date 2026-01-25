@@ -42,7 +42,7 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
             return;
         }
 
-        GL.BindBuffer(BufferTarget.DrawIndirectBuffer, bufferId);
+        GlStateCache.Current.BindBuffer(BufferTarget.DrawIndirectBuffer, bufferId);
     }
 
     /// <summary>
@@ -56,7 +56,7 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
             return;
         }
 
-        GL.BindBuffer(BufferTarget.DispatchIndirectBuffer, bufferId);
+        GlStateCache.Current.BindBuffer(BufferTarget.DispatchIndirectBuffer, bufferId);
     }
 
     /// <summary>
@@ -204,7 +204,7 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
 
         public void Dispose()
         {
-            try { GL.BindBuffer(target, previous); } catch { }
+            GlStateCache.Current.BindBuffer(target, previous);
         }
     }
 }

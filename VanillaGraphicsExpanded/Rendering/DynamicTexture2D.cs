@@ -275,7 +275,7 @@ public sealed class DynamicTexture2D : GpuTexture
                 nameof(data));
         }
 
-        GL.BindTexture(TextureTarget.Texture2D, textureId);
+        using var _ = GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, unit: 0, textureId);
         GL.TexSubImage2D(
             TextureTarget.Texture2D,
             0,
@@ -284,7 +284,6 @@ public sealed class DynamicTexture2D : GpuTexture
             TextureFormatHelper.GetPixelFormat(internalFormat),
             PixelType.Float,
             data);
-        GL.BindTexture(TextureTarget.Texture2D, 0);
     }
 
     /// <summary>
@@ -327,7 +326,7 @@ public sealed class DynamicTexture2D : GpuTexture
                 nameof(data));
         }
 
-        GL.BindTexture(TextureTarget.Texture2D, textureId);
+        using var _ = GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, unit: 0, textureId);
         GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
         GL.TexSubImage2D(
             TextureTarget.Texture2D,
@@ -337,7 +336,6 @@ public sealed class DynamicTexture2D : GpuTexture
             TextureFormatHelper.GetPixelFormat(internalFormat),
             pixelType,
             data);
-        GL.BindTexture(TextureTarget.Texture2D, 0);
     }
 
     /// <summary>
@@ -382,7 +380,7 @@ public sealed class DynamicTexture2D : GpuTexture
                 nameof(data));
         }
 
-        GL.BindTexture(TextureTarget.Texture2D, textureId);
+        using var _ = GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, unit: 0, textureId);
         GL.TexSubImage2D(
             TextureTarget.Texture2D,
             0,
@@ -391,7 +389,6 @@ public sealed class DynamicTexture2D : GpuTexture
             TextureFormatHelper.GetPixelFormat(internalFormat),
             PixelType.Float,
             data);
-        GL.BindTexture(TextureTarget.Texture2D, 0);
     }
 
     internal void EnqueueUploadData(float[] data, int priority = 0, int mipLevel = 0)

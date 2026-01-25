@@ -89,8 +89,8 @@ internal readonly struct GpuVertexAttribBinding
         if (!Dsa.TryVertexArrayVertexBuffer(vaoId, bindingIndex, vboId, offsetBytes, strideBytes))
         {
             // Legacy emulation: bind VAO + bind ARRAY_BUFFER. Offsets are applied per-attribute via VertexAttribPointer.
-            GL.BindVertexArray(vaoId);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vboId);
+            GlStateCache.Current.BindVertexArray(vaoId);
+            GlStateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, vboId);
         }
 
         return new GpuVertexAttribBinding(vaoId, bindingIndex, vboId, offsetBytes, strideBytes, divisor);
@@ -160,8 +160,8 @@ internal readonly struct GpuVertexAttribBinding
 
         nint absoluteOffset = baseOffsetBytes + relativeOffsetBytes;
 
-        GL.BindVertexArray(vaoId);
-        GL.BindBuffer(BufferTarget.ArrayBuffer, vboId);
+        GlStateCache.Current.BindVertexArray(vaoId);
+        GlStateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, vboId);
         GL.EnableVertexAttribArray(attribIndex);
         GL.VertexAttribPointer(attribIndex, size, type, normalized, strideBytes, (IntPtr)absoluteOffset);
         if (divisor != 0)
@@ -210,8 +210,8 @@ internal readonly struct GpuVertexAttribBinding
 
         nint absoluteOffset = baseOffsetBytes + relativeOffsetBytes;
 
-        GL.BindVertexArray(vaoId);
-        GL.BindBuffer(BufferTarget.ArrayBuffer, vboId);
+        GlStateCache.Current.BindVertexArray(vaoId);
+        GlStateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, vboId);
         GL.EnableVertexAttribArray(attribIndex);
         GL.VertexAttribIPointer(attribIndex, size, type, strideBytes, (IntPtr)absoluteOffset);
         if (divisor != 0)
@@ -232,7 +232,7 @@ internal readonly struct GpuVertexAttribBinding
 
         if (!Dsa.TryDisableVertexArrayAttrib(vaoId, attribIndex))
         {
-            GL.BindVertexArray(vaoId);
+            GlStateCache.Current.BindVertexArray(vaoId);
             GL.DisableVertexAttribArray(attribIndex);
         }
     }
@@ -395,4 +395,3 @@ internal readonly struct GpuVertexAttribBinding
         }
     }
 }
-

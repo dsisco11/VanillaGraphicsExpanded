@@ -199,7 +199,7 @@ public sealed class DynamicTexture3D : GpuTexture
             clearData[i + 3] = a;
         }
 
-        GL.BindTexture(textureTarget, textureId);
+        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         GL.TexSubImage3D(
             textureTarget,
             0, 0, 0, 0,
@@ -207,7 +207,6 @@ public sealed class DynamicTexture3D : GpuTexture
             PixelFormat.Rgba,
             PixelType.Float,
             clearData);
-        GL.BindTexture(textureTarget, 0);
     }
 
     internal void EnqueueUploadData(float[] data, int x, int y, int z, int regionWidth, int regionHeight, int regionDepth, int priority = 0, int mipLevel = 0)

@@ -35,8 +35,7 @@ public sealed class GpuBufferTexture : GpuBufferView
 
         try
         {
-            // Ensure the texture name has a target.
-            GL.BindTexture(TextureTarget.TextureBuffer, id);
+            using var _ = GlStateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, unit: 0, id);
 
             // Prefer DSA when available, otherwise fall back to bind-to-edit.
             try
@@ -47,8 +46,6 @@ public sealed class GpuBufferTexture : GpuBufferView
             {
                 GL.TexBuffer(TextureBufferTarget.TextureBuffer, format, bufferId);
             }
-
-            GL.BindTexture(TextureTarget.TextureBuffer, 0);
 
             var view = new GpuBufferTexture(id, bufferId, format, offsetBytes: 0, sizeBytes: 0);
             view.SetDebugName(debugName);
@@ -97,8 +94,7 @@ public sealed class GpuBufferTexture : GpuBufferView
 
         try
         {
-            // Ensure the texture name has a target.
-            GL.BindTexture(TextureTarget.TextureBuffer, id);
+            using var _ = GlStateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, unit: 0, id);
 
             // Prefer DSA when available, otherwise fall back to bind-to-edit.
             try
@@ -110,8 +106,6 @@ public sealed class GpuBufferTexture : GpuBufferView
                 int size = checked((int)sizeBytes);
                 GL.TexBufferRange(TextureBufferTarget.TextureBuffer, format, bufferId, (IntPtr)offsetBytes, size);
             }
-
-            GL.BindTexture(TextureTarget.TextureBuffer, 0);
 
             var view = new GpuBufferTexture(id, bufferId, format, offsetBytes, sizeBytes);
             view.SetDebugName(debugName);
