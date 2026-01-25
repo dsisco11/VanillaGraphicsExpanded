@@ -148,6 +148,11 @@ public class LumOnDebugShaderProgram : GpuProgram
     public int ProbeAtlasGatherInput { set => BindTexture2D("probeAtlasGatherInput", value, 11); }
 
     /// <summary>
+    /// Raw/trace probe-atlas radiance (pre-temporal). Used by probe-atlas debug modes.
+    /// </summary>
+    public int ProbeAtlasTrace { set => BindTexture2D("probeAtlasTrace", value, 27); }
+
+    /// <summary>
     /// Full-resolution indirect diffuse (upsampled) used by composite debug views.
     /// </summary>
     public int IndirectDiffuseFull { set => BindTexture2D("indirectDiffuseFull", value, 12); }

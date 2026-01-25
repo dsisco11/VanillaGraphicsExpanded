@@ -28,6 +28,10 @@ out vec4 outColor;
 // 15 = Probe-Atlas Filtered Radiance (probe-space)
 // 16 = Probe-Atlas Filter Delta (abs(filtered - current))
 // 17 = Probe-Atlas Gather Input Source (raw vs filtered)
+// 45 = Probe-Atlas Current Radiance (post-temporal)
+// 46 = Probe-Atlas Gather Input Radiance (actual gather input)
+// 47 = Probe-Atlas Hit Distance (log-encoded, from gather input)
+// 48 = Probe-Atlas Trace Radiance (pre-temporal)
 // 18 = Composite AO (Phase 15)
 // 19 = Composite Indirect Diffuse (Phase 15)
 // 20 = Composite Indirect Specular (Phase 15)
@@ -91,6 +95,7 @@ uniform sampler2D historyMeta;          // linearized depth, normal, accumCount
 
 // Screen-probe atlas textures
 uniform sampler2D probeAtlasMeta;       // R = confidence, G = uintBitsToFloat(flags)
+uniform sampler2D probeAtlasTrace;      // RGBA16F radiance atlas (pre-temporal)
 uniform sampler2D probeAtlasCurrent;     // RGBA16F radiance atlas (post-temporal)
 uniform sampler2D probeAtlasFiltered;    // RGBA16F radiance atlas (post-filter)
 uniform sampler2D probeAtlasGatherInput; // The atlas currently selected as gather input
@@ -464,6 +469,30 @@ vec4 renderProbeAtlasMetaFlagsDebug() {
 vec4 renderProbeAtlasFilteredRadianceDebug() {
     vec3 rgb = texture(probeAtlasFiltered, uv).rgb;
     return vec4(rgb, 1.0);
+}
+
+vec4 renderProbeAtlasCurrentRadianceDebug() {
+    vec3 rgb = texture(probeAtlasCurrent, uv).rgb;
+    return vec4(rgb, 1.0);
+}
+
+vec4 renderProbeAtlasTraceRadianceDebug() {
+    vec3 rgb = texture(probeAtlasTrace, uv).rgb;
+    return vec4(rgb, 1.0);
+}
+
+vec4 renderProbeAtlasGatherInputRadianceDebug() {
+    vec3 rgb = texture(probeAtlasGatherInput, uv).rgb;
+    return vec4(rgb, 1.0);
+}
+
+vec4 renderProbeAtlasHitDistanceDebug() {
+    // Atlas hit distance is stored in A as log(distance + 1).
+    // Use the gather-input atlas since that's what downstream shading consumes.
+    float distLog = texture(probeAtlasGatherInput, uv).a;
+    // Scale log distances into [0,1] in a somewhat stable way.
+    float t = clamp(distLog / 5.0, 0.0, 1.0);
+    return vec4(heatmap(t), 1.0);
 }
 
 vec4 renderProbeAtlasFilterDeltaDebug() {
@@ -1411,6 +1440,18 @@ void main(void)
             break;
         case 17:
             outColor = renderProbeAtlasGatherInputSourceDebug();
+            break;
+        case 45:
+            outColor = renderProbeAtlasCurrentRadianceDebug();
+            break;
+        case 46:
+            outColor = renderProbeAtlasGatherInputRadianceDebug();
+            break;
+        case 47:
+            outColor = renderProbeAtlasHitDistanceDebug();
+            break;
+        case 48:
+            outColor = renderProbeAtlasTraceRadianceDebug();
             break;
         case 18:
             outColor = renderCompositeAoDebug();

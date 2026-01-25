@@ -75,23 +75,23 @@
     - Probes view can switch modes without exposing duplicate world/screen entries
     - World/Screen toggle appears only for symmetric modes
 
-☐ Phase 3 - Add Symmetric Shader Modes (Append-Only)
+✔ Phase 3 - Add Symmetric Shader Modes (Append-Only)
   Goal: Add new shader debug modes so screen/atlas counterparts exist when the underlying data is available.
   Reference:
     - docs/LumOn.03-Radiance-Cache.md
     - docs/LumOn.06-Gather-Upsample.md
     - docs/ShaderDefines.UniformVsDefine.md
   Work items:
-    ☐ Append new LumOnDebugMode entries (do not renumber existing values):
-      ☐ ProbeAtlasCurrentRadiance
-      ☐ ProbeAtlasGatherInputRadiance
-      ☐ ProbeAtlasHitDistance
-      ☐ ProbeAtlasTraceRadiance (only if raw trace texture can be bound cleanly)
-    ☐ Implement shader cases in assets/vanillagraphicsexpanded/shaders/lumon_debug.fsh
-    ☐ If ProbeAtlasTraceRadiance is added:
-      ☐ Add sampler uniform + binding in LumOnDebugShaderProgram.cs
-      ☐ Bind the trace atlas texture in LumOnDebugRenderer.cs
-    ☐ Integrate the new modes into the Probes view mapping so symmetric toggle works where applicable
+    ✔ Append new LumOnDebugMode entries (do not renumber existing values):
+      ✔ ProbeAtlasCurrentRadiance
+      ✔ ProbeAtlasGatherInputRadiance
+      ✔ ProbeAtlasHitDistance
+      ✔ ProbeAtlasTraceRadiance (only if raw trace texture can be bound cleanly)
+    ✔ Implement shader cases in assets/vanillagraphicsexpanded/shaders/lumon_debug.fsh
+    ✔ If ProbeAtlasTraceRadiance is added:
+      ✔ Add sampler uniform + binding in LumOnDebugShaderProgram.cs
+      ✔ Bind the trace atlas texture in LumOnDebugRenderer.cs
+    ✔ Integrate the new modes into the Probes view mapping so symmetric toggle works where applicable
   Exit artifacts:
     - Probes modes have symmetric atlas/world variants where feasible
     - Shader changes are isolated to new mode cases and (optionally) one new sampler binding

@@ -85,4 +85,10 @@ public enum LumOnDebugMode
     // Phase 18: contribution split (screen vs world-probe)
     WorldProbeContributionOnly = 43,
     ScreenSpaceContributionOnly = 44,
+
+    // Phase 3: additional probe-atlas debug views (append-only)
+    ProbeAtlasCurrentRadiance = 45,
+    ProbeAtlasGatherInputRadiance = 46,
+    ProbeAtlasHitDistance = 47,
+    ProbeAtlasTraceRadiance = 48,
 }
