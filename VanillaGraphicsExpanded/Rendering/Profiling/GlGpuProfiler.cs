@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 
-using OpenTK.Graphics.OpenGL;
-
 using VanillaGraphicsExpanded.Rendering;
 
 using Vintagestory.API.Client;
@@ -126,12 +124,12 @@ public sealed class GlGpuProfiler : IDisposable
         evt.EnsureResolution(width, height);
 
         int slot = frameIndex % FramesInFlight;
-        if (!evt.TryBegin(slot, out var beginQueryId))
+        if (!evt.TryBegin(slot, out var beginQuery))
         {
             return 0;
         }
 
-        GL.QueryCounter(beginQueryId, QueryCounterTarget.Timestamp);
+        beginQuery.Issue();
 
         var token = new EventToken(name, slot);
         stack.Push(token);
@@ -163,12 +161,12 @@ public sealed class GlGpuProfiler : IDisposable
             return;
         }
 
-        if (!evt.TryEnd(token.Slot, out var endQueryId))
+        if (!evt.TryEnd(token.Slot, out var endQuery))
         {
             return;
         }
 
-        GL.QueryCounter(endQueryId, QueryCounterTarget.Timestamp);
+        endQuery.Issue();
         evt.MarkPending(token.Slot);
     }
 
@@ -252,8 +250,8 @@ public sealed class GlGpuProfiler : IDisposable
     {
         private readonly string name;
 
-        private readonly GpuQuery?[] beginQueries = new GpuQuery?[FramesInFlight];
-        private readonly GpuQuery?[] endQueries = new GpuQuery?[FramesInFlight];
+        private readonly GpuTimestampQuery?[] beginQueries = new GpuTimestampQuery?[FramesInFlight];
+        private readonly GpuTimestampQuery?[] endQueries = new GpuTimestampQuery?[FramesInFlight];
         private readonly bool[] pending = new bool[FramesInFlight];
 
         private readonly float[] window = new float[RollingWindow];
@@ -296,38 +294,35 @@ public sealed class GlGpuProfiler : IDisposable
             baselineLogged = false;
         }
 
-        public bool TryBegin(int slot, out int queryId)
+        public bool TryBegin(int slot, out GpuTimestampQuery query)
         {
-            queryId = 0;
-
             if (pending[slot])
             {
+                query = null!;
                 return false;
             }
 
-            GpuQuery? query = beginQueries[slot];
-            if (query is null || !query.IsValid)
+            query = beginQueries[slot] ?? GpuTimestampQuery.Create(debugName: $"{name}.Begin[{slot}]");
+            if (!query.IsValid)
             {
-                query = GpuQuery.Create(debugName: $"{name}.Begin[{slot}]");
-                beginQueries[slot] = query;
+                query.Dispose();
+                query = GpuTimestampQuery.Create(debugName: $"{name}.Begin[{slot}]");
             }
 
-            queryId = query.QueryId;
+            beginQueries[slot] = query;
             return true;
         }
 
-        public bool TryEnd(int slot, out int queryId)
+        public bool TryEnd(int slot, out GpuTimestampQuery query)
         {
-            queryId = 0;
-
-            GpuQuery? query = endQueries[slot];
-            if (query is null || !query.IsValid)
+            query = endQueries[slot] ?? GpuTimestampQuery.Create(debugName: $"{name}.End[{slot}]");
+            if (!query.IsValid)
             {
-                query = GpuQuery.Create(debugName: $"{name}.End[{slot}]");
-                endQueries[slot] = query;
+                query.Dispose();
+                query = GpuTimestampQuery.Create(debugName: $"{name}.End[{slot}]");
             }
 
-            queryId = query.QueryId;
+            endQueries[slot] = query;
             return true;
         }
 
@@ -345,21 +340,21 @@ public sealed class GlGpuProfiler : IDisposable
                     continue;
                 }
 
-                int bq = beginQueries[slot]?.QueryId ?? 0;
-                int eq = endQueries[slot]?.QueryId ?? 0;
-                if (bq == 0 || eq == 0)
+                var begin = beginQueries[slot];
+                var end = endQueries[slot];
+                if (begin is null || end is null || !begin.IsValid || !end.IsValid)
                 {
                     pending[slot] = false;
                     continue;
                 }
 
-                if (!IsAvailable(bq) || !IsAvailable(eq))
+                if (!begin.IsResultAvailable() || !end.IsResultAvailable())
                 {
                     continue;
                 }
 
-                long beginNs = GetResult(bq);
-                long endNs = GetResult(eq);
+                long beginNs = begin.GetResultNanoseconds();
+                long endNs = end.GetResultNanoseconds();
 
                 pending[slot] = false;
 
@@ -447,18 +442,6 @@ public sealed class GlGpuProfiler : IDisposable
                 SampleCount: windowCount,
                 Width: width,
                 Height: height);
-        }
-
-        private static bool IsAvailable(int queryId)
-        {
-            GL.GetQueryObject(queryId, GetQueryObjectParam.QueryResultAvailable, out int available);
-            return available != 0;
-        }
-
-        private static long GetResult(int queryId)
-        {
-            GL.GetQueryObject(queryId, GetQueryObjectParam.QueryResult, out long result);
-            return result;
         }
 
         public void Dispose()
