@@ -58,27 +58,29 @@ Reference / Docs:
 
 ---
 
-☐ Phase 1 - Shader refactor: Shared uniforms + per-category logic includes
+✔ Phase 1 - Shader refactor: Shared uniforms + per-program-kind logic includes
   Exit artifacts:
   - Common debug uniforms/samplers live in one include.
   - Each category has its own include with a single rendering entry function.
 
   Work items:
-  ☐ Create a debug-shared include (example): `shaders/includes/lumon_debug_common.glsl`
+  ✔ Create a debug-shared include (example): `shaders/includes/lumon_debug_common.glsl`
     - Shared helper functions (color ramps, hash visualizations, small math)
-  ☐ Create a uniforms/samplers include (example): `shaders/includes/lumon_debug_uniforms.glsl`
+  ✔ Create a uniforms/samplers include (example): `shaders/includes/lumon_debug_uniforms.glsl`
     - Uniform declarations and sampler bindings used across debug programs
     - Keep compatible with existing C# bindings in `LumOnDebugShaderProgram`
-  ☐ Create category includes (examples):
-    - `shaders/includes/lumon_debug_probes.glsl`
+  ✔ Create program-kind includes (examples):
+    - `shaders/includes/lumon_debug_probe_anchors.glsl`
     - `shaders/includes/lumon_debug_gbuffer.glsl`
     - `shaders/includes/lumon_debug_temporal.glsl`
+    - `shaders/includes/lumon_debug_sh.glsl`
+    - `shaders/includes/lumon_debug_indirect.glsl`
     - `shaders/includes/lumon_debug_probe_atlas.glsl`
     - `shaders/includes/lumon_debug_composite.glsl`
     - `shaders/includes/lumon_debug_direct.glsl`
     - `shaders/includes/lumon_debug_velocity.glsl`
     - `shaders/includes/lumon_debug_worldprobe.glsl`
-  ☐ Preserve compile-time gating in the category that needs it (notably worldprobe)
+  ✔ Preserve compile-time gating in the program kind that needs it (notably worldprobe)
     - Keep existing `VGE_LUMON_WORLDPROBE_*` and related defines as compile-time flags.
 
 ---
