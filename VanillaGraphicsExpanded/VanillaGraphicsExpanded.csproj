@@ -58,7 +58,7 @@
     <PackageReference Include="BCnEncoder.Net" Version="2.2.1" />
     <PackageReference Include="System.Numerics.Tensors" Version="10.0.2" />
     <PackageReference Include="TinyAst" Version="0.11.2" />
-    <PackageReference Include="TinyAst.Preprocessor" Version="0.4.2" />
+    <PackageReference Include="TinyAst.Preprocessor" Version="0.4.3" />
     <PackageReference Include="TinyPreprocessor" Version="0.4.0" />
   </ItemGroup>
 
