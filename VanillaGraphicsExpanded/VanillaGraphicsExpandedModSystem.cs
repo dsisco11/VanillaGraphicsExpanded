@@ -34,6 +34,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
         // Manually apply terrain material params texture binding patches (property setters).
         TerrainMaterialParamsTextureBindingHook.ApplyPatches(harmony, api.Logger.Notification);
+
+        // Preload OpenGL extension strings as early as possible (best-effort; requires a current GL context).
+        api.Event.EnqueueMainThreadTask(() => GlExtensions.TryLoadExtensions(), "vge-load-gl-extensions");
     }
 
     public override void AssetsLoaded(ICoreAPI api)

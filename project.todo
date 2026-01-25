@@ -26,6 +26,7 @@ Issues:
     ✔ Add `GpuSampler` RAII wrapper.
     ✔ Add `GpuShaderModule` RAII wrapper.
     ✔ Add `GpuProgramPipeline` RAII wrapper.
+    ✔ Add `GlExtensions` helper for cached extension queries.
     ☐ Add `GpuTextureView` RAII wrapper.
     ☐ Add `GpuBufferView` RAII wrapper.
     ☐ Add `GpuVertexAttribBinding` RAII wrapper.

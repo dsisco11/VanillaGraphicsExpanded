@@ -11,9 +11,6 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// </summary>
 internal sealed class GpuShaderModule : GpuResource, IDisposable
 {
-    private static int spirvSupportChecked;
-    private static int spirvSupported;
-
     private int shaderId;
     private readonly ShaderType shaderType;
 
@@ -51,33 +48,7 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
     /// </summary>
     public static bool SupportsSpirv()
     {
-        if (System.Threading.Volatile.Read(ref spirvSupportChecked) != 0)
-        {
-            return System.Threading.Volatile.Read(ref spirvSupported) != 0;
-        }
-
-        bool supported = false;
-        try
-        {
-            GL.GetInteger(GetPName.NumExtensions, out int count);
-            for (int i = 0; i < count; i++)
-            {
-                string ext = GL.GetString(StringNameIndexed.Extensions, i);
-                if (ext == "GL_ARB_gl_spirv")
-                {
-                    supported = true;
-                    break;
-                }
-            }
-        }
-        catch
-        {
-            supported = false;
-        }
-
-        System.Threading.Volatile.Write(ref spirvSupported, supported ? 1 : 0);
-        System.Threading.Volatile.Write(ref spirvSupportChecked, 1);
-        return supported;
+        return GlExtensions.Supports("GL_ARB_gl_spirv");
     }
 
     /// <summary>
