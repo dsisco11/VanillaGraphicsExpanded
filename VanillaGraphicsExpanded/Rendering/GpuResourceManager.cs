@@ -85,6 +85,9 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
     public void EnqueueDeleteTransformFeedback(int transformFeedbackId)
         => EnqueueDeletion(new GpuDeletionCommand(GpuDeletionKind.TransformFeedback, transformFeedbackId));
 
+    public void EnqueueDeleteSampler(int samplerId)
+        => EnqueueDeletion(new GpuDeletionCommand(GpuDeletionKind.Sampler, samplerId));
+
     public void EnqueueDeleteSync(IntPtr sync)
         => EnqueueDeletion(new GpuDeletionCommand(GpuDeletionKind.Sync, (nint)sync));
 
@@ -153,6 +156,9 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
                     case GpuDeletionKind.TransformFeedback:
                         GL.DeleteTransformFeedback((int)command.Id);
                         break;
+                    case GpuDeletionKind.Sampler:
+                        GL.DeleteSampler((int)command.Id);
+                        break;
                     case GpuDeletionKind.Sync:
                         GL.DeleteSync((IntPtr)command.Id);
                         break;
@@ -197,6 +203,7 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
         Query = 5,
         Program = 6,
         TransformFeedback = 7,
-        Sync = 8,
+        Sampler = 8,
+        Sync = 9,
     }
 }
