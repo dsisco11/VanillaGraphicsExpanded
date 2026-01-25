@@ -59,12 +59,17 @@ internal static class LineDirectiveInjector
             {
                 id = resourceToId.Count + 1;
                 resourceToId[resource] = id;
-                idToResource[id] = resource.ToString();
+                idToResource[id] = resource.Path;
             }
             return id;
         }
 
-        var boundaryResolver = new SyntaxTreeLineBoundaryResolver();
+        // Prefer the canonical provider in case the resolver implementation changes across package versions.
+        // Fallback to direct instantiation if the provider can't supply it for any reason.
+        if (!SyntaxTreeContentBoundaryResolverProvider.Instance.TryGet<SyntaxTree, LineBoundary>(out var boundaryResolver))
+        {
+            boundaryResolver = new SyntaxTreeLineBoundaryResolver();
+        }
 
         // Build a list of insertion operations as (generatedOffset, directiveText).
         var inserts = new List<(int offset, string directive)>(capacity: Math.Min(512, ranges.Count));
@@ -84,13 +89,19 @@ internal static class LineDirectiveInjector
                 continue;
             }
 
+            // Prefer the SourceMap's point query (it can be more precise than range endpoints).
+            // Fall back to range-derived offset if needed.
+            var loc = sourceMap.Query(offset);
+
+            ResourceId resource = loc?.Resource ?? range.Resource;
+
             int segmentDelta = offset - range.GeneratedStartOffset;
-            int originalOffset = range.OriginalStartOffset + segmentDelta;
+            int originalOffset = loc?.OriginalOffset ?? (range.OriginalStartOffset + segmentDelta);
 
-            int sourceId = NextId(range.Resource);
+            int sourceId = NextId(resource);
 
-            var content = contentProvider(range.Resource);
-            int originalLineOneBased = GetOriginalLineOneBased(content, range.Resource, originalOffset, boundaryResolver);
+            var content = contentProvider(resource);
+            int originalLineOneBased = GetOriginalLineOneBased(content, resource, originalOffset, boundaryResolver);
 
             inserts.Add((offset, $"#line {originalLineOneBased} {sourceId}\n"));
         }

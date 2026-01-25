@@ -35,7 +35,7 @@ public sealed class ShaderSourceCodeTests
 
         TinyTokenizer.Ast.SyntaxTree ContentProvider(ResourceId id)
         {
-            string raw = id.ToString();
+            string raw = id.Path;
             string path = raw;
             int colon = raw.IndexOf(':');
             if (colon >= 0)
@@ -86,9 +86,8 @@ public sealed class ShaderSourceCodeTests
     }
 
     // Stable repro for upstream issue:
-    // In current TinyPreprocessor + TinyAst.Preprocessor versions, our SourceMap sometimes reports a single range
-    // mapped to the root resource even when @import content has been inlined. That prevents correct #line switching
-    // to imported resources.
+    // In current TinyPreprocessor versions, our SourceMap sometimes reports a single range mapped to the root resource
+    // even when @import content has been inlined. That prevents correct #line switching to imported resources.
     [Fact(Skip = "Upstream: TinyPreprocessor SourceMap does not include imported resource segments in this scenario; keep as repro to report.")]
     public void FromSource_SourceMap_ShouldIncludeImportedResourceSegments()
     {
@@ -109,7 +108,7 @@ public sealed class ShaderSourceCodeTests
 
         TinyTokenizer.Ast.SyntaxTree ContentProvider(ResourceId id)
         {
-            string raw = id.ToString();
+            string raw = id.Path;
             string path = raw;
             int colon = raw.IndexOf(':');
             if (colon >= 0)
@@ -139,9 +138,8 @@ public sealed class ShaderSourceCodeTests
         Assert.NotNull(code.ImportResult);
 
         // Expected: SourceMap contains a segment for the imported resource id.
-        // Observed (bug): SourceMap ranges may only contain the root resource id.
         var ranges = code.ImportResult!.SourceMap.QueryRangeByEnd(0, code.FinalTree.TextLength);
-        Assert.Contains(ranges, r => r.Resource.ToString().Replace('\\', '/').Contains("shaders/includes/shared.glsl", StringComparison.Ordinal));
+        Assert.Contains(ranges, r => r.Resource.Path.Replace('\\', '/').Contains("shaders/includes/shared.glsl", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -164,7 +162,7 @@ public sealed class ShaderSourceCodeTests
         TinyTokenizer.Ast.SyntaxTree ContentProvider(ResourceId id)
         {
             // ResourceIds produced by the resolver look like `{domain}:{path}`.
-            string raw = id.ToString();
+            string raw = id.Path;
             string path = raw;
             int colon = raw.IndexOf(':');
             if (colon >= 0)

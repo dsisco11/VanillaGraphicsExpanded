@@ -122,7 +122,7 @@ public sealed class ShaderSourceCode
                     return cached;
                 }
 
-                string idText = id.ToString();
+                string idText = id.Path;
                 string domain = ShaderImportsSystem.DefaultDomain;
                 string path = idText;
 
@@ -267,7 +267,7 @@ public sealed class ShaderSourceCode
                 }
 
                 // Root fallback.
-                string idText = id.ToString();
+                string idText = id.Path;
                 string path = idText;
                 int colon = idText.IndexOf(':');
                 if (colon >= 0)
@@ -405,7 +405,7 @@ public sealed class ShaderSourceCode
                     return cached;
                 }
 
-                string idText = id.ToString();
+                string idText = id.Path;
                 string domain = ShaderImportsSystem.DefaultDomain;
                 string path = idText;
 

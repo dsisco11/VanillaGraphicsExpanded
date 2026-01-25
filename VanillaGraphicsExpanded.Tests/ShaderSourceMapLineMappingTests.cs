@@ -45,7 +45,7 @@ public sealed class ShaderSourceMapLineMappingTests
     }
 
     [Fact]
-    public void SyntaxTreeLineColumnMapper_DoesNotMatchManualLineCounting_ForGlslSchema_Repro()
+    public void SyntaxTreeLineColumnMapper_MatchesManualLineCounting_ForGlslSchema()
     {
         const string shader =
             "#version 330 core\n" +
@@ -80,13 +80,11 @@ public sealed class ShaderSourceMapLineMappingTests
         var expected = ManualLineColumn(text, offsetLine2);
         Assert.Equal(2, expected.Line);
 
-        // Current observed behavior: mapper returns line 1.
-        // This is the failure point that causes our #line injection to emit "#line 1 ..." after #version.
-        Assert.Equal(1, start.Line);
+        Assert.Equal(expected.Line, start.Line);
     }
 
     [Fact]
-    public void SyntaxTreeLineColumnMapper_LineStartBoundary_IsAnEdgeCase_Repro()
+    public void SyntaxTreeLineColumnMapper_LineStartBoundary_MapsToNextLine()
     {
         const string shader =
             "#version 330 core\n" +
@@ -129,14 +127,12 @@ public sealed class ShaderSourceMapLineMappingTests
         Assert.Equal(2, expectedAtBoundary.Line);
         Assert.Equal(1, expectedAtBoundary.Column);
 
-        // Current observed behavior: both the line-start boundary and an offset inside line 2 map to line 1.
-        // This suggests the line-boundary resolver isn't detecting newlines for this SyntaxTree/schema.
-        Assert.Equal(1, atBoundary.Line);
-        Assert.Equal(1, insideLine.Line);
+        Assert.Equal(2, atBoundary.Line);
+        Assert.Equal(2, insideLine.Line);
 
         // Confirm the boundary resolver doesn't see any line boundaries (expected to include the start offset of line 2).
         var boundaries = boundaryResolver.ResolveOffsets(tree, resourceId, 0, tree.TextLength).ToArray();
-        Assert.DoesNotContain(boundaryOffset, boundaries);
+        Assert.Contains(boundaryOffset, boundaries);
     }
 
     [Fact]
@@ -210,7 +206,7 @@ public sealed class ShaderSourceMapLineMappingTests
         var loc = result.SourceMap.Query(generatedAfterVersion);
         Assert.NotNull(loc);
 
-        string rawId = loc!.Resource.ToString();
+        string rawId = loc!.Resource.Path;
         string path = rawId;
         int colon = rawId.IndexOf(':');
         if (colon >= 0)
@@ -251,6 +247,47 @@ public sealed class ShaderSourceMapLineMappingTests
         var expected = ManualLineColumn(contentText, originalOffset);
         Assert.Equal(expected.Line, start.Line);
         Assert.Equal(expected.Column, start.Column);
+    }
+
+    [Fact]
+    public void SourceMap_Query_OffsetAfterVersion_MapsToSameOriginalOffsetInRoot()
+    {
+        const string include = "void Foo() { }\n";
+
+        const string shader =
+            "#version 330 core\n" +
+            "@import \"./includes/shared.glsl\"\n" +
+            "void main() { Foo(); }\n";
+
+        var sources = new Dictionary<string, string>
+        {
+            ["shaders/includes/shared.glsl"] = include
+        };
+
+        var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
+        var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
+
+        var rootId = new ResourceId($"{ShaderImportsSystem.DefaultDomain}:shaders/testshader.fsh");
+        var rootTree = SyntaxTree.ParseAndBind(shader, GlslSchema.Instance);
+
+        var result = preprocessor.Process(rootId, rootTree, context: null, options: null, ct: TestContext.Current.CancellationToken);
+        Assert.True(result.Success);
+
+        string outputText = NormalizeLineEndings(result.Content.ToText());
+        int generatedAfterVersion = outputText.IndexOf('\n', StringComparison.Ordinal) + 1;
+        Assert.True(generatedAfterVersion > 0);
+
+        string rootText = NormalizeLineEndings(rootTree.ToText());
+        int expectedOriginalAfterVersion = rootText.IndexOf('\n', StringComparison.Ordinal) + 1;
+        Assert.True(expectedOriginalAfterVersion > 0);
+
+        var loc = result.SourceMap.Query(generatedAfterVersion);
+        Assert.NotNull(loc);
+        Assert.Equal(rootId, loc!.Resource);
+
+        // When preprocessing preserves the #version line, the start of "line 2" in generated output
+        // should map back to the same character offset in the original root source.
+        Assert.Equal(expectedOriginalAfterVersion, loc.OriginalOffset);
     }
 
     [Fact(Skip = "Upstream/behavioral gap: SourceMap does not consistently expose per-import segments yet; keep as multi-import repro for later.")]
