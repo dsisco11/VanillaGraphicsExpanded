@@ -31,20 +31,16 @@ State knobs are assigned stable bit indices via `GlPipelineStateId`:
 Phase 1 uses `ulong` for masks:
 
 - `GlPipelineStateMask` (`VanillaGraphicsExpanded/Rendering/GlPipelineStateMask.cs`) wraps a `ulong` bitset.
-- `GlPipelineDesc` (`VanillaGraphicsExpanded/Rendering/GlPipelineDesc.cs`) is the Phase 1 PSO descriptor skeleton with:
-  - `DefaultMask` (force GL-spec baseline defaults)
-  - `NonDefaultMask` (force explicit non-default values stored in the PSO in Phase 2)
+- `GlPipelineDesc` (`VanillaGraphicsExpanded/Rendering/GlPipelineDesc.cs`) carries these masks (it is extended with value payloads in Phase 2).
 
 If/when the tracked knob count exceeds 64, the mask representation must be upgraded (e.g., a small fixed `ulong[]`).
 
 ## Invariants + Debug Validation
 
-PSO intent invariants (enforced via debug checks today, extended in Phase 2):
+PSO intent invariants:
 
 - `defaultMask & nonDefaultMask == 0`
-- `nonDefaultMask ⊆ valuesPresentMask` (all non-default states must have a value payload)
 
 Validation helper:
 
-- `GlPipelineStateValidation.ValidateMasks(...)` (`VanillaGraphicsExpanded/Rendering/GlPipelineStateValidation.cs`)
-
+- `GlPipelineStateValidation.ValidateMaskBits(...)` (`VanillaGraphicsExpanded/Rendering/GlPipelineStateValidation.cs`)

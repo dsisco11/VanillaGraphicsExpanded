@@ -70,18 +70,19 @@ Docs:
       - No overlap between defaultMask/nonDefaultMask
       - All required value fields are populated when their bits are set
 
-☐ Phase 2 — Value Payloads (Non-Default State Storage)
+☑ Phase 2 — Value Payloads (Non-Default State Storage)
   Exit artifacts:
     - A `GlPipelineDesc` / `GlPipelineState` that stores only necessary values for bits in nonDefaultMask
+    - Phase 2 details: `docs/OpenGL.PipelineStateObject.Phase2.md`
 
   Work items:
-    ☐ Define compact value types:
+    ☑ Define compact value types:
       - Depth: enable (bit), func (enum), write mask (bool)
       - Blend: enable (bit), factors (src/dst, optionally separate RGB/alpha)
       - MRT blend: arrays by attachment index (enable + factors) matching your G-buffer usage
       - Color mask: 4 booleans packed into a nibble/byte
       - Scissor: enable (bit) (box stays dynamic unless explicitly requested)
-    ☐ Decide ownership model for bindings:
+    ☑ Decide ownership model for bindings:
       - PSO references program/VAO (owned elsewhere) vs PSO owns and disposes
 
 ☐ Phase 3 — GlStateCache + Apply/Diff Algorithm

@@ -30,16 +30,16 @@ public class GlPipelineDescPhase1Tests
         GlPipelineStateMask m = GlPipelineStateMask.From(GlPipelineStateId.DepthFunc);
 
         Assert.Throws<ArgumentException>(() =>
-            GlPipelineStateValidation.ValidateMasks(defaultMask: m, nonDefaultMask: m, valuesPresentMask: m));
+            GlPipelineStateValidation.ValidateMaskBits(defaultMask: m, nonDefaultMask: m));
     }
 
     [Fact]
     public void GlPipelineStateValidation_MissingValues_Throws()
     {
         GlPipelineStateMask nonDefault = GlPipelineStateMask.From(GlPipelineStateId.DepthFunc);
+        var desc = new GlPipelineDesc(defaultMask: default, nonDefaultMask: nonDefault, validate: false);
 
-        Assert.Throws<ArgumentException>(() =>
-            GlPipelineStateValidation.ValidateMasks(defaultMask: default, nonDefaultMask: nonDefault, valuesPresentMask: default));
+        Assert.Throws<ArgumentException>(() => GlPipelineStateValidation.ValidateDesc(desc));
     }
 
     [Fact]
@@ -48,7 +48,6 @@ public class GlPipelineDescPhase1Tests
         GlPipelineStateMask unknown = new(1UL << 63);
 
         Assert.Throws<ArgumentException>(() =>
-            GlPipelineStateValidation.ValidateMasks(defaultMask: unknown, nonDefaultMask: default, valuesPresentMask: default));
+            GlPipelineStateValidation.ValidateMaskBits(defaultMask: unknown, nonDefaultMask: default));
     }
 }
-
