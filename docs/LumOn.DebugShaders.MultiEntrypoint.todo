@@ -1,0 +1,150 @@
+# LumOn Debug Shaders - Multi-Entrypoint Split (Plan)
+
+Goal:
+- Replace the monolithic `lumon_debug` shader with multiple shader entrypoints (one per debug-view category)
+  while preserving existing compile-time flags/defines and reusing common shader includes.
+
+Non-goals:
+- Do not inline existing shared includes (e.g., `lumon_common.glsl`, `lumon_pbr.glsl`).
+- Do not require persistence of debug-mode ids (ids are runtime-only).
+
+Reference / Docs:
+- docs/GpuProgram.md (how shader programs are loaded/compiled/bound)
+- README.md (RenderDoc workflow + GPU shader test guidance)
+- docs/ShaderDefines.UniformVsDefine.md (define vs uniform tradeoffs)
+- docs/ShaderDefines.SetDefineMigration.Phase0.md + docs/ShaderDefines.SetDefineMigration.Phase1.md (define plumbing patterns)
+- Source anchors:
+  - VanillaGraphicsExpanded/LumOn/Shaders/LumOnDebugShaderProgram.cs
+  - VanillaGraphicsExpanded/LumOn/LumOnDebugRenderer.cs
+  - VanillaGraphicsExpanded/LumOn/LumOnDebugMode.cs
+  - VanillaGraphicsExpanded/ModSystems/ShaderModSystem.cs (shader import/include init)
+  - VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_debug.fsh/.vsh
+
+---
+
+☐ Phase 0 - Design: Categories, naming, and selection
+  Exit artifacts:
+  - A category list and a deterministic mapping: debugMode -> category -> shader program name.
+  - A naming convention for shader entrypoints and includes.
+
+  Work items:
+  ☐ Define debug categories (proposed):
+    - Probes/Anchors
+    - SceneDepth + GBuffer
+    - Temporal
+    - SH/Interpolation
+    - ScreenProbeAtlas
+    - Composite/PBR
+    - DirectLighting
+    - Velocity/Motion
+    - WorldProbes (clipmap)
+  ☐ Map `LumOnDebugMode` values to categories (document the mapping in code near selection logic).
+  ☐ Choose entrypoint names per category (example):
+    - `lumon_debug_probes`
+    - `lumon_debug_gbuffer`
+    - `lumon_debug_temporal`
+    - `lumon_debug_sh`
+    - `lumon_debug_probe_atlas`
+    - `lumon_debug_composite`
+    - `lumon_debug_direct`
+    - `lumon_debug_velocity`
+    - `lumon_debug_worldprobe`
+  ☐ Decide how to handle modes currently special-cased in C# (keep special-case vs new category program).
+
+---
+
+☐ Phase 1 - Shader refactor: Shared uniforms + per-category logic includes
+  Exit artifacts:
+  - Common debug uniforms/samplers live in one include.
+  - Each category has its own include with a single rendering entry function.
+
+  Work items:
+  ☐ Create a debug-shared include (example): `shaders/includes/lumon_debug_common.glsl`
+    - Shared helper functions (color ramps, hash visualizations, small math)
+  ☐ Create a uniforms/samplers include (example): `shaders/includes/lumon_debug_uniforms.glsl`
+    - Uniform declarations and sampler bindings used across debug programs
+    - Keep compatible with existing C# bindings in `LumOnDebugShaderProgram`
+  ☐ Create category includes (examples):
+    - `shaders/includes/lumon_debug_probes.glsl`
+    - `shaders/includes/lumon_debug_gbuffer.glsl`
+    - `shaders/includes/lumon_debug_temporal.glsl`
+    - `shaders/includes/lumon_debug_probe_atlas.glsl`
+    - `shaders/includes/lumon_debug_composite.glsl`
+    - `shaders/includes/lumon_debug_direct.glsl`
+    - `shaders/includes/lumon_debug_velocity.glsl`
+    - `shaders/includes/lumon_debug_worldprobe.glsl`
+  ☐ Preserve compile-time gating in the category that needs it (notably worldprobe)
+    - Keep existing `VGE_LUMON_WORLDPROBE_*` and related defines as compile-time flags.
+
+---
+
+☐ Phase 2 - Shader entrypoints: One program per category
+  Exit artifacts:
+  - Each category has its own `.vsh`/`.fsh` pair as a thin wrapper around the category include.
+
+  Work items:
+  ☐ Add `lumon_debug_<category>.vsh` wrappers (typically shared full-screen quad pass-through).
+  ☐ Add `lumon_debug_<category>.fsh` wrappers that:
+    - `@import` existing shared LumOn includes as needed (no duplication)
+    - `@import` `lumon_debug_uniforms.glsl` + `lumon_debug_common.glsl`
+    - `@import` the category include
+    - call `RenderDebug_<Category>(...)` and output.
+  ☐ Remove category-specific code from the old `lumon_debug.fsh` (or keep it as a legacy/compat entrypoint).
+
+---
+
+☐ Phase 3 - C# shader program wiring: Register and manage the program family
+  Exit artifacts:
+  - All debug programs are registered and available via memory shader programs.
+  - Defines/uniform bindings are applied consistently to every debug program.
+
+  Work items:
+  ☐ Introduce a small “debug program family” abstraction (or refactor `LumOnDebugShaderProgram`) that:
+    - Registers all passes (one per category)
+    - Exposes a consistent API for texture binding + uniforms
+    - Applies compile-time defines consistently across all programs
+  ☐ Ensure define updates are synchronized across the family:
+    - Eager: when config/flags change, update defines on every program
+    - Lazy: when a program is activated, re-apply current define state
+  ☐ Confirm shader import system supports the new files without extra init (see `ShaderModSystem`).
+
+---
+
+☐ Phase 4 - Renderer selection: Switch program by active debug category
+  Exit artifacts:
+  - `LumOnDebugRenderer` chooses the correct shader program by category and binds the same textures.
+  - Switching views does not cause missing-define or missing-uniform issues.
+
+  Work items:
+  ☐ Implement `GetCategoryForDebugMode(mode)` and `GetProgramForCategory(category)`.
+  ☐ On render:
+    - Select active program based on debug mode
+    - Bind shared textures/uniforms (same as today)
+    - Only bind category-specific textures when needed (optional optimization)
+  ☐ Keep special-cased paths consistent (wireframe/other overlays).
+
+---
+
+☐ Phase 5 - Validation: GPU shader compilation tests + RenderDoc sanity
+  Exit artifacts:
+  - Automated coverage that every debug entrypoint compiles with representative define sets.
+  - A quick manual capture checklist for sanity.
+
+  Work items:
+  ☐ Add/extend GPU tests to compile each `lumon_debug_<category>` shader program.
+    - Include at least: worldprobe enabled/disabled, probe-atlas enabled/disabled if applicable.
+  ☐ Ensure test output points to correct source via `#line` (ties into existing GpuProgram preprocessor work).
+  ☐ Manual sanity steps (RenderDoc):
+    - Capture a frame with each category active
+    - Verify no missing textures/uniform warnings and the overlay is correct
+
+---
+
+☐ Phase 6 - Cleanup and docs
+  Exit artifacts:
+  - Debug shaders are discoverable and easy to extend.
+
+  Work items:
+  ☐ Document how to add a new debug view category and entrypoint.
+  ☐ Update any internal docs referencing `lumon_debug` to mention the program family.
+  ☐ Optional: keep `lumon_debug` as a legacy dispatcher that forwards to the new includes (if you want a single fallback entrypoint).
