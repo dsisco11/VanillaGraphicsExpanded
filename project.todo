@@ -12,44 +12,6 @@ Issues:
   GpuResources:
     ☐ `LumOnPmjJitterTexture` should be a `GpuTexture` (RAII + deferred disposal) rather than a raw GL texture handle.
     ☐ `LumOnBlueNoiseTexture` should be a `GpuTexture` (RAII + deferred disposal) rather than a raw GL texture handle.
-    ✔ Create new `GpuResourceManager` system as a new IRenderer registered for the `After` stage, which manages GPU resource lifecycles (creation, disposal) in a thread-safe manner.
-    ✔ Move texture streaming uploader to the new `GpuResourceManager`.
-    ✔ Move `GpuBufferObject` DSA uploading to the new `GpuResourceManager`.
-    ✔ Update rendering systems to use the new GPU resource RAII classes (e.g. GpuVbo, GpuVao, etc).
-    ✔ Update `GpuFramebuffer` to inherit from `GpuResource` (deferred disposal queue support).
-    ✔ Encapsulate `PixelUnpackBuffer` usage into a small RAII wrapper (e.g. `GpuPbo` / `GpuPixelUnpackBuffer`).
-    ✔ Replace temporary readback FBOs with `GpuFramebuffer` instances.
-    ✔ Refactor `GpuFence` into a proper RAII wrapper (inherits `GpuResource`, deferred disposal).
-    ✔ Refactor GPU queries into an RAII wrapper (create/delete + deferred disposal).
-    ✔ Add `GpuRenderbuffer` RAII wrapper (create/delete + deferred disposal).
-    ✔ Refactor `LumOnBufferManager` HZB FBO to use `GpuFramebuffer`.
-    ✔ Add `GpuPixelPackBuffer` RAII wrapper for async readback workflows.
-    ✔ Add `GpuTransformFeedback` RAII wrapper.
-    ✔ Add `GpuSampler` RAII wrapper.
-    ✔ Add `GpuShaderModule` RAII wrapper.
-    ✔ Add `GpuProgramPipeline` RAII wrapper.
-    ✔ Add `GlExtensions` helper for cached extension queries.
-    ✔ Add `GpuTextureView` RAII wrapper.
-    ✔ Add `GpuBufferView` RAII wrapper.
-    ✔ Add `GpuVertexAttribBinding` RAII wrapper.
-    ✔ Add `GpuAtomicCounterBuffer` RAII wrapper.
-    ✔ Add `GpuShaderStorageBuffer` RAII wrapper.
-    ✔ Add `GpuIndirectBuffer` RAII wrapper.
-    ✔ Add `GpuUniformBuffer` RAII wrapper.
-    ✔ Add `GpuProgramLayout` RAII wrapper.
-    ✔ Add `GpuComputePipeline` RAII wrapper.
-    ✔ Refactor `VgeShaderProgram` into `GpuProgram` (rename + RAII + deferred disposal).
-    ✔ GpuProgram: need to add unit tests to verify that the shader preprocessing system emits the correct "#line" directives for error reporting.
-    ✔ Add `GpuBufferTexture` API surface (alias/rename of `GpuBufferView`) + image-unit binding helpers (glBindImageTexture).
-    ✔ Add `GpuImageUnitBinding` binding-scope helper (restore previous image binding/state on dispose).
-    ✔ Add `GpuMappedBuffer` / `GpuMappedBufferScope` wrapper for map/unmap (and optional persistent mapping + flush ranges).
-    ✔ Add specialized query wrappers (`GpuTimestampQuery`, `GpuTimerQuery`) built on `GpuQuery`.
-    ✔ Add unified base class for binding scopes (“Scope Trackers”) to enable future scope-stack/PSO integration.
-    ✔ Add extension-gated wrappers (bindless textures, sparse textures, semaphores/memory objects).
-    ✔ Update GpuTexture wrappers to use GpuSampler's for filtering/wrapping state.
-    ✔ Update GpuFramebuffer to support per-attachment blend state.
-    ✔ Update GlStateCache to include an "Unbind..." method for each "Bind..." method, to unbind the currently bound resource of that type.
-    ✔ Update all GpuResource classes to use the GlStateCache for binding/unbinding.
 
   WorldProbes:
     ☐ Rename world-probe classes to remove `LumOn` prefix.
