@@ -108,25 +108,25 @@ Invariants:
 
 
 
-☐ Phase 0 - Design & Contracts
+✔ Phase 0 - Design & Contracts
   Exit artifacts: clear interfaces, thread-affinity contract, and backpressure semantics.
-  ☐ Define terms:
+  ✔ Define terms:
     - “Work item” (key + priority + dependencies)
     - “Artifact outputs” (disk payload, GPU payload)
     - “Session” (session id + cancellation token)
-  ☐ Define core interfaces (names tentative):
+  ✔ Define core interfaces (names tentative):
     - `IArtifactWorkItem<TKey>` (key, priority, type id, debug label)
     - `IArtifactComputer<TKey, TOutput>` (worker-thread compute)
     - `IArtifactApplier<TKey, TOutput>` (main-thread apply, optional)
-    - `IArtifactDiskWriter<TKey, TDiskPayload>` (off-thread write)
-    - `IArtifactGpuUploader<TKey, TGpuPayload>` (off-thread stage + render-thread commit)
+    - `IArtifactDiskStore<TKey, TDiskPayload>` (off-thread write)
+    - `IArtifactGpuStore<TKey, TGpuPayload>` (off-thread stage + render-thread commit)
     - `IArtifactScheduler` (Start/Stop/Enqueue/DrainTick/GetStatsSnapshot)
-  ☐ Specify thread-affinity explicitly:
+  ✔ Specify thread-affinity explicitly:
     - Worker threads: asset load + decode + compute
     - Disk writes: off-thread
     - GPU staging: off-thread (only memcpy into mapped staging memory)
     - GPU commit: render thread only
-  ☐ Define backpressure rules (Option B):
+  ✔ Define backpressure rules (Option B):
     - Never drop writes.
     - Never block render thread.
     - If no IO/GPU capacity is available, defer (don’t schedule) work.
