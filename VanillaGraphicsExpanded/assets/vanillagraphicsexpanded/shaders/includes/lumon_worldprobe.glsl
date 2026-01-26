@@ -94,6 +94,33 @@ int lumonWorldProbeSelectLevelByDistance(vec3 worldPos, vec3 cameraPos, float ba
 	return clamp(level, 0, maxLevel);
 }
 
+bool lumonWorldProbeIsInsideLevel(vec3 worldPosRel, vec3 originMinCorner, float spacing, int resolution)
+{
+	vec3 local = (worldPosRel - originMinCorner) / max(spacing, 1e-6);
+	return !any(lessThan(local, vec3(0.0))) && !any(greaterThanEqual(local, vec3(float(resolution))));
+}
+
+int lumonWorldProbeSelectLevelByExtents(
+	vec3 worldPosRel,
+	float baseSpacing,
+	int levels,
+	int resolution,
+	vec3 originMinCorner[LUMON_WORLDPROBE_MAX_LEVELS])
+{
+	int maxLevel = max(levels - 1, 0);
+
+	for (int level = 0; level < maxLevel; level++)
+	{
+		float spacing = lumonWorldProbeSpacing(baseSpacing, level);
+		if (lumonWorldProbeIsInsideLevel(worldPosRel, originMinCorner[level], spacing, resolution))
+		{
+			return level;
+		}
+	}
+
+	return maxLevel;
+}
+
 float lumonWorldProbeDistanceToBoundaryProbeUnits(vec3 local, int resolution)
 {
 	float maxI = float(resolution - 1);
@@ -415,7 +442,7 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleClipmapRadiance(
 	vec3 worldPosRel = worldPos - cameraPosWS;
 
 	int maxLevel = max(levels - 1, 0);
-	int level = lumonWorldProbeSelectLevelByDistance(worldPos, cameraPosWS, baseSpacing, maxLevel);
+	int level = lumonWorldProbeSelectLevelByExtents(worldPosRel, baseSpacing, levels, resolution, originMinCorner);
 
 	float spacingL = lumonWorldProbeSpacing(baseSpacing, level);
 	vec3 originL = originMinCorner[level];
@@ -499,7 +526,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
 	vec3 worldPosRel = worldPos - cameraPosWS;
 
 	int maxLevel = max(levels - 1, 0);
-	int level = lumonWorldProbeSelectLevelByDistance(worldPos, cameraPosWS, baseSpacing, maxLevel);
+	int level = lumonWorldProbeSelectLevelByExtents(worldPosRel, baseSpacing, levels, resolution, originMinCorner);
 
 	float spacingL = lumonWorldProbeSpacing(baseSpacing, level);
 	vec3 originL = originMinCorner[level];

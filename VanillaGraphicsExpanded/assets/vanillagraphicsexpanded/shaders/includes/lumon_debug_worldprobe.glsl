@@ -100,12 +100,11 @@ bool lumonWorldProbeDebugNearest(in vec3 worldPosWS, out int outLevel, out ivec2
         return false;
     }
 
-    int maxLevel = max(levels - 1, 0);
-    int level = lumonWorldProbeSelectLevelByDistance(worldPosWS, worldProbeCameraPosWS, baseSpacing, maxLevel);
+    vec3 worldPosRel = worldPosWS - worldProbeCameraPosWS;
+    int level = lumonWorldProbeSelectLevelByExtents(worldPosRel, baseSpacing, levels, resolution, worldProbeOriginMinCorner);
     float spacing = lumonWorldProbeSpacing(baseSpacing, level);
 
     vec3 origin = worldProbeOriginMinCorner[level];
-    vec3 worldPosRel = worldPosWS - worldProbeCameraPosWS;
     vec3 local = (worldPosRel - origin) / max(spacing, 1e-6);
 
     // Outside clip volume.
@@ -169,10 +168,9 @@ vec4 renderWorldProbeIrradianceLevelDebug()
     float baseSpacing = VGE_LUMON_WORLDPROBE_BASE_SPACING;
     if (levels <= 0 || resolution <= 0) return vec4(0.0, 0.0, 0.0, 1.0);
 
-    int maxLevel = max(levels - 1, 0);
-    int level = lumonWorldProbeSelectLevelByDistance(posWS, worldProbeCameraPosWS, baseSpacing, maxLevel);
-    float spacing = lumonWorldProbeSpacing(baseSpacing, level);
     vec3 posRel = posWS - worldProbeCameraPosWS;
+    int level = lumonWorldProbeSelectLevelByExtents(posRel, baseSpacing, levels, resolution, worldProbeOriginMinCorner);
+    float spacing = lumonWorldProbeSpacing(baseSpacing, level);
 
     LumOnWorldProbeSample sL = lumonWorldProbeSampleLevelTrilinear(
         worldProbeSH0, worldProbeSH1, worldProbeSH2, worldProbeSky0, worldProbeVis0, worldProbeMeta0,
@@ -386,12 +384,11 @@ vec4 renderWorldProbeCrossLevelBlendDebug()
     float baseSpacing = VGE_LUMON_WORLDPROBE_BASE_SPACING;
     if (levels <= 0 || resolution <= 0) return vec4(0.0, 0.0, 0.0, 1.0);
 
-    int maxLevel = max(levels - 1, 0);
-    int level = lumonWorldProbeSelectLevelByDistance(posWS, worldProbeCameraPosWS, baseSpacing, maxLevel);
+    vec3 posRel = posWS - worldProbeCameraPosWS;
+    int level = lumonWorldProbeSelectLevelByExtents(posRel, baseSpacing, levels, resolution, worldProbeOriginMinCorner);
     float spacingL = lumonWorldProbeSpacing(baseSpacing, level);
 
     vec3 originL = worldProbeOriginMinCorner[level];
-    vec3 posRel = posWS - worldProbeCameraPosWS;
     vec3 localL = (posRel - originL) / max(spacingL, 1e-6);
     float edgeDist = lumonWorldProbeDistanceToBoundaryProbeUnits(localL, resolution);
     float wL = lumonWorldProbeCrossLevelBlendWeight(edgeDist, 2.0, 2.0);
