@@ -183,6 +183,8 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 
 				if (IsWorldProbeCenterInsideSolidBlock(mainThreadAccessor, probePosWorld))
 				{
+					// Probes whose centers lie inside solid collision should not contribute (likely invalid data).
+					// Probes are re-checked automatically when their ring-buffer slot is re-used on anchor shifts.
 					scheduler.Disable(req);
 					continue;
 				}

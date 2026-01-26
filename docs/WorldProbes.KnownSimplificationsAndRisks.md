@@ -21,7 +21,7 @@ Priorities are scoped to **Phase 18 diffuse GI correctness + debuggability**:
 ### P0 (Critical)
 
 - [x] [2.2 Unloaded chunks treated as misses; placeholder chunk objects can abort traces](#wp-2-2) — Implemented (Option A)
-- [ ] [2.3 Probe disabled when its center lies inside a solid collision box](#wp-2-3)
+- [x] [2.3 Probe disabled when its center lies inside a solid collision box](#wp-2-3) — Implemented (Option A)
 - [x] [5.1 ShortRangeAO multiplies irradiance by `aoConf`](#wp-5-1) — Implemented (Option A)
 - [ ] [5.5 Screen-probe miss fallback assumes sky radiance (miss != sky)](#wp-5-5)
 - [x] [6.1 Orb visualizer samples irradiance with a fixed “up” normal](#wp-6-1) — Resolved (outdated)
@@ -237,6 +237,8 @@ composite “++0~” variants, RNG/position-dependent variants, etc.
 **What**: Probes are permanently set to `Disabled` if their center point lies within any collision box of the most-solid
 block at that voxel.
 
+**Status**: Implemented (Option A)
+
 **Why this is an issue**
 
 - **Permanent holes**: disabling can create long-lived voids in the clipmap where sampling returns zero/old data even if
@@ -246,9 +248,10 @@ block at that voxel.
 
 **Options to address**
 
-- **Option A (minimal)**: Make this a _temporary invalidation_ (e.g., keep as Dirty/Uninitialized) instead of permanent `Disabled`, so it can recover as the world changes.
-- **Option B (relocate)**: Offset/relocate the probe sample position to the nearest valid point (push out of solids) rather than disabling the probe.
-- **Option C (reduce false positives)**: Only disable on clearly solid/opaque full-cube blocks; for complex collision shapes, keep the probe but clamp confidence or treat results conservatively.
+- **Option A (anchor-shift aware)**: Keep `Disabled`, but ensure any probes whose ring-buffer slots get re-used by an anchor shift are re-queued (Dirty/Uninitialized) so they’re re-checked at their new world position. **(Implemented)**
+- **Option B (time-based)**: Periodically re-test `Disabled` probes (or convert them to Stale/Dirty after N seconds) so they recover if the world changes in-place.
+- **Option C (relocate)**: Offset/relocate the probe sample position to the nearest valid point (push out of solids) rather than disabling the probe.
+- **Option D (reduce false positives)**: Only disable on clearly solid/opaque full-cube blocks; for complex collision shapes, keep the probe but clamp confidence or treat results conservatively.
 
 <a id="wp-2-4"></a>
 
