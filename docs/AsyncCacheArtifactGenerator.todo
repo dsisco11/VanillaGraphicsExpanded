@@ -85,8 +85,8 @@ Transitions (high-level):
   T1: Scheduler selects Key       S1 → S2
 
   T2: Acquire reservations        S2 → S3
-    - DiskReservation required iff DiskOutput will be produced.
-    - GpuReservation required iff GpuOutput will be produced (ties to streaming budgets/limits).
+    - DiskReservation required iff the work item will use disk output.
+    - GpuReservation required iff the work item will use GPU output (ties to streaming budgets/limits).
     - If reservation not available: defer (S2 → S1) without blocking render thread.
 
   T3: Compute yields outputs      S3 → (S4 and/or S5 and/or S7 and/or S8)
@@ -148,19 +148,19 @@ Invariants:
     - Small yields (avoid starving other tasks)
   ✔ Add stats snapshot:
     - queued, in-flight, completed, errors
-    - timings: avg compute, avg IO
+    - timings: avg compute, avg output
 
 
-☐ Phase 2 - Backpressure + Reservations (Disk + GPU)
+✔ Phase 2 - Backpressure + Reservations (Disk + GPU)
   Exit artifacts: producers cannot overrun disk/GPU pipelines; no dropped writes.
-  ☐ Disk write backpressure:
+  ✔ Disk write backpressure:
     - Define an IO “reservation token” (capacity N)
     - Reserve during Admission (S2→S3) before scheduling compute that will produce disk output
     - Release after write completes
-  ☐ GPU upload backpressure:
+  ✔ GPU upload backpressure:
     - Do not invent a second render-thread pipeline; integrate with texture streaming budgets/queues
     - Add a “can stage/can commit” check or reservation tied to existing streaming limits (S2 gate)
-  ☐ Prove “never block render thread”:
+  ✔ Prove “never block render thread”:
     - Reservations happen on worker/scheduler thread only
     - Render-thread commit work is bounded and budgeted
 

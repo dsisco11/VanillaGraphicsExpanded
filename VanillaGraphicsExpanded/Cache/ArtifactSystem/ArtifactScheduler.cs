@@ -18,6 +18,9 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
 
     private readonly ArtifactPriorityFifoQueue<TKey> queue = new();
 
+    private readonly IArtifactReservationPool? diskReservations;
+    private readonly IArtifactReservationPool? gpuReservations;
+
     private readonly object lifecycleGate = new();
     private CancellationTokenSource? runCts;
     private CancellationTokenSource? sessionCts;
@@ -42,12 +45,16 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
         IArtifactComputer<TKey, TOutput> computer,
         IArtifactOutputStage<TKey, TOutput>? outputStage,
         IArtifactApplier<TKey, TOutput>? applier,
-        int maxConcurrency = 1)
+        int maxConcurrency = 1,
+        IArtifactReservationPool? diskReservations = null,
+        IArtifactReservationPool? gpuReservations = null)
     {
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
         this.computer = computer ?? throw new ArgumentNullException(nameof(computer));
         this.outputStage = outputStage;
         this.applier = applier;
+        this.diskReservations = diskReservations;
+        this.gpuReservations = gpuReservations;
 
         this.maxConcurrency = Math.Clamp(maxConcurrency, 1, 32);
         concurrencyGate = new SemaphoreSlim(this.maxConcurrency, this.maxConcurrency);
@@ -118,7 +125,7 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
     public bool Enqueue(IArtifactWorkItem<TKey> item)
     {
         if (item is null) throw new ArgumentNullException(nameof(item));
-        return queue.TryEnqueue(item.Priority, item.Key);
+        return queue.TryEnqueue(item.Priority, item);
     }
 
     public ArtifactSchedulerStats GetStatsSnapshot()
@@ -162,9 +169,18 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
     {
         while (!token.IsCancellationRequested)
         {
-            if (!queue.TryDequeue(out TKey key))
+            if (!queue.TryDequeue(out IArtifactWorkItem<TKey> item))
             {
                 try { await Task.Delay(5, token).ConfigureAwait(false); } catch { }
+                continue;
+            }
+
+            // Admission/backpressure (Option B): never block; defer when capacity unavailable.
+            if (!TryAcquireReservations(item, out ArtifactReservationToken diskToken, out ArtifactReservationToken gpuToken))
+            {
+                // Requeue at the same priority and yield briefly.
+                queue.TryEnqueue(item.Priority, item);
+                try { await Task.Delay(1, token).ConfigureAwait(false); } catch { }
                 continue;
             }
 
@@ -181,8 +197,11 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
             {
                 try
                 {
+                    using (diskToken)
+                    using (gpuToken)
+                    {
                     ArtifactSession session = new(capturedSessionId, workToken);
-                    var ctx = new ArtifactComputeContext<TKey>(capi, session, key);
+                    var ctx = new ArtifactComputeContext<TKey>(capi, session, item.Key);
 
                     long c0 = Stopwatch.GetTimestamp();
                     ArtifactComputeResult<TOutput> result = await computer.ComputeAsync(ctx).ConfigureAwait(false);
@@ -198,7 +217,7 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
                     if (!result.IsNoop && result.Output.HasValue && outputStage is not null)
                     {
                         long o0 = Stopwatch.GetTimestamp();
-                        await outputStage.OutputAsync(new ArtifactOutputContext<TKey, TOutput>(capi, session, key, result.Output.Value)).ConfigureAwait(false);
+                        await outputStage.OutputAsync(new ArtifactOutputContext<TKey, TOutput>(capi, session, item.Key, result.Output.Value)).ConfigureAwait(false);
                         long o1 = Stopwatch.GetTimestamp();
                         Interlocked.Add(ref outputTicks, o1 - o0);
                         Interlocked.Increment(ref outputSamples);
@@ -213,12 +232,13 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
                                 return;
                             }
 
-                            var applyCtx = new ArtifactApplyContext<TKey, TOutput>(capi, session, key, result.Output);
+                            var applyCtx = new ArtifactApplyContext<TKey, TOutput>(capi, session, item.Key, result.Output);
                             applier.Apply(in applyCtx);
                         }, "vge-artifact-apply");
                     }
 
                     Interlocked.Increment(ref completed);
+                    }
                 }
                 catch
                 {
@@ -235,11 +255,43 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
         }
     }
 
+    private bool TryAcquireReservations(
+        IArtifactWorkItem<TKey> item,
+        out ArtifactReservationToken diskToken,
+        out ArtifactReservationToken gpuToken)
+    {
+        diskToken = default;
+        gpuToken = default;
+
+        bool wantsDisk = (item.RequiredOutputKinds & ArtifactOutputKinds.Disk) != 0;
+        bool wantsGpu = (item.RequiredOutputKinds & ArtifactOutputKinds.Gpu) != 0;
+
+        if (wantsDisk && diskReservations is not null)
+        {
+            if (!diskReservations.TryAcquire(out diskToken))
+            {
+                return false;
+            }
+        }
+
+        if (wantsGpu && gpuReservations is not null)
+        {
+            if (!gpuReservations.TryAcquire(out gpuToken))
+            {
+                diskToken.Dispose();
+                diskToken = default;
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private sealed class ArtifactPriorityFifoQueue<T>
         where T : notnull
     {
         private readonly object gate = new();
-        private readonly SortedDictionary<int, Queue<T>> queuesByPriority = new();
+        private readonly SortedDictionary<int, Queue<IArtifactWorkItem<T>>> queuesByPriority = new();
         private readonly HashSet<T> queuedKeys = new();
 
         public int Count
@@ -253,18 +305,18 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
             }
         }
 
-        public bool TryEnqueue(int priority, T item)
+        public bool TryEnqueue(int priority, IArtifactWorkItem<T> item)
         {
             lock (gate)
             {
-                if (!queuedKeys.Add(item))
+                if (!queuedKeys.Add(item.Key))
                 {
                     return false;
                 }
 
-                if (!queuesByPriority.TryGetValue(priority, out Queue<T>? q))
+                if (!queuesByPriority.TryGetValue(priority, out Queue<IArtifactWorkItem<T>>? q))
                 {
-                    q = new Queue<T>();
+                    q = new Queue<IArtifactWorkItem<T>>();
                     queuesByPriority[priority] = q;
                 }
 
@@ -273,7 +325,7 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
             }
         }
 
-        public bool TryDequeue(out T item)
+        public bool TryDequeue(out IArtifactWorkItem<T> item)
         {
             lock (gate)
             {
@@ -284,9 +336,9 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
                 }
 
                 int highestPriority = int.MinValue;
-                Queue<T>? highestQueue = null;
+                Queue<IArtifactWorkItem<T>>? highestQueue = null;
 
-                foreach ((int priority, Queue<T> q) in queuesByPriority)
+                foreach ((int priority, Queue<IArtifactWorkItem<T>> q) in queuesByPriority)
                 {
                     highestPriority = priority;
                     highestQueue = q;
@@ -299,7 +351,7 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
                 }
 
                 item = highestQueue.Dequeue();
-                queuedKeys.Remove(item);
+                queuedKeys.Remove(item.Key);
 
                 if (highestQueue.Count == 0)
                 {

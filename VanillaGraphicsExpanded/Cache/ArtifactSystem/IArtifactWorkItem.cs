@@ -19,4 +19,10 @@ internal interface IArtifactWorkItem<TKey>
     string TypeId { get; }
 
     string DebugLabel { get; }
+
+    /// <summary>
+    /// Declares which output pipelines this work item will use if executed.
+    /// Used by the scheduler to enforce Option B backpressure during admission.
+    /// </summary>
+    ArtifactOutputKinds RequiredOutputKinds { get; }
 }
