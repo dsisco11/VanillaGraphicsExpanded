@@ -7,18 +7,18 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
-internal sealed class LumOnPmjJitterTexture : IDisposable
+/// <summary>
+/// Progressive Multi-Jittered (PMJ) jitter texture for LumOn ray tracing.
+/// Inherits from <see cref="GpuTexture"/> to provide RAII + deferred disposal.
+/// </summary>
+public sealed class LumOnPmjJitterTexture : GpuTexture
 {
     private readonly PmjCache cache = new();
     private readonly PmjConfig config;
 
-    private Texture2D? texture;
-
-    public Texture2D? Texture => texture;
-    public int TextureId => texture?.TextureId ?? 0;
     public int CycleLength => config.SampleCount;
 
-    public LumOnPmjJitterTexture(int cycleLength, uint seed)
+    private LumOnPmjJitterTexture(int cycleLength, uint seed)
     {
         if (cycleLength <= 0) throw new ArgumentOutOfRangeException(nameof(cycleLength));
 
@@ -32,30 +32,35 @@ internal sealed class LumOnPmjJitterTexture : IDisposable
             Centered: false);
     }
 
+    public static LumOnPmjJitterTexture Create(int cycleLength, uint seed)
+    {
+        var texture = new LumOnPmjJitterTexture(cycleLength, seed);
+        texture.EnsureCreated();
+        return texture;
+    }
+
     public void EnsureCreated()
     {
-        if (texture is not null)
+        if (IsValid)
         {
             return;
         }
 
-        // RG16_UNorm 1xN “1D” texture stored as 2D.
-        texture = Texture2D.Create(CycleLength, 1, PixelInternalFormat.Rg16, TextureFilterMode.Nearest, debugName: "LumOn.PMJ.Jitter");
+        // RG16_UNorm 1xN "1D" texture stored as 2D.
+        width = CycleLength;
+        height = 1;
+        depth = 1;
+        internalFormat = PixelInternalFormat.Rg16;
+        textureTarget = TextureTarget.Texture2D;
+        filterMode = TextureFilterMode.Nearest;
+        debugName = "LumOn.PMJ.Jitter";
+
+        AllocateOrReallocate2DTexture(mipLevels: 1);
 
         PmjSequence seq = cache.GetOrCreateSequence(config);
         ushort[] rg = PmjConversions.ToRg16UNormInterleaved(seq);
         // This texture is sampled immediately by GPU tests and the renderer; make upload synchronous.
-        texture.UploadDataImmediate(rg);
+        UploadDataImmediate(rg);
     }
 
-    public void Bind(int unit)
-    {
-        texture?.Bind(unit);
-    }
-
-    public void Dispose()
-    {
-        texture?.Dispose();
-        texture = null;
-    }
 }

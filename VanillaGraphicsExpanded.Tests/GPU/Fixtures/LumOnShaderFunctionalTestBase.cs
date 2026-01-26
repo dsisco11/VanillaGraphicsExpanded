@@ -135,8 +135,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
         _pmjJitterCycleLength = cycleLength;
         _pmjJitterSeed = seed;
 
-        _pmjJitterTexture = new LumOnPmjJitterTexture(cycleLength, seed);
-        _pmjJitterTexture.EnsureCreated();
+        _pmjJitterTexture = LumOnPmjJitterTexture.Create(cycleLength, seed);
 
         return _pmjJitterTexture.TextureId;
     }

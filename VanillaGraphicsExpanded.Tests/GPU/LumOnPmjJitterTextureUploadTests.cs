@@ -26,8 +26,7 @@ public sealed class LumOnPmjJitterTextureUploadTests : RenderTestBase
         const int cycleLength = 256;
         const uint seed = 123u;
 
-        using var tex = new LumOnPmjJitterTexture(cycleLength, seed);
-        tex.EnsureCreated();
+        using var tex = LumOnPmjJitterTexture.Create(cycleLength, seed);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
 
         AssertTexture2DLevelFormatAndSize(
@@ -61,8 +60,7 @@ public sealed class LumOnPmjJitterTextureUploadTests : RenderTestBase
         PmjSequence seq = PmjGenerator.Generate(config);
         ushort[] expected = PmjConversions.ToRg16UNormInterleaved(seq);
 
-        using var tex = new LumOnPmjJitterTexture(cycleLength, seed);
-        tex.EnsureCreated();
+        using var tex = LumOnPmjJitterTexture.Create(cycleLength, seed);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
 
         ushort[] actual = ReadBackRg16UnormInterleaved(tex.TextureId, cycleLength);

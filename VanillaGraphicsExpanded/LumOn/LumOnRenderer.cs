@@ -125,7 +125,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         this.gBufferManager = gBufferManager;
         this.worldProbeClipmapBufferManager = worldProbeClipmapBufferManager;
 
-        pmjJitter = new LumOnPmjJitterTexture(config.LumOn.PmjJitterCycleLength, config.LumOn.PmjJitterSeed);
+        pmjJitter = LumOnPmjJitterTexture.Create(config.LumOn.PmjJitterCycleLength, config.LumOn.PmjJitterSeed);
 
         // Create fullscreen quad mesh
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
@@ -494,7 +494,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.PrimaryDepth = primaryFb.DepthTextureId;
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
 
-        shader.PmjJitter = pmjJitter.Texture;
+        shader.PmjJitter = pmjJitter;
         shader.PmjCycleLength = pmjJitter.CycleLength;
 
         // Pass matrices
