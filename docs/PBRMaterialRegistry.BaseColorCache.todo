@@ -59,16 +59,16 @@ Code touchpoints (expected):
     - Regeneration runs off-thread; it will need to load/decode textures via `ICoreClientAPI.Assets` + `IAsset.ToBitmap`.
       This pattern already exists in `MaterialOverrideTextureLoader` and is treated as acceptable.
 
-☐ Phase 1 - Generic Cache Core
+✔ Phase 1 - Generic Cache Core
   Exit artifacts: `IDataCacheSystem<TKey, TPayload>`, `ICacheStore`, `ICacheCodec<TPayload>`; blob store + JSON dictionary store; tests.
-  ☐ Define shared-core abstractions:
+  ✔ Define shared-core abstractions:
     - `IDataCacheSystem<TKey, TPayload>` (coordinates memory + store + codec; no feature knowledge)
     - `ICacheStore` (persistence interface; read/write/delete/list; atomic writes; corruption handling)
     - `ICacheCodec<TPayload>` (feature-owned encode/decode + codec schema)
-  ☐ Implement stores:
+  ✔ Implement stores:
     - Blob store (key -> bytes; file-per-entry; atomic writes: temp + rename)
     - JSON dictionary store (key -> JSON payload; single file; atomic writes)
-  ☐ Shared-core tests:
+  ✔ Shared-core tests:
     - atomic write behavior
     - corruption recovery (skip + optional purge)
     - codec failures don’t poison the whole load
