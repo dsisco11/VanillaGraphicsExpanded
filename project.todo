@@ -11,7 +11,7 @@ Issues:
 
   GpuResources:
     ✔ `LumOnPmjJitterTexture` should be a `GpuTexture` (RAII + deferred disposal) rather than a raw GL texture handle. @done(26-01-25)
-    ☐ `LumOnBlueNoiseTexture` should be a `GpuTexture` (RAII + deferred disposal) rather than a raw GL texture handle.
+    ☐ `LumOnBlueNoiseTexture` should be a `GpuTexture` (RAII + deferred disposal) rather than a raw GL texture handle. @cancelled(26-01-26) Class does not exist; was planned but never implemented. Consider creating if blue noise is needed for LumOn.
 
   WorldProbes:
     ☐ Rename world-probe classes to remove `LumOn` prefix.

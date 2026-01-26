@@ -84,21 +84,21 @@ Code touchpoints (expected):
     - on-disk compatibility (existing cache can be read)
     - no behavior change in atlas cache hit/miss counters
 
-☐ Phase 3 - BaseColor Consumer via JSON Store
+✔ Phase 3 - BaseColor Consumer via JSON Store
   Exit artifacts: base-color cache keys + payload codec; JSON store at `VintagestoryData/VGE/Cache/BaseColor/`.
-  ☐ Add base-color key inputs + builder (feature-owned; reuse existing key container/hash approach):
+  ✔ Add base-color key inputs + builder (feature-owned; reuse existing key container/hash approach):
     - `BaseColorCacheKeyInputs`
     - `BaseColorCacheKeyBuilder`
-  ☐ Key contents (minimum viable; no pack/mod fingerprinting):
+  ✔ Key contents (minimum viable; no pack/mod fingerprinting):
     - baseColorSchemaVersion
     - normalized texture asset id (domain + path, serialized via `AssetLocation.ToString()`)
     - `origin=<asset.Origin.OriginPath>` (or `(unknown)`)
     - `bytes=<asset.Data.Length>` (0 if missing)
     - `avgAlgo=<int>` (bump only for intentional averaging behavior changes)
-  ☐ Define payload + codec:
+  ✔ Define payload + codec:
     - Payload: average linear RGB in `RGB16F` (3x `ushort` half bit patterns)
     - Codec: `ICacheCodec<TPayload>` implementation for JSON dictionary store round-trip
-  ☐ Unit tests:
+  ✔ Unit tests:
     - stable key determinism across runs
     - key changes when origin/bytes/avgAlgo change
     - JSON store round-trip (payload fidelity + corruption tolerance)
