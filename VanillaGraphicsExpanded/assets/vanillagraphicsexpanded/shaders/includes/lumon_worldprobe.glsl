@@ -191,6 +191,18 @@ void lumonWorldProbeAccumulateCorner(
 	ivec3 storage = lumonWorldProbeWrapIndex(localIdx + ring, resolution);
 	ivec2 ac = lumonWorldProbeAtlasCoord(storage, level, resolution);
 
+	vec2 meta = texelFetch(probeMeta0, ac, 0).xy;
+	float conf = clamp(meta.x, 0.0, 1.0);
+
+	// Weight samples by confidence so uninitialized/disabled probes (conf=0) don't
+	// darken interpolated results. Normalization happens in the caller.
+	float w = wt * conf;
+	metaConfAccum += w;
+	if (w <= 0.0)
+	{
+		return;
+	}
+
 	vec4 t0 = texelFetch(probeSH0, ac, 0);
 	vec4 t1 = texelFetch(probeSH1, ac, 0);
 	vec4 t2 = texelFetch(probeSH2, ac, 0);
@@ -198,22 +210,18 @@ void lumonWorldProbeAccumulateCorner(
 	vec4 cR, cG, cB;
 	lumonWorldProbeDecodeShL1(t0, t1, t2, cR, cG, cB);
 
-	shR += cR * wt;
-	shG += cG * wt;
-	shB += cB * wt;
+	shR += cR * w;
+	shG += cG * w;
+	shB += cB * w;
 
 	vec4 sky = texelFetch(probeSky0, ac, 0);
-	shSky += sky * wt;
-
-	vec2 meta = texelFetch(probeMeta0, ac, 0).xy;
-	float conf = meta.x;
-	metaConfAccum += conf * wt;
+	shSky += sky * w;
 
 	vec4 vis = texelFetch(probeVis0, ac, 0);
 	vec3 aoDir = lumonOctahedralUVToDirection(vis.xy);
-	aoDirAccum += aoDir * wt;
-	skyIntensityAccum += clamp(vis.z, 0.0, 1.0) * wt;
-	aoConfAccum += vis.w * wt;
+	aoDirAccum += aoDir * w;
+	skyIntensityAccum += clamp(vis.z, 0.0, 1.0) * w;
+	aoConfAccum += clamp(vis.w, 0.0, 1.0) * w;
 }
 
 LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
@@ -291,6 +299,20 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i1.z), ring, resolution, level, w101, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
 	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i1.z), ring, resolution, level, w011, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
 	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i1.z), ring, resolution, level, w111, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
+
+	if (metaConfAccum <= 1e-6)
+	{
+		return s;
+	}
+
+	float invW = 1.0 / metaConfAccum;
+	shR *= invW;
+	shG *= invW;
+	shB *= invW;
+	shSky *= invW;
+	skyIntensityAccum *= invW;
+	aoDirAccum *= invW;
+	aoConfAccum *= invW;
 
 	// ShortRangeAO: use a bent-normal evaluation rather than a hard directional multiplier.
 	// The old multiplier (max(dot(n, aoDir),0) * aoConf) can go to zero for side faces outdoors
@@ -395,6 +417,20 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleLevelTrilinearRadiance(
 	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i1.z), ring, resolution, level, w101, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
 	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i1.z), ring, resolution, level, w011, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
 	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i1.z), ring, resolution, level, w111, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
+
+	if (metaConfAccum <= 1e-6)
+	{
+		return s;
+	}
+
+	float invW = 1.0 / metaConfAccum;
+	shR *= invW;
+	shG *= invW;
+	shB *= invW;
+	shSky *= invW;
+	skyIntensityAccum *= invW;
+	aoDirAccum *= invW;
+	aoConfAccum *= invW;
 
 	float aoConf = clamp(aoConfAccum, 0.0, 1.0);
 
