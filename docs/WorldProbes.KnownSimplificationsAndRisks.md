@@ -23,7 +23,7 @@ Priorities are scoped to **Phase 18 diffuse GI correctness + debuggability**:
 - [x] [2.2 Unloaded chunks treated as misses; placeholder chunk objects can abort traces](#wp-2-2) — Implemented (Option A)
 - [x] [2.3 Probe disabled when its center lies inside a solid collision box](#wp-2-3) — Implemented (Option A)
 - [x] [5.1 ShortRangeAO multiplies irradiance by `aoConf`](#wp-5-1) — Implemented (Option A)
-- [ ] [5.5 Screen-probe miss fallback assumes sky radiance (miss != sky)](#wp-5-5)
+- [x] [5.5 Screen-probe miss fallback assumes sky radiance (miss != sky)](#wp-5-5) — Implemented (Option C, probe-atlas mode)
 - [x] [6.1 Orb visualizer samples irradiance with a fixed “up” normal](#wp-6-1) — Resolved (outdated)
 
 ### P1 (High)
@@ -547,6 +547,8 @@ block at that voxel.
 - `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_gather.fsh`
 - `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_gather.fsh`
 
+**Status**: Implemented (Option C, probe-atlas mode)
+
 **What**: Screen-probe tracing is screen-space depth marching. When a ray “misses” it can mean “off-screen”, “occluded by
 screen depth”, or “no depth match”, not necessarily “this direction reached the sky”. Today, miss handling injects sky
 radiance (`lumonGetSkyColor`) into the screen-probe cache, and the screen↔world blend does not account for miss rates, so
@@ -567,7 +569,12 @@ world-probes do not reliably act as a fallback when screen traces fail.
 
 - **Option A (cheap)**: Make screen-probe miss radiance less “sky-like” (e.g., ambient-only tint, lower `VGE_LUMON_SKY_MISS_WEIGHT`, or no sun lobe) to reduce sky leaking.
 - **Option B (better)**: Store and use miss diagnostics (miss ratio, screen-exit ratio, avg hit distance) to down-weight `screenConfidence` so world probes take over when screen-space is unreliable.
-- **Option C (Lumen-like)**: On screen miss, perform a secondary world-space query (hardware RT, distance fields, or a proxy scene) and only fall back to sky/environment when that also misses.
+- **Option C (Lumen-like)**: On screen miss, perform a secondary world-space query (hardware RT, distance fields, or a proxy scene) and only fall back to sky/environment when that also misses. **(Implemented for probe-atlas trace via world-probe fallback)**
+
+**Notes**
+
+- In probe-atlas mode (`LumOn.UseProbeAtlas = true`), `lumon_probe_atlas_trace.fsh` tries world-probes on miss and only uses `lumonGetSkyColor` if the world-probe query returns low confidence.
+- In legacy SH mode (`LumOn.UseProbeAtlas = false`), `lumon_probe_trace.fsh` still uses sky radiance directly on miss.
 
 ## 6. Debug Visualizer / Tooling Limitations
 
