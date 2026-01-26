@@ -165,15 +165,15 @@ Invariants:
     - Render-thread commit work is bounded and budgeted
 
 
-☐ Phase 3 - GPU Output Integration (Async Staging + Render Commit)
+✔ Phase 3 - GPU Output Integration (Async Staging + Render Commit)
   Exit artifacts: generic path for GPU payloads via existing wrappers.
-  ☐ Define GPU payload types:
+  ✔ Define GPU payload types:
     - Raw byte payload (e.g., tex sub-image bytes)
     - Typed payload (e.g., float arrays) that can be converted to staging bytes
-  ☐ Implement GPU uploader adapter(s):
+  ✔ Implement GPU uploader adapter(s):
     - `TextureStreamingSystem.StageCopy(...)` based staging (preferred)
     - `GpuTexture` wrapper path (when texture object ownership is required)
-  ☐ Handle readiness:
+  ✔ Handle readiness:
     - Before streaming manager initializes, staging falls back to CPU buffers (still correct)
     - Document the perf implication
   ☐ Optional: fence/ack handling if “completion” is required for reuse
