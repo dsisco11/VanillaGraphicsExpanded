@@ -97,6 +97,20 @@ Cache root location:
 - `VintagestoryData/VGE/Cache/` (global)
 - `VintagestoryData/VGE/Cache/Worlds/<worldId>/` (per-world overlay)
 
+### 4.3 BaseColor Cache (Average Albedo)
+
+The *average base color* cache is a lightweight, global-only cache used to avoid repeatedly decoding and averaging albedo textures to derive `DiffuseAlbedo` inputs.
+
+- Root: `VintagestoryData/VGE/Cache/BaseColor/`
+- Store: JSON dictionary store (atomic `meta.json` writes)
+- Keying: purely key-based staleness (if inputs differ → miss → recompute)
+- Toggle: governed by `MaterialAtlas.EnableCaching`
+
+Schema bump procedure:
+
+- If the averaging algorithm intentionally changes, bump the `avgAlgo` marker in the base-color stable key prefix.
+- If the stable key field order/meaning changes, bump the base-color key `schemaVersion`.
+
 ### 4.2 Asset Provenance Rules
 
 Assets are classified as:

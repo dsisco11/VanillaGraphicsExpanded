@@ -134,16 +134,16 @@ Code touchpoints (expected):
     - counts: preload hits/misses, regen scheduled/completed, errors
     - timings: avg compute time, IO time
 
-☐ Phase 6 - Validation, Diagnostics, and Docs
+✔ Phase 6 - Validation, Diagnostics, and Docs
   Exit artifacts: tests + debug surfaces/stats; documented behavior and knobs.
-  ☐ Add tests for:
+  ✔ Add tests for:
     - corrupt cache entry recovery
     - session cancellation drops stale results
     - cache hit avoids calling the expensive averaging path (where testable)
-  ☐ Add a debug view and/or log line summarizing:
+  ✔ Add a debug view and/or log line summarizing:
     - preload stats (hits/misses)
     - regen progress + completion
-  ☐ Document in docs:
+  ✔ Document in docs:
     - cache scope/policy (`VintagestoryData/VGE/Cache/BaseColor/` under shared-core namespace)
     - schema bump procedure when changing averaging behavior
 

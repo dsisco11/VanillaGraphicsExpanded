@@ -53,6 +53,9 @@ internal sealed class PbrMaterialRegistry
     private long baseColorRegenCompleted;
     private long baseColorRegenErrors;
 
+    private long baseColorRegenComputeTicks;
+    private long baseColorRegenIoTicks;
+
     // Dense lookup: [blockId * 6 + faceIndex] -> derived surface terms.
     // Built once blocks + textures are available, and rebuilt on texture reload.
     private DerivedSurface[] derivedSurfaceByBlockFace = Array.Empty<DerivedSurface>();
@@ -354,33 +357,21 @@ internal sealed class PbrMaterialRegistry
             return false;
         }
 
+        ExtractAssetFingerprint(asset, out AssetLocation texture, out string? originPath, out long bytes);
+        return TryGetBaseColorFromCache(texture, originPath, bytes, out baseColorLinear);
+    }
+
+    private bool TryGetBaseColorFromCache(AssetLocation texture, string? originPath, long bytes, out Vector3 baseColorLinear)
+    {
+        baseColorLinear = default;
+
         IDataCacheSystem<AtlasCacheKey, BaseColorRgb16f>? diskCache = EnsureBaseColorDiskCacheInitialized();
         if (diskCache is null)
         {
             return false;
         }
 
-        string? originPath = null;
-        try
-        {
-            originPath = asset.Origin?.OriginPath;
-        }
-        catch
-        {
-            originPath = null;
-        }
-
-        long bytes = 0;
-        try
-        {
-            bytes = asset.Data?.Length ?? 0;
-        }
-        catch
-        {
-            bytes = 0;
-        }
-
-        AtlasCacheKey key = baseColorKeyBuilder.BuildKey(baseColorKeyInputs, asset.Location, originPath, bytes);
+        AtlasCacheKey key = baseColorKeyBuilder.BuildKey(baseColorKeyInputs, texture, originPath, bytes);
 
         lock (baseColorCacheLock)
         {
@@ -410,35 +401,21 @@ internal sealed class PbrMaterialRegistry
             return;
         }
 
+        ExtractAssetFingerprint(asset, out AssetLocation texture, out string? originPath, out long bytes);
+        StoreBaseColorToCache(texture, originPath, bytes, baseColorLinear);
+    }
+
+    private void StoreBaseColorToCache(AssetLocation texture, string? originPath, long bytes, in Vector3 baseColorLinear)
+    {
         IDataCacheSystem<AtlasCacheKey, BaseColorRgb16f>? diskCache = EnsureBaseColorDiskCacheInitialized();
         if (diskCache is null)
         {
             return;
         }
 
-        string? originPath = null;
-        try
-        {
-            originPath = asset.Origin?.OriginPath;
-        }
-        catch
-        {
-            originPath = null;
-        }
-
-        long bytes = 0;
-        try
-        {
-            bytes = asset.Data?.Length ?? 0;
-        }
-        catch
-        {
-            bytes = 0;
-        }
-
         Vector3 clamped = Clamp01(baseColorLinear);
 
-        AtlasCacheKey key = baseColorKeyBuilder.BuildKey(baseColorKeyInputs, asset.Location, originPath, bytes);
+        AtlasCacheKey key = baseColorKeyBuilder.BuildKey(baseColorKeyInputs, texture, originPath, bytes);
         lock (baseColorCacheLock)
         {
             baseColorLinearByKey[key] = clamped;
@@ -459,6 +436,72 @@ internal sealed class PbrMaterialRegistry
         });
     }
 
+    private static void ExtractAssetFingerprint(IAsset asset, out AssetLocation texture, out string? originPath, out long bytes)
+    {
+        texture = asset.Location;
+
+        originPath = null;
+        try { originPath = asset.Origin?.OriginPath; } catch { originPath = null; }
+
+        bytes = 0;
+        try { bytes = asset.Data?.Length ?? 0; } catch { bytes = 0; }
+    }
+
+    internal void PutBaseColorInMemoryForTests(AtlasCacheKey key, Vector3 baseColorLinear)
+    {
+        lock (baseColorCacheLock)
+        {
+            baseColorLinearByKey[key] = baseColorLinear;
+        }
+    }
+
+    internal bool TryGetBaseColorInMemoryForTests(AtlasCacheKey key, out Vector3 baseColorLinear)
+    {
+        lock (baseColorCacheLock)
+        {
+            return baseColorLinearByKey.TryGetValue(key, out baseColorLinear);
+        }
+    }
+
+    internal long BumpBaseColorRegenSessionForTests()
+        => Interlocked.Increment(ref baseColorRegenSessionId);
+
+    internal bool TryApplyBaseColorRegenResultForTests(long sessionId, AtlasCacheKey key, Vector3 value)
+        => TryApplyBaseColorRegenResult(sessionId, key, value);
+
+    internal bool TryGetOrComputeBaseColorLinearForTests(
+        AssetLocation texture,
+        string? originPath,
+        long bytes,
+        Func<Vector3> expensiveCompute,
+        out Vector3 baseColorLinear,
+        out bool cacheHit)
+    {
+        baseColorLinear = default;
+        cacheHit = false;
+
+        AtlasCacheKey key = baseColorKeyBuilder.BuildKey(baseColorKeyInputs, texture, originPath, bytes);
+
+        lock (baseColorCacheLock)
+        {
+            if (baseColorLinearByKey.TryGetValue(key, out baseColorLinear))
+            {
+                cacheHit = true;
+                return true;
+            }
+        }
+
+        if (TryGetBaseColorFromCache(texture, originPath, bytes, out baseColorLinear))
+        {
+            cacheHit = true;
+            return true;
+        }
+
+        baseColorLinear = expensiveCompute();
+        StoreBaseColorToCache(texture, originPath, bytes, baseColorLinear);
+        return true;
+    }
+
     public void StartBaseColorBackgroundRegen(ICoreClientAPI capi)
     {
         ArgumentNullException.ThrowIfNull(capi);
@@ -475,6 +518,12 @@ internal sealed class PbrMaterialRegistry
             baseColorRegenCts = new CancellationTokenSource();
             long sessionId = Interlocked.Increment(ref baseColorRegenSessionId);
             CancellationToken token = baseColorRegenCts.Token;
+
+            Interlocked.Exchange(ref baseColorRegenScheduled, 0);
+            Interlocked.Exchange(ref baseColorRegenCompleted, 0);
+            Interlocked.Exchange(ref baseColorRegenErrors, 0);
+            Interlocked.Exchange(ref baseColorRegenComputeTicks, 0);
+            Interlocked.Exchange(ref baseColorRegenIoTicks, 0);
 
             // Conservative default: Phase 5 expects budgeting, but config knobs were removed.
             const int MaxConcurrency = 1;
@@ -514,6 +563,7 @@ internal sealed class PbrMaterialRegistry
         }
 
         var semaphore = new SemaphoreSlim(Math.Max(1, maxConcurrency), Math.Max(1, maxConcurrency));
+        var totalSw = Stopwatch.StartNew();
 
         try
         {
@@ -563,20 +613,17 @@ internal sealed class PbrMaterialRegistry
                             Vector3 rgb = DecodeRgb16f(onDisk);
                             capi.Event.EnqueueMainThreadTask(() =>
                             {
-                                if (sessionId != Interlocked.Read(ref baseColorRegenSessionId)) return;
-                                lock (baseColorCacheLock)
-                                {
-                                    baseColorLinearByKey[key] = rgb;
-                                }
+                                TryApplyBaseColorRegenResult(sessionId, key, rgb);
                             }, "vge-basecolor-cache-regen-hit");
                             return;
                         }
 
                         Interlocked.Increment(ref baseColorRegenScheduled);
 
-                        var sw = Stopwatch.StartNew();
+                        long compute0 = Stopwatch.GetTimestamp();
                         bool ok = TryComputeAverageAlbedoLinearNoCache(capi, asset, out Vector3 baseColorLinear, out _);
-                        sw.Stop();
+                        long compute1 = Stopwatch.GetTimestamp();
+                        Interlocked.Add(ref baseColorRegenComputeTicks, compute1 - compute0);
 
                         if (!ok)
                         {
@@ -587,15 +634,14 @@ internal sealed class PbrMaterialRegistry
                         BaseColorRgb16f payload = EncodeRgb16f(clamped);
 
                         // Write-through to disk store.
+                        long io0 = Stopwatch.GetTimestamp();
                         diskCache.Store(key, payload);
+                        long io1 = Stopwatch.GetTimestamp();
+                        Interlocked.Add(ref baseColorRegenIoTicks, io1 - io0);
 
                         capi.Event.EnqueueMainThreadTask(() =>
                         {
-                            if (sessionId != Interlocked.Read(ref baseColorRegenSessionId)) return;
-                            lock (baseColorCacheLock)
-                            {
-                                baseColorLinearByKey[key] = clamped;
-                            }
+                            TryApplyBaseColorRegenResult(sessionId, key, clamped);
                         }, "vge-basecolor-cache-regen-store");
 
                         Interlocked.Increment(ref baseColorRegenCompleted);
@@ -621,8 +667,46 @@ internal sealed class PbrMaterialRegistry
         }
         finally
         {
+            totalSw.Stop();
+
+            long scheduledCount = Interlocked.Read(ref baseColorRegenScheduled);
+            long completedCount = Interlocked.Read(ref baseColorRegenCompleted);
+            long errorsCount = Interlocked.Read(ref baseColorRegenErrors);
+
+            double tickToMs = 1000.0 / Stopwatch.Frequency;
+            double avgComputeMs = completedCount > 0
+                ? (Interlocked.Read(ref baseColorRegenComputeTicks) * tickToMs) / completedCount
+                : 0.0;
+            double avgIoMs = completedCount > 0
+                ? (Interlocked.Read(ref baseColorRegenIoTicks) * tickToMs) / completedCount
+                : 0.0;
+
+            capi.Logger.Debug(
+                "[VGE] BaseColor cache regen finished: scheduled={0}, completed={1}, errors={2}, avgComputeMs={3:F2}, avgIoMs={4:F2}, totalMs={5:F0}",
+                scheduledCount,
+                completedCount,
+                errorsCount,
+                avgComputeMs,
+                avgIoMs,
+                totalSw.Elapsed.TotalMilliseconds);
+
             semaphore.Dispose();
         }
+    }
+
+    private bool TryApplyBaseColorRegenResult(long sessionId, AtlasCacheKey key, in Vector3 value)
+    {
+        if (sessionId != Interlocked.Read(ref baseColorRegenSessionId))
+        {
+            return false;
+        }
+
+        lock (baseColorCacheLock)
+        {
+            baseColorLinearByKey[key] = value;
+        }
+
+        return true;
     }
 
     private static bool TryComputeAverageAlbedoLinearNoCache(
