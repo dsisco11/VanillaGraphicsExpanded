@@ -114,9 +114,10 @@ Invariants:
     - “Work item” (key + priority + dependencies)
     - “Artifact outputs” (disk payload, GPU payload)
     - “Session” (session id + cancellation token)
-  ✔ Define core interfaces (names tentative):
+  ☐ Define core interfaces (names tentative):
     - `IArtifactWorkItem<TKey>` (key, priority, type id, debug label)
     - `IArtifactComputer<TKey, TOutput>` (worker-thread compute)
+    - `IArtifactOutputStage<TKey, TOutput>` (single post-compute output stage; may dispatch disk + GPU work)
     - `IArtifactApplier<TKey, TOutput>` (main-thread apply, optional)
     - `IArtifactDiskStore<TKey, TDiskPayload>` (off-thread write)
     - `IArtifactGpuStore<TKey, TGpuPayload>` (off-thread stage + render-thread commit)
@@ -132,20 +133,20 @@ Invariants:
     - If no IO/GPU capacity is available, defer (don’t schedule) work.
 
 
-☐ Phase 1 - Core Scheduler (Queue + Lifecycle)
+✔ Phase 1 - Core Scheduler (Queue + Lifecycle)
   Exit artifacts: a generic scheduler that owns the work queue and continuously executes.
-  ☐ Implement queue primitive:
+  ✔ Implement queue primitive:
     - Priority FIFO (reuse or adapt `PriorityFifoQueue` patterns)
     - De-dup by key (avoid infinite requeue)
-  ☐ Implement lifecycle:
+  ✔ Implement lifecycle:
     - Start after preload/warmup
     - Stop on reload/dispose
     - Session id increments per start; stale results are dropped (see State Machine: SX)
-  ☐ Implement continuous execution loop:
+  ✔ Implement continuous execution loop:
     - Bounded worker concurrency (SemaphoreSlim)
     - Cooperative cancellation
     - Small yields (avoid starving other tasks)
-  ☐ Add stats snapshot:
+  ✔ Add stats snapshot:
     - queued, in-flight, completed, errors
     - timings: avg compute, avg IO
 

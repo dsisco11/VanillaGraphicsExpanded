@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Cache.Artifacts;
 /// Worker-thread compute stage.
 /// Threading contract: no GL calls; CPU work and asset decode are permitted.
 /// </summary>
-internal interface IArtifactComputer<TKey, TDiskPayload, TGpuPayload>
+internal interface IArtifactComputer<TKey, TOutput>
 {
-    ValueTask<ArtifactComputeResult<TDiskPayload, TGpuPayload>> ComputeAsync(ArtifactComputeContext<TKey> context);
+    ValueTask<ArtifactComputeResult<TOutput>> ComputeAsync(ArtifactComputeContext<TKey> context);
 }

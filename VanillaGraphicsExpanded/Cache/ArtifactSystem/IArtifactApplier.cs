@@ -4,7 +4,7 @@ namespace VanillaGraphicsExpanded.Cache.Artifacts;
 /// Apply stage (main-thread and/or render-thread depending on implementation).
 /// Must gate side effects on SessionId.
 /// </summary>
-internal interface IArtifactApplier<TKey, TDiskPayload, TGpuPayload>
+internal interface IArtifactApplier<TKey, TOutput>
 {
-    void Apply(in ArtifactApplyContext<TKey, TDiskPayload, TGpuPayload> context);
+    void Apply(in ArtifactApplyContext<TKey, TOutput> context);
 }
