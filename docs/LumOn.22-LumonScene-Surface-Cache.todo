@@ -1,0 +1,233 @@
+LumOn - Phase 22 - LumonScene Surface Cache (Cards + Virtual Paged Atlases) (Implementation):
+
+  Goal:
+  Implement a Lumen-style surface cache for LumOn ("LumonScene") that accumulates 0-bounce RGB irradiance on
+  surface texels over time. Primary target is voxel surfaces, but it must also support rotated/static meshes
+  (cards) and occasional arbitrary triangle meshes via card parameterization + captured depth.
+
+  Locked decisions (for this todo):
+  - Per-chunk virtual atlases backed by a shared global physical pool.
+  - Physical atlas resolution: 4096x4096 texels.
+  - Physical tile ("page") size: 256x256 texels.
+  - Atlas pool size: 64 atlases -> 64 * (16x16) = 16384 resident tiles.
+  - Voxel patch granularity: 4x4 voxels per patch.
+  - Voxel texel density at mip0: 32x32 texels per voxel face -> voxel patch = 128x128 texels.
+  - Trace payload is 0-bounce RGB irradiance accumulated on surface cache (not probes).
+  - First per-texel relight tracer is GPU (GL 4.3) and may use voxel DDA accuracy.
+  - First trace scene representation is a voxel occupancy clipmap storing compact light + material indirection:
+    - Packed R32UI per cell:
+      - blockLevel (0..32): 6 bits
+      - sunLevel (0..32): 6 bits
+      - lightId (0..63): 6 bits
+      - materialPaletteIndex (0..16383): 14 bits
+    - Indirection tables on GPU:
+      - LightColorLut[64] -> rgb
+      - BlockLevelScalarLut[33] -> scalar
+      - SunLevelScalarLut[33] -> scalar
+      - MaterialPalette[materialPaletteIndex] -> per-face material ids + flags
+
+  Reference docs:
+  - docs/LumOn.22-LumonScene-Surface-Cache.md (this system proposal)
+  - docs/LumOn.04-Ray-Tracing.md (trace conventions + integration patterns)
+  - docs/LumOn.19-Update-Pipeline-and-Scheduling.md (budgeted updates + per-frame work selection patterns)
+  - docs/LumOn.20-Streaming-and-Persistence.md (streaming lifecycle patterns; RAM persistence)
+  - docs/LumOn.08-Pipeline-Alignment-with-Lumen.md (context: surface cache complements screen-space GI)
+
+  Exit artifacts (Phase 22 overall):
+  A working surface-cache pipeline with stable PatchIds, per-chunk virtual space, a pooled physical atlas,
+  feedback-driven residency, capture layers (depth/material), GPU relight into irradiance, and shading integration
+  with debug tooling and basic validation tests.
+
+
+  Phase 22.1 - Requirements + Ownership Boundaries
+  Exit artifacts: Clear contracts for who owns chunk state, who owns global pool state, and how passes interact.
+  ☐ Define ownership types and lifetimes:
+    - ChunkLumonScene (per chunk): PatchRegistry, VirtualPagedAtlas, page-table mirror, dirty tracking
+    - PhysicalPagePool (global): atlas textures + free list + eviction policy + stats
+    - Render integration: frame scheduler + GPU passes + upload paths
+  ☐ Define chunk streaming lifecycle:
+    - Allocate/release chunkSlot (GPU slice) and patch-id space
+    - Preserve per-chunk cache history while chunk remains resident in RAM
+    - Correct teardown when chunk unloads (return tiles to pool; release registries)
+  ☐ Define budgets + knobs:
+    - Max page allocations per frame
+    - Max capture pages per frame
+    - Max relight texels/pages per frame
+    - Global pool pressure behavior (eviction thresholds, per-chunk quota optional)
+
+
+  Phase 22.2 - Patch Identity (Stable PatchIds) + Patch Registry
+  Exit artifacts: Stable PatchKey->PatchId mapping survives remesh; PatchMetadata is authoritative.
+  ☐ Define PatchKey encodings:
+    - Voxel patches: (chunkCoord, axis, planeIndex, patchUIndex, patchVIndex)
+    - Mesh cards: (chunkCoord or owner partition, instanceStableId, cardIndex)
+  ☐ Implement PatchRegistry (per chunk):
+    - Dictionary<PatchKey, PatchId>
+    - Patch list storage (axis/type, bounds, transform/basis, virtual handle, dirty flags, last-used)
+    - Ensure PatchIds remain stable across remesh: keep mapping even when geometry topology changes
+  ☐ Define patch dirtying rules:
+    - voxel changes (block updates)
+    - mesh instance changes (add/remove/transform)
+    - material definition changes (palette remap)
+
+
+  Phase 22.3 - Per-Chunk VirtualPagedAtlas (Virtual Address Space)
+  Exit artifacts: Deterministic virtual allocations per PatchId + stable virtual handles.
+  ☐ Implement VirtualSpaceAllocator (per chunk):
+    - Allocate page-rects for patch mip0 region (+ optional border)
+    - Store per-patch virtual base + size in PatchMetadata
+  ☐ Decide patch packing policy (mip0):
+    - Option A: 1 patch per page (simple; generous border/mip safety)
+    - Option B: 4 patches per page (2x2 packing; needs in-page offsets + stricter border rules)
+  ☐ Decide mip strategy:
+    - Which virtual mips exist (mip count) and how they are allocated
+    - How page-table mips map to physical pages (shared vs separate physical tiles)
+
+
+  Phase 22.4 - Global Physical Pool + Atlas Textures
+  Exit artifacts: Physical tile allocation/eviction works; atlas textures exist with debug labels.
+  ☐ Implement PhysicalPagePool:
+    - Free list init from (atlasIndex, tileX, tileY) for 64 atlases
+    - LRU/age tracking for eviction candidates (global; optional per-chunk quota later)
+    - Return tiles on chunk unload and on eviction
+  ☐ Define physical atlas layer set (shared residency):
+    - DepthAtlas (capture)
+    - MaterialAtlas (capture)
+    - IrradianceAtlas (relight + temporal accumulation)
+  ☐ Choose texture formats:
+    - Depth precision (R16F vs R32F) and meaning (plane displacement)
+    - Normal/material packing layout (bytes vs uint packing)
+    - Irradiance + accumulation weight (RGBA16F recommended initially)
+  ☐ Add GL object labeling and basic diagnostics counters:
+    - allocated tiles, evictions, residency pressure
+
+
+  Phase 22.5 - GPU Data Layout: Page Tables + Patch Metadata + Work Queues
+  Exit artifacts: GPU can translate (chunkSlot, patchId, patchUV, mip) -> (atlasIndex,tile,inTileUV).
+  ☐ Implement PageTable texture(s):
+    - RGBA32UI page table per mip
+    - Array layer = chunkSlot (or equivalent indirection)
+    - Define entry packing for physicalPageId + flags
+  ☐ Implement PatchMetadataBuffer:
+    - originWS, axisUWS, axisVWS, normalWS
+    - virtualBasePage, virtualSizePages
+    - any per-patch in-page offset (if 2x2 packing is chosen)
+  ☐ Implement GL 4.3 work queues:
+    - PageRequestBuffer (append)
+    - CaptureWorkBuffer (append or CPU-generated)
+    - RelightWorkBuffer (append or CPU-generated)
+    - Counters + reset strategy
+  ☐ Ensure layouts can be represented via TBO/1D textures later for GL 3.3 fallback.
+
+
+  Phase 22.6 - PatchIdGBuffer + Feedback-Driven Residency
+  Exit artifacts: Missing/stale pages are requested from visible shading and become resident over time.
+  ☐ Add PatchIdGBuffer output in the primary geometry pass:
+    - chunkSlot, patchId, patchUV
+    - debug view to validate correctness/stability
+  ☐ Implement feedback gather (GL 4.3 compute):
+    - scan PatchIdGBuffer (possibly downsampled)
+    - compute required virtual pages (by mip) and append requests
+    - optional dedup (stamp image or tile-based request aggregation)
+  ☐ CPU-side request processing:
+    - read back request buffer under budget
+    - allocate physical tiles from pool
+    - update per-chunk CPU page-table mirror
+    - upload page-table deltas
+    - schedule capture + relight work items
+  ☐ Define missing-page shading policy:
+    - sample fallback (black / lower mip / history) + rely on feedback convergence
+
+
+  Phase 22.7 - Capture v1 (Voxel Patches)
+  Exit artifacts: For resident voxel pages, depth/material layers are populated correctly.
+  ☐ Implement voxel patch capture path v1 (fast):
+    - Procedural fill for depth=0 and normal=axis
+    - MaterialAtlas writes from chunk voxel/material sources (via materialPaletteIndex)
+  ☐ Define and implement border handling:
+    - reserved border texels per patch region
+    - border fill rules to prevent filtering seams
+  ☐ Dirty tracking integration:
+    - When voxels change, mark affected patches dirty -> schedule re-capture
+
+
+  Phase 22.8 - Trace Scene v1: Occupancy Clipmap (Packed Light + Material)
+  Exit artifacts: GPU DDA tracer can sample occupancy + lighting/material payload cheaply.
+  ☐ Implement clipmap build/update pipeline:
+    - CPU or GPU upload path (start simple; budgeted)
+    - world->clipmap addressing aligned with existing LumOn conventions where possible
+  ☐ Implement packed R32UI payload and LUTs:
+    - blockLevel/sunLevel/lightId/materialPaletteIndex packing helpers
+    - LightColorLut[64], BlockLevelScalarLut[33], SunLevelScalarLut[33]
+    - MaterialPalette table (per-face materials + flags)
+  ☐ Define “outside face” sampling convention and document it:
+    - sampleCell = hitCell + hitNormal
+
+
+  Phase 22.9 - Relight v1 (GL 4.3 Compute, Voxel DDA)
+  Exit artifacts: IrradianceAtlas fills over time; updates are budgeted and temporally stable.
+  ☐ Implement RelightWork scheduling:
+    - per-frame budget: pages and/or texels
+    - prioritize newly visible / newly resident / stale pages
+  ☐ Implement per-texel relight compute:
+    - reconstruct worldPos/normal from patch basis + DepthAtlas
+    - generate ray directions (hash/blue-noise; deterministic with frameIndex)
+    - trace via voxel DDA against occupancy clipmap
+    - shade hit using LUTs + material palette
+    - write irradiance + update accumulation weight
+  ☐ Implement temporal accumulation policy:
+    - weight/age channel semantics
+    - clamping/rejection rules for unstable history (optional first pass)
+
+
+  Phase 22.10 - Shading Integration (Surface Cache Sampling)
+  Exit artifacts: Shaders sample cached irradiance via PatchIdGBuffer-derived inputs.
+  ☐ Implement atlas sampling function:
+    - (chunkSlot, patchId, patchUV, mip) -> sample IrradianceAtlas via page table indirection
+  ☐ Integrate into lighting combine path:
+    - diffuse GI term from IrradianceAtlas
+    - clear fallback behavior for missing/invalid pages
+  ☐ Add debug views:
+    - page residency visualization
+    - patchId/patchUV validation
+    - irradiance atlas sample preview
+
+
+  Phase 22.11 - Mesh Cards v1 (Rotated Mesh Voxels / Arbitrary Meshes)
+  Exit artifacts: Static rotated meshes contribute surface cache and can be relit per-texel.
+  ☐ Define mesh card extraction strategy:
+    - precomputed planar cards per mesh asset (cardIndex stable)
+    - curved meshes approximated by multiple small cards + depth
+  ☐ Define instanceStableId sources and rules (must survive chunk remesh):
+    - stable per placed object instance, not per-triangulation output
+  ☐ Implement capture path for mesh cards:
+    - rasterize meshlets/triangles into card space writing depth/material
+  ☐ Validate depth-based worldPos reconstruction quality on rotated/curved assets.
+
+
+  Phase 22.12 - Debug Tooling, Profiling, and Tests
+  Exit artifacts: Performance is measurable; correctness/stability has baseline tests.
+  ☐ Profiling hooks:
+    - feedback gather time
+    - CPU request processing time
+    - capture time
+    - relight time
+  ☐ Debug views:
+    - requested pages heatmap
+    - allocated/evicted tiles
+    - relight update heatmap (texels/pages updated per frame)
+  ☐ Tests/diagnostics (non-GL where possible):
+    - PatchKey->PatchId stability across remesh simulation
+    - Virtual allocator determinism (same inputs -> same handles)
+    - physicalPageId packing/unpacking correctness
+    - budget enforcement (no runaway allocations)
+
+
+  Phase 22.13 - GL 3.3 Fallback Seam (Later)
+  Exit artifacts: The architecture stays compatible with a future non-compute backend.
+  ☐ Document which passes require compute and what their raster fallback would be.
+  ☐ Ensure core data is texture-addressable:
+    - page tables as RGBA32UI textures
+    - patch metadata and LUTs representable as TBO/1D textures
+  ☐ Keep GLSL include helpers shared between compute and fragment paths.
+
