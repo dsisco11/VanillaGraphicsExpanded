@@ -103,16 +103,16 @@ Code touchpoints (expected):
     - key changes when origin/bytes/avgAlgo change
     - JSON store round-trip (payload fidelity + corruption tolerance)
 
-☐ Phase 4 - Registry Integration + Preload
+✔ Phase 4 - Registry Integration + Preload
   Exit artifacts: computed DiffuseAlbedo uses cached base color when available; preload happens before first use.
-  ☐ Add an in-memory map: `BaseColorCacheKey -> baseColorLinear` loaded at startup
-  ☐ Eager preload path:
+  ✔ Add an in-memory map: `BaseColorCacheKey -> baseColorLinear` loaded at startup
+  ✔ Eager preload path:
     - On StartClientSide/BlockTexturesLoaded: load JSON store into memory
     - On ReloadTextures: clear in-memory derived surfaces and re-preload base color cache
-  ☐ Compute path integration:
+  ✔ Compute path integration:
     - `ComputeAverageAlbedo`: return cached base color when present
     - If missing: compute base color and enqueue a write (don’t block gameplay frames)
-  ☐ Confirm invariants:
+  ✔ Confirm invariants:
     - Cache does not change gameplay outputs (only avoids recomputation)
     - Any cache miss behaves exactly like today
 

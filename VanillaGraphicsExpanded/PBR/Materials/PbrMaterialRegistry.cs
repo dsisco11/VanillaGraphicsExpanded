@@ -1,16 +1,23 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
+using VanillaGraphicsExpanded.Cache;
+using VanillaGraphicsExpanded.Cache.Disk;
 using VanillaGraphicsExpanded.Imaging;
+using VanillaGraphicsExpanded.ModSystems;
+using VanillaGraphicsExpanded.PBR.Materials.Cache;
 using VanillaGraphicsExpanded.PBR.Materials.WorldProbes;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
+using Vintagestory.API.Config;
 
 namespace VanillaGraphicsExpanded.PBR.Materials;
 
@@ -27,6 +34,13 @@ internal sealed class PbrMaterialRegistry
     private readonly Dictionary<AssetLocation, PbrMaterialTextureOverrides> overridesByTexture = new();
     private readonly Dictionary<AssetLocation, PbrOverrideScale> scaleByTexture = new();
     private readonly Dictionary<AssetLocation, PbrMaterialSurface> surfaceByTexture = new();
+
+    private readonly object baseColorCacheLock = new();
+    private readonly Dictionary<AtlasCacheKey, Vector3> baseColorLinearByKey = new();
+    private readonly BaseColorCacheKeyInputs baseColorKeyInputs = BaseColorCacheKeyInputs.CreateDefaults();
+    private readonly BaseColorCacheKeyBuilder baseColorKeyBuilder = new();
+    private readonly BaseColorRgb16fJsonCodec baseColorCodec = new();
+    private IDataCacheSystem<AtlasCacheKey, BaseColorRgb16f>? baseColorDiskCache;
 
     // Dense lookup: [blockId * 6 + faceIndex] -> derived surface terms.
     // Built once blocks + textures are available, and rebuilt on texture reload.
@@ -234,7 +248,202 @@ internal sealed class PbrMaterialRegistry
         materialIndexById.Clear();
         materialsByIndex = Array.Empty<PbrMaterialDefinition>();
         mappingRules.Clear();
+        lock (baseColorCacheLock)
+        {
+            baseColorLinearByKey.Clear();
+        }
+        baseColorDiskCache = null;
         IsInitialized = false;
+    }
+
+    public void PreloadBaseColorCache(ICoreClientAPI capi)
+    {
+        ArgumentNullException.ThrowIfNull(capi);
+
+        lock (baseColorCacheLock)
+        {
+            baseColorLinearByKey.Clear();
+        }
+
+        IDataCacheSystem<AtlasCacheKey, BaseColorRgb16f>? diskCache = EnsureBaseColorDiskCacheInitialized();
+        if (diskCache is null)
+        {
+            return;
+        }
+
+        int loaded = 0;
+        int failed = 0;
+
+        foreach (AtlasCacheKey key in diskCache.EnumerateCachedKeys())
+        {
+            if (!diskCache.TryGet(key, out BaseColorRgb16f payload))
+            {
+                failed++;
+                continue;
+            }
+
+            Vector3 rgb = DecodeRgb16f(payload);
+            lock (baseColorCacheLock)
+            {
+                baseColorLinearByKey[key] = rgb;
+            }
+
+            loaded++;
+        }
+
+        capi.Logger.Debug("[VGE] BaseColor cache preloaded: {0} ok, {1} failed", loaded, failed);
+    }
+
+    private IDataCacheSystem<AtlasCacheKey, BaseColorRgb16f>? EnsureBaseColorDiskCacheInitialized()
+    {
+        if (baseColorDiskCache is not null)
+        {
+            return baseColorDiskCache;
+        }
+
+        try
+        {
+            string root = Path.Combine(GamePaths.DataPath, "VGE", "Cache", "BaseColor");
+            var store = new DiskJsonDictionaryCacheStore(root);
+
+            baseColorDiskCache = new DataCacheSystem<AtlasCacheKey, BaseColorRgb16f>(
+                store,
+                baseColorCodec,
+                keyToEntryId: BaseColorCacheKeyBuilder.ToEntryId,
+                tryParseKey: BaseColorCacheKeyBuilder.TryParseEntryId);
+
+            return baseColorDiskCache;
+        }
+        catch
+        {
+            baseColorDiskCache = null;
+            return null;
+        }
+    }
+
+    private bool TryGetBaseColorFromCache(IAsset asset, out Vector3 baseColorLinear)
+    {
+        baseColorLinear = default;
+
+        IDataCacheSystem<AtlasCacheKey, BaseColorRgb16f>? diskCache = EnsureBaseColorDiskCacheInitialized();
+        if (diskCache is null)
+        {
+            return false;
+        }
+
+        string? originPath = null;
+        try
+        {
+            originPath = asset.Origin?.OriginPath;
+        }
+        catch
+        {
+            originPath = null;
+        }
+
+        long bytes = 0;
+        try
+        {
+            bytes = asset.Data?.Length ?? 0;
+        }
+        catch
+        {
+            bytes = 0;
+        }
+
+        AtlasCacheKey key = baseColorKeyBuilder.BuildKey(baseColorKeyInputs, asset.Location, originPath, bytes);
+
+        lock (baseColorCacheLock)
+        {
+            if (baseColorLinearByKey.TryGetValue(key, out baseColorLinear))
+            {
+                return true;
+            }
+        }
+
+        if (diskCache.TryGet(key, out BaseColorRgb16f payload))
+        {
+            baseColorLinear = DecodeRgb16f(payload);
+            lock (baseColorCacheLock)
+            {
+                baseColorLinearByKey[key] = baseColorLinear;
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    private void StoreBaseColorToCache(IAsset asset, in Vector3 baseColorLinear)
+    {
+        IDataCacheSystem<AtlasCacheKey, BaseColorRgb16f>? diskCache = EnsureBaseColorDiskCacheInitialized();
+        if (diskCache is null)
+        {
+            return;
+        }
+
+        string? originPath = null;
+        try
+        {
+            originPath = asset.Origin?.OriginPath;
+        }
+        catch
+        {
+            originPath = null;
+        }
+
+        long bytes = 0;
+        try
+        {
+            bytes = asset.Data?.Length ?? 0;
+        }
+        catch
+        {
+            bytes = 0;
+        }
+
+        Vector3 clamped = Clamp01(baseColorLinear);
+
+        AtlasCacheKey key = baseColorKeyBuilder.BuildKey(baseColorKeyInputs, asset.Location, originPath, bytes);
+        lock (baseColorCacheLock)
+        {
+            baseColorLinearByKey[key] = clamped;
+        }
+
+        BaseColorRgb16f payload = EncodeRgb16f(clamped);
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                diskCache.Store(key, payload);
+            }
+            catch
+            {
+                // Best-effort.
+            }
+        });
+    }
+
+    private static Vector3 DecodeRgb16f(in BaseColorRgb16f rgb16f)
+    {
+        Half r = BitConverter.Int16BitsToHalf(unchecked((short)rgb16f.R));
+        Half g = BitConverter.Int16BitsToHalf(unchecked((short)rgb16f.G));
+        Half b = BitConverter.Int16BitsToHalf(unchecked((short)rgb16f.B));
+        return new Vector3((float)r, (float)g, (float)b);
+    }
+
+    private static BaseColorRgb16f EncodeRgb16f(in Vector3 rgb)
+    {
+        Half r = (Half)rgb.X;
+        Half g = (Half)rgb.Y;
+        Half b = (Half)rgb.Z;
+
+        ushort rb = unchecked((ushort)BitConverter.HalfToInt16Bits(r));
+        ushort gb = unchecked((ushort)BitConverter.HalfToInt16Bits(g));
+        ushort bb = unchecked((ushort)BitConverter.HalfToInt16Bits(b));
+
+        return new BaseColorRgb16f(rb, gb, bb);
     }
 
     public bool TryGetDerivedSurface(int blockId, byte faceIndex, out DerivedSurface surface)
@@ -387,6 +596,11 @@ internal sealed class PbrMaterialRegistry
             return false;
         }
 
+        if (Instance.TryGetBaseColorFromCache(asset, out baseColorLinear))
+        {
+            return true;
+        }
+
         try
         {
             using BitmapRef bmp = asset.ToBitmap(capi);
@@ -401,12 +615,19 @@ internal sealed class PbrMaterialRegistry
                 return false;
             }
 
-            return AlbedoAverager.TryComputeAverageLinearRgb(
+            bool ok = AlbedoAverager.TryComputeAverageLinearRgb(
                 argbPixels: pixels,
                 width: width,
                 height: height,
                 averageLinearRgb: out baseColorLinear,
                 reason: out reason);
+
+            if (ok)
+            {
+                Instance.StoreBaseColorToCache(asset, baseColorLinear);
+            }
+
+            return ok;
         }
         catch (Exception ex)
         {

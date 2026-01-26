@@ -11,23 +11,30 @@ public sealed class PbrMaterialsModSystem : ModSystem
 
     public override void AssetsLoaded(ICoreAPI api)
     {
+        ConfigModSystem.EnsureConfigLoaded(api);
+
         // Load PBR material definitions (config/vge/material_definitions.json)
         PbrMaterialRegistry.Instance.Initialize(api);
 
         if (api is ICoreClientAPI capi)
         {
+            // Preload base-color cache before any derived-surface computation.
+            PbrMaterialRegistry.Instance.PreloadBaseColorCache(capi);
+
             // Derived terms can be computed as soon as assets exist.
             PbrMaterialRegistry.Instance.BuildDerivedSurfaces(capi);
 
             // BlockId×face lookup requires blocks + textures. Build when block textures are ready.
             capi.Event.BlockTexturesLoaded += () =>
             {
+                PbrMaterialRegistry.Instance.PreloadBaseColorCache(capi);
                 PbrMaterialRegistry.Instance.BuildDerivedSurfaces(capi);
                 PbrMaterialRegistry.Instance.BuildBlockFaceDerivedSurfaceLookup(capi);
             };
 
             capi.Event.ReloadTextures += () =>
             {
+                PbrMaterialRegistry.Instance.PreloadBaseColorCache(capi);
                 PbrMaterialRegistry.Instance.BuildDerivedSurfaces(capi);
                 PbrMaterialRegistry.Instance.BuildBlockFaceDerivedSurfaceLookup(capi);
             };
