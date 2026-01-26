@@ -116,20 +116,20 @@ Code touchpoints (expected):
     - Cache does not change gameplay outputs (only avoids recomputation)
     - Any cache miss behaves exactly like today
 
-☐ Phase 5 - Background Regen
+✔ Phase 5 - Background Regen
   Exit artifacts: low-priority worker fills missing/stale base colors without blocking render thread.
-  ☐ Add worker lifecycle:
+  ✔ Add worker lifecycle:
     - Start after eager preload
     - Cancel on ReloadTextures and Dispose
     - Use “session id”/cancellation token model (drop stale results)
-  ☐ Build regeneration worklist:
+  ✔ Build regeneration worklist:
     - Enumerate all texture ids referenced by mapping rules/material plan (resolved, canonical)
     - Deduplicate keys
-  ☐ Background job flow:
+  ✔ Background job flow:
     - For each key: if missing/stale -> compute base color off-thread
     - Write-through to JSON store
     - Marshal update back to main thread to update the in-memory map
-  ☐ Budgeting + telemetry:
+  ✔ Budgeting + telemetry:
     - limit concurrency; optional write rate limit
     - counts: preload hits/misses, regen scheduled/completed, errors
     - timings: avg compute time, IO time

@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 using VanillaGraphicsExpanded.Cache;
@@ -41,6 +43,15 @@ internal sealed class PbrMaterialRegistry
     private readonly BaseColorCacheKeyBuilder baseColorKeyBuilder = new();
     private readonly BaseColorRgb16fJsonCodec baseColorCodec = new();
     private IDataCacheSystem<AtlasCacheKey, BaseColorRgb16f>? baseColorDiskCache;
+
+    private readonly object baseColorRegenLock = new();
+    private CancellationTokenSource? baseColorRegenCts;
+    private long baseColorRegenSessionId;
+    private Task? baseColorRegenTask;
+
+    private long baseColorRegenScheduled;
+    private long baseColorRegenCompleted;
+    private long baseColorRegenErrors;
 
     // Dense lookup: [blockId * 6 + faceIndex] -> derived surface terms.
     // Built once blocks + textures are available, and rebuilt on texture reload.
@@ -238,6 +249,8 @@ internal sealed class PbrMaterialRegistry
 
     public void Clear()
     {
+        StopBaseColorBackgroundRegen();
+
         sources.Clear();
         materialById.Clear();
         materialIdByTexture.Clear();
@@ -259,6 +272,11 @@ internal sealed class PbrMaterialRegistry
     public void PreloadBaseColorCache(ICoreClientAPI capi)
     {
         ArgumentNullException.ThrowIfNull(capi);
+
+        if (!IsBaseColorCacheEnabled())
+        {
+            return;
+        }
 
         lock (baseColorCacheLock)
         {
@@ -296,6 +314,12 @@ internal sealed class PbrMaterialRegistry
 
     private IDataCacheSystem<AtlasCacheKey, BaseColorRgb16f>? EnsureBaseColorDiskCacheInitialized()
     {
+        if (!IsBaseColorCacheEnabled())
+        {
+            baseColorDiskCache = null;
+            return null;
+        }
+
         if (baseColorDiskCache is not null)
         {
             return baseColorDiskCache;
@@ -324,6 +348,11 @@ internal sealed class PbrMaterialRegistry
     private bool TryGetBaseColorFromCache(IAsset asset, out Vector3 baseColorLinear)
     {
         baseColorLinear = default;
+
+        if (!IsBaseColorCacheEnabled())
+        {
+            return false;
+        }
 
         IDataCacheSystem<AtlasCacheKey, BaseColorRgb16f>? diskCache = EnsureBaseColorDiskCacheInitialized();
         if (diskCache is null)
@@ -376,6 +405,11 @@ internal sealed class PbrMaterialRegistry
 
     private void StoreBaseColorToCache(IAsset asset, in Vector3 baseColorLinear)
     {
+        if (!IsBaseColorCacheEnabled())
+        {
+            return;
+        }
+
         IDataCacheSystem<AtlasCacheKey, BaseColorRgb16f>? diskCache = EnsureBaseColorDiskCacheInitialized();
         if (diskCache is null)
         {
@@ -424,6 +458,212 @@ internal sealed class PbrMaterialRegistry
             }
         });
     }
+
+    public void StartBaseColorBackgroundRegen(ICoreClientAPI capi)
+    {
+        ArgumentNullException.ThrowIfNull(capi);
+
+        if (!IsBaseColorCacheEnabled())
+        {
+            return;
+        }
+
+        StopBaseColorBackgroundRegen();
+
+        lock (baseColorRegenLock)
+        {
+            baseColorRegenCts = new CancellationTokenSource();
+            long sessionId = Interlocked.Increment(ref baseColorRegenSessionId);
+            CancellationToken token = baseColorRegenCts.Token;
+
+            // Conservative default: Phase 5 expects budgeting, but config knobs were removed.
+            const int MaxConcurrency = 1;
+            baseColorRegenTask = Task.Run(() => RunBaseColorRegenLoop(capi, sessionId, MaxConcurrency, token), token);
+        }
+    }
+
+    public void StopBaseColorBackgroundRegen()
+    {
+        CancellationTokenSource? cts;
+        Task? task;
+
+        lock (baseColorRegenLock)
+        {
+            cts = baseColorRegenCts;
+            task = baseColorRegenTask;
+            baseColorRegenCts = null;
+            baseColorRegenTask = null;
+        }
+
+        if (cts is not null)
+        {
+            try { cts.Cancel(); } catch { }
+            try { cts.Dispose(); } catch { }
+        }
+
+        // Best-effort: do not block game thread waiting for completion.
+        _ = task;
+    }
+
+    private async Task RunBaseColorRegenLoop(ICoreClientAPI capi, long sessionId, int maxConcurrency, CancellationToken token)
+    {
+        IDataCacheSystem<AtlasCacheKey, BaseColorRgb16f>? diskCache = EnsureBaseColorDiskCacheInitialized();
+        if (diskCache is null)
+        {
+            return;
+        }
+
+        var semaphore = new SemaphoreSlim(Math.Max(1, maxConcurrency), Math.Max(1, maxConcurrency));
+
+        try
+        {
+            // Worklist: all mapped texture ids in the registry (already resolved/canonicalized).
+            var textures = materialIdByTexture.Keys.ToArray();
+
+            var scheduled = new List<Task>(capacity: textures.Length);
+
+            foreach (AssetLocation texture in textures)
+            {
+                token.ThrowIfCancellationRequested();
+
+                await semaphore.WaitAsync(token).ConfigureAwait(false);
+
+                Task t = Task.Run(() =>
+                {
+                    try
+                    {
+                        token.ThrowIfCancellationRequested();
+
+                        IAsset? asset = capi.Assets.TryGet(texture, loadAsset: true);
+                        if (asset is null)
+                        {
+                            return;
+                        }
+
+                        // Build the exact key used for staleness.
+                        string? originPath = null;
+                        try { originPath = asset.Origin?.OriginPath; } catch { originPath = null; }
+
+                        long bytes = 0;
+                        try { bytes = asset.Data?.Length ?? 0; } catch { bytes = 0; }
+
+                        AtlasCacheKey key = baseColorKeyBuilder.BuildKey(baseColorKeyInputs, asset.Location, originPath, bytes);
+
+                        // Skip if already present (memory or disk).
+                        lock (baseColorCacheLock)
+                        {
+                            if (baseColorLinearByKey.ContainsKey(key))
+                            {
+                                return;
+                            }
+                        }
+
+                        if (diskCache.TryGet(key, out BaseColorRgb16f onDisk))
+                        {
+                            Vector3 rgb = DecodeRgb16f(onDisk);
+                            capi.Event.EnqueueMainThreadTask(() =>
+                            {
+                                if (sessionId != Interlocked.Read(ref baseColorRegenSessionId)) return;
+                                lock (baseColorCacheLock)
+                                {
+                                    baseColorLinearByKey[key] = rgb;
+                                }
+                            }, "vge-basecolor-cache-regen-hit");
+                            return;
+                        }
+
+                        Interlocked.Increment(ref baseColorRegenScheduled);
+
+                        var sw = Stopwatch.StartNew();
+                        bool ok = TryComputeAverageAlbedoLinearNoCache(capi, asset, out Vector3 baseColorLinear, out _);
+                        sw.Stop();
+
+                        if (!ok)
+                        {
+                            return;
+                        }
+
+                        Vector3 clamped = Clamp01(baseColorLinear);
+                        BaseColorRgb16f payload = EncodeRgb16f(clamped);
+
+                        // Write-through to disk store.
+                        diskCache.Store(key, payload);
+
+                        capi.Event.EnqueueMainThreadTask(() =>
+                        {
+                            if (sessionId != Interlocked.Read(ref baseColorRegenSessionId)) return;
+                            lock (baseColorCacheLock)
+                            {
+                                baseColorLinearByKey[key] = clamped;
+                            }
+                        }, "vge-basecolor-cache-regen-store");
+
+                        Interlocked.Increment(ref baseColorRegenCompleted);
+                    }
+                    catch
+                    {
+                        Interlocked.Increment(ref baseColorRegenErrors);
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                }, token);
+
+                scheduled.Add(t);
+            }
+
+            await Task.WhenAll(scheduled).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Best-effort.
+        }
+        finally
+        {
+            semaphore.Dispose();
+        }
+    }
+
+    private static bool TryComputeAverageAlbedoLinearNoCache(
+        ICoreClientAPI capi,
+        IAsset asset,
+        out Vector3 baseColorLinear,
+        out string? reason)
+    {
+        baseColorLinear = default;
+        reason = null;
+
+        try
+        {
+            using BitmapRef bmp = asset.ToBitmap(capi);
+
+            int width = bmp.Width;
+            int height = bmp.Height;
+            int[] pixels = bmp.Pixels;
+
+            if (pixels is null || pixels.Length < width * height)
+            {
+                reason = "bitmap decode returned insufficient pixel data";
+                return false;
+            }
+
+            return AlbedoAverager.TryComputeAverageLinearRgb(
+                argbPixels: pixels,
+                width: width,
+                height: height,
+                averageLinearRgb: out baseColorLinear,
+                reason: out reason);
+        }
+        catch (Exception ex)
+        {
+            reason = ex.Message;
+            return false;
+        }
+    }
+
+    private static bool IsBaseColorCacheEnabled()
+        => ConfigModSystem.Config.MaterialAtlas.EnableCaching;
 
     private static Vector3 DecodeRgb16f(in BaseColorRgb16f rgb16f)
     {

@@ -20,6 +20,7 @@ public sealed class PbrMaterialsModSystem : ModSystem
         {
             // Preload base-color cache before any derived-surface computation.
             PbrMaterialRegistry.Instance.PreloadBaseColorCache(capi);
+            PbrMaterialRegistry.Instance.StartBaseColorBackgroundRegen(capi);
 
             // Derived terms can be computed as soon as assets exist.
             PbrMaterialRegistry.Instance.BuildDerivedSurfaces(capi);
@@ -27,14 +28,18 @@ public sealed class PbrMaterialsModSystem : ModSystem
             // BlockId×face lookup requires blocks + textures. Build when block textures are ready.
             capi.Event.BlockTexturesLoaded += () =>
             {
+                PbrMaterialRegistry.Instance.StopBaseColorBackgroundRegen();
                 PbrMaterialRegistry.Instance.PreloadBaseColorCache(capi);
+                PbrMaterialRegistry.Instance.StartBaseColorBackgroundRegen(capi);
                 PbrMaterialRegistry.Instance.BuildDerivedSurfaces(capi);
                 PbrMaterialRegistry.Instance.BuildBlockFaceDerivedSurfaceLookup(capi);
             };
 
             capi.Event.ReloadTextures += () =>
             {
+                PbrMaterialRegistry.Instance.StopBaseColorBackgroundRegen();
                 PbrMaterialRegistry.Instance.PreloadBaseColorCache(capi);
+                PbrMaterialRegistry.Instance.StartBaseColorBackgroundRegen(capi);
                 PbrMaterialRegistry.Instance.BuildDerivedSurfaces(capi);
                 PbrMaterialRegistry.Instance.BuildBlockFaceDerivedSurfaceLookup(capi);
             };
@@ -44,6 +49,8 @@ public sealed class PbrMaterialsModSystem : ModSystem
     public override void Dispose()
     {
         base.Dispose();
+
+        PbrMaterialRegistry.Instance.StopBaseColorBackgroundRegen();
 
         // Clear material registry cache
         PbrMaterialRegistry.Instance.Clear();
