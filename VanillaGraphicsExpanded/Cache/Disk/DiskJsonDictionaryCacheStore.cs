@@ -1,14 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace VanillaGraphicsExpanded.Cache.Disk;
 
-public sealed class DiskJsonDictionaryCacheStore : ICacheStore
+public sealed class DiskJsonDictionaryCacheStore : ICacheStore, IDisposable
 {
     private const int CurrentSchemaVersion = 1;
+
+    private static readonly TimeSpan DefaultDebounceDelay = TimeSpan.FromMilliseconds(250);
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -21,6 +24,10 @@ public sealed class DiskJsonDictionaryCacheStore : ICacheStore
     private readonly string root;
     private readonly string path;
 
+    private readonly object gate = new();
+    private readonly DebouncedFlushScheduler flush;
+    private bool dirty;
+
     private Meta meta;
 
     public DiskJsonDictionaryCacheStore(string rootDirectory, string fileName = "meta.json")
@@ -28,7 +35,7 @@ public sealed class DiskJsonDictionaryCacheStore : ICacheStore
     {
     }
 
-    internal DiskJsonDictionaryCacheStore(string rootDirectory, string fileName, IDiskCacheFileSystem? fileSystem)
+    internal DiskJsonDictionaryCacheStore(string rootDirectory, string fileName, IDiskCacheFileSystem? fileSystem, TimeSpan? debounceDelay = null)
     {
         if (string.IsNullOrWhiteSpace(rootDirectory)) throw new ArgumentException("Root directory must be provided", nameof(rootDirectory));
         if (string.IsNullOrWhiteSpace(fileName)) throw new ArgumentException("File name must be provided", nameof(fileName));
@@ -37,13 +44,36 @@ public sealed class DiskJsonDictionaryCacheStore : ICacheStore
         root = rootDirectory;
         path = Path.Combine(root, fileName);
 
+        flush = new DebouncedFlushScheduler(FlushMetaBestEffort, debounceDelay ?? DefaultDebounceDelay);
+
         EnsureDirs();
         meta = LoadOrCreate();
     }
 
+    public void Dispose()
+    {
+        try
+        {
+            // Best-effort: persist any pending updates.
+            FlushMetaBestEffort();
+        }
+        catch
+        {
+            // Best-effort.
+        }
+
+        flush.Dispose();
+    }
+
     public IEnumerable<string> EnumerateEntryIds()
     {
-        foreach (string key in meta.Entries.Keys)
+        string[] keys;
+        lock (gate)
+        {
+            keys = meta.Entries.Keys.ToArray();
+        }
+
+        foreach (string key in keys)
         {
             yield return key;
         }
@@ -58,7 +88,16 @@ public sealed class DiskJsonDictionaryCacheStore : ICacheStore
             return false;
         }
 
-        if (!meta.Entries.TryGetValue(entryId, out Entry? e) || e is null)
+        Entry? e;
+        lock (gate)
+        {
+            if (!meta.Entries.TryGetValue(entryId, out e) || e is null)
+            {
+                return false;
+            }
+        }
+
+        if (e is null)
         {
             return false;
         }
@@ -89,24 +128,31 @@ public sealed class DiskJsonDictionaryCacheStore : ICacheStore
             JsonElement value = doc.RootElement.Clone();
 
             long now = DateTime.UtcNow.Ticks;
-            if (!meta.Entries.ContainsKey(entryId))
+            lock (gate)
             {
-                meta.Entries[entryId] = new Entry
+                if (!meta.Entries.ContainsKey(entryId))
                 {
-                    CreatedUtcTicks = now,
-                    LastAccessUtcTicks = now,
-                    Value = value,
-                };
-            }
-            else
-            {
-                Entry existing = meta.Entries[entryId]!;
-                existing.LastAccessUtcTicks = now;
-                existing.Value = value;
+                    meta.Entries[entryId] = new Entry
+                    {
+                        CreatedUtcTicks = now,
+                        LastAccessUtcTicks = now,
+                        Value = value,
+                    };
+                }
+                else
+                {
+                    Entry existing = meta.Entries[entryId]!;
+                    existing.LastAccessUtcTicks = now;
+                    existing.Value = value;
+                }
+
+                meta.LastSavedUtcTicks = now;
+                dirty = true;
             }
 
-            meta.LastSavedUtcTicks = now;
-            return SaveAtomic();
+            // Debounced: reduce meta.json rewrites when lots of entries are produced.
+            flush.Request();
+            return true;
         }
         catch
         {
@@ -121,55 +167,129 @@ public sealed class DiskJsonDictionaryCacheStore : ICacheStore
             return false;
         }
 
-        if (!meta.Entries.Remove(entryId))
+        lock (gate)
         {
-            return false;
+            if (!meta.Entries.Remove(entryId))
+            {
+                return false;
+            }
+
+            meta.LastSavedUtcTicks = DateTime.UtcNow.Ticks;
+            dirty = true;
         }
 
-        meta.LastSavedUtcTicks = DateTime.UtcNow.Ticks;
-        SaveAtomic();
+        flush.Request();
         return true;
     }
 
     public void Clear()
     {
-        meta = new Meta
+        lock (gate)
         {
-            SchemaVersion = CurrentSchemaVersion,
-            CreatedUtcTicks = DateTime.UtcNow.Ticks,
-            LastSavedUtcTicks = DateTime.UtcNow.Ticks,
-            Entries = new Dictionary<string, Entry>(StringComparer.Ordinal),
-        };
+            meta = new Meta
+            {
+                SchemaVersion = CurrentSchemaVersion,
+                CreatedUtcTicks = DateTime.UtcNow.Ticks,
+                LastSavedUtcTicks = DateTime.UtcNow.Ticks,
+                Entries = new Dictionary<string, Entry>(StringComparer.Ordinal),
+            };
 
-        SaveAtomic();
+            dirty = true;
+        }
+
+        flush.Request();
     }
 
     private void Touch(string entryId)
     {
-        if (!meta.Entries.TryGetValue(entryId, out Entry? existing) || existing is null)
+        lock (gate)
         {
-            return;
+            if (!meta.Entries.TryGetValue(entryId, out Entry? existing) || existing is null)
+            {
+                return;
+            }
+
+            existing.LastAccessUtcTicks = DateTime.UtcNow.Ticks;
+            meta.LastSavedUtcTicks = DateTime.UtcNow.Ticks;
+            dirty = true;
         }
 
-        existing.LastAccessUtcTicks = DateTime.UtcNow.Ticks;
+        flush.Request();
+    }
 
-        meta.LastSavedUtcTicks = DateTime.UtcNow.Ticks;
-        SaveAtomic();
+    private void FlushMetaBestEffort()
+    {
+        Meta snapshot;
+
+        lock (gate)
+        {
+            if (!dirty)
+            {
+                return;
+            }
+
+            snapshot = CloneMeta(meta);
+            dirty = false;
+        }
+
+        if (!SaveAtomic(snapshot))
+        {
+            lock (gate)
+            {
+                dirty = true;
+            }
+
+            flush.Request();
+        }
     }
 
     private bool SaveAtomic()
+    {
+        Meta snapshot;
+        lock (gate)
+        {
+            snapshot = CloneMeta(meta);
+        }
+
+        return SaveAtomic(snapshot);
+    }
+
+    private bool SaveAtomic(Meta snapshot)
     {
         try
         {
             EnsureDirs();
 
-            byte[] json = JsonSerializer.SerializeToUtf8Bytes(meta, JsonOptions);
+            byte[] json = JsonSerializer.SerializeToUtf8Bytes(snapshot, JsonOptions);
             return AtomicDiskFile.TryWriteAtomic(fileSystem, path, json);
         }
         catch
         {
             return false;
         }
+    }
+
+    private static Meta CloneMeta(Meta source)
+    {
+        var clone = new Meta
+        {
+            SchemaVersion = source.SchemaVersion,
+            CreatedUtcTicks = source.CreatedUtcTicks,
+            LastSavedUtcTicks = source.LastSavedUtcTicks,
+            Entries = new Dictionary<string, Entry>(source.Entries.Count, StringComparer.Ordinal),
+        };
+
+        foreach ((string key, Entry value) in source.Entries)
+        {
+            clone.Entries[key] = new Entry
+            {
+                CreatedUtcTicks = value.CreatedUtcTicks,
+                LastAccessUtcTicks = value.LastAccessUtcTicks,
+                Value = value.Value,
+            };
+        }
+
+        return clone;
     }
 
     private void EnsureDirs()

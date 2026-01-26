@@ -13,7 +13,7 @@ public sealed class DiskBlobCacheStoreTests
         string root = CreateTempDir();
         try
         {
-            var store = new DiskBlobCacheStore(root);
+            using var store = new DiskBlobCacheStore(root);
 
             Assert.True(store.TryWriteAtomic("k1", new byte[] { 1, 2, 3 }));
 
@@ -32,7 +32,7 @@ public sealed class DiskBlobCacheStoreTests
         string root = CreateTempDir();
         try
         {
-            var store = new DiskBlobCacheStore(root);
+            using var store = new DiskBlobCacheStore(root);
             Assert.True(store.TryWriteAtomic("k1", new byte[] { 9, 9 }));
 
             // Delete payload file to simulate corruption/missing.

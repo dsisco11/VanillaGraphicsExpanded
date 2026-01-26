@@ -1,17 +1,24 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace VanillaGraphicsExpanded.Cache.Disk;
 
-public sealed class DiskBlobCacheStore : ICacheStore
+public sealed class DiskBlobCacheStore : ICacheStore, IDisposable
 {
     private const string MetaFileName = "meta.json";
+
+    private static readonly TimeSpan DefaultDebounceDelay = TimeSpan.FromMilliseconds(250);
 
     private readonly IDiskCacheFileSystem fileSystem;
     private readonly string root;
     private readonly string payloadDir;
     private readonly string metaPath;
+
+    private readonly object gate = new();
+    private readonly DebouncedFlushScheduler flush;
+    private bool dirty;
 
     private DiskCacheIndex index;
 
@@ -20,7 +27,7 @@ public sealed class DiskBlobCacheStore : ICacheStore
     {
     }
 
-    internal DiskBlobCacheStore(string rootDirectory, IDiskCacheFileSystem? fileSystem)
+    internal DiskBlobCacheStore(string rootDirectory, IDiskCacheFileSystem? fileSystem, TimeSpan? debounceDelay = null)
     {
         if (string.IsNullOrWhiteSpace(rootDirectory)) throw new ArgumentException("Root directory must be provided", nameof(rootDirectory));
 
@@ -29,13 +36,43 @@ public sealed class DiskBlobCacheStore : ICacheStore
         payloadDir = Path.Combine(root, "payloads");
         metaPath = Path.Combine(root, MetaFileName);
 
+        flush = new DebouncedFlushScheduler(FlushIndexBestEffort, debounceDelay ?? DefaultDebounceDelay);
+
         EnsureDirs();
         index = LoadOrCreateIndex();
     }
 
+    // Test hook: allow providing a custom filesystem from tests.
+    internal DiskBlobCacheStore(string rootDirectory, IDiskCacheFileSystem fileSystem)
+        : this(rootDirectory, (IDiskCacheFileSystem?)fileSystem, debounceDelay: null)
+    {
+    }
+
+    // Note: debounceDelay can be provided via the primary internal ctor.
+
+    public void Dispose()
+    {
+        try
+        {
+            FlushIndexBestEffort();
+        }
+        catch
+        {
+            // Best-effort.
+        }
+
+        flush.Dispose();
+    }
+
     public IEnumerable<string> EnumerateEntryIds()
     {
-        foreach (string key in index.Entries.Keys)
+        string[] keys;
+        lock (gate)
+        {
+            keys = index.Entries.Keys.ToArray();
+        }
+
+        foreach (string key in keys)
         {
             yield return key;
         }
@@ -50,9 +87,12 @@ public sealed class DiskBlobCacheStore : ICacheStore
             return false;
         }
 
-        if (!index.Entries.ContainsKey(entryId))
+        lock (gate)
         {
-            return false;
+            if (!index.Entries.ContainsKey(entryId))
+            {
+                return false;
+            }
         }
 
         string payloadPath = GetPayloadPath(entryId);
@@ -93,23 +133,30 @@ public sealed class DiskBlobCacheStore : ICacheStore
             }
 
             long now = DateTime.UtcNow.Ticks;
-            if (!index.Entries.TryGetValue(entryId, out DiskCacheIndex.Entry existing))
+            lock (gate)
             {
-                index.Entries[entryId] = new DiskCacheIndex.Entry(
-                    SizeBytes: bytes.Length,
-                    CreatedUtcTicks: now,
-                    LastAccessUtcTicks: now);
-            }
-            else
-            {
-                index.Entries[entryId] = existing with
+                if (!index.Entries.TryGetValue(entryId, out DiskCacheIndex.Entry existing))
                 {
-                    SizeBytes = bytes.Length,
-                    LastAccessUtcTicks = now,
-                };
+                    index.Entries[entryId] = new DiskCacheIndex.Entry(
+                        SizeBytes: bytes.Length,
+                        CreatedUtcTicks: now,
+                        LastAccessUtcTicks: now);
+                }
+                else
+                {
+                    index.Entries[entryId] = existing with
+                    {
+                        SizeBytes = bytes.Length,
+                        LastAccessUtcTicks = now,
+                    };
+                }
+
+                dirty = true;
             }
 
-            return SaveIndexBestEffort();
+            // Debounced index save to avoid meta.json spam under heavy write load.
+            flush.Request();
+            return true;
         }
         catch
         {
@@ -126,9 +173,13 @@ public sealed class DiskBlobCacheStore : ICacheStore
 
         bool changed = false;
 
-        if (index.Entries.Remove(entryId))
+        lock (gate)
         {
-            changed = true;
+            if (index.Entries.Remove(entryId))
+            {
+                changed = true;
+                dirty = true;
+            }
         }
 
         try
@@ -142,7 +193,7 @@ public sealed class DiskBlobCacheStore : ICacheStore
 
         if (changed)
         {
-            SaveIndexBestEffort();
+            flush.Request();
         }
 
         return changed;
@@ -163,8 +214,13 @@ public sealed class DiskBlobCacheStore : ICacheStore
         }
 
         EnsureDirs();
-        index = DiskCacheIndex.CreateEmpty(DateTime.UtcNow.Ticks);
-        SaveIndexBestEffort();
+        lock (gate)
+        {
+            index = DiskCacheIndex.CreateEmpty(DateTime.UtcNow.Ticks);
+            dirty = true;
+        }
+
+        flush.Request();
     }
 
     private void EnsureDirs()
@@ -188,29 +244,60 @@ public sealed class DiskBlobCacheStore : ICacheStore
         }
 
         var empty = DiskCacheIndex.CreateEmpty(DateTime.UtcNow.Ticks);
-        empty.SaveAtomic(fileSystem, metaPath);
+        _ = empty.SaveAtomic(fileSystem, metaPath);
         return empty;
     }
 
     private void Touch(string entryId, long sizeBytes)
     {
-        long now = DateTime.UtcNow.Ticks;
-        if (index.Entries.TryGetValue(entryId, out DiskCacheIndex.Entry entry))
+        lock (gate)
         {
-            index.Entries[entryId] = entry with
+            long now = DateTime.UtcNow.Ticks;
+            if (index.Entries.TryGetValue(entryId, out DiskCacheIndex.Entry entry))
             {
-                SizeBytes = sizeBytes,
-                LastAccessUtcTicks = now,
-            };
+                index.Entries[entryId] = entry with
+                {
+                    SizeBytes = sizeBytes,
+                    LastAccessUtcTicks = now,
+                };
+
+                dirty = true;
+            }
         }
 
-        SaveIndexBestEffort();
+        flush.Request();
     }
 
-    private bool SaveIndexBestEffort()
+    private void FlushIndexBestEffort()
     {
-        index.SetSavedNow(DateTime.UtcNow.Ticks);
-        return index.SaveAtomic(fileSystem, metaPath);
+        lock (gate)
+        {
+            if (!dirty)
+            {
+                return;
+            }
+
+            dirty = false;
+        }
+
+        if (!SaveIndexBestEffort_NoThrow())
+        {
+            lock (gate)
+            {
+                dirty = true;
+            }
+
+            flush.Request();
+        }
+    }
+
+    private bool SaveIndexBestEffort_NoThrow()
+    {
+        lock (gate)
+        {
+            index.SetSavedNow(DateTime.UtcNow.Ticks);
+            return index.SaveAtomic(fileSystem, metaPath);
+        }
     }
 
     private string GetPayloadPath(string entryId)

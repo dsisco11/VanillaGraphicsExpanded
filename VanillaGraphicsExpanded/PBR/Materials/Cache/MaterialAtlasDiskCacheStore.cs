@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 
 using VanillaGraphicsExpanded.Cache;
+using VanillaGraphicsExpanded.Cache.Disk;
 
 namespace VanillaGraphicsExpanded.PBR.Materials.Cache;
 
@@ -13,27 +14,49 @@ namespace VanillaGraphicsExpanded.PBR.Materials.Cache;
 /// Implements the shared-core <see cref="ICacheStore"/> contract for the material atlas disk cache,
 /// while preserving the existing on-disk format (meta.json + &lt;entryId&gt;.dds payloads).
 /// </summary>
-internal sealed class MaterialAtlasDiskCacheStore : ICacheStore
+internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
 {
     private const string MetaIndexFileName = "meta.json";
+
+    private static readonly TimeSpan DefaultIndexDebounceDelay = TimeSpan.FromMilliseconds(250);
 
     private readonly string root;
     private readonly IMaterialAtlasFileSystem fileSystem;
 
+    private readonly DebouncedFlushScheduler indexFlush;
+    private int indexDirty;
+
     private readonly ReaderWriterLockSlim indexLock = new(LockRecursionPolicy.NoRecursion);
     private MaterialAtlasDiskCacheIndex index;
 
-    public MaterialAtlasDiskCacheStore(string rootDirectory, IMaterialAtlasFileSystem? fileSystem = null)
+    public MaterialAtlasDiskCacheStore(string rootDirectory, IMaterialAtlasFileSystem? fileSystem = null, TimeSpan? indexDebounceDelay = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootDirectory);
 
         this.fileSystem = fileSystem ?? new MaterialAtlasRealFileSystem();
         root = rootDirectory;
 
+        indexFlush = new DebouncedFlushScheduler(FlushIndexBestEffort, indexDebounceDelay ?? DefaultIndexDebounceDelay);
+
         this.fileSystem.CreateDirectory(root);
 
         index = MaterialAtlasDiskCacheIndex.CreateEmpty(DateTime.UtcNow.Ticks);
         LoadAndValidateIndex();
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            FlushIndexBestEffort();
+        }
+        catch
+        {
+            // Best-effort.
+        }
+
+        indexFlush.Dispose();
+        indexLock.Dispose();
     }
 
     public long TotalBytes
@@ -274,7 +297,7 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore
             index.TotalBytes -= existing.SizeBytes;
             index.Entries.Remove(entryId);
 
-            SaveIndexBestEffort();
+            MarkIndexDirty_NoLock();
         }
         finally
         {
@@ -309,7 +332,7 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore
         try
         {
             index = MaterialAtlasDiskCacheIndex.CreateEmpty(DateTime.UtcNow.Ticks);
-            SaveIndexBestEffort();
+            MarkIndexDirty_NoLock();
         }
         finally
         {
@@ -353,7 +376,7 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore
                 evictedByteCount += entry.SizeBytes;
             }
 
-            SaveIndexBestEffort();
+            MarkIndexDirty_NoLock();
         }
         finally
         {
@@ -433,6 +456,13 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore
             }
         }
 
+        if (changed)
+        {
+            // Persist index changes best-effort, but debounce to avoid bursts.
+            Interlocked.Exchange(ref indexDirty, 1);
+            indexFlush.Request();
+        }
+
         long beforeTotal = loaded.TotalBytes;
         loaded.RecomputeTotals();
         if (loaded.TotalBytes != beforeTotal)
@@ -503,7 +533,7 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore
 
             index.TotalBytes += payloadBytes;
 
-            SaveIndexBestEffort();
+            MarkIndexDirty_NoLock();
         }
         finally
         {
@@ -528,7 +558,7 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore
             index.TotalBytes -= existing.SizeBytes;
             index.Entries.Remove(entryId);
 
-            SaveIndexBestEffort();
+            MarkIndexDirty_NoLock();
         }
         finally
         {
@@ -604,8 +634,20 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore
         fileSystem.MoveFile(tempPath, targetPath, overwrite: false);
     }
 
-    private void SaveIndexBestEffort()
+    private void MarkIndexDirty_NoLock()
     {
+        Interlocked.Exchange(ref indexDirty, 1);
+        indexFlush.Request();
+    }
+
+    private void FlushIndexBestEffort()
+    {
+        if (Interlocked.Exchange(ref indexDirty, 0) == 0)
+        {
+            return;
+        }
+
+        indexLock.EnterWriteLock();
         try
         {
             index.SetSavedNow(DateTime.UtcNow.Ticks);
@@ -614,6 +656,12 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore
         catch
         {
             // Best-effort.
+            Interlocked.Exchange(ref indexDirty, 1);
+            indexFlush.Request();
+        }
+        finally
+        {
+            indexLock.ExitWriteLock();
         }
     }
 

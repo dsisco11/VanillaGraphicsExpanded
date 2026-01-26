@@ -22,6 +22,8 @@ public sealed class BaseColorCachePhase6Tests
         try
         {
             var store = new DiskJsonDictionaryCacheStore(root);
+            using (store)
+            {
 
             var inputs = BaseColorCacheKeyInputs.CreateDefaults();
             var builder = new BaseColorCacheKeyBuilder();
@@ -42,6 +44,7 @@ public sealed class BaseColorCachePhase6Tests
             Assert.Equal(new BaseColorRgb16f(0x3C00, 0x0000, 0x0000), good);
 
             Assert.False(cache.TryGet(badKey, out _));
+            }
         }
         finally
         {

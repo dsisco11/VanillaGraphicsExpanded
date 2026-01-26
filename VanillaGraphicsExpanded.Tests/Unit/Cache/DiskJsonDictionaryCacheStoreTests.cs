@@ -13,7 +13,7 @@ public sealed class DiskJsonDictionaryCacheStoreTests
         string root = CreateTempDir();
         try
         {
-            var store = new DiskJsonDictionaryCacheStore(root);
+            using var store = new DiskJsonDictionaryCacheStore(root);
 
             Assert.True(store.TryWriteAtomic("k1", "\"hello\""u8));
 
@@ -32,13 +32,13 @@ public sealed class DiskJsonDictionaryCacheStoreTests
         string root = CreateTempDir();
         try
         {
-            var store = new DiskJsonDictionaryCacheStore(root);
+            using var store = new DiskJsonDictionaryCacheStore(root);
             Assert.True(store.TryWriteAtomic("k1", "{\"a\":1}"u8));
 
             // Corrupt the backing JSON file.
             File.WriteAllText(Path.Combine(root, "meta.json"), "not-json");
 
-            var reloaded = new DiskJsonDictionaryCacheStore(root);
+            using var reloaded = new DiskJsonDictionaryCacheStore(root);
             Assert.False(reloaded.TryRead("k1", out _));
             Assert.Empty(reloaded.EnumerateEntryIds());
         }
