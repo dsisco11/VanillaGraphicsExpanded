@@ -192,16 +192,16 @@ Invariants:
     - disk writes are not dropped under load
 
 
-☐ Phase 5 - Material Atlas Integration (MaterialParams + NormalDepth)
+✔ Phase 5 - Material Atlas Integration (MaterialParams + NormalDepth)
   Exit artifacts: atlas generation uses shared scheduler semantics while preserving render-thread constraints.
-  ☐ Identify atlas pipeline seams:
+  ✔ Identify atlas pipeline seams:
     - CPU jobs (compute, encode)
     - GPU jobs (upload/commit)
     - Disk cache IO queue (currently drop-on-full)
-  ☐ Convert atlas disk writes to Option B semantics:
+  ✔ Convert atlas disk writes to Option B semantics:
     - Reserve IO slots upstream; do not drop
     - Ensure render-thread never waits
-  ☐ Convert GPU uploads to generic GPU payload path where feasible:
+  ✔ Convert GPU uploads to generic GPU payload path where feasible:
     - Prefer StageCopy / persistent mapped staging
     - Keep GL commits on render thread
 
