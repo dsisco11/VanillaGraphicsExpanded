@@ -10,6 +10,11 @@ Decisions (locked in for this todo):
   - Treat AVX2 vs fallback averaging paths as equivalent (no CPU-path keying).
   - Reuse the existing cache key *type/hashing approach* (schema + Hash64), but use a purpose-built key string
     that does NOT include atlas-only inputs (normal/depth bake config, atlas sizing, etc).
+  - Persist as a separate cache under `VintagestoryData/VGE/Cache/` (global only for now; no per-world overlay yet).
+  - Staleness is purely key-based (if inputs differ -> miss -> regenerate); no asset byte hashing.
+  - Value encoding is `RGB16F` (3x IEEE754 half) stored as raw `ushort` bit patterns.
+  - Cache key uses `AssetLocation.ToString()` (e.g. `game:textures/...`) rather than the mapping match string;
+    the mapping match string is an implementation detail of rule matching.
 
 Reference docs:
   - docs/MaterialSystem.Cache.Architecture.md (cache key + disk store patterns)
@@ -23,23 +28,35 @@ Code touchpoints (expected):
   - VanillaGraphicsExpanded/Imaging/AlbedoAverager.cs (bitmap averaging algorithm)
   - VanillaGraphicsExpanded/PBR/Materials/MaterialAtlasCacheKeyBuilder.cs (key type / hashing approach reference)
 
-☐ Phase 0 - Design & Contracts
+✔ Phase 0 - Design & Contracts
   Exit artifacts: key schema v1; value encoding; staleness rules; threading constraints documented.
-  ☐ Confirm the exact cache unit:
-    - Keyed by resolved base texture identity (canonical `assets/<domain>/<path>` string)
-    - Value = average base color in linear space (RGB)
-  ☐ Decide persistence location and tiering:
-    - Global-only cache vs global + per-world overlay (match MaterialSystem cache architecture)
-  ☐ Define cache staleness rule:
-    - A cache entry is valid iff its computed cache key matches the current inputs
-    - No asset byte hashing; rely on metadata/provenance signals
-  ☐ Define value encoding:
-    - Prefer compact encoding (e.g., 3x float16 or quantized 3x uint16) with documented error bounds
-    - Round-trip safe enough that it won’t create visible flicker when the value changes
-  ☐ Config + knobs:
-    - Enable/disable base color cache reads
-    - Enable/disable background regeneration
-    - Worker concurrency + optional rate limits
+  ✔ Confirm the exact cache unit:
+    - Keyed by resolved base texture identity (`AssetLocation`, serialized via `AssetLocation.ToString()`)
+    - Value = average base color in linear space (RGB) as produced by `AlbedoAverager.TryComputeAverageLinearRgb`
+  ✔ Decide persistence location and tiering:
+    - Global-only cache (match current `MaterialAtlasDiskCache.CreateDefault()` behavior)
+    - Root: `VintagestoryData/VGE/Cache/BaseColor/` (separate from atlas tile cache payloads)
+    - Future: per-world overlay can be added once the atlas cache policy supports it
+  ✔ Define cache staleness rule:
+    - A cache entry is valid iff its computed cache key matches current inputs
+    - No asset byte hashing (aligned with docs/MaterialSystem.Cache.Architecture.md)
+    - Minimal provenance/metadata signals available today (from `IAsset`):
+      - `tex=<asset.Location>`
+      - `origin=<asset.Origin.OriginPath>` (or `(unknown)`)
+      - `bytes=<asset.Data.Length>` (0 if missing)
+      - `avgAlgo=1` (bump only if we intentionally change averaging behavior)
+  ✔ Define value encoding:
+    - `RGB16F` stored as 3x `ushort` half bit patterns (little-endian on disk)
+    - Error bound is acceptable for a single averaged color; should not cause noticeable flicker
+  ✔ Config + knobs:
+    - `MaterialAtlas.EnableBaseColorCache` (read/write toggle)
+    - `MaterialAtlas.EnableBaseColorBackgroundRegen` (regen worker toggle)
+    - `MaterialAtlas.BaseColorRegenMaxConcurrency` (default small, e.g. 1-2)
+    - Optional: `MaterialAtlas.BaseColorRegenMaxWritesPerMinute` (rate limiting)
+
+  Threading note:
+    - Regeneration runs off-thread; it will need to load/decode textures via `ICoreClientAPI.Assets` + `IAsset.ToBitmap`.
+      This pattern already exists in `MaterialOverrideTextureLoader` and is treated as acceptable.
 
 ☐ Phase 1 - Cache Key + Disk Store
   Exit artifacts: deterministic base-color cache keys; read/write store with atomic writes + corruption handling.
