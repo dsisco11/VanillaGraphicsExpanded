@@ -31,6 +31,7 @@ public sealed class VgeWorldProbeOrbsPointsShaderProgram : GpuProgram
     public int WorldProbeSH2 { set => Uniform("worldProbeSH2", value); }
     public int WorldProbeSky0 { set => Uniform("worldProbeSky0", value); }
     public int WorldProbeVis0 { set => Uniform("worldProbeVis0", value); }
+    public int WorldProbeDebugState0 { set => Uniform("worldProbeDebugState0", value); }
 
     public Vec3f WorldProbeSkyTint { set => Uniform("worldProbeSkyTint", value); }
 }

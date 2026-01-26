@@ -8,6 +8,7 @@ using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Numerics;
+using VanillaGraphicsExpanded.PBR.Materials.Artifacts;
 using VanillaGraphicsExpanded.PBR.Materials.Async;
 using VanillaGraphicsExpanded.PBR.Materials.Cache;
 using VanillaGraphicsExpanded.Profiling;
@@ -46,6 +47,13 @@ internal sealed class MaterialAtlasSystem : IDisposable
     private int sessionGeneration;
     private bool buildRequested;
 
+    private readonly MaterialAtlasArtifactBuildTracker artifactBuildTracker = new();
+    private MaterialAtlasArtifactRenderQueue? artifactRenderQueue;
+    private MaterialAtlasArtifactRenderQueueRenderer? artifactRenderQueueRenderer;
+    private MaterialParamsAtlasArtifactGenerator? materialParamsArtifactGen;
+    private NormalDepthAtlasArtifactGenerator? normalDepthArtifactGen;
+    private bool artifactGeneratorsRegistered;
+
     private bool texturesCreated;
 
     private MaterialAtlasSystem() { }
@@ -72,6 +80,13 @@ internal sealed class MaterialAtlasSystem : IDisposable
     {
         lock (schedulerLock)
         {
+            // Artifact-based pipeline does not currently produce the legacy diagnostics payload.
+            if (materialParamsArtifactGen is not null || normalDepthArtifactGen is not null)
+            {
+                diagnostics = default;
+                return false;
+            }
+
             if (scheduler is null)
             {
                 diagnostics = default;
@@ -374,11 +389,10 @@ internal sealed class MaterialAtlasSystem : IDisposable
         if (!buildRequested && currentReload >= 0)
         {
             // Don't restart while the current async build is still targeting the same atlas stats.
-            if (scheduler?.ActiveSession is not null &&
-                currentReload == lastScheduledAtlasReloadIteration &&
+            if (currentReload == lastScheduledAtlasReloadIteration &&
                 nonNullCount == lastScheduledAtlasNonNullPositions)
             {
-                IsBuildComplete = scheduler.ActiveSession.IsComplete;
+                IsBuildComplete = !ConfigModSystem.Config.MaterialAtlas.EnableAsync || artifactBuildTracker.IsComplete;
                 return;
             }
 
@@ -577,7 +591,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
         }
 
         IsInitialized = textureStore.PageCount > 0;
-        IsBuildComplete = !ConfigModSystem.Config.MaterialAtlas.EnableAsync || (scheduler?.ActiveSession?.IsComplete ?? false);
+        IsBuildComplete = !ConfigModSystem.Config.MaterialAtlas.EnableAsync || artifactBuildTracker.IsComplete;
         if (currentReload >= 0)
         {
             lastBlockAtlasReloadIteration = currentReload;
@@ -616,12 +630,39 @@ internal sealed class MaterialAtlasSystem : IDisposable
         this.capi = capi;
         buildRequested = true;
         CancelActiveBuildSession();
+
+        if (artifactGeneratorsRegistered && capi is not null && artifactRenderQueueRenderer is not null)
+        {
+            try
+            {
+                capi.Event.UnregisterRenderer(artifactRenderQueueRenderer, EnumRenderStage.Before);
+            }
+            catch
+            {
+                // Best-effort.
+            }
+        }
+
+        materialParamsArtifactGen?.Stop();
+        normalDepthArtifactGen?.Stop();
+        materialParamsArtifactGen = null;
+        normalDepthArtifactGen = null;
+        artifactRenderQueueRenderer = null;
+        artifactRenderQueue = null;
+        artifactGeneratorsRegistered = false;
     }
 
     public void CancelActiveBuildSession()
     {
         lock (schedulerLock)
         {
+            materialParamsArtifactGen?.BumpSession();
+            normalDepthArtifactGen?.BumpSession();
+            if (artifactBuildTracker.GenerationId > 0)
+            {
+                artifactBuildTracker.Begin(artifactBuildTracker.GenerationId, 0);
+            }
+
             scheduler?.CancelActiveSession();
             lastScheduledAtlasReloadIteration = short.MinValue;
             lastScheduledAtlasNonNullPositions = -1;
@@ -633,6 +674,36 @@ internal sealed class MaterialAtlasSystem : IDisposable
     {
         lock (schedulerLock)
         {
+            // Artifact-based generators (new async pipeline).
+            if (!artifactGeneratorsRegistered)
+            {
+                artifactRenderQueue ??= new MaterialAtlasArtifactRenderQueue(TryGetPageTexturesByAtlasTexId);
+                artifactRenderQueueRenderer ??= new MaterialAtlasArtifactRenderQueueRenderer(artifactRenderQueue);
+                capi.Event.RegisterRenderer(artifactRenderQueueRenderer, EnumRenderStage.Before, "vge_pbr_material_atlas_artifacts_render");
+
+                materialParamsArtifactGen ??= new MaterialParamsAtlasArtifactGenerator(
+                    capi,
+                    diskCache,
+                    artifactBuildTracker,
+                    maxConcurrency: 2,
+                    ioCapacity: 1,
+                    gpuCapacity: 2);
+
+                normalDepthArtifactGen ??= new NormalDepthAtlasArtifactGenerator(
+                    capi,
+                    diskCache,
+                    artifactRenderQueue,
+                    artifactBuildTracker,
+                    maxConcurrency: 1,
+                    ioCapacity: 1,
+                    gpuCapacity: 2);
+
+                materialParamsArtifactGen.Start();
+                normalDepthArtifactGen.Start();
+
+                artifactGeneratorsRegistered = true;
+            }
+
             scheduler ??= new MaterialAtlasBuildScheduler();
             scheduler.Initialize(capi, TryGetPageTexturesByAtlasTexId);
 
@@ -660,7 +731,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
         int nonNullCount,
         MaterialAtlasNormalDepthBuildPlan? normalDepthPlan)
     {
-        if (scheduler is null)
+        if (materialParamsArtifactGen is null)
         {
             return 0;
         }
@@ -674,7 +745,9 @@ internal sealed class MaterialAtlasSystem : IDisposable
             generationId = 1;
         }
 
-        var cpuJobs = new List<IMaterialAtlasCpuJob<MaterialAtlasParamsGpuTileUpload>>(capacity: plan.MaterialParamsTiles.Count);
+        // Cancel any in-flight work and start a new artifact session.
+        materialParamsArtifactGen.BumpSession();
+        normalDepthArtifactGen?.BumpSession();
 
         var overridesByRect = new Dictionary<(int atlasTexId, AtlasRect rect), AtlasBuildPlan.MaterialParamsOverrideJob>(capacity: plan.MaterialParamsOverrides.Count);
         foreach (AtlasBuildPlan.MaterialParamsOverrideJob ov in plan.MaterialParamsOverrides)
@@ -683,9 +756,39 @@ internal sealed class MaterialAtlasSystem : IDisposable
         }
 
         bool enableCache = ConfigModSystem.Config.MaterialAtlas.EnableCaching;
-        var cacheCounters = enableCache ? new MaterialAtlasAsyncCacheCounters() : null;
+
+        int plannedMaterialItems = 0;
+        int plannedNormalDepthItems = 0;
+
+        // Estimate total work up-front so the tracker can drive IsBuildComplete reliably.
+        plannedMaterialItems = plan.MaterialParamsTiles.Count;
+        {
+            var tileRectsTmp = new HashSet<(int atlasTexId, AtlasRect rect)>(capacity: plan.MaterialParamsTiles.Count);
+            foreach (var t in plan.MaterialParamsTiles)
+            {
+                tileRectsTmp.Add((t.AtlasTextureId, t.Rect));
+            }
+
+            foreach (var ov in plan.MaterialParamsOverrides)
+            {
+                if (!tileRectsTmp.Contains((ov.AtlasTextureId, ov.Rect)))
+                {
+                    plannedMaterialItems++;
+                }
+            }
+        }
+
+        if (normalDepthPlan is not null)
+        {
+            plannedNormalDepthItems = checked(normalDepthPlan.BakeJobs.Count + normalDepthPlan.OverrideJobs.Count);
+        }
+
+        int plannedTotal = plannedMaterialItems + plannedNormalDepthItems;
+        artifactBuildTracker.Begin(generationId, plannedTotal);
 
         var tileRects = new HashSet<(int atlasTexId, AtlasRect rect)>(capacity: plan.MaterialParamsTiles.Count);
+        int scheduledMaterial = 0;
+
         foreach (AtlasBuildPlan.MaterialParamsTileJob tile in plan.MaterialParamsTiles)
         {
             tileRects.Add((tile.AtlasTextureId, tile.Rect));
@@ -714,19 +817,39 @@ internal sealed class MaterialAtlasSystem : IDisposable
                     ov.RuleSource)
                 : default;
 
-            cpuJobs.Add(new MaterialAtlasParamsCpuTileJob(
+            if (!textureStore.TryGetMaterialParamsTextureId(tile.AtlasTextureId, out int materialTexId) || materialTexId == 0)
+            {
+                artifactBuildTracker.CompleteOne(generationId);
+                continue;
+            }
+
+            var workKey = new MaterialParamsAtlasArtifactGenerator.WorkKey(
                 GenerationId: generationId,
                 AtlasTextureId: tile.AtlasTextureId,
+                MaterialParamsTextureId: materialTexId,
                 Rect: tile.Rect,
-                Texture: tile.Texture,
+                TargetTexture: tile.Texture,
+                SourceTexture: tile.Texture,
                 Definition: tile.Definition,
-                Priority: tile.Priority,
-                DiskCache: enableCache ? diskCache : null,
-                BaseCacheKey: baseKey,
-                OverrideCacheKey: overrideKey,
+                DefinitionScale: tile.Scale,
+                EnableCache: enableCache,
                 HasOverride: hasOverride,
                 IsOverrideOnly: false,
-                CacheCounters: cacheCounters));
+                OverrideTexture: hasOverride ? ov.OverrideTexture : null,
+                OverrideScale: hasOverride ? ov.Scale : default,
+                RuleId: hasOverride ? ov.RuleId : null,
+                RuleSource: hasOverride ? ov.RuleSource : null,
+                BaseCacheKey: baseKey,
+                OverrideCacheKey: overrideKey,
+                Priority: tile.Priority);
+
+            if (!materialParamsArtifactGen.Enqueue(workKey))
+            {
+                artifactBuildTracker.CompleteOne(generationId);
+                continue;
+            }
+
+            scheduledMaterial++;
         }
 
         // Add cache-aware jobs for override-only rects so cache hits can skip the override stage,
@@ -750,53 +873,43 @@ internal sealed class MaterialAtlasSystem : IDisposable
                     ov.RuleSource)
                 : default;
 
-            cpuJobs.Add(new MaterialAtlasParamsCpuTileJob(
-                GenerationId: generationId,
-                AtlasTextureId: ov.AtlasTextureId,
-                Rect: ov.Rect,
-                Texture: ov.TargetTexture,
-                Definition: null,
-                Priority: ov.Priority,
-                DiskCache: enableCache ? diskCache : null,
-                BaseCacheKey: default,
-                OverrideCacheKey: overrideKey,
-                HasOverride: true,
-                IsOverrideOnly: true,
-                CacheCounters: cacheCounters));
-        }
+            if (!textureStore.TryGetMaterialParamsTextureId(ov.AtlasTextureId, out int materialTexId) || materialTexId == 0)
+            {
+                artifactBuildTracker.CompleteOne(generationId);
+                continue;
+            }
 
-        var overrideJobs = new List<MaterialAtlasParamsGpuOverrideUpload>(capacity: plan.MaterialParamsOverrides.Count);
-        foreach (AtlasBuildPlan.MaterialParamsOverrideJob ov in plan.MaterialParamsOverrides)
-        {
-            overrideJobs.Add(new MaterialAtlasParamsGpuOverrideUpload(
+            var workKey = new MaterialParamsAtlasArtifactGenerator.WorkKey(
                 GenerationId: generationId,
                 AtlasTextureId: ov.AtlasTextureId,
+                MaterialParamsTextureId: materialTexId,
                 Rect: ov.Rect,
                 TargetTexture: ov.TargetTexture,
-                OverrideAsset: ov.OverrideTexture,
+                SourceTexture: null,
+                Definition: null,
+                DefinitionScale: default,
+                EnableCache: enableCache,
+                HasOverride: true,
+                IsOverrideOnly: true,
+                OverrideTexture: ov.OverrideTexture,
+                OverrideScale: ov.Scale,
                 RuleId: ov.RuleId,
                 RuleSource: ov.RuleSource,
-                Scale: ov.Scale,
-                DiskCache: enableCache ? diskCache : null,
-                CacheKey: enableCache
-                    ? cacheKeyBuilder.BuildMaterialParamsOverrideTileKey(
-                        cacheInputs,
-                        ov.AtlasTextureId,
-                        ov.Rect,
-                        ov.TargetTexture,
-                        ov.OverrideTexture,
-                        ov.Scale,
-                        ov.RuleId,
-                        ov.RuleSource)
-                    : default,
-                Priority: ov.Priority));
+                BaseCacheKey: default,
+                OverrideCacheKey: overrideKey,
+                Priority: ov.Priority);
+
+            if (!materialParamsArtifactGen.Enqueue(workKey))
+            {
+                artifactBuildTracker.CompleteOne(generationId);
+                continue;
+            }
+
+            scheduledMaterial++;
         }
 
-        var normalDepthCpuJobs = new List<IMaterialAtlasCpuJob<MaterialAtlasNormalDepthGpuJob>>(capacity: normalDepthPlan is null
-            ? 0
-            : checked(normalDepthPlan.BakeJobs.Count + normalDepthPlan.OverrideJobs.Count));
-
-        if (normalDepthPlan is not null)
+        int scheduledNormalDepth = 0;
+        if (normalDepthPlan is not null && normalDepthArtifactGen is not null)
         {
             var pageSizes = new Dictionary<int, (int w, int h)>(capacity: normalDepthPlan.Pages.Count);
             foreach (var p in normalDepthPlan.Pages)
@@ -808,6 +921,13 @@ internal sealed class MaterialAtlasSystem : IDisposable
             {
                 if (!pageSizes.TryGetValue(job.AtlasTextureId, out (int w, int h) size))
                 {
+                    artifactBuildTracker.CompleteOne(generationId);
+                    continue;
+                }
+
+                if (!textureStore.TryGetNormalDepthTextureId(job.AtlasTextureId, out int ndTexId) || ndTexId == 0)
+                {
+                    artifactBuildTracker.CompleteOne(generationId);
                     continue;
                 }
 
@@ -821,28 +941,44 @@ internal sealed class MaterialAtlasSystem : IDisposable
                         job.DepthScale)
                     : default;
 
-                normalDepthCpuJobs.Add(new MaterialAtlasNormalDepthCpuJob(
+                var wk = new NormalDepthAtlasArtifactGenerator.WorkKey(
                     GenerationId: generationId,
                     AtlasTextureId: job.AtlasTextureId,
-                    Rect: job.Rect,
+                    NormalDepthTextureId: ndTexId,
                     AtlasWidth: size.w,
                     AtlasHeight: size.h,
-                    JobKind: MaterialAtlasNormalDepthGpuJob.Kind.Bake,
+                    Rect: job.Rect,
+                    Kind: NormalDepthAtlasArtifactGenerator.JobKind.Bake,
                     TargetTexture: job.SourceTexture,
                     OverrideTexture: null,
                     NormalScale: job.NormalScale,
                     DepthScale: job.DepthScale,
                     RuleId: null,
                     RuleSource: null,
-                    DiskCache: enableCache ? diskCache : null,
+                    EnableCache: enableCache,
                     CacheKey: key,
-                    Priority: job.Priority));
+                    Priority: job.Priority);
+
+                if (!normalDepthArtifactGen.Enqueue(wk))
+                {
+                    artifactBuildTracker.CompleteOne(generationId);
+                    continue;
+                }
+
+                scheduledNormalDepth++;
             }
 
             foreach (var ov in normalDepthPlan.OverrideJobs)
             {
                 if (!pageSizes.TryGetValue(ov.AtlasTextureId, out (int w, int h) size))
                 {
+                    artifactBuildTracker.CompleteOne(generationId);
+                    continue;
+                }
+
+                if (!textureStore.TryGetNormalDepthTextureId(ov.AtlasTextureId, out int ndTexId) || ndTexId == 0)
+                {
+                    artifactBuildTracker.CompleteOne(generationId);
                     continue;
                 }
 
@@ -859,41 +995,39 @@ internal sealed class MaterialAtlasSystem : IDisposable
                         ov.RuleSource)
                     : default;
 
-                normalDepthCpuJobs.Add(new MaterialAtlasNormalDepthCpuJob(
+                var wk = new NormalDepthAtlasArtifactGenerator.WorkKey(
                     GenerationId: generationId,
                     AtlasTextureId: ov.AtlasTextureId,
-                    Rect: ov.Rect,
+                    NormalDepthTextureId: ndTexId,
                     AtlasWidth: size.w,
                     AtlasHeight: size.h,
-                    JobKind: MaterialAtlasNormalDepthGpuJob.Kind.Override,
+                    Rect: ov.Rect,
+                    Kind: NormalDepthAtlasArtifactGenerator.JobKind.Override,
                     TargetTexture: ov.TargetTexture,
                     OverrideTexture: ov.OverrideTexture,
                     NormalScale: ov.NormalScale,
                     DepthScale: ov.DepthScale,
                     RuleId: ov.RuleId,
                     RuleSource: ov.RuleSource,
-                    DiskCache: enableCache ? diskCache : null,
+                    EnableCache: enableCache,
                     CacheKey: key,
-                    Priority: ov.Priority));
+                    Priority: ov.Priority);
+
+                if (!normalDepthArtifactGen.Enqueue(wk))
+                {
+                    artifactBuildTracker.CompleteOne(generationId);
+                    continue;
+                }
+
+                scheduledNormalDepth++;
             }
         }
 
-        var session = new MaterialAtlasBuildSession(
-            generationId,
-            atlasPages,
-            cpuJobs,
-            overrideJobs,
-            normalDepthCpuJobs,
-            new MaterialOverrideTextureLoader(),
-            cacheCounters,
-            sessionTag: "build");
-        scheduler.StartSession(session);
-
         lastScheduledAtlasReloadIteration = currentReload;
         lastScheduledAtlasNonNullPositions = nonNullCount;
-        IsBuildComplete = cpuJobs.Count == 0 && overrideJobs.Count == 0 && normalDepthCpuJobs.Count == 0;
+        IsBuildComplete = artifactBuildTracker.IsComplete;
 
-        return cpuJobs.Count;
+        return scheduledMaterial;
     }
 
     private (int filledRects, int overriddenRects) PopulateMaterialParamsSync(

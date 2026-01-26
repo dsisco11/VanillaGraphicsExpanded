@@ -1755,6 +1755,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 res.ProbeVis0.Bind(4);
                 shader.WorldProbeVis0 = 4;
 
+                res.ProbeDebugState0.Bind(5);
+                shader.WorldProbeDebugState0 = 5;
+
                 shader.WorldProbeSkyTint = capi.Render.AmbientColor;
 
                 clipmapProbeOrbsVao.Bind();
