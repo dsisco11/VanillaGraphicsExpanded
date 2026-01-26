@@ -9,6 +9,9 @@ Issues:
     ☐ pbr-direct-lighting doesnt include flood-filled sun-light.
     ☐ pbr-direct-lighting doesnt include shadow map.
 
+  Cache System:
+    ☐ Ensure that the meta.json files are not being rewritten repeatedly for minor changes, causing unnecessary disk writes. implement a debounce mechanism to minimize writes.
+
   GpuResources:
     ✔ `LumOnPmjJitterTexture` should be a `GpuTexture` (RAII + deferred disposal) rather than a raw GL texture handle. @done(26-01-25)
     ☐ `LumOnBlueNoiseTexture` should be a `GpuTexture` (RAII + deferred disposal) rather than a raw GL texture handle. @cancelled(26-01-26) Class does not exist; was planned but never implemented. Consider creating if blue noise is needed for LumOn.
