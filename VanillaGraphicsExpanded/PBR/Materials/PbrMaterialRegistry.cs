@@ -45,16 +45,8 @@ internal sealed class PbrMaterialRegistry
     private IDataCacheSystem<AtlasCacheKey, BaseColorRgb16f>? baseColorDiskCache;
 
     private readonly object baseColorRegenLock = new();
-    private CancellationTokenSource? baseColorRegenCts;
     private long baseColorRegenSessionId;
-    private Task? baseColorRegenTask;
-
-    private long baseColorRegenScheduled;
-    private long baseColorRegenCompleted;
-    private long baseColorRegenErrors;
-
-    private long baseColorRegenComputeTicks;
-    private long baseColorRegenIoTicks;
+    private BaseColorArtifactGenerator? baseColorArtifactGenerator;
 
     // Dense lookup: [blockId * 6 + faceIndex] -> derived surface terms.
     // Built once blocks + textures are available, and rebuilt on texture reload.
@@ -463,6 +455,9 @@ internal sealed class PbrMaterialRegistry
         }
     }
 
+    internal bool TryGetBaseColorInMemory(AtlasCacheKey key, out Vector3 baseColorLinear)
+        => TryGetBaseColorInMemoryForTests(key, out baseColorLinear);
+
     internal long BumpBaseColorRegenSessionForTests()
         => Interlocked.Increment(ref baseColorRegenSessionId);
 
@@ -515,183 +510,48 @@ internal sealed class PbrMaterialRegistry
 
         lock (baseColorRegenLock)
         {
-            baseColorRegenCts = new CancellationTokenSource();
+            IDataCacheSystem<AtlasCacheKey, BaseColorRgb16f>? diskCache = EnsureBaseColorDiskCacheInitialized();
+            if (diskCache is null)
+            {
+                baseColorArtifactGenerator = null;
+                return;
+            }
+
+            // Session id increments per run; stale results are dropped.
             long sessionId = Interlocked.Increment(ref baseColorRegenSessionId);
-            CancellationToken token = baseColorRegenCts.Token;
 
-            Interlocked.Exchange(ref baseColorRegenScheduled, 0);
-            Interlocked.Exchange(ref baseColorRegenCompleted, 0);
-            Interlocked.Exchange(ref baseColorRegenErrors, 0);
-            Interlocked.Exchange(ref baseColorRegenComputeTicks, 0);
-            Interlocked.Exchange(ref baseColorRegenIoTicks, 0);
-
-            // Conservative default: Phase 5 expects budgeting, but config knobs were removed.
+            // Conservative default: keep concurrency low; disk writes are gated by IO reservations.
             const int MaxConcurrency = 1;
-            baseColorRegenTask = Task.Run(() => RunBaseColorRegenLoop(capi, sessionId, MaxConcurrency, token), token);
+
+            baseColorArtifactGenerator = new BaseColorArtifactGenerator(
+                capi: capi,
+                registry: this,
+                diskCache: diskCache,
+                keyInputs: baseColorKeyInputs,
+                keyBuilder: baseColorKeyBuilder,
+                regenSessionId: sessionId,
+                maxConcurrency: MaxConcurrency,
+                ioCapacity: MaxConcurrency);
+
+            baseColorArtifactGenerator.Start();
+
+            // Worklist: all mapped texture ids in the registry (already resolved/canonicalized).
+            int enqueued = baseColorArtifactGenerator.EnqueueWorklist(materialIdByTexture.Keys);
+            capi.Logger.Debug("[VGE] BaseColor regen scheduled: enqueued={0}", enqueued);
         }
     }
 
     public void StopBaseColorBackgroundRegen()
     {
-        CancellationTokenSource? cts;
-        Task? task;
+        BaseColorArtifactGenerator? gen;
 
         lock (baseColorRegenLock)
         {
-            cts = baseColorRegenCts;
-            task = baseColorRegenTask;
-            baseColorRegenCts = null;
-            baseColorRegenTask = null;
+            gen = baseColorArtifactGenerator;
+            baseColorArtifactGenerator = null;
         }
 
-        if (cts is not null)
-        {
-            try { cts.Cancel(); } catch { }
-            try { cts.Dispose(); } catch { }
-        }
-
-        // Best-effort: do not block game thread waiting for completion.
-        _ = task;
-    }
-
-    private async Task RunBaseColorRegenLoop(ICoreClientAPI capi, long sessionId, int maxConcurrency, CancellationToken token)
-    {
-        IDataCacheSystem<AtlasCacheKey, BaseColorRgb16f>? diskCache = EnsureBaseColorDiskCacheInitialized();
-        if (diskCache is null)
-        {
-            return;
-        }
-
-        var semaphore = new SemaphoreSlim(Math.Max(1, maxConcurrency), Math.Max(1, maxConcurrency));
-        var totalSw = Stopwatch.StartNew();
-
-        try
-        {
-            // Worklist: all mapped texture ids in the registry (already resolved/canonicalized).
-            var textures = materialIdByTexture.Keys.ToArray();
-
-            var scheduled = new List<Task>(capacity: textures.Length);
-
-            foreach (AssetLocation texture in textures)
-            {
-                token.ThrowIfCancellationRequested();
-
-                await semaphore.WaitAsync(token).ConfigureAwait(false);
-
-                Task t = Task.Run(() =>
-                {
-                    try
-                    {
-                        token.ThrowIfCancellationRequested();
-
-                        IAsset? asset = capi.Assets.TryGet(texture, loadAsset: true);
-                        if (asset is null)
-                        {
-                            return;
-                        }
-
-                        // Build the exact key used for staleness.
-                        string? originPath = null;
-                        try { originPath = asset.Origin?.OriginPath; } catch { originPath = null; }
-
-                        long bytes = 0;
-                        try { bytes = asset.Data?.Length ?? 0; } catch { bytes = 0; }
-
-                        AtlasCacheKey key = baseColorKeyBuilder.BuildKey(baseColorKeyInputs, asset.Location, originPath, bytes);
-
-                        // Skip if already present (memory or disk).
-                        lock (baseColorCacheLock)
-                        {
-                            if (baseColorLinearByKey.ContainsKey(key))
-                            {
-                                return;
-                            }
-                        }
-
-                        if (diskCache.TryGet(key, out BaseColorRgb16f onDisk))
-                        {
-                            Vector3 rgb = DecodeRgb16f(onDisk);
-                            capi.Event.EnqueueMainThreadTask(() =>
-                            {
-                                TryApplyBaseColorRegenResult(sessionId, key, rgb);
-                            }, "vge-basecolor-cache-regen-hit");
-                            return;
-                        }
-
-                        Interlocked.Increment(ref baseColorRegenScheduled);
-
-                        long compute0 = Stopwatch.GetTimestamp();
-                        bool ok = TryComputeAverageAlbedoLinearNoCache(capi, asset, out Vector3 baseColorLinear, out _);
-                        long compute1 = Stopwatch.GetTimestamp();
-                        Interlocked.Add(ref baseColorRegenComputeTicks, compute1 - compute0);
-
-                        if (!ok)
-                        {
-                            return;
-                        }
-
-                        Vector3 clamped = Clamp01(baseColorLinear);
-                        BaseColorRgb16f payload = EncodeRgb16f(clamped);
-
-                        // Write-through to disk store.
-                        long io0 = Stopwatch.GetTimestamp();
-                        diskCache.Store(key, payload);
-                        long io1 = Stopwatch.GetTimestamp();
-                        Interlocked.Add(ref baseColorRegenIoTicks, io1 - io0);
-
-                        capi.Event.EnqueueMainThreadTask(() =>
-                        {
-                            TryApplyBaseColorRegenResult(sessionId, key, clamped);
-                        }, "vge-basecolor-cache-regen-store");
-
-                        Interlocked.Increment(ref baseColorRegenCompleted);
-                    }
-                    catch
-                    {
-                        Interlocked.Increment(ref baseColorRegenErrors);
-                    }
-                    finally
-                    {
-                        semaphore.Release();
-                    }
-                }, token);
-
-                scheduled.Add(t);
-            }
-
-            await Task.WhenAll(scheduled).ConfigureAwait(false);
-        }
-        catch
-        {
-            // Best-effort.
-        }
-        finally
-        {
-            totalSw.Stop();
-
-            long scheduledCount = Interlocked.Read(ref baseColorRegenScheduled);
-            long completedCount = Interlocked.Read(ref baseColorRegenCompleted);
-            long errorsCount = Interlocked.Read(ref baseColorRegenErrors);
-
-            double tickToMs = 1000.0 / Stopwatch.Frequency;
-            double avgComputeMs = completedCount > 0
-                ? (Interlocked.Read(ref baseColorRegenComputeTicks) * tickToMs) / completedCount
-                : 0.0;
-            double avgIoMs = completedCount > 0
-                ? (Interlocked.Read(ref baseColorRegenIoTicks) * tickToMs) / completedCount
-                : 0.0;
-
-            capi.Logger.Debug(
-                "[VGE] BaseColor cache regen finished: scheduled={0}, completed={1}, errors={2}, avgComputeMs={3:F2}, avgIoMs={4:F2}, totalMs={5:F0}",
-                scheduledCount,
-                completedCount,
-                errorsCount,
-                avgComputeMs,
-                avgIoMs,
-                totalSw.Elapsed.TotalMilliseconds);
-
-            semaphore.Dispose();
-        }
+        gen?.Stop();
     }
 
     private bool TryApplyBaseColorRegenResult(long sessionId, AtlasCacheKey key, in Vector3 value)

@@ -179,15 +179,15 @@ Invariants:
   ☐ Optional: fence/ack handling if “completion” is required for reuse
 
 
-☐ Phase 4 - First Consumer: BaseColor Generator
+✔ Phase 4 - First Consumer: BaseColor Generator
   Exit artifacts: BaseColor regen uses the generic scheduler (no bespoke loop).
-  ☐ Implement `BaseColorArtifactGenerator`:
+  ✔ Implement `BaseColorArtifactGenerator`:
     - Worklist: canonical texture ids (registry mappings)
     - Compute: load asset + ToBitmap + average linear RGB
     - Disk payload: BaseColor RGB16F JSON dictionary entry
     - Apply: update in-memory map on main thread
-  ☐ Replace/retire bespoke BaseColor regen loop in `PbrMaterialRegistry`.
-  ☐ Validate:
+  ✔ Replace/retire bespoke BaseColor regen loop in `PbrMaterialRegistry`.
+  ✔ Validate:
     - session cancellation drops stale results
     - disk writes are not dropped under load
 
