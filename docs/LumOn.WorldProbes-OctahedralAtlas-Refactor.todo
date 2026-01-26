@@ -1,0 +1,157 @@
+LumOn - World Probes - Refactor to Octahedral Atlas (Replace SH)
+
+  Goal:
+  Replace the current world-probe payload representation (L1 SH + separate sky SH) with a 2D octahedral radiance atlas
+  per probe, while keeping sky color uniform-driven (probes store sky lighting factors, not sky RGB).
+
+  Non-goals:
+  - Perfect parity with UE5 Lumen internals (we match the representation shape, not every filter/heuristic).
+  - Reworking screen-probe atlas (this refactor is world-probes only).
+  - Adding a full specular-GI solution (can be layered after atlas storage exists).
+
+  Locked decisions:
+  - Storage: keep the existing 2D atlas scheme (probe tiles packed into one sampler2D).
+  - World-probe tile size: match UE5 Lumen world-probe angular resolution (higher than 8×8; choose final S below).
+  - Sky: keep sky color uniform-driven via `worldProbeSkyTint`; probes store sky lighting factors only.
+  - Hit distance: store log(distance+1) in alpha; use sign (or a dedicated bit) to encode sky visibility per direction.
+  - Cost control: use time-sliced directional updates (trace/upload K texels per probe update, not S×S each time).
+
+  References:
+  - docs/LumOn.16-World-Space-Clipmap-Probes.md (system overview)
+  - docs/LumOn.17-Clipmap-Topology-and-Addressing.md (addressing and ring offsets)
+  - docs/WorldProbes.KnownSimplificationsAndRisks.md (current heuristics and debug)
+  - Screen-probe atlas implementation for octahedral sampling and temporal distribution:
+    - VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_octahedral.glsl
+    - VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_trace.fsh
+
+
+  Phase 0 - Specification + Constants (World-Probe Octa Size)
+  Exit artifacts: A single source of truth for world-probe octahedral tile size and encoding conventions.
+  ☐ Choose world-probe octahedral tile size `S` (UE5-like; candidates: 16 or 32) and set an initial default.
+  ☐ Add `LUMON_WORLDPROBE_OCTAHEDRAL_SIZE` (and float variants) in a dedicated include or `lumon_worldprobe.glsl`.
+  ☐ Keep screen-probe constants unchanged (`LUMON_OCTAHEDRAL_SIZE` remains 8 for the screen atlas).
+  ☐ Update `VanillaGraphicsExpanded/LumOn/WorldProbes/Tracing/LumOnWorldProbeTraceDirections.cs` to be parameterized by `S`
+    (or introduce a new `LumOnWorldProbeOctahedralDirections` helper), and remove “keep in sync with LUMON_OCTAHEDRAL_SIZE”.
+  ☐ Specify alpha encoding:
+    - Hit: `a = +log(dist + 1)`
+    - Sky/miss: `a = -log(maxDist + 1)` (negative sign = sky visibility for that direction)
+  ☐ Decide a default directional update batch size `K` (texels per probe update) and batching schedule.
+
+
+  Phase 1 - Data Layout + Versioning (Replace SH Textures)
+  Exit artifacts: World-probe GPU resources allocate an atlas payload, and layout/versioning invalidates safely.
+  ☐ Replace SH textures with a single radiance atlas texture:
+    - Remove/stop allocating `ProbeSH0/ProbeSH1/ProbeSH2` and `ProbeSky0`
+    - Add `ProbeRadianceAtlas` (RGBA16F) sized by (W,H) below
+  ☐ Keep per-probe textures:
+    - `ProbeVis0` (oct-encoded AO dir, skyIntensity, aoConfidence)
+    - `ProbeDist0` (meanLogDist, reserved)
+    - `ProbeMeta0` (confidence, flags)
+    - `ProbeDebugState0` (debug lifecycle heatmap)
+  ☐ Bump world-probe layout version and invalidate on change:
+    - VanillaGraphicsExpanded/LumOn/WorldProbes/LumOnWorldProbeLayout.cs
+    - VanillaGraphicsExpanded/LumOn/WorldProbes/Gpu/LumOnWorldProbeClipmapBufferManager.cs
+  ☐ Define atlas packing math (keep current 2D scheme; just tile-scaled):
+    - probe storage index = (x,y,z), clipmap resolution N, level L, tile size S
+    - tile origin:
+      - tileU0 = (x + z*N) * S
+      - tileV0 = (y + L*N) * S
+    - atlas size:
+      - W = N*N*S
+      - H = (N*levels)*S
+  ☐ Add config/runtime guardrails:
+    - Ensure `W` and `H` fit within GL max texture size; clamp/disable world probes if they don’t.
+    - Log a clear warning showing (N, levels, S, W, H).
+
+
+  Phase 2 - CPU Trace Output (Tile Samples + Direction Slicing)
+  Exit artifacts: CPU tracing produces octahedral samples suitable for the atlas and supports partial updates.
+  ☐ Change `LumOnWorldProbeTraceResult` to carry atlas samples for a probe update:
+    - Target: a compact payload for K texels (not necessarily full S×S every time)
+    - Per-sample: (octX, octY, radianceRGB, alphaEncodedDistSigned)
+  ☐ Update `LumOnWorldProbeTraceIntegrator.TraceProbe` to produce per-direction samples (no SH accumulation).
+  ☐ Preserve existing per-probe scalars:
+    - `ShortRangeAoDirWorld`, `ShortRangeAoConfidence`, `Confidence`, `MeanLogHitDistance`, `SkyIntensity`
+  ☐ Implement deterministic direction slicing:
+    - Map (frameIndex, probeId, batchCount) -> which K texels to trace this update
+    - Keep the schedule stable across camera motion to avoid “sparkle”
+  ☐ Decide miss semantics:
+    - For sky/miss, radianceRGB = 0 (sky color applied in shader via uniform), alpha < 0 encodes sky visibility
+  ☐ Update/extend any debug ray plumbing to visualize which texels were traced (optional but helpful).
+
+
+  Phase 3 - GPU Upload + Resolve (Write Tiles into Atlas)
+  Exit artifacts: CPU results update the correct atlas texels and per-probe metadata without excessive bandwidth.
+  ☐ Add/replace resolve shaders:
+    - A “tile resolve” shader that writes K point samples into `ProbeRadianceAtlas` at the correct atlasCoord
+    - A “probe resolve” shader that writes 1 point per probe into `Vis0/Dist0/Meta0`
+  ☐ Update `LumOnWorldProbeClipmapGpuUploader`:
+    - Expand upload vertex layout to include (atlasU, atlasV, radianceRGBA) for tile samples
+    - Upload K points per probe update (instead of 1 point writing SH targets)
+    - Keep per-probe resolve as a separate draw for metadata
+  ☐ Update upload budget estimation in `LumOnWorldProbeScheduler`:
+    - bytesPerProbeUpdate ≈ K * sizeof(RGBA16F) + per-probe meta write overhead
+    - Remove the fixed `EstimatedUploadBytesPerProbe = 64` placeholder
+  ☐ Ensure resource clears are deterministic on create/recreate (atlas must clear to 0).
+
+
+  Phase 4 - Shader Sampling + GI Evaluation (Atlas Integration)
+  Exit artifacts: Shaders sample world-probe atlas for directional radiance and diffuse irradiance, with sky applied via uniform.
+  ☐ Rewrite `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_worldprobe.glsl`:
+    - Replace SH decode/eval with octahedral atlas sampling functions
+    - Add `lumonWorldProbeSampleLevelDirectional()`:
+      - compute atlasCoord from (probeIndex, dirWS) -> octUV -> texel
+      - if alpha < 0: treat as sky-visible direction (radiance from sky path)
+      - else: radianceRGB from texture
+    - Add `lumonWorldProbeIntegrateDiffuse()`:
+      - integrate over hemisphere aligned to pixel normal
+      - recommended default: stride sampling (e.g., 2) to keep gather cost bounded
+      - accumulate sky visibility separately; apply `worldProbeSkyTint * skyIntensity * skyVisibility`
+  ☐ Update world-probe radiance fallback used by screen-probe tracer:
+    - `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_trace.fsh`
+    - Keep behavior: miss -> world-probe directional sample -> else legacy sky
+  ☐ Update debug views that currently assume SH textures:
+    - `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_debug_worldprobe.glsl`
+    - `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/vge_worldprobe_orbs_points.fsh`
+
+
+  Phase 5 - Runtime Binding + Renderer Plumbing
+  Exit artifacts: World-probe uniforms/textures bind correctly across passes and hot reload remains deterministic.
+  ☐ Update shader program bindings to bind `worldProbeRadianceAtlas` instead of SH textures:
+    - LumOnRenderer’s world-probe binding paths
+    - Any shader programs that expose world-probe texture properties
+  ☐ Add compile-time defines for world-probe atlas size and any stride defaults (if needed).
+  ☐ Ensure graphics reload triggers clean recreation and no stale attachment state remains.
+
+
+  Phase 6 - Tests + Validation
+  Exit artifacts: Automated tests cover atlas addressing, signed-alpha sky encoding, and fallback correctness.
+  ☐ Unit tests:
+    - Validate direction→octUV→texel mapping for the chosen S (CPU helper parity with GLSL math)
+    - Validate signed-alpha conventions (hit vs sky) are produced by the integrator
+  ☐ GPU functional tests:
+    - Update `LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests` to provide a tiny world-probe atlas and verify miss fallback
+    - Add a test that reads back a few atlas texels after an upload-resolve draw (smoke test for addressing)
+  ☐ Add a RenderDoc checklist (or notes) for verifying atlas layout: (level stacking, ring offsets, tile placement).
+
+
+  Phase 7 - Perf + Guardrails (Scaling Reality Check)
+  Exit artifacts: Defaults are safe on typical hardware and failure modes are explicit.
+  ☐ Add memory math to docs and/or logs:
+    - bytesPerLevel ≈ (N*N*S) * (N*S) * bytesPerTexel (for each level slice)
+  ☐ Confirm reasonable defaults for:
+    - S (tile size)
+    - K (texels per probe update)
+    - gather stride (shader integration cost)
+  ☐ Add clamping for extreme configs (N, levels, S) to avoid allocating oversized textures.
+  ☐ Profile baseline costs: trace CPU time, upload bandwidth, shader sampling cost.
+
+
+  Phase 8 - Cleanup + Documentation Alignment
+  Exit artifacts: No SH-based world-probe code paths remain and docs reflect atlas reality.
+  ☐ Remove dead SH-specific world-probe code (resolve shaders, SH helpers) once atlas is stable.
+  ☐ Update docs:
+    - Add/adjust a “World-Probe Radiance Atlas” section (tile size, packing, sky factor)
+    - Replace any remaining references to “world-probe SH payload” in Phase 18 docs
+  ☐ Update `project.todo` “World probes should use an octahedral atlas instead of spherical harmonics” as done.
+

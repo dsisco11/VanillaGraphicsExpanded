@@ -57,6 +57,21 @@ internal sealed class BaseColorArtifactGenerator
 
     public void Stop() => scheduler.Stop();
 
+    public void StopAndLogSummary()
+    {
+        ArtifactSchedulerStats stats = scheduler.GetStatsSnapshot();
+        scheduler.Stop();
+
+        capi.Logger.Debug(
+            "[VGE] BaseColor artifacts stopped: queued={0}, inflight={1}, completed={2}, errors={3}, avgComputeMs={4:F2}, avgOutputMs={5:F2}",
+            stats.Queued,
+            stats.InFlight,
+            stats.Completed,
+            stats.Errors,
+            stats.AvgComputeMs,
+            stats.AvgOutputMs);
+    }
+
     public ArtifactSchedulerStats GetStatsSnapshot() => scheduler.GetStatsSnapshot();
 
     public int EnqueueWorklist(IEnumerable<AssetLocation> textures)

@@ -551,7 +551,22 @@ internal sealed class PbrMaterialRegistry
             baseColorArtifactGenerator = null;
         }
 
-        gen?.Stop();
+        gen?.StopAndLogSummary();
+    }
+
+    internal bool TryGetBaseColorRegenStatsSnapshot(out VanillaGraphicsExpanded.Cache.Artifacts.ArtifactSchedulerStats stats)
+    {
+        lock (baseColorRegenLock)
+        {
+            if (baseColorArtifactGenerator is null)
+            {
+                stats = default;
+                return false;
+            }
+
+            stats = baseColorArtifactGenerator.GetStatsSnapshot();
+            return true;
+        }
     }
 
     private bool TryApplyBaseColorRegenResult(long sessionId, AtlasCacheKey key, in Vector3 value)

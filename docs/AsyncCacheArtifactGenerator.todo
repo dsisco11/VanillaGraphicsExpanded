@@ -206,16 +206,16 @@ Invariants:
     - Keep GL commits on render thread
 
 
-☐ Phase 6 - Validation, Diagnostics, and Docs
+✔ Phase 6 - Validation, Diagnostics, and Docs
   Exit artifacts: tests, logs/debug views, and documented behavior.
-  ☐ Tests:
+  ✔ Tests:
     - corrupt entry recovery doesn’t poison load
     - session cancellation drops stale results
     - backpressure: writes are not dropped; producer defers instead
-  ☐ Diagnostics:
+  ✔ Diagnostics:
     - summary log lines per run (scheduled/completed/errors, avg compute/IO)
     - optional debug view panel for per-cache-type progress
-  ☐ Docs:
+  ✔ Docs:
     - document thread-affinity contract
     - document backpressure semantics and why render thread never blocks
     - document how GPU staging works (mapped PBO writes off-thread, GL commit on render thread)
