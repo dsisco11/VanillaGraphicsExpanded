@@ -73,14 +73,14 @@ Code touchpoints (expected):
     - corruption recovery (skip + optional purge)
     - codec failures don’t poison the whole load
 
-☐ Phase 2 - Migrate Material Atlas Cache to Shared Core
+✔ Phase 2 - Migrate Material Atlas Cache to Shared Core
   Exit artifacts: material atlas disk cache uses shared core without changing behavior or on-disk format.
-  ☐ Wrap/port `MaterialAtlasDiskCache` persistence behind `ICacheStore`
-  ☐ Preserve existing:
+  ✔ Wrap/port `MaterialAtlasDiskCache` persistence behind `ICacheStore`
+  ✔ Preserve existing:
     - folder layout + filenames
     - key hashing approach and schema
     - key-based staleness policy
-  ☐ Regression tests:
+  ✔ Regression tests:
     - on-disk compatibility (existing cache can be read)
     - no behavior change in atlas cache hit/miss counters
 

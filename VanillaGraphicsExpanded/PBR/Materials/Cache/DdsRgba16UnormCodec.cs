@@ -121,9 +121,15 @@ internal static class DdsRgba16UnormCodec
     public static void ReadRgba16UnormHeader(string filePath, out int width, out int height)
     {
         using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        ReadRgba16UnormHeader(fs, out width, out height);
+    }
+
+    public static void ReadRgba16UnormHeader(Stream stream, out int width, out int height)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
 
         Span<byte> prefix = stackalloc byte[4 + DdsHeaderSize + 20];
-        fs.ReadExactly(prefix);
+        stream.ReadExactly(prefix);
 
         uint magic = BinaryPrimitives.ReadUInt32LittleEndian(prefix[0..4]);
         if (magic != DdsMagic)
