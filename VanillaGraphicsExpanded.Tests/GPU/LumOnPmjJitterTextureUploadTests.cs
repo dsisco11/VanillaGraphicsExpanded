@@ -28,6 +28,7 @@ public sealed class LumOnPmjJitterTextureUploadTests : RenderTestBase
 
         using var tex = new LumOnPmjJitterTexture(cycleLength, seed);
         tex.EnsureCreated();
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
 
         AssertTexture2DLevelFormatAndSize(
             stage: "PMJ jitter texture",
@@ -62,6 +63,7 @@ public sealed class LumOnPmjJitterTextureUploadTests : RenderTestBase
 
         using var tex = new LumOnPmjJitterTexture(cycleLength, seed);
         tex.EnsureCreated();
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
 
         ushort[] actual = ReadBackRg16UnormInterleaved(tex.TextureId, cycleLength);
 

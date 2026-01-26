@@ -379,8 +379,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
     public virtual void Unbind(int unit)
     {
-        GlStateCache.Current.BindTexture(textureTarget, unit, 0);
-        GlStateCache.Current.UnbindSampler(unit);
+        GlStateCache.Current.BindTexture(textureTarget, unit, 0, sampler: null);
     }
 
     public virtual void UploadData(float[] data)

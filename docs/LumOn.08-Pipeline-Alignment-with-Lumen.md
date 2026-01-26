@@ -33,32 +33,27 @@ From `LumOnRenderer`:
 
 ### 2.2 Pass 2: Probe Trace
 
-Two modes:
-
-- SH mode: `lumon_probe_trace.fsh` → SH coefficient textures
-- Octahedral mode: `lumon_probe_atlas_trace.fsh`
-  - Output: octahedral atlas texel RGBA16F where RGB=hit radiance (screen sample or sky), A=log hit distance
-  - Temporal distribution: only traces a subset of texels per probe per frame
-  - For non-traced texels, it copies history (`octahedralHistory`) into the trace output
+- Shader: `lumon_probe_atlas_trace.fsh`
+- Output: octahedral atlas texel RGBA16F where RGB=hit radiance, A=log hit distance
+- Temporal distribution: only traces a subset of texels per probe per frame
+- For non-traced texels, it copies history (`octahedralHistory`) into the trace output
 
 ### 2.3 Pass 3: Temporal Accumulation
 
-Two modes:
-
-- SH mode: `lumon_temporal.fsh` (reprojection + validation + neighborhood clamping)
-- Octahedral mode: `lumon_probe_atlas_temporal.fsh`
-  - Per-texel history blending only for traced texels
-  - Disocclusion detection via hit-distance delta
-  - Neighborhood clamping within each probe tile
+- Shader: `lumon_probe_atlas_temporal.fsh`
+- Per-texel history blending only for traced texels
+- Disocclusion detection via hit-distance delta
+- Neighborhood clamping within each probe tile
 
 ### 2.4 Pass 4: Gather (half-res)
 
-Two modes:
+Two strategies:
 
-- SH gather: `lumon_gather.fsh` (evaluate SH at pixel normal)
-- Octahedral gather: `lumon_probe_atlas_gather.fsh`
-  - For each pixel, selects 4 probes and **integrates** each probe’s octahedral tile over the hemisphere aligned to the pixel normal
+- **Integrate Atlas**: `lumon_probe_atlas_gather.fsh`
+  - For each pixel, selects 4 probes and integrates each probe’s octahedral tile over the hemisphere aligned to the pixel normal
   - Uses edge-aware weighting and hit-distance heuristics
+- **Evaluate Projected SH9**: `lumon_probe_sh9_gather.fsh` (after `lumon_probe_atlas_project_sh9.fsh`)
+  - Cheaper gather by evaluating SH9 at the pixel normal, at the cost of an extra atlas→SH projection pass
 
 ### 2.5 Pass 5: Upsample (full-res)
 

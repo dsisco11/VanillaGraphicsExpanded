@@ -144,14 +144,11 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         LumOnProbeAnchorShaderProgram.Register(api);
         LumOnHzbCopyShaderProgram.Register(api);
         LumOnHzbDownsampleShaderProgram.Register(api);
-        LumOnProbeTraceShaderProgram.Register(api);
         LumOnScreenProbeAtlasTraceShaderProgram.Register(api);
         LumOnVelocityShaderProgram.Register(api);
-        LumOnTemporalShaderProgram.Register(api);
         LumOnScreenProbeAtlasTemporalShaderProgram.Register(api);
         LumOnScreenProbeAtlasFilterShaderProgram.Register(api);
         LumOnScreenProbeAtlasProjectSh9ShaderProgram.Register(api);
-        LumOnGatherShaderProgram.Register(api);
         LumOnProbeSh9GatherShaderProgram.Register(api);
         LumOnScreenProbeAtlasGatherShaderProgram.Register(api);
         LumOnUpsampleShaderProgram.Register(api);

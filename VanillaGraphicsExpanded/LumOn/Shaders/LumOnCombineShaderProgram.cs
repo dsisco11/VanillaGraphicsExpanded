@@ -2,6 +2,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
@@ -35,32 +36,32 @@ public class LumOnCombineShaderProgram : GpuProgram
     /// <summary>
     /// Scene with direct lighting only (captured before GI application).
     /// </summary>
-    public int SceneDirect { set => BindTexture2D("sceneDirect", value, 0); }
+    public GpuTexture? SceneDirect { set => BindTexture2D("sceneDirect", value, 0); }
 
     /// <summary>
     /// LumOn indirect diffuse output (upsampled to full resolution).
     /// </summary>
-    public int IndirectDiffuse { set => BindTexture2D("indirectDiffuse", value, 1); }
+    public GpuTexture? IndirectDiffuse { set => BindTexture2D("indirectDiffuse", value, 1); }
 
     /// <summary>
     /// G-Buffer albedo texture for material modulation.
     /// </summary>
-    public int GBufferAlbedo { set => BindTexture2D("gBufferAlbedo", value, 2); }
+    public int GBufferAlbedo { set => BindExternalTexture2D("gBufferAlbedo", value, 2, GpuSamplers.NearestClamp); }
 
     /// <summary>
     /// G-Buffer material properties (roughness, metallic, etc.).
     /// </summary>
-    public int GBufferMaterial { set => BindTexture2D("gBufferMaterial", value, 3); }
+    public int GBufferMaterial { set => BindExternalTexture2D("gBufferMaterial", value, 3, GpuSamplers.NearestClamp); }
 
     /// <summary>
     /// G-Buffer world-space normals.
     /// </summary>
-    public int GBufferNormal { set => BindTexture2D("gBufferNormal", value, 5); }
+    public int GBufferNormal { set => BindExternalTexture2D("gBufferNormal", value, 5, GpuSamplers.NearestClamp); }
 
     /// <summary>
     /// Primary depth texture for sky detection.
     /// </summary>
-    public int PrimaryDepth { set => BindTexture2D("primaryDepth", value, 4); }
+    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 4, GpuSamplers.NearestClamp); }
 
     #endregion
 

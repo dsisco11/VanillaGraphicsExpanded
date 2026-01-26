@@ -20,7 +20,6 @@ These are the “constant-like” uniforms that currently gate branches or selec
 | `enableShortRangeAo`         |     `int` | `LumOnCombineShaderProgram.EnableShortRangeAo`, `PBRCompositeShaderProgram.EnableShortRangeAo`, `LumOnDebugShaderProgram.EnableShortRangeAo` | `lumon_combine.fsh`, `pbr_composite.fsh`, `lumon_debug.fsh` | Branch gate (`if`)      | `VGE_LUMON_ENABLE_SHORT_RANGE_AO`              |             `0/1` (match current behavior) | Short-range AO gate; Phase 3 target. |
 | `denoiseEnabled`             |     `int` | `LumOnUpsampleShaderProgram.DenoiseEnabled`                                                                                                  | `lumon_upsample.fsh`                                        | Branch gate (`else if`) | `VGE_LUMON_UPSAMPLE_DENOISE`                   |             `0/1` (match current behavior) | Phase 4 target.                      |
 | `holeFillEnabled`            |     `int` | `LumOnUpsampleShaderProgram.HoleFillEnabled`                                                                                                 | `lumon_upsample.fsh`                                        | Branch gate (`if`)      | `VGE_LUMON_UPSAMPLE_HOLEFILL`                  |             `0/1` (match current behavior) | Phase 4 target.                      |
-| `enableReprojectionVelocity` |     `int` | `LumOnTemporalShaderProgram.EnableReprojectionVelocity`                                                                                      | `lumon_temporal.fsh`                                        | Branch gate (`if`)      | `VGE_LUMON_TEMPORAL_USE_VELOCITY_REPROJECTION` |             `0/1` (match current behavior) | Phase 5 target.                      |
 
 ### “Candidate, but likely keep uniform” (Phase 0 decision)
 
@@ -29,7 +28,7 @@ These are boolean-ish uniforms used for branching, but are plausibly changed at 
 | GLSL name             | GLSL type | Shaders                                        | Proposed action           | Rationale                                                                                         |
 | --------------------- | --------: | ---------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------- |
 | `historyValid`        |     `int` | `lumon_velocity.fsh`                           | Keep as uniform           | Can flip during history resets; recompile churn not worth it.                                     |
-| `anchorJitterEnabled` |     `int` | `lumon_probe_anchor.fsh`, `lumon_temporal.fsh` | Keep as uniform (for now) | Cross-pass, but may be toggled interactively; treat as runtime config unless proven restart-only. |
+| `anchorJitterEnabled` |     `int` | `lumon_probe_anchor.fsh`, `lumon_probe_atlas_trace.fsh` | Keep as uniform (for now) | Cross-pass, but may be toggled interactively; treat as runtime config unless proven restart-only. |
 
 ## Loop-Bound / Structure Knobs (Defer to Phase 6)
 
@@ -38,8 +37,7 @@ These uniforms influence loop bounds or shader structure. They are _potential_ d
 | GLSL name        | GLSL type | Shaders                                                         | Usage                                    | Phase 0 decision                                                                           |
 | ---------------- | --------: | --------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `holeFillRadius` |     `int` | `lumon_upsample.fsh`                                            | Bounds checks inside neighborhood loops  | Defer (Phase 6) — might stay uniform unless loops are refactored to rely on a fixed bound. |
-| `raySteps`       |     `int` | `lumon_probe_trace.fsh`, `lumon_probe_atlas_trace.fsh`          | `for (int i = 1; i <= raySteps; i++)`    | Defer (Phase 6) — strong define candidate if restart-only.                                 |
-| `raysPerProbe`   |     `int` | `lumon_probe_trace.fsh`                                         | `for (int i = 0; i < raysPerProbe; i++)` | Defer (Phase 6).                                                                           |
+| `raySteps`       |     `int` | `lumon_probe_atlas_trace.fsh`                                   | `for (int i = 1; i <= raySteps; i++)`    | Defer (Phase 6) — strong define candidate if restart-only.                                 |
 | `texelsPerFrame` |     `int` | `lumon_probe_atlas_trace.fsh`, `lumon_probe_atlas_temporal.fsh` | Batch size / distribution                | Defer (Phase 6).                                                                           |
 | `filterRadius`   |     `int` | `lumon_probe_atlas_filter.fsh`                                  | Neighborhood bounds checks               | Defer (Phase 6).                                                                           |
 | `sampleStride`   |     `int` | `lumon_probe_atlas_gather.fsh`                                  | Selects integration stride               | Defer (Phase 6).                                                                           |

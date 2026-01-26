@@ -40,8 +40,30 @@ public sealed class ShaderTestFramework : IDisposable
     private bool _quadInitialized;
     private bool _isDisposed;
     private readonly List<IDisposable> _managedResources = [];
+    private static readonly GlPipelineDesc FullscreenPassPso = CreateFullscreenPassPso();
 
     #endregion
+
+    private static GlPipelineDesc CreateFullscreenPassPso()
+    {
+        // Match typical runtime fullscreen compute/post-process defaults (no depth, no blend, no cull, no scissor).
+        var defaultMask =
+            GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable)
+                .With(GlPipelineStateId.DepthFunc)
+                .With(GlPipelineStateId.BlendEnable)
+                .With(GlPipelineStateId.BlendFunc)
+                .With(GlPipelineStateId.CullFaceEnable)
+                .With(GlPipelineStateId.ScissorTestEnable)
+                .With(GlPipelineStateId.ColorMask);
+
+        var nonDefaultMask = GlPipelineStateMask.From(GlPipelineStateId.DepthWriteMask);
+
+        return new GlPipelineDesc(
+            defaultMask: defaultMask,
+            nonDefaultMask: nonDefaultMask,
+            depthWriteMask: false,
+            name: "Tests.FullscreenPass");
+    }
 
     #region Texture Creation
 
@@ -173,11 +195,12 @@ public sealed class ShaderTestFramework : IDisposable
     {
         EnsureQuadInitialized();
 
-        GL.UseProgram(programId);
-        GL.BindVertexArray(_quadVao);
+        GlStateCache.Current.Apply(FullscreenPassPso);
+        GlStateCache.Current.UseProgram(programId);
+        GlStateCache.Current.BindVertexArray(_quadVao);
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
-        GL.BindVertexArray(0);
-        GL.UseProgram(0);
+        GlStateCache.Current.UnbindVertexArray();
+        GlStateCache.Current.UnbindProgram();
     }
 
     /// <summary>
@@ -190,6 +213,8 @@ public sealed class ShaderTestFramework : IDisposable
     public void RenderQuadTo(int programId, GpuFramebuffer target, (float r, float g, float b, float a)? clearColor = null)
     {
         target.BindWithViewport();
+
+        GlStateCache.Current.Apply(FullscreenPassPso);
 
         var (r, g, b, a) = clearColor ?? (0f, 0f, 0f, 0f);
         GL.ClearColor(r, g, b, a);
@@ -221,16 +246,16 @@ public sealed class ShaderTestFramework : IDisposable
         _quadVao = GL.GenVertexArray();
         _quadVbo = GL.GenBuffer();
 
-        GL.BindVertexArray(_quadVao);
-        GL.BindBuffer(BufferTarget.ArrayBuffer, _quadVbo);
+        GlStateCache.Current.BindVertexArray(_quadVao);
+        GlStateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, _quadVbo);
         GL.BufferData(BufferTarget.ArrayBuffer, vertices.Length * sizeof(float), vertices, BufferUsageHint.StaticDraw);
 
         // Position attribute at location 0
         GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 2 * sizeof(float), 0);
         GL.EnableVertexAttribArray(0);
 
-        GL.BindVertexArray(0);
-        GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+        GlStateCache.Current.UnbindVertexArray();
+        GlStateCache.Current.UnbindBuffer(BufferTarget.ArrayBuffer);
 
         _quadInitialized = true;
     }

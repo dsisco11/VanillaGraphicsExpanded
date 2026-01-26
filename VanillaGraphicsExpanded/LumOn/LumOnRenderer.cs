@@ -306,46 +306,29 @@ public class LumOnRenderer : IRenderer, IDisposable
                 RenderProbeAnchorPass(primaryFb);
             }
 
-            // === Pass 2: Probe Trace ===
+            // === Pass 2: Probe Trace (Probe-Atlas) ===
             using var cpuTrace = Profiler.BeginScope("LumOn.Trace", "Render");
             using (GlGpuProfiler.Instance.Scope("LumOn.Trace"))
             {
-                if (config.LumOn.UseProbeAtlas)
-                {
-                    RenderProbeAtlasTracePass(primaryFb);
-                }
-                else
-                {
-                    RenderProbeTracePass(primaryFb);
-                }
+                RenderProbeAtlasTracePass(primaryFb);
             }
 
-            // === Pass 3: Temporal Accumulation ===
+            // === Pass 3: Temporal Accumulation (Probe-Atlas) ===
             using var cpuTemporal = Profiler.BeginScope("LumOn.Temporal", "Render");
             using (GlGpuProfiler.Instance.Scope("LumOn.Temporal"))
             {
-                if (config.LumOn.UseProbeAtlas)
-                {
-                    RenderProbeAtlasTemporalPass();
-                }
-                else
-                {
-                    RenderSHTemporalPass();
-                }
+                RenderProbeAtlasTemporalPass();
             }
 
             // === Pass 3.5: Probe-Atlas Filter/Denoise (Probe-space) ===
-            if (config.LumOn.UseProbeAtlas)
+            using var cpuAtlasFilter = Profiler.BeginScope("LumOn.AtlasFilter", "Render");
+            using (GlGpuProfiler.Instance.Scope("LumOn.AtlasFilter"))
             {
-                using var cpuAtlasFilter = Profiler.BeginScope("LumOn.AtlasFilter", "Render");
-                using (GlGpuProfiler.Instance.Scope("LumOn.AtlasFilter"))
-                {
-                    RenderProbeAtlasFilterPass();
-                }
+                RenderProbeAtlasFilterPass();
             }
 
             // === Pass 3.75: Probe-Atlas Projection (Option B) ===
-            if (config.LumOn.UseProbeAtlas && config.LumOn.ProbeAtlasGather == VgeConfig.ProbeAtlasGatherMode.EvaluateProjectedSH)
+            if (config.LumOn.ProbeAtlasGather == VgeConfig.ProbeAtlasGatherMode.EvaluateProjectedSH)
             {
                 using var cpuAtlasProject = Profiler.BeginScope("LumOn.AtlasProjectSH9", "Render");
                 using (GlGpuProfiler.Instance.Scope("LumOn.AtlasProjectSH9"))
@@ -511,7 +494,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.PrimaryDepth = primaryFb.DepthTextureId;
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
 
-        shader.PmjJitter = pmjJitter.TextureId;
+        shader.PmjJitter = pmjJitter.Texture;
         shader.PmjCycleLength = pmjJitter.CycleLength;
 
         // Pass matrices
@@ -539,84 +522,9 @@ public class LumOnRenderer : IRenderer, IDisposable
     }
 
     /// <summary>
-    /// Pass 2: Ray trace from each probe and accumulate radiance into SH.
-    /// Output: ProbeRadiance textures with SH coefficients.
-    /// </summary>
-    private void RenderProbeTracePass(FrameBufferRef primaryFb)
-    {
-        var shader = capi.Shader.GetProgramByName("lumon_probe_trace") as LumOnProbeTraceShaderProgram;
-        if (shader is null || shader.LoadError)
-            return;
-
-        var fbo = bufferManager.RadianceTraceFbo;
-        if (fbo is null) return;
-
-        // Write to dedicated trace buffer (separate from temporal current/history)
-        fbo.BindWithViewport();
-        fbo.Clear();
-
-        capi.Render.GlToggleBlend(false);
-        shader.Use();
-
-        // Bind probe anchor textures
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
-        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex!;
-
-        // Bind scene depth for ray marching
-        shader.PrimaryDepth = primaryFb.DepthTextureId;
-
-        shader.PmjJitter = pmjJitter.TextureId;
-        shader.PmjCycleLength = pmjJitter.CycleLength;
-
-        // Bind radiance sources for hit sampling.
-        // Prefer the PBR split outputs (linear, pre-tonemap HDR) when available.
-        var direct = DirectLightingBufferManager.Instance;
-        if (direct?.IsInitialized == true && direct.DirectDiffuseTex != null && direct.EmissiveTex != null)
-        {
-            shader.DirectDiffuse = direct.DirectDiffuseTex.TextureId;
-            shader.Emissive = direct.EmissiveTex.TextureId;
-        }
-        else
-        {
-            // Fallback: treat captured scene as "directDiffuse" and no emissive.
-            shader.DirectDiffuse = bufferManager.CapturedSceneTex!;
-            shader.Emissive = 0;
-        }
-
-
-        // Pass matrices
-        shader.InvProjectionMatrix = invProjectionMatrix;
-        shader.ProjectionMatrix = projectionMatrix;
-        shader.ViewMatrix = modelViewMatrix;  // viewMatrix transforms WS probe data to VS for ray marching
-
-        // Pass uniforms
-        shader.ProbeSpacing = config.LumOn.ProbeSpacingPx;
-        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
-        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
-        shader.FrameIndex = frameIndex;
-        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
-        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
-
-        // Sky fallback colors
-        shader.SunPosition = capi.World.Calendar.SunPositionNormalized;
-        shader.SunColor = capi.World.Calendar.SunColor;
-        shader.AmbientColor = capi.Render.AmbientColor;
-
-        // Indirect lighting tint (from config)
-        shader.IndirectTint = new Vec3f(
-            config.LumOn.IndirectTint[0], 
-            config.LumOn.IndirectTint[1], 
-            config.LumOn.IndirectTint[2]);
-
-        // Render
-        capi.Render.RenderMesh(quadMeshRef);
-        shader.Stop();
-    }
-
-    /// <summary>
-    /// Pass 2 (Screen-Probe Atlas): Ray trace from each probe and store radiance + hit distance.
-    /// Uses temporal distribution: only traces a subset of texels each frame.
-    /// Output: Probe atlas texture with radiance and hit distance.
+     /// Pass 2 (Screen-Probe Atlas): Ray trace from each probe and store radiance + hit distance.
+     /// Uses temporal distribution: only traces a subset of texels each frame.
+     /// Output: Probe atlas texture with radiance and hit distance.
     /// </summary>
     private void RenderProbeAtlasTracePass(FrameBufferRef primaryFb)
     {
@@ -681,13 +589,13 @@ public class LumOnRenderer : IRenderer, IDisposable
         var direct = DirectLightingBufferManager.Instance;
         if (direct?.IsInitialized == true && direct.DirectDiffuseTex != null && direct.EmissiveTex != null)
         {
-            shader.DirectDiffuse = direct.DirectDiffuseTex.TextureId;
-            shader.Emissive = direct.EmissiveTex.TextureId;
+            shader.DirectDiffuse = direct.DirectDiffuseTex;
+            shader.Emissive = direct.EmissiveTex;
         }
         else
         {
             shader.DirectDiffuse = bufferManager.CapturedSceneTex!;
-            shader.Emissive = 0;
+            shader.Emissive = null;
         }
 
 
@@ -785,83 +693,9 @@ public class LumOnRenderer : IRenderer, IDisposable
     }
 
     /// <summary>
-    /// Pass 3 (SH mode): Blend current SH radiance with history for temporal stability.
-    /// Implements reprojection, validation, and neighborhood clamping.
-    /// Output: Updated radiance history and metadata.
-    /// </summary>
-    private void RenderSHTemporalPass()
-    {
-        var shader = capi.Shader.GetProgramByName("lumon_temporal") as LumOnTemporalShaderProgram;
-        if (shader is null || shader.LoadError)
-            return;
-
-        var fbo = bufferManager.TemporalOutputFbo;
-        if (fbo is null) return;
-
-        // Bind temporal output FBO (MRT: radiance0, radiance1, meta)
-        fbo.BindWithViewport();
-
-        capi.Render.GlToggleBlend(false);
-
-        // Define-backed knobs must be set before Use() so the correct variant is bound.
-        shader.EnableReprojectionVelocity = config.LumOn.EnableReprojectionVelocity;
-
-        shader.Use();
-
-        // Bind current frame radiance (from trace pass - dedicated trace buffer)
-        shader.RadianceCurrent0 = bufferManager.RadianceTraceTex0!;
-        shader.RadianceCurrent1 = bufferManager.RadianceTraceTex1!;
-
-        // Bind history radiance (from previous frame, after last swap)
-        shader.RadianceHistory0 = bufferManager.RadianceHistoryTex0!;
-        shader.RadianceHistory1 = bufferManager.RadianceHistoryTex1!;
-
-        // Bind probe anchors for validation and reprojection
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
-        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex!;
-
-        // Bind history metadata for validation
-        shader.HistoryMeta = bufferManager.ProbeMetaHistoryTex!;
-
-        // Bind velocity texture (full resolution)
-        // The shader will only use it when EnableReprojectionVelocity is set.
-        shader.VelocityTex = bufferManager.VelocityTex!;
-
-        // Pass matrices for reprojection
-        shader.ViewMatrix = modelViewMatrix;      // WS to VS for depth calc
-        shader.InvViewMatrix = invModelViewMatrix;
-        shader.PrevViewProjMatrix = prevViewProjMatrix;
-
-        // Pass probe grid size
-        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
-
-        // Pass screen mapping + jitter params (must match anchor pass)
-        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
-        shader.ProbeSpacing = config.LumOn.ProbeSpacingPx;
-        shader.FrameIndex = frameIndex;
-        shader.AnchorJitterEnabled = config.LumOn.AnchorJitterEnabled ? 1 : 0;
-        shader.AnchorJitterScale = config.LumOn.AnchorJitterScale;
-
-        // Pass depth parameters
-        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
-        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
-
-        // Pass temporal parameters
-        shader.TemporalAlpha = config.LumOn.TemporalAlpha;
-        shader.DepthRejectThreshold = config.LumOn.DepthRejectThreshold;
-        shader.NormalRejectThreshold = config.LumOn.NormalRejectThreshold;
-
-        shader.VelocityRejectThreshold = config.LumOn.VelocityRejectThreshold;
-
-        // Render
-        capi.Render.RenderMesh(quadMeshRef);
-        shader.Stop();
-    }
-
-    /// <summary>
-    /// Pass 3 (Screen-Probe Atlas mode): Per-texel temporal blending for probe-atlas radiance.
-    /// Only blends texels that were traced this frame; preserves non-traced texels.
-    /// Uses hit-distance delta for per-texel disocclusion detection.
+     /// Pass 3 (Screen-Probe Atlas mode): Per-texel temporal blending for probe-atlas radiance.
+     /// Only blends texels that were traced this frame; preserves non-traced texels.
+     /// Uses hit-distance delta for per-texel disocclusion detection.
     /// Output: Blended probe atlas to ScreenProbeAtlasCurrentFbo.
     /// </summary>
     private void RenderProbeAtlasTemporalPass()
@@ -887,14 +721,14 @@ public class LumOnRenderer : IRenderer, IDisposable
         var traceTex = bufferManager.ScreenProbeAtlasTraceTex;
         if (traceTex is not null)
         {
-            shader.ScreenProbeAtlasCurrent = traceTex.TextureId;
+            shader.ScreenProbeAtlasCurrent = traceTex;
         }
 
         // Bind history (from previous frame, before swap)
         var historyTex = bufferManager.ScreenProbeAtlasHistoryTex;
         if (historyTex is not null)
         {
-            shader.ScreenProbeAtlasHistory = historyTex.TextureId;
+            shader.ScreenProbeAtlasHistory = historyTex;
         }
 
         // Bind probe anchors for validity check
@@ -924,19 +758,9 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// <summary>
     /// Pass 4: Gather irradiance at each pixel by interpolating nearby probes.
     /// Output: Half-resolution indirect diffuse.
-    /// 
-    /// Two modes:
-    /// - SH mode (UseProbeAtlas = false): Evaluate SH at pixel normal
-    /// - Probe-atlas mode (UseProbeAtlas = true): Either integrate atlas directly or project atlas→SH then evaluate
     /// </summary>
     private void RenderGatherPass(FrameBufferRef primaryFb)
     {
-        if (!config.LumOn.UseProbeAtlas)
-        {
-            RenderSHGatherPass(primaryFb);
-            return;
-        }
-
         if (config.LumOn.ProbeAtlasGather == VgeConfig.ProbeAtlasGatherMode.EvaluateProjectedSH)
         {
             RenderProbeSh9GatherPass(primaryFb);
@@ -973,8 +797,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
 
         shader.Use();
-        shader.ScreenProbeAtlas = inputAtlas.TextureId;
-        shader.ScreenProbeAtlasMeta = inputMeta.TextureId;
+        shader.ScreenProbeAtlas = inputAtlas;
+        shader.ScreenProbeAtlasMeta = inputMeta;
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
 
@@ -1004,13 +828,13 @@ public class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
         shader.Use();
 
-        shader.ProbeSh0 = bufferManager.ProbeSh9Tex0.TextureId;
-        shader.ProbeSh1 = bufferManager.ProbeSh9Tex1!.TextureId;
-        shader.ProbeSh2 = bufferManager.ProbeSh9Tex2!.TextureId;
-        shader.ProbeSh3 = bufferManager.ProbeSh9Tex3!.TextureId;
-        shader.ProbeSh4 = bufferManager.ProbeSh9Tex4!.TextureId;
-        shader.ProbeSh5 = bufferManager.ProbeSh9Tex5!.TextureId;
-        shader.ProbeSh6 = bufferManager.ProbeSh9Tex6.TextureId;
+        shader.ProbeSh0 = bufferManager.ProbeSh9Tex0;
+        shader.ProbeSh1 = bufferManager.ProbeSh9Tex1!;
+        shader.ProbeSh2 = bufferManager.ProbeSh9Tex2!;
+        shader.ProbeSh3 = bufferManager.ProbeSh9Tex3!;
+        shader.ProbeSh4 = bufferManager.ProbeSh9Tex4!;
+        shader.ProbeSh5 = bufferManager.ProbeSh9Tex5!;
+        shader.ProbeSh6 = bufferManager.ProbeSh9Tex6;
 
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
         shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex!;
@@ -1030,60 +854,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.Intensity = config.LumOn.Intensity;
         shader.IndirectTint = config.LumOn.IndirectTint;
 
-        capi.Render.RenderMesh(quadMeshRef);
-        shader.Stop();
-    }
-
-    /// <summary>
-    /// SH-based gather pass (legacy mode).
-    /// Evaluates SH coefficients at each pixel's normal direction.
-    /// </summary>
-    private void RenderSHGatherPass(FrameBufferRef primaryFb)
-    {
-        var shader = capi.Shader.GetProgramByName("lumon_gather") as LumOnGatherShaderProgram;
-        if (shader is null || shader.LoadError)
-            return;
-
-        var fbo = bufferManager.IndirectHalfFbo;
-        if (fbo is null) return;
-
-        fbo.BindWithViewport();
-        fbo.Clear();
-
-        capi.Render.GlToggleBlend(false);
-        shader.Use();
-
-        // Bind radiance textures (from current after temporal blend)
-        shader.RadianceTexture0 = bufferManager.RadianceCurrentTex0!;
-        shader.RadianceTexture1 = bufferManager.RadianceCurrentTex1!;
-
-        // Bind probe anchors
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
-        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex!;
-
-        // Bind G-buffer for pixel info
-        shader.PrimaryDepth = primaryFb.DepthTextureId;
-        shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
-
-        // Pass uniforms
-        shader.InvProjectionMatrix = invProjectionMatrix;
-        shader.ViewMatrix = modelViewMatrix;
-        shader.InvViewMatrix = invModelViewMatrix;
-        shader.ProbeSpacing = config.LumOn.ProbeSpacingPx;
-        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
-        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
-        shader.HalfResSize = new Vec2f(bufferManager.HalfResWidth, bufferManager.HalfResHeight);
-        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
-        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
-        shader.DepthDiscontinuityThreshold = config.LumOn.DepthDiscontinuityThreshold;
-        shader.Intensity = config.LumOn.Intensity;
-        shader.IndirectTint = config.LumOn.IndirectTint;
-
-        // Edge-aware weighting parameters (SPG-007 Section 2.3)
-        shader.DepthSigma = config.LumOn.GatherDepthSigma;
-        shader.NormalSigma = config.LumOn.GatherNormalSigma;
-
-        // Render
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
     }
@@ -1115,7 +885,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.Use();
 
         // Bind screen-probe atlas radiance
-        shader.ScreenProbeAtlas = probeAtlas.TextureId;
+        shader.ScreenProbeAtlas = probeAtlas;
 
         // Bind probe anchors
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
@@ -1167,55 +937,12 @@ public class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        shader.WorldProbeSH0 = resources.ProbeSh0TextureId;
-        shader.WorldProbeSH1 = resources.ProbeSh1TextureId;
-        shader.WorldProbeSH2 = resources.ProbeSh2TextureId;
-        shader.WorldProbeVis0 = resources.ProbeVis0TextureId;
-        shader.WorldProbeMeta0 = resources.ProbeMeta0TextureId;
-        shader.WorldProbeSky0 = resources.ProbeSky0TextureId;
-        shader.WorldProbeCameraPosWS = camPos;
-        shader.WorldProbeSkyTint = capi.Render.AmbientColor;
-
-        for (int i = 0; i < 8; i++)
-        {
-            if (!shader.TrySetWorldProbeLevelParams(i, origins[i], rings[i]))
-            {
-                return;
-            }
-        }
-    }
-
-    private void BindWorldProbeClipmap(LumOnGatherShaderProgram shader)
-    {
-        if (!TryBindWorldProbeClipmapCommon(
-                out var resources,
-                out var camPos,
-                out var baseSpacing,
-                out var levels,
-                out var resolution,
-                out var origins,
-                out var rings))
-        {
-            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
-            return;
-        }
-
-        // Clipmap parameters are compile-time defines in the shader include.
-        // If they change, VGE will queue a recompile; we must skip binding uniforms this frame.
-        if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, baseSpacing, levels, resolution))
-        {
-            return;
-        }
-
-        shader.WorldProbeSH0 = resources.ProbeSh0TextureId;
-        shader.WorldProbeSH1 = resources.ProbeSh1TextureId;
-        shader.WorldProbeSH2 = resources.ProbeSh2TextureId;
-        shader.WorldProbeVis0 = resources.ProbeVis0TextureId;
-        shader.WorldProbeMeta0 = resources.ProbeMeta0TextureId;
-        shader.WorldProbeSky0 = resources.ProbeSky0TextureId;
-
-        // Shaders reconstruct world positions in the engine's camera-matrix space via invViewMatrix.
-        // Use the matching camera position/origins in that same space (do not apply additional camera-relative shifts).
+        shader.WorldProbeSH0 = resources.ProbeSh0;
+        shader.WorldProbeSH1 = resources.ProbeSh1;
+        shader.WorldProbeSH2 = resources.ProbeSh2;
+        shader.WorldProbeVis0 = resources.ProbeVis0;
+        shader.WorldProbeMeta0 = resources.ProbeMeta0;
+        shader.WorldProbeSky0 = resources.ProbeSky0;
         shader.WorldProbeCameraPosWS = camPos;
         shader.WorldProbeSkyTint = capi.Render.AmbientColor;
 
@@ -1248,12 +975,12 @@ public class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        shader.WorldProbeSH0 = resources.ProbeSh0TextureId;
-        shader.WorldProbeSH1 = resources.ProbeSh1TextureId;
-        shader.WorldProbeSH2 = resources.ProbeSh2TextureId;
-        shader.WorldProbeVis0 = resources.ProbeVis0TextureId;
-        shader.WorldProbeMeta0 = resources.ProbeMeta0TextureId;
-        shader.WorldProbeSky0 = resources.ProbeSky0TextureId;
+        shader.WorldProbeSH0 = resources.ProbeSh0;
+        shader.WorldProbeSH1 = resources.ProbeSh1;
+        shader.WorldProbeSH2 = resources.ProbeSh2;
+        shader.WorldProbeVis0 = resources.ProbeVis0;
+        shader.WorldProbeMeta0 = resources.ProbeMeta0;
+        shader.WorldProbeSky0 = resources.ProbeSky0;
         shader.WorldProbeCameraPosWS = camPos;
         shader.WorldProbeSkyTint = capi.Render.AmbientColor;
 
@@ -1286,12 +1013,12 @@ public class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        shader.WorldProbeSH0 = resources.ProbeSh0TextureId;
-        shader.WorldProbeSH1 = resources.ProbeSh1TextureId;
-        shader.WorldProbeSH2 = resources.ProbeSh2TextureId;
-        shader.WorldProbeVis0 = resources.ProbeVis0TextureId;
-        shader.WorldProbeMeta0 = resources.ProbeMeta0TextureId;
-        shader.WorldProbeSky0 = resources.ProbeSky0TextureId;
+        shader.WorldProbeSH0 = resources.ProbeSh0;
+        shader.WorldProbeSH1 = resources.ProbeSh1;
+        shader.WorldProbeSH2 = resources.ProbeSh2;
+        shader.WorldProbeVis0 = resources.ProbeVis0;
+        shader.WorldProbeMeta0 = resources.ProbeMeta0;
+        shader.WorldProbeSky0 = resources.ProbeSky0;
         shader.WorldProbeCameraPosWS = camPos;
         shader.WorldProbeSkyTint = capi.Render.AmbientColor;
 
@@ -1380,8 +1107,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
         shader.Use();
 
-        shader.ScreenProbeAtlas = inputAtlas.TextureId;
-        shader.ScreenProbeAtlasMeta = inputMeta.TextureId;
+        shader.ScreenProbeAtlas = inputAtlas;
+        shader.ScreenProbeAtlasMeta = inputMeta;
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
 
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);

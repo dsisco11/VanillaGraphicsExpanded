@@ -716,28 +716,28 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             // Use VGE's G-buffer normal (ColorAttachment4) which contains world-space normals
             // encoded to [0,1] via the shader patching system
             shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
-            shader.ProbeAnchorPosition = bufferManager?.ProbeAnchorPositionTex?.TextureId ?? 0;
-            shader.ProbeAnchorNormal = bufferManager?.ProbeAnchorNormalTex?.TextureId ?? 0;
-            shader.RadianceTexture0 = bufferManager?.RadianceHistoryTex0?.TextureId ?? 0;
-            shader.RadianceTexture1 = bufferManager?.RadianceHistoryTex1?.TextureId ?? 0;
-            shader.IndirectHalf = bufferManager?.IndirectHalfTex?.TextureId ?? 0;
-            shader.HistoryMeta = bufferManager?.ProbeMetaHistoryTex?.TextureId ?? 0;
+            shader.ProbeAnchorPosition = bufferManager?.ProbeAnchorPositionTex;
+            shader.ProbeAnchorNormal = bufferManager?.ProbeAnchorNormalTex;
+            shader.RadianceTexture0 = null;
+            shader.RadianceTexture1 = null;
+            shader.IndirectHalf = bufferManager?.IndirectHalfTex;
+            shader.HistoryMeta = null;
 
-            shader.ProbeAtlasMeta = bufferManager?.ScreenProbeAtlasMetaHistoryTex?.TextureId ?? 0;
+            shader.ProbeAtlasMeta = bufferManager?.ScreenProbeAtlasMetaHistoryTex;
 
             // Probe-atlas debug textures (raw/current/filtered + the actual gather input selection)
-            int probeAtlasTrace = bufferManager?.ScreenProbeAtlasTraceTex?.TextureId ?? 0;
-            int probeAtlasCurrent = bufferManager?.ScreenProbeAtlasCurrentTex?.TextureId ?? probeAtlasTrace;
-            int probeAtlasFiltered = bufferManager?.ScreenProbeAtlasFilteredTex?.TextureId ?? 0;
+            DynamicTexture2D? probeAtlasTrace = bufferManager?.ScreenProbeAtlasTraceTex;
+            DynamicTexture2D? probeAtlasCurrent = bufferManager?.ScreenProbeAtlasCurrentTex ?? probeAtlasTrace;
+            DynamicTexture2D? probeAtlasFiltered = bufferManager?.ScreenProbeAtlasFilteredTex;
 
             int gatherAtlasSource = 0;
-            int gatherInput = probeAtlasTrace;
-            if (probeAtlasFiltered != 0)
+            GpuTexture? gatherInput = probeAtlasTrace;
+            if (probeAtlasFiltered is not null)
             {
                 gatherAtlasSource = 2;
                 gatherInput = probeAtlasFiltered;
             }
-            else if (probeAtlasCurrent != 0)
+            else if (probeAtlasCurrent is not null)
             {
                 gatherAtlasSource = 1;
                 gatherInput = probeAtlasCurrent;
@@ -752,14 +752,14 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             // Phase 18 world-probe debug inputs (only bound if available + active in the compiled shader).
             if (hasWorldProbeResources && worldProbeClipmapBufferManager?.Resources is not null)
             {
-                shader.WorldProbeSH0 = worldProbeClipmapBufferManager.Resources.ProbeSh0TextureId;
-                shader.WorldProbeSH1 = worldProbeClipmapBufferManager.Resources.ProbeSh1TextureId;
-                shader.WorldProbeSH2 = worldProbeClipmapBufferManager.Resources.ProbeSh2TextureId;
-                shader.WorldProbeVis0 = worldProbeClipmapBufferManager.Resources.ProbeVis0TextureId;
-                shader.WorldProbeDist0 = worldProbeClipmapBufferManager.Resources.ProbeDist0TextureId;
-                shader.WorldProbeMeta0 = worldProbeClipmapBufferManager.Resources.ProbeMeta0TextureId;
-                shader.WorldProbeDebugState0 = worldProbeClipmapBufferManager.Resources.ProbeDebugState0TextureId;
-                shader.WorldProbeSky0 = worldProbeClipmapBufferManager.Resources.ProbeSky0TextureId;
+                shader.WorldProbeSH0 = worldProbeClipmapBufferManager.Resources.ProbeSh0;
+                shader.WorldProbeSH1 = worldProbeClipmapBufferManager.Resources.ProbeSh1;
+                shader.WorldProbeSH2 = worldProbeClipmapBufferManager.Resources.ProbeSh2;
+                shader.WorldProbeVis0 = worldProbeClipmapBufferManager.Resources.ProbeVis0;
+                shader.WorldProbeDist0 = worldProbeClipmapBufferManager.Resources.ProbeDist0;
+                shader.WorldProbeMeta0 = worldProbeClipmapBufferManager.Resources.ProbeMeta0;
+                shader.WorldProbeDebugState0 = worldProbeClipmapBufferManager.Resources.ProbeDebugState0;
+                shader.WorldProbeSky0 = worldProbeClipmapBufferManager.Resources.ProbeSky0;
                 shader.WorldProbeSkyTint = capi.Render.AmbientColor;
 
                 // Shaders reconstruct world positions in the engine's camera-matrix world space (invViewMatrix).
@@ -794,17 +794,17 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             }
 
             // Phase 15 composite debug inputs
-            shader.IndirectDiffuseFull = bufferManager?.IndirectFullTex?.TextureId ?? 0;
-            shader.GBufferAlbedo = bufferManager?.CapturedSceneTex?.TextureId ?? 0;
+            shader.IndirectDiffuseFull = bufferManager?.IndirectFullTex;
+            shader.GBufferAlbedo = bufferManager?.CapturedSceneTex;
             shader.GBufferMaterial = gBufferManager?.MaterialTextureId ?? 0;
 
             // Phase 16 direct lighting debug inputs
-            shader.DirectDiffuse = directLightingBufferManager?.DirectDiffuseTex?.TextureId ?? 0;
-            shader.DirectSpecular = directLightingBufferManager?.DirectSpecularTex?.TextureId ?? 0;
-            shader.Emissive = directLightingBufferManager?.EmissiveTex?.TextureId ?? 0;
+            shader.DirectDiffuse = directLightingBufferManager?.DirectDiffuseTex;
+            shader.DirectSpecular = directLightingBufferManager?.DirectSpecularTex;
+            shader.Emissive = directLightingBufferManager?.EmissiveTex;
 
             // Phase 14 velocity debug input
-            shader.VelocityTex = bufferManager?.VelocityTex?.TextureId ?? 0;
+            shader.VelocityTex = bufferManager?.VelocityTex;
 
             // Pass uniforms
             shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
@@ -817,8 +817,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             shader.InvViewMatrix = invViewMatrix;
             shader.PrevViewProjMatrix = prevViewProjMatrix;
             shader.TemporalAlpha = lum.TemporalAlpha;
-            shader.DepthRejectThreshold = lum.DepthRejectThreshold;
-            shader.NormalRejectThreshold = lum.NormalRejectThreshold;
+            shader.DepthRejectThreshold = 0.0f;
+            shader.NormalRejectThreshold = 0.0f;
             shader.VelocityRejectThreshold = lum.VelocityRejectThreshold;
 
             // Phase 15 composite params (now compile-time defines)
@@ -1737,31 +1737,22 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 shader.FadeNear = maxSize * 0.5f;
                 shader.FadeFar = maxSize * 1.05f;
 
-                // Bind SH textures.
-                int sh0 = worldProbeClipmapBufferManager.Resources.ProbeSh0TextureId;
-                int sh1 = worldProbeClipmapBufferManager.Resources.ProbeSh1TextureId;
-                int sh2 = worldProbeClipmapBufferManager.Resources.ProbeSh2TextureId;
-                int sky0 = worldProbeClipmapBufferManager.Resources.ProbeSky0TextureId;
-                int vis0 = worldProbeClipmapBufferManager.Resources.ProbeVis0TextureId;
+                // Bind SH textures (binds both texture + sampler).
+                var res = worldProbeClipmapBufferManager.Resources;
 
-                GL.ActiveTexture(TextureUnit.Texture0);
-                GL.BindTexture(TextureTarget.Texture2D, sh0);
+                res.ProbeSh0.Bind(0);
                 shader.WorldProbeSH0 = 0;
 
-                GL.ActiveTexture(TextureUnit.Texture1);
-                GL.BindTexture(TextureTarget.Texture2D, sh1);
+                res.ProbeSh1.Bind(1);
                 shader.WorldProbeSH1 = 1;
 
-                GL.ActiveTexture(TextureUnit.Texture2);
-                GL.BindTexture(TextureTarget.Texture2D, sh2);
+                res.ProbeSh2.Bind(2);
                 shader.WorldProbeSH2 = 2;
 
-                GL.ActiveTexture(TextureUnit.Texture3);
-                GL.BindTexture(TextureTarget.Texture2D, sky0);
+                res.ProbeSky0.Bind(3);
                 shader.WorldProbeSky0 = 3;
 
-                GL.ActiveTexture(TextureUnit.Texture4);
-                GL.BindTexture(TextureTarget.Texture2D, vis0);
+                res.ProbeVis0.Bind(4);
                 shader.WorldProbeVis0 = 4;
 
                 shader.WorldProbeSkyTint = capi.Render.AmbientColor;
@@ -2152,6 +2143,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, texId);
             blitShader.BindTexture2D("scene", texId, 0);
+            GpuSamplers.NearestClamp.Bind(0);
 
             using var cpuScope = Profiler.BeginScope("Debug.VGE.NormalDepthAtlas", "Render");
             using (GlGpuProfiler.Instance.Scope("Debug.VGE.NormalDepthAtlas"))

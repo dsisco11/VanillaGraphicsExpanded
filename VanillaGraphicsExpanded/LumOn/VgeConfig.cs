@@ -494,15 +494,7 @@ public class VgeConfig
         // ═══════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// Use a screen-probe atlas (directional probe cache) instead of SH L1.
-        /// Implementation detail: octahedral mapping per-probe tile.
-        /// Provides better temporal stability and per-direction hit distance.
-        /// </summary>
-        [JsonProperty]
-        public bool UseProbeAtlas { get; set; } = true;
-
-        /// <summary>
-        /// Gather strategy when <see cref="UseProbeAtlas"/> is enabled.
+        /// Gather strategy for the screen-probe atlas.
         /// Option B uses an atlas→SH projection pass, then runs the cheap SH gather.
         /// Hot-reloadable.
         /// </summary>
@@ -521,17 +513,9 @@ public class VgeConfig
         /// <summary>
         /// Number of probe-atlas texels to trace per probe per frame.
         /// With 64 texels total (8×8), 8 texels/frame = full coverage in 8 frames.
-        /// Only used when <see cref="UseProbeAtlas"/> is true.
         /// </summary>
         [JsonProperty]
         public int ProbeAtlasTexelsPerFrame { get; set; } = 16;
-
-        /// <summary>
-        /// Number of rays traced per probe per frame (SH mode only).
-        /// More rays = faster convergence but higher cost.
-        /// </summary>
-        [JsonProperty]
-        public int RaysPerProbePerFrame { get; set; } = 16;
 
         /// <summary>
         /// Number of steps per ray during screen-space marching.
@@ -562,20 +546,6 @@ public class VgeConfig
         /// </summary>
         [JsonProperty]
         public float TemporalAlpha { get; set; } = 0.95f;
-
-        /// <summary>
-        /// Depth difference threshold for history rejection (view-space).
-        /// Hot-reloadable.
-        /// </summary>
-        [JsonProperty]
-        public float DepthRejectThreshold { get; set; } = 0.1f;
-
-        /// <summary>
-        /// Normal angle threshold for history rejection (dot product).
-        /// Values below this reject history. Hot-reloadable.
-        /// </summary>
-        [JsonProperty]
-        public float NormalRejectThreshold { get; set; } = 0.8f;
 
         /// <summary>
         /// Depth discontinuity threshold for edge detection.
@@ -848,14 +818,11 @@ public class VgeConfig
             PmjJitterCycleLength = Math.Clamp(PmjJitterCycleLength, 1, 65_536);
             HzbCoarseMip = Math.Clamp(HzbCoarseMip, 0, 12);
             ProbeAtlasTexelsPerFrame = Math.Clamp(ProbeAtlasTexelsPerFrame, 1, 64);
-            RaysPerProbePerFrame = Math.Clamp(RaysPerProbePerFrame, 1, 256);
             RaySteps = Math.Clamp(RaySteps, 1, 512);
             RayMaxDistance = Math.Clamp(RayMaxDistance, 0.25f, 256.0f);
             RayThickness = Math.Clamp(RayThickness, 0.01f, 16.0f);
 
             TemporalAlpha = Math.Clamp(TemporalAlpha, 0.0f, 1.0f);
-            DepthRejectThreshold = Math.Clamp(DepthRejectThreshold, 0.0f, 10.0f);
-            NormalRejectThreshold = Math.Clamp(NormalRejectThreshold, -1.0f, 1.0f);
             DepthDiscontinuityThreshold = Math.Clamp(DepthDiscontinuityThreshold, 0.0f, 10.0f);
 
             VelocityRejectThreshold = Math.Clamp(VelocityRejectThreshold, 0.0f, 1.0f);

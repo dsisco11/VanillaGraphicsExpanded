@@ -30,6 +30,15 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
     public int AtlasHeightPerLevel => resolution;
     public int AtlasHeight => resolution * levels;
 
+    public DynamicTexture2D ProbeSh0 => sh0;
+    public DynamicTexture2D ProbeSh1 => sh1;
+    public DynamicTexture2D ProbeSh2 => sh2;
+    public DynamicTexture2D ProbeSky0 => sky0;
+    public DynamicTexture2D ProbeVis0 => vis0;
+    public DynamicTexture2D ProbeDist0 => dist0;
+    public DynamicTexture2D ProbeMeta0 => meta0;
+    public Texture2D ProbeDebugState0 => debugState0;
+
     public int ProbeSh0TextureId => sh0.TextureId;
     public int ProbeSh1TextureId => sh1.TextureId;
     public int ProbeSh2TextureId => sh2.TextureId;

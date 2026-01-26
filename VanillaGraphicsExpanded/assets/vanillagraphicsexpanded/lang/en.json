@@ -25,20 +25,14 @@
   "config-anchor-jitter-scale": "Anchor Jitter Scale",
   "config-anchor-jitter-scale-tooltip": "Jitter amount as a fraction of probe cell size. Maximum offset in pixels = ProbeSpacingPx × this value. Recommended range: 0.0 to 0.49.",
 
-  "config-use-probe-atlas": "Use Probe Atlas",
-  "config-use-probe-atlas-tooltip": "Use a screen-probe atlas (directional probe cache with octahedral mapping) instead of Spherical Harmonics L1. Provides better temporal stability and per-direction hit distance tracking.",
-
   "config-probe-atlas-gather": "Probe Atlas Gather Mode",
-  "config-probe-atlas-gather-tooltip": "Gather strategy when Probe Atlas is enabled. 'EvaluateProjectedSH' (Option B) uses an atlas→SH projection pass for cheaper gather. 'IntegrateAtlas' integrates directly from the atlas (higher cost, slightly more accurate).",
+  "config-probe-atlas-gather-tooltip": "Gather strategy. 'EvaluateProjectedSH' (Option B) uses an atlas→SH projection pass for cheaper gather. 'IntegrateAtlas' integrates directly from the atlas (higher cost, slightly more accurate).",
 
   "config-hzb-coarse-mip": "HZB Coarse Mip Level",
   "config-hzb-coarse-mip-tooltip": "Hierarchical depth buffer mip level used for early ray rejection in the tracer. 0 = full resolution, higher = coarser (faster culling but less accurate).",
 
   "config-probe-atlas-texels-per-frame": "Probe Atlas Texels Per Frame",
-  "config-probe-atlas-texels-per-frame-tooltip": "Number of probe-atlas texels to trace per probe per frame. With 64 texels total (8×8 octahedral map), 16 texels/frame = full coverage in 4 frames. Only used when Probe Atlas is enabled.",
-
-  "config-rays-per-probe-per-frame": "Rays Per Probe Per Frame",
-  "config-rays-per-probe-per-frame-tooltip": "Number of rays traced per probe per frame (Spherical Harmonics mode only). More rays = faster convergence but higher cost per frame.",
+  "config-probe-atlas-texels-per-frame-tooltip": "Number of probe-atlas texels to trace per probe per frame. With 64 texels total (8×8 octahedral map), 16 texels/frame = full coverage in 4 frames.",
 
   "config-ray-steps": "Ray March Steps",
   "config-ray-steps-tooltip": "Number of steps per ray during screen-space ray marching. More steps = longer rays can travel but higher cost.",
@@ -51,12 +45,6 @@
 
   "config-temporal-alpha": "Temporal Blend Factor",
   "config-temporal-alpha-tooltip": "Temporal accumulation blend factor. Higher values = more stable but slower response to lighting changes. 0.2 = 20% history + 80% new data per frame.",
-
-  "config-depth-reject-threshold": "Depth Reject Threshold",
-  "config-depth-reject-threshold-tooltip": "Depth difference threshold for history rejection in view-space units. History is rejected when depth changes exceed this threshold.",
-
-  "config-normal-reject-threshold": "Normal Reject Threshold",
-  "config-normal-reject-threshold-tooltip": "Normal angle threshold for history rejection (dot product comparison). Values below this threshold reject temporal history. 0.8 = ~36 degree tolerance.",
 
   "config-depth-discontinuity-threshold": "Depth Discontinuity Threshold",
   "config-depth-discontinuity-threshold-tooltip": "Depth discontinuity threshold for edge detection between probes. Used to identify geometric edges for edge-aware filtering.",

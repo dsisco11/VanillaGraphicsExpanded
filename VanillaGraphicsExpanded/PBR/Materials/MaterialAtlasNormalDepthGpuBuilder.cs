@@ -839,6 +839,18 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         GL.Viewport(x, y, w, h);
     }
 
+    private static void BindSampler2D(VgeStageNamedShaderProgram prog, string uniformName, int unit, GpuTexture texture)
+    {
+        prog.Uniform(uniformName, unit);
+        texture.Bind(unit);
+    }
+
+    private static void BindSampler2D(VgeStageNamedShaderProgram prog, string uniformName, int unit, int textureId, GpuSampler sampler)
+    {
+        prog.Uniform(uniformName, unit);
+        GlStateCache.Current.BindTexture(TextureTarget.Texture2D, unit, textureId, sampler);
+    }
+
     private static void RunLuminancePass(int atlasTexId, (int x, int y, int w, int h) atlasRectPx, DynamicTexture2D dst)
     {
         BindTarget(dst);
@@ -846,7 +858,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         progLuminance!.Use();
         try
         {
-            progLuminance.BindTexture2D("u_atlas", atlasTexId, 0);
+            BindSampler2D(progLuminance, "u_atlas", 0, atlasTexId, GpuSamplers.NearestClamp);
             progLuminance.Uniform4i("u_atlasRectPx", atlasRectPx.x, atlasRectPx.y, atlasRectPx.w, atlasRectPx.h);
             progLuminance.Uniform2i("u_outSize", dst.Width, dst.Height);
             DrawFullscreenTriangle();
@@ -879,7 +891,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         progGauss1D!.Use();
         try
         {
-            progGauss1D.BindTexture2D("u_src", src.TextureId, 0);
+            BindSampler2D(progGauss1D, "u_src", 0, src);
             progGauss1D.Uniform2i("u_size", src.Width, src.Height);
             progGauss1D.Uniform2i("u_dir", 1, 0);
             progGauss1D.Uniform("u_radius", radius);
@@ -896,7 +908,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         progGauss1D!.Use();
         try
         {
-            progGauss1D.BindTexture2D("u_src", tmp.TextureId, 0);
+            BindSampler2D(progGauss1D, "u_src", 0, tmp);
             progGauss1D.Uniform2i("u_size", dst.Width, dst.Height);
             progGauss1D.Uniform2i("u_dir", 0, 1);
             progGauss1D.Uniform("u_radius", radius);
@@ -915,8 +927,8 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         progSub!.Use();
         try
         {
-            progSub.BindTexture2D("u_a", a.TextureId, 0);
-            progSub.BindTexture2D("u_b", b.TextureId, 1);
+            BindSampler2D(progSub, "u_a", 0, a);
+            BindSampler2D(progSub, "u_b", 1, b);
             progSub.Uniform2i("u_size", dst.Width, dst.Height);
             progSub.Uniform("u_relContrast", relContrast ? 1 : 0);
             // Small epsilon so multiplicative dark tints don't collapse the signal;
@@ -937,7 +949,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         progCopy!.Use();
         try
         {
-            progCopy.BindTexture2D("u_src", src.TextureId, 0);
+            BindSampler2D(progCopy, "u_src", 0, src);
             progCopy.Uniform2i("u_size", dst.Width, dst.Height);
             DrawFullscreenTriangle();
         }
@@ -953,10 +965,10 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         progCombine!.Use();
         try
         {
-            progCombine.BindTexture2D("u_g1", g1.TextureId, 0);
-            progCombine.BindTexture2D("u_g2", g2.TextureId, 1);
-            progCombine.BindTexture2D("u_g3", g3.TextureId, 2);
-            progCombine.BindTexture2D("u_g4", g4.TextureId, 3);
+            BindSampler2D(progCombine, "u_g1", 0, g1);
+            BindSampler2D(progCombine, "u_g2", 1, g2);
+            BindSampler2D(progCombine, "u_g3", 2, g3);
+            BindSampler2D(progCombine, "u_g4", 3, g4);
             progCombine.Uniform3f("u_w", w1, w2, w3);
             progCombine.Uniform2i("u_size", dst.Width, dst.Height);
             DrawFullscreenTriangle();
@@ -973,7 +985,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         progGradient!.Use();
         try
         {
-            progGradient.BindTexture2D("u_d", d.TextureId, 0);
+            BindSampler2D(progGradient, "u_d", 0, d);
             progGradient.Uniform2i("u_size", d.Width, d.Height);
             progGradient.Uniform("u_gain", gain);
             progGradient.Uniform("u_maxSlope", maxSlope);
@@ -992,7 +1004,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         progDivergence!.Use();
         try
         {
-            progDivergence.BindTexture2D("u_g", g.TextureId, 0);
+            BindSampler2D(progDivergence, "u_g", 0, g);
             progDivergence.Uniform2i("u_size", dstDiv.Width, dstDiv.Height);
             DrawFullscreenTriangle();
         }
@@ -1008,7 +1020,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         progNormalize!.Use();
         try
         {
-            progNormalize.BindTexture2D("u_h", h.TextureId, 0);
+            BindSampler2D(progNormalize, "u_h", 0, h);
             progNormalize.Uniform2i("u_size", dst.Width, dst.Height);
             progNormalize.Uniform("u_mean", mean);
             progNormalize.Uniform("u_invNeg", invNeg);
@@ -1039,8 +1051,8 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         progPackToAtlas!.Use();
         try
         {
-            progPackToAtlas.BindTexture2D("u_height", heightTex.TextureId, 0);
-            progPackToAtlas.BindTexture2D("u_albedoAtlas", baseAlbedoAtlasTexId, 1);
+            BindSampler2D(progPackToAtlas, "u_height", 0, heightTex);
+            BindSampler2D(progPackToAtlas, "u_albedoAtlas", 1, baseAlbedoAtlasTexId, GpuSamplers.NearestClamp);
             progPackToAtlas.Uniform2i("u_solverSize", solverSizePx.w, solverSizePx.h);
             progPackToAtlas.Uniform2i("u_tileSize", tileSizePx.w, tileSizePx.h);
             progPackToAtlas.Uniform2i("u_viewportOrigin", viewportOriginPx.x, viewportOriginPx.y);
@@ -1366,8 +1378,8 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             progJacobi!.Use();
             try
             {
-                progJacobi.BindTexture2D("u_h", h.TextureId, 0);
-                progJacobi.BindTexture2D("u_b", b.TextureId, 1);
+                BindSampler2D(progJacobi, "u_h", 0, h);
+                BindSampler2D(progJacobi, "u_b", 1, b);
                 progJacobi.Uniform2i("u_size", dst.Width, dst.Height);
                 DrawFullscreenTriangle();
             }
@@ -1383,8 +1395,8 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             progResidual!.Use();
             try
             {
-                progResidual.BindTexture2D("u_h", h.TextureId, 0);
-                progResidual.BindTexture2D("u_b", b.TextureId, 1);
+                BindSampler2D(progResidual, "u_h", 0, h);
+                BindSampler2D(progResidual, "u_b", 1, b);
                 progResidual.Uniform2i("u_size", dst.Width, dst.Height);
                 DrawFullscreenTriangle();
             }
@@ -1400,7 +1412,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             progRestrict!.Use();
             try
             {
-                progRestrict.BindTexture2D("u_fine", fine.TextureId, 0);
+                BindSampler2D(progRestrict, "u_fine", 0, fine);
                 progRestrict.Uniform2i("u_fineSize", fine.Width, fine.Height);
                 progRestrict.Uniform2i("u_coarseSize", coarse.Width, coarse.Height);
                 DrawFullscreenTriangle();
@@ -1417,8 +1429,8 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             progProlongateAdd!.Use();
             try
             {
-                progProlongateAdd.BindTexture2D("u_fineH", fineH.TextureId, 0);
-                progProlongateAdd.BindTexture2D("u_coarseE", coarseE.TextureId, 1);
+                BindSampler2D(progProlongateAdd, "u_fineH", 0, fineH);
+                BindSampler2D(progProlongateAdd, "u_coarseE", 1, coarseE);
                 progProlongateAdd.Uniform2i("u_fineSize", fineH.Width, fineH.Height);
                 progProlongateAdd.Uniform2i("u_coarseSize", coarseE.Width, coarseE.Height);
                 DrawFullscreenTriangle();

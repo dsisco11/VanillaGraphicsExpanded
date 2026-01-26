@@ -38,7 +38,7 @@ public class ShaderDefineInjectionTests
             ["VGE_TEST_FLOAT"] = "2.0",
         };
 
-        var source = helper.GetProcessedSource("lumon_gather.fsh", defines);
+        var source = helper.GetProcessedSource("lumon_probe_atlas_gather.fsh", defines);
         Assert.NotNull(source);
 
         int versionIndex = source!.IndexOf("#version", StringComparison.Ordinal);
@@ -327,54 +327,9 @@ public class ShaderDefineInjectionTests
         Assert.True(result.IsSuccess, result.ErrorMessage);
     }
 
-    [Theory]
-    [InlineData("0")]
-    [InlineData("1")]
-    public void LumOnTemporal_Compiles_WithVelocityReprojectionVariants(string velocityReprojection)
-    {
-        _fixture.EnsureContextValid();
-
-        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
-        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
-
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
-
-        var defines = new Dictionary<string, string?>
-        {
-            ["VGE_LUMON_TEMPORAL_USE_VELOCITY_REPROJECTION"] = velocityReprojection,
-        };
-
-        var result = helper.CompileAndLink("lumon_temporal.vsh", "lumon_temporal.fsh", defines);
-        Assert.True(result.IsSuccess, result.ErrorMessage);
-    }
-
-    [Theory]
-    [InlineData("1", "4")]
-    [InlineData("16", "32")]
-    public void LumOnProbeTrace_Compiles_WithLoopBoundVariants(string raysPerProbe, string raySteps)
-    {
-        _fixture.EnsureContextValid();
-
-        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
-        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
-
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
-
-        var defines = new Dictionary<string, string?>
-        {
-            ["VGE_LUMON_RAYS_PER_PROBE"] = raysPerProbe,
-            ["VGE_LUMON_RAY_STEPS"] = raySteps,
-        };
-
-        var result = helper.CompileAndLink("lumon_probe_anchor.vsh", "lumon_probe_trace.fsh", defines);
-        Assert.True(result.IsSuccess, result.ErrorMessage);
-    }
+    // Note: Legacy SH temporal/trace shaders were removed.
+    // The current atlas pipeline has its own temporal pass (`lumon_probe_atlas_temporal`), but does not yet
+    // do velocity-based reprojection/disocclusion handling (tracked in project.todo).
 
     [Theory]
     [InlineData("8", "8")]

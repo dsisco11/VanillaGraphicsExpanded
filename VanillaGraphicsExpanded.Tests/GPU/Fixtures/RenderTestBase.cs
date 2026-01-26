@@ -58,6 +58,10 @@ public abstract class RenderTestBase : IDisposable
         
         // Drain any leftover GL errors so each test starts clean
         while (GL.GetError() != ErrorCode.NoError) { }
+
+        // Many production paths rely on GlStateCache + PSO for correctness.
+        // Tests should invalidate the cache, then apply explicit PSO intent per pass.
+        GlStateCache.Current.InvalidateAll();
     }
 
     #region Render Target Management

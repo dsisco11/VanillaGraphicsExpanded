@@ -5,6 +5,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
@@ -37,27 +38,27 @@ public class LumOnProbeSh9GatherShaderProgram : GpuProgram
 
     #region SH9 Textures
 
-    public int ProbeSh0 { set => BindTexture2D("probeSh0", value, 0); }
-    public int ProbeSh1 { set => BindTexture2D("probeSh1", value, 1); }
-    public int ProbeSh2 { set => BindTexture2D("probeSh2", value, 2); }
-    public int ProbeSh3 { set => BindTexture2D("probeSh3", value, 3); }
-    public int ProbeSh4 { set => BindTexture2D("probeSh4", value, 4); }
-    public int ProbeSh5 { set => BindTexture2D("probeSh5", value, 5); }
-    public int ProbeSh6 { set => BindTexture2D("probeSh6", value, 6); }
+    public GpuTexture? ProbeSh0 { set => BindTexture2D("probeSh0", value, 0); }
+    public GpuTexture? ProbeSh1 { set => BindTexture2D("probeSh1", value, 1); }
+    public GpuTexture? ProbeSh2 { set => BindTexture2D("probeSh2", value, 2); }
+    public GpuTexture? ProbeSh3 { set => BindTexture2D("probeSh3", value, 3); }
+    public GpuTexture? ProbeSh4 { set => BindTexture2D("probeSh4", value, 4); }
+    public GpuTexture? ProbeSh5 { set => BindTexture2D("probeSh5", value, 5); }
+    public GpuTexture? ProbeSh6 { set => BindTexture2D("probeSh6", value, 6); }
 
     #endregion
 
     #region Probe Anchors
 
-    public int ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 7); }
-    public int ProbeAnchorNormal { set => BindTexture2D("probeAnchorNormal", value, 8); }
+    public GpuTexture? ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 7); }
+    public GpuTexture? ProbeAnchorNormal { set => BindTexture2D("probeAnchorNormal", value, 8); }
 
     #endregion
 
     #region GBuffer Inputs
 
-    public int PrimaryDepth { set => BindTexture2D("primaryDepth", value, 9); }
-    public int GBufferNormal { set => BindTexture2D("gBufferNormal", value, 10); }
+    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 9, GpuSamplers.NearestClamp); }
+    public int GBufferNormal { set => BindExternalTexture2D("gBufferNormal", value, 10, GpuSamplers.NearestClamp); }
 
     #endregion
 
@@ -112,12 +113,12 @@ public class LumOnProbeSh9GatherShaderProgram : GpuProgram
         return !changed;
     }
 
-    public int WorldProbeSH0 { set => BindTexture2D("worldProbeSH0", value, 11); }
-    public int WorldProbeSH1 { set => BindTexture2D("worldProbeSH1", value, 12); }
-    public int WorldProbeSH2 { set => BindTexture2D("worldProbeSH2", value, 13); }
-    public int WorldProbeVis0 { set => BindTexture2D("worldProbeVis0", value, 14); }
-    public int WorldProbeMeta0 { set => BindTexture2D("worldProbeMeta0", value, 15); }
-    public int WorldProbeSky0 { set => BindTexture2D("worldProbeSky0", value, 16); }
+    public GpuTexture? WorldProbeSH0 { set => BindTexture2D("worldProbeSH0", value, 11); }
+    public GpuTexture? WorldProbeSH1 { set => BindTexture2D("worldProbeSH1", value, 12); }
+    public GpuTexture? WorldProbeSH2 { set => BindTexture2D("worldProbeSH2", value, 13); }
+    public GpuTexture? WorldProbeVis0 { set => BindTexture2D("worldProbeVis0", value, 14); }
+    public GpuTexture? WorldProbeMeta0 { set => BindTexture2D("worldProbeMeta0", value, 15); }
+    public GpuTexture? WorldProbeSky0 { set => BindTexture2D("worldProbeSky0", value, 16); }
 
     public Vec3f WorldProbeCameraPosWS { set => Uniform("worldProbeCameraPosWS", value); }
 

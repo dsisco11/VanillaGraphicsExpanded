@@ -142,11 +142,11 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
 
         // Define-backed toggles must be set before Use() so the correct variant is bound.
         int lumOnEnabled = 0;
-        int indirectTexId = 0;
+        DynamicTexture2D? indirectTex = null;
         if (lumOnConfig?.LumOn.Enabled == true && lumOnBuffers?.IndirectFullTex is not null)
         {
             lumOnEnabled = 1;
-            indirectTexId = lumOnBuffers.IndirectFullTex.TextureId;
+            indirectTex = lumOnBuffers.IndirectFullTex;
         }
 
         shader.LumOnEnabled = lumOnEnabled == 1;
@@ -159,11 +159,11 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         shader.Use();
 
         // Direct lighting radiance buffers (linear, fog-free)
-        shader.DirectDiffuse = directLightingBuffers.DirectDiffuseTex.TextureId;
-        shader.DirectSpecular = directLightingBuffers.DirectSpecularTex.TextureId;
-        shader.Emissive = directLightingBuffers.EmissiveTex.TextureId;
+        shader.DirectDiffuse = directLightingBuffers.DirectDiffuseTex;
+        shader.DirectSpecular = directLightingBuffers.DirectSpecularTex;
+        shader.Emissive = directLightingBuffers.EmissiveTex;
 
-        shader.IndirectDiffuse = indirectTexId;
+        shader.IndirectDiffuse = indirectTex;
 
         // GBuffer inputs
         shader.GBufferAlbedo = primaryFb.ColorTextureIds[0];

@@ -2,6 +2,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.PBR;
@@ -31,21 +32,21 @@ public sealed class PBRCompositeShaderProgram : GpuProgram
 
     #region Texture Samplers
 
-    public int DirectDiffuse { set => BindTexture2D("directDiffuse", value, 0); }
+    public GpuTexture? DirectDiffuse { set => BindTexture2D("directDiffuse", value, 0); }
 
-    public int DirectSpecular { set => BindTexture2D("directSpecular", value, 1); }
+    public GpuTexture? DirectSpecular { set => BindTexture2D("directSpecular", value, 1); }
 
-    public int Emissive { set => BindTexture2D("emissive", value, 2); }
+    public GpuTexture? Emissive { set => BindTexture2D("emissive", value, 2); }
 
-    public int IndirectDiffuse { set => BindTexture2D("indirectDiffuse", value, 3); }
+    public GpuTexture? IndirectDiffuse { set => BindTexture2D("indirectDiffuse", value, 3); }
 
-    public int GBufferAlbedo { set => BindTexture2D("gBufferAlbedo", value, 4); }
+    public int GBufferAlbedo { set => BindExternalTexture2D("gBufferAlbedo", value, 4, GpuSamplers.NearestClamp); }
 
-    public int GBufferMaterial { set => BindTexture2D("gBufferMaterial", value, 5); }
+    public int GBufferMaterial { set => BindExternalTexture2D("gBufferMaterial", value, 5, GpuSamplers.NearestClamp); }
 
-    public int PrimaryDepth { set => BindTexture2D("primaryDepth", value, 6); }
+    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 6, GpuSamplers.NearestClamp); }
 
-    public int GBufferNormal { set => BindTexture2D("gBufferNormal", value, 7); }
+    public int GBufferNormal { set => BindExternalTexture2D("gBufferNormal", value, 7, GpuSamplers.NearestClamp); }
 
     #endregion
 

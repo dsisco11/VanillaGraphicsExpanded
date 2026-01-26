@@ -2,6 +2,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
@@ -43,17 +44,17 @@ public class LumOnProbeAnchorShaderProgram : GpuProgram
     /// <summary>
     /// Primary depth texture for position reconstruction.
     /// </summary>
-    public int PrimaryDepth { set => BindTexture2D("primaryDepth", value, 0); }
+    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 0, GpuSamplers.NearestClamp); }
 
     /// <summary>
     /// G-buffer world-space normals.
     /// </summary>
-    public int GBufferNormal { set => BindTexture2D("gBufferNormal", value, 1); }
+    public int GBufferNormal { set => BindExternalTexture2D("gBufferNormal", value, 1, GpuSamplers.NearestClamp); }
 
     /// <summary>
     /// PMJ jitter sequence texture (RG16_UNorm, width=cycleLength, height=1).
     /// </summary>
-    public int PmjJitter { set => BindTexture2D("pmjJitter", value, 2); }
+    public GpuTexture? PmjJitter { set => BindTexture2D("pmjJitter", value, 2); }
 
     #endregion
 

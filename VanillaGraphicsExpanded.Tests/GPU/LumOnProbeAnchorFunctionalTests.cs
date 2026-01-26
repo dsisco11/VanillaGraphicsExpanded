@@ -112,10 +112,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         var pmjSamplerLoc = GL.GetUniformLocation(programId, "pmjJitter");
         GL.Uniform1(pmjCycleLoc, pmjCycleLength);
         GL.Uniform1(pmjSamplerLoc, pmjUnit);
-
-        int pmjTexId = GetOrCreatePmjJitterTextureId(pmjCycleLength);
-        GL.ActiveTexture(TextureUnit.Texture0 + pmjUnit);
-        GL.BindTexture(TextureTarget.Texture2D, pmjTexId);
+        BindPmjJitterTexture(pmjUnit, pmjCycleLength);
 
         GL.UseProgram(0);
     }

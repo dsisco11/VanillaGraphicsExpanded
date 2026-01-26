@@ -14,6 +14,7 @@ internal sealed class LumOnPmjJitterTexture : IDisposable
 
     private Texture2D? texture;
 
+    public Texture2D? Texture => texture;
     public int TextureId => texture?.TextureId ?? 0;
     public int CycleLength => config.SampleCount;
 
@@ -45,6 +46,11 @@ internal sealed class LumOnPmjJitterTexture : IDisposable
         ushort[] rg = PmjConversions.ToRg16UNormInterleaved(seq);
         // This texture is sampled immediately by GPU tests and the renderer; make upload synchronous.
         texture.UploadDataImmediate(rg);
+    }
+
+    public void Bind(int unit)
+    {
+        texture?.Bind(unit);
     }
 
     public void Dispose()

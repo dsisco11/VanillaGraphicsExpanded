@@ -23,7 +23,7 @@ Priorities are scoped to **Phase 18 diffuse GI correctness + debuggability**:
 - [x] [2.2 Unloaded chunks treated as misses; placeholder chunk objects can abort traces](#wp-2-2) — Implemented (Option A)
 - [x] [2.3 Probe disabled when its center lies inside a solid collision box](#wp-2-3) — Implemented (Option A)
 - [x] [5.1 ShortRangeAO multiplies irradiance by `aoConf`](#wp-5-1) — Implemented (Option A)
-- [x] [5.5 Screen-probe miss fallback assumes sky radiance (miss != sky)](#wp-5-5) — Implemented (Option C, probe-atlas mode)
+- [x] [5.5 Screen-probe miss fallback assumes sky radiance (miss != sky)](#wp-5-5) — Implemented (Option C)
 - [x] [6.1 Orb visualizer samples irradiance with a fixed “up” normal](#wp-6-1) — Resolved (outdated)
 
 ### P1 (High)
@@ -518,7 +518,8 @@ block at that voxel.
 
 **Where**:
 
-- `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_gather.fsh`
+- `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_gather.fsh`
+- `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_sh9_gather.fsh`
 - `docs/LumOn.21-Shading-Integration.md`
 
 **What**: `worldW = worldConfidence * (1 - screenW)` means screen-space dominates whenever it has confidence.
@@ -541,13 +542,11 @@ block at that voxel.
 
 **Where**:
 
-- `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_trace.fsh`
 - `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_trace.fsh`
 - `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_common.glsl` (`lumonGetSkyColor`)
-- `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_gather.fsh`
 - `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_gather.fsh`
 
-**Status**: Implemented (Option C, probe-atlas mode)
+**Status**: Implemented (Option C)
 
 **What**: Screen-probe tracing is screen-space depth marching. When a ray “misses” it can mean “off-screen”, “occluded by
 screen depth”, or “no depth match”, not necessarily “this direction reached the sky”. Today, miss handling injects sky
@@ -573,8 +572,7 @@ world-probes do not reliably act as a fallback when screen traces fail.
 
 **Notes**
 
-- In probe-atlas mode (`LumOn.UseProbeAtlas = true`), `lumon_probe_atlas_trace.fsh` tries world-probes on miss and only uses `lumonGetSkyColor` if the world-probe query returns low confidence.
-- In legacy SH mode (`LumOn.UseProbeAtlas = false`), `lumon_probe_trace.fsh` still uses sky radiance directly on miss.
+- `lumon_probe_atlas_trace.fsh` tries world-probes on miss and only uses `lumonGetSkyColor` if the world-probe query returns low confidence.
 
 ## 6. Debug Visualizer / Tooling Limitations
 

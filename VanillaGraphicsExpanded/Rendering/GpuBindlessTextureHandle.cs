@@ -34,32 +34,29 @@ internal sealed class GpuBindlessTextureHandle : IDisposable
     }
 
     /// <summary>
-    /// Creates a bindless handle for a texture object via <c>glGetTextureHandleARB</c>.
+    /// Creates a bindless handle for a texture using its sampler object via <c>glGetTextureSamplerHandleARB</c>.
     /// </summary>
-    public static GpuBindlessTextureHandle CreateForTexture(int textureId, bool makeResident = true)
+    public static GpuBindlessTextureHandle CreateForTexture(GpuTexture texture, bool makeResident = true)
     {
+        ArgumentNullException.ThrowIfNull(texture);
+
         if (!IsSupported)
         {
             throw new NotSupportedException("GL_ARB_bindless_texture is not supported by the current context.");
         }
 
-        if (textureId <= 0)
+        if (texture.TextureId <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(textureId), textureId, "Texture id must be > 0.");
+            throw new ArgumentOutOfRangeException(nameof(texture), texture.TextureId, "Texture id must be > 0.");
         }
 
-        ulong h = unchecked((ulong)GL.Arb.GetTextureHandle(textureId));
-        if (h == 0)
+        int samplerId = texture.SamplerId;
+        if (samplerId <= 0)
         {
-            throw new InvalidOperationException("glGetTextureHandleARB returned 0.");
+            throw new InvalidOperationException("Cannot create bindless sampler handle: texture has no sampler object.");
         }
 
-        if (makeResident)
-        {
-            GL.Arb.MakeTextureHandleResident(h);
-        }
-
-        return new GpuBindlessTextureHandle(h, resident: makeResident);
+        return CreateForTextureSampler(texture.TextureId, samplerId, makeResident);
     }
 
     /// <summary>
@@ -133,4 +130,3 @@ internal sealed class GpuBindlessTextureHandle : IDisposable
         handle = 0;
     }
 }
-

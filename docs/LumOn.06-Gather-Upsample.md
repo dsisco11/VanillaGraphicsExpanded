@@ -30,16 +30,14 @@ The gather and upsample pipeline transforms probe radiance into per-pixel indire
 - **Smooth result**: Indirect lighting is inherently low-frequency
 - **Bilateral upsample**: Preserves edges using depth/normal guides
 
-### 1.3 Two Gather Modes
+### 1.3 Gather Strategies
 
-LumOn supports two gather modes controlled by `LumOn.UseProbeAtlas`:
+LumOn always traces into a **screen-probe atlas** (8×8 octahedral tile per probe). There are two gather strategies:
 
-| Mode        | Storage    | Gather Method               | Advantages                               |
-| ----------- | ---------- | --------------------------- | ---------------------------------------- |
-| SH L1       | 2 textures | `SHEvaluateDiffuse(normal)` | Compact, fast single lookup              |
-| Probe Atlas | 8×8 atlas  | Hemisphere integration      | Per-direction hit distance, less leaking |
-
-**Probe-atlas mode is recommended** for higher quality with comparable performance.
+| Strategy            | Gather Input           | Gather Method                         | Notes |
+| ------------------- | ---------------------- | ------------------------------------- | ----- |
+| Integrate Atlas     | Probe atlas (radiance) | Hemisphere integration in gather pass | Highest quality; uses per-direction hit distance |
+| Evaluate Projected SH | Projected SH9 per probe | Evaluate SH9 at the pixel normal      | Cheaper gather; adds an atlas→SH projection pass |
 
 ---
 
@@ -52,9 +50,8 @@ For each half-res pixel:
 1. Find the 4 enclosing probes (2×2 grid cell)
 2. Compute bilinear interpolation weights
 3. Adjust weights for edge-awareness (depth/normal discontinuities)
-4. Sample and decode SH from each valid probe
-5. Evaluate SH in surface normal direction
-6. Blend weighted contributions
+4. For each valid probe, evaluate irradiance (either atlas integration or SH9 evaluation)
+5. Blend weighted contributions
 
 ### 2.2 Probe Interpolation Geometry
 
@@ -125,7 +122,7 @@ GatherPass(halfResPixel):
 
 ---
 
-## 2.5 Probe-Atlas Gather (LumOn.UseProbeAtlas = true)
+## 2.5 Probe-Atlas Gather
 
 When using octahedral radiance storage, the gather pass replaces SH evaluation with hemisphere integration over the octahedral texture. This provides:
 

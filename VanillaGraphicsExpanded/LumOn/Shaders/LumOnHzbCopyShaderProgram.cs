@@ -1,6 +1,7 @@
 using Vintagestory.API.Client;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
@@ -26,5 +27,5 @@ public sealed class LumOnHzbCopyShaderProgram : GpuProgram
     /// <summary>
     /// Primary depth texture (VS depth buffer).
     /// </summary>
-    public int PrimaryDepth { set => BindTexture2D("primaryDepth", value, 0); }
+    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 0, GpuSamplers.NearestClamp); }
 }

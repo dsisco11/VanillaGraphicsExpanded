@@ -19,14 +19,6 @@
         "default": false,
         "weight": 2.2
       },
-      "USE_PROBE_ATLAS": {
-        "code": "LumOn.UseProbeAtlas",
-        "name": "LumOn.UseProbeAtlas",
-        "ingui": "vanillagraphicsexpanded:config-use-probe-atlas",
-        "comment": "vanillagraphicsexpanded:config-use-probe-atlas-tooltip",
-        "default": true,
-        "weight": 3.0
-      },
       "HALF_RESOLUTION": {
         "code": "LumOn.HalfResolution",
         "name": "LumOn.HalfResolution",
@@ -183,15 +175,6 @@
         "default": 16,
         "weight": 3.3,
         "range": { "min": 1, "max": 64, "step": 1 }
-      },
-      "RAYS_PER_PROBE_PER_FRAME": {
-        "code": "LumOn.RaysPerProbePerFrame",
-        "name": "LumOn.RaysPerProbePerFrame",
-        "ingui": "vanillagraphicsexpanded:config-rays-per-probe-per-frame",
-        "comment": "vanillagraphicsexpanded:config-rays-per-probe-per-frame-tooltip",
-        "default": 12,
-        "weight": 3.4,
-        "range": { "min": 1, "max": 32, "step": 1 }
       },
       "RAY_STEPS": {
         "code": "LumOn.RaySteps",
@@ -377,24 +360,6 @@
         "default": 0.2,
         "weight": 5.0,
         "range": { "min": 0.0, "max": 0.95, "step": 0.05 }
-      },
-      "DEPTH_REJECT_THRESHOLD": {
-        "code": "LumOn.DepthRejectThreshold",
-        "name": "LumOn.DepthRejectThreshold",
-        "ingui": "vanillagraphicsexpanded:config-depth-reject-threshold",
-        "comment": "vanillagraphicsexpanded:config-depth-reject-threshold-tooltip",
-        "default": 0.1,
-        "weight": 5.1,
-        "range": { "min": 0.01, "max": 1.0, "step": 0.01 }
-      },
-      "NORMAL_REJECT_THRESHOLD": {
-        "code": "LumOn.NormalRejectThreshold",
-        "name": "LumOn.NormalRejectThreshold",
-        "ingui": "vanillagraphicsexpanded:config-normal-reject-threshold",
-        "comment": "vanillagraphicsexpanded:config-normal-reject-threshold-tooltip",
-        "default": 0.8,
-        "weight": 5.2,
-        "range": { "min": 0.0, "max": 1.0, "step": 0.05 }
       },
       "DEPTH_DISCONTINUITY_THRESHOLD": {
         "code": "LumOn.DepthDiscontinuityThreshold",

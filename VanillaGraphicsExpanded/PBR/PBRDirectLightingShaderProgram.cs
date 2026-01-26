@@ -1,4 +1,5 @@
 using System;
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -50,36 +51,36 @@ public sealed class PBRDirectLightingShaderProgram : GpuProgram
     /// <summary>
     /// Primary scene color (baseColor) texture (texture unit 0).
     /// </summary>
-    public int PrimaryScene { set => BindTexture2D("primaryScene", value, 0); }
+    public int PrimaryScene { set => BindExternalTexture2D("primaryScene", value, 0, GpuSamplers.LinearClamp); }
 
     /// <summary>
     /// Primary depth texture (texture unit 1).
     /// </summary>
-    public int PrimaryDepth { set => BindTexture2D("primaryDepth", value, 1); }
+    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 1, GpuSamplers.NearestClamp); }
 
     /// <summary>
     /// G-buffer normal texture (Attachment4) (texture unit 2).
     /// Packed normalWS = n*0.5+0.5
     /// </summary>
-    public int GBufferNormal { set => BindTexture2D("gBufferNormal", value, 2); }
+    public int GBufferNormal { set => BindExternalTexture2D("gBufferNormal", value, 2, GpuSamplers.NearestClamp); }
 
     /// <summary>
     /// G-buffer material texture (Attachment5) (texture unit 3).
     /// Contains: Roughness (R), Metallic (G), Emissive (B), Reflectivity (A).
     /// </summary>
-    public int GBufferMaterial { set => BindTexture2D("gBufferMaterial", value, 3); }
+    public int GBufferMaterial { set => BindExternalTexture2D("gBufferMaterial", value, 3, GpuSamplers.NearestClamp); }
 
     /// <summary>
     /// Near shadow map (texture unit 4).
     /// Expected to be the depth texture of EnumFrameBuffer.ShadowmapNear.
     /// </summary>
-    public int ShadowMapNear { set => BindTexture2D("shadowMapNear", value, 4); }
+    public int ShadowMapNear { set => BindExternalTexture2D("shadowMapNear", value, 4, GpuSamplers.ShadowCompareLinearClamp); }
 
     /// <summary>
     /// Far shadow map (texture unit 5).
     /// Expected to be the depth texture of EnumFrameBuffer.ShadowmapFar.
     /// </summary>
-    public int ShadowMapFar { set => BindTexture2D("shadowMapFar", value, 5); }
+    public int ShadowMapFar { set => BindExternalTexture2D("shadowMapFar", value, 5, GpuSamplers.ShadowCompareLinearClamp); }
 
     #endregion
 

@@ -1,6 +1,7 @@
 using Vintagestory.API.Client;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
@@ -27,7 +28,7 @@ public sealed class LumOnHzbDownsampleShaderProgram : GpuProgram
     /// <summary>
     /// HZB depth texture (mipmapped R32F).
     /// </summary>
-    public int HzbDepth { set => BindTexture2D("hzbDepth", value, 0); }
+    public GpuTexture? HzbDepth { set => BindTexture2D("hzbDepth", value, 0); }
 
     /// <summary>
     /// Source mip level to read from.

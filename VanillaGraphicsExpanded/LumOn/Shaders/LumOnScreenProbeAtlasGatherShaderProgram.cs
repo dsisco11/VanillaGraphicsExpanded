@@ -5,6 +5,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
@@ -12,7 +13,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// <summary>
 /// Shader program for the LumOn screen-probe atlas gather pass.
 /// Implementation detail: integrates radiance from an octahedral-mapped probe atlas.
-/// This replaces the SH-based gather when UseProbeAtlas is enabled.
+/// This is the default screen-probe gather path.
 /// </summary>
 public class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
 {
@@ -44,28 +45,28 @@ public class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
     /// Layout: (probeCountX × 8, probeCountY × 8)
     /// Format: RGB = radiance, A = log-encoded hit distance
     /// </summary>
-    public int ScreenProbeAtlas { set => BindTexture2D("octahedralAtlas", value, 0); }
+    public GpuTexture? ScreenProbeAtlas { set => BindTexture2D("octahedralAtlas", value, 0); }
 
     /// <summary>
     /// Probe anchor positions (world-space).
     /// Format: xyz = posWS, w = validity
     /// </summary>
-    public int ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 1); }
+    public GpuTexture? ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 1); }
 
     /// <summary>
     /// Probe anchor normals (world-space, encoded).
     /// </summary>
-    public int ProbeAnchorNormal { set => BindTexture2D("probeAnchorNormal", value, 2); }
+    public GpuTexture? ProbeAnchorNormal { set => BindTexture2D("probeAnchorNormal", value, 2); }
 
     /// <summary>
     /// Primary depth texture (G-buffer).
     /// </summary>
-    public int PrimaryDepth { set => BindTexture2D("primaryDepth", value, 3); }
+    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 3, GpuSamplers.NearestClamp); }
 
     /// <summary>
     /// G-buffer normals (world-space, encoded).
     /// </summary>
-    public int GBufferNormal { set => BindTexture2D("gBufferNormal", value, 4); }
+    public int GBufferNormal { set => BindExternalTexture2D("gBufferNormal", value, 4, GpuSamplers.NearestClamp); }
 
     #endregion
 
@@ -174,12 +175,12 @@ public class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
         return !changed;
     }
 
-    public int WorldProbeSH0 { set => BindTexture2D("worldProbeSH0", value, 5); }
-    public int WorldProbeSH1 { set => BindTexture2D("worldProbeSH1", value, 6); }
-    public int WorldProbeSH2 { set => BindTexture2D("worldProbeSH2", value, 7); }
-    public int WorldProbeVis0 { set => BindTexture2D("worldProbeVis0", value, 8); }
-    public int WorldProbeMeta0 { set => BindTexture2D("worldProbeMeta0", value, 9); }
-    public int WorldProbeSky0 { set => BindTexture2D("worldProbeSky0", value, 10); }
+    public GpuTexture? WorldProbeSH0 { set => BindTexture2D("worldProbeSH0", value, 5); }
+    public GpuTexture? WorldProbeSH1 { set => BindTexture2D("worldProbeSH1", value, 6); }
+    public GpuTexture? WorldProbeSH2 { set => BindTexture2D("worldProbeSH2", value, 7); }
+    public GpuTexture? WorldProbeVis0 { set => BindTexture2D("worldProbeVis0", value, 8); }
+    public GpuTexture? WorldProbeMeta0 { set => BindTexture2D("worldProbeMeta0", value, 9); }
+    public GpuTexture? WorldProbeSky0 { set => BindTexture2D("worldProbeSky0", value, 10); }
 
     public Vec3f WorldProbeCameraPosWS { set => Uniform("worldProbeCameraPosWS", value); }
 

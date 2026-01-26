@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 
 using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Profiling;
 
 using Vintagestory.API.Client;
@@ -1169,6 +1170,7 @@ public static class VgeBuiltInDebugViews
                 OpenTK.Graphics.OpenGL.GL.ActiveTexture(OpenTK.Graphics.OpenGL.TextureUnit.Texture0);
                 OpenTK.Graphics.OpenGL.GL.BindTexture(OpenTK.Graphics.OpenGL.TextureTarget.Texture2D, textureId);
                 blitShader.BindTexture2D("scene", textureId, 0);
+                GpuSamplers.NearestClamp.Bind(0);
 
                 capi.Render.RenderMesh(quadMeshRef);
             }

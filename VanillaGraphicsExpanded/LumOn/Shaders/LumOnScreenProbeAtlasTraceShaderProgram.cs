@@ -4,6 +4,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
@@ -37,43 +38,43 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
     /// <summary>
     /// Probe anchor positions (posWS.xyz, valid) - stored in world-space.
     /// </summary>
-    public int ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 0); }
+    public GpuTexture? ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 0); }
 
     /// <summary>
     /// Probe anchor normals (normalWS.xyz, reserved) - stored in world-space.
     /// </summary>
-    public int ProbeAnchorNormal { set => BindTexture2D("probeAnchorNormal", value, 1); }
+    public GpuTexture? ProbeAnchorNormal { set => BindTexture2D("probeAnchorNormal", value, 1); }
 
     /// <summary>
     /// Primary depth texture for ray marching.
     /// </summary>
-    public int PrimaryDepth { set => BindTexture2D("primaryDepth", value, 2); }
+    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 2, GpuSamplers.NearestClamp); }
 
     /// <summary>
     /// Direct diffuse lighting (linear, pre-tonemap HDR).
     /// </summary>
-    public int DirectDiffuse { set => BindTexture2D("directDiffuse", value, 3); }
+    public GpuTexture? DirectDiffuse { set => BindTexture2D("directDiffuse", value, 3); }
 
     /// <summary>
     /// Emissive radiance (linear, pre-tonemap HDR).
     /// </summary>
-    public int Emissive { set => BindTexture2D("emissive", value, 4); }
+    public GpuTexture? Emissive { set => BindTexture2D("emissive", value, 4); }
 
     /// <summary>
     /// History probe atlas (octahedral-mapped) for temporal preservation.
     /// Shader uniform name remains <c>octahedralHistory</c> for compatibility.
     /// </summary>
-    public int ScreenProbeAtlasHistory { set => BindTexture2D("octahedralHistory", value, 5); }
+    public GpuTexture? ScreenProbeAtlasHistory { set => BindTexture2D("octahedralHistory", value, 5); }
 
     /// <summary>
     /// History probe-atlas meta (confidence + flags) for temporal preservation.
     /// </summary>
-    public int ScreenProbeAtlasMetaHistory { set => BindTexture2D("probeAtlasMetaHistory", value, 7); }
+    public GpuTexture? ScreenProbeAtlasMetaHistory { set => BindTexture2D("probeAtlasMetaHistory", value, 7); }
 
     /// <summary>
     /// Optional HZB depth pyramid (mipmapped R32F).
     /// </summary>
-    public int HzbDepth { set => BindTexture2D("hzbDepth", value, 6); }
+    public GpuTexture? HzbDepth { set => BindTexture2D("hzbDepth", value, 6); }
 
     #endregion
 
@@ -226,12 +227,12 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
         return !changed;
     }
 
-    public int WorldProbeSH0 { set => BindTexture2D("worldProbeSH0", value, 8); }
-    public int WorldProbeSH1 { set => BindTexture2D("worldProbeSH1", value, 9); }
-    public int WorldProbeSH2 { set => BindTexture2D("worldProbeSH2", value, 10); }
-    public int WorldProbeVis0 { set => BindTexture2D("worldProbeVis0", value, 11); }
-    public int WorldProbeMeta0 { set => BindTexture2D("worldProbeMeta0", value, 12); }
-    public int WorldProbeSky0 { set => BindTexture2D("worldProbeSky0", value, 13); }
+    public GpuTexture? WorldProbeSH0 { set => BindTexture2D("worldProbeSH0", value, 8); }
+    public GpuTexture? WorldProbeSH1 { set => BindTexture2D("worldProbeSH1", value, 9); }
+    public GpuTexture? WorldProbeSH2 { set => BindTexture2D("worldProbeSH2", value, 10); }
+    public GpuTexture? WorldProbeVis0 { set => BindTexture2D("worldProbeVis0", value, 11); }
+    public GpuTexture? WorldProbeMeta0 { set => BindTexture2D("worldProbeMeta0", value, 12); }
+    public GpuTexture? WorldProbeSky0 { set => BindTexture2D("worldProbeSky0", value, 13); }
 
     public Vec3f WorldProbeCameraPosWS { set => Uniform("worldProbeCameraPosWS", value); }
 

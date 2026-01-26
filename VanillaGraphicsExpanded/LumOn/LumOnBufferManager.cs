@@ -6,10 +6,11 @@ using VanillaGraphicsExpanded.Rendering;
 namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>
-/// Manages GPU textures for LumOn probe grid and radiance cache.
+/// Manages GPU textures for LumOn screen-probe atlas and world-probe integration.
 /// Creates and maintains framebuffers for:
 /// - Probe anchor positions and normals
-/// - Radiance cache (SH coefficients) with double-buffering for temporal
+/// - Screen-probe atlas (octahedral directional cache) with temporal blending
+/// - Optional probe-atlas → SH9 projection targets
 /// - Indirect diffuse output at half and full resolution
 /// </summary>
 public sealed class LumOnBufferManager : IDisposable
@@ -38,25 +39,6 @@ public sealed class LumOnBufferManager : IDisposable
     private DynamicTexture2D? probeAnchorPositionTex;
     private DynamicTexture2D? probeAnchorNormalTex;
     private Rendering.GpuFramebuffer? probeAnchorFbo;
-
-    // ═══════════════════════════════════════════════════════════════
-    // Radiance Cache Buffers (Triple-buffered for temporal)
-    // ═══════════════════════════════════════════════════════════════
-
-    // Trace output radiance (written by trace pass, read by temporal pass)
-    private DynamicTexture2D? radianceTraceTex0;
-    private DynamicTexture2D? radianceTraceTex1;
-    private Rendering.GpuFramebuffer? radianceTraceFbo;
-
-    // Current frame radiance (written by temporal pass, read by gather)
-    private DynamicTexture2D? radianceCurrentTex0;
-    private DynamicTexture2D? radianceCurrentTex1;
-    private Rendering.GpuFramebuffer? radianceCurrentFbo;
-
-    // History radiance (previous frame's current, read by temporal pass)
-    private DynamicTexture2D? radianceHistoryTex0;
-    private DynamicTexture2D? radianceHistoryTex1;
-    private Rendering.GpuFramebuffer? radianceHistoryFbo;
 
     // ═══════════════════════════════════════════════════════════════
     // Screen-Probe Atlas (2D atlas layout)
@@ -107,20 +89,6 @@ public sealed class LumOnBufferManager : IDisposable
     private DynamicTexture2D? probeSh9Tex5;
     private DynamicTexture2D? probeSh9Tex6;
     private Rendering.GpuFramebuffer? probeSh9Fbo;
-
-    // ═══════════════════════════════════════════════════════════════
-    // Probe Metadata Buffers (for temporal validation)
-    // ═══════════════════════════════════════════════════════════════
-
-    private DynamicTexture2D? probeMetaCurrentTex;
-    private Rendering.GpuFramebuffer? probeMetaCurrentFbo;
-
-    // History metadata (swapped each frame)
-    private DynamicTexture2D? probeMetaHistoryTex;
-    private Rendering.GpuFramebuffer? probeMetaHistoryFbo;
-
-    // Temporal output FBO (MRT: radiance0, radiance1, meta to current buffers)
-    private Rendering.GpuFramebuffer? temporalOutputFbo;
 
     // ═══════════════════════════════════════════════════════════════
     // Indirect Diffuse Output Buffers
@@ -193,55 +161,6 @@ public sealed class LumOnBufferManager : IDisposable
     /// Texture for probe anchor normals (normalVS.xyz, reserved).
     /// </summary>
     public DynamicTexture2D? ProbeAnchorNormalTex => probeAnchorNormalTex;
-
-    // ═══════════════════════════════════════════════════════════════
-    // Radiance Cache Buffers
-    // ═══════════════════════════════════════════════════════════════
-
-    /// <summary>
-    /// FBO for trace pass radiance output.
-    /// </summary>
-    public Rendering.GpuFramebuffer? RadianceTraceFbo => radianceTraceFbo;
-
-    /// <summary>
-    /// Texture for trace radiance SH coefficients (set 0).
-    /// </summary>
-    public DynamicTexture2D? RadianceTraceTex0 => radianceTraceTex0;
-
-    /// <summary>
-    /// Texture for trace radiance SH coefficients (set 1).
-    /// </summary>
-    public DynamicTexture2D? RadianceTraceTex1 => radianceTraceTex1;
-
-    /// <summary>
-    /// FBO for current frame radiance output.
-    /// </summary>
-    public Rendering.GpuFramebuffer? RadianceCurrentFbo => radianceCurrentFbo;
-
-    /// <summary>
-    /// Texture for current radiance SH coefficients (set 0).
-    /// </summary>
-    public DynamicTexture2D? RadianceCurrentTex0 => radianceCurrentTex0;
-
-    /// <summary>
-    /// Texture for current radiance SH coefficients (set 1).
-    /// </summary>
-    public DynamicTexture2D? RadianceCurrentTex1 => radianceCurrentTex1;
-
-    /// <summary>
-    /// FBO for history radiance (read during temporal blend).
-    /// </summary>
-    public Rendering.GpuFramebuffer? RadianceHistoryFbo => radianceHistoryFbo;
-
-    /// <summary>
-    /// Texture for history radiance SH coefficients (set 0).
-    /// </summary>
-    public DynamicTexture2D? RadianceHistoryTex0 => radianceHistoryTex0;
-
-    /// <summary>
-    /// Texture for history radiance SH coefficients (set 1).
-    /// </summary>
-    public DynamicTexture2D? RadianceHistoryTex1 => radianceHistoryTex1;
 
     // ═══════════════════════════════════════════════════════════════
     // Screen-Probe Atlas (2D atlas)
@@ -331,35 +250,6 @@ public sealed class LumOnBufferManager : IDisposable
     /// Total number of probes (probeCountX × probeCountY).
     /// </summary>
     public int ProbeCount => probeCountX * probeCountY;
-
-    // ═══════════════════════════════════════════════════════════════
-    // Probe Metadata Buffers
-    // ═══════════════════════════════════════════════════════════════
-
-    /// <summary>
-    /// FBO for current frame probe metadata.
-    /// </summary>
-    public Rendering.GpuFramebuffer? ProbeMetaCurrentFbo => probeMetaCurrentFbo;
-
-    /// <summary>
-    /// Texture for current frame probe metadata (depth, normal, accumCount).
-    /// </summary>
-    public DynamicTexture2D? ProbeMetaCurrentTex => probeMetaCurrentTex;
-
-    /// <summary>
-    /// FBO for history probe metadata.
-    /// </summary>
-    public Rendering.GpuFramebuffer? ProbeMetaHistoryFbo => probeMetaHistoryFbo;
-
-    /// <summary>
-    /// Texture for history probe metadata.
-    /// </summary>
-    public DynamicTexture2D? ProbeMetaHistoryTex => probeMetaHistoryTex;
-
-    /// <summary>
-    /// FBO for temporal pass MRT output (radiance0, radiance1, meta).
-    /// </summary>
-    public Rendering.GpuFramebuffer? TemporalOutputFbo => temporalOutputFbo;
 
     // ═══════════════════════════════════════════════════════════════
     // Indirect Diffuse Output Buffers
@@ -489,24 +379,12 @@ public sealed class LumOnBufferManager : IDisposable
     /// </summary>
     public void SwapRadianceBuffers()
     {
-        // Swap SH radiance textures (legacy, to be removed in Phase 3+)
-        (radianceCurrentTex0, radianceHistoryTex0) = (radianceHistoryTex0, radianceCurrentTex0);
-        (radianceCurrentTex1, radianceHistoryTex1) = (radianceHistoryTex1, radianceCurrentTex1);
-        (radianceCurrentFbo, radianceHistoryFbo) = (radianceHistoryFbo, radianceCurrentFbo);
-
         // Swap screen-probe atlas textures (2D atlas)
         (screenProbeAtlasCurrentTex, screenProbeAtlasHistoryTex) = (screenProbeAtlasHistoryTex, screenProbeAtlasCurrentTex);
         (screenProbeAtlasMetaCurrentTex, screenProbeAtlasMetaHistoryTex) = (screenProbeAtlasMetaHistoryTex, screenProbeAtlasMetaCurrentTex);
         (screenProbeAtlasCurrentFbo, screenProbeAtlasHistoryFbo) = (screenProbeAtlasHistoryFbo, screenProbeAtlasCurrentFbo);
 
-        // Swap metadata
-        (probeMetaCurrentTex, probeMetaHistoryTex) = (probeMetaHistoryTex, probeMetaCurrentTex);
-        (probeMetaCurrentFbo, probeMetaHistoryFbo) = (probeMetaHistoryFbo, probeMetaCurrentFbo);
-
         currentBufferIndex = 1 - currentBufferIndex;
-
-        // Recreate temporal output FBO to point to the new "current" targets
-        CreateTemporalOutputFbo();
     }
 
     /// <summary>
@@ -522,12 +400,6 @@ public sealed class LumOnBufferManager : IDisposable
         // Save current framebuffer binding
         int previousFbo = Rendering.GpuFramebuffer.SaveBinding();
 
-        // Clear all SH radiance and metadata buffers to black
-        radianceHistoryFbo?.BindAndClear();
-        radianceCurrentFbo?.BindAndClear();
-        probeMetaHistoryFbo?.BindAndClear();
-        probeMetaCurrentFbo?.BindAndClear();
-
         // Clear screen-probe atlas textures (2D atlas)
         screenProbeAtlasTraceFbo?.BindAndClear();
         screenProbeAtlasCurrentFbo?.BindAndClear();
@@ -541,7 +413,7 @@ public sealed class LumOnBufferManager : IDisposable
         // Restore previous framebuffer
         Rendering.GpuFramebuffer.RestoreBinding(previousFbo);
 
-        capi.Logger.Debug("[LumOn] Cleared radiance history and metadata buffers");
+        capi.Logger.Debug("[LumOn] Cleared probe history buffers");
     }
 
     /// <summary>
@@ -599,30 +471,6 @@ public sealed class LumOnBufferManager : IDisposable
         probeAnchorFbo = Rendering.GpuFramebuffer.CreateMRT("ProbeAnchorFBO", probeAnchorPositionTex, probeAnchorNormalTex);
 
         // ═══════════════════════════════════════════════════════════════
-        // Create Radiance Cache Buffers (Trace output)
-        // ═══════════════════════════════════════════════════════════════
-
-        radianceTraceTex0 = DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "RadianceTrace0");
-        radianceTraceTex1 = DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "RadianceTrace1");
-        radianceTraceFbo = Rendering.GpuFramebuffer.CreateMRT("RadianceTraceFBO", radianceTraceTex0, radianceTraceTex1);
-
-        // ═══════════════════════════════════════════════════════════════
-        // Create Radiance Cache Buffers (Current - temporal output)
-        // ═══════════════════════════════════════════════════════════════
-
-        radianceCurrentTex0 = DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "RadianceCurrent0");
-        radianceCurrentTex1 = DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "RadianceCurrent1");
-        radianceCurrentFbo = Rendering.GpuFramebuffer.CreateMRT("RadianceCurrentFBO", radianceCurrentTex0, radianceCurrentTex1);
-
-        // ═══════════════════════════════════════════════════════════════
-        // Create Radiance Cache Buffers (History)
-        // ═══════════════════════════════════════════════════════════════
-
-        radianceHistoryTex0 = DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "RadianceHistory0");
-        radianceHistoryTex1 = DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "RadianceHistory1");
-        radianceHistoryFbo = Rendering.GpuFramebuffer.CreateMRT("RadianceHistoryFBO", radianceHistoryTex0, radianceHistoryTex1);
-
-        // ═══════════════════════════════════════════════════════════════
         // Create Screen-Probe Atlas (2D atlas)
         // Implementation detail: octahedral direction mapping per probe tile.
         // Layout: (probeCountX * 8, probeCountY * 8) - tiled 8×8 per probe
@@ -662,19 +510,6 @@ public sealed class LumOnBufferManager : IDisposable
             null,
             ownsTextures: false,
             debugName: "ProbeSH9FBO");
-
-        // ═══════════════════════════════════════════════════════════════
-        // Create Probe Metadata Buffers (for temporal validation)
-        // ═══════════════════════════════════════════════════════════════
-
-        probeMetaCurrentTex = DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeMetaCurrent");
-        probeMetaCurrentFbo = Rendering.GpuFramebuffer.CreateSingle(probeMetaCurrentTex, debugName: "ProbeMetaCurrentFBO");
-
-        probeMetaHistoryTex = DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeMetaHistory");
-        probeMetaHistoryFbo = Rendering.GpuFramebuffer.CreateSingle(probeMetaHistoryTex, debugName: "ProbeMetaHistoryFBO");
-
-        // Create temporal output FBO (MRT: writes to current radiance + current meta)
-        CreateTemporalOutputFbo();
 
         // ═══════════════════════════════════════════════════════════════
         // Create Indirect Diffuse Output Buffers
@@ -721,44 +556,10 @@ public sealed class LumOnBufferManager : IDisposable
             $"spacing={cfg.ProbeSpacingPx}px, halfRes={halfResWidth}x{halfResHeight}");
     }
 
-    /// <summary>
-    /// Creates/recreates the temporal output FBO with MRT.
-    /// Outputs to: current radiance0, current radiance1, current meta
-    /// </summary>
-    private void CreateTemporalOutputFbo()
-    {
-        // Dispose existing temporal output FBO (but not the textures - they're owned by other FBOs)
-        temporalOutputFbo?.Dispose();
-        temporalOutputFbo = null;
-
-        if (radianceCurrentTex0 == null || radianceCurrentTex1 == null || probeMetaCurrentTex == null)
-            return;
-
-        // Create MRT FBO: temporal pass writes to CURRENT buffers
-        // - Reads from history (previous frame's output)
-        // - Writes to current (this frame's output)
-        // After swap, current becomes history for next frame
-        temporalOutputFbo = Rendering.GpuFramebuffer.CreateMRT(
-            [radianceCurrentTex0, radianceCurrentTex1, probeMetaCurrentTex],
-            null,
-            ownsTextures: false,  // Textures owned by radianceCurrentFbo and probeMetaCurrentFbo
-            debugName: "TemporalOutputFBO"
-        );
-    }
-
     private void DeleteBuffers()
     {
-        // Dispose temporal output FBO first (doesn't own textures)
-        temporalOutputFbo?.Dispose();
-        temporalOutputFbo = null;
-
         // Dispose FBOs (they don't own textures)
         probeAnchorFbo?.Dispose();
-        radianceTraceFbo?.Dispose();
-        radianceCurrentFbo?.Dispose();
-        radianceHistoryFbo?.Dispose();
-        probeMetaCurrentFbo?.Dispose();
-        probeMetaHistoryFbo?.Dispose();
         indirectHalfFbo?.Dispose();
         indirectFullFbo?.Dispose();
         capturedSceneFbo?.Dispose();
@@ -771,11 +572,6 @@ public sealed class LumOnBufferManager : IDisposable
         hzbFbo?.Dispose();
 
         probeAnchorFbo = null;
-        radianceTraceFbo = null;
-        radianceCurrentFbo = null;
-        radianceHistoryFbo = null;
-        probeMetaCurrentFbo = null;
-        probeMetaHistoryFbo = null;
         indirectHalfFbo = null;
         indirectFullFbo = null;
         capturedSceneFbo = null;
@@ -790,14 +586,6 @@ public sealed class LumOnBufferManager : IDisposable
         // Dispose 2D textures
         probeAnchorPositionTex?.Dispose();
         probeAnchorNormalTex?.Dispose();
-        radianceTraceTex0?.Dispose();
-        radianceTraceTex1?.Dispose();
-        radianceCurrentTex0?.Dispose();
-        radianceCurrentTex1?.Dispose();
-        radianceHistoryTex0?.Dispose();
-        radianceHistoryTex1?.Dispose();
-        probeMetaCurrentTex?.Dispose();
-        probeMetaHistoryTex?.Dispose();
         indirectHalfTex?.Dispose();
         indirectFullTex?.Dispose();
         capturedSceneTex?.Dispose();
@@ -823,14 +611,6 @@ public sealed class LumOnBufferManager : IDisposable
 
         probeAnchorPositionTex = null;
         probeAnchorNormalTex = null;
-        radianceTraceTex0 = null;
-        radianceTraceTex1 = null;
-        radianceCurrentTex0 = null;
-        radianceCurrentTex1 = null;
-        radianceHistoryTex0 = null;
-        radianceHistoryTex1 = null;
-        probeMetaCurrentTex = null;
-        probeMetaHistoryTex = null;
         indirectHalfTex = null;
         indirectFullTex = null;
         capturedSceneTex = null;

@@ -4,6 +4,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
@@ -39,29 +40,29 @@ public class LumOnScreenProbeAtlasTemporalShaderProgram : GpuProgram
     /// Current frame probe atlas trace output.
     /// Shader uniform name remains <c>octahedralCurrent</c> for compatibility.
     /// </summary>
-    public int ScreenProbeAtlasCurrent { set => BindTexture2D("octahedralCurrent", value, 0); }
+    public GpuTexture? ScreenProbeAtlasCurrent { set => BindTexture2D("octahedralCurrent", value, 0); }
 
     /// <summary>
     /// History probe atlas from previous frame.
     /// Shader uniform name remains <c>octahedralHistory</c> for compatibility.
     /// </summary>
-    public int ScreenProbeAtlasHistory { set => BindTexture2D("octahedralHistory", value, 1); }
+    public GpuTexture? ScreenProbeAtlasHistory { set => BindTexture2D("octahedralHistory", value, 1); }
 
     /// <summary>
     /// Probe anchor positions for validity check.
     /// </summary>
-    public int ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 2); }
+    public GpuTexture? ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 2); }
 
     /// <summary>
     /// Current frame probe-atlas meta trace output.
     /// </summary>
-    public int ScreenProbeAtlasMetaCurrent { set => BindTexture2D("probeAtlasMetaCurrent", value, 3); }
+    public GpuTexture? ScreenProbeAtlasMetaCurrent { set => BindTexture2D("probeAtlasMetaCurrent", value, 3); }
 
     /// <summary>
     /// Previous frame probe-atlas meta history (after last swap).
     /// Used for confidence-aware temporal blending.
     /// </summary>
-    public int ScreenProbeAtlasMetaHistory { set => BindTexture2D("probeAtlasMetaHistory", value, 4); }
+    public GpuTexture? ScreenProbeAtlasMetaHistory { set => BindTexture2D("probeAtlasMetaHistory", value, 4); }
 
     #endregion
 

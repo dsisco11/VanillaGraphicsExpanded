@@ -2,6 +2,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
@@ -47,17 +48,17 @@ public class LumOnUpsampleShaderProgram : GpuProgram
     /// <summary>
     /// Half-resolution indirect diffuse texture.
     /// </summary>
-    public int IndirectHalf { set => BindTexture2D("indirectHalf", value, 0); }
+    public GpuTexture? IndirectHalf { set => BindTexture2D("indirectHalf", value, 0); }
 
     /// <summary>
     /// Primary depth texture for edge-aware upsampling.
     /// </summary>
-    public int PrimaryDepth { set => BindTexture2D("primaryDepth", value, 1); }
+    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 1, GpuSamplers.NearestClamp); }
 
     /// <summary>
     /// G-buffer normals for edge-aware upsampling.
     /// </summary>
-    public int GBufferNormal { set => BindTexture2D("gBufferNormal", value, 2); }
+    public int GBufferNormal { set => BindExternalTexture2D("gBufferNormal", value, 2, GpuSamplers.NearestClamp); }
 
     #endregion
 

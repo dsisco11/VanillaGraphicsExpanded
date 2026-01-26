@@ -29,7 +29,7 @@ public class GpuBindlessTextureHandleIntegrationTests
         Assert.SkipWhen(!GpuBindlessTextureHandle.IsSupported, "GL_ARB_bindless_texture not supported by this context.");
 
         using var tex = Texture2D.Create(4, 4, PixelInternalFormat.Rgba8);
-        using var handle = GpuBindlessTextureHandle.CreateForTexture(tex.TextureId, makeResident: true);
+        using var handle = GpuBindlessTextureHandle.CreateForTexture(tex, makeResident: true);
 
         Assert.NotEqual(0ul, handle.Handle);
         Assert.True(handle.IsResident);
@@ -40,4 +40,3 @@ public class GpuBindlessTextureHandleIntegrationTests
         Assert.False(GL.Arb.IsTextureHandleResident(handle.Handle));
     }
 }
-

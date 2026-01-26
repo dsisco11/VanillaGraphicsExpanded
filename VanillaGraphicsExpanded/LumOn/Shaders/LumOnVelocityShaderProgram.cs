@@ -2,6 +2,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
@@ -34,7 +35,7 @@ public class LumOnVelocityShaderProgram : GpuProgram
     /// <summary>
     /// Primary depth texture (current frame).
     /// </summary>
-    public int PrimaryDepth { set => BindTexture2D("primaryDepth", value, 0); }
+    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 0, GpuSamplers.NearestClamp); }
 
     #endregion
 

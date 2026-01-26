@@ -13,6 +13,29 @@ internal static class GlDebug
     private const bool DebugGroupsEnabled = false;
 #endif
 
+    private static volatile int cachedContextFlags;
+    private static volatile bool cachedContextFlagsValid;
+
+    private static bool IsDebugContext()
+    {
+        if (cachedContextFlagsValid)
+        {
+            return ((ContextFlagMask)cachedContextFlags & ContextFlagMask.ContextFlagDebugBit) != 0;
+        }
+
+        try
+        {
+            int flags = GL.GetInteger(GetPName.ContextFlags);
+            cachedContextFlags = flags;
+            cachedContextFlagsValid = true;
+            return ((ContextFlagMask)flags & ContextFlagMask.ContextFlagDebugBit) != 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public static void TrySuppressGroupDebugMessages()
     {
         // The game can enable GL debug output and log all debug callback events.
@@ -55,6 +78,19 @@ internal static class GlDebug
             return;
         }
 
+        if (!IsDebugContext())
+        {
+            return;
+        }
+
+        // Avoid calling ObjectLabel on contexts that don't support KHR_debug.
+        // Note: GL_EXT_debug_label uses a different entry point; we skip it here rather than
+        // calling glObjectLabel and polluting the GL error state.
+        if (!GlExtensions.Supports("GL_KHR_debug"))
+        {
+            return;
+        }
+
         try
         {
             // Guard against KHR_debug errors when labeling IDs that aren't valid in the current context
@@ -79,7 +115,7 @@ internal static class GlDebug
                 return;
             }
 
-            GL.ObjectLabel(identifier, id, -1, name);
+            GL.ObjectLabel(identifier, id, name.Length, name);
         }
         catch
         {
@@ -168,7 +204,7 @@ internal static class GlDebug
         public GroupScope(string name)
         {
 #if DEBUG
-            if (!DebugGroupsEnabled || string.IsNullOrWhiteSpace(name))
+            if (!DebugGroupsEnabled || string.IsNullOrWhiteSpace(name) || !IsDebugContext())
             {
                 active = false;
                 return;

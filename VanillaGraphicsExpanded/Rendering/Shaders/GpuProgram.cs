@@ -82,6 +82,29 @@ public abstract class GpuProgram : ShaderProgram
     /// </summary>
     protected virtual void OnAfterCompile() { }
 
+    #region Texture Binding (Sampler-Aware)
+
+    protected void BindTexture2D(string uniformName, GpuTexture? texture, int unit)
+    {
+        SetUniform(uniformName, unit);
+
+        if (texture is null)
+        {
+            GlStateCache.Current.BindTexture(TextureTarget.Texture2D, unit, 0, sampler: null);
+            return;
+        }
+
+        texture.Bind(unit);
+    }
+
+    protected void BindExternalTexture2D(string uniformName, int textureId, int unit, GpuSampler sampler)
+    {
+        SetUniform(uniformName, unit);
+        GlStateCache.Current.BindTexture(TextureTarget.Texture2D, unit, textureId, sampler);
+    }
+
+    #endregion
+
     /// <summary>
     /// Gets cached binding-related resources for the currently linked program.
     /// Updated after successful <see cref="CompileAndLink"/>.

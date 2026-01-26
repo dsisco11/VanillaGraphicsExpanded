@@ -509,9 +509,25 @@ internal sealed partial class GlStateCache
         }
     }
 
+    public void BindTexture(TextureTarget target, int unit, int textureId, GpuSampler? sampler)
+    {
+        BindTexture(target, unit, textureId);
+
+        if (textureId == 0)
+        {
+            UnbindSampler(unit);
+            return;
+        }
+
+        if (sampler is null || !sampler.TryBind(unit))
+        {
+            UnbindSampler(unit);
+        }
+    }
+
     public void UnbindTexture(TextureTarget target, int unit)
     {
-        BindTexture(target, unit, 0);
+        BindTexture(target, unit, 0, sampler: null);
     }
 
     public TextureScope BindTextureScope(TextureTarget target, int unit, int textureId)
@@ -608,6 +624,20 @@ internal sealed partial class GlStateCache
         {
             GL.BindSampler(unit, samplerId);
             samplerBindingByUnit![unit] = samplerId;
+        }
+        catch
+        {
+        }
+    }
+
+    public void BindSampler(int unit, GpuSampler sampler)
+    {
+        EnsureTextureUnitCapacity(unit);
+
+        try
+        {
+            GL.BindSampler(unit, sampler.SamplerId);
+            samplerBindingByUnit![unit] = sampler.SamplerId;
         }
         catch
         {

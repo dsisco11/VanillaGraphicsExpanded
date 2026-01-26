@@ -374,12 +374,30 @@ internal sealed class GpuProgramLayout
         }
 
         GlStateCache.Current.BindTexture(target, unit, textureId);
-
         if (samplerId != 0)
         {
             GlStateCache.Current.BindSampler(unit, samplerId);
         }
 
+        return true;
+    }
+
+    public bool TryBindSamplerTexture(string samplerUniformName, TextureTarget target, int textureId, GpuSampler sampler)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(samplerUniformName);
+        ArgumentNullException.ThrowIfNull(sampler);
+
+        if (textureId == 0)
+        {
+            return false;
+        }
+
+        if (!TryGetSamplerUnit(samplerUniformName, out int unit))
+        {
+            return false;
+        }
+
+        GlStateCache.Current.BindTexture(target, unit, textureId, sampler);
         return true;
     }
 

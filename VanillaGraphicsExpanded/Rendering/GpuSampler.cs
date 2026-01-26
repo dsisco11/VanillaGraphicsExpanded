@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
 /// All methods require a current GL context on the calling thread.
 /// </summary>
-internal sealed class GpuSampler : GpuResource, IDisposable
+public sealed class GpuSampler : GpuResource, IDisposable
 {
     private int samplerId;
 
@@ -182,7 +182,7 @@ internal sealed class GpuSampler : GpuResource, IDisposable
     {
         private readonly GlStateCache.SamplerScope scope;
 
-        public BindingScope(GlStateCache.SamplerScope scope)
+        internal BindingScope(GlStateCache.SamplerScope scope)
         {
             this.scope = scope;
         }

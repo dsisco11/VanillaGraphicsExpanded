@@ -51,9 +51,11 @@ public class LumOnUniformTests : IDisposable
     public static TheoryData<string, string> LumOnShaderPairs => new()
     {
         { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh" },
-        { "lumon_probe_trace.vsh", "lumon_probe_trace.fsh" },
-        { "lumon_temporal.vsh", "lumon_temporal.fsh" },
-        { "lumon_gather.vsh", "lumon_gather.fsh" },
+        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh" },
+        { "lumon_probe_atlas_temporal.vsh", "lumon_probe_atlas_temporal.fsh" },
+        { "lumon_probe_atlas_filter.vsh", "lumon_probe_atlas_filter.fsh" },
+        { "lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh" },
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh" },
         { "lumon_upsample.vsh", "lumon_upsample.fsh" },
         { "lumon_combine.vsh", "lumon_combine.fsh" },
         { "lumon_debug.vsh", "lumon_debug.fsh" },
@@ -198,9 +200,6 @@ public class LumOnUniformTests : IDisposable
             "denoiseEnabled" => "VGE_LUMON_UPSAMPLE_DENOISE",
             "holeFillEnabled" => "VGE_LUMON_UPSAMPLE_HOLEFILL",
 
-            // Phase 5: temporal toggle
-            "enableReprojectionVelocity" => "VGE_LUMON_TEMPORAL_USE_VELOCITY_REPROJECTION",
-
             // Phase 6: loop-bound knobs
             "raysPerProbe" => "VGE_LUMON_RAYS_PER_PROBE",
             "raySteps" => "VGE_LUMON_RAY_STEPS",
@@ -228,38 +227,89 @@ public class LumOnUniformTests : IDisposable
         { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "invProjectionMatrix" },
         { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "invViewMatrix" },
         { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "probeSpacing" },
+        { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "probeGridSize" },
         { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "screenSize" },
         { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "frameIndex" },
         { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "anchorJitterEnabled" },
         { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "anchorJitterScale" },
         { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "pmjJitter" },
         { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "pmjCycleLength" },
+        { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "zNear" },
+        { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "zFar" },
+        { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", "depthDiscontinuityThreshold" },
 
-        // lumon_probe_trace - probe data and ray-marching params
-        { "lumon_probe_trace.vsh", "lumon_probe_trace.fsh", "probeAnchorPosition" },
-        { "lumon_probe_trace.vsh", "lumon_probe_trace.fsh", "probeAnchorNormal" },
-        { "lumon_probe_trace.vsh", "lumon_probe_trace.fsh", "primaryDepth" },
-        { "lumon_probe_trace.vsh", "lumon_probe_trace.fsh", "directDiffuse" },
-        { "lumon_probe_trace.vsh", "lumon_probe_trace.fsh", "emissive" },
-        { "lumon_probe_trace.vsh", "lumon_probe_trace.fsh", "probeGridSize" },
-        { "lumon_probe_trace.vsh", "lumon_probe_trace.fsh", "frameIndex" },
-        { "lumon_probe_trace.vsh", "lumon_probe_trace.fsh", "raysPerProbe" },
-        { "lumon_probe_trace.vsh", "lumon_probe_trace.fsh", "pmjJitter" },
-        { "lumon_probe_trace.vsh", "lumon_probe_trace.fsh", "pmjCycleLength" },
+        // lumon_probe_atlas_trace - probe data and ray-marching params
+        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh", "probeAnchorPosition" },
+        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh", "probeAnchorNormal" },
+        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh", "primaryDepth" },
+        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh", "directDiffuse" },
+        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh", "emissive" },
+        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh", "hzbDepth" },
+        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh", "invProjectionMatrix" },
+        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh", "projectionMatrix" },
+        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh", "viewMatrix" },
+        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh", "probeGridSize" },
+        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh", "frameIndex" },
+        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh", "sunPosition" },
+        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh", "sunColor" },
+        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh", "ambientColor" },
+        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh", "indirectTint" },
+        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh", "octahedralHistory" },
+        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh", "probeAtlasMetaHistory" },
 
-        // lumon_temporal - history buffers and blend params
-        { "lumon_temporal.vsh", "lumon_temporal.fsh", "radianceCurrent0" },
-        { "lumon_temporal.vsh", "lumon_temporal.fsh", "radianceHistory0" },
-        { "lumon_temporal.vsh", "lumon_temporal.fsh", "probeAnchorPosition" },
-        { "lumon_temporal.vsh", "lumon_temporal.fsh", "temporalAlpha" },
+        // lumon_probe_atlas_temporal - history buffers and blend params
+        { "lumon_probe_atlas_temporal.vsh", "lumon_probe_atlas_temporal.fsh", "octahedralCurrent" },
+        { "lumon_probe_atlas_temporal.vsh", "lumon_probe_atlas_temporal.fsh", "octahedralHistory" },
+        { "lumon_probe_atlas_temporal.vsh", "lumon_probe_atlas_temporal.fsh", "probeAnchorPosition" },
+        { "lumon_probe_atlas_temporal.vsh", "lumon_probe_atlas_temporal.fsh", "probeAtlasMetaCurrent" },
+        { "lumon_probe_atlas_temporal.vsh", "lumon_probe_atlas_temporal.fsh", "probeAtlasMetaHistory" },
+        { "lumon_probe_atlas_temporal.vsh", "lumon_probe_atlas_temporal.fsh", "probeGridSize" },
+        { "lumon_probe_atlas_temporal.vsh", "lumon_probe_atlas_temporal.fsh", "frameIndex" },
+        { "lumon_probe_atlas_temporal.vsh", "lumon_probe_atlas_temporal.fsh", "temporalAlpha" },
+        { "lumon_probe_atlas_temporal.vsh", "lumon_probe_atlas_temporal.fsh", "hitDistanceRejectThreshold" },
 
-        // lumon_gather - radiance sampling and bilateral filter
-        { "lumon_gather.vsh", "lumon_gather.fsh", "radianceTexture0" },
-        { "lumon_gather.vsh", "lumon_gather.fsh", "probeAnchorPosition" },
-        { "lumon_gather.vsh", "lumon_gather.fsh", "primaryDepth" },
-        { "lumon_gather.vsh", "lumon_gather.fsh", "gBufferNormal" },
-        { "lumon_gather.vsh", "lumon_gather.fsh", "probeSpacing" },
-        { "lumon_gather.vsh", "lumon_gather.fsh", "intensity" },
+        // lumon_probe_atlas_filter - atlas denoise
+        { "lumon_probe_atlas_filter.vsh", "lumon_probe_atlas_filter.fsh", "octahedralAtlas" },
+        { "lumon_probe_atlas_filter.vsh", "lumon_probe_atlas_filter.fsh", "probeAtlasMeta" },
+        { "lumon_probe_atlas_filter.vsh", "lumon_probe_atlas_filter.fsh", "probeAnchorPosition" },
+        { "lumon_probe_atlas_filter.vsh", "lumon_probe_atlas_filter.fsh", "probeGridSize" },
+        { "lumon_probe_atlas_filter.vsh", "lumon_probe_atlas_filter.fsh", "filterRadius" },
+        { "lumon_probe_atlas_filter.vsh", "lumon_probe_atlas_filter.fsh", "hitDistanceSigma" },
+
+        // lumon_probe_atlas_gather - radiance integration from atlas
+        { "lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh", "octahedralAtlas" },
+        { "lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh", "probeAnchorPosition" },
+        { "lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh", "probeAnchorNormal" },
+        { "lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh", "primaryDepth" },
+        { "lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh", "gBufferNormal" },
+        { "lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh", "invProjectionMatrix" },
+        { "lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh", "viewMatrix" },
+        { "lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh", "probeSpacing" },
+        { "lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh", "probeGridSize" },
+        { "lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh", "screenSize" },
+        { "lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh", "intensity" },
+        { "lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh", "indirectTint" },
+        { "lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh", "sampleStride" },
+
+        // lumon_probe_sh9_gather - gather from projected SH9
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh", "probeSh0" },
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh", "probeSh1" },
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh", "probeSh2" },
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh", "probeSh3" },
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh", "probeSh4" },
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh", "probeSh5" },
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh", "probeSh6" },
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh", "probeAnchorPosition" },
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh", "probeAnchorNormal" },
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh", "primaryDepth" },
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh", "gBufferNormal" },
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh", "invProjectionMatrix" },
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh", "viewMatrix" },
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh", "probeSpacing" },
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh", "probeGridSize" },
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh", "screenSize" },
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh", "intensity" },
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh", "indirectTint" },
 
         // lumon_upsample - bilateral upsampling
         { "lumon_upsample.vsh", "lumon_upsample.fsh", "indirectHalf" },
@@ -359,9 +409,11 @@ public class LumOnUniformTests : IDisposable
     private static IEnumerable<(string vsh, string fsh)> GetShaderPairs()
     {
         yield return ("lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh");
-        yield return ("lumon_probe_trace.vsh", "lumon_probe_trace.fsh");
-        yield return ("lumon_temporal.vsh", "lumon_temporal.fsh");
-        yield return ("lumon_gather.vsh", "lumon_gather.fsh");
+        yield return ("lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh");
+        yield return ("lumon_probe_atlas_temporal.vsh", "lumon_probe_atlas_temporal.fsh");
+        yield return ("lumon_probe_atlas_filter.vsh", "lumon_probe_atlas_filter.fsh");
+        yield return ("lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh");
+        yield return ("lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh");
         yield return ("lumon_upsample.vsh", "lumon_upsample.fsh");
         yield return ("lumon_combine.vsh", "lumon_combine.fsh");
         yield return ("lumon_debug.vsh", "lumon_debug.fsh");

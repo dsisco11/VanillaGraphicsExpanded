@@ -10,6 +10,8 @@ Issues:
     ☐ pbr-direct-lighting doesnt include shadow map.
 
   GpuResources:
+    ☐ `LumOnPmjJitterTexture` should be a `GpuTexture` (RAII + deferred disposal) rather than a raw GL texture handle.
+    ☐ `LumOnBlueNoiseTexture` should be a `GpuTexture` (RAII + deferred disposal) rather than a raw GL texture handle.
     ✔ Create new `GpuResourceManager` system as a new IRenderer registered for the `After` stage, which manages GPU resource lifecycles (creation, disposal) in a thread-safe manner.
     ✔ Move texture streaming uploader to the new `GpuResourceManager`.
     ✔ Move `GpuBufferObject` DSA uploading to the new `GpuResourceManager`.
@@ -118,6 +120,11 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
   Exit artifacts: Screen-space GI is more Lumen-like in stability/robustness (exposure-stable, fewer edge holes, fewer temporal fireflies), with tests/diagnostics.
   ☐ Reprojection inputs (motion vectors / camera motion):
     - Determine whether VS exposes motion vectors or equivalent per-pixel velocity
+    - ☐ (Task) Plumb `lumon_velocity` output into the screen-probe temporal path (atlas) for velocity-based reprojection / disocclusion rejection.
+    - ☐ (Task) Add `velocityTex` sampler plumbing to `LumOnScreenProbeAtlasTemporalShaderProgram` + `lumon_probe_atlas_temporal.*` and bind `bufferManager.VelocityTex` so the temporal pass can reproject history.
+    - ☐ (Task) Update `lumon_probe_atlas_temporal.fsh` to optionally reproject history using velocity (or camera motion) before blending, with a conservative reject path (e.g. depth/hit-distance + confidence).
+    - ☐ (Task) Add debug visualization for “temporal reject reason” (history accepted/rejected per-texel) and ensure it works for atlas probes.
+    - ☐ (Task) Add config toggles/thresholds for velocity reprojection + rejection in the atlas temporal stage (kept separate from world-probe temporal).
     - If available: incorporate into temporal rejection/weighting for gather/upsample (and/or probe updates)
     - If not available: implement a best-effort camera-motion heuristic path (rotation/translation gating)
   ☐ Exposure / color space consistency:

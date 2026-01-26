@@ -35,6 +35,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
     private unsafe Window* _glfwWindow;
     private bool _contextValid;
     private string? _initializationError;
+    private int _bindingsLoadedThreadId = -1;
 
     /// <summary>
     /// Whether the OpenGL context was successfully created and is valid.
@@ -63,6 +64,21 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
     public void EnsureContextValid()
     {
         Assert.SkipWhen(!_contextValid, $"OpenGL context not available: {_initializationError ?? "Unknown error"}");
+
+        unsafe
+        {
+            if (_glfwWindow != null && GLFW.GetCurrentContext() != _glfwWindow)
+            {
+                GLFW.MakeContextCurrent(_glfwWindow);
+            }
+        }
+
+        int threadId = Environment.CurrentManagedThreadId;
+        if (threadId != _bindingsLoadedThreadId)
+        {
+            GL.LoadBindings(new GLFWBindingsContext());
+            _bindingsLoadedThreadId = threadId;
+        }
     }
 
     /// <summary>

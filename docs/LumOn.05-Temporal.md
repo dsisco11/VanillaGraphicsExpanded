@@ -145,44 +145,9 @@ Adjust alpha based on validation:
 
 ## 7. Temporal Shader Structure
 
-### 7.1 SH Mode (lumon_temporal.fsh)
+### 7.1 Legacy SH Mode (removed)
 
-**Key Uniforms:**
-
-| Category | Uniforms                                                         |
-| -------- | ---------------------------------------------------------------- |
-| Current  | `currentRadiance0/1`, `probeAnchorPos`, `probeAnchorNormal`      |
-| History  | `historyRadiance0/1`, `historyDepth`, `historyNormal`            |
-| Matrices | `invViewMatrix`, `prevViewProjMatrix`                            |
-| Config   | `temporalAlpha`, `depthRejectThreshold`, `normalRejectThreshold` |
-
-**Outputs:**
-
-- `outRadiance0/1`: Blended SH radiance
-- `outMeta`: (linearDepth, encodedNormal.xy, accumCount)
-
-**Main Loop (Pseudo Code):**
-
-```
-for each probe:
-    if invalid: pass through current
-
-    historyUV = reproject(posVS)
-    validation = validate(historyUV, depth, normal)
-
-    if validation.valid:
-        history = sampleHistory(historyUV)
-        history = clampToNeighborhood(history, 3x3 current)
-        alpha = temporalAlpha * validation.confidence
-        if edgeProbe: alpha *= 0.5
-        output = mix(current, history, alpha)
-        accumCount = prevAccum + 1
-    else:
-        output = current
-        accumCount = 1
-
-    storeMeta(depth, normal, accumCount)
-```
+The old SH-based temporal pass (`lumon_temporal.fsh`) has been removed. LumOn now uses probe-atlas temporal accumulation (`lumon_probe_atlas_temporal.fsh`).
 
 ---
 

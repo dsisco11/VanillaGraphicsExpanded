@@ -47,15 +47,13 @@ LumOn settings live under the nested `LumOn` section in that JSON file.
 | --------------- | ----------------------------- | -------- | ------- | ---------- | --------------------------------------------------- |
 | **Feature**     | `LumOn.Enabled`               | bool     | true    | ✗          | Master toggle; falls back to legacy SSGI when false |
 | **Probe Grid**  | `LumOn.ProbeSpacingPx`        | int      | 8       | ✗          | Pixels between probes (4=high, 8=balanced, 16=perf) |
-| **Ray Tracing** | `LumOn.RaysPerProbePerFrame`  | int      | 8       | ✗          | Rays traced per probe per frame                     |
+| **Ray Tracing** | `LumOn.ProbeAtlasTexelsPerFrame` | int   | 16      | ✓          | Probe-atlas texels traced per probe per frame       |
 |                 | `LumOn.RaySteps`              | int      | 12      | ✗          | Steps per ray during screen-space march             |
 |                 | `LumOn.RayMaxDistance`        | float    | 10.0    | ✗          | Max ray distance in world units                     |
 |                 | `LumOn.RayThickness`          | float    | 0.5     | ✗          | Depth comparison thickness (view-space)             |
 | **Temporal**    | `LumOn.TemporalAlpha`         | float    | 0.95    | ✓          | Blend factor (0.95 = 95% history)                   |
 | **Temporal**    | `LumOn.AnchorJitterEnabled`   | bool     | false   | ✓          | Deterministic per-frame jitter of probe anchors     |
 | **Temporal**    | `LumOn.AnchorJitterScale`     | float    | 0.35    | ✓          | Jitter magnitude as a fraction of probe spacing     |
-|                 | `LumOn.DepthRejectThreshold`  | float    | 0.1     | ✓          | Depth diff threshold for rejection                  |
-|                 | `LumOn.NormalRejectThreshold` | float    | 0.8     | ✓          | Normal dot threshold for rejection                  |
 | **Quality**     | `LumOn.HalfResolution`        | bool     | true    | ✗          | Run gather at half-res                              |
 |                 | `LumOn.DenoiseEnabled`        | bool     | true    | ✓          | Edge-aware denoising on upsample                    |
 |                 | `LumOn.Intensity`             | float    | 1.0     | ✓          | Output intensity multiplier                         |
@@ -97,13 +95,11 @@ Example JSON:
     "ProbeSpacingPx": 8,
     "AnchorJitterEnabled": false,
     "AnchorJitterScale": 0.35,
-    "RaysPerProbePerFrame": 8,
+    "ProbeAtlasTexelsPerFrame": 16,
     "RaySteps": 12,
     "RayMaxDistance": 10.0,
     "RayThickness": 0.5,
     "TemporalAlpha": 0.95,
-    "DepthRejectThreshold": 0.1,
-    "NormalRejectThreshold": 0.8,
     "HalfResolution": true,
     "DenoiseEnabled": true,
     "Intensity": 1.0,
@@ -167,9 +163,11 @@ For details on the PMJ sequence backing anchor jitter, see:
 | Pass            | Shader                   | Input                          | Output                         |
 | --------------- | ------------------------ | ------------------------------ | ------------------------------ |
 | 1. Probe Anchor | `lumon_probe_anchor.fsh` | G-Buffer depth, normal         | `ProbeAnchor` texture          |
-| 2. Probe Trace  | `lumon_probe_trace.fsh`  | ProbeAnchor, CapturedScene     | `ProbeRadiance_Current`        |
-| 3. Temporal     | `lumon_temporal.fsh`     | Current, History, PrevMatrix   | `ProbeRadiance_History` (swap) |
-| 4. Gather       | `lumon_gather.fsh`       | ProbeRadiance, G-Buffer        | `IndirectDiffuse_HalfRes`      |
+| 2. Probe Trace  | `lumon_probe_atlas_trace.fsh`  | ProbeAnchor, CapturedScene, HZB | `ScreenProbeAtlasTrace` (radiance+meta) |
+| 3. Temporal     | `lumon_probe_atlas_temporal.fsh` | Trace, History                 | `ScreenProbeAtlasCurrent` (swap) |
+| 3.5 Filter      | `lumon_probe_atlas_filter.fsh` | Current                        | `ScreenProbeAtlasFiltered` |
+| 3.75 Project SH9 (optional) | `lumon_probe_atlas_project_sh9.fsh` | Filtered/Current atlas | `ProbeSH9_*` |
+| 4. Gather       | `lumon_probe_atlas_gather.fsh` or `lumon_probe_sh9_gather.fsh` | Atlas or SH9, G-Buffer | `IndirectDiffuse_HalfRes` |
 | 5. Upsample     | `lumon_upsample.fsh`     | HalfRes, G-Buffer depth/normal | `IndirectDiffuse_FullRes`      |
 
 ---
@@ -178,12 +176,12 @@ For details on the PMJ sequence backing anchor jitter, see:
 
 ### 4.1 LumOnBufferManager Overview
 
-Manages GPU textures for probe grid and radiance cache. Implements `IDisposable`.
+Manages GPU textures for probe anchors, the screen-probe atlas, and indirect outputs. Implements `IDisposable`.
 
 **Key Properties:**
 
 - `ProbeCountX`, `ProbeCountY` — Grid dimensions computed as `ceil(screenSize / probeSpacing)`
-- Framebuffers: `ProbeAnchorFB`, `ProbeRadianceCurrentFB`, `ProbeRadianceHistoryFB`, `IndirectDiffuseHalfResFB`, `IndirectDiffuseFullResFB`
+- Framebuffers: `ProbeAnchorFB`, `ScreenProbeAtlas*FB`, `IndirectDiffuseHalfResFB`, `IndirectDiffuseFullResFB`
 
 **Buffer Creation (pseudocode):**
 
@@ -303,15 +301,21 @@ VanillaGraphicsExpanded/
 │   └── shaders/
 │       ├── lumon_probe_anchor.fsh  ← Pass 1: Build probe anchors
 │       ├── lumon_probe_anchor.vsh
-│       ├── lumon_probe_trace.fsh   ← Pass 2: Ray tracing per probe
-│       ├── lumon_probe_trace.vsh
-│       ├── lumon_temporal.fsh      ← Pass 3: Temporal accumulation
-│       ├── lumon_temporal.vsh
-│       ├── lumon_gather.fsh        ← Pass 4: Gather probes to pixels
-│       ├── lumon_gather.vsh
+│       ├── lumon_probe_atlas_trace.fsh     ← Pass 2: Probe-atlas tracing
+│       ├── lumon_probe_atlas_trace.vsh
+│       ├── lumon_probe_atlas_temporal.fsh  ← Pass 3: Probe-atlas temporal
+│       ├── lumon_probe_atlas_temporal.vsh
+│       ├── lumon_probe_atlas_filter.fsh    ← Pass 3.5: Probe-atlas filter
+│       ├── lumon_probe_atlas_filter.vsh
+│       ├── lumon_probe_atlas_project_sh9.fsh ← Pass 3.75: Atlas → SH9 projection
+│       ├── lumon_probe_atlas_project_sh9.vsh
+│       ├── lumon_probe_atlas_gather.fsh    ← Pass 4: Gather (atlas integration)
+│       ├── lumon_probe_atlas_gather.vsh
+│       ├── lumon_probe_sh9_gather.fsh      ← Pass 4 alt: Gather (projected SH9)
+│       ├── lumon_probe_sh9_gather.vsh
 │       ├── lumon_upsample.fsh      ← Pass 5: Bilateral upsample
 │       ├── lumon_upsample.vsh
-│       └── lumon_sh.ash            ← SH helper functions (include)
+│       └── lumon_sh.glsl           ← SH helper functions (include)
 └── docs/
     ├── LumOn.planning.md           ← Original planning doc
     ├── LumOn.01-Core-Architecture.md ← This document

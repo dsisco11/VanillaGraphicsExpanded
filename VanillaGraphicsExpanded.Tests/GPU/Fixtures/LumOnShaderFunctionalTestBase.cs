@@ -141,6 +141,12 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
         return _pmjJitterTexture.TextureId;
     }
 
+    protected void BindPmjJitterTexture(int unit, int cycleLength = DefaultPmjCycleLength, uint seed = DefaultPmjSeed)
+    {
+        _ = GetOrCreatePmjJitterTextureId(cycleLength, seed);
+        _pmjJitterTexture!.Bind(unit);
+    }
+
     #endregion
 
     #region Properties
