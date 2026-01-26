@@ -10,7 +10,8 @@ Decisions (locked in for this todo):
   - Treat AVX2 vs fallback averaging paths as equivalent (no CPU-path keying).
   - Reuse the existing cache key *type/hashing approach* (schema + Hash64), but use a purpose-built key string
     that does NOT include atlas-only inputs (normal/depth bake config, atlas sizing, etc).
-  - Persist as a separate cache under `VintagestoryData/VGE/Cache/` (global only for now; no per-world overlay yet).
+  - Use a shared generic cache core and split feature specifics via feature-side `ICacheCodec<TPayload>` implementations.
+  - Persist as a BaseColor namespace under `VintagestoryData/VGE/Cache/BaseColor/` (the `VGE/Cache` root is shared; BaseColor is feature-owned).
   - Staleness is purely key-based (if inputs differ -> miss -> regenerate); no asset byte hashing.
   - Value encoding is `RGB16F` (3x IEEE754 half) stored as raw `ushort` bit patterns.
   - Cache key uses `AssetLocation.ToString()` (e.g. `game:textures/...`) rather than the mapping match string;
@@ -26,7 +27,7 @@ Code touchpoints (expected):
   - VanillaGraphicsExpanded/PBR/Materials/PbrMaterialRegistry.cs (ComputeAverageAlbedo / ComputeDiffuseAlbedo)
   - VanillaGraphicsExpanded/PBR/Materials/PbrMaterialsModSystem.cs (startup/reload integration)
   - VanillaGraphicsExpanded/Imaging/AlbedoAverager.cs (bitmap averaging algorithm)
-  - VanillaGraphicsExpanded/PBR/Materials/MaterialAtlasCacheKeyBuilder.cs (key type / hashing approach reference)
+  - VanillaGraphicsExpanded/PBR/Materials/Cache/MaterialAtlasCacheKeyBuilder.cs (key type / hashing approach reference)
 
 ✔ Phase 0 - Design & Contracts
   Exit artifacts: key schema v1; value encoding; staleness rules; threading constraints documented.
@@ -35,7 +36,7 @@ Code touchpoints (expected):
     - Value = average base color in linear space (RGB) as produced by `AlbedoAverager.TryComputeAverageLinearRgb`
   ✔ Decide persistence location and tiering:
     - Global-only cache (match current `MaterialAtlasDiskCache.CreateDefault()` behavior)
-    - Root: `VintagestoryData/VGE/Cache/BaseColor/` (separate from atlas tile cache payloads)
+    - Root: `VintagestoryData/VGE/Cache/BaseColor/` (under shared-core namespace; separate from atlas payloads)
     - Future: per-world overlay can be added once the atlas cache policy supports it
   ✔ Define cache staleness rule:
     - A cache entry is valid iff its computed cache key matches current inputs
@@ -58,30 +59,55 @@ Code touchpoints (expected):
     - Regeneration runs off-thread; it will need to load/decode textures via `ICoreClientAPI.Assets` + `IAsset.ToBitmap`.
       This pattern already exists in `MaterialOverrideTextureLoader` and is treated as acceptable.
 
-☐ Phase 1 - Cache Key + Disk Store
-  Exit artifacts: deterministic base-color cache keys; read/write store with atomic writes + corruption handling.
-  ☐ Add cache key inputs + builder (new types, reuse existing key container/hash approach):
+☐ Phase 1 - Generic Cache Core
+  Exit artifacts: `IDataCacheSystem<TKey, TPayload>`, `ICacheStore`, `ICacheCodec<TPayload>`; blob store + JSON dictionary store; tests.
+  ☐ Define shared-core abstractions:
+    - `IDataCacheSystem<TKey, TPayload>` (coordinates memory + store + codec; no feature knowledge)
+    - `ICacheStore` (persistence interface; read/write/delete/list; atomic writes; corruption handling)
+    - `ICacheCodec<TPayload>` (feature-owned encode/decode + codec schema)
+  ☐ Implement stores:
+    - Blob store (key -> bytes; file-per-entry; atomic writes: temp + rename)
+    - JSON dictionary store (key -> JSON payload; single file; atomic writes)
+  ☐ Shared-core tests:
+    - atomic write behavior
+    - corruption recovery (skip + optional purge)
+    - codec failures don’t poison the whole load
+
+☐ Phase 2 - Migrate Material Atlas Cache to Shared Core
+  Exit artifacts: material atlas disk cache uses shared core without changing behavior or on-disk format.
+  ☐ Wrap/port `MaterialAtlasDiskCache` persistence behind `ICacheStore`
+  ☐ Preserve existing:
+    - folder layout + filenames
+    - key hashing approach and schema
+    - key-based staleness policy
+  ☐ Regression tests:
+    - on-disk compatibility (existing cache can be read)
+    - no behavior change in atlas cache hit/miss counters
+
+☐ Phase 3 - BaseColor Consumer via JSON Store
+  Exit artifacts: base-color cache keys + payload codec; JSON store at `VintagestoryData/VGE/Cache/BaseColor/`.
+  ☐ Add base-color key inputs + builder (feature-owned; reuse existing key container/hash approach):
     - `BaseColorCacheKeyInputs`
     - `BaseColorCacheKeyBuilder`
-  ☐ Key contents (minimum viable):
+  ☐ Key contents (minimum viable; no pack/mod fingerprinting):
     - baseColorSchemaVersion
-    - normalized asset id (domain + path)
-    - pack/mod fingerprint and minimal metadata/provenance fields required by the chosen policy
-    - averaging algorithm version stamp (single integer; bump only when intentionally changing behavior)
-  ☐ Add disk cache store:
-    - index format (`meta.json` or equivalent) storing: key -> value, plus any provenance/metadata presence flags
-    - atomic writes (write temp + rename)
-    - graceful handling of corrupt entries (skip + optionally purge)
+    - normalized texture asset id (domain + path, serialized via `AssetLocation.ToString()`)
+    - `origin=<asset.Origin.OriginPath>` (or `(unknown)`)
+    - `bytes=<asset.Data.Length>` (0 if missing)
+    - `avgAlgo=<int>` (bump only for intentional averaging behavior changes)
+  ☐ Define payload + codec:
+    - Payload: average linear RGB in `RGB16F` (3x `ushort` half bit patterns)
+    - Codec: `ICacheCodec<TPayload>` implementation for JSON dictionary store round-trip
   ☐ Unit tests:
     - stable key determinism across runs
-    - key changes when inputs change
-    - store round-trip read/write
+    - key changes when origin/bytes/avgAlgo change
+    - JSON store round-trip (payload fidelity + corruption tolerance)
 
-☐ Phase 2 - Registry Integration + Eager Preload
+☐ Phase 4 - Registry Integration + Preload
   Exit artifacts: computed DiffuseAlbedo uses cached base color when available; preload happens before first use.
   ☐ Add an in-memory map: `BaseColorCacheKey -> baseColorLinear` loaded at startup
   ☐ Eager preload path:
-    - On StartClientSide/BlockTexturesLoaded: load disk cache index into memory
+    - On StartClientSide/BlockTexturesLoaded: load JSON store into memory
     - On ReloadTextures: clear in-memory derived surfaces and re-preload base color cache
   ☐ Compute path integration:
     - `ComputeAverageAlbedo`: return cached base color when present
@@ -90,7 +116,7 @@ Code touchpoints (expected):
     - Cache does not change gameplay outputs (only avoids recomputation)
     - Any cache miss behaves exactly like today
 
-☐ Phase 3 - Background Staleness Evaluation + Regeneration
+☐ Phase 5 - Background Regen
   Exit artifacts: low-priority worker fills missing/stale base colors without blocking render thread.
   ☐ Add worker lifecycle:
     - Start after eager preload
@@ -101,17 +127,14 @@ Code touchpoints (expected):
     - Deduplicate keys
   ☐ Background job flow:
     - For each key: if missing/stale -> compute base color off-thread
-    - Write-through to disk cache store
+    - Write-through to JSON store
     - Marshal update back to main thread to update the in-memory map
-  ☐ Budgeting:
-    - Limit concurrent workers
-    - Rate-limit disk writes if needed
-    - Prefer doing the bulk of regeneration during loading (but still off-thread)
-  ☐ Telemetry/debug:
+  ☐ Budgeting + telemetry:
+    - limit concurrency; optional write rate limit
     - counts: preload hits/misses, regen scheduled/completed, errors
     - timings: avg compute time, IO time
 
-☐ Phase 4 - Validation, Diagnostics, and Docs
+☐ Phase 6 - Validation, Diagnostics, and Docs
   Exit artifacts: tests + debug surfaces/stats; documented behavior and knobs.
   ☐ Add tests for:
     - corrupt cache entry recovery
@@ -121,7 +144,7 @@ Code touchpoints (expected):
     - preload stats (hits/misses)
     - regen progress + completion
   ☐ Document in docs:
-    - cache scope/policy
+    - cache scope/policy (`VintagestoryData/VGE/Cache/BaseColor/` under shared-core namespace)
     - schema bump procedure when changing averaging behavior
 
 Notes:
