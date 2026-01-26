@@ -9,8 +9,8 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.PBR.Materials.Artifacts;
-using VanillaGraphicsExpanded.PBR.Materials.Async;
 using VanillaGraphicsExpanded.PBR.Materials.Cache;
+using VanillaGraphicsExpanded.PBR.Materials.Async;
 using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.Rendering;
 
@@ -41,9 +41,6 @@ internal sealed class MaterialAtlasSystem : IDisposable
     private int lastWarmupAtlasNonNullPositions = -1;
     private readonly object schedulerLock = new();
     private ICoreClientAPI? capi;
-    private MaterialAtlasBuildScheduler? scheduler;
-    private MaterialAtlasBuildSchedulerRenderer? schedulerRenderer;
-    private bool schedulerRegistered;
     private int sessionGeneration;
     private bool buildRequested;
 
@@ -78,24 +75,9 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
     internal bool TryGetAsyncBuildDiagnostics(out MaterialAtlasAsyncBuildDiagnostics diagnostics)
     {
-        lock (schedulerLock)
-        {
-            // Artifact-based pipeline does not currently produce the legacy diagnostics payload.
-            if (materialParamsArtifactGen is not null || normalDepthArtifactGen is not null)
-            {
-                diagnostics = default;
-                return false;
-            }
-
-            if (scheduler is null)
-            {
-                diagnostics = default;
-                return false;
-            }
-
-            diagnostics = scheduler.GetDiagnosticsSnapshot();
-            return true;
-        }
+        // Legacy scheduler removed; no diagnostics payload is available here.
+        diagnostics = default;
+        return false;
     }
 
     public bool IsInitialized { get; private set; }
@@ -245,20 +227,224 @@ internal sealed class MaterialAtlasSystem : IDisposable
             plannedNormalDepth,
             totalNormalDepthCandidates);
 
-        var session = new MaterialAtlasBuildSession(
-            generationId,
-            atlasPages,
-            warmupPlan.MaterialParamsCpuJobs,
-            overrideJobs: Array.Empty<MaterialAtlasParamsGpuOverrideUpload>(),
-            warmupPlan.NormalDepthCpuJobs,
-            new MaterialOverrideTextureLoader(),
-            cacheCounters: null,
-            sessionTag: "warmup");
-
-        lock (schedulerLock)
+        // New pipeline: enqueue cache-hit uploads directly into the artifact generators.
+        if (materialParamsArtifactGen is null)
         {
-            scheduler?.StartSession(session);
+            return;
         }
+
+        int enqueuedMaterial = 0;
+        int enqueuedNormalDepth = 0;
+
+        // Material params warmup: upload cached base and/or cached override tiles.
+        foreach (AtlasBuildPlan.MaterialParamsTileJob tile in materialPlan.MaterialParamsTiles)
+        {
+            if (!textureStore.TryGetMaterialParamsTextureId(tile.AtlasTextureId, out int materialTexId) || materialTexId == 0)
+            {
+                continue;
+            }
+
+            AtlasCacheKey baseKey = cacheKeyBuilder.BuildMaterialParamsTileKey(
+                cacheInputs,
+                tile.AtlasTextureId,
+                tile.Rect,
+                tile.Texture,
+                tile.Definition,
+                tile.Scale);
+
+            // Base tile.
+            if (diskCache.HasMaterialParamsTile(baseKey))
+            {
+                var wk = new MaterialParamsAtlasArtifactGenerator.WorkKey(
+                    GenerationId: generationId,
+                    AtlasTextureId: tile.AtlasTextureId,
+                    MaterialParamsTextureId: materialTexId,
+                    Rect: tile.Rect,
+                    TargetTexture: tile.Texture,
+                    SourceTexture: null,
+                    Definition: null,
+                    DefinitionScale: default,
+                    EnableCache: true,
+                    HasOverride: false,
+                    IsOverrideOnly: false,
+                    OverrideTexture: null,
+                    OverrideScale: default,
+                    RuleId: null,
+                    RuleSource: null,
+                    BaseCacheKey: baseKey,
+                    OverrideCacheKey: default,
+                    Priority: tile.Priority);
+
+                if (materialParamsArtifactGen.Enqueue(wk))
+                {
+                    enqueuedMaterial++;
+                }
+            }
+        }
+
+        foreach (AtlasBuildPlan.MaterialParamsOverrideJob ov in materialPlan.MaterialParamsOverrides)
+        {
+            if (!textureStore.TryGetMaterialParamsTextureId(ov.AtlasTextureId, out int materialTexId) || materialTexId == 0)
+            {
+                continue;
+            }
+
+            AtlasCacheKey overrideKey = cacheKeyBuilder.BuildMaterialParamsOverrideTileKey(
+                cacheInputs,
+                ov.AtlasTextureId,
+                ov.Rect,
+                ov.TargetTexture,
+                ov.OverrideTexture,
+                ov.Scale,
+                ov.RuleId,
+                ov.RuleSource);
+
+            if (!diskCache.HasMaterialParamsTile(overrideKey))
+            {
+                continue;
+            }
+
+            // Override tile warmup: load cached post-override output, but don't attempt override asset loads.
+            var wk = new MaterialParamsAtlasArtifactGenerator.WorkKey(
+                GenerationId: generationId,
+                AtlasTextureId: ov.AtlasTextureId,
+                MaterialParamsTextureId: materialTexId,
+                Rect: ov.Rect,
+                TargetTexture: ov.TargetTexture,
+                SourceTexture: null,
+                Definition: null,
+                DefinitionScale: default,
+                EnableCache: true,
+                HasOverride: true,
+                IsOverrideOnly: true,
+                OverrideTexture: null,
+                OverrideScale: default,
+                RuleId: null,
+                RuleSource: null,
+                BaseCacheKey: default,
+                OverrideCacheKey: overrideKey,
+                Priority: ov.Priority);
+
+            if (materialParamsArtifactGen.Enqueue(wk))
+            {
+                enqueuedMaterial++;
+            }
+        }
+
+        if (normalDepthPlan is not null && normalDepthArtifactGen is not null)
+        {
+            var pageSizes = new Dictionary<int, (int w, int h)>(capacity: normalDepthPlan.Pages.Count);
+            foreach (var p in normalDepthPlan.Pages)
+            {
+                pageSizes[p.AtlasTextureId] = (p.Width, p.Height);
+            }
+
+            foreach (var job in normalDepthPlan.BakeJobs)
+            {
+                if (!pageSizes.TryGetValue(job.AtlasTextureId, out (int w, int h) size))
+                {
+                    continue;
+                }
+
+                if (!textureStore.TryGetNormalDepthTextureId(job.AtlasTextureId, out int ndTexId) || ndTexId == 0)
+                {
+                    continue;
+                }
+
+                AtlasCacheKey key = cacheKeyBuilder.BuildNormalDepthTileKey(
+                    cacheInputs,
+                    job.AtlasTextureId,
+                    job.Rect,
+                    job.SourceTexture,
+                    job.NormalScale,
+                    job.DepthScale);
+
+                if (!diskCache.HasNormalDepthTile(key))
+                {
+                    continue;
+                }
+
+                var wk = new NormalDepthAtlasArtifactGenerator.WorkKey(
+                    GenerationId: generationId,
+                    AtlasTextureId: job.AtlasTextureId,
+                    NormalDepthTextureId: ndTexId,
+                    AtlasWidth: size.w,
+                    AtlasHeight: size.h,
+                    Rect: job.Rect,
+                    Kind: NormalDepthAtlasArtifactGenerator.JobKind.UploadCached,
+                    TargetTexture: job.SourceTexture,
+                    OverrideTexture: null,
+                    NormalScale: job.NormalScale,
+                    DepthScale: job.DepthScale,
+                    RuleId: null,
+                    RuleSource: null,
+                    EnableCache: true,
+                    CacheKey: key,
+                    Priority: job.Priority);
+
+                if (normalDepthArtifactGen.Enqueue(wk))
+                {
+                    enqueuedNormalDepth++;
+                }
+            }
+
+            foreach (var ov in normalDepthPlan.OverrideJobs)
+            {
+                if (!pageSizes.TryGetValue(ov.AtlasTextureId, out (int w, int h) size))
+                {
+                    continue;
+                }
+
+                if (!textureStore.TryGetNormalDepthTextureId(ov.AtlasTextureId, out int ndTexId) || ndTexId == 0)
+                {
+                    continue;
+                }
+
+                AtlasCacheKey key = cacheKeyBuilder.BuildNormalDepthOverrideTileKey(
+                    cacheInputs,
+                    ov.AtlasTextureId,
+                    ov.Rect,
+                    ov.TargetTexture,
+                    ov.OverrideTexture,
+                    ov.NormalScale,
+                    ov.DepthScale,
+                    ov.RuleId,
+                    ov.RuleSource);
+
+                if (!diskCache.HasNormalDepthTile(key))
+                {
+                    continue;
+                }
+
+                var wk = new NormalDepthAtlasArtifactGenerator.WorkKey(
+                    GenerationId: generationId,
+                    AtlasTextureId: ov.AtlasTextureId,
+                    NormalDepthTextureId: ndTexId,
+                    AtlasWidth: size.w,
+                    AtlasHeight: size.h,
+                    Rect: ov.Rect,
+                    Kind: NormalDepthAtlasArtifactGenerator.JobKind.UploadCached,
+                    TargetTexture: ov.TargetTexture,
+                    OverrideTexture: null,
+                    NormalScale: ov.NormalScale,
+                    DepthScale: ov.DepthScale,
+                    RuleId: null,
+                    RuleSource: null,
+                    EnableCache: true,
+                    CacheKey: key,
+                    Priority: ov.Priority);
+
+                if (normalDepthArtifactGen.Enqueue(wk))
+                {
+                    enqueuedNormalDepth++;
+                }
+            }
+        }
+
+        capi.Logger.Debug(
+            "[VGE] Material atlas disk cache warmup enqueued: material={0}, normalDepth={1}",
+            enqueuedMaterial,
+            enqueuedNormalDepth);
     }
 
     public void RebakeNormalDepthAtlas(ICoreClientAPI capi)
@@ -662,8 +848,6 @@ internal sealed class MaterialAtlasSystem : IDisposable
             {
                 artifactBuildTracker.Begin(artifactBuildTracker.GenerationId, 0);
             }
-
-            scheduler?.CancelActiveSession();
             lastScheduledAtlasReloadIteration = short.MinValue;
             lastScheduledAtlasNonNullPositions = -1;
             IsBuildComplete = false;
@@ -703,18 +887,6 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
                 artifactGeneratorsRegistered = true;
             }
-
-            scheduler ??= new MaterialAtlasBuildScheduler();
-            scheduler.Initialize(capi, TryGetPageTexturesByAtlasTexId);
-
-            if (schedulerRegistered)
-            {
-                return;
-            }
-
-            schedulerRenderer ??= new MaterialAtlasBuildSchedulerRenderer(scheduler);
-            capi.Event.RegisterRenderer(schedulerRenderer, EnumRenderStage.Before, "vge_pbr_material_atlas_async_build");
-            schedulerRegistered = true;
         }
     }
 
@@ -1250,25 +1422,6 @@ internal sealed class MaterialAtlasSystem : IDisposable
         }
 
         CancelActiveBuildSession();
-
-        if (schedulerRegistered && capi is not null && schedulerRenderer is not null)
-        {
-            try
-            {
-                capi.Event.UnregisterRenderer(schedulerRenderer, EnumRenderStage.Before);
-            }
-            catch
-            {
-                // Best-effort.
-            }
-        }
-
-        schedulerRenderer?.Dispose();
-        schedulerRenderer = null;
-
-        scheduler?.Dispose();
-        scheduler = null;
-        schedulerRegistered = false;
 
         DisposeTextures();
         isDisposed = true;
