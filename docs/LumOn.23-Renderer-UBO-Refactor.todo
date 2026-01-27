@@ -1,0 +1,139 @@
+LumOn - Phase 23 - Renderer UBO Refactor (Implementation):
+
+  Goal:
+  Refactor LumOn renderer systems to use Uniform Buffer Objects (UBOs) for shared, non-changing-within-frame state.
+  Reduce per-pass uniform chatter (matrices/sizes/config), centralize state publication, and simplify shader plumbing.
+
+  Scope:
+  - LumOn renderer passes + LumOn debug shaders.
+  - Shared state that is stable within a frame (Frame/View) and per-frame world-probe clipmap params.
+  - Keep sampler bindings as-is (textures remain sampler uniforms).
+  - Keep compile-time knobs as defines (SetDefine) where they materially impact loop bounds / specialization.
+
+  Non-goals:
+  - Switching per-draw or per-object state to UBOs (LumOn is mostly fullscreen passes).
+  - Reworking the entire VGE shader system beyond what's required for LumOn.
+  - Replacing SetDefine-driven specialization with runtime toggles.
+
+  References:
+  - docs/GpuProgram.md (VGE shader program pipeline)
+  - docs/LumOn.01-Core-Architecture.md (existing uniform list + pass structure)
+  - VanillaGraphicsExpanded/Rendering/GpuUniformBuffer.cs (UBO wrapper)
+  - VanillaGraphicsExpanded/Rendering/GpuProgramLayout.cs (uniform-block binding cache)
+  - VanillaGraphicsExpanded/LumOn/LumOnRenderer.cs (current per-pass uniform sets)
+  - VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_worldprobe.glsl (world-probe params today)
+
+  Exit artifacts (Phase 23 overall):
+  - LumOn passes bind 1–2 UBOs (Frame + optional WorldProbe) per pass and stop setting duplicated uniforms.
+  - Shader sources declare uniform blocks with fixed binding points and use those values (via direct access or macro aliasing).
+  - Uniform validation tests are updated to understand uniform blocks (or validate them explicitly).
+  - World-probe per-level params move from repeated glUniform array writes to a single per-frame UBO upload.
+
+
+  Phase 23.1 - Inventory + Update-Frequency Catalog:
+  Exit artifacts: A definitive list of LumOn non-sampler uniforms, where they come from, and how often they change.
+  ☐ Enumerate all non-sampler uniforms across LumOn shader stages (anchor/trace/temporal/filter/gather/upsample/velocity/debug).
+  ☐ Classify each into: per-frame stable, per-pass stable, per-frame config, per-frame world-probe params, or keep-as-uniform.
+  ☐ Identify duplicated uniform sets in LumOnRenderer (same values written to multiple programs per frame).
+  ☐ Decide “Frame vs Pass” split (initially prefer a single FrameUBO unless a real pass-varying need exists).
+  ☐ Note any uniforms that must remain uniforms for compatibility or because they legitimately vary within a frame.
+
+
+  Phase 23.2 - UBO Contract (Bindings + std140 Layout):
+  Exit artifacts: A stable UBO schema with binding indices, names, and padding rules.
+  ☐ Choose uniform block names and binding points (constants), e.g.:
+    - LumOnFrameUBO @ binding 0
+    - LumOnWorldProbeUBO @ binding 1
+  ☐ Define std140-safe GLSL layouts:
+    - Use vec4-aligned arrays for worldProbeOriginMinCorner/worldProbeRingOffset to avoid std140 pitfalls.
+    - Ensure int/bool packing rules are respected (pad as needed).
+  ☐ Create new shader include: VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_ubos.glsl:
+    - Declare the uniform blocks with explicit layout(binding=...).
+    - Provide compatibility aliases/macros so most shader logic doesn’t need refactoring initially.
+  ☐ Update/adjust existing includes to consume UBO fields instead of standalone uniforms:
+    - lumon_worldprobe.glsl (worldProbeCameraPosWS, worldProbeSkyTint, origin/ring arrays)
+    - lumon_debug_uniforms.glsl (migrate “shared” uniforms into UBO include; keep debug-only controls as plain uniforms)
+  ☐ Document the UBO contract (block names + field list) in a short section inside the todo or a companion md.
+
+
+  Phase 23.3 - C# UBO Publisher (Per-Frame Upload + Lifetime):
+  Exit artifacts: A small LumOn-owned UBO manager that uploads Frame/WorldProbe data once per frame.
+  ☐ Add LumOnUniformBuffers (or similar) that owns:
+    - GpuUniformBuffer FrameUbo
+    - GpuUniformBuffer WorldProbeUbo (optional/only when world probes enabled)
+  ☐ Define CPU-side data representations matching std140:
+    - Prefer explicit float/int arrays with fixed offsets OR explicit structs with manual padding (no implicit layout guessing).
+  ☐ Implement UpdateFrame(...) called once per frame after matrices are computed:
+    - Matrices (proj/view/inverses, prevViewProj, invCurrViewProj)
+    - screenSize/halfResSize, probeGridSize, probeSpacing
+    - zNear/zFar
+    - frameIndex/historyValid (if needed by velocity/debug paths)
+  ☐ Implement UpdateWorldProbe(...) called once per frame when enabled:
+    - worldProbeSkyTint, worldProbeCameraPosWS
+    - originMinCorner[8], ringOffset[8] (vec4-aligned payload)
+  ☐ Label GL objects (debug names) to ease RenderDoc inspection.
+  ☐ Ensure safe resize/recreate behavior on graphics reload or resource loss.
+
+
+  Phase 23.4 - Shader Migration (UBO Adoption):
+  Exit artifacts: LumOn GLSL uses uniform blocks for shared state; legacy standalone uniforms are removed.
+  ☐ Add @import "./includes/lumon_ubos.glsl" to each LumOn shader entrypoint that needs shared state.
+  ☐ Migrate each pass in isolation (keep it buildable/runnable after each step):
+    - Probe Anchor: lumon_probe_anchor.vsh/fsh
+    - Velocity: lumon_velocity.vsh/fsh
+    - Probe Atlas Trace: lumon_probe_atlas_trace.vsh/fsh
+    - Probe Atlas Temporal: lumon_probe_atlas_temporal.vsh/fsh
+    - Probe Atlas Filter: lumon_probe_atlas_filter.vsh/fsh
+    - Probe Atlas Project SH / SH9: lumon_probe_atlas_project_sh*.vsh/fsh
+    - Gather (atlas + SH9): lumon_probe_atlas_gather.vsh/fsh, lumon_probe_sh9_gather.vsh/fsh
+    - Upsample: lumon_upsample.vsh/fsh
+    - Debug entrypoints + monolithic debug: lumon_debug*.vsh/fsh and includes/lumon_debug_uniforms.glsl
+  ☐ Update lumon_worldprobe.glsl to read parameters from LumOnWorldProbeUBO (textures remain samplers).
+  ☐ Remove duplicated uniform declarations from migrated shaders (avoid “duplicate symbol” and validator confusion).
+
+
+  Phase 23.5 - Program API Cleanup (C# ShaderProgram Classes):
+  Exit artifacts: C# shader program wrappers no longer expose per-frame “setter spam” for migrated values.
+  ☐ For each LumOn*ShaderProgram wrapper:
+    - Remove properties for uniforms moved into FrameUBO/WorldProbeUBO (InvProjectionMatrix, ScreenSize, ZNear, etc.).
+    - Keep sampler bindings and true pass-specific controls (e.g., filterRadius, hitDistanceSigma).
+    - Keep SetDefine-driven specialization unchanged (ray steps, coarse mip, etc.).
+  ☐ Ensure any remaining uniforms are legitimately pass-specific and not duplicated elsewhere.
+
+
+  Phase 23.6 - Renderer Wiring (Bind UBOs Per Pass):
+  Exit artifacts: LumOnRenderer binds UBOs and stops setting redundant uniforms.
+  ☐ In LumOnRenderer:
+    - Create/own the LumOnUniformBuffers instance.
+    - Call UpdateFrame once per frame (after UpdateMatrices).
+    - Call UpdateWorldProbe once per frame when enabled/available.
+  ☐ In each pass right after shader.Use():
+    - Bind FrameUbo via shader.ResourceBindings.TryBindUniformBlock("LumOnFrameUBO", FrameUbo)
+    - If world probes enabled: bind WorldProbeUbo via TryBindUniformBlock("LumOnWorldProbeUBO", WorldProbeUbo)
+  ☐ Delete redundant per-pass uniform setter calls now covered by UBOs.
+  ☐ Replace per-level world-probe uniform array writes (TrySetWorldProbeLevelParams loop) with the WorldProbeUbo upload.
+  ☐ Add minimal diagnostics when binding fails (block missing / binding mismatch) to catch partial migrations quickly.
+
+
+  Phase 23.7 - Tests + Validation:
+  Exit artifacts: Automated checks cover uniform blocks and basic runtime correctness.
+  ☐ Update VanillaGraphicsExpanded.Tests/GPU/Helpers/UniformValidator.cs:
+    - Either: parse uniform block members and treat them as “provided via UBO” (not required GL.Uniform calls),
+      and optionally validate presence of the block name.
+    - Or: add a new validation helper specifically for uniform blocks (names + required fields).
+  ☐ Add/adjust GPU tests to assert:
+    - Linked programs expose LumOnFrameUBO (and LumOnWorldProbeUBO when enabled) in GpuProgramLayout.UniformBlockBindings.
+    - Rendering still produces expected outputs (spot-check key passes).
+  ☐ Manual validation checklist (RenderDoc):
+    - Confirm UBOs show expected contents and update once per frame.
+    - Confirm world-probe origin/ring arrays match previous behavior.
+    - Confirm no per-pass uniform spam remains for migrated values.
+
+
+  Phase 23.8 - Cleanup + Perf Tracking:
+  Exit artifacts: Reduced CPU overhead and a clean steady-state implementation.
+  ☐ Remove dead code paths for legacy uniform setting and world-probe per-pass param plumbing.
+  ☐ Add lightweight counters (optional) for:
+    - “uniform sets per frame” (before/after sanity)
+    - “UBO uploads per frame” (expected: 1–2)
+  ☐ Update docs/LumOn.01 uniform list (6.1) to note UBO usage and block names (optional but recommended).
