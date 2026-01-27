@@ -32,11 +32,14 @@ LumOn - Phase 23 - Renderer UBO Refactor (Implementation):
 
   Phase 23.1 - Inventory + Update-Frequency Catalog:
   Exit artifacts: A definitive list of LumOn non-sampler uniforms, where they come from, and how often they change.
-  ☐ Enumerate all non-sampler uniforms across LumOn shader stages (anchor/trace/temporal/filter/gather/upsample/velocity/debug).
-  ☐ Classify each into: per-frame stable, per-pass stable, per-frame config, per-frame world-probe params, or keep-as-uniform.
-  ☐ Identify duplicated uniform sets in LumOnRenderer (same values written to multiple programs per frame).
-  ☐ Decide “Frame vs Pass” split (initially prefer a single FrameUBO unless a real pass-varying need exists).
+  ✔ Enumerate all non-sampler uniforms across LumOn shader stages (anchor/trace/temporal/filter/gather/upsample/velocity/debug). @done
+  ✔ Classify each into: per-frame stable, per-pass stable, per-frame config, per-frame world-probe params, or keep-as-uniform. @done
+  ✔ Identify duplicated uniform sets in LumOnRenderer (same values written to multiple programs per frame). @done
+  ✔ Decide “Frame vs Pass” split (initially prefer a single FrameUBO unless a real pass-varying need exists). @done
   ☐ Note any uniforms that must remain uniforms for compatibility or because they legitimately vary within a frame.
+
+  Notes (23.1 artifacts):
+  - docs/LumOn.23.1-Uniform-Inventory.md (uniform list + recommended buckets)
 
 
   Phase 23.2 - UBO Contract (Bindings + std140 Layout):
