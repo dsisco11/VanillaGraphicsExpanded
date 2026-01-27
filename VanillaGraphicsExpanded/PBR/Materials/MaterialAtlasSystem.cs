@@ -55,7 +55,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
     private MaterialAtlasSystem() { }
 
-    private void EnsureDiskCacheInitialized()
+    private void EnsureDiskCacheInitialized(ICoreClientAPI? capi)
     {
         if (!ConfigModSystem.Config.MaterialAtlas.EnableCaching)
         {
@@ -63,12 +63,22 @@ internal sealed class MaterialAtlasSystem : IDisposable
             return;
         }
 
-        if (diskCache is MaterialAtlasDiskCache)
+        if (diskCache is MaterialAtlasDiskCache existing)
         {
+            existing.SetLogger(capi?.Logger);
             return;
         }
 
         diskCache = MaterialAtlasDiskCache.CreateDefault();
+
+        if (diskCache is MaterialAtlasDiskCache real)
+        {
+            real.SetLogger(capi?.Logger);
+            if (capi is not null && ConfigModSystem.Config.MaterialAtlas.DebugLogMaterialAtlasDiskCache)
+            {
+                capi.Logger.Debug("[VGE] Material atlas disk cache root: {0}", real.RootDirectory);
+            }
+        }
     }
 
     internal MaterialAtlasTextureStore TextureStore => textureStore;
@@ -113,7 +123,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
         this.capi = capi;
         EnsureSchedulerRegistered(capi);
-        EnsureDiskCacheInitialized();
+        EnsureDiskCacheInitialized(capi);
 
         CreateTextureObjects(capi);
         if (!texturesCreated)
@@ -542,7 +552,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
             return;
         }
 
-        EnsureDiskCacheInitialized();
+        EnsureDiskCacheInitialized(capi);
 
         CreateTextureObjects(capi);
         if (!texturesCreated)
@@ -605,7 +615,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
         this.capi = capi;
         EnsureSchedulerRegistered(capi);
-        EnsureDiskCacheInitialized();
+        EnsureDiskCacheInitialized(capi);
 
         IBlockTextureAtlasAPI atlas = capi.BlockTextureAtlas;
 
@@ -651,7 +661,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
         this.capi = capi;
         EnsureSchedulerRegistered(capi);
-        EnsureDiskCacheInitialized();
+        EnsureDiskCacheInitialized(capi);
 
         // Guard: avoid repopulating when nothing changed.
         // Note: some mods may insert additional textures into the atlas after BlockTexturesLoaded.

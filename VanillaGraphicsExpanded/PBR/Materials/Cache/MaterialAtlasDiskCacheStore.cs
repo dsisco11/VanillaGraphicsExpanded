@@ -29,6 +29,9 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
     private readonly ReaderWriterLockSlim indexLock = new(LockRecursionPolicy.NoRecursion);
     private MaterialAtlasDiskCacheIndex index;
 
+    private volatile string? lastWriteFailure;
+    public string? LastWriteFailure => lastWriteFailure;
+
     public MaterialAtlasDiskCacheStore(string rootDirectory, IMaterialAtlasFileSystem? fileSystem = null, TimeSpan? indexDebounceDelay = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootDirectory);
@@ -208,6 +211,7 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
     {
         if (string.IsNullOrWhiteSpace(entryId))
         {
+            lastWriteFailure = "entryId was null/empty";
             return false;
         }
 
@@ -217,6 +221,7 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
 
             if (!TryParseEntryId(entryId, out string kind, out int schemaVersion, out ulong hash64, out int channels))
             {
+                lastWriteFailure = "entryId did not match expected format";
                 return false;
             }
 
@@ -272,8 +277,9 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
 
             return stored;
         }
-        catch
+        catch (Exception ex)
         {
+            lastWriteFailure = ex.GetType().Name + ": " + ex.Message;
             return false;
         }
     }

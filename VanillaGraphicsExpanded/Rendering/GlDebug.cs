@@ -16,6 +16,49 @@ internal static class GlDebug
     private static volatile int cachedContextFlags;
     private static volatile bool cachedContextFlagsValid;
 
+    private static volatile int cachedMaxLabelLength;
+    private static volatile string? cachedMaxLabelLengthContextKey;
+
+    private static bool SupportsKhrDebug()
+    {
+        try
+        {
+            return GlExtensions.Supports("GL_KHR_debug");
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static int GetMaxLabelLengthCached()
+    {
+        if (!GlExtensions.TryGetContextKey(out string contextKey))
+        {
+            return 0;
+        }
+
+        string? keySnapshot = cachedMaxLabelLengthContextKey;
+        if (string.Equals(keySnapshot, contextKey, StringComparison.Ordinal))
+        {
+            return cachedMaxLabelLength;
+        }
+
+        int value = 0;
+        try
+        {
+            value = GL.GetInteger(GetPName.MaxLabelLength);
+        }
+        catch
+        {
+            value = 0;
+        }
+
+        cachedMaxLabelLength = value;
+        cachedMaxLabelLengthContextKey = contextKey;
+        return value;
+    }
+
     private static bool IsDebugContext()
     {
         if (cachedContextFlagsValid)
@@ -38,6 +81,11 @@ internal static class GlDebug
 
     public static void TrySuppressGroupDebugMessages()
     {
+        if (!SupportsKhrDebug())
+        {
+            return;
+        }
+
         // The game can enable GL debug output and log all debug callback events.
         // Push/Pop group messages are extremely noisy and not actionable.
         // Opt-out for deep GPU debugging sessions.
@@ -63,6 +111,9 @@ internal static class GlDebug
                 0,
                 Array.Empty<int>(),
                 false);
+
+            // Ensure we don't poison the GL error state if the driver ignores some controls.
+            _ = GetErrors();
         }
         catch
         {
@@ -81,9 +132,18 @@ internal static class GlDebug
         // Avoid calling ObjectLabel on contexts that don't support KHR_debug.
         // Note: GL_EXT_debug_label uses a different entry point; we skip it here rather than
         // calling glObjectLabel and polluting the GL error state.
-        if (!GlExtensions.Supports("GL_KHR_debug"))
+        if (!SupportsKhrDebug())
         {
             return;
+        }
+
+        int maxLabelLength = GetMaxLabelLengthCached();
+
+        string label = name;
+        if (maxLabelLength > 0 && label.Length >= maxLabelLength)
+        {
+            // glObjectLabel generates INVALID_VALUE when the label exceeds GL_MAX_LABEL_LENGTH.
+            label = label.Substring(0, Math.Max(1, maxLabelLength - 1));
         }
 
         try
@@ -100,6 +160,7 @@ internal static class GlDebug
                 ObjectLabelIdentifier.Program => GL.IsProgram(id),
                 ObjectLabelIdentifier.Shader => GL.IsShader(id),
                 ObjectLabelIdentifier.Query => GL.IsQuery(id),
+                ObjectLabelIdentifier.Sampler => GL.IsSampler(id),
                 ObjectLabelIdentifier.ProgramPipeline => GL.IsProgramPipeline(id),
                 ObjectLabelIdentifier.TransformFeedback => GL.IsTransformFeedback(id),
                 _ => true
@@ -110,7 +171,7 @@ internal static class GlDebug
                 return;
             }
 
-            GL.ObjectLabel(identifier, id, name.Length, name);
+            GL.ObjectLabel(identifier, id, label.Length, label);
         }
         catch
         {
@@ -199,7 +260,7 @@ internal static class GlDebug
         public GroupScope(string name)
         {
 #if DEBUG
-            if (!DebugGroupsEnabled || string.IsNullOrWhiteSpace(name))
+            if (!DebugGroupsEnabled || string.IsNullOrWhiteSpace(name) || !SupportsKhrDebug())
             {
                 active = false;
                 return;

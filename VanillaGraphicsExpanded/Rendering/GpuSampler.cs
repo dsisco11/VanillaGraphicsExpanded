@@ -48,6 +48,12 @@ public sealed class GpuSampler : GpuResource, IDisposable
             throw new InvalidOperationException("glGenSamplers failed.");
         }
 
+        // Some drivers treat names returned by glGenSamplers as "reserved" until first bind.
+        // glObjectLabel requires an existing object name, so ensure the sampler is realized.
+        using (GlStateCache.Current.BindSamplerScope(unit: 0, samplerId: id))
+        {
+        }
+
         var sampler = new GpuSampler(id);
         sampler.SetDebugName(debugName);
         return sampler;

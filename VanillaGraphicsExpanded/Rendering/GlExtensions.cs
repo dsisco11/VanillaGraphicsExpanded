@@ -14,6 +14,7 @@ internal static class GlExtensions
 {
     private static readonly object Sync = new();
     private static HashSet<string>? cached;
+    private static string? cachedContextKey;
 
     /// <summary>
     /// Attempts to load and cache the current context's extension list.
@@ -21,7 +22,12 @@ internal static class GlExtensions
     /// </summary>
     public static bool TryLoadExtensions()
     {
-        return EnsureLoaded() is not null;
+        if (!TryGetContextKey(out string contextKey))
+        {
+            return false;
+        }
+
+        return EnsureLoaded(contextKey) is not null;
     }
 
     /// <summary>
@@ -34,21 +40,32 @@ internal static class GlExtensions
             return false;
         }
 
-        HashSet<string>? snapshot = Volatile.Read(ref cached);
-        if (snapshot is null)
+        if (!TryGetContextKey(out string contextKey))
         {
-            snapshot = EnsureLoaded();
+            return false;
+        }
+
+        HashSet<string>? snapshot = Volatile.Read(ref cached);
+        string? keySnapshot = Volatile.Read(ref cachedContextKey);
+
+        if (snapshot is null || !string.Equals(keySnapshot, contextKey, StringComparison.Ordinal))
+        {
+            snapshot = EnsureLoaded(contextKey);
         }
 
         return snapshot is not null && snapshot.Contains(extension);
     }
 
-    private static HashSet<string>? EnsureLoaded()
+    private static HashSet<string>? EnsureLoaded(string contextKey)
     {
         HashSet<string>? snapshot = Volatile.Read(ref cached);
         if (snapshot is not null)
         {
-            return snapshot;
+            string? keySnapshot = Volatile.Read(ref cachedContextKey);
+            if (string.Equals(keySnapshot, contextKey, StringComparison.Ordinal))
+            {
+                return snapshot;
+            }
         }
 
         lock (Sync)
@@ -56,16 +73,44 @@ internal static class GlExtensions
             snapshot = cached;
             if (snapshot is not null)
             {
-                return snapshot;
+                if (string.Equals(cachedContextKey, contextKey, StringComparison.Ordinal))
+                {
+                    return snapshot;
+                }
             }
 
             HashSet<string>? loaded = TryLoadExtensionsCore();
             if (loaded is not null)
             {
                 Volatile.Write(ref cached, loaded);
+                Volatile.Write(ref cachedContextKey, contextKey);
             }
 
             return loaded;
+        }
+    }
+
+    internal static bool TryGetContextKey(out string key)
+    {
+        try
+        {
+            string version = GL.GetString(StringName.Version) ?? string.Empty;
+            string vendor = GL.GetString(StringName.Vendor) ?? string.Empty;
+            string renderer = GL.GetString(StringName.Renderer) ?? string.Empty;
+
+            if (version.Length == 0 && vendor.Length == 0 && renderer.Length == 0)
+            {
+                key = string.Empty;
+                return false;
+            }
+
+            key = string.Concat(version, "|", vendor, "|", renderer);
+            return true;
+        }
+        catch
+        {
+            key = string.Empty;
+            return false;
         }
     }
 

@@ -178,11 +178,12 @@ public abstract class GpuTexture : GpuResource, IDisposable
         textureId = GL.GenTexture();
         using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
 
-#if DEBUG
-        GlDebug.TryLabel(ObjectLabelIdentifier.Texture, textureId, debugName);
-#endif
-
         Allocate2DStorageBound(mipLevels);
+
+    #if DEBUG
+        // Label only after storage exists; some drivers reject labeling of "generated" names.
+        GlDebug.TryLabel(ObjectLabelIdentifier.Texture, textureId, debugName);
+    #endif
         Apply2DSamplerParamsBound(mipLevels);
     }
 
@@ -222,11 +223,12 @@ public abstract class GpuTexture : GpuResource, IDisposable
         textureId = GL.GenTexture();
         using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
 
-#if DEBUG
-        GlDebug.TryLabel(ObjectLabelIdentifier.Texture, textureId, debugName);
-#endif
-
         Allocate3DStorageBound();
+
+    #if DEBUG
+        // Label only after storage exists; some drivers reject labeling of "generated" names.
+        GlDebug.TryLabel(ObjectLabelIdentifier.Texture, textureId, debugName);
+    #endif
         Apply3DSamplerParamsBound();
     }
 

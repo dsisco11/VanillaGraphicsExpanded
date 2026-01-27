@@ -37,6 +37,10 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
     private string? _initializationError;
     private int _bindingsLoadedThreadId = -1;
 
+#if DEBUG
+    private DebugProc? _debugCallback;
+#endif
+
     /// <summary>
     /// Whether the OpenGL context was successfully created and is valid.
     /// </summary>
@@ -78,6 +82,10 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
         {
             GL.LoadBindings(new GLFWBindingsContext());
             _bindingsLoadedThreadId = threadId;
+
+            // Some loader/driver combinations can leave a benign error queued during setup.
+            // Drain so tests start from a known-clean state.
+            while (GL.GetError() != OpenTK.Graphics.OpenGL.ErrorCode.NoError) { }
         }
     }
 
@@ -111,6 +119,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
             GLFW.WindowHint(WindowHintInt.ContextVersionMinor, 3);
             GLFW.WindowHint(WindowHintOpenGlProfile.OpenGlProfile, OpenGlProfile.Core);
             GLFW.WindowHint(WindowHintBool.OpenGLForwardCompat, true);
+            GLFW.WindowHint(WindowHintBool.OpenGLDebugContext, true);
             GLFW.WindowHint(WindowHintBool.Visible, false); // Hidden window
             
             // Create a minimal window with GL context
@@ -146,6 +155,10 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
             else
             {
                 _contextValid = true;
+
+#if DEBUG
+                TryEnableDebugCallback();
+#endif
             }
         }
         catch (Exception ex)
@@ -170,4 +183,60 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
         _contextValid = false;
         return ValueTask.CompletedTask;
     }
+
+#if DEBUG
+    private void TryEnableDebugCallback()
+    {
+        try
+        {
+            // Only attempt debug output when KHR_debug is supported; otherwise these calls can
+            // leave GL errors queued without throwing, which breaks tests (and can crash hosts
+            // that treat GL errors as fatal).
+            if (!VanillaGraphicsExpanded.Rendering.GlExtensions.Supports("GL_KHR_debug"))
+            {
+                return;
+            }
+
+            _debugCallback ??= DebugMessageCallback;
+
+            GL.Enable(EnableCap.DebugOutput);
+            GL.Enable(EnableCap.DebugOutputSynchronous);
+
+            GL.DebugMessageCallback(_debugCallback, IntPtr.Zero);
+            GL.DebugMessageControl(
+                DebugSourceControl.DontCare,
+                DebugTypeControl.DontCare,
+                DebugSeverityControl.DontCare,
+                0,
+                Array.Empty<int>(),
+                true);
+
+            // Drain any errors caused by best-effort setup.
+            while (GL.GetError() != OpenTK.Graphics.OpenGL.ErrorCode.NoError) { }
+        }
+        catch
+        {
+            // Best-effort: debug output depends on driver/context settings.
+        }
+    }
+
+    private static void DebugMessageCallback(
+        DebugSource source,
+        DebugType type,
+        int id,
+        DebugSeverity severity,
+        int length,
+        IntPtr message,
+        IntPtr userParam)
+    {
+        try
+        {
+            string msg = System.Runtime.InteropServices.Marshal.PtrToStringAnsi(message, length) ?? string.Empty;
+            Console.WriteLine($"[GLDBG] {severity} {type} {source} id={id}: {msg}");
+        }
+        catch
+        {
+        }
+    }
+#endif
 }

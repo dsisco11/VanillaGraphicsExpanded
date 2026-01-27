@@ -10,6 +10,7 @@ using System.Threading;
 using VanillaGraphicsExpanded.Profiling;
 
 using Vintagestory.API.Config;
+using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.PBR.Materials.Cache;
 
@@ -18,6 +19,9 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
     private readonly string root;
     private readonly long maxBytes;
     private readonly MaterialAtlasDiskCacheStore store;
+
+    private ILogger? logger;
+    private int loggedWriteFailures;
 
     private DateTime lastPruneUtc = DateTime.MinValue;
 
@@ -49,6 +53,13 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         root = rootDirectory;
         this.maxBytes = maxBytes;
         store = new MaterialAtlasDiskCacheStore(rootDirectory, fileSystem);
+    }
+
+    public string RootDirectory => root;
+
+    public void SetLogger(ILogger? logger)
+    {
+        this.logger = logger;
     }
 
     public bool HasMaterialParamsTile(AtlasCacheKey key)
@@ -358,6 +369,18 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
                     Interlocked.Increment(ref normalDepthStores);
                 }
             }
+            else
+            {
+                // Rate-limit to avoid log spam if disk writes are failing repeatedly.
+                if (logger is not null && Interlocked.Increment(ref loggedWriteFailures) <= 3)
+                {
+                    logger.Warning(
+                        "[VGE] Material atlas disk cache write failed: entryId={0}, root={1}, reason={2}",
+                        entryId,
+                        root,
+                        store.LastWriteFailure ?? "(unknown)");
+                }
+            }
 
             TryPruneIfNeeded();
         }
@@ -386,6 +409,17 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
                 else if (kind == PayloadKind.NormalDepth)
                 {
                     Interlocked.Increment(ref normalDepthStores);
+                }
+            }
+            else
+            {
+                if (logger is not null && Interlocked.Increment(ref loggedWriteFailures) <= 3)
+                {
+                    logger.Warning(
+                        "[VGE] Material atlas disk cache write failed: entryId={0}, root={1}, reason={2}",
+                        entryId,
+                        root,
+                        store.LastWriteFailure ?? "(unknown)");
                 }
             }
 
