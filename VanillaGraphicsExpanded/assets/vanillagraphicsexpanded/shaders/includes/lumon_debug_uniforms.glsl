@@ -6,7 +6,7 @@
 
 // Optional UBO contracts (Phase 23).
 // Debug shaders can opt into UBO-backed shared values by defining LUMON_USE_FRAME_UBO=1.
-@import "./includes/lumon_ubos.glsl"
+@import "./lumon_ubos.glsl"
 
 #ifndef LUMON_USE_FRAME_UBO
   #define LUMON_USE_FRAME_UBO 0

@@ -62,21 +62,24 @@ LumOn - Phase 23 - Renderer UBO Refactor (Implementation):
 
   Phase 23.3 - C# UBO Publisher (Per-Frame Upload + Lifetime):
   Exit artifacts: A small LumOn-owned UBO manager that uploads Frame/WorldProbe data once per frame.
-  ☐ Add LumOnUniformBuffers (or similar) that owns:
+  ✔ Add LumOnUniformBuffers (or similar) that owns: @done
     - GpuUniformBuffer FrameUbo
     - GpuUniformBuffer WorldProbeUbo (optional/only when world probes enabled)
-  ☐ Define CPU-side data representations matching std140:
+  ✔ Define CPU-side data representations matching std140: @done
     - Prefer explicit float/int arrays with fixed offsets OR explicit structs with manual padding (no implicit layout guessing).
-  ☐ Implement UpdateFrame(...) called once per frame after matrices are computed:
+  ✔ Implement UpdateFrame(...) called once per frame after matrices are computed: @done
     - Matrices (proj/view/inverses, prevViewProj, invCurrViewProj)
     - screenSize/halfResSize, probeGridSize, probeSpacing
     - zNear/zFar
     - frameIndex/historyValid (if needed by velocity/debug paths)
-  ☐ Implement UpdateWorldProbe(...) called once per frame when enabled:
+  ✔ Implement UpdateWorldProbe(...) called once per frame when enabled: @done
     - worldProbeSkyTint, worldProbeCameraPosWS
     - originMinCorner[8], ringOffset[8] (vec4-aligned payload)
-  ☐ Label GL objects (debug names) to ease RenderDoc inspection.
-  ☐ Ensure safe resize/recreate behavior on graphics reload or resource loss.
+  ✔ Label GL objects (debug names) to ease RenderDoc inspection. @done
+  ✔ Ensure safe resize/recreate behavior on graphics reload or resource loss. @done
+
+  Notes (23.3 artifacts):
+  - VanillaGraphicsExpanded/LumOn/LumOnUniformBuffers.cs (packing + per-frame uploads)
 
 
   Phase 23.4 - Shader Migration (UBO Adoption):

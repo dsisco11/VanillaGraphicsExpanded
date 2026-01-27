@@ -20,7 +20,7 @@
 
 // Optional UBO contracts (Phase 23).
 // Shaders can opt into UBO-backed parameters by defining LUMON_USE_WORLDPROBE_UBO=1.
-@import "./includes/lumon_ubos.glsl"
+@import "./lumon_ubos.glsl"
 
 // ---------------------------------------------------------------------------
 // Define fallbacks (compile-time constants)
