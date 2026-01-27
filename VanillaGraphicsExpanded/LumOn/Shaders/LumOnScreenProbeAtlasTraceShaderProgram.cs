@@ -17,6 +17,12 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
 {
+    public LumOnScreenProbeAtlasTraceShaderProgram()
+    {
+        RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
+        RegisterUniformBlockBinding("LumOnWorldProbeUBO", LumOnUniformBuffers.WorldProbeBinding, required: false);
+    }
+
     #region Static
 
     public static void Register(ICoreClientAPI api)
@@ -164,17 +170,6 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
     public GpuTexture? WorldProbeVis0 { set => BindTexture2D("worldProbeVis0", value, 11); }
     public GpuTexture? WorldProbeMeta0 { set => BindTexture2D("worldProbeMeta0", value, 12); }
     public GpuTexture? WorldProbeSky0 { set => BindTexture2D("worldProbeSky0", value, 13); }
-
-    public Vec3f WorldProbeCameraPosWS { set => Uniform("worldProbeCameraPosWS", value); }
-
-    public Vec3f WorldProbeSkyTint { set => Uniform("worldProbeSkyTint", value); }
-
-    public bool TrySetWorldProbeLevelParams(int level, Vec3f originMinCorner, Vec3f ringOffset)
-    {
-        bool ok0 = TryUniformArrayElement("worldProbeOriginMinCorner", level, originMinCorner);
-        bool ok1 = TryUniformArrayElement("worldProbeRingOffset", level, ringOffset);
-        return ok0 && ok1;
-    }
 
     #endregion
 }

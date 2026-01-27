@@ -23,6 +23,11 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public class LumOnProbeAnchorShaderProgram : GpuProgram
 {
+    public LumOnProbeAnchorShaderProgram()
+    {
+        RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
+    }
+
     #region Static
 
     public static void Register(ICoreClientAPI api)

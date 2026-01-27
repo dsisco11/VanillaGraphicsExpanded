@@ -192,6 +192,13 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             SetMat4(velocityProg, "invCurrViewProjMatrix", invProj);
             SetMat4(velocityProg, "prevViewProjMatrix", proj);
             SetInt(velocityProg, "historyValid", 1);
+
+            // Phase 23: UBO-backed frame state.
+            UpdateAndBindLumOnFrameUbo(
+                velocityProg,
+                invCurrViewProjMatrix: invProj,
+                prevViewProjMatrix: proj,
+                historyValid: 1);
             GL.UseProgram(0);
 
             primaryDepth.Bind(0);
@@ -287,6 +294,17 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             SetInt(anchorProg, "anchorJitterEnabled", 0);
             SetFloat(anchorProg, "anchorJitterScale", 0f);
 
+            // Phase 23: UBO-backed frame state.
+            UpdateAndBindLumOnFrameUbo(
+                anchorProg,
+                invProjectionMatrix: invProj,
+                invViewMatrix: identity,
+                probeSpacing: ProbeSpacing,
+                frameIndex: 0,
+                anchorJitterEnabled: 0,
+                anchorJitterScale: 0f,
+                pmjCycleLength: 1);
+
             SetFloat(anchorProg, "zNear", ZNear);
             SetFloat(anchorProg, "zFar", ZFar);
             SetFloat(anchorProg, "depthDiscontinuityThreshold", 0.1f);
@@ -353,6 +371,18 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             SetVec3(traceProg, "ambientColor", 0.1f, 0.1f, 0.1f);
 
             SetVec3(traceProg, "indirectTint", 1f, 1f, 1f);
+
+            // Phase 23: UBO-backed frame state.
+            UpdateAndBindLumOnFrameUbo(
+                traceProg,
+                invProjectionMatrix: invProj,
+                projectionMatrix: proj,
+                viewMatrix: identity,
+                invViewMatrix: identity,
+                frameIndex: 0,
+                sunPosition: new Vintagestory.API.MathTools.Vec3f(0f, 1f, 0f),
+                sunColor: new Vintagestory.API.MathTools.Vec3f(0.2f, 0.2f, 0.2f),
+                ambientColor: new Vintagestory.API.MathTools.Vec3f(0.1f, 0.1f, 0.1f));
             GL.UseProgram(0);
 
             targets.ProbeAnchor[0].Bind(0);
@@ -417,6 +447,17 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             SetSampler(temporalProg, "probeAtlasMetaCurrent", 3);
             SetSampler(temporalProg, "probeAtlasMetaHistory", 4);
             SetSampler(temporalProg, "velocityTex", 5);
+
+            // Phase 23: UBO-backed frame state.
+            UpdateAndBindLumOnFrameUbo(
+                temporalProg,
+                probeSpacing: ProbeSpacing,
+                frameIndex: 0,
+                anchorJitterEnabled: 0,
+                anchorJitterScale: 0f,
+                pmjCycleLength: 1,
+                enableVelocityReprojection: 1,
+                velocityRejectThreshold: 0.01f);
             GL.UseProgram(0);
 
             targets.AtlasTrace[0].Bind(0);
@@ -452,6 +493,9 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             SetSampler(filterProg, "octahedralAtlas", 0);
             SetSampler(filterProg, "probeAtlasMeta", 1);
             SetSampler(filterProg, "probeAnchorPosition", 2);
+
+            // Phase 23: UBO-backed frame state (probeGridSize).
+            UpdateAndBindLumOnFrameUbo(filterProg);
             GL.UseProgram(0);
 
             targets.AtlasTemporal[0].Bind(0);
@@ -494,6 +538,13 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             SetSampler(gatherProg, "probeAnchorNormal", 2);
             SetSampler(gatherProg, "primaryDepth", 3);
             SetSampler(gatherProg, "gBufferNormal", 4);
+
+            // Phase 23: UBO-backed frame state.
+            UpdateAndBindLumOnFrameUbo(
+                gatherProg,
+                invProjectionMatrix: invProj,
+                viewMatrix: identity,
+                probeSpacing: ProbeSpacing);
             GL.UseProgram(0);
 
             targets.AtlasFiltered[0].Bind(0);
@@ -538,6 +589,9 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             SetSampler(upsampleProg, "indirectHalf", 0);
             SetSampler(upsampleProg, "primaryDepth", 1);
             SetSampler(upsampleProg, "gBufferNormal", 2);
+
+            // Phase 23: UBO-backed frame state.
+            UpdateAndBindLumOnFrameUbo(upsampleProg);
             GL.UseProgram(0);
 
             targets.IndirectHalf[0].Bind(0);

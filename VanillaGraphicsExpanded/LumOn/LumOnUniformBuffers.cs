@@ -121,7 +121,7 @@ internal sealed class LumOnUniformBuffers : IDisposable
 
     private const int WorldProbeMaxLevels = 8;
 
-    private const int FrameUboSizeBytes = 528;
+    private const int FrameUboSizeBytes = 512;
     private const int WorldProbeUboSizeBytes = 288;
 
     private readonly byte[] frameBytes = new byte[FrameUboSizeBytes];

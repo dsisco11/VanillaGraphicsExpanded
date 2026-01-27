@@ -114,6 +114,20 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         GL.Uniform1(pmjSamplerLoc, pmjUnit);
         BindPmjJitterTexture(pmjUnit, pmjCycleLength);
 
+        // Phase 23: UBO-backed frame state.
+        var projection = LumOnTestInputFactory.CreateInverseMatrix(invProjection);
+        var view = LumOnTestInputFactory.CreateInverseMatrix(invView);
+        UpdateAndBindLumOnFrameUbo(
+            programId,
+            invProjectionMatrix: invProjection,
+            projectionMatrix: projection,
+            viewMatrix: view,
+            invViewMatrix: invView,
+            frameIndex: frameIndex,
+            anchorJitterEnabled: anchorJitterEnabled ? 1 : 0,
+            pmjCycleLength: pmjCycleLength,
+            anchorJitterScale: anchorJitterScale);
+
         GL.UseProgram(0);
     }
 

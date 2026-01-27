@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.Client;
@@ -580,7 +581,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             ambientColor: capi.Render.AmbientColor);
 
         uniformBuffers.UpdateFrame(frameData);
-        uniformBuffers.FrameUbo.BindBase(LumOnUniformBuffers.FrameBinding);
     }
 
     #endregion
@@ -788,6 +788,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
             shader.Use();
             shaderUsed = true;
+            shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
+            shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
 
             // Bind textures
             shader.PrimaryDepth = primaryFb.DepthTextureId;
@@ -873,7 +875,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     uniformBuffers.UpdateWorldProbe(data);
                 }
 
-                uniformBuffers.WorldProbeUbo.BindBase(LumOnUniformBuffers.WorldProbeBinding);
             }
             else
             {
@@ -885,7 +886,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     ringOffset: null);
 
                 uniformBuffers.UpdateWorldProbe(data);
-                uniformBuffers.WorldProbeUbo.BindBase(LumOnUniformBuffers.WorldProbeBinding);
             }
 
             // Phase 15 composite debug inputs

@@ -18,6 +18,11 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public class LumOnScreenProbeAtlasTemporalShaderProgram : GpuProgram
 {
+    public LumOnScreenProbeAtlasTemporalShaderProgram()
+    {
+        RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
+    }
+
     #region Static
 
     public static void Register(ICoreClientAPI api)

@@ -124,6 +124,13 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         GL.Uniform1(indirectHalfLoc, 6);
         GL.Uniform1(historyMetaLoc, 7);
 
+        // Phase 23: UBO-backed frame state.
+        UpdateAndBindLumOnFrameUbo(
+            programId,
+            invProjectionMatrix: invProjection,
+            invViewMatrix: invView,
+            prevViewProjMatrix: prevViewProj);
+
         GL.UseProgram(0);
     }
 

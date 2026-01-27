@@ -31,6 +31,8 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 /// </summary>
 public abstract class GpuProgram : ShaderProgram
 {
+    private readonly record struct ProgramBlockBindingSpec(int BindingIndex, bool Required);
+
     private readonly StageShader vertexStage;
     private readonly StageShader fragmentStage;
     private readonly StageShader geometryStage;
@@ -42,6 +44,10 @@ public abstract class GpuProgram : ShaderProgram
     private int uniformLocationCacheProgramId;
 
     private GpuProgramLayout resourceBindings = GpuProgramLayout.Empty;
+
+    private readonly Dictionary<string, ProgramBlockBindingSpec> uniformBlockBindingSpecs = new(StringComparer.Ordinal);
+    private int uniformBlockBindingSpecsProgramId;
+    private readonly HashSet<string> warnedMissingUniformBlocks = new(StringComparer.Ordinal);
 
     private ICoreClientAPI? capi;
     private ILogger? log;
@@ -81,6 +87,104 @@ public abstract class GpuProgram : ShaderProgram
     /// Optional hook for derived programs that need to refresh caches after (re)compile.
     /// </summary>
     protected virtual void OnAfterCompile() { }
+
+    /// <summary>
+    /// Best-effort helper to assign a uniform-block binding point by block name (GLSL 330 friendly).
+    /// </summary>
+    protected bool TryAssignUniformBlockBinding(string blockName, int bindingIndex)
+    {
+        if (ProgramId == 0 || string.IsNullOrWhiteSpace(blockName))
+        {
+            return false;
+        }
+
+        try
+        {
+            int blockIndex = GL.GetUniformBlockIndex(ProgramId, blockName);
+            if (blockIndex < 0)
+            {
+                return false;
+            }
+
+            GL.UniformBlockBinding(ProgramId, blockIndex, bindingIndex);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Registers an expected uniform block binding for this program.
+    /// </summary>
+    /// <remarks>
+    /// This is primarily intended for GLSL 330 where <c>layout(binding=...)</c> cannot be used without extensions.
+    /// </remarks>
+    protected void RegisterUniformBlockBinding(string blockName, int bindingIndex, bool required = true)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
+        if (bindingIndex < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(bindingIndex), bindingIndex, "Binding index must be >= 0.");
+        }
+
+        uniformBlockBindingSpecs[blockName] = new ProgramBlockBindingSpec(bindingIndex, required);
+    }
+
+    /// <summary>
+    /// Binds a UBO to the named uniform block for this program.
+    /// </summary>
+    internal bool TryBindUniformBlock(string blockName, GpuUniformBuffer buffer)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
+        ArgumentNullException.ThrowIfNull(buffer);
+
+        // Prefer the cached layout when available.
+        if (resourceBindings.TryBindUniformBlock(blockName, buffer))
+        {
+            return true;
+        }
+
+        // Fallback: bind by the registered contract binding point (works even if interface queries are unavailable).
+        if (uniformBlockBindingSpecs.TryGetValue(blockName, out var spec))
+        {
+            buffer.BindBase(spec.BindingIndex);
+            return true;
+        }
+
+        return false;
+    }
+
+    private void ApplyRegisteredUniformBlockBindings()
+    {
+        if (ProgramId == 0 || uniformBlockBindingSpecs.Count == 0)
+        {
+            return;
+        }
+
+        // Reset warning cache when the program object changes (recompile).
+        if (uniformBlockBindingSpecsProgramId != ProgramId)
+        {
+            uniformBlockBindingSpecsProgramId = ProgramId;
+            warnedMissingUniformBlocks.Clear();
+        }
+
+        foreach (var (blockName, spec) in uniformBlockBindingSpecs)
+        {
+            bool ok = TryAssignUniformBlockBinding(blockName, spec.BindingIndex);
+            if (ok || !spec.Required)
+            {
+                continue;
+            }
+
+            // Warn once per linked program.
+            if (warnedMissingUniformBlocks.Add(blockName))
+            {
+                log?.Warning($"[VGE][{ShaderName}] Program did not expose required uniform block '{blockName}'.");
+            }
+        }
+    }
 
     #region Texture Binding (Sampler-Aware)
 
@@ -924,6 +1028,7 @@ public abstract class GpuProgram : ShaderProgram
             bool ok = Compile();
             if (ok)
             {
+                ApplyRegisteredUniformBlockBindings();
                 resourceBindings = GpuProgramLayout.TryBuild(ProgramId);
                 GlDebug.TryLabel(OpenTK.Graphics.OpenGL.ObjectLabelIdentifier.Program, ProgramId, ShaderName);
                 OnAfterCompile();

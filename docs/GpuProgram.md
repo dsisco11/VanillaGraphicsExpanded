@@ -52,3 +52,16 @@ At runtime, use `SetDefine(name, value)` / `RemoveDefine(name)` on the shader pr
 - A `null` value means `#define NAME` (no explicit value).
 
 Define changes trigger a recompile on the main thread (GL context safety). If you cache uniform locations or similar program-dependent state, override `OnAfterCompile()` to refresh it.
+
+## Uniform Blocks (UBOs)
+
+VGE targets GLSL `#version 330`, so uniform-block bindings cannot rely on `layout(binding=...)` without extensions.
+
+Preferred pattern:
+
+- In your `GpuProgram` constructor, declare the contract:
+  - `RegisterUniformBlockBinding("MyBlockUBO", bindingIndex: 12, required: true)`
+- After `Use()` (per pass), bind a buffer to the block by name:
+  - `program.TryBindUniformBlock("MyBlockUBO", myUniformBuffer)`
+
+This keeps binding indices centralized in the program wrapper and avoids renderers hardcoding `glUniformBlockBinding` calls.

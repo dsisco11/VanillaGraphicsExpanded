@@ -108,6 +108,13 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         GL.Uniform1(depthLoc, 3);
         GL.Uniform1(normalLoc, 4);
 
+        // Phase 23: UBO-backed frame state.
+        UpdateAndBindLumOnFrameUbo(
+            programId,
+            invProjectionMatrix: invProjection,
+            viewMatrix: view,
+            probeSpacing: ProbeSpacing);
+
         GL.UseProgram(0);
     }
 
@@ -1248,6 +1255,13 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         GL.Uniform1(anchorNormalLoc, 2);
         GL.Uniform1(depthLoc, 3);
         GL.Uniform1(normalLoc, 4);
+
+        // Phase 23: UBO-backed frame state.
+        UpdateAndBindLumOnFrameUbo(
+            programId,
+            invProjectionMatrix: invProjection,
+            viewMatrix: view,
+            probeSpacing: ProbeSpacing);
 
         GL.UseProgram(0);
     }

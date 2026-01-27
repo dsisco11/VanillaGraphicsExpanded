@@ -147,6 +147,17 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         GL.Uniform1(velocityTexLoc, 5);
         GL.Uniform1(pmjJitterLoc, 6);
 
+        // Phase 23: UBO-backed frame state.
+        UpdateAndBindLumOnFrameUbo(
+            programId,
+            probeSpacing: ProbeSpacing,
+            frameIndex: frameIndex,
+            anchorJitterEnabled: 0,
+            pmjCycleLength: 1,
+            enableVelocityReprojection: 0,
+            velocityRejectThreshold: 0.01f,
+            anchorJitterScale: 0.0f);
+
         GL.UseProgram(0);
     }
 

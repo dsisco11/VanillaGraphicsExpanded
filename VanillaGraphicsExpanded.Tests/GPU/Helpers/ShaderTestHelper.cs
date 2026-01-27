@@ -39,14 +39,58 @@ public sealed class ShaderTestHelper : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(shaderBasePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(includeBasePath);
 
-        _shaderBasePath = shaderBasePath;
-        _includeBasePath = includeBasePath;
+        // Prefer repo-source shader assets when available. This avoids flaky test runs when
+        // build output content is stale (CopyToOutputDirectory=PreserveNewest) or locked.
+        if (TryGetRepoShaderPaths(out string repoShaderPath, out string repoIncludePath))
+        {
+            _shaderBasePath = repoShaderPath;
+            _includeBasePath = repoIncludePath;
+        }
+        else
+        {
+            _shaderBasePath = shaderBasePath;
+            _includeBasePath = includeBasePath;
+        }
 
         if (!Directory.Exists(_shaderBasePath))
             throw new DirectoryNotFoundException($"Shader base path not found: {_shaderBasePath}");
 
         if (!Directory.Exists(_includeBasePath))
             throw new DirectoryNotFoundException($"Include base path not found: {_includeBasePath}");
+    }
+
+    private static bool TryGetRepoShaderPaths(out string shaderPath, out string includePath)
+    {
+        shaderPath = string.Empty;
+        includePath = string.Empty;
+
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        for (int i = 0; i < 8 && dir != null; i++)
+        {
+            string sln = Path.Combine(dir.FullName, "VanillaGraphicsExpanded.sln");
+            if (File.Exists(sln))
+            {
+                string candidateShader = Path.Combine(
+                    dir.FullName,
+                    "VanillaGraphicsExpanded",
+                    "assets",
+                    "vanillagraphicsexpanded",
+                    "shaders");
+
+                string candidateInclude = Path.Combine(candidateShader, "includes");
+
+                if (Directory.Exists(candidateShader) && Directory.Exists(candidateInclude))
+                {
+                    shaderPath = candidateShader;
+                    includePath = candidateInclude;
+                    return true;
+                }
+            }
+
+            dir = dir.Parent;
+        }
+
+        return false;
     }
 
     /// <summary>

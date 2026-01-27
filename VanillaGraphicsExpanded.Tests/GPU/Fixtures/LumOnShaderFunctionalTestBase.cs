@@ -1,5 +1,6 @@
 using System;
 using OpenTK.Graphics.OpenGL;
+using Vintagestory.API.MathTools;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Noise;
@@ -109,11 +110,106 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     private readonly HeadlessGLFixture _fixture;
     private ShaderTestHelper? _shaderHelper;
     private ShaderTestFramework? _testFramework;
+    private LumOnUniformBuffers? _lumOnUbos;
     private bool _disposed;
 
     private LumOnPmjJitterTexture? _pmjJitterTexture;
     private int _pmjJitterCycleLength;
     private uint _pmjJitterSeed;
+
+    #endregion
+
+    #region UBO Helpers (Phase 23)
+
+    private static readonly float[] IdentityMat4 = LumOnTestInputFactory.CreateIdentityMatrix();
+
+    private LumOnUniformBuffers LumOnUbos => _lumOnUbos ??= new LumOnUniformBuffers();
+
+    protected void UpdateAndBindLumOnFrameUbo(
+        int programId,
+        float[]? invProjectionMatrix = null,
+        float[]? projectionMatrix = null,
+        float[]? viewMatrix = null,
+        float[]? invViewMatrix = null,
+        float[]? prevViewProjMatrix = null,
+        float[]? invCurrViewProjMatrix = null,
+        int probeSpacing = ProbeSpacing,
+        int frameIndex = 0,
+        int historyValid = 0,
+        int anchorJitterEnabled = 0,
+        int pmjCycleLength = DefaultPmjCycleLength,
+        int enableVelocityReprojection = 0,
+        float anchorJitterScale = 0f,
+        float velocityRejectThreshold = 0f,
+        Vec3f? sunPosition = null,
+        Vec3f? sunColor = null,
+        Vec3f? ambientColor = null)
+    {
+        invProjectionMatrix ??= IdentityMat4;
+        projectionMatrix ??= IdentityMat4;
+        viewMatrix ??= IdentityMat4;
+        invViewMatrix ??= IdentityMat4;
+        prevViewProjMatrix ??= IdentityMat4;
+        invCurrViewProjMatrix ??= IdentityMat4;
+
+        var data = new LumOnFrameUboData(
+            invProjectionMatrix,
+            projectionMatrix,
+            viewMatrix,
+            invViewMatrix,
+            prevViewProjMatrix,
+            invCurrViewProjMatrix,
+            new Vec2f(ScreenWidth, ScreenHeight),
+            new Vec2f(HalfResWidth, HalfResHeight),
+            new Vec2f(ProbeGridWidth, ProbeGridHeight),
+            zNear: ZNear,
+            zFar: ZFar,
+            probeSpacing: probeSpacing,
+            frameIndex: frameIndex,
+            historyValid: historyValid,
+            anchorJitterEnabled: anchorJitterEnabled,
+            pmjCycleLength: pmjCycleLength,
+            enableVelocityReprojection: enableVelocityReprojection,
+            anchorJitterScale: anchorJitterScale,
+            velocityRejectThreshold: velocityRejectThreshold,
+            sunPosition: sunPosition ?? new Vec3f(0f, 0f, 0f),
+            sunColor: sunColor ?? new Vec3f(0f, 0f, 0f),
+            ambientColor: ambientColor ?? new Vec3f(0f, 0f, 0f));
+
+        LumOnUbos.UpdateFrame(in data);
+
+        BindLumOnUboIfPresent(programId, "LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, LumOnUbos.FrameUbo);
+    }
+
+    protected void UpdateAndBindLumOnWorldProbeUbo(
+        int programId,
+        Vec3f skyTint,
+        Vec3f cameraPosWS,
+        Vec3f[]? originMinCorner = null,
+        Vec3f[]? ringOffset = null)
+    {
+        var data = new LumOnWorldProbeUboData(
+            skyTint: skyTint,
+            cameraPosWS: cameraPosWS,
+            originMinCorner: originMinCorner,
+            ringOffset: ringOffset);
+
+        LumOnUbos.UpdateWorldProbe(in data);
+
+        BindLumOnUboIfPresent(programId, "LumOnWorldProbeUBO", LumOnUniformBuffers.WorldProbeBinding, LumOnUbos.WorldProbeUbo);
+    }
+
+    private static void BindLumOnUboIfPresent(int programId, string blockName, int bindingIndex, GpuUniformBuffer ubo)
+    {
+        int blockIndex = GL.GetUniformBlockIndex(programId, blockName);
+        if (blockIndex < 0)
+        {
+            return;
+        }
+
+        GL.UniformBlockBinding(programId, blockIndex, bindingIndex);
+        ubo.BindBase(bindingIndex);
+    }
 
     #endregion
 
@@ -539,6 +635,8 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
             {
                 _shaderHelper?.Dispose();
                 _testFramework?.Dispose();
+                _lumOnUbos?.Dispose();
+                _lumOnUbos = null;
             }
 
             _pmjJitterTexture?.Dispose();

@@ -122,6 +122,12 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         GL.UniformMatrix4(invProjLoc, 1, false, invProjection ?? identity);
         GL.UniformMatrix4(viewLoc, 1, false, view ?? identity);
 
+        // Phase 23: UBO-backed frame state.
+        UpdateAndBindLumOnFrameUbo(
+            programId,
+            invProjectionMatrix: invProjection ?? identity,
+            viewMatrix: view ?? identity);
+
         // Texture sampler uniforms
         var sceneDirectLoc = GL.GetUniformLocation(programId, "sceneDirect");
         var indirectLoc = GL.GetUniformLocation(programId, "indirectDiffuse");
@@ -176,6 +182,14 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         GL.UniformMatrix4(GL.GetUniformLocation(programId, "invProjectionMatrix"), 1, false, invProjection);
         GL.UniformMatrix4(GL.GetUniformLocation(programId, "invViewMatrix"), 1, false, IdentityMatrix4x4);
         GL.UniformMatrix4(GL.GetUniformLocation(programId, "prevViewProjMatrix"), 1, false, IdentityMatrix4x4);
+
+        // Phase 23: UBO-backed frame state.
+        UpdateAndBindLumOnFrameUbo(
+            programId,
+            invProjectionMatrix: invProjection,
+            invViewMatrix: IdentityMatrix4x4,
+            viewMatrix: IdentityMatrix4x4,
+            prevViewProjMatrix: IdentityMatrix4x4);
 
         // Required temporal uniforms (not used by composite modes)
         GL.Uniform1(GL.GetUniformLocation(programId, "temporalAlpha"), 0.9f);

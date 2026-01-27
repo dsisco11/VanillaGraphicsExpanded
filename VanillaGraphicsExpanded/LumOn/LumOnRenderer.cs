@@ -58,7 +58,6 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     private readonly LumOnPmjJitterTexture pmjJitter;
     private readonly LumOnUniformBuffers uniformBuffers = new();
-    private readonly HashSet<string> warnedMissingUboBindings = new(StringComparer.Ordinal);
 
     // Fullscreen quad mesh
     private MeshRef? quadMeshRef;
@@ -476,7 +475,6 @@ public class LumOnRenderer : IRenderer, IDisposable
             ambientColor: capi.Render.AmbientColor);
 
         uniformBuffers.UpdateFrame(frameData);
-        uniformBuffers.FrameUbo.BindBase(LumOnUniformBuffers.FrameBinding);
     }
 
     private void UpdateAndBindWorldProbeUbo()
@@ -514,32 +512,6 @@ public class LumOnRenderer : IRenderer, IDisposable
             uniformBuffers.UpdateWorldProbe(data);
         }
 
-        uniformBuffers.WorldProbeUbo.BindBase(LumOnUniformBuffers.WorldProbeBinding);
-    }
-
-    private void BindSharedUbos(GpuProgram shader)
-    {
-        if (!shader.ResourceBindings.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo))
-        {
-            uniformBuffers.FrameUbo.BindBase(LumOnUniformBuffers.FrameBinding);
-            WarnMissingUboBindingOnce(shader, "LumOnFrameUBO");
-        }
-
-        if (!shader.ResourceBindings.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo))
-        {
-            uniformBuffers.WorldProbeUbo.BindBase(LumOnUniformBuffers.WorldProbeBinding);
-        }
-    }
-
-    private void WarnMissingUboBindingOnce(GpuProgram shader, string blockName)
-    {
-        string key = $"{shader.PassName}:{blockName}";
-        if (warnedMissingUboBindings.Add(key))
-        {
-            capi.Logger.Warning("[VGE] LumOn: program '{0}' did not expose uniform block '{1}' in layout; using fallback binding.",
-                shader.PassName,
-                blockName);
-        }
     }
 
     private void RenderVelocityPass(FrameBufferRef primaryFb)
@@ -561,7 +533,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.SetDefine(VgeShaderDefines.LumOnEmissiveBoost, Math.Max(0.0f, config.LumOn.EmissiveGiBoost).ToString("0.0####", CultureInfo.InvariantCulture));
 
         shader.Use();
-        BindSharedUbos(shader);
+        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
+        shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
 
         shader.PrimaryDepth = primaryFb.DepthTextureId;
 
@@ -596,7 +569,8 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
-        BindSharedUbos(shader);
+        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
+        shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
 
         // Bind G-buffer textures
         shader.PrimaryDepth = primaryFb.DepthTextureId;
@@ -670,7 +644,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         }
 
         shader.Use();
-        BindSharedUbos(shader);
+        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
+        shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
 
         // Bind probe anchor textures
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
@@ -807,7 +782,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.TexelsPerFrame = config.LumOn.ProbeAtlasTexelsPerFrame;
 
         shader.Use();
-        BindSharedUbos(shader);
+        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
+        shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
 
         // Bind trace output (fresh traced texels + history copies for non-traced)
         var traceTex = bufferManager.ScreenProbeAtlasTraceTex;
@@ -889,7 +865,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
 
         shader.Use();
-        BindSharedUbos(shader);
+        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
+        shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
         shader.ScreenProbeAtlas = inputAtlas;
         shader.ScreenProbeAtlasMeta = inputMeta;
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
@@ -919,7 +896,8 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
-        BindSharedUbos(shader);
+        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
+        shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
 
         shader.ProbeSh0 = bufferManager.ProbeSh9Tex0;
         shader.ProbeSh1 = bufferManager.ProbeSh9Tex1!;
@@ -967,7 +945,8 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
-        BindSharedUbos(shader);
+        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
+        shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
 
         // Bind screen-probe atlas radiance
         shader.ScreenProbeAtlas = probeAtlas;
@@ -1066,7 +1045,8 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
-        BindSharedUbos(shader);
+        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
+        shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
 
         shader.ScreenProbeAtlas = inputAtlas;
         shader.ScreenProbeAtlasMeta = inputMeta;
@@ -1114,7 +1094,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         }
 
         shader.Use();
-        BindSharedUbos(shader);
+        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
+        shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
 
         // Bind half-res indirect diffuse
         shader.IndirectHalf = bufferManager.IndirectHalfTex!;

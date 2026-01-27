@@ -14,6 +14,8 @@
 #define LUMON_UBOS_GLSL
 
 // Binding points (choose values unlikely to collide with engine defaults).
+// Note: GLSL 330 does not support `layout(binding=...)` for uniform blocks without 420pack.
+// We keep these constants as the contract and assign bindings from C# via glUniformBlockBinding.
 #define LUMON_UBO_FRAME_BINDING     12
 #define LUMON_UBO_WORLDPROBE_BINDING 13
 
@@ -26,7 +28,7 @@
 // Per-frame shared state (stable within a frame)
 // ---------------------------------------------------------------------------
 
-layout(std140, binding = LUMON_UBO_FRAME_BINDING) uniform LumOnFrameUBO
+layout(std140) uniform LumOnFrameUBO
 {
     // Matrices
     mat4 invProjectionMatrix;
@@ -66,7 +68,7 @@ layout(std140, binding = LUMON_UBO_FRAME_BINDING) uniform LumOnFrameUBO
 // World-probe clipmap params (stable within a frame)
 // ---------------------------------------------------------------------------
 
-layout(std140, binding = LUMON_UBO_WORLDPROBE_BINDING) uniform LumOnWorldProbeUBO
+layout(std140) uniform LumOnWorldProbeUBO
 {
     vec4 worldProbeSkyTint;      // xyz tint, w reserved
     vec4 worldProbeCameraPosWS;  // xyz camera pos, w reserved

@@ -102,6 +102,9 @@ public class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunctionalTes
         GL.Uniform1(GL.GetUniformLocation(programId, "probeAtlasMeta"), 1);
         GL.Uniform1(GL.GetUniformLocation(programId, "probeAnchorPosition"), 2);
 
+        // Phase 23: UBO-backed frame state (probeGridSize).
+        UpdateAndBindLumOnFrameUbo(programId);
+
         GL.UseProgram(0);
     }
 
@@ -136,6 +139,13 @@ public class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunctionalTes
         GL.Uniform1(GL.GetUniformLocation(programId, "primaryDepth"), 9);
         GL.Uniform1(GL.GetUniformLocation(programId, "gBufferNormal"), 10);
 
+        // Phase 23: UBO-backed frame state.
+        UpdateAndBindLumOnFrameUbo(
+            programId,
+            invProjectionMatrix: invProjection,
+            viewMatrix: view,
+            probeSpacing: ProbeSpacing);
+
         GL.UseProgram(0);
     }
 
@@ -164,6 +174,13 @@ public class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunctionalTes
         GL.Uniform1(GL.GetUniformLocation(programId, "probeAnchorNormal"), 2);
         GL.Uniform1(GL.GetUniformLocation(programId, "primaryDepth"), 3);
         GL.Uniform1(GL.GetUniformLocation(programId, "gBufferNormal"), 4);
+
+        // Phase 23: UBO-backed frame state.
+        UpdateAndBindLumOnFrameUbo(
+            programId,
+            invProjectionMatrix: invProjection,
+            viewMatrix: view,
+            probeSpacing: ProbeSpacing);
 
         GL.UseProgram(0);
     }

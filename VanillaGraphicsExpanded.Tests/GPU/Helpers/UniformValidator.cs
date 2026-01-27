@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using TinyTokenizer.Ast;
 using Xunit;
 
@@ -13,6 +14,19 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 /// </summary>
 public static class UniformValidator
 {
+    private static readonly Regex UniformBlockHeaderRegex = new(
+        pattern: @"\buniform\s+(?<block>[A-Za-z_][A-Za-z0-9_]*)\s*\{",
+        options: RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static readonly Regex UniformBlockInstanceRegex = new(
+        pattern: @"\}\s*(?<instance>[A-Za-z_][A-Za-z0-9_]*)?\s*;",
+        options: RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static readonly Regex UniformBlockMemberRegex = new(
+        // Very small GLSL subset: type name (+ optional layout/qualifier) + identifier (+ optional [N]) + ';'
+        pattern: @"(?m)^\s*(?:layout\s*\([^\)]*\)\s*)?(?:readonly\s+|writeonly\s+|coherent\s+|volatile\s+|restrict\s+)?(?<type>[A-Za-z_][A-Za-z0-9_]*)\s+(?<name>[A-Za-z_][A-Za-z0-9_]*)(?:\s*\[\s*(?<array>\d+)\s*\])?\s*;",
+        options: RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     /// <summary>
     /// Extracts all uniform declarations from processed GLSL source code.
     /// </summary>
@@ -49,6 +63,64 @@ public static class UniformValidator
         }
 
         return uniforms;
+    }
+
+    /// <summary>
+    /// Extracts uniform blocks (UBOs/SSBO-style interface blocks declared with the <c>uniform</c> keyword).
+    /// </summary>
+    /// <remarks>
+    /// This intentionally uses regex parsing because TinyTokenizer currently only exposes <see cref="GlUniformNode"/>
+    /// for standalone uniforms. For Phase 23 we mainly need block names and their member names.
+    /// </remarks>
+    public static List<UniformBlockInfo> ExtractUniformBlocks(string processedSource)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(processedSource);
+
+        var blocks = new List<UniformBlockInfo>();
+
+        for (Match m = UniformBlockHeaderRegex.Match(processedSource); m.Success; m = m.NextMatch())
+        {
+            string blockName = m.Groups["block"].Value;
+
+            int bodyStart = m.Index + m.Length;
+            int bodyEnd = processedSource.IndexOf('}', bodyStart);
+            if (bodyEnd < 0)
+            {
+                continue;
+            }
+
+            string body = processedSource.Substring(bodyStart, bodyEnd - bodyStart);
+
+            string? instanceName = null;
+            var instMatch = UniformBlockInstanceRegex.Match(processedSource, bodyEnd);
+            if (instMatch.Success && instMatch.Index == bodyEnd)
+            {
+                instanceName = instMatch.Groups["instance"].Success ? instMatch.Groups["instance"].Value : null;
+                if (string.IsNullOrWhiteSpace(instanceName))
+                {
+                    instanceName = null;
+                }
+            }
+
+            var members = new List<UniformInfo>();
+            foreach (Match mm in UniformBlockMemberRegex.Matches(body))
+            {
+                string typeName = mm.Groups["type"].Value;
+                string name = mm.Groups["name"].Value;
+
+                int? arraySize = null;
+                if (mm.Groups["array"].Success && int.TryParse(mm.Groups["array"].Value, out int n))
+                {
+                    arraySize = n;
+                }
+
+                members.Add(new UniformInfo(name, typeName, arraySize, IsSamplerType(typeName)));
+            }
+
+            blocks.Add(new UniformBlockInfo(blockName, instanceName, members));
+        }
+
+        return blocks;
     }
 
     /// <summary>
@@ -244,6 +316,11 @@ public readonly record struct UniformInfo(string Name, string Type, int? ArraySi
         return $"uniform {Type} {Name}{arrayPart}";
     }
 }
+
+/// <summary>
+/// Information about a GLSL uniform block declaration (<c>uniform BlockName { ... } instance;</c>).
+/// </summary>
+public sealed record UniformBlockInfo(string BlockName, string? InstanceName, IReadOnlyList<UniformInfo> Members);
 
 /// <summary>
 /// Result of uniform validation.

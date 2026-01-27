@@ -111,6 +111,9 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
         GL.Uniform1(GL.GetUniformLocation(programId, "probeAtlasMeta"), 1);
         GL.Uniform1(GL.GetUniformLocation(programId, "probeAnchorPosition"), 2);
 
+        // Phase 23: UBO-backed frame state (probeGridSize).
+        UpdateAndBindLumOnFrameUbo(programId);
+
         GL.UseProgram(0);
     }
 

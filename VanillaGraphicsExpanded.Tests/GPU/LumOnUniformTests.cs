@@ -1,3 +1,4 @@
+using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using Xunit;
@@ -17,6 +18,42 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GPU")]
 public class LumOnUniformTests : IDisposable
 {
+    // Phase 23: many previously standalone uniforms are now provided via LumOnFrameUBO.
+    private static readonly HashSet<string> FrameUboBackedNames = new(StringComparer.Ordinal)
+    {
+        // Matrices
+        "invProjectionMatrix",
+        "projectionMatrix",
+        "viewMatrix",
+        "invViewMatrix",
+        "prevViewProjMatrix",
+        "invCurrViewProjMatrix",
+
+        // Sizes / grid
+        "screenSize",
+        "halfResSize",
+        "probeGridSize",
+
+        // Z-planes
+        "zNear",
+        "zFar",
+
+        // Frame controls
+        "probeSpacing",
+        "frameIndex",
+        "historyValid",
+        "anchorJitterEnabled",
+        "pmjCycleLength",
+        "enableVelocityReprojection",
+        "anchorJitterScale",
+        "velocityRejectThreshold",
+
+        // Sky fallback
+        "sunPosition",
+        "sunColor",
+        "ambientColor",
+    };
+
     private readonly HeadlessGLFixture _fixture;
     private readonly ShaderTestHelper? _helper;
     private readonly ITestOutputHelper _output;
@@ -160,6 +197,16 @@ public class LumOnUniformTests : IDisposable
 
         if (location >= 0)
         {
+            return;
+        }
+
+        // Phase 23: Many previously-critical uniforms are now provided via UBOs instead of glUniform*.
+        if (FrameUboBackedNames.Contains(uniformName))
+        {
+            int blockIndex = GL.GetUniformBlockIndex(linkResult.ProgramId, "LumOnFrameUBO");
+            Assert.True(
+                blockIndex >= 0,
+                $"Critical value '{uniformName}' is expected to come from LumOnFrameUBO, but the program did not expose the block.");
             return;
         }
 

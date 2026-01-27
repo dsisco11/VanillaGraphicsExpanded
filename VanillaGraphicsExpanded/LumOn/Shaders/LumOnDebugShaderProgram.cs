@@ -16,6 +16,12 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public class LumOnDebugShaderProgram : GpuProgram
 {
+    public LumOnDebugShaderProgram()
+    {
+        RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
+        RegisterUniformBlockBinding("LumOnWorldProbeUBO", LumOnUniformBuffers.WorldProbeBinding, required: false);
+    }
+
     #region Static
 
     public static void Register(ICoreClientAPI api)
@@ -56,27 +62,11 @@ public class LumOnDebugShaderProgram : GpuProgram
     public GpuTexture? WorldProbeDebugState0 { set => BindTexture2D("worldProbeDebugState0", value, 25); }
     public GpuTexture? WorldProbeSky0 { set => BindTexture2D("worldProbeSky0", value, 26); }
 
-    public Vec3f WorldProbeCameraPosWS { set => Uniform("worldProbeCameraPosWS", value); }
-
-    public Vec3f WorldProbeSkyTint { set => Uniform("worldProbeSkyTint", value); }
-
     public float WorldProbeBaseSpacing { set => SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, value.ToString("0.0####", CultureInfo.InvariantCulture)); }
 
     public int WorldProbeLevels { set => SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapLevels, value.ToString(CultureInfo.InvariantCulture)); }
 
     public int WorldProbeResolution { set => SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, value.ToString(CultureInfo.InvariantCulture)); }
-
-    public void SetWorldProbeLevelParams(int level, Vec3f originMinCorner, Vec3f ringOffset)
-    {
-        TrySetWorldProbeLevelParams(level, originMinCorner, ringOffset);
-    }
-
-    public bool TrySetWorldProbeLevelParams(int level, Vec3f originMinCorner, Vec3f ringOffset)
-    {
-        bool ok0 = TryUniformArrayElement("worldProbeOriginMinCorner", level, originMinCorner);
-        bool ok1 = TryUniformArrayElement("worldProbeRingOffset", level, ringOffset);
-        return ok0 && ok1;
-    }
 
     #endregion
 

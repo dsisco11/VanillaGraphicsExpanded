@@ -192,6 +192,25 @@ public class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : LumOnShader
             GL.Uniform3(GL.GetUniformLocation(programId, "worldProbeOriginMinCorner[0]"), -1f, -1f, -6f);
             GL.Uniform3(GL.GetUniformLocation(programId, "worldProbeRingOffset[0]"), 0f, 0f, 0f);
 
+            // Phase 23: UBO-backed frame + world-probe state (GLSL 330 assigns block bindings in C#).
+            UpdateAndBindLumOnFrameUbo(
+                programId,
+                invProjectionMatrix: invProjection,
+                projectionMatrix: projection,
+                viewMatrix: view,
+                invViewMatrix: invView,
+                frameIndex: 0,
+                sunPosition: new Vintagestory.API.MathTools.Vec3f(0f, 1f, 0f),
+                sunColor: new Vintagestory.API.MathTools.Vec3f(0f, 0f, 0f),
+                ambientColor: new Vintagestory.API.MathTools.Vec3f(0f, 1f, 0f));
+
+            UpdateAndBindLumOnWorldProbeUbo(
+                programId,
+                skyTint: new Vintagestory.API.MathTools.Vec3f(0f, 0f, 0f),
+                cameraPosWS: new Vintagestory.API.MathTools.Vec3f(0f, 0f, 0f),
+                originMinCorner: [new Vintagestory.API.MathTools.Vec3f(-1f, -1f, -6f)],
+                ringOffset: [new Vintagestory.API.MathTools.Vec3f(0f, 0f, 0f)]);
+
             GL.UseProgram(0);
 
             TestFramework.RenderQuadTo(programId, output);

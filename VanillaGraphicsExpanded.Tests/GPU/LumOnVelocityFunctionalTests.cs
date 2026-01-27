@@ -54,6 +54,13 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         // History validity
         GL.Uniform1(GL.GetUniformLocation(programId, "historyValid"), historyValid);
 
+        // Phase 23: UBO-backed frame state.
+        UpdateAndBindLumOnFrameUbo(
+            programId,
+            invCurrViewProjMatrix: invCurrViewProj,
+            prevViewProjMatrix: prevViewProj,
+            historyValid: historyValid);
+
         GL.UseProgram(0);
     }
 

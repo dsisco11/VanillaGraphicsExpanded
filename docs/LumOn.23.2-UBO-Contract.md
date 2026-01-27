@@ -8,7 +8,7 @@ This defines the **uniform block contract** (names, bindings, and field layout) 
 
 ## 2) Binding Points + Block Names
 
-Bindings are fixed via `layout(std140, binding=...)`:
+Bindings are part of the contract, but **assigned from C#** (GLSL 330 does not support `layout(binding=...)` for uniform blocks without extensions):
 
 - `binding = 12`: `LumOnFrameUBO` (instance: `lumonFrame`)
 - `binding = 13`: `LumOnWorldProbeUBO` (instance: `lumonWorldProbe`)
@@ -63,4 +63,3 @@ The contract intentionally uses `vec4`/`ivec4` “pack groups” to keep CPU-sid
 
 - Treat these blocks as binary layouts; prefer explicit offsets or fixed “float/int arrays” over relying on implicit struct packing.
 - Arrays are `vec4[8]` in the UBO even though the shader historically used `vec3[8]`.
-

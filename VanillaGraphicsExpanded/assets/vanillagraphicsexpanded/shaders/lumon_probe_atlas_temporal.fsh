@@ -288,40 +288,40 @@ void main(void)
     float historyHitDist = lumonDecodeHitDistance(history.a);
     
     // Validate history using hit-distance comparison
-    bool historyValid = historyHitDist > 0.001;  // Has valid history data?
+    bool hasHistoryValid = historyHitDist > 0.001;  // Has valid history data?
 
-    if (!historyValid)
+    if (!hasHistoryValid)
     {
         temporalRejectBits |= LUMON_META_TEMPREJ_HISTORY_INVALID;
     }
 
     // Phase 14: conservative rejection on large motion/out-of-bounds reprojection.
-    if (historyValid && rejectHistoryFromVelocity)
+    if (hasHistoryValid && rejectHistoryFromVelocity)
     {
-        historyValid = false;
+        hasHistoryValid = false;
     }
 
     // Reject history if history confidence is very low (invalid / unreliable)
     // This is the simplest confidence-aware reset policy.
-    if (historyValid) {
+    if (hasHistoryValid) {
         if (confHistory <= 0.05)
         {
             temporalRejectBits |= LUMON_META_TEMPREJ_CONFIDENCE_LOW;
-            historyValid = false;
+            hasHistoryValid = false;
         }
     }
 
     // Reject history when hit/miss classification changes (more robust than hit distance alone)
-    if (historyValid) {
+    if (hasHistoryValid) {
         bool curHit = (flagsCurrent & LUMON_META_HIT) != 0u;
         bool histHit = (flagsHistory & LUMON_META_HIT) != 0u;
         if (curHit != histHit) {
             temporalRejectBits |= LUMON_META_TEMPREJ_HIT_CLASS_MISMATCH;
-            historyValid = false;
+            hasHistoryValid = false;
         }
     }
     
-    if (historyValid) {
+    if (hasHistoryValid) {
         // Check if hit distance changed significantly (disocclusion)
         float maxDist = max(currentHitDist, historyHitDist);
         if (maxDist > 0.001) {
@@ -329,7 +329,7 @@ void main(void)
             if (relativeDiff >= hitDistanceRejectThreshold)
             {
                 temporalRejectBits |= LUMON_META_TEMPREJ_HITDIST_DELTA;
-                historyValid = false;
+                hasHistoryValid = false;
             }
         }
     }
@@ -337,7 +337,7 @@ void main(void)
     vec4 result;
     vec2 metaOut;
     
-    if (historyValid) {
+    if (hasHistoryValid) {
         // Confidence-adaptive temporal blending
         float alpha = clamp(temporalAlpha * confHistory, 0.0, 1.0);
 

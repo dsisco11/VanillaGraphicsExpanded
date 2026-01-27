@@ -157,6 +157,18 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         GL.Uniform1(colorLoc, 3);
         GL.Uniform1(historyLoc, 4);
 
+        // Phase 23: UBO-backed frame state.
+        UpdateAndBindLumOnFrameUbo(
+            programId,
+            invProjectionMatrix: invProjection,
+            projectionMatrix: projection,
+            viewMatrix: view,
+            invViewMatrix: invView,
+            frameIndex: frameIndex,
+            sunPosition: new Vintagestory.API.MathTools.Vec3f(sunDir.x, sunDir.y, sunDir.z),
+            sunColor: new Vintagestory.API.MathTools.Vec3f(sun.r, sun.g, sun.b),
+            ambientColor: new Vintagestory.API.MathTools.Vec3f(ambient.r, ambient.g, ambient.b));
+
         GL.UseProgram(0);
     }
 

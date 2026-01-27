@@ -100,11 +100,11 @@ bool lumonWorldProbeDebugNearest(in vec3 worldPosWS, out int outLevel, out ivec2
         return false;
     }
 
-    vec3 worldPosRel = worldPosWS - worldProbeCameraPosWS;
-    int level = lumonWorldProbeSelectLevelByExtents(worldPosRel, baseSpacing, levels, resolution, worldProbeOriginMinCorner);
+    vec3 worldPosRel = worldPosWS - lumonWorldProbeGetCameraPosWS();
+    int level = lumonWorldProbeSelectLevelByExtents(worldPosRel, baseSpacing, levels, resolution);
     float spacing = lumonWorldProbeSpacing(baseSpacing, level);
 
-    vec3 origin = worldProbeOriginMinCorner[level];
+    vec3 origin = lumonWorldProbeGetOriginMinCorner(level);
     vec3 local = (worldPosRel - origin) / max(spacing, 1e-6);
 
     // Outside clip volume.
@@ -118,7 +118,7 @@ bool lumonWorldProbeDebugNearest(in vec3 worldPosWS, out int outLevel, out ivec2
     ivec3 idx = ivec3(floor(local + 0.5));
     idx = clamp(idx, ivec3(0), ivec3(resolution - 1));
 
-    ivec3 ring = ivec3(floor(worldProbeRingOffset[level] + 0.5));
+    ivec3 ring = ivec3(floor(lumonWorldProbeGetRingOffset(level) + 0.5));
     ivec3 storage = lumonWorldProbeWrapIndex(idx + ring, resolution);
 
     outLevel = level;
@@ -168,14 +168,14 @@ vec4 renderWorldProbeIrradianceLevelDebug()
     float baseSpacing = VGE_LUMON_WORLDPROBE_BASE_SPACING;
     if (levels <= 0 || resolution <= 0) return vec4(0.0, 0.0, 0.0, 1.0);
 
-    vec3 posRel = posWS - worldProbeCameraPosWS;
-    int level = lumonWorldProbeSelectLevelByExtents(posRel, baseSpacing, levels, resolution, worldProbeOriginMinCorner);
+    vec3 posRel = posWS - lumonWorldProbeGetCameraPosWS();
+    int level = lumonWorldProbeSelectLevelByExtents(posRel, baseSpacing, levels, resolution);
     float spacing = lumonWorldProbeSpacing(baseSpacing, level);
 
     LumOnWorldProbeSample sL = lumonWorldProbeSampleLevelTrilinear(
         worldProbeSH0, worldProbeSH1, worldProbeSH2, worldProbeSky0, worldProbeVis0, worldProbeMeta0,
         posRel, normalWS,
-        worldProbeOriginMinCorner[level], worldProbeRingOffset[level],
+        lumonWorldProbeGetOriginMinCorner(level), lumonWorldProbeGetRingOffset(level),
         spacing, resolution, level);
 
     vec3 color = lumonWorldProbeDebugToneMap(sL.irradiance);
@@ -384,11 +384,11 @@ vec4 renderWorldProbeCrossLevelBlendDebug()
     float baseSpacing = VGE_LUMON_WORLDPROBE_BASE_SPACING;
     if (levels <= 0 || resolution <= 0) return vec4(0.0, 0.0, 0.0, 1.0);
 
-    vec3 posRel = posWS - worldProbeCameraPosWS;
-    int level = lumonWorldProbeSelectLevelByExtents(posRel, baseSpacing, levels, resolution, worldProbeOriginMinCorner);
+    vec3 posRel = posWS - lumonWorldProbeGetCameraPosWS();
+    int level = lumonWorldProbeSelectLevelByExtents(posRel, baseSpacing, levels, resolution);
     float spacingL = lumonWorldProbeSpacing(baseSpacing, level);
 
-    vec3 originL = worldProbeOriginMinCorner[level];
+    vec3 originL = lumonWorldProbeGetOriginMinCorner(level);
     vec3 localL = (posRel - originL) / max(spacingL, 1e-6);
     float edgeDist = lumonWorldProbeDistanceToBoundaryProbeUnits(localL, resolution);
     float wL = lumonWorldProbeCrossLevelBlendWeight(edgeDist, 2.0, 2.0);

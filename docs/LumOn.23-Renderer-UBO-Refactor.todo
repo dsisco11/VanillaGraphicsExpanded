@@ -51,7 +51,7 @@ LumOn - Phase 23 - Renderer UBO Refactor (Implementation):
     - Use vec4-aligned arrays for worldProbeOriginMinCorner/worldProbeRingOffset to avoid std140 pitfalls.
     - Ensure int/bool packing rules are respected (pad as needed).
   ✔ Create new shader include: VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_ubos.glsl: @done
-    - Declare the uniform blocks with explicit layout(binding=...).
+    - Declare the uniform blocks (std140) and define binding-point constants (binding assigned from C# via glUniformBlockBinding).
     - Provide compatibility aliases/macros so most shader logic doesn’t need refactoring initially.
   ✔ Update/adjust existing includes to consume UBO fields instead of standalone uniforms (opt-in, backwards compatible): @done
     - lumon_worldprobe.glsl (worldProbeCameraPosWS, worldProbeSkyTint, origin/ring arrays) @done
@@ -123,8 +123,8 @@ LumOn - Phase 23 - Renderer UBO Refactor (Implementation):
     - Call UpdateFrame once per frame (after UpdateMatrices).
     - Call UpdateWorldProbe once per frame when enabled/available.
   ✔ In each pass right after shader.Use(): @done
-    - Bind FrameUbo via shader.ResourceBindings.TryBindUniformBlock("LumOnFrameUBO", FrameUbo)
-    - If world probes enabled: bind WorldProbeUbo via TryBindUniformBlock("LumOnWorldProbeUBO", WorldProbeUbo)
+    - Bind FrameUbo via shader.TryBindUniformBlock("LumOnFrameUBO", FrameUbo)
+    - If world probes enabled: bind WorldProbeUbo via shader.TryBindUniformBlock("LumOnWorldProbeUBO", WorldProbeUbo)
   ✔ Delete redundant per-pass uniform setter calls now covered by UBOs. @done
   ✔ Replace per-level world-probe uniform array writes (TrySetWorldProbeLevelParams loop) with the WorldProbeUbo upload. @done
   ✔ Add minimal diagnostics when binding fails (block missing / binding mismatch) to catch partial migrations quickly. @done
@@ -132,12 +132,13 @@ LumOn - Phase 23 - Renderer UBO Refactor (Implementation):
 
   Phase 23.7 - Tests + Validation:
   Exit artifacts: Automated checks cover uniform blocks and basic runtime correctness.
-  ☐ Update VanillaGraphicsExpanded.Tests/GPU/Helpers/UniformValidator.cs:
+  ✔ Update VanillaGraphicsExpanded.Tests/GPU/Helpers/UniformValidator.cs: @done
     - Either: parse uniform block members and treat them as “provided via UBO” (not required GL.Uniform calls),
       and optionally validate presence of the block name.
     - Or: add a new validation helper specifically for uniform blocks (names + required fields).
-  ☐ Add/adjust GPU tests to assert:
+  ✔ Add/adjust GPU tests to assert uniform-block bindings: @done
     - Linked programs expose LumOnFrameUBO (and LumOnWorldProbeUBO when enabled) in GpuProgramLayout.UniformBlockBindings.
+  ✔ Add/adjust GPU tests to spot-check outputs: @done
     - Rendering still produces expected outputs (spot-check key passes).
   ☐ Manual validation checklist (RenderDoc):
     - Confirm UBOs show expected contents and update once per frame.
@@ -148,6 +149,9 @@ LumOn - Phase 23 - Renderer UBO Refactor (Implementation):
   Phase 23.8 - Cleanup + Perf Tracking:
   Exit artifacts: Reduced CPU overhead and a clean steady-state implementation.
   ☐ Remove dead code paths for legacy uniform setting and world-probe per-pass param plumbing.
+    ✔ Remove per-pass world-probe uniform setters from LumOn shader program wrappers. @done
+    ☐ Decide whether to keep the non-UBO fallback path in includes/lumon_worldprobe.glsl (LUMON_USE_WORLDPROBE_UBO=0).
+    ☐ Optional: migrate vge_worldprobe_orbs_points to read worldProbeSkyTint from LumOnWorldProbeUBO (drop standalone uniform).
   ☐ Add lightweight counters (optional) for:
     - “uniform sets per frame” (before/after sanity)
     - “UBO uploads per frame” (expected: 1–2)
