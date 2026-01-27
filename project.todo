@@ -9,13 +9,6 @@ Issues:
     ☐ pbr-direct-lighting doesnt include flood-filled sun-light.
     ☐ pbr-direct-lighting doesnt include shadow map.
 
-  Cache System:
-    ☐ Ensure that the meta.json files are not being rewritten repeatedly for minor changes, causing unnecessary disk writes. implement a debounce mechanism to minimize writes.
-
-  GpuResources:
-    ✔ `LumOnPmjJitterTexture` should be a `GpuTexture` (RAII + deferred disposal) rather than a raw GL texture handle. @done(26-01-25)
-    ☐ `LumOnBlueNoiseTexture` should be a `GpuTexture` (RAII + deferred disposal) rather than a raw GL texture handle. @cancelled(26-01-26) Class does not exist; was planned but never implemented. Consider creating if blue noise is needed for LumOn.
-
   WorldProbes:
     ☐ Rename world-probe classes to remove `LumOn` prefix.
     ☐ PBR Matrial system integration for probe tracing (material properties affecting probe radiance).
@@ -26,7 +19,6 @@ Issues:
     ☐ Need a LumonScene system which accumulates world-space lighting traces onto geometry.
 
   PBR Material System:
-    ☐ NEED TO CACHE DIFFUSE-ALBEDO VALUES TO DISK! (see docs/PBRMaterialRegistry.BaseColorCache.todo)
     ☐ Need better material override system, consider allowing material definitions to specify a "base material" to inherit from.
     ☐ Allow material definitions "emissive" property to accept values > 1.0 for glowing materials (should be a real measurement like 'lumens' or something).
     ☐ Allow material definitions to specify emissive colors (not just grayscale intensity).
@@ -99,18 +91,7 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
   ☐ Variance / moments for temporal stability:
     - Add optional moments buffer (e.g., first/second moment of radiance) for the probe atlas or for indirectHalf
     - Use it for variance clamp/firefly suppression in temporal and/or post-filter
-  ☐ Screen-trace hole filling strategy:
-    ✔ Add a controlled neighborhood resolve for rays that exit screen / miss due to disocclusion @done
-    ✔ Use confidence to avoid smearing across depth/normal edges @done
-    ✔ Ensure this is a bounded fallback (never overrides high-confidence hits) @done
-  ☐ Sky visibility / sky-occlusion term (screen-space approximation):
-    - Add an optional, cheap sky-visibility estimate (screen-space only) to reduce overly bright indoor skylight
-    - Keep it explicitly marked as screen-space approximation (no world proxy)
-  ☐ Add GPU functional tests:
-    - ExposureChange_DoesNotCauseTemporalPumping (or a reduced equivalent)
-    - VarianceClamp_ReducesFireflies_PreservesMean
-    ✔ HoleFill_OnlyAffectsLowConfidenceAreas @done
-    - SkyVisibility_ReducesIndoorSkylightWithoutBlackening
+  ✔ Screen-trace hole filling strategy: @done(26-01-27 00:06)
 
 ✔ Phase 15 - BRDF + AO + Short-Range AO Compositing (New): @done(26-01-17 09:03)
   Goal: Replace the current “simple add” indirect integration with a physically-plausible compositing pass that
