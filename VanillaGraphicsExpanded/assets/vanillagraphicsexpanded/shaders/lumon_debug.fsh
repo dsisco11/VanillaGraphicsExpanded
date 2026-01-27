@@ -32,6 +32,7 @@ out vec4 outColor;
 // 46 = Probe-Atlas Gather Input Radiance (actual gather input)
 // 47 = Probe-Atlas Hit Distance (log-encoded, from gather input)
 // 48 = Probe-Atlas Trace Radiance (pre-temporal)
+// 49 = Probe-Atlas Temporal Rejection (reason bits from atlas temporal)
 // 18 = Composite AO (Phase 15)
 // 19 = Composite Indirect Diffuse (Phase 15)
 // 20 = Composite Indirect Specular (Phase 15)
@@ -143,6 +144,7 @@ void main(void)
         case 46:
         case 47:
         case 48:
+        case 49:
             outColor = RenderDebug_ProbeAtlas(screenPos);
             break;
 

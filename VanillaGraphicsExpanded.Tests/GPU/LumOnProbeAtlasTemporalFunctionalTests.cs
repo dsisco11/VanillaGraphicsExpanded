@@ -97,6 +97,30 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         var gridSizeLoc = GL.GetUniformLocation(programId, "probeGridSize");
         GL.Uniform2(gridSizeLoc, (float)ProbeGridWidth, (float)ProbeGridHeight);
 
+        // Screen-space mapping (used by optional velocity reprojection)
+        var probeSpacingLoc = GL.GetUniformLocation(programId, "probeSpacing");
+        GL.Uniform1(probeSpacingLoc, ProbeSpacing);
+
+        var screenSizeLoc = GL.GetUniformLocation(programId, "screenSize");
+        GL.Uniform2(screenSizeLoc, (float)ScreenWidth, (float)ScreenHeight);
+
+        // Jitter controls (must exist even if disabled)
+        var anchorJitterEnabledLoc = GL.GetUniformLocation(programId, "anchorJitterEnabled");
+        GL.Uniform1(anchorJitterEnabledLoc, 0);
+
+        var anchorJitterScaleLoc = GL.GetUniformLocation(programId, "anchorJitterScale");
+        GL.Uniform1(anchorJitterScaleLoc, 0.0f);
+
+        var pmjCycleLengthLoc = GL.GetUniformLocation(programId, "pmjCycleLength");
+        GL.Uniform1(pmjCycleLengthLoc, 1);
+
+        // Phase 14: disable velocity reprojection in these unit tests unless explicitly testing it
+        var enableVelLoc = GL.GetUniformLocation(programId, "enableVelocityReprojection");
+        GL.Uniform1(enableVelLoc, 0);
+
+        var velRejectLoc = GL.GetUniformLocation(programId, "velocityRejectThreshold");
+        GL.Uniform1(velRejectLoc, 0.01f);
+
         // Temporal distribution parameters
         var frameIndexLoc = GL.GetUniformLocation(programId, "frameIndex");
         GL.Uniform1(frameIndexLoc, frameIndex);
@@ -113,11 +137,15 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         var anchorPosLoc = GL.GetUniformLocation(programId, "probeAnchorPosition");
         var metaCurrentLoc = GL.GetUniformLocation(programId, "probeAtlasMetaCurrent");
         var metaHistoryLoc = GL.GetUniformLocation(programId, "probeAtlasMetaHistory");
+        var velocityTexLoc = GL.GetUniformLocation(programId, "velocityTex");
+        var pmjJitterLoc = GL.GetUniformLocation(programId, "pmjJitter");
         GL.Uniform1(currentLoc, 0);
         GL.Uniform1(historyLoc, 1);
         GL.Uniform1(anchorPosLoc, 2);
         GL.Uniform1(metaCurrentLoc, 3);
         GL.Uniform1(metaHistoryLoc, 4);
+        GL.Uniform1(velocityTexLoc, 5);
+        GL.Uniform1(pmjJitterLoc, 6);
 
         GL.UseProgram(0);
     }

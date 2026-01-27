@@ -395,15 +395,28 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             GL.UseProgram(temporalProg);
             SetVec2(temporalProg, "probeGridSize", ProbeGridWidth, ProbeGridHeight);
+            SetInt(temporalProg, "probeSpacing", ProbeSpacing);
+            SetVec2(temporalProg, "screenSize", ScreenWidth, ScreenHeight);
+
+            // Keep jitter off in this test (matches Probe Anchor stage).
+            SetInt(temporalProg, "anchorJitterEnabled", 0);
+            SetFloat(temporalProg, "anchorJitterScale", 0f);
+            SetInt(temporalProg, "pmjCycleLength", 1);
+
             SetInt(temporalProg, "frameIndex", 0);
             SetFloat(temporalProg, "temporalAlpha", 0.9f);
             SetFloat(temporalProg, "hitDistanceRejectThreshold", 0.3f);
+
+            // Phase 14: enable velocity reprojection (velocity is near-zero in this test)
+            SetInt(temporalProg, "enableVelocityReprojection", 1);
+            SetFloat(temporalProg, "velocityRejectThreshold", 0.01f);
 
             SetSampler(temporalProg, "octahedralCurrent", 0);
             SetSampler(temporalProg, "octahedralHistory", 1);
             SetSampler(temporalProg, "probeAnchorPosition", 2);
             SetSampler(temporalProg, "probeAtlasMetaCurrent", 3);
             SetSampler(temporalProg, "probeAtlasMetaHistory", 4);
+            SetSampler(temporalProg, "velocityTex", 5);
             GL.UseProgram(0);
 
             targets.AtlasTrace[0].Bind(0);
@@ -411,12 +424,14 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             targets.ProbeAnchor[0].Bind(2);
             targets.AtlasTrace[1].Bind(3);
             historyMeta.Bind(4);
+            targets.Velocity[0].Bind(5);
 
             AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "octahedralCurrent", 0, targets.AtlasTrace[0]);
             AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "octahedralHistory", 1, historyRadiance);
             AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "probeAnchorPosition", 2, targets.ProbeAnchor[0]);
             AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "probeAtlasMetaCurrent", 3, targets.AtlasTrace[1]);
             AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "probeAtlasMetaHistory", 4, historyMeta);
+            AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "velocityTex", 5, targets.Velocity[0]);
 
             AssertGBufferFboAttachments("Stage: Atlas Temporal", targets.AtlasTemporal);
             TestFramework.RenderQuadTo(temporalProg, targets.AtlasTemporal);

@@ -91,4 +91,7 @@ public enum LumOnDebugMode
     ProbeAtlasGatherInputRadiance = 46,
     ProbeAtlasHitDistance = 47,
     ProbeAtlasTraceRadiance = 48,
+
+    // Probe-atlas temporal rejection reasons (append-only)
+    ProbeAtlasTemporalRejection = 49,
 }

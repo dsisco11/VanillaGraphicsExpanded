@@ -568,7 +568,7 @@ public class VgeConfig
         // ═══════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// Enables using the generated velocity texture (Phase 14) for temporal reprojection.
+        /// Enables using the generated velocity texture for temporal reprojection.
         /// When disabled, temporal passes may fall back to their legacy reprojection path.
         /// Hot-reloadable.
         /// </summary>

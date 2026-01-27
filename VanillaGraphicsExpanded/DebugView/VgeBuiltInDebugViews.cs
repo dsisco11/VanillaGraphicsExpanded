@@ -532,6 +532,7 @@ public static class VgeBuiltInDebugViews
         // Probe atlas
         ProbeAtlasMetaConfidence,
         ProbeAtlasTemporalAlpha,
+        ProbeAtlasTemporalRejection,
         ProbeAtlasMetaFlags,
         ProbeAtlasTraceRadiance,
         ProbeAtlasCurrentRadiance,
@@ -574,6 +575,7 @@ public static class VgeBuiltInDebugViews
 
         ProbeVizMode.ProbeAtlasMetaConfidence => new(LumOnDebugMode.ProbeAtlasMetaConfidence, null),
         ProbeVizMode.ProbeAtlasTemporalAlpha => new(LumOnDebugMode.ProbeAtlasTemporalAlpha, null),
+        ProbeVizMode.ProbeAtlasTemporalRejection => new(LumOnDebugMode.ProbeAtlasTemporalRejection, null),
         ProbeVizMode.ProbeAtlasMetaFlags => new(LumOnDebugMode.ProbeAtlasMetaFlags, null),
         ProbeVizMode.ProbeAtlasTraceRadiance => new(LumOnDebugMode.ProbeAtlasTraceRadiance, null),
         ProbeVizMode.ProbeAtlasCurrentRadiance => new(LumOnDebugMode.ProbeAtlasCurrentRadiance, null),
@@ -611,11 +613,19 @@ public static class VgeBuiltInDebugViews
         private string? keyPrefix;
         private const string ClosestProbeTextKey = "closestprobe";
         private const string ClosestProbeLogButtonKey = "closestprobelog";
+        private const string ProbeAtlasTemporalRejectionLegendKey = "probeatlas-temporalrej-legend";
 
         private readonly string[] values;
         private readonly string[] names;
 
         private bool lastToggleVisible;
+        private bool lastLegendVisible;
+
+        private static bool IsLegendVisible(ProbeVizMode mode) => mode switch
+        {
+            ProbeVizMode.ProbeAtlasTemporalRejection => true,
+            _ => false
+        };
 
         public ProbesDebugPanel(string viewId, ICoreClientAPI capi, VgeConfig config)
         {
@@ -667,6 +677,9 @@ public static class VgeBuiltInDebugViews
             bool toggleVisible = ProbesDebugViewState.Instance.IsWorldToggleVisibleForCurrentMode();
             lastToggleVisible = toggleVisible;
 
+            bool legendVisible = IsLegendVisible(selectedMode);
+            lastLegendVisible = legendVisible;
+
             double y = rowH + rowGapY;
             if (toggleVisible)
             {
@@ -691,6 +704,29 @@ public static class VgeBuiltInDebugViews
 
             ElementBounds logBtnBounds = ElementBounds.Fixed(0, y, 200, rowH).WithParent(bounds);
             composer.AddSmallButton("Log closest probe", OnLogClosestProbeClicked, logBtnBounds, EnumButtonStyle.Small, $"{keyPrefix}-{ClosestProbeLogButtonKey}");
+
+            y += rowH + rowGapY;
+
+            if (legendVisible)
+            {
+                // Color key for the shader debug view: renderProbeAtlasTemporalRejectionDebug()
+                // Keep this as VTML so the colors match the overlay without adding custom draw code.
+                static string Line(string hex, string text) => $"<font color=\"{hex}\">■</font> {text}<br/>";
+
+                string vtml =
+                    "<b>Probe-Atlas Temporal Rejection</b><br/>" +
+                    Line("#00ff00", "Valid history") +
+                    Line("#ff0000", "Reprojection out of bounds") +
+                    Line("#ffff00", "Velocity too large") +
+                    Line("#ff8000", "Hit-distance delta reject") +
+                    Line("#ff00ff", "Hit/miss classification mismatch") +
+                    Line("#cc33cc", "Low history confidence") +
+                    Line("#800080", "No valid history") +
+                    Line("#0066ff", "Velocity invalid (fell back)");
+
+                ElementBounds legendBounds = ElementBounds.Fixed(0, y, boundsW, rowH * 7).WithParent(bounds);
+                composer.AddRichtext(vtml, fontSmall, legendBounds, $"{keyPrefix}-{ProbeAtlasTemporalRejectionLegendKey}");
+            }
 
             RefreshClosestProbeText();
         }
@@ -824,17 +860,21 @@ public static class VgeBuiltInDebugViews
             }
 
             bool prevToggleVisible = ProbesDebugViewState.Instance.IsWorldToggleVisibleForCurrentMode();
+            bool prevLegendVisible = IsLegendVisible(ProbesDebugViewState.Instance.GetSelectedProbeVizModeOrDefault());
             ProbesDebugViewState.Instance.SetSelectedProbeVizMode(mode);
             bool nextToggleVisible = ProbesDebugViewState.Instance.IsWorldToggleVisibleForCurrentMode();
+            bool nextLegendVisible = IsLegendVisible(mode);
 
             if (string.Equals(DebugViewController.Instance.ActiveExclusiveViewId, viewId, StringComparison.Ordinal))
             {
                 config.LumOn.DebugMode = ProbesDebugViewState.Instance.GetSelectedDebugModeOrDefault();
             }
 
-            if (prevToggleVisible != nextToggleVisible || lastToggleVisible != nextToggleVisible)
+            if (prevToggleVisible != nextToggleVisible || lastToggleVisible != nextToggleVisible
+                || prevLegendVisible != nextLegendVisible || lastLegendVisible != nextLegendVisible)
             {
                 lastToggleVisible = nextToggleVisible;
+                lastLegendVisible = nextLegendVisible;
                 try
                 {
                     composer?.ReCompose();
@@ -882,6 +922,7 @@ public static class VgeBuiltInDebugViews
             ProbeVizMode.GatherWeight => "Gather Weight (diagnostic)",
             ProbeVizMode.ProbeAtlasMetaConfidence => "Probe-Atlas Meta Confidence",
             ProbeVizMode.ProbeAtlasTemporalAlpha => "Probe-Atlas Temporal Alpha",
+            ProbeVizMode.ProbeAtlasTemporalRejection => "Probe-Atlas Temporal Rejection",
             ProbeVizMode.ProbeAtlasMetaFlags => "Probe-Atlas Meta Flags",
             ProbeVizMode.ProbeAtlasTraceRadiance => "Probe-Atlas Trace Radiance",
             ProbeVizMode.ProbeAtlasCurrentRadiance => "Probe-Atlas Current Radiance",
@@ -1032,6 +1073,7 @@ public static class VgeBuiltInDebugViews
             LumOnDebugMode.ProbeAtlasHitDistance => "Probe-Atlas Hit Distance",
             LumOnDebugMode.ProbeAtlasFilterDelta => "Probe-Atlas Filter Delta",
             LumOnDebugMode.ProbeAtlasGatherInputSource => "Probe-Atlas Gather Input Source",
+            LumOnDebugMode.ProbeAtlasTemporalRejection => "Probe-Atlas Temporal Rejection",
             LumOnDebugMode.CompositeAO => "Composite AO",
             LumOnDebugMode.CompositeIndirectDiffuse => "Composite Indirect Diffuse",
             LumOnDebugMode.CompositeIndirectSpecular => "Composite Indirect Specular",

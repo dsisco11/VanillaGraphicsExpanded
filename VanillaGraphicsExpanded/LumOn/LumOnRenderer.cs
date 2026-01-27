@@ -740,6 +740,17 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Bind meta history from previous frame
         shader.ScreenProbeAtlasMetaHistory = bufferManager.ScreenProbeAtlasMetaHistoryTex!;
 
+        // Phase 14: bind velocity buffer so temporal can reproject history.
+        shader.VelocityTex = bufferManager.VelocityTex;
+
+        // Reconstruct the same jittered probe UV as the probe-anchor pass.
+        shader.PmjJitter = pmjJitter;
+        shader.PmjCycleLength = pmjJitter.CycleLength;
+        shader.ProbeSpacing = config.LumOn.ProbeSpacingPx;
+        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
+        shader.AnchorJitterEnabled = config.LumOn.AnchorJitterEnabled ? 1 : 0;
+        shader.AnchorJitterScale = config.LumOn.AnchorJitterScale * 0.1f; // Match RenderProbeAnchorPass scaling
+
         // Pass probe grid size
         shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
 
@@ -749,6 +760,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Pass temporal blending parameters
         shader.TemporalAlpha = config.LumOn.TemporalAlpha;
         shader.HitDistanceRejectThreshold = 0.3f;  // 30% relative difference threshold
+
+        // Phase 14: velocity reprojection tuning (probe-atlas specific)
+        shader.EnableVelocityReprojection = config.LumOn.EnableReprojectionVelocity ? 1 : 0;
+        shader.VelocityRejectThreshold = config.LumOn.VelocityRejectThreshold;
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);

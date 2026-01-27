@@ -64,6 +64,18 @@ public class LumOnScreenProbeAtlasTemporalShaderProgram : GpuProgram
     /// </summary>
     public GpuTexture? ScreenProbeAtlasMetaHistory { set => BindTexture2D("probeAtlasMetaHistory", value, 4); }
 
+    /// <summary>
+    /// Phase 14 velocity buffer (RGBA32F): RG = currUv - prevUv, A = packed flags.
+    /// Used for velocity-based reprojection.
+    /// </summary>
+    public GpuTexture? VelocityTex { set => BindTexture2D("velocityTex", value, 5); }
+
+    /// <summary>
+    /// PMJ jitter sequence texture (RG16_UNorm, width=cycleLength, height=1).
+    /// Used to reconstruct the same jittered probe UV as the probe-anchor pass.
+    /// </summary>
+    public GpuTexture? PmjJitter { set => BindTexture2D("pmjJitter", value, 6); }
+
     #endregion
 
     #region Probe Grid Uniforms
@@ -72,6 +84,31 @@ public class LumOnScreenProbeAtlasTemporalShaderProgram : GpuProgram
     /// Probe grid dimensions (probeCountX, probeCountY).
     /// </summary>
     public Vec2i ProbeGridSize { set => Uniform("probeGridSize", new Vec2f(value.X, value.Y)); }
+
+    /// <summary>
+    /// Spacing between probes in pixels.
+    /// </summary>
+    public int ProbeSpacing { set => Uniform("probeSpacing", value); }
+
+    /// <summary>
+    /// Screen dimensions in pixels.
+    /// </summary>
+    public Vec2f ScreenSize { set => Uniform("screenSize", value); }
+
+    /// <summary>
+    /// Toggle deterministic probe anchor jitter (must match probe-anchor pass).
+    /// </summary>
+    public int AnchorJitterEnabled { set => Uniform("anchorJitterEnabled", value); }
+
+    /// <summary>
+    /// Jitter scale as a fraction of probe spacing (must match probe-anchor pass).
+    /// </summary>
+    public float AnchorJitterScale { set => Uniform("anchorJitterScale", value); }
+
+    /// <summary>
+    /// PMJ jitter cycle length (texture width).
+    /// </summary>
+    public int PmjCycleLength { set => Uniform("pmjCycleLength", value); }
 
     #endregion
 
@@ -106,6 +143,16 @@ public class LumOnScreenProbeAtlasTemporalShaderProgram : GpuProgram
     /// If hit distance changed more than this, reject history.
     /// </summary>
     public float HitDistanceRejectThreshold { set => Uniform("hitDistanceRejectThreshold", value); }
+
+    /// <summary>
+    /// Enables velocity-based reprojection (0/1).
+    /// </summary>
+    public int EnableVelocityReprojection { set => Uniform("enableVelocityReprojection", value); }
+
+    /// <summary>
+    /// Reject/down-weight history when velocity magnitude exceeds this threshold (UV delta per frame).
+    /// </summary>
+    public float VelocityRejectThreshold { set => Uniform("velocityRejectThreshold", value); }
 
     #endregion
 }
