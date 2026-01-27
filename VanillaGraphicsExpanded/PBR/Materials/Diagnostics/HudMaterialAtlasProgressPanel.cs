@@ -3,7 +3,7 @@ using System;
 using Cairo;
 
 using VanillaGraphicsExpanded.ModSystems;
-using VanillaGraphicsExpanded.PBR.Materials.Async;
+using VanillaGraphicsExpanded.PBR.Materials.Artifacts;
 
 using Vintagestory.API.Client;
 
@@ -98,14 +98,16 @@ internal sealed class HudMaterialAtlasProgressPanel : HudElement
             return;
         }
 
-        if (!atlasSystem.TryGetAsyncBuildDiagnostics(out MaterialAtlasAsyncBuildDiagnostics diag) || diag.GenerationId <= 0)
+        if (!atlasSystem.TryGetArtifactBuildDiagnostics(out MaterialAtlasArtifactBuildDiagnostics diag) || diag.GenerationId <= 0)
         {
             HideImmediate();
             return;
         }
 
-        int totalWork = Math.Max(0, diag.TotalTiles) + Math.Max(0, diag.TotalNormalDepthJobs);
-        bool isActive = !diag.IsComplete && !diag.IsCancelled && totalWork > 0;
+        long mpTotal = Math.Max(0, diag.MaterialParams.Queued) + Math.Max(0, diag.MaterialParams.InFlight) + Math.Max(0, diag.MaterialParams.Completed) + Math.Max(0, diag.MaterialParams.Errors);
+        long ndTotal = Math.Max(0, diag.NormalDepth.Queued) + Math.Max(0, diag.NormalDepth.InFlight) + Math.Max(0, diag.NormalDepth.Completed) + Math.Max(0, diag.NormalDepth.Errors);
+        long totalWork = mpTotal + ndTotal;
+        bool isActive = !diag.IsComplete && totalWork > 0;
 
         if (diag.GenerationId != lastSeenGenerationId)
         {
@@ -139,18 +141,18 @@ internal sealed class HudMaterialAtlasProgressPanel : HudElement
         }
     }
 
-    private void UpdateText(in MaterialAtlasAsyncBuildDiagnostics diag)
+    private void UpdateText(in MaterialAtlasArtifactBuildDiagnostics diag)
     {
         if (SingleComposer is null)
         {
             return;
         }
 
-        int mpTotal = Math.Max(0, diag.TotalTiles);
-        int mpDone = Math.Clamp(diag.CompletedTiles, 0, mpTotal);
+        long mpTotal = Math.Max(0, diag.MaterialParams.Queued) + Math.Max(0, diag.MaterialParams.InFlight) + Math.Max(0, diag.MaterialParams.Completed) + Math.Max(0, diag.MaterialParams.Errors);
+        long mpDone = Math.Max(0, diag.MaterialParams.Completed) + Math.Max(0, diag.MaterialParams.Errors);
 
-        int ndTotal = Math.Max(0, diag.TotalNormalDepthJobs);
-        int ndDone = Math.Clamp(diag.CompletedNormalDepthJobs, 0, ndTotal);
+        long ndTotal = Math.Max(0, diag.NormalDepth.Queued) + Math.Max(0, diag.NormalDepth.InFlight) + Math.Max(0, diag.NormalDepth.Completed) + Math.Max(0, diag.NormalDepth.Errors);
+        long ndDone = Math.Max(0, diag.NormalDepth.Completed) + Math.Max(0, diag.NormalDepth.Errors);
 
         mpProgress01 = mpTotal > 0 ? (float)mpDone / mpTotal : 0f;
         ndProgress01 = ndTotal > 0 ? (float)ndDone / ndTotal : 0f;

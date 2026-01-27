@@ -6,11 +6,11 @@ using System.Threading;
 
 using OpenTK.Graphics.OpenGL;
 
+using VanillaGraphicsExpanded.Cache.Artifacts;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.PBR.Materials.Artifacts;
 using VanillaGraphicsExpanded.PBR.Materials.Cache;
-using VanillaGraphicsExpanded.PBR.Materials.Async;
 using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.Rendering;
 
@@ -73,11 +73,28 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
     internal MaterialAtlasTextureStore TextureStore => textureStore;
 
-    internal bool TryGetAsyncBuildDiagnostics(out MaterialAtlasAsyncBuildDiagnostics diagnostics)
+    internal bool TryGetArtifactBuildDiagnostics(out MaterialAtlasArtifactBuildDiagnostics diagnostics)
     {
-        // Legacy scheduler removed; no diagnostics payload is available here.
-        diagnostics = default;
-        return false;
+        lock (schedulerLock)
+        {
+            if (!artifactGeneratorsRegistered || materialParamsArtifactGen is null)
+            {
+                diagnostics = default;
+                return false;
+            }
+
+            ArtifactSchedulerStats mp = materialParamsArtifactGen.GetStatsSnapshot();
+            ArtifactSchedulerStats nd = normalDepthArtifactGen?.GetStatsSnapshot() ?? default;
+
+            diagnostics = new MaterialAtlasArtifactBuildDiagnostics(
+                GenerationId: artifactBuildTracker.GenerationId,
+                Remaining: artifactBuildTracker.Remaining,
+                IsComplete: artifactBuildTracker.IsComplete,
+                MaterialParams: mp,
+                NormalDepth: nd);
+
+            return diagnostics.GenerationId > 0;
+        }
     }
 
     public bool IsInitialized { get; private set; }
@@ -173,14 +190,6 @@ internal sealed class MaterialAtlasSystem : IDisposable
             generationId = 1;
         }
 
-        var warmupPlanner = new MaterialAtlasCacheWarmupPlanner(diskCache, cacheKeyBuilder);
-        MaterialAtlasCacheWarmupPlan warmupPlan = warmupPlanner.CreatePlan(
-            generationId,
-            materialPlan,
-            normalDepthPlan,
-            cacheInputs,
-            enableCache: true);
-
         int totalMaterialCandidates;
         {
             var tileRects = new HashSet<(int atlasTexId, AtlasRect rect)>(capacity: materialPlan.MaterialParamsTiles.Count);
@@ -205,27 +214,8 @@ internal sealed class MaterialAtlasSystem : IDisposable
             ? 0
             : checked(normalDepthPlan.BakeJobs.Count + normalDepthPlan.OverrideJobs.Count);
 
-        int plannedMaterial = warmupPlan.MaterialParamsPlanned;
-        int plannedNormalDepth = warmupPlan.NormalDepthPlanned;
-
         lastWarmupAtlasReloadIteration = currentReload;
         lastWarmupAtlasNonNullPositions = nonNullCount;
-
-        if (plannedMaterial == 0 && plannedNormalDepth == 0)
-        {
-            capi.Logger.Debug(
-                "[VGE] Material atlas disk cache warmup: no cached tiles found (material 0/{0}, normalDepth 0/{1})",
-                totalMaterialCandidates,
-                totalNormalDepthCandidates);
-            return;
-        }
-
-        capi.Logger.Debug(
-            "[VGE] Material atlas disk cache warmup scheduled: material {0}/{1} tiles, normalDepth {2}/{3} jobs",
-            plannedMaterial,
-            totalMaterialCandidates,
-            plannedNormalDepth,
-            totalNormalDepthCandidates);
 
         // New pipeline: enqueue cache-hit uploads directly into the artifact generators.
         if (materialParamsArtifactGen is null)
@@ -441,10 +431,21 @@ internal sealed class MaterialAtlasSystem : IDisposable
             }
         }
 
+        if (enqueuedMaterial == 0 && enqueuedNormalDepth == 0)
+        {
+            capi.Logger.Debug(
+                "[VGE] Material atlas disk cache warmup: no cached tiles found (material 0/{0}, normalDepth 0/{1})",
+                totalMaterialCandidates,
+                totalNormalDepthCandidates);
+            return;
+        }
+
         capi.Logger.Debug(
-            "[VGE] Material atlas disk cache warmup enqueued: material={0}, normalDepth={1}",
+            "[VGE] Material atlas disk cache warmup enqueued: material {0}/{1} tiles, normalDepth {2}/{3} jobs",
             enqueuedMaterial,
-            enqueuedNormalDepth);
+            totalMaterialCandidates,
+            enqueuedNormalDepth,
+            totalNormalDepthCandidates);
     }
 
     public void RebakeNormalDepthAtlas(ICoreClientAPI capi)
