@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 
@@ -673,6 +674,12 @@ internal sealed class TextureStreamingManager : IDisposable
             return;
         }
 
+        long startTicks = 0;
+        if (settings.MaxFrameBudgetMs > 0)
+        {
+            startTicks = Stopwatch.GetTimestamp();
+        }
+
         EnsureBackend();
 
         int maxBatchCommands = ComputeMaxDrainBatchSize(settings);
@@ -726,6 +733,16 @@ internal sealed class TextureStreamingManager : IDisposable
 
             for (int i = 0; i < workCount; i++)
             {
+                if (settings.MaxFrameBudgetMs > 0)
+                {
+                    double elapsedMs = (Stopwatch.GetTimestamp() - startTicks) * 1000.0 / Stopwatch.Frequency;
+                    if (elapsedMs >= settings.MaxFrameBudgetMs)
+                    {
+                        CarryOver(work, i, workCount - i);
+                        return;
+                    }
+                }
+
                 if (uploads >= settings.MaxUploadsPerFrame || bytes >= settings.MaxBytesPerFrame)
                 {
                     CarryOver(work, i, workCount - i);
@@ -2108,6 +2125,7 @@ internal readonly record struct TextureStreamingSettings(
     bool UseCoherentMapping,
     int MaxUploadsPerFrame,
     int MaxBytesPerFrame,
+    float MaxFrameBudgetMs,
     int MaxStagingBytes,
     int PersistentRingBytes,
     int TripleBufferBytes,
@@ -2120,6 +2138,7 @@ internal readonly record struct TextureStreamingSettings(
         UseCoherentMapping: true,
         MaxUploadsPerFrame: 8,
         MaxBytesPerFrame: 4 * 1024 * 1024,
+        MaxFrameBudgetMs: 1.0f,
         MaxStagingBytes: 8 * 1024 * 1024,
         PersistentRingBytes: 32 * 1024 * 1024,
         TripleBufferBytes: 8 * 1024 * 1024,

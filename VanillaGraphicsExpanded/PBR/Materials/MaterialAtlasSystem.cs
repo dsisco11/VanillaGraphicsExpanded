@@ -69,15 +69,54 @@ internal sealed class MaterialAtlasSystem : IDisposable
             return;
         }
 
-        diskCache = MaterialAtlasDiskCache.CreateDefault();
+        // If the async generators were already registered, they were constructed with the previous
+        // diskCache instance (typically the NoOp cache). Recreate them after we swap in the real cache.
+        bool recreateArtifactGenerators;
 
-        if (diskCache is MaterialAtlasDiskCache real)
+        lock (schedulerLock)
         {
-            real.SetLogger(capi?.Logger);
-            if (capi is not null && ConfigModSystem.Config.MaterialAtlas.DebugLogMaterialAtlasDiskCache)
+            recreateArtifactGenerators = artifactGeneratorsRegistered;
+
+            diskCache = MaterialAtlasDiskCache.CreateDefault();
+
+            if (diskCache is MaterialAtlasDiskCache real)
             {
-                capi.Logger.Debug("[VGE] Material atlas disk cache root: {0}", real.RootDirectory);
+                real.SetLogger(capi?.Logger);
+                if (capi is not null && ConfigModSystem.Config.MaterialAtlas.DebugLogMaterialAtlasDiskCache)
+                {
+                    capi.Logger.Debug("[VGE] Material atlas disk cache root: {0}", real.RootDirectory);
+                }
             }
+
+            if (recreateArtifactGenerators)
+            {
+                materialParamsArtifactGen?.Stop();
+                normalDepthArtifactGen?.Stop();
+                materialParamsArtifactGen = null;
+                normalDepthArtifactGen = null;
+
+                if (artifactRenderQueueRenderer is not null && capi is not null)
+                {
+                    try
+                    {
+                        capi.Event.UnregisterRenderer(artifactRenderQueueRenderer, EnumRenderStage.Before);
+                    }
+                    catch
+                    {
+                        // Best-effort.
+                    }
+                }
+
+                artifactRenderQueueRenderer = null;
+                artifactRenderQueue = null;
+                artifactGeneratorsRegistered = false;
+            }
+        }
+
+        // Re-register outside the lock; EnsureSchedulerRegistered acquires schedulerLock.
+        if (recreateArtifactGenerators && capi is not null)
+        {
+            EnsureSchedulerRegistered(capi);
         }
     }
 
@@ -122,8 +161,8 @@ internal sealed class MaterialAtlasSystem : IDisposable
         }
 
         this.capi = capi;
-        EnsureSchedulerRegistered(capi);
         EnsureDiskCacheInitialized(capi);
+        EnsureSchedulerRegistered(capi);
 
         CreateTextureObjects(capi);
         if (!texturesCreated)
@@ -614,8 +653,8 @@ internal sealed class MaterialAtlasSystem : IDisposable
         if (capi is null) throw new ArgumentNullException(nameof(capi));
 
         this.capi = capi;
-        EnsureSchedulerRegistered(capi);
         EnsureDiskCacheInitialized(capi);
+        EnsureSchedulerRegistered(capi);
 
         IBlockTextureAtlasAPI atlas = capi.BlockTextureAtlas;
 
@@ -660,8 +699,8 @@ internal sealed class MaterialAtlasSystem : IDisposable
         if (capi is null) throw new ArgumentNullException(nameof(capi));
 
         this.capi = capi;
-        EnsureSchedulerRegistered(capi);
         EnsureDiskCacheInitialized(capi);
+        EnsureSchedulerRegistered(capi);
 
         // Guard: avoid repopulating when nothing changed.
         // Note: some mods may insert additional textures into the atlas after BlockTexturesLoaded.

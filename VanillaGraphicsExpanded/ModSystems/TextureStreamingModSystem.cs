@@ -47,6 +47,7 @@ public sealed class TextureStreamingModSystem : ModSystem, ILiveConfigurable
             UseCoherentMapping: cfg.TextureStreaming.UseCoherentMapping,
             MaxUploadsPerFrame: cfg.TextureStreaming.MaxUploadsPerFrame,
             MaxBytesPerFrame: cfg.TextureStreaming.MaxBytesPerFrame,
+            MaxFrameBudgetMs: cfg.TextureStreaming.MaxFrameBudgetMs,
             MaxStagingBytes: cfg.TextureStreaming.MaxStagingBytes,
             PersistentRingBytes: cfg.TextureStreaming.PersistentRingBytes,
             TripleBufferBytes: cfg.TextureStreaming.TripleBufferBytes,

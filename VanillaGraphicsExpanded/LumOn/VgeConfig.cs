@@ -369,7 +369,7 @@ public class VgeConfig
         /// Allows direct (non-PBO) uploads when staging is unavailable or oversized.
         /// </summary>
         [JsonProperty]
-        public bool AllowDirectUploads { get; set; } = true;
+        public bool AllowDirectUploads { get; set; } = false;
 
         /// <summary>
         /// Forces persistent mapped buffers off even if GL_ARB_buffer_storage is supported.
@@ -388,13 +388,21 @@ public class VgeConfig
         /// Maximum number of texture sub-region uploads per frame.
         /// </summary>
         [JsonProperty]
-        public int MaxUploadsPerFrame { get; set; } = 128;
+        public int MaxUploadsPerFrame { get; set; } = 256;
 
         /// <summary>
         /// Maximum total bytes uploaded per frame.
         /// </summary>
         [JsonProperty]
         public int MaxBytesPerFrame { get; set; } = 4 * 1024 * 1024;
+
+        /// <summary>
+        /// CPU time budget (ms) for applying staged texture uploads per frame.
+        /// This guards against hitching when many small uploads are queued.
+        /// Set to 0 to disable time-based limiting.
+        /// </summary>
+        [JsonProperty]
+        public float MaxFrameBudgetMs { get; set; } = 0.5f;
 
         /// <summary>
         /// Maximum upload byte size eligible for PBO staging.
@@ -425,6 +433,7 @@ public class VgeConfig
         {
             MaxUploadsPerFrame = Math.Clamp(MaxUploadsPerFrame, 0, 8192);
             MaxBytesPerFrame = Math.Clamp(MaxBytesPerFrame, 0, 256 * 1024 * 1024);
+            MaxFrameBudgetMs = Math.Clamp(MaxFrameBudgetMs, 0.0f, 50.0f);
             MaxStagingBytes = Math.Clamp(MaxStagingBytes, 0, 256 * 1024 * 1024);
             PersistentRingBytes = Math.Clamp(PersistentRingBytes, 1, 512 * 1024 * 1024);
             TripleBufferBytes = Math.Clamp(TripleBufferBytes, 1, 256 * 1024 * 1024);

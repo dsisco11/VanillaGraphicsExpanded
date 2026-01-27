@@ -1,5 +1,6 @@
 using System;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using VanillaGraphicsExpanded.Cache;
 
@@ -44,9 +45,9 @@ internal sealed class BaseColorRgb16fJsonCodec : ICacheCodec<BaseColorRgb16f>
             }
 
             int schema = 0;
-            if (root.TryGetProperty("schemaVersion", out JsonElement sv) && sv.ValueKind == JsonValueKind.Number)
+            if (TryGetInt(root, "schemaVersion", "SchemaVersion", out int schemaValue))
             {
-                schema = sv.GetInt32();
+                schema = schemaValue;
             }
 
             // If missing, treat as v1 for forward-compat with early caches.
@@ -55,13 +56,9 @@ internal sealed class BaseColorRgb16fJsonCodec : ICacheCodec<BaseColorRgb16f>
                 return false;
             }
 
-            if (!root.TryGetProperty("r", out JsonElement r) || r.ValueKind != JsonValueKind.Number) return false;
-            if (!root.TryGetProperty("g", out JsonElement g) || g.ValueKind != JsonValueKind.Number) return false;
-            if (!root.TryGetProperty("b", out JsonElement b) || b.ValueKind != JsonValueKind.Number) return false;
-
-            int ri = r.GetInt32();
-            int gi = g.GetInt32();
-            int bi = b.GetInt32();
+            if (!TryGetInt(root, "r", "R", out int ri)) return false;
+            if (!TryGetInt(root, "g", "G", out int gi)) return false;
+            if (!TryGetInt(root, "b", "B", out int bi)) return false;
 
             if ((uint)ri > ushort.MaxValue || (uint)gi > ushort.MaxValue || (uint)bi > ushort.MaxValue)
             {
@@ -77,14 +74,37 @@ internal sealed class BaseColorRgb16fJsonCodec : ICacheCodec<BaseColorRgb16f>
         }
     }
 
+    private static bool TryGetInt(JsonElement root, string primaryName, string legacyName, out int value)
+    {
+        value = default;
+
+        if (root.TryGetProperty(primaryName, out JsonElement elem) && elem.ValueKind == JsonValueKind.Number)
+        {
+            value = elem.GetInt32();
+            return true;
+        }
+
+        if (root.TryGetProperty(legacyName, out elem) && elem.ValueKind == JsonValueKind.Number)
+        {
+            value = elem.GetInt32();
+            return true;
+        }
+
+        return false;
+    }
+
     private sealed class Dto
     {
+        [JsonPropertyName("schemaVersion")]
         public int SchemaVersion { get; set; }
 
+        [JsonPropertyName("r")]
         public int R { get; set; }
 
+        [JsonPropertyName("g")]
         public int G { get; set; }
 
+        [JsonPropertyName("b")]
         public int B { get; set; }
     }
 }

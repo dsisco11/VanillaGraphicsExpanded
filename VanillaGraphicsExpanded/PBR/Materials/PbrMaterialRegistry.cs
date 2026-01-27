@@ -522,10 +522,26 @@ internal sealed class PbrMaterialRegistry
             {
                 var keys = new List<AtlasCacheKey>(capacity: materialIdByTexture.Count);
                 int memoryHits = 0;
+                int fingerprinted = 0;
+                int total = materialIdByTexture.Count;
 
                 foreach (AssetLocation tex in materialIdByTexture.Keys)
                 {
-                    AtlasCacheKey key = baseColorKeyBuilder.BuildKey(baseColorKeyInputs, tex, originPath: null, assetBytes: 0);
+                    AtlasCacheKey key;
+
+                    // Prefer the real fingerprinted key (origin path + byte length) so that
+                    // stats align with actual cache lookups. Avoid forcing asset loads here.
+                    IAsset? asset = capi.Assets.TryGet(tex, loadAsset: false);
+                    if (asset is not null)
+                    {
+                        ExtractAssetFingerprint(asset, out AssetLocation texLoc, out string? originPath, out long bytes);
+                        key = baseColorKeyBuilder.BuildKey(baseColorKeyInputs, texLoc, originPath, bytes);
+                        fingerprinted++;
+                    }
+                    else
+                    {
+                        key = baseColorKeyBuilder.BuildKey(baseColorKeyInputs, tex, originPath: null, assetBytes: 0);
+                    }
 
                     if (TryGetBaseColorInMemory(key, out _))
                     {
@@ -540,9 +556,11 @@ internal sealed class PbrMaterialRegistry
                 int diskHits = diskCache.CountExisting(keys);
 
                 capi.Logger.Debug(
-                    "[VGE] BaseColor cache (index): memory h/m={0}/{1} disk h/m={2}/{3}",
+                    "[VGE] BaseColor cache (index): fingerprinted={0}/{1} memory h/m={2}/{3} disk h/m={4}/{5}",
+                    fingerprinted,
+                    total,
                     memoryHits,
-                    Math.Max(0, materialIdByTexture.Count - memoryHits),
+                    Math.Max(0, total - memoryHits),
                     diskHits,
                     Math.Max(0, diskCandidates - diskHits));
             }
