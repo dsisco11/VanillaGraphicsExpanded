@@ -1,6 +1,6 @@
 using VanillaGraphicsExpanded.Rendering;
 
-namespace VanillaGraphicsExpanded.Cache.Artifacts;
+namespace VanillaGraphicsExpanded.Cache.ArtifactSystem;
 
 internal enum ArtifactGpuTextureUploadKind
 {

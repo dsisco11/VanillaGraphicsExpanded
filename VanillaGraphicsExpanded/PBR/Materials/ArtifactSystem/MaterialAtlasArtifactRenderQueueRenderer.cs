@@ -2,7 +2,7 @@ using System;
 
 using Vintagestory.API.Client;
 
-namespace VanillaGraphicsExpanded.PBR.Materials.Artifacts;
+namespace VanillaGraphicsExpanded.PBR.Materials.ArtifactSystem;
 
 internal sealed class MaterialAtlasArtifactRenderQueueRenderer : IRenderer
 {

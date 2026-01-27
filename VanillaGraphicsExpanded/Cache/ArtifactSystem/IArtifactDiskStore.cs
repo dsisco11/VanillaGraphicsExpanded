@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
 
-namespace VanillaGraphicsExpanded.Cache.Artifacts;
+namespace VanillaGraphicsExpanded.Cache.ArtifactSystem;
 
 /// <summary>
 /// Off-thread disk persistence stage.

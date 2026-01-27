@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
 
-namespace VanillaGraphicsExpanded.Cache.Artifacts;
+namespace VanillaGraphicsExpanded.Cache.ArtifactSystem;
 
 /// <summary>
 /// Single post-compute output stage.

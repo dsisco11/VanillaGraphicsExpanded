@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 
-namespace VanillaGraphicsExpanded.Cache.Artifacts;
+namespace VanillaGraphicsExpanded.Cache.ArtifactSystem;
 
 internal sealed class GpuTextureWrapperArtifactGpuStore<TKey> : IArtifactGpuStore<TKey, ArtifactGpuTextureUploadPayload>
 {

@@ -4,7 +4,7 @@ using System.Numerics;
 using System.Threading.Tasks;
 
 using VanillaGraphicsExpanded.Cache;
-using VanillaGraphicsExpanded.Cache.Artifacts;
+using VanillaGraphicsExpanded.Cache.ArtifactSystem;
 using VanillaGraphicsExpanded.Imaging;
 using VanillaGraphicsExpanded.PBR.Materials.Cache;
 

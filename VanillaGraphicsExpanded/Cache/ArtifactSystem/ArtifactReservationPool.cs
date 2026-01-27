@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 
-namespace VanillaGraphicsExpanded.Cache.Artifacts;
+namespace VanillaGraphicsExpanded.Cache.ArtifactSystem;
 
 internal interface IArtifactReservationPool
 {

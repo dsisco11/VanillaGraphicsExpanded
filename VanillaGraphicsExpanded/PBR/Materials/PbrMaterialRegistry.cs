@@ -554,7 +554,7 @@ internal sealed class PbrMaterialRegistry
         gen?.StopAndLogSummary();
     }
 
-    internal bool TryGetBaseColorRegenStatsSnapshot(out VanillaGraphicsExpanded.Cache.Artifacts.ArtifactSchedulerStats stats)
+    internal bool TryGetBaseColorRegenStatsSnapshot(out VanillaGraphicsExpanded.Cache.ArtifactSystem.ArtifactSchedulerStats stats)
     {
         lock (baseColorRegenLock)
         {

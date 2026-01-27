@@ -3,14 +3,14 @@ using System.Threading.Tasks;
 
 using OpenTK.Graphics.OpenGL;
 
-using VanillaGraphicsExpanded.Cache.Artifacts;
+using VanillaGraphicsExpanded.Cache.ArtifactSystem;
 using VanillaGraphicsExpanded.PBR.Materials.Cache;
 using VanillaGraphicsExpanded.Rendering;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 
-namespace VanillaGraphicsExpanded.PBR.Materials.Artifacts;
+namespace VanillaGraphicsExpanded.PBR.Materials.ArtifactSystem;
 
 internal sealed class NormalDepthAtlasArtifactGenerator
 {

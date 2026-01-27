@@ -1,4 +1,4 @@
-namespace VanillaGraphicsExpanded.Cache.Artifacts;
+namespace VanillaGraphicsExpanded.Cache.ArtifactSystem;
 
 /// <summary>
 /// Result of computing a cache artifact.

@@ -2,7 +2,7 @@ using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Rendering;
 
-namespace VanillaGraphicsExpanded.Cache.Artifacts;
+namespace VanillaGraphicsExpanded.Cache.ArtifactSystem;
 
 internal readonly record struct ArtifactStageCopyUploadPayload(
     int TextureId,

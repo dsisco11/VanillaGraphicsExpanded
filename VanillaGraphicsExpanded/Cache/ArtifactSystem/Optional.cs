@@ -1,6 +1,6 @@
 using System;
 
-namespace VanillaGraphicsExpanded.Cache.Artifacts;
+namespace VanillaGraphicsExpanded.Cache.ArtifactSystem;
 
 /// <summary>
 /// Minimal, allocation-free optional value container.

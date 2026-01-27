@@ -3,7 +3,7 @@ using System;
 using Cairo;
 
 using VanillaGraphicsExpanded.ModSystems;
-using VanillaGraphicsExpanded.PBR.Materials.Artifacts;
+using VanillaGraphicsExpanded.PBR.Materials.ArtifactSystem;
 
 using Vintagestory.API.Client;
 

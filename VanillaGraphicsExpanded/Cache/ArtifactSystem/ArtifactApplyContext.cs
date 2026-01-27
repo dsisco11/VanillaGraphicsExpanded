@@ -1,6 +1,6 @@
 using Vintagestory.API.Client;
 
-namespace VanillaGraphicsExpanded.Cache.Artifacts;
+namespace VanillaGraphicsExpanded.Cache.ArtifactSystem;
 
 /// <summary>
 /// Context provided to apply-stage logic.

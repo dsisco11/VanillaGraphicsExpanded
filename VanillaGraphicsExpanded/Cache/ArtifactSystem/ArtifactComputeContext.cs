@@ -1,6 +1,6 @@
 using Vintagestory.API.Client;
 
-namespace VanillaGraphicsExpanded.Cache.Artifacts;
+namespace VanillaGraphicsExpanded.Cache.ArtifactSystem;
 
 /// <summary>
 /// Context provided to worker-thread artifact computation.

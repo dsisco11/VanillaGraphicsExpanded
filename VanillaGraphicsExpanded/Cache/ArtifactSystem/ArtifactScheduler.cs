@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 using Vintagestory.API.Client;
 
-namespace VanillaGraphicsExpanded.Cache.Artifacts;
+namespace VanillaGraphicsExpanded.Cache.ArtifactSystem;
 
 internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey>
     where TKey : notnull

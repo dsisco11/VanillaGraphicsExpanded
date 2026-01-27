@@ -5,7 +5,7 @@ using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Rendering;
 
-namespace VanillaGraphicsExpanded.Cache.Artifacts;
+namespace VanillaGraphicsExpanded.Cache.ArtifactSystem;
 
 internal sealed class TextureStreamingStageCopyArtifactGpuStore<TKey> : IArtifactGpuStore<TKey, ArtifactStageCopyUploadPayload>
 {

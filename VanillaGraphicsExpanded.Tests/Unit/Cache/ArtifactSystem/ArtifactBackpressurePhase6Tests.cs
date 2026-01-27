@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 
-using VanillaGraphicsExpanded.Cache.Artifacts;
+using VanillaGraphicsExpanded.Cache.ArtifactSystem;
 using VanillaGraphicsExpanded.PBR.Materials.Async;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.Cache.Artifacts;

@@ -1,4 +1,4 @@
-namespace VanillaGraphicsExpanded.Cache.Artifacts;
+namespace VanillaGraphicsExpanded.Cache.ArtifactSystem;
 
 /// <summary>
 /// Scheduler contract for continuously executing cache artifact work.

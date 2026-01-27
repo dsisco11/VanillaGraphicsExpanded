@@ -1,4 +1,4 @@
-namespace VanillaGraphicsExpanded.Cache.Artifacts;
+namespace VanillaGraphicsExpanded.Cache.ArtifactSystem;
 
 internal readonly record struct ArtifactSchedulerStats(
     long Queued,

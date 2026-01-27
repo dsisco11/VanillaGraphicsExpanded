@@ -1,4 +1,4 @@
-namespace VanillaGraphicsExpanded.Cache.Artifacts;
+namespace VanillaGraphicsExpanded.Cache.ArtifactSystem;
 
 /// <summary>
 /// Apply stage (main-thread and/or render-thread depending on implementation).

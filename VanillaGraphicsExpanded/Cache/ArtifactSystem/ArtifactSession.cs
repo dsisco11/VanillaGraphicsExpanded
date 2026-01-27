@@ -1,6 +1,6 @@
 using System.Threading;
 
-namespace VanillaGraphicsExpanded.Cache.Artifacts;
+namespace VanillaGraphicsExpanded.Cache.ArtifactSystem;
 
 /// <summary>
 /// Identifies a scheduler run. Any outputs produced under an older SessionId are stale and must be dropped.

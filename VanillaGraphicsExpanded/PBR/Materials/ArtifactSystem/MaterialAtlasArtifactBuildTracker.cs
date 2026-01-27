@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 
-namespace VanillaGraphicsExpanded.PBR.Materials.Artifacts;
+namespace VanillaGraphicsExpanded.PBR.Materials.ArtifactSystem;
 
 internal sealed class MaterialAtlasArtifactBuildTracker
 {

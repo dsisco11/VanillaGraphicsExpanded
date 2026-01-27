@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 using Vintagestory.API.Client;
 
-namespace VanillaGraphicsExpanded.PBR.Materials.Artifacts;
+namespace VanillaGraphicsExpanded.PBR.Materials.ArtifactSystem;
 
 /// <summary>
 /// Render-thread executor for artifact jobs that must execute GL work (normal/depth page clears, baking, readback).
