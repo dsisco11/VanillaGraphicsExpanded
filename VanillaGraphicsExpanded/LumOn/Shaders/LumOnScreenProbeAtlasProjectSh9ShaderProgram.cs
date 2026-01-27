@@ -48,12 +48,5 @@ public class LumOnScreenProbeAtlasProjectSh9ShaderProgram : GpuProgram
 
     #endregion
 
-    #region Uniforms
-
-    /// <summary>
-    /// Probe grid dimensions (probeCountX, probeCountY).
-    /// </summary>
-    public Vec2i ProbeGridSize { set => Uniform("probeGridSize", new Vec2f(value.X, value.Y)); }
-
-    #endregion
+    // Per-frame state (probeGridSize) is provided via LumOnFrameUBO.
 }

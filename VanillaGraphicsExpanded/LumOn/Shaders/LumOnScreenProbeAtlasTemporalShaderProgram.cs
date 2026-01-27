@@ -78,46 +78,10 @@ public class LumOnScreenProbeAtlasTemporalShaderProgram : GpuProgram
 
     #endregion
 
-    #region Probe Grid Uniforms
-
-    /// <summary>
-    /// Probe grid dimensions (probeCountX, probeCountY).
-    /// </summary>
-    public Vec2i ProbeGridSize { set => Uniform("probeGridSize", new Vec2f(value.X, value.Y)); }
-
-    /// <summary>
-    /// Spacing between probes in pixels.
-    /// </summary>
-    public int ProbeSpacing { set => Uniform("probeSpacing", value); }
-
-    /// <summary>
-    /// Screen dimensions in pixels.
-    /// </summary>
-    public Vec2f ScreenSize { set => Uniform("screenSize", value); }
-
-    /// <summary>
-    /// Toggle deterministic probe anchor jitter (must match probe-anchor pass).
-    /// </summary>
-    public int AnchorJitterEnabled { set => Uniform("anchorJitterEnabled", value); }
-
-    /// <summary>
-    /// Jitter scale as a fraction of probe spacing (must match probe-anchor pass).
-    /// </summary>
-    public float AnchorJitterScale { set => Uniform("anchorJitterScale", value); }
-
-    /// <summary>
-    /// PMJ jitter cycle length (texture width).
-    /// </summary>
-    public int PmjCycleLength { set => Uniform("pmjCycleLength", value); }
-
-    #endregion
+    // Per-frame state (probe grid params, screen size, frame index, jitter config, velocity reprojection toggles)
+    // is provided via LumOnFrameUBO.
 
     #region Temporal Distribution Defines
-
-    /// <summary>
-    /// Current frame index for temporal distribution calculation.
-    /// </summary>
-    public int FrameIndex { set => Uniform("frameIndex", value); }
 
     /// <summary>
     /// Number of probe-atlas texels traced per probe per frame.
@@ -143,16 +107,6 @@ public class LumOnScreenProbeAtlasTemporalShaderProgram : GpuProgram
     /// If hit distance changed more than this, reject history.
     /// </summary>
     public float HitDistanceRejectThreshold { set => Uniform("hitDistanceRejectThreshold", value); }
-
-    /// <summary>
-    /// Enables velocity-based reprojection (0/1).
-    /// </summary>
-    public int EnableVelocityReprojection { set => Uniform("enableVelocityReprojection", value); }
-
-    /// <summary>
-    /// Reject/down-weight history when velocity magnitude exceeds this threshold (UV delta per frame).
-    /// </summary>
-    public float VelocityRejectThreshold { set => Uniform("velocityRejectThreshold", value); }
 
     #endregion
 }

@@ -78,50 +78,10 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
 
     #endregion
 
-    #region Matrix Uniforms
-
-    /// <summary>
-    /// Inverse projection matrix for position reconstruction.
-    /// </summary>
-    public float[] InvProjectionMatrix { set => UniformMatrix("invProjectionMatrix", value); }
-
-    /// <summary>
-    /// Projection matrix for screen-space ray marching.
-    /// </summary>
-    public float[] ProjectionMatrix { set => UniformMatrix("projectionMatrix", value); }
-
-    /// <summary>
-    /// View matrix for world-space to view-space transformation.
-    /// </summary>
-    public float[] ViewMatrix { set => UniformMatrix("viewMatrix", value); }
-
-    /// <summary>
-    /// Inverse view matrix for view-space to world-space transformation.
-    /// </summary>
-    public float[] InvViewMatrix { set => UniformMatrix("invViewMatrix", value); }
-
-    #endregion
-
-    #region Probe Grid Uniforms
-
-    /// <summary>
-    /// Probe grid dimensions (probeCountX, probeCountY).
-    /// </summary>
-    public Vec2i ProbeGridSize { set => Uniform("probeGridSize", new Vec2f(value.X, value.Y)); }
-
-    /// <summary>
-    /// Screen dimensions in pixels.
-    /// </summary>
-    public Vec2f ScreenSize { set => Uniform("screenSize", value); }
-
-    #endregion
+    // Per-frame state (matrices, screen size, probe grid size, frame index, zNear/zFar, sun/ambient colors)
+    // is provided via LumOnFrameUBO.
 
     #region Temporal Distribution Defines
-
-    /// <summary>
-    /// Current frame index for temporal distribution.
-    /// </summary>
-    public int FrameIndex { set => Uniform("frameIndex", value); }
 
     /// <summary>
     /// Number of probe-atlas texels to trace per frame (default 8).
@@ -160,20 +120,6 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
 
     #endregion
 
-    #region Z-Planes
-
-    /// <summary>
-    /// Near clip plane distance.
-    /// </summary>
-    public float ZNear { set => Uniform("zNear", value); }
-
-    /// <summary>
-    /// Far clip plane distance.
-    /// </summary>
-    public float ZFar { set => Uniform("zFar", value); }
-
-    #endregion
-
     #region Sky Fallback Uniforms
 
     /// <summary>
@@ -181,21 +127,6 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
     /// Compile-time define for sky contribution.
     /// </summary>
     public float SkyMissWeight { set => SetDefine(VgeShaderDefines.LumOnSkyMissWeight, value.ToString(CultureInfo.InvariantCulture)); }
-
-    /// <summary>
-    /// Normalized sun direction for sky fallback.
-    /// </summary>
-    public Vec3f SunPosition { set => Uniform("sunPosition", value); }
-
-    /// <summary>
-    /// Sun color for sky fallback.
-    /// </summary>
-    public Vec3f SunColor { set => Uniform("sunColor", value); }
-
-    /// <summary>
-    /// Ambient color for sky fallback.
-    /// </summary>
-    public Vec3f AmbientColor { set => Uniform("ambientColor", value); }
 
     #endregion
 

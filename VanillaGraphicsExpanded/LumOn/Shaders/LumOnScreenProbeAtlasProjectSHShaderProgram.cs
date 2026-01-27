@@ -49,22 +49,5 @@ public class LumOnScreenProbeAtlasProjectSHShaderProgram : GpuProgram
 
     #endregion
 
-    #region Matrix Uniforms
-
-    /// <summary>
-    /// View matrix for world-space to view-space direction transform.
-    /// SH basis is evaluated in view-space to match the existing SH gather.
-    /// </summary>
-    public float[] ViewMatrix { set => UniformMatrix("viewMatrix", value); }
-
-    #endregion
-
-    #region Uniforms
-
-    /// <summary>
-    /// Probe grid dimensions (probeCountX, probeCountY).
-    /// </summary>
-    public Vec2i ProbeGridSize { set => Uniform("probeGridSize", new Vec2f(value.X, value.Y)); }
-
-    #endregion
+    // Per-frame state (viewMatrix, probeGridSize) is provided via LumOnFrameUBO.
 }

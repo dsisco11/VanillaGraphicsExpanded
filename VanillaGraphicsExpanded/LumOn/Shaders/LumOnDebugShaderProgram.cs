@@ -184,57 +184,7 @@ public class LumOnDebugShaderProgram : GpuProgram
 
     #endregion
 
-    #region Size Uniforms
-
-    /// <summary>
-    /// Full-resolution screen size.
-    /// </summary>
-    public Vec2f ScreenSize { set => Uniform("screenSize", value); }
-
-    /// <summary>
-    /// Probe grid dimensions (probeCountX, probeCountY).
-    /// </summary>
-    public Vec2i ProbeGridSize { set => Uniform("probeGridSize", new Vec2f(value.X, value.Y)); }
-
-    /// <summary>
-    /// Spacing between probes in pixels.
-    /// </summary>
-    public int ProbeSpacing { set => Uniform("probeSpacing", value); }
-
-    #endregion
-
-    #region Z-Plane Uniforms
-
-    /// <summary>
-    /// Near clipping plane distance.
-    /// </summary>
-    public float ZNear { set => Uniform("zNear", value); }
-
-    /// <summary>
-    /// Far clipping plane distance.
-    /// </summary>
-    public float ZFar { set => Uniform("zFar", value); }
-
-    #endregion
-
-    #region Matrix Uniforms
-
-    /// <summary>
-    /// Inverse projection matrix for position reconstruction.
-    /// </summary>
-    public float[] InvProjectionMatrix { set => UniformMatrix("invProjectionMatrix", value); }
-
-    /// <summary>
-    /// Inverse view matrix for temporal reprojection.
-    /// </summary>
-    public float[] InvViewMatrix { set => UniformMatrix("invViewMatrix", value); }
-
-    /// <summary>
-    /// Previous frame view-projection matrix for temporal reprojection.
-    /// </summary>
-    public float[] PrevViewProjMatrix { set => UniformMatrix("prevViewProjMatrix", value); }
-
-    #endregion
+    // Per-frame state (sizes, matrices, zNear/zFar, probe grid params) is provided via LumOnFrameUBO.
 
     #region Temporal Config Uniforms
 

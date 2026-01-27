@@ -39,35 +39,5 @@ public class LumOnVelocityShaderProgram : GpuProgram
 
     #endregion
 
-    #region Size Uniforms
-
-    /// <summary>
-    /// Full-resolution screen size.
-    /// </summary>
-    public Vec2f ScreenSize { set => Uniform("screenSize", value); }
-
-    #endregion
-
-    #region Matrix Uniforms
-
-    /// <summary>
-    /// Inverse current view-projection matrix.
-    /// </summary>
-    public float[] InvCurrViewProjMatrix { set => UniformMatrix("invCurrViewProjMatrix", value); }
-
-    /// <summary>
-    /// Previous frame view-projection matrix.
-    /// </summary>
-    public float[] PrevViewProjMatrix { set => UniformMatrix("prevViewProjMatrix", value); }
-
-    #endregion
-
-    #region History Validity
-
-    /// <summary>
-    /// Whether temporal history is valid (0/1).
-    /// </summary>
-    public int HistoryValid { set => Uniform("historyValid", value); }
-
-    #endregion
+    // Per-frame state (screen size, invCurrViewProj, prevViewProj, historyValid) is provided via LumOnFrameUBO.
 }

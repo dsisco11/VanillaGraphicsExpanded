@@ -36,7 +36,7 @@ LumOn - Phase 23 - Renderer UBO Refactor (Implementation):
   ✔ Classify each into: per-frame stable, per-pass stable, per-frame config, per-frame world-probe params, or keep-as-uniform. @done
   ✔ Identify duplicated uniform sets in LumOnRenderer (same values written to multiple programs per frame). @done
   ✔ Decide “Frame vs Pass” split (initially prefer a single FrameUBO unless a real pass-varying need exists). @done
-  ☐ Note any uniforms that must remain uniforms for compatibility or because they legitimately vary within a frame.
+  ✔ Note any uniforms that must remain uniforms for compatibility or because they legitimately vary within a frame. @done
 
   Notes (23.1 artifacts):
   - docs/LumOn.23.1-Uniform-Inventory.md (uniform list + recommended buckets)
@@ -109,11 +109,11 @@ LumOn - Phase 23 - Renderer UBO Refactor (Implementation):
 
   Phase 23.5 - Program API Cleanup (C# ShaderProgram Classes):
   Exit artifacts: C# shader program wrappers no longer expose per-frame “setter spam” for migrated values.
-  ☐ For each LumOn*ShaderProgram wrapper:
+  ✔ For each LumOn*ShaderProgram wrapper: @done
     - Remove properties for uniforms moved into FrameUBO/WorldProbeUBO (InvProjectionMatrix, ScreenSize, ZNear, etc.).
     - Keep sampler bindings and true pass-specific controls (e.g., filterRadius, hitDistanceSigma).
     - Keep SetDefine-driven specialization unchanged (ray steps, coarse mip, etc.).
-  ☐ Ensure any remaining uniforms are legitimately pass-specific and not duplicated elsewhere.
+  ✔ Ensure any remaining uniforms are legitimately pass-specific and not duplicated elsewhere. @done
 
 
   Phase 23.6 - Renderer Wiring (Bind UBOs Per Pass):

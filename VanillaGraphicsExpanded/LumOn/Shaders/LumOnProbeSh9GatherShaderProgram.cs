@@ -62,29 +62,9 @@ public class LumOnProbeSh9GatherShaderProgram : GpuProgram
 
     #endregion
 
-    #region Matrix Uniforms
-
-    public float[] InvProjectionMatrix { set => UniformMatrix("invProjectionMatrix", value); }
-
-    public float[] ViewMatrix { set => UniformMatrix("viewMatrix", value); }
-
-    public float[] InvViewMatrix { set => UniformMatrix("invViewMatrix", value); }
-
-    #endregion
+    // Per-frame state (matrices, sizes, probe grid params, zNear/zFar) is provided via LumOnFrameUBO.
 
     #region Uniforms
-
-    public int ProbeSpacing { set => Uniform("probeSpacing", value); }
-
-    public Vec2i ProbeGridSize { set => Uniform("probeGridSize", new Vec2f(value.X, value.Y)); }
-
-    public Vec2f ScreenSize { set => Uniform("screenSize", value); }
-
-    public Vec2f HalfResSize { set => Uniform("halfResSize", value); }
-
-    public float ZNear { set => Uniform("zNear", value); }
-
-    public float ZFar { set => Uniform("zFar", value); }
 
     public float Intensity { set => Uniform("intensity", value); }
 

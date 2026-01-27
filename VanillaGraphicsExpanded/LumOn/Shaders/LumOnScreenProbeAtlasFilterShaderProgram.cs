@@ -50,11 +50,7 @@ public class LumOnScreenProbeAtlasFilterShaderProgram : GpuProgram
     #endregion
 
     #region Uniforms
-
-    /// <summary>
-    /// Probe grid dimensions (probeCountX, probeCountY).
-    /// </summary>
-    public Vec2i ProbeGridSize { set => Uniform("probeGridSize", new Vec2f(value.X, value.Y)); }
+    // Per-frame state (probeGridSize) is provided via LumOnFrameUBO.
 
     /// <summary>
     /// Filter radius in texels (1 = 3x3).

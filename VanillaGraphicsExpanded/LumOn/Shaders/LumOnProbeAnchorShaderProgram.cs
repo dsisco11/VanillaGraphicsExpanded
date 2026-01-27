@@ -58,73 +58,7 @@ public class LumOnProbeAnchorShaderProgram : GpuProgram
 
     #endregion
 
-    #region Matrix Uniforms
-
-    /// <summary>
-    /// Inverse projection matrix for view-space position reconstruction.
-    /// </summary>
-    public float[] InvProjectionMatrix { set => UniformMatrix("invProjectionMatrix", value); }
-
-    /// <summary>
-    /// Inverse view matrix for transforming view-space positions to world-space.
-    /// Required for world-space probe output (temporal stability across camera rotations).
-    /// </summary>
-    public float[] InvViewMatrix { set => UniformMatrix("invViewMatrix", value); }
-
-    #endregion
-
-    #region Probe Grid Uniforms
-
-    /// <summary>
-    /// Spacing between probes in pixels.
-    /// </summary>
-    public int ProbeSpacing { set => Uniform("probeSpacing", value); }
-
-    /// <summary>
-    /// Probe grid dimensions (probeCountX, probeCountY).
-    /// </summary>
-    public Vec2i ProbeGridSize { set => Uniform("probeGridSize", new Vec2f(value.X, value.Y)); }
-
-    /// <summary>
-    /// Screen dimensions in pixels.
-    /// </summary>
-    public Vec2f ScreenSize { set => Uniform("screenSize", value); }
-
-    /// <summary>
-    /// Current frame index for deterministic jittering.
-    /// </summary>
-    public int FrameIndex { set => Uniform("frameIndex", value); }
-
-    /// <summary>
-    /// Toggle deterministic probe anchor jitter.
-    /// </summary>
-    public int AnchorJitterEnabled { set => Uniform("anchorJitterEnabled", value); }
-
-    /// <summary>
-    /// Jitter scale as a fraction of probe spacing.
-    /// </summary>
-    public float AnchorJitterScale { set => Uniform("anchorJitterScale", value); }
-
-    /// <summary>
-    /// PMJ jitter cycle length (texture width).
-    /// </summary>
-    public int PmjCycleLength { set => Uniform("pmjCycleLength", value); }
-
-    #endregion
-
-    #region Z-Plane Uniforms
-
-    /// <summary>
-    /// Near clipping plane distance.
-    /// </summary>
-    public float ZNear { set => Uniform("zNear", value); }
-
-    /// <summary>
-    /// Far clipping plane distance.
-    /// </summary>
-    public float ZFar { set => Uniform("zFar", value); }
-
-    #endregion
+    // Per-frame state (matrices, sizes, frame index, jitter config, zNear/zFar) is provided via LumOnFrameUBO.
 
     #region Edge Detection Uniforms
 

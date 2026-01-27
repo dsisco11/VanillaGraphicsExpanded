@@ -170,12 +170,17 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private long lastClipmapDebugLogTick;
 
     // Matrix buffers
+    private readonly LumOnUniformBuffers uniformBuffers = new();
     private readonly float[] invProjectionMatrix = new float[16];
     private readonly float[] invViewMatrix = new float[16];
     private readonly float[] prevViewProjMatrix = new float[16];
     private readonly float[] currentViewProjMatrix = new float[16];
+    private readonly float[] invCurrViewProjMatrix = new float[16];
+    private readonly float[] projectionMatrix = new float[16];
+    private readonly float[] viewMatrix = new float[16];
     private readonly float[] tempProjectionMatrix = new float[16];
     private readonly float[] tempModelViewMatrix = new float[16];
+    private int frameIndex;
 
     #endregion
 
@@ -519,6 +524,62 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         MatrixHelper.Multiply(tempProjectionMatrix, tempModelViewMatrix, currentViewProjMatrix);
     }
 
+    private void UpdateAndBindFrameUbo(VgeConfig.LumOnSettingsConfig lum)
+    {
+        Array.Copy(capi.Render.CurrentProjectionMatrix, projectionMatrix, 16);
+        Array.Copy(capi.Render.CameraMatrixOriginf, viewMatrix, 16);
+
+        MatrixHelper.Invert(currentViewProjMatrix, invCurrViewProjMatrix);
+
+        Vec3f sunPosF = new(0, 1, 0);
+        Vec3f sunColF = new(1, 1, 1);
+
+        if (capi.World?.Calendar is not null)
+        {
+            var sunPos = capi.World.Calendar.SunPositionNormalized;
+            sunPosF = new Vec3f((float)sunPos.X, (float)sunPos.Y, (float)sunPos.Z);
+
+            var sunCol = capi.World.Calendar.SunColor;
+            sunColF = new Vec3f(sunCol.R, sunCol.G, sunCol.B);
+        }
+
+        int halfW = bufferManager?.HalfResWidth ?? (capi.Render.FrameWidth / 2);
+        int halfH = bufferManager?.HalfResHeight ?? (capi.Render.FrameHeight / 2);
+
+        int probeCountX = bufferManager?.ProbeCountX ?? 0;
+        int probeCountY = bufferManager?.ProbeCountY ?? 0;
+
+        int uboFrameIndex = frameIndex;
+        frameIndex = unchecked(frameIndex + 1);
+
+        var frameData = new LumOnFrameUboData(
+            invProjectionMatrix: invProjectionMatrix,
+            projectionMatrix: projectionMatrix,
+            viewMatrix: viewMatrix,
+            invViewMatrix: invViewMatrix,
+            prevViewProjMatrix: prevViewProjMatrix,
+            invCurrViewProjMatrix: invCurrViewProjMatrix,
+            screenSize: new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight),
+            halfResSize: new Vec2f(halfW, halfH),
+            probeGridSize: new Vec2f(probeCountX, probeCountY),
+            zNear: capi.Render.ShaderUniforms.ZNear,
+            zFar: capi.Render.ShaderUniforms.ZFar,
+            probeSpacing: lum.ProbeSpacingPx,
+            frameIndex: uboFrameIndex,
+            historyValid: 0,
+            anchorJitterEnabled: lum.AnchorJitterEnabled ? 1 : 0,
+            pmjCycleLength: 0,
+            enableVelocityReprojection: lum.EnableReprojectionVelocity ? 1 : 0,
+            anchorJitterScale: lum.AnchorJitterScale * 0.1f,
+            velocityRejectThreshold: lum.VelocityRejectThreshold,
+            sunPosition: sunPosF,
+            sunColor: sunColF,
+            ambientColor: capi.Render.AmbientColor);
+
+        uniformBuffers.UpdateFrame(frameData);
+        uniformBuffers.FrameUbo.BindBase(LumOnUniformBuffers.FrameBinding);
+    }
+
     #endregion
 
     #region IRenderer
@@ -612,6 +673,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         MatrixHelper.Invert(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
         MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invViewMatrix);
         UpdateCurrentViewProjMatrixNoTranslate();
+        UpdateAndBindFrameUbo(lum);
 
         // Define-backed toggles must be set before Use() so the correct variant is bound.
         // Keep defines synchronized across the entire debug shader family so switching entrypoints
@@ -819,16 +881,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             // Phase 14 velocity debug input
             shader.VelocityTex = bufferManager?.VelocityTex;
 
-            // Pass uniforms
-            shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
-            shader.ProbeGridSize = new Vec2i(bufferManager?.ProbeCountX ?? 0, bufferManager?.ProbeCountY ?? 0);
-            shader.ProbeSpacing = lum.ProbeSpacingPx;
-            shader.ZNear = capi.Render.ShaderUniforms.ZNear;
-            shader.ZFar = capi.Render.ShaderUniforms.ZFar;
             shader.DebugMode = (int)mode;
-            shader.InvProjectionMatrix = invProjectionMatrix;
-            shader.InvViewMatrix = invViewMatrix;
-            shader.PrevViewProjMatrix = prevViewProjMatrix;
             shader.TemporalAlpha = lum.TemporalAlpha;
             shader.DepthRejectThreshold = 0.0f;
             shader.NormalRejectThreshold = 0.0f;
@@ -2548,6 +2601,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         clipmapProbePositionsVbo?.Dispose();
         clipmapProbePositionsVbo = null;
+
+        uniformBuffers.Dispose();
 
         capi.Event.UnregisterRenderer(this, EnumRenderStage.AfterBlit);
         capi.Event.UnregisterRenderer(this, EnumRenderStage.OIT);

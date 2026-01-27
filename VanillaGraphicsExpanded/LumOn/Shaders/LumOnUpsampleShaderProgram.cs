@@ -29,19 +29,7 @@ public class LumOnUpsampleShaderProgram : GpuProgram
 
     #endregion
 
-    #region Matrix Uniforms
-
-    /// <summary>
-    /// Inverse projection matrix for view-space position reconstruction.
-    /// </summary>
-    public float[] InvProjectionMatrix { set => UniformMatrix("invProjectionMatrix", value); }
-
-    /// <summary>
-    /// View matrix for WS to VS normal transform.
-    /// </summary>
-    public float[] ViewMatrix { set => UniformMatrix("viewMatrix", value); }
-
-    #endregion
+    // Per-frame state (matrices, sizes, zNear/zFar) is provided via LumOnFrameUBO.
 
     #region Texture Samplers
 
@@ -59,34 +47,6 @@ public class LumOnUpsampleShaderProgram : GpuProgram
     /// G-buffer normals for edge-aware upsampling.
     /// </summary>
     public int GBufferNormal { set => BindExternalTexture2D("gBufferNormal", value, 2, GpuSamplers.NearestClamp); }
-
-    #endregion
-
-    #region Size Uniforms
-
-    /// <summary>
-    /// Full-resolution screen size.
-    /// </summary>
-    public Vec2f ScreenSize { set => Uniform("screenSize", value); }
-
-    /// <summary>
-    /// Half-resolution buffer size.
-    /// </summary>
-    public Vec2f HalfResSize { set => Uniform("halfResSize", value); }
-
-    #endregion
-
-    #region Z-Plane Uniforms
-
-    /// <summary>
-    /// Near clipping plane distance.
-    /// </summary>
-    public float ZNear { set => Uniform("zNear", value); }
-
-    /// <summary>
-    /// Far clipping plane distance.
-    /// </summary>
-    public float ZFar { set => Uniform("zFar", value); }
 
     #endregion
 

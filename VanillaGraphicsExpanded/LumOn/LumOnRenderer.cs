@@ -289,7 +289,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Generate velocity buffer early so downstream temporal consumers can sample it.
         // This pass is safe even if not yet used by all temporal shaders.
-        RenderVelocityPass(primaryFb, historyValid);
+        RenderVelocityPass(primaryFb);
 
         using var cpuFrame = Profiler.BeginScope("LumOn.Frame", "Render");
         using (GlGpuProfiler.Instance.Scope("LumOn.Frame"))
@@ -476,7 +476,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         uniformBuffers.FrameUbo.BindBase(LumOnUniformBuffers.FrameBinding);
     }
 
-    private void RenderVelocityPass(FrameBufferRef primaryFb, bool historyValid)
+    private void RenderVelocityPass(FrameBufferRef primaryFb)
     {
         if (bufferManager.VelocityFbo is null)
             return;
@@ -497,10 +497,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.Use();
 
         shader.PrimaryDepth = primaryFb.DepthTextureId;
-        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
-        shader.InvCurrViewProjMatrix = invCurrentViewProjMatrix;
-        shader.PrevViewProjMatrix = prevViewProjMatrix;
-        shader.HistoryValid = historyValid ? 1 : 0;
 
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
@@ -539,23 +535,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
 
         shader.PmjJitter = pmjJitter;
-        shader.PmjCycleLength = pmjJitter.CycleLength;
-
-        // Pass matrices
-        shader.InvProjectionMatrix = invProjectionMatrix;
-        shader.InvViewMatrix = invModelViewMatrix;  // For view-space to world-space transform
-        
-        // Pass probe grid uniforms
-        shader.ProbeSpacing = config.LumOn.ProbeSpacingPx;
-        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
-        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
-
-        // Deterministic probe jitter (uses existing Squirrel3Hash in shader)
-        shader.FrameIndex = frameIndex;
-        shader.AnchorJitterEnabled = config.LumOn.AnchorJitterEnabled ? 1 : 0;
-        shader.AnchorJitterScale = config.LumOn.AnchorJitterScale * 0.1f;// Scale down for subtlety
-        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
-        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
 
         // Edge detection threshold for depth discontinuity
         shader.DepthDiscontinuityThreshold = config.LumOn.DepthDiscontinuityThreshold;
@@ -652,26 +631,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         {
             shader.HzbDepth = bufferManager.HzbDepthTex;
         }
-
-        // Pass matrices
-        shader.InvProjectionMatrix = invProjectionMatrix;
-        shader.ProjectionMatrix = projectionMatrix;
-        shader.ViewMatrix = modelViewMatrix;
-        shader.InvViewMatrix = invModelViewMatrix;
-
-        // Pass uniforms
-        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
-        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
-        shader.FrameIndex = frameIndex;
-        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
-        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
-
-        // Sky fallback colors
-        var sunPos = capi.World.Calendar.SunPositionNormalized;
-        shader.SunPosition = new Vec3f((float)sunPos.X, (float)sunPos.Y, (float)sunPos.Z);
-        var sunCol = capi.World.Calendar.SunColor;
-        shader.SunColor = new Vec3f(sunCol.R, sunCol.G, sunCol.B);
-        shader.AmbientColor = capi.Render.AmbientColor;
 
         // Indirect lighting tint
         shader.IndirectTint = new Vec3f(
@@ -789,25 +748,10 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Reconstruct the same jittered probe UV as the probe-anchor pass.
         shader.PmjJitter = pmjJitter;
-        shader.PmjCycleLength = pmjJitter.CycleLength;
-        shader.ProbeSpacing = config.LumOn.ProbeSpacingPx;
-        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
-        shader.AnchorJitterEnabled = config.LumOn.AnchorJitterEnabled ? 1 : 0;
-        shader.AnchorJitterScale = config.LumOn.AnchorJitterScale * 0.1f; // Match RenderProbeAnchorPass scaling
-
-        // Pass probe grid size
-        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
-
-        // Pass temporal distribution parameters (must match trace shader)
-        shader.FrameIndex = frameIndex;
 
         // Pass temporal blending parameters
         shader.TemporalAlpha = config.LumOn.TemporalAlpha;
         shader.HitDistanceRejectThreshold = 0.3f;  // 30% relative difference threshold
-
-        // Phase 14: velocity reprojection tuning (probe-atlas specific)
-        shader.EnableVelocityReprojection = config.LumOn.EnableReprojectionVelocity ? 1 : 0;
-        shader.VelocityRejectThreshold = config.LumOn.VelocityRejectThreshold;
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);
@@ -859,7 +803,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ScreenProbeAtlas = inputAtlas;
         shader.ScreenProbeAtlasMeta = inputMeta;
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
-        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
 
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
@@ -901,15 +844,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.PrimaryDepth = primaryFb.DepthTextureId;
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
 
-        shader.InvProjectionMatrix = invProjectionMatrix;
-        shader.ViewMatrix = modelViewMatrix;
-        shader.InvViewMatrix = invModelViewMatrix;
-        shader.ProbeSpacing = config.LumOn.ProbeSpacingPx;
-        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
-        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
-        shader.HalfResSize = new Vec2f(bufferManager.HalfResWidth, bufferManager.HalfResHeight);
-        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
-        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
         shader.Intensity = config.LumOn.Intensity;
         shader.IndirectTint = config.LumOn.IndirectTint;
 
@@ -953,17 +887,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Bind G-buffer for pixel info
         shader.PrimaryDepth = primaryFb.DepthTextureId;
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
-
-        // Pass uniforms
-        shader.InvProjectionMatrix = invProjectionMatrix;
-        shader.ViewMatrix = modelViewMatrix;
-        shader.InvViewMatrix = invModelViewMatrix;
-        shader.ProbeSpacing = config.LumOn.ProbeSpacingPx;
-        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
-        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
-        shader.HalfResSize = new Vec2f(bufferManager.HalfResWidth, bufferManager.HalfResHeight);
-        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
-        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
         shader.Intensity = config.LumOn.Intensity;
         shader.IndirectTint = config.LumOn.IndirectTint;
 
@@ -1170,8 +1093,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ScreenProbeAtlasMeta = inputMeta;
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
 
-        shader.ProbeGridSize = new Vec2i(bufferManager.ProbeCountX, bufferManager.ProbeCountY);
-
         // Minimal initial settings: 3x3 within-tile filter with moderate edge stopping.
         shader.FilterRadius = 1;
         shader.HitDistanceSigma = 1.0f;
@@ -1221,16 +1142,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Bind G-buffer for edge-aware upsampling
         shader.PrimaryDepth = primaryFb.DepthTextureId;
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
-
-        // Pass uniforms
-        shader.ScreenSize = new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight);
-        shader.HalfResSize = new Vec2f(bufferManager.HalfResWidth, bufferManager.HalfResHeight);
-        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
-        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
-
-        // Matrices for plane-weighted edge-aware filtering (UE-style)
-        shader.InvProjectionMatrix = invProjectionMatrix;
-        shader.ViewMatrix = modelViewMatrix;
 
         // Bilateral upsample parameters (SPG-008 Section 3.1)
         shader.UpsampleDepthSigma = config.LumOn.UpsampleDepthSigma;

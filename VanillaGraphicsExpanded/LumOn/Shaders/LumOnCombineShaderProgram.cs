@@ -65,19 +65,7 @@ public class LumOnCombineShaderProgram : GpuProgram
 
     #endregion
 
-    #region Matrix Uniforms
-
-    /// <summary>
-    /// Inverse projection matrix for view-space position reconstruction.
-    /// </summary>
-    public float[] InvProjectionMatrix { set => UniformMatrix("invProjectionMatrix", value); }
-
-    /// <summary>
-    /// View matrix for transforming world-space normals into view-space.
-    /// </summary>
-    public float[] ViewMatrix { set => UniformMatrix("viewMatrix", value); }
-
-    #endregion
+    // Per-frame state (matrices) is provided via LumOnFrameUBO.
 
     #region PBR Composite Defines (Phase 15 → SetDefine migration)
 
