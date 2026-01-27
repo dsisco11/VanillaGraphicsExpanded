@@ -5,6 +5,10 @@ layout(location = 0) out vec4 outVelocity;
 @import "./includes/lumon_common.glsl"
 @import "./includes/velocity_common.glsl"
 
+// Phase 23: shared per-frame state via UBOs.
+#define LUMON_UBO_ENABLE_ALIASES
+@import "./includes/lumon_ubos.glsl"
+
 // ============================================================================
 // LumOn Velocity Pass (Phase 14)
 //
@@ -17,14 +21,6 @@ layout(location = 0) out vec4 outVelocity;
 // ============================================================================
 
 uniform sampler2D primaryDepth;
-
-uniform vec2 screenSize;
-
-uniform mat4 invCurrViewProjMatrix;
-uniform mat4 prevViewProjMatrix;
-
-// 0/1: whether previous-frame history is valid at all (first frame / resize / teleport resets)
-uniform int historyValid;
 
 void main(void)
 {

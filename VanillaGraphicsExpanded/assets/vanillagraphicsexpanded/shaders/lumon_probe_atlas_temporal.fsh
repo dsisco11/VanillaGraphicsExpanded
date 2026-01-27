@@ -28,6 +28,10 @@ layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFlo
 // Phase 14 velocity helpers
 @import "./includes/velocity_common.glsl"
 
+// Phase 23: shared per-frame state via UBOs.
+#define LUMON_UBO_ENABLE_ALIASES
+@import "./includes/lumon_ubos.glsl"
+
 // ============================================================================
 // Uniforms
 // ============================================================================
@@ -51,29 +55,15 @@ uniform sampler2D probeAnchorPosition;  // xyz = posWS, w = validity
 // Phase 14 velocity buffer (RGBA32F): RG = currUv - prevUv, A = packed flags
 uniform sampler2D velocityTex;
 
-// Probe grid parameters
-uniform vec2 probeGridSize;
-
-// Screen-space mapping (must match probe-anchor pass)
-uniform int probeSpacing;
-uniform vec2 screenSize;
-
-// Deterministic per-frame jitter (must match probe-anchor pass)
-uniform int anchorJitterEnabled;   // 0/1
-uniform float anchorJitterScale;   // fraction of probeSpacing
+// PMJ jitter sequence texture (still a sampler; cycle length is supplied via UBO).
 uniform sampler2D pmjJitter;
-uniform int pmjCycleLength;
-
-// Temporal distribution parameters
-uniform int frameIndex;
 
 // Temporal blending parameters
 uniform float temporalAlpha;              // Base blend factor (e.g., 0.9)
 uniform float hitDistanceRejectThreshold; // Relative threshold (e.g., 0.3 = 30%)
 
 // Phase 14: velocity reprojection toggles
-uniform int enableVelocityReprojection;   // 0/1
-uniform float velocityRejectThreshold;    // UV delta per frame
+// (Now supplied by the per-frame UBO.)
 
 // ============================================================================
 // Velocity-Based Reprojection Helpers

@@ -16,6 +16,10 @@ out vec4 outColor;
 @import "./includes/lumon_common.glsl"
 @import "./includes/lumon_sh9.glsl"
 
+// Phase 23: shared per-frame state via UBOs.
+#define LUMON_UBO_ENABLE_ALIASES
+@import "./includes/lumon_ubos.glsl"
+
 // SH9 packed textures (7 MRT attachments from projection pass)
 uniform sampler2D probeSh0;
 uniform sampler2D probeSh1;
@@ -32,21 +36,6 @@ uniform sampler2D probeAnchorNormal;    // xyz = normalWS (encoded)
 // G-buffer for pixel info
 uniform sampler2D primaryDepth;
 uniform sampler2D gBufferNormal;
-
-// Matrices
-uniform mat4 invProjectionMatrix;
-uniform mat4 viewMatrix;  // For depth calculation (WS probe to VS)
-uniform mat4 invViewMatrix;
-
-// Probe grid parameters
-uniform int probeSpacing;
-uniform vec2 probeGridSize;
-uniform vec2 screenSize;
-uniform vec2 halfResSize;
-
-// Z-planes
-uniform float zNear;
-uniform float zFar;
 
 // Quality parameters
 uniform float intensity;

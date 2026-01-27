@@ -19,24 +19,16 @@ out vec4 outColor;
 // Import global defines (feature toggles with defaults)
 @import "./includes/vge_global_defines.glsl"
 
+// Phase 23: shared per-frame state via UBOs.
+#define LUMON_UBO_ENABLE_ALIASES
+@import "./includes/lumon_ubos.glsl"
+
 // Half-resolution indirect diffuse
 uniform sampler2D indirectHalf;
 
 // G-buffer for edge detection
 uniform sampler2D primaryDepth;
 uniform sampler2D gBufferNormal;
-
-// Matrices
-uniform mat4 invProjectionMatrix;
-uniform mat4 viewMatrix;  // For WS->VS normal transform
-
-// Size uniforms
-uniform vec2 screenSize;
-uniform vec2 halfResSize;
-
-// Z-planes
-uniform float zNear;
-uniform float zFar;
 
 // Quality parameters (from spec Section 3.1)
 uniform float upsampleDepthSigma;   // e.g., 0.1

@@ -56,6 +56,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     private readonly Vec3f[] worldProbeRingsCache = new Vec3f[8];
 
     private readonly LumOnPmjJitterTexture pmjJitter;
+    private readonly LumOnUniformBuffers uniformBuffers = new();
 
     // Fullscreen quad mesh
     private MeshRef? quadMeshRef;
@@ -284,6 +285,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Update matrices
         UpdateMatrices();
+        UpdateAndBindFrameUbo(historyValid);
 
         // Generate velocity buffer early so downstream temporal consumers can sample it.
         // This pass is safe even if not yet used by all temporal shaders.
@@ -430,6 +432,48 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Compute inverse current view-projection for depth-based reprojection.
         MatrixHelper.Invert(currentViewProjMatrix, invCurrentViewProjMatrix);
+    }
+
+    private void UpdateAndBindFrameUbo(bool historyValid)
+    {
+        Vec3f sunPosF = new(0, 1, 0);
+        Vec3f sunColF = new(1, 1, 1);
+
+        if (capi.World?.Calendar is not null)
+        {
+            var sunPos = capi.World.Calendar.SunPositionNormalized;
+            sunPosF = new Vec3f((float)sunPos.X, (float)sunPos.Y, (float)sunPos.Z);
+
+            var sunCol = capi.World.Calendar.SunColor;
+            sunColF = new Vec3f(sunCol.R, sunCol.G, sunCol.B);
+        }
+
+        var frameData = new LumOnFrameUboData(
+            invProjectionMatrix: invProjectionMatrix,
+            projectionMatrix: projectionMatrix,
+            viewMatrix: modelViewMatrix,
+            invViewMatrix: invModelViewMatrix,
+            prevViewProjMatrix: prevViewProjMatrix,
+            invCurrViewProjMatrix: invCurrentViewProjMatrix,
+            screenSize: new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight),
+            halfResSize: new Vec2f(bufferManager.HalfResWidth, bufferManager.HalfResHeight),
+            probeGridSize: new Vec2f(bufferManager.ProbeCountX, bufferManager.ProbeCountY),
+            zNear: capi.Render.ShaderUniforms.ZNear,
+            zFar: capi.Render.ShaderUniforms.ZFar,
+            probeSpacing: config.LumOn.ProbeSpacingPx,
+            frameIndex: frameIndex,
+            historyValid: historyValid ? 1 : 0,
+            anchorJitterEnabled: config.LumOn.AnchorJitterEnabled ? 1 : 0,
+            pmjCycleLength: pmjJitter.CycleLength,
+            enableVelocityReprojection: config.LumOn.EnableReprojectionVelocity ? 1 : 0,
+            anchorJitterScale: config.LumOn.AnchorJitterScale * 0.1f,
+            velocityRejectThreshold: config.LumOn.VelocityRejectThreshold,
+            sunPosition: sunPosF,
+            sunColor: sunColF,
+            ambientColor: capi.Render.AmbientColor);
+
+        uniformBuffers.UpdateFrame(frameData);
+        uniformBuffers.FrameUbo.BindBase(LumOnUniformBuffers.FrameBinding);
     }
 
     private void RenderVelocityPass(FrameBufferRef primaryFb, bool historyValid)
@@ -1256,6 +1300,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     public void Dispose()
     {
         pmjJitter.Dispose();
+        uniformBuffers.Dispose();
         // Unregister world events
         capi.Event.LeaveWorld -= OnLeaveWorld;
 

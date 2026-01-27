@@ -23,11 +23,13 @@ layout(location = 6) out vec4 outSH6;
 @import "./includes/lumon_probe_atlas_meta.glsl"
 @import "./includes/lumon_sh9.glsl"
 
+// Phase 23: shared per-frame state via UBOs.
+#define LUMON_UBO_ENABLE_ALIASES
+@import "./includes/lumon_ubos.glsl"
+
 uniform sampler2D octahedralAtlas;
 uniform sampler2D probeAtlasMeta;
 uniform sampler2D probeAnchorPosition; // xyz = posWS, w = validity
-
-uniform vec2 probeGridSize;
 
 void main(void)
 {

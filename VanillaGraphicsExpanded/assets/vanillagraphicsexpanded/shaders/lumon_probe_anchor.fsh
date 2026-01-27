@@ -26,32 +26,17 @@ layout(location = 1) out vec4 outNormal;    // normalWS.xyz, reserved
 // Import common utilities
 @import "./includes/lumon_common.glsl"
 
+// Phase 23: shared per-frame state via UBOs.
+#define LUMON_UBO_ENABLE_ALIASES
+@import "./includes/lumon_ubos.glsl"
+
 // PMJ temporal jitter sequence (provided by CPU as an RG16_UNorm 1xN texture)
 
 // G-buffer textures
 uniform sampler2D primaryDepth;    // Depth buffer
 uniform sampler2D gBufferNormal;   // World-space normals
 
-// Matrices
-uniform mat4 invProjectionMatrix;  // For view-space position reconstruction
-uniform mat4 invViewMatrix;        // For view-space to world-space transform
-
-// Probe grid parameters
-uniform int probeSpacing;          // Pixels between probes
-uniform vec2 probeGridSize;        // (probeCountX, probeCountY)
-uniform vec2 screenSize;           // Full screen dimensions
-
-// Deterministic per-frame jitter
-uniform int frameIndex;
-uniform int anchorJitterEnabled;   // 0/1
-uniform float anchorJitterScale;   // fraction of probeSpacing
-
 uniform sampler2D pmjJitter;
-uniform int pmjCycleLength;
-
-// Z-planes
-uniform float zNear;
-uniform float zFar;
 
 // Edge detection parameter
 uniform float depthDiscontinuityThreshold;  // Recommended: 0.1

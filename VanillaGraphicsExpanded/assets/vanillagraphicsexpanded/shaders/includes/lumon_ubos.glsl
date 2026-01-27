@@ -114,10 +114,6 @@ layout(std140, binding = LUMON_UBO_WORLDPROBE_BINDING) uniform LumOnWorldProbeUB
 #define sunColor    (lumonFrame.sunColor.xyz)
 #define ambientColor (lumonFrame.ambientColor.xyz)
 
-// World-probe params (note: arrays are vec4 in the UBO; use .xyz)
-#define worldProbeSkyTint      (lumonWorldProbe.worldProbeSkyTint.xyz)
-#define worldProbeCameraPosWS  (lumonWorldProbe.worldProbeCameraPosWS.xyz)
-
 #endif // LUMON_UBO_ENABLE_ALIASES
 
 #endif // LUMON_UBOS_GLSL

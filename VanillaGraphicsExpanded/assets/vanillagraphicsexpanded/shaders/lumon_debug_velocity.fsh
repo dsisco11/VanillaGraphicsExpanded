@@ -13,6 +13,7 @@ out vec4 outColor;
 @import "./includes/vge_global_defines.glsl"
 @import "./includes/squirrel3.glsl"
 
+#define LUMON_USE_FRAME_UBO 1
 @import "./includes/lumon_debug_uniforms.glsl"
 @import "./includes/lumon_debug_common.glsl"
 @import "./includes/lumon_debug_velocity.glsl"

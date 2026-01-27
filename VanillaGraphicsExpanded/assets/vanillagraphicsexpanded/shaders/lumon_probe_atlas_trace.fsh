@@ -33,6 +33,10 @@ layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFlo
 // Import noise for ray jittering
 @import "./includes/squirrel3.glsl"
 
+// Phase 23: shared per-frame state via UBOs.
+#define LUMON_UBO_ENABLE_ALIASES
+@import "./includes/lumon_ubos.glsl"
+
 // Probe anchor textures (world-space)
 uniform sampler2D probeAnchorPosition;  // posWS.xyz, valid
 uniform sampler2D probeAnchorNormal;    // normalWS.xyz, reserved
@@ -51,30 +55,6 @@ uniform sampler2D emissive;
 
 // Optional HZB depth pyramid
 uniform sampler2D hzbDepth;
-
-// Matrices
-uniform mat4 invProjectionMatrix;
-uniform mat4 projectionMatrix;
-uniform mat4 viewMatrix;       // For world-space to view-space transform
-uniform mat4 invViewMatrix;    // For view-space to world-space transform
-
-// Probe grid parameters
-uniform vec2 probeGridSize;    // (probeCountX, probeCountY) as float
-uniform vec2 screenSize;
-
-// Temporal distribution
-uniform int frameIndex;
-
-// Ray tracing parameters
-
-// Z-planes
-uniform float zNear;
-uniform float zFar;
-
-// Sky fallback
-uniform vec3 sunPosition;
-uniform vec3 sunColor;
-uniform vec3 ambientColor;
 
 // Indirect lighting tuning
 uniform vec3 indirectTint;

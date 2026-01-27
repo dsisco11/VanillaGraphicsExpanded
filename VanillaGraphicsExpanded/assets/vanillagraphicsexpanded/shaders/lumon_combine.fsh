@@ -21,6 +21,10 @@ out vec4 outColor;
 // Import PBR/material utilities
 @import "./includes/lumon_pbr.glsl"
 
+// Phase 23: shared per-frame state via UBOs.
+#define LUMON_UBO_ENABLE_ALIASES
+@import "./includes/lumon_ubos.glsl"
+
 // ============================================================================
 // Textures
 // ============================================================================
@@ -48,10 +52,6 @@ uniform vec3 indirectTint;            // RGB tint applied to indirect light
 // Phase 15 AO strength (kept as uniforms since they're float tuning values)
 uniform float diffuseAOStrength;
 uniform float specularAOStrength;
-
-// Matrices for view vector reconstruction / normal transform
-uniform mat4 invProjectionMatrix;
-uniform mat4 viewMatrix;
 
 // ============================================================================
 // Main

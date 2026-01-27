@@ -20,12 +20,13 @@ layout(location = 1) out vec4 outRadiance1;
 @import "./includes/lumon_octahedral.glsl"
 @import "./includes/lumon_probe_atlas_meta.glsl"
 
+// Phase 23: shared per-frame state via UBOs.
+#define LUMON_UBO_ENABLE_ALIASES
+@import "./includes/lumon_ubos.glsl"
+
 uniform sampler2D octahedralAtlas;   // RGBA16F, tiled 8x8 per probe
 uniform sampler2D probeAtlasMeta;    // RG32F, confidence + flags
 uniform sampler2D probeAnchorPosition; // xyz = posWS, w = valid
-
-uniform mat4 viewMatrix;
-uniform vec2 probeGridSize;
 
 void main(void)
 {

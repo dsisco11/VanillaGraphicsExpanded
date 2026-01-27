@@ -84,19 +84,27 @@ LumOn - Phase 23 - Renderer UBO Refactor (Implementation):
 
   Phase 23.4 - Shader Migration (UBO Adoption):
   Exit artifacts: LumOn GLSL uses uniform blocks for shared state; legacy standalone uniforms are removed.
-  ☐ Add @import "./includes/lumon_ubos.glsl" to each LumOn shader entrypoint that needs shared state.
-  ☐ Migrate each pass in isolation (keep it buildable/runnable after each step):
-    - Probe Anchor: lumon_probe_anchor.vsh/fsh
-    - Velocity: lumon_velocity.vsh/fsh
-    - Probe Atlas Trace: lumon_probe_atlas_trace.vsh/fsh
-    - Probe Atlas Temporal: lumon_probe_atlas_temporal.vsh/fsh
-    - Probe Atlas Filter: lumon_probe_atlas_filter.vsh/fsh
-    - Probe Atlas Project SH / SH9: lumon_probe_atlas_project_sh*.vsh/fsh
-    - Gather (atlas + SH9): lumon_probe_atlas_gather.vsh/fsh, lumon_probe_sh9_gather.vsh/fsh
-    - Upsample: lumon_upsample.vsh/fsh
-    - Debug entrypoints + monolithic debug: lumon_debug*.vsh/fsh and includes/lumon_debug_uniforms.glsl
-  ☐ Update lumon_worldprobe.glsl to read parameters from LumOnWorldProbeUBO (textures remain samplers).
-  ☐ Remove duplicated uniform declarations from migrated shaders (avoid “duplicate symbol” and validator confusion).
+  ✔ Add @import "./includes/lumon_ubos.glsl" (or consume it indirectly) in each LumOn shader entrypoint that needs shared state. @done
+  ✔ Migrate each pass in isolation (keep it buildable/runnable after each step): @done
+    ✔ Probe Anchor: lumon_probe_anchor.vsh/fsh @done
+    ✔ Velocity: lumon_velocity.vsh/fsh @done
+    ✔ Probe Atlas Trace: lumon_probe_atlas_trace.vsh/fsh @done
+    ✔ Probe Atlas Temporal: lumon_probe_atlas_temporal.vsh/fsh @done
+    ✔ Probe Atlas Filter: lumon_probe_atlas_filter.vsh/fsh @done
+    ✔ Probe Atlas Project SH / SH9: lumon_probe_atlas_project_sh*.vsh/fsh @done
+    ✔ Gather (atlas + SH9): lumon_probe_atlas_gather.vsh/fsh, lumon_probe_sh9_gather.vsh/fsh @done
+    ✔ Upsample: lumon_upsample.vsh/fsh @done
+    ✔ Debug entrypoints + monolithic debug: lumon_debug*.vsh/fsh and includes/lumon_debug_uniforms.glsl @done
+  ✔ Update lumon_worldprobe.glsl to read parameters from LumOnWorldProbeUBO (textures remain samplers). @done
+  ✔ Remove duplicated uniform declarations from migrated shaders (avoid “duplicate symbol” and validator confusion). @done
+    ✔ lumon_velocity.fsh: removed screen/matrix/history uniforms @done
+    ✔ lumon_probe_anchor.fsh: removed per-frame uniforms @done
+    ✔ lumon_probe_atlas_trace.fsh: removed per-frame uniforms @done
+    ✔ lumon_probe_atlas_temporal.fsh: removed per-frame uniforms (kept samplers) @done
+    ✔ lumon_probe_atlas_gather.fsh: removed per-frame uniforms @done
+    ✔ lumon_probe_sh9_gather.fsh: removed per-frame uniforms @done
+    ✔ lumon_upsample.fsh: removed per-frame uniforms @done
+    ✔ lumon_combine.fsh: removed per-frame uniforms @done
 
 
   Phase 23.5 - Program API Cleanup (C# ShaderProgram Classes):

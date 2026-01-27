@@ -81,6 +81,7 @@ out vec4 outColor;
 @import "./includes/squirrel3.glsl"
 
 // Shared debug uniforms/helpers + per-program-kind implementations.
+#define LUMON_USE_FRAME_UBO 1
 @import "./includes/lumon_debug_uniforms.glsl"
 @import "./includes/lumon_debug_common.glsl"
 @import "./includes/lumon_debug_probe_anchors.glsl"
