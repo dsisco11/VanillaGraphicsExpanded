@@ -517,6 +517,36 @@ internal sealed class PbrMaterialRegistry
                 return;
             }
 
+            // One-shot cache hit/miss stats based on the loaded cache index (no payload reads/decodes).
+            // This is the earliest point we can know how much work the regen session will skip.
+            {
+                var keys = new List<AtlasCacheKey>(capacity: materialIdByTexture.Count);
+                int memoryHits = 0;
+
+                foreach (AssetLocation tex in materialIdByTexture.Keys)
+                {
+                    AtlasCacheKey key = baseColorKeyBuilder.BuildKey(baseColorKeyInputs, tex, originPath: null, assetBytes: 0);
+
+                    if (TryGetBaseColorInMemory(key, out _))
+                    {
+                        memoryHits++;
+                        continue;
+                    }
+
+                    keys.Add(key);
+                }
+
+                int diskCandidates = keys.Count;
+                int diskHits = diskCache.CountExisting(keys);
+
+                capi.Logger.Debug(
+                    "[VGE] BaseColor cache (index): memory h/m={0}/{1} disk h/m={2}/{3}",
+                    memoryHits,
+                    Math.Max(0, materialIdByTexture.Count - memoryHits),
+                    diskHits,
+                    Math.Max(0, diskCandidates - diskHits));
+            }
+
             // Session id increments per run; stale results are dropped.
             long sessionId = Interlocked.Increment(ref baseColorRegenSessionId);
 

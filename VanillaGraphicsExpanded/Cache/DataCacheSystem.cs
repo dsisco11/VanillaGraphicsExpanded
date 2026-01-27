@@ -139,6 +139,42 @@ public sealed class DataCacheSystem<TKey, TPayload> : IDataCacheSystem<TKey, TPa
             StoreReadFailures: Interlocked.Read(ref storeReadFailures),
             StoreWriteFailures: Interlocked.Read(ref storeWriteFailures));
 
+    public int CountExisting(IReadOnlyList<TKey> keys)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+
+        if (keys.Count == 0)
+        {
+            return 0;
+        }
+
+        int hits = 0;
+        for (int i = 0; i < keys.Count; i++)
+        {
+            string entryId;
+            try
+            {
+                entryId = keyToEntryId(keys[i]);
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(entryId))
+            {
+                continue;
+            }
+
+            if (store.Contains(entryId))
+            {
+                hits++;
+            }
+        }
+
+        return hits;
+    }
+
     public IEnumerable<TKey> EnumerateCachedKeys()
     {
         foreach (string entryId in store.EnumerateEntryIds())

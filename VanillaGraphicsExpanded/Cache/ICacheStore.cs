@@ -10,6 +10,8 @@ public interface ICacheStore
     /// </summary>
     IEnumerable<string> EnumerateEntryIds();
 
+    bool Contains(string entryId);
+
     bool TryRead(string entryId, out byte[] bytes);
 
     bool TryWriteAtomic(string entryId, ReadOnlySpan<byte> bytes);

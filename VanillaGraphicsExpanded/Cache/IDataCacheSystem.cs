@@ -16,6 +16,8 @@ public interface IDataCacheSystem<TKey, TPayload>
 
     DataCacheStats GetStatsSnapshot();
 
+    int CountExisting(IReadOnlyList<TKey> keys);
+
     IEnumerable<TKey> EnumerateCachedKeys();
 }
 

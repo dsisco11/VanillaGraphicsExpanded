@@ -152,6 +152,9 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
         }
     }
 
+    public bool Contains(string entryId)
+        => HasEntryId(entryId);
+
     public bool TryRead(string entryId, out byte[] bytes)
     {
         bytes = Array.Empty<byte>();

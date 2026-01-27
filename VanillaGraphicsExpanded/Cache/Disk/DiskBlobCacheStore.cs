@@ -78,6 +78,19 @@ public sealed class DiskBlobCacheStore : ICacheStore, IDisposable
         }
     }
 
+    public bool Contains(string entryId)
+    {
+        if (string.IsNullOrWhiteSpace(entryId))
+        {
+            return false;
+        }
+
+        lock (gate)
+        {
+            return index.Entries.ContainsKey(entryId);
+        }
+    }
+
     public bool TryRead(string entryId, out byte[] bytes)
     {
         bytes = Array.Empty<byte>();
