@@ -44,19 +44,20 @@ LumOn - Phase 23 - Renderer UBO Refactor (Implementation):
 
   Phase 23.2 - UBO Contract (Bindings + std140 Layout):
   Exit artifacts: A stable UBO schema with binding indices, names, and padding rules.
-  ☐ Choose uniform block names and binding points (constants), e.g.:
-    - LumOnFrameUBO @ binding 0
-    - LumOnWorldProbeUBO @ binding 1
-  ☐ Define std140-safe GLSL layouts:
+  ✔ Choose uniform block names and binding points (constants): @done
+    - LumOnFrameUBO @ binding 12 @done
+    - LumOnWorldProbeUBO @ binding 13 @done
+  ✔ Define std140-safe GLSL layouts: @done
     - Use vec4-aligned arrays for worldProbeOriginMinCorner/worldProbeRingOffset to avoid std140 pitfalls.
     - Ensure int/bool packing rules are respected (pad as needed).
-  ☐ Create new shader include: VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_ubos.glsl:
+  ✔ Create new shader include: VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_ubos.glsl: @done
     - Declare the uniform blocks with explicit layout(binding=...).
     - Provide compatibility aliases/macros so most shader logic doesn’t need refactoring initially.
-  ☐ Update/adjust existing includes to consume UBO fields instead of standalone uniforms:
-    - lumon_worldprobe.glsl (worldProbeCameraPosWS, worldProbeSkyTint, origin/ring arrays)
-    - lumon_debug_uniforms.glsl (migrate “shared” uniforms into UBO include; keep debug-only controls as plain uniforms)
-  ☐ Document the UBO contract (block names + field list) in a short section inside the todo or a companion md.
+  ✔ Update/adjust existing includes to consume UBO fields instead of standalone uniforms (opt-in, backwards compatible): @done
+    - lumon_worldprobe.glsl (worldProbeCameraPosWS, worldProbeSkyTint, origin/ring arrays) @done
+    - lumon_debug_uniforms.glsl (migrate “shared” uniforms into UBO include; keep debug-only controls as plain uniforms) @done
+  ✔ Document the UBO contract (block names + field list) in a companion md: @done
+    - docs/LumOn.23.2-UBO-Contract.md @done
 
 
   Phase 23.3 - C# UBO Publisher (Per-Frame Upload + Lifetime):

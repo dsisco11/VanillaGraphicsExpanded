@@ -1,6 +1,17 @@
 // Shared uniforms/samplers for LumOn debug shaders.
 // Imported by the monolithic lumon_debug and by per-program-kind entrypoints.
 
+#ifndef LUMON_DEBUG_UNIFORMS_GLSL
+#define LUMON_DEBUG_UNIFORMS_GLSL
+
+// Optional UBO contracts (Phase 23).
+// Debug shaders can opt into UBO-backed shared values by defining LUMON_USE_FRAME_UBO=1.
+@import "./includes/lumon_ubos.glsl"
+
+#ifndef LUMON_USE_FRAME_UBO
+  #define LUMON_USE_FRAME_UBO 0
+#endif
+
 // G-buffer textures
 uniform sampler2D primaryDepth;
 uniform sampler2D gBufferNormal;
@@ -39,16 +50,34 @@ uniform sampler2D velocityTex;
 uniform sampler2D worldProbeDebugState0;
 
 // Matrices
-uniform mat4 invProjectionMatrix;
+
+#if LUMON_USE_FRAME_UBO
+  #define invProjectionMatrix (lumonFrame.invProjectionMatrix)
+#else
+  uniform mat4 invProjectionMatrix;
+#endif
 
 // Size uniforms
-uniform vec2 screenSize;
-uniform vec2 probeGridSize;
-uniform int probeSpacing;
+
+#if LUMON_USE_FRAME_UBO
+  #define screenSize    (lumonFrame.screenSize_halfResSize.xy)
+  #define probeGridSize (lumonFrame.probeGridSize_zNear_zFar.xy)
+  #define probeSpacing  (lumonFrame.frameInts0.x)
+#else
+  uniform vec2 screenSize;
+  uniform vec2 probeGridSize;
+  uniform int probeSpacing;
+#endif
 
 // Z-planes
-uniform float zNear;
-uniform float zFar;
+
+#if LUMON_USE_FRAME_UBO
+  #define zNear (lumonFrame.probeGridSize_zNear_zFar.z)
+  #define zFar  (lumonFrame.probeGridSize_zNear_zFar.w)
+#else
+  uniform float zNear;
+  uniform float zFar;
+#endif
 
 // Temporal config
 uniform float temporalAlpha;
@@ -59,8 +88,14 @@ uniform float normalRejectThreshold;
 uniform float velocityRejectThreshold;
 
 // Matrices for reprojection
-uniform mat4 invViewMatrix;
-uniform mat4 prevViewProjMatrix;
+
+#if LUMON_USE_FRAME_UBO
+  #define invViewMatrix      (lumonFrame.invViewMatrix)
+  #define prevViewProjMatrix (lumonFrame.prevViewProjMatrix)
+#else
+  uniform mat4 invViewMatrix;
+  uniform mat4 prevViewProjMatrix;
+#endif
 
 // Debug mode (still used to select a view inside a program-kind entrypoint)
 uniform int debugMode;
@@ -73,3 +108,5 @@ uniform float indirectIntensity;
 uniform vec3 indirectTint;
 uniform float diffuseAOStrength;
 uniform float specularAOStrength;
+
+#endif // LUMON_DEBUG_UNIFORMS_GLSL

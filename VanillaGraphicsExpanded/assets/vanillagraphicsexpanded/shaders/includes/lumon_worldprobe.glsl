@@ -18,6 +18,10 @@
 @import "./lumon_octahedral.glsl"
 @import "./lumon_sh.glsl"
 
+// Optional UBO contracts (Phase 23).
+// Shaders can opt into UBO-backed parameters by defining LUMON_USE_WORLDPROBE_UBO=1.
+@import "./includes/lumon_ubos.glsl"
+
 // ---------------------------------------------------------------------------
 // Define fallbacks (compile-time constants)
 // ---------------------------------------------------------------------------
@@ -39,7 +43,9 @@
 #endif
 
 // Expected maximum levels (matches config clamp).
-#define LUMON_WORLDPROBE_MAX_LEVELS 8
+#ifndef LUMON_WORLDPROBE_MAX_LEVELS
+	#define LUMON_WORLDPROBE_MAX_LEVELS 8
+#endif
 
 // ---------------------------------------------------------------------------
 // Shared uniforms
@@ -53,6 +59,20 @@ uniform sampler2D worldProbeDist0;
 uniform sampler2D worldProbeMeta0;
 uniform sampler2D worldProbeSky0;
 
+// Shaders opt into UBO-backed parameters by defining LUMON_USE_WORLDPROBE_UBO=1.
+#ifndef LUMON_USE_WORLDPROBE_UBO
+	#define LUMON_USE_WORLDPROBE_UBO 0
+#endif
+
+#if LUMON_USE_WORLDPROBE_UBO
+
+vec3 lumonWorldProbeGetSkyTint() { return lumonWorldProbe.worldProbeSkyTint.xyz; }
+vec3 lumonWorldProbeGetCameraPosWS() { return lumonWorldProbe.worldProbeCameraPosWS.xyz; }
+vec3 lumonWorldProbeGetOriginMinCorner(int level) { return lumonWorldProbe.worldProbeOriginMinCorner[level].xyz; }
+vec3 lumonWorldProbeGetRingOffset(int level) { return lumonWorldProbe.worldProbeRingOffset[level].xyz; }
+
+#else
+
 // Tint applied to skylight contribution (time-of-day / weather hook).
 uniform vec3 worldProbeSkyTint;
 
@@ -64,6 +84,13 @@ uniform vec3 worldProbeCameraPosWS;
 // This keeps values small/stable in float precision while still representing a world-space anchored clipmap.
 uniform vec3 worldProbeOriginMinCorner[LUMON_WORLDPROBE_MAX_LEVELS];
 uniform vec3 worldProbeRingOffset[LUMON_WORLDPROBE_MAX_LEVELS];
+
+vec3 lumonWorldProbeGetSkyTint() { return worldProbeSkyTint; }
+vec3 lumonWorldProbeGetCameraPosWS() { return worldProbeCameraPosWS; }
+vec3 lumonWorldProbeGetOriginMinCorner(int level) { return worldProbeOriginMinCorner[level]; }
+vec3 lumonWorldProbeGetRingOffset(int level) { return worldProbeRingOffset[level]; }
+
+#endif
 
 // ---------------------------------------------------------------------------
 // Clipmap sampling helpers
@@ -104,15 +131,14 @@ int lumonWorldProbeSelectLevelByExtents(
 	vec3 worldPosRel,
 	float baseSpacing,
 	int levels,
-	int resolution,
-	vec3 originMinCorner[LUMON_WORLDPROBE_MAX_LEVELS])
+	int resolution)
 {
 	int maxLevel = max(levels - 1, 0);
 
 	for (int level = 0; level < maxLevel; level++)
 	{
 		float spacing = lumonWorldProbeSpacing(baseSpacing, level);
-		if (lumonWorldProbeIsInsideLevel(worldPosRel, originMinCorner[level], spacing, resolution))
+		if (lumonWorldProbeIsInsideLevel(worldPosRel, lumonWorldProbeGetOriginMinCorner(level), spacing, resolution))
 		{
 			return level;
 		}
@@ -330,7 +356,8 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 	vec3 irradianceBlock = shEvaluateDiffuseRGB(shR, shG, shB, bentNormalWS);
 	float irradianceSkyVisibility = shEvaluateDiffuse(shSky, bentNormalWS);
 	float skyIntensity = clamp(skyIntensityAccum, 0.0, 1.0);
-	vec3 irradiance = max(irradianceBlock, vec3(0.0)) + worldProbeSkyTint * (max(irradianceSkyVisibility, 0.0) * skyIntensity);
+	vec3 skyTint = lumonWorldProbeGetSkyTint();
+	vec3 irradiance = max(irradianceBlock, vec3(0.0)) + skyTint * (max(irradianceSkyVisibility, 0.0) * skyIntensity);
 	irradiance = max(irradiance, vec3(0.0));
 
 	// ShortRangeAO is a leak-reduction factor applied to irradiance only; it should not 
@@ -438,7 +465,8 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleLevelTrilinearRadiance(
 	vec3 radianceBlock = shEvaluateRGB(shR, shG, shB, dirWS);
 	float radianceSkyVisibility = shEvaluate(shSky, dirWS);
 	float skyIntensity = clamp(skyIntensityAccum, 0.0, 1.0);
-	vec3 radiance = max(radianceBlock, vec3(0.0)) + worldProbeSkyTint * (max(radianceSkyVisibility, 0.0) * skyIntensity);
+	vec3 skyTint = lumonWorldProbeGetSkyTint();
+	vec3 radiance = max(radianceBlock, vec3(0.0)) + skyTint * (max(radianceSkyVisibility, 0.0) * skyIntensity);
 	radiance = max(radiance, vec3(0.0));
 
 	float conf = clamp(metaConfAccum, 0.0, 1.0);
@@ -456,10 +484,7 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleClipmapRadiance(
 	sampler2D probeVis0,
 	sampler2D probeMeta0,
 	vec3 worldPos,
-	vec3 dirWS,
-	vec3 cameraPosWS,
-	vec3 originMinCorner[LUMON_WORLDPROBE_MAX_LEVELS],
-	vec3 ringOffset[LUMON_WORLDPROBE_MAX_LEVELS])
+	vec3 dirWS)
 {
 	LumOnWorldProbeRadianceSample outS;
 	outS.radiance = vec3(0.0);
@@ -475,14 +500,15 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleClipmapRadiance(
 	}
 
 	// Work in camera-relative space for stable float precision.
+	vec3 cameraPosWS = lumonWorldProbeGetCameraPosWS();
 	vec3 worldPosRel = worldPos - cameraPosWS;
 
 	int maxLevel = max(levels - 1, 0);
-	int level = lumonWorldProbeSelectLevelByExtents(worldPosRel, baseSpacing, levels, resolution, originMinCorner);
+	int level = lumonWorldProbeSelectLevelByExtents(worldPosRel, baseSpacing, levels, resolution);
 
 	float spacingL = lumonWorldProbeSpacing(baseSpacing, level);
-	vec3 originL = originMinCorner[level];
-	vec3 ringL = ringOffset[level];
+	vec3 originL = lumonWorldProbeGetOriginMinCorner(level);
+	vec3 ringL = lumonWorldProbeGetRingOffset(level);
 
 	// Cross-level overlap smoothing: blend to L+1 near boundary.
 	vec3 localL = (worldPosRel - originL) / max(spacingL, 1e-6);
@@ -499,8 +525,8 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleClipmapRadiance(
 	{
 		int level2 = level + 1;
 		float spacing2 = lumonWorldProbeSpacing(baseSpacing, level2);
-		vec3 origin2 = originMinCorner[level2];
-		vec3 ring2 = ringOffset[level2];
+		vec3 origin2 = lumonWorldProbeGetOriginMinCorner(level2);
+		vec3 ring2 = lumonWorldProbeGetRingOffset(level2);
 
 		LumOnWorldProbeRadianceSample s2 = lumonWorldProbeSampleLevelTrilinearRadiance(
 			probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0,
@@ -534,10 +560,7 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleClipmapRadianceBound(vec3 wor
 		worldProbeVis0,
 		worldProbeMeta0,
 		worldPos,
-		dirWS,
-		worldProbeCameraPosWS,
-		worldProbeOriginMinCorner,
-		worldProbeRingOffset);
+		dirWS);
 }
 
 LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
@@ -548,10 +571,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
 	sampler2D probeVis0,
 	sampler2D probeMeta0,
 	vec3 worldPos,
-	vec3 normalWS,
-	vec3 cameraPosWS,
-	vec3 originMinCorner[LUMON_WORLDPROBE_MAX_LEVELS],
-	vec3 ringOffset[LUMON_WORLDPROBE_MAX_LEVELS])
+	vec3 normalWS)
 {
 	LumOnWorldProbeSample outS;
 	outS.irradiance = vec3(0.0);
@@ -567,14 +587,15 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
 	}
 
 	// Work in camera-relative space for stable float precision.
+	vec3 cameraPosWS = lumonWorldProbeGetCameraPosWS();
 	vec3 worldPosRel = worldPos - cameraPosWS;
 
 	int maxLevel = max(levels - 1, 0);
-	int level = lumonWorldProbeSelectLevelByExtents(worldPosRel, baseSpacing, levels, resolution, originMinCorner);
+	int level = lumonWorldProbeSelectLevelByExtents(worldPosRel, baseSpacing, levels, resolution);
 
 	float spacingL = lumonWorldProbeSpacing(baseSpacing, level);
-	vec3 originL = originMinCorner[level];
-	vec3 ringL = ringOffset[level];
+	vec3 originL = lumonWorldProbeGetOriginMinCorner(level);
+	vec3 ringL = lumonWorldProbeGetRingOffset(level);
 
 	// Cross-level overlap smoothing: blend to L+1 near boundary.
 	vec3 localL = (worldPosRel - originL) / max(spacingL, 1e-6);
@@ -591,8 +612,8 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
 	{
 		int level2 = level + 1;
 		float spacing2 = lumonWorldProbeSpacing(baseSpacing, level2);
-		vec3 origin2 = originMinCorner[level2];
-		vec3 ring2 = ringOffset[level2];
+		vec3 origin2 = lumonWorldProbeGetOriginMinCorner(level2);
+		vec3 ring2 = lumonWorldProbeGetRingOffset(level2);
 
 		LumOnWorldProbeSample s2 = lumonWorldProbeSampleLevelTrilinear(
 			probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0,
@@ -627,10 +648,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmapBound(vec3 worldPos, vec3 norm
 		worldProbeVis0,
 		worldProbeMeta0,
 		worldPos,
-		normalWS,
-		worldProbeCameraPosWS,
-		worldProbeOriginMinCorner,
-		worldProbeRingOffset);
+		normalWS);
 }
 
 #endif
