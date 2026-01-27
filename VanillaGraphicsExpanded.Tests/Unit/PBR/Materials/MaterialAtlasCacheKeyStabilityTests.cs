@@ -116,7 +116,7 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
     }
 
     [Fact]
-    public void CacheKeys_Change_WhenSnapshotFingerprintChanges()
+    public void CacheKeys_DoNotChange_WhenOnlyReloadIterationChanges()
     {
         var logger = new TestLogger();
 
@@ -177,7 +177,7 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
             AtlasCacheKey kA = builder.BuildMaterialParamsTileKey(inputsA, 101, rect, texture, def, scale);
             AtlasCacheKey kB = builder.BuildMaterialParamsTileKey(inputsB, 101, rect, texture, def, scale);
 
-            Assert.NotEqual(kA, kB);
+            Assert.Equal(kA, kB);
         }
         finally
         {
