@@ -167,6 +167,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private bool hasClipmapDebugRuntimeCameraPosWS;
     private readonly Vec3d[] clipmapDebugOriginsAbsWorld = new Vec3d[MaxWorldProbeLevels];
 
+    private readonly Vec3f[] worldProbeOriginMinCornerCache = new Vec3f[MaxWorldProbeLevels];
+    private readonly Vec3f[] worldProbeRingOffsetCache = new Vec3f[MaxWorldProbeLevels];
+
     private long lastClipmapDebugLogTick;
 
     // Matrix buffers
@@ -835,37 +838,54 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 shader.WorldProbeMeta0 = worldProbeClipmapBufferManager.Resources.ProbeMeta0;
                 shader.WorldProbeDebugState0 = worldProbeClipmapBufferManager.Resources.ProbeDebugState0;
                 shader.WorldProbeSky0 = worldProbeClipmapBufferManager.Resources.ProbeSky0;
-                shader.WorldProbeSkyTint = capi.Render.AmbientColor;
 
                 // Shaders reconstruct world positions in the engine's camera-matrix world space (invViewMatrix).
                 // Always derive camera position from the *current* inverse view matrix (matches reconstruction in shaders).
                 // Runtime params may be from a different renderer pass / slightly different matrix state.
+                Vec3f camPosWs = new Vec3f(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
+
                 if (!hasWorldProbeRuntimeParams || wpOrigins is null || wpRings is null)
                 {
-                    shader.WorldProbeCameraPosWS = new Vec3f(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
+                    var data = new LumOnWorldProbeUboData(
+                        skyTint: capi.Render.AmbientColor,
+                        cameraPosWS: camPosWs,
+                        originMinCorner: null,
+                        ringOffset: null);
 
-                    for (int i = 0; i < 8; i++)
-                    {
-                        shader.TrySetWorldProbeLevelParams(i, new Vec3f(0, 0, 0), new Vec3f(0, 0, 0));
-                    }
+                    uniformBuffers.UpdateWorldProbe(data);
                 }
                 else
                 {
-                    shader.WorldProbeCameraPosWS = new Vec3f(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
-
-                    for (int i = 0; i < 8; i++)
+                    for (int i = 0; i < MaxWorldProbeLevels; i++)
                     {
-                        var o = wpOrigins[i];
-                        var r = wpRings[i];
-                        if (!shader.TrySetWorldProbeLevelParams(
-                                i,
-                                new Vec3f(o.X, o.Y, o.Z),
-                                new Vec3f(r.X, r.Y, r.Z)))
-                        {
-                            break;
-                        }
+                        var o = (i < wpOrigins.Length) ? wpOrigins[i] : default;
+                        var r = (i < wpRings.Length) ? wpRings[i] : default;
+                        worldProbeOriginMinCornerCache[i] = new Vec3f(o.X, o.Y, o.Z);
+                        worldProbeRingOffsetCache[i] = new Vec3f(r.X, r.Y, r.Z);
                     }
+
+                    var data = new LumOnWorldProbeUboData(
+                        skyTint: capi.Render.AmbientColor,
+                        cameraPosWS: camPosWs,
+                        originMinCorner: worldProbeOriginMinCornerCache,
+                        ringOffset: worldProbeRingOffsetCache);
+
+                    uniformBuffers.UpdateWorldProbe(data);
                 }
+
+                uniformBuffers.WorldProbeUbo.BindBase(LumOnUniformBuffers.WorldProbeBinding);
+            }
+            else
+            {
+                // Publish a stable, disabled buffer so UBO-backed shaders can safely read from the block.
+                var data = new LumOnWorldProbeUboData(
+                    skyTint: capi.Render.AmbientColor,
+                    cameraPosWS: new Vec3f(0, 0, 0),
+                    originMinCorner: null,
+                    ringOffset: null);
+
+                uniformBuffers.UpdateWorldProbe(data);
+                uniformBuffers.WorldProbeUbo.BindBase(LumOnUniformBuffers.WorldProbeBinding);
             }
 
             // Phase 15 composite debug inputs

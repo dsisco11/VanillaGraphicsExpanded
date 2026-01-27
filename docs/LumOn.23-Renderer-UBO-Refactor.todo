@@ -118,16 +118,16 @@ LumOn - Phase 23 - Renderer UBO Refactor (Implementation):
 
   Phase 23.6 - Renderer Wiring (Bind UBOs Per Pass):
   Exit artifacts: LumOnRenderer binds UBOs and stops setting redundant uniforms.
-  ☐ In LumOnRenderer:
+  ✔ In LumOnRenderer: @done
     - Create/own the LumOnUniformBuffers instance.
     - Call UpdateFrame once per frame (after UpdateMatrices).
     - Call UpdateWorldProbe once per frame when enabled/available.
-  ☐ In each pass right after shader.Use():
+  ✔ In each pass right after shader.Use(): @done
     - Bind FrameUbo via shader.ResourceBindings.TryBindUniformBlock("LumOnFrameUBO", FrameUbo)
     - If world probes enabled: bind WorldProbeUbo via TryBindUniformBlock("LumOnWorldProbeUBO", WorldProbeUbo)
-  ☐ Delete redundant per-pass uniform setter calls now covered by UBOs.
-  ☐ Replace per-level world-probe uniform array writes (TrySetWorldProbeLevelParams loop) with the WorldProbeUbo upload.
-  ☐ Add minimal diagnostics when binding fails (block missing / binding mismatch) to catch partial migrations quickly.
+  ✔ Delete redundant per-pass uniform setter calls now covered by UBOs. @done
+  ✔ Replace per-level world-probe uniform array writes (TrySetWorldProbeLevelParams loop) with the WorldProbeUbo upload. @done
+  ✔ Add minimal diagnostics when binding fails (block missing / binding mismatch) to catch partial migrations quickly. @done
 
 
   Phase 23.7 - Tests + Validation:

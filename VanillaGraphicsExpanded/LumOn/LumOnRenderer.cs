@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
@@ -57,6 +58,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     private readonly LumOnPmjJitterTexture pmjJitter;
     private readonly LumOnUniformBuffers uniformBuffers = new();
+    private readonly HashSet<string> warnedMissingUboBindings = new(StringComparer.Ordinal);
 
     // Fullscreen quad mesh
     private MeshRef? quadMeshRef;
@@ -286,6 +288,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Update matrices
         UpdateMatrices();
         UpdateAndBindFrameUbo(historyValid);
+        UpdateAndBindWorldProbeUbo();
 
         // Generate velocity buffer early so downstream temporal consumers can sample it.
         // This pass is safe even if not yet used by all temporal shaders.
@@ -476,6 +479,69 @@ public class LumOnRenderer : IRenderer, IDisposable
         uniformBuffers.FrameUbo.BindBase(LumOnUniformBuffers.FrameBinding);
     }
 
+    private void UpdateAndBindWorldProbeUbo()
+    {
+        Vec3f camPos = new(0, 0, 0);
+        Vec3f[]? origins = null;
+        Vec3f[]? rings = null;
+
+        if (TryBindWorldProbeClipmapCommon(
+            out _,
+            out camPos,
+            out _,
+            out _,
+            out _,
+            out origins,
+            out rings))
+        {
+            var data = new LumOnWorldProbeUboData(
+                skyTint: capi.Render.AmbientColor,
+                cameraPosWS: camPos,
+                originMinCorner: origins,
+                ringOffset: rings);
+
+            uniformBuffers.UpdateWorldProbe(data);
+        }
+        else
+        {
+            // Publish a stable zeroed buffer so shaders can safely read the block even when disabled.
+            var data = new LumOnWorldProbeUboData(
+                skyTint: capi.Render.AmbientColor,
+                cameraPosWS: new Vec3f(0, 0, 0),
+                originMinCorner: null,
+                ringOffset: null);
+
+            uniformBuffers.UpdateWorldProbe(data);
+        }
+
+        uniformBuffers.WorldProbeUbo.BindBase(LumOnUniformBuffers.WorldProbeBinding);
+    }
+
+    private void BindSharedUbos(GpuProgram shader)
+    {
+        if (!shader.ResourceBindings.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo))
+        {
+            uniformBuffers.FrameUbo.BindBase(LumOnUniformBuffers.FrameBinding);
+            WarnMissingUboBindingOnce(shader, "LumOnFrameUBO");
+        }
+
+        if (!shader.ResourceBindings.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo))
+        {
+            uniformBuffers.WorldProbeUbo.BindBase(LumOnUniformBuffers.WorldProbeBinding);
+        }
+    }
+
+    private void WarnMissingUboBindingOnce(GpuProgram shader, string blockName)
+    {
+        string key = $"{shader.PassName}:{blockName}";
+        if (warnedMissingUboBindings.Add(key))
+        {
+            capi.Logger.Warning("[VGE] LumOn: program '{0}' did not expose uniform block '{1}' in layout; using fallback binding.",
+                shader.PassName,
+                blockName);
+        }
+    }
+
     private void RenderVelocityPass(FrameBufferRef primaryFb)
     {
         if (bufferManager.VelocityFbo is null)
@@ -495,6 +561,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.SetDefine(VgeShaderDefines.LumOnEmissiveBoost, Math.Max(0.0f, config.LumOn.EmissiveGiBoost).ToString("0.0####", CultureInfo.InvariantCulture));
 
         shader.Use();
+        BindSharedUbos(shader);
 
         shader.PrimaryDepth = primaryFb.DepthTextureId;
 
@@ -529,6 +596,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
+        BindSharedUbos(shader);
 
         // Bind G-buffer textures
         shader.PrimaryDepth = primaryFb.DepthTextureId;
@@ -580,14 +648,16 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // World-probe clipmap uses compile-time defines. They must be configured before Use().
         // If defines change, VGE will queue a recompile; skip this pass (do not clear) to avoid black flicker.
-        if (TryBindWorldProbeClipmapCommon(
-                out _,
-                out _,
-                out var wpBaseSpacing,
-                out var wpLevels,
-                out var wpResolution,
-                out _,
-                out _))
+        bool hasWorldProbe = TryBindWorldProbeClipmapCommon(
+            out var wpResources,
+            out _,
+            out var wpBaseSpacing,
+            out var wpLevels,
+            out var wpResolution,
+            out _,
+            out _);
+
+        if (hasWorldProbe)
         {
             if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, wpBaseSpacing, wpLevels, wpResolution))
             {
@@ -600,6 +670,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         }
 
         shader.Use();
+        BindSharedUbos(shader);
 
         // Bind probe anchor textures
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
@@ -632,13 +703,30 @@ public class LumOnRenderer : IRenderer, IDisposable
             shader.HzbDepth = bufferManager.HzbDepthTex;
         }
 
+        if (hasWorldProbe)
+        {
+            shader.WorldProbeSH0 = wpResources.ProbeSh0;
+            shader.WorldProbeSH1 = wpResources.ProbeSh1;
+            shader.WorldProbeSH2 = wpResources.ProbeSh2;
+            shader.WorldProbeVis0 = wpResources.ProbeVis0;
+            shader.WorldProbeMeta0 = wpResources.ProbeMeta0;
+            shader.WorldProbeSky0 = wpResources.ProbeSky0;
+        }
+        else
+        {
+            shader.WorldProbeSH0 = null;
+            shader.WorldProbeSH1 = null;
+            shader.WorldProbeSH2 = null;
+            shader.WorldProbeVis0 = null;
+            shader.WorldProbeMeta0 = null;
+            shader.WorldProbeSky0 = null;
+        }
+
         // Indirect lighting tint
         shader.IndirectTint = new Vec3f(
             config.LumOn.IndirectTint[0],
             config.LumOn.IndirectTint[1],
             config.LumOn.IndirectTint[2]);
-
-        BindWorldProbeClipmap(shader);
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);
@@ -719,6 +807,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.TexelsPerFrame = config.LumOn.ProbeAtlasTexelsPerFrame;
 
         shader.Use();
+        BindSharedUbos(shader);
 
         // Bind trace output (fresh traced texels + history copies for non-traced)
         var traceTex = bufferManager.ScreenProbeAtlasTraceTex;
@@ -800,6 +889,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
 
         shader.Use();
+        BindSharedUbos(shader);
         shader.ScreenProbeAtlas = inputAtlas;
         shader.ScreenProbeAtlasMeta = inputMeta;
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
@@ -829,6 +919,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
+        BindSharedUbos(shader);
 
         shader.ProbeSh0 = bufferManager.ProbeSh9Tex0;
         shader.ProbeSh1 = bufferManager.ProbeSh9Tex1!;
@@ -876,6 +967,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
+        BindSharedUbos(shader);
 
         // Bind screen-probe atlas radiance
         shader.ScreenProbeAtlas = probeAtlas;
@@ -897,120 +989,6 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Render
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
-    }
-
-    private void BindWorldProbeClipmap(LumOnScreenProbeAtlasTraceShaderProgram shader)
-    {
-        if (!TryBindWorldProbeClipmapCommon(
-                out var resources,
-                out var camPos,
-                out var baseSpacing,
-                out var levels,
-                out var resolution,
-                out var origins,
-                out var rings))
-        {
-            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
-            return;
-        }
-
-        if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, baseSpacing, levels, resolution))
-        {
-            return;
-        }
-
-        shader.WorldProbeSH0 = resources.ProbeSh0;
-        shader.WorldProbeSH1 = resources.ProbeSh1;
-        shader.WorldProbeSH2 = resources.ProbeSh2;
-        shader.WorldProbeVis0 = resources.ProbeVis0;
-        shader.WorldProbeMeta0 = resources.ProbeMeta0;
-        shader.WorldProbeSky0 = resources.ProbeSky0;
-        shader.WorldProbeCameraPosWS = camPos;
-        shader.WorldProbeSkyTint = capi.Render.AmbientColor;
-
-        for (int i = 0; i < 8; i++)
-        {
-            if (!shader.TrySetWorldProbeLevelParams(i, origins[i], rings[i]))
-            {
-                return;
-            }
-        }
-    }
-
-    private void BindWorldProbeClipmap(LumOnProbeSh9GatherShaderProgram shader)
-    {
-        if (!TryBindWorldProbeClipmapCommon(
-                out var resources,
-                out var camPos,
-                out var baseSpacing,
-                out var levels,
-                out var resolution,
-                out var origins,
-                out var rings))
-        {
-            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
-            return;
-        }
-
-        if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, baseSpacing, levels, resolution))
-        {
-            return;
-        }
-
-        shader.WorldProbeSH0 = resources.ProbeSh0;
-        shader.WorldProbeSH1 = resources.ProbeSh1;
-        shader.WorldProbeSH2 = resources.ProbeSh2;
-        shader.WorldProbeVis0 = resources.ProbeVis0;
-        shader.WorldProbeMeta0 = resources.ProbeMeta0;
-        shader.WorldProbeSky0 = resources.ProbeSky0;
-        shader.WorldProbeCameraPosWS = camPos;
-        shader.WorldProbeSkyTint = capi.Render.AmbientColor;
-
-        for (int i = 0; i < 8; i++)
-        {
-            if (!shader.TrySetWorldProbeLevelParams(i, origins[i], rings[i]))
-            {
-                return;
-            }
-        }
-    }
-
-    private void BindWorldProbeClipmap(LumOnScreenProbeAtlasGatherShaderProgram shader)
-    {
-        if (!TryBindWorldProbeClipmapCommon(
-                out var resources,
-                out var camPos,
-                out var baseSpacing,
-                out var levels,
-                out var resolution,
-                out var origins,
-                out var rings))
-        {
-            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
-            return;
-        }
-
-        if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, baseSpacing, levels, resolution))
-        {
-            return;
-        }
-
-        shader.WorldProbeSH0 = resources.ProbeSh0;
-        shader.WorldProbeSH1 = resources.ProbeSh1;
-        shader.WorldProbeSH2 = resources.ProbeSh2;
-        shader.WorldProbeVis0 = resources.ProbeVis0;
-        shader.WorldProbeMeta0 = resources.ProbeMeta0;
-        shader.WorldProbeSky0 = resources.ProbeSky0;
-        shader.WorldProbeCameraPosWS = camPos;
-        shader.WorldProbeSkyTint = capi.Render.AmbientColor;
-
-        for (int i = 0; i < 8; i++)
-        {
-            if (!shader.TrySetWorldProbeLevelParams(i, origins[i], rings[i]))
-            {
-                return;
-            }
-        }
     }
 
     private bool TryBindWorldProbeClipmapCommon(
@@ -1088,6 +1066,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
+        BindSharedUbos(shader);
 
         shader.ScreenProbeAtlas = inputAtlas;
         shader.ScreenProbeAtlasMeta = inputMeta;
@@ -1135,6 +1114,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         }
 
         shader.Use();
+        BindSharedUbos(shader);
 
         // Bind half-res indirect diffuse
         shader.IndirectHalf = bufferManager.IndirectHalfTex!;

@@ -63,6 +63,7 @@ out vec4 outColor;
 @import "./includes/lumon_sh.glsl"
 
 // Phase 18: world-probe clipmap sampling + uniforms
+#define LUMON_USE_WORLDPROBE_UBO 1
 @import "./includes/lumon_worldprobe.glsl"
 
 // Import probe-atlas meta helpers for mode 14
