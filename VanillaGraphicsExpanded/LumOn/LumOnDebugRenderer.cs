@@ -139,6 +139,18 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private GpuVbo? clipmapProbeOrbsAtlasVbo;
     private int clipmapProbeOrbsCount;
 
+    // Closest-probe marker (single GL_POINT) for orb debug mode.
+    private readonly System.Numerics.Vector3[] closestProbeMarkerPos = new System.Numerics.Vector3[1];
+    private readonly ColorVertex[] closestProbeMarkerColor = new ColorVertex[1];
+    private GpuVao? closestProbeMarkerVao;
+    private GpuVbo? closestProbeMarkerPosVbo;
+    private GpuVbo? closestProbeMarkerColorVbo;
+    private bool hasClosestProbeMarker;
+    private Vec3d closestProbeMarkerWorldPos = new Vec3d();
+    private int closestProbeMarkerLevel;
+    private Vec3i closestProbeMarkerIndex = new Vec3i();
+    private double closestProbeMarkerDistanceWorld;
+
     private bool worldProbeClipmapDebugDirty = true;
     private int clipmapBoundsCount;
     private int clipmapProbePointsCount;
@@ -335,6 +347,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         EnsureClipmapBoundsLineGlObjects();
         EnsureClipmapProbePointsGlObjects();
         EnsureClipmapProbeOrbsGlObjects();
+        EnsureClosestProbeMarkerGlObjects();
 
         if (clipmapBoundsVao is null || !clipmapBoundsVao.IsValid || clipmapBoundsVbo is null || !clipmapBoundsVbo.IsValid)
         {
@@ -1187,6 +1200,19 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     GL.DrawArrays(PrimitiveType.Points, 0, clipmapProbePointsCount);
                     GL.BindVertexArray(0);
                 }
+
+                if (hasClosestProbeMarker
+                    && closestProbeMarkerVao is not null
+                    && closestProbeMarkerVao.IsValid)
+                {
+                    // Always-visible marker (no depth test) to help locate probe centers even when they're inside solids.
+                    GL.Disable(EnableCap.DepthTest);
+                    GL.PointSize(10.0f);
+
+                    closestProbeMarkerVao.Bind();
+                    GL.DrawArrays(PrimitiveType.Points, 0, 1);
+                    GL.BindVertexArray(0);
+                }
             }
             finally
             {
@@ -1598,6 +1624,56 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         }
     }
 
+    private void EnsureClosestProbeMarkerGlObjects()
+    {
+        if (closestProbeMarkerVao is not null
+            && closestProbeMarkerVao.IsValid
+            && closestProbeMarkerPosVbo is not null
+            && closestProbeMarkerPosVbo.IsValid
+            && closestProbeMarkerColorVbo is not null
+            && closestProbeMarkerColorVbo.IsValid)
+        {
+            return;
+        }
+
+        closestProbeMarkerVao?.Dispose();
+        closestProbeMarkerPosVbo?.Dispose();
+        closestProbeMarkerColorVbo?.Dispose();
+        closestProbeMarkerVao = null;
+        closestProbeMarkerPosVbo = null;
+        closestProbeMarkerColorVbo = null;
+
+        try
+        {
+            closestProbeMarkerVao = GpuVao.Create("VGE_WorldProbeClosestProbeMarker_VAO");
+            closestProbeMarkerPosVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, "VGE_WorldProbeClosestProbeMarker_Pos_VBO");
+            closestProbeMarkerColorVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, "VGE_WorldProbeClosestProbeMarker_Color_VBO");
+
+            using var vaoScope = closestProbeMarkerVao.BindScope();
+
+            int posStride = Marshal.SizeOf<System.Numerics.Vector3>();
+            using (closestProbeMarkerPosVbo.BindScope())
+            {
+                closestProbeMarkerVao.AttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, posStride, 0);
+            }
+
+            int colorStride = Marshal.SizeOf<ColorVertex>();
+            using (closestProbeMarkerColorVbo.BindScope())
+            {
+                closestProbeMarkerVao.AttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, colorStride, 0);
+            }
+        }
+        catch
+        {
+            closestProbeMarkerVao?.Dispose();
+            closestProbeMarkerPosVbo?.Dispose();
+            closestProbeMarkerColorVbo?.Dispose();
+            closestProbeMarkerVao = null;
+            closestProbeMarkerPosVbo = null;
+            closestProbeMarkerColorVbo = null;
+        }
+    }
+
     private static int WrapIndex(int index, int resolution)
     {
         int m = index % resolution;
@@ -1765,6 +1841,35 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 GL.DrawArrays(PrimitiveType.Points, 0, clipmapProbeOrbsCount);
 
                 GL.BindVertexArray(0);
+
+                // Draw a cyan point at the closest probe center (always visible).
+                if (hasClosestProbeMarker
+                    && closestProbeMarkerVao is not null
+                    && closestProbeMarkerVao.IsValid)
+                {
+                    shader.Stop();
+                    shaderUsed = false;
+
+                    var markerShader = capi.Shader.GetProgramByName("vge_debug_lines") as VgeDebugLinesShaderProgram;
+                    if (markerShader is not null && !markerShader.LoadError)
+                    {
+                        GL.Disable(EnableCap.DepthTest);
+                        capi.Render.GlToggleBlend(false);
+                        capi.Render.GLDepthMask(false);
+
+                        markerShader.Use();
+                        markerShader.ModelViewProjectionMatrix = currentViewProjMatrix;
+                        markerShader.WorldOffset = new Vec3f(0, 0, 0);
+
+                        GL.PointSize(12.0f);
+                        closestProbeMarkerVao.Bind();
+                        GL.DrawArrays(PrimitiveType.Points, 0, 1);
+                        GL.BindVertexArray(0);
+                        GL.PointSize(prevPointSize);
+
+                        markerShader.Stop();
+                    }
+                }
             }
             finally
             {
@@ -1919,8 +2024,97 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             }
         }
 
+        UpdateClosestProbeMarker(renderOriginWorld);
+
         int posStride = Marshal.SizeOf<System.Numerics.Vector3>();
         clipmapProbePositionsVbo!.UploadData(probePositions, probeCount * posStride);
+    }
+
+    private void UpdateClosestProbeMarker(Vec3d renderOriginWorld)
+    {
+        hasClosestProbeMarker = false;
+        closestProbeMarkerDistanceWorld = 0;
+
+        if (clipmapDebugLevels <= 0 || clipmapDebugResolution <= 0 || clipmapDebugBaseSpacing <= 0)
+        {
+            return;
+        }
+
+        if (closestProbeMarkerVao is null || !closestProbeMarkerVao.IsValid)
+        {
+            return;
+        }
+
+        double bestD2 = double.PositiveInfinity;
+        int bestLevel = 0;
+        Vec3i bestIndex = new Vec3i();
+        Vec3d bestPos = new Vec3d();
+
+        int levels = clipmapDebugLevels;
+        int resolution = clipmapDebugResolution;
+        double baseSpacing = clipmapDebugBaseSpacing;
+
+        for (int level = 0; level < levels; level++)
+        {
+            Vec3d originAbs = clipmapDebugOriginsAbsWorld[level];
+            double spacing = baseSpacing * (1 << level);
+            if (spacing <= 0) continue;
+
+            Vec3d localCam = LumOnClipmapTopology.WorldToLocal(renderOriginWorld, originAbs, spacing);
+            var idx = new Vec3i(
+                (int)Math.Floor(localCam.X),
+                (int)Math.Floor(localCam.Y),
+                (int)Math.Floor(localCam.Z));
+
+            idx.X = Math.Clamp(idx.X, 0, resolution - 1);
+            idx.Y = Math.Clamp(idx.Y, 0, resolution - 1);
+            idx.Z = Math.Clamp(idx.Z, 0, resolution - 1);
+
+            Vec3d probeCenter = LumOnClipmapTopology.IndexToProbeCenterWorld(idx, originAbs, spacing);
+
+            double dx = probeCenter.X - renderOriginWorld.X;
+            double dy = probeCenter.Y - renderOriginWorld.Y;
+            double dz = probeCenter.Z - renderOriginWorld.Z;
+            double d2 = (dx * dx) + (dy * dy) + (dz * dz);
+
+            // Prefer finer levels on ties.
+            if (d2 < bestD2 - 1e-12 || (Math.Abs(d2 - bestD2) <= 1e-12 && level < bestLevel))
+            {
+                bestD2 = d2;
+                bestLevel = level;
+                bestIndex = idx;
+                bestPos = probeCenter;
+            }
+        }
+
+        if (double.IsInfinity(bestD2))
+        {
+            return;
+        }
+
+        closestProbeMarkerPos[0] = new System.Numerics.Vector3(
+            (float)(bestPos.X - renderOriginWorld.X),
+            (float)(bestPos.Y - renderOriginWorld.Y),
+            (float)(bestPos.Z - renderOriginWorld.Z));
+        closestProbeMarkerColor[0] = new ColorVertex { R = 0.1f, G = 1.0f, B = 1.0f, A = 1.0f };
+
+        if (closestProbeMarkerPosVbo is not null && closestProbeMarkerPosVbo.IsValid)
+        {
+            int posStride = Marshal.SizeOf<System.Numerics.Vector3>();
+            closestProbeMarkerPosVbo.UploadData(closestProbeMarkerPos, posStride);
+        }
+
+        if (closestProbeMarkerColorVbo is not null && closestProbeMarkerColorVbo.IsValid)
+        {
+            int colorStride = Marshal.SizeOf<ColorVertex>();
+            closestProbeMarkerColorVbo.UploadData(closestProbeMarkerColor, colorStride);
+        }
+
+        hasClosestProbeMarker = true;
+        closestProbeMarkerWorldPos = bestPos;
+        closestProbeMarkerLevel = bestLevel;
+        closestProbeMarkerIndex = bestIndex;
+        closestProbeMarkerDistanceWorld = Math.Sqrt(bestD2);
     }
 
     private int BuildClipmapBoundsVertices(
@@ -2344,6 +2538,13 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         clipmapProbeOrbsColorVbo = null;
         clipmapProbeOrbsVao?.Dispose();
         clipmapProbeOrbsVao = null;
+
+        closestProbeMarkerColorVbo?.Dispose();
+        closestProbeMarkerColorVbo = null;
+        closestProbeMarkerPosVbo?.Dispose();
+        closestProbeMarkerPosVbo = null;
+        closestProbeMarkerVao?.Dispose();
+        closestProbeMarkerVao = null;
 
         clipmapProbePositionsVbo?.Dispose();
         clipmapProbePositionsVbo = null;

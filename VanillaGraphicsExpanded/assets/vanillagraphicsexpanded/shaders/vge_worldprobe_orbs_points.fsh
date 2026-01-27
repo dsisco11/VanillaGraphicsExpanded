@@ -6,6 +6,7 @@ in vec4 vColor;
 in vec2 vAtlasCoord;
 
 uniform mat4 invViewMatrix;
+uniform sampler2D worldProbeDebugState0;
 
 out vec4 outColor;
 
@@ -43,6 +44,12 @@ void main(void)
     vec3 R = normalize(reflect(-V, N));
 
     ivec2 ac = ivec2(floor(vAtlasCoord + vec2(0.5)));
+
+    // Debug lifecycle state (uploaded by CPU). Disabled probes are shown with a red center marker
+    // so "no data" is visually distinct from "valid but dark".
+    vec4 dbg = texelFetch(worldProbeDebugState0, ac, 0);
+    bool disabled = (dbg.r > 0.5) && (dbg.b > 0.5) && (dbg.g < 0.5);
+
     vec4 t0 = texelFetch(worldProbeSH0, ac, 0);
     vec4 t1 = texelFetch(worldProbeSH1, ac, 0);
     vec4 t2 = texelFetch(worldProbeSH2, ac, 0);
@@ -69,6 +76,13 @@ void main(void)
     // Slight level tint + minimum visibility.
     col = max(col, vec3(0.04));
     col *= mix(vec3(1.0), vColor.rgb, 0.20);
+
+    if (disabled)
+    {
+        float dotR = 0.35;
+        float dotMask = 1.0 - smoothstep(dotR * dotR * 0.65, dotR * dotR, r2);
+        col = mix(col, vec3(1.0, 0.0, 0.0), dotMask);
+    }
 
     outColor = vec4(col, 1.0);
 }

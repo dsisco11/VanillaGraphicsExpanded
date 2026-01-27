@@ -2,6 +2,8 @@ using System;
 using System.Linq;
 
 using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.LumOn.WorldProbes;
+using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Profiling;
@@ -607,6 +609,8 @@ public static class VgeBuiltInDebugViews
 
         private GuiComposer? composer;
         private string? keyPrefix;
+        private const string ClosestProbeTextKey = "closestprobe";
+        private const string ClosestProbeLogButtonKey = "closestprobelog";
 
         private readonly string[] values;
         private readonly string[] names;
@@ -663,20 +667,148 @@ public static class VgeBuiltInDebugViews
             bool toggleVisible = ProbesDebugViewState.Instance.IsWorldToggleVisibleForCurrentMode();
             lastToggleVisible = toggleVisible;
 
-            if (!toggleVisible)
+            double y = rowH + rowGapY;
+            if (toggleVisible)
+            {
+                ElementBounds labelWorld = ElementBounds.Fixed(0, y, labelW, rowH).WithParent(bounds);
+                ElementBounds ctrlWorld = ElementBounds.Fixed(labelW + gap, y, 30, rowH).WithParent(bounds);
+
+                var sw = new GuiElementSwitch(capi, OnWorldToggled, ctrlWorld, size: 26, padding: 4);
+                sw.SetValue(ProbesDebugViewState.Instance.GetWorldProbesEnabled());
+
+                composer
+                    .AddStaticText("World probes", fontLabel, labelWorld)
+                    .AddInteractiveElement(sw, $"{keyPrefix}-world");
+
+                y += rowH + rowGapY;
+            }
+
+            // Extra info for the orb view: show closest probe position in world-space.
+            // (This helps diagnose why probes near the ground are disabled.)
+            ElementBounds closestBounds = ElementBounds.Fixed(0, y, boundsW, rowH * 2).WithParent(bounds);
+            composer.AddDynamicText("", fontSmall, closestBounds, $"{keyPrefix}-{ClosestProbeTextKey}");
+            y += rowH * 2 + rowGapY;
+
+            ElementBounds logBtnBounds = ElementBounds.Fixed(0, y, 200, rowH).WithParent(bounds);
+            composer.AddSmallButton("Log closest probe", OnLogClosestProbeClicked, logBtnBounds, EnumButtonStyle.Small, $"{keyPrefix}-{ClosestProbeLogButtonKey}");
+
+            RefreshClosestProbeText();
+        }
+
+        public override bool WantsGameTick => true;
+
+        public override void OnGameTick(float dt)
+        {
+            _ = dt;
+            RefreshClosestProbeText();
+        }
+
+        private void RefreshClosestProbeText()
+        {
+            if (composer is null || string.IsNullOrWhiteSpace(keyPrefix))
             {
                 return;
             }
 
-            ElementBounds labelWorld = ElementBounds.Fixed(0, rowH + rowGapY, labelW, rowH).WithParent(bounds);
-            ElementBounds ctrlWorld = ElementBounds.Fixed(labelW + gap, rowH + rowGapY, 30, rowH).WithParent(bounds);
+            GuiElementDynamicText? dyn;
+            try
+            {
+                dyn = composer.GetDynamicText($"{keyPrefix}-{ClosestProbeTextKey}");
+            }
+            catch
+            {
+                return;
+            }
 
-            var sw = new GuiElementSwitch(capi, OnWorldToggled, ctrlWorld, size: 26, padding: 4);
-            sw.SetValue(ProbesDebugViewState.Instance.GetWorldProbesEnabled());
+            dyn.SetNewText(ComputeClosestProbeText());
+        }
 
-            composer
-                .AddStaticText("World probes", fontLabel, labelWorld)
-                .AddInteractiveElement(sw, $"{keyPrefix}-world");
+        private bool OnLogClosestProbeClicked()
+        {
+            string msg = ComputeClosestProbeText();
+            if (string.IsNullOrWhiteSpace(msg))
+            {
+                msg = "(closest probe unavailable)";
+            }
+
+            capi.Logger.Notification("[VGE] {0}", msg.Replace("\n", " | "));
+            return true;
+        }
+
+        private string ComputeClosestProbeText()
+        {
+            if (config.LumOn.DebugMode != LumOnDebugMode.WorldProbeOrbsPoints)
+            {
+                return string.Empty;
+            }
+
+            var wpMs = capi.ModLoader.GetModSystem<WorldProbeModSystem>();
+            var bm = wpMs.GetClipmapBufferManagerOrNull();
+            if (bm is null || bm.Resources is null)
+            {
+                return "Closest world probe: (clipmap not initialized)";
+            }
+
+            if (!bm.TryGetRuntimeParams(out var camPosWorld, out _, out float baseSpacing, out int levels, out int resolution, out var origins, out _))
+            {
+                return "Closest world probe: (runtime params missing)";
+            }
+
+            levels = Math.Clamp(levels, 1, 8);
+            resolution = Math.Max(1, resolution);
+            double baseSpacingD = Math.Max(1e-6, baseSpacing);
+
+            double bestD2 = double.PositiveInfinity;
+            int bestLevel = 0;
+            Vec3i bestIndex = new();
+            Vec3d bestPos = new();
+
+            for (int level = 0; level < levels; level++)
+            {
+                double spacing = baseSpacingD * (1 << level);
+                if (spacing <= 0) continue;
+
+                var oRel = (level < origins.Length) ? origins[level] : default;
+                Vec3d originAbs = new(
+                    camPosWorld.X + oRel.X,
+                    camPosWorld.Y + oRel.Y,
+                    camPosWorld.Z + oRel.Z);
+
+                Vec3d localCam = LumOnClipmapTopology.WorldToLocal(camPosWorld, originAbs, spacing);
+                var idx = new Vec3i(
+                    (int)Math.Floor(localCam.X),
+                    (int)Math.Floor(localCam.Y),
+                    (int)Math.Floor(localCam.Z));
+
+                idx.X = Math.Clamp(idx.X, 0, resolution - 1);
+                idx.Y = Math.Clamp(idx.Y, 0, resolution - 1);
+                idx.Z = Math.Clamp(idx.Z, 0, resolution - 1);
+
+                Vec3d probeCenter = LumOnClipmapTopology.IndexToProbeCenterWorld(idx, originAbs, spacing);
+
+                double dx = probeCenter.X - camPosWorld.X;
+                double dy = probeCenter.Y - camPosWorld.Y;
+                double dz = probeCenter.Z - camPosWorld.Z;
+                double d2 = (dx * dx) + (dy * dy) + (dz * dz);
+
+                if (d2 < bestD2 - 1e-12 || (Math.Abs(d2 - bestD2) <= 1e-12 && level < bestLevel))
+                {
+                    bestD2 = d2;
+                    bestLevel = level;
+                    bestIndex = idx;
+                    bestPos = probeCenter;
+                }
+            }
+
+            if (double.IsInfinity(bestD2))
+            {
+                return "Closest world probe: (unavailable)";
+            }
+
+            double dist = Math.Sqrt(bestD2);
+            return
+                $"Closest world probe:\n" +
+                $"L{bestLevel} idx=({bestIndex.X},{bestIndex.Y},{bestIndex.Z})  pos=({bestPos.X:0.###},{bestPos.Y:0.###},{bestPos.Z:0.###})  d={dist:0.###}";
         }
 
         private void OnModeChanged(string code, bool selected)
@@ -712,6 +844,8 @@ public static class VgeBuiltInDebugViews
                     // Ignore UI refresh failures.
                 }
             }
+
+            RefreshClosestProbeText();
         }
 
         private void OnWorldToggled(bool on)
@@ -731,6 +865,8 @@ public static class VgeBuiltInDebugViews
             {
                 // Ignore UI refresh failures.
             }
+
+            RefreshClosestProbeText();
         }
 
         private static string GetProbeVizModeDisplayName(ProbeVizMode mode) => mode switch

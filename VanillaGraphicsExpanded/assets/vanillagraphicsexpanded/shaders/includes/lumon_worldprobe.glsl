@@ -508,8 +508,16 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleClipmapRadiance(
 			origin2, ring2,
 			spacing2, resolution, level2);
 
-		outS.radiance = sL.radiance * wL + s2.radiance * (1.0 - wL);
-		outS.confidence = sL.confidence * wL + s2.confidence * (1.0 - wL);
+		// Hole-tolerant fallback: if the fine level has no valid probes nearby (common near terrain,
+		// where L0 probe centers can be disabled due to solid collision), fall back to coarser data.
+		const float holeThreshold = 0.05;
+		float holeW = clamp((holeThreshold - sL.confidence) / holeThreshold, 0.0, 1.0);
+
+		float coarseW = max(1.0 - wL, holeW);
+		float fineW = 1.0 - coarseW;
+
+		outS.radiance = sL.radiance * fineW + s2.radiance * coarseW;
+		outS.confidence = sL.confidence * fineW + s2.confidence * coarseW;
 		return outS;
 	}
 
@@ -592,8 +600,16 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
 			origin2, ring2,
 			spacing2, resolution, level2);
 
-		outS.irradiance = sL.irradiance * wL + s2.irradiance * (1.0 - wL);
-		outS.confidence = sL.confidence * wL + s2.confidence * (1.0 - wL);
+		// Hole-tolerant fallback: if the fine level has no valid probes nearby (common near terrain,
+		// where L0 probe centers can be disabled due to solid collision), fall back to coarser data.
+		const float holeThreshold = 0.05;
+		float holeW = clamp((holeThreshold - sL.confidence) / holeThreshold, 0.0, 1.0);
+
+		float coarseW = max(1.0 - wL, holeW);
+		float fineW = 1.0 - coarseW;
+
+		outS.irradiance = sL.irradiance * fineW + s2.irradiance * coarseW;
+		outS.confidence = sL.confidence * fineW + s2.confidence * coarseW;
 		return outS;
 	}
 
