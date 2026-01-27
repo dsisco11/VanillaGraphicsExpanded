@@ -178,9 +178,11 @@ public sealed class DirectLightingBufferManager : IDisposable
         capi.Logger.Notification($"[VGE] Creating direct lighting buffers: {width}x{height}");
 
         // Create output textures (all RGBA16F for HDR)
-        directDiffuseTex = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "DirectDiffuse");
-        directSpecularTex = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "DirectSpecular");
-        emissiveTex = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "Emissive");
+        // Use linear filtering: these are screen-space radiance buffers that are sampled with
+        // normalized UVs (e.g., LumOn ray-march hit sampling) rather than integer texelFetch.
+        directDiffuseTex = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear, debugName: "DirectDiffuse");
+        directSpecularTex = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear, debugName: "DirectSpecular");
+        emissiveTex = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear, debugName: "Emissive");
 
         // Validate texture creation
         if (directDiffuseTex == null || !directDiffuseTex.IsValid ||
