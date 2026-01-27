@@ -374,13 +374,29 @@ public sealed class GBufferManager : IDisposable
 
         // Create Normal texture (RGBA16F)
         normalTex = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "gNormal");
+        ConfigureAsNonMipRenderTarget(normalTex);
 
         // Create Material texture (RGBA16F) - Roughness, Metallic, Emissive, Reflectivity
         materialTex = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "gMaterial");
+        ConfigureAsNonMipRenderTarget(materialTex);
 
         isInitialized = true;
         capi.Logger.Notification($"[VGE] Created G-buffer textures: {width}x{height}");
         capi.Logger.Notification($"[VGE]   Normal ID={NormalTextureId}, Material ID={MaterialTextureId}");
+    }
+
+    private static void ConfigureAsNonMipRenderTarget(DynamicTexture2D texture)
+    {
+        if (texture is null || !texture.IsValid)
+        {
+            return;
+        }
+
+        // These textures are render targets and are sampled by raw texture ID in some paths.
+        // Explicitly disable mipmapping on the texture object (not just via sampler objects).
+        texture.DisableMipmaps();
+        texture.SetTexFilter(TextureMinFilter.Nearest, TextureMagFilter.Nearest);
+        texture.SetTexWrap(TextureWrapMode.ClampToEdge, TextureWrapMode.ClampToEdge);
     }
 
     private void DeleteTextures()

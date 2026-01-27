@@ -384,6 +384,87 @@ public abstract class GpuTexture : GpuResource, IDisposable
         GlStateCache.Current.BindTexture(textureTarget, unit, 0, sampler: null);
     }
 
+    #region Texture-Object State Helpers (TexParameter)
+
+    /// <summary>
+    /// Sets the mipmap range on the texture object itself via <c>glTexParameter</c>.
+    /// This is important when a texture is sampled by raw texture ID without a sampler object bound.
+    /// </summary>
+    public void SetMipRange(int baseLevel, int maxLevel)
+    {
+        if (!IsValid)
+        {
+            return;
+        }
+
+        try
+        {
+            using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+            GL.TexParameter(textureTarget, TextureParameterName.TextureBaseLevel, baseLevel);
+            GL.TexParameter(textureTarget, TextureParameterName.TextureMaxLevel, maxLevel);
+        }
+        catch
+        {
+        }
+    }
+
+    /// <summary>
+    /// Disables mipmapping on the texture object itself (base/max level forced to 0).
+    /// </summary>
+    public void DisableMipmaps()
+    {
+        SetMipRange(baseLevel: 0, maxLevel: 0);
+    }
+
+    /// <summary>
+    /// Sets min/mag filtering on the texture object itself via <c>glTexParameter</c>.
+    /// </summary>
+    public void SetTexFilter(TextureMinFilter minFilter, TextureMagFilter magFilter)
+    {
+        if (!IsValid)
+        {
+            return;
+        }
+
+        try
+        {
+            using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+            GL.TexParameter(textureTarget, TextureParameterName.TextureMinFilter, (int)minFilter);
+            GL.TexParameter(textureTarget, TextureParameterName.TextureMagFilter, (int)magFilter);
+        }
+        catch
+        {
+        }
+    }
+
+    /// <summary>
+    /// Sets wrapping on the texture object itself via <c>glTexParameter</c>.
+    /// </summary>
+    public void SetTexWrap(TextureWrapMode wrapS, TextureWrapMode wrapT, TextureWrapMode? wrapR = null)
+    {
+        if (!IsValid)
+        {
+            return;
+        }
+
+        try
+        {
+            using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+            GL.TexParameter(textureTarget, TextureParameterName.TextureWrapS, (int)wrapS);
+            GL.TexParameter(textureTarget, TextureParameterName.TextureWrapT, (int)wrapT);
+
+            if (wrapR.HasValue && textureTarget == TextureTarget.Texture3D)
+            {
+                GL.TexParameter(textureTarget, TextureParameterName.TextureWrapR, (int)wrapR.Value);
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    #endregion
+
     public virtual void UploadData(float[] data)
     {
         UploadDataStreamed(data);
