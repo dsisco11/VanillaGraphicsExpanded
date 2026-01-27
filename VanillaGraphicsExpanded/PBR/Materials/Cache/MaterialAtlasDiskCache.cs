@@ -54,6 +54,34 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
     public bool HasMaterialParamsTile(AtlasCacheKey key)
         => HasTile(PayloadKind.MaterialParams, key);
 
+    public int CountExisting(MaterialAtlasDiskCachePayloadKind kind, IReadOnlyList<AtlasCacheKey> keys)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+
+        if (keys.Count == 0)
+        {
+            return 0;
+        }
+
+        PayloadKind payloadKind = kind switch
+        {
+            MaterialAtlasDiskCachePayloadKind.MaterialParams => PayloadKind.MaterialParams,
+            MaterialAtlasDiskCachePayloadKind.NormalDepth => PayloadKind.NormalDepth,
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, message: "Unknown payload kind."),
+        };
+
+        int hits = 0;
+        for (int i = 0; i < keys.Count; i++)
+        {
+            if (HasTile(payloadKind, keys[i]))
+            {
+                hits++;
+            }
+        }
+
+        return hits;
+    }
+
     public static MaterialAtlasDiskCache CreateDefault()
     {
         // Matches docs/MaterialSystem.Cache.Architecture.md: VintagestoryData/VGE/Cache/

@@ -220,30 +220,22 @@ internal sealed class MaterialAtlasSystem : IDisposable
         // Log cache hit/miss stats once per warmup session, based purely on the loaded cache index.
         // This lets us see up-front how effective the cache will be before any async work runs.
         {
-            int mpBaseCandidates = materialPlan.MaterialParamsTiles.Count;
-            int mpBaseHits = 0;
-
+            var mpBaseKeys = new List<AtlasCacheKey>(capacity: materialPlan.MaterialParamsTiles.Count);
             foreach (AtlasBuildPlan.MaterialParamsTileJob tile in materialPlan.MaterialParamsTiles)
             {
-                AtlasCacheKey baseKey = cacheKeyBuilder.BuildMaterialParamsTileKey(
+                mpBaseKeys.Add(cacheKeyBuilder.BuildMaterialParamsTileKey(
                     cacheInputs,
                     tile.AtlasTextureId,
                     tile.Rect,
                     tile.Texture,
                     tile.Definition,
-                    tile.Scale);
-
-                if (diskCache.HasMaterialParamsTile(baseKey))
-                {
-                    mpBaseHits++;
-                }
+                    tile.Scale));
             }
 
-            int mpOverrideCandidates = materialPlan.MaterialParamsOverrides.Count;
-            int mpOverrideHits = 0;
+            var mpOverrideKeys = new List<AtlasCacheKey>(capacity: materialPlan.MaterialParamsOverrides.Count);
             foreach (AtlasBuildPlan.MaterialParamsOverrideJob ov in materialPlan.MaterialParamsOverrides)
             {
-                AtlasCacheKey overrideKey = cacheKeyBuilder.BuildMaterialParamsOverrideTileKey(
+                mpOverrideKeys.Add(cacheKeyBuilder.BuildMaterialParamsOverrideTileKey(
                     cacheInputs,
                     ov.AtlasTextureId,
                     ov.Rect,
@@ -251,40 +243,39 @@ internal sealed class MaterialAtlasSystem : IDisposable
                     ov.OverrideTexture,
                     ov.Scale,
                     ov.RuleId,
-                    ov.RuleSource);
-
-                if (diskCache.HasMaterialParamsTile(overrideKey))
-                {
-                    mpOverrideHits++;
-                }
+                    ov.RuleSource));
             }
 
+            int mpBaseCandidates = mpBaseKeys.Count;
+            int mpBaseHits = diskCache.CountExisting(MaterialAtlasDiskCachePayloadKind.MaterialParams, mpBaseKeys);
+
+            int mpOverrideCandidates = mpOverrideKeys.Count;
+            int mpOverrideHits = diskCache.CountExisting(MaterialAtlasDiskCachePayloadKind.MaterialParams, mpOverrideKeys);
+
             int ndBakeCandidates = normalDepthPlan?.BakeJobs.Count ?? 0;
-            int ndBakeHits = 0;
             int ndOverrideCandidates = normalDepthPlan?.OverrideJobs.Count ?? 0;
+
+            int ndBakeHits = 0;
             int ndOverrideHits = 0;
 
             if (normalDepthPlan is not null)
             {
+                var ndBakeKeys = new List<AtlasCacheKey>(capacity: normalDepthPlan.BakeJobs.Count);
                 foreach (var job in normalDepthPlan.BakeJobs)
                 {
-                    AtlasCacheKey key = cacheKeyBuilder.BuildNormalDepthTileKey(
+                    ndBakeKeys.Add(cacheKeyBuilder.BuildNormalDepthTileKey(
                         cacheInputs,
                         job.AtlasTextureId,
                         job.Rect,
                         job.SourceTexture,
                         job.NormalScale,
-                        job.DepthScale);
-
-                    if (diskCache.HasNormalDepthTile(key))
-                    {
-                        ndBakeHits++;
-                    }
+                        job.DepthScale));
                 }
 
+                var ndOverrideKeys = new List<AtlasCacheKey>(capacity: normalDepthPlan.OverrideJobs.Count);
                 foreach (var ov in normalDepthPlan.OverrideJobs)
                 {
-                    AtlasCacheKey key = cacheKeyBuilder.BuildNormalDepthOverrideTileKey(
+                    ndOverrideKeys.Add(cacheKeyBuilder.BuildNormalDepthOverrideTileKey(
                         cacheInputs,
                         ov.AtlasTextureId,
                         ov.Rect,
@@ -293,13 +284,11 @@ internal sealed class MaterialAtlasSystem : IDisposable
                         ov.NormalScale,
                         ov.DepthScale,
                         ov.RuleId,
-                        ov.RuleSource);
-
-                    if (diskCache.HasNormalDepthTile(key))
-                    {
-                        ndOverrideHits++;
-                    }
+                        ov.RuleSource));
                 }
+
+                ndBakeHits = diskCache.CountExisting(MaterialAtlasDiskCachePayloadKind.NormalDepth, ndBakeKeys);
+                ndOverrideHits = diskCache.CountExisting(MaterialAtlasDiskCachePayloadKind.NormalDepth, ndOverrideKeys);
             }
 
             capi.Logger.Debug(
@@ -1030,11 +1019,10 @@ internal sealed class MaterialAtlasSystem : IDisposable
         // Log cache hit/miss stats once per build session, based purely on the loaded cache index.
         if (enableCache)
         {
-            int mpOverrideCandidates = plan.MaterialParamsOverrides.Count;
-            int mpOverrideHits = 0;
+            var mpOverrideKeys = new List<AtlasCacheKey>(capacity: plan.MaterialParamsOverrides.Count);
             foreach (AtlasBuildPlan.MaterialParamsOverrideJob ov in plan.MaterialParamsOverrides)
             {
-                AtlasCacheKey overrideKey = cacheKeyBuilder.BuildMaterialParamsOverrideTileKey(
+                mpOverrideKeys.Add(cacheKeyBuilder.BuildMaterialParamsOverrideTileKey(
                     cacheInputs,
                     ov.AtlasTextureId,
                     ov.Rect,
@@ -1042,16 +1030,15 @@ internal sealed class MaterialAtlasSystem : IDisposable
                     ov.OverrideTexture,
                     ov.Scale,
                     ov.RuleId,
-                    ov.RuleSource);
-
-                if (diskCache.HasMaterialParamsTile(overrideKey))
-                {
-                    mpOverrideHits++;
-                }
+                    ov.RuleSource));
             }
+
+            int mpOverrideCandidates = mpOverrideKeys.Count;
+            int mpOverrideHits = diskCache.CountExisting(MaterialAtlasDiskCachePayloadKind.MaterialParams, mpOverrideKeys);
 
             int mpBaseCandidates = 0;
             int mpBaseHits = 0;
+            var mpBaseKeys = new List<AtlasCacheKey>(capacity: plan.MaterialParamsTiles.Count);
             foreach (AtlasBuildPlan.MaterialParamsTileJob tile in plan.MaterialParamsTiles)
             {
                 bool hasOverride = overridesByRect.TryGetValue((tile.AtlasTextureId, tile.Rect), out AtlasBuildPlan.MaterialParamsOverrideJob ov);
@@ -1087,38 +1074,34 @@ internal sealed class MaterialAtlasSystem : IDisposable
                     tile.Definition,
                     tile.Scale);
 
-                if (diskCache.HasMaterialParamsTile(baseKey))
-                {
-                    mpBaseHits++;
-                }
+                mpBaseKeys.Add(baseKey);
             }
 
+            mpBaseHits = diskCache.CountExisting(MaterialAtlasDiskCachePayloadKind.MaterialParams, mpBaseKeys);
+
             int ndBakeCandidates = normalDepthPlan?.BakeJobs.Count ?? 0;
-            int ndBakeHits = 0;
             int ndOverrideCandidates = normalDepthPlan?.OverrideJobs.Count ?? 0;
+            int ndBakeHits = 0;
             int ndOverrideHits = 0;
 
             if (normalDepthPlan is not null)
             {
+                var ndBakeKeys = new List<AtlasCacheKey>(capacity: normalDepthPlan.BakeJobs.Count);
                 foreach (var job in normalDepthPlan.BakeJobs)
                 {
-                    AtlasCacheKey key = cacheKeyBuilder.BuildNormalDepthTileKey(
+                    ndBakeKeys.Add(cacheKeyBuilder.BuildNormalDepthTileKey(
                         cacheInputs,
                         job.AtlasTextureId,
                         job.Rect,
                         job.SourceTexture,
                         job.NormalScale,
-                        job.DepthScale);
-
-                    if (diskCache.HasNormalDepthTile(key))
-                    {
-                        ndBakeHits++;
-                    }
+                        job.DepthScale));
                 }
 
+                var ndOverrideKeys = new List<AtlasCacheKey>(capacity: normalDepthPlan.OverrideJobs.Count);
                 foreach (var ov in normalDepthPlan.OverrideJobs)
                 {
-                    AtlasCacheKey key = cacheKeyBuilder.BuildNormalDepthOverrideTileKey(
+                    ndOverrideKeys.Add(cacheKeyBuilder.BuildNormalDepthOverrideTileKey(
                         cacheInputs,
                         ov.AtlasTextureId,
                         ov.Rect,
@@ -1127,13 +1110,11 @@ internal sealed class MaterialAtlasSystem : IDisposable
                         ov.NormalScale,
                         ov.DepthScale,
                         ov.RuleId,
-                        ov.RuleSource);
-
-                    if (diskCache.HasNormalDepthTile(key))
-                    {
-                        ndOverrideHits++;
-                    }
+                        ov.RuleSource));
                 }
+
+                ndBakeHits = diskCache.CountExisting(MaterialAtlasDiskCachePayloadKind.NormalDepth, ndBakeKeys);
+                ndOverrideHits = diskCache.CountExisting(MaterialAtlasDiskCachePayloadKind.NormalDepth, ndOverrideKeys);
             }
 
             capi?.Logger.Debug(

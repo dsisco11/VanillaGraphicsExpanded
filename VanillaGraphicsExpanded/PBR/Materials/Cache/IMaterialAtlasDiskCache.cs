@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace VanillaGraphicsExpanded.PBR.Materials.Cache;
 
 /// <summary>
@@ -9,6 +11,8 @@ internal interface IMaterialAtlasDiskCache
     void Clear();
 
     MaterialAtlasDiskCacheStats GetStatsSnapshot();
+
+    int CountExisting(MaterialAtlasDiskCachePayloadKind kind, IReadOnlyList<AtlasCacheKey> keys);
 
     bool HasMaterialParamsTile(AtlasCacheKey key);
 
