@@ -78,11 +78,6 @@ internal static class GlDebug
             return;
         }
 
-        if (!IsDebugContext())
-        {
-            return;
-        }
-
         // Avoid calling ObjectLabel on contexts that don't support KHR_debug.
         // Note: GL_EXT_debug_label uses a different entry point; we skip it here rather than
         // calling glObjectLabel and polluting the GL error state.
@@ -204,7 +199,7 @@ internal static class GlDebug
         public GroupScope(string name)
         {
 #if DEBUG
-            if (!DebugGroupsEnabled || string.IsNullOrWhiteSpace(name) || !IsDebugContext())
+            if (!DebugGroupsEnabled || string.IsNullOrWhiteSpace(name))
             {
                 active = false;
                 return;
