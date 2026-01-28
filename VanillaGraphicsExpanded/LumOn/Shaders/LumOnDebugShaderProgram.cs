@@ -150,6 +150,16 @@ public class LumOnDebugShaderProgram : GpuProgram
     public GpuTexture? ProbeAtlasTrace { set => BindTexture2D("probeAtlasTrace", value, 27); }
 
     /// <summary>
+    /// Phase 10: probe-resolution trace mask (RG32F packed uint bits).
+    /// </summary>
+    public GpuTexture? ProbeTraceMask { set => BindTexture2D("probeTraceMask", value, 26); }
+
+    /// <summary>
+    /// Phase 10: probe-resolution importance energy (R32F, sum of weights).
+    /// </summary>
+    public GpuTexture? ProbePisEnergy { set => BindTexture2D("probePisEnergy", value, 28); }
+
+    /// <summary>
     /// Full-resolution indirect diffuse (upsampled) used by composite debug views.
     /// </summary>
     public GpuTexture? IndirectDiffuseFull { set => BindTexture2D("indirectDiffuseFull", value, 12); }

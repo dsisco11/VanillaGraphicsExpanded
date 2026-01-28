@@ -94,4 +94,8 @@ public enum LumOnDebugMode
 
     // Probe-atlas temporal rejection reasons (append-only)
     ProbeAtlasTemporalRejection = 49,
+
+    // Phase 10: PIS debug views (append-only)
+    ProbeAtlasPisTraceMask = 50,
+    ProbePisEnergy = 51,
 }

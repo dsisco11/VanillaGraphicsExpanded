@@ -131,6 +131,54 @@ vec4 renderProbeAtlasTemporalRejectionDebug()
     return vec4(0.0, 1.0, 0.0, 1.0); // Green
 }
 
+// Phase 10: visualize which atlas texels are selected by the probe-resolution trace mask.
+vec4 renderProbeAtlasPisTraceMaskDebug()
+{
+    ivec2 atlasSize = textureSize(probeAtlasMeta, 0);
+    ivec2 atlasCoord = ivec2(clamp(uv * vec2(atlasSize), vec2(0.0), vec2(atlasSize) - vec2(1.0)));
+
+    ivec2 probeCoord = atlasCoord / LUMON_OCTAHEDRAL_SIZE;
+    ivec2 octTexel = atlasCoord - probeCoord * LUMON_OCTAHEDRAL_SIZE;
+    int texelIndex = octTexel.y * LUMON_OCTAHEDRAL_SIZE + octTexel.x;
+
+    vec2 maskPacked = texelFetch(probeTraceMask, probeCoord, 0).xy;
+    uvec2 maskBits = uvec2(floatBitsToUint(maskPacked.x), floatBitsToUint(maskPacked.y));
+
+    bool validMask = (maskBits.x | maskBits.y) != 0u;
+    if (!validMask)
+    {
+        return vec4(0.8, 0.0, 0.0, 1.0); // Red = mask invalid / not produced
+    }
+
+    bool selected;
+    if (texelIndex < 32)
+    {
+        selected = ((maskBits.x >> uint(texelIndex)) & 1u) != 0u;
+    }
+    else
+    {
+        selected = ((maskBits.y >> uint(texelIndex - 32)) & 1u) != 0u;
+    }
+
+    // Green = traced this frame, Dark gray = preserved
+    return selected ? vec4(0.1, 1.0, 0.1, 1.0) : vec4(0.12, 0.12, 0.12, 1.0);
+}
+
+// Phase 10: per-probe importance energy heatmap (sum of weights).
+// Sampled at probe resolution and expanded across the probe's 8×8 tile.
+vec4 renderProbePisEnergyDebug()
+{
+    ivec2 atlasSize = textureSize(probeAtlasMeta, 0);
+    ivec2 atlasCoord = ivec2(clamp(uv * vec2(atlasSize), vec2(0.0), vec2(atlasSize) - vec2(1.0)));
+    ivec2 probeCoord = atlasCoord / LUMON_OCTAHEDRAL_SIZE;
+
+    float e = texelFetch(probePisEnergy, probeCoord, 0).r;
+
+    // Log-ish compression to keep ranges visible.
+    float t = clamp(log2(1.0 + e) / 8.0, 0.0, 1.0);
+    return vec4(heatmap(t), 1.0);
+}
+
 // Program entry: ProbeAtlas
 vec4 RenderDebug_ProbeAtlas(vec2 screenPos)
 {
@@ -147,6 +195,8 @@ vec4 RenderDebug_ProbeAtlas(vec2 screenPos)
         case 47: return renderProbeAtlasHitDistanceDebug();
         case 48: return renderProbeAtlasTraceRadianceDebug();
         case 49: return renderProbeAtlasTemporalRejectionDebug();
+        case 50: return renderProbeAtlasPisTraceMaskDebug();
+        case 51: return renderProbePisEnergyDebug();
         default: return vec4(0.0, 0.0, 0.0, 1.0);
     }
 }

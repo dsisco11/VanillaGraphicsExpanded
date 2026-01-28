@@ -822,6 +822,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             shader.GatherAtlasSource = gatherAtlasSource;
             shader.ProbeAtlasTrace = probeAtlasTrace;
 
+            // Phase 10: PIS debug inputs
+            shader.ProbeTraceMask = bufferManager?.ProbeTraceMaskTex;
+            shader.ProbePisEnergy = bufferManager?.ProbePisEnergyTex;
+
             // Phase 18 world-probe debug inputs (only bound if available + active in the compiled shader).
             if (hasWorldProbeResources && worldProbeClipmapBufferManager?.Resources is not null)
             {

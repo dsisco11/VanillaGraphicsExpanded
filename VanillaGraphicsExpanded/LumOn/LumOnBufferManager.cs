@@ -47,6 +47,7 @@ public sealed class LumOnBufferManager : IDisposable
     // ═══════════════════════════════════════════════════════════════
 
     private DynamicTexture2D? probeTraceMaskTex;
+    private DynamicTexture2D? probePisEnergyTex;
     private Rendering.GpuFramebuffer? probeTraceMaskFbo;
 
     // ═══════════════════════════════════════════════════════════════
@@ -180,6 +181,12 @@ public sealed class LumOnBufferManager : IDisposable
     /// Debug label: <c>LumOn.ProbeTraceMask</c>.
     /// </summary>
     public DynamicTexture2D? ProbeTraceMaskTex => probeTraceMaskTex;
+
+    /// <summary>
+    /// Probe-resolution PIS importance energy (R32F).
+    /// Debug label: <c>LumOn.ProbePisEnergy</c>.
+    /// </summary>
+    public DynamicTexture2D? ProbePisEnergyTex => probePisEnergyTex;
 
     /// <summary>
     /// FBO for the probe trace mask pass.
@@ -508,7 +515,19 @@ public sealed class LumOnBufferManager : IDisposable
             TextureFilterMode.Nearest,
             debugName: "LumOn.ProbeTraceMask");
 
-        probeTraceMaskFbo = Rendering.GpuFramebuffer.CreateSingle(probeTraceMaskTex, debugName: "LumOn.ProbeTraceMaskFBO");
+        // Debug/diagnostics: per-probe importance energy (sum of weights).
+        probePisEnergyTex = DynamicTexture2D.Create(
+            probeCountX,
+            probeCountY,
+            PixelInternalFormat.R32f,
+            TextureFilterMode.Nearest,
+            debugName: "LumOn.ProbePisEnergy");
+
+        probeTraceMaskFbo = Rendering.GpuFramebuffer.CreateMRT(
+            [probeTraceMaskTex, probePisEnergyTex],
+            depthTexture: null,
+            ownsTextures: false,
+            debugName: "LumOn.ProbeTraceMaskFBO");
 
         // ═══════════════════════════════════════════════════════════════
         // Create Screen-Probe Atlas (2D atlas)
@@ -629,6 +648,7 @@ public sealed class LumOnBufferManager : IDisposable
         probeAnchorPositionTex?.Dispose();
         probeAnchorNormalTex?.Dispose();
         probeTraceMaskTex?.Dispose();
+        probePisEnergyTex?.Dispose();
         indirectHalfTex?.Dispose();
         indirectFullTex?.Dispose();
         capturedSceneTex?.Dispose();
@@ -655,6 +675,7 @@ public sealed class LumOnBufferManager : IDisposable
         probeAnchorPositionTex = null;
         probeAnchorNormalTex = null;
         probeTraceMaskTex = null;
+        probePisEnergyTex = null;
         indirectHalfTex = null;
         indirectFullTex = null;
         capturedSceneTex = null;

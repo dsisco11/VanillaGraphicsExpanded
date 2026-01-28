@@ -255,6 +255,14 @@ public class LumOnRenderer : IRenderer, IDisposable
         debugCounters.Reset();
         debugCounters.TotalProbes = bufferManager.ProbeCountX * bufferManager.ProbeCountY;
 
+        // Phase 10: PIS debug counters (config-derived)
+        debugCounters.ProbePisEnabled = config.LumOn.EnableProbePIS || config.LumOn.ForceUniformMask;
+        debugCounters.ProbePisK = config.LumOn.ProbeAtlasTexelsPerFrame;
+        debugCounters.ProbePisExploreFraction = config.LumOn.ProbePISExploreFraction;
+        debugCounters.ProbePisExploreCount = config.LumOn.ProbePISExploreCount >= 0
+            ? config.LumOn.ProbePISExploreCount
+            : (int)MathF.Round(config.LumOn.ProbeAtlasTexelsPerFrame * config.LumOn.ProbePISExploreFraction);
+
         // Check for teleportation (large camera movement)
         if (DetectTeleport())
         {
@@ -1224,6 +1232,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         // matching the intent of the legacy "collect results next frame" approach.
         UpdateCounter("LumOn.HZB", v => debugCounters.HzbPassMs = v);
         UpdateCounter("LumOn.Anchor", v => debugCounters.ProbeAnchorPassMs = v);
+        UpdateCounter("LumOn.PISMask", v => debugCounters.ProbePisMaskPassMs = v);
         UpdateCounter("LumOn.Trace", v => debugCounters.ProbeTracePassMs = v);
         UpdateCounter("LumOn.Temporal", v => debugCounters.TemporalPassMs = v);
         UpdateCounter("LumOn.AtlasFilter", v => debugCounters.ProbeAtlasFilterPassMs = v);
@@ -1234,6 +1243,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         debugCounters.TotalFrameMs =
             debugCounters.HzbPassMs +
             debugCounters.ProbeAnchorPassMs +
+            debugCounters.ProbePisMaskPassMs +
             debugCounters.ProbeTracePassMs +
             debugCounters.TemporalPassMs +
             debugCounters.ProbeAtlasFilterPassMs +

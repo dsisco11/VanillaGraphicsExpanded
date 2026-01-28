@@ -541,6 +541,8 @@ public static class VgeBuiltInDebugViews
         ProbeAtlasHitDistance,
         ProbeAtlasFilterDelta,
         ProbeAtlasGatherInputSource,
+        ProbeAtlasPisTraceMask,
+        ProbePisEnergy,
 
         // World probes
         WorldProbeIrradianceCombined,
@@ -584,6 +586,8 @@ public static class VgeBuiltInDebugViews
         ProbeVizMode.ProbeAtlasHitDistance => new(LumOnDebugMode.ProbeAtlasHitDistance, null),
         ProbeVizMode.ProbeAtlasFilterDelta => new(LumOnDebugMode.ProbeAtlasFilterDelta, null),
         ProbeVizMode.ProbeAtlasGatherInputSource => new(LumOnDebugMode.ProbeAtlasGatherInputSource, null),
+        ProbeVizMode.ProbeAtlasPisTraceMask => new(LumOnDebugMode.ProbeAtlasPisTraceMask, null),
+        ProbeVizMode.ProbePisEnergy => new(LumOnDebugMode.ProbePisEnergy, null),
 
         ProbeVizMode.WorldProbeIrradianceCombined => new(LumOnDebugMode.WorldProbeIrradianceCombined, null),
         ProbeVizMode.WorldProbeIrradianceLevel => new(LumOnDebugMode.WorldProbeIrradianceLevel, null),
@@ -984,6 +988,8 @@ public static class VgeBuiltInDebugViews
             ProbeVizMode.ProbeAtlasHitDistance => "Probe-Atlas Hit Distance",
             ProbeVizMode.ProbeAtlasFilterDelta => "Probe-Atlas Filter Delta",
             ProbeVizMode.ProbeAtlasGatherInputSource => "Probe-Atlas Gather Input Source",
+            ProbeVizMode.ProbeAtlasPisTraceMask => "Probe-Atlas PIS Trace Mask",
+            ProbeVizMode.ProbePisEnergy => "Probe PIS Energy",
             ProbeVizMode.WorldProbeIrradianceCombined => "World-Probe Irradiance (combined)",
             ProbeVizMode.WorldProbeIrradianceLevel => "World-Probe Irradiance (selected level)",
             ProbeVizMode.WorldProbeConfidence => "World-Probe Confidence",

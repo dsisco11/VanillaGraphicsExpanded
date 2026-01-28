@@ -28,6 +28,10 @@ uniform sampler2D probeAtlasCurrent;     // RGBA16F radiance atlas (post-tempora
 uniform sampler2D probeAtlasFiltered;    // RGBA16F radiance atlas (post-filter)
 uniform sampler2D probeAtlasGatherInput; // The atlas currently selected as gather input
 
+// Phase 10: PIS selection/mask debug inputs
+uniform sampler2D probeTraceMask;        // Probe-resolution RG32F packed uint bits
+uniform sampler2D probePisEnergy;        // Probe-resolution R32F importance energy (sum of weights)
+
 // Phase 15: compositing debug inputs
 uniform sampler2D indirectDiffuseFull;   // Upsampled indirect buffer (full-res)
 uniform sampler2D gBufferAlbedo;         // Albedo (fallback: captured scene)

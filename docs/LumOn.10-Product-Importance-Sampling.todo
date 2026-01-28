@@ -109,13 +109,13 @@ LumOn - Phase 10 - Product Importance Sampling (PIS) for Direction Updates (Impl
 
   Phase 10.8 - Debug Views + Diagnostics:
   Exit artifacts: We can verify what PIS is doing visually and numerically.
-  ☐ Add debug overlay counters:
+  ✔ Add debug overlay counters: @done
     - PIS enabled, K, explore fraction, mask pass ms
-  ☐ Add debug modes:
+  ✔ Add debug modes: @done
     - Visualize traced texels in the atlas (traced vs preserved)
     - Visualize per-probe “importance energy” (sum of weights) as heatmap
     - Visualize explore vs importance chosen directions (optional)
-  ☐ Add RenderDoc checklist update for PIS:
+  ✔ Add RenderDoc checklist update for PIS: @done
     - Confirm mask texture contents
     - Confirm trace respects mask (selected texels change, others preserve history)
 

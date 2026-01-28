@@ -3,6 +3,9 @@
 // Output: probe-resolution RG32F (two uint bitfields packed via uintBitsToFloat)
 layout(location = 0) out vec2 outMask;
 
+// Debug/diagnostics: per-probe importance energy (sum of weights)
+layout(location = 1) out float outEnergy;
+
 // Import common utilities
 @import "./includes/lumon_common.glsl"
 
@@ -88,8 +91,38 @@ void main(void)
     if (valid < 0.5)
     {
         outMask = vec2(0.0);
+        outEnergy = 0.0;
         return;
     }
+
+    // Compute per-probe importance energy (sum of weights).
+    // Always computed (even in fallback modes) so debug views have a stable signal.
+    float energy = 0.0;
+    {
+        vec3 probeNormalWS = lumonDecodeNormal(texelFetch(probeAnchorNormal, probeCoord, 0).xyz);
+        ivec2 atlasBase = probeCoord * LUMON_OCTAHEDRAL_SIZE;
+
+        float minConfW = clamp(VGE_LUMON_PROBE_PIS_MIN_CONFIDENCE_WEIGHT, 0.0, 1.0);
+
+        for (int i = 0; i < LUMON_TILE_TEXELS; i++)
+        {
+            ivec2 octTexel = ivec2(i % LUMON_OCTAHEDRAL_SIZE, i / LUMON_OCTAHEDRAL_SIZE);
+            ivec2 atlasCoord = atlasBase + octTexel;
+
+            vec3 historyRadiance = texelFetch(octahedralHistory, atlasCoord, 0).rgb;
+            float Li = max(0.0, lumonLuminance(historyRadiance));
+
+            float conf = texelFetch(probeAtlasMetaHistory, atlasCoord, 0).x;
+            float confW = max(minConfW, conf);
+
+            vec2 octUV = lumonTexelCoordToOctahedralUV(octTexel);
+            vec3 dirWS = lumonOctahedralUVToDirection(octUV);
+            float cosN = max(0.0, dot(probeNormalWS, dirWS));
+
+            energy += Li * cosN * confW;
+        }
+    }
+    outEnergy = energy;
 
     // Debug/compatibility modes: output the legacy uniform batch slicing mask.
 #if (VGE_LUMON_PROBE_PIS_FORCE_BATCH_SLICING == 1) || (VGE_LUMON_PROBE_PIS_FORCE_UNIFORM_MASK == 1) || (VGE_LUMON_PROBE_PIS_ENABLED == 0)
