@@ -543,6 +543,54 @@ public class VgeConfig
         [JsonProperty]
         public int ProbeAtlasTexelsPerFrame { get; set; } = 16;
 
+        // ═══════════════════════════════════════════════════════════════
+        // Phase 10 - Product Importance Sampling (PIS)
+        // ═══════════════════════════════════════════════════════════════
+
+        // Design note:
+        // These settings are intentionally shader compilation defines.
+        // Hot-reload is supported, but changes will trigger async shader recompiles.
+
+        /// <summary>
+        /// Enables Product Importance Sampling (PIS) for selecting which probe-atlas texels to update.
+        /// When enabled, direction updates are biased toward high estimated radiance directions while
+        /// maintaining a deterministic exploration fraction for long-term coverage.
+        /// Hot-reloadable (triggers shader recompile).
+        /// </summary>
+        [JsonProperty]
+        public bool EnableProbePIS { get; set; } = true;
+
+        /// <summary>
+        /// Exploration fraction for PIS direction selection. This is converted to an integer number of
+        /// exploration texels per probe as: round(ProbeAtlasTexelsPerFrame * ProbePISExploreFraction).
+        /// Hot-reloadable (triggers shader recompile).
+        /// </summary>
+        [JsonProperty]
+        public float ProbePISExploreFraction { get; set; } = 0.25f;
+
+        /// <summary>
+        /// Optional exploration count override for PIS.
+        /// When set to -1, <see cref="ProbePISExploreFraction"/> is used.
+        /// Hot-reloadable (triggers shader recompile).
+        /// </summary>
+        [JsonProperty]
+        public int ProbePISExploreCount { get; set; } = -1;
+
+        /// <summary>
+        /// Minimum weight applied to history confidence when computing PIS importance.
+        /// 0 = confidence can fully zero out weights, 1 = confidence ignored (always 1).
+        /// Hot-reloadable (triggers shader recompile).
+        /// </summary>
+        [JsonProperty]
+        public float ProbePISMinConfidenceWeight { get; set; } = 0.1f;
+
+        /// <summary>
+        /// Small positive epsilon used for numerical stability in PIS importance computations.
+        /// Hot-reloadable (triggers shader recompile).
+        /// </summary>
+        [JsonProperty]
+        public float ProbePISWeightEpsilon { get; set; } = 1e-6f;
+
         /// <summary>
         /// Number of steps per ray during screen-space marching.
         /// </summary>
@@ -837,6 +885,22 @@ public class VgeConfig
         [JsonIgnore]
         public LumOnDebugMode DebugMode { get; set; } = LumOnDebugMode.Off;
 
+        /// <summary>
+        /// Debug override: forces the probe-atlas trace mask to be uniform (all directions eligible).
+        /// Intended for validating mask consumption paths.
+        /// Hot-reloadable.
+        /// </summary>
+        [JsonProperty]
+        public bool ForceUniformMask { get; set; } = false;
+
+        /// <summary>
+        /// Debug override: forces legacy batch slicing even when PIS is enabled.
+        /// Intended for A/B comparisons without changing other settings.
+        /// Hot-reloadable.
+        /// </summary>
+        [JsonProperty]
+        public bool ForceBatchSlicing { get; set; } = false;
+
         internal void Sanitize()
         {
             ProbeSpacingPx = Math.Clamp(ProbeSpacingPx, 1, 64);
@@ -844,6 +908,12 @@ public class VgeConfig
             PmjJitterCycleLength = Math.Clamp(PmjJitterCycleLength, 1, 65_536);
             HzbCoarseMip = Math.Clamp(HzbCoarseMip, 0, 12);
             ProbeAtlasTexelsPerFrame = Math.Clamp(ProbeAtlasTexelsPerFrame, 1, 64);
+
+            ProbePISExploreFraction = Math.Clamp(ProbePISExploreFraction, 0.0f, 1.0f);
+            ProbePISExploreCount = Math.Clamp(ProbePISExploreCount, -1, 64);
+            ProbePISMinConfidenceWeight = Math.Clamp(ProbePISMinConfidenceWeight, 0.0f, 1.0f);
+            ProbePISWeightEpsilon = Math.Clamp(ProbePISWeightEpsilon, 1e-8f, 1.0f);
+
             RaySteps = Math.Clamp(RaySteps, 1, 512);
             RayMaxDistance = Math.Clamp(RayMaxDistance, 0.25f, 256.0f);
             RayThickness = Math.Clamp(RayThickness, 0.01f, 16.0f);

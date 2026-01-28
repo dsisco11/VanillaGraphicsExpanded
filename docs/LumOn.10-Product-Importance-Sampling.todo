@@ -34,14 +34,15 @@ LumOn - Phase 10 - Product Importance Sampling (PIS) for Direction Updates (Impl
 
   Phase 10.2 - Config + Defaults + Hot-Reload:
   Exit artifacts: New config knobs exist with safe bounds and predictable live behavior.
-  ☐ Add config values under LumOn settings (VgeConfig.LumOnSettingsConfig): 
+  ✔ Add config values under LumOn settings (VgeConfig.LumOnSettingsConfig): @done
     - EnableProbePIS (bool)
     - ProbePISExploreFraction (float 0..1) or ProbePISExploreCount (int)
     - ProbePISMinConfidenceWeight (float 0..1) for confidence weighting in importance
     - ProbePISWeightEpsilon (float > 0) for numerical stability
-  ☐ Decide which config changes require shader recompile (defines) vs uniform-only updates
-  ☐ Ensure settings are clamped in VgeConfig.LumOnSettingsConfig.Sanitize()
-  ☐ Add debug config for forced modes:
+  ✔ Decide which config changes require shader recompile (defines) vs uniform-only updates @done
+    - Decision: PIS knobs are shader defines (recompile on change)
+  ✔ Ensure settings are clamped in VgeConfig.LumOnSettingsConfig.Sanitize() @done
+  ✔ Add debug config for forced modes: @done
     - ForceUniformMask (debug-only)
     - ForceBatchSlicing (debug-only)
 

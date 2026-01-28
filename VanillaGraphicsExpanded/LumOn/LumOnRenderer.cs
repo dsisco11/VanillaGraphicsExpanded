@@ -601,6 +601,20 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.RayThickness = config.LumOn.RayThickness;
         shader.SkyMissWeight = config.LumOn.SkyMissWeight;
 
+        // PIS config is define-backed. If defines changed, a recompile is queued; skip this pass (do not clear)
+        // to avoid a one-frame mismatch between selection logic and consumption.
+        if (!shader.EnsureProbePisDefines(
+            enabled: config.LumOn.EnableProbePIS,
+            exploreFraction: config.LumOn.ProbePISExploreFraction,
+            exploreCount: config.LumOn.ProbePISExploreCount,
+            minConfidenceWeight: config.LumOn.ProbePISMinConfidenceWeight,
+            weightEpsilon: config.LumOn.ProbePISWeightEpsilon,
+            forceUniformMask: config.LumOn.ForceUniformMask,
+            forceBatchSlicing: config.LumOn.ForceBatchSlicing))
+        {
+            return;
+        }
+
         if (bufferManager.HzbDepthTex != null)
         {
             shader.HzbCoarseMip = Math.Clamp(config.LumOn.HzbCoarseMip, 0, Math.Max(0, bufferManager.HzbDepthTex.MipLevels - 1));
@@ -777,6 +791,20 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Define-backed knobs must be set before Use() so the correct variant is bound.
         shader.TexelsPerFrame = config.LumOn.ProbeAtlasTexelsPerFrame;
+
+        // PIS config is define-backed. If defines changed, a recompile is queued; skip this pass (do not clear)
+        // to keep temporal selection and trace selection consistent.
+        if (!shader.EnsureProbePisDefines(
+            enabled: config.LumOn.EnableProbePIS,
+            exploreFraction: config.LumOn.ProbePISExploreFraction,
+            exploreCount: config.LumOn.ProbePISExploreCount,
+            minConfidenceWeight: config.LumOn.ProbePISMinConfidenceWeight,
+            weightEpsilon: config.LumOn.ProbePISWeightEpsilon,
+            forceUniformMask: config.LumOn.ForceUniformMask,
+            forceBatchSlicing: config.LumOn.ForceBatchSlicing))
+        {
+            return;
+        }
 
         shader.Use();
         shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);

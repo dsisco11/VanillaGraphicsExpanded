@@ -40,6 +40,30 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
 
     #endregion
 
+    #region Product Importance Sampling Defines (Phase 10)
+
+    public bool EnsureProbePisDefines(
+        bool enabled,
+        float exploreFraction,
+        int exploreCount,
+        float minConfidenceWeight,
+        float weightEpsilon,
+        bool forceUniformMask,
+        bool forceBatchSlicing)
+    {
+        bool changed = false;
+        changed |= SetDefine(VgeShaderDefines.LumOnProbePisEnabled, enabled ? "1" : "0");
+        changed |= SetDefine(VgeShaderDefines.LumOnProbePisExploreFraction, exploreFraction.ToString("0.0####", CultureInfo.InvariantCulture));
+        changed |= SetDefine(VgeShaderDefines.LumOnProbePisExploreCount, exploreCount.ToString(CultureInfo.InvariantCulture));
+        changed |= SetDefine(VgeShaderDefines.LumOnProbePisMinConfidenceWeight, minConfidenceWeight.ToString("0.0####", CultureInfo.InvariantCulture));
+        changed |= SetDefine(VgeShaderDefines.LumOnProbePisWeightEpsilon, weightEpsilon.ToString("0.0########", CultureInfo.InvariantCulture));
+        changed |= SetDefine(VgeShaderDefines.LumOnProbePisForceUniformMask, forceUniformMask ? "1" : "0");
+        changed |= SetDefine(VgeShaderDefines.LumOnProbePisForceBatchSlicing, forceBatchSlicing ? "1" : "0");
+        return !changed;
+    }
+
+    #endregion
+
     #region Texture Samplers
 
     /// <summary>

@@ -26,6 +26,15 @@ public static class VgeShaderDefines
     public const string LumOnHzbCoarseMip = "VGE_LUMON_HZB_COARSE_MIP";
     public const string LumOnSkyMissWeight = "VGE_LUMON_SKY_MISS_WEIGHT";
 
+    // Product Importance Sampling (Phase 10)
+    public const string LumOnProbePisEnabled = "VGE_LUMON_PROBE_PIS_ENABLED";
+    public const string LumOnProbePisExploreFraction = "VGE_LUMON_PROBE_PIS_EXPLORE_FRACTION";
+    public const string LumOnProbePisExploreCount = "VGE_LUMON_PROBE_PIS_EXPLORE_COUNT";
+    public const string LumOnProbePisMinConfidenceWeight = "VGE_LUMON_PROBE_PIS_MIN_CONFIDENCE_WEIGHT";
+    public const string LumOnProbePisWeightEpsilon = "VGE_LUMON_PROBE_PIS_WEIGHT_EPSILON";
+    public const string LumOnProbePisForceUniformMask = "VGE_LUMON_PROBE_PIS_FORCE_UNIFORM_MASK";
+    public const string LumOnProbePisForceBatchSlicing = "VGE_LUMON_PROBE_PIS_FORCE_BATCH_SLICING";
+
     // World-probe clipmap (Phase 18)
     public const string LumOnWorldProbeEnabled = "VGE_LUMON_WORLDPROBE_ENABLED";
     public const string LumOnWorldProbeClipmapLevels = "VGE_LUMON_WORLDPROBE_LEVELS";
