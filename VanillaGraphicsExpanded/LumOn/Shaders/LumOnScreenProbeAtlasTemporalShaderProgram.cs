@@ -87,6 +87,11 @@ public class LumOnScreenProbeAtlasTemporalShaderProgram : GpuProgram
     /// </summary>
     public GpuTexture? ScreenProbeAtlasMetaCurrent { set => BindTexture2D("probeAtlasMetaCurrent", value, 3); }
 
+        /// <summary>
+        /// Probe-resolution trace mask (RG32F packed uint bits) selecting which atlas texels were traced.
+        /// </summary>
+        public GpuTexture? ProbeTraceMask { set => BindTexture2D("probeTraceMask", value, 7); }
+
     /// <summary>
     /// Previous frame probe-atlas meta history (after last swap).
     /// Used for confidence-aware temporal blending.

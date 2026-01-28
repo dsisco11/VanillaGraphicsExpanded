@@ -92,11 +92,11 @@ LumOn - Phase 10 - Product Importance Sampling (PIS) for Direction Updates (Impl
 
   Phase 10.6 - Temporal Pass Uses Mask:
   Exit artifacts: The temporal pass blends only the texels the trace pass updated (same selection source).
-  ☐ Update shader: VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_temporal.fsh
+  ✔ Update shader: VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_temporal.fsh @done
     - Add sampler2D probeTraceMask (probe-resolution)
     - Replace wasTracedThisFrame(octTexel, probeIndex) with mask lookup
     - Preserve fallback to batch slicing when PIS disabled (must match trace fallback)
-  ☐ Ensure velocity reprojection path still works for “not traced” texels (no regressions)
+  ✔ Ensure velocity reprojection path still works for “not traced” texels (no regressions) @done
 
 
   Phase 10.7 - Renderer Wiring + Pass Scheduling:

@@ -51,6 +51,10 @@ uniform sampler2D octahedralHistory;
 // Probe anchors for validity check
 uniform sampler2D probeAnchorPosition;  // xyz = posWS, w = validity
 
+// Phase 10: probe-resolution trace mask (RG32F packed uint bits).
+// When present and valid, it replaces legacy batch slicing for "was traced".
+uniform sampler2D probeTraceMask;
+
 // Phase 14 velocity buffer (RGBA32F): RG = currUv - prevUv, A = packed flags
 uniform sampler2D velocityTex;
 
@@ -155,7 +159,7 @@ void computeHistoryAtlasCoord(
  * Determine if this octahedral texel was traced this frame.
  * Must match the logic in lumon_probe_trace_octahedral.fsh.
  */
-bool wasTracedThisFrame(ivec2 octTexel, int probeIndex) {
+bool legacyWasTracedThisFrame(ivec2 octTexel, int probeIndex) {
     // Linear texel index within the probe's 8×8 tile
     int texelIndex = octTexel.y * LUMON_OCTAHEDRAL_SIZE + octTexel.x;
     
@@ -167,6 +171,21 @@ bool wasTracedThisFrame(ivec2 octTexel, int probeIndex) {
     int jitteredFrame = (frameIndex + probeIndex) % numBatches;
     
     return batch == jitteredFrame;
+}
+
+bool maskIsValid(uvec2 maskBits)
+{
+    return (maskBits.x | maskBits.y) != 0u;
+}
+
+bool maskWasTracedTexel(uvec2 maskBits, int texelIndex)
+{
+    texelIndex = clamp(texelIndex, 0, (LUMON_OCTAHEDRAL_SIZE * LUMON_OCTAHEDRAL_SIZE) - 1);
+    if (texelIndex < 32)
+    {
+        return ((maskBits.x >> uint(texelIndex)) & 1u) != 0u;
+    }
+    return ((maskBits.y >> uint(texelIndex - 32)) & 1u) != 0u;
 }
 
 // ============================================================================
@@ -263,8 +282,21 @@ void main(void)
         lumonDecodeMeta(metaHistoryReproj, confHistory, flagsHistory);
     }
     
-    // Check if this texel was traced this frame
-    if (!wasTracedThisFrame(octTexel, probeIndex)) {
+    // Check if this texel was traced this frame.
+    // Must match the trace pass selection source and fallback behavior.
+    int texelIndex = octTexel.y * LUMON_OCTAHEDRAL_SIZE + octTexel.x;
+    bool wasTraced = legacyWasTracedThisFrame(octTexel, probeIndex);
+
+#if (VGE_LUMON_PROBE_PIS_ENABLED == 1) && (VGE_LUMON_PROBE_PIS_FORCE_BATCH_SLICING == 0)
+    vec2 maskPacked = texelFetch(probeTraceMask, probeCoord, 0).xy;
+    uvec2 maskBits = uvec2(floatBitsToUint(maskPacked.x), floatBitsToUint(maskPacked.y));
+    if (maskIsValid(maskBits))
+    {
+        wasTraced = maskWasTracedTexel(maskBits, texelIndex);
+    }
+#endif
+
+    if (!wasTraced) {
         // Not traced this frame:
         // - If velocity reprojection is enabled and usable, shift history into this probe cell.
         // - Otherwise, preserve the trace output unchanged (trace shader already copied history).

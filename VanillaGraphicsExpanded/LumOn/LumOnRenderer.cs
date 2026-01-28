@@ -836,6 +836,9 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Bind meta history from previous frame
         shader.ScreenProbeAtlasMetaHistory = bufferManager.ScreenProbeAtlasMetaHistoryTex!;
 
+        // Phase 10: bind probe-resolution trace mask (when PIS is enabled, shader will prefer it).
+        shader.ProbeTraceMask = bufferManager.ProbeTraceMaskTex;
+
         // Phase 14: bind velocity buffer so temporal can reproject history.
         shader.VelocityTex = bufferManager.VelocityTex;
 
