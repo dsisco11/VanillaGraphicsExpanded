@@ -1,0 +1,148 @@
+LumOn - Phase 10 - Product Importance Sampling (PIS) for Direction Updates (Implementation):
+
+  Goal:
+  Replace uniform/batch direction updates with per-probe Product Importance Sampling so we spend the limited
+  per-frame ray budget on directions that matter most to shading (diffuse first; specular later).
+
+  Reference:
+  - docs/LumOn.01-Core-Architecture.md (pipeline + ownership)
+  - docs/LumOn.02-Probe-Grid.md (probe anchors + jitter)
+  - docs/LumOn.03-Radiance-Cache.md (8×8 octa atlas layout + addressing)
+  - docs/LumOn.04-Ray-Tracing.md (baseline “batch slicing” update logic)
+  - docs/LumOn.05-Temporal.md (temporal blending constraints; must match traced-texel selection)
+  - docs/LumOn.06-Gather-Upsample.md (cosine-weighted hemisphere integration)
+  - docs/LumOn.08-Pipeline-Alignment-with-Lumen.md (stage alignment; confidence signals)
+  - docs/LumOn_Flowchart.mmd (high-level PIS placement)
+  - docs/LumOn.10-Product-Importance-Sampling.md (design + algorithm choices)
+  - docs/WorldProbes.KnownSimplificationsAndRisks.md (world-probe direction sampling issues; optional extension)
+
+  Exit artifacts (Phase 10 overall):
+  - New PIS “mask” stage (probe-resolution) producing a 64-bit per-probe trace mask.
+  - Trace + temporal passes consume the mask, with a no-regression fallback to current batch slicing.
+  - PIS is gated by config; includes exploration fraction, debug views, and GPU timing counters.
+
+
+  Phase 10.1 - Requirements + Semantics:
+  Exit artifacts: A locked definition of what “PIS” means in this repo and what it changes.
+  ☐ Define the importance product for M1 (diffuse-only): importance(dir) ∝ Li_est(dir) * max(dot(N, dir), 0)
+  ☐ Define Li_est source priority: SSRC history (primary) → fallback behavior when history invalid
+  ☐ Define selection constraints: exactly K unique directions per probe per frame, deterministic mapping
+  ☐ Define exploration policy (required): K_explore vs K_importance, and guarantee full coverage over time
+  ☐ Define backfacing policy for diffuse (skip when dot(N,dir) <= 0)
+  ☐ Define “no regression” rule when PIS disabled (must match existing selection path)
+
+
+  Phase 10.2 - Config + Defaults + Hot-Reload:
+  Exit artifacts: New config knobs exist with safe bounds and predictable live behavior.
+  ☐ Add config values under LumOn settings (VgeConfig.LumOnSettingsConfig): 
+    - EnableProbePIS (bool)
+    - ProbePISExploreFraction (float 0..1) or ProbePISExploreCount (int)
+    - ProbePISMinConfidenceWeight (float 0..1) for confidence weighting in importance
+    - ProbePISWeightEpsilon (float > 0) for numerical stability
+  ☐ Decide which config changes require shader recompile (defines) vs uniform-only updates
+  ☐ Ensure settings are clamped in VgeConfig.LumOnSettingsConfig.Sanitize()
+  ☐ Add debug config for forced modes:
+    - ForceUniformMask (debug-only)
+    - ForceBatchSlicing (debug-only)
+
+
+  Phase 10.3 - GPU Resource + Buffer Management:
+  Exit artifacts: Probe-trace mask textures/FBOs are allocated, resized, and disposed correctly.
+  ☐ Allocate “ProbeTraceMask” at probe resolution (probeCountX × probeCountY)
+    - Format: RG32F (two 32-bit lanes used as uint bitfields)
+    - Debug label: “LumOn.ProbeTraceMask”
+  ☐ Add a dedicated FBO for the mask pass
+  ☐ Ensure recreation is tied to screen resize and ProbeSpacing changes (same as probe anchors)
+  ☐ Add Swap/clear behavior if needed (should be single-buffer if computed each frame)
+
+
+  Phase 10.4 - PIS Mask Pass (Shader + Program Plumbing):
+  Exit artifacts: A probe-resolution shader writes a stable 64-bit trace mask per probe each frame.
+  ☐ Add shader: VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_pis_mask.fsh
+  ☐ Add shader program class under VanillaGraphicsExpanded/LumOn/Shaders:
+    - Binds probeAnchorPosition/probeAnchorNormal
+    - Binds octahedralHistory (+ optional probeAtlasMetaHistory for confidence)
+    - Uses LumOnFrameUBO for frameIndex, matrices, etc.
+  ☐ Implement importance computation (diffuse-only M1):
+    - Compute per-direction dirWS from octahedral texel center
+    - Compute cosN = max(dot(N, dirWS), 0)
+    - Li_est = luminance(historyRadiance)
+    - conf = history meta confidence (if available), with min weight clamp
+    - w_i = Li_est * cosN * confWeight
+  ☐ Implement selection algorithm:
+    - Choose K_importance via weighted-without-replacement (reservoir key method)
+    - Choose K_explore via deterministic uniform/batch scheme
+    - Ensure uniqueness across the combined set
+    - Write maskLo/maskHi as uintBitsToFloat lanes
+  ☐ Define fallback when all weights are ~0 (e.g., purely exploration this frame)
+
+
+  Phase 10.5 - Trace Pass Uses Mask:
+  Exit artifacts: The atlas trace pass traces exactly the masked texels and preserves others.
+  ☐ Update shader: VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_trace.fsh
+    - Add sampler2D probeTraceMask (probe-resolution)
+    - Replace shouldTraceThisFrame(octTexel, probeIndex) with mask lookup by texelIndex
+    - Preserve existing batch slicing behind a fallback path (PIS disabled/mask invalid)
+  ☐ Update shader program plumbing (LumOnScreenProbeAtlasTraceShaderProgram):
+    - Bind probeTraceMask sampler
+    - Ensure bindings don’t collide with existing units
+  ☐ Verify trace output remains identical when PIS is disabled (bitwise where possible)
+
+
+  Phase 10.6 - Temporal Pass Uses Mask:
+  Exit artifacts: The temporal pass blends only the texels the trace pass updated (same selection source).
+  ☐ Update shader: VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_temporal.fsh
+    - Add sampler2D probeTraceMask (probe-resolution)
+    - Replace wasTracedThisFrame(octTexel, probeIndex) with mask lookup
+    - Preserve fallback to batch slicing when PIS disabled (must match trace fallback)
+  ☐ Ensure velocity reprojection path still works for “not traced” texels (no regressions)
+
+
+  Phase 10.7 - Renderer Wiring + Pass Scheduling:
+  Exit artifacts: Mask pass runs at the correct time and is gated by config.
+  ☐ Add RenderProbePisMaskPass() to VanillaGraphicsExpanded/LumOn/LumOnRenderer.cs
+  ☐ Insert pass order: Anchor → (PIS mask) → Trace → Temporal → (Filter) → Gather → Upsample
+  ☐ Gate: if PIS disabled, skip pass and bind a “null” mask (or rely on trace fallback)
+  ☐ Add GPU timing scope: “LumOn.PISMask” (hook into GlGpuProfiler / counters)
+
+
+  Phase 10.8 - Debug Views + Diagnostics:
+  Exit artifacts: We can verify what PIS is doing visually and numerically.
+  ☐ Add debug overlay counters:
+    - PIS enabled, K, explore fraction, mask pass ms
+  ☐ Add debug modes:
+    - Visualize traced texels in the atlas (traced vs preserved)
+    - Visualize per-probe “importance energy” (sum of weights) as heatmap
+    - Visualize explore vs importance chosen directions (optional)
+  ☐ Add RenderDoc checklist update for PIS:
+    - Confirm mask texture contents
+    - Confirm trace respects mask (selected texels change, others preserve history)
+
+
+  Phase 10.9 - Performance + Stability Validation:
+  Exit artifacts: PIS improves quality-per-ray without introducing shimmer or budget instability.
+  ☐ Profile PISMask pass cost at 1080p/8px spacing (probe resolution 240×135) and record baseline
+  ☐ Verify total frame time impact is bounded (target: sub-ms for mask pass)
+  ☐ Validate stability under camera motion:
+    - no obvious “sparkle” from selection jitter
+    - no persistent black cutoffs from over-penalizing directions
+  ☐ Validate convergence improvement in representative scenes (bright opening, emissive, indoors/outdoors transition)
+
+
+  Phase 10.10 - Optional: Specular-Aware PIS (M3+):
+  Exit artifacts: PIS accounts for BRDF terms beyond Lambert when an indirect specular consumer exists.
+  ☐ Decide where to source material inputs at probe anchors (roughness/metallic):
+    - sample gBuffer material at probe UV, or
+    - pack into probe anchor outputs for reuse
+  ☐ Extend importance to include a specular lobe proxy using (N, V, roughness)
+  ☐ Add config gating: EnableProbePISSpecular / SpecularWeightScale
+  ☐ Add debug view: show specular importance dominance vs diffuse
+
+
+  Phase 10.11 - Optional: World-Probe Direction PIS (CPU-side):
+  Exit artifacts: World-probe update slicing favors important directions while preserving coverage.
+  ☐ Define world-probe importance proxy (radiance-only or basis-driven) and exploration guarantee
+  ☐ Add an “importance” selection variant alongside LumOnWorldProbeAtlasDirectionSlicing.FillTexelIndicesForUpdate()
+  ☐ Ensure determinism and uniqueness, and maintain strict per-update K bound
+  ☐ Add perf counters for CPU selection work; ensure it’s negligible vs tracing cost
+
