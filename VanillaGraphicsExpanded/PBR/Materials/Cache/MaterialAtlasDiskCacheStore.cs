@@ -23,6 +23,8 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
     private readonly string root;
     private readonly IMaterialAtlasFileSystem fileSystem;
 
+    private readonly bool flushIndexSynchronously;
+
     private readonly DebouncedFlushScheduler indexFlush;
     private int indexDirty;
 
@@ -32,14 +34,23 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
     private volatile string? lastWriteFailure;
     public string? LastWriteFailure => lastWriteFailure;
 
-    public MaterialAtlasDiskCacheStore(string rootDirectory, IMaterialAtlasFileSystem? fileSystem = null, TimeSpan? indexDebounceDelay = null)
+    public MaterialAtlasDiskCacheStore(string rootDirectory, IMaterialAtlasFileSystem? fileSystem = null, IMaterialAtlasDiskCacheIndexFlushPolicy? flushPolicy = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootDirectory);
 
         this.fileSystem = fileSystem ?? new MaterialAtlasRealFileSystem();
         root = rootDirectory;
 
-        indexFlush = new DebouncedFlushScheduler(FlushIndexBestEffort, indexDebounceDelay ?? DefaultIndexDebounceDelay);
+        IMaterialAtlasDiskCacheIndexFlushPolicy policy = flushPolicy ?? MaterialAtlasDiskCacheIndexFlushPolicies.Default;
+
+        TimeSpan delay = policy.DebounceDelay;
+        if (delay == default)
+        {
+            delay = DefaultIndexDebounceDelay;
+        }
+
+        flushIndexSynchronously = policy.FlushSynchronously;
+        indexFlush = new DebouncedFlushScheduler(FlushIndexBestEffort, delay);
 
         this.fileSystem.CreateDirectory(root);
 
@@ -292,6 +303,7 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
         }
 
         string? ddsPath = null;
+        bool requestFlush = false;
 
         indexLock.EnterWriteLock();
         try
@@ -307,10 +319,16 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
             index.Entries.Remove(entryId);
 
             MarkIndexDirty_NoLock();
+            requestFlush = true;
         }
         finally
         {
             indexLock.ExitWriteLock();
+        }
+
+        if (requestFlush)
+        {
+            RequestIndexFlush();
         }
 
         if (ddsPath is not null)
@@ -337,15 +355,22 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
 
         fileSystem.CreateDirectory(root);
 
+        bool requestFlush = false;
         indexLock.EnterWriteLock();
         try
         {
             index = MaterialAtlasDiskCacheIndex.CreateEmpty(DateTime.UtcNow.Ticks);
             MarkIndexDirty_NoLock();
+            requestFlush = true;
         }
         finally
         {
             indexLock.ExitWriteLock();
+        }
+
+        if (requestFlush)
+        {
+            RequestIndexFlush();
         }
     }
 
@@ -359,6 +384,7 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
         var payloadsToDelete = new List<(string Path, long SizeBytes)>();
         long evictedEntryCount = 0;
         long evictedByteCount = 0;
+        bool requestFlush = false;
 
         indexLock.EnterWriteLock();
         try
@@ -386,10 +412,16 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
             }
 
             MarkIndexDirty_NoLock();
+            requestFlush = true;
         }
         finally
         {
             indexLock.ExitWriteLock();
+        }
+
+        if (requestFlush)
+        {
+            RequestIndexFlush();
         }
 
         foreach ((string path, long _) in payloadsToDelete)
@@ -515,6 +547,8 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
     {
         long nowTicks = DateTime.UtcNow.Ticks;
 
+        bool requestFlush = false;
+
         indexLock.EnterWriteLock();
         try
         {
@@ -543,16 +577,23 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
             index.TotalBytes += payloadBytes;
 
             MarkIndexDirty_NoLock();
+            requestFlush = true;
         }
         finally
         {
             indexLock.ExitWriteLock();
+        }
+
+        if (requestFlush)
+        {
+            RequestIndexFlush();
         }
     }
 
     private void RemoveIndexEntry(string entryId, bool deletePayload)
     {
         string? ddsPath = null;
+        bool requestFlush = false;
 
         indexLock.EnterWriteLock();
         try
@@ -568,10 +609,16 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
             index.Entries.Remove(entryId);
 
             MarkIndexDirty_NoLock();
+            requestFlush = true;
         }
         finally
         {
             indexLock.ExitWriteLock();
+        }
+
+        if (requestFlush)
+        {
+            RequestIndexFlush();
         }
 
         if (deletePayload && ddsPath is not null)
@@ -584,6 +631,8 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
     {
         long nowTicks = DateTime.UtcNow.Ticks;
         long payloadBytes = TryGetFileLength(ddsPath);
+
+        bool requestFlush = false;
 
         indexLock.EnterWriteLock();
         try
@@ -601,10 +650,18 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
             }
 
             index.Entries[entryId] = existing with { LastAccessUtcTicks = nowTicks };
+
+            MarkIndexDirty_NoLock();
+            requestFlush = true;
         }
         finally
         {
             indexLock.ExitWriteLock();
+        }
+
+        if (requestFlush)
+        {
+            RequestIndexFlush();
         }
     }
 
@@ -646,7 +703,18 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
     private void MarkIndexDirty_NoLock()
     {
         Interlocked.Exchange(ref indexDirty, 1);
-        indexFlush.Request();
+    }
+
+    private void RequestIndexFlush()
+    {
+        if (flushIndexSynchronously)
+        {
+            FlushIndexBestEffort();
+        }
+        else
+        {
+            indexFlush.Request();
+        }
     }
 
     private void FlushIndexBestEffort()
@@ -666,7 +734,10 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
         {
             // Best-effort.
             Interlocked.Exchange(ref indexDirty, 1);
-            indexFlush.Request();
+            if (!flushIndexSynchronously)
+            {
+                indexFlush.Request();
+            }
         }
         finally
         {

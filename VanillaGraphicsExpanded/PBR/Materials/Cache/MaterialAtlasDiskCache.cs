@@ -45,14 +45,24 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         NormalDepth = 2,
     }
 
-    public MaterialAtlasDiskCache(string rootDirectory, long maxBytes, IMaterialAtlasFileSystem? fileSystem = null)
+    public MaterialAtlasDiskCache(
+        string rootDirectory,
+        long maxBytes,
+        IMaterialAtlasFileSystem? fileSystem = null,
+        IMaterialAtlasDiskCacheIndexFlushPolicy? indexFlushPolicy = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootDirectory);
         if (maxBytes <= 0) throw new ArgumentOutOfRangeException(nameof(maxBytes));
 
         root = rootDirectory;
         this.maxBytes = maxBytes;
-        store = new MaterialAtlasDiskCacheStore(rootDirectory, fileSystem);
+
+        // Default behavior: use debounced writes for real disk. For test/in-memory file systems,
+        // prefer deterministic (synchronous) index persistence unless a policy is explicitly passed.
+        IMaterialAtlasDiskCacheIndexFlushPolicy resolvedPolicy = indexFlushPolicy
+            ?? (fileSystem is null ? MaterialAtlasDiskCacheIndexFlushPolicies.Default : MaterialAtlasDiskCacheIndexFlushPolicies.Synchronous);
+
+        store = new MaterialAtlasDiskCacheStore(rootDirectory, fileSystem, resolvedPolicy);
     }
 
     public string RootDirectory => root;
