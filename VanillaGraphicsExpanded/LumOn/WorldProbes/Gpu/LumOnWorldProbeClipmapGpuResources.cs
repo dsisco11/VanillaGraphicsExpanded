@@ -10,11 +10,9 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
 {
     private readonly int resolution;
     private readonly int levels;
+    private readonly int worldProbeTileSize;
 
-    private readonly DynamicTexture2D sh0;
-    private readonly DynamicTexture2D sh1;
-    private readonly DynamicTexture2D sh2;
-    private readonly DynamicTexture2D sky0;
+    private readonly DynamicTexture2D radianceAtlas;
     private readonly DynamicTexture2D vis0;
     private readonly DynamicTexture2D dist0;
     private readonly DynamicTexture2D meta0;
@@ -22,49 +20,63 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
     private readonly Texture2D debugState0;
 
     private readonly GpuFramebuffer fbo;
+    private readonly GpuFramebuffer radianceFbo;
 
     public int Resolution => resolution;
     public int Levels => levels;
 
+    public int WorldProbeTileSize => worldProbeTileSize;
+
+    // Per-probe scalar atlases: one texel per probe.
     public int AtlasWidth => resolution * resolution;
     public int AtlasHeightPerLevel => resolution;
     public int AtlasHeight => resolution * levels;
 
-    public DynamicTexture2D ProbeSh0 => sh0;
-    public DynamicTexture2D ProbeSh1 => sh1;
-    public DynamicTexture2D ProbeSh2 => sh2;
-    public DynamicTexture2D ProbeSky0 => sky0;
+    // Radiance atlas: SxS tile per probe.
+    public int RadianceAtlasWidth => (resolution * resolution) * worldProbeTileSize;
+    public int RadianceAtlasHeight => (resolution * levels) * worldProbeTileSize;
+
+    public DynamicTexture2D ProbeRadianceAtlas => radianceAtlas;
+
+    // Legacy accessors (SH payload removed). These are temporary aliases to keep bindings and debug views compiling.
+    public DynamicTexture2D ProbeSh0 => radianceAtlas;
+    public DynamicTexture2D ProbeSh1 => radianceAtlas;
+    public DynamicTexture2D ProbeSh2 => radianceAtlas;
+    public DynamicTexture2D ProbeSky0 => radianceAtlas;
     public DynamicTexture2D ProbeVis0 => vis0;
     public DynamicTexture2D ProbeDist0 => dist0;
     public DynamicTexture2D ProbeMeta0 => meta0;
     public Texture2D ProbeDebugState0 => debugState0;
 
-    public int ProbeSh0TextureId => sh0.TextureId;
-    public int ProbeSh1TextureId => sh1.TextureId;
-    public int ProbeSh2TextureId => sh2.TextureId;
-    public int ProbeSky0TextureId => sky0.TextureId;
+    public int ProbeRadianceAtlasTextureId => radianceAtlas.TextureId;
+
+    public int ProbeSh0TextureId => radianceAtlas.TextureId;
+    public int ProbeSh1TextureId => radianceAtlas.TextureId;
+    public int ProbeSh2TextureId => radianceAtlas.TextureId;
+    public int ProbeSky0TextureId => radianceAtlas.TextureId;
     public int ProbeVis0TextureId => vis0.TextureId;
     public int ProbeDist0TextureId => dist0.TextureId;
     public int ProbeMeta0TextureId => meta0.TextureId;
     public int ProbeDebugState0TextureId => debugState0.TextureId;
 
-    public LumOnWorldProbeClipmapGpuResources(int resolution, int levels)
+    public LumOnWorldProbeClipmapGpuResources(int resolution, int levels, int worldProbeTileSize)
     {
         if (resolution <= 0) throw new ArgumentOutOfRangeException(nameof(resolution));
         if (levels <= 0) throw new ArgumentOutOfRangeException(nameof(levels));
+        if (worldProbeTileSize <= 0) throw new ArgumentOutOfRangeException(nameof(worldProbeTileSize));
 
         this.resolution = resolution;
         this.levels = levels;
 
-        // Per docs/LumOn.18-Probe-Data-Layout-and-Packing.md: L1 SH packed into 3 RGBA16F targets.
-        // We pack all levels into a single 2D atlas per signal by stacking levels vertically:
-        // v = y + level * resolution.
-        sh0 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSH0");
-        sh1 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSH1");
-        sh2 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSH2");
+        this.worldProbeTileSize = worldProbeTileSize;
 
-        // Sky lighting: scalar sky visibility projected into L1 SH (RGBA16F).
-        sky0 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeSky0");
+        // Radiance atlas (SH replacement): one SxS octahedral tile per probe.
+        radianceAtlas = DynamicTexture2D.Create(
+            RadianceAtlasWidth,
+            RadianceAtlasHeight,
+            PixelInternalFormat.Rgba16f,
+            TextureFilterMode.Nearest,
+            "WorldProbe_ProbeRadianceAtlas");
 
         // Visibility: RGBA16F (octU, octV, skyIntensity, aoConfidence)
         vis0 = DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeVis0");
@@ -79,30 +91,32 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
         // R=stale, G=in-flight, B=valid, A=1.
         debugState0 = Texture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16, TextureFilterMode.Nearest, "WorldProbe_DebugState0");
 
+        // NOTE: Radiance atlas has different dimensions than per-probe scalar atlases, so it must live in its own FBO.
+        radianceFbo = GpuFramebuffer.CreateMRT(
+            "WorldProbe_RadianceAtlasFbo",
+            radianceAtlas) ?? throw new InvalidOperationException("Failed to create world-probe radiance atlas FBO");
+
+        // Per-probe scalar outputs.
         fbo = GpuFramebuffer.CreateMRT(
             "WorldProbe_ClipmapFbo",
-            sh0,
-            sh1,
-            sh2,
             vis0,
             dist0,
-            meta0,
-            sky0) ?? throw new InvalidOperationException("Failed to create world-probe MRT FBO");
+            meta0) ?? throw new InvalidOperationException("Failed to create world-probe MRT FBO");
 
-        Label(sh0);
-        Label(sh1);
-        Label(sh2);
-        Label(sky0);
+        Label(radianceAtlas);
         Label(vis0);
         Label(dist0);
         Label(meta0);
         Label(debugState0);
         GlDebug.TryLabelFramebuffer(fbo.FboId, fbo.DebugName);
+        GlDebug.TryLabelFramebuffer(radianceFbo.FboId, radianceFbo.DebugName);
 
         ClearAll();
     }
 
     public GpuFramebuffer GetFbo() => fbo;
+
+    public GpuFramebuffer GetRadianceFbo() => radianceFbo;
 
     public void UploadDebugState0(ushort[] data)
     {
@@ -112,21 +126,25 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
     public void ClearAll()
     {
         // Clear on create to keep deterministic sampling when uninitialized.
+        radianceFbo.Bind();
+        GL.Viewport(0, 0, RadianceAtlasWidth, RadianceAtlasHeight);
+        GL.ClearColor(0, 0, 0, 0);
+        GL.Clear(ClearBufferMask.ColorBufferBit);
+
         fbo.Bind();
         GL.Viewport(0, 0, AtlasWidth, AtlasHeight);
         GL.ClearColor(0, 0, 0, 0);
         GL.Clear(ClearBufferMask.ColorBufferBit);
+
         GpuFramebuffer.Unbind();
     }
 
     public void Dispose()
     {
+        radianceFbo.Dispose();
         fbo.Dispose();
 
-        sh0.Dispose();
-        sh1.Dispose();
-        sh2.Dispose();
-        sky0.Dispose();
+        radianceAtlas.Dispose();
 
         vis0.Dispose();
         dist0.Dispose();

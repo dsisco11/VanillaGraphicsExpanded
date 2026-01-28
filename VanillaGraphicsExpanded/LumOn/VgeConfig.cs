@@ -285,6 +285,13 @@ public class VgeConfig
         public int ClipmapLevels { get; set; } = 3;
 
         /// <summary>
+        /// World-probe octahedral tile size (S) used for the radiance atlas.
+        /// Must match shader compilation defines and resource allocation.
+        /// </summary>
+        [JsonProperty]
+        public int OctahedralTileSize { get; set; } = 16;
+
+        /// <summary>
         /// Per-level max number of probes selected for CPU update per frame.
         /// Expected to be length == <see cref="ClipmapLevels"/>.
         /// Hot-reloadable.
@@ -314,6 +321,7 @@ public class VgeConfig
             ClipmapBaseSpacing = Math.Clamp(ClipmapBaseSpacing, 0.25f, 64.0f);
             ClipmapResolution = Math.Clamp(ClipmapResolution, 8, 128);
             ClipmapLevels = Math.Clamp(ClipmapLevels, 1, 8);
+            OctahedralTileSize = Math.Clamp(OctahedralTileSize, 8, 64);
             TraceMaxProbesPerFrame = Math.Clamp(TraceMaxProbesPerFrame, 0, 65_536);
             UploadBudgetBytesPerFrame = Math.Clamp(UploadBudgetBytesPerFrame, 0, 64 * 1024 * 1024);
 

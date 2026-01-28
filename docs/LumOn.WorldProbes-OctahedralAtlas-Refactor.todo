@@ -43,18 +43,18 @@ LumOn - World Probes - Refactor to Octahedral Atlas (Replace SH)
 
   Phase 1 - Data Layout + Versioning (Replace SH Textures)
   Exit artifacts: World-probe GPU resources allocate an atlas payload, and layout/versioning invalidates safely.
-  ☐ Replace SH textures with a single radiance atlas texture:
+  ✔ Replace SH textures with a single radiance atlas texture: @done
     - Remove/stop allocating `ProbeSH0/ProbeSH1/ProbeSH2` and `ProbeSky0`
     - Add `ProbeRadianceAtlas` (RGBA16F) sized by (W,H) below
-  ☐ Keep per-probe textures:
+  ✔ Keep per-probe textures: @done
     - `ProbeVis0` (oct-encoded AO dir, skyIntensity, aoConfidence)
     - `ProbeDist0` (meanLogDist, reserved)
     - `ProbeMeta0` (confidence, flags)
     - `ProbeDebugState0` (debug lifecycle heatmap)
-  ☐ Bump world-probe layout version and invalidate on change:
+  ✔ Bump world-probe layout version and invalidate on change: @done
     - VanillaGraphicsExpanded/LumOn/WorldProbes/LumOnWorldProbeLayout.cs
     - VanillaGraphicsExpanded/LumOn/WorldProbes/Gpu/LumOnWorldProbeClipmapBufferManager.cs
-  ☐ Define atlas packing math (keep current 2D scheme; just tile-scaled):
+  ✔ Define atlas packing math (keep current 2D scheme; just tile-scaled): @done
     - probe storage index = (x,y,z), clipmap resolution N, level L, tile size S
     - tile origin:
       - tileU0 = (x + z*N) * S
@@ -62,7 +62,7 @@ LumOn - World Probes - Refactor to Octahedral Atlas (Replace SH)
     - atlas size:
       - W = N*N*S
       - H = (N*levels)*S
-  ☐ Add config/runtime guardrails:
+  ✔ Add config/runtime guardrails: @done
     - Ensure `W` and `H` fit within GL max texture size; clamp/disable world probes if they don’t.
     - Log a clear warning showing (N, levels, S, W, H).
 

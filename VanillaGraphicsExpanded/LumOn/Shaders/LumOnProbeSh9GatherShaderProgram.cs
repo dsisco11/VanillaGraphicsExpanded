@@ -81,13 +81,14 @@ public class LumOnProbeSh9GatherShaderProgram : GpuProgram
 
     public int WorldProbeEnabled { set => SetDefine(VgeShaderDefines.LumOnWorldProbeEnabled, value != 0 ? "1" : "0"); }
 
-    public bool EnsureWorldProbeClipmapDefines(bool enabled, float baseSpacing, int levels, int resolution)
+    public bool EnsureWorldProbeClipmapDefines(bool enabled, float baseSpacing, int levels, int resolution, int worldProbeOctahedralTileSize)
     {
         if (!enabled)
         {
             baseSpacing = 0;
             levels = 0;
             resolution = 0;
+            worldProbeOctahedralTileSize = 0;
         }
 
         bool changed = false;
@@ -95,6 +96,7 @@ public class LumOnProbeSh9GatherShaderProgram : GpuProgram
         changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapLevels, levels.ToString(CultureInfo.InvariantCulture));
         changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, resolution.ToString(CultureInfo.InvariantCulture));
         changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, baseSpacing.ToString("0.0####", CultureInfo.InvariantCulture));
+        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeOctahedralSize, worldProbeOctahedralTileSize.ToString(CultureInfo.InvariantCulture));
         return !changed;
     }
 

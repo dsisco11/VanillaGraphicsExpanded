@@ -619,14 +619,15 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         if (hasWorldProbe)
         {
-            if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, wpBaseSpacing, wpLevels, wpResolution))
+            int wpTileSize = config.WorldProbeClipmap.OctahedralTileSize;
+            if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, wpBaseSpacing, wpLevels, wpResolution, wpTileSize))
             {
                 return;
             }
         }
         else
         {
-            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0);
+            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0, worldProbeOctahedralTileSize: 0);
         }
 
         shader.Use();

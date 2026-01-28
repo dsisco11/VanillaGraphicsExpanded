@@ -1,6 +1,8 @@
 using System;
 using System.Numerics;
 
+using OpenTK.Graphics.OpenGL;
+
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using VanillaGraphicsExpanded.LumOn.WorldProbes;
@@ -13,7 +15,7 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 /// </summary>
 internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
 {
-    private const int LayoutVersion = 1;
+    private const int LayoutVersion = LumOnWorldProbeLayout.WorldProbeLayoutVersion;
     internal const int MaxDebugTraceRays = 512;
 
     internal readonly struct DebugTraceRay
@@ -65,6 +67,14 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
     private int lastResolution;
     private int lastLevels;
     private int lastLayoutVersion;
+
+    private bool disabledDueToTextureLimits;
+    private int disabledResolution;
+    private int disabledLevels;
+    private int disabledTileSize;
+    private int disabledAtlasW;
+    private int disabledAtlasH;
+    private int disabledMaxTextureSize;
 
     public LumOnWorldProbeClipmapGpuResources? Resources => resources;
     public LumOnWorldProbeClipmapGpuUploader? Uploader => uploader;
@@ -210,6 +220,61 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
         int resolution = config.WorldProbeClipmap.ClipmapResolution;
         int levels = config.WorldProbeClipmap.ClipmapLevels;
 
+        int tileSize = config.WorldProbeClipmap.OctahedralTileSize;
+        var (atlasW, atlasH) = LumOnWorldProbeLayout.GetRadianceAtlasSize(resolution, levels, tileSize);
+        int maxTexSize = GetMaxTextureSizeSafe();
+
+        // Guardrail: prevent allocating oversized textures.
+        // If we can't query max size (0), continue with best-effort allocation.
+        bool exceeds = maxTexSize > 0 && (atlasW > maxTexSize || atlasH > maxTexSize);
+        if (exceeds)
+        {
+            bool sameAsLastDisabled =
+                disabledDueToTextureLimits &&
+                disabledResolution == resolution &&
+                disabledLevels == levels &&
+                disabledTileSize == tileSize &&
+                disabledAtlasW == atlasW &&
+                disabledAtlasH == atlasH &&
+                disabledMaxTextureSize == maxTexSize;
+
+            disabledDueToTextureLimits = true;
+            disabledResolution = resolution;
+            disabledLevels = levels;
+            disabledTileSize = tileSize;
+            disabledAtlasW = atlasW;
+            disabledAtlasH = atlasH;
+            disabledMaxTextureSize = maxTexSize;
+
+            forceRecreate = false;
+
+            // Drop any existing resources (topology changed or config became invalid).
+            resources?.Dispose();
+            resources = null;
+            uploader?.Dispose();
+            uploader = null;
+
+            lastResolution = resolution;
+            lastLevels = levels;
+            lastLayoutVersion = LayoutVersion;
+
+            if (!sameAsLastDisabled)
+            {
+                capi.Logger.Warning(
+                    "[VGE] World-probe clipmap disabled: radiance atlas exceeds GL max texture size. (N={0}, levels={1}, S={2}) -> (W={3}, H={4}), max={5}",
+                    resolution,
+                    levels,
+                    tileSize,
+                    atlasW,
+                    atlasH,
+                    maxTexSize);
+            }
+
+            return false;
+        }
+
+        disabledDueToTextureLimits = false;
+
         bool needsRecreate =
             forceRecreate ||
             resources is null ||
@@ -227,7 +292,7 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
         resources?.Dispose();
         uploader?.Dispose();
 
-        resources = new LumOnWorldProbeClipmapGpuResources(resolution, levels);
+        resources = new LumOnWorldProbeClipmapGpuResources(resolution, levels, tileSize);
         uploader = new LumOnWorldProbeClipmapGpuUploader(capi);
 
         lastResolution = resolution;
@@ -235,6 +300,18 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
         lastLayoutVersion = LayoutVersion;
 
         return false;
+    }
+
+    private static int GetMaxTextureSizeSafe()
+    {
+        try
+        {
+            return GL.GetInteger(GetPName.MaxTextureSize);
+        }
+        catch
+        {
+            return 0;
+        }
     }
 
     public void Dispose()
