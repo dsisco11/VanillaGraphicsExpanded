@@ -5,7 +5,9 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 
 internal static class LumOnWorldProbeTraceDirections
 {
-    // Keep in sync with LUMON_OCTAHEDRAL_SIZE in lumon_octahedral.glsl.
+    // NOTE: This direction table currently drives SH-based integration for the existing world-probe pipeline.
+    // It intentionally matches the screen-probe octahedral size (8×8) and should not be changed as part of the
+    // "world probes -> octahedral atlas" refactor. That refactor will use LumOnWorldProbeAtlasDirections instead.
     public const int OctahedralSize = 8;
     public const int DirectionCount = OctahedralSize * OctahedralSize;
 

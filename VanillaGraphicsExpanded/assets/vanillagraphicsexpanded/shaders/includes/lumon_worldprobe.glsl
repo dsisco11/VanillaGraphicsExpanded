@@ -16,6 +16,7 @@
 
 // Dependencies
 @import "./lumon_octahedral.glsl"
+@import "./lumon_worldprobe_atlas.glsl"
 @import "./lumon_sh.glsl"
 
 // Optional UBO contracts (Phase 23).

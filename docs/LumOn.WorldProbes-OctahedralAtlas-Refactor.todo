@@ -27,15 +27,18 @@ LumOn - World Probes - Refactor to Octahedral Atlas (Replace SH)
 
   Phase 0 - Specification + Constants (World-Probe Octa Size)
   Exit artifacts: A single source of truth for world-probe octahedral tile size and encoding conventions.
-  ☐ Choose world-probe octahedral tile size `S` (UE5-like; candidates: 16 or 32) and set an initial default.
-  ☐ Add `LUMON_WORLDPROBE_OCTAHEDRAL_SIZE` (and float variants) in a dedicated include or `lumon_worldprobe.glsl`.
-  ☐ Keep screen-probe constants unchanged (`LUMON_OCTAHEDRAL_SIZE` remains 8 for the screen atlas).
-  ☐ Update `VanillaGraphicsExpanded/LumOn/WorldProbes/Tracing/LumOnWorldProbeTraceDirections.cs` to be parameterized by `S`
-    (or introduce a new `LumOnWorldProbeOctahedralDirections` helper), and remove “keep in sync with LUMON_OCTAHEDRAL_SIZE”.
-  ☐ Specify alpha encoding:
+  ✔ Choose world-probe octahedral tile size `S` (UE5-like; candidates: 16 or 32) and set an initial default. @done
+    - Initial default: S=16 (`VGE_LUMON_WORLDPROBE_OCTAHEDRAL_SIZE`, fallback 16).
+  ✔ Add `LUMON_WORLDPROBE_OCTAHEDRAL_SIZE` (and float variants) in a dedicated include or `lumon_worldprobe.glsl`. @done
+  ✔ Keep screen-probe constants unchanged (`LUMON_OCTAHEDRAL_SIZE` remains 8 for the screen atlas). @done
+  ✔ Introduce a separate world-probe atlas direction helper (do not change existing SH integration directions). @done
+    - Added `LumOnWorldProbeAtlasDirections` (parameterized by atlas `S`).
+    - Updated comment in `LumOnWorldProbeTraceDirections` to clarify it is *not* part of the atlas refactor.
+  ✔ Specify alpha encoding: @done
     - Hit: `a = +log(dist + 1)`
     - Sky/miss: `a = -log(maxDist + 1)` (negative sign = sky visibility for that direction)
-  ☐ Decide a default directional update batch size `K` (texels per probe update) and batching schedule.
+  ✔ Decide a default directional update batch size `K` (texels per probe update) and batching schedule. @done
+    - Initial default: K=32 (`VGE_LUMON_WORLDPROBE_ATLAS_TEXELS_PER_UPDATE`, fallback 32).
 
 
   Phase 1 - Data Layout + Versioning (Replace SH Textures)

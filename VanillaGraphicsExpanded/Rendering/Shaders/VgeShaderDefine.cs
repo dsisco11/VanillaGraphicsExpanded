@@ -32,6 +32,10 @@ public static class VgeShaderDefines
     public const string LumOnWorldProbeClipmapResolution = "VGE_LUMON_WORLDPROBE_RESOLUTION";
     public const string LumOnWorldProbeClipmapBaseSpacing = "VGE_LUMON_WORLDPROBE_BASE_SPACING";
 
+    // World-probe octahedral atlas (SH replacement; future refactor)
+    public const string LumOnWorldProbeOctahedralSize = "VGE_LUMON_WORLDPROBE_OCTAHEDRAL_SIZE";
+    public const string LumOnWorldProbeAtlasTexelsPerUpdate = "VGE_LUMON_WORLDPROBE_ATLAS_TEXELS_PER_UPDATE";
+
     public const string LumOnEmissiveBoost = "LUMON_EMISSIVE_BOOST";
 
     public const string PbrEnablePom = "VGE_PBR_ENABLE_POM";
