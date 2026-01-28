@@ -304,6 +304,14 @@ public class LumOnRenderer : IRenderer, IDisposable
                 RenderProbeAnchorPass(primaryFb);
             }
 
+            // === Pass 1.5: PIS Mask (Probe-resolution) ===
+            // Must run after anchors (needs probe normals/validity) and before trace/temporal.
+            using var cpuPisMask = Profiler.BeginScope("LumOn.PISMask", "Render");
+            using (GlGpuProfiler.Instance.Scope("LumOn.PISMask"))
+            {
+                RenderProbePisMaskPass();
+            }
+
             // === Pass 2: Probe Trace (Probe-Atlas) ===
             using var cpuTrace = Profiler.BeginScope("LumOn.Trace", "Render");
             using (GlGpuProfiler.Instance.Scope("LumOn.Trace"))
@@ -573,6 +581,61 @@ public class LumOnRenderer : IRenderer, IDisposable
     }
 
     /// <summary>
+    /// Phase 10: Probe-resolution PIS mask pass.
+    /// Writes a packed 64-bit trace mask per probe (RG32F as uintBitsToFloat lanes).
+    /// </summary>
+    private void RenderProbePisMaskPass()
+    {
+        // Enable PIS logic if explicitly enabled or if a debug override requires the mask path.
+        // ForceBatchSlicing does not require the mask, but leaving it in the define set is harmless.
+        bool pisEnabled = config.LumOn.EnableProbePIS || config.LumOn.ForceUniformMask;
+        if (!pisEnabled)
+        {
+            return;
+        }
+
+        var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_pis_mask") as LumOnProbeAtlasPisMaskShaderProgram;
+        if (shader is null || shader.LoadError)
+            return;
+
+        var fbo = bufferManager.ProbeTraceMaskFbo;
+        if (fbo is null || bufferManager.ProbeTraceMaskTex is null)
+            return;
+
+        // Render to probe-resolution mask.
+        fbo.BindWithViewport();
+        fbo.Clear();
+        capi.Render.GlToggleBlend(false);
+
+        // Define-backed knobs must be set before Use() so the correct variant is bound.
+        shader.TexelsPerFrame = config.LumOn.ProbeAtlasTexelsPerFrame;
+
+        if (!shader.EnsureProbePisDefines(
+                enabled: pisEnabled,
+                exploreFraction: config.LumOn.ProbePISExploreFraction,
+                exploreCount: config.LumOn.ProbePISExploreCount,
+                minConfidenceWeight: config.LumOn.ProbePISMinConfidenceWeight,
+                weightEpsilon: config.LumOn.ProbePISWeightEpsilon,
+                forceUniformMask: config.LumOn.ForceUniformMask,
+                forceBatchSlicing: config.LumOn.ForceBatchSlicing))
+        {
+            // Defines changed (recompile queued). Leave the mask cleared so downstream passes fall back safely.
+            return;
+        }
+
+        shader.Use();
+        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
+
+        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
+        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex!;
+        shader.ScreenProbeAtlasHistory = bufferManager.ScreenProbeAtlasHistoryTex;
+        shader.ScreenProbeAtlasMetaHistory = bufferManager.ScreenProbeAtlasMetaHistoryTex;
+
+        capi.Render.RenderMesh(quadMeshRef);
+        shader.Stop();
+    }
+
+    /// <summary>
      /// Pass 2 (Screen-Probe Atlas): Ray trace from each probe and store radiance + hit distance.
      /// Uses temporal distribution: only traces a subset of texels each frame.
      /// Output: Probe atlas texture with radiance and hit distance.
@@ -603,8 +666,9 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // PIS config is define-backed. If defines changed, a recompile is queued; skip this pass (do not clear)
         // to avoid a one-frame mismatch between selection logic and consumption.
+        bool pisEnabled = config.LumOn.EnableProbePIS || config.LumOn.ForceUniformMask;
         if (!shader.EnsureProbePisDefines(
-            enabled: config.LumOn.EnableProbePIS,
+            enabled: pisEnabled,
             exploreFraction: config.LumOn.ProbePISExploreFraction,
             exploreCount: config.LumOn.ProbePISExploreCount,
             minConfidenceWeight: config.LumOn.ProbePISMinConfidenceWeight,
@@ -797,8 +861,9 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // PIS config is define-backed. If defines changed, a recompile is queued; skip this pass (do not clear)
         // to keep temporal selection and trace selection consistent.
+        bool pisEnabled = config.LumOn.EnableProbePIS || config.LumOn.ForceUniformMask;
         if (!shader.EnsureProbePisDefines(
-            enabled: config.LumOn.EnableProbePIS,
+            enabled: pisEnabled,
             exploreFraction: config.LumOn.ProbePISExploreFraction,
             exploreCount: config.LumOn.ProbePISExploreCount,
             minConfidenceWeight: config.LumOn.ProbePISMinConfidenceWeight,

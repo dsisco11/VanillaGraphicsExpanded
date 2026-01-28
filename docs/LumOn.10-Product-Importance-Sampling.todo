@@ -101,10 +101,10 @@ LumOn - Phase 10 - Product Importance Sampling (PIS) for Direction Updates (Impl
 
   Phase 10.7 - Renderer Wiring + Pass Scheduling:
   Exit artifacts: Mask pass runs at the correct time and is gated by config.
-  ☐ Add RenderProbePisMaskPass() to VanillaGraphicsExpanded/LumOn/LumOnRenderer.cs
-  ☐ Insert pass order: Anchor → (PIS mask) → Trace → Temporal → (Filter) → Gather → Upsample
-  ☐ Gate: if PIS disabled, skip pass and bind a “null” mask (or rely on trace fallback)
-  ☐ Add GPU timing scope: “LumOn.PISMask” (hook into GlGpuProfiler / counters)
+  ✔ Add RenderProbePisMaskPass() to VanillaGraphicsExpanded/LumOn/LumOnRenderer.cs @done
+  ✔ Insert pass order: Anchor → (PIS mask) → Trace → Temporal → (Filter) → Gather → Upsample @done
+  ✔ Gate: if PIS disabled, skip pass and bind a “null” mask (or rely on trace fallback) @done
+  ✔ Add GPU timing scope: “LumOn.PISMask” (hook into GlGpuProfiler / counters) @done
 
 
   Phase 10.8 - Debug Views + Diagnostics:
