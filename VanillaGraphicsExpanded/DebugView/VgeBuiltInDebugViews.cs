@@ -778,6 +778,23 @@ public static class VgeBuiltInDebugViews
                 return string.Empty;
             }
 
+            // Prefer selected block (under crosshair) as the target; fall back to camera.
+            Vec3d targetWorld = capi.World?.Player?.Entity?.CameraPos ?? new Vec3d();
+            try
+            {
+                var sel = capi.World?.Player?.CurrentBlockSelection;
+                if (sel?.Position is not null)
+                {
+                    var p = sel.Position;
+                    var hp = sel.HitPosition;
+                    targetWorld = new Vec3d(p.X + hp.X, p.Y + hp.Y, p.Z + hp.Z);
+                }
+            }
+            catch
+            {
+                // Ignore selection query failures.
+            }
+
             var wpMs = capi.ModLoader.GetModSystem<WorldProbeModSystem>();
             var bm = wpMs.GetClipmapBufferManagerOrNull();
             if (bm is null || bm.Resources is null)
@@ -810,7 +827,7 @@ public static class VgeBuiltInDebugViews
                     camPosWorld.Y + oRel.Y,
                     camPosWorld.Z + oRel.Z);
 
-                Vec3d localCam = LumOnClipmapTopology.WorldToLocal(camPosWorld, originAbs, spacing);
+                Vec3d localCam = LumOnClipmapTopology.WorldToLocal(targetWorld, originAbs, spacing);
                 var idx = new Vec3i(
                     (int)Math.Floor(localCam.X),
                     (int)Math.Floor(localCam.Y),
@@ -822,9 +839,9 @@ public static class VgeBuiltInDebugViews
 
                 Vec3d probeCenter = LumOnClipmapTopology.IndexToProbeCenterWorld(idx, originAbs, spacing);
 
-                double dx = probeCenter.X - camPosWorld.X;
-                double dy = probeCenter.Y - camPosWorld.Y;
-                double dz = probeCenter.Z - camPosWorld.Z;
+                double dx = probeCenter.X - targetWorld.X;
+                double dy = probeCenter.Y - targetWorld.Y;
+                double dz = probeCenter.Z - targetWorld.Z;
                 double d2 = (dx * dx) + (dy * dy) + (dz * dz);
 
                 if (d2 < bestD2 - 1e-12 || (Math.Abs(d2 - bestD2) <= 1e-12 && level < bestLevel))
@@ -844,6 +861,7 @@ public static class VgeBuiltInDebugViews
             double dist = Math.Sqrt(bestD2);
             return
                 $"Closest world probe:\n" +
+                $"target=({targetWorld.X:0.###},{targetWorld.Y:0.###},{targetWorld.Z:0.###})\n" +
                 $"L{bestLevel} idx=({bestIndex.X},{bestIndex.Y},{bestIndex.Z})  pos=({bestPos.X:0.###},{bestPos.Y:0.###},{bestPos.Z:0.###})  d={dist:0.###}";
         }
 

@@ -2119,13 +2119,44 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             }
         }
 
-        UpdateClosestProbeMarker(renderOriginWorld);
+        Vec3d targetWorld = renderOriginWorld;
+        if (TryGetClosestProbeTargetWorldPos(out var t))
+        {
+            targetWorld = t;
+        }
+
+        UpdateClosestProbeMarker(renderOriginWorld, targetWorld);
 
         int posStride = Marshal.SizeOf<System.Numerics.Vector3>();
         clipmapProbePositionsVbo!.UploadData(probePositions, probeCount * posStride);
     }
 
-    private void UpdateClosestProbeMarker(Vec3d renderOriginWorld)
+    private bool TryGetClosestProbeTargetWorldPos(out Vec3d posWorld)
+    {
+        // Prefer the currently selected block (under crosshair); fall back to camera position.
+        try
+        {
+            var sel = capi.World?.Player?.CurrentBlockSelection;
+            if (sel?.Position is not null)
+            {
+                var p = sel.Position;
+                // Use the actual hit position, not the block center.
+                // In Vintage Story, BlockSelection.HitPosition is in-block coordinates [0..1] from the block min corner.
+                var hp = sel.HitPosition;
+                posWorld = new Vec3d(p.X + hp.X, p.Y + hp.Y, p.Z + hp.Z);
+                return true;
+            }
+        }
+        catch
+        {
+            // Ignore selection query failures.
+        }
+
+        posWorld = new Vec3d();
+        return false;
+    }
+
+    private void UpdateClosestProbeMarker(Vec3d renderOriginWorld, Vec3d targetWorld)
     {
         hasClosestProbeMarker = false;
         closestProbeMarkerDistanceWorld = 0;
@@ -2155,7 +2186,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             double spacing = baseSpacing * (1 << level);
             if (spacing <= 0) continue;
 
-            Vec3d localCam = LumOnClipmapTopology.WorldToLocal(renderOriginWorld, originAbs, spacing);
+            Vec3d localCam = LumOnClipmapTopology.WorldToLocal(targetWorld, originAbs, spacing);
             var idx = new Vec3i(
                 (int)Math.Floor(localCam.X),
                 (int)Math.Floor(localCam.Y),
@@ -2167,9 +2198,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
             Vec3d probeCenter = LumOnClipmapTopology.IndexToProbeCenterWorld(idx, originAbs, spacing);
 
-            double dx = probeCenter.X - renderOriginWorld.X;
-            double dy = probeCenter.Y - renderOriginWorld.Y;
-            double dz = probeCenter.Z - renderOriginWorld.Z;
+            double dx = probeCenter.X - targetWorld.X;
+            double dy = probeCenter.Y - targetWorld.Y;
+            double dz = probeCenter.Z - targetWorld.Z;
             double d2 = (dx * dx) + (dy * dy) + (dz * dz);
 
             // Prefer finer levels on ties.
