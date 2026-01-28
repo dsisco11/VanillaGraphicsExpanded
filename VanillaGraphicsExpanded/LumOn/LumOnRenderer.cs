@@ -594,10 +594,12 @@ public class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbePisMaskPass()
     {
-        // Enable PIS logic if explicitly enabled or if a debug override requires the mask path.
-        // ForceBatchSlicing does not require the mask, but leaving it in the define set is harmless.
+        // Populate the mask texture when PIS is enabled OR when debug views require it.
+        // When PIS is disabled (enabled=0), the shader emits a legacy batch-slicing mask.
         bool pisEnabled = config.LumOn.EnableProbePIS || config.LumOn.ForceUniformMask;
-        if (!pisEnabled)
+        bool debugWantsMask = config.LumOn.DebugMode is LumOnDebugMode.ProbeAtlasPisTraceMask or LumOnDebugMode.ProbePisEnergy;
+        bool shouldRun = pisEnabled || debugWantsMask || config.LumOn.ForceBatchSlicing;
+        if (!shouldRun)
         {
             return;
         }

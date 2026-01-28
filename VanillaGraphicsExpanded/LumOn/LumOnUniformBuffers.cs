@@ -32,6 +32,10 @@ internal sealed class LumOnUniformBuffers : IDisposable
 
     public GpuUniformBuffer WorldProbeUbo => worldProbeUbo ?? throw new InvalidOperationException("World-probe UBO is not created.");
 
+    public bool HasWorldProbeUbo => worldProbeUbo is not null && worldProbeUbo.BufferId != 0;
+
+    public GpuUniformBuffer? WorldProbeUboOrNull => HasWorldProbeUbo ? worldProbeUbo : null;
+
     public void EnsureCreated()
     {
         if (frameUbo is null || frameUbo.BufferId == 0)

@@ -782,7 +782,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             shader.Use();
             shaderUsed = true;
             shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
-            shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
+            var worldProbeUbo = uniformBuffers.WorldProbeUboOrNull;
+            if (worldProbeUbo is not null)
+            {
+                shader.TryBindUniformBlock("LumOnWorldProbeUBO", worldProbeUbo);
+            }
 
             // Bind textures
             shader.PrimaryDepth = primaryFb.DepthTextureId;
@@ -2562,6 +2566,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             or LumOnDebugMode.ProbeAtlasGatherInputRadiance
             or LumOnDebugMode.ProbeAtlasHitDistance
             or LumOnDebugMode.ProbeAtlasTraceRadiance
+            or LumOnDebugMode.ProbeAtlasTemporalRejection
+            or LumOnDebugMode.ProbeAtlasPisTraceMask
+            or LumOnDebugMode.ProbePisEnergy
             => LumOnDebugShaderProgramKind.ProbeAtlas,
 
         // Composite
@@ -2644,7 +2651,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             || (mode is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeOrbsPoints)
             || mode is LumOnDebugMode.WorldProbeRawConfidences
                 or LumOnDebugMode.WorldProbeContributionOnly
-                or LumOnDebugMode.ScreenSpaceContributionOnly;
+                or LumOnDebugMode.ScreenSpaceContributionOnly
+                or LumOnDebugMode.ProbeAtlasTemporalRejection
+                or LumOnDebugMode.ProbeAtlasPisTraceMask
+                or LumOnDebugMode.ProbePisEnergy;
     }
 
     #endregion
