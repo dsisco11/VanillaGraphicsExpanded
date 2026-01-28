@@ -7,4 +7,6 @@ internal readonly record struct LumOnWorldProbeTraceWorkItem(
     int FrameIndex,
     LumOnWorldProbeUpdateRequest Request,
     Vector3d ProbePosWorld,
-    double MaxTraceDistanceWorld);
+    double MaxTraceDistanceWorld,
+    int WorldProbeOctahedralTileSize,
+    int WorldProbeAtlasTexelsPerUpdate);

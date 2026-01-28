@@ -12,22 +12,37 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 /// </summary>
 internal static class LumOnWorldProbeAtlasDirections
 {
-    public const int OctahedralSize = LumOnWorldProbeAtlasSpec.OctahedralSize;
-    public const int DirectionCount = OctahedralSize * OctahedralSize;
+    private static readonly object CacheLock = new();
+    private static readonly System.Collections.Generic.Dictionary<int, Vector3[]> DirectionsBySize = new();
 
-    private static readonly Vector3[] Directions = BuildDirections(OctahedralSize);
-
-    public static ReadOnlySpan<Vector3> GetDirections() => Directions;
-
-    public static Vector3 GetDirectionForTexelCenter(int octX, int octY)
+    public static ReadOnlySpan<Vector3> GetDirections(int octahedralSize)
     {
-        if ((uint)octX >= (uint)OctahedralSize || (uint)octY >= (uint)OctahedralSize)
+        if (octahedralSize <= 0) throw new ArgumentOutOfRangeException(nameof(octahedralSize));
+
+        lock (CacheLock)
+        {
+            if (!DirectionsBySize.TryGetValue(octahedralSize, out var dirs))
+            {
+                dirs = BuildDirections(octahedralSize);
+                DirectionsBySize[octahedralSize] = dirs;
+            }
+
+            return dirs;
+        }
+    }
+
+    public static Vector3 GetDirectionForTexelCenter(int octahedralSize, int octX, int octY)
+    {
+        if (octahedralSize <= 0) throw new ArgumentOutOfRangeException(nameof(octahedralSize));
+
+        if ((uint)octX >= (uint)octahedralSize || (uint)octY >= (uint)octahedralSize)
         {
             return Vector3.UnitY;
         }
 
-        int idx = octY * OctahedralSize + octX;
-        return Directions[idx];
+        var dirs = GetDirections(octahedralSize);
+        int idx = octY * octahedralSize + octX;
+        return dirs[idx];
     }
 
     private static Vector3[] BuildDirections(int size)

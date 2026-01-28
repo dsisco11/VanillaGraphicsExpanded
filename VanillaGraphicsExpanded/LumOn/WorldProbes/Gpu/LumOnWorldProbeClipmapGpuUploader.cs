@@ -208,20 +208,20 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
                 AtlasU = atlasU,
                 AtlasV = atlasV,
 
-                ShR0 = r.ShR.X,
-                ShR1 = r.ShR.Y,
-                ShR2 = r.ShR.Z,
-                ShR3 = r.ShR.W,
+                ShR0 = 0,
+                ShR1 = 0,
+                ShR2 = 0,
+                ShR3 = 0,
 
-                ShG0 = r.ShG.X,
-                ShG1 = r.ShG.Y,
-                ShG2 = r.ShG.Z,
-                ShG3 = r.ShG.W,
+                ShG0 = 0,
+                ShG1 = 0,
+                ShG2 = 0,
+                ShG3 = 0,
 
-                ShB0 = r.ShB.X,
-                ShB1 = r.ShB.Y,
-                ShB2 = r.ShB.Z,
-                ShB3 = r.ShB.W,
+                ShB0 = 0,
+                ShB1 = 0,
+                ShB2 = 0,
+                ShB3 = 0,
 
                 AoDirX = r.ShortRangeAoDirWorld.X,
                 AoDirY = r.ShortRangeAoDirWorld.Y,
@@ -231,10 +231,10 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
                 Confidence = r.Confidence,
                 MeanLogHitDistance = r.MeanLogHitDistance,
 
-                ShSky0 = r.ShSky.X,
-                ShSky1 = r.ShSky.Y,
-                ShSky2 = r.ShSky.Z,
-                ShSky3 = r.ShSky.W,
+                ShSky0 = 0,
+                ShSky1 = 0,
+                ShSky2 = 0,
+                ShSky3 = 0,
 
                 SkyIntensity = r.SkyIntensity,
 

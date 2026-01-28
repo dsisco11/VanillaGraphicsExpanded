@@ -104,6 +104,8 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 
 		var cfg = config.WorldProbeClipmap;
 		double baseSpacing = Math.Max(1e-6, cfg.ClipmapBaseSpacing);
+		int wpTileSize = cfg.OctahedralTileSize;
+		int wpTexelsPerUpdate = cfg.AtlasTexelsPerUpdate;
 
 		using (Profiler.BeginScope("LumOn.WorldProbe.Schedule.UpdateOrigins", "LumOn"))
 		{
@@ -190,7 +192,7 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 				}
 
 				double maxDist = spacing * resources.Resolution;
-				var item = new LumOnWorldProbeTraceWorkItem(frameIndex, req, probePosWorld, maxDist);
+				var item = new LumOnWorldProbeTraceWorkItem(frameIndex, req, probePosWorld, maxDist, wpTileSize, wpTexelsPerUpdate);
 				if (!traceService.TryEnqueue(item))
 				{
 					scheduler.Unqueue(req);
@@ -403,22 +405,31 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 			return;
 		}
 
-		var dirs = LumOnWorldProbeTraceDirections.GetDirections();
+		int s = Math.Max(1, config.WorldProbeClipmap.OctahedralTileSize);
+		int k = Math.Max(1, config.WorldProbeClipmap.AtlasTexelsPerUpdate);
+		var dirs = LumOnWorldProbeAtlasDirections.GetDirections(s);
 		if (dirs.Length <= 0)
 		{
 			clipmapBufferManager.ClearDebugTraceRays(frameIndex);
 			return;
 		}
 
-		const int maxPreviewProbes = 3;
-		const int maxRaysPerProbe = 64;
+		const int maxPreviewProbes = 8;
+		int raysPerProbe = Math.Min(dirs.Length, k);
+		if (raysPerProbe <= 0)
+		{
+			clipmapBufferManager.ClearDebugTraceRays(frameIndex);
+			return;
+		}
 
-		int probesToShow = Math.Min(maxPreviewProbes, requests.Count);
-		int raysPerProbe = Math.Min(maxRaysPerProbe, dirs.Length);
-		int dirStride = Math.Max(1, dirs.Length / raysPerProbe);
+		int probesToShow = Math.Min(requests.Count, Math.Max(1, LumOnWorldProbeClipmapBufferManager.MaxDebugTraceRays / raysPerProbe));
+		probesToShow = Math.Min(probesToShow, maxPreviewProbes);
 
 		var rays = debugQueuedTraceRaysScratch;
 		int written = 0;
+
+		int[] texelIndicesScratch = new int[raysPerProbe];
+		Span<int> texelIndicesSpan = texelIndicesScratch;
 
 		for (int i = 0; i < probesToShow; i++)
 		{
@@ -431,21 +442,40 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 			double spacing = LumOnClipmapTopology.GetSpacing(baseSpacing, req.Level);
 			Vec3d probeCenter = LumOnClipmapTopology.IndexToProbeCenterWorld(req.LocalIndex, originMinCorner, spacing);
 
-			for (int r = 0; r < raysPerProbe && written < rays.Length; r++)
+			var texelIndices = texelIndicesSpan;
+			int texelCount = LumOnWorldProbeAtlasDirectionSlicing.FillTexelIndicesForUpdate(
+				frameIndex: frameIndex,
+				probeStorageLinearIndex: req.StorageLinearIndex,
+				octahedralSize: s,
+				texelsPerUpdate: k,
+				destination: texelIndices);
+
+			int take = Math.Min(raysPerProbe, texelCount);
+
+			(float rCol, float gCol, float bCol) = i switch
 			{
-				var d = dirs[r * dirStride];
+				0 => (1f, 0.2f, 0.2f),
+				1 => (0.2f, 1f, 0.2f),
+				_ => (0.2f, 0.4f, 1f),
+			};
+
+			for (int r = 0; r < take && written < rays.Length; r++)
+			{
+				int idx = texelIndices[r];
+				var d = dirs[idx];
 				var end = new Vec3d(
 					probeCenter.X + d.X * (spacing * resources.Resolution),
 					probeCenter.Y + d.Y * (spacing * resources.Resolution),
 					probeCenter.Z + d.Z * (spacing * resources.Resolution));
 
+				float a = 1f - (r / Math.Max(1f, take - 1f)) * 0.6f;
 				rays[written++] = new LumOnWorldProbeClipmapBufferManager.DebugTraceRay(
 					probeCenter,
 					end,
-					r: 1f,
-					g: 1f,
-					b: 1f,
-					a: 1f);
+					r: rCol,
+					g: gCol,
+					b: bCol,
+					a: a);
 			}
 		}
 

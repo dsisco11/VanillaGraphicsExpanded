@@ -292,6 +292,13 @@ public class VgeConfig
         public int OctahedralTileSize { get; set; } = 16;
 
         /// <summary>
+        /// Number of octahedral texels traced/uploaded per probe update (K).
+        /// Direction slicing uses this to spread S×S updates across multiple frames.
+        /// </summary>
+        [JsonProperty]
+        public int AtlasTexelsPerUpdate { get; set; } = 32;
+
+        /// <summary>
         /// Per-level max number of probes selected for CPU update per frame.
         /// Expected to be length == <see cref="ClipmapLevels"/>.
         /// Hot-reloadable.
@@ -322,6 +329,8 @@ public class VgeConfig
             ClipmapResolution = Math.Clamp(ClipmapResolution, 8, 128);
             ClipmapLevels = Math.Clamp(ClipmapLevels, 1, 8);
             OctahedralTileSize = Math.Clamp(OctahedralTileSize, 8, 64);
+            int dirCount = OctahedralTileSize * OctahedralTileSize;
+            AtlasTexelsPerUpdate = Math.Clamp(AtlasTexelsPerUpdate, 1, Math.Max(1, dirCount));
             TraceMaxProbesPerFrame = Math.Clamp(TraceMaxProbesPerFrame, 0, 65_536);
             UploadBudgetBytesPerFrame = Math.Clamp(UploadBudgetBytesPerFrame, 0, 64 * 1024 * 1024);
 

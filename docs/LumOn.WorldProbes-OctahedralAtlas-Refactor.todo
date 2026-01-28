@@ -69,18 +69,18 @@ LumOn - World Probes - Refactor to Octahedral Atlas (Replace SH)
 
   Phase 2 - CPU Trace Output (Tile Samples + Direction Slicing)
   Exit artifacts: CPU tracing produces octahedral samples suitable for the atlas and supports partial updates.
-  ☐ Change `LumOnWorldProbeTraceResult` to carry atlas samples for a probe update:
+  ✔ Change `LumOnWorldProbeTraceResult` to carry atlas samples for a probe update: @done
     - Target: a compact payload for K texels (not necessarily full S×S every time)
     - Per-sample: (octX, octY, radianceRGB, alphaEncodedDistSigned)
-  ☐ Update `LumOnWorldProbeTraceIntegrator.TraceProbe` to produce per-direction samples (no SH accumulation).
-  ☐ Preserve existing per-probe scalars:
+  ✔ Update `LumOnWorldProbeTraceIntegrator.TraceProbe` to produce per-direction samples (no SH accumulation). @done
+  ✔ Preserve existing per-probe scalars: @done
     - `ShortRangeAoDirWorld`, `ShortRangeAoConfidence`, `Confidence`, `MeanLogHitDistance`, `SkyIntensity`
-  ☐ Implement deterministic direction slicing:
+  ✔ Implement deterministic direction slicing: @done
     - Map (frameIndex, probeId, batchCount) -> which K texels to trace this update
     - Keep the schedule stable across camera motion to avoid “sparkle”
-  ☐ Decide miss semantics:
+  ✔ Decide miss semantics: @done
     - For sky/miss, radianceRGB = 0 (sky color applied in shader via uniform), alpha < 0 encodes sky visibility
-  ☐ Update/extend any debug ray plumbing to visualize which texels were traced (optional but helpful).
+  ✔ Update/extend any debug ray plumbing to visualize which texels were traced (optional but helpful). @done
 
 
   Phase 3 - GPU Upload + Resolve (Write Tiles into Atlas)

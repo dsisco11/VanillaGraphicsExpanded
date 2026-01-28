@@ -9,9 +9,6 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 
 internal sealed class LumOnWorldProbeTraceIntegrator
 {
-    private const float ShC0 = 0.282095f;
-    private const float ShC1 = 0.488603f;
-
     // Simple bounce model (Phase 18): treat skylight as an incident diffuse source and emit a Lambertian
     // reflected radiance from hit surfaces.
     //
@@ -34,16 +31,23 @@ internal sealed class LumOnWorldProbeTraceIntegrator
     {
         if (scene is null) throw new ArgumentNullException(nameof(scene));
 
-        ReadOnlySpan<Vector3> directions = LumOnWorldProbeTraceDirections.GetDirections();
-        const int DirectionCount = LumOnWorldProbeTraceDirections.DirectionCount;
+        int s = Math.Max(1, item.WorldProbeOctahedralTileSize);
+        int dirCount = checked(s * s);
+        int k = Math.Clamp(item.WorldProbeAtlasTexelsPerUpdate, 1, dirCount);
 
-        // Uniform weights over the sphere.
-        const float w = (float)(4.0 * Math.PI / LumOnWorldProbeTraceDirections.DirectionCount);
+        var directions = LumOnWorldProbeAtlasDirections.GetDirections(s);
+        var samples = new LumOnWorldProbeAtlasSample[k];
 
-        Vector4 shR = Vector4.Zero;
-        Vector4 shG = Vector4.Zero;
-        Vector4 shB = Vector4.Zero;
-        Vector4 shSky = Vector4.Zero;
+        Span<int> texelIndicesScratch = k <= 256 ? stackalloc int[256] : new int[k];
+        texelIndicesScratch = texelIndicesScratch.Slice(0, k);
+
+        int probeId = item.Request.StorageLinearIndex;
+        int texelCount = LumOnWorldProbeAtlasDirectionSlicing.FillTexelIndicesForUpdate(
+            frameIndex: item.FrameIndex,
+            probeStorageLinearIndex: probeId,
+            octahedralSize: s,
+            texelsPerUpdate: k,
+            destination: texelIndicesScratch);
 
         float skyIntensitySum = 0f;
         int skyIntensityCount = 0;
@@ -54,26 +58,30 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         double hitDistSum = 0;
         int hitCount = 0;
 
-        for (int i = 0; i < DirectionCount; i++)
+        float missAlpha = -(float)Math.Log(item.MaxTraceDistanceWorld + 1.0);
+
+        int usedSamples = 0;
+
+        for (int i = 0; i < texelCount; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            Vector3 dir = directions[i];
+            int texelIndex = texelIndicesScratch[i];
+
+            int octX = texelIndex % s;
+            int octY = texelIndex / s;
+
+            Vector3 dir = directions[texelIndex];
 
             var outcome = scene.Trace(item.ProbePosWorld, dir, item.MaxTraceDistanceWorld, cancellationToken, out var hitInfo);
             if (outcome == WorldProbeTraceOutcome.Aborted)
             {
-                // World data was not safely readable (e.g., placeholder chunk data). Don't upload synthetic lighting.
-                // Mark this probe as failed so it is retried later.
                 return new LumOnWorldProbeTraceResult(
                     FrameIndex: item.FrameIndex,
                     Request: item.Request,
                     Success: false,
                     FailureReason: WorldProbeTraceFailureReason.Aborted,
-                    ShR: Vector4.Zero,
-                    ShG: Vector4.Zero,
-                    ShB: Vector4.Zero,
-                    ShSky: Vector4.Zero,
+                    AtlasSamples: Array.Empty<LumOnWorldProbeAtlasSample>(),
                     SkyIntensity: 0f,
                     ShortRangeAoDirWorld: Vector3.UnitY,
                     ShortRangeAoConfidence: 0f,
@@ -84,35 +92,30 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             bool hit = outcome == WorldProbeTraceOutcome.Hit;
             double hitDist = hitInfo.HitDistance;
 
-            Vector3 specularF0 = Vector3.Zero;
-            Vector3 blockRadiance = hit
-                ? EvaluateHitRadiance(scene, item.ProbePosWorld, dir, item.MaxTraceDistanceWorld, hitInfo, cancellationToken, out specularF0)
-                : EvaluateSkyRadiance(dir);
+            Vector3 radianceRgb;
+            float alphaSigned;
 
-            // @todo (WorldProbes): Define the correct specular-GI path (separate SH vs directional lobe)
-            // before consuming specularF0. For now, we thread it through the hit evaluation so that
-            // specular integration can be added without re-plumbing the hit shading path.
-
-            float skyVisibility = hit ? 0f : 1f;
             if (hit)
             {
+                Vector3 specularF0 = Vector3.Zero;
+                radianceRgb = EvaluateHitRadiance(scene, item.ProbePosWorld, dir, item.MaxTraceDistanceWorld, hitInfo, cancellationToken, out specularF0);
+                alphaSigned = (float)Math.Log(Math.Max(0.0, hitDist) + 1.0);
+
                 skyIntensitySum += EvaluateSkyLightIntensity(hitInfo);
                 skyIntensityCount++;
             }
+            else
+            {
+                // Miss semantics: sky color is uniform-driven in shader; store sky visibility via signed alpha.
+                radianceRgb = Vector3.Zero;
+                alphaSigned = missAlpha;
+            }
 
-            // SH L1 basis vector: (Y00, Y1-1(y), Y10(z), Y11(x))
-            var basis = new Vector4(
-                ShC0,
-                ShC1 * dir.Y,
-                ShC1 * dir.Z,
-                ShC1 * dir.X);
-
-            Vector4 bw = basis * w;
-
-            shR += bw * blockRadiance.X;
-            shG += bw * blockRadiance.Y;
-            shB += bw * blockRadiance.Z;
-            shSky += bw * skyVisibility;
+            samples[usedSamples++] = new LumOnWorldProbeAtlasSample(
+                OctX: octX,
+                OctY: octY,
+                RadianceRgb: radianceRgb,
+                AlphaEncodedDistSigned: alphaSigned);
 
             if (!hit)
             {
@@ -135,9 +138,10 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         {
             aoDir = Vector3.UnitY;
         }
-        float aoConfidence = (float)unoccludedCount / DirectionCount;
 
-        float confidence = ComputeUnifiedConfidence(aoConfidence, hitCount, DirectionCount);
+        int sampleCountForConfidence = Math.Max(1, usedSamples);
+        float aoConfidence = (float)unoccludedCount / sampleCountForConfidence;
+        float confidence = ComputeUnifiedConfidence(aoConfidence, hitCount, sampleCountForConfidence);
 
         float skyIntensity;
         if (skyIntensityCount > 0)
@@ -146,7 +150,6 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         }
         else
         {
-            // Pure-sky probes: treat as full sky intensity.
             skyIntensity = 1f;
         }
 
@@ -157,15 +160,17 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             meanLogDist = (float)Math.Log(mean + 1.0);
         }
 
+        if (usedSamples != samples.Length)
+        {
+            Array.Resize(ref samples, usedSamples);
+        }
+
         return new LumOnWorldProbeTraceResult(
             FrameIndex: item.FrameIndex,
             Request: item.Request,
             Success: true,
             FailureReason: WorldProbeTraceFailureReason.None,
-            ShR: shR,
-            ShG: shG,
-            ShB: shB,
-            ShSky: shSky,
+            AtlasSamples: samples,
             SkyIntensity: skyIntensity,
             ShortRangeAoDirWorld: aoDir,
             ShortRangeAoConfidence: aoConfidence,
@@ -324,18 +329,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         return Math.Clamp(hit.SampleLightRgbS.W, 0f, 1f);
     }
 
-    private static Vector3 EvaluateSkyRadiance(Vector3 dir)
-    {
-        // Phase 18 (Option B): keep *sky radiance* out of RGB SH and represent it only via:
-        // - ShSky (sky visibility, projected into L1)
-        // - SkyIntensity (separate scalar packed alongside AO)
-        // - worldProbeSkyTint (published via LumOnWorldProbeUBO, time-of-day/weather/ambient tint)
-        //
-        // This avoids double-counting sky (RGB + ShSky) and keeps world-probe sky color consistent
-        // with the engine's ambient/sky settings.
-        _ = dir;
-        return Vector3.Zero;
-    }
+    // Sky radiance is uniform-driven in the shader; misses store zero radiance and signed-alpha sky visibility.
 
     private static float ComputeUnifiedConfidence(float aoConfidence, int hitCount, int sampleCount)
     {

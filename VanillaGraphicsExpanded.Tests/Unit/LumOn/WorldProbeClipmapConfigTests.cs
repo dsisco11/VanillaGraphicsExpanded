@@ -16,6 +16,7 @@ public sealed class WorldProbeClipmapConfigTests
                 ClipmapResolution = 1,
                 ClipmapLevels = 7,
                 OctahedralTileSize = 1,
+                AtlasTexelsPerUpdate = -5,
                 PerLevelProbeUpdateBudget = [1000],
                 TraceMaxProbesPerFrame = -5,
                 UploadBudgetBytesPerFrame = -1
@@ -28,6 +29,7 @@ public sealed class WorldProbeClipmapConfigTests
         Assert.InRange(cfg.WorldProbeClipmap.ClipmapResolution, 8, 128);
         Assert.InRange(cfg.WorldProbeClipmap.ClipmapLevels, 1, 8);
         Assert.InRange(cfg.WorldProbeClipmap.OctahedralTileSize, 8, 64);
+        Assert.InRange(cfg.WorldProbeClipmap.AtlasTexelsPerUpdate, 1, cfg.WorldProbeClipmap.OctahedralTileSize * cfg.WorldProbeClipmap.OctahedralTileSize);
         Assert.Equal(cfg.WorldProbeClipmap.ClipmapLevels, cfg.WorldProbeClipmap.PerLevelProbeUpdateBudget.Length);
         Assert.Equal(0, cfg.WorldProbeClipmap.TraceMaxProbesPerFrame);
         Assert.Equal(0, cfg.WorldProbeClipmap.UploadBudgetBytesPerFrame);

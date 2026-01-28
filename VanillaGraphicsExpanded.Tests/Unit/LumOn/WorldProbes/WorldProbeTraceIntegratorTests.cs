@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.WorldProbes;
 public sealed class WorldProbeTraceIntegratorTests
 {
     [Fact]
-    public void TraceProbe_WhenNoHits_ProducesZeroRadianceSh_AndNonZeroSkySh_AndAoConfidenceOne()
+    public void TraceProbe_WhenNoHits_ProducesAllMissSamples_WithNegativeAlpha_AndAoConfidenceOne()
     {
         var scene = new NeverHitScene();
         var integrator = new LumOnWorldProbeTraceIntegrator();
@@ -25,21 +25,26 @@ public sealed class WorldProbeTraceIntegratorTests
             FrameIndex: 1,
             Request: request,
             ProbePosWorld: new Vector3d(0.5, 0.5, 0.5),
-            MaxTraceDistanceWorld: 32);
+            MaxTraceDistanceWorld: 32,
+            WorldProbeOctahedralTileSize: 16,
+            WorldProbeAtlasTexelsPerUpdate: 16);
 
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
         Assert.True(res.ShortRangeAoConfidence > 0.99f);
-        Assert.True(res.ShR.Length() < 1e-6f);
-        Assert.True(res.ShG.Length() < 1e-6f);
-        Assert.True(res.ShB.Length() < 1e-6f);
-        Assert.True(res.ShSky.Length() > 1e-3f);
+        Assert.NotNull(res.AtlasSamples);
+        Assert.True(res.AtlasSamples.Length > 0);
+        for (int i = 0; i < res.AtlasSamples.Length; i++)
+        {
+            Assert.True(res.AtlasSamples[i].AlphaEncodedDistSigned < 0f);
+            Assert.True(res.AtlasSamples[i].RadianceRgb.Length() < 1e-6f);
+        }
         Assert.Equal(1f, res.SkyIntensity, 6);
         Assert.Equal(0f, res.MeanLogHitDistance, 6);
     }
 
     [Fact]
-    public void TraceProbe_WhenAllHitsWithSkylightButDownFacingNormals_ProducesZeroRadianceSh()
+    public void TraceProbe_WhenAllHitsWithSkylightButDownFacingNormals_ProducesZeroRadianceSamples()
     {
         // In the world-probe bounce model, skylight is an upper-hemisphere (+Y) source.
         // Down-facing normals have zero cosine term for all sky directions, so they receive no direct skylight.
@@ -52,19 +57,24 @@ public sealed class WorldProbeTraceIntegratorTests
             FrameIndex: 4,
             Request: request,
             ProbePosWorld: new Vector3d(0.5, 0.5, 0.5),
-            MaxTraceDistanceWorld: 32);
+            MaxTraceDistanceWorld: 32,
+            WorldProbeOctahedralTileSize: 16,
+            WorldProbeAtlasTexelsPerUpdate: 16);
 
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
-        Assert.True(res.ShR.Length() < 1e-6f);
-        Assert.True(res.ShG.Length() < 1e-6f);
-        Assert.True(res.ShB.Length() < 1e-6f);
-        Assert.True(res.ShSky.Length() < 1e-6f);
+        Assert.NotNull(res.AtlasSamples);
+        Assert.True(res.AtlasSamples.Length > 0);
+        for (int i = 0; i < res.AtlasSamples.Length; i++)
+        {
+            Assert.True(res.AtlasSamples[i].AlphaEncodedDistSigned >= 0f);
+            Assert.True(res.AtlasSamples[i].RadianceRgb.Length() < 1e-6f);
+        }
         Assert.Equal(1f, res.SkyIntensity, 6);
     }
 
     [Fact]
-    public void TraceProbe_WhenAllHits_ProducesZeroSh_AndAoConfidenceZero()
+    public void TraceProbe_WhenAllHits_ProducesHitSamples_WithNonNegativeAlpha_AndAoConfidenceZero()
     {
         var scene = new AlwaysHitScene(hitDistance: 4.0);
         var integrator = new LumOnWorldProbeTraceIntegrator();
@@ -74,21 +84,25 @@ public sealed class WorldProbeTraceIntegratorTests
             FrameIndex: 2,
             Request: request,
             ProbePosWorld: new Vector3d(0.5, 0.5, 0.5),
-            MaxTraceDistanceWorld: 32);
+            MaxTraceDistanceWorld: 32,
+            WorldProbeOctahedralTileSize: 16,
+            WorldProbeAtlasTexelsPerUpdate: 16);
 
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
         Assert.True(res.ShortRangeAoConfidence < 0.01f);
-        Assert.True(res.ShR.Length() < 1e-3f);
-        Assert.True(res.ShG.Length() < 1e-3f);
-        Assert.True(res.ShB.Length() < 1e-3f);
-        Assert.True(res.ShSky.Length() < 1e-6f);
+        Assert.NotNull(res.AtlasSamples);
+        Assert.True(res.AtlasSamples.Length > 0);
+        for (int i = 0; i < res.AtlasSamples.Length; i++)
+        {
+            Assert.True(res.AtlasSamples[i].AlphaEncodedDistSigned >= 0f);
+        }
         Assert.Equal(0f, res.SkyIntensity, 6);
         Assert.True(res.MeanLogHitDistance > 1.0f);
     }
 
     [Fact]
-    public void TraceProbe_WhenAllHitsWithSkylight_ProducesNonZeroRadianceSh()
+    public void TraceProbe_WhenAllHitsWithSkylight_ProducesNonZeroRadianceSamples()
     {
         var integrator = new LumOnWorldProbeTraceIntegrator();
 
@@ -97,7 +111,9 @@ public sealed class WorldProbeTraceIntegratorTests
             FrameIndex: 3,
             Request: request,
             ProbePosWorld: new Vector3d(0.5, 0.5, 0.5),
-            MaxTraceDistanceWorld: 32);
+            MaxTraceDistanceWorld: 32,
+            WorldProbeOctahedralTileSize: 16,
+            WorldProbeAtlasTexelsPerUpdate: 16);
 
         // Primary rays always hit a surface that samples skylight.
         // Secondary sky-visibility rays always miss, so the skylight bounce factor is non-zero.
@@ -110,13 +126,22 @@ public sealed class WorldProbeTraceIntegratorTests
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
         Assert.True(res.ShortRangeAoConfidence < 0.01f);
-        Assert.True(res.ShR.Length() > 1e-5f);
-        Assert.True(res.ShG.Length() > 1e-5f);
-        Assert.True(res.ShB.Length() > 1e-5f);
+        Assert.NotNull(res.AtlasSamples);
+        Assert.True(res.AtlasSamples.Length > 0);
+        bool anyNonZero = false;
+        for (int i = 0; i < res.AtlasSamples.Length; i++)
+        {
+            if (res.AtlasSamples[i].RadianceRgb.Length() > 1e-5f)
+            {
+                anyNonZero = true;
+                break;
+            }
+        }
+        Assert.True(anyNonZero);
     }
 
     [Fact]
-    public void TraceProbe_WhenAllHitsWithSkylightButSideFacingNormals_ProducesNonZeroRadianceSh()
+    public void TraceProbe_WhenAllHitsWithSkylightButSideFacingNormals_ProducesNonZeroRadianceSamples()
     {
         // Regression test for 1.1: vertical surfaces should bounce some skylight when the sky hemisphere is visible.
         var integrator = new LumOnWorldProbeTraceIntegrator();
@@ -126,7 +151,9 @@ public sealed class WorldProbeTraceIntegratorTests
             FrameIndex: 6,
             Request: request,
             ProbePosWorld: new Vector3d(0.5, 0.5, 0.5),
-            MaxTraceDistanceWorld: 32);
+            MaxTraceDistanceWorld: 32,
+            WorldProbeOctahedralTileSize: 16,
+            WorldProbeAtlasTexelsPerUpdate: 16);
 
         var scene = new PrimaryOnlyHitScene(
             primaryOrigin: item.ProbePosWorld,
@@ -136,13 +163,22 @@ public sealed class WorldProbeTraceIntegratorTests
 
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
-        Assert.True(res.ShR.Length() > 1e-6f);
-        Assert.True(res.ShG.Length() > 1e-6f);
-        Assert.True(res.ShB.Length() > 1e-6f);
+        Assert.NotNull(res.AtlasSamples);
+        Assert.True(res.AtlasSamples.Length > 0);
+        bool anyNonZero = false;
+        for (int i = 0; i < res.AtlasSamples.Length; i++)
+        {
+            if (res.AtlasSamples[i].RadianceRgb.Length() > 1e-6f)
+            {
+                anyNonZero = true;
+                break;
+            }
+        }
+        Assert.True(anyNonZero);
     }
 
     [Fact]
-    public void TraceProbe_OpenCornerPlanes_ProducesExpectedAoConfidence_AndAnisotropicSh()
+    public void TraceProbe_OpenCornerPlanes_ProducesExpectedAoConfidence_AndBentDirection()
     {
         // "Voxel-like" arrangement: a floor at y=-1 and a wall at x=-1.
         // Rays with x<0 or y<0 hit; rays with x>=0 AND y>=0 miss.
@@ -158,16 +194,18 @@ public sealed class WorldProbeTraceIntegratorTests
             FrameIndex: 5,
             Request: request,
             ProbePosWorld: new Vector3d(0, 0, 0),
-            MaxTraceDistanceWorld: 256);
+            MaxTraceDistanceWorld: 256,
+            WorldProbeOctahedralTileSize: 16,
+            WorldProbeAtlasTexelsPerUpdate: 256);
 
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
         Assert.Equal(0.25f, res.ShortRangeAoConfidence, 6);
 
-        // Scene is symmetric in Z, but not in X/Y.
-        Assert.True(res.ShR.Y < 0f);
-        Assert.True(res.ShR.W < 0f);
-        Assert.InRange(MathF.Abs(res.ShR.Z), 0f, 0.05f);
+        // Misses are in the +X/+Y quadrant, so the bent direction should point there.
+        Assert.True(res.ShortRangeAoDirWorld.X > 0f);
+        Assert.True(res.ShortRangeAoDirWorld.Y > 0f);
+        Assert.InRange(MathF.Abs(res.ShortRangeAoDirWorld.Z), 0f, 0.25f);
     }
 
     private sealed class NeverHitScene : IWorldProbeTraceScene
