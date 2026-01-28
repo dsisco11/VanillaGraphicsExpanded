@@ -2142,8 +2142,17 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 var p = sel.Position;
                 // Use the actual hit position, not the block center.
                 // In Vintage Story, BlockSelection.HitPosition is in-block coordinates [0..1] from the block min corner.
+                //
+                // IMPORTANT: When hitting a face, HitPosition components can be exactly 0 or 1.0.
+                // That places the point on a cell boundary, which can cause the "closest probe" to jump
+                // a full probe spacing (often upward on Y for ground hits). Clamp slightly *inside*
+                // the selected block to make the target unambiguous.
+                const double hitEps = 1e-3;
                 var hp = sel.HitPosition;
-                posWorld = new Vec3d(p.X + hp.X, p.Y + hp.Y, p.Z + hp.Z);
+                double hx = Math.Clamp(hp.X, hitEps, 1.0 - hitEps);
+                double hy = Math.Clamp(hp.Y, hitEps, 1.0 - hitEps);
+                double hz = Math.Clamp(hp.Z, hitEps, 1.0 - hitEps);
+                posWorld = new Vec3d(p.X + hx, p.Y + hy, p.Z + hz);
                 return true;
             }
         }

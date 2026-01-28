@@ -786,8 +786,14 @@ public static class VgeBuiltInDebugViews
                 if (sel?.Position is not null)
                 {
                     var p = sel.Position;
+                    // Clamp hit position slightly inside the block to avoid selecting a probe from the
+                    // adjacent cell when HitPosition lies exactly on a face (0 or 1.0 components).
+                    const double hitEps = 1e-3;
                     var hp = sel.HitPosition;
-                    targetWorld = new Vec3d(p.X + hp.X, p.Y + hp.Y, p.Z + hp.Z);
+                    double hx = Math.Clamp(hp.X, hitEps, 1.0 - hitEps);
+                    double hy = Math.Clamp(hp.Y, hitEps, 1.0 - hitEps);
+                    double hz = Math.Clamp(hp.Z, hitEps, 1.0 - hitEps);
+                    targetWorld = new Vec3d(p.X + hx, p.Y + hy, p.Z + hz);
                 }
             }
             catch
