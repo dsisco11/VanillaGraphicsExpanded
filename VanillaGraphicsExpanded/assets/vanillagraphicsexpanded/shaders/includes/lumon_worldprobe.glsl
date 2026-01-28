@@ -247,26 +247,25 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 	s.irradiance = vec3(0.0);
 	s.confidence = 0.0;
 
-	vec3 local = (worldPosRel - originMinCorner) / max(spacing, 1e-6);
+	// Probe centers are at cell-centers:
+	//   probe(i) center = originMinCorner + (i + 0.5) * spacing
+	// Convert to "probe index space" where centers are at integer coordinates.
+	vec3 localCell = (worldPosRel - originMinCorner) / max(spacing, 1e-6);
 
 	// Outside clip volume: no contribution.
-	if (any(lessThan(local, vec3(0.0))) || any(greaterThanEqual(local, vec3(float(resolution)))))
+	if (any(lessThan(localCell, vec3(0.0))) || any(greaterThanEqual(localCell, vec3(float(resolution)))))
 	{
 		return s;
 	}
 
-	ivec3 i0 = ivec3(floor(local));
-	vec3 f = fract(local);
-	ivec3 i1 = i0 + ivec3(1);
+	int maxIdx = resolution - 1;
+	vec3 localProbe = clamp(localCell - vec3(0.5), vec3(0.0), vec3(float(maxIdx)));
+
+	ivec3 i0 = ivec3(floor(localProbe));
+	vec3 f = fract(localProbe);
+	ivec3 i1 = min(i0 + ivec3(1), ivec3(maxIdx));
 
 	ivec3 ring = ivec3(floor(ringOffset + 0.5));
-
-	int maxIdx = resolution - 1;
-
-	// Clamp for safe trilinear at edges.
-	if (i0.x >= maxIdx) { i0.x = maxIdx; i1.x = maxIdx; f.x = 0.0; }
-	if (i0.y >= maxIdx) { i0.y = maxIdx; i1.y = maxIdx; f.y = 0.0; }
-	if (i0.z >= maxIdx) { i0.z = maxIdx; i1.z = maxIdx; f.z = 0.0; }
 
 	// Trilinear weights.
 	float wx0 = 1.0 - f.x;
@@ -414,26 +413,23 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleLevelTrilinearRadiance(
 	s.radiance = vec3(0.0);
 	s.confidence = 0.0;
 
-	vec3 local = (worldPosRel - originMinCorner) / max(spacing, 1e-6);
+	// Probe centers are at cell-centers (see lumonWorldProbeSampleLevelTrilinear).
+	vec3 localCell = (worldPosRel - originMinCorner) / max(spacing, 1e-6);
 
 	// Outside clip volume: no contribution.
-	if (any(lessThan(local, vec3(0.0))) || any(greaterThanEqual(local, vec3(float(resolution)))))
+	if (any(lessThan(localCell, vec3(0.0))) || any(greaterThanEqual(localCell, vec3(float(resolution)))))
 	{
 		return s;
 	}
 
-	ivec3 i0 = ivec3(floor(local));
-	vec3 f = fract(local);
-	ivec3 i1 = i0 + ivec3(1);
+	int maxIdx = resolution - 1;
+	vec3 localProbe = clamp(localCell - vec3(0.5), vec3(0.0), vec3(float(maxIdx)));
+
+	ivec3 i0 = ivec3(floor(localProbe));
+	vec3 f = fract(localProbe);
+	ivec3 i1 = min(i0 + ivec3(1), ivec3(maxIdx));
 
 	ivec3 ring = ivec3(floor(ringOffset + 0.5));
-
-	int maxIdx = resolution - 1;
-
-	// Clamp for safe trilinear at edges.
-	if (i0.x >= maxIdx) { i0.x = maxIdx; i1.x = maxIdx; f.x = 0.0; }
-	if (i0.y >= maxIdx) { i0.y = maxIdx; i1.y = maxIdx; f.y = 0.0; }
-	if (i0.z >= maxIdx) { i0.z = maxIdx; i1.z = maxIdx; f.z = 0.0; }
 
 	// Trilinear weights.
 	float wx0 = 1.0 - f.x;

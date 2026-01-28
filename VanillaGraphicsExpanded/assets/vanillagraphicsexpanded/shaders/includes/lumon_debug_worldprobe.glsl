@@ -115,7 +115,10 @@ bool lumonWorldProbeDebugNearest(in vec3 worldPosWS, out int outLevel, out ivec2
         return false;
     }
 
-    ivec3 idx = ivec3(floor(local + 0.5));
+    // Probe centers are at cell-centers:
+    //   probe(i) center = originMinCorner + (i + 0.5) * spacing
+    // So the nearest probe for a point inside the clip volume is the cell that contains it.
+    ivec3 idx = ivec3(floor(local));
     idx = clamp(idx, ivec3(0), ivec3(resolution - 1));
 
     ivec3 ring = ivec3(floor(lumonWorldProbeGetRingOffset(level) + 0.5));
