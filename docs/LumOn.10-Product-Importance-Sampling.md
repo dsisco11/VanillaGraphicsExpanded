@@ -36,6 +36,96 @@ Then selecting which octahedral texels to trace this frame based on that importa
 
 ---
 
+## 1.1 Phase 10.1 decisions (locked)
+
+This section exists to “pin down” semantics so implementation can proceed without ambiguity.
+
+### 1.1.1 What PIS changes
+
+- PIS changes **which octahedral atlas texels get traced this frame** (per probe).
+- It does **not** change:
+  - the 8×8 direction set,
+  - ray marching/shading behavior,
+  - gather integration math.
+
+### 1.1.2 Baseline behavior when PIS is disabled (no-regression)
+
+When PIS is disabled, the traced-texel selection must be equivalent to the current deterministic batch slicing:
+
+- Trace pass selection currently in `lumon_probe_atlas_trace.fsh`.
+- Temporal pass selection currently in `lumon_probe_atlas_temporal.fsh`.
+
+Implementation requirement: any PIS plumbing must retain an explicit fallback path so “PIS off” remains identical in behavior and cost.
+
+### 1.1.3 M1 importance definition (diffuse-only)
+
+For initial bring-up (M1), importance uses a diffuse-only product:
+
+```text
+w(dir) = luminance(Li_est(dir)) * max(dot(N_probe, dir), 0) * confWeight(dir)
+```
+
+Where:
+
+- `dir` is the world-space direction corresponding to the octahedral texel center.
+- `N_probe` is the probe’s **anchor normal** (world space) from `probeAnchorNormal`.
+- `Li_est(dir)` is a cheap estimate of incoming radiance in direction `dir` from SSRC history (see 1.1.4).
+- `confWeight(dir)` is a monotonic weight derived from history confidence (see 1.1.5).
+
+Notes:
+
+- Backfacing directions (`dot(N_probe, dir) <= 0`) have zero importance for diffuse, but may still be selected via exploration (see 1.1.7) to avoid permanently stale texels.
+
+### 1.1.4 `Li_est(dir)` source (M1)
+
+For screen probes, `Li_est(dir)` is taken from the **octahedral history atlas** at the same probe+texel:
+
+- `Li_est(dir) = octahedralHistory[probeCoord, octTexel].rgb`
+
+This is intentionally “in-cache” and avoids additional scene queries.
+
+Fallback behavior:
+
+- If history is invalid/uninitialized or has too-low confidence, PIS must still select a full set of `K` texels via exploration and/or a safe fallback (never “select 0 directions” for valid probes).
+
+### 1.1.5 Confidence weighting (M1)
+
+If meta history is available:
+
+- Use per-texel history confidence from `probeAtlasMetaHistory` to compute `confWeight(dir)`.
+- Define a minimum floor so low-confidence history doesn’t fully starve sampling:
+
+```text
+confWeight = lerp(minConfWeight, 1, confHistory)
+```
+
+If meta history is not available, `confWeight = 1`.
+
+### 1.1.6 Selection constraints (hard requirements)
+
+For each valid probe each frame:
+
+- Select exactly `K = VGE_LUMON_ATLAS_TEXELS_PER_FRAME` **unique** direction indices in `[0, 63]`.
+- Selection must be:
+  - stable/deterministic for fixed inputs (probe index, frame index, history textures),
+  - bounded in cost (no variable ray counts),
+  - compatible with GL 3.3 rasterization (per-texel “trace or keep history” decision).
+
+### 1.1.7 Exploration vs exploitation (hard requirement)
+
+To avoid starvation and handle lighting changes/disocclusion:
+
+- Split the budget: `K = K_importance + K_explore` where `K_explore >= 1`.
+- `K_explore` is chosen by a deterministic “coverage” scheme that guarantees all 64 directions are eventually revisited.
+- `K_importance` is chosen by weighted selection (importance).
+
+### 1.1.8 Backfacing policy (M1)
+
+- Importance selection uses `max(dot(N_probe, dir), 0)` so purely backfacing directions have `w=0`.
+- Exploration selection is allowed to include any direction (including backfacing) so texels cannot become permanently stale.
+
+---
+
 ## 2. Current screen-probe sampling (what exists today)
 
 This summarizes what the existing docs + implementation do, because PIS must plug into these constraints:
@@ -296,4 +386,3 @@ We should add a GPU timer for the new pass and verify it stays within a small fi
    - add roughness/metallic sampling to weight model
 4. **M4: World probe direction PIS (optional)**
    - radiance-driven importance selection on CPU update slicing
-

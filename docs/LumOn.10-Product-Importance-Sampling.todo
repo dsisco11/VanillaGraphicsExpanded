@@ -24,12 +24,12 @@ LumOn - Phase 10 - Product Importance Sampling (PIS) for Direction Updates (Impl
 
   Phase 10.1 - Requirements + Semantics:
   Exit artifacts: A locked definition of what “PIS” means in this repo and what it changes.
-  ☐ Define the importance product for M1 (diffuse-only): importance(dir) ∝ Li_est(dir) * max(dot(N, dir), 0)
-  ☐ Define Li_est source priority: SSRC history (primary) → fallback behavior when history invalid
-  ☐ Define selection constraints: exactly K unique directions per probe per frame, deterministic mapping
-  ☐ Define exploration policy (required): K_explore vs K_importance, and guarantee full coverage over time
-  ☐ Define backfacing policy for diffuse (skip when dot(N,dir) <= 0)
-  ☐ Define “no regression” rule when PIS disabled (must match existing selection path)
+  ✔ Define the importance product for M1 (diffuse-only): importance(dir) ∝ Li_est(dir) * max(dot(N_probe, dir), 0) @done
+  ✔ Define Li_est source priority: SSRC history (primary) → fallback behavior when history invalid @done
+  ✔ Define selection constraints: exactly K unique directions per probe per frame, deterministic mapping @done
+  ✔ Define exploration policy (required): K_explore vs K_importance, and guarantee full coverage over time @done
+  ✔ Define backfacing policy for diffuse (skip in importance; allow in exploration) @done
+  ✔ Define “no regression” rule when PIS disabled (must match existing selection path) @done
 
 
   Phase 10.2 - Config + Defaults + Hot-Reload:
@@ -145,4 +145,3 @@ LumOn - Phase 10 - Product Importance Sampling (PIS) for Direction Updates (Impl
   ☐ Add an “importance” selection variant alongside LumOnWorldProbeAtlasDirectionSlicing.FillTexelIndicesForUpdate()
   ☐ Ensure determinism and uniqueness, and maintain strict per-update K bound
   ☐ Add perf counters for CPU selection work; ensure it’s negligible vs tracing cost
-
