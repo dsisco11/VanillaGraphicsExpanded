@@ -91,7 +91,7 @@ remains simplified (low sample count, fixed max distance).
 
 **Status**: Implemented (Option B)
 
-**What**: Ray misses no longer emit sky radiance into RGB SH; sky is represented via `ShSky` + `worldProbeSkyTint`.
+**What**: Ray misses are encoded as **sky samples** in the radiance atlas via the signed-alpha convention; sky color is applied via `worldProbeSkyTint`.
 
 **Why this is an issue**
 
@@ -103,8 +103,8 @@ remains simplified (low sample count, fixed max distance).
 **Options to address**
 
 - **Option A (cheap)**: Replace the gradient with engine-derived sky/ambient colors (time-of-day, weather) so probes match the rest of lighting.
-- **Option B (clean separation)**: Represent “sky” only in the dedicated `ShSky` channel (visibility/intensity), and make miss RGB radiance `0` so sky color always comes from `worldProbeSkyTint` in shaders.
-- **Option C (simplify)**: Remove the separate sky channel and bake sky radiance entirely into RGB SH (then `worldProbeSkyTint` becomes unnecessary or purely a post-tint).
+- **Option B (clean separation)**: Keep miss radiance at `0` and represent sky contribution via `worldProbeSkyTint` _skyIntensity_ skyVisibility.
+- **Option C (simplify)**: Bake sky radiance directly into RGB (then `worldProbeSkyTint` becomes unnecessary or purely a post-tint).
 
 <a id="wp-1-3"></a>
 
@@ -112,13 +112,13 @@ remains simplified (low sample count, fixed max distance).
 
 **Where**:
 
-- CPU: `VanillaGraphicsExpanded/LumOn/WorldProbes/Tracing/LumOnWorldProbeTraceIntegrator.cs` (`ShSky`, `SkyIntensity`)
-- GPU: `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_worldprobe_clipmap_resolve.fsh` (`ProbeVis0.z`)
-- Shader: `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_worldprobe.glsl` (`skyIntensityAccum`)
+- CPU: `VanillaGraphicsExpanded/LumOn/WorldProbes/Tracing/LumOnWorldProbeTraceIntegrator.cs` (`SkyIntensity`)
+- GPU: `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_worldprobe_clipmap_resolve.fsh` (`ProbeVis0.z`, radiance atlas alpha sign)
+- Shader: `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_worldprobe.glsl` (`lumonWorldProbeIsSkyVisible`, `skyIntensityAccum`)
 
 **What**: The probe payload now separates:
 
-- **Sky visibility**: stored in `ShSky` (L1 SH), accumulated as **miss = 1, hit = 0**
+- **Sky visibility**: derived from radiance atlas samples via the signed-alpha convention (**miss = alpha < 0**)
 - **Sky intensity**: stored as a **scalar** (`SkyIntensity`) and packed into `ProbeVis0.z`
 
 **Why this is an issue**

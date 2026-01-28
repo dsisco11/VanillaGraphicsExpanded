@@ -173,7 +173,7 @@ vec4 renderWorldProbeIrradianceLevelDebug()
     float spacing = lumonWorldProbeSpacing(baseSpacing, level);
 
     LumOnWorldProbeSample sL = lumonWorldProbeSampleLevelTrilinear(
-        worldProbeSH0, worldProbeSH1, worldProbeSH2, worldProbeSky0, worldProbeVis0, worldProbeMeta0,
+        worldProbeRadianceAtlas, worldProbeVis0, worldProbeMeta0,
         posRel, normalWS,
         lumonWorldProbeGetOriginMinCorner(level), lumonWorldProbeGetRingOffset(level),
         spacing, resolution, level);

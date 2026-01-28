@@ -12,7 +12,7 @@ Issues:
   WorldProbes:
     ☐ Rename world-probe classes to remove `LumOn` prefix.
     ☐ PBR Matrial system integration for probe tracing (material properties affecting probe radiance).
-    ☐ World probes should use an octahedral atlas instead of spherical harmonics.
+    ✔ World probes should use an octahedral atlas instead of spherical harmonics.
 
   LumonScene:
     ☐ Need VirtualPagedAtlas system to manage allocation of "pages" in a large virtual atlas texture for many different systems.

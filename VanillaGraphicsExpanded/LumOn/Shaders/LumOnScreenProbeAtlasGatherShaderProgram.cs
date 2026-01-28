@@ -143,13 +143,8 @@ public class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
     }
 
     public GpuTexture? WorldProbeRadianceAtlas { set => BindTexture2D("worldProbeRadianceAtlas", value, 5); }
-
-    public GpuTexture? WorldProbeSH0 { set => BindTexture2D("worldProbeSH0", value, 5); }
-    public GpuTexture? WorldProbeSH1 { set => BindTexture2D("worldProbeSH1", value, 6); }
-    public GpuTexture? WorldProbeSH2 { set => BindTexture2D("worldProbeSH2", value, 7); }
     public GpuTexture? WorldProbeVis0 { set => BindTexture2D("worldProbeVis0", value, 8); }
     public GpuTexture? WorldProbeMeta0 { set => BindTexture2D("worldProbeMeta0", value, 9); }
-    public GpuTexture? WorldProbeSky0 { set => BindTexture2D("worldProbeSky0", value, 10); }
 
     public float WorldProbeBaseSpacing { set => SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, value.ToString("0.0####", CultureInfo.InvariantCulture)); }
 

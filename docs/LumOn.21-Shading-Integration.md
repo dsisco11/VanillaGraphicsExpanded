@@ -39,7 +39,9 @@ Notes:
 To keep coupling low, **screen-space GI** and **world-probe GI** own separate storage and only meet at a single blend point.
 
 - Screen-space LumOn owns the **Screen Probe Atlas** outputs (trace/temporal/filter history and the half-res gather product).
-- World probes own **clipmap probe textures per level** (`ProbeSH*`, `ProbeVis*`, `ProbeDist*`).
+- World probes own **clipmap probe atlases**:
+  - `ProbeRadianceAtlas` (directional radiance cache, octahedral S×S tile per probe)
+  - `ProbeVis0`, `ProbeDist0`, `ProbeMeta0` (per-probe scalars)
 - The shading/blend stage produces a single authoritative **IndirectDiffuse** texture consumed by Phase 15.
 
 This ensures world probes never “reach into” screen-probe resources (and vice versa).
@@ -48,7 +50,7 @@ This ensures world probes never “reach into” screen-probe resources (and vic
 
 All frame-persistent probe payloads are stored in **world space** (in-memory only; not persisted to disk):
 
-- SH coefficients represent irradiance as a function of **world-space direction**.
+- Radiance atlas texels represent radiance as a function of **world-space direction** (octahedral-mapped).
 - `ShortRangeAO` direction is stored as a **WS unit vector** (typically oct-encoded in textures).
 - Hit distance is defined along traced rays in world units (or a documented log encoding).
 
@@ -76,24 +78,19 @@ Given `(index, frac)` for a level:
 sample = Trilinear(ProbeTex, index, frac)
 ```
 
-For SH payloads:
+For the radiance atlas payload:
 
-```text
-irradiance = EvaluateSH(sampleSH, normalWS)
-```
+- Sample a directional radiance value from the atlas at the desired direction.
+- For diffuse, integrate radiance over the probe tile using cosine weighting (typically with a stride to bound cost).
 
 ### 2.3 Normal-based weighting
 
 To reduce light leaking:
 
 - Use the ShortRangeAO direction and confidence from the probe payload.
-- Apply a normal-based weight:
+- Treat ShortRangeAO as a **bent-normal** signal: bend `normalWS` toward the stored direction by the stored confidence.
 
-```text
-weight = saturate(dot(normalWS, shortRangeAODirWS)) * shortRangeAOConfidence
-```
-
-This treats ShortRangeAO as a directional occlusion weight; no cone angle is used in the initial implementation.
+This avoids the failure mode where walls outdoors get near-zero contribution because the AO direction tends to point upward.
 
 ---
 

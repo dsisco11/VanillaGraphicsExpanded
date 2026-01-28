@@ -19,9 +19,9 @@ This document defines the initial probe payload and how it is packed into GPU te
 
 Each probe stores the minimum data needed for stable indirect lighting:
 
-- **Irradiance** in low-order SH (L1)
+- **Directional radiance** in an octahedral-mapped per-probe tile (radiance atlas)
 - **Visibility / directional occlusion** (ShortRangeAO direction, oct-encoded)
-- **Hit distance** (mean or log distance) for confidence and filtering
+- **Hit distance** (signed log distance) for sky-vs-hit and filtering
 - **Confidence** scalar (0..1)
 
 Optional future fields:
@@ -33,54 +33,21 @@ Optional future fields:
 
 ## 3. Encoding choices
 
-### 3.1 SH order
+### 3.1 World-probe radiance atlas encoding
 
-| SH order | Coefficients per color | Total floats | Notes                         |
-| -------- | ---------------------- | ------------ | ----------------------------- |
-| L1 (SH4) | 4                      | 12           | Lowest cost, good for diffuse |
-| L2 (SH9) | 9                      | 27           | Higher quality, higher memory |
+World-probe radiance is stored as an **octahedral-mapped S×S tile per probe**, packed into a single atlas texture.
 
-Decision: L1 is the baseline for initial implementation; L2 is a future upgrade.
+- Mapping helpers: `assets/vanillagraphicsexpanded/shaders/includes/lumon_worldprobe_atlas.glsl`
+- Sampling helper: `assets/vanillagraphicsexpanded/shaders/includes/lumon_worldprobe.glsl`
 
-### 3.2 SH basis conventions (L1)
+Each radiance atlas texel stores:
 
-World probes reuse the **same real SH basis and coefficient ordering as screen-space LumOn** (see `assets/.../includes/lumon_sh.glsl`).
+- **RGB**: non-negative radiance (linear)
+- **A**: signed log hit distance
+  - `+log(dist + 1)` for a scene hit
+  - `-log(dist + 1)` for a sky miss
 
-**Direction space**
-
-- SH is defined over **world-space unit directions** $\omega$.
-- Coefficients are stored in **world space**; no SH rotation is performed on camera rotation.
-
-**Real SH basis (normalized)**
-
-We store 4 coefficients per color channel:
-
-- $c_0$ = $\int L(\omega)\,Y_{00}(\omega)\,d\omega$
-- $c_1$ = $\int L(\omega)\,Y_{1,-1}(\omega)\,d\omega$ (mapped to **$y$**)
-- $c_2$ = $\int L(\omega)\,Y_{1,0}(\omega)\,d\omega$ (mapped to **$z$**)
-- $c_3$ = $\int L(\omega)\,Y_{1,1}(\omega)\,d\omega$ (mapped to **$x$**)
-
-With constants:
-
-- $Y_{00} = 0.282095$
-- $Y_{1,-1} = 0.488603\,y$
-- $Y_{1,0} = 0.488603\,z$
-- $Y_{1,1} = 0.488603\,x$
-
-So the coefficient vector for each channel is:
-
-```text
-sh = vec4(c0, cY, cZ, cX)
-```
-
-**Diffuse convolution**
-
-For Lambertian outgoing diffuse, we apply the cosine-kernel band weights matching `lumon_sh.glsl`:
-
-- $A_0 = \pi$
-- $A_1 = \tfrac{2\pi}{3}$
-
-and return $E/\pi$.
+This gives shaders an inexpensive **sky-vs-hit** test and a stable distance signal for filtering.
 
 ### 3.3 ShortRangeAO representation
 
@@ -109,23 +76,28 @@ Optionally store variance if temporal filters need it.
 
 ## 4. Texture layout options
 
-### 4.1 Baseline layout (L1 SH, packed)
+### 4.1 World-Probe Radiance Atlas
 
-Pack 12 floats into **3 RGBA16F** textures per level (**full-fidelity**, no compression):
+Radiance atlas (directional cache):
 
-| Texture    | Channels | Content                |
-| ---------- | -------- | ---------------------- |
-| `ProbeSH0` | RGBA     | c0.r, c0.g, c0.b, c1.r |
-| `ProbeSH1` | RGBA     | c1.g, c1.b, c2.r, c2.g |
-| `ProbeSH2` | RGBA     | c2.b, c3.r, c3.g, c3.b |
+| Texture              | Format  | Content                            |
+| -------------------- | ------- | ---------------------------------- |
+| `ProbeRadianceAtlas` | RGBA16F | RGB=radiance, A=signed log(dist+1) |
+
+Shape:
+
+- Clipmap atlas (probe scalars): width = `resolution * resolution`, height = `resolution * levels`
+- Radiance atlas: width = `(resolution * resolution) * S`, height = `(resolution * levels) * S`
+
+Where `S` is the per-probe octahedral tile size (`WorldProbeClipmap.OctahedralTileSize`).
 
 Visibility and confidence:
 
-| Texture     | Channels | Content                                      |
-| ----------- | -------- | -------------------------------------------- |
+| Texture     | Channels | Content                                          |
+| ----------- | -------- | ------------------------------------------------ |
 | `ProbeVis0` | RGBA16F  | octU, octV, skyIntensity, shortRangeAOConfidence |
 
-The `skyIntensity` channel is a per-probe scalar used to decouple sky visibility (stored in `ProbeSky0`) from sky intensity
+The `skyIntensity` channel is a per-probe scalar used to decouple sky visibility (derived from signed-alpha samples) from sky intensity
 when evaluating sky contribution in shaders.
 
 Hit distance:
@@ -142,16 +114,6 @@ Metadata (validity/state flags + unified confidence):
 
 This matches existing patterns used by the screen-probe atlas meta textures.
 
-### 4.2 L2 layout (higher quality)
-
-L2 SH requires 27 floats, packed into 7 RGBA16F textures (1 float unused):
-
-```
-ProbeSH0..ProbeSH6 (RGBA16F each)
-```
-
-The channel-to-coefficient mapping is a simple linear packing table stored in shader constants.
-
 ### 4.3 Atlas vs 3D textures
 
 Two storage options are supported by the architecture:
@@ -165,24 +127,36 @@ The addressing math from LumOn.17 applies to both.
 
 ## 5. Memory budget math
 
-Total memory per level:
+World-probes store a 3D grid per level, flattened into 2D atlases:
+
+- Probe count per level: `resolution^3`
+- Probe count total: `resolution^3 * levels`
+
+Total memory (all levels):
 
 ```
-bytesPerProbe = sum(textureBytesPerProbe)
-bytesPerLevel = Nx * Ny * Nz * bytesPerProbe
-totalBytes = sum(bytesPerLevel for all levels)
+probeCount = resolution^3 * levels
+
+bytesScalarAtlases = probeCount * (bytesVis0 + bytesDist0 + bytesMeta0 + bytesDebugState0)
+bytesRadianceAtlas = probeCount * (S^2) * bytesRgba16f
+
+totalBytes = bytesScalarAtlases + bytesRadianceAtlas
 ```
 
-Example (L1 layout, 3 SH textures + vis + dist):
+Reference bytes/texel:
 
-- 3x RGBA16F + 1x RGBA16F + 1x RG16F = 4x RGBA16F + 1x RG16F
-- bytesPerProbe = 4 _ 8 + 1 _ 4 = 36 bytes
+- `RGBA16F` = 8 bytes
+- `RG16F` = 4 bytes
+- `RG32F` = 8 bytes
+- `RGBA16` (UNorm) = 8 bytes
 
-Example (Phase 18 defaults):
+So, per-probe scalar bytes are typically:
 
-- resolution = 32x32x32, levels = 4, bytesPerProbe = 36 bytes
-- bytesPerLevel = 32 _ 32 _ 32 \* 36 = 1,179,648 bytes (~1.13 MiB)
-- totalBytes (4 levels) ~= 4.5 MiB, excluding temporary filter buffers
+- `ProbeVis0` (RGBA16F): 8 bytes
+- `ProbeDist0` (RG16F): 4 bytes
+- `ProbeMeta0` (RG32F): 8 bytes
+- `ProbeDebugState0` (RGBA16): 8 bytes
+- Total scalars: 28 bytes per probe
 
 This rough math drives level count and resolution decisions.
 
@@ -205,8 +179,8 @@ Note: world-probe payloads are not persisted to disk; the version exists to safe
 ```mermaid
 flowchart TD
   Trace["Trace / Integrate"]
-  Encode["Encode SH + visibility"]
-  Pack["Pack into textures\n(ProbeSH*, ProbeVis, ProbeDist)"]
+  Encode["Encode radiance + visibility"]
+  Pack["Pack into textures\n(ProbeRadianceAtlas, ProbeVis, ProbeDist, ProbeMeta)"]
   Store["Clipmap textures per level"]
 
   Trace --> Encode --> Pack --> Store
@@ -216,7 +190,6 @@ flowchart TD
 
 ## 8. Decisions (locked)
 
-- SH order: L1
 - Trace source: iterative async voxel traces on the CPU
 - Visibility: ShortRangeAO direction (oct-encoded) + confidence
 

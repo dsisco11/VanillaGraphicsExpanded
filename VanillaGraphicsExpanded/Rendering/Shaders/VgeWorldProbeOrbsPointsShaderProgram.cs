@@ -69,11 +69,6 @@ public sealed class VgeWorldProbeOrbsPointsShaderProgram : GpuProgram
     }
 
     public int WorldProbeRadianceAtlas { set => Uniform("worldProbeRadianceAtlas", value); }
-
-    public int WorldProbeSH0 { set => Uniform("worldProbeSH0", value); }
-    public int WorldProbeSH1 { set => Uniform("worldProbeSH1", value); }
-    public int WorldProbeSH2 { set => Uniform("worldProbeSH2", value); }
-    public int WorldProbeSky0 { set => Uniform("worldProbeSky0", value); }
     public int WorldProbeVis0 { set => Uniform("worldProbeVis0", value); }
     public int WorldProbeDebugState0 { set => Uniform("worldProbeDebugState0", value); }
 }

@@ -37,23 +37,12 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
     public int RadianceAtlasHeight => (resolution * levels) * worldProbeTileSize;
 
     public DynamicTexture2D ProbeRadianceAtlas => radianceAtlas;
-
-    // Legacy accessors (SH payload removed). These are temporary aliases to keep bindings and debug views compiling.
-    public DynamicTexture2D ProbeSh0 => radianceAtlas;
-    public DynamicTexture2D ProbeSh1 => radianceAtlas;
-    public DynamicTexture2D ProbeSh2 => radianceAtlas;
-    public DynamicTexture2D ProbeSky0 => radianceAtlas;
     public DynamicTexture2D ProbeVis0 => vis0;
     public DynamicTexture2D ProbeDist0 => dist0;
     public DynamicTexture2D ProbeMeta0 => meta0;
     public Texture2D ProbeDebugState0 => debugState0;
 
     public int ProbeRadianceAtlasTextureId => radianceAtlas.TextureId;
-
-    public int ProbeSh0TextureId => radianceAtlas.TextureId;
-    public int ProbeSh1TextureId => radianceAtlas.TextureId;
-    public int ProbeSh2TextureId => radianceAtlas.TextureId;
-    public int ProbeSky0TextureId => radianceAtlas.TextureId;
     public int ProbeVis0TextureId => vis0.TextureId;
     public int ProbeDist0TextureId => dist0.TextureId;
     public int ProbeMeta0TextureId => meta0.TextureId;

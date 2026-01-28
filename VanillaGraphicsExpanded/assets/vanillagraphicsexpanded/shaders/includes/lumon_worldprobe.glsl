@@ -4,7 +4,7 @@
 // This file intentionally contains *all* world-probe clipmap-related glue:
 // - Define fallbacks (set at compile time via VgeShaderProgram.SetDefine)
 // - Shared worldProbe* uniform declarations
-// - Clipmap sampling helpers + SH decode/eval
+// - Clipmap sampling helpers + radiance atlas sampling
 // - A bound helper that closes over the uniforms
 //
 // Import this from shaders as:
@@ -52,20 +52,10 @@
 // ---------------------------------------------------------------------------
 
 // World-probe radiance atlas (RGBA16F): RGB=radiance, A=signed log(dist+1)
-// NOTE: Phase 5 will bind this explicitly. Until then, we alias it to the legacy binding.
 uniform sampler2D worldProbeRadianceAtlas;
-
-uniform sampler2D worldProbeSH0;
-uniform sampler2D worldProbeSH1;
-uniform sampler2D worldProbeSH2;
 uniform sampler2D worldProbeVis0;
 uniform sampler2D worldProbeDist0;
 uniform sampler2D worldProbeMeta0;
-uniform sampler2D worldProbeSky0;
-
-#ifndef VGE_LUMON_BIND_WORLDPROBE_RADIANCE_ATLAS
-	#define worldProbeRadianceAtlas worldProbeSH0
-#endif
 
 vec3 lumonWorldProbeGetSkyTint() { return lumonWorldProbe.worldProbeSkyTint.xyz; }
 vec3 lumonWorldProbeGetCameraPosWS() { return lumonWorldProbe.worldProbeCameraPosWS.xyz; }
@@ -242,10 +232,7 @@ void lumonWorldProbeAccumulateCornerScalars(
 }
 
 LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
-	sampler2D probeSH0,
-	sampler2D probeSH1,
-	sampler2D probeSH2,
-	sampler2D probeSky0,
+	sampler2D probeRadianceAtlas,
 	sampler2D probeVis0,
 	sampler2D probeMeta0,
 	vec3 worldPosRel,
@@ -369,7 +356,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 				if (w <= 0.0) continue;
 
 				vec4 t = lumonWorldProbeFetchRadianceAtlasTexel(
-					probeSH0,
+					probeRadianceAtlas,
 					cornerStorage[c],
 					level,
 					resolution,
@@ -412,10 +399,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 }
 
 LumOnWorldProbeRadianceSample lumonWorldProbeSampleLevelTrilinearRadiance(
-	sampler2D probeSH0,
-	sampler2D probeSH1,
-	sampler2D probeSH2,
-	sampler2D probeSky0,
+	sampler2D probeRadianceAtlas,
 	sampler2D probeVis0,
 	sampler2D probeMeta0,
 	vec3 worldPosRel,
@@ -506,7 +490,7 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleLevelTrilinearRadiance(
 		if (w <= 0.0) continue;
 
 		vec4 t = lumonWorldProbeFetchRadianceAtlasTexel(
-			probeSH0,
+			probeRadianceAtlas,
 			cornerStorage[c],
 			level,
 			resolution,
@@ -538,10 +522,7 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleLevelTrilinearRadiance(
 }
 
 LumOnWorldProbeRadianceSample lumonWorldProbeSampleClipmapRadiance(
-	sampler2D probeSH0,
-	sampler2D probeSH1,
-	sampler2D probeSH2,
-	sampler2D probeSky0,
+	sampler2D probeRadianceAtlas,
 	sampler2D probeVis0,
 	sampler2D probeMeta0,
 	vec3 worldPos,
@@ -577,7 +558,7 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleClipmapRadiance(
 	float wL = lumonWorldProbeCrossLevelBlendWeight(edgeDist, 2.0, 2.0);
 
 	LumOnWorldProbeRadianceSample sL = lumonWorldProbeSampleLevelTrilinearRadiance(
-		probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0,
+		probeRadianceAtlas, probeVis0, probeMeta0,
 		worldPosRel, dirWS,
 		originL, ringL,
 		spacingL, resolution, level);
@@ -590,7 +571,7 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleClipmapRadiance(
 		vec3 ring2 = lumonWorldProbeGetRingOffset(level2);
 
 		LumOnWorldProbeRadianceSample s2 = lumonWorldProbeSampleLevelTrilinearRadiance(
-			probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0,
+			probeRadianceAtlas, probeVis0, probeMeta0,
 			worldPosRel, dirWS,
 			origin2, ring2,
 			spacing2, resolution, level2);
@@ -615,9 +596,6 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleClipmapRadianceBound(vec3 wor
 {
 	return lumonWorldProbeSampleClipmapRadiance(
 		worldProbeRadianceAtlas,
-		worldProbeSH1,
-		worldProbeSH2,
-		worldProbeSky0,
 		worldProbeVis0,
 		worldProbeMeta0,
 		worldPos,
@@ -625,10 +603,7 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleClipmapRadianceBound(vec3 wor
 }
 
 LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
-	sampler2D probeSH0,
-	sampler2D probeSH1,
-	sampler2D probeSH2,
-	sampler2D probeSky0,
+	sampler2D probeRadianceAtlas,
 	sampler2D probeVis0,
 	sampler2D probeMeta0,
 	vec3 worldPos,
@@ -664,7 +639,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
 	float wL = lumonWorldProbeCrossLevelBlendWeight(edgeDist, 2.0, 2.0);
 
 	LumOnWorldProbeSample sL = lumonWorldProbeSampleLevelTrilinear(
-		probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0,
+		probeRadianceAtlas, probeVis0, probeMeta0,
 		worldPosRel, normalWS,
 		originL, ringL,
 		spacingL, resolution, level);
@@ -677,7 +652,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
 		vec3 ring2 = lumonWorldProbeGetRingOffset(level2);
 
 		LumOnWorldProbeSample s2 = lumonWorldProbeSampleLevelTrilinear(
-			probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0,
+			probeRadianceAtlas, probeVis0, probeMeta0,
 			worldPosRel, normalWS,
 			origin2, ring2,
 			spacing2, resolution, level2);
@@ -703,9 +678,6 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmapBound(vec3 worldPos, vec3 norm
 {
 	return lumonWorldProbeSampleClipmap(
 		worldProbeRadianceAtlas,
-		worldProbeSH1,
-		worldProbeSH2,
-		worldProbeSky0,
 		worldProbeVis0,
 		worldProbeMeta0,
 		worldPos,

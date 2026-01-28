@@ -180,13 +180,8 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
     }
 
     public GpuTexture? WorldProbeRadianceAtlas { set => BindTexture2D("worldProbeRadianceAtlas", value, 8); }
-
-    public GpuTexture? WorldProbeSH0 { set => BindTexture2D("worldProbeSH0", value, 8); }
-    public GpuTexture? WorldProbeSH1 { set => BindTexture2D("worldProbeSH1", value, 9); }
-    public GpuTexture? WorldProbeSH2 { set => BindTexture2D("worldProbeSH2", value, 10); }
     public GpuTexture? WorldProbeVis0 { set => BindTexture2D("worldProbeVis0", value, 11); }
     public GpuTexture? WorldProbeMeta0 { set => BindTexture2D("worldProbeMeta0", value, 12); }
-    public GpuTexture? WorldProbeSky0 { set => BindTexture2D("worldProbeSky0", value, 13); }
 
     #endregion
 }

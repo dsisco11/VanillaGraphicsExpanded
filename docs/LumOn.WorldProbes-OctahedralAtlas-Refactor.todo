@@ -155,8 +155,8 @@ LumOn - World Probes - Refactor to Octahedral Atlas (Replace SH)
 
   Phase 8 - Cleanup + Documentation Alignment
   Exit artifacts: No SH-based world-probe code paths remain and docs reflect atlas reality.
-  ☐ Remove dead SH-specific world-probe code (resolve shaders, SH helpers) once atlas is stable.
-  ☐ Update docs:
-    - Add/adjust a “World-Probe Radiance Atlas” section (tile size, packing, sky factor)
-    - Replace any remaining references to “world-probe SH payload” in Phase 18 docs
-  ☐ Update `project.todo` “World probes should use an octahedral atlas instead of spherical harmonics” as done.
+  ✔ Remove dead SH-specific world-probe code (resolve shaders, SH helpers) once atlas is stable. @done
+  ✔ Update docs: @done
+    - Add/adjust a “World-Probe Radiance Atlas” section (tile size, packing, sky factor) @done
+    - Replace any remaining references to “world-probe SH payload” in Phase 18 docs @done
+  ✔ Update `project.todo` “World probes should use an octahedral atlas instead of spherical harmonics” as done. @done

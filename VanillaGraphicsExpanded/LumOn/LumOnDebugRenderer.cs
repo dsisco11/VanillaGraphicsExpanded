@@ -843,14 +843,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 }
 
                 shader.WorldProbeRadianceAtlas = worldProbeClipmapBufferManager.Resources.ProbeRadianceAtlas;
-                shader.WorldProbeSH0 = worldProbeClipmapBufferManager.Resources.ProbeSh0;
-                shader.WorldProbeSH1 = worldProbeClipmapBufferManager.Resources.ProbeSh1;
-                shader.WorldProbeSH2 = worldProbeClipmapBufferManager.Resources.ProbeSh2;
                 shader.WorldProbeVis0 = worldProbeClipmapBufferManager.Resources.ProbeVis0;
                 shader.WorldProbeDist0 = worldProbeClipmapBufferManager.Resources.ProbeDist0;
                 shader.WorldProbeMeta0 = worldProbeClipmapBufferManager.Resources.ProbeMeta0;
                 shader.WorldProbeDebugState0 = worldProbeClipmapBufferManager.Resources.ProbeDebugState0;
-                shader.WorldProbeSky0 = worldProbeClipmapBufferManager.Resources.ProbeSky0;
 
                 // Shaders reconstruct world positions in the engine's camera-matrix world space (invViewMatrix).
                 // Always derive camera position from the *current* inverse view matrix (matches reconstruction in shaders).
@@ -886,6 +882,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     worldProbeAtlasTexelsPerUpdate: 0,
                     worldProbeDiffuseStride: 0);
                 shader.WorldProbeRadianceAtlas = null;
+                shader.WorldProbeVis0 = null;
+                shader.WorldProbeDist0 = null;
+                shader.WorldProbeMeta0 = null;
+                shader.WorldProbeDebugState0 = null;
                 // Publish a stable, disabled buffer so UBO-backed shaders can safely read from the block.
                 uniformBuffers.UpdateWorldProbe(
                     skyTint: capi.Render.AmbientColor,

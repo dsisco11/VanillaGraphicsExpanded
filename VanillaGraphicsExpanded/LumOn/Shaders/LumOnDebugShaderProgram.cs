@@ -69,15 +69,10 @@ public class LumOnDebugShaderProgram : GpuProgram
     }
 
     public GpuTexture? WorldProbeRadianceAtlas { set => BindTexture2D("worldProbeRadianceAtlas", value, 19); }
-
-    public GpuTexture? WorldProbeSH0 { set => BindTexture2D("worldProbeSH0", value, 19); }
-    public GpuTexture? WorldProbeSH1 { set => BindTexture2D("worldProbeSH1", value, 20); }
-    public GpuTexture? WorldProbeSH2 { set => BindTexture2D("worldProbeSH2", value, 21); }
     public GpuTexture? WorldProbeVis0 { set => BindTexture2D("worldProbeVis0", value, 22); }
     public GpuTexture? WorldProbeDist0 { set => BindTexture2D("worldProbeDist0", value, 23); }
     public GpuTexture? WorldProbeMeta0 { set => BindTexture2D("worldProbeMeta0", value, 24); }
     public GpuTexture? WorldProbeDebugState0 { set => BindTexture2D("worldProbeDebugState0", value, 25); }
-    public GpuTexture? WorldProbeSky0 { set => BindTexture2D("worldProbeSky0", value, 26); }
 
     public float WorldProbeBaseSpacing { set => SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, value.ToString("0.0####", CultureInfo.InvariantCulture)); }
 

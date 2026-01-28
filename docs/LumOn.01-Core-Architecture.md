@@ -12,7 +12,7 @@
 LumOn is a **Screen-Space Radiance Cache** system implementing Screen Probe Gather (SPG) for efficient indirect diffuse lighting in Vintage Story. It replaces per-pixel ray marching with a probe-based approach where:
 
 1. A sparse grid of **screen-space probes** is placed over the viewport
-2. Each probe traces rays and accumulates radiance into **Spherical Harmonics (SH L1)**
+2. Each probe traces rays and accumulates radiance into a **Screen Probe Atlas** (octahedral-mapped directional radiance)
 3. Pixels **gather** irradiance by interpolating neighboring probes
 4. **Temporal accumulation** stabilizes results across frames
 
@@ -21,7 +21,7 @@ LumOn is a **Screen-Space Radiance Cache** system implementing Screen Probe Gath
 | Goal                           | Approach                                             |
 | ------------------------------ | ---------------------------------------------------- |
 | Lower cost than per-pixel SSGI | Probe grid reduces ray count by `probeSpacing²`      |
-| Stable indirect lighting       | SH encoding + temporal accumulation                  |
+| Stable indirect lighting       | Atlas encoding + temporal accumulation               |
 | Soft falloff at edges          | Bilinear probe interpolation with edge-aware weights |
 | Extensible to world-space      | Architecture supports future voxel DDA fallback      |
 
@@ -43,23 +43,23 @@ LumOn is implemented as **SSGI v2** with a feature flag toggle:
 
 LumOn settings live under the nested `LumOn` section in that JSON file.
 
-| Category        | Property                      | Type     | Default | Hot-Reload | Description                                         |
-| --------------- | ----------------------------- | -------- | ------- | ---------- | --------------------------------------------------- |
-| **Feature**     | `LumOn.Enabled`               | bool     | true    | ✗          | Master toggle; falls back to legacy SSGI when false |
-| **Probe Grid**  | `LumOn.ProbeSpacingPx`        | int      | 8       | ✗          | Pixels between probes (4=high, 8=balanced, 16=perf) |
-| **Ray Tracing** | `LumOn.ProbeAtlasTexelsPerFrame` | int   | 16      | ✓          | Probe-atlas texels traced per probe per frame       |
-|                 | `LumOn.RaySteps`              | int      | 12      | ✗          | Steps per ray during screen-space march             |
-|                 | `LumOn.RayMaxDistance`        | float    | 10.0    | ✗          | Max ray distance in world units                     |
-|                 | `LumOn.RayThickness`          | float    | 0.5     | ✗          | Depth comparison thickness (view-space)             |
-| **Temporal**    | `LumOn.TemporalAlpha`         | float    | 0.95    | ✓          | Blend factor (0.95 = 95% history)                   |
-| **Temporal**    | `LumOn.AnchorJitterEnabled`   | bool     | false   | ✓          | Deterministic per-frame jitter of probe anchors     |
-| **Temporal**    | `LumOn.AnchorJitterScale`     | float    | 0.35    | ✓          | Jitter magnitude as a fraction of probe spacing     |
-| **Quality**     | `LumOn.HalfResolution`        | bool     | true    | ✗          | Run gather at half-res                              |
-|                 | `LumOn.DenoiseEnabled`        | bool     | true    | ✓          | Edge-aware denoising on upsample                    |
-|                 | `LumOn.Intensity`             | float    | 1.0     | ✓          | Output intensity multiplier                         |
-|                 | `LumOn.IndirectTint`          | float[3] | [1,1,1] | ✓          | RGB tint for indirect bounce                        |
-|                 | `LumOn.SkyMissWeight`         | float    | 0.5     | ✓          | Weight for sky/miss samples                         |
-| **Debug**       | `LumOn.DebugMode`             | int      | 0       | ✓          | Runtime-only debug mode (not persisted to JSON)     |
+| Category        | Property                         | Type     | Default | Hot-Reload | Description                                         |
+| --------------- | -------------------------------- | -------- | ------- | ---------- | --------------------------------------------------- |
+| **Feature**     | `LumOn.Enabled`                  | bool     | true    | ✗          | Master toggle; falls back to legacy SSGI when false |
+| **Probe Grid**  | `LumOn.ProbeSpacingPx`           | int      | 8       | ✗          | Pixels between probes (4=high, 8=balanced, 16=perf) |
+| **Ray Tracing** | `LumOn.ProbeAtlasTexelsPerFrame` | int      | 16      | ✓          | Probe-atlas texels traced per probe per frame       |
+|                 | `LumOn.RaySteps`                 | int      | 12      | ✗          | Steps per ray during screen-space march             |
+|                 | `LumOn.RayMaxDistance`           | float    | 10.0    | ✗          | Max ray distance in world units                     |
+|                 | `LumOn.RayThickness`             | float    | 0.5     | ✗          | Depth comparison thickness (view-space)             |
+| **Temporal**    | `LumOn.TemporalAlpha`            | float    | 0.95    | ✓          | Blend factor (0.95 = 95% history)                   |
+| **Temporal**    | `LumOn.AnchorJitterEnabled`      | bool     | false   | ✓          | Deterministic per-frame jitter of probe anchors     |
+| **Temporal**    | `LumOn.AnchorJitterScale`        | float    | 0.35    | ✓          | Jitter magnitude as a fraction of probe spacing     |
+| **Quality**     | `LumOn.HalfResolution`           | bool     | true    | ✗          | Run gather at half-res                              |
+|                 | `LumOn.DenoiseEnabled`           | bool     | true    | ✓          | Edge-aware denoising on upsample                    |
+|                 | `LumOn.Intensity`                | float    | 1.0     | ✓          | Output intensity multiplier                         |
+|                 | `LumOn.IndirectTint`             | float[3] | [1,1,1] | ✓          | RGB tint for indirect bounce                        |
+|                 | `LumOn.SkyMissWeight`            | float    | 0.5     | ✓          | Weight for sky/miss samples                         |
+| **Debug**       | `LumOn.DebugMode`                | int      | 0       | ✓          | Runtime-only debug mode (not persisted to JSON)     |
 
 ### 2.2 Configuration Loading
 
@@ -160,15 +160,15 @@ For details on the PMJ sequence backing anchor jitter, see:
 
 ### 3.2 Shader Pipeline
 
-| Pass            | Shader                   | Input                          | Output                         |
-| --------------- | ------------------------ | ------------------------------ | ------------------------------ |
-| 1. Probe Anchor | `lumon_probe_anchor.fsh` | G-Buffer depth, normal         | `ProbeAnchor` texture          |
-| 2. Probe Trace  | `lumon_probe_atlas_trace.fsh`  | ProbeAnchor, CapturedScene, HZB | `ScreenProbeAtlasTrace` (radiance+meta) |
-| 3. Temporal     | `lumon_probe_atlas_temporal.fsh` | Trace, History                 | `ScreenProbeAtlasCurrent` (swap) |
-| 3.5 Filter      | `lumon_probe_atlas_filter.fsh` | Current                        | `ScreenProbeAtlasFiltered` |
-| 3.75 Project SH9 (optional) | `lumon_probe_atlas_project_sh9.fsh` | Filtered/Current atlas | `ProbeSH9_*` |
-| 4. Gather       | `lumon_probe_atlas_gather.fsh` or `lumon_probe_sh9_gather.fsh` | Atlas or SH9, G-Buffer | `IndirectDiffuse_HalfRes` |
-| 5. Upsample     | `lumon_upsample.fsh`     | HalfRes, G-Buffer depth/normal | `IndirectDiffuse_FullRes`      |
+| Pass                        | Shader                                                         | Input                           | Output                                  |
+| --------------------------- | -------------------------------------------------------------- | ------------------------------- | --------------------------------------- |
+| 1. Probe Anchor             | `lumon_probe_anchor.fsh`                                       | G-Buffer depth, normal          | `ProbeAnchor` texture                   |
+| 2. Probe Trace              | `lumon_probe_atlas_trace.fsh`                                  | ProbeAnchor, CapturedScene, HZB | `ScreenProbeAtlasTrace` (radiance+meta) |
+| 3. Temporal                 | `lumon_probe_atlas_temporal.fsh`                               | Trace, History                  | `ScreenProbeAtlasCurrent` (swap)        |
+| 3.5 Filter                  | `lumon_probe_atlas_filter.fsh`                                 | Current                         | `ScreenProbeAtlasFiltered`              |
+| 3.75 Project SH9 (optional) | `lumon_probe_atlas_project_sh9.fsh`                            | Filtered/Current atlas          | `ProbeSH9_*`                            |
+| 4. Gather                   | `lumon_probe_atlas_gather.fsh` or `lumon_probe_sh9_gather.fsh` | Atlas or SH9, G-Buffer          | `IndirectDiffuse_HalfRes`               |
+| 5. Upsample                 | `lumon_upsample.fsh`                                           | HalfRes, G-Buffer depth/normal  | `IndirectDiffuse_FullRes`               |
 
 ---
 
@@ -258,10 +258,10 @@ LumOn publishes per-frame shared state via **Uniform Buffer Objects (UBOs)** to 
 
 Blocks + bindings:
 
-| Block | Binding | Notes |
-| ----- | ------- | ----- |
-| `LumOnFrameUBO` | 12 | Matrices, sizes, frame index, zNear/zFar, etc. |
-| `LumOnWorldProbeUBO` | 13 | World-probe clipmap parameters (sky tint, camera pos, per-level origin/ring arrays). |
+| Block                | Binding | Notes                                                                                |
+| -------------------- | ------- | ------------------------------------------------------------------------------------ |
+| `LumOnFrameUBO`      | 12      | Matrices, sizes, frame index, zNear/zFar, etc.                                       |
+| `LumOnWorldProbeUBO` | 13      | World-probe clipmap parameters (sky tint, camera pos, per-level origin/ring arrays). |
 
 Pass-specific controls remain plain uniforms/defines (e.g., temporal alpha, rejection thresholds, filter params).
 
