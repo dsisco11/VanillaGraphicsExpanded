@@ -25,7 +25,17 @@ public sealed class WorldProbeTraceServiceTests
             tryClaim: (_, _) => true);
 
         var request = new LumOnWorldProbeUpdateRequest(0, new Vec3i(0, 0, 0), new Vec3i(0, 0, 0), 0);
-        Assert.True(svc.TryEnqueue(new LumOnWorldProbeTraceWorkItem(0, request, new Vector3d(0.5, 0.5, 0.5), 8, WorldProbeOctahedralTileSize: 16, WorldProbeAtlasTexelsPerUpdate: 8)));
+        Assert.True(svc.TryEnqueue(new LumOnWorldProbeTraceWorkItem(
+            FrameIndex: 0,
+            Request: request,
+            ProbePosWorld: new Vector3d(0.5, 0.5, 0.5),
+            MaxTraceDistanceWorld: 8,
+            WorldProbeOctahedralTileSize: 16,
+            WorldProbeAtlasTexelsPerUpdate: 8,
+            EnableDirectionPIS: false,
+            DirectionPISExploreFraction: 0.25f,
+            DirectionPISExploreCount: -1,
+            DirectionPISWeightEpsilon: 1e-6f)));
 
         LumOnWorldProbeTraceResult res = default;
         bool got = SpinWait.SpinUntil(() => svc.TryDequeueResult(out res), TimeSpan.FromSeconds(1));

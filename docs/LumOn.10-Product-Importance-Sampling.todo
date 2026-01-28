@@ -142,7 +142,7 @@ LumOn - Phase 10 - Product Importance Sampling (PIS) for Direction Updates (Impl
 
   Phase 10.11 - Optional: World-Probe Direction PIS (CPU-side):
   Exit artifacts: World-probe update slicing favors important directions while preserving coverage.
-  ☐ Define world-probe importance proxy (radiance-only or basis-driven) and exploration guarantee
-  ☐ Add an “importance” selection variant alongside LumOnWorldProbeAtlasDirectionSlicing.FillTexelIndicesForUpdate()
-  ☐ Ensure determinism and uniqueness, and maintain strict per-update K bound
-  ☐ Add perf counters for CPU selection work; ensure it’s negligible vs tracing cost
+  ✔ Define world-probe importance proxy (radiance-only or basis-driven) and exploration guarantee @done
+  ✔ Add an “importance” selection variant alongside LumOnWorldProbeAtlasDirectionSlicing.FillTexelIndicesForUpdate() @done
+  ✔ Ensure determinism and uniqueness, and maintain strict per-update K bound @done
+  ✔ Add perf counters for CPU selection work; ensure it’s negligible vs tracing cost @done

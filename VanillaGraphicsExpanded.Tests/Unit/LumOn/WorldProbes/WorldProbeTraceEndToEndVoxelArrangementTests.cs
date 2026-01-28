@@ -106,7 +106,11 @@ public sealed class WorldProbeTraceEndToEndVoxelArrangementTests
             ProbePosWorld: probePosWorld,
             MaxTraceDistanceWorld: maxTraceDistanceWorld,
             WorldProbeOctahedralTileSize: 16,
-            WorldProbeAtlasTexelsPerUpdate: 256);
+            WorldProbeAtlasTexelsPerUpdate: 256,
+            EnableDirectionPIS: false,
+            DirectionPISExploreFraction: 0.25f,
+            DirectionPISExploreCount: -1,
+            DirectionPISWeightEpsilon: 1e-6f);
     }
 
     private static class TestBlocks

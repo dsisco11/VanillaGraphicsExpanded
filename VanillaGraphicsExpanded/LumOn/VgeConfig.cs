@@ -299,6 +299,34 @@ public class VgeConfig
         public int AtlasTexelsPerUpdate { get; set; } = 32;
 
         /// <summary>
+        /// Enables CPU-side direction PIS for world-probe updates (optional).
+        /// When enabled, direction selection favors a basis-driven importance proxy while preserving coverage.
+        /// Default: false (legacy batch slicing).
+        /// </summary>
+        [JsonProperty]
+        public bool EnableDirectionPIS { get; set; } = true;
+
+        /// <summary>
+        /// Exploration fraction (0..1) for world-probe direction PIS.
+        /// Used when <see cref="DirectionPISExploreCount"/> is negative.
+        /// </summary>
+        [JsonProperty]
+        public float DirectionPISExploreFraction { get; set; } = 0.25f;
+
+        /// <summary>
+        /// Exploration count for world-probe direction PIS.
+        /// If negative, derive from <see cref="DirectionPISExploreFraction"/>.
+        /// </summary>
+        [JsonProperty]
+        public int DirectionPISExploreCount { get; set; } = -1;
+
+        /// <summary>
+        /// Numerical epsilon for importance weights.
+        /// </summary>
+        [JsonProperty]
+        public float DirectionPISWeightEpsilon { get; set; } = 1e-6f;
+
+        /// <summary>
         /// Per-level max number of probes selected for CPU update per frame.
         /// Expected to be length == <see cref="ClipmapLevels"/>.
         /// Hot-reloadable.
@@ -331,6 +359,10 @@ public class VgeConfig
             OctahedralTileSize = Math.Clamp(OctahedralTileSize, 8, 64);
             int dirCount = OctahedralTileSize * OctahedralTileSize;
             AtlasTexelsPerUpdate = Math.Clamp(AtlasTexelsPerUpdate, 1, Math.Max(1, dirCount));
+
+            DirectionPISExploreFraction = Math.Clamp(DirectionPISExploreFraction, 0.0f, 1.0f);
+            DirectionPISExploreCount = Math.Clamp(DirectionPISExploreCount, -1, Math.Max(1, dirCount));
+            DirectionPISWeightEpsilon = Math.Clamp(DirectionPISWeightEpsilon, 1e-12f, 1.0f);
             TraceMaxProbesPerFrame = Math.Clamp(TraceMaxProbesPerFrame, 0, 65_536);
             UploadBudgetBytesPerFrame = Math.Clamp(UploadBudgetBytesPerFrame, 0, 64 * 1024 * 1024);
 

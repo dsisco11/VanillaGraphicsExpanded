@@ -27,7 +27,11 @@ public sealed class WorldProbeTraceIntegratorTests
             ProbePosWorld: new Vector3d(0.5, 0.5, 0.5),
             MaxTraceDistanceWorld: 32,
             WorldProbeOctahedralTileSize: 16,
-            WorldProbeAtlasTexelsPerUpdate: 16);
+            WorldProbeAtlasTexelsPerUpdate: 16,
+            EnableDirectionPIS: false,
+            DirectionPISExploreFraction: 0.25f,
+            DirectionPISExploreCount: -1,
+            DirectionPISWeightEpsilon: 1e-6f);
 
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
@@ -62,7 +66,11 @@ public sealed class WorldProbeTraceIntegratorTests
             ProbePosWorld: new Vector3d(0.5, 0.5, 0.5),
             MaxTraceDistanceWorld: 32,
             WorldProbeOctahedralTileSize: 16,
-            WorldProbeAtlasTexelsPerUpdate: 16);
+            WorldProbeAtlasTexelsPerUpdate: 16,
+            EnableDirectionPIS: false,
+            DirectionPISExploreFraction: 0.25f,
+            DirectionPISExploreCount: -1,
+            DirectionPISWeightEpsilon: 1e-6f);
 
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
@@ -90,7 +98,11 @@ public sealed class WorldProbeTraceIntegratorTests
             ProbePosWorld: new Vector3d(0.5, 0.5, 0.5),
             MaxTraceDistanceWorld: 32,
             WorldProbeOctahedralTileSize: 16,
-            WorldProbeAtlasTexelsPerUpdate: 16);
+            WorldProbeAtlasTexelsPerUpdate: 16,
+            EnableDirectionPIS: false,
+            DirectionPISExploreFraction: 0.25f,
+            DirectionPISExploreCount: -1,
+            DirectionPISWeightEpsilon: 1e-6f);
 
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
@@ -120,7 +132,11 @@ public sealed class WorldProbeTraceIntegratorTests
             ProbePosWorld: new Vector3d(0.5, 0.5, 0.5),
             MaxTraceDistanceWorld: 32,
             WorldProbeOctahedralTileSize: 16,
-            WorldProbeAtlasTexelsPerUpdate: 16);
+            WorldProbeAtlasTexelsPerUpdate: 16,
+            EnableDirectionPIS: false,
+            DirectionPISExploreFraction: 0.25f,
+            DirectionPISExploreCount: -1,
+            DirectionPISWeightEpsilon: 1e-6f);
 
         // Primary rays always hit a surface that samples skylight.
         // Secondary sky-visibility rays always miss, so the skylight bounce factor is non-zero.
@@ -160,7 +176,11 @@ public sealed class WorldProbeTraceIntegratorTests
             ProbePosWorld: new Vector3d(0.5, 0.5, 0.5),
             MaxTraceDistanceWorld: 32,
             WorldProbeOctahedralTileSize: 16,
-            WorldProbeAtlasTexelsPerUpdate: 16);
+            WorldProbeAtlasTexelsPerUpdate: 16,
+            EnableDirectionPIS: false,
+            DirectionPISExploreFraction: 0.25f,
+            DirectionPISExploreCount: -1,
+            DirectionPISWeightEpsilon: 1e-6f);
 
         var scene = new PrimaryOnlyHitScene(
             primaryOrigin: item.ProbePosWorld,
@@ -203,7 +223,11 @@ public sealed class WorldProbeTraceIntegratorTests
             ProbePosWorld: new Vector3d(0, 0, 0),
             MaxTraceDistanceWorld: 256,
             WorldProbeOctahedralTileSize: 16,
-            WorldProbeAtlasTexelsPerUpdate: 256);
+            WorldProbeAtlasTexelsPerUpdate: 256,
+            EnableDirectionPIS: false,
+            DirectionPISExploreFraction: 0.25f,
+            DirectionPISExploreCount: -1,
+            DirectionPISWeightEpsilon: 1e-6f);
 
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 

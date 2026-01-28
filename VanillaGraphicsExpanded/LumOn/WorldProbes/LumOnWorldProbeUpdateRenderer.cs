@@ -193,7 +193,17 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 				}
 
 				double maxDist = spacing * resources.Resolution;
-				var item = new LumOnWorldProbeTraceWorkItem(frameIndex, req, probePosWorld, maxDist, wpTileSize, wpTexelsPerUpdate);
+				var item = new LumOnWorldProbeTraceWorkItem(
+					frameIndex,
+					req,
+					probePosWorld,
+					maxDist,
+					wpTileSize,
+					wpTexelsPerUpdate,
+					EnableDirectionPIS: cfg.EnableDirectionPIS,
+					DirectionPISExploreFraction: cfg.DirectionPISExploreFraction,
+					DirectionPISExploreCount: cfg.DirectionPISExploreCount,
+					DirectionPISWeightEpsilon: cfg.DirectionPISWeightEpsilon);
 				if (!traceService.TryEnqueue(item))
 				{
 					scheduler.Unqueue(req);

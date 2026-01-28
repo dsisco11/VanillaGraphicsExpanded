@@ -9,4 +9,8 @@ internal readonly record struct LumOnWorldProbeTraceWorkItem(
     Vector3d ProbePosWorld,
     double MaxTraceDistanceWorld,
     int WorldProbeOctahedralTileSize,
-    int WorldProbeAtlasTexelsPerUpdate);
+    int WorldProbeAtlasTexelsPerUpdate,
+    bool EnableDirectionPIS,
+    float DirectionPISExploreFraction,
+    int DirectionPISExploreCount,
+    float DirectionPISWeightEpsilon);

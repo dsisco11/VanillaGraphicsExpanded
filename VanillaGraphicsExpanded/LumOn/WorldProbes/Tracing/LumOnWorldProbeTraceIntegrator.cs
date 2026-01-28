@@ -4,6 +4,7 @@ using System.Threading;
 
 using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.Numerics;
+using VanillaGraphicsExpanded.Profiling;
 
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 
@@ -42,12 +43,35 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         texelIndicesScratch = texelIndicesScratch.Slice(0, k);
 
         int probeId = item.Request.StorageLinearIndex;
-        int texelCount = LumOnWorldProbeAtlasDirectionSlicing.FillTexelIndicesForUpdate(
-            frameIndex: item.FrameIndex,
-            probeStorageLinearIndex: probeId,
-            octahedralSize: s,
-            texelsPerUpdate: k,
-            destination: texelIndicesScratch);
+        int texelCount;
+        using (Profiler.BeginScope("LumOn.WorldProbe.DirectionSelect", "LumOn"))
+        {
+            if (item.EnableDirectionPIS)
+            {
+                // Basis-driven proxy: prioritize +Y hemisphere (sky) by default.
+                // This is CPU-only (no GPU readbacks) and preserves deterministic coverage via exploration.
+                texelCount = LumOnWorldProbeAtlasDirectionSlicing.FillTexelIndicesForUpdateImportance(
+                    frameIndex: item.FrameIndex,
+                    probeStorageLinearIndex: probeId,
+                    octahedralSize: s,
+                    texelsPerUpdate: k,
+                    basisDir: Vector3.UnitY,
+                    exploreFraction: item.DirectionPISExploreFraction,
+                    exploreCount: item.DirectionPISExploreCount,
+                    weightEpsilon: item.DirectionPISWeightEpsilon,
+                    directions: directions,
+                    destination: texelIndicesScratch);
+            }
+            else
+            {
+                texelCount = LumOnWorldProbeAtlasDirectionSlicing.FillTexelIndicesForUpdate(
+                    frameIndex: item.FrameIndex,
+                    probeStorageLinearIndex: probeId,
+                    octahedralSize: s,
+                    texelsPerUpdate: k,
+                    destination: texelIndicesScratch);
+            }
+        }
 
         float skyIntensitySum = 0f;
         int skyIntensityCount = 0;
