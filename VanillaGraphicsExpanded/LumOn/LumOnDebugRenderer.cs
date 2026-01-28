@@ -825,6 +825,24 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             // Phase 18 world-probe debug inputs (only bound if available + active in the compiled shader).
             if (hasWorldProbeResources && worldProbeClipmapBufferManager?.Resources is not null)
             {
+                // Ensure the debug shader is compiled with the active world-probe layout/defines.
+                int wpTileSize = config.WorldProbeClipmap.OctahedralTileSize;
+                int wpAtlasTexelsPerUpdate = config.WorldProbeClipmap.AtlasTexelsPerUpdate;
+                const int worldProbeDiffuseStride = 2;
+                if (!shader.EnsureWorldProbeClipmapDefines(
+                    enabled: true,
+                    baseSpacing: wpBaseSpacing,
+                    levels: wpLevels,
+                    resolution: wpResolution,
+                    worldProbeOctahedralTileSize: wpTileSize,
+                    worldProbeAtlasTexelsPerUpdate: wpAtlasTexelsPerUpdate,
+                    worldProbeDiffuseStride: worldProbeDiffuseStride))
+                {
+                    shader.Stop();
+                    return;
+                }
+
+                shader.WorldProbeRadianceAtlas = worldProbeClipmapBufferManager.Resources.ProbeRadianceAtlas;
                 shader.WorldProbeSH0 = worldProbeClipmapBufferManager.Resources.ProbeSh0;
                 shader.WorldProbeSH1 = worldProbeClipmapBufferManager.Resources.ProbeSh1;
                 shader.WorldProbeSH2 = worldProbeClipmapBufferManager.Resources.ProbeSh2;
@@ -859,6 +877,15 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             }
             else
             {
+                shader.EnsureWorldProbeClipmapDefines(
+                    enabled: false,
+                    baseSpacing: 0,
+                    levels: 0,
+                    resolution: 0,
+                    worldProbeOctahedralTileSize: 0,
+                    worldProbeAtlasTexelsPerUpdate: 0,
+                    worldProbeDiffuseStride: 0);
+                shader.WorldProbeRadianceAtlas = null;
                 // Publish a stable, disabled buffer so UBO-backed shaders can safely read from the block.
                 uniformBuffers.UpdateWorldProbe(
                     skyTint: capi.Render.AmbientColor,
@@ -1864,26 +1891,34 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 shader.FadeNear = maxSize * 0.5f;
                 shader.FadeFar = maxSize * 1.05f;
 
-                // Bind SH textures (binds both texture + sampler).
+                int wpTileSize = config.WorldProbeClipmap.OctahedralTileSize;
+                int wpAtlasTexelsPerUpdate = config.WorldProbeClipmap.AtlasTexelsPerUpdate;
+                const int worldProbeDiffuseStride = 2;
+                if (!shader.EnsureWorldProbeClipmapDefines(
+                    enabled: true,
+                    baseSpacing: clipmapDebugBaseSpacing,
+                    levels: clipmapDebugLevels,
+                    resolution: clipmapDebugResolution,
+                    worldProbeOctahedralTileSize: wpTileSize,
+                    worldProbeAtlasTexelsPerUpdate: wpAtlasTexelsPerUpdate,
+                    worldProbeDiffuseStride: worldProbeDiffuseStride))
+                {
+                    shader.Stop();
+                    shaderUsed = false;
+                    return;
+                }
+
+                // Bind world-probe textures (binds both texture + sampler).
                 var res = worldProbeClipmapBufferManager.Resources;
 
-                res.ProbeSh0.Bind(0);
-                shader.WorldProbeSH0 = 0;
+                res.ProbeRadianceAtlas.Bind(0);
+                shader.WorldProbeRadianceAtlas = 0;
 
-                res.ProbeSh1.Bind(1);
-                shader.WorldProbeSH1 = 1;
+                res.ProbeVis0.Bind(1);
+                shader.WorldProbeVis0 = 1;
 
-                res.ProbeSh2.Bind(2);
-                shader.WorldProbeSH2 = 2;
-
-                res.ProbeSky0.Bind(3);
-                shader.WorldProbeSky0 = 3;
-
-                res.ProbeVis0.Bind(4);
-                shader.WorldProbeVis0 = 4;
-
-                res.ProbeDebugState0.Bind(5);
-                shader.WorldProbeDebugState0 = 5;
+                res.ProbeDebugState0.Bind(2);
+                shader.WorldProbeDebugState0 = 2;
 
                 // Publish + bind world-probe UBO (Phase 23). This debug pass only needs the sky tint.
                 System.Numerics.Vector3 camPosWs = new(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);

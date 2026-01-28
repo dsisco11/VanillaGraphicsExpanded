@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 
 using Vintagestory.API.Client;
@@ -147,7 +148,14 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
 
     #region World Probes (Phase 18)
 
-    public bool EnsureWorldProbeClipmapDefines(bool enabled, float baseSpacing, int levels, int resolution, int worldProbeOctahedralTileSize)
+    public bool EnsureWorldProbeClipmapDefines(
+        bool enabled,
+        float baseSpacing,
+        int levels,
+        int resolution,
+        int worldProbeOctahedralTileSize,
+        int worldProbeAtlasTexelsPerUpdate,
+        int worldProbeDiffuseStride)
     {
         if (!enabled)
         {
@@ -155,6 +163,8 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
             levels = 0;
             resolution = 0;
             worldProbeOctahedralTileSize = 0;
+            worldProbeAtlasTexelsPerUpdate = 0;
+            worldProbeDiffuseStride = 0;
         }
 
         bool changed = false;
@@ -163,8 +173,13 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
         changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, resolution.ToString(CultureInfo.InvariantCulture));
         changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, baseSpacing.ToString("0.0####", CultureInfo.InvariantCulture));
         changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeOctahedralSize, worldProbeOctahedralTileSize.ToString(CultureInfo.InvariantCulture));
+        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeAtlasTexelsPerUpdate, worldProbeAtlasTexelsPerUpdate.ToString(CultureInfo.InvariantCulture));
+        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeDiffuseStride, Math.Max(1, worldProbeDiffuseStride).ToString(CultureInfo.InvariantCulture));
+        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeBindRadianceAtlas, enabled ? "1" : "0");
         return !changed;
     }
+
+    public GpuTexture? WorldProbeRadianceAtlas { set => BindTexture2D("worldProbeRadianceAtlas", value, 8); }
 
     public GpuTexture? WorldProbeSH0 { set => BindTexture2D("worldProbeSH0", value, 8); }
     public GpuTexture? WorldProbeSH1 { set => BindTexture2D("worldProbeSH1", value, 9); }

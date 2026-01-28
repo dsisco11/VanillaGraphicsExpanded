@@ -123,11 +123,11 @@ LumOn - World Probes - Refactor to Octahedral Atlas (Replace SH)
 
   Phase 5 - Runtime Binding + Renderer Plumbing
   Exit artifacts: World-probe uniforms/textures bind correctly across passes and hot reload remains deterministic.
-  ☐ Update shader program bindings to bind `worldProbeRadianceAtlas` instead of SH textures:
+  ✔ Update shader program bindings to bind `worldProbeRadianceAtlas` instead of SH textures: @done
     - LumOnRenderer’s world-probe binding paths
     - Any shader programs that expose world-probe texture properties
-  ☐ Add compile-time defines for world-probe atlas size and any stride defaults (if needed).
-  ☐ Ensure graphics reload triggers clean recreation and no stale attachment state remains.
+  ✔ Add compile-time defines for world-probe atlas size and any stride defaults (if needed). @done
+  ✔ Ensure graphics reload triggers clean recreation and no stale attachment state remains. @done
 
 
   Phase 6 - Tests + Validation

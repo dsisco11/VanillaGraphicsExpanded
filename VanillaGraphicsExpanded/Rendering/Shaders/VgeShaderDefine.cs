@@ -36,6 +36,10 @@ public static class VgeShaderDefines
     public const string LumOnWorldProbeOctahedralSize = "VGE_LUMON_WORLDPROBE_OCTAHEDRAL_SIZE";
     public const string LumOnWorldProbeAtlasTexelsPerUpdate = "VGE_LUMON_WORLDPROBE_ATLAS_TEXELS_PER_UPDATE";
 
+    // World-probe radiance atlas binding + shader sampling knobs
+    public const string LumOnWorldProbeBindRadianceAtlas = "VGE_LUMON_BIND_WORLDPROBE_RADIANCE_ATLAS";
+    public const string LumOnWorldProbeDiffuseStride = "VGE_LUMON_WORLDPROBE_DIFFUSE_STRIDE";
+
     public const string LumOnEmissiveBoost = "LUMON_EMISSIVE_BOOST";
 
     public const string PbrEnablePom = "VGE_PBR_ENABLE_POM";

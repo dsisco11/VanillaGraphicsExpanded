@@ -620,14 +620,30 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (hasWorldProbe)
         {
             int wpTileSize = config.WorldProbeClipmap.OctahedralTileSize;
-            if (!shader.EnsureWorldProbeClipmapDefines(enabled: true, wpBaseSpacing, wpLevels, wpResolution, wpTileSize))
+            int wpAtlasTexelsPerUpdate = config.WorldProbeClipmap.AtlasTexelsPerUpdate;
+            const int worldProbeDiffuseStride = 2;
+            if (!shader.EnsureWorldProbeClipmapDefines(
+                enabled: true,
+                wpBaseSpacing,
+                wpLevels,
+                wpResolution,
+                wpTileSize,
+                wpAtlasTexelsPerUpdate,
+                worldProbeDiffuseStride))
             {
                 return;
             }
         }
         else
         {
-            shader.EnsureWorldProbeClipmapDefines(enabled: false, baseSpacing: 0, levels: 0, resolution: 0, worldProbeOctahedralTileSize: 0);
+            shader.EnsureWorldProbeClipmapDefines(
+                enabled: false,
+                baseSpacing: 0,
+                levels: 0,
+                resolution: 0,
+                worldProbeOctahedralTileSize: 0,
+                worldProbeAtlasTexelsPerUpdate: 0,
+                worldProbeDiffuseStride: 0);
         }
 
         shader.Use();
@@ -667,21 +683,15 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         if (hasWorldProbe)
         {
-            shader.WorldProbeSH0 = wpResources.ProbeSh0;
-            shader.WorldProbeSH1 = wpResources.ProbeSh1;
-            shader.WorldProbeSH2 = wpResources.ProbeSh2;
+            shader.WorldProbeRadianceAtlas = wpResources.ProbeRadianceAtlas;
             shader.WorldProbeVis0 = wpResources.ProbeVis0;
             shader.WorldProbeMeta0 = wpResources.ProbeMeta0;
-            shader.WorldProbeSky0 = wpResources.ProbeSky0;
         }
         else
         {
-            shader.WorldProbeSH0 = null;
-            shader.WorldProbeSH1 = null;
-            shader.WorldProbeSH2 = null;
+            shader.WorldProbeRadianceAtlas = null;
             shader.WorldProbeVis0 = null;
             shader.WorldProbeMeta0 = null;
-            shader.WorldProbeSky0 = null;
         }
 
         // Indirect lighting tint
