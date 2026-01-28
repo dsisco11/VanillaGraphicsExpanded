@@ -132,13 +132,13 @@ LumOn - World Probes - Refactor to Octahedral Atlas (Replace SH)
 
   Phase 6 - Tests + Validation
   Exit artifacts: Automated tests cover atlas addressing, signed-alpha sky encoding, and fallback correctness.
-  ☐ Unit tests:
-    - Validate direction→octUV→texel mapping for the chosen S (CPU helper parity with GLSL math)
-    - Validate signed-alpha conventions (hit vs sky) are produced by the integrator
-  ☐ GPU functional tests:
-    - Update `LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests` to provide a tiny world-probe atlas and verify miss fallback
-    - Add a test that reads back a few atlas texels after an upload-resolve draw (smoke test for addressing)
-  ☐ Add a RenderDoc checklist (or notes) for verifying atlas layout: (level stacking, ring offsets, tile placement).
+  ✔ Unit tests: @done
+    - Validate direction→octUV→texel mapping for the chosen S (CPU helper parity with GLSL math) @done
+    - Validate signed-alpha conventions (hit vs sky) are produced by the integrator @done
+  ✔ GPU functional tests: @done
+    - Update `LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests` to provide a tiny world-probe atlas and verify miss fallback @done
+    - Add a test that reads back a few atlas texels after an upload-resolve drno we aw (smoke test for addressing) @done
+  ✔ Add a RenderDoc checklist (or notes) for verifying atlas layout: (level stacking, ring offsets, tile placement). @done
 
 
   Phase 7 - Perf + Guardrails (Scaling Reality Check)

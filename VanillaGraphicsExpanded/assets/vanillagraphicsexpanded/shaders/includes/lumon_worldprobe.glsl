@@ -162,8 +162,6 @@ ivec2 lumonWorldProbeAtlasCoord(ivec3 storageIndex, int level, int resolution)
 // Radiance atlas helpers (octahedral tiles)
 // ---------------------------------------------------------------------------
 
-const float LUMON_PI = 3.141592653589793;
-
 vec2 lumonWorldProbeTexelCoordToOctahedralUV(ivec2 texelCoord)
 {
 	return (vec2(texelCoord) + 0.5) / LUMON_WORLDPROBE_OCTAHEDRAL_SIZE_F;
@@ -615,7 +613,7 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleClipmapRadiance(
 LumOnWorldProbeRadianceSample lumonWorldProbeSampleClipmapRadianceBound(vec3 worldPos, vec3 dirWS)
 {
 	return lumonWorldProbeSampleClipmapRadiance(
-		worldProbeSH0,
+		worldProbeRadianceAtlas,
 		worldProbeSH1,
 		worldProbeSH2,
 		worldProbeSky0,
@@ -703,7 +701,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
 LumOnWorldProbeSample lumonWorldProbeSampleClipmapBound(vec3 worldPos, vec3 normalWS)
 {
 	return lumonWorldProbeSampleClipmap(
-		worldProbeSH0,
+		worldProbeRadianceAtlas,
 		worldProbeSH1,
 		worldProbeSH2,
 		worldProbeSky0,

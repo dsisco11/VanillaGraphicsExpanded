@@ -31,12 +31,15 @@ public sealed class WorldProbeTraceIntegratorTests
 
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
+        float expectedMissAlpha = -(float)Math.Log(item.MaxTraceDistanceWorld + 1.0);
+
         Assert.True(res.ShortRangeAoConfidence > 0.99f);
         Assert.NotNull(res.AtlasSamples);
         Assert.True(res.AtlasSamples.Length > 0);
         for (int i = 0; i < res.AtlasSamples.Length; i++)
         {
             Assert.True(res.AtlasSamples[i].AlphaEncodedDistSigned < 0f);
+            Assert.Equal(expectedMissAlpha, res.AtlasSamples[i].AlphaEncodedDistSigned, 5);
             Assert.True(res.AtlasSamples[i].RadianceRgb.Length() < 1e-6f);
         }
         Assert.Equal(1f, res.SkyIntensity, 6);
@@ -76,7 +79,8 @@ public sealed class WorldProbeTraceIntegratorTests
     [Fact]
     public void TraceProbe_WhenAllHits_ProducesHitSamples_WithNonNegativeAlpha_AndAoConfidenceZero()
     {
-        var scene = new AlwaysHitScene(hitDistance: 4.0);
+        const double hitDistance = 4.0;
+        var scene = new AlwaysHitScene(hitDistance: hitDistance);
         var integrator = new LumOnWorldProbeTraceIntegrator();
 
         var request = new LumOnWorldProbeUpdateRequest(0, new Vec3i(0, 0, 0), new Vec3i(0, 0, 0), 0);
@@ -90,12 +94,15 @@ public sealed class WorldProbeTraceIntegratorTests
 
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
+        float expectedHitAlpha = (float)Math.Log(hitDistance + 1.0);
+
         Assert.True(res.ShortRangeAoConfidence < 0.01f);
         Assert.NotNull(res.AtlasSamples);
         Assert.True(res.AtlasSamples.Length > 0);
         for (int i = 0; i < res.AtlasSamples.Length; i++)
         {
             Assert.True(res.AtlasSamples[i].AlphaEncodedDistSigned >= 0f);
+            Assert.Equal(expectedHitAlpha, res.AtlasSamples[i].AlphaEncodedDistSigned, 5);
         }
         Assert.Equal(0f, res.SkyIntensity, 6);
         Assert.True(res.MeanLogHitDistance > 1.0f);

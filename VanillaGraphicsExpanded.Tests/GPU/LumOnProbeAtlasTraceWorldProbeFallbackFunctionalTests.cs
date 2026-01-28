@@ -14,6 +14,8 @@ public class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : LumOnShader
 {
     private const uint LUMON_META_WORLDPROBE_FALLBACK = 1u << 5;
 
+    private const int WorldProbeTileSize = 16;
+
     private const int RaySteps = 16;
     private const float RayMaxDistance = 50f;
     private const float RayThickness = 0.5f;
@@ -38,6 +40,8 @@ public class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : LumOnShader
                 ["VGE_LUMON_WORLDPROBE_LEVELS"] = wpLevels.ToString(CultureInfo.InvariantCulture),
                 ["VGE_LUMON_WORLDPROBE_RESOLUTION"] = wpResolution.ToString(CultureInfo.InvariantCulture),
                 ["VGE_LUMON_WORLDPROBE_BASE_SPACING"] = wpBaseSpacing.ToString("0.0####", CultureInfo.InvariantCulture),
+                ["VGE_LUMON_WORLDPROBE_OCTAHEDRAL_SIZE"] = WorldProbeTileSize.ToString(CultureInfo.InvariantCulture),
+                ["VGE_LUMON_BIND_WORLDPROBE_RADIANCE_ATLAS"] = "1",
             });
 
     private static float[] CreateUniformData(int width, int height, int channels, params float[] value)
@@ -62,28 +66,28 @@ public class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : LumOnShader
     {
         EnsureShaderTestAvailable();
 
-        // 1 level, 2x2x2 clipmap => atlas width=4, height=2
+        // 1 level, 2x2x2 clipmap => per-probe scalar atlas width=4, height=2
         const int wpLevels = 1;
         const int wpResolution = 2;
         const float wpBaseSpacing = 1.0f;
-        const int wpAtlasWidth = wpResolution * wpResolution;
-        const int wpAtlasHeight = wpResolution * wpLevels;
 
-        // DC-only radiance: set sh.x such that dot(sh, basis)=1.0 when basis.x=SH_C0.
-        const float shC0 = 0.282095f;
-        float shDc = 1.0f / shC0;
+        const int wpScalarAtlasWidth = wpResolution * wpResolution;
+        const int wpScalarAtlasHeight = wpResolution * wpLevels;
 
-        // Pack DC into the R channel only so output is clearly distinct from sky fallback.
-        var wpSh0 = CreateUniformData(wpAtlasWidth, wpAtlasHeight, 4, shDc, 0f, 0f, 0f);
-        var wpSh1 = CreateUniformData(wpAtlasWidth, wpAtlasHeight, 4, 0f, 0f, 0f, 0f);
-        var wpSh2 = CreateUniformData(wpAtlasWidth, wpAtlasHeight, 4, 0f, 0f, 0f, 0f);
-        var wpSky0 = CreateUniformData(wpAtlasWidth, wpAtlasHeight, 4, 0f, 0f, 0f, 0f);
+        // Radiance atlas is tile-packed: W = (N*N)*S, H = (N*levels)*S.
+        const int wpRadianceAtlasWidth = (wpResolution * wpResolution) * WorldProbeTileSize;
+        const int wpRadianceAtlasHeight = (wpResolution * wpLevels) * WorldProbeTileSize;
+
+        // Fill radiance atlas with a constant red-ish radiance and positive alpha (hit, not sky).
+        // The miss path should pick this instead of the bright green sky fallback.
+        float alphaHitEncoded = (float)Math.Log(1.0 + 1.0); // log(dist+1), dist=1
+        var wpRadianceAtlas = CreateUniformData(wpRadianceAtlasWidth, wpRadianceAtlasHeight, 4, 1.0f, 0f, 0f, alphaHitEncoded);
 
         // vis0.xy = any octUV, vis0.z = skyIntensity, vis0.w = aoConf (not used for radiance fallback).
-        var wpVis0 = CreateUniformData(wpAtlasWidth, wpAtlasHeight, 4, 0.5f, 1.0f, 0f, 0f);
+        var wpVis0 = CreateUniformData(wpScalarAtlasWidth, wpScalarAtlasHeight, 4, 0.5f, 1.0f, 0f, 0f);
 
         // meta0.r = confidence, meta0.g = flags-as-float (ignored here)
-        var wpMeta0 = CreateUniformData(wpAtlasWidth, wpAtlasHeight, 2, 1.0f, 0f);
+        var wpMeta0 = CreateUniformData(wpScalarAtlasWidth, wpScalarAtlasHeight, 2, 1.0f, 0f);
 
         // Probe anchors: all valid, placed in front of camera.
         var anchorPos = CreateUniformData(ProbeGridWidth, ProbeGridHeight, 4, 0f, 0f, -5f, 1.0f);
@@ -112,12 +116,9 @@ public class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : LumOnShader
         using var historyMetaTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, historyMeta);
         using var hzbTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, hzb);
 
-        using var wpSh0Tex = TestFramework.CreateTexture(wpAtlasWidth, wpAtlasHeight, PixelInternalFormat.Rgba16f, wpSh0);
-        using var wpSh1Tex = TestFramework.CreateTexture(wpAtlasWidth, wpAtlasHeight, PixelInternalFormat.Rgba16f, wpSh1);
-        using var wpSh2Tex = TestFramework.CreateTexture(wpAtlasWidth, wpAtlasHeight, PixelInternalFormat.Rgba16f, wpSh2);
-        using var wpVis0Tex = TestFramework.CreateTexture(wpAtlasWidth, wpAtlasHeight, PixelInternalFormat.Rgba16f, wpVis0);
-        using var wpMeta0Tex = TestFramework.CreateTexture(wpAtlasWidth, wpAtlasHeight, PixelInternalFormat.Rg32f, wpMeta0);
-        using var wpSky0Tex = TestFramework.CreateTexture(wpAtlasWidth, wpAtlasHeight, PixelInternalFormat.Rgba16f, wpSky0);
+        using var wpRadianceAtlasTex = TestFramework.CreateTexture(wpRadianceAtlasWidth, wpRadianceAtlasHeight, PixelInternalFormat.Rgba16f, wpRadianceAtlas);
+        using var wpVis0Tex = TestFramework.CreateTexture(wpScalarAtlasWidth, wpScalarAtlasHeight, PixelInternalFormat.Rgba16f, wpVis0);
+        using var wpMeta0Tex = TestFramework.CreateTexture(wpScalarAtlasWidth, wpScalarAtlasHeight, PixelInternalFormat.Rg32f, wpMeta0);
 
         using var output = TestFramework.CreateTestGBuffer(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rg32f);
 
@@ -136,12 +137,9 @@ public class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : LumOnShader
             hzbTex.Bind(6);
             historyMetaTex.Bind(7);
 
-            wpSh0Tex.Bind(8);
-            wpSh1Tex.Bind(9);
-            wpSh2Tex.Bind(10);
-            wpVis0Tex.Bind(11);
-            wpMeta0Tex.Bind(12);
-            wpSky0Tex.Bind(13);
+            wpRadianceAtlasTex.Bind(8);
+            wpVis0Tex.Bind(9);
+            wpMeta0Tex.Bind(10);
 
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
@@ -177,12 +175,9 @@ public class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : LumOnShader
             GL.Uniform1(GL.GetUniformLocation(programId, "hzbDepth"), 6);
             GL.Uniform1(GL.GetUniformLocation(programId, "probeAtlasMetaHistory"), 7);
 
-            GL.Uniform1(GL.GetUniformLocation(programId, "worldProbeSH0"), 8);
-            GL.Uniform1(GL.GetUniformLocation(programId, "worldProbeSH1"), 9);
-            GL.Uniform1(GL.GetUniformLocation(programId, "worldProbeSH2"), 10);
-            GL.Uniform1(GL.GetUniformLocation(programId, "worldProbeVis0"), 11);
-            GL.Uniform1(GL.GetUniformLocation(programId, "worldProbeMeta0"), 12);
-            GL.Uniform1(GL.GetUniformLocation(programId, "worldProbeSky0"), 13);
+            GL.Uniform1(GL.GetUniformLocation(programId, "worldProbeRadianceAtlas"), 8);
+            GL.Uniform1(GL.GetUniformLocation(programId, "worldProbeVis0"), 9);
+            GL.Uniform1(GL.GetUniformLocation(programId, "worldProbeMeta0"), 10);
 
             // Phase 23: UBO-backed frame + world-probe state (GLSL 330 assigns block bindings in C#).
             UpdateAndBindLumOnFrameUbo(
