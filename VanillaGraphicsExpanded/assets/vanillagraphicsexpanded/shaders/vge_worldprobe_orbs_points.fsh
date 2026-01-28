@@ -1,5 +1,8 @@
 #version 330 core
 
+// Use UBO-backed world-probe parameters by default (Phase 23).
+#define LUMON_USE_WORLDPROBE_UBO 1
+
 @import "./includes/lumon_worldprobe.glsl"
 
 in vec4 vColor;
@@ -65,7 +68,7 @@ void main(void)
     float skyIntensity = clamp(texelFetch(worldProbeVis0, ac, 0).z, 0.0, 1.0);
     float reflSky = shEvaluate(shSky, R) * skyIntensity;
 
-    vec3 refl = max(reflBlock, vec3(0.0)) + max(reflSky, 0.0) * max(worldProbeSkyTint, vec3(0.0));
+    vec3 refl = max(reflBlock, vec3(0.0)) + max(reflSky, 0.0) * max(lumonWorldProbeGetSkyTint(), vec3(0.0));
 
     // Simple Fresnel to make the orb read as a reflective sphere.
     float F0 = 0.04;

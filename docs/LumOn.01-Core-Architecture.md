@@ -252,19 +252,18 @@ OnRenderFrame(AfterPostProcessing):
 
 ## 6. Integration Points
 
-### 6.1 Required Uniforms (New)
+### 6.1 Required Shared State (UBOs)
 
-Add to shader uniform system:
+LumOn publishes per-frame shared state via **Uniform Buffer Objects (UBOs)** to avoid per-pass uniform churn.
 
-| Uniform                 | Type  | Source             | Used By             |
-| ----------------------- | ----- | ------------------ | ------------------- |
-| `prevViewProjMatrix`    | mat4  | LumOnRenderer      | Temporal pass       |
-| `probeSpacing`          | int   | LumOnConfig        | All passes          |
-| `probeGridSize`         | ivec2 | LumOnBufferManager | All passes          |
-| `frameIndex`            | int   | LumOnRenderer      | Trace pass (jitter) |
-| `temporalAlpha`         | float | LumOnConfig        | Temporal pass       |
-| `depthRejectThreshold`  | float | LumOnConfig        | Temporal pass       |
-| `normalRejectThreshold` | float | LumOnConfig        | Temporal pass       |
+Blocks + bindings:
+
+| Block | Binding | Notes |
+| ----- | ------- | ----- |
+| `LumOnFrameUBO` | 12 | Matrices, sizes, frame index, zNear/zFar, etc. |
+| `LumOnWorldProbeUBO` | 13 | World-probe clipmap parameters (sky tint, camera pos, per-level origin/ring arrays). |
+
+Pass-specific controls remain plain uniforms/defines (e.g., temporal alpha, rejection thresholds, filter params).
 
 ### 6.2 G-Buffer Inputs (Existing)
 

@@ -1907,7 +1907,15 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 res.ProbeDebugState0.Bind(5);
                 shader.WorldProbeDebugState0 = 5;
 
-                shader.WorldProbeSkyTint = capi.Render.AmbientColor;
+                // Publish + bind world-probe UBO (Phase 23). This debug pass only needs the sky tint.
+                Vec3f camPosWs = new Vec3f(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
+                uniformBuffers.UpdateWorldProbe(new LumOnWorldProbeUboData(
+                    skyTint: capi.Render.AmbientColor,
+                    cameraPosWS: camPosWs,
+                    originMinCorner: null,
+                    ringOffset: null));
+
+                shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
 
                 clipmapProbeOrbsVao.Bind();
 

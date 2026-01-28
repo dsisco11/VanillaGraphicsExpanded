@@ -61,7 +61,7 @@ uniform sampler2D worldProbeSky0;
 
 // Shaders opt into UBO-backed parameters by defining LUMON_USE_WORLDPROBE_UBO=1.
 #ifndef LUMON_USE_WORLDPROBE_UBO
-	#define LUMON_USE_WORLDPROBE_UBO 0
+	#define LUMON_USE_WORLDPROBE_UBO 1
 #endif
 
 #if LUMON_USE_WORLDPROBE_UBO

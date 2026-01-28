@@ -148,11 +148,11 @@ LumOn - Phase 23 - Renderer UBO Refactor (Implementation):
 
   Phase 23.8 - Cleanup + Perf Tracking:
   Exit artifacts: Reduced CPU overhead and a clean steady-state implementation.
-  ☐ Remove dead code paths for legacy uniform setting and world-probe per-pass param plumbing.
+  ✔ Remove dead code paths for legacy uniform setting and world-probe per-pass param plumbing. @done
     ✔ Remove per-pass world-probe uniform setters from LumOn shader program wrappers. @done
-    ☐ Decide whether to keep the non-UBO fallback path in includes/lumon_worldprobe.glsl (LUMON_USE_WORLDPROBE_UBO=0).
-    ☐ Optional: migrate vge_worldprobe_orbs_points to read worldProbeSkyTint from LumOnWorldProbeUBO (drop standalone uniform).
+    ✔ Decide whether to keep the non-UBO fallback path in includes/lumon_worldprobe.glsl (default now UBO; can still override to 0). @done
+    ✔ Optional: migrate vge_worldprobe_orbs_points to read worldProbeSkyTint from LumOnWorldProbeUBO (drop standalone uniform). @done
   ☐ Add lightweight counters (optional) for:
     - “uniform sets per frame” (before/after sanity)
     - “UBO uploads per frame” (expected: 1–2)
-  ☐ Update docs/LumOn.01 uniform list (6.1) to note UBO usage and block names (optional but recommended).
+  ✔ Update docs/LumOn.01 uniform list (6.1) to note UBO usage and block names (optional but recommended). @done

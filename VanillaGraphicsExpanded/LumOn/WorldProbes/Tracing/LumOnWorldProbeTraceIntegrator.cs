@@ -329,7 +329,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         // Phase 18 (Option B): keep *sky radiance* out of RGB SH and represent it only via:
         // - ShSky (sky visibility, projected into L1)
         // - SkyIntensity (separate scalar packed alongside AO)
-        // - worldProbeSkyTint (shader uniform, time-of-day/weather/ambient tint)
+        // - worldProbeSkyTint (published via LumOnWorldProbeUBO, time-of-day/weather/ambient tint)
         //
         // This avoids double-counting sky (RGB + ShSky) and keeps world-probe sky color consistent
         // with the engine's ambient/sky settings.

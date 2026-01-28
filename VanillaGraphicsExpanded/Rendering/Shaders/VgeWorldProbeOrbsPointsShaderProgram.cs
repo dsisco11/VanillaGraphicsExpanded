@@ -1,10 +1,17 @@
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 
+using VanillaGraphicsExpanded.LumOn;
+
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
 
 public sealed class VgeWorldProbeOrbsPointsShaderProgram : GpuProgram
 {
+    public VgeWorldProbeOrbsPointsShaderProgram()
+    {
+        RegisterUniformBlockBinding("LumOnWorldProbeUBO", LumOnUniformBuffers.WorldProbeBinding, required: true);
+    }
+
     public static void Register(ICoreClientAPI api)
     {
         var instance = new VgeWorldProbeOrbsPointsShaderProgram
@@ -32,6 +39,4 @@ public sealed class VgeWorldProbeOrbsPointsShaderProgram : GpuProgram
     public int WorldProbeSky0 { set => Uniform("worldProbeSky0", value); }
     public int WorldProbeVis0 { set => Uniform("worldProbeVis0", value); }
     public int WorldProbeDebugState0 { set => Uniform("worldProbeDebugState0", value); }
-
-    public Vec3f WorldProbeSkyTint { set => Uniform("worldProbeSkyTint", value); }
 }
