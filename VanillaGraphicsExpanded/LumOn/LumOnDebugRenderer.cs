@@ -168,9 +168,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private bool hasClipmapDebugRuntimeCameraPosWS;
     private readonly Vec3d[] clipmapDebugOriginsAbsWorld = new Vec3d[MaxWorldProbeLevels];
 
-    private readonly Vec3f[] worldProbeOriginMinCornerCache = new Vec3f[MaxWorldProbeLevels];
-    private readonly Vec3f[] worldProbeRingOffsetCache = new Vec3f[MaxWorldProbeLevels];
-
     private long lastClipmapDebugLogTick;
 
     // Matrix buffers
@@ -180,8 +177,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private readonly float[] prevViewProjMatrix = new float[16];
     private readonly float[] currentViewProjMatrix = new float[16];
     private readonly float[] invCurrViewProjMatrix = new float[16];
-    private readonly float[] projectionMatrix = new float[16];
-    private readonly float[] viewMatrix = new float[16];
     private readonly float[] tempProjectionMatrix = new float[16];
     private readonly float[] tempModelViewMatrix = new float[16];
     private int frameIndex;
@@ -530,9 +525,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     private void UpdateAndBindFrameUbo(VgeConfig.LumOnSettingsConfig lum)
     {
-        Array.Copy(capi.Render.CurrentProjectionMatrix, projectionMatrix, 16);
-        Array.Copy(capi.Render.CameraMatrixOriginf, viewMatrix, 16);
-
         MatrixHelper.Invert(currentViewProjMatrix, invCurrViewProjMatrix);
 
         Vec3f sunPosF = new(0, 1, 0);
@@ -556,16 +548,19 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         int uboFrameIndex = frameIndex;
         frameIndex = unchecked(frameIndex + 1);
 
-        var frameData = new LumOnFrameUboData(
+        uniformBuffers.UpdateFrame(
             invProjectionMatrix: invProjectionMatrix,
-            projectionMatrix: projectionMatrix,
-            viewMatrix: viewMatrix,
+            projectionMatrix: capi.Render.CurrentProjectionMatrix,
+            viewMatrix: capi.Render.CameraMatrixOriginf,
             invViewMatrix: invViewMatrix,
             prevViewProjMatrix: prevViewProjMatrix,
             invCurrViewProjMatrix: invCurrViewProjMatrix,
-            screenSize: new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight),
-            halfResSize: new Vec2f(halfW, halfH),
-            probeGridSize: new Vec2f(probeCountX, probeCountY),
+            screenWidth: capi.Render.FrameWidth,
+            screenHeight: capi.Render.FrameHeight,
+            halfResWidth: halfW,
+            halfResHeight: halfH,
+            probeGridWidth: probeCountX,
+            probeGridHeight: probeCountY,
             zNear: capi.Render.ShaderUniforms.ZNear,
             zFar: capi.Render.ShaderUniforms.ZFar,
             probeSpacing: lum.ProbeSpacingPx,
@@ -579,8 +574,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             sunPosition: sunPosF,
             sunColor: sunColF,
             ambientColor: capi.Render.AmbientColor);
-
-        uniformBuffers.UpdateFrame(frameData);
     }
 
     #endregion
@@ -844,48 +837,34 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 // Shaders reconstruct world positions in the engine's camera-matrix world space (invViewMatrix).
                 // Always derive camera position from the *current* inverse view matrix (matches reconstruction in shaders).
                 // Runtime params may be from a different renderer pass / slightly different matrix state.
-                Vec3f camPosWs = new Vec3f(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
+                System.Numerics.Vector3 camPosWs = new(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
 
                 if (!hasWorldProbeRuntimeParams || wpOrigins is null || wpRings is null)
                 {
-                    var data = new LumOnWorldProbeUboData(
+                    uniformBuffers.UpdateWorldProbe(
                         skyTint: capi.Render.AmbientColor,
                         cameraPosWS: camPosWs,
-                        originMinCorner: null,
-                        ringOffset: null);
-
-                    uniformBuffers.UpdateWorldProbe(data);
+                        originMinCorner: default,
+                        ringOffset: default);
                 }
                 else
                 {
-                    for (int i = 0; i < MaxWorldProbeLevels; i++)
-                    {
-                        var o = (i < wpOrigins.Length) ? wpOrigins[i] : default;
-                        var r = (i < wpRings.Length) ? wpRings[i] : default;
-                        worldProbeOriginMinCornerCache[i] = new Vec3f(o.X, o.Y, o.Z);
-                        worldProbeRingOffsetCache[i] = new Vec3f(r.X, r.Y, r.Z);
-                    }
-
-                    var data = new LumOnWorldProbeUboData(
+                    uniformBuffers.UpdateWorldProbe(
                         skyTint: capi.Render.AmbientColor,
                         cameraPosWS: camPosWs,
-                        originMinCorner: worldProbeOriginMinCornerCache,
-                        ringOffset: worldProbeRingOffsetCache);
-
-                    uniformBuffers.UpdateWorldProbe(data);
+                        originMinCorner: wpOrigins,
+                        ringOffset: wpRings);
                 }
 
             }
             else
             {
                 // Publish a stable, disabled buffer so UBO-backed shaders can safely read from the block.
-                var data = new LumOnWorldProbeUboData(
+                uniformBuffers.UpdateWorldProbe(
                     skyTint: capi.Render.AmbientColor,
-                    cameraPosWS: new Vec3f(0, 0, 0),
-                    originMinCorner: null,
-                    ringOffset: null);
-
-                uniformBuffers.UpdateWorldProbe(data);
+                    cameraPosWS: default,
+                    originMinCorner: default,
+                    ringOffset: default);
             }
 
             // Phase 15 composite debug inputs
@@ -1907,12 +1886,12 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 shader.WorldProbeDebugState0 = 5;
 
                 // Publish + bind world-probe UBO (Phase 23). This debug pass only needs the sky tint.
-                Vec3f camPosWs = new Vec3f(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
-                uniformBuffers.UpdateWorldProbe(new LumOnWorldProbeUboData(
+                System.Numerics.Vector3 camPosWs = new(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
+                uniformBuffers.UpdateWorldProbe(
                     skyTint: capi.Render.AmbientColor,
                     cameraPosWS: camPosWs,
-                    originMinCorner: null,
-                    ringOffset: null));
+                    originMinCorner: default,
+                    ringOffset: default);
 
                 shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
                 shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);

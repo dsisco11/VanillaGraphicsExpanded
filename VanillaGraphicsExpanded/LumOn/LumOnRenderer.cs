@@ -52,10 +52,6 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager;
 
-    // Cache arrays to avoid per-frame allocations in TryBindWorldProbeClipmapCommon.
-    private readonly Vec3f[] worldProbeOriginsCache = new Vec3f[8];
-    private readonly Vec3f[] worldProbeRingsCache = new Vec3f[8];
-
     private readonly LumOnPmjJitterTexture pmjJitter;
     private readonly LumOnUniformBuffers uniformBuffers = new();
 
@@ -65,8 +61,6 @@ public class LumOnRenderer : IRenderer, IDisposable
     // Matrix buffers
     private readonly float[] invProjectionMatrix = new float[16];
     private readonly float[] invModelViewMatrix = new float[16];
-    private readonly float[] projectionMatrix = new float[16];
-    private readonly float[] modelViewMatrix = new float[16];
     private readonly float[] prevViewProjMatrix = new float[16];
     private readonly float[] currentViewProjMatrix = new float[16];
     private readonly float[] invCurrentViewProjMatrix = new float[16];
@@ -421,16 +415,15 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     private void UpdateMatrices()
     {
-        // Copy current matrices
-        Array.Copy(capi.Render.CurrentProjectionMatrix, projectionMatrix, 16);
-        Array.Copy(capi.Render.CameraMatrixOriginf, modelViewMatrix, 16);
+        ReadOnlySpan<float> projection = capi.Render.CurrentProjectionMatrix;
+        ReadOnlySpan<float> view = capi.Render.CameraMatrixOriginf;
 
         // Compute inverse matrices
-        MatrixHelper.Invert(projectionMatrix, invProjectionMatrix);
-        MatrixHelper.Invert(modelViewMatrix, invModelViewMatrix);
+        MatrixHelper.Invert(projection, invProjectionMatrix);
+        MatrixHelper.Invert(view, invModelViewMatrix);
 
         // Compute current view-projection matrix for next frame's reprojection
-        MatrixHelper.Multiply(projectionMatrix, modelViewMatrix, currentViewProjMatrix);
+        MatrixHelper.Multiply(projection, view, currentViewProjMatrix);
 
         // Compute inverse current view-projection for depth-based reprojection.
         MatrixHelper.Invert(currentViewProjMatrix, invCurrentViewProjMatrix);
@@ -450,16 +443,19 @@ public class LumOnRenderer : IRenderer, IDisposable
             sunColF = new Vec3f(sunCol.R, sunCol.G, sunCol.B);
         }
 
-        var frameData = new LumOnFrameUboData(
+        uniformBuffers.UpdateFrame(
             invProjectionMatrix: invProjectionMatrix,
-            projectionMatrix: projectionMatrix,
-            viewMatrix: modelViewMatrix,
+            projectionMatrix: capi.Render.CurrentProjectionMatrix,
+            viewMatrix: capi.Render.CameraMatrixOriginf,
             invViewMatrix: invModelViewMatrix,
             prevViewProjMatrix: prevViewProjMatrix,
             invCurrViewProjMatrix: invCurrentViewProjMatrix,
-            screenSize: new Vec2f(capi.Render.FrameWidth, capi.Render.FrameHeight),
-            halfResSize: new Vec2f(bufferManager.HalfResWidth, bufferManager.HalfResHeight),
-            probeGridSize: new Vec2f(bufferManager.ProbeCountX, bufferManager.ProbeCountY),
+            screenWidth: capi.Render.FrameWidth,
+            screenHeight: capi.Render.FrameHeight,
+            halfResWidth: bufferManager.HalfResWidth,
+            halfResHeight: bufferManager.HalfResHeight,
+            probeGridWidth: bufferManager.ProbeCountX,
+            probeGridHeight: bufferManager.ProbeCountY,
             zNear: capi.Render.ShaderUniforms.ZNear,
             zFar: capi.Render.ShaderUniforms.ZFar,
             probeSpacing: config.LumOn.ProbeSpacingPx,
@@ -473,43 +469,33 @@ public class LumOnRenderer : IRenderer, IDisposable
             sunPosition: sunPosF,
             sunColor: sunColF,
             ambientColor: capi.Render.AmbientColor);
-
-        uniformBuffers.UpdateFrame(frameData);
     }
 
     private void UpdateAndBindWorldProbeUbo()
     {
-        Vec3f camPos = new(0, 0, 0);
-        Vec3f[]? origins = null;
-        Vec3f[]? rings = null;
-
         if (TryBindWorldProbeClipmapCommon(
             out _,
-            out camPos,
+            out var camPosWS,
             out _,
             out _,
             out _,
-            out origins,
-            out rings))
+            out var originsWs,
+            out var ringsWs))
         {
-            var data = new LumOnWorldProbeUboData(
+            uniformBuffers.UpdateWorldProbe(
                 skyTint: capi.Render.AmbientColor,
-                cameraPosWS: camPos,
-                originMinCorner: origins,
-                ringOffset: rings);
-
-            uniformBuffers.UpdateWorldProbe(data);
+                cameraPosWS: camPosWS,
+                originMinCorner: originsWs,
+                ringOffset: ringsWs);
         }
         else
         {
             // Publish a stable zeroed buffer so shaders can safely read the block even when disabled.
-            var data = new LumOnWorldProbeUboData(
+            uniformBuffers.UpdateWorldProbe(
                 skyTint: capi.Render.AmbientColor,
-                cameraPosWS: new Vec3f(0, 0, 0),
-                originMinCorner: null,
-                ringOffset: null);
-
-            uniformBuffers.UpdateWorldProbe(data);
+                cameraPosWS: default,
+                originMinCorner: default,
+                ringOffset: default);
         }
 
     }
@@ -972,21 +958,20 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     private bool TryBindWorldProbeClipmapCommon(
         out LumOnWorldProbeClipmapGpuResources resources,
-        out Vec3f camPos,
+        out System.Numerics.Vector3 camPosWS,
         out float baseSpacing,
         out int levels,
         out int resolution,
-        out Vec3f[] origins,
-        out Vec3f[] rings)
+        out System.Numerics.Vector3[] origins,
+        out System.Numerics.Vector3[] rings)
     {
-        origins = worldProbeOriginsCache;
-        rings = worldProbeRingsCache;
-
         resources = null!;
-        camPos = new Vec3f();
+        camPosWS = default;
         baseSpacing = 0;
         levels = 0;
         resolution = 0;
+        origins = Array.Empty<System.Numerics.Vector3>();
+        rings = Array.Empty<System.Numerics.Vector3>();
 
         if (worldProbeClipmapBufferManager?.Resources is null)
         {
@@ -996,27 +981,17 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Runtime params are published by LumOnWorldProbeUpdateRenderer (Done stage).
         if (!worldProbeClipmapBufferManager.TryGetRuntimeParams(
                 out _,
-                out var camPosWs,
+                out camPosWS,
                 out baseSpacing,
                 out levels,
                 out resolution,
-                out var originsWs,
-                out var ringsWs))
+                out origins,
+                out rings))
         {
             return false;
         }
 
         resources = worldProbeClipmapBufferManager.Resources;
-        camPos = new Vec3f(camPosWs.X, camPosWs.Y, camPosWs.Z);
-
-        for (int i = 0; i < 8; i++)
-        {
-            var o = (i < originsWs.Length) ? originsWs[i] : default;
-            var r = (i < ringsWs.Length) ? ringsWs[i] : default;
-            origins[i] = new Vec3f(o.X, o.Y, o.Z);
-            rings[i] = new Vec3f(r.X, r.Y, r.Z);
-        }
-
         return true;
     }
 

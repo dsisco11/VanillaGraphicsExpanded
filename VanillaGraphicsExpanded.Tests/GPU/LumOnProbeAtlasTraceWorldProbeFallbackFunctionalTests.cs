@@ -184,14 +184,6 @@ public class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : LumOnShader
             GL.Uniform1(GL.GetUniformLocation(programId, "worldProbeMeta0"), 12);
             GL.Uniform1(GL.GetUniformLocation(programId, "worldProbeSky0"), 13);
 
-            // World-probe params: keep it simple, 1-level clipmap containing worldPos=probePosWS.
-            GL.Uniform3(GL.GetUniformLocation(programId, "worldProbeSkyTint"), 0f, 0f, 0f);
-            GL.Uniform3(GL.GetUniformLocation(programId, "worldProbeCameraPosWS"), 0f, 0f, 0f);
-            // Ensure probePosWS=(0,0,-5) falls inside the clip volume for resolution=2, spacing=1:
-            // local = (worldPos - origin) / spacing => (1,1,1).
-            GL.Uniform3(GL.GetUniformLocation(programId, "worldProbeOriginMinCorner[0]"), -1f, -1f, -6f);
-            GL.Uniform3(GL.GetUniformLocation(programId, "worldProbeRingOffset[0]"), 0f, 0f, 0f);
-
             // Phase 23: UBO-backed frame + world-probe state (GLSL 330 assigns block bindings in C#).
             UpdateAndBindLumOnFrameUbo(
                 programId,
@@ -207,9 +199,9 @@ public class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : LumOnShader
             UpdateAndBindLumOnWorldProbeUbo(
                 programId,
                 skyTint: new Vintagestory.API.MathTools.Vec3f(0f, 0f, 0f),
-                cameraPosWS: new Vintagestory.API.MathTools.Vec3f(0f, 0f, 0f),
-                originMinCorner: [new Vintagestory.API.MathTools.Vec3f(-1f, -1f, -6f)],
-                ringOffset: [new Vintagestory.API.MathTools.Vec3f(0f, 0f, 0f)]);
+                cameraPosWS: new System.Numerics.Vector3(0f, 0f, 0f),
+                originMinCorner: [new System.Numerics.Vector3(-1f, -1f, -6f)],
+                ringOffset: [new System.Numerics.Vector3(0f, 0f, 0f)]);
 
             GL.UseProgram(0);
 

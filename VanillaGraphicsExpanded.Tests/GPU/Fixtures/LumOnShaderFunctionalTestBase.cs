@@ -152,16 +152,19 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
         prevViewProjMatrix ??= IdentityMat4;
         invCurrViewProjMatrix ??= IdentityMat4;
 
-        var data = new LumOnFrameUboData(
-            invProjectionMatrix,
-            projectionMatrix,
-            viewMatrix,
-            invViewMatrix,
-            prevViewProjMatrix,
-            invCurrViewProjMatrix,
-            new Vec2f(ScreenWidth, ScreenHeight),
-            new Vec2f(HalfResWidth, HalfResHeight),
-            new Vec2f(ProbeGridWidth, ProbeGridHeight),
+        LumOnUbos.UpdateFrame(
+            invProjectionMatrix: invProjectionMatrix,
+            projectionMatrix: projectionMatrix,
+            viewMatrix: viewMatrix,
+            invViewMatrix: invViewMatrix,
+            prevViewProjMatrix: prevViewProjMatrix,
+            invCurrViewProjMatrix: invCurrViewProjMatrix,
+            screenWidth: ScreenWidth,
+            screenHeight: ScreenHeight,
+            halfResWidth: HalfResWidth,
+            halfResHeight: HalfResHeight,
+            probeGridWidth: ProbeGridWidth,
+            probeGridHeight: ProbeGridHeight,
             zNear: ZNear,
             zFar: ZFar,
             probeSpacing: probeSpacing,
@@ -176,25 +179,21 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
             sunColor: sunColor ?? new Vec3f(0f, 0f, 0f),
             ambientColor: ambientColor ?? new Vec3f(0f, 0f, 0f));
 
-        LumOnUbos.UpdateFrame(in data);
-
         BindLumOnUboIfPresent(programId, "LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, LumOnUbos.FrameUbo);
     }
 
     protected void UpdateAndBindLumOnWorldProbeUbo(
         int programId,
         Vec3f skyTint,
-        Vec3f cameraPosWS,
-        Vec3f[]? originMinCorner = null,
-        Vec3f[]? ringOffset = null)
+        System.Numerics.Vector3 cameraPosWS,
+        System.Numerics.Vector3[]? originMinCorner = null,
+        System.Numerics.Vector3[]? ringOffset = null)
     {
-        var data = new LumOnWorldProbeUboData(
+        LumOnUbos.UpdateWorldProbe(
             skyTint: skyTint,
             cameraPosWS: cameraPosWS,
             originMinCorner: originMinCorner,
             ringOffset: ringOffset);
-
-        LumOnUbos.UpdateWorldProbe(in data);
 
         BindLumOnUboIfPresent(programId, "LumOnWorldProbeUBO", LumOnUniformBuffers.WorldProbeBinding, LumOnUbos.WorldProbeUbo);
     }
