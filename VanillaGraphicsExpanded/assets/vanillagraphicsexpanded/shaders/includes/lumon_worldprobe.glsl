@@ -15,6 +15,7 @@
 #define LUMON_WORLDPROBE_GLSL
 
 // Dependencies
+@import "./lumon_common.glsl"
 @import "./lumon_octahedral.glsl"
 @import "./lumon_worldprobe_atlas.glsl"
 
