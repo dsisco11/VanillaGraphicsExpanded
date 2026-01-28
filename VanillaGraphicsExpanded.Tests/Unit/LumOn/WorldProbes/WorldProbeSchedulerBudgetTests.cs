@@ -22,7 +22,8 @@ public sealed class WorldProbeSchedulerBudgetTests
             baseSpacing: 1.0,
             perLevelProbeBudgets: [100, 100, 100],
             traceMaxProbesPerFrame: 10,
-            uploadBudgetBytesPerFrame: 1_000_000);
+            uploadBudgetBytesPerFrame: 1_000_000,
+            atlasTexelsPerUpdate: 32);
 
         Assert.InRange(list.Count, 0, 10);
     }
@@ -30,7 +31,8 @@ public sealed class WorldProbeSchedulerBudgetTests
     [Fact]
     public void BuildUpdateList_RespectsUploadBudgetBytesPerFrame()
     {
-        int estimatedBytes = GetEstimatedUploadBytesPerProbe();
+        const int atlasTexelsPerUpdate = 32;
+        int estimatedBytes = GetEstimatedUploadBytesPerProbe(atlasTexelsPerUpdate);
 
         var scheduler = new LumOnWorldProbeScheduler(levelCount: 3, resolution: 4);
         scheduler.UpdateOrigins(new Vec3d(0, 0, 0), baseSpacing: 1.0);
@@ -44,7 +46,8 @@ public sealed class WorldProbeSchedulerBudgetTests
             baseSpacing: 1.0,
             perLevelProbeBudgets: [100, 100, 100],
             traceMaxProbesPerFrame: 10_000,
-            uploadBudgetBytesPerFrame: uploadBudget);
+            uploadBudgetBytesPerFrame: uploadBudget,
+            atlasTexelsPerUpdate: atlasTexelsPerUpdate);
 
         Assert.Equal(expectedMax, list.Count);
     }
@@ -61,7 +64,8 @@ public sealed class WorldProbeSchedulerBudgetTests
             baseSpacing: 1.0,
             perLevelProbeBudgets: [2, 3],
             traceMaxProbesPerFrame: 100,
-            uploadBudgetBytesPerFrame: 1_000_000);
+            uploadBudgetBytesPerFrame: 1_000_000,
+            atlasTexelsPerUpdate: 32);
 
         Assert.Equal(5, list.Count);
 
@@ -92,7 +96,8 @@ public sealed class WorldProbeSchedulerBudgetTests
             baseSpacing: 1.0,
             perLevelProbeBudgets: [1],
             traceMaxProbesPerFrame: 1,
-            uploadBudgetBytesPerFrame: 1_000_000);
+            uploadBudgetBytesPerFrame: 1_000_000,
+            atlasTexelsPerUpdate: 32);
 
         Assert.Single(list);
         var req = list[0];
@@ -113,14 +118,22 @@ public sealed class WorldProbeSchedulerBudgetTests
         Assert.Equal(LumOnWorldProbeLifecycleState.Valid, lifecycle[req.StorageLinearIndex]);
     }
 
-    private static int GetEstimatedUploadBytesPerProbe()
+    private static int GetEstimatedUploadBytesPerProbe(int atlasTexelsPerUpdate)
     {
         const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Static;
-        FieldInfo? f = typeof(LumOnWorldProbeScheduler).GetField("EstimatedUploadBytesPerProbe", flags);
+        FieldInfo? fProbe = typeof(LumOnWorldProbeScheduler).GetField("EstimatedBytesPerProbeResolveVertex", flags);
+        FieldInfo? fTile = typeof(LumOnWorldProbeScheduler).GetField("EstimatedBytesPerTileResolveVertex", flags);
 
-        Assert.NotNull(f);
-        object? v = f!.GetRawConstantValue();
-        Assert.NotNull(v);
-        return (int)v!;
+        Assert.NotNull(fProbe);
+        Assert.NotNull(fTile);
+
+        object? vProbe = fProbe!.GetRawConstantValue();
+        object? vTile = fTile!.GetRawConstantValue();
+        Assert.NotNull(vProbe);
+        Assert.NotNull(vTile);
+
+        int probeBytes = (int)vProbe!;
+        int tileBytes = (int)vTile!;
+        return probeBytes + (Math.Max(1, atlasTexelsPerUpdate) * tileBytes);
     }
 }

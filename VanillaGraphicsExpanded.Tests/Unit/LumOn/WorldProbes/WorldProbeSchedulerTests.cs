@@ -25,7 +25,8 @@ public sealed class WorldProbeSchedulerTests
             baseSpacing: 1.0,
             perLevelProbeBudgets: [1000],
             traceMaxProbesPerFrame: 10,
-            uploadBudgetBytesPerFrame: int.MaxValue);
+            uploadBudgetBytesPerFrame: int.MaxValue,
+            atlasTexelsPerUpdate: 32);
 
         Assert.True(list.Count <= 10);
     }
@@ -38,14 +39,16 @@ public sealed class WorldProbeSchedulerTests
         Vec3d cam = new(0, 0, 0);
         scheduler.UpdateOrigins(cam, baseSpacing: 1.0);
 
-        // Scheduler uses an estimated 64 bytes/probe.
+        const int atlasTexelsPerUpdate = 32;
+        const int estimatedBytesPerProbe = 40 + (atlasTexelsPerUpdate * 24);
         var list = scheduler.BuildUpdateList(
             frameIndex: 0,
             cameraPos: cam,
             baseSpacing: 1.0,
             perLevelProbeBudgets: [1000],
             traceMaxProbesPerFrame: 1000,
-            uploadBudgetBytesPerFrame: 64 * 7);
+            uploadBudgetBytesPerFrame: estimatedBytesPerProbe * 7,
+            atlasTexelsPerUpdate: atlasTexelsPerUpdate);
 
         Assert.True(list.Count <= 7);
     }
@@ -66,7 +69,8 @@ public sealed class WorldProbeSchedulerTests
             baseSpacing: 1.0,
             perLevelProbeBudgets: [res * res * res],
             traceMaxProbesPerFrame: 100000,
-            uploadBudgetBytesPerFrame: int.MaxValue);
+                uploadBudgetBytesPerFrame: int.MaxValue,
+                atlasTexelsPerUpdate: 32);
 
         Assert.Equal(res * res * res, all.Count);
 
@@ -86,7 +90,8 @@ public sealed class WorldProbeSchedulerTests
             baseSpacing: 1.0,
             perLevelProbeBudgets: [res * res],
             traceMaxProbesPerFrame: 100000,
-            uploadBudgetBytesPerFrame: int.MaxValue);
+                uploadBudgetBytesPerFrame: int.MaxValue,
+                atlasTexelsPerUpdate: 32);
 
         Assert.Equal(res * res, slab.Count);
         Assert.All(slab, r => Assert.Equal(res - 1, r.LocalIndex.X));
@@ -107,7 +112,8 @@ public sealed class WorldProbeSchedulerTests
             baseSpacing: 1.0,
             perLevelProbeBudgets: [res * res * res],
             traceMaxProbesPerFrame: 100000,
-            uploadBudgetBytesPerFrame: int.MaxValue);
+                uploadBudgetBytesPerFrame: int.MaxValue,
+                atlasTexelsPerUpdate: 32);
 
         foreach (var r in all)
         {
@@ -121,7 +127,8 @@ public sealed class WorldProbeSchedulerTests
             baseSpacing: 1.0,
             perLevelProbeBudgets: [16],
             traceMaxProbesPerFrame: 16,
-            uploadBudgetBytesPerFrame: int.MaxValue);
+                uploadBudgetBytesPerFrame: int.MaxValue,
+                atlasTexelsPerUpdate: 32);
 
         Assert.Equal(16, refresh.Count);
     }
@@ -145,7 +152,8 @@ public sealed class WorldProbeSchedulerTests
             baseSpacing: 1.0,
             perLevelProbeBudgets: [64],
             traceMaxProbesPerFrame: 64,
-            uploadBudgetBytesPerFrame: int.MaxValue);
+                uploadBudgetBytesPerFrame: int.MaxValue,
+                atlasTexelsPerUpdate: 32);
 
         var listB = schedulerB.BuildUpdateList(
             frameIndex: 0,
@@ -153,7 +161,8 @@ public sealed class WorldProbeSchedulerTests
             baseSpacing: 1.0,
             perLevelProbeBudgets: [64],
             traceMaxProbesPerFrame: 64,
-            uploadBudgetBytesPerFrame: int.MaxValue);
+                uploadBudgetBytesPerFrame: int.MaxValue,
+                atlasTexelsPerUpdate: 32);
 
         Assert.Equal(
             listA.Select(r => r.LocalIndex.X + "," + r.LocalIndex.Y + "," + r.LocalIndex.Z),

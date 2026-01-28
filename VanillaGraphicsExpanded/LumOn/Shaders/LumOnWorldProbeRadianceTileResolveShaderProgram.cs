@@ -6,18 +6,18 @@ using VanillaGraphicsExpanded.Rendering.Shaders;
 namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>
-/// Shader program that resolves CPU-produced world-probe per-probe scalar outputs into clipmap textures.
-/// Implementation strategy: render 1px points into an MRT FBO, one point per probe update.
+/// Shader program that resolves CPU-produced world-probe radiance tile samples into the radiance atlas.
+/// Implementation strategy: render 1px points into the radiance FBO, one point per traced texel.
 /// </summary>
-public sealed class LumOnWorldProbeClipmapResolveShaderProgram : GpuProgram
+public sealed class LumOnWorldProbeRadianceTileResolveShaderProgram : GpuProgram
 {
     #region Static
 
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new LumOnWorldProbeClipmapResolveShaderProgram
+        var instance = new LumOnWorldProbeRadianceTileResolveShaderProgram
         {
-            PassName = "lumon_worldprobe_clipmap_resolve",
+            PassName = "lumon_worldprobe_radiance_tile_resolve",
             AssetDomain = "vanillagraphicsexpanded"
         };
 

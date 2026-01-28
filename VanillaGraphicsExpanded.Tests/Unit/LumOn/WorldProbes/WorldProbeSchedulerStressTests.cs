@@ -17,7 +17,8 @@ public sealed class WorldProbeSchedulerStressTests
         // Generous per-level budgets; global budgets should dominate.
         int[] perLevel = [10_000, 10_000, 10_000];
         const int traceMax = 256;
-        const int uploadBudgetBytes = 256 * 64;
+        const int uploadBudgetBytes = 256 * 1024;
+        const int atlasTexelsPerUpdate = 32;
 
         var cam = new Vec3d(0, 0, 0);
 
@@ -41,7 +42,8 @@ public sealed class WorldProbeSchedulerStressTests
                 baseSpacing: baseSpacing,
                 perLevelProbeBudgets: perLevel,
                 traceMaxProbesPerFrame: traceMax,
-                uploadBudgetBytesPerFrame: uploadBudgetBytes);
+                uploadBudgetBytesPerFrame: uploadBudgetBytes,
+                atlasTexelsPerUpdate: atlasTexelsPerUpdate);
 
             Assert.InRange(list.Count, 0, traceMax);
 

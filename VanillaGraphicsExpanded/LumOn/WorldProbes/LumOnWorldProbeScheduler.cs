@@ -24,9 +24,12 @@ internal sealed class LumOnWorldProbeScheduler
     // After this timeout, queued probes become eligible for rescheduling.
     private const int QueuedExpiryFrames = 30;
 
-    // Conservative estimate for CPU->GPU upload per probe update (headers + samples + resolve writes).
-    // This will be refined once Phase 18.7 defines concrete SSBO payload sizes.
-    private const int EstimatedUploadBytesPerProbe = 64;
+    // Conservative estimate for CPU->GPU upload per probe update.
+    // We budget against streamed VBO payload sizes for the scatter resolves:
+    // - One per-probe vertex (vis/dist/meta)
+    // - K per-texel vertices (radiance atlas)
+    private const int EstimatedBytesPerProbeResolveVertex = 40; // vec2 + vec3 + 4 floats + uint
+    private const int EstimatedBytesPerTileResolveVertex = 24;  // vec2 + vec4
 
     #endregion
 
@@ -182,7 +185,8 @@ internal sealed class LumOnWorldProbeScheduler
         double baseSpacing,
         int[] perLevelProbeBudgets,
         int traceMaxProbesPerFrame,
-        int uploadBudgetBytesPerFrame)
+        int uploadBudgetBytesPerFrame,
+        int atlasTexelsPerUpdate)
     {
         ArgumentNullException.ThrowIfNull(cameraPos);
         if (baseSpacing <= 0) throw new ArgumentOutOfRangeException(nameof(baseSpacing));
@@ -191,9 +195,12 @@ internal sealed class LumOnWorldProbeScheduler
         int globalCpuRemaining = Math.Max(0, traceMaxProbesPerFrame);
         int globalUploadRemainingBytes = Math.Max(0, uploadBudgetBytesPerFrame);
 
-        int globalUploadRemainingProbes = EstimatedUploadBytesPerProbe <= 0
+        int k = Math.Max(1, atlasTexelsPerUpdate);
+        int estimatedBytesPerProbe = EstimatedBytesPerProbeResolveVertex + (k * EstimatedBytesPerTileResolveVertex);
+
+        int globalUploadRemainingProbes = estimatedBytesPerProbe <= 0
             ? globalCpuRemaining
-            : globalUploadRemainingBytes / EstimatedUploadBytesPerProbe;
+            : globalUploadRemainingBytes / estimatedBytesPerProbe;
 
         int globalRemaining = Math.Min(globalCpuRemaining, globalUploadRemainingProbes);
 

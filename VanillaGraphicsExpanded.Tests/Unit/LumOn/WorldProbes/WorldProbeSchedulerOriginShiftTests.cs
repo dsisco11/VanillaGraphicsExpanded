@@ -210,7 +210,8 @@ public sealed class WorldProbeSchedulerOriginShiftTests
             baseSpacing: baseSpacing,
             perLevelProbeBudgets: perLevelBudgets,
             traceMaxProbesPerFrame: probesPerLevel,
-            uploadBudgetBytesPerFrame: int.MaxValue);
+            uploadBudgetBytesPerFrame: int.MaxValue,
+            atlasTexelsPerUpdate: 32);
 
         Assert.Equal(probesPerLevel, requests.Count);
 

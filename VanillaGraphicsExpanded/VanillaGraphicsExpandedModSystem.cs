@@ -139,6 +139,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
         // Phase 18.7: World-probe clipmap resolve (CPU -> GPU textures)
         LumOnWorldProbeClipmapResolveShaderProgram.Register(api);
+        LumOnWorldProbeRadianceTileResolveShaderProgram.Register(api);
 
         // LumOn shaders
         LumOnProbeAnchorShaderProgram.Register(api);

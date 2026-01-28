@@ -146,7 +146,8 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 				baseSpacing,
 				perLevelBudgets,
 				cfg.TraceMaxProbesPerFrame,
-				cfg.UploadBudgetBytesPerFrame);
+				cfg.UploadBudgetBytesPerFrame,
+				cfg.AtlasTexelsPerUpdate);
 		}
 
 		if (!startupLogged)
