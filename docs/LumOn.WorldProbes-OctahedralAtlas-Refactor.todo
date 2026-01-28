@@ -82,13 +82,16 @@ LumOn - World Probes - Refactor to Octahedral Atlas (Replace SH)
 
   Phase 3 - GPU Upload + Resolve (Write Tiles into Atlas)
   Exit artifacts: CPU results update the correct atlas texels and per-probe metadata without excessive bandwidth.
+  ☐ Upload strategy (chosen): Option A (GPU scatter, point-draw into FBO).
+    Rationale: direction slicing yields sparse/scattered texels; one streamed VBO + one draw scales better than many
+    small `glTexSubImage2D` calls. (We can revisit PBO uploads later if we switch to block-contiguous micro-tiles.)
   ☐ Add/replace resolve shaders:
     - A “tile resolve” shader that writes K point samples into `ProbeRadianceAtlas` at the correct atlasCoord
-    - A “probe resolve” shader that writes 1 point per probe into `Vis0/Dist0/Meta0`
+    - A “probe resolve” shader that writes 1 point per probe into `Vis0/Dist0/Meta0` (or keep existing per-probe resolve)
   ☐ Update `LumOnWorldProbeClipmapGpuUploader`:
     - Expand upload vertex layout to include (atlasU, atlasV, radianceRGBA) for tile samples
     - Upload K points per probe update (instead of 1 point writing SH targets)
-    - Keep per-probe resolve as a separate draw for metadata
+    - Keep per-probe resolve as a separate draw for metadata (Vis0/Dist0/Meta0)
   ☐ Update upload budget estimation in `LumOnWorldProbeScheduler`:
     - bytesPerProbeUpdate ≈ K * sizeof(RGBA16F) + per-probe meta write overhead
     - Remove the fixed `EstimatedUploadBytesPerProbe = 64` placeholder
@@ -154,4 +157,3 @@ LumOn - World Probes - Refactor to Octahedral Atlas (Replace SH)
     - Add/adjust a “World-Probe Radiance Atlas” section (tile size, packing, sky factor)
     - Replace any remaining references to “world-probe SH payload” in Phase 18 docs
   ☐ Update `project.todo` “World probes should use an octahedral atlas instead of spherical harmonics” as done.
-
