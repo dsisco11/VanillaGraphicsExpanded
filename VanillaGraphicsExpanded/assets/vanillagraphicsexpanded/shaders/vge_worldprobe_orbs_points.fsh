@@ -1,14 +1,10 @@
 #version 330 core
 
-// Use UBO-backed world-probe parameters by default (Phase 23).
-#define LUMON_USE_WORLDPROBE_UBO 1
-
 @import "./includes/lumon_worldprobe.glsl"
 
 in vec4 vColor;
 in vec2 vAtlasCoord;
 
-uniform mat4 invViewMatrix;
 uniform sampler2D worldProbeDebugState0;
 
 out vec4 outColor;

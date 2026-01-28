@@ -13,22 +13,11 @@ Bindings are part of the contract, but **assigned from C#** (GLSL 330 does not s
 - `binding = 12`: `LumOnFrameUBO` (instance: `lumonFrame`)
 - `binding = 13`: `LumOnWorldProbeUBO` (instance: `lumonWorldProbe`)
 
-## 3) Opt-In Flags (per shader stage)
-
-These are **compile-time** toggles used only for migration compatibility:
-
-- `LUMON_USE_FRAME_UBO` (default `0`)
-  - When `1`, shared debug uniforms in `includes/lumon_debug_uniforms.glsl` are provided via `LumOnFrameUBO`.
-- `LUMON_USE_WORLDPROBE_UBO` (default `0`)
-  - When `1`, world-probe clipmap parameters in `includes/lumon_worldprobe.glsl` are read from `LumOnWorldProbeUBO`.
-- `LUMON_UBO_ENABLE_ALIASES`
-  - When defined, `lumon_ubos.glsl` emits `#define` aliases for common legacy names (only safe after standalone uniforms are removed).
-
-## 4) Field Layout (std140)
+## 3) Field Layout (std140)
 
 The contract intentionally uses `vec4`/`ivec4` “pack groups” to keep CPU-side packing simple.
 
-### 4.1 `LumOnFrameUBO` (`lumonFrame`)
+### 3.1 `LumOnFrameUBO` (`lumonFrame`)
 
 - Matrices:
   - `mat4 invProjectionMatrix`
@@ -50,7 +39,7 @@ The contract intentionally uses `vec4`/`ivec4` “pack groups” to keep CPU-sid
   - `vec4 sunColor` (`xyz`)
   - `vec4 ambientColor` (`xyz`)
 
-### 4.2 `LumOnWorldProbeUBO` (`lumonWorldProbe`)
+### 3.2 `LumOnWorldProbeUBO` (`lumonWorldProbe`)
 
 - Scalars:
   - `vec4 worldProbeSkyTint` (`xyz`)
@@ -59,7 +48,7 @@ The contract intentionally uses `vec4`/`ivec4` “pack groups” to keep CPU-sid
   - `vec4 worldProbeOriginMinCorner[8]` (`xyz`)
   - `vec4 worldProbeRingOffset[8]` (`xyz`)
 
-## 5) Notes for CPU Packing (Phase 23.3)
+## 4) Notes for CPU Packing (Phase 23.3)
 
 - Treat these blocks as binary layouts; prefer explicit offsets or fixed “float/int arrays” over relying on implicit struct packing.
 - Arrays are `vec4[8]` in the UBO even though the shader historically used `vec3[8]`.

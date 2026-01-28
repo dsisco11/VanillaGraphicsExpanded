@@ -28,8 +28,6 @@ layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFlo
 @import "./includes/lumon_probe_atlas_meta.glsl"
 
 // World-probe clipmap helpers
-#define LUMON_UBO_ENABLE_ALIASES
-#define LUMON_USE_WORLDPROBE_UBO 1
 @import "./includes/lumon_worldprobe.glsl"
 
 // Import noise for ray jittering

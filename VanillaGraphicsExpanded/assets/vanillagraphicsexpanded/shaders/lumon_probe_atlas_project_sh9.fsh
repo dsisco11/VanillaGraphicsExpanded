@@ -24,7 +24,6 @@ layout(location = 6) out vec4 outSH6;
 @import "./includes/lumon_sh9.glsl"
 
 // Phase 23: shared per-frame state via UBOs.
-#define LUMON_UBO_ENABLE_ALIASES
 @import "./includes/lumon_ubos.glsl"
 
 uniform sampler2D octahedralAtlas;

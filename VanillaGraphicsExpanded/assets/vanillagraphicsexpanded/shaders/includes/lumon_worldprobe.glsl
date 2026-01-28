@@ -19,7 +19,6 @@
 @import "./lumon_sh.glsl"
 
 // Optional UBO contracts (Phase 23).
-// Shaders can opt into UBO-backed parameters by defining LUMON_USE_WORLDPROBE_UBO=1.
 @import "./lumon_ubos.glsl"
 
 // ---------------------------------------------------------------------------
@@ -59,38 +58,10 @@ uniform sampler2D worldProbeDist0;
 uniform sampler2D worldProbeMeta0;
 uniform sampler2D worldProbeSky0;
 
-// Shaders opt into UBO-backed parameters by defining LUMON_USE_WORLDPROBE_UBO=1.
-#ifndef LUMON_USE_WORLDPROBE_UBO
-	#define LUMON_USE_WORLDPROBE_UBO 1
-#endif
-
-#if LUMON_USE_WORLDPROBE_UBO
-
 vec3 lumonWorldProbeGetSkyTint() { return lumonWorldProbe.worldProbeSkyTint.xyz; }
 vec3 lumonWorldProbeGetCameraPosWS() { return lumonWorldProbe.worldProbeCameraPosWS.xyz; }
 vec3 lumonWorldProbeGetOriginMinCorner(int level) { return lumonWorldProbe.worldProbeOriginMinCorner[level].xyz; }
 vec3 lumonWorldProbeGetRingOffset(int level) { return lumonWorldProbe.worldProbeRingOffset[level].xyz; }
-
-#else
-
-// Tint applied to skylight contribution (time-of-day / weather hook).
-uniform vec3 worldProbeSkyTint;
-
-// Camera position in the engine's camera-matrix world space (as produced by invViewMatrix reconstruction).
-uniform vec3 worldProbeCameraPosWS;
-
-// Per-level origin min-corner, stored relative to the *absolute* camera position:
-//   originRel = originAbs - cameraAbs
-// This keeps values small/stable in float precision while still representing a world-space anchored clipmap.
-uniform vec3 worldProbeOriginMinCorner[LUMON_WORLDPROBE_MAX_LEVELS];
-uniform vec3 worldProbeRingOffset[LUMON_WORLDPROBE_MAX_LEVELS];
-
-vec3 lumonWorldProbeGetSkyTint() { return worldProbeSkyTint; }
-vec3 lumonWorldProbeGetCameraPosWS() { return worldProbeCameraPosWS; }
-vec3 lumonWorldProbeGetOriginMinCorner(int level) { return worldProbeOriginMinCorner[level]; }
-vec3 lumonWorldProbeGetRingOffset(int level) { return worldProbeRingOffset[level]; }
-
-#endif
 
 // ---------------------------------------------------------------------------
 // Clipmap sampling helpers

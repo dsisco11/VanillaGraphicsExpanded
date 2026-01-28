@@ -3,11 +3,7 @@
 //
 // This file declares the shared uniform blocks used by LumOn to reduce per-pass
 // uniform churn. Blocks are std140 and use fixed binding points.
-//
-// IMPORTANT:
-// - Do not enable alias macros until the corresponding standalone `uniform ...;`
-//   declarations have been removed from the including shader stage.
-// - Keep fields vec4/ivec4-aligned to simplify CPU-side packing.
+// Keep fields vec4/ivec4-aligned to simplify CPU-side packing.
 // ============================================================================
 
 #ifndef LUMON_UBOS_GLSL
@@ -77,10 +73,11 @@ layout(std140) uniform LumOnWorldProbeUBO
 } lumonWorldProbe;
 
 // ---------------------------------------------------------------------------
-// Optional compatibility aliases (opt-in)
+// Compatibility aliases
+//
+// These preserve legacy uniform names after the migration to uniform blocks.
+// The old standalone `uniform ...;` declarations should not exist anymore.
 // ---------------------------------------------------------------------------
-
-#ifdef LUMON_UBO_ENABLE_ALIASES
 
 // Matrices
 #define invProjectionMatrix   (lumonFrame.invProjectionMatrix)
@@ -115,7 +112,5 @@ layout(std140) uniform LumOnWorldProbeUBO
 #define sunPosition (lumonFrame.sunPosition.xyz)
 #define sunColor    (lumonFrame.sunColor.xyz)
 #define ambientColor (lumonFrame.ambientColor.xyz)
-
-#endif // LUMON_UBO_ENABLE_ALIASES
 
 #endif // LUMON_UBOS_GLSL

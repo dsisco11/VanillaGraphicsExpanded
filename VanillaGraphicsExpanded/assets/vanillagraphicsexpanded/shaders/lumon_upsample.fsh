@@ -20,7 +20,6 @@ out vec4 outColor;
 @import "./includes/vge_global_defines.glsl"
 
 // Phase 23: shared per-frame state via UBOs.
-#define LUMON_UBO_ENABLE_ALIASES
 @import "./includes/lumon_ubos.glsl"
 
 // Half-resolution indirect diffuse

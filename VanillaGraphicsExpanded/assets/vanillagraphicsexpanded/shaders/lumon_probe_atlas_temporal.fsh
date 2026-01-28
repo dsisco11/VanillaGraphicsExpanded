@@ -29,7 +29,6 @@ layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFlo
 @import "./includes/velocity_common.glsl"
 
 // Phase 23: shared per-frame state via UBOs.
-#define LUMON_UBO_ENABLE_ALIASES
 @import "./includes/lumon_ubos.glsl"
 
 // ============================================================================

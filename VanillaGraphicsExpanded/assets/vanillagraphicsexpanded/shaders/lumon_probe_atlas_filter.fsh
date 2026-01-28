@@ -20,7 +20,6 @@ layout(location = 1) out vec2 outMeta;      // R = filtered confidence, G = uint
 @import "./includes/lumon_probe_atlas_meta.glsl"
 
 // Phase 23: shared per-frame state via UBOs.
-#define LUMON_UBO_ENABLE_ALIASES
 @import "./includes/lumon_ubos.glsl"
 
 // Input stabilized atlas (typically the temporal output for this frame)

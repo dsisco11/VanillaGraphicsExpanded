@@ -6,7 +6,6 @@ layout(location = 0) out vec4 outVelocity;
 @import "./includes/velocity_common.glsl"
 
 // Phase 23: shared per-frame state via UBOs.
-#define LUMON_UBO_ENABLE_ALIASES
 @import "./includes/lumon_ubos.glsl"
 
 // ============================================================================

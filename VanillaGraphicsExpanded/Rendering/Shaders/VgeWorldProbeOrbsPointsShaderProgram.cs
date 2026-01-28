@@ -9,6 +9,7 @@ public sealed class VgeWorldProbeOrbsPointsShaderProgram : GpuProgram
 {
     public VgeWorldProbeOrbsPointsShaderProgram()
     {
+        RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
         RegisterUniformBlockBinding("LumOnWorldProbeUBO", LumOnUniformBuffers.WorldProbeBinding, required: true);
     }
 
@@ -26,7 +27,6 @@ public sealed class VgeWorldProbeOrbsPointsShaderProgram : GpuProgram
     }
 
     public float[] ModelViewProjectionMatrix { set => UniformMatrix("modelViewProjectionMatrix", value); }
-    public float[] InvViewMatrix { set => UniformMatrix("invViewMatrix", value); }
     public Vec3f CameraPos { set => Uniform("cameraPos", value); }
     public Vec3f WorldOffset { set => Uniform("worldOffset", value); }
     public float PointSize { set => Uniform("pointSize", value); }

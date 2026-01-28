@@ -22,7 +22,6 @@ out vec4 outColor;
 @import "./includes/lumon_pbr.glsl"
 
 // Phase 23: shared per-frame state via UBOs.
-#define LUMON_UBO_ENABLE_ALIASES
 @import "./includes/lumon_ubos.glsl"
 
 // ============================================================================

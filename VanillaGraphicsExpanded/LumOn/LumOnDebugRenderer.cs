@@ -905,8 +905,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             shader.TemporalAlpha = lum.TemporalAlpha;
             shader.DepthRejectThreshold = 0.0f;
             shader.NormalRejectThreshold = 0.0f;
-            shader.VelocityRejectThreshold = lum.VelocityRejectThreshold;
-
             // Phase 15 composite params (now compile-time defines)
             shader.IndirectIntensity = lum.Intensity;
             shader.IndirectTint = new Vec3f(lum.IndirectTint[0], lum.IndirectTint[1], lum.IndirectTint[2]);
@@ -1848,7 +1846,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         // Vertices are rebuilt every frame in camera-relative space (world - renderCameraOrigin).
         UpdateCurrentViewProjMatrixNoTranslate();
+        MatrixHelper.Invert(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
         MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invViewMatrix);
+        UpdateAndBindFrameUbo(config.LumOn);
 
         using var cpuScope = Profiler.BeginScope("Debug.WorldProbeOrbsPoints", "Render");
         using (GlGpuProfiler.Instance.Scope("Debug.WorldProbeOrbsPoints"))
@@ -1877,7 +1877,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 shaderUsed = true;
 
                 shader.ModelViewProjectionMatrix = currentViewProjMatrix;
-                shader.InvViewMatrix = invViewMatrix;
                 shader.WorldOffset = new Vec3f(0, 0, 0);
                 shader.CameraPos = new Vec3f(0, 0, 0);
                 shader.PointSize = 18f;
@@ -1915,6 +1914,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     originMinCorner: null,
                     ringOffset: null));
 
+                shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
                 shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
 
                 clipmapProbeOrbsVao.Bind();

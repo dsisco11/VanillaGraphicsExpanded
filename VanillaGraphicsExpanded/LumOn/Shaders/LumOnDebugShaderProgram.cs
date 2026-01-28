@@ -193,12 +193,6 @@ public class LumOnDebugShaderProgram : GpuProgram
     /// </summary>
     public float NormalRejectThreshold { set => Uniform("normalRejectThreshold", value); }
 
-    /// <summary>
-    /// Velocity magnitude scale used by velocity debug views.
-    /// Typically set to config.VelocityRejectThreshold.
-    /// </summary>
-    public float VelocityRejectThreshold { set => Uniform("velocityRejectThreshold", value); }
-
     #endregion
 
     #region Debug Uniforms

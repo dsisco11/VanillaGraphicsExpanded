@@ -53,7 +53,7 @@ LumOn - Phase 23 - Renderer UBO Refactor (Implementation):
   ✔ Create new shader include: VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_ubos.glsl: @done
     - Declare the uniform blocks (std140) and define binding-point constants (binding assigned from C# via glUniformBlockBinding).
     - Provide compatibility aliases/macros so most shader logic doesn’t need refactoring initially.
-  ✔ Update/adjust existing includes to consume UBO fields instead of standalone uniforms (opt-in, backwards compatible): @done
+  ✔ Update/adjust existing includes to consume UBO fields instead of standalone uniforms (UBO-only): @done
     - lumon_worldprobe.glsl (worldProbeCameraPosWS, worldProbeSkyTint, origin/ring arrays) @done
     - lumon_debug_uniforms.glsl (migrate “shared” uniforms into UBO include; keep debug-only controls as plain uniforms) @done
   ✔ Document the UBO contract (block names + field list) in a companion md: @done
