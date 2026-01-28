@@ -2180,57 +2180,66 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        double bestD2 = double.PositiveInfinity;
-        int bestLevel = 0;
-        Vec3i bestIndex = new Vec3i();
-        Vec3d bestPos = new Vec3d();
-
         int levels = clipmapDebugLevels;
         int resolution = clipmapDebugResolution;
         double baseSpacing = clipmapDebugBaseSpacing;
 
+        // Match shader behavior: choose the finest level whose extents contain the target.
+        // Avoid clamping indices for out-of-bounds levels, which can select a probe far from the
+        // actually sampled level (often appearing as a vertical jump near the ground).
+        int selectedLevel = -1;
+        Vec3d selectedOriginAbs = new Vec3d();
+        Vec3d selectedLocal = new Vec3d();
+
         for (int level = 0; level < levels; level++)
         {
-            Vec3d originAbs = clipmapDebugOriginsAbsWorld[level];
             double spacing = baseSpacing * (1 << level);
             if (spacing <= 0) continue;
 
-            Vec3d localCam = LumOnClipmapTopology.WorldToLocal(targetWorld, originAbs, spacing);
-            var idx = new Vec3i(
-                (int)Math.Floor(localCam.X),
-                (int)Math.Floor(localCam.Y),
-                (int)Math.Floor(localCam.Z));
+            Vec3d originAbs = clipmapDebugOriginsAbsWorld[level];
+            Vec3d local = LumOnClipmapTopology.WorldToLocal(targetWorld, originAbs, spacing);
+            bool inside =
+                local.X >= 0 && local.Y >= 0 && local.Z >= 0 &&
+                local.X < resolution && local.Y < resolution && local.Z < resolution;
 
-            idx.X = Math.Clamp(idx.X, 0, resolution - 1);
-            idx.Y = Math.Clamp(idx.Y, 0, resolution - 1);
-            idx.Z = Math.Clamp(idx.Z, 0, resolution - 1);
-
-            Vec3d probeCenter = LumOnClipmapTopology.IndexToProbeCenterWorld(idx, originAbs, spacing);
-
-            double dx = probeCenter.X - targetWorld.X;
-            double dy = probeCenter.Y - targetWorld.Y;
-            double dz = probeCenter.Z - targetWorld.Z;
-            double d2 = (dx * dx) + (dy * dy) + (dz * dz);
-
-            // Prefer finer levels on ties.
-            if (d2 < bestD2 - 1e-12 || (Math.Abs(d2 - bestD2) <= 1e-12 && level < bestLevel))
+            if (inside)
             {
-                bestD2 = d2;
-                bestLevel = level;
-                bestIndex = idx;
-                bestPos = probeCenter;
+                selectedLevel = level;
+                selectedOriginAbs = originAbs;
+                selectedLocal = local;
+                break;
             }
         }
 
-        if (double.IsInfinity(bestD2))
+        if (selectedLevel < 0)
         {
-            return;
+            // If the target is outside all extents (e.g. far selection), fall back to coarsest level with clamping.
+            selectedLevel = Math.Max(0, levels - 1);
+            double spacing = baseSpacing * (1 << selectedLevel);
+            selectedOriginAbs = clipmapDebugOriginsAbsWorld[selectedLevel];
+            selectedLocal = LumOnClipmapTopology.WorldToLocal(targetWorld, selectedOriginAbs, Math.Max(1e-6, spacing));
         }
 
+        double selectedSpacing = baseSpacing * (1 << selectedLevel);
+        var idx = new Vec3i(
+            (int)Math.Floor(selectedLocal.X),
+            (int)Math.Floor(selectedLocal.Y),
+            (int)Math.Floor(selectedLocal.Z));
+        idx.X = Math.Clamp(idx.X, 0, resolution - 1);
+        idx.Y = Math.Clamp(idx.Y, 0, resolution - 1);
+        idx.Z = Math.Clamp(idx.Z, 0, resolution - 1);
+
+        Vec3d probeCenter = LumOnClipmapTopology.IndexToProbeCenterWorld(idx, selectedOriginAbs, selectedSpacing);
+
+        double dx = probeCenter.X - targetWorld.X;
+        double dy = probeCenter.Y - targetWorld.Y;
+        double dz = probeCenter.Z - targetWorld.Z;
+        double bestD2 = (dx * dx) + (dy * dy) + (dz * dz);
+
         closestProbeMarkerPos[0] = new System.Numerics.Vector3(
-            (float)(bestPos.X - renderOriginWorld.X),
-            (float)(bestPos.Y - renderOriginWorld.Y),
-            (float)(bestPos.Z - renderOriginWorld.Z));
+            (float)(probeCenter.X - renderOriginWorld.X),
+            (float)(probeCenter.Y - renderOriginWorld.Y),
+            (float)(probeCenter.Z - renderOriginWorld.Z));
         closestProbeMarkerColor[0] = new ColorVertex { R = 0.1f, G = 1.0f, B = 1.0f, A = 1.0f };
 
         if (closestProbeMarkerPosVbo is not null && closestProbeMarkerPosVbo.IsValid)
@@ -2246,9 +2255,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         }
 
         hasClosestProbeMarker = true;
-        closestProbeMarkerWorldPos = bestPos;
-        closestProbeMarkerLevel = bestLevel;
-        closestProbeMarkerIndex = bestIndex;
+        closestProbeMarkerWorldPos = probeCenter;
+        closestProbeMarkerLevel = selectedLevel;
+        closestProbeMarkerIndex = idx;
         closestProbeMarkerDistanceWorld = Math.Sqrt(bestD2);
     }
 

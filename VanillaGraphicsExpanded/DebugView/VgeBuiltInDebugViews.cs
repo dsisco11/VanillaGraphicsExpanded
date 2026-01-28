@@ -822,6 +822,11 @@ public static class VgeBuiltInDebugViews
             Vec3i bestIndex = new();
             Vec3d bestPos = new();
 
+            // Match shader behavior: choose the finest level whose extents contain the target.
+            int selectedLevel = -1;
+            Vec3d selectedOriginAbs = new();
+            Vec3d selectedLocal = new();
+
             for (int level = 0; level < levels; level++)
             {
                 double spacing = baseSpacingD * (1 << level);
@@ -833,30 +838,54 @@ public static class VgeBuiltInDebugViews
                     camPosWorld.Y + oRel.Y,
                     camPosWorld.Z + oRel.Z);
 
-                Vec3d localCam = LumOnClipmapTopology.WorldToLocal(targetWorld, originAbs, spacing);
-                var idx = new Vec3i(
-                    (int)Math.Floor(localCam.X),
-                    (int)Math.Floor(localCam.Y),
-                    (int)Math.Floor(localCam.Z));
+                Vec3d local = LumOnClipmapTopology.WorldToLocal(targetWorld, originAbs, spacing);
+                bool inside =
+                    local.X >= 0 && local.Y >= 0 && local.Z >= 0 &&
+                    local.X < resolution && local.Y < resolution && local.Z < resolution;
 
+                if (inside)
+                {
+                    selectedLevel = level;
+                    selectedOriginAbs = originAbs;
+                    selectedLocal = local;
+                    break;
+                }
+            }
+
+            if (selectedLevel < 0)
+            {
+                // Target outside all extents (e.g. far selection): fall back to coarsest with clamping.
+                selectedLevel = Math.Max(0, levels - 1);
+                double spacing = baseSpacingD * (1 << selectedLevel);
+                var oRel = (selectedLevel < origins.Length) ? origins[selectedLevel] : default;
+                selectedOriginAbs = new Vec3d(
+                    camPosWorld.X + oRel.X,
+                    camPosWorld.Y + oRel.Y,
+                    camPosWorld.Z + oRel.Z);
+                selectedLocal = LumOnClipmapTopology.WorldToLocal(targetWorld, selectedOriginAbs, Math.Max(1e-6, spacing));
+            }
+
+            if (selectedLevel >= 0)
+            {
+                double spacing = baseSpacingD * (1 << selectedLevel);
+
+                var idx = new Vec3i(
+                    (int)Math.Floor(selectedLocal.X),
+                    (int)Math.Floor(selectedLocal.Y),
+                    (int)Math.Floor(selectedLocal.Z));
                 idx.X = Math.Clamp(idx.X, 0, resolution - 1);
                 idx.Y = Math.Clamp(idx.Y, 0, resolution - 1);
                 idx.Z = Math.Clamp(idx.Z, 0, resolution - 1);
 
-                Vec3d probeCenter = LumOnClipmapTopology.IndexToProbeCenterWorld(idx, originAbs, spacing);
+                Vec3d probeCenter = LumOnClipmapTopology.IndexToProbeCenterWorld(idx, selectedOriginAbs, spacing);
 
                 double dx = probeCenter.X - targetWorld.X;
                 double dy = probeCenter.Y - targetWorld.Y;
                 double dz = probeCenter.Z - targetWorld.Z;
-                double d2 = (dx * dx) + (dy * dy) + (dz * dz);
-
-                if (d2 < bestD2 - 1e-12 || (Math.Abs(d2 - bestD2) <= 1e-12 && level < bestLevel))
-                {
-                    bestD2 = d2;
-                    bestLevel = level;
-                    bestIndex = idx;
-                    bestPos = probeCenter;
-                }
+                bestD2 = (dx * dx) + (dy * dy) + (dz * dz);
+                bestLevel = selectedLevel;
+                bestIndex = idx;
+                bestPos = probeCenter;
             }
 
             if (double.IsInfinity(bestD2))

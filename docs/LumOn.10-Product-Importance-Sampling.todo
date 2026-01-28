@@ -59,23 +59,23 @@ LumOn - Phase 10 - Product Importance Sampling (PIS) for Direction Updates (Impl
 
   Phase 10.4 - PIS Mask Pass (Shader + Program Plumbing):
   Exit artifacts: A probe-resolution shader writes a stable 64-bit trace mask per probe each frame.
-  ☐ Add shader: VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_pis_mask.fsh
-  ☐ Add shader program class under VanillaGraphicsExpanded/LumOn/Shaders:
+  ✔ Add shader: VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_pis_mask.fsh @done
+  ✔ Add shader program class under VanillaGraphicsExpanded/LumOn/Shaders: @done
     - Binds probeAnchorPosition/probeAnchorNormal
     - Binds octahedralHistory (+ optional probeAtlasMetaHistory for confidence)
     - Uses LumOnFrameUBO for frameIndex, matrices, etc.
-  ☐ Implement importance computation (diffuse-only M1):
+  ✔ Implement importance computation (diffuse-only M1): @done
     - Compute per-direction dirWS from octahedral texel center
     - Compute cosN = max(dot(N, dirWS), 0)
     - Li_est = luminance(historyRadiance)
     - conf = history meta confidence (if available), with min weight clamp
     - w_i = Li_est * cosN * confWeight
-  ☐ Implement selection algorithm:
+  ✔ Implement selection algorithm: @done
     - Choose K_importance via weighted-without-replacement (reservoir key method)
     - Choose K_explore via deterministic uniform/batch scheme
     - Ensure uniqueness across the combined set
     - Write maskLo/maskHi as uintBitsToFloat lanes
-  ☐ Define fallback when all weights are ~0 (e.g., purely exploration this frame)
+  ✔ Define fallback when all weights are ~0 (e.g., purely exploration this frame) @done
 
 
   Phase 10.5 - Trace Pass Uses Mask:

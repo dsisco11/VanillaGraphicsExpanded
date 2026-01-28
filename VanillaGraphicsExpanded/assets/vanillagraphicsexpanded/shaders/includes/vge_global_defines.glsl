@@ -82,6 +82,38 @@
   #define VGE_LUMON_SKY_MISS_WEIGHT 0.5
 #endif
 
+// Phase 10: Product Importance Sampling (PIS)
+// Defaults here should keep behavior identical to the legacy batch slicing.
+
+#ifndef VGE_LUMON_PROBE_PIS_ENABLED
+  #define VGE_LUMON_PROBE_PIS_ENABLED 0
+#endif
+
+#ifndef VGE_LUMON_PROBE_PIS_EXPLORE_FRACTION
+  #define VGE_LUMON_PROBE_PIS_EXPLORE_FRACTION 0.25
+#endif
+
+#ifndef VGE_LUMON_PROBE_PIS_EXPLORE_COUNT
+  #define VGE_LUMON_PROBE_PIS_EXPLORE_COUNT -1
+#endif
+
+#ifndef VGE_LUMON_PROBE_PIS_MIN_CONFIDENCE_WEIGHT
+  #define VGE_LUMON_PROBE_PIS_MIN_CONFIDENCE_WEIGHT 0.1
+#endif
+
+#ifndef VGE_LUMON_PROBE_PIS_WEIGHT_EPSILON
+  #define VGE_LUMON_PROBE_PIS_WEIGHT_EPSILON 1e-6
+#endif
+
+// Debug/transition knobs
+#ifndef VGE_LUMON_PROBE_PIS_FORCE_UNIFORM_MASK
+  #define VGE_LUMON_PROBE_PIS_FORCE_UNIFORM_MASK 0
+#endif
+
+#ifndef VGE_LUMON_PROBE_PIS_FORCE_BATCH_SLICING
+  #define VGE_LUMON_PROBE_PIS_FORCE_BATCH_SLICING 0
+#endif
+
 // PBR composite debug view (0 = off)
 #ifndef VGE_PBR_DEBUG_VIEW_MODE
   #define VGE_PBR_DEBUG_VIEW_MODE 0
