@@ -49,12 +49,12 @@ LumOn - Phase 10 - Product Importance Sampling (PIS) for Direction Updates (Impl
 
   Phase 10.3 - GPU Resource + Buffer Management:
   Exit artifacts: Probe-trace mask textures/FBOs are allocated, resized, and disposed correctly.
-  ☐ Allocate “ProbeTraceMask” at probe resolution (probeCountX × probeCountY)
+  ✔ Allocate “ProbeTraceMask” at probe resolution (probeCountX × probeCountY) @done
     - Format: RG32F (two 32-bit lanes used as uint bitfields)
     - Debug label: “LumOn.ProbeTraceMask”
-  ☐ Add a dedicated FBO for the mask pass
-  ☐ Ensure recreation is tied to screen resize and ProbeSpacing changes (same as probe anchors)
-  ☐ Add Swap/clear behavior if needed (should be single-buffer if computed each frame)
+  ✔ Add a dedicated FBO for the mask pass @done
+  ✔ Ensure recreation is tied to screen resize and ProbeSpacing changes (same as probe anchors) @done
+  ✔ Add Swap/clear behavior if needed (should be single-buffer if computed each frame) @done
 
 
   Phase 10.4 - PIS Mask Pass (Shader + Program Plumbing):

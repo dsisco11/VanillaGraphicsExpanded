@@ -41,6 +41,15 @@ public sealed class LumOnBufferManager : IDisposable
     private Rendering.GpuFramebuffer? probeAnchorFbo;
 
     // ═══════════════════════════════════════════════════════════════
+    // Probe Trace Mask (Phase 10)
+    // Probe-resolution selection mask for which atlas texels to trace this frame.
+    // Format: RG32F (two 32-bit lanes used as uint bitfields via uintBitsToFloat).
+    // ═══════════════════════════════════════════════════════════════
+
+    private DynamicTexture2D? probeTraceMaskTex;
+    private Rendering.GpuFramebuffer? probeTraceMaskFbo;
+
+    // ═══════════════════════════════════════════════════════════════
     // Screen-Probe Atlas (2D atlas layout)
     // Implementation detail: octahedral direction mapping per probe tile.
     // Layout: (probeCountX * 8, probeCountY * 8) - tiled 8×8 per probe
@@ -161,6 +170,21 @@ public sealed class LumOnBufferManager : IDisposable
     /// Texture for probe anchor normals (normalVS.xyz, reserved).
     /// </summary>
     public DynamicTexture2D? ProbeAnchorNormalTex => probeAnchorNormalTex;
+
+    // ═══════════════════════════════════════════════════════════════
+    // Probe Trace Mask (Phase 10)
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Probe-resolution trace mask (RG32F) storing two uint bitfields.
+    /// Debug label: <c>LumOn.ProbeTraceMask</c>.
+    /// </summary>
+    public DynamicTexture2D? ProbeTraceMaskTex => probeTraceMaskTex;
+
+    /// <summary>
+    /// FBO for the probe trace mask pass.
+    /// </summary>
+    public Rendering.GpuFramebuffer? ProbeTraceMaskFbo => probeTraceMaskFbo;
 
     // ═══════════════════════════════════════════════════════════════
     // Screen-Probe Atlas (2D atlas)
@@ -407,6 +431,9 @@ public sealed class LumOnBufferManager : IDisposable
         screenProbeAtlasFilteredFbo?.BindAndClear();
         probeSh9Fbo?.BindAndClear();
 
+        // Clear probe trace mask (computed each frame, but keep deterministic on resets).
+        probeTraceMaskFbo?.BindAndClear();
+
         // Clear velocity output (debug/temporal safety on resets)
         velocityFbo?.BindAndClear();
 
@@ -469,6 +496,19 @@ public sealed class LumOnBufferManager : IDisposable
         probeAnchorPositionTex = DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeAnchorPosition");
         probeAnchorNormalTex = DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeAnchorNormal");
         probeAnchorFbo = Rendering.GpuFramebuffer.CreateMRT("ProbeAnchorFBO", probeAnchorPositionTex, probeAnchorNormalTex);
+
+        // ═══════════════════════════════════════════════════════════════
+        // Create Probe Trace Mask (Phase 10)
+        // ═══════════════════════════════════════════════════════════════
+
+        probeTraceMaskTex = DynamicTexture2D.Create(
+            probeCountX,
+            probeCountY,
+            PixelInternalFormat.Rg32f,
+            TextureFilterMode.Nearest,
+            debugName: "LumOn.ProbeTraceMask");
+
+        probeTraceMaskFbo = Rendering.GpuFramebuffer.CreateSingle(probeTraceMaskTex, debugName: "LumOn.ProbeTraceMaskFBO");
 
         // ═══════════════════════════════════════════════════════════════
         // Create Screen-Probe Atlas (2D atlas)
@@ -560,6 +600,7 @@ public sealed class LumOnBufferManager : IDisposable
     {
         // Dispose FBOs (they don't own textures)
         probeAnchorFbo?.Dispose();
+        probeTraceMaskFbo?.Dispose();
         indirectHalfFbo?.Dispose();
         indirectFullFbo?.Dispose();
         capturedSceneFbo?.Dispose();
@@ -572,6 +613,7 @@ public sealed class LumOnBufferManager : IDisposable
         hzbFbo?.Dispose();
 
         probeAnchorFbo = null;
+        probeTraceMaskFbo = null;
         indirectHalfFbo = null;
         indirectFullFbo = null;
         capturedSceneFbo = null;
@@ -586,6 +628,7 @@ public sealed class LumOnBufferManager : IDisposable
         // Dispose 2D textures
         probeAnchorPositionTex?.Dispose();
         probeAnchorNormalTex?.Dispose();
+        probeTraceMaskTex?.Dispose();
         indirectHalfTex?.Dispose();
         indirectFullTex?.Dispose();
         capturedSceneTex?.Dispose();
@@ -611,6 +654,7 @@ public sealed class LumOnBufferManager : IDisposable
 
         probeAnchorPositionTex = null;
         probeAnchorNormalTex = null;
+        probeTraceMaskTex = null;
         indirectHalfTex = null;
         indirectFullTex = null;
         capturedSceneTex = null;
