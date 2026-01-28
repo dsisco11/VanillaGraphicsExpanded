@@ -103,6 +103,11 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
     public GpuTexture? ScreenProbeAtlasMetaHistory { set => BindTexture2D("probeAtlasMetaHistory", value, 7); }
 
     /// <summary>
+    /// Probe-resolution trace mask (RG32F packed uint bits) selecting which atlas texels to trace.
+    /// </summary>
+    public GpuTexture? ProbeTraceMask { set => BindTexture2D("probeTraceMask", value, 9); }
+
+    /// <summary>
     /// Optional HZB depth pyramid (mipmapped R32F).
     /// </summary>
     public GpuTexture? HzbDepth { set => BindTexture2D("hzbDepth", value, 6); }

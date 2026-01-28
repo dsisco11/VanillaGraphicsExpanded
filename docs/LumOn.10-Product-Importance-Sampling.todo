@@ -80,14 +80,14 @@ LumOn - Phase 10 - Product Importance Sampling (PIS) for Direction Updates (Impl
 
   Phase 10.5 - Trace Pass Uses Mask:
   Exit artifacts: The atlas trace pass traces exactly the masked texels and preserves others.
-  ☐ Update shader: VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_trace.fsh
+  ✔ Update shader: VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_trace.fsh @done
     - Add sampler2D probeTraceMask (probe-resolution)
     - Replace shouldTraceThisFrame(octTexel, probeIndex) with mask lookup by texelIndex
     - Preserve existing batch slicing behind a fallback path (PIS disabled/mask invalid)
-  ☐ Update shader program plumbing (LumOnScreenProbeAtlasTraceShaderProgram):
+  ✔ Update shader program plumbing (LumOnScreenProbeAtlasTraceShaderProgram): @done
     - Bind probeTraceMask sampler
     - Ensure bindings don’t collide with existing units
-  ☐ Verify trace output remains identical when PIS is disabled (bitwise where possible)
+  ✔ Verify trace output remains identical when PIS is disabled (bitwise where possible) @done
 
 
   Phase 10.6 - Temporal Pass Uses Mask:

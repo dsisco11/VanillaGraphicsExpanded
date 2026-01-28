@@ -39,6 +39,10 @@ layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFlo
 uniform sampler2D probeAnchorPosition;  // posWS.xyz, valid
 uniform sampler2D probeAnchorNormal;    // normalWS.xyz, reserved
 
+// Phase 10: probe-resolution trace mask (RG32F packed uint bits).
+// When present and valid, it replaces legacy batch slicing.
+uniform sampler2D probeTraceMask;
+
 // Scene textures for ray marching
 uniform sampler2D primaryDepth;
 // Radiance sources (linear, pre-tonemap HDR)
@@ -71,7 +75,7 @@ uniform sampler2D probeAtlasMetaHistory;
  * Determine if this texel should be traced this frame.
  * Uses frame index and texel position to distribute tracing over time.
  */
-bool shouldTraceThisFrame(ivec2 octTexel, int probeIndex) {
+bool legacyShouldTraceThisFrame(ivec2 octTexel, int probeIndex) {
     // Linear texel index within the probe's 8×8 tile
     int texelIndex = octTexel.y * LUMON_OCTAHEDRAL_SIZE + octTexel.x;
     
@@ -84,6 +88,23 @@ bool shouldTraceThisFrame(ivec2 octTexel, int probeIndex) {
     int jitteredFrame = (frameIndex + probeIndex) % numBatches;
     
     return batch == jitteredFrame;
+}
+
+bool maskIsValid(uvec2 maskBits)
+{
+    // An all-zero mask should never happen in the real mask pass (it must select K>0 texels).
+    // Treat it as "mask invalid" so we fall back to the legacy batch slicing.
+    return (maskBits.x | maskBits.y) != 0u;
+}
+
+bool maskShouldTraceTexel(uvec2 maskBits, int texelIndex)
+{
+    texelIndex = clamp(texelIndex, 0, (LUMON_OCTAHEDRAL_SIZE * LUMON_OCTAHEDRAL_SIZE) - 1);
+    if (texelIndex < 32)
+    {
+        return ((maskBits.x >> uint(texelIndex)) & 1u) != 0u;
+    }
+    return ((maskBits.y >> uint(texelIndex - 32)) & 1u) != 0u;
 }
 
 // ============================================================================
@@ -188,7 +209,24 @@ void main(void)
     int probeIndex = probeCoord.y * probeGridSizeI.x + probeCoord.x;
     
     // Check if we should trace this texel this frame (temporal distribution)
-    if (!shouldTraceThisFrame(octTexel, probeIndex)) {
+    int texelIndex = octTexel.y * LUMON_OCTAHEDRAL_SIZE + octTexel.x;
+
+    // Default to legacy batch slicing.
+    bool shouldTrace = legacyShouldTraceThisFrame(octTexel, probeIndex);
+
+    // If PIS is enabled, prefer the probe-resolution mask.
+    // Preserve legacy behavior when forced or if the mask appears invalid.
+#if (VGE_LUMON_PROBE_PIS_ENABLED == 1) && (VGE_LUMON_PROBE_PIS_FORCE_BATCH_SLICING == 0)
+    vec2 maskPacked = texelFetch(probeTraceMask, probeCoord, 0).xy;
+    uvec2 maskBits = uvec2(floatBitsToUint(maskPacked.x), floatBitsToUint(maskPacked.y));
+
+    if (maskIsValid(maskBits))
+    {
+        shouldTrace = maskShouldTraceTexel(maskBits, texelIndex);
+    }
+#endif
+
+    if (!shouldTrace) {
         // Keep history value - don't trace this frame
         vec2 atlasUV = (vec2(atlasCoord) + 0.5) / (probeGridSize * float(LUMON_OCTAHEDRAL_SIZE));
         outRadiance = texture(octahedralHistory, atlasUV);

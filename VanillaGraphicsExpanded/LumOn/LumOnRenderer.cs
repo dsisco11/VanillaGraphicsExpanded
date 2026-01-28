@@ -668,6 +668,9 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
         shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex!;
 
+        // Phase 10: bind probe-resolution trace mask (when PIS is enabled, shader will prefer it).
+        shader.ProbeTraceMask = bufferManager.ProbeTraceMaskTex;
+
         // Bind scene depth for ray marching
         shader.PrimaryDepth = primaryFb.DepthTextureId;
 
