@@ -124,7 +124,7 @@ public static class GlslKeywords
 /// </summary>
 public sealed class GlFunctionNode : SyntaxNode, INamedNode, IBlockContainerNode
 {
-    protected GlFunctionNode(CreationContext context)
+    internal GlFunctionNode(CreationContext context)
         : base(context) { }
 
     /// <summary>Return type node (e.g., "void", "vec4").</summary>
@@ -167,7 +167,7 @@ public sealed class GlFunctionNode : SyntaxNode, INamedNode, IBlockContainerNode
 /// </summary>
 public sealed class GlDirectiveNode : SyntaxNode, INamedNode
 {
-    protected GlDirectiveNode(CreationContext context)
+    internal GlDirectiveNode(CreationContext context)
         : base(context) { }
 
     /// <summary>The directive tag node (e.g., "#version").</summary>
@@ -190,7 +190,7 @@ public sealed class GlDirectiveNode : SyntaxNode, INamedNode
 
 public sealed class GlImportNode : SyntaxNode, INamedNode
 {
-    protected GlImportNode(CreationContext context)
+    internal GlImportNode(CreationContext context)
         : base(context) { }
 
     /// <summary>The directive tag node (e.g., "#version").</summary>
@@ -214,7 +214,7 @@ public sealed class GlImportNode : SyntaxNode, INamedNode
 /// </summary>
 public sealed class GlUniformNode : SyntaxNode, INamedNode
 {
-    protected GlUniformNode(CreationContext context)
+    internal GlUniformNode(CreationContext context)
         : base(context) { }
 
     /// <summary>The "uniform" keyword token.</summary>
@@ -268,7 +268,7 @@ public sealed class GlUniformNode : SyntaxNode, INamedNode
 // e.g., variable declarations, function calls, etc.
 public sealed class GlStatementNode : SyntaxNode
 {
-    protected GlStatementNode(CreationContext context)
+    internal GlStatementNode(CreationContext context)
         : base(context) { }
 }
 

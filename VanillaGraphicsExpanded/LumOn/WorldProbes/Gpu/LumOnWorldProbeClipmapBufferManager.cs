@@ -86,7 +86,7 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
     {
         if (!hasRuntimeParams)
         {
-            cameraPosWorld = default;
+            cameraPosWorld = new Vec3d();
             cameraPosWS = default;
             baseSpacing = 0;
             levels = 0;

@@ -23,7 +23,7 @@ public sealed class DiskBlobCacheStore : ICacheStore, IDisposable
     private DiskCacheIndex index;
 
     public DiskBlobCacheStore(string rootDirectory)
-        : this(rootDirectory, fileSystem: null)
+        : this(rootDirectory, (IDiskCacheFileSystem?)null, debounceDelay: null)
     {
     }
 
