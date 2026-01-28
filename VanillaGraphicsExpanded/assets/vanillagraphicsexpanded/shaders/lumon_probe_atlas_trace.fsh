@@ -238,6 +238,7 @@ void main(void)
     } else {
         // Miss fallback:
         // - First try world-probes (represents "scene" / off-screen lighting).
+        //   This is a directional sample from the world-probe radiance atlas; alpha sign encodes sky visibility.
         // - If unavailable, fall back to the legacy sky approximation.
 #if VGE_LUMON_WORLDPROBE_ENABLED
         LumOnWorldProbeRadianceSample wp = lumonWorldProbeSampleClipmapRadianceBound(probePosWS, rayDirWS);

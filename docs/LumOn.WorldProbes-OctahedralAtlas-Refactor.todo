@@ -103,7 +103,7 @@ LumOn - World Probes - Refactor to Octahedral Atlas (Replace SH)
 
   Phase 4 - Shader Sampling + GI Evaluation (Atlas Integration)
   Exit artifacts: Shaders sample world-probe atlas for directional radiance and diffuse irradiance, with sky applied via uniform.
-  ☐ Rewrite `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_worldprobe.glsl`:
+  ✔ Rewrite `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_worldprobe.glsl`: @done
     - Replace SH decode/eval with octahedral atlas sampling functions
     - Add `lumonWorldProbeSampleLevelDirectional()`:
       - compute atlasCoord from (probeIndex, dirWS) -> octUV -> texel
@@ -113,10 +113,10 @@ LumOn - World Probes - Refactor to Octahedral Atlas (Replace SH)
       - integrate over hemisphere aligned to pixel normal
       - recommended default: stride sampling (e.g., 2) to keep gather cost bounded
       - accumulate sky visibility separately; apply `worldProbeSkyTint * skyIntensity * skyVisibility`
-  ☐ Update world-probe radiance fallback used by screen-probe tracer:
+  ✔ Update world-probe radiance fallback used by screen-probe tracer: @done
     - `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_trace.fsh`
     - Keep behavior: miss -> world-probe directional sample -> else legacy sky
-  ☐ Update debug views that currently assume SH textures:
+  ✔ Update debug views that currently assume SH textures: @done
     - `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_debug_worldprobe.glsl`
     - `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/vge_worldprobe_orbs_points.fsh`
 

@@ -49,22 +49,36 @@ void main(void)
     vec4 dbg = texelFetch(worldProbeDebugState0, ac, 0);
     bool disabled = (dbg.r > 0.5) && (dbg.b > 0.5) && (dbg.g < 0.5);
 
-    vec4 t0 = texelFetch(worldProbeSH0, ac, 0);
-    vec4 t1 = texelFetch(worldProbeSH1, ac, 0);
-    vec4 t2 = texelFetch(worldProbeSH2, ac, 0);
+    // Decode storage index + level from the scalar atlas coordinate.
+    int resolution = VGE_LUMON_WORLDPROBE_RESOLUTION;
+    int u = ac.x;
+    int v = ac.y;
+    int storageX = (resolution > 0) ? (u % resolution) : 0;
+    int storageZ = (resolution > 0) ? (u / resolution) : 0;
+    int storageY = (resolution > 0) ? (v % resolution) : 0;
+    int level = (resolution > 0) ? (v / resolution) : 0;
+    ivec3 storage = ivec3(storageX, storageY, storageZ);
 
-    vec4 shR, shG, shB;
-    lumonWorldProbeDecodeShL1(t0, t1, t2, shR, shG, shB);
-
-    // Envmap-style visualization (specular-like): evaluate SH in the reflection direction.
-    // Note: the world-probe cache stores low-order SH (L1), so this is intentionally low-frequency.
-    vec3 reflBlock = shEvaluateRGB(shR, shG, shB, R);
-
-    vec4 shSky = texelFetch(worldProbeSky0, ac, 0);
     float skyIntensity = clamp(texelFetch(worldProbeVis0, ac, 0).z, 0.0, 1.0);
-    float reflSky = shEvaluate(shSky, R) * skyIntensity;
 
-    vec3 refl = max(reflBlock, vec3(0.0)) + max(reflSky, 0.0) * max(lumonWorldProbeGetSkyTint(), vec3(0.0));
+    // Envmap-style visualization: sample directional radiance from the octahedral tile.
+    ivec2 octTexel = lumonWorldProbeDirectionToOctahedralTexel(R);
+    vec4 t = lumonWorldProbeFetchRadianceAtlasTexel(
+        worldProbeRadianceAtlas,
+        storage,
+        level,
+        resolution,
+        octTexel);
+
+    vec3 refl;
+    if (lumonWorldProbeIsSkyVisible(t.a))
+    {
+        refl = max(lumonWorldProbeGetSkyTint(), vec3(0.0)) * skyIntensity;
+    }
+    else
+    {
+        refl = max(t.rgb, vec3(0.0));
+    }
 
     // Simple Fresnel to make the orb read as a reflective sphere.
     float F0 = 0.04;

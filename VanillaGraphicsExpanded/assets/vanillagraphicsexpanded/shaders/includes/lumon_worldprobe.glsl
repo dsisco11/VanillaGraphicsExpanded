@@ -17,7 +17,6 @@
 // Dependencies
 @import "./lumon_octahedral.glsl"
 @import "./lumon_worldprobe_atlas.glsl"
-@import "./lumon_sh.glsl"
 
 // Optional UBO contracts (Phase 23).
 @import "./lumon_ubos.glsl"
@@ -51,6 +50,10 @@
 // Shared uniforms
 // ---------------------------------------------------------------------------
 
+// World-probe radiance atlas (RGBA16F): RGB=radiance, A=signed log(dist+1)
+// NOTE: Phase 5 will bind this explicitly. Until then, we alias it to the legacy binding.
+uniform sampler2D worldProbeRadianceAtlas;
+
 uniform sampler2D worldProbeSH0;
 uniform sampler2D worldProbeSH1;
 uniform sampler2D worldProbeSH2;
@@ -58,6 +61,10 @@ uniform sampler2D worldProbeVis0;
 uniform sampler2D worldProbeDist0;
 uniform sampler2D worldProbeMeta0;
 uniform sampler2D worldProbeSky0;
+
+#ifndef VGE_LUMON_BIND_WORLDPROBE_RADIANCE_ATLAS
+	#define worldProbeRadianceAtlas worldProbeSH0
+#endif
 
 vec3 lumonWorldProbeGetSkyTint() { return lumonWorldProbe.worldProbeSkyTint.xyz; }
 vec3 lumonWorldProbeGetCameraPosWS() { return lumonWorldProbe.worldProbeCameraPosWS.xyz; }
@@ -151,25 +158,56 @@ ivec2 lumonWorldProbeAtlasCoord(ivec3 storageIndex, int level, int resolution)
 	return ivec2(u, v);
 }
 
-void lumonWorldProbeDecodeShL1(
-	vec4 t0,
-	vec4 t1,
-	vec4 t2,
-	out vec4 shR,
-	out vec4 shG,
-	out vec4 shB)
+// ---------------------------------------------------------------------------
+// Radiance atlas helpers (octahedral tiles)
+// ---------------------------------------------------------------------------
+
+const float LUMON_PI = 3.141592653589793;
+
+vec2 lumonWorldProbeTexelCoordToOctahedralUV(ivec2 texelCoord)
 {
-	// Inverse of lumon_worldprobe_clipmap_resolve.fsh packing.
-	shR = vec4(t0.x, t0.w, t1.z, t2.y);
-	shG = vec4(t0.y, t1.x, t1.w, t2.z);
-	shB = vec4(t0.z, t1.y, t2.x, t2.w);
+	return (vec2(texelCoord) + 0.5) / LUMON_WORLDPROBE_OCTAHEDRAL_SIZE_F;
 }
 
-void lumonWorldProbeAccumulateCorner(
-	sampler2D probeSH0,
-	sampler2D probeSH1,
-	sampler2D probeSH2,
-	sampler2D probeSky0,
+ivec2 lumonWorldProbeDirectionToOctahedralTexel(vec3 dir)
+{
+	vec2 uv = lumonDirectionToOctahedralUV(normalize(dir));
+	ivec2 texel = ivec2(uv * LUMON_WORLDPROBE_OCTAHEDRAL_SIZE_F);
+	texel = clamp(texel, ivec2(0), ivec2(LUMON_WORLDPROBE_OCTAHEDRAL_SIZE_I - 1));
+	return texel;
+}
+
+ivec2 lumonWorldProbeRadianceAtlasTileOrigin(ivec3 storageIndex, int level, int resolution)
+{
+	int s = LUMON_WORLDPROBE_OCTAHEDRAL_SIZE_I;
+	int tileU0 = (storageIndex.x + storageIndex.z * resolution) * s;
+	int tileV0 = (storageIndex.y + level * resolution) * s;
+	return ivec2(tileU0, tileV0);
+}
+
+vec4 lumonWorldProbeFetchRadianceAtlasTexel(
+	sampler2D radianceAtlas,
+	ivec3 storageIndex,
+	int level,
+	int resolution,
+	ivec2 octTexel)
+{
+	ivec2 tile0 = lumonWorldProbeRadianceAtlasTileOrigin(storageIndex, level, resolution);
+	ivec2 atlasTexel = tile0 + octTexel;
+	return texelFetch(radianceAtlas, atlasTexel, 0);
+}
+
+bool lumonWorldProbeIsSkyVisible(float alphaSigned)
+{
+	return alphaSigned < 0.0;
+}
+
+float lumonWorldProbeDecodeHitDistanceSigned(float alphaSigned)
+{
+	return exp(abs(alphaSigned)) - 1.0;
+}
+
+void lumonWorldProbeAccumulateCornerScalars(
 	sampler2D probeVis0,
 	sampler2D probeMeta0,
 	ivec3 localIdx,
@@ -177,49 +215,31 @@ void lumonWorldProbeAccumulateCorner(
 	int resolution,
 	int level,
 	float wt,
-	inout vec4 shR,
-	inout vec4 shG,
-	inout vec4 shB,
-	inout vec4 shSky,
-	inout float skyIntensityAccum,
+	out ivec3 outStorage,
+	out float outW,
+	inout float metaConfAccum,
 	inout vec3 aoDirAccum,
 	inout float aoConfAccum,
-	inout float metaConfAccum)
+	inout float skyIntensityAccum)
 {
-	ivec3 storage = lumonWorldProbeWrapIndex(localIdx + ring, resolution);
-	ivec2 ac = lumonWorldProbeAtlasCoord(storage, level, resolution);
+	outStorage = lumonWorldProbeWrapIndex(localIdx + ring, resolution);
+	ivec2 ac = lumonWorldProbeAtlasCoord(outStorage, level, resolution);
 
 	vec2 meta = texelFetch(probeMeta0, ac, 0).xy;
 	float conf = clamp(meta.x, 0.0, 1.0);
 
-	// Weight samples by confidence so uninitialized/disabled probes (conf=0) don't
-	// darken interpolated results. Normalization happens in the caller.
-	float w = wt * conf;
-	metaConfAccum += w;
-	if (w <= 0.0)
+	outW = wt * conf;
+	metaConfAccum += outW;
+	if (outW <= 0.0)
 	{
 		return;
 	}
 
-	vec4 t0 = texelFetch(probeSH0, ac, 0);
-	vec4 t1 = texelFetch(probeSH1, ac, 0);
-	vec4 t2 = texelFetch(probeSH2, ac, 0);
-
-	vec4 cR, cG, cB;
-	lumonWorldProbeDecodeShL1(t0, t1, t2, cR, cG, cB);
-
-	shR += cR * w;
-	shG += cG * w;
-	shB += cB * w;
-
-	vec4 sky = texelFetch(probeSky0, ac, 0);
-	shSky += sky * w;
-
 	vec4 vis = texelFetch(probeVis0, ac, 0);
 	vec3 aoDir = lumonOctahedralUVToDirection(vis.xy);
-	aoDirAccum += aoDir * w;
-	skyIntensityAccum += clamp(vis.z, 0.0, 1.0) * w;
-	aoConfAccum += clamp(vis.w, 0.0, 1.0) * w;
+	aoDirAccum += aoDir * outW;
+	skyIntensityAccum += clamp(vis.z, 0.0, 1.0) * outW;
+	aoConfAccum += clamp(vis.w, 0.0, 1.0) * outW;
 }
 
 LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
@@ -279,24 +299,22 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 	float w011 = wx0 * wy1 * wz1;
 	float w111 = wx1 * wy1 * wz1;
 
-	vec4 shR = vec4(0.0);
-	vec4 shG = vec4(0.0);
-	vec4 shB = vec4(0.0);
-	vec4 shSky = vec4(0.0);
 	float skyIntensityAccum = 0.0;
-
 	vec3 aoDirAccum = vec3(0.0);
 	float aoConfAccum = 0.0;
 	float metaConfAccum = 0.0;
 
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i0.z), ring, resolution, level, w000, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i0.z), ring, resolution, level, w100, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i0.z), ring, resolution, level, w010, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i0.z), ring, resolution, level, w110, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i1.z), ring, resolution, level, w001, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i1.z), ring, resolution, level, w101, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i1.z), ring, resolution, level, w011, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i1.z), ring, resolution, level, w111, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
+	ivec3 cornerStorage[8];
+	float cornerW[8];
+
+	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i0.x, i0.y, i0.z), ring, resolution, level, w000, cornerStorage[0], cornerW[0], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i1.x, i0.y, i0.z), ring, resolution, level, w100, cornerStorage[1], cornerW[1], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i0.x, i1.y, i0.z), ring, resolution, level, w010, cornerStorage[2], cornerW[2], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i1.x, i1.y, i0.z), ring, resolution, level, w110, cornerStorage[3], cornerW[3], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i0.x, i0.y, i1.z), ring, resolution, level, w001, cornerStorage[4], cornerW[4], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i1.x, i0.y, i1.z), ring, resolution, level, w101, cornerStorage[5], cornerW[5], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i0.x, i1.y, i1.z), ring, resolution, level, w011, cornerStorage[6], cornerW[6], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i1.x, i1.y, i1.z), ring, resolution, level, w111, cornerStorage[7], cornerW[7], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
 
 	if (metaConfAccum <= 1e-6)
 	{
@@ -304,10 +322,6 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 	}
 
 	float invW = 1.0 / metaConfAccum;
-	shR *= invW;
-	shG *= invW;
-	shB *= invW;
-	shSky *= invW;
 	skyIntensityAccum *= invW;
 	aoDirAccum *= invW;
 	aoConfAccum *= invW;
@@ -324,13 +338,70 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 		? normalize(mix(normalWS, aoDir, aoConf))
 		: normalWS;
 
-	// Evaluate SH in WORLD space.
-	vec3 irradianceBlock = shEvaluateDiffuseRGB(shR, shG, shB, bentNormalWS);
-	float irradianceSkyVisibility = shEvaluateDiffuse(shSky, bentNormalWS);
+	// Diffuse integration over the radiance atlas. We sample all SxS directions with a stride
+	// to bound gather cost.
+#ifndef VGE_LUMON_WORLDPROBE_DIFFUSE_STRIDE
+	#define VGE_LUMON_WORLDPROBE_DIFFUSE_STRIDE 2
+#endif
+	int stride = max(1, VGE_LUMON_WORLDPROBE_DIFFUSE_STRIDE);
+
+	vec3 sumBlock = vec3(0.0);
+	float sumSkyVis = 0.0;
+	float sumCos = 0.0;
+
+	for (int oy = 0; oy < LUMON_WORLDPROBE_OCTAHEDRAL_SIZE_I; oy += stride)
+	{
+		for (int ox = 0; ox < LUMON_WORLDPROBE_OCTAHEDRAL_SIZE_I; ox += stride)
+		{
+			ivec2 octTexel = ivec2(ox, oy);
+			vec2 octUV = lumonWorldProbeTexelCoordToOctahedralUV(octTexel);
+			vec3 dirWS = lumonOctahedralUVToDirection(octUV);
+
+			float cw = max(dot(dirWS, bentNormalWS), 0.0);
+			if (cw <= 1e-6) continue;
+			sumCos += cw;
+
+			vec3 blockDirAccum = vec3(0.0);
+			float skyVisAccum = 0.0;
+
+			for (int c = 0; c < 8; c++)
+			{
+				float w = cornerW[c];
+				if (w <= 0.0) continue;
+
+				vec4 t = lumonWorldProbeFetchRadianceAtlasTexel(
+					probeSH0,
+					cornerStorage[c],
+					level,
+					resolution,
+					octTexel);
+
+				if (lumonWorldProbeIsSkyVisible(t.a))
+				{
+					skyVisAccum += w;
+				}
+				else
+				{
+					blockDirAccum += max(t.rgb, vec3(0.0)) * w;
+				}
+			}
+
+			sumBlock += (blockDirAccum * invW) * cw;
+			sumSkyVis += (skyVisAccum * invW) * cw;
+		}
+	}
+
 	float skyIntensity = clamp(skyIntensityAccum, 0.0, 1.0);
-	vec3 skyTint = lumonWorldProbeGetSkyTint();
-	vec3 irradiance = max(irradianceBlock, vec3(0.0)) + skyTint * (max(irradianceSkyVisibility, 0.0) * skyIntensity);
-	irradiance = max(irradiance, vec3(0.0));
+	vec3 skyTint = max(lumonWorldProbeGetSkyTint(), vec3(0.0));
+
+	vec3 irradiance = vec3(0.0);
+	if (sumCos > 1e-6)
+	{
+		vec3 avgBlock = sumBlock / sumCos;
+		float avgSkyVis = sumSkyVis / sumCos;
+		irradiance = avgBlock * LUMON_PI + skyTint * (skyIntensity * avgSkyVis * LUMON_PI);
+		irradiance = max(irradiance, vec3(0.0));
+	}
 
 	// ShortRangeAO is a leak-reduction factor applied to irradiance only; it should not 
 	// tank confidence, otherwise world-probes get blended out in enclosed spaces.
@@ -398,24 +469,22 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleLevelTrilinearRadiance(
 	float w011 = wx0 * wy1 * wz1;
 	float w111 = wx1 * wy1 * wz1;
 
-	vec4 shR = vec4(0.0);
-	vec4 shG = vec4(0.0);
-	vec4 shB = vec4(0.0);
-	vec4 shSky = vec4(0.0);
 	float skyIntensityAccum = 0.0;
-
 	vec3 aoDirAccum = vec3(0.0);
 	float aoConfAccum = 0.0;
 	float metaConfAccum = 0.0;
 
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i0.z), ring, resolution, level, w000, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i0.z), ring, resolution, level, w100, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i0.z), ring, resolution, level, w010, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i0.z), ring, resolution, level, w110, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i1.z), ring, resolution, level, w001, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i1.z), ring, resolution, level, w101, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i1.z), ring, resolution, level, w011, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
-	lumonWorldProbeAccumulateCorner(probeSH0, probeSH1, probeSH2, probeSky0, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i1.z), ring, resolution, level, w111, shR, shG, shB, shSky, skyIntensityAccum, aoDirAccum, aoConfAccum, metaConfAccum);
+	ivec3 cornerStorage[8];
+	float cornerW[8];
+
+	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i0.x, i0.y, i0.z), ring, resolution, level, w000, cornerStorage[0], cornerW[0], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i1.x, i0.y, i0.z), ring, resolution, level, w100, cornerStorage[1], cornerW[1], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i0.x, i1.y, i0.z), ring, resolution, level, w010, cornerStorage[2], cornerW[2], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i1.x, i1.y, i0.z), ring, resolution, level, w110, cornerStorage[3], cornerW[3], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i0.x, i0.y, i1.z), ring, resolution, level, w001, cornerStorage[4], cornerW[4], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i1.x, i0.y, i1.z), ring, resolution, level, w101, cornerStorage[5], cornerW[5], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i0.x, i1.y, i1.z), ring, resolution, level, w011, cornerStorage[6], cornerW[6], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i1.x, i1.y, i1.z), ring, resolution, level, w111, cornerStorage[7], cornerW[7], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
 
 	if (metaConfAccum <= 1e-6)
 	{
@@ -423,22 +492,43 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleLevelTrilinearRadiance(
 	}
 
 	float invW = 1.0 / metaConfAccum;
-	shR *= invW;
-	shG *= invW;
-	shB *= invW;
-	shSky *= invW;
 	skyIntensityAccum *= invW;
 	aoDirAccum *= invW;
 	aoConfAccum *= invW;
 
-	float aoConf = clamp(aoConfAccum, 0.0, 1.0);
+	ivec2 octTexel = lumonWorldProbeDirectionToOctahedralTexel(dirWS);
 
-	// Evaluate SH in WORLD space.
-	vec3 radianceBlock = shEvaluateRGB(shR, shG, shB, dirWS);
-	float radianceSkyVisibility = shEvaluate(shSky, dirWS);
+	vec3 blockDirAccum = vec3(0.0);
+	float skyVisAccum = 0.0;
+
+	for (int c = 0; c < 8; c++)
+	{
+		float w = cornerW[c];
+		if (w <= 0.0) continue;
+
+		vec4 t = lumonWorldProbeFetchRadianceAtlasTexel(
+			probeSH0,
+			cornerStorage[c],
+			level,
+			resolution,
+			octTexel);
+
+		if (lumonWorldProbeIsSkyVisible(t.a))
+		{
+			skyVisAccum += w;
+		}
+		else
+		{
+			blockDirAccum += max(t.rgb, vec3(0.0)) * w;
+		}
+	}
+
 	float skyIntensity = clamp(skyIntensityAccum, 0.0, 1.0);
-	vec3 skyTint = lumonWorldProbeGetSkyTint();
-	vec3 radiance = max(radianceBlock, vec3(0.0)) + skyTint * (max(radianceSkyVisibility, 0.0) * skyIntensity);
+	vec3 skyTint = max(lumonWorldProbeGetSkyTint(), vec3(0.0));
+
+	vec3 radianceBlock = blockDirAccum * invW;
+	float skyVis = skyVisAccum * invW;
+	vec3 radiance = radianceBlock + skyTint * (skyIntensity * skyVis);
 	radiance = max(radiance, vec3(0.0));
 
 	float conf = clamp(metaConfAccum, 0.0, 1.0);
