@@ -10,7 +10,7 @@ internal sealed class ChunkWorkItem<TArtifact> : IChunkWorkItem
     private readonly ChunkKey key;
     private readonly int version;
     private readonly IChunkProcessor<TArtifact> processor;
-    private readonly IChunkSnapshotSource snapshotSource;
+    private readonly ChunkProcessingService snapshotLeaseProvider;
     private readonly IChunkVersionProvider versionProvider;
     private readonly CancellationToken callerCancellationToken;
     private readonly TaskCompletionSource<ChunkWorkResult<TArtifact>> tcs;
@@ -21,7 +21,7 @@ internal sealed class ChunkWorkItem<TArtifact> : IChunkWorkItem
         ChunkKey key,
         int version,
         IChunkProcessor<TArtifact> processor,
-        IChunkSnapshotSource snapshotSource,
+        ChunkProcessingService snapshotLeaseProvider,
         IChunkVersionProvider versionProvider,
         CancellationToken callerCancellationToken,
         TaskCompletionSource<ChunkWorkResult<TArtifact>> tcs,
@@ -31,7 +31,7 @@ internal sealed class ChunkWorkItem<TArtifact> : IChunkWorkItem
         this.key = key;
         this.version = version;
         this.processor = processor ?? throw new ArgumentNullException(nameof(processor));
-        this.snapshotSource = snapshotSource ?? throw new ArgumentNullException(nameof(snapshotSource));
+        this.snapshotLeaseProvider = snapshotLeaseProvider ?? throw new ArgumentNullException(nameof(snapshotLeaseProvider));
         this.versionProvider = versionProvider ?? throw new ArgumentNullException(nameof(versionProvider));
         this.callerCancellationToken = callerCancellationToken;
         this.tcs = tcs ?? throw new ArgumentNullException(nameof(tcs));
@@ -117,7 +117,7 @@ internal sealed class ChunkWorkItem<TArtifact> : IChunkWorkItem
             IChunkSnapshot? snapshot;
             try
             {
-                snapshot = await snapshotSource.TryCreateSnapshotAsync(key, version, ct).ConfigureAwait(false);
+                snapshot = await snapshotLeaseProvider.TryAcquireSnapshotLeaseAsync(key, version, ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {

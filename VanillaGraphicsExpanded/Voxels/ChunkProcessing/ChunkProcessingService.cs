@@ -11,6 +11,10 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
     private readonly IChunkSnapshotSource snapshotSource;
     private readonly IChunkVersionProvider versionProvider;
 
+    private readonly ConcurrentDictionary<SnapshotKey, SharedSnapshotEntry> snapshots = new();
+
+    private long snapshotBytesInUse;
+
     private readonly Channel<IChunkWorkItem> work;
 
     private readonly ConcurrentDictionary<ArtifactKey, Task> inFlight = new();
@@ -53,6 +57,8 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
             workers[i] = Task.Run(WorkerLoop);
         }
     }
+
+    internal long SnapshotBytesInUse => Interlocked.Read(ref snapshotBytesInUse);
 
     public Task<ChunkWorkResult<TArtifact>> RequestAsync<TArtifact>(
         ChunkKey key,
@@ -165,7 +171,7 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
                 key: key,
                 version: version,
                 processor: processor,
-                snapshotSource: snapshotSource,
+                snapshotLeaseProvider: this,
                 versionProvider: versionProvider,
                 callerCancellationToken: ct,
                 tcs: tcs,
@@ -273,5 +279,58 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
         {
             // Swallow for now; higher-level integration will add logging.
         }
+    }
+
+    internal ValueTask<IChunkSnapshot?> TryAcquireSnapshotLeaseAsync(ChunkKey key, int version, CancellationToken ct)
+    {
+        return TryAcquireSnapshotLeaseSlowAsync(new SnapshotKey(key, version), ct);
+    }
+
+    private async ValueTask<IChunkSnapshot?> TryAcquireSnapshotLeaseSlowAsync(SnapshotKey snapshotKey, CancellationToken ct)
+    {
+        SharedSnapshotEntry entry = snapshots.GetOrAdd(
+            snapshotKey,
+            static (k, state) => new SharedSnapshotEntry(
+                key: k,
+                snapshotFactory: () => state.snapshotSource.TryCreateSnapshotAsync(k.Key, k.Version, state.serviceCtsToken).AsTask(),
+                onSnapshotBytesAdd: state.onBytesAdd,
+                onSnapshotBytesRemove: state.onBytesRemove),
+            new
+            {
+                snapshotSource,
+                serviceCtsToken = cts.Token,
+                onBytesAdd = (Action<long>)(b => Interlocked.Add(ref snapshotBytesInUse, b)),
+                onBytesRemove = (Action<long>)(b => Interlocked.Add(ref snapshotBytesInUse, -b)),
+            });
+
+        IChunkSnapshot? snapshot;
+        try
+        {
+            snapshot = await entry.GetOrAwaitSnapshotAsync(ct).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Don't remove entry here: another waiter may still use it.
+            throw;
+        }
+
+        if (snapshot is null)
+        {
+            snapshots.TryRemove(snapshotKey, out _);
+            return null;
+        }
+
+        entry.AddRef();
+        return new SharedSnapshotLease(snapshot, release: () => ReleaseSnapshot(snapshotKey, entry));
+    }
+
+    private void ReleaseSnapshot(SnapshotKey snapshotKey, SharedSnapshotEntry entry)
+    {
+        if (entry.ReleaseAndMaybeDispose() != 0)
+        {
+            return;
+        }
+
+        snapshots.TryRemove(snapshotKey, out _);
     }
 }

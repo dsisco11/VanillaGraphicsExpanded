@@ -62,15 +62,15 @@ Voxel Chunk Async Processing - Background Artifact Pipeline (Implementation)
 
   Phase 3 - Snapshot Acquisition (Off-Thread Copy) + Pooling:
   Exit artifacts: Snapshot copying is off-thread, pooled, and does not cause memory explosion from queued work.
-  ☐ Implement `IChunkSnapshot` concrete type backed by `ArrayPool<T>` with `Dispose()` returning buffers.
-  ☐ Implement snapshot acquisition in workers:
+  ✔ Implement `IChunkSnapshot` concrete type backed by `ArrayPool<T>` with `Dispose()` returning buffers. @done(26-01-29 01:30)
+  ✔ Implement snapshot acquisition in workers: @done(26-01-29 01:30)
     - call `snapshotSource.TryCreateSnapshotAsync(key, expectedVersion, ct)`
     - if null -> `ChunkUnavailable` (no compute)
-  ☐ Add snapshot sharing by `SnapshotKey = (ChunkKey, Version)`:
+  ✔ Add snapshot sharing by `SnapshotKey = (ChunkKey, Version)`: @done(26-01-29 01:30)
     - ref-counted snapshot lease stored in a `ConcurrentDictionary`
     - multiple processors for same chunk+version share one voxel copy
-  ☐ Track snapshot bytes in-use for diagnostics.
-  ☐ Add unit tests for leasing + disposal correctness (no double-return to pool).
+  ✔ Track snapshot bytes in-use for diagnostics. @done(26-01-29 01:30)
+  ✔ Add unit tests for leasing + disposal correctness (no double-return to pool). @done(26-01-29 01:30)
 
 
   Phase 4 - Processor Execution + In-Memory Artifact Cache:
