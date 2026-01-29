@@ -8,10 +8,13 @@ LumOn - Phase 22 - LumonScene Surface Cache (Cards + Virtual Paged Atlases) (Imp
   Locked decisions (for this todo):
   - Per-chunk virtual atlases backed by a shared global physical pool.
   - Physical atlas resolution: 4096x4096 texels.
-  - Physical tile ("page") size: 256x256 texels.
-  - Atlas pool size: 64 atlases -> 64 * (16x16) = 16384 resident tiles.
+  - Tile size is derived per field: tileSizeTexels = (texelsPerVoxelFaceEdge * patchSizeVoxels).
+  - Atlas pool size: 64 atlases (cap/target).
+    - Tiles per atlas are field-dependent: tilesPerAxis = 4096 / tileSizeTexels; tilesPerAtlas = tilesPerAxis^2.
   - Voxel patch granularity: 4x4 voxels per patch.
-  - Voxel texel density at mip0: 32x32 texels per voxel face -> voxel patch = 128x128 texels.
+  - Voxel texel density (mip0) is user-configurable per field:
+    - Near default: 4x4 texels per voxel face
+    - Far default: 1x1 texels per voxel face
   - Trace payload is 0-bounce RGB irradiance accumulated on surface cache (not probes).
   - First per-texel relight tracer is GPU (GL 4.3) and may use voxel DDA accuracy.
   - First trace scene representation is a voxel occupancy clipmap storing compact light + material indirection:
@@ -80,23 +83,37 @@ LumOn - Phase 22 - LumonScene Surface Cache (Cards + Virtual Paged Atlases) (Imp
 
   Phase 22.3 - Per-Chunk VirtualPagedAtlas (Virtual Address Space)
   Exit artifacts: Deterministic virtual allocations per PatchId + stable virtual handles.
-  ☐ Implement VirtualSpaceAllocator (per chunk):
+  ✔ Implement VirtualSpaceAllocator (per chunk):
     - Allocate page-rects for patch mip0 region (+ optional border)
     - Store per-patch virtual base + size in PatchMetadata
-  ☐ Decide patch packing policy (mip0):
-    - Option A: 1 patch per page (simple; generous border/mip safety)
-    - Option B: 4 patches per page (2x2 packing; needs in-page offsets + stricter border rules)
-  ☐ Decide mip strategy:
-    - Which virtual mips exist (mip count) and how they are allocated
-    - How page-table mips map to physical pages (shared vs separate physical tiles)
+  ✔ Decide patch packing policy (mip0):
+    - v1: 1 patch per page (tile size == patch size; no border; no mips)
+    - later: 4 patches per page (2x2) if needed
+  ✔ Decide mip strategy (v1):
+    - No mips initially (mip0 only)
+    - Use Near/Far fields instead of mips; on near-field re-anchor, seed near irradiance from far where possible
+  ☐ Define Near/Far field parameters:
+    - near radius / active chunk set definition
+    - far radius / active chunk set definition
+    - near voxel density (default: 4x4 texels per voxel face; user-configurable)
+    - far voxel density (default: 1x1 texels per voxel face; user-configurable)
+  ☐ Define near-field re-anchor behavior:
+    - trigger condition (snapped anchor movement)
+    - which pages/patches are preserved vs invalidated
+    - far->near transfer policy (copy per-page vs resample per-texel)
 
 
   Phase 22.4 - Global Physical Pool + Atlas Textures
   Exit artifacts: Physical tile allocation/eviction works; atlas textures exist with debug labels.
   ☐ Implement PhysicalPagePool:
-    - Free list init from (atlasIndex, tileX, tileY) for 64 atlases
+    - Compute page budgets for Near/Far fields from their chunk windows (covered + edge*2)
+    - Allocate only enough pages to satisfy those budgets (1 guaranteed page per chunk)
+    - Allocate the minimum number of 4096x4096 atlas textures to hold the required pages (clamped by max atlas cap)
+    - Free list init from (atlasIndex, tileX, tileY) for the allocated atlasCount
     - LRU/age tracking for eviction candidates (global; optional per-chunk quota later)
     - Return tiles on chunk unload and on eviction
+    - Pool sizing (guaranteed 1 page/chunk): allocate only enough pages for (coveredChunks + edgeChunks*2) chunks per field
+    - Far field uses the annulus chunk set: (nearRadius, farRadius] (avoid double-allocating pages for near-covered chunks)
   ☐ Define physical atlas layer set (shared residency):
     - DepthAtlas (capture)
     - MaterialAtlas (capture)

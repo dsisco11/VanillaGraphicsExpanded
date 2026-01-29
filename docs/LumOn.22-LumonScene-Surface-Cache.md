@@ -16,6 +16,7 @@
 Design an advanced **LumonScene** system inspired by UE5 Lumen’s “card / surface cache”:
 
 - Accumulate **world-space irradiance** onto surface texels over time (temporal amortization).
+- Plan for a **Near** and **Far** surface-cache field (near = higher resolution, far = lower resolution).
 - Primary target geometry is **voxels**, but must also support:
   - “voxel-like” static meshes that can be rotated
   - occasional arbitrary triangle meshes (including curved surfaces)
@@ -161,11 +162,13 @@ Minimal set (proposed):
   - either global with per-chunk base offsets, or per-chunk slice indexing
 - **Physical atlases** (global pooled textures), each addressed by physical tile + in-tile UV:
   - Physical atlas resolution: `4096×4096` texels (fixed in this proposal)
-  - Physical page tile size: `256×256` texels → `16×16 = 256` tiles per atlas
-  - Atlas pool size: `64` atlases (initial target; configurable)
-   - `DepthAtlas` (format TBD; e.g., R16F/R32F)
-   - `MaterialAtlas` (format TBD; packed normal + material IDs)
-   - `IrradianceAtlas` (RGBA16F recommended; RGB=irradiance, A=accum weight or “confidence”)
+  - Physical tile size: field-dependent (`tileSizeTexels = texelsPerVoxelFaceEdge * patchSizeVoxels` for voxel patches)
+  - Allocate **only enough physical pages** for the active Near/Far chunk windows (plus re-anchor margin), then allocate
+    the minimum number of physical atlas textures required to store that many pages (up to a cap).
+  - Max atlas textures (cap/target): `64` atlases
+    - `DepthAtlas` (format TBD; e.g., R16F/R32F)
+    - `MaterialAtlas` (format TBD; packed normal + material IDs)
+    - `IrradianceAtlas` (RGBA16F recommended; RGB=irradiance, A=accum weight or “confidence”)
 - **Feedback / work queues** (SSBO append / atomic counters):
   - `PageRequestBuffer` (deduped or partially deduped)
   - `CaptureWorkBuffer`
@@ -214,17 +217,84 @@ Recommended budget categories:
   - max page requests processed per frame (CPU)
   - GPU-side request buffer cap + overflow behavior (drop + rely on next frame)
 
+Pool sizing requirement (v1):
+
+- Size the **physical page pool** to cover the number of chunks in each field plus a re-anchor margin:
+  - `coveredChunks = (2R + 1)^2` where `R` is the field radius in chunks (Chebyshev distance in chunk XZ).
+  - `edgeChunks = (2R + 1)`
+  - `extraChunks = edgeChunks * 2`
+  - `totalChunks = coveredChunks + extraChunks`
+- Guaranteed residency rule (v1): allocate at least `totalChunks` physical pages for the field (1 guaranteed page per chunk).
+- Rationale: allows a 1-step diagonal re-anchor to allocate “new edge” chunk work without relying on immediate eviction.
+
+Far field note:
+
+- If Far is implemented as an annulus (chunks with distance in `(nearRadius, farRadius]`), use:
+  - `coveredChunks = covered(farRadius) - covered(nearRadius)`
+  - keep `extraChunks` based on the far field edge (`2*farRadius+1`)
+
+Decision: Far field chunk budgeting uses the **annulus** `(NearRadiusChunks, FarRadiusChunks]` to avoid double-allocating
+guaranteed pages for chunks already covered by Near.
+
 ---
 
 ## 5. VirtualPagedAtlas and page tables
 
 ### 5.1 Virtual address model
 
-**Page tile size**: `256×256` texels (fixed).
+**Page tile size (per field)**: `texelsPerVoxelFaceEdge * patchSizeVoxels`.
 
-**Physical atlas size**: `4096×4096` texels per atlas (fixed) → `16×16` tiles per atlas.
+For voxel patches (`patchSizeVoxels = 4`):
 
-**Atlas pool size**: `64` atlases → `256 tiles/atlas * 64 = 16384` total resident tiles across the pool (before any per-layer overhead).
+- Near default `4×4` texels/voxel → tile size `4*4 = 16` texels → `16×16`
+- Far default `1×1` texels/voxel → tile size `1*4 = 4` texels → `4×4`
+
+**Physical atlas size**: `4096×4096` texels per atlas (fixed).
+
+For a given field, tiles per axis are:
+
+- `tilesPerAxis = 4096 / tileSizeTexels`
+- `tilesPerAtlas = tilesPerAxis * tilesPerAxis`
+
+**Pool sizing**:
+
+- We size the pool in **pages**, not “always N atlases”.
+- For each field compute required `pageBudget` from the field’s chunk window (see §4.5).
+- Allocate enough atlas textures to hold `pageBudget` pages:
+  - `atlasCount = ceil(pageBudget / tilesPerAtlas)`
+  - clamp to a configured/max cap (e.g., 64)
+
+**Per-chunk virtual address space (v1)**:
+
+- Virtual page table resolution: `128×128` pages → `16384` virtual pages max per chunk.
+- v1 mapping: **1 patch = 1 virtual page**, deterministically mapped from `PatchId`.
+
+### 5.1.1 Near vs Far fields (no virtual mips initially)
+
+We treat the surface cache as two fields instead of virtual mips:
+
+- **Near field**: higher resolution (default `4×4` texels per voxel face at mip 0; user-configurable).
+- **Far field**: lower resolution (default `1×1` texels per voxel face at mip 0; user-configurable).
+
+Because tile size is derived from field resolution, Near and Far should be treated as **separate atlases/page tables**
+(or separate “field” indices inside the same system).
+
+Proposed config keys (client):
+
+- `VgeConfig.LumOn.LumonScene.NearTexelsPerVoxelFaceEdge` (default 4)
+- `VgeConfig.LumOn.LumonScene.FarTexelsPerVoxelFaceEdge` (default 1)
+- `VgeConfig.LumOn.LumonScene.NearRadiusChunks`
+- `VgeConfig.LumOn.LumonScene.FarRadiusChunks`
+
+**Mip strategy (v1)**: no mips.
+
+- Sampling chooses **Near** or **Far** field (and within that field samples mip 0 only).
+- On near-field re-anchor, we seed near-field irradiance by resampling/copying the far-field irradiance into the near
+  field for newly covered regions (details depend on patch packing policy and the mapping).
+
+Anchor reuse idea:
+
+- Reuse the same *snapped-anchor* pattern as the world-probe clipmap scheduler (snapped chunk-space origin + “shift” event).
 
 **VRAM requirement warning** (important):
 
@@ -257,10 +327,9 @@ The `PatchMetadata` gives:
 
 For **voxel patches**:
 
-- Patch size at mip 0 is `4 voxels * 32 texels/voxel = 128` texels, so a patch is `128×128`.
-- With `256×256` page tiles, each voxel patch fits within a single page at mip 0.
-- We can either allocate **1 patch per page** (simplest; leaves space for borders/mip safety) or **pack 4 patches per page**
-  (2×2 packing; requires per-patch in-page offsets and careful mip/border handling).
+- Patch size at mip 0 is `4 voxels * texelsPerVoxelFaceEdge` texels per side (field-dependent).
+- v1 packing policy: **1 voxel patch per page**, where **page tile size == patch size** (no border; no mips).
+- Future option: increase the tile size to add borders once we introduce filtering/mips and want seam safety.
 
 From that, the shader computes:
 
@@ -280,14 +349,14 @@ Store in `RGBA32UI` per virtual page:
 In the simplest model:
 
 - `physicalPageId != 0` implies resident
-- `physicalPageId` maps to `(atlasIndex, tileX, tileY)` where `tileX,tileY ∈ [0..15]` for a `4096×4096` atlas with `256×256` tiles
+- `physicalPageId` maps to `(atlasIndex, tileX, tileY)` where valid tile coordinate ranges depend on `tileSizeTexels`
 
 One simple packing (debuggable, not mandatory):
 
-- `physicalPageId = 1 + (atlasIndex << 8) | (tileY << 4) | tileX`
-- `tileX = (physicalPageId - 1) & 0xF`
-- `tileY = ((physicalPageId - 1) >> 4) & 0xF`
-- `atlasIndex = (physicalPageId - 1) >> 8`
+- `tilesPerAxis = 4096 / tileSizeTexels`
+- `tilesPerAtlas = tilesPerAxis * tilesPerAxis`
+- `tileLinear = tileY * tilesPerAxis + tileX`
+- `physicalPageId = 1 + atlasIndex * tilesPerAtlas + tileLinear`
 
 ---
 
@@ -327,8 +396,10 @@ Depth meaning:
 
 Voxel patch granularity is fixed to **4×4 voxels** in the patch plane.
 
-**Texel density (mip 0)**: `32×32` texels per voxel face.  
-So one voxel patch is `4*32 = 128` texels wide → `128×128` texels per patch (before any padding/borders).
+**Texel density (mip 0)** is user-configurable per field:
+
+- Near default: `4×4` texels per voxel face → voxel patch `4*4 = 16` texels wide → `16×16` texels per patch
+- Far default: `1×1` texels per voxel face → voxel patch `4*1 = 4` texels wide → `4×4` texels per patch
 
 Stable `PatchKey` (conceptual):
 
@@ -518,12 +589,15 @@ The GL 3.3 fallback can later replace compute stages with:
 ## 10. Open questions / knobs (for refinement)
 
 1. **Tile size and texel density**
-   - page tile size: `256×256` texels (fixed)
    - physical atlas size: `4096×4096` texels (fixed)
-   - atlas pool size (initial target): `64` atlases
-   - total page budget: `256 tiles/atlas * 64 = 16384` tiles
-   - voxel density: `32×32` texels per voxel face (fixed)
-   - packing policy: 1 patch per page (simple, room for borders) vs 4 patches per page (2×2 packing, needs in-page offsets and careful mip/border handling)
+   - atlas pool size (target cap): `64` atlases
+   - page tile size (per field): `texelsPerVoxelFaceEdge * patchSizeVoxels`
+   - total page budget (field-dependent): `(4096/tileSize)^2 * atlasCount`
+   - voxel density (user-configurable):
+     - near default: `4×4` texels per voxel face
+     - far default: `1×1` texels per voxel face
+   - near/far radii: expressed in chunk distance (user-configurable)
+   - packing policy: 1 patch per page initially; optional borders later when enabling filtering/mips
 2. **Layer formats**
    - Depth precision (R16F vs R32F)
    - Normal/material packing choices

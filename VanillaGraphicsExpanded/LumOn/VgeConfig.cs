@@ -585,6 +585,60 @@ public class VgeConfig
         public int ProbeAtlasTexelsPerFrame { get; set; } = 16;
 
         // ═══════════════════════════════════════════════════════════════
+        // Phase 22 - LumonScene Surface Cache (Near/Far Fields)
+        // ═══════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// LumonScene surface cache settings.
+        /// </summary>
+        [JsonProperty]
+        public LumonSceneConfig LumonScene { get; set; } = new();
+
+        [JsonObject(MemberSerialization.OptIn)]
+        public sealed class LumonSceneConfig
+        {
+            /// <summary>
+            /// Near-field voxel surface-cache resolution expressed as texels per voxel face edge (mip 0).
+            /// Default: 4 (4x4 texels per voxel face).
+            /// </summary>
+            [JsonProperty]
+            public int NearTexelsPerVoxelFaceEdge { get; set; } = 4;
+
+            /// <summary>
+            /// Far-field voxel surface-cache resolution expressed as texels per voxel face edge (mip 0).
+            /// Default: 1 (1x1 texels per voxel face).
+            /// </summary>
+            [JsonProperty]
+            public int FarTexelsPerVoxelFaceEdge { get; set; } = 1;
+
+            /// <summary>
+            /// Near-field radius expressed in chunk distance (Chebyshev distance in chunk coordinates).
+            /// </summary>
+            [JsonProperty]
+            public int NearRadiusChunks { get; set; } = 8;
+
+            /// <summary>
+            /// Far-field radius expressed in chunk distance (Chebyshev distance in chunk coordinates).
+            /// Must be &gt;= <see cref="NearRadiusChunks"/>.
+            /// </summary>
+            [JsonProperty]
+            public int FarRadiusChunks { get; set; } = 32;
+
+            internal void Sanitize()
+            {
+                NearTexelsPerVoxelFaceEdge = Math.Clamp(NearTexelsPerVoxelFaceEdge, 1, 64);
+                FarTexelsPerVoxelFaceEdge = Math.Clamp(FarTexelsPerVoxelFaceEdge, 1, 64);
+
+                NearRadiusChunks = Math.Clamp(NearRadiusChunks, 0, 128);
+                FarRadiusChunks = Math.Clamp(FarRadiusChunks, 0, 128);
+                if (FarRadiusChunks < NearRadiusChunks)
+                {
+                    FarRadiusChunks = NearRadiusChunks;
+                }
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
         // Phase 10 - Product Importance Sampling (PIS)
         // ═══════════════════════════════════════════════════════════════
 
@@ -949,6 +1003,9 @@ public class VgeConfig
             PmjJitterCycleLength = Math.Clamp(PmjJitterCycleLength, 1, 65_536);
             HzbCoarseMip = Math.Clamp(HzbCoarseMip, 0, 12);
             ProbeAtlasTexelsPerFrame = Math.Clamp(ProbeAtlasTexelsPerFrame, 1, 64);
+
+            LumonScene ??= new LumonSceneConfig();
+            LumonScene.Sanitize();
 
             ProbePISExploreFraction = Math.Clamp(ProbePISExploreFraction, 0.0f, 1.0f);
             ProbePISExploreCount = Math.Clamp(ProbePISExploreCount, -1, 64);
