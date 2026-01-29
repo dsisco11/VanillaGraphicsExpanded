@@ -59,6 +59,44 @@ internal readonly struct LumonSceneRelightWorkGpu
     }
 }
 
+[StructLayout(LayoutKind.Sequential)]
+internal readonly record struct LumonSceneMeshCardCaptureWorkGpu
+{
+    public readonly uint PhysicalPageId;
+    public readonly uint TriangleOffset;
+    public readonly uint TriangleCount;
+    public readonly uint Unused0;
+
+    public LumonSceneMeshCardCaptureWorkGpu(uint physicalPageId, uint triangleOffset, uint triangleCount, uint unused0 = 0)
+    {
+        PhysicalPageId = physicalPageId;
+        TriangleOffset = triangleOffset;
+        TriangleCount = triangleCount;
+        Unused0 = unused0;
+    }
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal readonly record struct LumonSceneMeshCardTriangleGpu
+{
+    public readonly System.Numerics.Vector4 P0;
+    public readonly System.Numerics.Vector4 P1;
+    public readonly System.Numerics.Vector4 P2;
+    public readonly System.Numerics.Vector4 N0;
+
+    public LumonSceneMeshCardTriangleGpu(
+        System.Numerics.Vector4 p0,
+        System.Numerics.Vector4 p1,
+        System.Numerics.Vector4 p2,
+        System.Numerics.Vector4 n0)
+    {
+        P0 = p0;
+        P1 = p1;
+        P2 = p2;
+        N0 = n0;
+    }
+}
+
 /// <summary>
 /// GL 4.3 work queue: an appendable item buffer (SSBO) plus an atomic counter for write index.
 /// </summary>

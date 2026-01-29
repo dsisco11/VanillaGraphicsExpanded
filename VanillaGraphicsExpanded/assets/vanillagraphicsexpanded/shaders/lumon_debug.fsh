@@ -80,6 +80,9 @@ out vec4 outColor;
 // Shared hash helpers
 @import "./includes/squirrel3.glsl"
 
+// Phase 22.10: LumonScene surface cache sampling helpers (used by debug modes 52-54).
+@import "./includes/lumonscene_surface_cache.glsl"
+
 // Shared debug uniforms/helpers + per-program-kind implementations.
 @import "./includes/lumon_debug_uniforms.glsl"
 @import "./includes/lumon_debug_common.glsl"

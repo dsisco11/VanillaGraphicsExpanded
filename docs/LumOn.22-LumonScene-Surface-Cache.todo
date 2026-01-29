@@ -218,14 +218,17 @@ LumOn - Phase 22 - LumonScene Surface Cache (Cards + Virtual Paged Atlases) (Imp
 
   Phase 22.11 - Mesh Cards v1 (Rotated Mesh Voxels / Arbitrary Meshes)
   Exit artifacts: Static rotated meshes contribute surface cache and can be relit per-texel.
-  ☐ Define mesh card extraction strategy:
+  ✔ Define mesh card extraction strategy (v1):
     - precomputed planar cards per mesh asset (cardIndex stable)
-    - curved meshes approximated by multiple small cards + depth
-  ☐ Define instanceStableId sources and rules (must survive chunk remesh):
+    - implemented a generic planar grouping extractor (`LumonSceneMeshCardExtractor`) for positions+triangles
+    - curved meshes approximated by multiple small cards + captured depth (planned)
+  ✔ Define instanceStableId sources and rules (must survive chunk remesh):
     - stable per placed object instance, not per-triangulation output
-  ☐ Implement capture path for mesh cards:
-    - rasterize meshlets/triangles into card space writing depth/material
+    - implemented deterministic helpers (`LumonSceneInstanceStableIdUtil`) for block-pos anchored ids and entity ids
+  ✔ Implement capture path for mesh cards:
+    - compute-based per-texel capture (depth + normal) into DepthAtlas/MaterialAtlas
   ☐ Validate depth-based worldPos reconstruction quality on rotated/curved assets.
+    - Implemented GPU tests for planar + offset + rotated planar cards; still need validation on curved assets in-game.
 
 
   Phase 22.12 - Debug Tooling, Profiling, and Tests
