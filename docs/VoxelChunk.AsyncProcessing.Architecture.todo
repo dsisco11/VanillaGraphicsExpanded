@@ -35,15 +35,15 @@ Voxel Chunk Async Processing - Background Artifact Pipeline (Implementation)
 
   Phase 1 - Core Work Service (Unbounded Queue + Worker Pool):
   Exit artifacts: A working service executes compute on background workers with bounded concurrency.
-  ☐ Implement `ChunkProcessingService` core loop:
+  ✔ Implement `ChunkProcessingService` core loop: @done(26-01-29 00:45)
     - unbounded `Channel<WorkItem>` (or multi-lane channels for priority if needed)
     - worker tasks (`Task.Run`) with configurable `WorkerCount`
     - graceful shutdown / disposal
-  ☐ Implement request admission API:
+  ✔ Implement request admission API: @done(26-01-29 00:45)
     - always accept `CancellationToken`
     - return `Task<ChunkWorkResult<TArtifact>>`
-  ☐ Implement in-flight dedup by `ArtifactKey = (ChunkKey, Version, ProcessorId)` (no duplicate compute).
-  ☐ Implement dequeue-time supersede short-circuit:
+  ✔ Implement in-flight dedup by `ArtifactKey = (ChunkKey, Version, ProcessorId)` (no duplicate compute). @done(26-01-29 00:45)
+  ✔ Implement dequeue-time supersede short-circuit: @done(26-01-29 00:45)
     - if `versionProvider.GetCurrentVersion(key) != requestedVersion`, complete as `Superseded` immediately.
 
 
