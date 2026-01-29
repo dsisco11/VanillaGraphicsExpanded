@@ -77,6 +77,14 @@ Implementation consequence:
 - Patches are identified by a **PatchKey** that is stable (derived from chunk + spatial index + patch type), and
   `PatchKey -> PatchId` is cached for the lifetime of the chunk.
 
+Dirtying consequence (v1 rules):
+
+- **Voxel/block change**: mark impacted voxel face patches dirty (at least the 6 faces on the changed voxel and the 6
+  opposite faces on its 6 neighbors). If the change touches a chunk boundary, also dirty the adjacent chunk.
+- **Mesh instance change** (add/remove/transform): mark all patches for that `instanceStableId` dirty.
+- **Material palette remap**: either (A) mark only patches referencing the changed palette entry dirty (requires a reverse
+  index), or (B) conservatively mark all patches `Material|Capture` dirty.
+
 ### 3.3 Per-chunk virtual atlases backed by a shared physical pool
 
 We maintain a **virtual address space per chunk**, but physical memory is global:
@@ -331,6 +339,10 @@ Stable `PatchKey` (conceptual):
 
 This is stable across remesh because it depends only on chunk coordinates + integer voxel indices.
 
+Implementation note:
+
+- `PatchRegistry` is per-chunk, so the stored key can omit `chunkCoord` (it is implied by the owning `ChunkLumonScene`).
+
 ### 6.4 Rotated/static meshes and arbitrary meshes
 
 We treat these as **mesh cards**:
@@ -346,6 +358,11 @@ Stable `PatchKey` for mesh cards (conceptual):
 - `chunkCoord` (or owning spatial partition)
 - `instanceStableId` (must not change across remesh of chunk meshes)
 - `cardIndex` (stable per asset)
+
+Implementation note:
+
+- As with voxel patches, a per-chunk registry can omit `chunkCoord`; `instanceStableId` must still be stable for the
+  lifetime of the chunk (and for as long as we want surface-cache history to persist).
 
 ---
 

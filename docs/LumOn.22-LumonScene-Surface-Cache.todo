@@ -65,14 +65,14 @@ LumOn - Phase 22 - LumonScene Surface Cache (Cards + Virtual Paged Atlases) (Imp
 
   Phase 22.2 - Patch Identity (Stable PatchIds) + Patch Registry
   Exit artifacts: Stable PatchKey->PatchId mapping survives remesh; PatchMetadata is authoritative.
-  ☐ Define PatchKey encodings:
+  ✔ Define PatchKey encodings:
     - Voxel patches: (chunkCoord, axis, planeIndex, patchUIndex, patchVIndex)
     - Mesh cards: (chunkCoord or owner partition, instanceStableId, cardIndex)
-  ☐ Implement PatchRegistry (per chunk):
+  ✔ Implement PatchRegistry (per chunk):
     - Dictionary<PatchKey, PatchId>
     - Patch list storage (axis/type, bounds, transform/basis, virtual handle, dirty flags, last-used)
     - Ensure PatchIds remain stable across remesh: keep mapping even when geometry topology changes
-  ☐ Define patch dirtying rules:
+  ✔ Define patch dirtying rules (sources + propagation):
     - voxel changes (block updates)
     - mesh instance changes (add/remove/transform)
     - material definition changes (palette remap)
