@@ -179,15 +179,15 @@ LumOn - Phase 22 - LumonScene Surface Cache (Cards + Virtual Paged Atlases) (Imp
 
   Phase 22.8 - Trace Scene v1: Occupancy Clipmap (Packed Light + Material)
   Exit artifacts: GPU DDA tracer can sample occupancy + lighting/material payload cheaply.
-  ☐ Implement clipmap build/update pipeline:
-    - CPU or GPU upload path (start simple; budgeted)
-    - world->clipmap addressing aligned with existing LumOn conventions where possible
-  ☐ Implement packed R32UI payload and LUTs:
-    - blockLevel/sunLevel/lightId/materialPaletteIndex packing helpers
-    - LightColorLut[64], BlockLevelScalarLut[33], SunLevelScalarLut[33]
-    - MaterialPalette table (per-face materials + flags)
-  ☐ Define “outside face” sampling convention and document it:
-    - sampleCell = hitCell + hitNormal
+  ✔ Implement clipmap build/update pipeline:
+    - Implemented (v1): CPU slice updates + budget (`LumonSceneOccupancyClipmapUpdateRenderer`)
+    - Ring-buffered anchor per level; exposed slab updates + background maintenance
+  ✔ Implement packed R32UI payload and LUTs:
+    - Implemented: `LumonSceneOccupancyPacking` bit packing helpers
+    - Implemented: `LumonSceneOccupancyClipmapGpuResources` (R32UI occupancy + LightColor/Scalar LUTs + placeholder MaterialPalette)
+    - NOTE: MaterialPalette is initialized but still placeholder (per-face materials deferred)
+  ✔ Define “outside face” sampling convention and document it:
+    - Documented in `docs/LumOn.22-LumonScene-Surface-Cache.md` §8.3 (sampleCell = hitCell + hitNormal)
 
 
   Phase 22.9 - Relight v1 (GL 4.3 Compute, Voxel DDA)

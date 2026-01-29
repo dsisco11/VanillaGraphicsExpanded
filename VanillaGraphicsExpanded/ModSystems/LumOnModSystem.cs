@@ -24,6 +24,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
     private LumOnRenderer? lumOnRenderer;
     private LumOnDebugRenderer? lumOnDebugRenderer;
     private LumonSceneFeedbackUpdateRenderer? lumonSceneFeedbackUpdateRenderer;
+    private LumonSceneOccupancyClipmapUpdateRenderer? lumonSceneOccupancyClipmapUpdateRenderer;
 
     private HudLumOnStatsPanel? lumOnStatsPanel;
 
@@ -190,6 +191,13 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         {
             lumonSceneFeedbackUpdateRenderer = new LumonSceneFeedbackUpdateRenderer(clientApi, ConfigModSystem.Config, gBufferManager);
         }
+
+        if (current.LumOnEnabled
+            && ConfigModSystem.Config.LumOn.LumonScene.Enabled
+            && lumonSceneOccupancyClipmapUpdateRenderer is null)
+        {
+            lumonSceneOccupancyClipmapUpdateRenderer = new LumonSceneOccupancyClipmapUpdateRenderer(clientApi, ConfigModSystem.Config);
+        }
     }
 
     public override void Dispose()
@@ -216,6 +224,9 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         lumonSceneFeedbackUpdateRenderer?.Dispose();
         lumonSceneFeedbackUpdateRenderer = null;
 
+        lumonSceneOccupancyClipmapUpdateRenderer?.Dispose();
+        lumonSceneOccupancyClipmapUpdateRenderer = null;
+
         lumOnRenderer?.Dispose();
         lumOnRenderer = null;
 
@@ -239,6 +250,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         }
 
         lumonSceneFeedbackUpdateRenderer?.NotifyAllDirty("BlockChanged");
+        lumonSceneOccupancyClipmapUpdateRenderer?.NotifyAllDirty("BlockChanged");
     }
 
     private void OnChunkDirty(Vintagestory.API.MathTools.Vec3i chunkCoord, Vintagestory.API.Common.IWorldChunk chunk, Vintagestory.API.Common.EnumChunkDirtyReason reason)
@@ -259,6 +271,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         }
 
         lumonSceneFeedbackUpdateRenderer?.NotifyAllDirty($"ChunkDirty:{reason}");
+        lumonSceneOccupancyClipmapUpdateRenderer?.NotifyAllDirty($"ChunkDirty:{reason}");
     }
 
     private void EnsureLumOnStatsPanelInitialized(string reason)
@@ -316,6 +329,11 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         if (lumonSceneFeedbackUpdateRenderer is null && ConfigModSystem.Config.LumOn.LumonScene.Enabled)
         {
             lumonSceneFeedbackUpdateRenderer = new LumonSceneFeedbackUpdateRenderer(capi, ConfigModSystem.Config, gBufferManager);
+        }
+
+        if (lumonSceneOccupancyClipmapUpdateRenderer is null && ConfigModSystem.Config.LumOn.LumonScene.Enabled)
+        {
+            lumonSceneOccupancyClipmapUpdateRenderer = new LumonSceneOccupancyClipmapUpdateRenderer(capi, ConfigModSystem.Config);
         }
 
         capi.Logger.Debug("[VGE] LumOnModSystem ensured ({0})", reason);

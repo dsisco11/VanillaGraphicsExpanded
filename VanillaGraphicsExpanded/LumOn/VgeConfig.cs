@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using System.Runtime.Serialization;
 
 using Newtonsoft.Json;
@@ -630,6 +631,27 @@ public class VgeConfig
             [JsonProperty]
             public int FarRadiusChunks { get; set; } = 32;
 
+            /// <summary>
+            /// Trace scene occupancy clipmap resolution (per level, per axis).
+            /// Larger values increase update cost and VRAM. Power-of-two values are recommended.
+            /// </summary>
+            [JsonProperty]
+            public int TraceSceneClipmapResolution { get; set; } = 64;
+
+            /// <summary>
+            /// Trace scene occupancy clipmap level count.
+            /// Level spacing is <c>1 &lt;&lt; level</c> blocks (v1).
+            /// </summary>
+            [JsonProperty]
+            public int TraceSceneClipmapLevels { get; set; } = 5;
+
+            /// <summary>
+            /// Max number of clipmap slice uploads per frame.
+            /// Higher values converge faster but increase CPU cost and GL traffic.
+            /// </summary>
+            [JsonProperty]
+            public int TraceSceneClipmapSlicesPerFrame { get; set; } = 8;
+
             internal void Sanitize()
             {
                 NearTexelsPerVoxelFaceEdge = SanitizeTexelsPerVoxelFaceEdge(NearTexelsPerVoxelFaceEdge);
@@ -641,6 +663,10 @@ public class VgeConfig
                 {
                     FarRadiusChunks = NearRadiusChunks;
                 }
+
+                TraceSceneClipmapResolution = SanitizeTraceSceneClipmapResolution(TraceSceneClipmapResolution);
+                TraceSceneClipmapLevels = Math.Clamp(TraceSceneClipmapLevels, 1, 8);
+                TraceSceneClipmapSlicesPerFrame = Math.Clamp(TraceSceneClipmapSlicesPerFrame, 0, 512);
             }
 
             private static int SanitizeTexelsPerVoxelFaceEdge(int v)
@@ -649,13 +675,15 @@ public class VgeConfig
                 // tileSize = (texelsPerVoxelFaceEdge * patchSizeVoxels) must evenly divide 4096.
                 // With patchSizeVoxels = 4, this means texelsPerVoxelFaceEdge must divide 1024.
                 // v1 restricts to power-of-two values within [1..64].
-                if (v <= 1) return 1;
-                if (v <= 2) return 2;
-                if (v <= 4) return 4;
-                if (v <= 8) return 8;
-                if (v <= 16) return 16;
-                if (v <= 32) return 32;
-                return 64;
+                v = Math.Clamp(v, 1, 64);
+                return (int)BitOperations.RoundUpToPowerOf2((uint)v);
+            }
+
+            private static int SanitizeTraceSceneClipmapResolution(int v)
+            {
+                // v1: keep power-of-two to simplify ring-buffer math and keep memory predictable.
+                v = Math.Clamp(v, 16, 128);
+                return (int)BitOperations.RoundUpToPowerOf2((uint)v);
             }
         }
 

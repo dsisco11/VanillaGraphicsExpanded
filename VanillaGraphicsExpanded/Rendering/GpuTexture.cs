@@ -679,6 +679,48 @@ public abstract class GpuTexture : GpuResource, IDisposable
             data);
     }
 
+    public virtual void UploadDataImmediate(uint[] data, int x, int y, int z, int regionWidth, int regionHeight, int regionDepth, int mipLevel = 0)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GpuTexture] Attempted to upload data to disposed or invalid texture");
+            return;
+        }
+
+        ArgumentNullException.ThrowIfNull(data);
+
+        Ensure3DLike();
+
+        var pixelType = TextureFormatHelper.GetPixelType(internalFormat);
+        if (pixelType != PixelType.UnsignedInt)
+        {
+            throw new InvalidOperationException($"UploadDataImmediate(uint[]) requires {nameof(PixelType)}.{nameof(PixelType.UnsignedInt)}, but format is {internalFormat} -> {pixelType}.");
+        }
+
+        int channels = GetChannelCount();
+        int expected = checked(regionWidth * regionHeight * regionDepth * channels);
+        if (data.Length < expected)
+        {
+            throw new ArgumentException(
+                $"Data array size {data.Length} is smaller than expected size {expected} ({regionWidth}×{regionHeight}×{regionDepth}×{channels} channels)",
+                nameof(data));
+        }
+
+        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+        GL.TexSubImage3D(
+            textureTarget,
+            mipLevel,
+            x,
+            y,
+            z,
+            regionWidth,
+            regionHeight,
+            regionDepth,
+            TextureFormatHelper.GetPixelFormat(internalFormat),
+            pixelType,
+            data);
+    }
+
     /// <summary>
     /// Uploads a full texture immediately (GL call).
     /// </summary>
@@ -713,6 +755,46 @@ public abstract class GpuTexture : GpuResource, IDisposable
             height: height,
             format: TextureFormatHelper.GetPixelFormat(internalFormat),
             type: PixelType.Float,
+            pixels: data);
+    }
+
+    public virtual void UploadDataImmediate(uint[] data)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GpuTexture] Attempted to upload data to disposed or invalid texture");
+            return;
+        }
+
+        ArgumentNullException.ThrowIfNull(data);
+
+        Ensure2DLike();
+
+        var pixelType = TextureFormatHelper.GetPixelType(internalFormat);
+        if (pixelType != PixelType.UnsignedInt)
+        {
+            throw new InvalidOperationException($"UploadDataImmediate(uint[]) requires {nameof(PixelType)}.{nameof(PixelType.UnsignedInt)}, but format is {internalFormat} -> {pixelType}.");
+        }
+
+        int channels = GetChannelCount();
+        int expected = checked(width * height * channels);
+        if (data.Length < expected)
+        {
+            throw new ArgumentException(
+                $"Data array size {data.Length} is smaller than expected size {expected} ({width}×{height}×{channels} channels)",
+                nameof(data));
+        }
+
+        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+        GL.TexSubImage2D(
+            textureTarget,
+            level: 0,
+            xoffset: 0,
+            yoffset: 0,
+            width: width,
+            height: height,
+            format: TextureFormatHelper.GetPixelFormat(internalFormat),
+            type: pixelType,
             pixels: data);
     }
 
@@ -753,6 +835,52 @@ public abstract class GpuTexture : GpuResource, IDisposable
             height: regionHeight,
             format: TextureFormatHelper.GetPixelFormat(internalFormat),
             type: PixelType.Float,
+            pixels: data);
+    }
+
+    public virtual void UploadDataImmediate(uint[] data, int x, int y, int regionWidth, int regionHeight)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GpuTexture] Attempted to upload data to disposed or invalid texture");
+            return;
+        }
+
+        ArgumentNullException.ThrowIfNull(data);
+
+        Ensure2DLike();
+
+        if (x < 0 || y < 0 || x + regionWidth > width || y + regionHeight > height)
+        {
+            throw new ArgumentOutOfRangeException(
+                $"Region ({x}, {y}, {regionWidth}, {regionHeight}) extends beyond texture bounds ({width}×{height})");
+        }
+
+        var pixelType = TextureFormatHelper.GetPixelType(internalFormat);
+        if (pixelType != PixelType.UnsignedInt)
+        {
+            throw new InvalidOperationException($"UploadDataImmediate(uint[]) requires {nameof(PixelType)}.{nameof(PixelType.UnsignedInt)}, but format is {internalFormat} -> {pixelType}.");
+        }
+
+        int channels = GetChannelCount();
+        int expected = checked(regionWidth * regionHeight * channels);
+        if (data.Length < expected)
+        {
+            throw new ArgumentException(
+                $"Data array size {data.Length} is smaller than expected size {expected} ({regionWidth}×{regionHeight}×{channels} channels)",
+                nameof(data));
+        }
+
+        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+        GL.TexSubImage2D(
+            textureTarget,
+            level: 0,
+            xoffset: x,
+            yoffset: y,
+            width: regionWidth,
+            height: regionHeight,
+            format: TextureFormatHelper.GetPixelFormat(internalFormat),
+            type: pixelType,
             pixels: data);
     }
 
@@ -966,7 +1094,9 @@ public abstract class GpuTexture : GpuResource, IDisposable
         return internalFormat switch
         {
             PixelInternalFormat.R16f or PixelInternalFormat.R32f or PixelInternalFormat.R16 or PixelInternalFormat.R8 => 1,
+            PixelInternalFormat.R8ui or PixelInternalFormat.R16ui or PixelInternalFormat.R32ui => 1,
             PixelInternalFormat.Rg16f or PixelInternalFormat.Rg32f or PixelInternalFormat.Rg16 or PixelInternalFormat.Rg8 => 2,
+            PixelInternalFormat.Rg8ui or PixelInternalFormat.Rg16ui or PixelInternalFormat.Rg32ui => 2,
             PixelInternalFormat.Rgb16f or PixelInternalFormat.Rgb32f or PixelInternalFormat.Rgb8 or PixelInternalFormat.Rgb => 3,
             _ => 4
         };
