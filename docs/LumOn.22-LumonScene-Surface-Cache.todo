@@ -129,20 +129,18 @@ LumOn - Phase 22 - LumonScene Surface Cache (Cards + Virtual Paged Atlases) (Imp
 
   Phase 22.5 - GPU Data Layout: Page Tables + Patch Metadata + Work Queues
   Exit artifacts: GPU can translate (chunkSlot, patchId, patchUV, mip) -> (atlasIndex,tile,inTileUV).
-  ☐ Implement PageTable texture(s):
-    - RGBA32UI page table per mip
+  ✔ Implement PageTable texture(s):
+    - v1 uses packed `R32UI` page table entries (see `LumonScenePageTableEntryPacking`)
     - Array layer = chunkSlot (or equivalent indirection)
-    - Define entry packing for physicalPageId + flags
-  ☐ Implement PatchMetadataBuffer:
-    - originWS, axisUWS, axisVWS, normalWS
-    - virtualBasePage, virtualSizePages
-    - any per-patch in-page offset (if 2x2 packing is chosen)
-  ☐ Implement GL 4.3 work queues:
-    - PageRequestBuffer (append)
-    - CaptureWorkBuffer (append or CPU-generated)
-    - RelightWorkBuffer (append or CPU-generated)
-    - Counters + reset strategy
-  ☐ Ensure layouts can be represented via TBO/1D textures later for GL 3.3 fallback.
+    - Entry packs physicalPageId + flags
+  ✔ Implement PatchMetadataBuffer:
+    - `LumonScenePatchMetadataGpu` (originWS, axisUWS, axisVWS, normalWS, virtualBase/size, ids)
+    - v1 indexing by `physicalPageId` (metadata lives per resident page)
+  ✔ Implement GL 4.3 work queues:
+    - `LumonSceneWorkQueueGpu<T>` (SSBO items + atomic counter)
+    - `LumonScenePageRequestGpu`, `LumonSceneCaptureWorkGpu`, `LumonSceneRelightWorkGpu`
+    - Counter reset helper (`Reset()`)
+  ✔ Ensure layouts can be represented via TBO/1D textures later for GL 3.3 fallback.
 
 
   Phase 22.6 - PatchIdGBuffer + Feedback-Driven Residency

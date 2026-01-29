@@ -155,7 +155,7 @@ Pooling note:
 
 Minimal set (proposed):
 
-- **Page table**: `uimage2DArray PageTable` (RGBA32UI)
+- **Page table**: `uimage2DArray PageTable` (v1 packed `R32UI`; can upgrade to `RG32UI/RGBA32UI` if needed)
   - array layer = chunk slot
   - mip level = virtual mip (mip 0 = finest)
 - **Patch metadata**: SSBO `PatchMetadataBuffer`
@@ -344,12 +344,12 @@ From that, the shader computes:
 
 ### 5.2 Page table entry format (proposal)
 
-Store in `RGBA32UI` per virtual page:
+v1 uses **packed `R32UI`** per virtual page texel:
 
-- `R`: `physicalPageId` (0 = invalid / not resident)
-- `G`: flags (resident bit, capture-valid bit, relight-valid bit, etc.)
-- `B`: optional: packed “age” or last-updated frame (debug only; canonical LRU is CPU-side)
-- `A`: optional: layer/mip metadata (if needed)
+- low bits: `physicalPageId` (0 = invalid / not resident)
+- high bits: flags (resident bit, capture-valid bit, relight-valid bit, etc.)
+
+If we later need more bits (e.g., very large `physicalPageId` ranges), we can upgrade to `RG32UI` or `RGBA32UI`.
 
 In the simplest model:
 
@@ -576,7 +576,7 @@ We rely on:
 
 Keep these seams:
 
-- Page tables remain textures (`RGBA32UI`) rather than “SSBO-only” structures.
+- Page tables remain textures (v1 `R32UI`, upgradeable to `RG32UI/RGBA32UI`) rather than “SSBO-only” structures.
 - Indirection tables should be representable as:
   - SSBO (GL4.3) and Texture Buffer Object / 1D texture (GL3.3 later)
 - Shared GLSL include code:
