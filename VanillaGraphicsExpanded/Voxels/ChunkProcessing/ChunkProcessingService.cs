@@ -80,14 +80,17 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
 
         if (ct.IsCancellationRequested)
         {
-            return Task.FromResult(new ChunkWorkResult<TArtifact>(
+            var res = new ChunkWorkResult<TArtifact>(
                 Status: ChunkWorkStatus.Canceled,
                 Key: key,
                 RequestedVersion: version,
                 ProcessorId: processor.Id,
                 Artifact: default,
                 Error: ChunkWorkError.None,
-                Reason: "Canceled"));
+                Reason: "Canceled");
+
+            ChunkProcessingMetrics.OnCompleted(res.Status);
+            return Task.FromResult(res);
         }
 
         var processorKey = new ChunkProcessorKey(key, processor.Id);
@@ -95,14 +98,17 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
         // Phase 2: If a newer request has already been submitted for this (chunk, processor), this request is superseded immediately.
         if (latestRequestedVersion.TryGetValue(processorKey, out int latest) && version < latest)
         {
-            return Task.FromResult(new ChunkWorkResult<TArtifact>(
+            var res = new ChunkWorkResult<TArtifact>(
                 Status: ChunkWorkStatus.Superseded,
                 Key: key,
                 RequestedVersion: version,
                 ProcessorId: processor.Id,
                 Artifact: default,
                 Error: ChunkWorkError.None,
-                Reason: "Superseded"));
+                Reason: "Superseded");
+
+            ChunkProcessingMetrics.OnCompleted(res.Status);
+            return Task.FromResult(res);
         }
 
         // Update "latest requested" (monotonic max).
@@ -134,27 +140,33 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
         // If we lost the race and are now older than the latest, complete immediately.
         if (version < latest)
         {
-            return Task.FromResult(new ChunkWorkResult<TArtifact>(
+            var res = new ChunkWorkResult<TArtifact>(
                 Status: ChunkWorkStatus.Superseded,
                 Key: key,
                 RequestedVersion: version,
                 ProcessorId: processor.Id,
                 Artifact: default,
                 Error: ChunkWorkError.None,
-                Reason: "Superseded"));
+                Reason: "Superseded");
+
+            ChunkProcessingMetrics.OnCompleted(res.Status);
+            return Task.FromResult(res);
         }
 
         // Cache hit fast-path (still guarded by current-version).
         if (versionProvider.GetCurrentVersion(key) != version)
         {
-            return Task.FromResult(new ChunkWorkResult<TArtifact>(
+            var res = new ChunkWorkResult<TArtifact>(
                 Status: ChunkWorkStatus.Superseded,
                 Key: key,
                 RequestedVersion: version,
                 ProcessorId: processor.Id,
                 Artifact: default,
                 Error: ChunkWorkError.None,
-                Reason: "Superseded"));
+                Reason: "Superseded");
+
+            ChunkProcessingMetrics.OnCompleted(res.Status);
+            return Task.FromResult(res);
         }
 
         var artifactKey = new ArtifactKey(key, version, processor.Id);
@@ -163,24 +175,30 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
         {
             if (cacheErrorReason is not null)
             {
-                return Task.FromResult(new ChunkWorkResult<TArtifact>(
+                var res = new ChunkWorkResult<TArtifact>(
                     Status: ChunkWorkStatus.Failed,
                     Key: key,
                     RequestedVersion: version,
                     ProcessorId: processor.Id,
                     Artifact: default,
                     Error: ChunkWorkError.Unknown,
-                    Reason: cacheErrorReason));
+                    Reason: cacheErrorReason);
+
+                ChunkProcessingMetrics.OnCompleted(res.Status);
+                return Task.FromResult(res);
             }
 
-            return Task.FromResult(new ChunkWorkResult<TArtifact>(
+            var hit = new ChunkWorkResult<TArtifact>(
                 Status: ChunkWorkStatus.Success,
                 Key: key,
                 RequestedVersion: version,
                 ProcessorId: processor.Id,
                 Artifact: cached,
                 Error: ChunkWorkError.None,
-                Reason: null));
+                Reason: null);
+
+            ChunkProcessingMetrics.OnCompleted(hit.Status);
+            return Task.FromResult(hit);
         }
 
         while (true)
@@ -192,14 +210,17 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
                     return typed;
                 }
 
-                return Task.FromResult(new ChunkWorkResult<TArtifact>(
+                var mismatch = new ChunkWorkResult<TArtifact>(
                     Status: ChunkWorkStatus.Failed,
                     Key: key,
                     RequestedVersion: version,
                     ProcessorId: processor.Id,
                     Artifact: default,
                     Error: ChunkWorkError.Unknown,
-                    Reason: "ArtifactKeyTypeMismatch"));
+                    Reason: "ArtifactKeyTypeMismatch");
+
+                ChunkProcessingMetrics.OnCompleted(mismatch.Status);
+                return Task.FromResult(mismatch);
             }
 
             var tcs = new TaskCompletionSource<ChunkWorkResult<TArtifact>>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -209,6 +230,8 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
             {
                 continue;
             }
+
+            ChunkProcessingMetrics.OnInFlightAdded();
 
             var workItem = new ChunkWorkItem<TArtifact>(
                 key: key,
@@ -254,7 +277,10 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
 
             if (!work.Writer.TryWrite(workItem))
             {
-                inFlight.TryRemove(artifactKey, out _);
+                if (inFlight.TryRemove(artifactKey, out _))
+                {
+                    ChunkProcessingMetrics.OnInFlightRemoved();
+                }
 
                 if (pendingByProcessorKey.TryGetValue(processorKey, out ConcurrentDictionary<int, IChunkWorkItem>? pending)
                     && pending.TryRemove(version, out _)
@@ -263,15 +289,20 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
                     pendingByProcessorKey.TryRemove(processorKey, out _);
                 }
 
-                return Task.FromResult(new ChunkWorkResult<TArtifact>(
+                var unavailable = new ChunkWorkResult<TArtifact>(
                     Status: ChunkWorkStatus.Failed,
                     Key: key,
                     RequestedVersion: version,
                     ProcessorId: processor.Id,
                     Artifact: default,
                     Error: ChunkWorkError.Unknown,
-                    Reason: "ServiceUnavailable"));
+                    Reason: "ServiceUnavailable");
+
+                ChunkProcessingMetrics.OnCompleted(unavailable.Status);
+                return Task.FromResult(unavailable);
             }
+
+            ChunkProcessingMetrics.OnEnqueued();
 
             return task;
         }
@@ -304,6 +335,7 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
                 {
                     try
                     {
+                        ChunkProcessingMetrics.OnDequeued();
                         await item.ExecuteAsync(cts.Token).ConfigureAwait(false);
                     }
                     catch
@@ -342,8 +374,16 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
             {
                 snapshotSource,
                 serviceCtsToken = cts.Token,
-                onBytesAdd = (Action<long>)(b => Interlocked.Add(ref snapshotBytesInUse, b)),
-                onBytesRemove = (Action<long>)(b => Interlocked.Add(ref snapshotBytesInUse, -b)),
+                onBytesAdd = (Action<long>)(b =>
+                {
+                    Interlocked.Add(ref snapshotBytesInUse, b);
+                    ChunkProcessingMetrics.OnSnapshotBytesDelta(b);
+                }),
+                onBytesRemove = (Action<long>)(b =>
+                {
+                    Interlocked.Add(ref snapshotBytesInUse, -b);
+                    ChunkProcessingMetrics.OnSnapshotBytesDelta(-b);
+                }),
             });
 
         IChunkSnapshot? snapshot;

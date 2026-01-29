@@ -92,19 +92,19 @@ Voxel Chunk Async Processing - Background Artifact Pipeline (Implementation)
 
   Phase 5 - Observability (EventSource + Scopes + Counters):
   Exit artifacts: Stats and timings are visible via EventSource/EventPipe/ETW, reusing existing profiling infrastructure.
-  ☐ Reuse `VanillaGraphicsExpanded.Profiling` provider for scoped timings:
+  ✔ Reuse `VanillaGraphicsExpanded.Profiling` provider for scoped timings: @done(26-01-29 02:15)
     - add `Profiler.BeginScope("ChunkProc.<ProcessorId>", "ChunkProcessing")` around snapshot+compute (or split scopes)
-  ☐ Extend `VgeProfilingEventSource` with counters (EventCounter/IncrementingEventCounter/PollingCounter):
+  ✔ Extend `VgeProfilingEventSource` with counters (EventCounter/IncrementingEventCounter/PollingCounter): @done(26-01-29 02:15)
     - queue length (per priority lane if applicable)
     - in-flight count
     - completed/sec by status (Success/Superseded/Canceled/Failed/ChunkUnavailable)
     - snapshot bytes in-use
     - cache hits/evictions
-  ☐ Add lightweight structured events only if needed (avoid raw `ChunkKey` to keep cardinality low).
-  ☐ Update docs:
+  ✔ Add lightweight structured events only if needed (avoid raw `ChunkKey` to keep cardinality low). @done(26-01-29 02:15)
+  ✔ Update docs: @done(26-01-29 02:15)
     - how to enable providers for chunk processing stats
     - recommended naming conventions to keep ETW/eventpipe usable
-  ☐ Add/extend tests similar to `VanillaGraphicsExpanded.Tests/Profiling/ProfilerEventSourceTests.cs` for provider enablement and manifest stability.
+  ✔ Add/extend tests similar to `VanillaGraphicsExpanded.Tests/Profiling/ProfilerEventSourceTests.cs` for provider enablement and manifest stability. @done(26-01-29 02:15)
 
 
   Phase 6 - Integration + Stress/Perf Validation:

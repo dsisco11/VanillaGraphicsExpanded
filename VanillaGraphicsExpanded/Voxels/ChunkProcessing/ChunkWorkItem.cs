@@ -3,6 +3,8 @@ using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 
+using VanillaGraphicsExpanded.Profiling;
+
 namespace VanillaGraphicsExpanded.Voxels.ChunkProcessing;
 
 internal sealed class ChunkWorkItem<TArtifact> : IChunkWorkItem
@@ -61,7 +63,12 @@ internal sealed class ChunkWorkItem<TArtifact> : IChunkWorkItem
 
         if (completed)
         {
-            inFlight.TryRemove(ArtifactKey, out _);
+            if (inFlight.TryRemove(ArtifactKey, out _))
+            {
+                ChunkProcessingMetrics.OnInFlightRemoved();
+            }
+
+            ChunkProcessingMetrics.OnCompleted(ChunkWorkStatus.Superseded);
         }
 
         return completed;
@@ -85,31 +92,39 @@ internal sealed class ChunkWorkItem<TArtifact> : IChunkWorkItem
 
             if (callerCancellationToken.IsCancellationRequested)
             {
-                tcs.TrySetResult(new ChunkWorkResult<TArtifact>(
+                if (tcs.TrySetResult(new ChunkWorkResult<TArtifact>(
                     Status: ChunkWorkStatus.Canceled,
                     Key: key,
                     RequestedVersion: version,
                     ProcessorId: processor.Id,
                     Artifact: default,
                     Error: ChunkWorkError.None,
-                    Reason: "Canceled"));
+                    Reason: "Canceled")))
+                {
+                    ChunkProcessingMetrics.OnCompleted(ChunkWorkStatus.Canceled);
+                }
 
                 return;
             }
 
             if (versionProvider.GetCurrentVersion(key) != version)
             {
-                tcs.TrySetResult(new ChunkWorkResult<TArtifact>(
+                if (tcs.TrySetResult(new ChunkWorkResult<TArtifact>(
                     Status: ChunkWorkStatus.Superseded,
                     Key: key,
                     RequestedVersion: version,
                     ProcessorId: processor.Id,
                     Artifact: default,
                     Error: ChunkWorkError.None,
-                    Reason: "Superseded"));
+                    Reason: "Superseded")))
+                {
+                    ChunkProcessingMetrics.OnCompleted(ChunkWorkStatus.Superseded);
+                }
 
                 return;
             }
+
+            using var scope = Profiler.BeginScope(string.Concat("ChunkProc.", processor.Id), "ChunkProcessing");
 
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(serviceCancellationToken, callerCancellationToken);
             CancellationToken ct = linkedCts.Token;
@@ -121,41 +136,50 @@ internal sealed class ChunkWorkItem<TArtifact> : IChunkWorkItem
             }
             catch (OperationCanceledException)
             {
-                tcs.TrySetResult(new ChunkWorkResult<TArtifact>(
+                if (tcs.TrySetResult(new ChunkWorkResult<TArtifact>(
                     Status: ChunkWorkStatus.Canceled,
                     Key: key,
                     RequestedVersion: version,
                     ProcessorId: processor.Id,
                     Artifact: default,
                     Error: ChunkWorkError.None,
-                    Reason: "Canceled"));
+                    Reason: "Canceled")))
+                {
+                    ChunkProcessingMetrics.OnCompleted(ChunkWorkStatus.Canceled);
+                }
 
                 return;
             }
             catch (Exception ex)
             {
-                tcs.TrySetResult(new ChunkWorkResult<TArtifact>(
+                if (tcs.TrySetResult(new ChunkWorkResult<TArtifact>(
                     Status: ChunkWorkStatus.Failed,
                     Key: key,
                     RequestedVersion: version,
                     ProcessorId: processor.Id,
                     Artifact: default,
                     Error: ChunkWorkError.SnapshotFailed,
-                    Reason: ex.Message));
+                    Reason: ex.Message)))
+                {
+                    ChunkProcessingMetrics.OnCompleted(ChunkWorkStatus.Failed);
+                }
 
                 return;
             }
 
             if (snapshot is null)
             {
-                tcs.TrySetResult(new ChunkWorkResult<TArtifact>(
+                if (tcs.TrySetResult(new ChunkWorkResult<TArtifact>(
                     Status: ChunkWorkStatus.ChunkUnavailable,
                     Key: key,
                     RequestedVersion: version,
                     ProcessorId: processor.Id,
                     Artifact: default,
                     Error: ChunkWorkError.None,
-                    Reason: "ChunkUnavailable"));
+                    Reason: "ChunkUnavailable")))
+                {
+                    ChunkProcessingMetrics.OnCompleted(ChunkWorkStatus.ChunkUnavailable);
+                }
 
                 return;
             }
@@ -226,12 +250,18 @@ CompleteAfterDispose:
 
             if (finalResult is not null)
             {
-                tcs.TrySetResult(finalResult.Value);
+                if (tcs.TrySetResult(finalResult.Value))
+                {
+                    ChunkProcessingMetrics.OnCompleted(finalResult.Value.Status);
+                }
             }
         }
         finally
         {
-            inFlight.TryRemove(ArtifactKey, out _);
+            if (inFlight.TryRemove(ArtifactKey, out _))
+            {
+                ChunkProcessingMetrics.OnInFlightRemoved();
+            }
 
             if (pendingByProcessorKey.TryGetValue(ChunkProcessorKey, out ConcurrentDictionary<int, IChunkWorkItem>? pending)
                 && pending.TryRemove(version, out _)

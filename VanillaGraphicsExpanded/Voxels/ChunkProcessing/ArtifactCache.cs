@@ -46,6 +46,8 @@ internal sealed class ArtifactCache
             lru.Remove(node);
             lru.AddFirst(node);
             artifact = node.Value.Artifact;
+
+            ChunkProcessingMetrics.OnArtifactCacheHit();
             return true;
         }
     }
@@ -78,6 +80,8 @@ internal sealed class ArtifactCache
             map.Add(key, listNode);
             bytesInUse += estimatedBytes;
 
+            ChunkProcessingMetrics.SetArtifactCacheBytesInUse(bytesInUse);
+
             if (budgetBytes > 0)
             {
                 TrimToBudgetLocked();
@@ -94,6 +98,9 @@ internal sealed class ArtifactCache
 
             map.Remove(tail.Value.Key);
             bytesInUse -= tail.Value.EstimatedBytes;
+
+            ChunkProcessingMetrics.OnArtifactCacheEviction();
+            ChunkProcessingMetrics.SetArtifactCacheBytesInUse(bytesInUse);
         }
     }
 

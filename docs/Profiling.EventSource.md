@@ -11,6 +11,22 @@ Markers show up in ETW (PerfView) and EventPipe (`dotnet-trace`) as Start/Stop e
   - `1` = ScopeStart (`id`, `name`, `category`, `threadId`)
   - `2` = ScopeStop (`id`, `threadId`)
 
+## Counters (Chunk Processing)
+
+The same provider also emits EventCounters for chunk processing. These are low-cardinality aggregate metrics.
+
+- `chunkproc-queue-length`
+- `chunkproc-inflight`
+- `chunkproc-completed-success`
+- `chunkproc-completed-superseded`
+- `chunkproc-completed-canceled`
+- `chunkproc-completed-failed`
+- `chunkproc-completed-unavailable`
+- `chunkproc-snapshot-bytes`
+- `chunkproc-cache-bytes`
+- `chunkproc-cache-hits`
+- `chunkproc-cache-evictions`
+
 ## Usage (in code)
 
 Use low-cardinality names and avoid string interpolation in hot paths:
@@ -34,9 +50,10 @@ If the target process is running a .NET runtime that supports EventPipe:
 - List providers:
   - `dotnet-trace providers -p <pid>`
 - Collect only this provider:
-  - `dotnet-trace collect -p <pid> --providers VanillaGraphicsExpanded.Profiling:0x1:Informational`
+  - `dotnet-trace collect -p <pid> --providers VanillaGraphicsExpanded.Profiling:0x1:Informational --counter-interval 1`
 
 Notes:
 
 - `0x1` corresponds to the `CpuScopes` keyword.
 - `Informational` matches the current event level.
+- `--counter-interval` controls how often EventCounters are sampled.
