@@ -70,14 +70,21 @@ LumOn - Phase 23 - TraceScene Clipmap (GPU Build + Region-Driven Updates) (Imple
 
   Phase 23.3 - Region Extraction (Async Job System)
   Exit artifacts: A chunk processor that produces packed occupancy payload buffers per region+version.
-  ☐ Implement a `IChunkProcessor<TArtifact>` for TraceScene source:
+  ✔ Implement a `IChunkProcessor<TArtifact>` for TraceScene source:
     - Inputs: region coord + version (maps onto existing `ChunkKey` / version provider)
     - Output artifact: packed payload buffer + metadata (regionCoord, version, optional dirty mask)
-  ☐ Define packing rules:
-    - Produce exact `LumonSceneOccupancyPacking`-compatible `uint` payload per worldCell
-    - Missing/unloaded region must produce 0 payload for all cells (treat as empty)
-  ☐ Add cancellation/supersede rules:
-    - If newer version requested for a region, older artifacts are superseded and not uploaded
+    - Implemented: `VanillaGraphicsExpanded/LumOn/Scene/LumonSceneTraceSceneRegionProcessor.cs:1`
+    - Artifact type: `VanillaGraphicsExpanded/LumOn/Scene/LumonSceneTraceSceneRegionArtifact.cs:1`
+  ✔ Define packing rules:
+    - Snapshot must be 32^3 and provides either:
+      - already-packed `uint` words (one per worldCell), OR
+      - `LumonSceneTraceSceneSourceCell` elements which are packed to `uint` via `LumonSceneOccupancyPacking.Pack(...)`
+    - `IsSolid == 0` => payload word 0 (empty)
+    - Source-cell contract type: `VanillaGraphicsExpanded/LumOn/Scene/LumonSceneTraceSceneSourceCell.cs:1`
+    - Missing/unloaded region is reported as ChunkUnavailable by the processing service; scheduler writes zeros (handled in Phase 23.5)
+  ✔ Add cancellation/supersede rules:
+    - Processor observes CancellationToken.
+    - Supersede/“newer version wins” is enforced by `ChunkProcessingService` / `IChunkVersionProvider` (no artifact upload when superseded).
 
 
   Phase 23.4 - GPU Build Compute (Region -> Clipmap)
