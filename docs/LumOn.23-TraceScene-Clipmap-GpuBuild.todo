@@ -128,12 +128,16 @@ LumOn - Phase 23 - TraceScene Clipmap (GPU Build + Region-Driven Updates) (Imple
 
   Phase 23.6 - Tracer Integration (DDA + Skipping)
   Exit artifacts: The compute tracer uses the new clipmap representation efficiently.
-  ☐ Update `lumonscene_relight_voxel_dda.csh` sampling contract as needed:
+  ✔ Update `lumonscene_relight_voxel_dda.csh` sampling contract as needed:
     - Keep `SampleOccL0(worldCell)` but ensure it matches updated ring/origin parameters
     - If adding hierarchy, implement empty-space skipping (coarse traversal then descend)
-  ☐ Define correctness rules:
+    - Implemented shared helper include: `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumonscene_trace_scene_occupancy.glsl:1`
+    - Updated tracer shader: `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumonscene_relight_voxel_dda.csh:1`
+    - Note: hierarchy/skip not implemented yet (L0-only DDA v1).
+  ✔ Define correctness rules:
     - Skipping must be conservative (never skip over solids)
     - Outside clipmap bounds => miss
+    - Implemented (bounds => miss) in: `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumonscene_relight_voxel_dda.csh:1`
 
 
   Phase 23.7 - Debugging, Tests, Profiling

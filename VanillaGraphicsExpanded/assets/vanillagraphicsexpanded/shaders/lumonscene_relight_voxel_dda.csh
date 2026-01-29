@@ -5,6 +5,7 @@
 
 // Import deterministic hash (shared across LumOn shaders)
 @import "./includes/squirrel3.glsl"
+@import "./includes/lumonscene_trace_scene_occupancy.glsl"
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
@@ -46,38 +47,8 @@ uint UnpackSunLevel(uint packed) { return (packed >> 6u) & 63u; }
 uint UnpackLightId(uint packed) { return (packed >> 12u) & 63u; }
 uint UnpackMaterialPaletteIndex(uint packed) { return (packed >> 18u) & 16383u; }
 
-int ModI(int x, int m)
-{
-    int r = x % m;
-    return (r < 0) ? (r + m) : r;
-}
-
-bool OccInBounds(ivec3 worldCell)
-{
-    ivec3 local = worldCell - vge_occOriginMinCell0;
-    return
-        (uint)local.x < (uint)vge_occResolution &&
-        (uint)local.y < (uint)vge_occResolution &&
-        (uint)local.z < (uint)vge_occResolution;
-}
-
-uint SampleOccL0(ivec3 worldCell)
-{
-    ivec3 local = worldCell - vge_occOriginMinCell0;
-    if ((uint)local.x >= (uint)vge_occResolution ||
-        (uint)local.y >= (uint)vge_occResolution ||
-        (uint)local.z >= (uint)vge_occResolution)
-    {
-        return 0u;
-    }
-
-    ivec3 tex = ivec3(
-        ModI(local.x + vge_occRing0.x, vge_occResolution),
-        ModI(local.y + vge_occRing0.y, vge_occResolution),
-        ModI(local.z + vge_occRing0.z, vge_occResolution));
-
-    return texelFetch(vge_occL0, tex, 0).x;
-}
+bool OccInBounds(ivec3 worldCell) { return VgeOccInBoundsL0(worldCell, vge_occOriginMinCell0, vge_occResolution); }
+uint SampleOccL0(ivec3 worldCell) { return VgeSampleOccL0(vge_occL0, worldCell, vge_occOriginMinCell0, vge_occRing0, vge_occResolution); }
 
 vec3 CosineSampleHemisphere(vec2 u)
 {
