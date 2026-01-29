@@ -1,4 +1,4 @@
-using VanillaGraphicsExpanded.LumOn.LumonScene;
+using VanillaGraphicsExpanded.LumOn.Scene;
 using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.LumonScene;

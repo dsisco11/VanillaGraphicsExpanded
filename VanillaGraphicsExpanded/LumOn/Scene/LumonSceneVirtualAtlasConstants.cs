@@ -1,4 +1,4 @@
-namespace VanillaGraphicsExpanded.LumOn.LumonScene;
+namespace VanillaGraphicsExpanded.LumOn.Scene;
 
 internal static class LumonSceneVirtualAtlasConstants
 {

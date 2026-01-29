@@ -1,6 +1,6 @@
 using System;
 
-namespace VanillaGraphicsExpanded.LumOn.LumonScene;
+namespace VanillaGraphicsExpanded.LumOn.Scene;
 
 internal readonly struct LumonScenePhysicalPage
 {

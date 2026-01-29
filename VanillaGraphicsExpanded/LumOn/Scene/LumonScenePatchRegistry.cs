@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace VanillaGraphicsExpanded.LumOn.LumonScene;
+namespace VanillaGraphicsExpanded.LumOn.Scene;
 
 [Flags]
 internal enum LumonScenePatchDirtyFlags : ushort

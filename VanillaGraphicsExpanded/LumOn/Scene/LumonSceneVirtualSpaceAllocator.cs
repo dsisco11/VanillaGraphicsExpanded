@@ -1,6 +1,6 @@
 using System;
 
-namespace VanillaGraphicsExpanded.LumOn.LumonScene;
+namespace VanillaGraphicsExpanded.LumOn.Scene;
 
 /// <summary>
 /// Per-chunk virtual address allocator for patch virtual tiles.

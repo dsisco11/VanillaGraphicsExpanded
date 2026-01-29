@@ -4,7 +4,7 @@ using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Rendering;
 
-namespace VanillaGraphicsExpanded.LumOn.LumonScene;
+namespace VanillaGraphicsExpanded.LumOn.Scene;
 
 internal sealed class LumonScenePhysicalAtlasGpuResources : IDisposable
 {

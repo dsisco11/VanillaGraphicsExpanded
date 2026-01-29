@@ -2,7 +2,7 @@ using System;
 
 using VanillaGraphicsExpanded.LumOn;
 
-namespace VanillaGraphicsExpanded.LumOn.LumonScene;
+namespace VanillaGraphicsExpanded.LumOn.Scene;
 
 internal sealed class LumonScenePhysicalPoolManager : IDisposable
 {

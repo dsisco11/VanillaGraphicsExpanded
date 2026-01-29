@@ -1,6 +1,6 @@
 using System;
 
-namespace VanillaGraphicsExpanded.LumOn.LumonScene;
+namespace VanillaGraphicsExpanded.LumOn.Scene;
 
 /// <summary>
 /// Per-chunk virtual atlas that maps PatchIds to virtual tiles and in-tile patch rects.
