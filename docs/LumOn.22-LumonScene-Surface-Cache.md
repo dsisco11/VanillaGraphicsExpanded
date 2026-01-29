@@ -104,6 +104,17 @@ all layers for that tile.
 
 ## 4. High-level architecture (CPU ↔ GPU)
 
+### 4.0 Threading / context model (requirements)
+
+- **Render thread (GL context)**: owns all GL object creation/destruction, shader dispatch, and GPU readbacks.
+- **Game/update thread(s)**: may observe chunk/block/instance changes and enqueue “world events” to the render thread.
+- **Hard rule**: no GL calls outside the render thread.
+
+Practical implication:
+
+- `ChunkLumonScene` state should be mutated on the render thread (or guarded by a single owner + lock-free queue of
+  change events). This keeps residency/page-table state deterministic and avoids races with feedback processing.
+
 ### 4.1 CPU-side ownership (per chunk)
 
 **`ChunkLumonScene`** (conceptual) owns:
@@ -154,6 +165,47 @@ Minimal set (proposed):
 - **Optional (but very useful)**:
   - `PatchIdGBuffer` (during primary geometry pass): stores `(chunkSlot, patchId, patchUV)`
 
+### 4.4 ChunkSlot lifecycle (requirements)
+
+We need a stable way to address per-chunk GPU state (page-table slices, patch metadata ranges, etc.).
+
+Concept: allocate a **`chunkSlot`** from a bounded slot pool, where each slot has a **generation** counter.
+
+- On chunk load:
+  - allocate `(chunkSlot, generation)`
+  - allocate/initialize per-chunk CPU state (`ChunkLumonScene`)
+  - clear GPU page-table slice for that slot (all pages invalid)
+- On chunk remesh:
+  - patch IDs must remain stable (via `PatchKey -> PatchId`)
+  - mark affected patches dirty; do **not** recycle PatchIds for “same key” patches
+  - invalidate/capture pages for dirty patches as needed
+- On chunk unload:
+  - return all resident physical tiles for that chunk back to the global pool
+  - release the slot (increment generation so stale GPU references can be detected/ignored)
+
+Shader-side safety:
+
+- `PatchIdGBuffer` should encode `chunkSlot` and `patchId`, and (optionally) a `slotGeneration` so any stale pixels
+  after streaming can be rejected.
+
+### 4.5 Budgets / knobs (requirements)
+
+This system must be explicitly budgeted; surface-cache work should never “run away” under camera movement or streaming.
+
+Recommended budget categories:
+
+- **Residency**:
+  - max new tile allocations per frame
+  - max evictions per frame
+- **Capture**:
+  - max pages captured per frame (voxel + mesh)
+- **Relight**:
+  - max pages relit per frame, and/or max texels relit per frame
+  - rays per texel (typically small, amortized)
+- **Feedback**:
+  - max page requests processed per frame (CPU)
+  - GPU-side request buffer cap + overflow behavior (drop + rely on next frame)
+
 ---
 
 ## 5. VirtualPagedAtlas and page tables
@@ -165,6 +217,22 @@ Minimal set (proposed):
 **Physical atlas size**: `4096×4096` texels per atlas (fixed) → `16×16` tiles per atlas.
 
 **Atlas pool size**: `64` atlases → `256 tiles/atlas * 64 = 16384` total resident tiles across the pool (before any per-layer overhead).
+
+**VRAM requirement warning** (important):
+
+- A pool of 64 full `4096×4096` textures per layer is large.
+- Approx per-atlas memory:
+  - `R16F` depth: ~32 MiB per atlas → ~2.0 GiB for 64 atlases
+  - `RGBA8` material: ~64 MiB per atlas → ~4.0 GiB for 64 atlases
+  - `RGBA16F` irradiance: ~128 MiB per atlas → ~8.0 GiB for 64 atlases
+- Total for these three layers is on the order of ~14 GiB.
+
+So **atlasCount must be configurable and clamped** (by user config and practical GPU limits). If we keep 64 as a target
+cap, an “adaptive pool” policy is recommended:
+
+- start smaller (e.g., 4–8 atlases) and grow up to the cap only if budgets/VRAM allow
+- or keep 64 as a hard cap but allocate fewer atlases based on detected `MaxTextureUnits/VRAM` heuristics
+  (exact VRAM query is not portable in OpenGL)
 
 Every surface-cache lookup starts from:
 

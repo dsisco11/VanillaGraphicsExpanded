@@ -41,19 +41,26 @@ LumOn - Phase 22 - LumonScene Surface Cache (Cards + Virtual Paged Atlases) (Imp
 
   Phase 22.1 - Requirements + Ownership Boundaries
   Exit artifacts: Clear contracts for who owns chunk state, who owns global pool state, and how passes interact.
-  ☐ Define ownership types and lifetimes:
+  ☐ Define ownership types and lifetimes (and which thread owns mutation):
     - ChunkLumonScene (per chunk): PatchRegistry, VirtualPagedAtlas, page-table mirror, dirty tracking
     - PhysicalPagePool (global): atlas textures + free list + eviction policy + stats
     - Render integration: frame scheduler + GPU passes + upload paths
+    - Hard rule: GL work on render thread only; world-change events are queued to render thread
   ☐ Define chunk streaming lifecycle:
     - Allocate/release chunkSlot (GPU slice) and patch-id space
     - Preserve per-chunk cache history while chunk remains resident in RAM
     - Correct teardown when chunk unloads (return tiles to pool; release registries)
+    - Slot generation strategy to reject stale PatchIdGBuffer pixels after streaming
   ☐ Define budgets + knobs:
     - Max page allocations per frame
     - Max capture pages per frame
     - Max relight texels/pages per frame
     - Global pool pressure behavior (eviction thresholds, per-chunk quota optional)
+    - Overflow behavior for GPU feedback buffer (drop + retry next frame)
+  ☐ Document VRAM scaling and defaults:
+    - 64 atlases is a cap/target; atlasCount must be configurable and clamped
+    - Provide per-layer memory estimate for Depth/Material/Irradiance formats
+    - Choose a conservative default atlasCount (e.g., 4-8) unless user overrides
 
 
   Phase 22.2 - Patch Identity (Stable PatchIds) + Patch Registry
@@ -230,4 +237,3 @@ LumOn - Phase 22 - LumonScene Surface Cache (Cards + Virtual Paged Atlases) (Imp
     - page tables as RGBA32UI textures
     - patch metadata and LUTs representable as TBO/1D textures
   ☐ Keep GLSL include helpers shared between compute and fragment paths.
-
