@@ -53,19 +53,19 @@ LumOn - Phase 23 - TraceScene Clipmap (GPU Build + Region-Driven Updates) (Imple
 
   Phase 23.2 - Data Layout (GPU)
   Exit artifacts: Concrete GPU resources for staging and destination.
-  ☐ Define destination textures:
-    - Payload L0: `R32UI` per cell (packed block/sun/light/material indirection)
-    - Higher levels:
-      - Option A: payload-per-level (same format) for coarse hits/debug
-      - Option B (recommended): occupancy-only (any-solid) for skipping + keep payload only in L0
-  ☐ Define staging upload representation:
-    - CPU packs a 32^3 region into a contiguous `uint[32*32*32]` payload buffer
-    - Render thread uploads into one of:
-      - SSBO staging buffer (recommended for compute write-out), OR
-      - temporary 3D texture staging (only if it simplifies reuse)
-  ☐ Define per-dispatch work layout:
-    - Batch multiple region updates per dispatch via work-SSBO (regionCoord + source offset + level mask)
-    - Or dispatch once per region (simpler, but more driver overhead)
+  ✔ Define destination textures:
+    - v1 destination remains `Texture3D[]` per level, `R32UI` per cell, stored in `LumonSceneOccupancyClipmapGpuResources.OccupancyLevels`
+      - L0 holds packed payload used by the DDA tracer (block/sun/light/material indirection)
+      - Higher levels remain `R32UI` for now (coarse debug / future skipping), but v1 tracer may continue to sample only L0
+    - Future (optional): add a separate conservative occupancy hierarchy (any-solid) for empty-space skipping while keeping payload only in L0
+  ✔ Define staging upload representation:
+    - CPU packs a 32^3 region into a contiguous `uint[32*32*32]` payload buffer (words)
+    - Render thread uploads into an SSBO staging buffer (words) for compute write-out
+    - Reference helper: `VanillaGraphicsExpanded/LumOn/Scene/LumonSceneTraceSceneRegionUploadGpuResources.cs:1`
+  ✔ Define per-dispatch work layout:
+    - Batch multiple region updates per dispatch via a work SSBO:
+      - (regionCoord, srcOffsetWords, levelMask, version/pad)
+    - Compute dispatch uses `gl_WorkGroupID.z` as the update index (one Z-slice per region update)
 
 
   Phase 23.3 - Region Extraction (Async Job System)
