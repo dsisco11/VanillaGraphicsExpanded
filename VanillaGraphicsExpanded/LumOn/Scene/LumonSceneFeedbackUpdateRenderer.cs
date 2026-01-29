@@ -50,6 +50,54 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     private int recaptureCount;
     private int recaptureCursor;
 
+    internal bool TryGetNearDispatchState(
+        out LumonScenePhysicalFieldPool nearPool,
+        out LumonSceneFieldGpuResources nearFieldGpu,
+        out System.Collections.Generic.IReadOnlyDictionary<uint, int> physicalToVirtualNear,
+        out LumonScenePageTableEntry[] pageTableMirrorMip0)
+    {
+        nearPool = physicalPools.Near;
+        nearFieldGpu = nearGpu;
+        physicalToVirtualNear = physicalToVirtual;
+        pageTableMirrorMip0 = pageTableMirror;
+
+        // Require that GPU resources exist for dispatch.
+        if (!configured)
+        {
+            return false;
+        }
+
+        if (physicalPools.Near.GpuResources is null)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    internal bool TryClearNearPageFlagsMip0(int virtualPageIndex, LumonScenePageTableEntryPacking.Flags flagsToClear)
+    {
+        if ((uint)virtualPageIndex >= (uint)VirtualPagesPerChunk)
+        {
+            return false;
+        }
+
+        var entry = pageTableMirror[virtualPageIndex];
+        uint pid = LumonScenePageTableEntryPacking.UnpackPhysicalPageId(entry);
+        if (pid == 0)
+        {
+            return false;
+        }
+
+        var flags = LumonScenePageTableEntryPacking.UnpackFlags(entry);
+        flags &= ~flagsToClear;
+
+        LumonScenePageTableEntry updated = LumonScenePageTableEntryPacking.Pack(pid, flags);
+        pageTableMirror[virtualPageIndex] = updated;
+        UploadPageTableEntryMip0(chunkSlot: 0, virtualPageIndex: virtualPageIndex, updated.Packed);
+        return true;
+    }
+
     public void NotifyAllDirty(string reason)
     {
         _ = reason;
@@ -494,13 +542,28 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         int tilesPerAxis = physicalPools.Near.Plan.TilesPerAxis;
         int tilesPerAtlas = physicalPools.Near.Plan.TilesPerAtlas;
 
-        // Bind outputs as layered images.
-        GL.BindImageTexture(0, atlases.DepthAtlasTextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
-        GL.BindImageTexture(1, atlases.MaterialAtlasTextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
-
         using (captureVoxelPipeline!.UseScope())
         {
             nearGpu.CaptureWork.Items.BindBase(bindingIndex: 0);
+
+            // Bind outputs as layered images (units derived from shader layout(binding=...)).
+            _ = captureVoxelPipeline.ProgramLayout.TryBindImageTexture(
+                imageUniformName: "vge_depthAtlas",
+                texture: atlases.DepthAtlas,
+                access: TextureAccess.WriteOnly,
+                level: 0,
+                layered: true,
+                layer: 0,
+                formatOverride: SizedInternalFormat.R16f);
+
+            _ = captureVoxelPipeline.ProgramLayout.TryBindImageTexture(
+                imageUniformName: "vge_materialAtlas",
+                texture: atlases.MaterialAtlas,
+                access: TextureAccess.WriteOnly,
+                level: 0,
+                layered: true,
+                layer: 0,
+                formatOverride: SizedInternalFormat.Rgba8);
 
             _ = captureVoxelPipeline.TrySetUniform1("vge_tileSizeTexels", (uint)tileSize);
             _ = captureVoxelPipeline.TrySetUniform1("vge_tilesPerAxis", (uint)tilesPerAxis);

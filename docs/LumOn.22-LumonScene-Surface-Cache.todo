@@ -192,18 +192,15 @@ LumOn - Phase 22 - LumonScene Surface Cache (Cards + Virtual Paged Atlases) (Imp
 
   Phase 22.9 - Relight v1 (GL 4.3 Compute, Voxel DDA)
   Exit artifacts: IrradianceAtlas fills over time; updates are budgeted and temporally stable.
-  ☐ Implement RelightWork scheduling:
-    - per-frame budget: pages and/or texels
-    - prioritize newly visible / newly resident / stale pages
-  ☐ Implement per-texel relight compute:
-    - reconstruct worldPos/normal from patch basis + DepthAtlas
-    - generate ray directions (hash/blue-noise; deterministic with frameIndex)
-    - trace via voxel DDA against occupancy clipmap
-    - shade hit using LUTs + material palette
-    - write irradiance + update accumulation weight
-  ☐ Implement temporal accumulation policy:
-    - weight/age channel semantics
-    - clamping/rejection rules for unstable history (optional first pass)
+  ✔ Implement RelightWork scheduling:
+    - Implemented: `LumonSceneRelightUpdateRenderer` (budgeted pages + MRU prioritization via physical pool LRU)
+    - Per-page temporal distribution via `RelightTexelsPerPagePerFrame`
+  ✔ Implement per-texel relight compute:
+    - Implemented: `lumonscene_relight_voxel_dda.csh` (cosine hemisphere + deterministic hash, voxel DDA against occupancy clipmap L0)
+    - Hit shading: decodes packed payload + LUTs (LightColorLut, BlockLevelScalarLut, SunLevelScalarLut)
+    - NOTE: v1 uses a proxy surface position (not yet tied to real patch metadata); normal comes from MaterialAtlas
+  ✔ Implement temporal accumulation policy:
+    - Implemented: RGBA16F irradiance atlas accumulates RGB with A as sample-count weight (clamped)
 
 
   Phase 22.10 - Shading Integration (Surface Cache Sampling)

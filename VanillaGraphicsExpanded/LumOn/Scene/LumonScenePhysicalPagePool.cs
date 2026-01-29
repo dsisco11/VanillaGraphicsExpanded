@@ -202,6 +202,27 @@ internal sealed class LumonScenePhysicalPagePool
         tileY = (ushort)y;
     }
 
+    /// <summary>
+    /// Copies the most-recently-used physical page IDs into <paramref name="dst"/>.
+    /// Returns the number of IDs written.
+    /// </summary>
+    public int CopyMostRecentlyUsed(Span<uint> dst)
+    {
+        int written = 0;
+        int idx = lruHead;
+        while (idx >= 0 && written < dst.Length)
+        {
+            if (allocated[idx])
+            {
+                dst[written++] = (uint)(idx + 1);
+            }
+
+            idx = lruNext[idx];
+        }
+
+        return written;
+    }
+
     private void InsertMru(int idx)
     {
         if (lruHead < 0)

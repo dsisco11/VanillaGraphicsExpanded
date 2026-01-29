@@ -374,15 +374,268 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
         }
     }
 
-    #endregion
+    /// <summary>
+    /// Sets a <c>bool</c> uniform (0/1). Requires this program to be bound (use <see cref="Use"/> / <see cref="UseScope"/>).
+    /// Returns false if the uniform is missing.
+    /// </summary>
+    public bool TrySetUniform1(string uniformName, bool value)
+    {
+        return TrySetUniform1(uniformName, value ? 1 : 0);
+    }
 
     /// <summary>
-    /// Unbinds any current program (uses 0).
+    /// Sets an <c>ivec2</c> uniform. Requires this program to be bound (use <see cref="Use"/> / <see cref="UseScope"/>).
+    /// Returns false if the uniform is missing.
     /// </summary>
-    public static void Unuse()
+    public bool TrySetUniform2(string uniformName, int x, int y)
     {
-        GlStateCache.Current.UseProgram(0);
+        if (!IsValid)
+        {
+            return false;
+        }
+
+        int loc = GetUniformLocationOrArray0(uniformName);
+        if (loc < 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            GL.Uniform2(loc, x, y);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
+
+    /// <summary>
+    /// Sets a <c>uvec2</c> uniform. Requires this program to be bound (use <see cref="Use"/> / <see cref="UseScope"/>).
+    /// Returns false if the uniform is missing.
+    /// </summary>
+    public bool TrySetUniform2(string uniformName, uint x, uint y)
+    {
+        if (!IsValid)
+        {
+            return false;
+        }
+
+        int loc = GetUniformLocationOrArray0(uniformName);
+        if (loc < 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            GL.Uniform2(loc, x, y);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Sets a <c>vec2</c> uniform. Requires this program to be bound (use <see cref="Use"/> / <see cref="UseScope"/>).
+    /// Returns false if the uniform is missing.
+    /// </summary>
+    public bool TrySetUniform2(string uniformName, float x, float y)
+    {
+        if (!IsValid)
+        {
+            return false;
+        }
+
+        int loc = GetUniformLocationOrArray0(uniformName);
+        if (loc < 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            GL.Uniform2(loc, x, y);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Sets an <c>ivec3</c> uniform. Requires this program to be bound (use <see cref="Use"/> / <see cref="UseScope"/>).
+    /// Returns false if the uniform is missing.
+    /// </summary>
+    public bool TrySetUniform3(string uniformName, int x, int y, int z)
+    {
+        if (!IsValid)
+        {
+            return false;
+        }
+
+        int loc = GetUniformLocationOrArray0(uniformName);
+        if (loc < 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            GL.Uniform3(loc, x, y, z);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Sets a <c>uvec3</c> uniform. Requires this program to be bound (use <see cref="Use"/> / <see cref="UseScope"/>).
+    /// Returns false if the uniform is missing.
+    /// </summary>
+    public bool TrySetUniform3(string uniformName, uint x, uint y, uint z)
+    {
+        if (!IsValid)
+        {
+            return false;
+        }
+
+        int loc = GetUniformLocationOrArray0(uniformName);
+        if (loc < 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            GL.Uniform3(loc, x, y, z);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Sets a <c>vec3</c> uniform. Requires this program to be bound (use <see cref="Use"/> / <see cref="UseScope"/>).
+    /// Returns false if the uniform is missing.
+    /// </summary>
+    public bool TrySetUniform3(string uniformName, float x, float y, float z)
+    {
+        if (!IsValid)
+        {
+            return false;
+        }
+
+        int loc = GetUniformLocationOrArray0(uniformName);
+        if (loc < 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            GL.Uniform3(loc, x, y, z);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Sets an <c>ivec4</c> uniform. Requires this program to be bound (use <see cref="Use"/> / <see cref="UseScope"/>).
+    /// Returns false if the uniform is missing.
+    /// </summary>
+    public bool TrySetUniform4(string uniformName, int x, int y, int z, int w)
+    {
+        if (!IsValid)
+        {
+            return false;
+        }
+
+        int loc = GetUniformLocationOrArray0(uniformName);
+        if (loc < 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            GL.Uniform4(loc, x, y, z, w);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Sets a <c>uvec4</c> uniform. Requires this program to be bound (use <see cref="Use"/> / <see cref="UseScope"/>).
+    /// Returns false if the uniform is missing.
+    /// </summary>
+    public bool TrySetUniform4(string uniformName, uint x, uint y, uint z, uint w)
+    {
+        if (!IsValid)
+        {
+            return false;
+        }
+
+        int loc = GetUniformLocationOrArray0(uniformName);
+        if (loc < 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            GL.Uniform4(loc, x, y, z, w);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Sets a <c>vec4</c> uniform. Requires this program to be bound (use <see cref="Use"/> / <see cref="UseScope"/>).
+    /// Returns false if the uniform is missing.
+    /// </summary>
+    public bool TrySetUniform4(string uniformName, float x, float y, float z, float w)
+    {
+        if (!IsValid)
+        {
+            return false;
+        }
+
+        int loc = GetUniformLocationOrArray0(uniformName);
+        if (loc < 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            GL.Uniform4(loc, x, y, z, w);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    #endregion
 
     /// <summary>
     /// Uses this pipeline and returns a scope that restores the previous program when disposed.

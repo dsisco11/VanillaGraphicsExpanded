@@ -652,6 +652,31 @@ public class VgeConfig
             [JsonProperty]
             public int TraceSceneClipmapSlicesPerFrame { get; set; } = 8;
 
+            /// <summary>
+            /// Max number of surface-cache pages relit per frame (Near field only in v1).
+            /// </summary>
+            [JsonProperty]
+            public int RelightMaxPagesPerFrame { get; set; } = 4;
+
+            /// <summary>
+            /// Number of texels to relight per page per frame.
+            /// 0 disables relight; values &gt;= tileTexelCount relight all texels every frame.
+            /// </summary>
+            [JsonProperty]
+            public int RelightTexelsPerPagePerFrame { get; set; } = 64;
+
+            /// <summary>
+            /// Rays per relit texel (v1 default 1).
+            /// </summary>
+            [JsonProperty]
+            public int RelightRaysPerTexel { get; set; } = 1;
+
+            /// <summary>
+            /// Max voxel steps for the DDA tracer (per ray).
+            /// </summary>
+            [JsonProperty]
+            public int RelightMaxDdaSteps { get; set; } = 64;
+
             internal void Sanitize()
             {
                 NearTexelsPerVoxelFaceEdge = SanitizeTexelsPerVoxelFaceEdge(NearTexelsPerVoxelFaceEdge);
@@ -667,6 +692,11 @@ public class VgeConfig
                 TraceSceneClipmapResolution = SanitizeTraceSceneClipmapResolution(TraceSceneClipmapResolution);
                 TraceSceneClipmapLevels = Math.Clamp(TraceSceneClipmapLevels, 1, 8);
                 TraceSceneClipmapSlicesPerFrame = Math.Clamp(TraceSceneClipmapSlicesPerFrame, 0, 512);
+
+                RelightMaxPagesPerFrame = Math.Clamp(RelightMaxPagesPerFrame, 0, 256);
+                RelightTexelsPerPagePerFrame = Math.Clamp(RelightTexelsPerPagePerFrame, 0, 4096 * 4096);
+                RelightRaysPerTexel = Math.Clamp(RelightRaysPerTexel, 0, 64);
+                RelightMaxDdaSteps = Math.Clamp(RelightMaxDdaSteps, 0, 512);
             }
 
             private static int SanitizeTexelsPerVoxelFaceEdge(int v)

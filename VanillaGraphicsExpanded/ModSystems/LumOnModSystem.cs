@@ -25,6 +25,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
     private LumOnDebugRenderer? lumOnDebugRenderer;
     private LumonSceneFeedbackUpdateRenderer? lumonSceneFeedbackUpdateRenderer;
     private LumonSceneOccupancyClipmapUpdateRenderer? lumonSceneOccupancyClipmapUpdateRenderer;
+    private LumonSceneRelightUpdateRenderer? lumonSceneRelightUpdateRenderer;
 
     private HudLumOnStatsPanel? lumOnStatsPanel;
 
@@ -198,6 +199,19 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         {
             lumonSceneOccupancyClipmapUpdateRenderer = new LumonSceneOccupancyClipmapUpdateRenderer(clientApi, ConfigModSystem.Config);
         }
+
+        if (current.LumOnEnabled
+            && ConfigModSystem.Config.LumOn.LumonScene.Enabled
+            && lumonSceneRelightUpdateRenderer is null
+            && lumonSceneFeedbackUpdateRenderer is not null
+            && lumonSceneOccupancyClipmapUpdateRenderer is not null)
+        {
+            lumonSceneRelightUpdateRenderer = new LumonSceneRelightUpdateRenderer(
+                clientApi,
+                ConfigModSystem.Config,
+                lumonSceneFeedbackUpdateRenderer,
+                lumonSceneOccupancyClipmapUpdateRenderer);
+        }
     }
 
     public override void Dispose()
@@ -226,6 +240,9 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
 
         lumonSceneOccupancyClipmapUpdateRenderer?.Dispose();
         lumonSceneOccupancyClipmapUpdateRenderer = null;
+
+        lumonSceneRelightUpdateRenderer?.Dispose();
+        lumonSceneRelightUpdateRenderer = null;
 
         lumOnRenderer?.Dispose();
         lumOnRenderer = null;
@@ -334,6 +351,18 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         if (lumonSceneOccupancyClipmapUpdateRenderer is null && ConfigModSystem.Config.LumOn.LumonScene.Enabled)
         {
             lumonSceneOccupancyClipmapUpdateRenderer = new LumonSceneOccupancyClipmapUpdateRenderer(capi, ConfigModSystem.Config);
+        }
+
+        if (lumonSceneRelightUpdateRenderer is null
+            && ConfigModSystem.Config.LumOn.LumonScene.Enabled
+            && lumonSceneFeedbackUpdateRenderer is not null
+            && lumonSceneOccupancyClipmapUpdateRenderer is not null)
+        {
+            lumonSceneRelightUpdateRenderer = new LumonSceneRelightUpdateRenderer(
+                capi,
+                ConfigModSystem.Config,
+                lumonSceneFeedbackUpdateRenderer,
+                lumonSceneOccupancyClipmapUpdateRenderer);
         }
 
         capi.Logger.Debug("[VGE] LumOnModSystem ensured ({0})", reason);

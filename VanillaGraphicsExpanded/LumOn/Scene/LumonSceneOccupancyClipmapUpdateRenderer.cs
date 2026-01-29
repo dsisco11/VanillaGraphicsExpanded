@@ -41,6 +41,29 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
     public LumonSceneOccupancyClipmapGpuResources? Resources => resources;
 
+    internal bool TryGetLevel0RuntimeParams(out VectorInt3 originMinCell, out VectorInt3 ring, out int resolution)
+    {
+        originMinCell = default;
+        ring = default;
+        resolution = 0;
+
+        if (resources is null || levelStates.Length <= 0)
+        {
+            return false;
+        }
+
+        var ls = levelStates[0];
+        if (!ls.HasAnchor)
+        {
+            return false;
+        }
+
+        originMinCell = ls.OriginMinCell;
+        ring = ls.Ring;
+        resolution = ls.Resolution;
+        return true;
+    }
+
     private readonly struct SliceWork
     {
         public readonly int Level;
