@@ -42,6 +42,7 @@ This repo contains the mod code and tests for **VanillaGraphicsExpanded**, a ren
 - use the `dotnet: build` task to compile the mod.
 - use the `dotnet: test` task to run all unit and GPU tests.
 - `VanillaGraphicsExpanded.sln`
+- Do not attempt to change directory in order to build or test; the tasks handle that automatically and the terminal is set to the repo root already.
 
 ## Live Config + Debug Tooling
 - Config file: `VanillaGraphicsExpanded.json` (ConfigLib aware) with live reload via `ILiveConfigurable` + `LiveConfigReload`
@@ -57,6 +58,7 @@ This repo contains the mod code and tests for **VanillaGraphicsExpanded**, a ren
 - `GpuVao` - RAII wrapper for VAOs; attribute binding, debug labels
 - `GpuEbo` - RAII wrapper for EBOs; allocate, resize, debug labels
 - `VgeShaderProgram` - Shader program base; compile/link, uniform setters, debug labels
+- `GpuComputePipeline` - Compute pipeline wrapper; dispatch, memory barriers, debug labels
 - `Texture2D` / `Texture3D` - RAII wrappers for 'static' 2D + 2D-array/3D textures; allocate, resize, upload, readback, debug labels
 - `DynamicTexture2D` / `DynamicTexture3D` - RAII wrappers for 'dynamic' 2D + 2D-array/3D textures; allocate, resize, upload, readback, debug labels
 - `GBuffer` - FBO wrapper (single, MRT, depth-only) with attach/resize/blit and wrapper support for engine-owned FBOs
