@@ -143,17 +143,26 @@ LumOn - Phase 23 - TraceScene Clipmap (GPU Build + Region-Driven Updates) (Imple
   Phase 23.7 - Debugging, Tests, Profiling
   Exit artifacts: Regressions are detectable; performance is measurable.
   ☐ Debug views:
-    - Clipmap bounds visualization (in/out of bounds)
-    - Occupancy heatmap per level (payload presence / any-solid)
-    - Recently updated regions overlay
-  ☐ Tests:
+    - ✔ Clipmap bounds visualization (in/out of bounds)
+    - ✔ Occupancy visualization (payload presence / decoded payload preview for L0)
+    - ☐ Recently updated regions overlay
+    - Implemented L0 bounds/payload debug modes 55-57:
+      - `VanillaGraphicsExpanded/LumOn/LumOnDebugMode.cs:1`
+      - `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_debug_tracescene.glsl:1`
+      - `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_debug.fsh:1`
+    - Note: "recently updated regions overlay" still pending.
+  ✔ Tests:
     - CPU tests for ring mapping / bounds math
     - GPU tests: region->clipmap compute writes expected payloads at known coordinates
-  ☐ Profiling counters:
+    - Implemented CPU tests: `VanillaGraphicsExpanded.Tests/TraceSceneClipmapMathTests.cs:1`
+    - Implemented GPU test: `VanillaGraphicsExpanded.Tests/GPU/LumonTraceSceneRegionToClipmapComputeTests.cs:1`
+  ✔ Profiling counters:
     - Async extraction time + bytes produced
     - Upload bandwidth per frame
     - Compute dispatch time (region->clipmap, optional hierarchy build)
     - Tracer perf impact (avg steps per ray before/after skipping)
+    - Implemented EventSource counters: `VanillaGraphicsExpanded/Profiling/VgeProfilingEventSource.cs:1`
+    - Implemented runtime counters: `VanillaGraphicsExpanded/LumOn/Scene/LumonSceneTraceSceneMetrics.cs:1`
 
 
   Phase 23.8 - GL 3.3 Fallback Seam (Later)

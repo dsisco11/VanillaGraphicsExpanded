@@ -201,10 +201,29 @@ public abstract class GpuProgram : ShaderProgram
         texture.Bind(unit);
     }
 
+    protected void BindTexture3D(string uniformName, GpuTexture? texture, int unit)
+    {
+        SetUniform(uniformName, unit);
+
+        if (texture is null)
+        {
+            GlStateCache.Current.BindTexture(TextureTarget.Texture3D, unit, 0, sampler: null);
+            return;
+        }
+
+        texture.Bind(unit);
+    }
+
     protected void BindExternalTexture2D(string uniformName, int textureId, int unit, GpuSampler sampler)
     {
         SetUniform(uniformName, unit);
         GlStateCache.Current.BindTexture(TextureTarget.Texture2D, unit, textureId, sampler);
+    }
+
+    protected void BindExternalTexture3D(string uniformName, int textureId, int unit, GpuSampler sampler)
+    {
+        SetUniform(uniformName, unit);
+        GlStateCache.Current.BindTexture(TextureTarget.Texture3D, unit, textureId, sampler);
     }
 
     #endregion

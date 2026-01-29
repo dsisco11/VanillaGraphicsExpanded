@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using VanillaGraphicsExpanded.Numerics;
+using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
 
@@ -175,6 +176,11 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
         // Consume completed results and dispatch region->clipmap compute writes under budgets.
         DispatchCompleted(traceCfg.ClipmapMaxRegionUploadsPerFrame, traceCfg.ClipmapMaxRegionsDispatchedPerFrame);
+
+        LumonSceneTraceSceneMetrics.SetState(
+            queueLength: pendingRegions.Count,
+            inFlight: inFlightByRegion.Count,
+            appliedRegions: appliedVersionByRegion.Count);
 
         if (lightIds.TryCopyAndClearDirtyLut(lightLutUpload))
         {
@@ -525,6 +531,8 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
             return;
         }
 
+        using var cpuScope = Profiler.BeginScope("LumOn.TraceScene.DispatchCompleted", "Render");
+
         int budget = Math.Min(Math.Max(0, maxUploadsPerFrame), Math.Max(0, maxRegionsPerFrame));
         if (budget <= 0 || inFlightByRegion.Count <= 0 || levelStates.Length <= 0 || !levelStates[0].HasAnchor)
         {
@@ -628,6 +636,11 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                         originMinCellByLevel: originMin.AsSpan(0, levels),
                         ringByLevel: ring.AsSpan(0, levels),
                         resolution: resolution);
+
+                    LumonSceneTraceSceneMetrics.OnUploaded(
+                        regions: dispatched,
+                        bytes: (long)dispatched * LumonSceneTraceSceneRegionUploadGpuResources.RegionCellCount * sizeof(uint));
+                    LumonSceneTraceSceneMetrics.OnDispatched(dispatched);
 
                     for (int i = 0; i < dispatched; i++)
                     {

@@ -16,9 +16,9 @@ bool VgeOccInBoundsL0(ivec3 worldCell, ivec3 originMinCell0, int occResolution)
 {
     ivec3 local = worldCell - originMinCell0;
     return
-        (uint)local.x < (uint)occResolution &&
-        (uint)local.y < (uint)occResolution &&
-        (uint)local.z < (uint)occResolution;
+        uint(local.x) < uint(occResolution) &&
+        uint(local.y) < uint(occResolution) &&
+        uint(local.z) < uint(occResolution);
 }
 
 uint VgeSampleOccL0(
@@ -29,9 +29,9 @@ uint VgeSampleOccL0(
     int occResolution)
 {
     ivec3 local = worldCell - originMinCell0;
-    if ((uint)local.x >= (uint)occResolution ||
-        (uint)local.y >= (uint)occResolution ||
-        (uint)local.z >= (uint)occResolution)
+    if (uint(local.x) >= uint(occResolution) ||
+        uint(local.y) >= uint(occResolution) ||
+        uint(local.z) >= uint(occResolution))
     {
         return 0u;
     }
@@ -43,4 +43,3 @@ uint VgeSampleOccL0(
 
     return texelFetch(occL0, tex, 0).x;
 }
-

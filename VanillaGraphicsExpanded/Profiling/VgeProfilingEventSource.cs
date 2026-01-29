@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics.Tracing;
 using System.Threading;
 
+using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
 
 namespace VanillaGraphicsExpanded.Profiling;
@@ -31,6 +32,15 @@ internal sealed class VgeProfilingEventSource : EventSource
 
     private IncrementingPollingCounter? chunkProcCacheHitsRate;
     private IncrementingPollingCounter? chunkProcCacheEvictionsRate;
+
+    private PollingCounter? traceSceneQueueLength;
+    private PollingCounter? traceSceneInFlight;
+    private PollingCounter? traceSceneAppliedRegions;
+
+    private IncrementingPollingCounter? traceSceneRegionsUploadedRate;
+    private IncrementingPollingCounter? traceSceneBytesUploadedRate;
+    private IncrementingPollingCounter? traceSceneRegionsDispatchedRate;
+    private IncrementingPollingCounter? traceSceneComputeDispatchRate;
 
     private VgeProfilingEventSource() { }
 
@@ -121,6 +131,49 @@ internal sealed class VgeProfilingEventSource : EventSource
         {
             DisplayName = "ChunkProc Cache Evictions / sec",
             DisplayUnits = "evictions/sec",
+        };
+
+        traceSceneQueueLength = new PollingCounter("lumon-tracescene-queue-length", this, () => LumonSceneTraceSceneMetrics.QueueLength)
+        {
+            DisplayName = "LumOn TraceScene Queue Length",
+        };
+
+        traceSceneInFlight = new PollingCounter("lumon-tracescene-inflight", this, () => LumonSceneTraceSceneMetrics.InFlight)
+        {
+            DisplayName = "LumOn TraceScene In-Flight",
+        };
+
+        traceSceneAppliedRegions = new PollingCounter("lumon-tracescene-applied", this, () => LumonSceneTraceSceneMetrics.AppliedRegions)
+        {
+            DisplayName = "LumOn TraceScene Applied Regions",
+        };
+
+        traceSceneRegionsUploadedRate = new IncrementingPollingCounter(
+            "lumon-tracescene-regions-uploaded", this, () => LumonSceneTraceSceneMetrics.RegionsUploaded)
+        {
+            DisplayName = "LumOn TraceScene Regions Uploaded / sec",
+            DisplayUnits = "regions/sec",
+        };
+
+        traceSceneBytesUploadedRate = new IncrementingPollingCounter(
+            "lumon-tracescene-bytes-uploaded", this, () => LumonSceneTraceSceneMetrics.BytesUploaded)
+        {
+            DisplayName = "LumOn TraceScene Bytes Uploaded / sec",
+            DisplayUnits = "bytes/sec",
+        };
+
+        traceSceneRegionsDispatchedRate = new IncrementingPollingCounter(
+            "lumon-tracescene-regions-dispatched", this, () => LumonSceneTraceSceneMetrics.RegionsDispatched)
+        {
+            DisplayName = "LumOn TraceScene Regions Dispatched / sec",
+            DisplayUnits = "regions/sec",
+        };
+
+        traceSceneComputeDispatchRate = new IncrementingPollingCounter(
+            "lumon-tracescene-dispatches", this, () => LumonSceneTraceSceneMetrics.ComputeDispatchCount)
+        {
+            DisplayName = "LumOn TraceScene Compute Dispatches / sec",
+            DisplayUnits = "dispatches/sec",
         };
     }
 

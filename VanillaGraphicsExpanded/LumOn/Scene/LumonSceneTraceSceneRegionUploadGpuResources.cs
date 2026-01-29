@@ -23,8 +23,8 @@ internal sealed class LumonSceneTraceSceneRegionUploadGpuResources : IDisposable
     [StructLayout(LayoutKind.Sequential)]
     internal readonly record struct RegionUpdateGpu
     {
-        // Region coordinate in 32^3 units (stored as ivec4-compatible 16B lane).
-        public readonly VectorInt3 RegionCoord;
+        // Region coordinate in 32^3 units (stored as ivec4-compatible 16B lane; W is padding).
+        public readonly VectorInt4 RegionCoord;
 
         // Offset (in uint words) into the payload staging buffer for this region.
         public readonly uint SrcOffsetWords;
@@ -35,12 +35,16 @@ internal sealed class LumonSceneTraceSceneRegionUploadGpuResources : IDisposable
         // Version/pad (optional for debug/stale rejection); keep struct 32B aligned.
         public readonly uint VersionOrPad;
 
+        // Explicit padding to ensure std430 array stride is 32B (vec4 + 4 uints).
+        public readonly uint Padding0;
+
         public RegionUpdateGpu(in VectorInt3 regionCoord, uint srcOffsetWords, uint levelMask, uint versionOrPad = 0)
         {
-            RegionCoord = regionCoord;
+            RegionCoord = new VectorInt4(regionCoord.X, regionCoord.Y, regionCoord.Z, 0);
             SrcOffsetWords = srcOffsetWords;
             LevelMask = levelMask;
             VersionOrPad = versionOrPad;
+            Padding0 = 0;
         }
     }
 

@@ -57,6 +57,13 @@ uniform int vge_lumonSceneTileSizeTexels;
 uniform int vge_lumonSceneTilesPerAxis;
 uniform int vge_lumonSceneTilesPerAtlas;
 
+// Phase 23: TraceScene occupancy clipmap debug inputs (L0 only in v1).
+uniform int vge_traceSceneEnabled;            // 0/1 gate
+uniform usampler3D vge_traceOccL0;            // R32UI packed payload
+uniform ivec3 vge_traceOccOriginMinCell0;
+uniform ivec3 vge_traceOccRing0;
+uniform int vge_traceOccResolution;
+
 // Temporal config
 uniform float temporalAlpha;
 uniform float depthRejectThreshold;

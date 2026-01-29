@@ -103,4 +103,9 @@ public enum LumOnDebugMode
     LumonScenePageReady = 52,
     LumonScenePatchUv = 53,
     LumonSceneIrradiance = 54,
+
+    // Phase 23: TraceScene (occupancy clipmap) debug views (append-only)
+    TraceSceneBoundsL0 = 55,
+    TraceSceneOccupancyL0 = 56,
+    TraceScenePayloadL0 = 57,
 }

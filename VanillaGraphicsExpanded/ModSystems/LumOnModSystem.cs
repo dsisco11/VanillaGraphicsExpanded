@@ -123,7 +123,30 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             return ["LumOn: Enabled (not initialized)", "Waiting for renderer dependencies...", string.Empty, string.Empty];
         }
 
-        return lumOnRenderer.DebugCounters.GetDebugLines();
+        string[] baseLines = lumOnRenderer.DebugCounters.GetDebugLines();
+
+        // Overlay TraceScene (Phase 23) state on the last line to keep the panel fixed at 4 rows.
+        // This is intentionally compact so it doesn't crowd the existing timing breakdown.
+        try
+        {
+            if (ConfigModSystem.Config.LumOn.LumonScene.Enabled && lumonSceneOccupancyClipmapUpdateRenderer is not null)
+            {
+                int q = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.QueueLength;
+                int f = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.InFlight;
+                int a = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.AppliedRegions;
+
+                if (baseLines.Length >= 4)
+                {
+                    baseLines[3] = baseLines[3] + $" | TS q:{q} f:{f} a:{a}";
+                }
+            }
+        }
+        catch
+        {
+            // ignore overlay failures
+        }
+
+        return baseLines;
     }
 
     internal LumOnBufferManager? GetLumOnBufferManagerOrNull()
@@ -354,6 +377,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         {
             lumonSceneOccupancyClipmapUpdateRenderer = new LumonSceneOccupancyClipmapUpdateRenderer(capi, ConfigModSystem.Config);
         }
+        lumOnDebugRenderer?.SetLumonSceneOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
 
         if (lumonSceneRelightUpdateRenderer is null
             && ConfigModSystem.Config.LumOn.LumonScene.Enabled

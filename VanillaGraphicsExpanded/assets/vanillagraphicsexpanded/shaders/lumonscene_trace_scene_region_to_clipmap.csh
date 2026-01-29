@@ -13,10 +13,11 @@ layout(std430, binding = 0) readonly buffer VgeRegionPayloadWords
 
 struct VgeRegionUpdate
 {
-    ivec3 RegionCoord;     // in 32^3 units
+    ivec4 RegionCoord;     // xyz: in 32^3 units, w: padding (std430 vec4 lane)
     uint  SrcOffsetWords;  // into vge_regionPayloadWords
     uint  LevelMask;       // bit i => update level i
     uint  VersionOrPad;
+    uint  Padding0;
 };
 
 layout(std430, binding = 1) readonly buffer VgeRegionUpdates
@@ -47,9 +48,9 @@ int Wrap(int x, int m)
 bool TryMapLevelCellToTexel(int level, ivec3 levelCell, out ivec3 texel)
 {
     ivec3 local = levelCell - vge_originMinCell[level];
-    if ((uint)local.x >= (uint)vge_resolution ||
-        (uint)local.y >= (uint)vge_resolution ||
-        (uint)local.z >= (uint)vge_resolution)
+    if (uint(local.x) >= uint(vge_resolution) ||
+        uint(local.y) >= uint(vge_resolution) ||
+        uint(local.z) >= uint(vge_resolution))
     {
         texel = ivec3(0);
         return false;
@@ -72,11 +73,11 @@ bool IsRepresentativeSampleForLevel(ivec3 worldCell, int level)
 
     int spacing = 1 << level;
     int mask = spacing - 1;
-    int half = spacing >> 1;
+    int halfSpacing = spacing >> 1;
 
-    return ((worldCell.x & mask) == half)
-        && ((worldCell.y & mask) == half)
-        && ((worldCell.z & mask) == half);
+    return ((worldCell.x & mask) == halfSpacing)
+        && ((worldCell.y & mask) == halfSpacing)
+        && ((worldCell.z & mask) == halfSpacing);
 }
 
 void main()
@@ -109,7 +110,7 @@ void main()
     uint linear = (local.z * VGE_REGION_SIZE + local.y) * VGE_REGION_SIZE + local.x;
     uint payload = vge_regionPayloadWords[upd.SrcOffsetWords + linear];
 
-    ivec3 worldCell = upd.RegionCoord * int(VGE_REGION_SIZE) + ivec3(local);
+    ivec3 worldCell = upd.RegionCoord.xyz * int(VGE_REGION_SIZE) + ivec3(local);
 
     int maxLevel = min(max(vge_levels, 0), 8);
 
@@ -136,4 +137,3 @@ void main()
         imageStore(vge_occLevels[level], texel, uvec4(payload, 0u, 0u, 0u));
     }
 }
-

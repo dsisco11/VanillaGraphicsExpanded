@@ -8,6 +8,7 @@ using Vintagestory.Client.NoObf;
 
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Numerics;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -214,6 +215,20 @@ public class LumOnDebugShaderProgram : GpuProgram
     public GpuTexture? LumonScenePageTableMip0 { set => BindTexture2D("vge_lumonScenePageTableMip0", value, 30); }
 
     public GpuTexture? LumonSceneIrradianceAtlas { set => BindTexture2D("vge_lumonSceneIrradianceAtlas", value, 31); }
+
+    #endregion
+
+    #region TraceScene (Phase 23)
+
+    public int TraceSceneEnabled { set => Uniform("vge_traceSceneEnabled", value); }
+
+    public int TraceSceneOccResolution { set => Uniform("vge_traceOccResolution", value); }
+
+    public VectorInt3 TraceSceneOccOriginMinCell0 { set => SetUniform("vge_traceOccOriginMinCell0", value); }
+
+    public VectorInt3 TraceSceneOccRing0 { set => SetUniform("vge_traceOccRing0", value); }
+
+    public GpuTexture? TraceSceneOccL0 { set => BindTexture3D("vge_traceOccL0", value, 32); }
 
     #endregion
 

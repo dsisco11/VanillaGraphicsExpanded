@@ -96,6 +96,7 @@ out vec4 outColor;
 @import "./includes/lumon_debug_direct.glsl"
 @import "./includes/lumon_debug_velocity.glsl"
 @import "./includes/lumon_debug_worldprobe.glsl"
+@import "./includes/lumon_debug_tracescene.glsl"
 
 // ============================================================================
 // Main
@@ -184,6 +185,12 @@ void main(void)
         case 43:
         case 44:
             outColor = RenderDebug_WorldProbe(screenPos);
+            break;
+
+        case 55:
+        case 56:
+        case 57:
+            outColor = RenderDebug_TraceScene(screenPos);
             break;
 
         default:

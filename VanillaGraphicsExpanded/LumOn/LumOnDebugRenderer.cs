@@ -5,6 +5,7 @@ using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
+using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.PBR;
@@ -91,6 +92,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private readonly DirectLightingBufferManager? directLightingBufferManager;
 
     private LumonSceneFeedbackUpdateRenderer? lumonSceneFeedbackUpdateRenderer;
+    private LumonSceneOccupancyClipmapUpdateRenderer? lumonSceneOccupancyClipmapUpdateRenderer;
 
     private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager;
     private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManagerEventSource;
@@ -245,6 +247,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     internal void SetLumonSceneFeedbackUpdateRenderer(LumonSceneFeedbackUpdateRenderer? feedback)
     {
         lumonSceneFeedbackUpdateRenderer = feedback;
+    }
+
+    internal void SetLumonSceneOccupancyClipmapUpdateRenderer(LumonSceneOccupancyClipmapUpdateRenderer? occupancy)
+    {
+        lumonSceneOccupancyClipmapUpdateRenderer = occupancy;
     }
 
     private void OnWorldProbeClipmapAnchorShifted(LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent _)
@@ -957,6 +964,35 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             shader.LumonSceneTileSizeTexels = tileSizeTexels;
             shader.LumonSceneTilesPerAxis = tilesPerAxis;
             shader.LumonSceneTilesPerAtlas = tilesPerAtlas;
+
+            // Phase 23 TraceScene debug inputs (L0 only in v1).
+            int traceSceneEnabled = 0;
+            GpuTexture? traceOccL0 = null;
+            VectorInt3 traceOccOriginMinCell0 = default;
+            VectorInt3 traceOccRing0 = default;
+            int traceOccResolution = 0;
+
+            if (mode is LumOnDebugMode.TraceSceneBoundsL0 or LumOnDebugMode.TraceSceneOccupancyL0 or LumOnDebugMode.TraceScenePayloadL0)
+            {
+                if (config.LumOn.Enabled && config.LumOn.LumonScene.Enabled && lumonSceneOccupancyClipmapUpdateRenderer is not null)
+                {
+                    var occRes = lumonSceneOccupancyClipmapUpdateRenderer.Resources;
+                    if (occRes is not null && occRes.OccupancyLevels.Length > 0)
+                    {
+                        if (lumonSceneOccupancyClipmapUpdateRenderer.TryGetLevel0RuntimeParams(out traceOccOriginMinCell0, out traceOccRing0, out traceOccResolution))
+                        {
+                            traceSceneEnabled = 1;
+                            traceOccL0 = occRes.OccupancyLevels[0];
+                        }
+                    }
+                }
+            }
+
+            shader.TraceSceneEnabled = traceSceneEnabled;
+            shader.TraceSceneOccL0 = traceOccL0;
+            shader.TraceSceneOccOriginMinCell0 = traceOccOriginMinCell0;
+            shader.TraceSceneOccRing0 = traceOccRing0;
+            shader.TraceSceneOccResolution = traceOccResolution;
 
             shader.DebugMode = (int)mode;
             shader.TemporalAlpha = lum.TemporalAlpha;
