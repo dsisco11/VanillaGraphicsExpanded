@@ -51,6 +51,12 @@ internal sealed class MaterialAtlasSystem : IDisposable
     private NormalDepthAtlasArtifactGenerator? normalDepthArtifactGen;
     private bool artifactGeneratorsRegistered;
 
+    private int statsBaselineGenerationId;
+    private long mpCompletedBaseline;
+    private long mpErrorsBaseline;
+    private long ndCompletedBaseline;
+    private long ndErrorsBaseline;
+
     private bool texturesCreated;
 
     private MaterialAtlasSystem() { }
@@ -132,8 +138,25 @@ internal sealed class MaterialAtlasSystem : IDisposable
                 return false;
             }
 
+            int gen = artifactBuildTracker.GenerationId;
             ArtifactSchedulerStats mp = materialParamsArtifactGen.GetStatsSnapshot();
             ArtifactSchedulerStats nd = normalDepthArtifactGen?.GetStatsSnapshot() ?? default;
+
+            // Scheduler stats are lifetime totals. Convert to per-generation deltas for UI clarity.
+            if (gen > 0 && gen == statsBaselineGenerationId)
+            {
+                mp = mp with
+                {
+                    Completed = Math.Max(0, mp.Completed - mpCompletedBaseline),
+                    Errors = Math.Max(0, mp.Errors - mpErrorsBaseline)
+                };
+
+                nd = nd with
+                {
+                    Completed = Math.Max(0, nd.Completed - ndCompletedBaseline),
+                    Errors = Math.Max(0, nd.Errors - ndErrorsBaseline)
+                };
+            }
 
             diagnostics = new MaterialAtlasArtifactBuildDiagnostics(
                 GenerationId: artifactBuildTracker.GenerationId,
@@ -581,6 +604,256 @@ internal sealed class MaterialAtlasSystem : IDisposable
             totalMaterialCandidates,
             enqueuedNormalDepth,
             totalNormalDepthCandidates);
+    }
+
+    /// <summary>
+    /// World-load warmup mode: synchronously loads cache-hit tiles and uploads them immediately
+    /// into the atlas textures (GL calls), so the atlas is populated during the loading screen.
+    /// </summary>
+    public void WarmupAtlasCacheBlockingDirectUploads(ICoreClientAPI capi)
+    {
+        if (capi is null) throw new ArgumentNullException(nameof(capi));
+
+        // This mode is only meaningful when caching is enabled.
+        if (!ConfigModSystem.Config.MaterialAtlas.EnableCaching)
+        {
+            return;
+        }
+
+        this.capi = capi;
+        EnsureDiskCacheInitialized(capi);
+        EnsureSchedulerRegistered(capi);
+
+        CreateTextureObjects(capi);
+        if (!texturesCreated)
+        {
+            return;
+        }
+
+        if (!PbrMaterialRegistry.Instance.IsInitialized)
+        {
+            return;
+        }
+
+        IBlockTextureAtlasAPI atlas = capi.BlockTextureAtlas;
+        (short currentReload, int nonNullCount) = GetAtlasStats(atlas);
+
+        if (currentReload >= 0
+            && currentReload == lastWarmupAtlasReloadIteration
+            && nonNullCount == lastWarmupAtlasNonNullPositions)
+        {
+            return;
+        }
+
+        // Build plans (same work as PopulateAtlasContents, but we will only upload cache hits).
+        TextureAtlasPosition? TryGetAtlasPosition(AssetLocation loc)
+        {
+            try
+            {
+                return atlas[loc];
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+
+        AtlasSnapshot snapshot = AtlasSnapshot.Capture(atlas);
+        var materialPlan = new MaterialAtlasBuildPlanner().CreatePlan(
+            snapshot,
+            TryGetAtlasPosition,
+            PbrMaterialRegistry.Instance,
+            blockTextureAssets: Array.Empty<AssetLocation>(),
+            enableNormalDepth: false);
+
+        MaterialAtlasNormalDepthBuildPlan? normalDepthPlan = null;
+        if (ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps)
+        {
+            snapshot = AtlasSnapshot.Capture(atlas);
+            var ndPlanner = new MaterialAtlasNormalDepthBuildPlanner();
+            normalDepthPlan = ndPlanner.CreatePlan(
+                snapshot,
+                TryGetAtlasPosition,
+                PbrMaterialRegistry.Instance,
+                capi.Assets.GetLocations("textures/block/", domain: null));
+        }
+
+        MaterialAtlasCacheKeyInputs cacheInputs = MaterialAtlasCacheKeyInputs.Create(ConfigModSystem.Config, snapshot, PbrMaterialRegistry.Instance);
+
+        int uploadedMaterial = 0;
+        int uploadedNormalDepth = 0;
+
+        // Material params base tiles.
+        foreach (AtlasBuildPlan.MaterialParamsTileJob tile in materialPlan.MaterialParamsTiles)
+        {
+            if (!textureStore.TryGetPageTextures(tile.AtlasTextureId, out MaterialAtlasPageTextures pageTextures))
+            {
+                continue;
+            }
+
+            AtlasCacheKey baseKey = cacheKeyBuilder.BuildMaterialParamsTileKey(
+                cacheInputs,
+                tile.AtlasTextureId,
+                tile.Rect,
+                tile.Texture,
+                tile.Definition,
+                tile.Scale);
+
+            if (baseKey.SchemaVersion == 0)
+            {
+                continue;
+            }
+
+            if (!diskCache.TryLoadMaterialParamsTile(baseKey, out float[] rgbTriplets))
+            {
+                continue;
+            }
+
+            pageTextures.MaterialParamsTexture.UploadDataImmediate(
+                rgbTriplets,
+                x: tile.Rect.X,
+                y: tile.Rect.Y,
+                regionWidth: tile.Rect.Width,
+                regionHeight: tile.Rect.Height);
+
+            uploadedMaterial++;
+        }
+
+        // Material params override tiles.
+        foreach (AtlasBuildPlan.MaterialParamsOverrideJob ov in materialPlan.MaterialParamsOverrides)
+        {
+            if (!textureStore.TryGetPageTextures(ov.AtlasTextureId, out MaterialAtlasPageTextures pageTextures))
+            {
+                continue;
+            }
+
+            AtlasCacheKey overrideKey = cacheKeyBuilder.BuildMaterialParamsOverrideTileKey(
+                cacheInputs,
+                ov.AtlasTextureId,
+                ov.Rect,
+                ov.TargetTexture,
+                ov.OverrideTexture,
+                ov.Scale,
+                ov.RuleId,
+                ov.RuleSource);
+
+            if (overrideKey.SchemaVersion == 0)
+            {
+                continue;
+            }
+
+            if (!diskCache.TryLoadMaterialParamsTile(overrideKey, out float[] rgbTriplets))
+            {
+                continue;
+            }
+
+            pageTextures.MaterialParamsTexture.UploadDataImmediate(
+                rgbTriplets,
+                x: ov.Rect.X,
+                y: ov.Rect.Y,
+                regionWidth: ov.Rect.Width,
+                regionHeight: ov.Rect.Height);
+
+            uploadedMaterial++;
+        }
+
+        if (normalDepthPlan is not null)
+        {
+            foreach (var job in normalDepthPlan.BakeJobs)
+            {
+                if (!textureStore.TryGetPageTextures(job.AtlasTextureId, out MaterialAtlasPageTextures pageTextures))
+                {
+                    continue;
+                }
+
+                if (pageTextures.NormalDepthTexture is null || !pageTextures.NormalDepthTexture.IsValid)
+                {
+                    continue;
+                }
+
+                AtlasCacheKey key = cacheKeyBuilder.BuildNormalDepthTileKey(
+                    cacheInputs,
+                    job.AtlasTextureId,
+                    job.Rect,
+                    job.SourceTexture,
+                    job.NormalScale,
+                    job.DepthScale);
+
+                if (key.SchemaVersion == 0)
+                {
+                    continue;
+                }
+
+                if (!diskCache.TryLoadNormalDepthTile(key, out float[] rgbaQuads))
+                {
+                    continue;
+                }
+
+                pageTextures.NormalDepthTexture.UploadDataImmediate(
+                    rgbaQuads,
+                    x: job.Rect.X,
+                    y: job.Rect.Y,
+                    regionWidth: job.Rect.Width,
+                    regionHeight: job.Rect.Height);
+
+                uploadedNormalDepth++;
+            }
+
+            foreach (var ov in normalDepthPlan.OverrideJobs)
+            {
+                if (!textureStore.TryGetPageTextures(ov.AtlasTextureId, out MaterialAtlasPageTextures pageTextures))
+                {
+                    continue;
+                }
+
+                if (pageTextures.NormalDepthTexture is null || !pageTextures.NormalDepthTexture.IsValid)
+                {
+                    continue;
+                }
+
+                AtlasCacheKey key = cacheKeyBuilder.BuildNormalDepthOverrideTileKey(
+                    cacheInputs,
+                    ov.AtlasTextureId,
+                    ov.Rect,
+                    ov.TargetTexture,
+                    ov.OverrideTexture,
+                    ov.NormalScale,
+                    ov.DepthScale,
+                    ov.RuleId,
+                    ov.RuleSource);
+
+                if (key.SchemaVersion == 0)
+                {
+                    continue;
+                }
+
+                if (!diskCache.TryLoadNormalDepthTile(key, out float[] rgbaQuads))
+                {
+                    continue;
+                }
+
+                pageTextures.NormalDepthTexture.UploadDataImmediate(
+                    rgbaQuads,
+                    x: ov.Rect.X,
+                    y: ov.Rect.Y,
+                    regionWidth: ov.Rect.Width,
+                    regionHeight: ov.Rect.Height);
+
+                uploadedNormalDepth++;
+            }
+        }
+
+        lastWarmupAtlasReloadIteration = currentReload;
+        lastWarmupAtlasNonNullPositions = nonNullCount;
+
+        double ms = (System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+        capi.Logger.Debug(
+            "[VGE] Material atlas cache warmup (direct, blocking): uploaded material={0}, normalDepth={1} in {2:0.0} ms",
+            uploadedMaterial,
+            uploadedNormalDepth,
+            ms);
     }
 
     public void RebakeNormalDepthAtlas(ICoreClientAPI capi)
@@ -1208,6 +1481,18 @@ internal sealed class MaterialAtlasSystem : IDisposable
         int plannedTotal = plannedMaterialItems + plannedNormalDepthItems;
         artifactBuildTracker.Begin(generationId, plannedTotal);
 
+        // Capture baselines so diagnostics/UI can display per-generation counts
+        // (ArtifactSchedulerStats are lifetime totals).
+        {
+            ArtifactSchedulerStats mp0 = materialParamsArtifactGen.GetStatsSnapshot();
+            ArtifactSchedulerStats nd0 = normalDepthArtifactGen?.GetStatsSnapshot() ?? default;
+            statsBaselineGenerationId = generationId;
+            mpCompletedBaseline = mp0.Completed;
+            mpErrorsBaseline = mp0.Errors;
+            ndCompletedBaseline = nd0.Completed;
+            ndErrorsBaseline = nd0.Errors;
+        }
+
         var tileRects = new HashSet<(int atlasTexId, AtlasRect rect)>(capacity: plan.MaterialParamsTiles.Count);
         int scheduledMaterial = 0;
 
@@ -1238,6 +1523,23 @@ internal sealed class MaterialAtlasSystem : IDisposable
                     ov.RuleId,
                     ov.RuleSource)
                 : default;
+
+            // If we already uploaded cache hits via blocking warmup for this atlas state,
+            // don't enqueue a second pass that will load/upload the same cached tile again.
+            if (enableCache
+                && ConfigModSystem.Config.MaterialAtlas.ForceCacheWarmupDirectUploadsOnWorldLoad
+                && currentReload == lastWarmupAtlasReloadIteration
+                && nonNullCount == lastWarmupAtlasNonNullPositions)
+            {
+                bool overrideCached = hasOverride && overrideKey.SchemaVersion != 0 && diskCache.HasMaterialParamsTile(overrideKey);
+                bool baseCachedAndNoOverride = (!hasOverride) && baseKey.SchemaVersion != 0 && diskCache.HasMaterialParamsTile(baseKey);
+
+                if (overrideCached || baseCachedAndNoOverride)
+                {
+                    artifactBuildTracker.CompleteOne(generationId);
+                    continue;
+                }
+            }
 
             if (!textureStore.TryGetMaterialParamsTextureId(tile.AtlasTextureId, out int materialTexId) || materialTexId == 0)
             {
@@ -1294,6 +1596,17 @@ internal sealed class MaterialAtlasSystem : IDisposable
                     ov.RuleId,
                     ov.RuleSource)
                 : default;
+
+            if (enableCache
+                && ConfigModSystem.Config.MaterialAtlas.ForceCacheWarmupDirectUploadsOnWorldLoad
+                && currentReload == lastWarmupAtlasReloadIteration
+                && nonNullCount == lastWarmupAtlasNonNullPositions
+                && overrideKey.SchemaVersion != 0
+                && diskCache.HasMaterialParamsTile(overrideKey))
+            {
+                artifactBuildTracker.CompleteOne(generationId);
+                continue;
+            }
 
             if (!textureStore.TryGetMaterialParamsTextureId(ov.AtlasTextureId, out int materialTexId) || materialTexId == 0)
             {
@@ -1363,6 +1676,19 @@ internal sealed class MaterialAtlasSystem : IDisposable
                         job.DepthScale)
                     : default;
 
+                // If we already uploaded cache hits via blocking warmup for this atlas state,
+                // don't enqueue a second pass that will load/upload the same cached tile again.
+                if (enableCache
+                    && ConfigModSystem.Config.MaterialAtlas.ForceCacheWarmupDirectUploadsOnWorldLoad
+                    && currentReload == lastWarmupAtlasReloadIteration
+                    && nonNullCount == lastWarmupAtlasNonNullPositions
+                    && key.SchemaVersion != 0
+                    && diskCache.HasNormalDepthTile(key))
+                {
+                    artifactBuildTracker.CompleteOne(generationId);
+                    continue;
+                }
+
                 var wk = new NormalDepthAtlasArtifactGenerator.WorkKey(
                     GenerationId: generationId,
                     AtlasTextureId: job.AtlasTextureId,
@@ -1416,6 +1742,17 @@ internal sealed class MaterialAtlasSystem : IDisposable
                         ov.RuleId,
                         ov.RuleSource)
                     : default;
+
+                if (enableCache
+                    && ConfigModSystem.Config.MaterialAtlas.ForceCacheWarmupDirectUploadsOnWorldLoad
+                    && currentReload == lastWarmupAtlasReloadIteration
+                    && nonNullCount == lastWarmupAtlasNonNullPositions
+                    && key.SchemaVersion != 0
+                    && diskCache.HasNormalDepthTile(key))
+                {
+                    artifactBuildTracker.CompleteOne(generationId);
+                    continue;
+                }
 
                 var wk = new NormalDepthAtlasArtifactGenerator.WorkKey(
                     GenerationId: generationId,

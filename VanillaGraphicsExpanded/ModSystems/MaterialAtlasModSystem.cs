@@ -35,7 +35,14 @@ public sealed class MaterialAtlasModSystem : ModSystem
 
             // Cache-only warmup during the loading screen: upload cached tiles early,
             // while deferring cache misses to the normal pipeline.
-            MaterialAtlasSystem.Instance.WarmupAtlasCache(api);
+            if (ConfigModSystem.Config.MaterialAtlas.ForceCacheWarmupDirectUploadsOnWorldLoad)
+            {
+                MaterialAtlasSystem.Instance.WarmupAtlasCacheBlockingDirectUploads(api);
+            }
+            else
+            {
+                MaterialAtlasSystem.Instance.WarmupAtlasCache(api);
+            }
 
             if (isLevelFinalized)
             {

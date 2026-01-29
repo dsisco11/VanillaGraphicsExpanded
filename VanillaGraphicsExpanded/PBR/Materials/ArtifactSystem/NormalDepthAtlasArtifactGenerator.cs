@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Cache.ArtifactSystem;
+using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR.Materials.Cache;
 using VanillaGraphicsExpanded.Rendering;
 
@@ -290,14 +291,20 @@ internal sealed class NormalDepthAtlasArtifactGenerator
                 return;
             }
 
-            // Ensure page cleared before any writes.
-            await renderQueue.EnsureNormalDepthPageClearedAsync(
-                capi,
-                context.Output.GenerationId,
-                context.Output.AtlasTextureId,
-                context.Output.AtlasWidth,
-                context.Output.AtlasHeight,
-                context.Session.CancellationToken).ConfigureAwait(false);
+            // Page clear is only needed for bake jobs.
+            // When cache warmup has already populated parts of the atlas during loading,
+            // clearing here would wipe those warmed tiles and force redundant uploads.
+            if (context.Output.Kind == JobKind.Bake
+                && !ConfigModSystem.Config.MaterialAtlas.ForceCacheWarmupDirectUploadsOnWorldLoad)
+            {
+                await renderQueue.EnsureNormalDepthPageClearedAsync(
+                    capi,
+                    context.Output.GenerationId,
+                    context.Output.AtlasTextureId,
+                    context.Output.AtlasWidth,
+                    context.Output.AtlasHeight,
+                    context.Session.CancellationToken).ConfigureAwait(false);
+            }
 
             if (context.Output.Kind == JobKind.Bake)
             {

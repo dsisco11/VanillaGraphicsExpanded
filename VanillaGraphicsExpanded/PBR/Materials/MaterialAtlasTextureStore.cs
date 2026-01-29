@@ -165,7 +165,7 @@ internal sealed class MaterialAtlasTextureStore : IDisposable
 
         entry.Textures.MaterialParamsTexture.Dispose();
 
-        var updated = Texture2D.CreateWithData(
+        var updated = Texture2D.CreateWithDataImmediate(
             width,
             height,
             PixelInternalFormat.Rgb16f,
@@ -186,7 +186,7 @@ internal sealed class MaterialAtlasTextureStore : IDisposable
             MaterialAtlasParamsBuilder.DefaultMetallic,
             MaterialAtlasParamsBuilder.DefaultEmissive);
 
-        var materialParamsTex = Texture2D.CreateWithData(
+        var materialParamsTex = Texture2D.CreateWithDataImmediate(
             width,
             height,
             PixelInternalFormat.Rgb16f,
@@ -203,7 +203,7 @@ internal sealed class MaterialAtlasTextureStore : IDisposable
             // Height is encoded into [0,1] where 0.5 is neutral (signed height 0).
             SimdSpanMath.FillInterleaved4(defaultNormalDepth, 0.5f, 0.5f, 1.0f, 0.5f);
 
-            normalDepthTex = Texture2D.CreateWithData(
+            normalDepthTex = Texture2D.CreateWithDataImmediate(
                 width,
                 height,
                 PixelInternalFormat.Rgba16f,

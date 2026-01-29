@@ -151,6 +151,15 @@ public class VgeConfig
         public bool EnableCaching { get; set; } = true;
 
         /// <summary>
+        /// When enabled, the loading-screen cache warmup will be forced to fully drain:
+        /// all cache-hit tiles are uploaded before the atlas build starts.
+        /// The warmup upload path temporarily uses direct uploads (disables PBO streaming)
+        /// to avoid leaving queued uploads to drain during gameplay.
+        /// </summary>
+        [JsonProperty]
+        public bool ForceCacheWarmupDirectUploadsOnWorldLoad { get; set; } = true;
+
+        /// <summary>
         /// Enables debug logging for disk cache hit/miss counters.
         /// </summary>
         [JsonProperty]
