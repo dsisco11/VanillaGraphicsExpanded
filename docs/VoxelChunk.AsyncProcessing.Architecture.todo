@@ -1,0 +1,124 @@
+Voxel Chunk Async Processing - Background Artifact Pipeline (Implementation)
+
+  Goal:
+  Implement an asynchronous, abstract chunk processing system that computes derived “artifacts” from chunk voxels
+  on background threads using .NET 8 Tasks/ThreadPool. Queue is unbounded, but old queued versions must be
+  superseded (skip processing). Chunk concurrency is handled externally.
+
+  References:
+  - docs/VoxelChunk.AsyncProcessing.Architecture.md
+  - docs/Profiling.EventSource.md
+  - VanillaGraphicsExpanded/Profiling/VgeProfilingEventSource.cs
+  - VanillaGraphicsExpanded/Profiling/Profiler.cs
+  - docs/ArtifactScheduler.md (optional apply-stage patterns; only if needed by integration)
+
+  Constraints:
+  - Always accept CancellationTokens; never throw to report expected outcomes (use result wrapper).
+  - Snapshotting is by copy, and must happen off the main thread (do not allocate snapshot buffers at enqueue time).
+  - No disk persistence; cache is in-memory only.
+
+
+  Phase 0 - Contracts + Semantics Lock-In:
+  Exit artifacts: Public contracts and policies are finalized and documented.
+  ☐ Define `ChunkKey` representation used by this system (fields, equality, hashing).
+  ☐ Define `ChunkWorkStatus`, `ChunkWorkError`, and `ChunkWorkResult<T>` types (no exceptions in results).
+  ☐ Define `IChunkProcessor<TArtifact>` contract and `ProcessorId` low-cardinality guidance.
+  ☐ Define `IChunkVersionProvider` contract and “current version” lookup semantics.
+  ☐ Define `IChunkSnapshotSource` contract (off-thread snapshot copy) and what “ChunkUnavailable” means.
+  ☐ Define cancellation semantics:
+    - caller cancellation -> `Canceled`
+    - superseded -> `Superseded`
+    - snapshot unavailable -> `ChunkUnavailable`
+    - processor failure -> `Failed` with `(ChunkWorkError, Reason)`
+  ☐ Document “no chunk concurrency here” clearly at the contract boundary (snapshot source is responsible).
+
+
+  Phase 1 - Core Work Service (Unbounded Queue + Worker Pool):
+  Exit artifacts: A working service executes compute on background workers with bounded concurrency.
+  ☐ Implement `ChunkProcessingService` core loop:
+    - unbounded `Channel<WorkItem>` (or multi-lane channels for priority if needed)
+    - worker tasks (`Task.Run`) with configurable `WorkerCount`
+    - graceful shutdown / disposal
+  ☐ Implement request admission API:
+    - always accept `CancellationToken`
+    - return `Task<ChunkWorkResult<TArtifact>>`
+  ☐ Implement in-flight dedup by `ArtifactKey = (ChunkKey, Version, ProcessorId)` (no duplicate compute).
+  ☐ Implement dequeue-time supersede short-circuit:
+    - if `versionProvider.GetCurrentVersion(key) != requestedVersion`, complete as `Superseded` immediately.
+
+
+  Phase 2 - Supersede Older Queued Versions (Skip Processing):
+  Exit artifacts: Only newest version per `(ChunkKey, ProcessorId)` does real work; older queued requests complete as `Superseded`.
+  ☐ Track “latest requested version” per `(ChunkKey, ProcessorId)` at enqueue time.
+  ☐ When enqueueing a newer version, complete any older queued items for that key as `Superseded` (no snapshot/cpu work).
+    - Decide implementation approach:
+      - pending index (key -> list of pending TCS) OR
+      - version gate (queued items self-check and complete immediately when dequeued) + optional eager completion
+  ☐ Ensure behavior matches “no drops” requirement (every request gets a result).
+  ☐ Add unit tests:
+    - enqueue v1, enqueue v2, ensure v1 completes Superseded without snapshot creation
+    - verify v2 runs and returns Success (or Superseded if chunk moved on again)
+
+
+  Phase 3 - Snapshot Acquisition (Off-Thread Copy) + Pooling:
+  Exit artifacts: Snapshot copying is off-thread, pooled, and does not cause memory explosion from queued work.
+  ☐ Implement `IChunkSnapshot` concrete type backed by `ArrayPool<T>` with `Dispose()` returning buffers.
+  ☐ Implement snapshot acquisition in workers:
+    - call `snapshotSource.TryCreateSnapshotAsync(key, expectedVersion, ct)`
+    - if null -> `ChunkUnavailable` (no compute)
+  ☐ Add snapshot sharing by `SnapshotKey = (ChunkKey, Version)`:
+    - ref-counted snapshot lease stored in a `ConcurrentDictionary`
+    - multiple processors for same chunk+version share one voxel copy
+  ☐ Track snapshot bytes in-use for diagnostics.
+  ☐ Add unit tests for leasing + disposal correctness (no double-return to pool).
+
+
+  Phase 4 - Processor Execution + In-Memory Artifact Cache:
+  Exit artifacts: Processors can be plugged in, results are cached by key, and failures/cancellation are mapped to result codes.
+  ☐ Implement artifact cache keyed by `ArtifactKey`:
+    - in-memory only
+    - memory budget + LRU (or approximate LRU) eviction
+  ☐ Define optional size reporting contract for artifacts (e.g., `EstimatedBytes`) to improve eviction.
+  ☐ Implement end-to-end execution path:
+    - check cache hit -> return Success
+    - else acquire snapshot lease -> run processor -> publish if still current -> cache -> Success
+    - handle cancellation -> Canceled
+    - handle processor exceptions -> Failed with `(ProcessorFailed, reason)`
+  ☐ Add tests:
+    - cache hit returns without snapshot
+    - stale publish results in Superseded and does not cache
+    - failed processor returns Failed with reason
+
+
+  Phase 5 - Observability (EventSource + Scopes + Counters):
+  Exit artifacts: Stats and timings are visible via EventSource/EventPipe/ETW, reusing existing profiling infrastructure.
+  ☐ Reuse `VanillaGraphicsExpanded.Profiling` provider for scoped timings:
+    - add `Profiler.BeginScope("ChunkProc.<ProcessorId>", "ChunkProcessing")` around snapshot+compute (or split scopes)
+  ☐ Extend `VgeProfilingEventSource` with counters (EventCounter/IncrementingEventCounter/PollingCounter):
+    - queue length (per priority lane if applicable)
+    - in-flight count
+    - completed/sec by status (Success/Superseded/Canceled/Failed/ChunkUnavailable)
+    - snapshot bytes in-use
+    - cache hits/evictions
+  ☐ Add lightweight structured events only if needed (avoid raw `ChunkKey` to keep cardinality low).
+  ☐ Update docs:
+    - how to enable providers for chunk processing stats
+    - recommended naming conventions to keep ETW/eventpipe usable
+  ☐ Add/extend tests similar to `VanillaGraphicsExpanded.Tests/Profiling/ProfilerEventSourceTests.cs` for provider enablement and manifest stability.
+
+
+  Phase 6 - Integration + Stress/Perf Validation:
+  Exit artifacts: System is safe under load, does not leak memory, and behaves predictably with high churn.
+  ☐ Integrate into call sites (who requests processing, where version is read, and how results are consumed).
+  ☐ Add a stress harness (test or debug command) that:
+    - enqueues many versions for the same chunk and validates supersede behavior
+    - enqueues many chunks + processors and validates bounded CPU concurrency
+  ☐ Validate that unbounded queue does not hold large allocations (no snapshots stored in queued work items).
+  ☐ Tune defaults:
+    - WorkerCount
+    - cache budget
+    - (optional) priority lanes and fairness
+  ☐ Document known tradeoffs:
+    - unbounded queue can grow unbounded in count; supersede mitigates CPU and snapshot pressure but not request count
+    - if callers enqueue unique `(ChunkKey, Version)` endlessly, memory/latency can still grow (needs upstream control)
+
