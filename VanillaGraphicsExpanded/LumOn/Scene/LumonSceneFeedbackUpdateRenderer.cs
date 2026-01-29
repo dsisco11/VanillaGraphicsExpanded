@@ -98,6 +98,45 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         return true;
     }
 
+    internal bool TryGetNearDebugSamplingState(
+        out Texture3D pageTableMip0,
+        out Texture3D irradianceAtlas,
+        out int tileSizeTexels,
+        out int tilesPerAxis,
+        out int tilesPerAtlas)
+    {
+        pageTableMip0 = default!;
+        irradianceAtlas = default!;
+        tileSizeTexels = 0;
+        tilesPerAxis = 0;
+        tilesPerAtlas = 0;
+
+        if (!configured)
+        {
+            return false;
+        }
+
+        var atlases = physicalPools.Near.GpuResources;
+        if (atlases is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            pageTableMip0 = nearGpu.PageTable.PageTableMip0;
+            irradianceAtlas = atlases.IrradianceAtlas;
+            tileSizeTexels = physicalPools.Near.Plan.TileSizeTexels;
+            tilesPerAxis = physicalPools.Near.Plan.TilesPerAxis;
+            tilesPerAtlas = physicalPools.Near.Plan.TilesPerAtlas;
+            return pageTableMip0.IsValid && irradianceAtlas.IsValid;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public void NotifyAllDirty(string reason)
     {
         _ = reason;

@@ -330,6 +330,9 @@ public static class VgeBuiltInDebugViews
                 LumOnDebugMode.MaterialBands,
                 LumOnDebugMode.VgeNormalDepthAtlas,
                 LumOnDebugMode.PomMetrics,
+                LumOnDebugMode.LumonScenePageReady,
+                LumOnDebugMode.LumonScenePatchUv,
+                LumOnDebugMode.LumonSceneIrradiance,
             ]);
 
     private static DebugViewDefinition CreateMotionDebugView()

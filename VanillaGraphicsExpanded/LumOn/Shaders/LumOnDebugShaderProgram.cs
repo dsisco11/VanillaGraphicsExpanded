@@ -95,6 +95,11 @@ public class LumOnDebugShaderProgram : GpuProgram
     public int GBufferNormal { set => BindExternalTexture2D("gBufferNormal", value, 1, GpuSamplers.NearestClamp); }
 
     /// <summary>
+    /// PatchId G-buffer (RGBA32UI) used by LumonScene debug views.
+    /// </summary>
+    public int GBufferPatchId { set => BindExternalTexture2D("gBufferPatchId", value, 29, GpuSamplers.NearestClamp); }
+
+    /// <summary>
     /// Probe anchor positions (posWS.xyz, valid).
     /// </summary>
     public GpuTexture? ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 2); }
@@ -193,6 +198,22 @@ public class LumOnDebugShaderProgram : GpuProgram
     /// Full-resolution velocity texture (RGBA32F): RG = velocityUv, A = packed flags.
     /// </summary>
     public GpuTexture? VelocityTex { set => BindTexture2D("velocityTex", value, 18); }
+
+    #endregion
+
+    #region LumonScene (Phase 22)
+
+    public int LumonSceneEnabled { set => Uniform("vge_lumonSceneEnabled", value); }
+
+    public int LumonSceneTileSizeTexels { set => Uniform("vge_lumonSceneTileSizeTexels", value); }
+
+    public int LumonSceneTilesPerAxis { set => Uniform("vge_lumonSceneTilesPerAxis", value); }
+
+    public int LumonSceneTilesPerAtlas { set => Uniform("vge_lumonSceneTilesPerAtlas", value); }
+
+    public GpuTexture? LumonScenePageTableMip0 { set => BindTexture2D("vge_lumonScenePageTableMip0", value, 30); }
+
+    public GpuTexture? LumonSceneIrradianceAtlas { set => BindTexture2D("vge_lumonSceneIrradianceAtlas", value, 31); }
 
     #endregion
 

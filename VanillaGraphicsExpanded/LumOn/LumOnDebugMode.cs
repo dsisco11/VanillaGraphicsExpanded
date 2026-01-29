@@ -98,4 +98,9 @@ public enum LumOnDebugMode
     // Phase 10: PIS debug views (append-only)
     ProbeAtlasPisTraceMask = 50,
     ProbePisEnergy = 51,
+
+    // Phase 22: LumonScene surface cache debug views (append-only)
+    LumonScenePageReady = 52,
+    LumonScenePatchUv = 53,
+    LumonSceneIrradiance = 54,
 }

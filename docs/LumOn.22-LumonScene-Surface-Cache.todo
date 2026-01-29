@@ -147,8 +147,8 @@ LumOn - Phase 22 - LumonScene Surface Cache (Cards + Virtual Paged Atlases) (Imp
   Exit artifacts: Missing/stale pages are requested from visible shading and become resident over time.
   ✔ Add PatchIdGBuffer output in the primary geometry pass:
     - chunkSlot, patchId, patchUV
-    - v1 placeholder: chunkSlot=0; patchId uses face index (`gl_VertexID/4`) from chunk mesh; patchUV is tile-local UV
-    - debug view to validate correctness/stability (pending)
+    - v1: chunkSlot=0 placeholder; patchId encodes deterministic voxel patch id (4x4 patches) and patchUV is patch-local UV
+    - debug view to validate correctness/stability: implemented (LumOnDebugMode 52-54)
   ✔ Implement feedback gather (GL 4.3 compute):
     - scan PatchIdGBuffer (possibly downsampled)
     - compute required virtual pages (by mip) and append requests
@@ -205,14 +205,14 @@ LumOn - Phase 22 - LumonScene Surface Cache (Cards + Virtual Paged Atlases) (Imp
 
   Phase 22.10 - Shading Integration (Surface Cache Sampling)
   Exit artifacts: Shaders sample cached irradiance via PatchIdGBuffer-derived inputs.
-  ☐ Implement atlas sampling function:
-    - (chunkSlot, patchId, patchUV, mip) -> sample IrradianceAtlas via page table indirection
-  ☐ Integrate into lighting combine path:
-    - diffuse GI term from IrradianceAtlas
-    - clear fallback behavior for missing/invalid pages
-  ☐ Add debug views:
-    - page residency visualization
-    - patchId/patchUV validation
+  ✔ Implement atlas sampling function (Near field v1):
+    - (chunkSlot, patchId, patchUV) -> sample IrradianceAtlas via PageTableMip0 indirection
+    - NOTE: Do NOT add this as an extra term in the PBR composite (it would double-count screen-probe GI).
+  ☐ Integrate into probe tracer shading:
+    - Use LumonScene as a hit-lighting cache inside the tracer (screen-space probes / future RT fallback), not in composite
+  ✔ Add debug views (LumOn debug overlay):
+    - page residency/ready visualization
+    - patchUV validation
     - irradiance atlas sample preview
 
 

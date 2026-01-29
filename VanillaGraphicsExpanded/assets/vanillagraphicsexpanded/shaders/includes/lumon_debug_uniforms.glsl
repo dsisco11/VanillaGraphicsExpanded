@@ -10,6 +10,7 @@
 // G-buffer textures
 uniform sampler2D primaryDepth;
 uniform sampler2D gBufferNormal;
+uniform usampler2D gBufferPatchId; // RGBA32UI: (chunkSlot, patchId, packedPatchUv, misc)
 
 // Probe textures
 uniform sampler2D probeAnchorPosition;  // posWS.xyz, valid
@@ -47,6 +48,14 @@ uniform sampler2D velocityTex;
 
 // Phase 18: world-probe lifecycle debug atlas (RGBA16 UNorm)
 uniform sampler2D worldProbeDebugState0;
+
+// Phase 22: LumonScene surface cache debug inputs (Near field v1).
+uniform int vge_lumonSceneEnabled;                 // 0/1 gate
+uniform usampler2DArray vge_lumonScenePageTableMip0;   // R32UI packed entry
+uniform sampler2DArray vge_lumonSceneIrradianceAtlas;  // RGBA16F (rgb irradiance, a weight)
+uniform int vge_lumonSceneTileSizeTexels;
+uniform int vge_lumonSceneTilesPerAxis;
+uniform int vge_lumonSceneTilesPerAtlas;
 
 // Temporal config
 uniform float temporalAlpha;

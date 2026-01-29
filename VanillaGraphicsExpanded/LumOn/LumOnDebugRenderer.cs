@@ -14,6 +14,7 @@ using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 using VanillaGraphicsExpanded.LumOn.WorldProbes;
+using VanillaGraphicsExpanded.LumOn.Scene;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -88,6 +89,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private readonly LumOnBufferManager? bufferManager;
     private readonly GBufferManager? gBufferManager;
     private readonly DirectLightingBufferManager? directLightingBufferManager;
+
+    private LumonSceneFeedbackUpdateRenderer? lumonSceneFeedbackUpdateRenderer;
 
     private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager;
     private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManagerEventSource;
@@ -237,6 +240,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             worldProbeClipmapBufferManagerEventSource = worldProbeClipmapBufferManager;
             worldProbeClipmapDebugDirty = true;
         }
+    }
+
+    internal void SetLumonSceneFeedbackUpdateRenderer(LumonSceneFeedbackUpdateRenderer? feedback)
+    {
+        lumonSceneFeedbackUpdateRenderer = feedback;
     }
 
     private void OnWorldProbeClipmapAnchorShifted(LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent _)
@@ -793,6 +801,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             // Use VGE's G-buffer normal (ColorAttachment4) which contains world-space normals
             // encoded to [0,1] via the shader patching system
             shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
+            shader.GBufferPatchId = gBufferManager?.PatchIdTextureId ?? 0;
             shader.ProbeAnchorPosition = bufferManager?.ProbeAnchorPositionTex;
             shader.ProbeAnchorNormal = bufferManager?.ProbeAnchorNormalTex;
             shader.RadianceTexture0 = null;
@@ -914,6 +923,40 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
             // Phase 14 velocity debug input
             shader.VelocityTex = bufferManager?.VelocityTex;
+
+            // Phase 22 LumonScene debug inputs (Near field v1).
+            // Only used by LumonScene debug modes; other modes ignore these uniforms.
+            int lumonSceneEnabled = 0;
+            GpuTexture? lumonScenePageTableMip0 = null;
+            GpuTexture? lumonSceneIrradianceAtlas = null;
+            int tileSizeTexels = 0;
+            int tilesPerAxis = 0;
+            int tilesPerAtlas = 0;
+
+            if (mode is LumOnDebugMode.LumonScenePageReady or LumOnDebugMode.LumonScenePatchUv or LumOnDebugMode.LumonSceneIrradiance)
+            {
+                if (config.LumOn.Enabled && config.LumOn.LumonScene.Enabled && lumonSceneFeedbackUpdateRenderer is not null)
+                {
+                    if (lumonSceneFeedbackUpdateRenderer.TryGetNearDebugSamplingState(
+                        out var pageTable,
+                        out var irradiance,
+                        out tileSizeTexels,
+                        out tilesPerAxis,
+                        out tilesPerAtlas))
+                    {
+                        lumonSceneEnabled = 1;
+                        lumonScenePageTableMip0 = pageTable;
+                        lumonSceneIrradianceAtlas = irradiance;
+                    }
+                }
+            }
+
+            shader.LumonSceneEnabled = lumonSceneEnabled;
+            shader.LumonScenePageTableMip0 = lumonScenePageTableMip0;
+            shader.LumonSceneIrradianceAtlas = lumonSceneIrradianceAtlas;
+            shader.LumonSceneTileSizeTexels = tileSizeTexels;
+            shader.LumonSceneTilesPerAxis = tilesPerAxis;
+            shader.LumonSceneTilesPerAtlas = tilesPerAtlas;
 
             shader.DebugMode = (int)mode;
             shader.TemporalAlpha = lum.TemporalAlpha;
@@ -2538,6 +2581,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             or LumOnDebugMode.SceneNormal
             or LumOnDebugMode.MaterialBands
             or LumOnDebugMode.PomMetrics
+            or LumOnDebugMode.LumonScenePageReady
+            or LumOnDebugMode.LumonScenePatchUv
+            or LumOnDebugMode.LumonSceneIrradiance
             => LumOnDebugShaderProgramKind.SceneGBuffer,
 
         // Temporal
@@ -2649,6 +2695,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         return (mode is >= LumOnDebugMode.ProbeGrid and <= LumOnDebugMode.CompositeMaterial)
             || (mode is >= LumOnDebugMode.VelocityMagnitude and <= LumOnDebugMode.VelocityPrevUv)
             || (mode is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeOrbsPoints)
+            || (mode is >= LumOnDebugMode.LumonScenePageReady and <= LumOnDebugMode.LumonSceneIrradiance)
             || mode is LumOnDebugMode.WorldProbeRawConfidences
                 or LumOnDebugMode.WorldProbeContributionOnly
                 or LumOnDebugMode.ScreenSpaceContributionOnly

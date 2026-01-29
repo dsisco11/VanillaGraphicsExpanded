@@ -65,6 +65,113 @@ vec4 renderSceneNormalDebug()
     return vec4(normalDecoded * 0.5 + 0.5, 1.0);
 }
 
+// Debug Mode 52: LumonScene page readiness (Near field v1)
+vec4 renderLumonScenePageReadyDebug()
+{
+    if (vge_lumonSceneEnabled == 0)
+    {
+        return vec4(0.2, 0.0, 0.2, 1.0);
+    }
+
+    uvec4 pid = texelFetch(gBufferPatchId, ivec2(gl_FragCoord.xy), 0);
+    uint chunkSlot, patchId;
+    vec2 patchUv01;
+    if (!VgeLumonSceneTryDecodePatchId(pid, chunkSlot, patchId, patchUv01))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    vec3 irr;
+    uint flags;
+    uint physicalPageId;
+    bool ok = VgeLumonSceneTrySampleIrradiance_NearFieldV1(
+        chunkSlot,
+        patchId,
+        patchUv01,
+        vge_lumonScenePageTableMip0,
+        vge_lumonSceneIrradianceAtlas,
+        vge_lumonSceneTileSizeTexels,
+        vge_lumonSceneTilesPerAxis,
+        vge_lumonSceneTilesPerAtlas,
+        irr,
+        flags,
+        physicalPageId);
+
+    if (ok)
+    {
+        return vec4(0.0, 1.0, 0.0, 1.0); // ready
+    }
+
+    // Not ready: show coarse reason based on flags. Missing (no Resident) = red; needs work = yellow.
+    if ((flags & VGE_LUMONSCENE_FLAG_RESIDENT) != 0u)
+    {
+        return vec4(1.0, 1.0, 0.0, 1.0);
+    }
+
+    return vec4(1.0, 0.0, 0.0, 1.0);
+}
+
+// Debug Mode 53: LumonScene patchUV visualization (Near field v1)
+vec4 renderLumonScenePatchUvDebug()
+{
+    if (vge_lumonSceneEnabled == 0)
+    {
+        return vec4(0.2, 0.0, 0.2, 1.0);
+    }
+
+    uvec4 pid = texelFetch(gBufferPatchId, ivec2(gl_FragCoord.xy), 0);
+    uint chunkSlot, patchId;
+    vec2 patchUv01;
+    if (!VgeLumonSceneTryDecodePatchId(pid, chunkSlot, patchId, patchUv01))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    return vec4(patchUv01, 1.0, 1.0);
+}
+
+// Debug Mode 54: LumonScene irradiance preview (Near field v1)
+vec4 renderLumonSceneIrradianceDebug()
+{
+    if (vge_lumonSceneEnabled == 0)
+    {
+        return vec4(0.2, 0.0, 0.2, 1.0);
+    }
+
+    uvec4 pid = texelFetch(gBufferPatchId, ivec2(gl_FragCoord.xy), 0);
+    uint chunkSlot, patchId;
+    vec2 patchUv01;
+    if (!VgeLumonSceneTryDecodePatchId(pid, chunkSlot, patchId, patchUv01))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    vec3 irr;
+    uint flags;
+    uint physicalPageId;
+    bool ok = VgeLumonSceneTrySampleIrradiance_NearFieldV1(
+        chunkSlot,
+        patchId,
+        patchUv01,
+        vge_lumonScenePageTableMip0,
+        vge_lumonSceneIrradianceAtlas,
+        vge_lumonSceneTileSizeTexels,
+        vge_lumonSceneTilesPerAxis,
+        vge_lumonSceneTilesPerAtlas,
+        irr,
+        flags,
+        physicalPageId);
+
+    if (!ok)
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    // Simple tonemap for preview.
+    vec3 c = irr / (irr + vec3(1.0));
+    return vec4(clamp(c, 0.0, 1.0), 1.0);
+}
+
 // Program entry: SceneGBuffer
 vec4 RenderDebug_SceneGBuffer(vec2 screenPos)
 {
@@ -74,6 +181,9 @@ vec4 RenderDebug_SceneGBuffer(vec2 screenPos)
         case 5: return renderSceneNormalDebug();
         case 29: return renderMaterialBandsDebug();
         case 41: return renderPomMetricsDebug();
+        case 52: return renderLumonScenePageReadyDebug();
+        case 53: return renderLumonScenePatchUvDebug();
+        case 54: return renderLumonSceneIrradianceDebug();
         default: return vec4(0.0, 0.0, 0.0, 1.0);
     }
 }

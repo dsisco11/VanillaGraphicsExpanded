@@ -192,16 +192,18 @@ flat in uint vge_faceId;
 
     vge_outMaterial = vec4(vge_roughness, vge_metallic, vge_emissive, vge_reflectivity);
 
-    // VGE: PatchId (v1 placeholder: uses face index, chunkSlot=0)
+    // VGE: PatchId (Phase 22 - LumonScene voxel patches)
+    // Keep injected code small: the mapping logic lives in an include.
+    uint patchId = 0u;
     vec2 vge_patchUv = vec2(0.0);
-    if (vge_uvExtent.x > 0.0 && vge_uvExtent.y > 0.0)
-    {
-        vge_patchUv = clamp((uv - vge_uvBase) / vge_uvExtent, 0.0, 1.0);
-    }
+    VgeLumonSceneComputeVoxelPatchIdAndUv(worldPos.xyz, normal, patchId, vge_patchUv);
+
     uint vge_u = uint(clamp(vge_patchUv.x, 0.0, 1.0) * 65535.0 + 0.5);
     uint vge_v = uint(clamp(vge_patchUv.y, 0.0, 1.0) * 65535.0 + 0.5);
     uint vge_packedUv = (vge_v << 16) | vge_u;
-    vge_outPatchId = uvec4(0u, vge_faceId, vge_packedUv, 0u);
+
+    // chunkSlot is v1 placeholder (0). Future: encode actual chunk slot (+ generation).
+    vge_outPatchId = uvec4(0u, patchId, vge_packedUv, 0u);
 ";
 
     // chunkliquid.fsh does not define `normal` or `renderFlags`.
@@ -265,6 +267,7 @@ flat in uint vge_faceId;
                     .InsertBefore(mainQuery, "@import \"./includes/vge_material.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_normaldepth.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_parallax.glsl\"\n")
+                    .InsertBefore(mainQuery, "@import \"./includes/lumonscene_patchid.glsl\"\n")
                     .Commit();
 
                 log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");

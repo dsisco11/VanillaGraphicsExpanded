@@ -12,6 +12,7 @@ out vec4 outColor;
 @import "./includes/lumon_pbr.glsl"
 @import "./includes/vge_global_defines.glsl"
 @import "./includes/squirrel3.glsl"
+@import "./includes/lumonscene_surface_cache.glsl"
 
 @import "./includes/lumon_debug_uniforms.glsl"
 @import "./includes/lumon_debug_common.glsl"

@@ -192,6 +192,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         {
             lumonSceneFeedbackUpdateRenderer = new LumonSceneFeedbackUpdateRenderer(clientApi, ConfigModSystem.Config, gBufferManager);
         }
+        lumOnDebugRenderer?.SetLumonSceneFeedbackUpdateRenderer(lumonSceneFeedbackUpdateRenderer);
 
         if (current.LumOnEnabled
             && ConfigModSystem.Config.LumOn.LumonScene.Enabled
@@ -347,6 +348,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         {
             lumonSceneFeedbackUpdateRenderer = new LumonSceneFeedbackUpdateRenderer(capi, ConfigModSystem.Config, gBufferManager);
         }
+        lumOnDebugRenderer?.SetLumonSceneFeedbackUpdateRenderer(lumonSceneFeedbackUpdateRenderer);
 
         if (lumonSceneOccupancyClipmapUpdateRenderer is null && ConfigModSystem.Config.LumOn.LumonScene.Enabled)
         {

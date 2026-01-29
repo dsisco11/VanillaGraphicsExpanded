@@ -22,7 +22,12 @@ uniform uint vge_borderTexels; // v1 default 0
 
 vec3 NormalFromPatchId(uint patchId)
 {
-    uint f = patchId % 6u;
+    if (patchId == 0u)
+    {
+        return vec3(0.0, 1.0, 0.0);
+    }
+
+    uint f = (patchId - 1u) % 6u;
     switch (f)
     {
         case 0u: return vec3( 1.0, 0.0, 0.0);
