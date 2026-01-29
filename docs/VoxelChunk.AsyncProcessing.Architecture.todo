@@ -49,13 +49,13 @@ Voxel Chunk Async Processing - Background Artifact Pipeline (Implementation)
 
   Phase 2 - Supersede Older Queued Versions (Skip Processing):
   Exit artifacts: Only newest version per `(ChunkKey, ProcessorId)` does real work; older queued requests complete as `Superseded`.
-  ☐ Track “latest requested version” per `(ChunkKey, ProcessorId)` at enqueue time.
-  ☐ When enqueueing a newer version, complete any older queued items for that key as `Superseded` (no snapshot/cpu work).
+  ✔ Track “latest requested version” per `(ChunkKey, ProcessorId)` at enqueue time. @done(26-01-29 01:05)
+  ✔ When enqueueing a newer version, complete any older queued items for that key as `Superseded` (no snapshot/cpu work). @done(26-01-29 01:05)
     - Decide implementation approach:
       - pending index (key -> list of pending TCS) OR
       - version gate (queued items self-check and complete immediately when dequeued) + optional eager completion
-  ☐ Ensure behavior matches “no drops” requirement (every request gets a result).
-  ☐ Add unit tests:
+  ✔ Ensure behavior matches “no drops” requirement (every request gets a result). @done(26-01-29 01:05)
+  ✔ Add unit tests: @done(26-01-29 01:05)
     - enqueue v1, enqueue v2, ensure v1 completes Superseded without snapshot creation
     - verify v2 runs and returns Success (or Superseded if chunk moved on again)
 

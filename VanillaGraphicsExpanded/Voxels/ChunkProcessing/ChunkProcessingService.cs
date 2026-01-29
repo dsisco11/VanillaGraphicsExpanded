@@ -15,6 +15,10 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
 
     private readonly ConcurrentDictionary<ArtifactKey, Task> inFlight = new();
 
+    private readonly ConcurrentDictionary<ChunkProcessorKey, int> latestRequestedVersion = new();
+
+    private readonly ConcurrentDictionary<ChunkProcessorKey, ConcurrentDictionary<int, IChunkWorkItem>> pendingByProcessorKey = new();
+
     private readonly CancellationTokenSource cts = new();
 
     private readonly Task[] workers;
@@ -74,6 +78,60 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
                 Reason: "Canceled"));
         }
 
+        var processorKey = new ChunkProcessorKey(key, processor.Id);
+
+        // Phase 2: If a newer request has already been submitted for this (chunk, processor), this request is superseded immediately.
+        if (latestRequestedVersion.TryGetValue(processorKey, out int latest) && version < latest)
+        {
+            return Task.FromResult(new ChunkWorkResult<TArtifact>(
+                Status: ChunkWorkStatus.Superseded,
+                Key: key,
+                RequestedVersion: version,
+                ProcessorId: processor.Id,
+                Artifact: default,
+                Error: ChunkWorkError.None,
+                Reason: "Superseded"));
+        }
+
+        // Update "latest requested" (monotonic max).
+        while (true)
+        {
+            if (!latestRequestedVersion.TryGetValue(processorKey, out latest))
+            {
+                if (latestRequestedVersion.TryAdd(processorKey, version))
+                {
+                    latest = version;
+                    break;
+                }
+
+                continue;
+            }
+
+            if (version <= latest)
+            {
+                break;
+            }
+
+            if (latestRequestedVersion.TryUpdate(processorKey, version, latest))
+            {
+                latest = version;
+                break;
+            }
+        }
+
+        // If we lost the race and are now older than the latest, complete immediately.
+        if (version < latest)
+        {
+            return Task.FromResult(new ChunkWorkResult<TArtifact>(
+                Status: ChunkWorkStatus.Superseded,
+                Key: key,
+                RequestedVersion: version,
+                ProcessorId: processor.Id,
+                Artifact: default,
+                Error: ChunkWorkError.None,
+                Reason: "Superseded"));
+        }
+
         var artifactKey = new ArtifactKey(key, version, processor.Id);
 
         while (true)
@@ -111,11 +169,50 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
                 versionProvider: versionProvider,
                 callerCancellationToken: ct,
                 tcs: tcs,
-                inFlight: inFlight);
+                inFlight: inFlight,
+                pendingByProcessorKey: pendingByProcessorKey);
+
+            ConcurrentDictionary<int, IChunkWorkItem> pendingByVersion = pendingByProcessorKey.GetOrAdd(
+                processorKey,
+                static _ => new ConcurrentDictionary<int, IChunkWorkItem>());
+
+            // No duplicate compute per (ChunkKey, Version, ProcessorId) means this should normally succeed.
+            pendingByVersion.TryAdd(version, workItem);
+
+            // Phase 2: when a new latest version arrives, eagerly supersede any older queued versions.
+            if (pendingByVersion.Count > 1)
+            {
+                foreach (var kvp in pendingByVersion)
+                {
+                    if (kvp.Key >= version)
+                    {
+                        continue;
+                    }
+
+                    if (!pendingByVersion.TryRemove(kvp.Key, out IChunkWorkItem? older))
+                    {
+                        continue;
+                    }
+
+                    older.TryCompleteSuperseded("Superseded");
+                }
+
+                if (pendingByVersion.IsEmpty)
+                {
+                    pendingByProcessorKey.TryRemove(processorKey, out _);
+                }
+            }
 
             if (!work.Writer.TryWrite(workItem))
             {
                 inFlight.TryRemove(artifactKey, out _);
+
+                if (pendingByProcessorKey.TryGetValue(processorKey, out ConcurrentDictionary<int, IChunkWorkItem>? pending)
+                    && pending.TryRemove(version, out _)
+                    && pending.IsEmpty)
+                {
+                    pendingByProcessorKey.TryRemove(processorKey, out _);
+                }
 
                 return Task.FromResult(new ChunkWorkResult<TArtifact>(
                     Status: ChunkWorkStatus.Failed,

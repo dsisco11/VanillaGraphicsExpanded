@@ -15,6 +15,7 @@ internal sealed class ChunkWorkItem<TArtifact> : IChunkWorkItem
     private readonly CancellationToken callerCancellationToken;
     private readonly TaskCompletionSource<ChunkWorkResult<TArtifact>> tcs;
     private readonly ConcurrentDictionary<ArtifactKey, Task> inFlight;
+    private readonly ConcurrentDictionary<ChunkProcessorKey, ConcurrentDictionary<int, IChunkWorkItem>> pendingByProcessorKey;
 
     public ChunkWorkItem(
         ChunkKey key,
@@ -24,7 +25,8 @@ internal sealed class ChunkWorkItem<TArtifact> : IChunkWorkItem
         IChunkVersionProvider versionProvider,
         CancellationToken callerCancellationToken,
         TaskCompletionSource<ChunkWorkResult<TArtifact>> tcs,
-        ConcurrentDictionary<ArtifactKey, Task> inFlight)
+        ConcurrentDictionary<ArtifactKey, Task> inFlight,
+        ConcurrentDictionary<ChunkProcessorKey, ConcurrentDictionary<int, IChunkWorkItem>> pendingByProcessorKey)
     {
         this.key = key;
         this.version = version;
@@ -34,16 +36,53 @@ internal sealed class ChunkWorkItem<TArtifact> : IChunkWorkItem
         this.callerCancellationToken = callerCancellationToken;
         this.tcs = tcs ?? throw new ArgumentNullException(nameof(tcs));
         this.inFlight = inFlight ?? throw new ArgumentNullException(nameof(inFlight));
+        this.pendingByProcessorKey = pendingByProcessorKey ?? throw new ArgumentNullException(nameof(pendingByProcessorKey));
 
         ArtifactKey = new ArtifactKey(key, version, processor.Id);
+        ChunkProcessorKey = new ChunkProcessorKey(key, processor.Id);
     }
 
     public ArtifactKey ArtifactKey { get; }
+
+    public ChunkProcessorKey ChunkProcessorKey { get; }
+
+    public int Version => version;
+
+    public bool TryCompleteSuperseded(string reason)
+    {
+        bool completed = tcs.TrySetResult(new ChunkWorkResult<TArtifact>(
+            Status: ChunkWorkStatus.Superseded,
+            Key: key,
+            RequestedVersion: version,
+            ProcessorId: processor.Id,
+            Artifact: default,
+            Error: ChunkWorkError.None,
+            Reason: reason));
+
+        if (completed)
+        {
+            inFlight.TryRemove(ArtifactKey, out _);
+        }
+
+        return completed;
+    }
 
     public async Task ExecuteAsync(CancellationToken serviceCancellationToken)
     {
         try
         {
+            if (tcs.Task.IsCompleted)
+            {
+                return;
+            }
+
+            if (pendingByProcessorKey.TryGetValue(ChunkProcessorKey, out ConcurrentDictionary<int, IChunkWorkItem>? pending)
+                && pending.TryRemove(version, out _)
+                && pending.IsEmpty)
+            {
+                pendingByProcessorKey.TryRemove(ChunkProcessorKey, out _);
+            }
+
             if (callerCancellationToken.IsCancellationRequested)
             {
                 tcs.TrySetResult(new ChunkWorkResult<TArtifact>(
@@ -182,6 +221,13 @@ internal sealed class ChunkWorkItem<TArtifact> : IChunkWorkItem
         finally
         {
             inFlight.TryRemove(ArtifactKey, out _);
+
+            if (pendingByProcessorKey.TryGetValue(ChunkProcessorKey, out ConcurrentDictionary<int, IChunkWorkItem>? pending)
+                && pending.TryRemove(version, out _)
+                && pending.IsEmpty)
+            {
+                pendingByProcessorKey.TryRemove(ChunkProcessorKey, out _);
+            }
         }
     }
 }
