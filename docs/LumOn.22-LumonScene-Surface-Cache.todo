@@ -121,9 +121,10 @@ LumOn - Phase 22 - LumonScene Surface Cache (Cards + Virtual Paged Atlases) (Imp
   ✔ Add GL-backed atlas allocation (render thread):
     - Allocate the minimum number of 4096x4096 atlas textures to hold the required pages (clamped by max atlas cap)
     - GL object labeling and basic diagnostics counters
-  ☐ Wire pool into chunk lifecycle:
+  ✔ Wire pool into chunk lifecycle:
     - Return tiles on chunk unload and on eviction (page-table unbind + free)
     - Track residency pressure (near/far) and eviction stats
+    - Implemented: `VanillaGraphicsExpanded.LumOn.Scene.LumonSceneChunkResidencyManager` + `LumonSceneChunkCoord` (CPU-side), emits `PageReleased` events
 
 
   Phase 22.5 - GPU Data Layout: Page Tables + Patch Metadata + Work Queues

@@ -194,6 +194,11 @@ Concept: allocate a **`chunkSlot`** from a bounded slot pool, where each slot ha
   - return all resident physical tiles for that chunk back to the global pool
   - release the slot (increment generation so stale GPU references can be detected/ignored)
 
+Implementation note (v1): the CPU-side bridge between chunk streaming events and the global physical pools is
+`VanillaGraphicsExpanded.LumOn.Scene.LumonSceneChunkResidencyManager`. It allocates at least one physical page per
+active chunk (per field), returns tiles on unload, and can evict under pool pressure while emitting a `PageReleased`
+event to drive future page-table unbinds.
+
 Shader-side safety:
 
 - `PatchIdGBuffer` should encode `chunkSlot` and `patchId`, and (optionally) a `slotGeneration` so any stale pixels
