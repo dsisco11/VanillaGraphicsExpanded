@@ -75,16 +75,16 @@ Voxel Chunk Async Processing - Background Artifact Pipeline (Implementation)
 
   Phase 4 - Processor Execution + In-Memory Artifact Cache:
   Exit artifacts: Processors can be plugged in, results are cached by key, and failures/cancellation are mapped to result codes.
-  ☐ Implement artifact cache keyed by `ArtifactKey`:
+  ✔ Implement artifact cache keyed by `ArtifactKey`: @done(26-01-29 01:55)
     - in-memory only
     - memory budget + LRU (or approximate LRU) eviction
-  ☐ Define optional size reporting contract for artifacts (e.g., `EstimatedBytes`) to improve eviction.
-  ☐ Implement end-to-end execution path:
+  ✔ Define optional size reporting contract for artifacts (e.g., `EstimatedBytes`) to improve eviction. @done(26-01-29 01:55)
+  ✔ Implement end-to-end execution path: @done(26-01-29 01:55)
     - check cache hit -> return Success
     - else acquire snapshot lease -> run processor -> publish if still current -> cache -> Success
     - handle cancellation -> Canceled
     - handle processor exceptions -> Failed with `(ProcessorFailed, reason)`
-  ☐ Add tests:
+  ✔ Add tests: @done(26-01-29 01:55)
     - cache hit returns without snapshot
     - stale publish results in Superseded and does not cache
     - failed processor returns Failed with reason

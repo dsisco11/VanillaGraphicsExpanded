@@ -11,6 +11,8 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
     private readonly IChunkSnapshotSource snapshotSource;
     private readonly IChunkVersionProvider versionProvider;
 
+    private readonly ArtifactCache artifactCache;
+
     private readonly ConcurrentDictionary<SnapshotKey, SharedSnapshotEntry> snapshots = new();
 
     private long snapshotBytesInUse;
@@ -39,6 +41,8 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
 
         options ??= new ChunkProcessingServiceOptions();
 
+        artifactCache = new ArtifactCache(options.ArtifactCacheBudgetBytes);
+
         shutdownTimeout = options.ShutdownTimeout;
 
         var channelOptions = new UnboundedChannelOptions
@@ -59,6 +63,8 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
     }
 
     internal long SnapshotBytesInUse => Interlocked.Read(ref snapshotBytesInUse);
+
+    internal long ArtifactCacheBytesInUse => artifactCache.BytesInUse;
 
     public Task<ChunkWorkResult<TArtifact>> RequestAsync<TArtifact>(
         ChunkKey key,
@@ -138,7 +144,44 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
                 Reason: "Superseded"));
         }
 
+        // Cache hit fast-path (still guarded by current-version).
+        if (versionProvider.GetCurrentVersion(key) != version)
+        {
+            return Task.FromResult(new ChunkWorkResult<TArtifact>(
+                Status: ChunkWorkStatus.Superseded,
+                Key: key,
+                RequestedVersion: version,
+                ProcessorId: processor.Id,
+                Artifact: default,
+                Error: ChunkWorkError.None,
+                Reason: "Superseded"));
+        }
+
         var artifactKey = new ArtifactKey(key, version, processor.Id);
+
+        if (TryGetCachedArtifact(artifactKey, out TArtifact? cached, out string? cacheErrorReason))
+        {
+            if (cacheErrorReason is not null)
+            {
+                return Task.FromResult(new ChunkWorkResult<TArtifact>(
+                    Status: ChunkWorkStatus.Failed,
+                    Key: key,
+                    RequestedVersion: version,
+                    ProcessorId: processor.Id,
+                    Artifact: default,
+                    Error: ChunkWorkError.Unknown,
+                    Reason: cacheErrorReason));
+            }
+
+            return Task.FromResult(new ChunkWorkResult<TArtifact>(
+                Status: ChunkWorkStatus.Success,
+                Key: key,
+                RequestedVersion: version,
+                ProcessorId: processor.Id,
+                Artifact: cached,
+                Error: ChunkWorkError.None,
+                Reason: null));
+        }
 
         while (true)
         {
@@ -332,5 +375,31 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
         }
 
         snapshots.TryRemove(snapshotKey, out _);
+    }
+
+    internal void CacheArtifact(ArtifactKey key, object artifact)
+    {
+        artifactCache.Put(key, artifact);
+    }
+
+    private bool TryGetCachedArtifact<TArtifact>(ArtifactKey key, out TArtifact? artifact, out string? errorReason)
+    {
+        if (!artifactCache.TryGet(key, out object? boxed))
+        {
+            artifact = default;
+            errorReason = null;
+            return false;
+        }
+
+        if (boxed is TArtifact typed)
+        {
+            artifact = typed;
+            errorReason = null;
+            return true;
+        }
+
+        artifact = default;
+        errorReason = "ArtifactCacheTypeMismatch";
+        return true;
     }
 }

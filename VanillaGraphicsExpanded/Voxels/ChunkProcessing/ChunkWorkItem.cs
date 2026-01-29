@@ -160,6 +160,8 @@ internal sealed class ChunkWorkItem<TArtifact> : IChunkWorkItem
                 return;
             }
 
+            ChunkWorkResult<TArtifact>? finalResult = null;
+
             using (snapshot)
             {
                 TArtifact artifact;
@@ -169,53 +171,62 @@ internal sealed class ChunkWorkItem<TArtifact> : IChunkWorkItem
                 }
                 catch (OperationCanceledException)
                 {
-                    tcs.TrySetResult(new ChunkWorkResult<TArtifact>(
+                    finalResult = new ChunkWorkResult<TArtifact>(
                         Status: ChunkWorkStatus.Canceled,
                         Key: key,
                         RequestedVersion: version,
                         ProcessorId: processor.Id,
                         Artifact: default,
                         Error: ChunkWorkError.None,
-                        Reason: "Canceled"));
+                        Reason: "Canceled");
 
-                    return;
+                    goto CompleteAfterDispose;
                 }
                 catch (Exception ex)
                 {
-                    tcs.TrySetResult(new ChunkWorkResult<TArtifact>(
+                    finalResult = new ChunkWorkResult<TArtifact>(
                         Status: ChunkWorkStatus.Failed,
                         Key: key,
                         RequestedVersion: version,
                         ProcessorId: processor.Id,
                         Artifact: default,
                         Error: ChunkWorkError.ProcessorFailed,
-                        Reason: ex.Message));
+                        Reason: ex.Message);
 
-                    return;
+                    goto CompleteAfterDispose;
                 }
 
                 if (versionProvider.GetCurrentVersion(key) != version)
                 {
-                    tcs.TrySetResult(new ChunkWorkResult<TArtifact>(
+                    finalResult = new ChunkWorkResult<TArtifact>(
                         Status: ChunkWorkStatus.Superseded,
                         Key: key,
                         RequestedVersion: version,
                         ProcessorId: processor.Id,
                         Artifact: default,
                         Error: ChunkWorkError.None,
-                        Reason: "Superseded"));
+                        Reason: "Superseded");
 
-                    return;
+                    goto CompleteAfterDispose;
                 }
 
-                tcs.TrySetResult(new ChunkWorkResult<TArtifact>(
+                snapshotLeaseProvider.CacheArtifact(ArtifactKey, artifact!);
+
+                finalResult = new ChunkWorkResult<TArtifact>(
                     Status: ChunkWorkStatus.Success,
                     Key: key,
                     RequestedVersion: version,
                     ProcessorId: processor.Id,
                     Artifact: artifact,
                     Error: ChunkWorkError.None,
-                    Reason: null));
+                    Reason: null);
+            }
+
+CompleteAfterDispose:
+
+            if (finalResult is not null)
+            {
+                tcs.TrySetResult(finalResult.Value);
             }
         }
         finally
