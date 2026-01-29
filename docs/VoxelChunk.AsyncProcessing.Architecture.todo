@@ -20,17 +20,17 @@ Voxel Chunk Async Processing - Background Artifact Pipeline (Implementation)
 
   Phase 0 - Contracts + Semantics Lock-In:
   Exit artifacts: Public contracts and policies are finalized and documented.
-  ☐ Define `ChunkKey` representation used by this system (fields, equality, hashing).
-  ☐ Define `ChunkWorkStatus`, `ChunkWorkError`, and `ChunkWorkResult<T>` types (no exceptions in results).
-  ☐ Define `IChunkProcessor<TArtifact>` contract and `ProcessorId` low-cardinality guidance.
-  ☐ Define `IChunkVersionProvider` contract and “current version” lookup semantics.
-  ☐ Define `IChunkSnapshotSource` contract (off-thread snapshot copy) and what “ChunkUnavailable” means.
-  ☐ Define cancellation semantics:
+  ✔ Define `ChunkKey` representation used by this system (fields, equality, hashing). @done(26-01-29 00:00)
+  ✔ Define `ChunkWorkStatus`, `ChunkWorkError`, and `ChunkWorkResult<T>` types (no exceptions in results). @done(26-01-29 00:00)
+  ✔ Define `IChunkProcessor<TArtifact>` contract and `ProcessorId` low-cardinality guidance. @done(26-01-29 00:00)
+  ✔ Define `IChunkVersionProvider` contract and “current version” lookup semantics. @done(26-01-29 00:00)
+  ✔ Define `IChunkSnapshotSource` contract (off-thread snapshot copy) and what “ChunkUnavailable” means. @done(26-01-29 00:00)
+  ✔ Define cancellation semantics: @done(26-01-29 00:00)
     - caller cancellation -> `Canceled`
     - superseded -> `Superseded`
     - snapshot unavailable -> `ChunkUnavailable`
     - processor failure -> `Failed` with `(ChunkWorkError, Reason)`
-  ☐ Document “no chunk concurrency here” clearly at the contract boundary (snapshot source is responsible).
+  ✔ Document “no chunk concurrency here” clearly at the contract boundary (snapshot source is responsible). @done(26-01-29 00:00)
 
 
   Phase 1 - Core Work Service (Unbounded Queue + Worker Pool):
@@ -121,4 +121,3 @@ Voxel Chunk Async Processing - Background Artifact Pipeline (Implementation)
   ☐ Document known tradeoffs:
     - unbounded queue can grow unbounded in count; supersede mitigates CPU and snapshot pressure but not request count
     - if callers enqueue unique `(ChunkKey, Version)` endlessly, memory/latency can still grow (needs upstream control)
-
