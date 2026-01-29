@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 
 using OpenTK.Graphics.OpenGL;
@@ -16,6 +17,9 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
 {
     private int programId;
     private GpuProgramLayout programLayout = GpuProgramLayout.Empty;
+
+    private readonly Dictionary<string, int> uniformLocationCache = new(StringComparer.Ordinal);
+    private int uniformLocationCacheProgramId;
 
     protected override nint ResourceId
     {
@@ -244,6 +248,134 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
         return true;
     }
 
+    #region Uniforms (Cached)
+
+    /// <summary>
+    /// Returns the cached uniform location for <paramref name="uniformName"/>.
+    /// When <paramref name="uniformName"/> refers to an array, this method also tries <c>name[0]</c>.
+    /// </summary>
+    public int GetUniformLocationOrArray0(string uniformName)
+    {
+        if (programId == 0 || string.IsNullOrWhiteSpace(uniformName))
+        {
+            return -1;
+        }
+
+        if (uniformLocationCacheProgramId != programId)
+        {
+            uniformLocationCache.Clear();
+            uniformLocationCacheProgramId = programId;
+        }
+
+        if (uniformLocationCache.TryGetValue(uniformName, out int cached))
+        {
+            return cached;
+        }
+
+        int loc = GL.GetUniformLocation(programId, uniformName);
+        if (loc < 0)
+        {
+            loc = GL.GetUniformLocation(programId, $"{uniformName}[0]");
+        }
+
+        uniformLocationCache[uniformName] = loc;
+        return loc;
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> if the currently linked program exposes the uniform.
+    /// </summary>
+    public bool HasUniform(string uniformName)
+    {
+        return GetUniformLocationOrArray0(uniformName) >= 0;
+    }
+
+    /// <summary>
+    /// Sets an <c>int</c> uniform. Requires this program to be bound (use <see cref="Use"/> / <see cref="UseScope"/>).
+    /// Returns false if the uniform is missing.
+    /// </summary>
+    public bool TrySetUniform1(string uniformName, int value)
+    {
+        if (!IsValid)
+        {
+            return false;
+        }
+
+        int loc = GetUniformLocationOrArray0(uniformName);
+        if (loc < 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            GL.Uniform1(loc, value);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Sets a <c>uint</c> uniform. Requires this program to be bound (use <see cref="Use"/> / <see cref="UseScope"/>).
+    /// Returns false if the uniform is missing.
+    /// </summary>
+    public bool TrySetUniform1(string uniformName, uint value)
+    {
+        if (!IsValid)
+        {
+            return false;
+        }
+
+        int loc = GetUniformLocationOrArray0(uniformName);
+        if (loc < 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            GL.Uniform1(loc, value);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Sets a <c>float</c> uniform. Requires this program to be bound (use <see cref="Use"/> / <see cref="UseScope"/>).
+    /// Returns false if the uniform is missing.
+    /// </summary>
+    public bool TrySetUniform1(string uniformName, float value)
+    {
+        if (!IsValid)
+        {
+            return false;
+        }
+
+        int loc = GetUniformLocationOrArray0(uniformName);
+        if (loc < 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            GL.Uniform1(loc, value);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    #endregion
+
     /// <summary>
     /// Unbinds any current program (uses 0).
     /// </summary>
@@ -329,5 +461,11 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
         {
             scope.Dispose();
         }
+    }
+
+    protected override void OnAfterDelete()
+    {
+        uniformLocationCache.Clear();
+        uniformLocationCacheProgramId = 0;
     }
 }

@@ -15,6 +15,7 @@ namespace VanillaGraphicsExpanded;
 public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
 {
     private ICoreClientAPI? capi;
+    private IEventAPI? commonEvents;
 
     private GBufferManager? gBufferManager;
     private DirectLightingBufferManager? directLightingBufferManager;
@@ -48,6 +49,10 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
     public override void StartClientSide(ICoreClientAPI api)
     {
         capi = api;
+        commonEvents = ((ICoreAPI)api).Event;
+
+        api.Event.BlockChanged += OnClientBlockChanged;
+        commonEvents.ChunkDirty += OnChunkDirty;
 
         ConfigModSystem.Config.Sanitize();
         lastLiveConfigSnapshot = LumOnLiveConfigSnapshot.From(ConfigModSystem.Config);
@@ -191,6 +196,17 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
     {
         base.Dispose();
 
+        if (capi is not null)
+        {
+            capi.Event.BlockChanged -= OnClientBlockChanged;
+        }
+
+        if (commonEvents is not null)
+        {
+            commonEvents.ChunkDirty -= OnChunkDirty;
+            commonEvents = null;
+        }
+
         lumOnStatsPanel?.Dispose();
         lumOnStatsPanel = null;
 
@@ -210,6 +226,39 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         directLightingBufferManager = null;
         capi = null;
         lastLiveConfigSnapshot = null;
+    }
+
+    private void OnClientBlockChanged(Vintagestory.API.MathTools.BlockPos pos, Vintagestory.API.Common.Block oldBlock)
+    {
+        _ = pos;
+        _ = oldBlock;
+
+        if (!ConfigModSystem.Config.LumOn.Enabled || !ConfigModSystem.Config.LumOn.LumonScene.Enabled)
+        {
+            return;
+        }
+
+        lumonSceneFeedbackUpdateRenderer?.NotifyAllDirty("BlockChanged");
+    }
+
+    private void OnChunkDirty(Vintagestory.API.MathTools.Vec3i chunkCoord, Vintagestory.API.Common.IWorldChunk chunk, Vintagestory.API.Common.EnumChunkDirtyReason reason)
+    {
+        _ = chunkCoord;
+        _ = chunk;
+
+        if (reason != Vintagestory.API.Common.EnumChunkDirtyReason.NewlyLoaded &&
+            reason != Vintagestory.API.Common.EnumChunkDirtyReason.MarkedDirty &&
+            reason != Vintagestory.API.Common.EnumChunkDirtyReason.NewlyCreated)
+        {
+            return;
+        }
+
+        if (!ConfigModSystem.Config.LumOn.Enabled || !ConfigModSystem.Config.LumOn.LumonScene.Enabled)
+        {
+            return;
+        }
+
+        lumonSceneFeedbackUpdateRenderer?.NotifyAllDirty($"ChunkDirty:{reason}");
     }
 
     private void EnsureLumOnStatsPanelInitialized(string reason)

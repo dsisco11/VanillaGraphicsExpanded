@@ -167,14 +167,14 @@ LumOn - Phase 22 - LumonScene Surface Cache (Cards + Virtual Paged Atlases) (Imp
 
   Phase 22.7 - Capture v1 (Voxel Patches)
   Exit artifacts: For resident voxel pages, depth/material layers are populated correctly.
-  ☐ Implement voxel patch capture path v1 (fast):
-    - Procedural fill for depth=0 and normal=axis
-    - MaterialAtlas writes from chunk voxel/material sources (via materialPaletteIndex)
-  ☐ Define and implement border handling:
-    - reserved border texels per patch region
-    - border fill rules to prevent filtering seams
-  ☐ Dirty tracking integration:
-    - When voxels change, mark affected patches dirty -> schedule re-capture
+  ✔ Implement voxel patch capture path v1 (fast):
+    - Compute capture pass consumes `CaptureWorkBuffer` and writes Depth/Material atlases
+    - Procedural fill for depth=0; placeholder axis normal
+    - NOTE: MaterialAtlas-from-voxel/materialPaletteIndex is deferred until voxel/material tables are GPU-visible
+  ✔ Define and implement border handling:
+    - v1 uses border=0 (no filtering/mips); capture shader keeps a `borderTexels` uniform seam for later
+  ✔ Dirty tracking integration:
+    - BlockChanged/ChunkDirty triggers a (budgeted) recapture sweep of resident pages
 
 
   Phase 22.8 - Trace Scene v1: Occupancy Clipmap (Packed Light + Material)
