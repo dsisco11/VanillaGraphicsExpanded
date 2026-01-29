@@ -89,21 +89,24 @@ LumOn - Phase 23 - TraceScene Clipmap (GPU Build + Region-Driven Updates) (Imple
 
   Phase 23.4 - GPU Build Compute (Region -> Clipmap)
   Exit artifacts: Compute shaders that write directly into clipmap textures from staged region buffers.
-  ☐ Add compute shader(s):
+  ✔ Add compute shader(s):
     - `lumonscene_trace_scene_region_to_clipmap.csh`:
       - For each (regionUpdate, localCell) compute worldCell and map into clipmap ring coords
       - `imageStore` into destination `uimage3D` for affected levels
     - Optional: `lumonscene_trace_scene_build_occ_any.csh`:
       - Builds conservative occupancy hierarchy from L0 (mip/brick) for empty-space skipping
-  ☐ Add render-thread upload + dispatch plumbing:
+    - Implemented: `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumonscene_trace_scene_region_to_clipmap.csh`
+  ✔ Add render-thread upload + dispatch plumbing:
     - Upload region payload(s) to staging SSBO
     - Upload regionUpdate work items (coord + source offset + level mask)
     - Bind destination textures as images and dispatch compute
     - Apply appropriate `glMemoryBarrier` flags before tracing
-  ☐ Budgeting knobs:
+    - Implemented: `VanillaGraphicsExpanded/LumOn/Scene/LumonSceneTraceSceneClipmapGpuBuildDispatcher.cs:1`
+  ✔ Budgeting knobs:
     - Max regions uploaded per frame
     - Max regions dispatched per frame
     - Optional: prioritize newly exposed regions over maintenance
+    - Implemented config fields (Phase 23): `VanillaGraphicsExpanded/LumOn/VgeConfig.cs:1`
 
 
   Phase 23.5 - Scheduling + Streaming Lifecycle

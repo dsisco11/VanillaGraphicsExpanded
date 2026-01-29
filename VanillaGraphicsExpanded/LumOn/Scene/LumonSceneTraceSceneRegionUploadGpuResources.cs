@@ -190,4 +190,3 @@ internal sealed class LumonSceneTraceSceneRegionUploadGpuResources : IDisposable
         updates.Counter.BindBase(bindingIndex: 0);
     }
 }
-

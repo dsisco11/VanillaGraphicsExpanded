@@ -632,25 +632,58 @@ public class VgeConfig
             public int FarRadiusChunks { get; set; } = 32;
 
             /// <summary>
-            /// Trace scene occupancy clipmap resolution (per level, per axis).
-            /// Larger values increase update cost and VRAM. Power-of-two values are recommended.
+            /// Trace scene settings (occupancy clipmap + update budgets).
             /// </summary>
             [JsonProperty]
-            public int TraceSceneClipmapResolution { get; set; } = 64;
+            public TraceSceneConfig TraceScene { get; set; } = new();
 
-            /// <summary>
-            /// Trace scene occupancy clipmap level count.
-            /// Level spacing is <c>1 &lt;&lt; level</c> blocks (v1).
-            /// </summary>
-            [JsonProperty]
-            public int TraceSceneClipmapLevels { get; set; } = 5;
+            [JsonObject(MemberSerialization.OptIn)]
+            public sealed class TraceSceneConfig
+            {
+                /// <summary>
+                /// Trace scene occupancy clipmap resolution (per level, per axis).
+                /// Larger values increase update cost and VRAM. Power-of-two values are recommended.
+                /// </summary>
+                [JsonProperty]
+                public int ClipmapResolution { get; set; } = 64;
 
-            /// <summary>
-            /// Max number of clipmap slice uploads per frame.
-            /// Higher values converge faster but increase CPU cost and GL traffic.
-            /// </summary>
-            [JsonProperty]
-            public int TraceSceneClipmapSlicesPerFrame { get; set; } = 8;
+                /// <summary>
+                /// Trace scene occupancy clipmap level count.
+                /// Level spacing is <c>1 &lt;&lt; level</c> blocks (v1).
+                /// </summary>
+                [JsonProperty]
+                public int ClipmapLevels { get; set; } = 5;
+
+                /// <summary>
+                /// Max number of clipmap slice uploads per frame.
+                /// Higher values converge faster but increase CPU cost and GL traffic.
+                /// </summary>
+                [JsonProperty]
+                public int ClipmapSlicesPerFrame { get; set; } = 8;
+
+                /// <summary>
+                /// Max number of 32^3 region payloads to upload per frame for the GPU-built clipmap path (Phase 23).
+                /// This is a CPU->GPU bandwidth limiter; it does not directly control compute cost.
+                /// </summary>
+                [JsonProperty]
+                public int ClipmapMaxRegionUploadsPerFrame { get; set; } = 8;
+
+                /// <summary>
+                /// Max number of 32^3 region updates to dispatch per frame for the GPU-built clipmap path (Phase 23).
+                /// This is a compute limiter; it may be further constrained by the dispatcher batch capacity.
+                /// </summary>
+                [JsonProperty]
+                public int ClipmapMaxRegionsDispatchedPerFrame { get; set; } = 8;
+
+                internal void Sanitize()
+                {
+                    ClipmapResolution = SanitizeTraceSceneClipmapResolution(ClipmapResolution);
+                    ClipmapLevels = Math.Clamp(ClipmapLevels, 1, 8);
+                    ClipmapSlicesPerFrame = Math.Clamp(ClipmapSlicesPerFrame, 0, 512);
+                    ClipmapMaxRegionUploadsPerFrame = Math.Clamp(ClipmapMaxRegionUploadsPerFrame, 0, 4096);
+                    ClipmapMaxRegionsDispatchedPerFrame = Math.Clamp(ClipmapMaxRegionsDispatchedPerFrame, 0, 4096);
+                }
+            }
 
             /// <summary>
             /// Max number of surface-cache pages relit per frame (Near field only in v1).
@@ -689,9 +722,8 @@ public class VgeConfig
                     FarRadiusChunks = NearRadiusChunks;
                 }
 
-                TraceSceneClipmapResolution = SanitizeTraceSceneClipmapResolution(TraceSceneClipmapResolution);
-                TraceSceneClipmapLevels = Math.Clamp(TraceSceneClipmapLevels, 1, 8);
-                TraceSceneClipmapSlicesPerFrame = Math.Clamp(TraceSceneClipmapSlicesPerFrame, 0, 512);
+                TraceScene ??= new TraceSceneConfig();
+                TraceScene.Sanitize();
 
                 RelightMaxPagesPerFrame = Math.Clamp(RelightMaxPagesPerFrame, 0, 256);
                 RelightTexelsPerPagePerFrame = Math.Clamp(RelightTexelsPerPagePerFrame, 0, 4096 * 4096);

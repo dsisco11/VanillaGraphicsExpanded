@@ -139,7 +139,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
             return;
         }
 
-        int budgetSlices = Math.Max(0, config.LumOn.LumonScene.TraceSceneClipmapSlicesPerFrame);
+        int budgetSlices = Math.Max(0, config.LumOn.LumonScene.TraceScene.ClipmapSlicesPerFrame);
 
         // Apply rebuild request.
         if (Interlocked.Exchange(ref rebuildAllRequested, 0) != 0)
@@ -226,9 +226,9 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
     private void EnsureResourcesAndConfig()
     {
-        var cfg = config.LumOn.LumonScene;
-        int resolution = cfg.TraceSceneClipmapResolution;
-        int levels = cfg.TraceSceneClipmapLevels;
+        var traceCfg = config.LumOn.LumonScene.TraceScene;
+        int resolution = traceCfg.ClipmapResolution;
+        int levels = traceCfg.ClipmapLevels;
 
         int configHash = HashCode.Combine(resolution, levels);
         if (resources is not null && configHash == lastConfigHash)
