@@ -28,16 +28,27 @@ LumOn - Phase 23 - TraceScene Clipmap (GPU Build + Region-Driven Updates) (Imple
 
   Phase 23.1 - Contracts + Bounds
   Exit artifacts: Clear coordinate conventions and what "valid bounds" means for the tracer.
-  ☐ Define coordinate spaces:
+  ✔ Define coordinate spaces:
     - worldCell: integer cell in world space
-    - regionCoord: integer coord of 32^3 region (worldCell / 32)
-    - localCell: worldCell modulo 32 within a region
-  ☐ Define clipmap bounds contract:
-    - Per level: OriginMinCell[level] and Resolution[level] define the valid window in world-cell space
+    - regionCoord: integer coord of 32^3 region (floorDiv(worldCell, 32))
+      - Because 32 is a power-of-two, floorDiv can be implemented as arithmetic shift: `regionCoord = worldCell >> 5` (works for negatives)
+    - localCell: worldCell - (regionCoord * 32) in [0..31] per axis
+    - Clipmap level cell (spacing = 2^level): `levelCell = worldCell >> level` (arithmetic shift; floorDiv for negatives)
+    - Reference helper: `VanillaGraphicsExpanded/LumOn/Scene/LumonSceneTraceSceneClipmapMath.cs:1`
+  ✔ Define clipmap bounds contract:
+    - Per level: OriginMinCell[level] and Resolution[level] define the valid window in *levelCell* space
+      - Local = levelCell - OriginMinCell
+      - In bounds iff Local.xyz ∈ [0..Resolution) each axis
     - Outside bounds => tracer miss (sky)
-  ☐ Decide anchoring integration:
-    - Reuse the existing anchoring system (preferred) OR camera-only anchor for v1
-    - Document when/why we enqueue updates (movement, rebuild request, maintenance)
+    - Ring mapping (no physical texture shifting):
+      - Tex = Wrap(Local + Ring, Resolution)
+      - Wrap(x,m) = ((x % m) + m) % m (always positive)
+  ✔ Decide anchoring integration:
+    - v1: reuse the existing LumonScene occupancy clipmap anchoring pattern (camera cell -> snapped per-level cell via >> level)
+      - Small movement: enqueue exposed slabs for each axis
+      - Large jump (>= Resolution cells on any axis): enqueue full rebuild for the level
+      - Maintenance: budgeted background slices even without movement
+    - Future: optionally unify anchoring events with WorldProbe anchoring, but keep TraceScene independent for now
 
 
   Phase 23.2 - Data Layout (GPU)
@@ -133,4 +144,3 @@ LumOn - Phase 23 - TraceScene Clipmap (GPU Build + Region-Driven Updates) (Imple
     - Region->clipmap update via raster/3D slice uploads
     - Hierarchy build via CPU or raster reductions
   ☐ Keep shader-side sampling helpers shared across compute/fragment where possible.
-
