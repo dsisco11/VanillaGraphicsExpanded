@@ -1,0 +1,136 @@
+LumOn - Phase 23 - TraceScene Clipmap (GPU Build + Region-Driven Updates) (Implementation):
+
+  Goal:
+  Refactor/extend the TraceScene occupancy clipmap so it is built/updated via GL 4.3 compute directly into the
+  clipmap textures, driven by independently processed 32^3 "world-cell regions" (aka game chunks), using the
+  async chunk-processing job system to unpack + pack payloads off-thread.
+
+  This phase focuses on the *trace scene* representation and update path, not the surface-cache page system.
+
+  Locked decisions (for this todo):
+  - World-cell region size is fixed at 32×32×32.
+  - The TraceScene is a *bounded* clipmap window around an anchor (camera / reused anchoring system).
+  - Rays that exit the valid clipmap bounds are treated as misses (sky).
+  - GL 4.3 path first; GL 3.3 fallback remains a later seam.
+  - Clipmap destination textures are updated directly on the GPU (no GPU->CPU readback).
+  - CPU still performs region data extraction (world is CPU-authoritative), then uploads source payload to GPU.
+
+  Existing baseline (today):
+  - `LumonSceneOccupancyClipmapUpdateRenderer` currently builds clipmap slices on the CPU and uploads to GPU.
+  - `lumonscene_relight_voxel_dda.csh` traces against occupancy level 0 (L0) via voxel DDA.
+
+  Exit artifacts (Phase 23 overall):
+  - Region-driven, GPU-built clipmap updates (upload source once; compute writes into clipmap).
+  - Stable integration with streaming/unload: unloaded or missing regions are treated as empty.
+  - Optional hierarchical occupancy for empty-space skipping (to accelerate DDA).
+  - Tests + profiling to validate correctness and measure budgets.
+
+
+  Phase 23.1 - Contracts + Bounds
+  Exit artifacts: Clear coordinate conventions and what "valid bounds" means for the tracer.
+  ☐ Define coordinate spaces:
+    - worldCell: integer cell in world space
+    - regionCoord: integer coord of 32^3 region (worldCell / 32)
+    - localCell: worldCell modulo 32 within a region
+  ☐ Define clipmap bounds contract:
+    - Per level: OriginMinCell[level] and Resolution[level] define the valid window in world-cell space
+    - Outside bounds => tracer miss (sky)
+  ☐ Decide anchoring integration:
+    - Reuse the existing anchoring system (preferred) OR camera-only anchor for v1
+    - Document when/why we enqueue updates (movement, rebuild request, maintenance)
+
+
+  Phase 23.2 - Data Layout (GPU)
+  Exit artifacts: Concrete GPU resources for staging and destination.
+  ☐ Define destination textures:
+    - Payload L0: `R32UI` per cell (packed block/sun/light/material indirection)
+    - Higher levels:
+      - Option A: payload-per-level (same format) for coarse hits/debug
+      - Option B (recommended): occupancy-only (any-solid) for skipping + keep payload only in L0
+  ☐ Define staging upload representation:
+    - CPU packs a 32^3 region into a contiguous `uint[32*32*32]` payload buffer
+    - Render thread uploads into one of:
+      - SSBO staging buffer (recommended for compute write-out), OR
+      - temporary 3D texture staging (only if it simplifies reuse)
+  ☐ Define per-dispatch work layout:
+    - Batch multiple region updates per dispatch via work-SSBO (regionCoord + source offset + level mask)
+    - Or dispatch once per region (simpler, but more driver overhead)
+
+
+  Phase 23.3 - Region Extraction (Async Job System)
+  Exit artifacts: A chunk processor that produces packed occupancy payload buffers per region+version.
+  ☐ Implement a `IChunkProcessor<TArtifact>` for TraceScene source:
+    - Inputs: region coord + version (maps onto existing `ChunkKey` / version provider)
+    - Output artifact: packed payload buffer + metadata (regionCoord, version, optional dirty mask)
+  ☐ Define packing rules:
+    - Produce exact `LumonSceneOccupancyPacking`-compatible `uint` payload per worldCell
+    - Missing/unloaded region must produce 0 payload for all cells (treat as empty)
+  ☐ Add cancellation/supersede rules:
+    - If newer version requested for a region, older artifacts are superseded and not uploaded
+
+
+  Phase 23.4 - GPU Build Compute (Region -> Clipmap)
+  Exit artifacts: Compute shaders that write directly into clipmap textures from staged region buffers.
+  ☐ Add compute shader(s):
+    - `lumonscene_trace_scene_region_to_clipmap.csh`:
+      - For each (regionUpdate, localCell) compute worldCell and map into clipmap ring coords
+      - `imageStore` into destination `uimage3D` for affected levels
+    - Optional: `lumonscene_trace_scene_build_occ_any.csh`:
+      - Builds conservative occupancy hierarchy from L0 (mip/brick) for empty-space skipping
+  ☐ Add render-thread upload + dispatch plumbing:
+    - Upload region payload(s) to staging SSBO
+    - Upload regionUpdate work items (coord + source offset + level mask)
+    - Bind destination textures as images and dispatch compute
+    - Apply appropriate `glMemoryBarrier` flags before tracing
+  ☐ Budgeting knobs:
+    - Max regions uploaded per frame
+    - Max regions dispatched per frame
+    - Optional: prioritize newly exposed regions over maintenance
+
+
+  Phase 23.5 - Scheduling + Streaming Lifecycle
+  Exit artifacts: Correct behavior under movement, rebuilds, and unloads.
+  ☐ Replace CPU slice-building in `LumonSceneOccupancyClipmapUpdateRenderer` with:
+    - Queue region requests (async extraction) for newly exposed regions
+    - Consume completed artifacts and dispatch GPU build into clipmap
+    - Maintenance updates for long-lived regions (optional)
+  ☐ Handle "region unloaded":
+    - When a region becomes visible in the clipmap window but is unavailable, write zeros (empty)
+    - Ensure stale data does not persist when a region unloads while still within bounds
+  ☐ Implement "rebuild all" path:
+    - Re-request all visible regions and re-run GPU build
+
+
+  Phase 23.6 - Tracer Integration (DDA + Skipping)
+  Exit artifacts: The compute tracer uses the new clipmap representation efficiently.
+  ☐ Update `lumonscene_relight_voxel_dda.csh` sampling contract as needed:
+    - Keep `SampleOccL0(worldCell)` but ensure it matches updated ring/origin parameters
+    - If adding hierarchy, implement empty-space skipping (coarse traversal then descend)
+  ☐ Define correctness rules:
+    - Skipping must be conservative (never skip over solids)
+    - Outside clipmap bounds => miss
+
+
+  Phase 23.7 - Debugging, Tests, Profiling
+  Exit artifacts: Regressions are detectable; performance is measurable.
+  ☐ Debug views:
+    - Clipmap bounds visualization (in/out of bounds)
+    - Occupancy heatmap per level (payload presence / any-solid)
+    - Recently updated regions overlay
+  ☐ Tests:
+    - CPU tests for ring mapping / bounds math
+    - GPU tests: region->clipmap compute writes expected payloads at known coordinates
+  ☐ Profiling counters:
+    - Async extraction time + bytes produced
+    - Upload bandwidth per frame
+    - Compute dispatch time (region->clipmap, optional hierarchy build)
+    - Tracer perf impact (avg steps per ray before/after skipping)
+
+
+  Phase 23.8 - GL 3.3 Fallback Seam (Later)
+  Exit artifacts: The design stays compatible with a future non-compute backend.
+  ☐ Document required compute features and how to emulate:
+    - Region->clipmap update via raster/3D slice uploads
+    - Hierarchy build via CPU or raster reductions
+  ☐ Keep shader-side sampling helpers shared across compute/fragment where possible.
+
