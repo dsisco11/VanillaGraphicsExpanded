@@ -24,8 +24,8 @@ public sealed class LumonSceneConfigTests
 
         cfg.Sanitize();
 
-        Assert.InRange(cfg.LumOn.LumonScene.NearTexelsPerVoxelFaceEdge, 1, 64);
-        Assert.InRange(cfg.LumOn.LumonScene.FarTexelsPerVoxelFaceEdge, 1, 64);
+        Assert.Equal(1, cfg.LumOn.LumonScene.NearTexelsPerVoxelFaceEdge);
+        Assert.Equal(64, cfg.LumOn.LumonScene.FarTexelsPerVoxelFaceEdge);
 
         Assert.InRange(cfg.LumOn.LumonScene.NearRadiusChunks, 0, 128);
         Assert.InRange(cfg.LumOn.LumonScene.FarRadiusChunks, 0, 128);

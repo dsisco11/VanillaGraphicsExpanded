@@ -626,8 +626,8 @@ public class VgeConfig
 
             internal void Sanitize()
             {
-                NearTexelsPerVoxelFaceEdge = Math.Clamp(NearTexelsPerVoxelFaceEdge, 1, 64);
-                FarTexelsPerVoxelFaceEdge = Math.Clamp(FarTexelsPerVoxelFaceEdge, 1, 64);
+                NearTexelsPerVoxelFaceEdge = SanitizeTexelsPerVoxelFaceEdge(NearTexelsPerVoxelFaceEdge);
+                FarTexelsPerVoxelFaceEdge = SanitizeTexelsPerVoxelFaceEdge(FarTexelsPerVoxelFaceEdge);
 
                 NearRadiusChunks = Math.Clamp(NearRadiusChunks, 0, 128);
                 FarRadiusChunks = Math.Clamp(FarRadiusChunks, 0, 128);
@@ -635,6 +635,21 @@ public class VgeConfig
                 {
                     FarRadiusChunks = NearRadiusChunks;
                 }
+            }
+
+            private static int SanitizeTexelsPerVoxelFaceEdge(int v)
+            {
+                // Keep tile division exact for 4096x4096 physical atlases:
+                // tileSize = (texelsPerVoxelFaceEdge * patchSizeVoxels) must evenly divide 4096.
+                // With patchSizeVoxels = 4, this means texelsPerVoxelFaceEdge must divide 1024.
+                // v1 restricts to power-of-two values within [1..64].
+                if (v <= 1) return 1;
+                if (v <= 2) return 2;
+                if (v <= 4) return 4;
+                if (v <= 8) return 8;
+                if (v <= 16) return 16;
+                if (v <= 32) return 32;
+                return 64;
             }
         }
 

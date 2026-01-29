@@ -105,25 +105,25 @@ LumOn - Phase 22 - LumonScene Surface Cache (Cards + Virtual Paged Atlases) (Imp
 
   Phase 22.4 - Global Physical Pool + Atlas Textures
   Exit artifacts: Physical tile allocation/eviction works; atlas textures exist with debug labels.
-  ☐ Implement PhysicalPagePool:
+  ✔ Implement PhysicalPagePool (core CPU + planning):
     - Compute page budgets for Near/Far fields from their chunk windows (covered + edge*2)
-    - Allocate only enough pages to satisfy those budgets (1 guaranteed page per chunk)
-    - Allocate the minimum number of 4096x4096 atlas textures to hold the required pages (clamped by max atlas cap)
-    - Free list init from (atlasIndex, tileX, tileY) for the allocated atlasCount
-    - LRU/age tracking for eviction candidates (global; optional per-chunk quota later)
-    - Return tiles on chunk unload and on eviction
-    - Pool sizing (guaranteed 1 page/chunk): allocate only enough pages for (coveredChunks + edgeChunks*2) chunks per field
     - Far field uses the annulus chunk set: (nearRadius, farRadius] (avoid double-allocating pages for near-covered chunks)
-  ☐ Define physical atlas layer set (shared residency):
+    - Allocate only enough pages to satisfy those budgets (1 guaranteed page per chunk)
+    - LRU-based eviction candidate selection + pin support
+  ✔ Define physical atlas layer set (shared residency):
     - DepthAtlas (capture)
     - MaterialAtlas (capture)
     - IrradianceAtlas (relight + temporal accumulation)
-  ☐ Choose texture formats:
-    - Depth precision (R16F vs R32F) and meaning (plane displacement)
-    - Normal/material packing layout (bytes vs uint packing)
-    - Irradiance + accumulation weight (RGBA16F recommended initially)
-  ☐ Add GL object labeling and basic diagnostics counters:
-    - allocated tiles, evictions, residency pressure
+  ✔ Choose texture formats (v1 defaults, subject to change):
+    - DepthAtlas: R16F
+    - MaterialAtlas: RGBA8 (placeholder)
+    - IrradianceAtlas: RGBA16F
+  ✔ Add GL-backed atlas allocation (render thread):
+    - Allocate the minimum number of 4096x4096 atlas textures to hold the required pages (clamped by max atlas cap)
+    - GL object labeling and basic diagnostics counters
+  ☐ Wire pool into chunk lifecycle:
+    - Return tiles on chunk unload and on eviction (page-table unbind + free)
+    - Track residency pressure (near/far) and eviction stats
 
 
   Phase 22.5 - GPU Data Layout: Page Tables + Patch Metadata + Work Queues
