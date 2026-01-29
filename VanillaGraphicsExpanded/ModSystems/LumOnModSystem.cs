@@ -2,6 +2,7 @@ using System;
 
 using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.LumOn.Diagnostics;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR;
@@ -21,6 +22,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
     private LumOnBufferManager? lumOnBufferManager;
     private LumOnRenderer? lumOnRenderer;
     private LumOnDebugRenderer? lumOnDebugRenderer;
+    private LumonSceneFeedbackUpdateRenderer? lumonSceneFeedbackUpdateRenderer;
 
     private HudLumOnStatsPanel? lumOnStatsPanel;
 
@@ -174,6 +176,15 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         {
             TryBindWorldProbeClipmap(clientApi, reason: "live config reload");
         }
+
+        // Phase 22: ensure LumonScene feedback renderer exists when enabled.
+        if (current.LumOnEnabled
+            && ConfigModSystem.Config.LumOn.LumonScene.Enabled
+            && lumonSceneFeedbackUpdateRenderer is null
+            && gBufferManager is not null)
+        {
+            lumonSceneFeedbackUpdateRenderer = new LumonSceneFeedbackUpdateRenderer(clientApi, ConfigModSystem.Config, gBufferManager);
+        }
     }
 
     public override void Dispose()
@@ -185,6 +196,9 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
 
         lumOnDebugRenderer?.Dispose();
         lumOnDebugRenderer = null;
+
+        lumonSceneFeedbackUpdateRenderer?.Dispose();
+        lumonSceneFeedbackUpdateRenderer = null;
 
         lumOnRenderer?.Dispose();
         lumOnRenderer = null;
@@ -248,6 +262,11 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         else
         {
             lumOnDebugRenderer.SetWorldProbeClipmapBufferManager(clipmapManager);
+        }
+
+        if (lumonSceneFeedbackUpdateRenderer is null && ConfigModSystem.Config.LumOn.LumonScene.Enabled)
+        {
+            lumonSceneFeedbackUpdateRenderer = new LumonSceneFeedbackUpdateRenderer(capi, ConfigModSystem.Config, gBufferManager);
         }
 
         capi.Logger.Debug("[VGE] LumOnModSystem ensured ({0})", reason);

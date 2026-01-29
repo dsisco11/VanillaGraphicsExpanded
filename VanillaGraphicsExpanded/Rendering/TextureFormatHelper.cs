@@ -15,6 +15,9 @@ public static class TextureFormatHelper
     {
         return internalFormat switch
         {
+            PixelInternalFormat.R32ui => PixelFormat.RedInteger,
+            PixelInternalFormat.Rg32ui => PixelFormat.RgInteger,
+            PixelInternalFormat.Rgba32ui => PixelFormat.RgbaInteger,
             PixelInternalFormat.Rgba16f => PixelFormat.Rgba,
             PixelInternalFormat.Rgba32f => PixelFormat.Rgba,
             PixelInternalFormat.Rgba16 => PixelFormat.Rgba,
@@ -50,6 +53,9 @@ public static class TextureFormatHelper
     {
         return internalFormat switch
         {
+            PixelInternalFormat.R32ui => PixelType.UnsignedInt,
+            PixelInternalFormat.Rg32ui => PixelType.UnsignedInt,
+            PixelInternalFormat.Rgba32ui => PixelType.UnsignedInt,
             PixelInternalFormat.Rgba16f => PixelType.HalfFloat,
             PixelInternalFormat.Rgba32f => PixelType.Float,
             PixelInternalFormat.Rgba16 => PixelType.UnsignedShort,

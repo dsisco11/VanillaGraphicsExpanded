@@ -14,7 +14,7 @@ internal readonly struct LumonScenePageRequestGpu
     public readonly uint ChunkSlot;
     public readonly uint VirtualPageIndex; // linear in [0..VirtualPagesPerChunk)
     public readonly uint Mip;
-    public readonly uint Flags;
+    public readonly uint Flags; // v1: used as packed flags; feedback gather encodes original patchId here for CPU scheduling/debug
 
     public LumonScenePageRequestGpu(uint chunkSlot, uint virtualPageIndex, uint mip, uint flags)
     {
@@ -113,6 +113,28 @@ internal sealed class LumonSceneWorkQueueGpu<T> : IDisposable where T : unmanage
 
         Span<uint> zero = stackalloc uint[1] { 0u };
         counter.UploadSubData((ReadOnlySpan<uint>)zero, dstOffsetBytes: 0);
+    }
+
+    /// <summary>
+    /// Convenience for CPU-produced work: resets counter to 0, uploads <paramref name="items"/> to the items SSBO,
+    /// then sets the counter to the item count.
+    /// Must be called on the render thread (GL context required).
+    /// </summary>
+    public void ResetAndUpload(ReadOnlySpan<T> itemsToUpload)
+    {
+        EnsureCreated();
+
+        int count = Math.Min(itemsToUpload.Length, capacityItems);
+
+        Reset();
+
+        if (count > 0)
+        {
+            items!.UploadSubData(itemsToUpload[..count], dstOffsetBytes: 0);
+        }
+
+        Span<uint> c = stackalloc uint[1] { (uint)count };
+        counter!.UploadSubData((ReadOnlySpan<uint>)c, dstOffsetBytes: 0);
     }
 
     public void Dispose()

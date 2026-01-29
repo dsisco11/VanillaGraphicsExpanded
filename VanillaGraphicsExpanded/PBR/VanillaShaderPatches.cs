@@ -51,6 +51,7 @@ internal static class VanillaShaderPatches
 // VGE G-Buffer outputs
 layout(location = 4) out vec4 vge_outNormal;    // World-space normal (XYZ), unused (W)
 layout(location = 5) out vec4 vge_outMaterial;  // Roughness, Metallic, Emissive, Reflectivity
+layout(location = 6) out uvec4 vge_outPatchId;  // (chunkSlot, patchId, packedPatchUv, misc/flags)
 ";
 
     private const string ChunkMaterialParamsSamplerDeclaration = @"
@@ -65,6 +66,7 @@ uniform sampler2D vge_normalDepthTex;
 // VGE: Per-face atlas tile rect (base + extent in atlas UV space)
 flat out vec2 vge_uvBase;
 flat out vec2 vge_uvExtent;
+flat out uint vge_faceId;
 ";
 
     private const string UvRectVaryings_Fsh = @"
@@ -72,6 +74,7 @@ flat out vec2 vge_uvExtent;
 // VGE: Per-face atlas tile rect (base + extent in atlas UV space)
 flat in vec2 vge_uvBase;
 flat in vec2 vge_uvExtent;
+flat in uint vge_faceId;
 ";
 
     private const string UvRectAssign_Vsh = @"
@@ -79,6 +82,7 @@ flat in vec2 vge_uvExtent;
     // VGE: Compute per-face atlas UV rect.
     // Prefer SSBO path (FaceData has the packed UV origin/extent); non-SSBO lacks the required information.
     // NOTE: Do not rely on a local `vdata` variable; re-fetch from `faces[...]` to keep this injection location-stable.
+    vge_faceId = uint(gl_VertexID / 4);
     #if USESSBO > 0
         FaceData vge_face = faces[gl_VertexID / 4];
         VgeComputeFaceUvRect(vge_face.uv, vge_face.uvSize, subpixelPaddingX, subpixelPaddingY, vge_uvBase, vge_uvExtent);
@@ -160,6 +164,9 @@ flat in vec2 vge_uvExtent;
     float vge_emissive = glowLevel;
     float vge_reflectivity = getMatMetallicFromRenderFlags(renderFlags);
     vge_outMaterial = vec4(vge_roughness, vge_metallic, vge_emissive, vge_reflectivity);
+
+    // VGE: PatchId (not available in generic shaders yet)
+    vge_outPatchId = uvec4(0u);
 ";
 
     private const string GBufferOutputWrites_Chunk = @"
@@ -184,6 +191,17 @@ flat in vec2 vge_uvExtent;
     float vge_reflectivity = ComputeReflectivity(vge_roughness, vge_metallic);
 
     vge_outMaterial = vec4(vge_roughness, vge_metallic, vge_emissive, vge_reflectivity);
+
+    // VGE: PatchId (v1 placeholder: uses face index, chunkSlot=0)
+    vec2 vge_patchUv = vec2(0.0);
+    if (vge_uvExtent.x > 0.0 && vge_uvExtent.y > 0.0)
+    {
+        vge_patchUv = clamp((uv - vge_uvBase) / vge_uvExtent, 0.0, 1.0);
+    }
+    uint vge_u = uint(clamp(vge_patchUv.x, 0.0, 1.0) * 65535.0 + 0.5);
+    uint vge_v = uint(clamp(vge_patchUv.y, 0.0, 1.0) * 65535.0 + 0.5);
+    uint vge_packedUv = (vge_v << 16) | vge_u;
+    vge_outPatchId = uvec4(0u, vge_faceId, vge_packedUv, 0u);
 ";
 
     // chunkliquid.fsh does not define `normal` or `renderFlags`.
@@ -205,6 +223,9 @@ flat in vec2 vge_uvExtent;
 
     float vge_reflectivity = ComputeReflectivity(vge_roughness, vge_metallic);
     vge_outMaterial = vec4(vge_roughness, vge_metallic, vge_emissive, vge_reflectivity);
+
+    // VGE: PatchId (not available in chunkliquid path yet)
+    vge_outPatchId = uvec4(0u);
 ";
     #endregion
 

@@ -598,6 +598,12 @@ public class VgeConfig
         public sealed class LumonSceneConfig
         {
             /// <summary>
+            /// Enables the Phase 22 LumonScene surface cache (experimental).
+            /// </summary>
+            [JsonProperty]
+            public bool Enabled { get; set; } = true;
+
+            /// <summary>
             /// Near-field voxel surface-cache resolution expressed as texels per voxel face edge (mip 0).
             /// Default: 4 (4x4 texels per voxel face).
             /// </summary>

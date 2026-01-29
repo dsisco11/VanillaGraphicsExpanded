@@ -145,20 +145,23 @@ LumOn - Phase 22 - LumonScene Surface Cache (Cards + Virtual Paged Atlases) (Imp
 
   Phase 22.6 - PatchIdGBuffer + Feedback-Driven Residency
   Exit artifacts: Missing/stale pages are requested from visible shading and become resident over time.
-  ☐ Add PatchIdGBuffer output in the primary geometry pass:
+  ✔ Add PatchIdGBuffer output in the primary geometry pass:
     - chunkSlot, patchId, patchUV
-    - debug view to validate correctness/stability
-  ☐ Implement feedback gather (GL 4.3 compute):
+    - v1 placeholder: chunkSlot=0; patchId uses face index (`gl_VertexID/4`) from chunk mesh; patchUV is tile-local UV
+    - debug view to validate correctness/stability (pending)
+  ✔ Implement feedback gather (GL 4.3 compute):
     - scan PatchIdGBuffer (possibly downsampled)
     - compute required virtual pages (by mip) and append requests
     - optional dedup (stamp image or tile-based request aggregation)
-  ☐ CPU-side request processing:
+    - Implemented: `lumonscene_feedback_gather.csh` + `LumonSceneFeedbackUpdateRenderer` (v1 full-res scan, no dedup yet)
+  ✔ CPU-side request processing:
     - read back request buffer under budget
     - allocate physical tiles from pool
     - update per-chunk CPU page-table mirror
     - upload page-table deltas
     - schedule capture + relight work items
-  ☐ Define missing-page shading policy:
+    - Implemented (v1): near-field only, chunkSlot==0 only; alloc/evict + page-table mip0 updates; emits Capture/Relight work items
+  ✔ Define missing-page shading policy:
     - sample fallback (black / lower mip / history) + rely on feedback convergence
 
 
