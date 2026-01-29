@@ -2,9 +2,11 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -13,8 +15,8 @@ using Vintagestory.API.MathTools;
 namespace VanillaGraphicsExpanded.LumOn.Scene;
 
 /// <summary>
-/// Phase 22.8: Trace scene v1 - occupancy clipmap (CPU build + GPU upload).
-/// Stores packed R32UI payload per cell (block/sun/light/material indirection).
+/// Phase 23.5: Trace scene v1 - occupancy clipmap (region-driven, GPU-built).
+/// Stores packed R32UI payload per cell (block/sun/light/material indirection), written into the clipmap via GL 4.3 compute.
 /// </summary>
 internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDisposable
 {
@@ -23,18 +25,36 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
     private readonly ICoreClientAPI capi;
     private readonly VgeConfig config;
+    private readonly IEventAPI commonEvents;
 
     private LumonSceneOccupancyClipmapGpuResources? resources;
+    private LumonSceneTraceSceneClipmapGpuBuildDispatcher? gpuDispatcher;
 
     private int lastConfigHash;
 
-    private readonly Dictionary<int, byte> lightKeyToId = new();
-    private readonly float[] lightLutData = new float[LumonSceneOccupancyClipmapGpuResources.MaxLightColors * 4];
-    private bool lightLutDirty;
+    private readonly LumonSceneTraceSceneLightIdRegistry lightIds = new();
+    private readonly float[] lightLutUpload = new float[LumonSceneOccupancyClipmapGpuResources.MaxLightColors * 4];
 
     private LevelState[] levelStates = Array.Empty<LevelState>();
 
     private int rebuildAllRequested;
+
+    private ChunkProcessingService? chunkProcessing;
+    private LumonSceneTraceSceneChunkVersionProvider? chunkVersions;
+    private LumonSceneTraceSceneChunkSnapshotSource? snapshotSource;
+    private readonly LumonSceneTraceSceneRegionProcessor regionProcessor = new();
+
+    private readonly Queue<RegionRequest> pendingRegions = new();
+    private readonly HashSet<ulong> pendingRegionKeys = new();
+    private readonly Dictionary<ulong, int> appliedVersionByRegion = new();
+    private readonly Dictionary<ulong, InFlightRegion> inFlightByRegion = new();
+
+    private VectorInt3 currentWindowRegionMin;
+    private VectorInt3 currentWindowRegionMax;
+    private bool hasWindowRegionBounds;
+    private int maintenanceCursor;
+
+    private readonly uint[] zeroPayload = new uint[LumonSceneTraceSceneRegionUploadGpuResources.RegionCellCount];
 
     public double RenderOrder => RenderOrderValue;
     public int RenderRange => RenderRangeValue;
@@ -64,26 +84,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         return true;
     }
 
-    private readonly struct SliceWork
-    {
-        public readonly int Level;
-        public readonly Axis Axis;
-        public readonly int LocalIndex;
-
-        public SliceWork(int level, Axis axis, int localIndex)
-        {
-            Level = level;
-            Axis = axis;
-            LocalIndex = localIndex;
-        }
-    }
-
-    private enum Axis : byte
-    {
-        X = 0,
-        Y = 1,
-        Z = 2
-    }
+    private readonly record struct RegionRequest(VectorInt3 RegionCoord, int Priority);
 
     private sealed class LevelState
     {
@@ -95,19 +96,19 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         public VectorInt3 OriginMinCell;
         public VectorInt3 Ring;
         public bool HasAnchor;
-
-        public readonly Queue<SliceWork> Pending = new();
-
-        public int MaintenanceCursorZ;
     }
+
+    private readonly record struct InFlightRegion(int Version, Task<ChunkWorkResult<LumonSceneTraceSceneRegionArtifact>> Task);
 
     public LumonSceneOccupancyClipmapUpdateRenderer(ICoreClientAPI capi, VgeConfig config)
     {
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
         this.config = config ?? throw new ArgumentNullException(nameof(config));
+        commonEvents = ((ICoreAPI)capi).Event;
 
         capi.Event.RegisterRenderer(this, EnumRenderStage.Done, "vge_lumonscene_occupancy_clipmap");
         capi.Event.LeaveWorld += OnLeaveWorld;
+        commonEvents.ChunkDirty += OnChunkDirty;
     }
 
     public void NotifyAllDirty(string reason)
@@ -139,53 +140,62 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
             return;
         }
 
-        int budgetSlices = Math.Max(0, config.LumOn.LumonScene.TraceScene.ClipmapSlicesPerFrame);
+        var traceCfg = config.LumOn.LumonScene.TraceScene;
 
         // Apply rebuild request.
         if (Interlocked.Exchange(ref rebuildAllRequested, 0) != 0)
         {
-            EnqueueFullRebuild();
+            RequestRebuildAll();
         }
 
-        // Update anchor + enqueue exposed slabs.
+        bool level0Moved = false;
+
+        // Update anchor + ring mapping for all levels.
         for (int i = 0; i < levelStates.Length; i++)
         {
-            UpdateAnchorAndQueueExposedSlabs(levelStates[i], camX, camY, camZ);
-        }
-
-        // Drain pending updates under budget.
-        int remaining = budgetSlices;
-        while (remaining > 0 && TryDequeueWork(out SliceWork work))
-        {
-            UpdateSlice(work);
-            remaining--;
-        }
-
-        // Background maintenance: keep the clipmap fresh even without movement.
-        if (remaining > 0)
-        {
-            int perLevel = Math.Max(1, remaining / Math.Max(1, levelStates.Length));
-            foreach (var ls in levelStates)
+            bool moved = UpdateAnchor(levelStates[i], camX, camY, camZ);
+            if (i == 0)
             {
-                for (int i = 0; i < perLevel && remaining > 0; i++)
-                {
-                    int localZ = ls.MaintenanceCursorZ++ % ls.Resolution;
-                    ls.Pending.Enqueue(new SliceWork(ls.Level, Axis.Z, localZ));
-                    remaining--;
-                }
+                level0Moved |= moved;
             }
         }
 
-        if (lightLutDirty)
+        // Update region-window bounds for level 0 and enqueue newly visible regions.
+        if (levelStates.Length > 0 && levelStates[0].HasAnchor)
         {
-            lightLutDirty = false;
-            resources.LightColorLut.UploadDataImmediate(lightLutData);
+            ComputeWindowRegionBounds(levelStates[0], out VectorInt3 regionMin, out VectorInt3 regionMax);
+            UpdateWindowAndEnqueueNew(regionMin, regionMax, enqueueAll: !hasWindowRegionBounds || level0Moved);
+        }
+
+        // Maintenance: periodically re-request a few regions even without movement (helps cover late loads/unloads).
+        EnqueueMaintenance(traceCfg.ClipmapMaxRegionUploadsPerFrame);
+
+        // Start async region extraction jobs under budget.
+        IssueRegionRequests(traceCfg.ClipmapMaxRegionUploadsPerFrame);
+
+        // Consume completed results and dispatch region->clipmap compute writes under budgets.
+        DispatchCompleted(traceCfg.ClipmapMaxRegionUploadsPerFrame, traceCfg.ClipmapMaxRegionsDispatchedPerFrame);
+
+        if (lightIds.TryCopyAndClearDirtyLut(lightLutUpload))
+        {
+            resources.LightColorLut.UploadDataImmediate(lightLutUpload);
         }
     }
 
     public void Dispose()
     {
         capi.Event.LeaveWorld -= OnLeaveWorld;
+
+        commonEvents.ChunkDirty -= OnChunkDirty;
+
+        chunkProcessing?.Dispose();
+        chunkProcessing = null;
+        chunkVersions = null;
+        snapshotSource = null;
+
+        gpuDispatcher?.Dispose();
+        gpuDispatcher = null;
+
         resources?.Dispose();
         resources = null;
     }
@@ -194,14 +204,27 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
     {
         lastConfigHash = 0;
 
+        chunkProcessing?.Dispose();
+        chunkProcessing = null;
+        chunkVersions = null;
+        snapshotSource = null;
+
+        gpuDispatcher?.Dispose();
+        gpuDispatcher = null;
+
         resources?.Dispose();
         resources = null;
 
         levelStates = Array.Empty<LevelState>();
 
-        lightKeyToId.Clear();
-        Array.Clear(lightLutData);
-        lightLutDirty = false;
+        lightIds.Reset();
+
+        pendingRegions.Clear();
+        pendingRegionKeys.Clear();
+        appliedVersionByRegion.Clear();
+        inFlightByRegion.Clear();
+        hasWindowRegionBounds = false;
+        maintenanceCursor = 0;
 
         rebuildAllRequested = 0;
     }
@@ -256,69 +279,71 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
             {
                 Level = i,
                 Resolution = resolution,
-                SpacingBlocks = 1 << i,
-                MaintenanceCursorZ = 0
+                SpacingBlocks = 1 << i
             };
         }
 
-        lightKeyToId.Clear();
-        InitializeLightLutDefaults();
+        // Reset trace-scene state (new resources => stale GPU contents).
+        lightIds.Reset();
 
-        EnqueueFullRebuild();
+        pendingRegions.Clear();
+        pendingRegionKeys.Clear();
+        appliedVersionByRegion.Clear();
+        inFlightByRegion.Clear();
+        hasWindowRegionBounds = false;
+        maintenanceCursor = 0;
+
+        chunkProcessing?.Dispose();
+        chunkProcessing = null;
+        chunkVersions = new LumonSceneTraceSceneChunkVersionProvider();
+        snapshotSource = new LumonSceneTraceSceneChunkSnapshotSource(capi, chunkVersions, lightIds);
+        chunkProcessing = new ChunkProcessingService(snapshotSource, chunkVersions);
+
+        gpuDispatcher ??= new LumonSceneTraceSceneClipmapGpuBuildDispatcher(capi);
     }
 
-    private void InitializeLightLutDefaults()
+    private void OnChunkDirty(Vec3i chunkCoord, IWorldChunk chunk, EnumChunkDirtyReason reason)
     {
-        // id 0: neutral white. Fill all entries to reduce undefined sampling if ids are used before assignment.
-        for (int i = 0; i < LumonSceneOccupancyClipmapGpuResources.MaxLightColors; i++)
+        _ = chunk;
+        _ = reason;
+
+        if (chunkVersions is null)
         {
-            int o = i * 4;
-            lightLutData[o + 0] = 1.0f;
-            lightLutData[o + 1] = 1.0f;
-            lightLutData[o + 2] = 1.0f;
-            lightLutData[o + 3] = 1.0f;
+            return;
         }
 
-        lightLutDirty = true;
-    }
+        ChunkKey key = ChunkKey.FromChunkCoords(chunkCoord.X, chunkCoord.Y, chunkCoord.Z);
+        chunkVersions.MarkDirty(key);
+        appliedVersionByRegion.Remove(key.Packed);
 
-    private void EnqueueFullRebuild()
-    {
-        foreach (var ls in levelStates)
+        if (hasWindowRegionBounds)
         {
-            ls.Pending.Clear();
-            for (int z = 0; z < ls.Resolution; z++)
+            var rc = new VectorInt3(chunkCoord.X, chunkCoord.Y, chunkCoord.Z);
+            if (IsInWindow(rc))
             {
-                ls.Pending.Enqueue(new SliceWork(ls.Level, Axis.Z, z));
+                EnqueueRegion(rc, priority: 1);
             }
         }
     }
 
-    private bool TryDequeueWork(out SliceWork work)
+    private void RequestRebuildAll()
     {
-        // Simple fair-ish scheduling: walk levels and take from the first non-empty queue.
-        for (int i = 0; i < levelStates.Length; i++)
-        {
-            var q = levelStates[i].Pending;
-            if (q.Count > 0)
-            {
-                work = q.Dequeue();
-                return true;
-            }
-        }
+        chunkVersions?.BumpGlobalGeneration();
 
-        work = default;
-        return false;
+        pendingRegions.Clear();
+        pendingRegionKeys.Clear();
+        appliedVersionByRegion.Clear();
+        inFlightByRegion.Clear();
+        hasWindowRegionBounds = false;
+        maintenanceCursor = 0;
     }
 
-    private void UpdateAnchorAndQueueExposedSlabs(LevelState ls, int camX, int camY, int camZ)
+    private bool UpdateAnchor(LevelState ls, int camX, int camY, int camZ)
     {
         int level = ls.Level;
-        int spacing = ls.SpacingBlocks;
         int res = ls.Resolution;
         int half = res / 2;
 
-        // Snap anchor in "cell units" using arithmetic shift (floor division for power-of-two).
         VectorInt3 newAnchorCell = new(camX >> level, camY >> level, camZ >> level);
 
         if (!ls.HasAnchor)
@@ -327,7 +352,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
             ls.OriginMinCell = new VectorInt3(newAnchorCell.X - half, newAnchorCell.Y - half, newAnchorCell.Z - half);
             ls.Ring = VectorInt3.Zero;
             ls.HasAnchor = true;
-            return;
+            return true;
         }
 
         int deltaX = newAnchorCell.X - ls.AnchorCell.X;
@@ -335,251 +360,296 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         int deltaZ = newAnchorCell.Z - ls.AnchorCell.Z;
         if (deltaX == 0 && deltaY == 0 && deltaZ == 0)
         {
-            return;
+            return false;
         }
 
         ls.AnchorCell = newAnchorCell;
         ls.OriginMinCell = new VectorInt3(newAnchorCell.X - half, newAnchorCell.Y - half, newAnchorCell.Z - half);
 
-        // Ring-buffer shift: advance ring offsets by delta (mod resolution).
         ls.Ring = new VectorInt3(
             Wrap(ls.Ring.X + deltaX, res),
             Wrap(ls.Ring.Y + deltaY, res),
             Wrap(ls.Ring.Z + deltaZ, res));
 
-        // If the camera jumped by >= resolution cells, easiest is to rebuild the whole level.
-        if (Math.Abs(deltaX) >= res || Math.Abs(deltaY) >= res || Math.Abs(deltaZ) >= res)
-        {
-            for (int z = 0; z < res; z++)
-            {
-                ls.Pending.Enqueue(new SliceWork(level, Axis.Z, z));
-            }
-            return;
-        }
-
-        EnqueueExposedSlabSlices(ls, Axis.X, deltaX);
-        EnqueueExposedSlabSlices(ls, Axis.Y, deltaY);
-        EnqueueExposedSlabSlices(ls, Axis.Z, deltaZ);
+        return true;
     }
 
-    private static void EnqueueExposedSlabSlices(LevelState ls, Axis axis, int deltaCells)
+    private static void ComputeWindowRegionBounds(LevelState level0, out VectorInt3 regionMin, out VectorInt3 regionMax)
     {
-        if (deltaCells == 0)
+        int res = level0.Resolution;
+        VectorInt3 originMinCell = level0.OriginMinCell;
+        VectorInt3 originMaxInclusiveCell = new(originMinCell.X + (res - 1), originMinCell.Y + (res - 1), originMinCell.Z + (res - 1));
+
+        regionMin = new VectorInt3(originMinCell.X >> 5, originMinCell.Y >> 5, originMinCell.Z >> 5);
+        regionMax = new VectorInt3(originMaxInclusiveCell.X >> 5, originMaxInclusiveCell.Y >> 5, originMaxInclusiveCell.Z >> 5);
+    }
+
+    private void UpdateWindowAndEnqueueNew(in VectorInt3 newMin, in VectorInt3 newMax, bool enqueueAll)
+    {
+        VectorInt3 prevMin = currentWindowRegionMin;
+        VectorInt3 prevMax = currentWindowRegionMax;
+        bool hadPrev = hasWindowRegionBounds;
+
+        currentWindowRegionMin = newMin;
+        currentWindowRegionMax = newMax;
+        hasWindowRegionBounds = true;
+
+        if (!hadPrev || enqueueAll)
         {
+            EnqueueAllInWindow(priority: 1);
             return;
         }
 
-        int res = ls.Resolution;
-        int abs = Math.Min(Math.Abs(deltaCells), res);
-
-        if (deltaCells > 0)
+        for (int rz = newMin.Z; rz <= newMax.Z; rz++)
+        for (int ry = newMin.Y; ry <= newMax.Y; ry++)
+        for (int rx = newMin.X; rx <= newMax.X; rx++)
         {
-            for (int i = res - abs; i < res; i++)
+            if (rx < prevMin.X || rx > prevMax.X
+                || ry < prevMin.Y || ry > prevMax.Y
+                || rz < prevMin.Z || rz > prevMax.Z)
             {
-                ls.Pending.Enqueue(new SliceWork(ls.Level, axis, i));
-            }
-        }
-        else
-        {
-            for (int i = 0; i < abs; i++)
-            {
-                ls.Pending.Enqueue(new SliceWork(ls.Level, axis, i));
+                EnqueueRegion(new VectorInt3(rx, ry, rz), priority: 1);
             }
         }
     }
 
-    private void UpdateSlice(in SliceWork work)
+    private void EnqueueAllInWindow(int priority)
     {
-        if (resources is null)
+        if (!hasWindowRegionBounds)
         {
             return;
         }
 
-        LevelState ls = levelStates[work.Level];
-        int res = ls.Resolution;
-        int level = ls.Level;
-        int spacing = ls.SpacingBlocks;
-
-        // Fixed "local" coordinate for the chosen slice.
-        int localFixed = Wrap(work.LocalIndex, res);
-
-        int texFixed = work.Axis switch
+        for (int rz = currentWindowRegionMin.Z; rz <= currentWindowRegionMax.Z; rz++)
+        for (int ry = currentWindowRegionMin.Y; ry <= currentWindowRegionMax.Y; ry++)
+        for (int rx = currentWindowRegionMin.X; rx <= currentWindowRegionMax.X; rx++)
         {
-            Axis.X => Wrap(localFixed + ls.Ring.X, res),
-            Axis.Y => Wrap(localFixed + ls.Ring.Y, res),
-            _ => Wrap(localFixed + ls.Ring.Z, res)
-        };
+            EnqueueRegion(new VectorInt3(rx, ry, rz), priority);
+        }
+    }
 
-        // We upload the slice as a contiguous region in texture coordinates.
-        // For varying axes, iterate tex coords 0..res-1 and invert the ring mapping back to local coords.
-        int expected = checked(res * res);
-        uint[] data = ArrayPool<uint>.Shared.Rent(expected);
+    private bool IsInWindow(in VectorInt3 regionCoord)
+    {
+        return regionCoord.X >= currentWindowRegionMin.X && regionCoord.X <= currentWindowRegionMax.X
+            && regionCoord.Y >= currentWindowRegionMin.Y && regionCoord.Y <= currentWindowRegionMax.Y
+            && regionCoord.Z >= currentWindowRegionMin.Z && regionCoord.Z <= currentWindowRegionMax.Z;
+    }
+
+    private bool EnqueueRegion(in VectorInt3 regionCoord, int priority)
+    {
+        ChunkKey key = ChunkKey.FromChunkCoords(regionCoord.X, regionCoord.Y, regionCoord.Z);
+        if (!pendingRegionKeys.Add(key.Packed))
+        {
+            return false;
+        }
+
+        pendingRegions.Enqueue(new RegionRequest(regionCoord, priority));
+        return true;
+    }
+
+    private void EnqueueMaintenance(int maxUploadsPerFrame)
+    {
+        if (!hasWindowRegionBounds || maxUploadsPerFrame <= 0)
+        {
+            return;
+        }
+
+        if (pendingRegions.Count > 0)
+        {
+            return;
+        }
+
+        int sizeX = currentWindowRegionMax.X - currentWindowRegionMin.X + 1;
+        int sizeY = currentWindowRegionMax.Y - currentWindowRegionMin.Y + 1;
+        int sizeZ = currentWindowRegionMax.Z - currentWindowRegionMin.Z + 1;
+        if (sizeX <= 0 || sizeY <= 0 || sizeZ <= 0)
+        {
+            return;
+        }
+
+        int total = checked(sizeX * sizeY * sizeZ);
+        int want = Math.Min(maxUploadsPerFrame, 2);
+
+        for (int i = 0; i < want; i++)
+        {
+            int idx = maintenanceCursor++ % total;
+
+            int rx = currentWindowRegionMin.X + (idx % sizeX);
+            int ry = currentWindowRegionMin.Y + ((idx / sizeX) % sizeY);
+            int rz = currentWindowRegionMin.Z + (idx / (sizeX * sizeY));
+
+            EnqueueRegion(new VectorInt3(rx, ry, rz), priority: 0);
+        }
+    }
+
+    private void IssueRegionRequests(int maxRequestsPerFrame)
+    {
+        if (chunkProcessing is null || chunkVersions is null || maxRequestsPerFrame <= 0)
+        {
+            return;
+        }
+
+        int issued = 0;
+        while (issued < maxRequestsPerFrame && pendingRegions.Count > 0)
+        {
+            RegionRequest req = pendingRegions.Dequeue();
+            ChunkKey key = ChunkKey.FromChunkCoords(req.RegionCoord.X, req.RegionCoord.Y, req.RegionCoord.Z);
+            pendingRegionKeys.Remove(key.Packed);
+
+            int version = chunkVersions.GetCurrentVersion(key);
+            if (appliedVersionByRegion.TryGetValue(key.Packed, out int applied) && applied == version)
+            {
+                continue;
+            }
+
+            if (inFlightByRegion.TryGetValue(key.Packed, out InFlightRegion existing)
+                && existing.Version == version
+                && !existing.Task.IsCompleted)
+            {
+                continue;
+            }
+
+            var options = new ChunkWorkOptions { Priority = req.Priority };
+            Task<ChunkWorkResult<LumonSceneTraceSceneRegionArtifact>> task =
+                chunkProcessing.RequestAsync(key, version, regionProcessor, options);
+
+            inFlightByRegion[key.Packed] = new InFlightRegion(version, task);
+            issued++;
+        }
+    }
+
+    private void DispatchCompleted(int maxUploadsPerFrame, int maxRegionsPerFrame)
+    {
+        if (resources is null || gpuDispatcher is null)
+        {
+            return;
+        }
+
+        int budget = Math.Min(Math.Max(0, maxUploadsPerFrame), Math.Max(0, maxRegionsPerFrame));
+        if (budget <= 0 || inFlightByRegion.Count <= 0 || levelStates.Length <= 0 || !levelStates[0].HasAnchor)
+        {
+            return;
+        }
+
+        int levels = Math.Clamp(levelStates.Length, 0, Math.Min(8, resources.Levels));
+        if (levels <= 0)
+        {
+            return;
+        }
+
+        int resolution = levelStates[0].Resolution;
+        uint levelMask = levels >= 32 ? uint.MaxValue : (uint)((1 << levels) - 1);
+
+        VectorInt3[] originMin = ArrayPool<VectorInt3>.Shared.Rent(levels);
+        VectorInt3[] ring = ArrayPool<VectorInt3>.Shared.Rent(levels);
+
         try
         {
-            FillSliceData(ls, work.Axis, localFixed, data);
-
-            var tex = resources.OccupancyLevels[level];
-
-            switch (work.Axis)
+            for (int i = 0; i < levels; i++)
             {
-                case Axis.X:
-                    tex.UploadDataImmediate(data, x: texFixed, y: 0, z: 0, regionWidth: 1, regionHeight: res, regionDepth: res, mipLevel: 0);
-                    break;
-                case Axis.Y:
-                    tex.UploadDataImmediate(data, x: 0, y: texFixed, z: 0, regionWidth: res, regionHeight: 1, regionDepth: res, mipLevel: 0);
-                    break;
-                default:
-                    tex.UploadDataImmediate(data, x: 0, y: 0, z: texFixed, regionWidth: res, regionHeight: res, regionDepth: 1, mipLevel: 0);
-                    break;
+                originMin[i] = levelStates[i].OriginMinCell;
+                ring[i] = levelStates[i].Ring;
+            }
+
+            while (budget > 0 && inFlightByRegion.Count > 0)
+            {
+                int batchCap = Math.Min(budget, 16);
+
+                VectorInt3[] regionCoords = ArrayPool<VectorInt3>.Shared.Rent(batchCap);
+                ReadOnlyMemory<uint>[] payloads = ArrayPool<ReadOnlyMemory<uint>>.Shared.Rent(batchCap);
+                ulong[] regionKeys = ArrayPool<ulong>.Shared.Rent(batchCap);
+                int[] versions = ArrayPool<int>.Shared.Rent(batchCap);
+
+                int count = 0;
+
+                try
+                {
+                    ulong[] keys = ArrayPool<ulong>.Shared.Rent(inFlightByRegion.Count);
+                    int keyCount = 0;
+                    try
+                    {
+                        foreach (var kvp in inFlightByRegion)
+                        {
+                            keys[keyCount++] = kvp.Key;
+                        }
+
+                        for (int i = 0; i < keyCount && count < batchCap; i++)
+                        {
+                            ulong rk = keys[i];
+                            if (!inFlightByRegion.TryGetValue(rk, out InFlightRegion inflight))
+                            {
+                                continue;
+                            }
+
+                            if (!inflight.Task.IsCompleted)
+                            {
+                                continue;
+                            }
+
+                            inFlightByRegion.Remove(rk);
+
+                            ChunkKey ck = new ChunkKey(rk);
+                            ck.Decode(out int rx, out int ry, out int rz);
+                            regionCoords[count] = new VectorInt3(rx, ry, rz);
+                            regionKeys[count] = rk;
+                            versions[count] = inflight.Version;
+
+                            try
+                            {
+                                ChunkWorkResult<LumonSceneTraceSceneRegionArtifact> res = inflight.Task.GetAwaiter().GetResult();
+                                payloads[count] = (res.Status == ChunkWorkStatus.Success && res.Artifact is not null)
+                                    ? res.Artifact.PayloadWords
+                                    : zeroPayload;
+                            }
+                            catch
+                            {
+                                payloads[count] = zeroPayload;
+                            }
+
+                            count++;
+                        }
+                    }
+                    finally
+                    {
+                        ArrayPool<ulong>.Shared.Return(keys, clearArray: false);
+                    }
+
+                    if (count <= 0)
+                    {
+                        return;
+                    }
+
+                    int dispatched = gpuDispatcher.UploadAndDispatchBatch(
+                        resources: resources,
+                        regionCoords: regionCoords.AsSpan(0, count),
+                        regionPayloads: payloads.AsSpan(0, count),
+                        levels: levels,
+                        levelMask: levelMask,
+                        originMinCellByLevel: originMin.AsSpan(0, levels),
+                        ringByLevel: ring.AsSpan(0, levels),
+                        resolution: resolution);
+
+                    for (int i = 0; i < dispatched; i++)
+                    {
+                        appliedVersionByRegion[regionKeys[i]] = versions[i];
+                    }
+
+                    budget -= dispatched;
+                }
+                finally
+                {
+                    ArrayPool<VectorInt3>.Shared.Return(regionCoords, clearArray: false);
+                    ArrayPool<ReadOnlyMemory<uint>>.Shared.Return(payloads, clearArray: true);
+                    ArrayPool<ulong>.Shared.Return(regionKeys, clearArray: false);
+                    ArrayPool<int>.Shared.Return(versions, clearArray: false);
+                }
             }
         }
         finally
         {
-            ArrayPool<uint>.Shared.Return(data, clearArray: false);
+            ArrayPool<VectorInt3>.Shared.Return(originMin, clearArray: false);
+            ArrayPool<VectorInt3>.Shared.Return(ring, clearArray: false);
         }
-    }
-
-    private void FillSliceData(LevelState ls, Axis axis, int localFixed, uint[] outData)
-    {
-        int res = ls.Resolution;
-        int spacing = ls.SpacingBlocks;
-
-        var blockAccessor = capi.World.BlockAccessor;
-        int maxY = blockAccessor.MapSizeY;
-        var pos = new BlockPos(0);
-
-        // Inverse ring offsets for tex->local conversion.
-        int ringX = ls.Ring.X;
-        int ringY = ls.Ring.Y;
-        int ringZ = ls.Ring.Z;
-
-        int idx = 0;
-
-        for (int texB = 0; texB < res; texB++)
-        {
-            for (int texA = 0; texA < res; texA++)
-            {
-                int texX;
-                int texY;
-                int texZ;
-
-                int localX;
-                int localY;
-                int localZ;
-
-                // We iterate in texture coordinates and invert to local coords (because the slice region is contiguous in tex-space).
-                switch (axis)
-                {
-                    case Axis.X:
-                        texY = texA;
-                        texZ = texB;
-                        localY = Wrap(texY - ringY, res);
-                        localZ = Wrap(texZ - ringZ, res);
-                        localX = localFixed;
-                        break;
-
-                    case Axis.Y:
-                        texX = texA;
-                        texZ = texB;
-                        localX = Wrap(texX - ringX, res);
-                        localZ = Wrap(texZ - ringZ, res);
-                        localY = localFixed;
-                        break;
-
-                    default:
-                        texX = texA;
-                        texY = texB;
-                        localX = Wrap(texX - ringX, res);
-                        localY = Wrap(texY - ringY, res);
-                        localZ = localFixed;
-                        break;
-                }
-
-                int cellX = ls.OriginMinCell.X + localX;
-                int cellY = ls.OriginMinCell.Y + localY;
-                int cellZ = ls.OriginMinCell.Z + localZ;
-
-                // Sample at cell center in block coords (coarse levels sample one representative voxel).
-                int sampleX = cellX * spacing + (spacing >> 1);
-                int sampleY = cellY * spacing + (spacing >> 1);
-                int sampleZ = cellZ * spacing + (spacing >> 1);
-
-                if ((uint)sampleY >= (uint)maxY)
-                {
-                    outData[idx++] = 0u;
-                    continue;
-                }
-
-                pos.Set(sampleX, sampleY, sampleZ);
-                Block block = blockAccessor.GetBlock(pos);
-                if (block is null)
-                {
-                    outData[idx++] = 0u;
-                    continue;
-                }
-
-                // v1 occupancy: treat blocks without collision boxes as empty (air/foliage/etc).
-                bool occupied = block.CollisionBoxes is not null && block.CollisionBoxes.Length > 0;
-                if (!occupied)
-                {
-                    outData[idx++] = 0u;
-                    continue;
-                }
-
-                int blockLevel = blockAccessor.GetLightLevel(sampleX, sampleY, sampleZ, EnumLightLevelType.OnlyBlockLight);
-                int sunLevel = blockAccessor.GetLightLevel(sampleX, sampleY, sampleZ, EnumLightLevelType.OnlySunLight);
-
-                int rgb = blockAccessor.GetLightRGBsAsInt(sampleX, sampleY, sampleZ);
-                int lightId = GetOrAssignLightId(rgb);
-
-                // v1 material palette: stable placeholder derived from block id (does not encode per-face variation yet).
-                int materialPaletteIndex = block.Id & (int)LumonSceneOccupancyPacking.MaterialPaletteIndexMask;
-
-                outData[idx++] = LumonSceneOccupancyPacking.PackClamped(blockLevel, sunLevel, lightId, materialPaletteIndex);
-            }
-        }
-    }
-
-    private int GetOrAssignLightId(int rgb)
-    {
-        // Quantize RGB to reduce churn. 3 bits/channel -> 512 possible keys.
-        int r = (rgb >> 16) & 0xFF;
-        int g = (rgb >> 8) & 0xFF;
-        int b = rgb & 0xFF;
-
-        int rq = r >> 5;
-        int gq = g >> 5;
-        int bq = b >> 5;
-
-        int key = (rq << 6) | (gq << 3) | bq;
-
-        if (lightKeyToId.TryGetValue(key, out byte existing))
-        {
-            return existing;
-        }
-
-        // Reserve 0 as a fallback. Allocate new ids from 1..63.
-        int nextId = lightKeyToId.Count + 1;
-        if (nextId >= LumonSceneOccupancyClipmapGpuResources.MaxLightColors)
-        {
-            return 0;
-        }
-
-        byte id = (byte)nextId;
-        lightKeyToId[key] = id;
-
-        float rf = rq / 7.0f;
-        float gf = gq / 7.0f;
-        float bf = bq / 7.0f;
-
-        int o = id * 4;
-        lightLutData[o + 0] = rf;
-        lightLutData[o + 1] = gf;
-        lightLutData[o + 2] = bf;
-        lightLutData[o + 3] = 1.0f;
-
-        lightLutDirty = true;
-        return id;
     }
 
     private static int Wrap(int v, int mod)

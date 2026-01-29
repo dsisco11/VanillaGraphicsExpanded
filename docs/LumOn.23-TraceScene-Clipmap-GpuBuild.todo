@@ -111,15 +111,19 @@ LumOn - Phase 23 - TraceScene Clipmap (GPU Build + Region-Driven Updates) (Imple
 
   Phase 23.5 - Scheduling + Streaming Lifecycle
   Exit artifacts: Correct behavior under movement, rebuilds, and unloads.
-  ☐ Replace CPU slice-building in `LumonSceneOccupancyClipmapUpdateRenderer` with:
+  ✔ Replace CPU slice-building in `LumonSceneOccupancyClipmapUpdateRenderer` with:
     - Queue region requests (async extraction) for newly exposed regions
     - Consume completed artifacts and dispatch GPU build into clipmap
     - Maintenance updates for long-lived regions (optional)
-  ☐ Handle "region unloaded":
+    - Implemented: `VanillaGraphicsExpanded/LumOn/Scene/LumonSceneOccupancyClipmapUpdateRenderer.cs:1`
+    - Snapshot/versions: `VanillaGraphicsExpanded/LumOn/Scene/LumonSceneTraceSceneChunkSnapshotSource.cs:1`, `VanillaGraphicsExpanded/LumOn/Scene/LumonSceneTraceSceneChunkVersionProvider.cs:1`
+  ✔ Handle "region unloaded":
     - When a region becomes visible in the clipmap window but is unavailable, write zeros (empty)
     - Ensure stale data does not persist when a region unloads while still within bounds
-  ☐ Implement "rebuild all" path:
+    - Implemented: `VanillaGraphicsExpanded/LumOn/Scene/LumonSceneOccupancyClipmapUpdateRenderer.cs:1`
+  ✔ Implement "rebuild all" path:
     - Re-request all visible regions and re-run GPU build
+    - Implemented: `VanillaGraphicsExpanded/LumOn/Scene/LumonSceneOccupancyClipmapUpdateRenderer.cs:1`
 
 
   Phase 23.6 - Tracer Integration (DDA + Skipping)
