@@ -14,7 +14,7 @@ public sealed class DebugViewerActiveSelectionTests
         public void Dispose() { }
     }
 
-    private sealed class NullProxy : DispatchProxy
+    private class NullProxy : DispatchProxy
     {
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
         {
@@ -71,4 +71,3 @@ public sealed class DebugViewerActiveSelectionTests
         Assert.Equal(new[] { "t1" }, controller.GetActiveToggleViewIds());
     }
 }
-
