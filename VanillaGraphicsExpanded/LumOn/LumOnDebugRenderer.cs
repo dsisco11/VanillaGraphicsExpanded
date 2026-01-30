@@ -940,7 +940,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             int tilesPerAxis = 0;
             int tilesPerAtlas = 0;
 
-            if (mode is LumOnDebugMode.LumonScenePageReady or LumOnDebugMode.LumonScenePatchUv or LumOnDebugMode.LumonSceneIrradiance)
+            if (mode is LumOnDebugMode.LumonScenePageReady
+                or LumOnDebugMode.LumonScenePatchUv
+                or LumOnDebugMode.LumonSceneIrradiance
+                or LumOnDebugMode.LumOnScenesOverview)
             {
                 if (config.LumOn.Enabled && config.LumOn.LumonScene.Enabled && lumonSceneFeedbackUpdateRenderer is not null)
                 {
@@ -972,7 +975,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             VectorInt3 traceOccRing0 = default;
             int traceOccResolution = 0;
 
-            if (mode is LumOnDebugMode.TraceSceneBoundsL0 or LumOnDebugMode.TraceSceneOccupancyL0 or LumOnDebugMode.TraceScenePayloadL0)
+            if (mode is LumOnDebugMode.TraceSceneBoundsL0
+                or LumOnDebugMode.TraceSceneOccupancyL0
+                or LumOnDebugMode.TraceScenePayloadL0
+                or LumOnDebugMode.LumOnScenesOverview)
             {
                 if (config.LumOn.Enabled && config.LumOn.LumonScene.Enabled && lumonSceneOccupancyClipmapUpdateRenderer is not null)
                 {
@@ -2732,6 +2738,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             || (mode is >= LumOnDebugMode.VelocityMagnitude and <= LumOnDebugMode.VelocityPrevUv)
             || (mode is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeOrbsPoints)
             || (mode is >= LumOnDebugMode.LumonScenePageReady and <= LumOnDebugMode.LumonSceneIrradiance)
+            || (mode is >= LumOnDebugMode.TraceSceneBoundsL0 and <= LumOnDebugMode.LumOnScenesOverview)
             || mode is LumOnDebugMode.WorldProbeRawConfidences
                 or LumOnDebugMode.WorldProbeContributionOnly
                 or LumOnDebugMode.ScreenSpaceContributionOnly

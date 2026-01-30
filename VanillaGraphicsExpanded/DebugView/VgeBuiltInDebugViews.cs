@@ -330,9 +330,15 @@ public static class VgeBuiltInDebugViews
                 LumOnDebugMode.MaterialBands,
                 LumOnDebugMode.VgeNormalDepthAtlas,
                 LumOnDebugMode.PomMetrics,
+
+                // LumonScene (surface cache) + TraceScene (occupancy) + combined overview.
                 LumOnDebugMode.LumonScenePageReady,
                 LumOnDebugMode.LumonScenePatchUv,
                 LumOnDebugMode.LumonSceneIrradiance,
+                LumOnDebugMode.TraceSceneBoundsL0,
+                LumOnDebugMode.TraceSceneOccupancyL0,
+                LumOnDebugMode.TraceScenePayloadL0,
+                LumOnDebugMode.LumOnScenesOverview,
             ]);
 
     private static DebugViewDefinition CreateMotionDebugView()
@@ -1163,6 +1169,10 @@ public static class VgeBuiltInDebugViews
             LumOnDebugMode.WorldProbeRawConfidences => "World-Probe Raw Confidences",
             LumOnDebugMode.WorldProbeContributionOnly => "Contribution Only: world-probe",
             LumOnDebugMode.ScreenSpaceContributionOnly => "Contribution Only: screen-space",
+            LumOnDebugMode.TraceSceneBoundsL0 => "TraceScene: Bounds (L0)",
+            LumOnDebugMode.TraceSceneOccupancyL0 => "TraceScene: Occupancy (L0)",
+            LumOnDebugMode.TraceScenePayloadL0 => "TraceScene: Payload (L0)",
+            LumOnDebugMode.LumOnScenesOverview => "LumOn Scenes Overview",
             _ => mode.ToString()
         };
     }

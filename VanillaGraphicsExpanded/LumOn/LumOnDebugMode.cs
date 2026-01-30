@@ -108,4 +108,7 @@ public enum LumOnDebugMode
     TraceSceneBoundsL0 = 55,
     TraceSceneOccupancyL0 = 56,
     TraceScenePayloadL0 = 57,
+
+    // Phase 23: Combined "scene overview" debug views (append-only)
+    LumOnScenesOverview = 58,
 }
