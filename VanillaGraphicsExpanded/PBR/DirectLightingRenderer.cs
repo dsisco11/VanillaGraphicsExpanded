@@ -33,6 +33,10 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
     private readonly float[] invProjectionMatrix = new float[16];
     private readonly float[] invModelViewMatrix = new float[16];
 
+    private int lastFrameWidth = -1;
+    private int lastFrameHeight = -1;
+    private int resizeDebugFramesRemaining;
+
     public double RenderOrder => RenderOrderValue;
 
     public int RenderRange => RenderRangeValue;
@@ -62,14 +66,48 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
             return;
         }
 
+        int screenW = capi.Render.FrameWidth;
+        int screenH = capi.Render.FrameHeight;
+        if (screenW <= 0 || screenH <= 0)
+        {
+            return;
+        }
+
+        // During window resize, Vintage Story can transiently hit invalid GL state while
+        // framebuffers are being recreated. We scope extra validation/draining to a few frames
+        // around a size change to both capture the real failing call and prevent hard crashes.
+        if (screenW != lastFrameWidth || screenH != lastFrameHeight)
+        {
+            lastFrameWidth = screenW;
+            lastFrameHeight = screenH;
+            resizeDebugFramesRemaining = 5;
+        }
+        else if (resizeDebugFramesRemaining > 0)
+        {
+            resizeDebugFramesRemaining--;
+        }
+
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primaryFb is null)
         {
             return;
         }
 
+        // Save current FBO + viewport so we can restore engine state.
+        // Must happen before EnsureBuffers(), which may recreate/bind/unbind FBOs during resize.
+        int prevFbo = GL.GetInteger(GetPName.FramebufferBinding);
+        int[] prevViewport = new int[4];
+        GL.GetInteger(GetPName.Viewport, prevViewport);
+
+        if (resizeDebugFramesRemaining > 0)
+        {
+            // If the engine left a GL error latched before our renderer runs, it will be
+            // attributed to this stage. Drain + log so we can distinguish ownership.
+            DrainGlErrors("pre-pass");
+        }
+
         // Ensure output buffers match current screen size
-        if (!bufferManager.EnsureBuffers(capi.Render.FrameWidth, capi.Render.FrameHeight))
+        if (!bufferManager.EnsureBuffers(screenW, screenH))
         {
             return;
         }
@@ -99,14 +137,22 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
             return;
         }
 
-        // Save current FBO + viewport so we can restore engine state
-        int prevFbo = GL.GetInteger(GetPName.FramebufferBinding);
-        int[] prevViewport = new int[4];
-        GL.GetInteger(GetPName.Viewport, prevViewport);
-
         // Bind output MRT FBO
         bufferManager.DirectLightingFbo?.Bind();
-        GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
+        GL.Viewport(0, 0, screenW, screenH);
+
+        if (resizeDebugFramesRemaining > 0)
+        {
+            var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+            if (status != FramebufferErrorCode.FramebufferComplete)
+            {
+                capi.Logger.Warning($"[VGE] pbr_direct_lighting: DirectLightingFbo incomplete during resize: {status}");
+                capi.Render.GLDepthMask(true);
+                GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
+                GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+                return;
+            }
+        }
 
         // Clear outputs (the pass should fully overwrite, but clear is cheap insurance)
         float[] clear = [0f, 0f, 0f, 0f];
@@ -177,6 +223,24 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
 
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
         GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+    }
+
+    private bool DrainGlErrors(string where)
+    {
+        bool hadError = false;
+        for (int i = 0; i < 8; i++)
+        {
+            var err = GL.GetError();
+            if (err == ErrorCode.NoError)
+            {
+                break;
+            }
+
+            hadError = true;
+            capi.Logger.Warning($"[VGE] pbr_direct_lighting: GL error {err} ({where})");
+        }
+
+        return hadError;
     }
 
     public void Dispose()

@@ -72,6 +72,13 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             return;
         }
 
+        int screenW = capi.Render.FrameWidth;
+        int screenH = capi.Render.FrameHeight;
+        if (screenW <= 0 || screenH <= 0)
+        {
+            return;
+        }
+
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primaryFb is null)
         {
@@ -102,7 +109,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             compositeColorTex?.Dispose();
             compositeColorTex = null;
 
-            compositeColorTex = DynamicTexture2D.Create(capi.Render.FrameWidth, capi.Render.FrameHeight, PixelInternalFormat.Rgba16f, debugName: "PBRComposite");
+            compositeColorTex = DynamicTexture2D.Create(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "PBRComposite");
             if (!compositeColorTex.IsValid)
             {
                 compositeColorTex.Dispose();
@@ -123,7 +130,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         else
         {
             // Resizes attached textures in-place when resolution changes.
-            compositeFbo.Resize(capi.Render.FrameWidth, capi.Render.FrameHeight);
+            compositeFbo.Resize(screenW, screenH);
         }
 
         // Matrices for optional PBR composite mode
@@ -133,7 +140,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         // Render into a scratch buffer to avoid sampling from the same texture we're writing to
         // (Primary ColorAttachment0 is also used as gBufferAlbedo / primaryScene input).
         compositeFbo!.Bind();
-        GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
+        GL.Viewport(0, 0, screenW, screenH);
 
         // Single target output.
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
@@ -204,14 +211,14 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         // Copy composite result into Primary ColorAttachment0 so base-game post-processing sees it.
         compositeFbo.BlitToExternal(
             primaryFb.FboId,
-            capi.Render.FrameWidth,
-            capi.Render.FrameHeight,
+            screenW,
+            screenH,
             ClearBufferMask.ColorBufferBit,
             BlitFramebufferFilter.Nearest);
 
         // Leave primary bound for subsequent in-stage passes.
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
-        GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
+        GL.Viewport(0, 0, screenW, screenH);
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
     }
 

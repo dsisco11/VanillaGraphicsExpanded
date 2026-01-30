@@ -155,6 +155,8 @@ public sealed class DirectLightingBufferManager : IDisposable
         if (directLightingFbo == null || !directLightingFbo.IsValid)
             return;
 
+        int prevFbo = GpuFramebuffer.SaveBinding();
+
         directLightingFbo.Bind();
 
         // Clear all color attachments to black
@@ -163,7 +165,7 @@ public sealed class DirectLightingBufferManager : IDisposable
         GL.ClearBuffer(ClearBuffer.Color, 1, clearColor); // DirectSpecular
         GL.ClearBuffer(ClearBuffer.Color, 2, clearColor); // Emissive
 
-        GpuFramebuffer.Unbind();
+        GpuFramebuffer.RestoreBinding(prevFbo);
     }
 
     #endregion
@@ -172,8 +174,14 @@ public sealed class DirectLightingBufferManager : IDisposable
 
     private void CreateBuffers(int width, int height)
     {
-        // Delete old buffers if they exist
-        DeleteBuffers();
+        // NOTE: This method may run during rendering (e.g. on window resize).
+        // Preserve the currently-bound framebuffer so we don't break the engine's render pipeline.
+        int prevFbo = GpuFramebuffer.SaveBinding();
+
+        try
+        {
+            // Delete old buffers if they exist
+            DeleteBuffers();
 
         capi.Logger.Notification($"[VGE] Creating direct lighting buffers: {width}x{height}");
 
@@ -208,24 +216,24 @@ public sealed class DirectLightingBufferManager : IDisposable
             return;
         }
 
-        // Verify FBO completeness
-        directLightingFbo.Bind();
-        var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
-        GpuFramebuffer.Unbind();
+            // Verify FBO completeness
+            directLightingFbo.Bind();
+            var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+            GpuFramebuffer.Unbind();
 
-        if (status != FramebufferErrorCode.FramebufferComplete)
-        {
-            capi.Logger.Error($"[VGE] Direct lighting FBO incomplete: {status}");
-            DeleteBuffers();
-            return;
+            if (status != FramebufferErrorCode.FramebufferComplete)
+            {
+                capi.Logger.Error($"[VGE] Direct lighting FBO incomplete: {status}");
+                DeleteBuffers();
+                return;
+            }
+
+            isInitialized = true;
         }
-
-        isInitialized = true;
-        capi.Logger.Notification($"[VGE] Direct lighting buffers created successfully:");
-        capi.Logger.Notification($"[VGE]   DirectDiffuse ID={DirectDiffuseTextureId}");
-        capi.Logger.Notification($"[VGE]   DirectSpecular ID={DirectSpecularTextureId}");
-        capi.Logger.Notification($"[VGE]   Emissive ID={EmissiveTextureId}");
-        capi.Logger.Notification($"[VGE]   FBO ID={directLightingFbo.FboId}");
+        finally
+        {
+            GpuFramebuffer.RestoreBinding(prevFbo);
+        }
     }
 
     private void DeleteBuffers()
