@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace VanillaGraphicsExpanded.DebugView;
 
@@ -33,6 +34,19 @@ public sealed class DebugViewController : IDisposable
             {
                 return activeExclusiveViewId;
             }
+        }
+    }
+
+    public string[] GetActiveToggleViewIds()
+    {
+        lock (gate)
+        {
+            if (activeToggleHandles.Count == 0)
+            {
+                return [];
+            }
+
+            return activeToggleHandles.Keys.ToArray();
         }
     }
 

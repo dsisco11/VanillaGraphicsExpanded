@@ -1,42 +1,74 @@
+using System.Reflection;
+
 using VanillaGraphicsExpanded.DebugView;
+using VanillaGraphicsExpanded.LumOn;
+
+using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.Tests;
 
-public sealed class DebugViewerCategoryTests
+public sealed class DebugViewerActiveSelectionTests
 {
     private sealed class NoopDisposable : IDisposable
     {
         public void Dispose() { }
     }
 
-    private static DebugViewDefinition View(string id, string name, string category)
+    private sealed class NullProxy : DispatchProxy
+    {
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        {
+            if (targetMethod is null)
+            {
+                return null;
+            }
+
+            Type returnType = targetMethod.ReturnType;
+            if (returnType == typeof(void))
+            {
+                return null;
+            }
+
+            return returnType.IsValueType ? Activator.CreateInstance(returnType) : null;
+        }
+    }
+
+    private static DebugViewActivationContext CreateContext()
+    {
+        ICoreClientAPI capi = DispatchProxy.Create<ICoreClientAPI, NullProxy>();
+        return new DebugViewActivationContext(capi, new VgeConfig());
+    }
+
+    private static DebugViewDefinition ToggleView(string id)
         => new(
             id: id,
-            name: name,
-            category: category,
+            name: id,
+            category: "Cat",
             description: string.Empty,
-            registerRenderer: _ => new NoopDisposable());
+            registerRenderer: _ => new NoopDisposable(),
+            activationMode: DebugViewActivationMode.Toggle);
 
     [Fact]
-    public void BuildCategoryList_ReturnsAll_WhenNoViews()
+    public void GetActiveToggleViewIds_ReturnsEmpty_WhenNoTogglesActive()
     {
-        string[] cats = GuiDialogVgeDebugViewer.BuildCategoryList([], "All");
-        Assert.Equal(new[] { "All" }, cats);
+        var registry = new DebugViewRegistry();
+        var controller = new DebugViewController(registry);
+        controller.Initialize(CreateContext());
+
+        Assert.Empty(controller.GetActiveToggleViewIds());
     }
 
     [Fact]
-    public void BuildCategoryList_DedupesCaseInsensitively_AndSortsWithAllFirst()
+    public void GetActiveToggleViewIds_ReturnsToggleIds_WhenTogglesActive()
     {
-        DebugViewDefinition[] all =
-        [
-            View("1", "A", "LumOn"),
-            View("2", "B", "pbr"),
-            View("3", "C", "lumon"),
-        ];
+        var registry = new DebugViewRegistry();
+        var controller = new DebugViewController(registry);
+        controller.Initialize(CreateContext());
 
-        string[] cats = GuiDialogVgeDebugViewer.BuildCategoryList(all, "All");
+        registry.Register(ToggleView("t1"));
 
-        Assert.Equal(new[] { "All", "LumOn", "pbr" }, cats);
+        Assert.True(controller.TryActivate("t1", out _));
+        Assert.Equal(new[] { "t1" }, controller.GetActiveToggleViewIds());
     }
 }
 

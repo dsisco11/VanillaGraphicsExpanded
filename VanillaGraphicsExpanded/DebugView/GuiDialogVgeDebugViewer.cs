@@ -15,11 +15,7 @@ namespace VanillaGraphicsExpanded.DebugView;
 
 public sealed class GuiDialogVgeDebugViewer : GuiDialog
 {
-    private const string AllCategory = "All";
-
-    private const string CategoryDropDownKey = "category";
-    private const string ViewListMenuKey = "viewlist";
-    private const string ViewListScrollBarKey = "viewscroll";
+    private const string ViewDropDownKey = "view";
     private const string ViewTitleTextKey = "viewtitle";
     private const string ViewDescriptionTextKey = "viewdesc";
     private const string ViewStatusTextKey = "viewstatus";
@@ -35,7 +31,6 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
     private readonly DebugViewRegistry registry;
     private readonly DebugViewController controller;
 
-    private string selectedCategory = AllCategory;
     private string? selectedViewId;
 
     private IDebugViewPanel? panel;
@@ -156,12 +151,10 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
         var fontLabel = CairoFont.WhiteDetailText();
         var fontSmall = CairoFont.WhiteSmallText();
 
-        string[] categories = BuildCategoryList(registry.GetAll(), AllCategory);
-        int selectedCategoryIndex = Math.Max(0, Array.IndexOf(categories, selectedCategory));
-
-        DebugViewDefinition[] filteredViews = GetFilteredViews(selectedCategory);
-        int selectedViewIndex = GetSelectedViewIndex(filteredViews);
-        DebugViewDefinition? selectedView = selectedViewIndex >= 0 && selectedViewIndex < filteredViews.Length ? filteredViews[selectedViewIndex] : null;
+        DebugViewDefinition[] views = registry.GetAll();
+        RestoreSelectedViewId(views);
+        int selectedViewIndex = GetSelectedViewIndex(views);
+        DebugViewDefinition? selectedView = selectedViewIndex >= 0 && selectedViewIndex < views.Length ? views[selectedViewIndex] : null;
 
         EnsurePanelForSelection(selectedView);
 
@@ -176,18 +169,6 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
         ElementBounds catLabelBounds = ElementBounds.Fixed(0, y, labelW, RowH);
         ElementBounds catDropBounds = ElementBounds.Fixed(labelW + gapX, y, Math.Max(1, contentW - labelW - gapX), RowH);
         y += RowH + GapY;
-
-        const double scrollBarW = 20;
-        const double scrollBarGap = 7;
-        double listY = y;
-        const int listVisibleRows = 4;
-        const int listUnscaledCellSpacing = 5;
-        double listH = listVisibleRows * RowH + (listVisibleRows - 1) * listUnscaledCellSpacing;
-        double listViewportW = Math.Max(1, contentW - scrollBarW - scrollBarGap);
-        ElementBounds listClipBounds = ElementBounds.Fixed(0, listY, listViewportW, listH);
-        ElementBounds listBounds = ElementBounds.Fixed(0, 0, listViewportW, listH);
-        ElementBounds listScrollBarBounds = ElementBounds.Fixed(listViewportW + scrollBarGap, listY, scrollBarW, listH);
-        y += listH + GapY;
 
         ElementBounds titleBounds = ElementBounds.Fixed(0, y, contentW, RowH);
         y += RowH;
@@ -212,32 +193,27 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
             : BuildActivateButtonText(selectedView, controller.IsActive(selectedView.Id));
         bool activateEnabled = selectedView is not null && selectedView.GetAvailability(CreateContext()).IsAvailable;
 
+        string[] viewIds = views.Select(v => v.Id).ToArray();
+        string[] viewNames = views.Select(BuildListEntryName).ToArray();
+
         SingleComposer?.Dispose();
         var composer = capi.Gui
             .CreateCompo("vge-debug-viewer", dialogBounds)
             .AddShadedDialogBG(bgBounds, true)
             .AddDialogTitleBar("VGE Debug Viewer", OnTitleBarClose)
             .BeginChildElements(bgBounds)
-                // Left column: category + view list
-                .AddStaticText("Category", fontLabel, catLabelBounds)
+                // Left column: debug view selector
+                .AddStaticText("Debug View", fontLabel, catLabelBounds)
                 .AddInteractiveElement(
                     new GuiElementDropDownCycleOnArrow(
                         capi,
-                        categories,
-                        categories,
-                        selectedCategoryIndex,
-                        OnCategoryChanged,
+                        viewIds,
+                        viewNames,
+                        Math.Max(0, selectedViewIndex),
+                        OnViewChanged,
                         catDropBounds,
                         fontSmall),
-                    CategoryDropDownKey)
-                .BeginClip(listClipBounds)
-                    .AddCellList(
-                        listBounds,
-                        OnRequireViewCell,
-                        filteredViews,
-                        ViewListMenuKey)
-                .EndClip()
-                .AddVerticalScrollbar(OnViewListScroll, listScrollBarBounds, ViewListScrollBarKey)
+                    ViewDropDownKey)
 
                 // Right column: selection details
                 .AddDynamicText("", fontLabel, titleBounds, ViewTitleTextKey)
@@ -278,21 +254,6 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
         {
             // Ignore.
         }
-
-        try
-        {
-            var list = SingleComposer.GetCellList<DebugViewDefinition>(ViewListMenuKey);
-            list.UnscaledCellVerPadding = 0;
-            list.unscaledCellSpacing = listUnscaledCellSpacing;
-            list.BeforeCalcBounds();
-
-            var sb = SingleComposer.GetScrollbar(ViewListScrollBarKey);
-            sb.SetHeights((float)listClipBounds.fixedHeight, (float)list.Bounds.fixedHeight);
-        }
-        catch
-        {
-            // Ignore.
-        }
     }
 
     private void RefreshFromState()
@@ -302,9 +263,10 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
             return;
         }
 
-        DebugViewDefinition[] filtered = GetFilteredViews(selectedCategory);
-        int idx = GetSelectedViewIndex(filtered);
-        DebugViewDefinition? selected = idx >= 0 && idx < filtered.Length ? filtered[idx] : null;
+        DebugViewDefinition[] views = registry.GetAll();
+        RestoreSelectedViewId(views);
+        int idx = GetSelectedViewIndex(views);
+        DebugViewDefinition? selected = idx >= 0 && idx < views.Length ? views[idx] : null;
 
         var title = SingleComposer.GetDynamicText(ViewTitleTextKey);
         var status = SingleComposer.GetDynamicText(ViewStatusTextKey);
@@ -346,61 +308,41 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
         activateBtn.Enabled = availability.IsAvailable;
     }
 
-    internal static string[] BuildCategoryList(DebugViewDefinition[] all, string allCategory)
+    private void RestoreSelectedViewId(DebugViewDefinition[] views)
     {
-        if (all.Length == 0)
+        if (views.Length == 0)
         {
-            return [allCategory];
+            selectedViewId = null;
+            return;
         }
 
-        var unique = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        string? activeExclusive = controller.ActiveExclusiveViewId;
+        if (!string.IsNullOrWhiteSpace(activeExclusive) && views.Any(v => string.Equals(v.Id, activeExclusive, StringComparison.Ordinal)))
         {
-            [allCategory] = allCategory
-        };
+            selectedViewId = activeExclusive;
+            return;
+        }
 
-        foreach (var v in all)
+        foreach (string id in controller.GetActiveToggleViewIds())
         {
-            if (string.IsNullOrWhiteSpace(v.Category))
+            if (views.Any(v => string.Equals(v.Id, id, StringComparison.Ordinal)))
             {
-                continue;
-            }
-
-            if (!unique.ContainsKey(v.Category))
-            {
-                unique[v.Category] = v.Category;
+                selectedViewId = id;
+                return;
             }
         }
 
-        string[] cats = unique.Values.ToArray();
-        Array.Sort(cats, (a, b) =>
+        if (!string.IsNullOrWhiteSpace(selectedViewId) && views.Any(v => string.Equals(v.Id, selectedViewId, StringComparison.Ordinal)))
         {
-            if (string.Equals(a, allCategory, StringComparison.OrdinalIgnoreCase)) return -1;
-            if (string.Equals(b, allCategory, StringComparison.OrdinalIgnoreCase)) return 1;
-            return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
-        });
+            return;
+        }
 
-        return cats;
+        selectedViewId = views[0].Id;
     }
 
-    private DebugViewDefinition[] GetFilteredViews(string category)
+    private int GetSelectedViewIndex(DebugViewDefinition[] views)
     {
-        DebugViewDefinition[] all = registry.GetAll();
-        if (all.Length == 0)
-        {
-            return [];
-        }
-
-        if (string.IsNullOrWhiteSpace(category) || string.Equals(category, AllCategory, StringComparison.OrdinalIgnoreCase))
-        {
-            return all;
-        }
-
-        return all.Where(v => string.Equals(v.Category, category, StringComparison.OrdinalIgnoreCase)).ToArray();
-    }
-
-    private int GetSelectedViewIndex(DebugViewDefinition[] filtered)
-    {
-        if (filtered.Length == 0)
+        if (views.Length == 0)
         {
             selectedViewId = null;
             return -1;
@@ -408,16 +350,16 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
 
         if (!string.IsNullOrWhiteSpace(selectedViewId))
         {
-            for (int i = 0; i < filtered.Length; i++)
+            for (int i = 0; i < views.Length; i++)
             {
-                if (string.Equals(filtered[i].Id, selectedViewId, StringComparison.Ordinal))
+                if (string.Equals(views[i].Id, selectedViewId, StringComparison.Ordinal))
                 {
                     return i;
                 }
             }
         }
 
-        selectedViewId = filtered[0].Id;
+        selectedViewId = views[0].Id;
         return 0;
     }
 
@@ -561,52 +503,16 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
         TryClose();
     }
 
-    private void OnCategoryChanged(string code, bool selected)
+    private void OnViewChanged(string code, bool selected)
     {
         if (!selected)
         {
             return;
         }
 
-        selectedCategory = string.IsNullOrWhiteSpace(code) ? AllCategory : code;
+        selectedViewId = string.IsNullOrWhiteSpace(code) ? null : code;
         lastError = null;
         Compose();
-    }
-
-    private IGuiElementCell OnRequireViewCell(DebugViewDefinition view, ElementBounds bounds)
-    {
-        string label = BuildListEntryName(view);
-        bool isSelected = string.Equals(view.Id, selectedViewId, StringComparison.Ordinal);
-        return new DebugViewCellEntry(
-            capi,
-            bounds,
-            label,
-            isSelected,
-            () =>
-            {
-                selectedViewId = view.Id;
-                lastError = null;
-                Compose();
-            });
-    }
-
-    private void OnViewListScroll(float value)
-    {
-        if (SingleComposer is null)
-        {
-            return;
-        }
-
-        try
-        {
-            var list = SingleComposer.GetCellList<DebugViewDefinition>(ViewListMenuKey);
-            list.Bounds.fixedY = 0 - value;
-            list.Bounds.CalcWorldBounds();
-        }
-        catch
-        {
-            // Ignore.
-        }
     }
 
     private bool OnActivateClicked()
@@ -616,8 +522,10 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
             return true;
         }
 
-        DebugViewDefinition[] filtered = GetFilteredViews(selectedCategory);
-        DebugViewDefinition? selected = filtered.FirstOrDefault(v => string.Equals(v.Id, selectedViewId, StringComparison.Ordinal));
+        if (!registry.TryGet(selectedViewId, out DebugViewDefinition? selected) || selected is null)
+        {
+            return true;
+        }
 
         if (selected is null)
         {
@@ -638,103 +546,5 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
         lastError = ok ? null : err;
         Compose();
         return true;
-    }
-
-    private sealed class DebugViewCellEntry : GuiElement, IGuiElementCell
-    {
-        private readonly Action onClicked;
-        private readonly GuiElementRichtext labelElem;
-        private LoadedTexture hoverTexture;
-
-        private bool composed;
-        private bool selected;
-
-        ElementBounds IGuiElementCell.Bounds => Bounds;
-
-        public bool Selected
-        {
-            get => selected;
-            set => selected = value;
-        }
-
-        public DebugViewCellEntry(
-            ICoreClientAPI capi,
-            ElementBounds bounds,
-            string label,
-            bool selected,
-            Action onClicked)
-            : base(capi, bounds)
-        {
-            this.onClicked = onClicked;
-            this.selected = selected;
-
-            var font = CairoFont.WhiteSmallText();
-            double offY = Math.Max(0, (RowH - font.UnscaledFontsize) / 2);
-            ElementBounds labelBounds = ElementBounds.Fixed(0, offY, bounds.fixedWidth, RowH).WithParent(Bounds);
-            labelElem = new GuiElementRichtext(capi, VtmlUtil.Richtextify(capi, label, font), labelBounds);
-            hoverTexture = new LoadedTexture(capi);
-
-            MouseOverCursor = "hand";
-        }
-
-        public void Recompose()
-        {
-            composed = true;
-            labelElem.Compose();
-
-            using var surface = new ImageSurface(Cairo.Format.Argb32, 2, 2);
-            using var ctx = genContext(surface);
-            ctx.NewPath();
-            ctx.LineTo(0, 0);
-            ctx.LineTo(2, 0);
-            ctx.LineTo(2, 2);
-            ctx.LineTo(0, 2);
-            ctx.ClosePath();
-            ctx.SetSourceRGBA(0, 0, 0, 0.15);
-            ctx.Fill();
-            generateTexture(surface, ref hoverTexture);
-        }
-
-        public void OnRenderInteractiveElements(ICoreClientAPI api, float deltaTime)
-        {
-            if (!composed)
-            {
-                Recompose();
-            }
-
-            labelElem.RenderInteractiveElements(deltaTime);
-
-            bool hover = Bounds.PositionInside(api.Input.MouseX, api.Input.MouseY) != null && IsPositionInside(api.Input.MouseX, api.Input.MouseY);
-            if (selected || hover)
-            {
-                api.Render.Render2DTexturePremultipliedAlpha(hoverTexture.TextureId, Bounds.absX, Bounds.absY, Bounds.OuterWidth, Bounds.OuterHeight);
-            }
-        }
-
-        public void UpdateCellHeight()
-        {
-            Bounds.CalcWorldBounds();
-            labelElem.BeforeCalcBounds();
-            Bounds.fixedHeight = RowH;
-        }
-
-        public void OnMouseUpOnElement(MouseEvent args, int elementIndex)
-        {
-            if (!args.Handled)
-            {
-                onClicked();
-            }
-        }
-
-        public void OnMouseDownOnElement(MouseEvent args, int elementIndex) { }
-
-        public void OnMouseMoveOnElement(MouseEvent args, int elementIndex) { }
-
-        public override void Dispose()
-        {
-            labelElem.Dispose();
-            hoverTexture.Dispose();
-            base.Dispose();
-        }
     }
 }
