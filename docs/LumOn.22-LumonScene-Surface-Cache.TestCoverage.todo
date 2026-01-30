@@ -1,0 +1,159 @@
+LumOn - Phase 22 - LumonScene Surface Cache (Test Coverage Audit + Missing Scenarios):
+
+  Goal:
+  Identify what is currently covered by automated tests for the LumonScene pipeline and enumerate the
+  missing scenarios we should implement to prevent regressions like “IrradianceAtlas mostly black”.
+
+  Scope:
+  - Phase 22 (LumonScene surface cache): feedback → residency/page table → capture → relight → debug sampling
+  - Phase 23 (TraceScene occupancy clipmap) as a dependency for relight
+  - Tests are split into:
+    - Unit tests (CPU-only): deterministic behavior, packing, planning, state transitions
+    - GPU tests (Headless GL 4.3): compute programs, image/SSBO bindings, readback validation
+
+
+  Current coverage snapshot (as of this todo creation)
+
+  CPU/Unit: LumonScene plumbing types (good baseline coverage)
+  ✔ Config sanitize: `VanillaGraphicsExpanded.Tests/Unit/LumOn/LumonScene/LumonSceneConfigTests.cs`
+  ✔ Pool sizing + planner math: `LumonScenePoolSizingUtilTests.cs`, `LumonScenePhysicalPoolPlannerTests.cs`
+  ✔ Physical page pool basics: `LumonScenePhysicalPagePoolTests.cs`
+  ✔ Chunk residency + eviction + field transition: `LumonSceneChunkResidencyManagerTests.cs`
+  ✔ Patch id stability: `LumonScenePatchRegistryTests.cs`
+  ✔ Virtual mapping invariants: `LumonSceneVirtualSpaceAllocatorTests.cs`, `LumonSceneVirtualPagedAtlasTests.cs`
+  ✔ Page table entry packing: `LumonScenePageTableEntryPackingTests.cs`
+  ✔ GPU struct layout sizing: `LumonSceneGpuStructLayoutTests.cs`
+
+  CPU/Unit: TraceScene math + packing (partial)
+  ✔ Clipmap math: `VanillaGraphicsExpanded.Tests/TraceSceneClipmapMathTests.cs`
+  ✔ Region processor pack: `VanillaGraphicsExpanded.Tests/TraceSceneRegionProcessorTests.cs`
+
+  GPU: TraceScene compute + MeshCard capture compute (partial)
+  ✔ TraceScene region → clipmap compute: `VanillaGraphicsExpanded.Tests/GPU/LumonTraceSceneRegionToClipmapComputeTests.cs`
+  ✔ MeshCard capture compute: `VanillaGraphicsExpanded.Tests/GPU/LumonSceneMeshCardCaptureComputeTests.cs`
+
+  Missing: LumonScene feedback gather, voxel capture, and relight compute tests
+  ☐ No GPU test coverage for:
+    - `assets/vanillagraphicsexpanded/shaders/lumonscene_feedback_gather.csh`
+    - `assets/vanillagraphicsexpanded/shaders/lumonscene_capture_voxel.csh`
+    - `assets/vanillagraphicsexpanded/shaders/lumonscene_relight_voxel_dda.csh`
+  ☐ No unit coverage for the CPU-side request processing / page-table state machine in:
+    - `VanillaGraphicsExpanded/LumOn/Scene/LumonSceneFeedbackUpdateRenderer.cs` (ProcessRequestsCpu + eviction path)
+
+
+  Phase T1 - Feedback Gather (GPU compute) test coverage
+  Exit artifacts: GPU tests ensure patch-id feedback produces correct requests and respects overflow caps.
+  ☐ Add `VanillaGraphicsExpanded.Tests/GPU/LumonSceneFeedbackGatherComputeTests.cs`
+    - Arrange a small `usampler2D` PatchIdGBuffer with known pixels (RGBA32UI):
+      - `patchId == 0` is ignored
+      - varying `patchId` produces deterministic `virtualPageIndex = patchId % (128*128)`
+      - `chunkSlot` is preserved in request.x
+      - request.w carries original patchId (v1 contract)
+    - Validate atomic counter increments and SSBO writes.
+  ☐ Test max request clamping
+    - Set `vge_maxRequests` smaller than number of valid patch pixels.
+    - Assert no OOB writes and count does not exceed capacity (or verify written range only).
+  ☐ Test “many duplicate patchIds”
+    - Fill screen with the same patchId.
+    - Ensure the request stream is still valid (duplicates permitted), and document expected behavior.
+
+
+  Phase T2 - CPU request processing / residency state-machine tests
+  Exit artifacts: unit tests validate the page table mirror + mapping dictionaries + eviction behavior.
+  Notes:
+  - `ProcessRequestsCpu` currently lives inside the renderer; consider extracting to a testable helper:
+    `LumonSceneFeedbackRequestProcessor` (pure CPU, inputs = requests + pools + mirrors).
+  ☐ Refactor (optional but recommended):
+    - Extract CPU processing logic from `LumonSceneFeedbackUpdateRenderer` into an internal class/method.
+    - Keep GL upload calls behind an interface so unit tests can capture “writes” without GL context.
+  ☐ Add `VanillaGraphicsExpanded.Tests/Unit/LumOn/LumonScene/LumonSceneFeedbackRequestProcessingTests.cs`
+    - New allocation path:
+      - unique request → new physical page allocated
+      - page table entry becomes: `Resident|NeedsCapture|NeedsRelight`
+      - virtual↔physical dictionaries updated
+      - capture and relight work queues contain expected items
+    - Duplicate request path:
+      - does not allocate a second page
+      - MRU touch occurs (affects relight selection)
+    - Budget enforcement:
+      - respects maxRequestsToProcess and maxNewAllocations
+      - over multiple “frames”, allocations eventually cover many unique virtual pages (fairness smoke test)
+    - Eviction path:
+      - when pool is full, candidate is evicted and page table entry is cleared
+      - mappings are removed and the new allocation reuses freed page id cleanly
+  ☐ Add deterministic “convergence” test (the one that would catch “only ~4 tiles ever fill”)
+    - Feed N distinct patchIds, iterate simulated frames with `maxNewAllocations=K`.
+    - Assert resident page count grows toward min(N, capacity) over time.
+
+
+  Phase T3 - Voxel capture compute tests (`lumonscene_capture_voxel.csh`)
+  Exit artifacts: GPU tests validate tile addressing and per-texel writes for voxel capture.
+  ☐ Add `VanillaGraphicsExpanded.Tests/GPU/LumonSceneVoxelCaptureComputeTests.cs`
+    - Single work item writes exactly one tile:
+      - Depth is 0 for all texels
+      - Material alpha is 1
+      - Normal encodes the expected axis for the given patchId (6-face mapping)
+    - Multi-work-item addressing:
+      - Two physicalPageId values write to two different tiles
+      - Verify tiles do not overlap and atlasIndex math is correct
+    - BorderTexels plumbing:
+      - Set `vge_borderTexels` to a non-zero value and ensure addressing is still correct (even if content is constant)
+
+
+  Phase T4 - Relight voxel DDA compute tests (`lumonscene_relight_voxel_dda.csh`)
+  Exit artifacts: GPU tests prove relight produces non-zero irradiance when it should, and stays black when it should.
+  Implementation guidance:
+  - Use deterministic uniforms: `vge_frameIndex=0`, `vge_texelsPerPagePerFrame=tileSize^2` (full update),
+    `vge_raysPerTexel=1`, `vge_maxDdaSteps` small-but-sufficient.
+  ☐ Add `VanillaGraphicsExpanded.Tests/GPU/LumonSceneRelightVoxelDdaComputeTests.cs`
+    - “Hit produces irradiance”:
+      - Build a small occupancy `Texture3D(R32UI)` with one solid cell containing packed payload:
+        non-zero blockLevel/sunLevel/lightId.
+      - Provide simple LUTs:
+        light color at id=1 is distinct (e.g., red)
+        block/sun scalar maps are known
+      - Assert at least some texels in the output tile have RGB > 0 and A(weight) increments.
+    - “Miss stays black”:
+      - Empty occupancy; assert RGB stays ~0 (within epsilon), and document whether A increments.
+    - “Temporal accumulation stability”:
+      - Two dispatches → A increments and RGB remains finite/non-NaN.
+    - “Out-of-bounds is sky/miss”:
+      - Set `vge_occOriginMinCell0`/resolution so the chosen worldCell is out of bounds.
+      - Assert output does not gain hit-based radiance.
+  ☐ Add regression test for 3D image binding semantics
+    - Specifically validate that writes occur at z > 0 when using image3D to prevent “only one slice updates”.
+
+
+  Phase T5 - End-to-end minimal pipeline integration test (GPU + CPU)
+  Exit artifacts: one coarse integration test that catches systemic “only a few tiles update” failures.
+  Constraints:
+  - This won’t use the full VS runtime; it should operate on synthetic textures/buffers and invoke the same compute shaders.
+  ☐ Add `VanillaGraphicsExpanded.Tests/GPU/LumonScenePipelineSmokeTests.cs`
+    - Build synthetic PatchIdGBuffer with many distinct patchIds spread across the screen.
+    - Run:
+      - feedback gather compute → read back requests
+      - CPU request processing (extracted helper) → emit capture work
+      - voxel capture compute
+      - relight compute (with a simple occupancy volume)
+    - Assert:
+      - resident pages increases over iterations
+      - irradiance atlas has >N tiles with A(weight) > 0 (tile-level coverage metric)
+
+
+  Phase T6 - TraceScene coverage expansions (Phase 23 dependency)
+  Exit artifacts: TraceScene compute/math tests cover multi-level, wrapping, and representative sampling.
+  ☐ Expand `VanillaGraphicsExpanded.Tests/GPU/LumonTraceSceneRegionToClipmapComputeTests.cs`
+    - Add a test that writes multi-level (levelMask includes >0) and validates representative sampling rules.
+    - Add a test with negative coords + non-zero ring to ensure wrap math matches CPU.
+  ☐ Add unit tests for packing edge cases
+    - Validate `LumonSceneOccupancyPacking` clamps/encodes expected bit ranges (0..32 and lightId/material bits).
+
+
+  Phase T7 - Debug sampling / gating tests (shader + CPU)
+  Exit artifacts: prevent regressions where debug views stay black due to flag gating or missing bindings.
+  ☐ Add a unit test around page-table “ready gating” conventions (CPU-side)
+    - When `NeedsCapture` or `NeedsRelight` is set, debug sampling should intentionally report black.
+    - When cleared and resident, sampling should show the atlas contents.
+  ☐ Add a shader processed-source diagnostic test for the Phase 22 debug helpers
+    - Ensure `renderLumonSceneIrradianceDebug()` (or equivalent) remains declared at top-level and compiles after imports.
+
