@@ -142,10 +142,10 @@ LumOn - Phase 22 - LumonScene Surface Cache (Test Coverage Audit + Missing Scena
 
   Phase T6 - TraceScene coverage expansions (Phase 23 dependency)
   Exit artifacts: TraceScene compute/math tests cover multi-level, wrapping, and representative sampling.
-  ☐ Expand `VanillaGraphicsExpanded.Tests/GPU/LumonTraceSceneRegionToClipmapComputeTests.cs`
+  ✔ Expand `VanillaGraphicsExpanded.Tests/GPU/LumonTraceSceneRegionToClipmapComputeTests.cs`
     - Add a test that writes multi-level (levelMask includes >0) and validates representative sampling rules.
     - Add a test with negative coords + non-zero ring to ensure wrap math matches CPU.
-  ☐ Add unit tests for packing edge cases
+  ✔ Add unit tests for packing edge cases
     - Validate `LumonSceneOccupancyPacking` clamps/encodes expected bit ranges (0..32 and lightId/material bits).
 
 
