@@ -88,7 +88,7 @@ LumOn - Phase 22 - LumonScene Surface Cache (Test Coverage Audit + Missing Scena
 
   Phase T3 - Voxel capture compute tests (`lumonscene_capture_voxel.csh`)
   Exit artifacts: GPU tests validate tile addressing and per-texel writes for voxel capture.
-  ☐ Add `VanillaGraphicsExpanded.Tests/GPU/LumonSceneVoxelCaptureComputeTests.cs`
+  ✔ Add `VanillaGraphicsExpanded.Tests/GPU/LumonSceneVoxelCaptureComputeTests.cs`
     - Single work item writes exactly one tile:
       - Depth is 0 for all texels
       - Material alpha is 1

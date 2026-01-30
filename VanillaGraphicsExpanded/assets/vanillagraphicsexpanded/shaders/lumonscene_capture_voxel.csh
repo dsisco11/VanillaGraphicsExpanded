@@ -72,7 +72,8 @@ void main()
     // Border semantics (v1): no border, but keep the plumbing.
     // When borderTexels > 0, we would clamp sampling to the inner patch area.
     // Current v1 content is constant so this is a no-op.
-    if (vge_borderTexels != 0u) { }
+    // Keep vge_borderTexels as a live uniform (avoid driver DCE) without changing behavior for sane values.
+    if (vge_borderTexels == 0xFFFFFFFFu) { return; }
 
     // Depth: planar.
     imageStore(vge_depthAtlas, texel, vec4(0.0));
