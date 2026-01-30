@@ -42,6 +42,8 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     private readonly System.Collections.Generic.Dictionary<int, uint> virtualToPhysical = new();
     private readonly System.Collections.Generic.Dictionary<uint, int> physicalToVirtual = new();
 
+    private readonly LumonSceneFeedbackRequestProcessor cpuProcessor;
+
     private bool configured;
     private int lastPlanHash;
 
@@ -151,6 +153,13 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
         this.config = config ?? throw new ArgumentNullException(nameof(config));
         this.gBufferManager = gBufferManager ?? throw new ArgumentNullException(nameof(gBufferManager));
+
+        cpuProcessor = new LumonSceneFeedbackRequestProcessor(
+            physicalPools.Near,
+            pageTableMirror,
+            virtualToPhysical,
+            physicalToVirtual,
+            new RendererPageTableWriter(this));
 
         capi.Event.RegisterRenderer(this, EnumRenderStage.Done, "vge_lumonscene_feedback");
         capi.Event.LeaveWorld += OnLeaveWorld;
@@ -375,6 +384,9 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         int available = nearGpu.PageRequests.CapacityItems;
         int toRead = (int)Math.Min(requestCount, (uint)available);
         int toProcess = Math.Min(toRead, Math.Max(0, maxRequestsToProcess));
+        int maxRecapture = 8;
+        int maxCapture = Math.Max(1, maxNewAllocations) + maxRecapture;
+
         if (toProcess <= 0 && recaptureVirtualPages is null)
         {
             nearGpu.CaptureWork.Reset();
@@ -383,9 +395,6 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         }
 
         LumonScenePageRequestGpu[] scratch = ArrayPool<LumonScenePageRequestGpu>.Shared.Rent(Math.Max(1, toProcess));
-
-        int maxRecapture = 8;
-        int maxCapture = Math.Max(1, maxNewAllocations) + maxRecapture;
         LumonSceneCaptureWorkGpu[] captureScratch = ArrayPool<LumonSceneCaptureWorkGpu>.Shared.Rent(maxCapture);
         LumonSceneRelightWorkGpu[] relightScratch = ArrayPool<LumonSceneRelightWorkGpu>.Shared.Rent(maxCapture);
 
@@ -407,111 +416,24 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                 }
             }
 
-            int newAllocs = 0;
-            int captureCount = 0;
-            int relightCount = 0;
-            for (int i = 0; i < toProcess; i++)
+            cpuProcessor.Process(
+                requests: scratch.AsSpan(0, toProcess),
+                maxRequestsToProcess: maxRequestsToProcess,
+                maxNewAllocations: maxNewAllocations,
+                recaptureVirtualPages: recaptureVirtualPages is null ? ReadOnlySpan<int>.Empty : recaptureVirtualPages.AsSpan(0, recaptureCount),
+                recaptureCursor: ref recaptureCursor,
+                maxRecapture: maxRecapture,
+                captureWorkOut: captureScratch,
+                relightWorkOut: relightScratch,
+                captureCount: out int captureCount,
+                relightCount: out int relightCount);
+
+            if (recaptureVirtualPages is not null && recaptureCursor >= recaptureCount)
             {
-                LumonScenePageRequestGpu req = scratch[i];
-
-                // v1: only chunkSlot==0 supported.
-                if (req.ChunkSlot != 0u)
-                {
-                    continue;
-                }
-
-                int vpage = (int)req.VirtualPageIndex;
-                if ((uint)vpage >= (uint)VirtualPagesPerChunk)
-                {
-                    continue;
-                }
-
-                uint patchId = req.Flags; // v1: compute encodes original patchId in Flags slot.
-
-                if (virtualToPhysical.TryGetValue(vpage, out uint existing))
-                {
-                    physicalPools.Near.PagePool.Touch(existing);
-                    continue;
-                }
-
-                if (newAllocs >= maxNewAllocations)
-                {
-                    continue;
-                }
-
-                if (!TryAllocateOrEvictOne(out LumonScenePhysicalPage page))
-                {
-                    continue;
-                }
-
-                newAllocs++;
-
-                uint physicalPageId = page.PhysicalPageId;
-                virtualToPhysical[vpage] = physicalPageId;
-                physicalToVirtual[physicalPageId] = vpage;
-
-                LumonScenePageTableEntry entry = LumonScenePageTableEntryPacking.Pack(
-                    physicalPageId: physicalPageId,
-                    flags: LumonScenePageTableEntryPacking.Flags.Resident
-                        | LumonScenePageTableEntryPacking.Flags.NeedsCapture
-                        | LumonScenePageTableEntryPacking.Flags.NeedsRelight);
-
-                pageTableMirror[vpage] = entry;
-                UploadPageTableEntryMip0(chunkSlot: 0, virtualPageIndex: vpage, entry.Packed);
-
-                if (captureCount < captureScratch.Length)
-                {
-                    captureScratch[captureCount++] = new LumonSceneCaptureWorkGpu(physicalPageId, chunkSlot: 0, patchId: patchId, virtualPageIndex: (uint)vpage);
-                }
-
-                if (relightCount < relightScratch.Length)
-                {
-                    relightScratch[relightCount++] = new LumonSceneRelightWorkGpu(physicalPageId, chunkSlot: 0, patchId: patchId, virtualPageIndex: (uint)vpage);
-                }
-            }
-
-            // Dirty-driven recapture: re-capture some resident pages each frame until drained.
-            if (recaptureVirtualPages is not null)
-            {
-                for (int i = 0; i < maxRecapture && recaptureCursor < recaptureCount; i++, recaptureCursor++)
-                {
-                    int vpage = recaptureVirtualPages[recaptureCursor];
-                    if (!virtualToPhysical.TryGetValue(vpage, out uint physicalPageId))
-                    {
-                        continue;
-                    }
-
-                    var existingEntry = pageTableMirror[vpage];
-                    uint pid = LumonScenePageTableEntryPacking.UnpackPhysicalPageId(existingEntry);
-                    if (pid == 0)
-                    {
-                        continue;
-                    }
-
-                    var flags = LumonScenePageTableEntryPacking.UnpackFlags(existingEntry);
-                    flags |= LumonScenePageTableEntryPacking.Flags.NeedsCapture | LumonScenePageTableEntryPacking.Flags.NeedsRelight;
-                    LumonScenePageTableEntry updated = LumonScenePageTableEntryPacking.Pack(pid, flags);
-                    pageTableMirror[vpage] = updated;
-                    UploadPageTableEntryMip0(chunkSlot: 0, virtualPageIndex: vpage, updated.Packed);
-
-                    if (captureCount < captureScratch.Length)
-                    {
-                        captureScratch[captureCount++] = new LumonSceneCaptureWorkGpu(physicalPageId, chunkSlot: 0, patchId: (uint)vpage, virtualPageIndex: (uint)vpage);
-                    }
-
-                    if (relightCount < relightScratch.Length)
-                    {
-                        relightScratch[relightCount++] = new LumonSceneRelightWorkGpu(physicalPageId, chunkSlot: 0, patchId: (uint)vpage, virtualPageIndex: (uint)vpage);
-                    }
-                }
-
-                if (recaptureCursor >= recaptureCount)
-                {
-                    ArrayPool<int>.Shared.Return(recaptureVirtualPages, clearArray: false);
-                    recaptureVirtualPages = null;
-                    recaptureCount = 0;
-                    recaptureCursor = 0;
-                }
+                ArrayPool<int>.Shared.Return(recaptureVirtualPages, clearArray: false);
+                recaptureVirtualPages = null;
+                recaptureCount = 0;
+                recaptureCursor = 0;
             }
 
             // v1: CPU-produced work overwrites the queues each frame.
@@ -663,32 +585,6 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         }
     }
 
-    private bool TryAllocateOrEvictOne(out LumonScenePhysicalPage page)
-    {
-        if (physicalPools.Near.TryAllocate(out page))
-        {
-            return true;
-        }
-
-        if (!physicalPools.Near.TryGetEvictionCandidate(out uint evictId))
-        {
-            page = default;
-            return false;
-        }
-
-        if (physicalToVirtual.TryGetValue(evictId, out int vpage))
-        {
-            physicalToVirtual.Remove(evictId);
-            virtualToPhysical.Remove(vpage);
-            pageTableMirror[vpage] = default;
-            UploadPageTableEntryMip0(chunkSlot: 0, virtualPageIndex: vpage, packedEntry: 0u);
-        }
-
-        physicalPools.Near.Free(evictId);
-
-        return physicalPools.Near.TryAllocate(out page);
-    }
-
     private unsafe void UploadPageTableEntryMip0(int chunkSlot, int virtualPageIndex, uint packedEntry)
     {
         int x = virtualPageIndex % VirtualPageTableW;
@@ -710,5 +606,15 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             format: PixelFormat.RedInteger,
             type: PixelType.UnsignedInt,
             pixels: (IntPtr)(&value));
+    }
+
+    private sealed class RendererPageTableWriter : ILumonScenePageTableWriter
+    {
+        private readonly LumonSceneFeedbackUpdateRenderer owner;
+
+        public RendererPageTableWriter(LumonSceneFeedbackUpdateRenderer owner) => this.owner = owner;
+
+        public void WriteMip0(int chunkSlot, int virtualPageIndex, uint packedEntry)
+            => owner.UploadPageTableEntryMip0(chunkSlot, virtualPageIndex, packedEntry);
     }
 }

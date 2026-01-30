@@ -63,10 +63,10 @@ LumOn - Phase 22 - LumonScene Surface Cache (Test Coverage Audit + Missing Scena
   Notes:
   - `ProcessRequestsCpu` currently lives inside the renderer; consider extracting to a testable helper:
     `LumonSceneFeedbackRequestProcessor` (pure CPU, inputs = requests + pools + mirrors).
-  ☐ Refactor (optional but recommended):
+  ✔ Refactor (optional but recommended):
     - Extract CPU processing logic from `LumonSceneFeedbackUpdateRenderer` into an internal class/method.
     - Keep GL upload calls behind an interface so unit tests can capture “writes” without GL context.
-  ☐ Add `VanillaGraphicsExpanded.Tests/Unit/LumOn/LumonScene/LumonSceneFeedbackRequestProcessingTests.cs`
+  ✔ Add `VanillaGraphicsExpanded.Tests/Unit/LumOn/LumonScene/LumonSceneFeedbackRequestProcessingTests.cs`
     - New allocation path:
       - unique request → new physical page allocated
       - page table entry becomes: `Resident|NeedsCapture|NeedsRelight`
@@ -81,7 +81,7 @@ LumOn - Phase 22 - LumonScene Surface Cache (Test Coverage Audit + Missing Scena
     - Eviction path:
       - when pool is full, candidate is evicted and page table entry is cleared
       - mappings are removed and the new allocation reuses freed page id cleanly
-  ☐ Add deterministic “convergence” test (the one that would catch “only ~4 tiles ever fill”)
+  ✔ Add deterministic “convergence” test (the one that would catch “only ~4 tiles ever fill”)
     - Feed N distinct patchIds, iterate simulated frames with `maxNewAllocations=K`.
     - Assert resident page count grows toward min(N, capacity) over time.
 
