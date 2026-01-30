@@ -82,7 +82,7 @@ internal sealed class LumonSceneTraceSceneClipmapGpuBuildDispatcher : IDisposabl
                     unit: i,
                     access: TextureAccess.WriteOnly,
                     level: 0,
-                    layered: false,
+                    layered: true,
                     layer: 0,
                     format: SizedInternalFormat.R32ui);
             }
