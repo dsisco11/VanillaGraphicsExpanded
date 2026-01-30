@@ -19,6 +19,13 @@ public class VgeConfig
     public sealed class DebugConfig
     {
         /// <summary>
+        /// Whether the LumOn stats overlay panel is visible.
+        /// Persisted so the overlay can be kept on across runs.
+        /// </summary>
+        [JsonProperty]
+        public bool LumOnStatsOverlayEnabled { get; set; } = false;
+
+        /// <summary>
         /// Debug viewer persisted state (which views are currently enabled/active).
         /// </summary>
         [JsonProperty]

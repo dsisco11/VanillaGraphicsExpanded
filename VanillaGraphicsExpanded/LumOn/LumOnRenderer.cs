@@ -254,6 +254,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Reset debug counters
         debugCounters.Reset();
         debugCounters.TotalProbes = bufferManager.ProbeCountX * bufferManager.ProbeCountY;
+        debugCounters.ValidProbes = debugCounters.TotalProbes;
+        debugCounters.EdgeProbes = 0;
 
         // Phase 10: PIS debug counters (config-derived)
         debugCounters.ProbePisEnabled = config.LumOn.EnableProbePIS || config.LumOn.ForceUniformMask;
@@ -262,6 +264,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         debugCounters.ProbePisExploreCount = config.LumOn.ProbePISExploreCount >= 0
             ? config.LumOn.ProbePISExploreCount
             : (int)MathF.Round(config.LumOn.ProbeAtlasTexelsPerFrame * config.LumOn.ProbePISExploreFraction);
+
+        // Approximate per-frame traced rays (fragment-based atlas tracing, 1 ray per traced texel).
+        // Hit/miss stats are not yet collected to avoid introducing GPU readback/atomics in the hot path.
+        debugCounters.RaysTraced = Math.Max(0, debugCounters.ValidProbes) * Math.Max(0, config.LumOn.ProbeAtlasTexelsPerFrame);
 
         // Check for teleportation (large camera movement)
         if (DetectTeleport())

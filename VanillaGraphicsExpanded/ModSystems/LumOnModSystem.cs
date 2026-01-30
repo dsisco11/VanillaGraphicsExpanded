@@ -62,6 +62,10 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         EnsureInitializedIfReady("startup");
 
         EnsureLumOnStatsPanelInitialized("startup");
+        if (ConfigModSystem.Config.Debug.LumOnStatsOverlayEnabled)
+        {
+            lumOnStatsPanel?.Show();
+        }
     }
 
     internal bool IsLumOnEnabled()
@@ -104,10 +108,22 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         if (lumOnStatsPanel.IsOpened())
         {
             lumOnStatsPanel.Hide();
+            ConfigModSystem.Config.Debug.LumOnStatsOverlayEnabled = false;
         }
         else
         {
             lumOnStatsPanel.Show();
+            ConfigModSystem.Config.Debug.LumOnStatsOverlayEnabled = true;
+        }
+
+        // Persist the debug choice so the overlay stays enabled across runs.
+        try
+        {
+            capi.StoreModConfig(ConfigModSystem.Config, Constants.ConfigFileName);
+        }
+        catch
+        {
+            // ignore persistence failures
         }
     }
 
@@ -115,40 +131,53 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
     {
         if (!ConfigModSystem.Config.LumOn.Enabled)
         {
-            return ["LumOn: Disabled", string.Empty, string.Empty, string.Empty];
+            return ["LumOn: Disabled", string.Empty, string.Empty, string.Empty, string.Empty];
         }
 
         if (lumOnRenderer is null)
         {
-            return ["LumOn: Enabled (not initialized)", "Waiting for renderer dependencies...", string.Empty, string.Empty];
+            return ["LumOn: Enabled (not initialized)", "Waiting for renderer dependencies...", string.Empty, string.Empty, "TS: init"];
         }
 
         string[] baseLines = lumOnRenderer.DebugCounters.GetDebugLines();
+        string[] lines = new string[5];
+        for (int i = 0; i < 4; i++)
+        {
+            lines[i] = (uint)i < (uint)baseLines.Length ? baseLines[i] : string.Empty;
+        }
 
-        // Overlay TraceScene (Phase 23) state on the last line to keep the panel fixed at 4 rows.
-        // This is intentionally compact so it doesn't crowd the existing timing breakdown.
+        // TraceScene (Phase 23) status as a dedicated line (row 5).
+        lines[4] = GetTraceSceneStatusLineSafe();
+
+        return lines;
+    }
+
+    private string GetTraceSceneStatusLineSafe()
+    {
         try
         {
-            if (ConfigModSystem.Config.LumOn.LumonScene.Enabled && lumonSceneOccupancyClipmapUpdateRenderer is not null)
+            if (!ConfigModSystem.Config.LumOn.LumonScene.Enabled)
             {
-                int q = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.QueueLength;
-                int f = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.InFlight;
-                int a = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.AppliedRegions;
-                long r = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionRequestsIssued;
-                long s = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotsRequested;
-
-                if (baseLines.Length >= 4)
-                {
-                    baseLines[3] = baseLines[3] + $" | TS q:{q} f:{f} a:{a} r:{r} s:{s}";
-                }
+                return "TS: off";
             }
+
+            if (lumonSceneOccupancyClipmapUpdateRenderer is null)
+            {
+                return "TS: init";
+            }
+
+            int q = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.QueueLength;
+            int f = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.InFlight;
+            int a = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.AppliedRegions;
+            long r = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionRequestsIssued;
+            long s = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotsRequested;
+
+            return $"TS: q:{q} f:{f} a:{a} r:{r} s:{s}";
         }
         catch
         {
-            // ignore overlay failures
+            return "TS: error";
         }
-
-        return baseLines;
     }
 
     internal LumOnBufferManager? GetLumOnBufferManagerOrNull()

@@ -25,7 +25,7 @@ public class LumOnDebugCounters
     public int RayMisses { get; set; }
 
     /// <summary>Hit rate percentage (hits / traced)</summary>
-    public float HitRate => RaysTraced > 0 ? (float)RayHits / RaysTraced * 100f : 0f;
+    public float HitRate => RaysTraced > 0 && RayHits >= 0 ? (float)RayHits / RaysTraced * 100f : 0f;
 
     /// <summary>Probes with valid temporal history</summary>
     public int TemporalValidProbes { get; set; }
@@ -83,8 +83,8 @@ public class LumOnDebugCounters
         ValidProbes = 0;
         EdgeProbes = 0;
         RaysTraced = 0;
-        RayHits = 0;
-        RayMisses = 0;
+        RayHits = -1;
+        RayMisses = -1;
         TemporalValidProbes = 0;
         TemporalRejectedProbes = 0;
         HzbPassMs = 0;
@@ -109,10 +109,14 @@ public class LumOnDebugCounters
     /// </summary>
     public string[] GetDebugLines()
     {
+        string raysLine = (RaysTraced > 0 && RayHits >= 0)
+            ? $"Rays: {RaysTraced} traced, {HitRate:F1}% hit rate"
+            : $"Rays: {RaysTraced} traced";
+
         return
         [
             $"LumOn Probes: {ValidProbes}/{TotalProbes} valid, {EdgeProbes} edge",
-            $"Rays: {RaysTraced} traced, {HitRate:F1}% hit rate",
+            raysLine,
             $"Temporal: {TemporalValidProbes} valid, {TemporalRejectedProbes} rejected",
             $"Time: {TotalFrameMs:F2}ms (HZB:{HzbPassMs:F2} A:{ProbeAnchorPassMs:F2} PM:{ProbePisMaskPassMs:F2} " +
             $"PIS:{(ProbePisEnabled ? "on" : "off")} K:{ProbePisK} E:{ProbePisExploreCount}({ProbePisExploreFraction:P0}) " +
