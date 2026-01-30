@@ -32,13 +32,13 @@ LumOn - Phase 22 - LumonScene Surface Cache (Test Coverage Audit + Missing Scena
   ✔ TraceScene region → clipmap compute: `VanillaGraphicsExpanded.Tests/GPU/LumonTraceSceneRegionToClipmapComputeTests.cs`
   ✔ MeshCard capture compute: `VanillaGraphicsExpanded.Tests/GPU/LumonSceneMeshCardCaptureComputeTests.cs`
 
-  Missing: LumonScene feedback gather, voxel capture, and relight compute tests
-  ☐ No GPU test coverage for:
+  Previously missing (now covered): LumonScene feedback gather, voxel capture, and relight compute tests
+  ✔ GPU test coverage added for:
     - `assets/vanillagraphicsexpanded/shaders/lumonscene_feedback_gather.csh`
     - `assets/vanillagraphicsexpanded/shaders/lumonscene_capture_voxel.csh`
     - `assets/vanillagraphicsexpanded/shaders/lumonscene_relight_voxel_dda.csh`
-  ☐ No unit coverage for the CPU-side request processing / page-table state machine in:
-    - `VanillaGraphicsExpanded/LumOn/Scene/LumonSceneFeedbackUpdateRenderer.cs` (ProcessRequestsCpu + eviction path)
+  ✔ Unit coverage added for the CPU-side request processing / page-table state machine
+    - extracted from `VanillaGraphicsExpanded/LumOn/Scene/LumonSceneFeedbackUpdateRenderer.cs` (ProcessRequestsCpu + eviction path)
 
 
   Phase T1 - Feedback Gather (GPU compute) test coverage
@@ -128,7 +128,7 @@ LumOn - Phase 22 - LumonScene Surface Cache (Test Coverage Audit + Missing Scena
   Exit artifacts: one coarse integration test that catches systemic “only a few tiles update” failures.
   Constraints:
   - This won’t use the full VS runtime; it should operate on synthetic textures/buffers and invoke the same compute shaders.
-  ☐ Add `VanillaGraphicsExpanded.Tests/GPU/LumonScenePipelineSmokeTests.cs`
+  ✔ Add `VanillaGraphicsExpanded.Tests/GPU/LumonScenePipelineSmokeTests.cs`
     - Build synthetic PatchIdGBuffer with many distinct patchIds spread across the screen.
     - Run:
       - feedback gather compute → read back requests
