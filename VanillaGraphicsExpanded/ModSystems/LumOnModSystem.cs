@@ -223,6 +223,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         {
             lumonSceneOccupancyClipmapUpdateRenderer = new LumonSceneOccupancyClipmapUpdateRenderer(clientApi, ConfigModSystem.Config);
         }
+        lumOnDebugRenderer?.SetLumonSceneOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
 
         if (current.LumOnEnabled
             && ConfigModSystem.Config.LumOn.LumonScene.Enabled
