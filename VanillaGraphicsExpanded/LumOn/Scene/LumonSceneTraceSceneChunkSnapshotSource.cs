@@ -46,8 +46,11 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
 
         capi.Event.EnqueueMainThreadTask(() =>
         {
+            LumonSceneTraceSceneMetrics.OnSnapshotRequested();
+
             if (ct.IsCancellationRequested)
             {
+                LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
                 tcs.TrySetResult(null);
                 return;
             }
@@ -56,6 +59,7 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
             // (the processing service will likely supersede the request anyway).
             if (versionProvider.GetCurrentVersion(key) != expectedVersion)
             {
+                LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
                 tcs.TrySetResult(null);
                 return;
             }
@@ -73,12 +77,14 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
                 IWorldChunk? chunk = blockAccessor.GetChunk(chunkX, chunkY, chunkZ);
                 if (chunk is null || chunk.Disposed)
                 {
+                    LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
                     tcs.TrySetResult(null);
                     return;
                 }
 
                 if (!chunk.Unpack_ReadOnly())
                 {
+                    LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
                     tcs.TrySetResult(null);
                     return;
                 }
@@ -195,6 +201,7 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
             }
             catch
             {
+                LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
                 tcs.TrySetResult(null);
             }
         }, "vge-lumon-tracescene-snapshot");

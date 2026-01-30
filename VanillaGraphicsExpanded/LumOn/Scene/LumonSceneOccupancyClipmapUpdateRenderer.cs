@@ -520,6 +520,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                 chunkProcessing.RequestAsync(key, version, regionProcessor, options);
 
             inFlightByRegion[key.Packed] = new InFlightRegion(version, task);
+            LumonSceneTraceSceneMetrics.OnRegionRequestsIssued(1);
             issued++;
         }
     }

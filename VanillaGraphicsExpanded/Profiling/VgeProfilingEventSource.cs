@@ -41,6 +41,9 @@ internal sealed class VgeProfilingEventSource : EventSource
     private IncrementingPollingCounter? traceSceneBytesUploadedRate;
     private IncrementingPollingCounter? traceSceneRegionsDispatchedRate;
     private IncrementingPollingCounter? traceSceneComputeDispatchRate;
+    private IncrementingPollingCounter? traceSceneRegionRequestsIssuedRate;
+    private IncrementingPollingCounter? traceSceneSnapshotsRequestedRate;
+    private IncrementingPollingCounter? traceSceneSnapshotsUnavailableRate;
 
     private VgeProfilingEventSource() { }
 
@@ -174,6 +177,27 @@ internal sealed class VgeProfilingEventSource : EventSource
         {
             DisplayName = "LumOn TraceScene Compute Dispatches / sec",
             DisplayUnits = "dispatches/sec",
+        };
+
+        traceSceneRegionRequestsIssuedRate = new IncrementingPollingCounter(
+            "lumon-tracescene-region-requests", this, () => LumonSceneTraceSceneMetrics.RegionRequestsIssued)
+        {
+            DisplayName = "LumOn TraceScene Region Requests Issued / sec",
+            DisplayUnits = "requests/sec",
+        };
+
+        traceSceneSnapshotsRequestedRate = new IncrementingPollingCounter(
+            "lumon-tracescene-snapshots-requested", this, () => LumonSceneTraceSceneMetrics.SnapshotsRequested)
+        {
+            DisplayName = "LumOn TraceScene Snapshots Requested / sec",
+            DisplayUnits = "requests/sec",
+        };
+
+        traceSceneSnapshotsUnavailableRate = new IncrementingPollingCounter(
+            "lumon-tracescene-snapshots-unavailable", this, () => LumonSceneTraceSceneMetrics.SnapshotsUnavailable)
+        {
+            DisplayName = "LumOn TraceScene Snapshots Unavailable / sec",
+            DisplayUnits = "requests/sec",
         };
     }
 

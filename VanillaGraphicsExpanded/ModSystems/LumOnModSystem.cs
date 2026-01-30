@@ -134,10 +134,12 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
                 int q = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.QueueLength;
                 int f = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.InFlight;
                 int a = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.AppliedRegions;
+                long r = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionRequestsIssued;
+                long s = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotsRequested;
 
                 if (baseLines.Length >= 4)
                 {
-                    baseLines[3] = baseLines[3] + $" | TS q:{q} f:{f} a:{a}";
+                    baseLines[3] = baseLines[3] + $" | TS q:{q} f:{f} a:{a} r:{r} s:{s}";
                 }
             }
         }
