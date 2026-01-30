@@ -87,7 +87,11 @@ internal sealed class LumonSceneFieldGpuResources : IDisposable
 
         // Queue capacities (v1 defaults): tuned later by profiling/budgets.
         int q = Math.Max(1024, physicalPageCapacity);
-        pageRequests = new LumonSceneWorkQueueGpu<LumonScenePageRequestGpu>($"LumOn.LumonScene.{field}.PageRequests", capacityItems: q);
+        pageRequests = new LumonSceneWorkQueueGpu<LumonScenePageRequestGpu>(
+            $"LumOn.LumonScene.{field}.PageRequests",
+            capacityItems: q,
+            counterUsage: OpenTK.Graphics.OpenGL.BufferUsageHint.DynamicRead,
+            itemsUsage: OpenTK.Graphics.OpenGL.BufferUsageHint.DynamicRead);
         captureWork = new LumonSceneWorkQueueGpu<LumonSceneCaptureWorkGpu>($"LumOn.LumonScene.{field}.CaptureWork", capacityItems: q);
         relightWork = new LumonSceneWorkQueueGpu<LumonSceneRelightWorkGpu>($"LumOn.LumonScene.{field}.RelightWork", capacityItems: q);
     }

@@ -105,6 +105,9 @@ internal sealed class LumonSceneWorkQueueGpu<T> : IDisposable where T : unmanage
     private readonly string debugName;
     private readonly int capacityItems;
 
+    private readonly BufferUsageHint counterUsage;
+    private readonly BufferUsageHint itemsUsage;
+
     private GpuAtomicCounterBuffer? counter;
     private GpuShaderStorageBuffer? items;
 
@@ -113,11 +116,18 @@ internal sealed class LumonSceneWorkQueueGpu<T> : IDisposable where T : unmanage
     public GpuAtomicCounterBuffer Counter => counter ?? throw new InvalidOperationException("GPU resources not created.");
     public GpuShaderStorageBuffer Items => items ?? throw new InvalidOperationException("GPU resources not created.");
 
-    public LumonSceneWorkQueueGpu(string debugName, int capacityItems)
+    public LumonSceneWorkQueueGpu(
+        string debugName,
+        int capacityItems,
+        BufferUsageHint counterUsage = BufferUsageHint.DynamicDraw,
+        BufferUsageHint itemsUsage = BufferUsageHint.DynamicDraw)
     {
         if (capacityItems <= 0) throw new ArgumentOutOfRangeException(nameof(capacityItems));
         this.debugName = debugName ?? throw new ArgumentNullException(nameof(debugName));
         this.capacityItems = capacityItems;
+
+        this.counterUsage = counterUsage;
+        this.itemsUsage = itemsUsage;
     }
 
     /// <summary>
@@ -130,10 +140,10 @@ internal sealed class LumonSceneWorkQueueGpu<T> : IDisposable where T : unmanage
             return;
         }
 
-        counter ??= GpuAtomicCounterBuffer.Create(BufferUsageHint.DynamicDraw, debugName: $"{debugName}.Counter(ACBO)");
+        counter ??= GpuAtomicCounterBuffer.Create(counterUsage, debugName: $"{debugName}.Counter(ACBO)");
         counter.InitializeCounters(counterCount: 1, initialValue: 0);
 
-        items ??= GpuShaderStorageBuffer.Create(BufferUsageHint.DynamicDraw, debugName: $"{debugName}.Items(SSBO)");
+        items ??= GpuShaderStorageBuffer.Create(itemsUsage, debugName: $"{debugName}.Items(SSBO)");
         int bytes = checked(capacityItems * Unsafe.SizeOf<T>());
         items.EnsureCapacity(bytes, growExponentially: false);
     }
