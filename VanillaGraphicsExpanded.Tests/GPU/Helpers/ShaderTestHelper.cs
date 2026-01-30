@@ -327,16 +327,47 @@ public sealed class ShaderTestHelper : IDisposable
         // Strip non-ASCII characters using the production SIMD-optimized method
         processedSource = SourceCodeImportsProcessor.StripNonAscii(processedSource);
 
-        // Add #version if not present (some VS shaders omit it)
-        if (!processedSource.TrimStart().StartsWith("#version", StringComparison.Ordinal))
-        {
-            processedSource = "#version 330 core\n" + processedSource;
-        }
+        // Normalize the #version directive:
+        // - Some processed sources may end up with #line directives before #version, which is illegal in GLSL.
+        // - Compute shaders require the correct higher #version to compile.
+        processedSource = NormalizeVersionDirective(processedSource);
 
         // Inject compile-time defines immediately after #version.
         processedSource = InjectDefinesAfterVersion(processedSource, defines);
 
         return processedSource;
+    }
+
+    private static string NormalizeVersionDirective(string source)
+    {
+        string trimmed = source.TrimStart();
+        if (trimmed.StartsWith("#version", StringComparison.Ordinal))
+        {
+            return source;
+        }
+
+        int versionIndex = source.IndexOf("#version", StringComparison.Ordinal);
+        if (versionIndex < 0)
+        {
+            // Add #version if not present (some VS shaders omit it).
+            return "#version 330 core\n" + source;
+        }
+
+        // Extract the first #version line and move it to the top.
+        int lineEnd = source.IndexOf('\n', versionIndex);
+        if (lineEnd < 0)
+        {
+            // Single-line #version-only source (unlikely); just return it.
+            return source.Substring(versionIndex);
+        }
+
+        string versionLine = source.Substring(versionIndex, lineEnd - versionIndex).TrimEnd('\r', '\n');
+        string before = source.Substring(0, versionIndex);
+        string after = source.Substring(lineEnd + 1);
+
+        // Keep the original pre-version content after the version line (helps preserve #line for diagnostics).
+        // Ensure we don't accidentally introduce a second #version at the top.
+        return versionLine + "\n" + before + after;
     }
 
     private static string InjectDefinesAfterVersion(

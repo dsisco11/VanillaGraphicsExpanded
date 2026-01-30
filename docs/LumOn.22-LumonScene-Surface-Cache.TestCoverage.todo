@@ -105,7 +105,7 @@ LumOn - Phase 22 - LumonScene Surface Cache (Test Coverage Audit + Missing Scena
   Implementation guidance:
   - Use deterministic uniforms: `vge_frameIndex=0`, `vge_texelsPerPagePerFrame=tileSize^2` (full update),
     `vge_raysPerTexel=1`, `vge_maxDdaSteps` small-but-sufficient.
-  ☐ Add `VanillaGraphicsExpanded.Tests/GPU/LumonSceneRelightVoxelDdaComputeTests.cs`
+  ✔ Add `VanillaGraphicsExpanded.Tests/GPU/LumonSceneRelightVoxelDdaComputeTests.cs`
     - “Hit produces irradiance”:
       - Build a small occupancy `Texture3D(R32UI)` with one solid cell containing packed payload:
         non-zero blockLevel/sunLevel/lightId.

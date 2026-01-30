@@ -42,10 +42,10 @@ uniform ivec3 vge_occRing0;
 uniform int vge_occResolution;
 
 // Packed payload decode (matches LumonSceneOccupancyPacking).
-uint UnpackBlockLevel(uint packed) { return (packed >> 0u) & 63u; }
-uint UnpackSunLevel(uint packed) { return (packed >> 6u) & 63u; }
-uint UnpackLightId(uint packed) { return (packed >> 12u) & 63u; }
-uint UnpackMaterialPaletteIndex(uint packed) { return (packed >> 18u) & 16383u; }
+uint UnpackBlockLevel(uint p) { return (p >> 0u) & 63u; }
+uint UnpackSunLevel(uint p) { return (p >> 6u) & 63u; }
+uint UnpackLightId(uint p) { return (p >> 12u) & 63u; }
+uint UnpackMaterialPaletteIndex(uint p) { return (p >> 18u) & 16383u; }
 
 bool OccInBounds(ivec3 worldCell) { return VgeOccInBoundsL0(worldCell, vge_occOriginMinCell0, vge_occResolution); }
 uint SampleOccL0(ivec3 worldCell) { return VgeSampleOccL0(vge_occL0, worldCell, vge_occOriginMinCell0, vge_occRing0, vge_occResolution); }
@@ -151,16 +151,16 @@ bool TraceDdaL0(vec3 origin, vec3 dir, out ivec3 hitCell, out ivec3 hitN, out fl
 
 vec3 ShadeHitFromOutsideCell(ivec3 outsideCell)
 {
-    uint packed = SampleOccL0(outsideCell);
-    if (packed == 0u)
+    uint packedWord = SampleOccL0(outsideCell);
+    if (packedWord == 0u)
     {
         return vec3(0.0);
     }
 
-    uint blockLevel = min(UnpackBlockLevel(packed), 32u);
-    uint sunLevel = min(UnpackSunLevel(packed), 32u);
-    uint lightId = min(UnpackLightId(packed), 63u);
-    uint matIdx = UnpackMaterialPaletteIndex(packed);
+    uint blockLevel = min(UnpackBlockLevel(packedWord), 32u);
+    uint sunLevel = min(UnpackSunLevel(packedWord), 32u);
+    uint lightId = min(UnpackLightId(packedWord), 63u);
+    uint matIdx = UnpackMaterialPaletteIndex(packedWord);
     if (matIdx != 0u) { }
 
     float blockScalar = texelFetch(vge_blockLevelScalarLut, ivec2(int(blockLevel), 0), 0).r;
