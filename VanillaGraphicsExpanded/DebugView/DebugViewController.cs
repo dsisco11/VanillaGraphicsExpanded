@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace VanillaGraphicsExpanded.DebugView;
 
@@ -25,6 +26,9 @@ public sealed class DebugViewController : IDisposable
     public Action<string>? LogWarning { get; set; }
 
     public event Action? StateChanged;
+
+    private int persistQueued;
+    private int suppressPersist;
 
     public string? ActiveExclusiveViewId
     {
@@ -72,6 +76,9 @@ public sealed class DebugViewController : IDisposable
                 subscribedToRegistry = true;
             }
         }
+
+        // After the controller is initialized and views are registered, restore persisted activation state.
+        RestoreActivationStateFromConfig(context);
     }
 
     public bool IsActive(string id)
@@ -139,6 +146,12 @@ public sealed class DebugViewController : IDisposable
     {
         error = null;
 
+        DebugViewActivationContext? ctx;
+        lock (gate)
+        {
+            ctx = context;
+        }
+
         IDisposable? handle;
         lock (gate)
         {
@@ -153,12 +166,23 @@ public sealed class DebugViewController : IDisposable
         }
 
         SafeDispose(handle, context: "exclusive deactivate");
+
+        if (ctx is not null)
+        {
+            PersistActivationState(ctx);
+        }
         StateChanged?.Invoke();
         return true;
     }
 
     public void DeactivateAll()
     {
+        DebugViewActivationContext? ctx;
+        lock (gate)
+        {
+            ctx = context;
+        }
+
         IDisposable? exclusive;
         Dictionary<string, IDisposable>? toggles;
 
@@ -189,6 +213,10 @@ public sealed class DebugViewController : IDisposable
             }
         }
 
+        if (ctx is not null)
+        {
+            PersistActivationState(ctx);
+        }
         StateChanged?.Invoke();
     }
 
@@ -232,6 +260,7 @@ public sealed class DebugViewController : IDisposable
                 activeExclusiveHandle = handle;
             }
 
+            PersistActivationState(ctx);
             StateChanged?.Invoke();
             return true;
         }
@@ -267,6 +296,7 @@ public sealed class DebugViewController : IDisposable
         if (wasActive)
         {
             SafeDispose(toDispose, context: $"toggle off ({definition.Id})");
+            PersistActivationState(ctx);
             StateChanged?.Invoke();
             return true;
         }
@@ -285,6 +315,7 @@ public sealed class DebugViewController : IDisposable
                 activeToggleHandles[definition.Id] = handle;
             }
 
+            PersistActivationState(ctx);
             StateChanged?.Invoke();
             return true;
         }
@@ -370,8 +401,113 @@ public sealed class DebugViewController : IDisposable
 
         if (changed)
         {
+            if (context is not null)
+            {
+                PersistActivationState(context);
+            }
             StateChanged?.Invoke();
         }
+    }
+
+    private void RestoreActivationStateFromConfig(DebugViewActivationContext ctx)
+    {
+        // Suppress persistence while restoring (avoid writing the config file during startup).
+        Interlocked.Increment(ref suppressPersist);
+
+        try
+        {
+            string? exclusive = ctx.Config.Debug.DebugViews.ActiveExclusiveViewId;
+            string[] toggles = ctx.Config.Debug.DebugViews.ActiveToggleViewIds ?? Array.Empty<string>();
+
+            // Restore toggles first.
+            foreach (string id in toggles)
+            {
+                if (!registry.TryGet(id, out DebugViewDefinition? def) || def is null)
+                {
+                    continue;
+                }
+
+                if (def.ActivationMode != DebugViewActivationMode.Toggle)
+                {
+                    continue;
+                }
+
+                _ = TryActivate(id, out _);
+            }
+
+            // Restore exclusive view last (it may set render-time config state, e.g. LumOn debug mode).
+            if (!string.IsNullOrWhiteSpace(exclusive))
+            {
+                if (registry.TryGet(exclusive, out DebugViewDefinition? def) && def is not null)
+                {
+                    if (def.ActivationMode == DebugViewActivationMode.Exclusive)
+                    {
+                        _ = TryActivate(exclusive, out _);
+                    }
+                }
+            }
+        }
+        finally
+        {
+            Interlocked.Decrement(ref suppressPersist);
+        }
+    }
+
+    private void PersistActivationState(DebugViewActivationContext ctx)
+    {
+        WriteActivationStateToConfig(ctx);
+        QueuePersistConfig(ctx);
+    }
+
+    private void WriteActivationStateToConfig(DebugViewActivationContext ctx)
+    {
+        string? exclusive;
+        string[] toggles;
+
+        lock (gate)
+        {
+            exclusive = activeExclusiveViewId;
+            toggles = activeToggleHandles.Count > 0
+                ? activeToggleHandles.Keys.OrderBy(static s => s, StringComparer.Ordinal).ToArray()
+                : Array.Empty<string>();
+        }
+
+        ctx.Config.Debug.DebugViews.ActiveExclusiveViewId = exclusive;
+        ctx.Config.Debug.DebugViews.ActiveToggleViewIds = toggles;
+        ctx.Config.Debug.DebugViews.Sanitize();
+    }
+
+    private void QueuePersistConfig(DebugViewActivationContext ctx)
+    {
+        if (Volatile.Read(ref suppressPersist) != 0)
+        {
+            return;
+        }
+
+        // The tests use proxy ICoreClientAPI instances without an event bus.
+        if (ctx.Capi.Event is null)
+        {
+            return;
+        }
+
+        if (Interlocked.Exchange(ref persistQueued, 1) != 0)
+        {
+            return;
+        }
+
+        ctx.Capi.Event.EnqueueMainThreadTask(() =>
+        {
+            Interlocked.Exchange(ref persistQueued, 0);
+
+            try
+            {
+                ctx.Capi.StoreModConfig(ctx.Config, global::VanillaGraphicsExpanded.Constants.ConfigFileName);
+            }
+            catch (Exception ex)
+            {
+                LogWarning?.Invoke($"[VGE] DebugViewController: failed to persist config: {ex}");
+            }
+        }, "vge:persist-debug-views");
     }
 
     private void SafeDispose(IDisposable? handle, string context)

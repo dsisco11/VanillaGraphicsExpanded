@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Numerics;
 using System.Runtime.Serialization;
 
@@ -14,6 +15,59 @@ namespace VanillaGraphicsExpanded.LumOn;
 [JsonObject(MemberSerialization.OptIn)]
 public class VgeConfig
 {
+    [JsonObject(MemberSerialization.OptIn)]
+    public sealed class DebugConfig
+    {
+        /// <summary>
+        /// Debug viewer persisted state (which views are currently enabled/active).
+        /// </summary>
+        [JsonProperty]
+        public DebugViewsConfig DebugViews { get; set; } = new();
+
+        [JsonObject(MemberSerialization.OptIn)]
+        public sealed class DebugViewsConfig
+        {
+            /// <summary>
+            /// The currently active exclusive debug view id (if any).
+            /// </summary>
+            [JsonProperty]
+            public string? ActiveExclusiveViewId { get; set; }
+
+            /// <summary>
+            /// The currently active toggle debug view ids.
+            /// </summary>
+            [JsonProperty]
+            public string[] ActiveToggleViewIds { get; set; } = Array.Empty<string>();
+
+            internal void Sanitize()
+            {
+                ActiveExclusiveViewId = string.IsNullOrWhiteSpace(ActiveExclusiveViewId)
+                    ? null
+                    : ActiveExclusiveViewId.Trim();
+
+                if (ActiveToggleViewIds is null || ActiveToggleViewIds.Length == 0)
+                {
+                    ActiveToggleViewIds = Array.Empty<string>();
+                    return;
+                }
+
+                // Normalize + de-duplicate.
+                ActiveToggleViewIds = ActiveToggleViewIds
+                    .Where(static s => !string.IsNullOrWhiteSpace(s))
+                    .Select(static s => s.Trim())
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(static s => s, StringComparer.Ordinal)
+                    .ToArray();
+            }
+        }
+
+        internal void Sanitize()
+        {
+            DebugViews ??= new DebugViewsConfig();
+            DebugViews.Sanitize();
+        }
+    }
+
     public enum ProbeAtlasGatherMode
     {
         /// <summary>
@@ -1161,6 +1215,13 @@ public class VgeConfig
     }
 
     /// <summary>
+    /// Debug settings (including persisted debug-view activation state).
+    /// Persisted under: Debug
+    /// </summary>
+    [JsonProperty]
+    public DebugConfig Debug { get; set; } = new();
+
+    /// <summary>
     /// Configuration for LumOn (screen-probe gather) settings.
     /// Persisted under: LumOn
     /// </summary>
@@ -1207,6 +1268,8 @@ public class VgeConfig
     internal void OnDeserializedMethod(StreamingContext context)
     {
         // Ensure nested config objects are initialized
+        Debug ??= new DebugConfig();
+        Debug.DebugViews ??= new DebugConfig.DebugViewsConfig();
         LumOn ??= new LumOnSettingsConfig();
         TextureStreaming ??= new TextureStreamingConfig();
         WorldProbeClipmap ??= new WorldProbeClipmapConfig();
@@ -1219,6 +1282,9 @@ public class VgeConfig
     /// </summary>
     public void Sanitize()
     {
+        Debug ??= new DebugConfig();
+        Debug.Sanitize();
+
         LumOn ??= new LumOnSettingsConfig();
         LumOn.Sanitize();
 
