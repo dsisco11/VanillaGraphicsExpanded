@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "file": "VanillaGraphicsExpanded.json",
+  "file": "VanillaGraphicsExpanded.configlib.json",
   "settings": {
     "boolean": {
       "ENABLED": {
