@@ -15,8 +15,8 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
         using var pool = CreateNearPool(capacityNotClamped: true);
 
         var pageTable = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
-        var virtualToPhysical = new Dictionary<int, uint>();
-        var physicalToVirtual = new Dictionary<uint, int>();
+        var virtualToPhysical = new Dictionary<ulong, uint>();
+        var physicalToVirtual = new Dictionary<uint, ulong>();
         var writes = new RecordingPageTableWriter();
 
         var proc = new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
@@ -34,7 +34,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             requests: requests,
             maxRequestsToProcess: 1024,
             maxNewAllocations: 16,
-            recaptureVirtualPages: ReadOnlySpan<int>.Empty,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
             recaptureCursor: ref recaptureCursor,
             maxRecapture: 0,
             captureWorkOut: capture,
@@ -46,10 +46,11 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
         Assert.Equal(1, captureCount);
         Assert.Equal(1, relightCount);
 
-        Assert.True(virtualToPhysical.TryGetValue(5, out uint pid));
+        ulong key = LumonSceneVirtualPageKeyUtil.Pack(chunkSlot: 0u, virtualPageIndex: 5u);
+        Assert.True(virtualToPhysical.TryGetValue(key, out uint pid));
         Assert.NotEqual(0u, pid);
-        Assert.True(physicalToVirtual.TryGetValue(pid, out int vpage));
-        Assert.Equal(5, vpage);
+        Assert.True(physicalToVirtual.TryGetValue(pid, out ulong outKey));
+        Assert.Equal(key, outKey);
 
         uint packed = pageTable[5].Packed;
         Assert.Equal(pid, LumonScenePageTableEntryPacking.UnpackPhysicalPageId(pageTable[5]));
@@ -77,8 +78,8 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
         using var pool = CreateNearPool(capacityNotClamped: true);
 
         var pageTable = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
-        var virtualToPhysical = new Dictionary<int, uint>();
-        var physicalToVirtual = new Dictionary<uint, int>();
+        var virtualToPhysical = new Dictionary<ulong, uint>();
+        var physicalToVirtual = new Dictionary<uint, ulong>();
         var writes = new RecordingPageTableWriter();
 
         var proc = new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
@@ -96,7 +97,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             },
             maxRequestsToProcess: 1024,
             maxNewAllocations: 16,
-            recaptureVirtualPages: ReadOnlySpan<int>.Empty,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
             recaptureCursor: ref recaptureCursor,
             maxRecapture: 0,
             captureWorkOut: capture,
@@ -105,15 +106,17 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             relightCount: out _,
             stats: out _);
 
-        uint pid1 = virtualToPhysical[1];
-        uint pid2 = virtualToPhysical[2];
+        ulong key1 = LumonSceneVirtualPageKeyUtil.Pack(chunkSlot: 0u, virtualPageIndex: 1u);
+        ulong key2 = LumonSceneVirtualPageKeyUtil.Pack(chunkSlot: 0u, virtualPageIndex: 2u);
+        uint pid1 = virtualToPhysical[key1];
+        uint pid2 = virtualToPhysical[key2];
 
         // Touch vpage 1 again; should become MRU.
         proc.Process(
             requests: new[] { new LumonScenePageRequestGpu(0u, 1u, 0u, 999u) },
             maxRequestsToProcess: 1024,
             maxNewAllocations: 0,
-            recaptureVirtualPages: ReadOnlySpan<int>.Empty,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
             recaptureCursor: ref recaptureCursor,
             maxRecapture: 0,
             captureWorkOut: capture,
@@ -124,8 +127,8 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
 
         Assert.Equal(0, captureCount);
         Assert.Equal(0, relightCount);
-        Assert.Equal(pid1, virtualToPhysical[1]);
-        Assert.Equal(pid2, virtualToPhysical[2]);
+        Assert.Equal(pid1, virtualToPhysical[key1]);
+        Assert.Equal(pid2, virtualToPhysical[key2]);
 
         Span<uint> mru = stackalloc uint[2];
         int written = pool.PagePool.CopyMostRecentlyUsed(mru);
@@ -140,8 +143,8 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
         using var pool = CreateNearPool(capacityNotClamped: true);
 
         var pageTable = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
-        var virtualToPhysical = new Dictionary<int, uint>();
-        var physicalToVirtual = new Dictionary<uint, int>();
+        var virtualToPhysical = new Dictionary<ulong, uint>();
+        var physicalToVirtual = new Dictionary<uint, ulong>();
         var writes = new RecordingPageTableWriter();
         var proc = new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
 
@@ -159,7 +162,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             requests: req,
             maxRequestsToProcess: 5,
             maxNewAllocations: 2,
-            recaptureVirtualPages: ReadOnlySpan<int>.Empty,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
             recaptureCursor: ref recaptureCursor,
             maxRecapture: 0,
             captureWorkOut: capture,
@@ -173,8 +176,9 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
         Assert.Equal(2, virtualToPhysical.Count);
 
         // Only the first 5 requests were eligible; with maxNewAllocations=2, we should have allocated among vpages [0..4].
-        foreach (int vpage in virtualToPhysical.Keys)
+        foreach (ulong key in virtualToPhysical.Keys)
         {
+            int vpage = (int)LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(key);
             Assert.InRange(vpage, 0, 4);
         }
     }
@@ -185,8 +189,8 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
         using var pool = CreateNearPool(capacityNotClamped: false); // very small capacity to force eviction
 
         var pageTable = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
-        var virtualToPhysical = new Dictionary<int, uint>();
-        var physicalToVirtual = new Dictionary<uint, int>();
+        var virtualToPhysical = new Dictionary<ulong, uint>();
+        var physicalToVirtual = new Dictionary<uint, ulong>();
         var writes = new RecordingPageTableWriter();
         var proc = new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
 
@@ -204,7 +208,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             requests: req,
             maxRequestsToProcess: 1024,
             maxNewAllocations: 1024,
-            recaptureVirtualPages: ReadOnlySpan<int>.Empty,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
             recaptureCursor: ref recaptureCursor,
             maxRecapture: 0,
             captureWorkOut: capture,
@@ -215,12 +219,12 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
 
         // Capacity is 4 pages; after 6 unique requests, the first two should have been evicted.
         Assert.Equal(4, virtualToPhysical.Count);
-        Assert.False(virtualToPhysical.ContainsKey(0));
-        Assert.False(virtualToPhysical.ContainsKey(1));
-        Assert.True(virtualToPhysical.ContainsKey(2));
-        Assert.True(virtualToPhysical.ContainsKey(3));
-        Assert.True(virtualToPhysical.ContainsKey(4));
-        Assert.True(virtualToPhysical.ContainsKey(5));
+        Assert.False(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 0u)));
+        Assert.False(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 1u)));
+        Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 2u)));
+        Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 3u)));
+        Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 4u)));
+        Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 5u)));
 
         Assert.Equal(0u, LumonScenePageTableEntryPacking.UnpackPhysicalPageId(pageTable[0]));
         Assert.Equal(0u, LumonScenePageTableEntryPacking.UnpackPhysicalPageId(pageTable[1]));
@@ -235,8 +239,8 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
         using var pool = CreateNearPool(capacityNotClamped: true);
 
         var pageTable = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
-        var virtualToPhysical = new Dictionary<int, uint>();
-        var physicalToVirtual = new Dictionary<uint, int>();
+        var virtualToPhysical = new Dictionary<ulong, uint>();
+        var physicalToVirtual = new Dictionary<uint, ulong>();
         var writes = new RecordingPageTableWriter();
         var proc = new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
 
@@ -258,7 +262,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
                 requests: req,
                 maxRequestsToProcess: 1024,
                 maxNewAllocations: k,
-                recaptureVirtualPages: ReadOnlySpan<int>.Empty,
+                recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
                 recaptureCursor: ref recaptureCursor,
                 maxRecapture: 0,
                 captureWorkOut: capture,

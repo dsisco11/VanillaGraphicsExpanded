@@ -113,8 +113,8 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
             isClampedByMaxAtlases: false));
 
         var pageTableMirror = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
-        var virtualToPhysical = new Dictionary<int, uint>();
-        var physicalToVirtual = new Dictionary<uint, int>();
+        var virtualToPhysical = new Dictionary<ulong, uint>();
+        var physicalToVirtual = new Dictionary<uint, ulong>();
         var cpuProc = new LumonSceneFeedbackRequestProcessor(pool, pageTableMirror, virtualToPhysical, physicalToVirtual, new NullPageTableWriter());
 
         var captureOut = new LumonSceneCaptureWorkGpu[desiredPages];
@@ -125,7 +125,7 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
             requests: requests,
             maxRequestsToProcess: desiredPages,
             maxNewAllocations: desiredPages,
-            recaptureVirtualPages: ReadOnlySpan<int>.Empty,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
             recaptureCursor: ref recaptureCursor,
             maxRecapture: 0,
             captureWorkOut: captureOut,

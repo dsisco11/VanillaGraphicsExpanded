@@ -59,8 +59,8 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
 
         // CPU-side page table + mappings.
         var pageTableMirror = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
-        var virtualToPhysical = new Dictionary<int, uint>();
-        var physicalToVirtual = new Dictionary<uint, int>();
+        var virtualToPhysical = new Dictionary<ulong, uint>();
+        var physicalToVirtual = new Dictionary<uint, ulong>();
         var writer = new RecordingPageTableWriter();
         var cpuProc = new LumonSceneFeedbackRequestProcessor(pool, pageTableMirror, virtualToPhysical, physicalToVirtual, writer);
 
@@ -164,7 +164,7 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
                 requests: requests,
                 maxRequestsToProcess: desiredPages,
                 maxNewAllocations: maxNewAllocsPerFrame,
-                recaptureVirtualPages: ReadOnlySpan<int>.Empty,
+                recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
                 recaptureCursor: ref recaptureCursor,
                 maxRecapture: 0,
                 captureWorkOut: captureOut,

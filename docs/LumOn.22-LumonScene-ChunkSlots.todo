@@ -42,15 +42,15 @@ Phase 3 - Feedback Dedup: Make Mark/Compact Multi-Slot
 
 
 Phase 4 - CPU Residency + PageTable Mirrors: Key by (chunkSlot, vpage)
-- [ ] Update `LumonSceneFeedbackRequestProcessor`:
-  - [ ] Remove `chunkSlot==0` restriction.
-  - [ ] Key residency dictionaries by `(chunkSlot, virtualPageIndex)` (e.g. 64-bit packed key).
-  - [ ] Resize/reshape `pageTableMirror` to `[chunkSlotCount * VirtualPagesPerChunk]`.
-  - [ ] Ensure eviction clears correct page table slice.
-- [ ] Update `LumonSceneFeedbackUpdateRenderer`:
-  - [ ] Allocate mirrors based on configured `chunkSlotCount`.
-  - [ ] Read/process request batches across multiple slots.
-  - [ ] Make recapture bookkeeping slot-aware (or explicitly per-slot).
+- [x] Update `LumonSceneFeedbackRequestProcessor`:
+  - [x] Remove `chunkSlot==0` restriction.
+  - [x] Key residency dictionaries by `(chunkSlot, virtualPageIndex)` (e.g. 64-bit packed key).
+  - [x] Resize/reshape `pageTableMirror` to `[chunkSlotCount * VirtualPagesPerChunk]`.
+  - [x] Ensure eviction clears correct page table slice.
+- [x] Update `LumonSceneFeedbackUpdateRenderer`:
+  - [x] Allocate mirrors based on configured `chunkSlotCount`.
+  - [x] Read/process request batches across multiple slots.
+  - [x] Make recapture bookkeeping slot-aware (or explicitly per-slot).
 
 
 Phase 5 - Slot Lifecycle + Reuse Safety

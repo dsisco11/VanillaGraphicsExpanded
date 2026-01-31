@@ -43,11 +43,11 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     private uint feedbackFrameStamp = 1u;
     private uint compactScanOffset = 0u;
 
-    private readonly LumonScenePageTableEntry[] pageTableMirror = new LumonScenePageTableEntry[VirtualPagesPerChunk];
-    private readonly System.Collections.Generic.Dictionary<int, uint> virtualToPhysical = new();
-    private readonly System.Collections.Generic.Dictionary<uint, int> physicalToVirtual = new();
+    private LumonScenePageTableEntry[] pageTableMirror = Array.Empty<LumonScenePageTableEntry>();
+    private System.Collections.Generic.Dictionary<ulong, uint> virtualToPhysical = new();
+    private System.Collections.Generic.Dictionary<uint, ulong> physicalToVirtual = new();
 
-    private readonly LumonSceneFeedbackRequestProcessor cpuProcessor;
+    private LumonSceneFeedbackRequestProcessor? cpuProcessor;
 
     private bool configured;
     private int lastPlanHash;
@@ -60,18 +60,19 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     private int lastRelightCount;
     private LumonSceneFeedbackRequestProcessor.ProcessStats lastProcessStats;
     private int lastUniqueVirtualPages;
+    private uint lastTopChunkSlot;
     private int lastTopVirtualPage;
     private int lastTopVirtualPageCount;
 
     private int recaptureAllRequested;
-    private int[]? recaptureVirtualPages;
+    private ulong[]? recaptureVirtualPageKeys;
     private int recaptureCount;
     private int recaptureCursor;
 
     internal bool TryGetNearDispatchState(
         out LumonScenePhysicalFieldPool nearPool,
         out LumonSceneFieldGpuResources nearFieldGpu,
-        out System.Collections.Generic.IReadOnlyDictionary<uint, int> physicalToVirtualNear,
+        out System.Collections.Generic.IReadOnlyDictionary<uint, ulong> physicalToVirtualNear,
         out LumonScenePageTableEntry[] pageTableMirrorMip0)
     {
         nearPool = physicalPools.Near;
@@ -93,14 +94,20 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         return true;
     }
 
-    internal bool TryClearNearPageFlagsMip0(int virtualPageIndex, LumonScenePageTableEntryPacking.Flags flagsToClear)
+    internal bool TryClearNearPageFlagsMip0(uint chunkSlot, int virtualPageIndex, LumonScenePageTableEntryPacking.Flags flagsToClear)
     {
         if ((uint)virtualPageIndex >= (uint)VirtualPagesPerChunk)
         {
             return false;
         }
 
-        var entry = pageTableMirror[virtualPageIndex];
+        int idx = checked((int)chunkSlot * VirtualPagesPerChunk + virtualPageIndex);
+        if ((uint)idx >= (uint)pageTableMirror.Length)
+        {
+            return false;
+        }
+
+        var entry = pageTableMirror[idx];
         uint pid = LumonScenePageTableEntryPacking.UnpackPhysicalPageId(entry);
         if (pid == 0)
         {
@@ -111,10 +118,13 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         flags &= ~flagsToClear;
 
         LumonScenePageTableEntry updated = LumonScenePageTableEntryPacking.Pack(pid, flags);
-        pageTableMirror[virtualPageIndex] = updated;
-        UploadPageTableEntryMip0(chunkSlot: 0, virtualPageIndex: virtualPageIndex, updated.Packed);
+        pageTableMirror[idx] = updated;
+        UploadPageTableEntryMip0(chunkSlot: (int)chunkSlot, virtualPageIndex: virtualPageIndex, updated.Packed);
         return true;
     }
+
+    internal bool TryClearNearPageFlagsMip0(int virtualPageIndex, LumonScenePageTableEntryPacking.Flags flagsToClear)
+        => TryClearNearPageFlagsMip0(chunkSlot: 0u, virtualPageIndex, flagsToClear);
 
     internal bool TryGetNearDebugSamplingState(
         out Texture3D pageTableMip0,
@@ -169,13 +179,6 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
         this.config = config ?? throw new ArgumentNullException(nameof(config));
         this.gBufferManager = gBufferManager ?? throw new ArgumentNullException(nameof(gBufferManager));
-
-        cpuProcessor = new LumonSceneFeedbackRequestProcessor(
-            physicalPools.Near,
-            pageTableMirror,
-            virtualToPhysical,
-            physicalToVirtual,
-            new RendererPageTableWriter(this));
 
         capi.Event.RegisterRenderer(this, EnumRenderStage.Done, "vge_lumonscene_feedback");
         capi.Event.LeaveWorld += OnLeaveWorld;
@@ -315,9 +318,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         virtualToPhysical.Clear();
         physicalToVirtual.Clear();
 
-        recaptureVirtualPages = null;
-        recaptureCount = 0;
-        recaptureCursor = 0;
+        ResetRecaptureList();
     }
 
     private void EnsureConfigured()
@@ -340,16 +341,27 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         lastPlanHash = planHash;
         configured = true;
 
-        // Allocate Near GPU resources sized to the physical capacity; chunk slots are stubbed to 1 for now.
-        nearGpu.Configure(chunkSlotCount: 1, physicalPageCapacity: Math.Max(1, physicalPools.Near.Plan.CapacityPages));
+        int chunkSlotCount = Math.Max(1, physicalPools.Near.Plan.RequestedPages);
+
+        // Allocate Near GPU resources sized to the physical capacity.
+        nearGpu.Configure(chunkSlotCount: chunkSlotCount, physicalPageCapacity: Math.Max(1, physicalPools.Near.Plan.CapacityPages));
         nearGpu.EnsureCreated();
 
         physicalPools.EnsureGpuResources();
         EnsurePageUsageStampCreated();
 
-        Array.Clear(pageTableMirror);
-        virtualToPhysical.Clear();
-        physicalToVirtual.Clear();
+        pageTableMirror = new LumonScenePageTableEntry[checked(VirtualPagesPerChunk * chunkSlotCount)];
+        virtualToPhysical = new System.Collections.Generic.Dictionary<ulong, uint>(capacity: Math.Max(16, chunkSlotCount));
+        physicalToVirtual = new System.Collections.Generic.Dictionary<uint, ulong>(capacity: Math.Max(16, chunkSlotCount));
+
+        cpuProcessor = new LumonSceneFeedbackRequestProcessor(
+            physicalPools.Near,
+            pageTableMirror,
+            virtualToPhysical,
+            physicalToVirtual,
+            new RendererPageTableWriter(this));
+
+        ResetRecaptureList();
 
         // Best-effort clear GPU page table to zeros.
         nearGpu.PageTable.EnsureCreated();
@@ -512,7 +524,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         int maxRecapture = 8;
         int maxCapture = Math.Max(1, maxNewAllocations) + maxRecapture;
 
-        if (toProcess <= 0 && recaptureVirtualPages is null)
+        if (toProcess <= 0 && recaptureVirtualPageKeys is null)
         {
             nearGpu.CaptureWork.Reset();
             nearGpu.RelightWork.Reset();
@@ -529,6 +541,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             lastRequestsRead = toRead;
             lastRequestsProcessed = toProcess;
             lastUniqueVirtualPages = 0;
+            lastTopChunkSlot = 0u;
             lastTopVirtualPage = 0;
             lastTopVirtualPageCount = 0;
 
@@ -552,12 +565,14 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             {
                 // Debug-only: estimate request diversity for the processed batch.
                 // This helps diagnose "buffer saturated by one giant patch" starvation.
-                var counts = new System.Collections.Generic.Dictionary<int, int>();
+                var counts = new System.Collections.Generic.Dictionary<ulong, int>();
+                uint topSlot = 0u;
                 int topVpage = 0;
                 int topCount = 0;
 
                 for (int i = 0; i < toProcess; i++)
                 {
+                    uint slot = scratch[i].ChunkSlot;
                     int vpage = (int)scratch[i].VirtualPageIndex;
                     if ((uint)vpage >= (uint)VirtualPagesPerChunk)
                     {
@@ -565,29 +580,32 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                     }
 
                     int c = 1;
-                    if (counts.TryGetValue(vpage, out int existing))
+                    ulong key = LumonSceneVirtualPageKeyUtil.Pack(slot, (uint)vpage);
+                    if (counts.TryGetValue(key, out int existing))
                     {
                         c = existing + 1;
                     }
-                    counts[vpage] = c;
+                    counts[key] = c;
 
                     if (c > topCount)
                     {
                         topCount = c;
+                        topSlot = slot;
                         topVpage = vpage;
                     }
                 }
 
                 lastUniqueVirtualPages = counts.Count;
+                lastTopChunkSlot = topSlot;
                 lastTopVirtualPage = topVpage;
                 lastTopVirtualPageCount = topCount;
             }
 
-            cpuProcessor.Process(
+            cpuProcessor!.Process(
                 requests: scratch.AsSpan(0, toProcess),
                 maxRequestsToProcess: maxRequestsToProcess,
                 maxNewAllocations: maxNewAllocations,
-                recaptureVirtualPages: recaptureVirtualPages is null ? ReadOnlySpan<int>.Empty : recaptureVirtualPages.AsSpan(0, recaptureCount),
+                recaptureVirtualPageKeys: recaptureVirtualPageKeys is null ? ReadOnlySpan<ulong>.Empty : recaptureVirtualPageKeys.AsSpan(0, recaptureCount),
                 recaptureCursor: ref recaptureCursor,
                 maxRecapture: maxRecapture,
                 captureWorkOut: captureScratch,
@@ -599,10 +617,10 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             lastCaptureCount = captureCount;
             lastRelightCount = relightCount;
 
-            if (recaptureVirtualPages is not null && recaptureCursor >= recaptureCount)
+            if (recaptureVirtualPageKeys is not null && recaptureCursor >= recaptureCount)
             {
-                ArrayPool<int>.Shared.Return(recaptureVirtualPages, clearArray: false);
-                recaptureVirtualPages = null;
+                ArrayPool<ulong>.Shared.Return(recaptureVirtualPageKeys, clearArray: false);
+                recaptureVirtualPageKeys = null;
                 recaptureCount = 0;
                 recaptureCursor = 0;
             }
@@ -630,9 +648,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             return;
         }
 
-        recaptureVirtualPages = null;
-        recaptureCount = 0;
-        recaptureCursor = 0;
+        ResetRecaptureList();
 
         int count = virtualToPhysical.Count;
         if (count <= 0)
@@ -640,15 +656,27 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             return;
         }
 
-        int[] pages = ArrayPool<int>.Shared.Rent(count);
+        ulong[] pages = ArrayPool<ulong>.Shared.Rent(count);
         int i = 0;
-        foreach (int vpage in virtualToPhysical.Keys)
+        foreach (ulong key in virtualToPhysical.Keys)
         {
-            pages[i++] = vpage;
+            pages[i++] = key;
         }
 
-        recaptureVirtualPages = pages;
+        recaptureVirtualPageKeys = pages;
         recaptureCount = i;
+        recaptureCursor = 0;
+    }
+
+    private void ResetRecaptureList()
+    {
+        if (recaptureVirtualPageKeys is not null)
+        {
+            ArrayPool<ulong>.Shared.Return(recaptureVirtualPageKeys, clearArray: false);
+        }
+
+        recaptureVirtualPageKeys = null;
+        recaptureCount = 0;
         recaptureCursor = 0;
     }
 
@@ -729,13 +757,20 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
             for (int i = 0; i < captureCount; i++)
             {
+                uint chunkSlot = items[i].ChunkSlot;
                 int vpage = (int)items[i].VirtualPageIndex;
                 if ((uint)vpage >= (uint)VirtualPagesPerChunk)
                 {
                     continue;
                 }
 
-                var entry = pageTableMirror[vpage];
+                int idx = checked((int)chunkSlot * VirtualPagesPerChunk + vpage);
+                if ((uint)idx >= (uint)pageTableMirror.Length)
+                {
+                    continue;
+                }
+
+                var entry = pageTableMirror[idx];
                 uint pid = LumonScenePageTableEntryPacking.UnpackPhysicalPageId(entry);
                 if (pid == 0)
                 {
@@ -746,8 +781,8 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                 flags &= ~LumonScenePageTableEntryPacking.Flags.NeedsCapture;
 
                 LumonScenePageTableEntry updated = LumonScenePageTableEntryPacking.Pack(pid, flags);
-                pageTableMirror[vpage] = updated;
-                UploadPageTableEntryMip0(chunkSlot: 0, virtualPageIndex: vpage, updated.Packed);
+                pageTableMirror[idx] = updated;
+                UploadPageTableEntryMip0(chunkSlot: (int)chunkSlot, virtualPageIndex: vpage, updated.Packed);
             }
         }
         finally
@@ -822,7 +857,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         line =
             $"LS: req:{lastRequestCount} read:{lastRequestsRead} proc:{lastProcessStats.RequestsConsidered} " +
             $"exist:{lastProcessStats.RequestsAcceptedExisting} new:{lastProcessStats.RequestsAllocatedNew} ev:{lastProcessStats.AllocationEvictions} fail:{lastProcessStats.AllocationFailures} " +
-            $"uniq:{lastUniqueVirtualPages} top:{lastTopVirtualPage}:{lastTopVirtualPageCount} " +
+            $"uniq:{lastUniqueVirtualPages} top:{lastTopChunkSlot},{lastTopVirtualPage}:{lastTopVirtualPageCount} " +
             $"res:{residentPages}/{cap} ready:{ready} nc:{needsCap} nr:{needsRel} capQ:{lastCaptureCount} relQ:{lastRelightCount} " +
             $"rc:{lastProcessStats.RecaptureSucceeded}/{lastProcessStats.RecaptureAttempted}";
 

@@ -118,7 +118,7 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
         int wantIds = Math.Min(checked(maxPages * 4), nearPool.PagePool.CapacityPages);
         uint[] mruIds = ArrayPool<uint>.Shared.Rent(Math.Max(1, wantIds));
         LumonSceneRelightWorkGpu[] work = ArrayPool<LumonSceneRelightWorkGpu>.Shared.Rent(Math.Max(1, maxPages));
-        int[] workVirtualPages = ArrayPool<int>.Shared.Rent(Math.Max(1, maxPages));
+        ulong[] workVirtualKeys = ArrayPool<ulong>.Shared.Rent(Math.Max(1, maxPages));
 
         int workCount = 0;
         int mruWritten = 0;
@@ -134,20 +134,23 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
                     continue;
                 }
 
-                if (!physicalToVirtual.TryGetValue(physicalPageId, out int vpage))
+                if (!physicalToVirtual.TryGetValue(physicalPageId, out ulong key))
                 {
                     continue;
                 }
 
-                if ((uint)vpage >= (uint)pageTableMirrorMip0.Length)
+                uint chunkSlot = LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(key);
+                int vpage = (int)LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(key);
+
+                if ((uint)vpage >= (uint)LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk)
                 {
                     continue;
                 }
 
                 // v1: patchId is placeholder; use virtualPageIndex as a stable seed.
                 uint patchId = (uint)vpage;
-                work[workCount++] = new LumonSceneRelightWorkGpu(physicalPageId, chunkSlot: 0u, patchId, virtualPageIndex: (uint)vpage);
-                workVirtualPages[workCount - 1] = vpage;
+                work[workCount++] = new LumonSceneRelightWorkGpu(physicalPageId, chunkSlot: chunkSlot, patchId, virtualPageIndex: (uint)vpage);
+                workVirtualKeys[workCount - 1] = key;
             }
 
             if (workCount <= 0)
@@ -240,7 +243,9 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
             int clearFail = 0;
             for (int i = 0; i < workCount; i++)
             {
-                if (feedback.TryClearNearPageFlagsMip0(workVirtualPages[i], LumonScenePageTableEntryPacking.Flags.NeedsRelight))
+                uint chunkSlot = LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(workVirtualKeys[i]);
+                int vpage = (int)LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(workVirtualKeys[i]);
+                if (feedback.TryClearNearPageFlagsMip0(chunkSlot, vpage, LumonScenePageTableEntryPacking.Flags.NeedsRelight))
                 {
                     clearOk++;
                 }
@@ -259,7 +264,7 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
         {
             ArrayPool<uint>.Shared.Return(mruIds, clearArray: false);
             ArrayPool<LumonSceneRelightWorkGpu>.Shared.Return(work, clearArray: false);
-            ArrayPool<int>.Shared.Return(workVirtualPages, clearArray: false);
+            ArrayPool<ulong>.Shared.Return(workVirtualKeys, clearArray: false);
         }
     }
 

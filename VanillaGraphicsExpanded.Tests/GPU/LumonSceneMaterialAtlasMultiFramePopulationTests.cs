@@ -54,8 +54,8 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
             isClampedByMaxAtlases: false));
 
         var pageTableMirror = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
-        var virtualToPhysical = new Dictionary<int, uint>(capacity: desiredPages);
-        var physicalToVirtual = new Dictionary<uint, int>(capacity: desiredPages);
+        var virtualToPhysical = new Dictionary<ulong, uint>(capacity: desiredPages);
+        var physicalToVirtual = new Dictionary<uint, ulong>(capacity: desiredPages);
         var cpuProc = new LumonSceneFeedbackRequestProcessor(pool, pageTableMirror, virtualToPhysical, physicalToVirtual, new NoopPageTableWriter());
 
         // PatchIdGBuffer: request 256 unique pages (patchId==virtualPageIndex in [1..256]).
@@ -132,7 +132,7 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
                 requests: requests,
                 maxRequestsToProcess: desiredPages,
                 maxNewAllocations: maxNewAllocsPerFrame,
-                recaptureVirtualPages: ReadOnlySpan<int>.Empty,
+                recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
                 recaptureCursor: ref recaptureCursor,
                 maxRecapture: 0,
                 captureWorkOut: captureOut,
