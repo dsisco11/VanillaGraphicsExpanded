@@ -172,6 +172,52 @@ vec4 renderLumonSceneIrradianceDebug()
     return vec4(clamp(c, 0.0, 1.0), 1.0);
 }
 
+// Debug Mode 59: LumonScene chunkSlot visualization (Phase 22.X)
+vec4 renderLumonSceneChunkSlotDebug()
+{
+    uvec4 pid = texelFetch(gBufferPatchId, ivec2(gl_FragCoord.xy), 0);
+    uint chunkSlot, patchId;
+    vec2 patchUv01;
+    if (!VgeLumonSceneTryDecodePatchId(pid, chunkSlot, patchId, patchUv01))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    // Hash the slot into a stable color.
+    uint h = Squirrel3HashU(chunkSlot);
+    vec3 c = vec3(
+        float((h) & 255u) / 255.0,
+        float((h >> 8) & 255u) / 255.0,
+        float((h >> 16) & 255u) / 255.0);
+
+    // Make slot 0 obvious (dark gray).
+    if (chunkSlot == 0u)
+    {
+        c = vec3(0.15);
+    }
+
+    return vec4(c, 1.0);
+}
+
+// Debug Mode 60: LumonScene slot generation visualization (Phase 22.X)
+vec4 renderLumonSceneSlotGenerationDebug()
+{
+    uvec4 pid = texelFetch(gBufferPatchId, ivec2(gl_FragCoord.xy), 0);
+    uint chunkSlot, patchId;
+    vec2 patchUv01;
+    if (!VgeLumonSceneTryDecodePatchId(pid, chunkSlot, patchId, patchUv01))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    // Convention: PatchIdGBuffer.w stores generation (low 16 bits) when enabled.
+    uint gen16 = pid.w & 0xFFFFu;
+
+    // Visualize as a repeating grayscale ramp.
+    float g = float(gen16 & 255u) / 255.0;
+    return vec4(vec3(g), 1.0);
+}
+
 // Program entry: SceneGBuffer
 vec4 RenderDebug_SceneGBuffer(vec2 screenPos)
 {
@@ -184,6 +230,8 @@ vec4 RenderDebug_SceneGBuffer(vec2 screenPos)
         case 52: return renderLumonScenePageReadyDebug();
         case 53: return renderLumonScenePatchUvDebug();
         case 54: return renderLumonSceneIrradianceDebug();
+        case 59: return renderLumonSceneChunkSlotDebug();
+        case 60: return renderLumonSceneSlotGenerationDebug();
         default: return vec4(0.0, 0.0, 0.0, 1.0);
     }
 }

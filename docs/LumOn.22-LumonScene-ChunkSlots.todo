@@ -20,11 +20,11 @@ Phase 1 - Decide Slot Topology + Contracts
 
 
 Phase 2 - PatchIdGBuffer: Encode Real chunkSlot (+ optional generation)
-- [ ] Add GLSL helper to compute `chunkCoord` from `worldPos` (chunk size 32).
-- [ ] Add GLSL helper `MapChunkCoordToSlot(chunkCoord, originMinChunk, ring, dims) -> chunkSlot`.
-- [ ] Update PBR chunk shader injection so PatchIdGBuffer emits real `chunkSlot` (and generation if used).
-- [ ] Keep existing voxel patchId mapping unchanged initially.
-- [ ] Update/extend debug GBuffer view(s) to visualize chunkSlot (+ generation).
+- [x] Add GLSL helper to compute `chunkCoord` from `worldPos` (chunk size 32).
+- [x] Add GLSL helper `MapChunkCoordToSlot(chunkCoord, originMinChunk, ring, dims) -> chunkSlot`.
+- [x] Update PBR chunk shader injection so PatchIdGBuffer emits real `chunkSlot` (and generation if used).
+- [x] Keep existing voxel patchId mapping unchanged initially.
+- [x] Update/extend debug GBuffer view(s) to visualize chunkSlot (+ generation).
 
 
 Phase 3 - Feedback Dedup: Make Mark/Compact Multi-Slot

@@ -943,6 +943,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             if (mode is LumOnDebugMode.LumonScenePageReady
                 or LumOnDebugMode.LumonScenePatchUv
                 or LumOnDebugMode.LumonSceneIrradiance
+                or LumOnDebugMode.LumonSceneChunkSlot
+                or LumOnDebugMode.LumonSceneSlotGeneration
                 or LumOnDebugMode.LumOnScenesOverview)
             {
                 if (config.LumOn.Enabled && config.LumOn.LumonScene.Enabled && lumonSceneFeedbackUpdateRenderer is not null)
@@ -2625,6 +2627,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             or LumOnDebugMode.PomMetrics
             or LumOnDebugMode.LumonScenePageReady
             or LumOnDebugMode.LumonScenePatchUv
+            or LumOnDebugMode.LumonSceneChunkSlot
+            or LumOnDebugMode.LumonSceneSlotGeneration
             or LumOnDebugMode.LumonSceneIrradiance
             => LumOnDebugShaderProgramKind.SceneGBuffer,
 
@@ -2738,6 +2742,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             || (mode is >= LumOnDebugMode.VelocityMagnitude and <= LumOnDebugMode.VelocityPrevUv)
             || (mode is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeOrbsPoints)
             || (mode is >= LumOnDebugMode.LumonScenePageReady and <= LumOnDebugMode.LumonSceneIrradiance)
+            || (mode is LumOnDebugMode.LumonSceneChunkSlot or LumOnDebugMode.LumonSceneSlotGeneration)
             || (mode is >= LumOnDebugMode.TraceSceneBoundsL0 and <= LumOnDebugMode.LumOnScenesOverview)
             || mode is LumOnDebugMode.WorldProbeRawConfidences
                 or LumOnDebugMode.WorldProbeContributionOnly

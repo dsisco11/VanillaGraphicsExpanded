@@ -202,8 +202,25 @@ flat in uint vge_faceId;
     uint vge_v = uint(clamp(vge_patchUv.y, 0.0, 1.0) * 65535.0 + 0.5);
     uint vge_packedUv = (vge_v << 16) | vge_u;
 
-    // chunkSlot is v1 placeholder (0). Future: encode actual chunk slot (+ generation).
-    vge_outPatchId = uvec4(0u, patchId, vge_packedUv, 0u);
+    // VGE: chunkSlot (Phase 22.X - ChunkSlots)
+    // Safe fallback: if slot mapping uniforms are not configured (dims <= 0), mapping is treated as disabled
+    // and chunkSlot defaults to 0.
+    uint chunkSlot = 0u;
+    bool vge_slotOk = VgeLumonSceneTryMapChunkCoordToSlot(VgeLumonSceneChunkCoordFromWorldPos(worldPos.xyz), chunkSlot);
+
+    // Slot generation is reserved for stale rejection (Phase 22.X); not wired yet in v1.
+    uint vge_slotGeneration16 = 0u;
+
+    // If mapping is enabled and the chunk is outside the active window, suppress PatchId output entirely.
+    // This prevents out-of-window chunks from spamming feedback requests once multi-slot is enabled.
+    if (!vge_slotOk)
+    {
+        vge_outPatchId = uvec4(0u);
+    }
+    else
+    {
+        vge_outPatchId = uvec4(chunkSlot, patchId, vge_packedUv, vge_slotGeneration16);
+    }
 ";
 
     // chunkliquid.fsh does not define `normal` or `renderFlags`.
@@ -268,6 +285,7 @@ flat in uint vge_faceId;
                     .InsertBefore(mainQuery, "@import \"./includes/vge_normaldepth.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_parallax.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/lumonscene_patchid.glsl\"\n")
+                    .InsertBefore(mainQuery, "@import \"./includes/lumonscene_chunkslot.glsl\"\n")
                     .Commit();
 
                 log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");

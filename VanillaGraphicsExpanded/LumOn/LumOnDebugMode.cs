@@ -111,4 +111,8 @@ public enum LumOnDebugMode
 
     // Phase 23: Combined "scene overview" debug views (append-only)
     LumOnScenesOverview = 58,
+
+    // Phase 22.X: ChunkSlot diagnostics (append-only)
+    LumonSceneChunkSlot = 59,
+    LumonSceneSlotGeneration = 60,
 }
