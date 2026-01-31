@@ -73,18 +73,18 @@ Phase 6 - Capture + Relight: Provide Per-Slot Chunk Origins/Transforms
 
 
 Phase 7 - Tests: Multi-Slot + Multi-Frame Convergence
-- [ ] GPU tests (feedback):
-  - [ ] Multi-slot mark/compact produces requests for each slot without collisions.
-  - [ ] Bounded `vge_maxRequests` does not permanently starve higher slots (fairness test).
-- [ ] GPU tests (capture):
-  - [ ] Multi-slot capture writes distinct tiles for identical patchIds in different slots.
-- [ ] Integration test:
-  - [ ] “100 chunks visible” synthetic scene over N frames:
-    - [ ] Emit 100 chunkSlots worth of patch ids.
-    - [ ] Run mark→compact→CPU alloc→capture repeatedly under budget.
-    - [ ] Assert per-slot tile coverage grows over time (convergence).
-- [ ] Slot reuse tests:
-  - [ ] Generation increments and stale requests are rejected (GPU + CPU).
+- [x] GPU tests (feedback):
+  - [x] Multi-slot mark/compact produces requests for each slot without collisions.
+  - [x] Bounded `vge_maxRequests` does not permanently starve higher slots (fairness test).
+- [x] GPU tests (capture):
+  - [x] Multi-slot capture writes distinct tiles for identical patchIds in different slots.
+- [x] Integration test:
+  - [x] “100 chunks visible” synthetic scene over N frames:
+    - [x] Emit 100 chunkSlots worth of patch ids.
+    - [x] Run mark→compact→CPU alloc→capture repeatedly under budget.
+    - [x] Assert per-slot tile coverage grows over time (convergence).
+- [x] Slot reuse tests:
+  - [x] Generation increments and stale requests are rejected (GPU + CPU).
 
 
 Phase 8 - Runtime Instrumentation + Debugging

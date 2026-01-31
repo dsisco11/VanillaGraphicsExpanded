@@ -20,6 +20,82 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
     public LumonSceneFeedbackGatherComputeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     [Fact]
+    public void FeedbackCompact_ScanOffset_DistributesBoundedRequestsAcrossChunkSlots()
+    {
+        EnsureContextValid();
+
+        using var helper = CreateShaderHelperOrSkip();
+        int compactProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_compact_pages.csh");
+
+        const int chunkSlotCount = 8;
+        const uint frameStamp = 1u;
+        const uint maxRequests = 32u;
+
+        // Pretend "everything is visible": stamp every (chunkSlot, vpage) as used in frameStamp.
+        using var usageStamp = Texture3D.Create(
+            128,
+            128,
+            chunkSlotCount,
+            PixelInternalFormat.R32ui,
+            filter: TextureFilterMode.Nearest,
+            textureTarget: TextureTarget.Texture2DArray,
+            debugName: "Test_PageUsageStamp");
+        uint[] data = new uint[128 * 128 * chunkSlotCount];
+        Array.Fill(data, frameStamp);
+        usageStamp.UploadDataImmediate(data, 0, 0, 0, 128, 128, chunkSlotCount);
+
+        using var requests = CreateSsbo<RequestGpu>("Test_PageRequests", capacityItems: (int)maxRequests, sentinel: Sentinel);
+        using var counter = CreateAtomicCounterBuffer(initialValue: 0u);
+
+        var seen = new bool[chunkSlotCount];
+
+        GL.UseProgram(compactProgram);
+        counter.BindBase(bindingIndex: 0);
+        requests.BindBase(bindingIndex: 0);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
+
+        // Verify scanOffset rotation: offset increments by VirtualPagesPerChunk each "frame"
+        // and should rotate the dominant slot for the bounded request list.
+        const uint virtualPagesPerChunk = 128u * 128u;
+        for (uint f = 0; f < (uint)chunkSlotCount; f++)
+        {
+            counter.Upload(value: 0u);
+
+            SetUniform(compactProgram, "vge_maxRequests", maxRequests);
+            SetUniform(compactProgram, "vge_frameStamp", frameStamp);
+            SetUniform(compactProgram, "vge_scanOffset", f * virtualPagesPerChunk);
+
+            // Dispatch only a single workgroup so the outcome is deterministic (no cross-workgroup atomic ordering).
+            // This validates the scanOffset mapping logic itself (slot rotation), which is the core fairness mechanism.
+            GL.DispatchCompute(1, 1, 1);
+            GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+            uint written = counter.Read();
+            Assert.Equal(256u, written);
+
+            RequestGpu[] outReq = requests.ReadBack(count: (int)maxRequests);
+            uint expectedSlot = f % (uint)chunkSlotCount;
+
+            Assert.True(outReq.Length > 0);
+
+            // The first maxRequests entries should be dominated by the expected slot for this offset.
+            for (int i = 0; i < outReq.Length; i++)
+            {
+                Assert.Equal(expectedSlot, outReq[i].ChunkSlot);
+            }
+
+            seen[expectedSlot] = true;
+        }
+
+        for (int s = 0; s < seen.Length; s++)
+        {
+            Assert.True(seen[s], $"Expected scanOffset to eventually return requests for chunkSlot={s}.");
+        }
+
+        GL.DeleteProgram(compactProgram);
+    }
+
+    [Fact]
     public void FeedbackGather_DeduplicatesViaStampTexture_AndEmitsUniqueRequests()
     {
         EnsureContextValid();
@@ -305,6 +381,13 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
             GL.GetBufferSubData(BufferTarget.AtomicCounterBuffer, IntPtr.Zero, sizeof(uint), ref value);
             GL.BindBuffer(BufferTarget.AtomicCounterBuffer, 0);
             return value;
+        }
+
+        public void Upload(uint value)
+        {
+            GL.BindBuffer(BufferTarget.AtomicCounterBuffer, bufferId);
+            GL.BufferSubData(BufferTarget.AtomicCounterBuffer, IntPtr.Zero, sizeof(uint), ref value);
+            GL.BindBuffer(BufferTarget.AtomicCounterBuffer, 0);
         }
 
         public void Dispose()

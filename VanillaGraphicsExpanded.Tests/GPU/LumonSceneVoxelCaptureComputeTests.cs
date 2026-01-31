@@ -79,6 +79,79 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
     }
 
     [Fact]
+    public void CaptureVoxel_MultiChunkSlots_WritesPatchMetadataOriginFromChunkSlotInfo()
+    {
+        EnsureContextValid();
+
+        using var helper = CreateShaderHelperOrSkip();
+        int program = CompileAndLinkCompute(helper, "lumonscene_capture_voxel.csh");
+
+        const int tileSize = 16;
+        const int tilesPerAxis = 2;
+        const int tilesPerAtlas = tilesPerAxis * tilesPerAxis;
+        const int atlasCount = 1;
+
+        int w = tileSize * tilesPerAxis;
+        int h = tileSize * tilesPerAxis;
+
+        using var depthAtlas = Texture3D.Create(w, h, atlasCount, PixelInternalFormat.R16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_DepthAtlas");
+        using var materialAtlas = Texture3D.Create(w, h, atlasCount, PixelInternalFormat.Rgba8, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_MaterialAtlas");
+        ClearR16f2DArray(depthAtlas.TextureId, w, h, atlasCount, value: 1f);
+        ClearRgba8_2DArray(materialAtlas.TextureId, w, h, atlasCount, r: 0, g: 0, b: 0, a: 0);
+
+        // Two pages, same patchId, different chunkSlots.
+        Span<LumonSceneCaptureWorkGpu> work = stackalloc LumonSceneCaptureWorkGpu[2];
+        work[0] = new LumonSceneCaptureWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: 1u, virtualPageIndex: 0u);
+        work[1] = new LumonSceneCaptureWorkGpu(physicalPageId: 2u, chunkSlot: 1u, patchId: 1u, virtualPageIndex: 0u);
+
+        using var workSsbo = CreateSsbo<LumonSceneCaptureWorkGpu>("Test_WorkSSBO", work);
+        using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[3]);
+
+        // Slot 0 origin=(0,0,0); slot 1 origin=(32,0,0). Generation=0.
+        using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new[] { 0, 0, 0, 0, 32, 0, 0, 0 });
+
+        GL.UseProgram(program);
+        workSsbo.BindBase(bindingIndex: 0);
+        patchMetaSsbo.BindBase(bindingIndex: 1);
+        slotInfoSsbo.BindBase(bindingIndex: 2);
+
+        GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
+        GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
+
+        SetUniform(program, "vge_tileSizeTexels", (uint)tileSize);
+        SetUniform(program, "vge_tilesPerAxis", (uint)tilesPerAxis);
+        SetUniform(program, "vge_tilesPerAtlas", (uint)tilesPerAtlas);
+        _ = TrySetUniform(program, "vge_borderTexels", 0u);
+
+        int gx = (tileSize + 7) / 8;
+        int gy = (tileSize + 7) / 8;
+        GL.DispatchCompute(gx, gy, 2);
+        GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
+
+        using var mapped = patchMetaSsbo.MapRange<LumonScenePatchMetadataGpu>(dstOffsetBytes: 0, elementCount: 3, access: MapBufferAccessMask.MapReadBit);
+        Assert.True(mapped.IsMapped);
+
+        LumonScenePatchMetadataGpu m0 = mapped.Span[1];
+        LumonScenePatchMetadataGpu m1 = mapped.Span[2];
+
+        Assert.Equal(0u, m0.ChunkSlot);
+        Assert.Equal(1u, m1.ChunkSlot);
+        Assert.Equal(1u, m0.PatchId);
+        Assert.Equal(1u, m1.PatchId);
+
+        // patchId=1 => +X face, plane=0, patchU=0, patchV=0 => origin = chunkOrigin + (1,0,0).
+        Assert.InRange(m0.OriginWS.X, 0.99f, 1.01f);
+        Assert.InRange(m0.OriginWS.Y, -0.01f, 0.01f);
+        Assert.InRange(m0.OriginWS.Z, -0.01f, 0.01f);
+
+        Assert.InRange(m1.OriginWS.X, 32.99f, 33.01f);
+        Assert.InRange(m1.OriginWS.Y, -0.01f, 0.01f);
+        Assert.InRange(m1.OriginWS.Z, -0.01f, 0.01f);
+
+        GL.DeleteProgram(program);
+    }
+
+    [Fact]
     public void CaptureVoxel_MultiplePages_AddressingDoesNotOverlap_AndRespectsAtlasLayer()
     {
         EnsureContextValid();
