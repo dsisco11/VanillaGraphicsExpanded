@@ -17,6 +17,9 @@ Proper multi-`chunkSlot` support requires treating `(chunkSlot, virtualPageIndex
 with deterministic, stable mapping from world chunk coords → chunk slot indices, plus lifecycle handling
 when slots are reused.
 
+Phase 1 contract note:
+- `docs/LumOn.22-LumonScene-ChunkSlots.Phase1.Contracts.md`
+
 
 ## Definitions / Intended Semantics
 
@@ -222,4 +225,3 @@ Capture and relight then use:
 Even if `chunkSlot` is always 0 (as it is for terrain), patchIds are **chunk-local** and repeat across chunks.
 With many chunks visible, distinct surfaces alias into the same `(chunkSlot=0, virtualPageIndex)` space, so you do not get
 “one set of tiles per chunk”; you get one set of tiles total, continuously overwritten.
-

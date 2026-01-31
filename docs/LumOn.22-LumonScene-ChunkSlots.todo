@@ -9,14 +9,14 @@ Non-goals (for this todo)
 
 
 Phase 1 - Decide Slot Topology + Contracts
-- [ ] Decide whether the surface cache window is 2D (XZ) or 3D (XYZ) in chunk units.
-- [ ] Specify window dimensions in chunks (W×D or W×H×D).
-- [ ] Specify `originMinChunk` and ring offsets.
-- [ ] Define `chunkSlotCount` relationship to window dimensions.
-- [ ] Define deterministic mapping: `chunkCoord -> localIndex -> ring-wrapped chunkSlot`.
-- [ ] Define per-slot generation semantics (counter, wrap, stale rejection).
-- [ ] Decide where generation is encoded (PatchIdGBuffer.x high bits vs PatchIdGBuffer.w).
-- [ ] Write a short “CPU/GPU contract” note for chunkSlot + generation.
+- [x] Decide whether the surface cache window is 2D (XZ) or 3D (XYZ) in chunk units.
+- [x] Specify window dimensions in chunks (W×D or W×H×D).
+- [x] Specify `originMinChunk` and ring offsets.
+- [x] Define `chunkSlotCount` relationship to window dimensions.
+- [x] Define deterministic mapping: `chunkCoord -> localIndex -> ring-wrapped chunkSlot`.
+- [x] Define per-slot generation semantics (counter, wrap, stale rejection).
+- [x] Decide where generation is encoded (PatchIdGBuffer.x high bits vs PatchIdGBuffer.w).
+- [x] Write a short “CPU/GPU contract” note for chunkSlot + generation.
 
 
 Phase 2 - PatchIdGBuffer: Encode Real chunkSlot (+ optional generation)
