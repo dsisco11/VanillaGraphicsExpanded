@@ -25,6 +25,7 @@ internal sealed class HudLumOnStatsPanel : HudElement
     private const string Line2Key = "line2";
     private const string Line3Key = "line3";
     private const string Line4Key = "line4";
+    private const string Line5Key = "line5";
 
     private readonly LumOnModSystem lumOn;
 
@@ -71,8 +72,10 @@ internal sealed class HudLumOnStatsPanel : HudElement
         ElementBounds line3Bounds = ElementBounds.Fixed(0, y, PanelWidth, LineHeight);
         y += LineHeight + Spacing;
         ElementBounds line4Bounds = ElementBounds.Fixed(0, y, PanelWidth, LineHeight);
+        y += LineHeight + Spacing;
+        ElementBounds line5Bounds = ElementBounds.Fixed(0, y, PanelWidth, LineHeight);
 
-        bgBounds.WithChildren(line0Bounds, line1Bounds, line2Bounds, line3Bounds, line4Bounds);
+        bgBounds.WithChildren(line0Bounds, line1Bounds, line2Bounds, line3Bounds, line4Bounds, line5Bounds);
 
         ElementBounds dialogBounds = bgBounds
             .ForkBoundingParent()
@@ -88,6 +91,7 @@ internal sealed class HudLumOnStatsPanel : HudElement
             .AddDynamicText(string.Empty, CairoFont.WhiteSmallText(), line2Bounds, Line2Key)
             .AddDynamicText(string.Empty, CairoFont.WhiteSmallText(), line3Bounds, Line3Key)
             .AddDynamicText(string.Empty, CairoFont.WhiteSmallText(), line4Bounds, Line4Key)
+            .AddDynamicText(string.Empty, CairoFont.WhiteSmallText(), line5Bounds, Line5Key)
             .Compose();
     }
 
@@ -111,6 +115,7 @@ internal sealed class HudLumOnStatsPanel : HudElement
         SingleComposer.GetDynamicText(Line2Key).SetNewText(GetLine(lines, 2));
         SingleComposer.GetDynamicText(Line3Key).SetNewText(GetLine(lines, 3));
         SingleComposer.GetDynamicText(Line4Key).SetNewText(GetLine(lines, 4));
+        SingleComposer.GetDynamicText(Line5Key).SetNewText(GetLine(lines, 5));
     }
 
     private static bool AreSameLines(string[] a, string[] b)

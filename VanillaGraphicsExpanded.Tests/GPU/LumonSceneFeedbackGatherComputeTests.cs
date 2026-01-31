@@ -20,19 +20,21 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
     public LumonSceneFeedbackGatherComputeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     [Fact]
-    public void FeedbackGather_EmitsRequests_ForNonZeroPatchIds()
+    public void FeedbackGather_DeduplicatesViaStampTexture_AndEmitsUniqueRequests()
     {
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_feedback_gather.csh");
+        int markProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_mark_pages.csh");
+        int compactProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_compact_pages.csh");
 
         const int w = 8;
         const int h = 8;
 
         using var patchId = Texture2D.Create(w, h, PixelInternalFormat.Rgba32ui, debugName: "Test_PatchIdGBuffer");
+        using var usageStamp = Texture2D.Create(128, 128, PixelInternalFormat.R32ui, debugName: "Test_PageUsageStamp");
+        usageStamp.UploadDataImmediate(new uint[128 * 128]);
 
-        // RGBA32UI per texel: (chunkSlot, patchId, packedUv, misc)
         uint[] pid = new uint[w * h * 4];
         void Set(int x, int y, uint chunkSlot, uint patch)
         {
@@ -46,10 +48,13 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         // patchId==0 should be ignored.
         Set(0, 0, chunkSlot: 0u, patch: 0u);
 
-        // A few sparse requests (mix chunkSlot for contract validation; v1 runtime only uses slot 0).
+        // A few sparse requests (v2 only supports chunkSlot==0 end-to-end).
         Set(1, 0, chunkSlot: 0u, patch: 1u);
-        Set(2, 3, chunkSlot: 5u, patch: 777u);
-        Set(7, 7, chunkSlot: 2u, patch: 65535u);
+        Set(2, 3, chunkSlot: 0u, patch: 777u);
+        Set(7, 7, chunkSlot: 0u, patch: 12000u);
+
+        // Non-zero chunk slot should be ignored by v2 gather.
+        Set(3, 3, chunkSlot: 5u, patch: 2u);
 
         patchId.UploadDataImmediate(pid);
 
@@ -57,18 +62,22 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         using var requests = CreateSsbo<RequestGpu>("Test_PageRequests", capacityItems: (int)capacity, sentinel: Sentinel);
         using var counter = CreateAtomicCounterBuffer(initialValue: 0u);
 
-        GL.UseProgram(program);
+        // Pass A: mark pages.
+        GL.UseProgram(markProgram);
+        BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchId.TextureId, unit: 0);
+        SetUniform(markProgram, "vge_frameStamp", 1u);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
+        GL.DispatchCompute((w + 7) / 8, (h + 7) / 8, 1);
+        GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
-        // Match shader bindings:
-        // - atomic counter binding=0
-        // - SSBO binding=0
+        // Pass B: compact stamps -> unique requests list.
+        GL.UseProgram(compactProgram);
         counter.BindBase(bindingIndex: 0);
         requests.BindBase(bindingIndex: 0);
-
-        BindSampler2DUint(program, "vge_patchIdGBuffer", patchId.TextureId, unit: 0);
-        SetUniform(program, "vge_maxRequests", capacity);
-
-        GL.DispatchCompute((w + 7) / 8, (h + 7) / 8, 1);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
+        SetUniform(compactProgram, "vge_maxRequests", capacity);
+        SetUniform(compactProgram, "vge_frameStamp", 1u);
+        GL.DispatchCompute((16384 + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         uint requestCount = counter.Read();
@@ -76,12 +85,11 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
 
         RequestGpu[] outReq = requests.ReadBack(count: (int)requestCount);
 
-        // Ordering is not stable; verify as a multiset.
         var expected = new Dictionary<RequestGpu, int>(RequestGpuComparer.Instance)
         {
-            [new RequestGpu(0u, 1u % 16384u, 0u, 1u)] = 1,
-            [new RequestGpu(5u, 777u % 16384u, 0u, 777u)] = 1,
-            [new RequestGpu(2u, 65535u % 16384u, 0u, 65535u)] = 1,
+            [new RequestGpu(0u, 1u, 0u, 1u)] = 1,
+            [new RequestGpu(0u, 777u, 0u, 777u)] = 1,
+            [new RequestGpu(0u, 12000u, 0u, 12000u)] = 1,
         };
 
         foreach (var req in outReq)
@@ -95,123 +103,62 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
             Assert.Equal(0, kvp.Value);
         }
 
-        GL.DeleteProgram(program);
+        GL.DeleteProgram(markProgram);
+        GL.DeleteProgram(compactProgram);
     }
 
     [Fact]
-    public void FeedbackGather_RespectsMaxRequests_AndDoesNotWritePastCapacity()
+    public void FeedbackGather_DeduplicatesDuplicatePatchIds()
     {
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_feedback_gather.csh");
+        int markProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_mark_pages.csh");
+        int compactProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_compact_pages.csh");
 
         const int w = 16;
         const int h = 16;
 
         using var patchId = Texture2D.Create(w, h, PixelInternalFormat.Rgba32ui, debugName: "Test_PatchIdGBuffer");
+        using var usageStamp = Texture2D.Create(128, 128, PixelInternalFormat.R32ui, debugName: "Test_PageUsageStamp");
+        usageStamp.UploadDataImmediate(new uint[128 * 128]);
 
-        // All pixels request the same patchId (duplicates are expected).
         uint[] pid = new uint[w * h * 4];
         for (int i = 0; i < w * h; i++)
         {
-            pid[i * 4 + 0] = 0u;     // chunkSlot
-            pid[i * 4 + 1] = 777u;   // patchId
+            pid[i * 4 + 0] = 0u;
+            pid[i * 4 + 1] = 777u;
             pid[i * 4 + 2] = 0u;
             pid[i * 4 + 3] = 0u;
         }
         patchId.UploadDataImmediate(pid);
 
-        // Allocate more SSBO entries than maxRequests so we can verify untouched entries remain sentinel.
-        const uint ssboCapacity = 16;
-        const uint maxRequests = 8;
-
-        using var requests = CreateSsbo<RequestGpu>("Test_PageRequests", capacityItems: (int)ssboCapacity, sentinel: Sentinel);
-        using var counter = CreateAtomicCounterBuffer(initialValue: 0u);
-
-        GL.UseProgram(program);
-        counter.BindBase(bindingIndex: 0);
-        requests.BindBase(bindingIndex: 0);
-
-        BindSampler2DUint(program, "vge_patchIdGBuffer", patchId.TextureId, unit: 0);
-        SetUniform(program, "vge_maxRequests", maxRequests);
-
-        GL.DispatchCompute((w + 7) / 8, (h + 7) / 8, 1);
-        GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
-
-        // Counter increments for all valid pixels, even when idx >= maxRequests.
-        Assert.Equal((uint)(w * h), counter.Read());
-
-        RequestGpu[] outReq = requests.ReadBack(count: (int)ssboCapacity);
-
-        // First maxRequests entries should be written; remaining must remain sentinel.
-        for (int i = 0; i < (int)ssboCapacity; i++)
-        {
-            if (i < maxRequests)
-            {
-                Assert.Equal(0u, outReq[i].ChunkSlot);
-                Assert.Equal(777u % 16384u, outReq[i].VirtualPageIndex);
-                Assert.Equal(0u, outReq[i].Mip);
-                Assert.Equal(777u, outReq[i].PatchId);
-            }
-            else
-            {
-                Assert.Equal(Sentinel, outReq[i]);
-            }
-        }
-
-        GL.DeleteProgram(program);
-    }
-
-    [Fact]
-    public void FeedbackGather_AllowsDuplicatePatchIds()
-    {
-        EnsureContextValid();
-
-        using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_feedback_gather.csh");
-
-        const int w = 8;
-        const int h = 8;
-
-        using var patchId = Texture2D.Create(w, h, PixelInternalFormat.Rgba32ui, debugName: "Test_PatchIdGBuffer");
-
-        uint[] pid = new uint[w * h * 4];
-        for (int i = 0; i < w * h; i++)
-        {
-            pid[i * 4 + 0] = 5u;     // chunkSlot
-            pid[i * 4 + 1] = 42u;    // patchId
-            pid[i * 4 + 2] = 0u;
-            pid[i * 4 + 3] = 0u;
-        }
-        patchId.UploadDataImmediate(pid);
-
-        const uint capacity = (uint)(w * h);
+        const uint capacity = 16;
         using var requests = CreateSsbo<RequestGpu>("Test_PageRequests", capacityItems: (int)capacity, sentinel: Sentinel);
         using var counter = CreateAtomicCounterBuffer(initialValue: 0u);
 
-        GL.UseProgram(program);
+        GL.UseProgram(markProgram);
+        BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchId.TextureId, unit: 0);
+        SetUniform(markProgram, "vge_frameStamp", 1u);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
+        GL.DispatchCompute((w + 7) / 8, (h + 7) / 8, 1);
+        GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GL.UseProgram(compactProgram);
         counter.BindBase(bindingIndex: 0);
         requests.BindBase(bindingIndex: 0);
-
-        BindSampler2DUint(program, "vge_patchIdGBuffer", patchId.TextureId, unit: 0);
-        SetUniform(program, "vge_maxRequests", capacity);
-
-        GL.DispatchCompute((w + 7) / 8, (h + 7) / 8, 1);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
+        SetUniform(compactProgram, "vge_maxRequests", capacity);
+        SetUniform(compactProgram, "vge_frameStamp", 1u);
+        GL.DispatchCompute((16384 + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
-        Assert.Equal(capacity, counter.Read());
+        Assert.Equal(1u, counter.Read());
+        RequestGpu[] outReq = requests.ReadBack(count: 1);
+        Assert.Equal(new RequestGpu(0u, 777u, 0u, 777u), outReq[0]);
 
-        RequestGpu[] outReq = requests.ReadBack(count: (int)capacity);
-        for (int i = 0; i < outReq.Length; i++)
-        {
-            Assert.Equal(5u, outReq[i].ChunkSlot);
-            Assert.Equal(42u % 16384u, outReq[i].VirtualPageIndex);
-            Assert.Equal(0u, outReq[i].Mip);
-            Assert.Equal(42u, outReq[i].PatchId);
-        }
-
-        GL.DeleteProgram(program);
+        GL.DeleteProgram(markProgram);
+        GL.DeleteProgram(compactProgram);
     }
 
     private static readonly RequestGpu Sentinel = new(0xFFFF_FFFFu, 0xFFFF_FFFFu, 0xFFFF_FFFFu, 0xFFFF_FFFFu);
@@ -305,7 +252,6 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         int bytes = checked(capacityItems * Marshal.SizeOf<T>());
         ssbo.EnsureCapacity(bytes, growExponentially: false);
 
-        // Fill with sentinel.
         T[] init = new T[capacityItems];
         for (int i = 0; i < init.Length; i++) init[i] = sentinel;
         ssbo.UploadSubData(init, dstOffsetBytes: 0, byteCount: bytes);

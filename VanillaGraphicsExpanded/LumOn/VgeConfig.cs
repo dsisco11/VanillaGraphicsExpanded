@@ -26,6 +26,13 @@ public class VgeConfig
         public bool LumOnStatsOverlayEnabled { get; set; } = false;
 
         /// <summary>
+        /// Enables periodic runtime self-check logging and augments the stats overlay with LumonScene pipeline diagnostics.
+        /// Intended to debug cases like "IrradianceAtlas stays mostly black".
+        /// </summary>
+        [JsonProperty]
+        public bool LumOnRuntimeSelfCheckEnabled { get; set; } = false;
+
+        /// <summary>
         /// Debug viewer persisted state (which views are currently enabled/active).
         /// </summary>
         [JsonProperty]

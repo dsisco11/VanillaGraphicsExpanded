@@ -35,8 +35,12 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     private readonly LumonScenePhysicalPoolManager physicalPools = new();
     private readonly LumonSceneFieldGpuResources nearGpu = new(LumonSceneField.Near);
 
-    private GpuComputePipeline? feedbackGatherPipeline;
+    private GpuComputePipeline? feedbackMarkPipeline;
+    private GpuComputePipeline? feedbackCompactPipeline;
     private GpuComputePipeline? captureVoxelPipeline;
+
+    private Texture2D? pageUsageStamp;
+    private uint feedbackFrameStamp = 1u;
 
     private readonly LumonScenePageTableEntry[] pageTableMirror = new LumonScenePageTableEntry[VirtualPagesPerChunk];
     private readonly System.Collections.Generic.Dictionary<int, uint> virtualToPhysical = new();
@@ -46,6 +50,17 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
     private bool configured;
     private int lastPlanHash;
+
+
+    private uint lastRequestCount;
+    private int lastRequestsRead;
+    private int lastRequestsProcessed;
+    private int lastCaptureCount;
+    private int lastRelightCount;
+    private LumonSceneFeedbackRequestProcessor.ProcessStats lastProcessStats;
+    private int lastUniqueVirtualPages;
+    private int lastTopVirtualPage;
+    private int lastTopVirtualPageCount;
 
     private int recaptureAllRequested;
     private int[]? recaptureVirtualPages;
@@ -190,30 +205,64 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
         EnsureConfigured();
 
-        if (!EnsureFeedbackGatherPipeline())
+        EnsurePageUsageStampCreated();
+
+        if (!EnsureFeedbackMarkPipeline() || !EnsureFeedbackCompactPipeline())
         {
             return;
         }
 
-        nearGpu.PageRequests.Reset();
+        uint frameStamp = feedbackFrameStamp++;
+        if (frameStamp == 0u) frameStamp = feedbackFrameStamp++; // avoid 0 as a valid stamp
 
-        using (feedbackGatherPipeline!.UseScope())
+        // Pass A: mark visible pages into a dedup stamp texture.
+        using (feedbackMarkPipeline!.UseScope())
         {
-            // Bind inputs/outputs.
-            _ = feedbackGatherPipeline.ProgramLayout.TryBindSamplerTexture(
+            _ = feedbackMarkPipeline.ProgramLayout.TryBindSamplerTexture(
                 samplerUniformName: "vge_patchIdGBuffer",
                 target: TextureTarget.Texture2D,
                 textureId: patchIdTex,
                 samplerId: 0);
 
-            nearGpu.PageRequests.Counter.BindBase(bindingIndex: 0);
-            nearGpu.PageRequests.Items.BindBase(bindingIndex: 0);
+            _ = feedbackMarkPipeline.ProgramLayout.TryBindImageTexture(
+                imageUniformName: "vge_pageUsageStamp",
+                texture: pageUsageStamp!,
+                access: TextureAccess.ReadWrite,
+                level: 0,
+                layered: false,
+                layer: 0,
+                formatOverride: SizedInternalFormat.R32ui);
 
-            _ = feedbackGatherPipeline.TrySetUniform1("vge_maxRequests", (uint)nearGpu.PageRequests.CapacityItems);
+            _ = feedbackMarkPipeline.TrySetUniform1("vge_frameStamp", frameStamp);
 
             int gx = (capi.Render.FrameWidth + 7) / 8;
             int gy = (capi.Render.FrameHeight + 7) / 8;
             GL.DispatchCompute(gx, gy, 1);
+        }
+
+        GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
+
+        // Pass B: compact stamps -> bounded request list.
+        nearGpu.PageRequests.Reset();
+        using (feedbackCompactPipeline!.UseScope())
+        {
+            _ = feedbackCompactPipeline.ProgramLayout.TryBindImageTexture(
+                imageUniformName: "vge_pageUsageStamp",
+                texture: pageUsageStamp!,
+                access: TextureAccess.ReadOnly,
+                level: 0,
+                layered: false,
+                layer: 0,
+                formatOverride: SizedInternalFormat.R32ui);
+
+            nearGpu.PageRequests.Counter.BindBase(bindingIndex: 0);
+            nearGpu.PageRequests.Items.BindBase(bindingIndex: 0);
+
+            _ = feedbackCompactPipeline.TrySetUniform1("vge_maxRequests", (uint)nearGpu.PageRequests.CapacityItems);
+            _ = feedbackCompactPipeline.TrySetUniform1("vge_frameStamp", frameStamp);
+
+            int gx = (VirtualPagesPerChunk + 255) / 256;
+            GL.DispatchCompute(gx, 1, 1);
         }
 
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit);
@@ -234,11 +283,17 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     {
         capi.Event.LeaveWorld -= OnLeaveWorld;
 
-        feedbackGatherPipeline?.Dispose();
-        feedbackGatherPipeline = null;
+        feedbackMarkPipeline?.Dispose();
+        feedbackMarkPipeline = null;
+
+        feedbackCompactPipeline?.Dispose();
+        feedbackCompactPipeline = null;
 
         captureVoxelPipeline?.Dispose();
         captureVoxelPipeline = null;
+
+        pageUsageStamp?.Dispose();
+        pageUsageStamp = null;
 
         nearGpu.Dispose();
     }
@@ -247,6 +302,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     {
         configured = false;
         lastPlanHash = 0;
+        feedbackFrameStamp = 1u;
 
         Array.Clear(pageTableMirror);
         virtualToPhysical.Clear();
@@ -282,6 +338,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         nearGpu.EnsureCreated();
 
         physicalPools.EnsureGpuResources();
+        EnsurePageUsageStampCreated();
 
         Array.Clear(pageTableMirror);
         virtualToPhysical.Clear();
@@ -291,21 +348,40 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         nearGpu.PageTable.EnsureCreated();
     }
 
-    private bool EnsureFeedbackGatherPipeline()
+    private void EnsurePageUsageStampCreated()
     {
-        if (feedbackGatherPipeline is not null && feedbackGatherPipeline.IsValid)
+        if (pageUsageStamp is not null && pageUsageStamp.IsValid)
+        {
+            return;
+        }
+
+        pageUsageStamp?.Dispose();
+        pageUsageStamp = Texture2D.Create(
+            width: LumonSceneVirtualAtlasConstants.VirtualPageTableWidth,
+            height: LumonSceneVirtualAtlasConstants.VirtualPageTableHeight,
+            format: PixelInternalFormat.R32ui,
+            filter: TextureFilterMode.Nearest,
+            debugName: $"LumOn.LumonScene.{LumonSceneField.Near}.PageUsageStamp(R32UI)");
+
+        // Clear to 0 once; stamps use frameStamp!=0 to avoid needing per-frame clears.
+        pageUsageStamp.UploadDataImmediate(new uint[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk]);
+    }
+
+    private bool EnsureFeedbackMarkPipeline()
+    {
+        if (feedbackMarkPipeline is not null && feedbackMarkPipeline.IsValid)
         {
             return true;
         }
 
-        feedbackGatherPipeline?.Dispose();
-        feedbackGatherPipeline = null;
+        feedbackMarkPipeline?.Dispose();
+        feedbackMarkPipeline = null;
 
-        var loc = AssetLocation.Create("shaders/lumonscene_feedback_gather.csh", ShaderImportsSystem.DefaultDomain);
+        var loc = AssetLocation.Create("shaders/lumonscene_feedback_mark_pages.csh", ShaderImportsSystem.DefaultDomain);
         IAsset? asset = capi.Assets.TryGet(loc, loadAsset: true);
         if (asset is null)
         {
-            capi.Logger.Warning("[VGE] Missing LumonScene feedback gather shader asset: {0}", loc);
+            capi.Logger.Warning("[VGE] Missing LumonScene feedback mark shader asset: {0}", loc);
             return false;
         }
 
@@ -313,22 +389,62 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
         if (!GpuComputePipeline.TryCompileAndCreateGlslPreprocessed(
             api: capi,
-            shaderName: "lumonscene_feedback_gather",
+            shaderName: "lumonscene_feedback_mark_pages",
             glslSource: src,
-            pipeline: out feedbackGatherPipeline,
+            pipeline: out feedbackMarkPipeline,
             sourceCode: out _,
             infoLog: out string infoLog,
             stageExtension: "csh",
             defines: null,
-            debugName: "LumOn.LumonScene.FeedbackGather",
+            debugName: "LumOn.LumonScene.FeedbackMarkPages",
             log: capi.Logger))
         {
-            capi.Logger.Error("[VGE] Failed to compile LumonScene feedback gather compute shader: {0}", infoLog);
-            feedbackGatherPipeline = null;
+            capi.Logger.Error("[VGE] Failed to compile LumonScene feedback mark compute shader: {0}", infoLog);
+            feedbackMarkPipeline = null;
             return false;
         }
 
-        return feedbackGatherPipeline is not null;
+        return feedbackMarkPipeline is not null;
+    }
+
+    private bool EnsureFeedbackCompactPipeline()
+    {
+        if (feedbackCompactPipeline is not null && feedbackCompactPipeline.IsValid)
+        {
+            return true;
+        }
+
+        feedbackCompactPipeline?.Dispose();
+        feedbackCompactPipeline = null;
+
+        var loc = AssetLocation.Create("shaders/lumonscene_feedback_compact_pages.csh", ShaderImportsSystem.DefaultDomain);
+        IAsset? asset = capi.Assets.TryGet(loc, loadAsset: true);
+        if (asset is null)
+        {
+            capi.Logger.Warning("[VGE] Missing LumonScene feedback compact shader asset: {0}", loc);
+            return false;
+        }
+
+        string src = asset.ToText();
+
+        if (!GpuComputePipeline.TryCompileAndCreateGlslPreprocessed(
+            api: capi,
+            shaderName: "lumonscene_feedback_compact_pages",
+            glslSource: src,
+            pipeline: out feedbackCompactPipeline,
+            sourceCode: out _,
+            infoLog: out string infoLog,
+            stageExtension: "csh",
+            defines: null,
+            debugName: "LumOn.LumonScene.FeedbackCompactPages",
+            log: capi.Logger))
+        {
+            capi.Logger.Error("[VGE] Failed to compile LumonScene feedback compact compute shader: {0}", infoLog);
+            feedbackCompactPipeline = null;
+            return false;
+        }
+
+        return feedbackCompactPipeline is not null;
     }
 
     private bool EnsureCaptureVoxelPipeline()
@@ -400,6 +516,13 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
         try
         {
+            lastRequestCount = requestCount;
+            lastRequestsRead = toRead;
+            lastRequestsProcessed = toProcess;
+            lastUniqueVirtualPages = 0;
+            lastTopVirtualPage = 0;
+            lastTopVirtualPageCount = 0;
+
             if (toProcess > 0)
             {
                 using (var mappedItems = nearGpu.PageRequests.Items.MapRange<LumonScenePageRequestGpu>(
@@ -416,6 +539,41 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                 }
             }
 
+            if (config.Debug.LumOnRuntimeSelfCheckEnabled && toProcess > 0)
+            {
+                // Debug-only: estimate request diversity for the processed batch.
+                // This helps diagnose "buffer saturated by one giant patch" starvation.
+                var counts = new System.Collections.Generic.Dictionary<int, int>();
+                int topVpage = 0;
+                int topCount = 0;
+
+                for (int i = 0; i < toProcess; i++)
+                {
+                    int vpage = (int)scratch[i].VirtualPageIndex;
+                    if ((uint)vpage >= (uint)VirtualPagesPerChunk)
+                    {
+                        continue;
+                    }
+
+                    int c = 1;
+                    if (counts.TryGetValue(vpage, out int existing))
+                    {
+                        c = existing + 1;
+                    }
+                    counts[vpage] = c;
+
+                    if (c > topCount)
+                    {
+                        topCount = c;
+                        topVpage = vpage;
+                    }
+                }
+
+                lastUniqueVirtualPages = counts.Count;
+                lastTopVirtualPage = topVpage;
+                lastTopVirtualPageCount = topCount;
+            }
+
             cpuProcessor.Process(
                 requests: scratch.AsSpan(0, toProcess),
                 maxRequestsToProcess: maxRequestsToProcess,
@@ -426,7 +584,11 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                 captureWorkOut: captureScratch,
                 relightWorkOut: relightScratch,
                 captureCount: out int captureCount,
-                relightCount: out int relightCount);
+                relightCount: out int relightCount,
+                stats: out lastProcessStats);
+
+            lastCaptureCount = captureCount;
+            lastRelightCount = relightCount;
 
             if (recaptureVirtualPages is not null && recaptureCursor >= recaptureCount)
             {
@@ -616,5 +778,45 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
         public void WriteMip0(int chunkSlot, int virtualPageIndex, uint packedEntry)
             => owner.UploadPageTableEntryMip0(chunkSlot, virtualPageIndex, packedEntry);
+    }
+
+    internal bool TryGetSelfCheckLine(out string line)
+    {
+        line = string.Empty;
+
+        if (!configured || physicalPools.Near.GpuResources is null)
+        {
+            return false;
+        }
+
+        int residentPages = virtualToPhysical.Count;
+        int cap = physicalPools.Near.PagePool.CapacityPages;
+
+        int ready = 0;
+        int needsCap = 0;
+        int needsRel = 0;
+
+        for (int i = 0; i < pageTableMirror.Length; i++)
+        {
+            var entry = pageTableMirror[i];
+            if (LumonScenePageTableEntryPacking.UnpackPhysicalPageId(entry) == 0u)
+            {
+                continue;
+            }
+
+            var flags = LumonScenePageTableEntryPacking.UnpackFlags(entry);
+            if ((flags & LumonScenePageTableEntryPacking.Flags.NeedsCapture) != 0) needsCap++;
+            if ((flags & LumonScenePageTableEntryPacking.Flags.NeedsRelight) != 0) needsRel++;
+            if (LumonScenePageTableEntryPacking.IsReadyForSampling(entry)) ready++;
+        }
+
+        line =
+            $"LS: req:{lastRequestCount} read:{lastRequestsRead} proc:{lastProcessStats.RequestsConsidered} " +
+            $"exist:{lastProcessStats.RequestsAcceptedExisting} new:{lastProcessStats.RequestsAllocatedNew} ev:{lastProcessStats.AllocationEvictions} fail:{lastProcessStats.AllocationFailures} " +
+            $"uniq:{lastUniqueVirtualPages} top:{lastTopVirtualPage}:{lastTopVirtualPageCount} " +
+            $"res:{residentPages}/{cap} ready:{ready} nc:{needsCap} nr:{needsRel} capQ:{lastCaptureCount} relQ:{lastRelightCount} " +
+            $"rc:{lastProcessStats.RecaptureSucceeded}/{lastProcessStats.RecaptureAttempted}";
+
+        return true;
     }
 }

@@ -27,6 +27,13 @@ layout(std430, binding = 0) buffer VgeRelightWork
     uvec4 vge_relightWork[]; // (physicalPageId, chunkSlot, patchId, virtualPageIndex)
 };
 
+// Optional debug counters (enabled via vge_debugCountersEnabled).
+// Bound by CPU to atomic counter binding=1, offsets in bytes.
+layout(binding = 1, offset = 0) uniform atomic_uint vge_dbgRays;
+layout(binding = 1, offset = 4) uniform atomic_uint vge_dbgHits;
+layout(binding = 1, offset = 8) uniform atomic_uint vge_dbgMisses;
+layout(binding = 1, offset = 12) uniform atomic_uint vge_dbgOobStarts;
+
 uniform uint vge_tileSizeTexels;
 uniform uint vge_tilesPerAxis;
 uniform uint vge_tilesPerAtlas;
@@ -36,6 +43,8 @@ uniform int vge_frameIndex;
 uniform uint vge_texelsPerPagePerFrame;
 uniform uint vge_raysPerTexel;
 uniform uint vge_maxDdaSteps;
+
+uniform uint vge_debugCountersEnabled;
 
 uniform ivec3 vge_occOriginMinCell0;
 uniform ivec3 vge_occRing0;
@@ -67,17 +76,20 @@ void OrthonormalBasis(vec3 n, out vec3 t, out vec3 b)
     b = cross(n, t);
 }
 
-bool TraceDdaL0(vec3 origin, vec3 dir, out ivec3 hitCell, out ivec3 hitN, out float hitT)
+bool TraceDdaL0(vec3 origin, vec3 dir, out ivec3 hitCell, out ivec3 hitN, out float hitT, out bool startedInBounds)
 {
     // Constrain to the occupancy volume; treat leaving the volume as a miss.
     ivec3 cell = ivec3(floor(origin));
     if (!OccInBounds(cell))
     {
+        startedInBounds = false;
         hitCell = ivec3(0);
         hitN = ivec3(0);
         hitT = 0.0;
         return false;
     }
+
+    startedInBounds = true;
 
     ivec3 step = ivec3(sign(dir));
     vec3 adir = abs(dir);
@@ -250,9 +262,12 @@ void main()
     vec3 acc = vec3(0.0);
     uint rays = max(1u, vge_raysPerTexel);
     uint seed0 = Squirrel3HashU(seedBase, linear, uint(vge_frameIndex));
+    bool dbg = (vge_debugCountersEnabled != 0u);
 
     for (uint r = 0u; r < rays; r++)
     {
+        if (dbg) { atomicCounterIncrement(vge_dbgRays); }
+
         float u0 = clamp(Squirrel3HashF(seed0, r, 0u), 1e-6, 1.0 - 1e-6);
         float u1 = Squirrel3HashF(seed0, r, 1u);
         vec2 u = vec2(u0, u1);
@@ -262,12 +277,22 @@ void main()
         ivec3 hitCell;
         ivec3 hitN;
         float hitT;
-        if (TraceDdaL0(origin, dir, hitCell, hitN, hitT))
+        bool startedInBounds;
+        if (TraceDdaL0(origin, dir, hitCell, hitN, hitT, startedInBounds))
         {
+            if (dbg) { atomicCounterIncrement(vge_dbgHits); }
             ivec3 outsideCell = hitCell + hitN; // outside-face convention
             vec3 radiance = ShadeHitFromOutsideCell(outsideCell);
             float falloff = 1.0 / (1.0 + hitT * hitT);
             acc += radiance * falloff;
+        }
+        else if (dbg)
+        {
+            atomicCounterIncrement(vge_dbgMisses);
+            if (!startedInBounds)
+            {
+                atomicCounterIncrement(vge_dbgOobStarts);
+            }
         }
     }
 

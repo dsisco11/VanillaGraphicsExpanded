@@ -27,6 +27,18 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
     private readonly LumonSceneOccupancyClipmapUpdateRenderer occupancy;
 
     private GpuComputePipeline? relightVoxelPipeline;
+    private GpuAtomicCounterBuffer? debugCounters;
+
+    private int lastWorkCount;
+    private uint lastDbgRays;
+    private uint lastDbgHits;
+    private uint lastDbgMisses;
+    private uint lastDbgOobStarts;
+    private int lastClearedNeedsRelightOk;
+    private int lastClearedNeedsRelightFail;
+    private VectorInt3 lastOccOriginMinCell0;
+    private VectorInt3 lastOccRing0;
+    private int lastOccResolution;
 
     private int frameIndex;
 
@@ -88,6 +100,10 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
             return;
         }
 
+        lastOccOriginMinCell0 = occOriginMinCell0;
+        lastOccRing0 = occRing0;
+        lastOccResolution = occResolution;
+
         int maxPages = cfg.RelightMaxPagesPerFrame;
         if (maxPages <= 0)
         {
@@ -139,6 +155,8 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
                 return;
             }
 
+            lastWorkCount = workCount;
+
             // Upload work buffer for GPU consumption.
             nearGpu.RelightWork.ResetAndUpload(work.AsSpan(0, workCount));
 
@@ -149,6 +167,9 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
 
             using (relightVoxelPipeline!.UseScope())
             {
+                bool dbg = config.Debug.LumOnRuntimeSelfCheckEnabled;
+                EnsureDebugCountersCreated();
+
                 nearGpu.RelightWork.Items.BindBase(bindingIndex: 0);
 
                 // Samplers (use layout(binding=...) in GLSL, cached by ProgramLayout).
@@ -180,10 +201,19 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
                 _ = relightVoxelPipeline.TrySetUniform1("vge_raysPerTexel", (uint)Math.Max(0, cfg.RelightRaysPerTexel));
                 _ = relightVoxelPipeline.TrySetUniform1("vge_maxDdaSteps", (uint)Math.Max(0, cfg.RelightMaxDdaSteps));
 
+                _ = relightVoxelPipeline.TrySetUniform1("vge_debugCountersEnabled", dbg ? 1u : 0u);
+
                 _ = relightVoxelPipeline.TrySetUniform3("vge_occOriginMinCell0", occOriginMinCell0.X, occOriginMinCell0.Y, occOriginMinCell0.Z);
                 _ = relightVoxelPipeline.TrySetUniform3("vge_occRing0", occRing0.X, occRing0.Y, occRing0.Z);
 
                 _ = relightVoxelPipeline.TrySetUniform1("vge_occResolution", occResolution);
+
+                if (debugCounters is not null && debugCounters.IsValid)
+                {
+                    Span<uint> zero = stackalloc uint[4] { 0u, 0u, 0u, 0u };
+                    debugCounters.UploadSubData((ReadOnlySpan<uint>)zero, dstOffsetBytes: 0);
+                    debugCounters.BindBase(bindingIndex: 1);
+                }
 
                 int gx = (tileSize + 7) / 8;
                 int gy = (tileSize + 7) / 8;
@@ -192,12 +222,36 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
 
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
 
+            if (config.Debug.LumOnRuntimeSelfCheckEnabled && debugCounters is not null && debugCounters.IsValid)
+            {
+                using var mapped = debugCounters.MapRange<uint>(dstOffsetBytes: 0, elementCount: 4, access: MapBufferAccessMask.MapReadBit);
+                if (mapped.IsMapped && mapped.Span.Length >= 4)
+                {
+                    lastDbgRays = mapped.Span[0];
+                    lastDbgHits = mapped.Span[1];
+                    lastDbgMisses = mapped.Span[2];
+                    lastDbgOobStarts = mapped.Span[3];
+                }
+            }
+
             // v1: clear NeedsRelight flags for the pages we just touched (best-effort).
             // Scheduling is MRU-based so pages will continue to accumulate even without the flag.
+            int clearOk = 0;
+            int clearFail = 0;
             for (int i = 0; i < workCount; i++)
             {
-                feedback.TryClearNearPageFlagsMip0(workVirtualPages[i], LumonScenePageTableEntryPacking.Flags.NeedsRelight);
+                if (feedback.TryClearNearPageFlagsMip0(workVirtualPages[i], LumonScenePageTableEntryPacking.Flags.NeedsRelight))
+                {
+                    clearOk++;
+                }
+                else
+                {
+                    clearFail++;
+                }
             }
+
+            lastClearedNeedsRelightOk = clearOk;
+            lastClearedNeedsRelightFail = clearFail;
 
             frameIndex = unchecked(frameIndex + 1);
         }
@@ -215,13 +269,53 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
 
         relightVoxelPipeline?.Dispose();
         relightVoxelPipeline = null;
+
+        debugCounters?.Dispose();
+        debugCounters = null;
     }
 
     private void OnLeaveWorld()
     {
         frameIndex = 0;
+        lastWorkCount = 0;
+        lastDbgRays = 0;
+        lastDbgHits = 0;
+        lastDbgMisses = 0;
+        lastDbgOobStarts = 0;
+        lastClearedNeedsRelightOk = 0;
+        lastClearedNeedsRelightFail = 0;
         relightVoxelPipeline?.Dispose();
         relightVoxelPipeline = null;
+
+        debugCounters?.Dispose();
+        debugCounters = null;
+    }
+
+    private void EnsureDebugCountersCreated()
+    {
+        if (debugCounters is not null && debugCounters.IsValid)
+        {
+            return;
+        }
+
+        debugCounters?.Dispose();
+        debugCounters = GpuAtomicCounterBuffer.Create(BufferUsageHint.DynamicDraw, debugName: "LumOn.LumonScene.Relight.DebugCounters(ACBO)");
+        debugCounters.InitializeCounters(counterCount: 4, initialValue: 0);
+    }
+
+    internal bool TryGetSelfCheckLine(out string line)
+    {
+        line = string.Empty;
+        if (!config.LumOn.Enabled || !config.LumOn.LumonScene.Enabled)
+        {
+            return false;
+        }
+
+        line =
+            $"LSR: pages:{lastWorkCount} clr:{lastClearedNeedsRelightOk}/{lastWorkCount} fail:{lastClearedNeedsRelightFail} " +
+            $"rays:{lastDbgRays} hit:{lastDbgHits} miss:{lastDbgMisses} oob0:{lastDbgOobStarts} " +
+            $"occ0:({lastOccOriginMinCell0.X},{lastOccOriginMinCell0.Y},{lastOccOriginMinCell0.Z}) r:({lastOccRing0.X},{lastOccRing0.Y},{lastOccRing0.Z}) res:{lastOccResolution}";
+        return true;
     }
 
     private bool EnsureRelightVoxelPipeline()

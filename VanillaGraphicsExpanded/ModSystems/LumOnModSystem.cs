@@ -29,6 +29,9 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
 
     private HudLumOnStatsPanel? lumOnStatsPanel;
 
+    private long selfCheckTickListenerId;
+    private long nextSelfCheckLogMs;
+
     private LumOnLiveConfigSnapshot? lastLiveConfigSnapshot;
 
     private readonly record struct LumOnLiveConfigSnapshot(
@@ -66,6 +69,8 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         {
             lumOnStatsPanel?.Show();
         }
+
+        selfCheckTickListenerId = api.Event.RegisterGameTickListener(OnSelfCheckTick, 250);
     }
 
     internal bool IsLumOnEnabled()
@@ -91,6 +96,9 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
 
     internal bool IsLumOnStatsOverlayShown()
         => lumOnStatsPanel?.IsOpened() ?? false;
+
+    internal bool IsLumOnRuntimeSelfCheckEnabled()
+        => ConfigModSystem.Config.Debug.LumOnRuntimeSelfCheckEnabled;
 
     internal void ToggleLumOnStatsOverlay()
     {
@@ -127,29 +135,107 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         }
     }
 
+    internal void ToggleLumOnRuntimeSelfCheck()
+    {
+        if (capi is null)
+        {
+            return;
+        }
+
+        ConfigModSystem.Config.Debug.LumOnRuntimeSelfCheckEnabled = !ConfigModSystem.Config.Debug.LumOnRuntimeSelfCheckEnabled;
+
+        try
+        {
+            capi.StoreModConfig(ConfigModSystem.Config, Constants.ConfigFileName);
+        }
+        catch
+        {
+            // ignore persistence failures
+        }
+    }
+
     internal string[] GetLumOnStatsOverlayLines()
     {
         if (!ConfigModSystem.Config.LumOn.Enabled)
         {
-            return ["LumOn: Disabled", string.Empty, string.Empty, string.Empty, string.Empty];
+            return ["LumOn: Disabled", string.Empty, string.Empty, string.Empty, string.Empty, string.Empty];
         }
 
         if (lumOnRenderer is null)
         {
-            return ["LumOn: Enabled (not initialized)", "Waiting for renderer dependencies...", string.Empty, string.Empty, "TS: init"];
+            return ["LumOn: Enabled (not initialized)", "Waiting for renderer dependencies...", string.Empty, string.Empty, "TS: init", string.Empty];
         }
 
         string[] baseLines = lumOnRenderer.DebugCounters.GetDebugLines();
-        string[] lines = new string[5];
+
+        if (ConfigModSystem.Config.Debug.LumOnRuntimeSelfCheckEnabled)
+        {
+            return
+            [
+                (uint)0 < (uint)baseLines.Length ? baseLines[0] : "LumOn: (no stats)",
+                (uint)1 < (uint)baseLines.Length ? baseLines[1] : string.Empty,
+                GetTraceSceneStatusLineSafe(),
+                (uint)3 < (uint)baseLines.Length ? baseLines[3] : string.Empty,
+                GetLumonSceneSurfaceCacheStatusLineSafe(),
+                GetLumonSceneRelightStatusLineSafe(),
+            ];
+        }
+
+        string[] lines = new string[6];
         for (int i = 0; i < 4; i++)
         {
             lines[i] = (uint)i < (uint)baseLines.Length ? baseLines[i] : string.Empty;
         }
 
-        // TraceScene (Phase 23) status as a dedicated line (row 5).
+        // TraceScene (Phase 23) status as a dedicated line (row 5), keep row 6 free for future.
         lines[4] = GetTraceSceneStatusLineSafe();
+        lines[5] = string.Empty;
 
         return lines;
+    }
+
+    private string GetLumonSceneSurfaceCacheStatusLineSafe()
+    {
+        try
+        {
+            if (!ConfigModSystem.Config.LumOn.LumonScene.Enabled)
+            {
+                return "LS: off";
+            }
+
+            if (lumonSceneFeedbackUpdateRenderer is null)
+            {
+                return "LS: init";
+            }
+
+            return lumonSceneFeedbackUpdateRenderer.TryGetSelfCheckLine(out string line) ? line : "LS: not-ready";
+        }
+        catch
+        {
+            return "LS: error";
+        }
+    }
+
+    private string GetLumonSceneRelightStatusLineSafe()
+    {
+        try
+        {
+            if (!ConfigModSystem.Config.LumOn.LumonScene.Enabled)
+            {
+                return "LSR: off";
+            }
+
+            if (lumonSceneRelightUpdateRenderer is null)
+            {
+                return "LSR: init";
+            }
+
+            return lumonSceneRelightUpdateRenderer.TryGetSelfCheckLine(out string line) ? line : "LSR: not-ready";
+        }
+        catch
+        {
+            return "LSR: error";
+        }
     }
 
     private string GetTraceSceneStatusLineSafe()
@@ -178,6 +264,35 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         {
             return "TS: error";
         }
+    }
+
+    private void OnSelfCheckTick(float dt)
+    {
+        _ = dt;
+
+        if (capi is null)
+        {
+            return;
+        }
+
+        if (!ConfigModSystem.Config.Debug.LumOnRuntimeSelfCheckEnabled)
+        {
+            return;
+        }
+
+        long nowMs = Environment.TickCount64;
+        if (nowMs < nextSelfCheckLogMs)
+        {
+            return;
+        }
+
+        nextSelfCheckLogMs = nowMs + 1000;
+
+        string ls = GetLumonSceneSurfaceCacheStatusLineSafe();
+        string lsr = GetLumonSceneRelightStatusLineSafe();
+        string ts = GetTraceSceneStatusLineSafe();
+
+        capi.Logger.Debug("[VGE] LumOn SelfCheck: {0} | {1} | {2}", ls, lsr, ts);
     }
 
     internal LumOnBufferManager? GetLumOnBufferManagerOrNull()
@@ -277,6 +392,11 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         if (capi is not null)
         {
             capi.Event.BlockChanged -= OnClientBlockChanged;
+            if (selfCheckTickListenerId != 0)
+            {
+                capi.Event.UnregisterGameTickListener(selfCheckTickListenerId);
+                selfCheckTickListenerId = 0;
+            }
         }
 
         if (commonEvents is not null)

@@ -32,6 +32,20 @@ internal sealed class LumonScenePhysicalFieldPool : IDisposable
             throw new ArgumentOutOfRangeException(nameof(newPlan), "Field mismatch.");
         }
 
+        // ConfigureFrom() is called each frame; avoid resetting residency state when the plan is unchanged.
+        // Resetting the page pool would invalidate the CPU virtual->physical mappings and cause atlas thrash/black pages.
+        if (pagePool is not null
+            && plan.TileSizeTexels == newPlan.TileSizeTexels
+            && plan.TilesPerAxis == newPlan.TilesPerAxis
+            && plan.TilesPerAtlas == newPlan.TilesPerAtlas
+            && plan.RequestedPages == newPlan.RequestedPages
+            && plan.CapacityPages == newPlan.CapacityPages
+            && plan.AtlasCount == newPlan.AtlasCount
+            && plan.IsClampedByMaxAtlases == newPlan.IsClampedByMaxAtlases)
+        {
+            return;
+        }
+
         bool needsGpuRecreate =
             gpuResources is null ||
             gpuResources.AtlasCount != newPlan.AtlasCount ||

@@ -67,11 +67,13 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Span<LumonSceneRelightWorkGpu> work = stackalloc LumonSceneRelightWorkGpu[1];
         work[0] = new LumonSceneRelightWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: patchId, virtualPageIndex: 0u);
         using var workSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_WorkSSBO", work);
+        using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
 
         GL.UseProgram(program);
 
         // SSBO binding matches shader: binding=0.
         workSsbo.BindBase(bindingIndex: 0);
+        debugCounter.BindBase(bindingIndex: 1);
 
         // Samplers use layout(binding=N): bind textures to those units.
         BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
@@ -94,6 +96,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         SetUniform(program, "vge_texelsPerPagePerFrame", (uint)(tileSize * tileSize)); // full update
         SetUniform(program, "vge_raysPerTexel", 1u);
         SetUniform(program, "vge_maxDdaSteps", 16u);
+        SetUniform(program, "vge_debugCountersEnabled", 0u);
 
         SetUniform3i(program, "vge_occOriginMinCell0", 0, 0, 0);
         SetUniform3i(program, "vge_occRing0", 0, 0, 0);
@@ -109,6 +112,86 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
         Assert.InRange(a, 0.99f, 1.01f);
         Assert.True(r > 0.001f || g > 0.001f || b > 0.001f, $"Expected non-zero irradiance, got rgb=({r},{g},{b})");
+
+        GL.DeleteProgram(program);
+    }
+
+    [Fact]
+    public void Relight_DebugCounters_EmptyOcc_ReportsAllMisses()
+    {
+        EnsureContextValid();
+
+        using var helper = CreateShaderHelperOrSkip();
+        int program = CompileAndLinkCompute(helper, "lumonscene_relight_voxel_dda.csh");
+
+        const int tileSize = 8;
+        const int atlasCount = 1;
+        const int occRes = 32;
+
+        using var depthAtlas = Texture3D.Create(tileSize, tileSize, atlasCount, PixelInternalFormat.R16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_DepthAtlas");
+        using var materialAtlas = Texture3D.Create(tileSize, tileSize, atlasCount, PixelInternalFormat.Rgba8, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_MaterialAtlas");
+        FillR16f2DArray(depthAtlas.TextureId, tileSize, tileSize, atlasCount, value: 0f);
+        FillMaterialNormalPlusZ(materialAtlas.TextureId, tileSize, tileSize, atlasCount);
+
+        using var occ = Texture3D.Create(occRes, occRes, occRes, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, TextureTarget.Texture3D, "Test_OccL0");
+        FillR32ui3D(occ.TextureId, occRes, occRes, occRes, 0u);
+
+        using var lightColorLut = Texture2D.Create(64, 1, PixelInternalFormat.Rgba16f, debugName: "Test_LightColorLut");
+        using var blockScalar = Texture2D.Create(33, 1, PixelInternalFormat.R16f, debugName: "Test_BlockScalar");
+        using var sunScalar = Texture2D.Create(33, 1, PixelInternalFormat.R16f, debugName: "Test_SunScalar");
+        UploadLightColorLut(lightColorLut, redId: 1);
+        UploadLinearScalarLut(blockScalar, scale: 1f);
+        UploadLinearScalarLut(sunScalar, scale: 0f);
+
+        using var irradiance = Texture3D.Create(tileSize, tileSize, atlasCount, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_IrradianceAtlas");
+        FillRgba16f2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount, r: 0f, g: 0f, b: 0f, a: 0f);
+
+        FindSafeSeedForOccRes(occRes, physicalPageId: 1u, virtualPageIndex: 0u, out uint patchId);
+
+        Span<LumonSceneRelightWorkGpu> work = stackalloc LumonSceneRelightWorkGpu[1];
+        work[0] = new LumonSceneRelightWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: patchId, virtualPageIndex: 0u);
+        using var workSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_WorkSSBO", work);
+
+        using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
+        debugCounter.UploadZeros(counterCount: 4);
+
+        GL.UseProgram(program);
+        workSsbo.BindBase(bindingIndex: 0);
+        debugCounter.BindBase(bindingIndex: 1);
+
+        BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
+        BindSampler(TextureTarget.Texture2DArray, unit: 1, materialAtlas.TextureId);
+        BindSampler(TextureTarget.Texture3D, unit: 2, occ.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 3, lightColorLut.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 4, blockScalar.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 5, sunScalar.TextureId);
+
+        GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
+
+        SetUniform(program, "vge_tileSizeTexels", (uint)tileSize);
+        SetUniform(program, "vge_tilesPerAxis", 1u);
+        SetUniform(program, "vge_tilesPerAtlas", 1u);
+        SetUniform(program, "vge_frameIndex", 0);
+        SetUniform(program, "vge_texelsPerPagePerFrame", (uint)(tileSize * tileSize));
+        SetUniform(program, "vge_raysPerTexel", 1u);
+        SetUniform(program, "vge_maxDdaSteps", 16u);
+        SetUniform(program, "vge_debugCountersEnabled", 1u);
+
+        SetUniform3i(program, "vge_occOriginMinCell0", 0, 0, 0);
+        SetUniform3i(program, "vge_occRing0", 0, 0, 0);
+        SetUniform(program, "vge_occResolution", occRes);
+
+        int gx = (tileSize + 7) / 8;
+        int gy = (tileSize + 7) / 8;
+        GL.DispatchCompute(gx, gy, 1);
+        GL.MemoryBarrier(MemoryBarrierFlags.AtomicCounterBarrierBit);
+
+        uint[] counters = debugCounter.Read(counterCount: 4);
+        uint expectedRays = (uint)(tileSize * tileSize);
+        Assert.Equal(expectedRays, counters[0]); // rays
+        Assert.Equal(0u, counters[1]);           // hits
+        Assert.Equal(expectedRays, counters[2]); // misses
+        Assert.Equal(0u, counters[3]);           // oob starts
 
         GL.DeleteProgram(program);
     }
@@ -146,9 +229,11 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Span<LumonSceneRelightWorkGpu> work = stackalloc LumonSceneRelightWorkGpu[1];
         work[0] = new LumonSceneRelightWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: 1u, virtualPageIndex: 0u);
         using var workSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_WorkSSBO", work);
+        using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
 
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
+        debugCounter.BindBase(bindingIndex: 1);
 
         BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
         BindSampler(TextureTarget.Texture2DArray, unit: 1, materialAtlas.TextureId);
@@ -166,6 +251,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         SetUniform(program, "vge_texelsPerPagePerFrame", (uint)(tileSize * tileSize));
         SetUniform(program, "vge_raysPerTexel", 1u);
         SetUniform(program, "vge_maxDdaSteps", 8u);
+        SetUniform(program, "vge_debugCountersEnabled", 0u);
         SetUniform3i(program, "vge_occOriginMinCell0", 0, 0, 0);
         SetUniform3i(program, "vge_occRing0", 0, 0, 0);
         SetUniform(program, "vge_occResolution", occRes);
@@ -226,9 +312,11 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Span<LumonSceneRelightWorkGpu> work = stackalloc LumonSceneRelightWorkGpu[1];
         work[0] = new LumonSceneRelightWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: patchId, virtualPageIndex: 0u);
         using var workSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_WorkSSBO", work);
+        using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
 
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
+        debugCounter.BindBase(bindingIndex: 1);
 
         BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
         BindSampler(TextureTarget.Texture2DArray, unit: 1, materialAtlas.TextureId);
@@ -245,6 +333,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         SetUniform(program, "vge_texelsPerPagePerFrame", (uint)(tileSize * tileSize));
         SetUniform(program, "vge_raysPerTexel", 1u);
         SetUniform(program, "vge_maxDdaSteps", 16u);
+        SetUniform(program, "vge_debugCountersEnabled", 0u);
         SetUniform3i(program, "vge_occOriginMinCell0", 0, 0, 0);
         SetUniform3i(program, "vge_occRing0", 0, 0, 0);
         SetUniform(program, "vge_occResolution", occRes);
@@ -268,6 +357,98 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Assert.InRange(a, 1.99f, 2.01f);
         Assert.False(float.IsNaN(r) || float.IsNaN(g) || float.IsNaN(b));
         Assert.False(float.IsInfinity(r) || float.IsInfinity(g) || float.IsInfinity(b));
+
+        GL.DeleteProgram(program);
+    }
+
+    [Fact]
+    public void Relight_HalfspaceOccupancy_FrontFacingHemisphere_AlwaysHits()
+    {
+        EnsureContextValid();
+
+        using var helper = CreateShaderHelperOrSkip();
+        int program = CompileAndLinkCompute(helper, "lumonscene_relight_voxel_dda.csh");
+
+        const int tileSize = 8;
+        const int atlasCount = 1;
+        const int occRes = 32;
+
+        using var depthAtlas = Texture3D.Create(tileSize, tileSize, atlasCount, PixelInternalFormat.R16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_DepthAtlas");
+        using var materialAtlas = Texture3D.Create(tileSize, tileSize, atlasCount, PixelInternalFormat.Rgba8, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_MaterialAtlas");
+        FillR16f2DArray(depthAtlas.TextureId, tileSize, tileSize, atlasCount, value: 0f);
+        FillMaterialNormalPlusZ(materialAtlas.TextureId, tileSize, tileSize, atlasCount);
+
+        using var lightColorLut = Texture2D.Create(64, 1, PixelInternalFormat.Rgba16f, debugName: "Test_LightColorLut");
+        using var blockScalar = Texture2D.Create(33, 1, PixelInternalFormat.R16f, debugName: "Test_BlockScalar");
+        using var sunScalar = Texture2D.Create(33, 1, PixelInternalFormat.R16f, debugName: "Test_SunScalar");
+        UploadLightColorLut(lightColorLut, redId: 1);
+        UploadLinearScalarLut(blockScalar, scale: 1f);
+        UploadLinearScalarLut(sunScalar, scale: 0f);
+
+        using var irradiance = Texture3D.Create(tileSize, tileSize, atlasCount, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_IrradianceAtlas");
+        FillRgba16f2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount, r: 0f, g: 0f, b: 0f, a: 0f);
+
+        FindSafeSeedWithLocalZForHalfspace(
+            occRes,
+            physicalPageId: 1u,
+            virtualPageIndex: 0u,
+            out uint patchId,
+            out int localZ);
+
+        int startZ = localZ + 1; // floor(localZ + 1.01)
+        uint packedSolid = LumonSceneOccupancyPacking.PackClamped(blockLevel: 32, sunLevel: 0, lightId: 1, materialPaletteIndex: 0);
+
+        using var occ = Texture3D.Create(occRes, occRes, occRes, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, TextureTarget.Texture3D, "Test_OccL0");
+        FillOccHalfspaceZ(occ.TextureId, occRes, thresholdZ: startZ, solidForZGreaterOrEqual: true, packedSolid: packedSolid);
+
+        Span<LumonSceneRelightWorkGpu> work = stackalloc LumonSceneRelightWorkGpu[1];
+        work[0] = new LumonSceneRelightWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: patchId, virtualPageIndex: 0u);
+        using var workSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_WorkSSBO", work);
+
+        using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
+        debugCounter.UploadZeros(counterCount: 4);
+
+        GL.UseProgram(program);
+        workSsbo.BindBase(bindingIndex: 0);
+        debugCounter.BindBase(bindingIndex: 1);
+
+        BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
+        BindSampler(TextureTarget.Texture2DArray, unit: 1, materialAtlas.TextureId);
+        BindSampler(TextureTarget.Texture3D, unit: 2, occ.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 3, lightColorLut.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 4, blockScalar.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 5, sunScalar.TextureId);
+
+        GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
+
+        SetUniform(program, "vge_tileSizeTexels", (uint)tileSize);
+        SetUniform(program, "vge_tilesPerAxis", 1u);
+        SetUniform(program, "vge_tilesPerAtlas", 1u);
+        SetUniform(program, "vge_frameIndex", 0);
+        SetUniform(program, "vge_texelsPerPagePerFrame", (uint)(tileSize * tileSize));
+        SetUniform(program, "vge_raysPerTexel", 1u);
+        SetUniform(program, "vge_maxDdaSteps", 8u);
+        SetUniform(program, "vge_debugCountersEnabled", 1u);
+        SetUniform3i(program, "vge_occOriginMinCell0", 0, 0, 0);
+        SetUniform3i(program, "vge_occRing0", 0, 0, 0);
+        SetUniform(program, "vge_occResolution", occRes);
+
+        int gx = (tileSize + 7) / 8;
+        int gy = (tileSize + 7) / 8;
+        GL.DispatchCompute(gx, gy, 1);
+        GL.MemoryBarrier(MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        uint[] counters = debugCounter.Read(counterCount: 4);
+        uint expectedRays = (uint)(tileSize * tileSize);
+        Assert.Equal(expectedRays, counters[0]); // rays
+        Assert.Equal(expectedRays, counters[1]); // hits
+        Assert.Equal(0u, counters[2]);           // misses
+        Assert.Equal(0u, counters[3]);           // oob starts
+
+        float[] outRgba = ReadTexImageRgba16f_2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount);
+        (float r, float g, float b, float a) = SampleRgba(outRgba, tileSize, tileSize, layer: 0, x: tileSize / 2, y: tileSize / 2);
+        Assert.InRange(a, 0.99f, 1.01f);
+        Assert.True(r > 1e-3f || g > 1e-3f || b > 1e-3f, "Expected non-zero irradiance from halfspace hits.");
 
         GL.DeleteProgram(program);
     }
@@ -308,9 +489,11 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Span<LumonSceneRelightWorkGpu> work = stackalloc LumonSceneRelightWorkGpu[1];
         work[0] = new LumonSceneRelightWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: 1u, virtualPageIndex: 0u);
         using var workSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_WorkSSBO", work);
+        using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
 
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
+        debugCounter.BindBase(bindingIndex: 1);
 
         BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
         BindSampler(TextureTarget.Texture2DArray, unit: 1, materialAtlas.TextureId);
@@ -328,6 +511,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         SetUniform(program, "vge_texelsPerPagePerFrame", (uint)(tileSize * tileSize));
         SetUniform(program, "vge_raysPerTexel", 1u);
         SetUniform(program, "vge_maxDdaSteps", 8u);
+        SetUniform(program, "vge_debugCountersEnabled", 0u);
         SetUniform3i(program, "vge_occOriginMinCell0", 0, 0, 0);
         SetUniform3i(program, "vge_occRing0", 0, 0, 0);
         SetUniform(program, "vge_occResolution", occRes);
@@ -367,6 +551,54 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         }
 
         throw new InvalidOperationException($"Unable to find a safe patchId seed for occRes={occRes}.");
+    }
+
+    private static void FindSafeSeedWithLocalZForHalfspace(int occRes, uint physicalPageId, uint virtualPageIndex, out uint patchId, out int localZ)
+    {
+        // Halfspace test needs a guaranteed in-bounds Z step:
+        // startZ == floor(localZ + 1.01) == localZ + 1, so require startZ <= res-2 => localZ <= res-3.
+        for (uint p = 1u; p < 100_000u; p++)
+        {
+            uint seedBase = Squirrel3Noise.HashU(virtualPageIndex, physicalPageId, p);
+            int x = (int)(seedBase % (uint)occRes);
+            int y = (int)(Squirrel3Noise.HashU(seedBase, 1u) % (uint)occRes);
+            int z = (int)(Squirrel3Noise.HashU(seedBase, 2u) % (uint)occRes);
+
+            if (x >= 2 && x <= occRes - 3 &&
+                y >= 2 && y <= occRes - 3 &&
+                z >= 0 && z <= occRes - 3)
+            {
+                patchId = p;
+                localZ = z;
+                return;
+            }
+        }
+
+        throw new InvalidOperationException($"Unable to find a safe patchId seed for halfspace occRes={occRes}.");
+    }
+
+    private static void FillOccHalfspaceZ(int textureId, int res, int thresholdZ, bool solidForZGreaterOrEqual, uint packedSolid)
+    {
+        thresholdZ = Math.Clamp(thresholdZ, 0, res);
+
+        uint[] data = new uint[checked(res * res * res)];
+        int idx = 0;
+        for (int z = 0; z < res; z++)
+        {
+            bool solid = solidForZGreaterOrEqual ? (z >= thresholdZ) : (z < thresholdZ);
+            uint v = solid ? packedSolid : 0u;
+            for (int y = 0; y < res; y++)
+            {
+                for (int x = 0; x < res; x++)
+                {
+                    data[idx++] = v;
+                }
+            }
+        }
+
+        GL.BindTexture(TextureTarget.Texture3D, textureId);
+        GL.TexSubImage3D(TextureTarget.Texture3D, 0, 0, 0, 0, res, res, res, PixelFormat.RedInteger, PixelType.UnsignedInt, data);
+        GL.BindTexture(TextureTarget.Texture3D, 0);
     }
 
     private static ShaderTestHelper CreateShaderHelperOrSkip()
@@ -524,6 +756,23 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         GL.BindTexture(TextureTarget.Texture2DArray, 0);
     }
 
+    private static void FillMaterialNormalPlusZ16f(int textureId, int width, int height, int depth)
+    {
+        // Exact (0.5, 0.5, 1.0) encoding so decode produces an exact +Z normal (avoids tiny tangent Z components).
+        float[] data = new float[checked(width * height * depth * 4)];
+        for (int i = 0; i < data.Length; i += 4)
+        {
+            data[i + 0] = 0.5f;
+            data[i + 1] = 0.5f;
+            data[i + 2] = 1.0f;
+            data[i + 3] = 1.0f;
+        }
+
+        GL.BindTexture(TextureTarget.Texture2DArray, textureId);
+        GL.TexSubImage3D(TextureTarget.Texture2DArray, 0, 0, 0, 0, width, height, depth, PixelFormat.Rgba, PixelType.Float, data);
+        GL.BindTexture(TextureTarget.Texture2DArray, 0);
+    }
+
     private static void FillR16f2DArray(int textureId, int width, int height, int depth, float value)
     {
         float[] data = new float[checked(width * height * depth)];
@@ -574,5 +823,54 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
     {
         int idx = (((layer * height) + y) * width + x) * 4;
         return (rgba[idx + 0], rgba[idx + 1], rgba[idx + 2], rgba[idx + 3]);
+    }
+
+    private sealed class AtomicCounterBuffer : IDisposable
+    {
+        private int bufferId;
+
+        public AtomicCounterBuffer(int bufferId) => this.bufferId = bufferId;
+
+        public void BindBase(int bindingIndex)
+        {
+            GL.BindBufferBase(BufferRangeTarget.AtomicCounterBuffer, bindingIndex, bufferId);
+        }
+
+        public void UploadZeros(int counterCount)
+        {
+            counterCount = Math.Max(1, counterCount);
+            uint[] zeros = new uint[counterCount];
+            GL.BindBuffer(BufferTarget.AtomicCounterBuffer, bufferId);
+            GL.BufferSubData(BufferTarget.AtomicCounterBuffer, IntPtr.Zero, sizeof(uint) * counterCount, zeros);
+            GL.BindBuffer(BufferTarget.AtomicCounterBuffer, 0);
+        }
+
+        public uint[] Read(int counterCount)
+        {
+            counterCount = Math.Max(1, counterCount);
+            uint[] data = new uint[counterCount];
+            GL.BindBuffer(BufferTarget.AtomicCounterBuffer, bufferId);
+            GL.GetBufferSubData(BufferTarget.AtomicCounterBuffer, IntPtr.Zero, sizeof(uint) * counterCount, data);
+            GL.BindBuffer(BufferTarget.AtomicCounterBuffer, 0);
+            return data;
+        }
+
+        public void Dispose()
+        {
+            int id = bufferId;
+            bufferId = 0;
+            if (id != 0) GL.DeleteBuffer(id);
+        }
+    }
+
+    private static AtomicCounterBuffer CreateAtomicCounterBuffer(int counterCount)
+    {
+        if (counterCount <= 0) counterCount = 1;
+
+        int id = GL.GenBuffer();
+        GL.BindBuffer(BufferTarget.AtomicCounterBuffer, id);
+        GL.BufferData(BufferTarget.AtomicCounterBuffer, sizeof(uint) * counterCount, IntPtr.Zero, BufferUsageHint.DynamicDraw);
+        GL.BindBuffer(BufferTarget.AtomicCounterBuffer, 0);
+        return new AtomicCounterBuffer(id);
     }
 }

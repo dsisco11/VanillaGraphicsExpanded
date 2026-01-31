@@ -27,7 +27,8 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int feedbackProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_gather.csh");
+        int markProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_mark_pages.csh");
+        int compactProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_compact_pages.csh");
         int captureProgram = CompileAndLinkCompute(helper, "lumonscene_capture_voxel.csh");
         int relightProgram = CompileAndLinkCompute(helper, "lumonscene_relight_voxel_dda.csh");
 
@@ -68,18 +69,16 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         const int gH = 32;
         using var patchIdGBuffer = Texture2D.Create(gW, gH, PixelInternalFormat.Rgba32ui, debugName: "Test_PatchIdGBuffer");
 
+        // v2 feedback uses a per-virtual-page stamp texture to deduplicate requests.
+        using var usageStamp = Texture2D.Create(128, 128, PixelInternalFormat.R32ui, debugName: "Test_PageUsageStamp");
+        usageStamp.UploadDataImmediate(new uint[128 * 128]);
+
         // Compute patch ids that (a) map to distinct virtual pages, and (b) are "safe" for the relight tracer.
-        // We exploit deterministic page-id allocation order: physicalPageId descends from capacity to 1.
-        uint[] patchIds = new uint[desiredPages];
-        for (int i = 0; i < desiredPages; i++)
-        {
-            uint virtualPageIndex = (uint)i;
-            uint physicalPageIdAssigned = (uint)(desiredPages - i); // LIFO allocation: first alloc gets pid=capacity, etc.
-            patchIds[i] = FindSafePatchIdForVirtualPage(
-                occRes: occRes,
-                physicalPageId: physicalPageIdAssigned,
-                virtualPageIndex: virtualPageIndex);
-        }
+        //
+        // v2 request compaction loses per-pixel patchId (by design); v1 voxel patches use the identity mapping
+        // patchId == virtualPageIndex (1..12288). To keep the relight tracer deterministic, we (1) choose only
+        // patchIds in that range and (2) sort requests by virtual page before CPU processing.
+        uint[] patchIds = FindSafeVoxelPatchIdsForSortedRequests(desiredPages: desiredPages, occRes: occRes);
 
         uint[] pidTexels = new uint[gW * gH * 4];
         for (int i = 0; i < desiredPages; i++)
@@ -88,29 +87,40 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
             int y = i / gW;
             int idx = (y * gW + x) * 4;
             pidTexels[idx + 0] = 0u;        // chunkSlot
-            pidTexels[idx + 1] = patchIds[i]; // patchId (also used as relight seed)
+            pidTexels[idx + 1] = patchIds[i]; // patchId
             pidTexels[idx + 2] = 0u;
             pidTexels[idx + 3] = 0u;
         }
         patchIdGBuffer.UploadDataImmediate(pidTexels);
 
-        // Feedback gather outputs (atomic counter + SSBO requests).
+        // Feedback outputs (atomic counter + SSBO requests).
         using var pageRequests = CreateSsbo<LumonScenePageRequestGpu>("Test_PageRequests", capacityItems: desiredPages);
         using var pageRequestCounter = CreateAtomicCounterBuffer(initialValue: 0u);
+        using var relightDebugCounter = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 4);
 
-        GL.UseProgram(feedbackProgram);
+        // Pass A: mark pages.
+        GL.UseProgram(markProgram);
+        BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
+        SetUniform(markProgram, "vge_frameStamp", 1u);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
+        GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
+        GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        // Pass B: compact stamps -> bounded request list.
+        GL.UseProgram(compactProgram);
         pageRequestCounter.BindBase(bindingIndex: 0);
         pageRequests.BindBase(bindingIndex: 0);
-        BindSampler2DUint(feedbackProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
-        SetUniform(feedbackProgram, "vge_maxRequests", (uint)desiredPages);
-
-        GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
+        SetUniform(compactProgram, "vge_maxRequests", (uint)desiredPages);
+        SetUniform(compactProgram, "vge_frameStamp", 1u);
+        GL.DispatchCompute((16384 + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
-        uint writtenRequests = (uint)desiredPages; // maxRequests == desiredPages and we wrote exactly that many pixels.
-        Assert.Equal(writtenRequests, pageRequestCounter.Read());
+        uint writtenRequests = pageRequestCounter.Read();
+        Assert.Equal((uint)desiredPages, writtenRequests);
 
-        LumonScenePageRequestGpu[] requests = pageRequests.ReadBack(count: desiredPages);
+        LumonScenePageRequestGpu[] requests = pageRequests.ReadBack(count: (int)writtenRequests);
+        Array.Sort(requests, static (a, b) => a.VirtualPageIndex.CompareTo(b.VirtualPageIndex));
 
         // GPU textures used by capture + relight.
         using var depthAtlas = Texture3D.Create(atlasW, atlasH, atlasCount, PixelInternalFormat.R16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_DepthAtlas");
@@ -151,7 +161,8 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
                 captureWorkOut: captureOut,
                 relightWorkOut: relightOut,
                 captureCount: out int captureCount,
-                relightCount: out int relightCount);
+                relightCount: out int relightCount,
+                stats: out _);
 
             Assert.Equal(captureCount, relightCount);
 
@@ -179,6 +190,7 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
             // Relight → irradiance.
             GL.UseProgram(relightProgram);
             relightSsbo.BindBase(bindingIndex: 0);
+            relightDebugCounter.BindBase(bindingIndex: 1);
 
             BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
             BindSampler(TextureTarget.Texture2DArray, unit: 1, materialAtlas.TextureId);
@@ -197,6 +209,7 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
             SetUniform(relightProgram, "vge_texelsPerPagePerFrame", (uint)(tileSize * tileSize));
             SetUniform(relightProgram, "vge_raysPerTexel", 1u);
             SetUniform(relightProgram, "vge_maxDdaSteps", 16u);
+            _ = TrySetUniform(relightProgram, "vge_debugCountersEnabled", 0u);
             SetUniform3i(relightProgram, "vge_occOriginMinCell0", 0, 0, 0);
             SetUniform3i(relightProgram, "vge_occRing0", 0, 0, 0);
             SetUniform(relightProgram, "vge_occResolution", occRes);
@@ -226,35 +239,48 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         Assert.True(pagesWithWeight >= desiredPages - 1, $"Expected most pages to have weight, got {pagesWithWeight}/{desiredPages}");
         Assert.True(pagesWithRgb >= (desiredPages * 3) / 4, $"Expected most pages to have RGB, got {pagesWithRgb}/{desiredPages}");
 
-        GL.DeleteProgram(feedbackProgram);
+        GL.DeleteProgram(markProgram);
+        GL.DeleteProgram(compactProgram);
         GL.DeleteProgram(captureProgram);
         GL.DeleteProgram(relightProgram);
     }
 
-    private static uint FindSafePatchIdForVirtualPage(int occRes, uint physicalPageId, uint virtualPageIndex)
+    private static uint[] FindSafeVoxelPatchIdsForSortedRequests(int desiredPages, int occRes)
     {
-        const uint mod = 128u * 128u;
-        Assert.True(virtualPageIndex < mod);
+        if (desiredPages <= 0) return [];
 
-        // Search patchIds that map to the desired virtual page index (v1 mapping) and keep the tracer's
-        // pseudo-surface origin away from occupancy bounds.
-        for (uint k = 0; k < 64u; k++)
+        // v1 voxel patchId encoding produces patchIds in [1..12288]. In v1/v2 we map:
+        //   virtualPageIndex = patchId % (128*128) == patchId
+        // Keep the selection deterministic and within that expected range.
+        const uint minPatchId = 1u;
+        const uint maxPatchId = 12288u;
+
+        uint[] patchIds = new uint[desiredPages];
+        int found = 0;
+
+        for (uint patchId = minPatchId; patchId <= maxPatchId && found < desiredPages; patchId++)
         {
-            uint patchId = unchecked(virtualPageIndex + k * mod);
-            if (patchId == 0u) continue;
+            uint virtualPageIndex = patchId;
+            uint physicalPageIdAssigned = (uint)(desiredPages - found); // deterministic LIFO allocation order
 
-            uint seedBase = Squirrel3Noise.HashU(virtualPageIndex, physicalPageId, patchId);
+            uint seedBase = Squirrel3Noise.HashU(virtualPageIndex, physicalPageIdAssigned, patchId);
             int x = (int)(seedBase % (uint)occRes);
             int y = (int)(Squirrel3Noise.HashU(seedBase, 1u) % (uint)occRes);
             int z = (int)(Squirrel3Noise.HashU(seedBase, 2u) % (uint)occRes);
 
+            // Keep the pseudo-surface origin away from occupancy bounds (matches relight shader's +/-2 tangent offsets).
             if (x >= 2 && x <= occRes - 3 && y >= 2 && y <= occRes - 3 && z >= 0 && z <= occRes - 2)
             {
-                return patchId;
+                patchIds[found++] = patchId;
             }
         }
 
-        throw new InvalidOperationException($"Unable to find safe patchId for vpage={virtualPageIndex}, pid={physicalPageId}, occRes={occRes}.");
+        if (found != desiredPages)
+        {
+            throw new InvalidOperationException($"Unable to find {desiredPages} safe voxel patchIds for occRes={occRes}. Found={found}.");
+        }
+
+        return patchIds;
     }
 
     private static ShaderTestHelper CreateShaderHelperOrSkip()
@@ -360,9 +386,23 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
 
     private static AtomicCounterBuffer CreateAtomicCounterBuffer(uint initialValue)
     {
+        return CreateAtomicCounterBuffer(initialValue, counterCount: 1);
+    }
+
+    private static AtomicCounterBuffer CreateAtomicCounterBuffer(uint initialValue, int counterCount)
+    {
+        if (counterCount <= 0) counterCount = 1;
+
         int id = GL.GenBuffer();
         GL.BindBuffer(BufferTarget.AtomicCounterBuffer, id);
-        GL.BufferData(BufferTarget.AtomicCounterBuffer, sizeof(uint), ref initialValue, BufferUsageHint.DynamicDraw);
+
+        uint[] data = new uint[counterCount];
+        if (initialValue != 0u)
+        {
+            Array.Fill(data, initialValue);
+        }
+
+        GL.BufferData(BufferTarget.AtomicCounterBuffer, sizeof(uint) * counterCount, data, BufferUsageHint.DynamicDraw);
         GL.BindBuffer(BufferTarget.AtomicCounterBuffer, 0);
         return new AtomicCounterBuffer(id);
     }

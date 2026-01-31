@@ -174,6 +174,7 @@ public static class VgeBuiltInDebugViews
         private bool lastViewerOpen;
         private bool lastLumOnEnabled;
         private bool lastStatsShown;
+        private bool lastSelfCheckEnabled;
 
         public ToolsPanel(ICoreClientAPI capi)
         {
@@ -195,16 +196,20 @@ public static class VgeBuiltInDebugViews
             ElementBounds b0 = ElementBounds.Fixed(0, 0, buttonW, rowH).WithParent(bounds);
             ElementBounds b1 = ElementBounds.Fixed(0, rowH + rowGapY, buttonW, rowH).WithParent(bounds);
             ElementBounds b2 = ElementBounds.Fixed(0, (rowH + rowGapY) * 2, buttonW, rowH).WithParent(bounds);
+            ElementBounds b3 = ElementBounds.Fixed(0, (rowH + rowGapY) * 3, buttonW, rowH).WithParent(bounds);
+            ElementBounds b4 = ElementBounds.Fixed(0, (rowH + rowGapY) * 4, buttonW, rowH).WithParent(bounds);
 
             bool viewerOpen = VgeDebugViewerManager.IsDialogOpen();
 
             var lumOn = capi.ModLoader.GetModSystem<LumOnModSystem>();
             bool lumOnEnabled = lumOn.IsLumOnEnabled();
             bool statsShown = lumOn.IsLumOnStatsOverlayShown();
+            bool selfCheckEnabled = lumOn.IsLumOnRuntimeSelfCheckEnabled();
 
             lastViewerOpen = viewerOpen;
             lastLumOnEnabled = lumOnEnabled;
             lastStatsShown = statsShown;
+            lastSelfCheckEnabled = selfCheckEnabled;
 
             composer
                 .AddSmallButton(
@@ -241,6 +246,41 @@ public static class VgeBuiltInDebugViews
                     style: EnumButtonStyle.Normal,
                     key: $"{keyPrefix}-lumonstats");
 
+            composer
+                .AddSmallButton(
+                    text: $"LumOn SelfCheck: {(selfCheckEnabled ? "On" : "Off")}",
+                    onClick: () =>
+                    {
+                        lumOn.ToggleLumOnRuntimeSelfCheck();
+                        TryRecompose();
+                        return true;
+                    },
+                    bounds: b3,
+                    style: EnumButtonStyle.Normal,
+                    key: $"{keyPrefix}-lumonselfcheck");
+
+            composer
+                .AddSmallButton(
+                    text: "Log LumOn Stats",
+                    onClick: () =>
+                    {
+                        try
+                        {
+                            string[] lines = lumOn.GetLumOnStatsOverlayLines();
+                            string msg = string.Join(" | ", lines ?? Array.Empty<string>()).Trim();
+                            capi.Logger.Debug("[VGE] LumOn stats snapshot: {0}", msg);
+                        }
+                        catch
+                        {
+                            capi.Logger.Debug("[VGE] LumOn stats snapshot: (error)");
+                        }
+
+                        return true;
+                    },
+                    bounds: b4,
+                    style: EnumButtonStyle.Normal,
+                    key: $"{keyPrefix}-lumonstatslog");
+
             _ = fontLabel;
         }
 
@@ -251,12 +291,17 @@ public static class VgeBuiltInDebugViews
             bool viewerOpen = VgeDebugViewerManager.IsDialogOpen();
             bool lumOnEnabled = lumOn.IsLumOnEnabled();
             bool statsShown = lumOn.IsLumOnStatsOverlayShown();
+            bool selfCheckEnabled = lumOn.IsLumOnRuntimeSelfCheckEnabled();
 
-            if (viewerOpen != lastViewerOpen || lumOnEnabled != lastLumOnEnabled || statsShown != lastStatsShown)
+            if (viewerOpen != lastViewerOpen
+                || lumOnEnabled != lastLumOnEnabled
+                || statsShown != lastStatsShown
+                || selfCheckEnabled != lastSelfCheckEnabled)
             {
                 lastViewerOpen = viewerOpen;
                 lastLumOnEnabled = lumOnEnabled;
                 lastStatsShown = statsShown;
+                lastSelfCheckEnabled = selfCheckEnabled;
                 TryRecompose();
             }
         }

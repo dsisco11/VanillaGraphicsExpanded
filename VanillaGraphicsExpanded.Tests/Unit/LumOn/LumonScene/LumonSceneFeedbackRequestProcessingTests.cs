@@ -40,7 +40,8 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             captureWorkOut: capture,
             relightWorkOut: relight,
             captureCount: out int captureCount,
-            relightCount: out int relightCount);
+            relightCount: out int relightCount,
+            stats: out _);
 
         Assert.Equal(1, captureCount);
         Assert.Equal(1, relightCount);
@@ -101,7 +102,8 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             captureWorkOut: capture,
             relightWorkOut: relight,
             captureCount: out _,
-            relightCount: out _);
+            relightCount: out _,
+            stats: out _);
 
         uint pid1 = virtualToPhysical[1];
         uint pid2 = virtualToPhysical[2];
@@ -117,7 +119,8 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             captureWorkOut: capture,
             relightWorkOut: relight,
             captureCount: out int captureCount,
-            relightCount: out int relightCount);
+            relightCount: out int relightCount,
+            stats: out _);
 
         Assert.Equal(0, captureCount);
         Assert.Equal(0, relightCount);
@@ -162,7 +165,8 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             captureWorkOut: capture,
             relightWorkOut: relight,
             captureCount: out int captureCount,
-            relightCount: out int relightCount);
+            relightCount: out int relightCount,
+            stats: out _);
 
         Assert.Equal(2, captureCount);
         Assert.Equal(2, relightCount);
@@ -206,7 +210,8 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             captureWorkOut: capture,
             relightWorkOut: relight,
             captureCount: out _,
-            relightCount: out _);
+            relightCount: out _,
+            stats: out _);
 
         // Capacity is 4 pages; after 6 unique requests, the first two should have been evicted.
         Assert.Equal(4, virtualToPhysical.Count);
@@ -259,7 +264,8 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
                 captureWorkOut: capture,
                 relightWorkOut: relight,
                 captureCount: out _,
-                relightCount: out _);
+                relightCount: out _,
+                stats: out _);
 
             if (virtualToPhysical.Count >= totalDistinct)
             {
@@ -299,4 +305,3 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
         public readonly record struct Write(int ChunkSlot, int VirtualPageIndex, uint PackedEntry);
     }
 }
-

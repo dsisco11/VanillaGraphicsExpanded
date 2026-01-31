@@ -14,6 +14,18 @@ internal interface ILumonScenePageTableWriter
 /// </summary>
 internal sealed class LumonSceneFeedbackRequestProcessor
 {
+    internal readonly record struct ProcessStats(
+        int RequestsConsidered,
+        int RequestsAcceptedExisting,
+        int RequestsAllocatedNew,
+        int RequestsSkippedChunkSlot,
+        int RequestsSkippedOobVirtualPage,
+        int RequestsSkippedBudget,
+        int AllocationEvictions,
+        int AllocationFailures,
+        int RecaptureAttempted,
+        int RecaptureSucceeded);
+
     private readonly LumonScenePhysicalFieldPool pool;
     private readonly LumonScenePageTableEntry[] pageTableMirror;
     private readonly Dictionary<int, uint> virtualToPhysical;
@@ -44,16 +56,24 @@ internal sealed class LumonSceneFeedbackRequestProcessor
         Span<LumonSceneCaptureWorkGpu> captureWorkOut,
         Span<LumonSceneRelightWorkGpu> relightWorkOut,
         out int captureCount,
-        out int relightCount)
+        out int relightCount,
+        out ProcessStats stats)
     {
         captureCount = 0;
         relightCount = 0;
+        stats = default;
 
         int toProcess = Math.Min(requests.Length, Math.Max(0, maxRequestsToProcess));
         maxNewAllocations = Math.Max(0, maxNewAllocations);
         maxRecapture = Math.Max(0, maxRecapture);
 
         int newAllocs = 0;
+        int existingAccepted = 0;
+        int skippedChunkSlot = 0;
+        int skippedOobVirtualPage = 0;
+        int skippedBudget = 0;
+        int evictions = 0;
+        int allocFailures = 0;
 
         for (int i = 0; i < toProcess; i++)
         {
@@ -62,12 +82,14 @@ internal sealed class LumonSceneFeedbackRequestProcessor
             // v1: only chunkSlot==0 supported.
             if (req.ChunkSlot != 0u)
             {
+                skippedChunkSlot++;
                 continue;
             }
 
             int vpage = (int)req.VirtualPageIndex;
             if ((uint)vpage >= (uint)LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk)
             {
+                skippedOobVirtualPage++;
                 continue;
             }
 
@@ -76,20 +98,24 @@ internal sealed class LumonSceneFeedbackRequestProcessor
             if (virtualToPhysical.TryGetValue(vpage, out uint existing))
             {
                 pool.PagePool.Touch(existing);
+                existingAccepted++;
                 continue;
             }
 
             if (newAllocs >= maxNewAllocations)
             {
+                skippedBudget++;
                 continue;
             }
 
-            if (!TryAllocateOrEvictOne(out LumonScenePhysicalPage page))
+            if (!TryAllocateOrEvictOne(out LumonScenePhysicalPage page, out bool didEvict))
             {
+                allocFailures++;
                 continue;
             }
 
             newAllocs++;
+            if (didEvict) evictions++;
 
             uint physicalPageId = page.PhysicalPageId;
             virtualToPhysical[vpage] = physicalPageId;
@@ -115,11 +141,15 @@ internal sealed class LumonSceneFeedbackRequestProcessor
             }
         }
 
+        int recaptureAttempted = 0;
+        int recaptureSucceeded = 0;
+
         // Dirty-driven recapture: re-capture some resident pages each frame until drained.
         if (!recaptureVirtualPages.IsEmpty)
         {
             for (int i = 0; i < maxRecapture && recaptureCursor < recaptureVirtualPages.Length; i++, recaptureCursor++)
             {
+                recaptureAttempted++;
                 int vpage = recaptureVirtualPages[recaptureCursor];
                 if (!virtualToPhysical.TryGetValue(vpage, out uint physicalPageId))
                 {
@@ -138,6 +168,7 @@ internal sealed class LumonSceneFeedbackRequestProcessor
                 LumonScenePageTableEntry updated = LumonScenePageTableEntryPacking.Pack(pid, flags);
                 pageTableMirror[vpage] = updated;
                 pageTableWriter.WriteMip0(chunkSlot: 0, virtualPageIndex: vpage, updated.Packed);
+                recaptureSucceeded++;
 
                 if (captureCount < captureWorkOut.Length)
                 {
@@ -150,10 +181,23 @@ internal sealed class LumonSceneFeedbackRequestProcessor
                 }
             }
         }
+
+        stats = new ProcessStats(
+            RequestsConsidered: toProcess,
+            RequestsAcceptedExisting: existingAccepted,
+            RequestsAllocatedNew: newAllocs,
+            RequestsSkippedChunkSlot: skippedChunkSlot,
+            RequestsSkippedOobVirtualPage: skippedOobVirtualPage,
+            RequestsSkippedBudget: skippedBudget,
+            AllocationEvictions: evictions,
+            AllocationFailures: allocFailures,
+            RecaptureAttempted: recaptureAttempted,
+            RecaptureSucceeded: recaptureSucceeded);
     }
 
-    private bool TryAllocateOrEvictOne(out LumonScenePhysicalPage page)
+    private bool TryAllocateOrEvictOne(out LumonScenePhysicalPage page, out bool didEvict)
     {
+        didEvict = false;
         if (pool.TryAllocate(out page))
         {
             return true;
@@ -174,8 +218,8 @@ internal sealed class LumonSceneFeedbackRequestProcessor
         }
 
         pool.Free(evictId);
+        didEvict = true;
 
         return pool.TryAllocate(out page);
     }
 }
-
