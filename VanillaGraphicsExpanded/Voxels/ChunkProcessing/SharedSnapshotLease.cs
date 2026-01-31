@@ -3,7 +3,7 @@ using System.Threading;
 
 namespace VanillaGraphicsExpanded.Voxels.ChunkProcessing;
 
-internal sealed class SharedSnapshotLease : IChunkSnapshot
+internal sealed class SharedSnapshotLease : IChunkSnapshotLease
 {
     private readonly IChunkSnapshot snapshot;
     private readonly Action release;
@@ -25,6 +25,8 @@ internal sealed class SharedSnapshotLease : IChunkSnapshot
     public int SizeY => snapshot.SizeY;
 
     public int SizeZ => snapshot.SizeZ;
+
+    public IChunkSnapshot InnerSnapshot => snapshot;
 
     public void Dispose()
     {

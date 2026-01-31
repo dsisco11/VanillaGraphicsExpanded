@@ -28,6 +28,13 @@ internal sealed class LumonSceneTraceSceneRegionProcessor : IChunkProcessor<Lumo
         ArgumentNullException.ThrowIfNull(snapshot);
         ct.ThrowIfCancellationRequested();
 
+        // ChunkProcessingService may wrap snapshots in a shared-lifetime lease. Unwrap so we can pattern-match
+        // on concrete snapshot types (PooledChunkSnapshot<TVoxel>).
+        if (snapshot is IChunkSnapshotLease lease)
+        {
+            snapshot = lease.InnerSnapshot;
+        }
+
         if (snapshot.SizeX != LumonSceneTraceSceneClipmapMath.RegionSize
             || snapshot.SizeY != LumonSceneTraceSceneClipmapMath.RegionSize
             || snapshot.SizeZ != LumonSceneTraceSceneClipmapMath.RegionSize)
