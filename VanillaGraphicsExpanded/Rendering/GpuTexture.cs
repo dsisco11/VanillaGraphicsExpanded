@@ -1056,6 +1056,43 @@ public abstract class GpuTexture : GpuResource, IDisposable
         return $"{GetType().Name}(id={textureId}, target={textureTarget}, size={width}x{height}x{depth}, format={internalFormat}, name={debugName}, disposed={IsDisposed})";
     }
 
+    public unsafe bool TryClearToZero(int mipLevel = 0)
+    {
+        if (!IsValid)
+        {
+            return false;
+        }
+
+        if (!GlExtensions.Supports("GL_ARB_clear_texture"))
+        {
+            return false;
+        }
+
+        PixelFormat format = TextureFormatHelper.GetPixelFormat(internalFormat);
+        PixelType type = TextureFormatHelper.GetPixelType(internalFormat);
+        int componentCount = GetClearComponentCount(format);
+        int typeSizeBytes = GetPixelTypeSizeBytes(type);
+        int byteCount = checked(componentCount * typeSizeBytes);
+
+        // For a clear-to-zero, a zero-initialized byte buffer works for all scalar types
+        // (including float/half-float) and packed depth-stencil types.
+        Span<byte> zero = stackalloc byte[byteCount];
+
+        try
+        {
+            fixed (byte* ptr = zero)
+            {
+                GL.ClearTexImage(textureId, level: mipLevel, format, type, (IntPtr)ptr);
+            }
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     protected override void OnDetached(nint id)
     {
     }
@@ -1187,5 +1224,34 @@ public abstract class GpuTexture : GpuResource, IDisposable
                 }
             }
         }
+    }
+
+    private static int GetClearComponentCount(PixelFormat format)
+    {
+        return format switch
+        {
+            PixelFormat.Red or PixelFormat.RedInteger => 1,
+            PixelFormat.Rg or PixelFormat.RgInteger => 2,
+            PixelFormat.Rgb => 3,
+            PixelFormat.Rgba or PixelFormat.RgbaInteger => 4,
+            PixelFormat.DepthComponent => 1,
+
+            // Packed depth-stencil types (UnsignedInt248/Float32UnsignedInt248Rev) are provided as a single value.
+            PixelFormat.DepthStencil => 1,
+
+            _ => 4
+        };
+    }
+
+    private static int GetPixelTypeSizeBytes(PixelType type)
+    {
+        return type switch
+        {
+            PixelType.UnsignedByte or PixelType.Byte => 1,
+            PixelType.UnsignedShort or PixelType.Short or PixelType.HalfFloat => 2,
+            PixelType.UnsignedInt or PixelType.Int or PixelType.Float or PixelType.UnsignedInt248 => 4,
+            PixelType.Float32UnsignedInt248Rev => 8,
+            _ => 4
+        };
     }
 }

@@ -70,8 +70,16 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         using var patchIdGBuffer = Texture2D.Create(gW, gH, PixelInternalFormat.Rgba32ui, debugName: "Test_PatchIdGBuffer");
 
         // v2 feedback uses a per-virtual-page stamp texture to deduplicate requests.
-        using var usageStamp = Texture2D.Create(128, 128, PixelInternalFormat.R32ui, debugName: "Test_PageUsageStamp");
-        usageStamp.UploadDataImmediate(new uint[128 * 128]);
+        const int chunkSlotCount = 1;
+        using var usageStamp = Texture3D.Create(
+            128,
+            128,
+            chunkSlotCount,
+            PixelInternalFormat.R32ui,
+            filter: TextureFilterMode.Nearest,
+            textureTarget: TextureTarget.Texture2DArray,
+            debugName: "Test_PageUsageStamp");
+        usageStamp.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
         // Compute patch ids that (a) map to distinct virtual pages, and (b) are "safe" for the relight tracer.
         //
@@ -102,7 +110,7 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         GL.UseProgram(markProgram);
         BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
         SetUniform(markProgram, "vge_frameStamp", 1u);
-        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
@@ -110,10 +118,11 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         GL.UseProgram(compactProgram);
         pageRequestCounter.BindBase(bindingIndex: 0);
         pageRequests.BindBase(bindingIndex: 0);
-        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
         SetUniform(compactProgram, "vge_maxRequests", (uint)desiredPages);
         SetUniform(compactProgram, "vge_frameStamp", 1u);
-        GL.DispatchCompute((16384 + 255) / 256, 1, 1);
+        SetUniform(compactProgram, "vge_scanOffset", 0u);
+        GL.DispatchCompute((16384 * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         uint writtenRequests = pageRequestCounter.Read();

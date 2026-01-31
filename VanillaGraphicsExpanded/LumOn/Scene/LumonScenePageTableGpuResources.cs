@@ -54,32 +54,7 @@ internal sealed class LumonScenePageTableGpuResources : IDisposable
             debugName: $"LumOn.LumonScene.{field}.PageTableMip0(R32UI)");
 
         // Best-effort clear-to-zero so all entries start invalid.
-        TryClearToZero(pageTableMip0);
-    }
-
-    private static unsafe void TryClearToZero(Texture3D texture)
-    {
-        if (!texture.IsValid)
-        {
-            return;
-        }
-
-        // Prefer glClearTexImage when available (GL 4.4 or ARB_clear_texture).
-        if (GlExtensions.Supports("GL_ARB_clear_texture"))
-        {
-            uint zero = 0;
-            try
-            {
-                GL.ClearTexImage(texture.TextureId, level: 0, PixelFormat.RedInteger, PixelType.UnsignedInt, (IntPtr)(&zero));
-                return;
-            }
-            catch
-            {
-                // fall through
-            }
-        }
-
-        // Fallback: do nothing (undefined contents). Callers should overwrite needed regions explicitly.
+        _ = pageTableMip0.TryClearToZero();
     }
 
     public void Dispose()

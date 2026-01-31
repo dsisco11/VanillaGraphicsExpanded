@@ -28,17 +28,17 @@ Phase 2 - PatchIdGBuffer: Encode Real chunkSlot (+ optional generation)
 
 
 Phase 3 - Feedback Dedup: Make Mark/Compact Multi-Slot
-- [ ] Replace single 128×128 stamp with per-slot stamp: `uimage2DArray vge_pageUsageStamp` sized 128×128×chunkSlotCount.
+- [x] Replace single 128×128 stamp with per-slot stamp: `uimage2DArray vge_pageUsageStamp` sized 128×128×chunkSlotCount.
 - [ ] Update `lumonscene_feedback_mark_pages.csh`:
-  - [ ] Remove `chunkSlot!=0` early-out.
-  - [ ] Mark: `imageAtomicMax(stamp, ivec3(vx,vy,chunkSlot), frameStamp)`.
+  - [x] Remove `chunkSlot!=0` early-out.
+  - [x] Mark: `imageAtomicMax(stamp, ivec3(vx,vy,chunkSlot), frameStamp)`.
   - [ ] If generation is enabled: reject mismatched generation.
 - [ ] Update `lumonscene_feedback_compact_pages.csh`:
-  - [ ] Dispatch over `(virtualPageIndex, chunkSlot)`.
-  - [ ] Output requests with real `chunkSlot`.
+  - [x] Dispatch over `(virtualPageIndex, chunkSlot)`.
+  - [x] Output requests with real `chunkSlot`.
 - [ ] Add bounded-request fairness:
-  - [ ] Choose strategy (per-slot budgets vs scan offset/round robin).
-  - [ ] Implement strategy and document expected behavior.
+  - [x] Choose strategy (per-slot budgets vs scan offset/round robin).
+  - [x] Implement strategy and document expected behavior.
 
 
 Phase 4 - CPU Residency + PageTable Mirrors: Key by (chunkSlot, vpage)

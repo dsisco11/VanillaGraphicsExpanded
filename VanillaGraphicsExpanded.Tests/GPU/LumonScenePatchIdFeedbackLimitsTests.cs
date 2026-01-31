@@ -36,8 +36,17 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         Assert.Equal(desiredPages, gW * gH);
 
         using var patchIdGBuffer = Texture2D.Create(gW, gH, PixelInternalFormat.Rgba32ui, debugName: "Test_PatchIdGBuffer");
-        using var usageStamp = Texture2D.Create(128, 128, PixelInternalFormat.R32ui, debugName: "Test_PageUsageStamp");
-        usageStamp.UploadDataImmediate(new uint[128 * 128]);
+
+        const int chunkSlotCount = 1;
+        using var usageStamp = Texture3D.Create(
+            128,
+            128,
+            chunkSlotCount,
+            PixelInternalFormat.R32ui,
+            filter: TextureFilterMode.Nearest,
+            textureTarget: TextureTarget.Texture2DArray,
+            debugName: "Test_PageUsageStamp");
+        usageStamp.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
         uint[] pidTexels = new uint[gW * gH * 4];
         for (int i = 0; i < desiredPages; i++)
@@ -57,7 +66,7 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         GL.UseProgram(markProgram);
         BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
         SetUniform1ui(markProgram, "vge_frameStamp", 1u);
-        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
@@ -65,10 +74,11 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         GL.UseProgram(compactProgram);
         pageRequestCounter.BindBase(bindingIndex: 0);
         pageRequests.BindBase(bindingIndex: 0);
-        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
         SetUniform1ui(compactProgram, "vge_maxRequests", (uint)desiredPages);
         SetUniform1ui(compactProgram, "vge_frameStamp", 1u);
-        GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk + 255) / 256, 1, 1);
+        SetUniform1ui(compactProgram, "vge_scanOffset", 0u);
+        GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         uint requestCount = ReadAtomicCounter(pageRequestCounter, counterIndex: 0);
@@ -95,7 +105,7 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
     }
 
     [Fact]
-    public void PatchIdFeedback_Mark_IgnoresNonZeroChunkSlots()
+    public void PatchIdFeedback_Mark_IgnoresChunkSlotsOutsideStampLayerRange()
     {
         EnsureContextValid();
 
@@ -108,14 +118,23 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         const int desiredPages = 32;
 
         using var patchIdGBuffer = Texture2D.Create(gW, gH, PixelInternalFormat.Rgba32ui, debugName: "Test_PatchIdGBuffer");
-        using var usageStamp = Texture2D.Create(128, 128, PixelInternalFormat.R32ui, debugName: "Test_PageUsageStamp");
-        usageStamp.UploadDataImmediate(new uint[128 * 128]);
+
+        const int chunkSlotCount = 1;
+        using var usageStamp = Texture3D.Create(
+            128,
+            128,
+            chunkSlotCount,
+            PixelInternalFormat.R32ui,
+            filter: TextureFilterMode.Nearest,
+            textureTarget: TextureTarget.Texture2DArray,
+            debugName: "Test_PageUsageStamp");
+        usageStamp.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
         uint[] pidTexels = new uint[gW * gH * 4];
         for (int i = 0; i < desiredPages; i++)
         {
             int idx = i * 4;
-            pidTexels[idx + 0] = 1u;            // chunkSlot != 0 => ignored by shader
+            pidTexels[idx + 0] = 1u;            // chunkSlot outside stamp range => ignored by shader
             pidTexels[idx + 1] = (uint)(i + 1); // patchId
         }
         patchIdGBuffer.UploadDataImmediate(pidTexels);
@@ -126,17 +145,18 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         GL.UseProgram(markProgram);
         BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
         SetUniform1ui(markProgram, "vge_frameStamp", 1u);
-        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GL.UseProgram(compactProgram);
         pageRequestCounter.BindBase(bindingIndex: 0);
         pageRequests.BindBase(bindingIndex: 0);
-        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
         SetUniform1ui(compactProgram, "vge_maxRequests", (uint)desiredPages);
         SetUniform1ui(compactProgram, "vge_frameStamp", 1u);
-        GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk + 255) / 256, 1, 1);
+        SetUniform1ui(compactProgram, "vge_scanOffset", 0u);
+        GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         uint requestCount = ReadAtomicCounter(pageRequestCounter, counterIndex: 0);
@@ -161,8 +181,17 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         Assert.Equal(desiredPages, gW * gH);
 
         using var patchIdGBuffer = Texture2D.Create(gW, gH, PixelInternalFormat.Rgba32ui, debugName: "Test_PatchIdGBuffer");
-        using var usageStamp = Texture2D.Create(128, 128, PixelInternalFormat.R32ui, debugName: "Test_PageUsageStamp");
-        usageStamp.UploadDataImmediate(new uint[128 * 128]);
+
+        const int chunkSlotCount = 1;
+        using var usageStamp = Texture3D.Create(
+            128,
+            128,
+            chunkSlotCount,
+            PixelInternalFormat.R32ui,
+            filter: TextureFilterMode.Nearest,
+            textureTarget: TextureTarget.Texture2DArray,
+            debugName: "Test_PageUsageStamp");
+        usageStamp.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
         // Choose patchIds that all map to virtualPageIndex==1 via modulo 16384.
         uint[] pidTexels = new uint[gW * gH * 4];
@@ -180,17 +209,18 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         GL.UseProgram(markProgram);
         BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
         SetUniform1ui(markProgram, "vge_frameStamp", 1u);
-        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GL.UseProgram(compactProgram);
         pageRequestCounter.BindBase(bindingIndex: 0);
         pageRequests.BindBase(bindingIndex: 0);
-        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
         SetUniform1ui(compactProgram, "vge_maxRequests", (uint)desiredPages);
         SetUniform1ui(compactProgram, "vge_frameStamp", 1u);
-        GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk + 255) / 256, 1, 1);
+        SetUniform1ui(compactProgram, "vge_scanOffset", 0u);
+        GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         uint requestCount = ReadAtomicCounter(pageRequestCounter, counterIndex: 0);
@@ -211,12 +241,20 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         using var helper = CreateShaderHelperOrSkip();
         int compactProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_compact_pages.csh");
 
-        using var usageStamp = Texture2D.Create(128, 128, PixelInternalFormat.R32ui, debugName: "Test_PageUsageStamp");
+        const int chunkSlotCount = 1;
+        using var usageStamp = Texture3D.Create(
+            128,
+            128,
+            chunkSlotCount,
+            PixelInternalFormat.R32ui,
+            filter: TextureFilterMode.Nearest,
+            textureTarget: TextureTarget.Texture2DArray,
+            debugName: "Test_PageUsageStamp");
 
         // Pretend mark pass wrote frameStamp=1 to one page.
-        uint[] stamp = new uint[128 * 128];
+        uint[] stamp = new uint[128 * 128 * chunkSlotCount];
         stamp[1] = 1u;
-        usageStamp.UploadDataImmediate(stamp);
+        usageStamp.UploadDataImmediate(stamp, 0, 0, 0, 128, 128, chunkSlotCount);
 
         using var pageRequests = CreateSsbo<LumonScenePageRequestGpu>("Test_PageRequests", capacityItems: 8);
         using var pageRequestCounter = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 1);
@@ -224,10 +262,11 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         GL.UseProgram(compactProgram);
         pageRequestCounter.BindBase(bindingIndex: 0);
         pageRequests.BindBase(bindingIndex: 0);
-        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
         SetUniform1ui(compactProgram, "vge_maxRequests", 8u);
         SetUniform1ui(compactProgram, "vge_frameStamp", 2u); // mismatch => no requests
-        GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk + 255) / 256, 1, 1);
+        SetUniform1ui(compactProgram, "vge_scanOffset", 0u);
+        GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         uint requestCount = ReadAtomicCounter(pageRequestCounter, counterIndex: 0);

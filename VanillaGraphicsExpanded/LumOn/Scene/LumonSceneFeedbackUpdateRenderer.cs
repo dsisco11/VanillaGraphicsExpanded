@@ -39,8 +39,9 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     private GpuComputePipeline? feedbackCompactPipeline;
     private GpuComputePipeline? captureVoxelPipeline;
 
-    private Texture2D? pageUsageStamp;
+    private Texture3D? pageUsageStamp;
     private uint feedbackFrameStamp = 1u;
+    private uint compactScanOffset = 0u;
 
     private readonly LumonScenePageTableEntry[] pageTableMirror = new LumonScenePageTableEntry[VirtualPagesPerChunk];
     private readonly System.Collections.Generic.Dictionary<int, uint> virtualToPhysical = new();
@@ -229,7 +230,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                 texture: pageUsageStamp!,
                 access: TextureAccess.ReadWrite,
                 level: 0,
-                layered: false,
+                layered: true,
                 layer: 0,
                 formatOverride: SizedInternalFormat.R32ui);
 
@@ -251,7 +252,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                 texture: pageUsageStamp!,
                 access: TextureAccess.ReadOnly,
                 level: 0,
-                layered: false,
+                layered: true,
                 layer: 0,
                 formatOverride: SizedInternalFormat.R32ui);
 
@@ -261,7 +262,12 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             _ = feedbackCompactPipeline.TrySetUniform1("vge_maxRequests", (uint)nearGpu.PageRequests.CapacityItems);
             _ = feedbackCompactPipeline.TrySetUniform1("vge_frameStamp", frameStamp);
 
-            int gx = (VirtualPagesPerChunk + 255) / 256;
+            int chunkSlotCount = nearGpu.PageTable.ChunkSlotCount;
+            int totalEntries = checked(VirtualPagesPerChunk * Math.Max(1, chunkSlotCount));
+            compactScanOffset = totalEntries <= 0 ? 0u : (compactScanOffset + (uint)VirtualPagesPerChunk) % (uint)totalEntries;
+            _ = feedbackCompactPipeline.TrySetUniform1("vge_scanOffset", compactScanOffset);
+
+            int gx = (totalEntries + 255) / 256;
             GL.DispatchCompute(gx, 1, 1);
         }
 
@@ -303,6 +309,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         configured = false;
         lastPlanHash = 0;
         feedbackFrameStamp = 1u;
+        compactScanOffset = 0u;
 
         Array.Clear(pageTableMirror);
         virtualToPhysical.Clear();
@@ -350,21 +357,23 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
     private void EnsurePageUsageStampCreated()
     {
-        if (pageUsageStamp is not null && pageUsageStamp.IsValid)
+        if (pageUsageStamp is not null && pageUsageStamp.IsValid && pageUsageStamp.Depth == nearGpu.PageTable.ChunkSlotCount)
         {
             return;
         }
 
         pageUsageStamp?.Dispose();
-        pageUsageStamp = Texture2D.Create(
+        pageUsageStamp = Texture3D.Create(
             width: LumonSceneVirtualAtlasConstants.VirtualPageTableWidth,
             height: LumonSceneVirtualAtlasConstants.VirtualPageTableHeight,
+            depth: Math.Max(1, nearGpu.PageTable.ChunkSlotCount),
             format: PixelInternalFormat.R32ui,
             filter: TextureFilterMode.Nearest,
+            textureTarget: TextureTarget.Texture2DArray,
             debugName: $"LumOn.LumonScene.{LumonSceneField.Near}.PageUsageStamp(R32UI)");
 
         // Clear to 0 once; stamps use frameStamp!=0 to avoid needing per-frame clears.
-        pageUsageStamp.UploadDataImmediate(new uint[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk]);
+        _ = pageUsageStamp.TryClearToZero();
     }
 
     private bool EnsureFeedbackMarkPipeline()
