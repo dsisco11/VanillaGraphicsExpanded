@@ -84,5 +84,30 @@ internal static class LumonScenePageTableEntryPacking
 
     public static Flags UnpackFlags(in LumonScenePageTableEntry entry)
         => (Flags)((entry.Packed >> FlagShift) & FlagsMask);
-}
 
+    /// <summary>
+    /// Returns whether the page-table entry is considered safe/valid to sample for shading and debug views.
+    /// Mirrors the current GLSL gating in <c>VgeLumonSceneTrySampleIrradiance_NearFieldV1</c>.
+    /// </summary>
+    public static bool IsReadyForSampling(in LumonScenePageTableEntry entry)
+    {
+        uint physicalPageId = UnpackPhysicalPageId(entry);
+        if (physicalPageId == 0u)
+        {
+            return false;
+        }
+
+        var flags = UnpackFlags(entry);
+        if ((flags & Flags.Resident) == 0)
+        {
+            return false;
+        }
+
+        if ((flags & (Flags.NeedsCapture | Flags.NeedsRelight)) != 0)
+        {
+            return false;
+        }
+
+        return true;
+    }
+}

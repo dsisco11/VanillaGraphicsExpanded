@@ -151,8 +151,8 @@ LumOn - Phase 22 - LumonScene Surface Cache (Test Coverage Audit + Missing Scena
 
   Phase T7 - Debug sampling / gating tests (shader + CPU)
   Exit artifacts: prevent regressions where debug views stay black due to flag gating or missing bindings.
-  ☐ Add a unit test around page-table “ready gating” conventions (CPU-side)
+  ✔ Add a unit test around page-table “ready gating” conventions (CPU-side)
     - When `NeedsCapture` or `NeedsRelight` is set, debug sampling should intentionally report black.
     - When cleared and resident, sampling should show the atlas contents.
-  ☐ Add a shader processed-source diagnostic test for the Phase 22 debug helpers
+  ✔ Add a shader processed-source diagnostic test for the Phase 22 debug helpers
     - Ensure `renderLumonSceneIrradianceDebug()` (or equivalent) remains declared at top-level and compiles after imports.
