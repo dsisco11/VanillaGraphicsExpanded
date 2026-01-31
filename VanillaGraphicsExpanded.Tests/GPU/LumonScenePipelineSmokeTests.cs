@@ -143,6 +143,12 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         FillRgba8_2DArray(materialAtlas.TextureId, atlasW, atlasH, atlasCount, r: 0, g: 0, b: 0, a: 0);
         FillRgba16f2DArray(irradianceAtlas.TextureId, atlasW, atlasH, atlasCount, r: 0f, g: 0f, b: 0f, a: 0f);
 
+        // Patch metadata written during capture (indexed by physicalPageId).
+        using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[desiredPages + 1]);
+
+        // ChunkSlot info (slot 0 origin centered within occ volume to avoid OOB starts), generation=0.
+        using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new[] { 16, 16, 16, 0 });
+
         // Occupancy volume + LUTs (simple deterministic radiance).
         uint occPacked = LumonSceneOccupancyPacking.PackClamped(blockLevel: 32, sunLevel: 0, lightId: 1, materialPaletteIndex: 0);
         using var occ = Texture3D.Create(occRes, occRes, occRes, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, TextureTarget.Texture3D, "Test_OccL0");
@@ -191,6 +197,8 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
             // Capture voxel → depth/material.
             GL.UseProgram(captureProgram);
             captureSsbo.BindBase(bindingIndex: 0);
+            patchMetaSsbo.BindBase(bindingIndex: 1);
+            slotInfoSsbo.BindBase(bindingIndex: 2);
             GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
             GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
             SetUniform(captureProgram, "vge_tileSizeTexels", (uint)tileSize);
@@ -203,6 +211,7 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
             // Relight → irradiance.
             GL.UseProgram(relightProgram);
             relightSsbo.BindBase(bindingIndex: 0);
+            patchMetaSsbo.BindBase(bindingIndex: 1);
             relightDebugCounter.BindBase(bindingIndex: 1);
 
             BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);

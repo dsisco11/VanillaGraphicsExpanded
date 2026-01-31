@@ -51,6 +51,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     private System.Collections.Generic.Dictionary<VectorInt3, uint> chunkToSlot = new();
     private ushort[] slotGenerations = Array.Empty<ushort>();
     private Texture2D? slotGenerationTex;
+    private LumonSceneChunkSlotInfoGpuBuffer? slotInfoBuffer;
     private VectorInt3 lastAnchorChunk;
 
     private LumonScenePageTableEntry[] pageTableMirror = Array.Empty<LumonScenePageTableEntry>();
@@ -343,6 +344,8 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         Array.Clear(slotGenerations);
         slotGenerationTex?.Dispose();
         slotGenerationTex = null;
+        slotInfoBuffer?.Dispose();
+        slotInfoBuffer = null;
 
         slotOriginMinChunk = default;
         slotDims = default;
@@ -421,6 +424,8 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             slotGenerations = Array.Empty<ushort>();
             slotGenerationTex?.Dispose();
             slotGenerationTex = null;
+            slotInfoBuffer?.Dispose();
+            slotInfoBuffer = null;
             LumonSceneChunkSlotUniformState.Disable();
             capi.Logger.Warning(
                 "[VGE] LumonScene: cannot configure chunkSlot window dims for chunkSlotCount={0} (NearRadiusChunks={1}, NearRadiusYChunks={2}). Mapping disabled.",
@@ -446,6 +451,10 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
         // Clear to zero once (generation starts at 0). We'll upload per-slot updates as they change.
         slotGenerationTex.UploadDataImmediate(new uint[checked(chunkSlotCount)], x: 0, y: 0, regionWidth: chunkSlotCount, regionHeight: 1);
+
+        slotInfoBuffer?.Dispose();
+        slotInfoBuffer = new LumonSceneChunkSlotInfoGpuBuffer(LumonSceneField.Near, capacityEntries: chunkSlotCount);
+        slotInfoBuffer.EnsureCreated();
 
         // Seed window from current anchor (will take effect next frame).
         if (TryGetAnchorChunkCoord(out VectorInt3 anchorChunk))
@@ -587,6 +596,20 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         {
             uint gen = slotGenerations[slot];
             slotGenerationTex.UploadDataImmediate(new[] { gen }, x: (int)slot, y: 0, regionWidth: 1, regionHeight: 1);
+        }
+
+        if (slotInfoBuffer is not null)
+        {
+            int ox = unchecked(newOwner.X * 32);
+            int oy = unchecked(newOwner.Y * 32);
+            int oz = unchecked(newOwner.Z * 32);
+
+            var info = new LumonSceneChunkSlotInfoGpu(
+                ChunkOriginBlocksAndGeneration: new VectorInt4(ox, oy, oz, slotGenerations[slot]),
+                Reserved0: default);
+
+            Span<LumonSceneChunkSlotInfoGpu> one = stackalloc LumonSceneChunkSlotInfoGpu[1] { info };
+            slotInfoBuffer.Ssbo.UploadSubData((ReadOnlySpan<LumonSceneChunkSlotInfoGpu>)one, dstOffsetBytes: checked((int)slot * System.Runtime.InteropServices.Marshal.SizeOf<LumonSceneChunkSlotInfoGpu>()));
         }
 
         slotOwners[slot] = newOwner;
@@ -986,6 +1009,11 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             return;
         }
 
+        if (slotInfoBuffer is null)
+        {
+            return;
+        }
+
         int tileSize = physicalPools.Near.Plan.TileSizeTexels;
         int tilesPerAxis = physicalPools.Near.Plan.TilesPerAxis;
         int tilesPerAtlas = physicalPools.Near.Plan.TilesPerAtlas;
@@ -993,6 +1021,8 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         using (captureVoxelPipeline!.UseScope())
         {
             nearGpu.CaptureWork.Items.BindBase(bindingIndex: 0);
+            nearGpu.PatchMetadata.Ssbo.BindBase(bindingIndex: 1);
+            slotInfoBuffer.Ssbo.BindBase(bindingIndex: 2);
 
             // Bind outputs as layered images (units derived from shader layout(binding=...)).
             _ = captureVoxelPipeline.ProgramLayout.TryBindImageTexture(

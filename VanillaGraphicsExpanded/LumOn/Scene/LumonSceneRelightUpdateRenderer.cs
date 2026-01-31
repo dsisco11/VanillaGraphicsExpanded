@@ -174,6 +174,7 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
                 EnsureDebugCountersCreated();
 
                 nearGpu.RelightWork.Items.BindBase(bindingIndex: 0);
+                nearGpu.PatchMetadata.Ssbo.BindBase(bindingIndex: 1);
 
                 // Samplers (use layout(binding=...) in GLSL, cached by ProgramLayout).
                 _ = relightVoxelPipeline.ProgramLayout.TryBindSamplerTexture("vge_depthAtlas", TextureTarget.Texture2DArray, atlases.DepthAtlasTextureId);

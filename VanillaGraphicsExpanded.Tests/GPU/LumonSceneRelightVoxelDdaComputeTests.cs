@@ -67,12 +67,14 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Span<LumonSceneRelightWorkGpu> work = stackalloc LumonSceneRelightWorkGpu[1];
         work[0] = new LumonSceneRelightWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: patchId, virtualPageIndex: 0u);
         using var workSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_WorkSSBO", work);
+        using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
 
         GL.UseProgram(program);
 
         // SSBO binding matches shader: binding=0.
         workSsbo.BindBase(bindingIndex: 0);
+        patchMetaSsbo.BindBase(bindingIndex: 1);
         debugCounter.BindBase(bindingIndex: 1);
 
         // Samplers use layout(binding=N): bind textures to those units.
@@ -151,12 +153,14 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Span<LumonSceneRelightWorkGpu> work = stackalloc LumonSceneRelightWorkGpu[1];
         work[0] = new LumonSceneRelightWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: patchId, virtualPageIndex: 0u);
         using var workSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_WorkSSBO", work);
+        using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
 
         using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
         debugCounter.UploadZeros(counterCount: 4);
 
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
+        patchMetaSsbo.BindBase(bindingIndex: 1);
         debugCounter.BindBase(bindingIndex: 1);
 
         BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
@@ -229,10 +233,12 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Span<LumonSceneRelightWorkGpu> work = stackalloc LumonSceneRelightWorkGpu[1];
         work[0] = new LumonSceneRelightWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: 1u, virtualPageIndex: 0u);
         using var workSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_WorkSSBO", work);
+        using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
 
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
+        patchMetaSsbo.BindBase(bindingIndex: 1);
         debugCounter.BindBase(bindingIndex: 1);
 
         BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
@@ -312,10 +318,12 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Span<LumonSceneRelightWorkGpu> work = stackalloc LumonSceneRelightWorkGpu[1];
         work[0] = new LumonSceneRelightWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: patchId, virtualPageIndex: 0u);
         using var workSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_WorkSSBO", work);
+        using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
 
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
+        patchMetaSsbo.BindBase(bindingIndex: 1);
         debugCounter.BindBase(bindingIndex: 1);
 
         BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
@@ -404,12 +412,14 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Span<LumonSceneRelightWorkGpu> work = stackalloc LumonSceneRelightWorkGpu[1];
         work[0] = new LumonSceneRelightWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: patchId, virtualPageIndex: 0u);
         using var workSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_WorkSSBO", work);
+        using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
 
         using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
         debugCounter.UploadZeros(counterCount: 4);
 
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
+        patchMetaSsbo.BindBase(bindingIndex: 1);
         debugCounter.BindBase(bindingIndex: 1);
 
         BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
@@ -489,10 +499,12 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Span<LumonSceneRelightWorkGpu> work = stackalloc LumonSceneRelightWorkGpu[1];
         work[0] = new LumonSceneRelightWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: 1u, virtualPageIndex: 0u);
         using var workSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_WorkSSBO", work);
+        using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
 
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
+        patchMetaSsbo.BindBase(bindingIndex: 1);
         debugCounter.BindBase(bindingIndex: 1);
 
         BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);

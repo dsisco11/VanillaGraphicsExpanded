@@ -64,12 +64,12 @@ Phase 5 - Slot Lifecycle + Reuse Safety
 
 
 Phase 6 - Capture + Relight: Provide Per-Slot Chunk Origins/Transforms
-- [ ] Add GPU buffer: `ChunkSlotInfoBuffer[chunkSlot]` containing:
-  - [ ] chunk origin (block units) or chunkCoord
-  - [ ] generation
-  - [ ] optional transform hooks for rotated blocks / mesh cards later
-- [ ] Update voxel capture compute to use chunkSlot info for world-space reconstruction (as needed).
-- [ ] Update voxel relight tracer to use chunkSlot info for ray origins/bounds (as needed).
+- [x] Add GPU buffer: `ChunkSlotInfoBuffer[chunkSlot]` containing:
+  - [x] chunk origin (block units) or chunkCoord
+  - [x] generation
+  - [x] optional transform hooks for rotated blocks / mesh cards later
+- [x] Update voxel capture compute to use chunkSlot info for world-space reconstruction (as needed).
+- [x] Update voxel relight tracer to use chunkSlot info for ray origins/bounds (as needed).
 
 
 Phase 7 - Tests: Multi-Slot + Multi-Frame Convergence

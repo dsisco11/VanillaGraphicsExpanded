@@ -104,12 +104,14 @@ public sealed class LumonTraceSceneToRelightIntegrationTests : RenderTestBase
         Span<LumonSceneRelightWorkGpu> work = stackalloc LumonSceneRelightWorkGpu[1];
         work[0] = new LumonSceneRelightWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: patchId, virtualPageIndex: 0u);
         using var workSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_RelightWork", work);
+        using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
 
         using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
         debugCounter.UploadZeros(counterCount: 4);
 
         GL.UseProgram(relightProgram);
         workSsbo.BindBase(bindingIndex: 0);
+        patchMetaSsbo.BindBase(bindingIndex: 1);
         debugCounter.BindBase(bindingIndex: 1);
 
         // Bind samplers/images through the production program-layout cache (matches runtime binding behavior).

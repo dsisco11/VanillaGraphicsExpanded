@@ -27,6 +27,30 @@ layout(std430, binding = 0) buffer VgeRelightWork
     uvec4 vge_relightWork[]; // (physicalPageId, chunkSlot, patchId, virtualPageIndex)
 };
 
+struct VgePatchMeta
+{
+    vec4 OriginWS;
+    vec4 AxisUWS;
+    vec4 AxisVWS;
+    vec4 NormalWS;
+
+    uint VirtualBasePageX;
+    uint VirtualBasePageY;
+    uint VirtualSizePagesX;
+    uint VirtualSizePagesY;
+
+    uint ChunkSlot;
+    uint PatchId;
+
+    uint Reserved0;
+    uint Reserved1;
+};
+
+layout(std430, binding = 1) readonly buffer VgePatchMetadata
+{
+    VgePatchMeta vge_patchMeta[];
+};
+
 // Optional debug counters (enabled via vge_debugCountersEnabled).
 // Bound by CPU to atomic counter binding=1, offsets in bytes.
 layout(binding = 1, offset = 0) uniform atomic_uint vge_dbgRays;
@@ -242,22 +266,41 @@ void main()
     float depth = texelFetch(vge_depthAtlas, atlasTexel, 0).r;
     if (depth != 0.0) { }
 
-    // Pseudo surface position anchored in the occupancy volume (v1: not yet tied to real patch metadata).
-    uint seedBase = Squirrel3HashU(virtualPageIndex, physicalPageId, patchId);
-    int res = max(1, vge_occResolution);
-    ivec3 localCell = ivec3(
-        int(seedBase % uint(res)),
-        int(Squirrel3HashU(seedBase, 1u) % uint(res)),
-        int(Squirrel3HashU(seedBase, 2u) % uint(res)));
-    ivec3 worldCell = vge_occOriginMinCell0 + localCell;
+    // Prefer real patch metadata (written during capture) for world-space reconstruction.
+    VgePatchMeta meta = vge_patchMeta[physicalPageId];
+    if (dot(meta.NormalWS.xyz, meta.NormalWS.xyz) > 1e-6)
+    {
+        normalWS = normalize(meta.NormalWS.xyz);
+    }
 
     vec3 t, b;
     OrthonormalBasis(normalWS, t, b);
 
-    vec2 uv = (vec2(inTile) + vec2(0.5)) / float(max(1u, vge_tileSizeTexels));
-    vec2 p = (uv * 2.0 - 1.0) * 2.0; // v1: 4-block wide proxy patch
+    uint seedBase = Squirrel3HashU(virtualPageIndex, physicalPageId, patchId);
 
-    vec3 origin = vec3(worldCell) + vec3(0.5) + t * p.x + b * p.y + normalWS * 0.51;
+    vec2 uv = (vec2(inTile) + vec2(0.5)) / float(max(1u, vge_tileSizeTexels));
+
+    vec3 surfacePos;
+    if (dot(meta.AxisUWS.xyz, meta.AxisUWS.xyz) > 1e-6 && dot(meta.AxisVWS.xyz, meta.AxisVWS.xyz) > 1e-6)
+    {
+        surfacePos = meta.OriginWS.xyz + meta.AxisUWS.xyz * uv.x + meta.AxisVWS.xyz * uv.y;
+    }
+    else
+    {
+        // Fallback: keep the old v1 deterministic behavior used by the test suite.
+        int res = max(1, vge_occResolution);
+        ivec3 localCell = ivec3(
+            int(seedBase % uint(res)),
+            int(Squirrel3HashU(seedBase, 1u) % uint(res)),
+            int(Squirrel3HashU(seedBase, 2u) % uint(res)));
+        ivec3 worldCell = vge_occOriginMinCell0 + localCell;
+
+        vec2 p = (uv * 2.0 - 1.0) * 2.0; // v1: 4-block wide proxy patch
+        surfacePos = vec3(worldCell) + vec3(0.5) + t * p.x + b * p.y;
+    }
+
+    // Push the origin slightly off the surface along the normal.
+    vec3 origin = surfacePos + normalWS * 0.51;
 
     vec3 acc = vec3(0.0);
     uint rays = max(1u, vge_raysPerTexel);

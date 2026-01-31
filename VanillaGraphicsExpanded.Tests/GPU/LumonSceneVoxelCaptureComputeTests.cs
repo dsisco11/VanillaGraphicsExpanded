@@ -43,9 +43,13 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         Span<LumonSceneCaptureWorkGpu> work = stackalloc LumonSceneCaptureWorkGpu[1];
         work[0] = new LumonSceneCaptureWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: 1u, virtualPageIndex: 0u);
         using var workSsbo = CreateSsbo<LumonSceneCaptureWorkGpu>("Test_WorkSSBO", work);
+        using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
+        using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new int[4]);
 
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
+        patchMetaSsbo.BindBase(bindingIndex: 1);
+        slotInfoSsbo.BindBase(bindingIndex: 2);
 
         // Bind output images to match shader layout(binding=...).
         GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
@@ -105,9 +109,13 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         work[1] = new LumonSceneCaptureWorkGpu(physicalPageId: 4u, chunkSlot: 0u, patchId: 2u, virtualPageIndex: 0u); // -X
         work[2] = new LumonSceneCaptureWorkGpu(physicalPageId: 5u, chunkSlot: 0u, patchId: 3u, virtualPageIndex: 0u); // +Y
         using var workSsbo = CreateSsbo<LumonSceneCaptureWorkGpu>("Test_WorkSSBO", work);
+        using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[6]);
+        using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new int[4]);
 
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
+        patchMetaSsbo.BindBase(bindingIndex: 1);
+        slotInfoSsbo.BindBase(bindingIndex: 2);
 
         GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
         GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
@@ -170,9 +178,13 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         Span<LumonSceneCaptureWorkGpu> work = stackalloc LumonSceneCaptureWorkGpu[1];
         work[0] = new LumonSceneCaptureWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: 6u, virtualPageIndex: 0u); // -Z
         using var workSsbo = CreateSsbo<LumonSceneCaptureWorkGpu>("Test_WorkSSBO", work);
+        using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
+        using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new int[4]);
 
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
+        patchMetaSsbo.BindBase(bindingIndex: 1);
+        slotInfoSsbo.BindBase(bindingIndex: 2);
 
         GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
         GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);

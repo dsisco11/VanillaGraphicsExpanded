@@ -98,6 +98,9 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         FillR16f2DArray(depthAtlas.TextureId, atlasW, atlasH, atlasCount, value: 0f);
         FillRgba8_2DArray(materialAtlas.TextureId, atlasW, atlasH, atlasCount, r: 0, g: 0, b: 0, a: 0);
 
+        using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[desiredPages + 1]);
+        using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new int[4]);
+
         var captureOut = new LumonSceneCaptureWorkGpu[desiredPages];
         var relightOut = new LumonSceneRelightWorkGpu[desiredPages];
         int recaptureCursor = 0;
@@ -154,6 +157,8 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
 
             GL.UseProgram(captureProgram);
             captureSsbo.BindBase(bindingIndex: 0);
+            patchMetaSsbo.BindBase(bindingIndex: 1);
+            slotInfoSsbo.BindBase(bindingIndex: 2);
 
             GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
             GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);

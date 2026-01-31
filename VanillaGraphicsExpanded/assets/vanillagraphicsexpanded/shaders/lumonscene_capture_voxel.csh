@@ -15,6 +15,37 @@ layout(std430, binding = 0) buffer VgeCaptureWork
     uvec4 vge_captureWork[]; // (physicalPageId, chunkSlot, patchId, virtualPageIndex)
 };
 
+struct VgePatchMeta
+{
+    vec4 OriginWS;
+    vec4 AxisUWS;
+    vec4 AxisVWS;
+    vec4 NormalWS;
+
+    // Virtual-space placement for this patch/page.
+    uint VirtualBasePageX;
+    uint VirtualBasePageY;
+    uint VirtualSizePagesX;
+    uint VirtualSizePagesY;
+
+    // Identity/debug / reverse mapping.
+    uint ChunkSlot;
+    uint PatchId;
+
+    uint Reserved0;
+    uint Reserved1;
+};
+
+layout(std430, binding = 1) buffer VgePatchMetadata
+{
+    VgePatchMeta vge_patchMeta[];
+};
+
+layout(std430, binding = 2) readonly buffer VgeChunkSlotInfo
+{
+    ivec4 vge_chunkOriginBlocksAndGeneration[]; // (originX, originY, originZ, generation)
+};
+
 uniform uint vge_tileSizeTexels;
 uniform uint vge_tilesPerAxis;
 uniform uint vge_tilesPerAtlas;
@@ -39,6 +70,92 @@ vec3 NormalFromPatchId(uint patchId)
     }
 }
 
+bool DecodeVoxelPatchId(uint patchId, out uint axisId, out uint planeIndex, out uint patchU, out uint patchV)
+{
+    axisId = 0u;
+    planeIndex = 0u;
+    patchU = 0u;
+    patchV = 0u;
+
+    if (patchId == 0u)
+    {
+        return false;
+    }
+
+    uint v = patchId - 1u;
+    axisId = v % 6u;
+    uint patchLinear = v / 6u;
+
+    planeIndex = patchLinear / 64u;             // 0..31
+    uint tile = patchLinear - planeIndex * 64u; // 0..63
+    patchU = tile % 8u;                         // 0..7
+    patchV = tile / 8u;                         // 0..7
+
+    return planeIndex < 32u;
+}
+
+void ComputeVoxelPatchBasisAndOrigin(
+    ivec3 chunkOriginBlocks,
+    uint axisId,
+    uint planeIndex,
+    uint patchU,
+    uint patchV,
+    out vec3 originWS,
+    out vec3 axisUWS,
+    out vec3 axisVWS,
+    out vec3 normalWS)
+{
+    // Voxel patch size is fixed in v1: 4x4 voxels == 4x4 blocks on a face.
+    const float PatchSizeBlocks = 4.0;
+
+    int u0 = int(patchU) * 4;
+    int v0 = int(patchV) * 4;
+    int p = int(planeIndex);
+
+    if (axisId == 0u) // +X
+    {
+        originWS = vec3(chunkOriginBlocks + ivec3(p + 1, v0, u0));
+        axisUWS = vec3(0.0, 0.0, PatchSizeBlocks);
+        axisVWS = vec3(0.0, PatchSizeBlocks, 0.0);
+        normalWS = vec3(1.0, 0.0, 0.0);
+    }
+    else if (axisId == 1u) // -X
+    {
+        originWS = vec3(chunkOriginBlocks + ivec3(p, v0, u0));
+        axisUWS = vec3(0.0, 0.0, PatchSizeBlocks);
+        axisVWS = vec3(0.0, PatchSizeBlocks, 0.0);
+        normalWS = vec3(-1.0, 0.0, 0.0);
+    }
+    else if (axisId == 2u) // +Y
+    {
+        originWS = vec3(chunkOriginBlocks + ivec3(u0, p + 1, v0));
+        axisUWS = vec3(PatchSizeBlocks, 0.0, 0.0);
+        axisVWS = vec3(0.0, 0.0, PatchSizeBlocks);
+        normalWS = vec3(0.0, 1.0, 0.0);
+    }
+    else if (axisId == 3u) // -Y
+    {
+        originWS = vec3(chunkOriginBlocks + ivec3(u0, p, v0));
+        axisUWS = vec3(PatchSizeBlocks, 0.0, 0.0);
+        axisVWS = vec3(0.0, 0.0, PatchSizeBlocks);
+        normalWS = vec3(0.0, -1.0, 0.0);
+    }
+    else if (axisId == 4u) // +Z
+    {
+        originWS = vec3(chunkOriginBlocks + ivec3(u0, v0, p + 1));
+        axisUWS = vec3(PatchSizeBlocks, 0.0, 0.0);
+        axisVWS = vec3(0.0, PatchSizeBlocks, 0.0);
+        normalWS = vec3(0.0, 0.0, 1.0);
+    }
+    else // -Z
+    {
+        originWS = vec3(chunkOriginBlocks + ivec3(u0, v0, p));
+        axisUWS = vec3(PatchSizeBlocks, 0.0, 0.0);
+        axisVWS = vec3(0.0, PatchSizeBlocks, 0.0);
+        normalWS = vec3(0.0, 0.0, -1.0);
+    }
+}
+
 void main()
 {
     uvec3 gid = gl_GlobalInvocationID;
@@ -52,7 +169,9 @@ void main()
 
     uvec4 w = vge_captureWork[workIndex];
     uint physicalPageId = w.x;
+    uint chunkSlot = w.y;
     uint patchId = w.z;
+    uint virtualPageIndex = w.w;
 
     if (physicalPageId == 0u)
     {
@@ -82,4 +201,48 @@ void main()
     vec3 n = NormalFromPatchId(patchId);
     vec3 n01 = n * 0.5 + 0.5;
     imageStore(vge_materialAtlas, texel, vec4(n01, 1.0));
+
+    // Write patch metadata once per work item (avoid per-texel SSBO traffic).
+    if (inTile.x == 0u && inTile.y == 0u)
+    {
+        ivec4 og = vge_chunkOriginBlocksAndGeneration[chunkSlot];
+        ivec3 chunkOrigin = og.xyz;
+        uint generation = uint(og.w) & 0xFFFFu;
+
+        uint axisId, planeIndex, patchU, patchV;
+        vec3 originWS, axisUWS, axisVWS, normalWS;
+
+        if (!DecodeVoxelPatchId(patchId, axisId, planeIndex, patchU, patchV))
+        {
+            originWS = vec3(chunkOrigin);
+            axisUWS = vec3(0.0);
+            axisVWS = vec3(0.0);
+            normalWS = vec3(0.0, 1.0, 0.0);
+        }
+        else
+        {
+            ComputeVoxelPatchBasisAndOrigin(chunkOrigin, axisId, planeIndex, patchU, patchV, originWS, axisUWS, axisVWS, normalWS);
+        }
+
+        uint vx = virtualPageIndex & 127u;
+        uint vy = virtualPageIndex >> 7u;
+
+        VgePatchMeta meta;
+        meta.OriginWS = vec4(originWS, 0.0);
+        meta.AxisUWS = vec4(axisUWS, 0.0);
+        meta.AxisVWS = vec4(axisVWS, 0.0);
+        meta.NormalWS = vec4(normalWS, 0.0);
+
+        meta.VirtualBasePageX = vx;
+        meta.VirtualBasePageY = vy;
+        meta.VirtualSizePagesX = 1u;
+        meta.VirtualSizePagesY = 1u;
+
+        meta.ChunkSlot = chunkSlot;
+        meta.PatchId = patchId;
+        meta.Reserved0 = generation;
+        meta.Reserved1 = 0u;
+
+        vge_patchMeta[physicalPageId] = meta;
+    }
 }
