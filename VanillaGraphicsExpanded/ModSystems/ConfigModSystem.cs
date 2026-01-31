@@ -166,34 +166,64 @@ internal sealed class ConfigModSystem : ModSystem
             return 0;
         }
 
-        int applied = 0;
-        int failed = 0;
-        string[] failSamples = new string[3];
+        var patch = new JObject();
+
+        int applicable = 0;
+        int skipped = 0;
+        string[] skipSamples = new string[3];
         foreach (ConfigLibSettingUpdate update in updates)
         {
             string path = ResolveConfigLibPath(update.Path, mappingKeyToCodePath);
 
-            if (TrySetByPath(config, path, update.Value, out string? error))
+            if (!IsConfigPathValid(typeof(VgeConfig), path))
             {
-                applied++;
-            }
-            else
-            {
-                if (failed < failSamples.Length)
+                if (skipped < skipSamples.Length)
                 {
-                    failSamples[failed] = $"{update.Path}=>{path} ({error})";
+                    skipSamples[skipped] = $"{update.Path}=>{path}";
                 }
 
-                failed++;
+                skipped++;
+                continue;
             }
+
+
+            SetJObjectByDotPath(patch, path, ParseConfigLibValue(update.Value));
+            applicable++;
         }
 
         string preview = string.Join(", ", updates.Take(4).Select(u => $"{u.Path}={u.Value}")) + (updates.Length > 4 ? "…" : string.Empty);
-        summary = failed == 0
-            ? $"applied {applied}/{updates.Length}: {preview}"
-            : $"applied {applied}/{updates.Length}, failed {failed}: {preview}. Fail samples: {string.Join("; ", failSamples.Where(s => !string.IsNullOrWhiteSpace(s)))}";
+        summary = skipped == 0
+            ? $"applicable {applicable}/{updates.Length}: {preview}"
+            : $"applicable {applicable}/{updates.Length}, skipped {skipped}: {preview}. Skip samples: {string.Join("; ", skipSamples.Where(s => !string.IsNullOrWhiteSpace(s)))}";
 
-        return applied;
+        if (applicable == 0)
+        {
+            return 0;
+        }
+
+        // Let Json.NET do the actual assignment and type conversion against our config model.
+        // This avoids manual reflection setters and handles enums/arrays/etc.
+        try
+        {
+            JsonConvert.PopulateObject(
+                patch.ToString(Formatting.None),
+                config,
+                new JsonSerializerSettings
+                {
+                    // Keep existing object instances where possible; replace arrays as needed.
+                    ObjectCreationHandling = ObjectCreationHandling.Auto,
+                    MissingMemberHandling = MissingMemberHandling.Ignore,
+                    NullValueHandling = NullValueHandling.Include,
+                    Error = (_, args) => { args.ErrorContext.Handled = true; }
+                });
+        }
+        catch
+        {
+            // If population fails for some unexpected reason, treat as "no changes applied".
+            return 0;
+        }
+
+        return applicable;
     }
 
     private static string ResolveConfigLibPath(string pathOrKey, System.Collections.Generic.IReadOnlyDictionary<string, string> mappingKeyToCodePath)
@@ -206,6 +236,87 @@ internal sealed class ConfigModSystem : ModSystem
         }
 
         return mappingKeyToCodePath.TryGetValue(pathOrKey, out string? path) ? path : pathOrKey;
+    }
+
+    private static JToken ParseConfigLibValue(string raw)
+    {
+        string trimmed = raw.Trim();
+        if (trimmed.Length == 0) return JValue.CreateString(string.Empty);
+
+        // ConfigLib values are string-serialized; try interpreting them as JSON first so
+        // numbers/bools/arrays/objects flow through correctly.
+        try
+        {
+            return JToken.Parse(trimmed);
+        }
+        catch
+        {
+            return JValue.CreateString(raw);
+        }
+    }
+
+    private static void SetJObjectByDotPath(JObject root, string dotPath, JToken value)
+    {
+        string[] segments = dotPath.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (segments.Length == 0) return;
+
+        JObject current = root;
+        for (int i = 0; i < segments.Length - 1; i++)
+        {
+            string seg = segments[i];
+            if (current[seg] is JObject child)
+            {
+                current = child;
+                continue;
+            }
+
+            child = new JObject();
+            current[seg] = child;
+            current = child;
+        }
+
+        current[segments[^1]] = value;
+    }
+
+    private static bool IsConfigPathValid(Type rootType, string dotPath)
+    {
+        if (string.IsNullOrWhiteSpace(dotPath)) return false;
+
+        // Minimal validation so we don't write the mod config on "save" when we didn't actually apply anything.
+        // This keeps the integration safe while still relying on Json.NET for the heavy lifting.
+        string[] segments = dotPath.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (segments.Length == 0) return false;
+
+        Type current = rootType;
+        for (int i = 0; i < segments.Length; i++)
+        {
+            string seg = segments[i];
+            MemberInfo? member = current.GetProperty(seg, BindingFlags.Instance | BindingFlags.Public)
+                             ?? (MemberInfo?)current.GetField(seg, BindingFlags.Instance | BindingFlags.Public);
+            if (member is null) return false;
+
+            if (i == segments.Length - 1) return true;
+
+            Type next;
+            switch (member)
+            {
+                case PropertyInfo p:
+                    next = p.PropertyType;
+                    break;
+                case FieldInfo f:
+                    next = f.FieldType;
+                    break;
+                default:
+                    return false;
+            }
+
+            Type nn = Nullable.GetUnderlyingType(next) ?? next;
+            if (nn.IsValueType) return false;
+
+            current = nn;
+        }
+
+        return false;
     }
 
     private System.Collections.Generic.IReadOnlyDictionary<string, string> GetConfigLibMappingKeyToCodePath(ICoreAPI api)
@@ -368,225 +479,6 @@ internal sealed class ConfigModSystem : ModSystem
         }
 
         return null;
-    }
-
-    private static bool TrySetByPath(object root, string path, string rawValue, out string? error)
-    {
-        error = null;
-
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            error = "empty path";
-            return false;
-        }
-
-        string[] segments = path.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (segments.Length == 0)
-        {
-            error = "empty path";
-            return false;
-        }
-
-        object current = root;
-        Type currentType = current.GetType();
-
-        for (int i = 0; i < segments.Length - 1; i++)
-        {
-            string seg = segments[i];
-
-            if (!TryGetMember(currentType, seg, out MemberInfo? member))
-            {
-                error = $"missing member '{seg}' on {currentType.Name}";
-                return false;
-            }
-
-            object? next = GetMemberValue(current, member!);
-            if (next is null)
-            {
-                Type nextType = GetMemberType(member!);
-                if (nextType.IsValueType)
-                {
-                    error = $"null value-type member '{seg}' on {currentType.Name}";
-                    return false;
-                }
-
-                ConstructorInfo? ctor = nextType.GetConstructor(Type.EmptyTypes);
-                if (ctor is null)
-                {
-                    error = $"cannot construct '{nextType.Name}' for member '{seg}'";
-                    return false;
-                }
-
-                next = ctor.Invoke(null);
-                SetMemberValue(current, member!, next);
-            }
-
-            current = next;
-            currentType = current.GetType();
-        }
-
-        string leaf = segments[^1];
-        if (!TryGetMember(currentType, leaf, out MemberInfo? leafMember))
-        {
-            error = $"missing member '{leaf}' on {currentType.Name}";
-            return false;
-        }
-
-        Type leafType = GetMemberType(leafMember!);
-        if (!TryConvertString(rawValue, leafType, out object? converted, out string? convertError))
-        {
-            error = $"failed to convert '{rawValue}' to {leafType.Name} ({convertError})";
-            return false;
-        }
-
-        SetMemberValue(current, leafMember!, converted);
-        return true;
-    }
-
-    private static bool TryGetMember(Type type, string name, out MemberInfo? member)
-    {
-        member = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public)
-                 ?? (MemberInfo?)type.GetField(name, BindingFlags.Instance | BindingFlags.Public);
-        return member is not null;
-    }
-
-    private static Type GetMemberType(MemberInfo member)
-        => member switch
-        {
-            PropertyInfo p => p.PropertyType,
-            FieldInfo f => f.FieldType,
-            _ => throw new NotSupportedException(member.GetType().FullName)
-        };
-
-    private static object? GetMemberValue(object obj, MemberInfo member)
-        => member switch
-        {
-            PropertyInfo p => p.GetValue(obj),
-            FieldInfo f => f.GetValue(obj),
-            _ => throw new NotSupportedException(member.GetType().FullName)
-        };
-
-    private static void SetMemberValue(object obj, MemberInfo member, object? value)
-    {
-        switch (member)
-        {
-            case PropertyInfo p:
-                p.SetValue(obj, value);
-                return;
-            case FieldInfo f:
-                f.SetValue(obj, value);
-                return;
-            default:
-                throw new NotSupportedException(member.GetType().FullName);
-        }
-    }
-
-    private static bool TryConvertString(string raw, Type targetType, out object? converted, out string? error)
-    {
-        converted = null;
-        error = null;
-
-        Type nonNullType = Nullable.GetUnderlyingType(targetType) ?? targetType;
-        string trimmed = raw.Trim();
-
-        if (nonNullType == typeof(string))
-        {
-            converted = trimmed;
-            return true;
-        }
-
-        if (nonNullType == typeof(bool))
-        {
-            if (bool.TryParse(trimmed, out bool b))
-            {
-                converted = b;
-                return true;
-            }
-
-            error = "not a bool";
-            return false;
-        }
-
-        if (nonNullType == typeof(int))
-        {
-            if (int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out int i))
-            {
-                converted = i;
-                return true;
-            }
-
-            error = "not an int";
-            return false;
-        }
-
-        if (nonNullType == typeof(long))
-        {
-            if (long.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out long l))
-            {
-                converted = l;
-                return true;
-            }
-
-            error = "not a long";
-            return false;
-        }
-
-        if (nonNullType == typeof(float))
-        {
-            if (float.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
-            {
-                converted = f;
-                return true;
-            }
-
-            error = "not a float";
-            return false;
-        }
-
-        if (nonNullType == typeof(double))
-        {
-            if (double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out double d))
-            {
-                converted = d;
-                return true;
-            }
-
-            error = "not a double";
-            return false;
-        }
-
-        if (nonNullType.IsEnum)
-        {
-            try
-            {
-                if (int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out int i))
-                {
-                    converted = Enum.ToObject(nonNullType, i);
-                }
-                else
-                {
-                    converted = Enum.Parse(nonNullType, trimmed, ignoreCase: true);
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                error = ex.Message;
-                return false;
-            }
-        }
-
-        try
-        {
-            converted = JsonConvert.DeserializeObject(trimmed, nonNullType);
-            return converted is not null || Nullable.GetUnderlyingType(targetType) is not null;
-        }
-        catch (Exception ex)
-        {
-            error = ex.Message;
-            return false;
-        }
     }
 
     private static string SafeDebugJson(object? value, int maxChars = 12_000)
