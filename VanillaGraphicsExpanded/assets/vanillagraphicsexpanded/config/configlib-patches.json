@@ -83,14 +83,6 @@
         "default": true,
         "weight": 20.0
       },
-      "ENABLE_NORMAL_DEPTH_ATLAS": {
-        "code": "MaterialAtlas.EnableNormalMaps",
-        "name": "MaterialAtlas.EnableNormalMaps",
-        "ingui": "vanillagraphicsexpanded:config-normal-depth-atlas-enabled",
-        "comment": "vanillagraphicsexpanded:config-normal-depth-atlas-enabled-tooltip",
-        "default": true,
-        "weight": 20.1
-      },
       "ENABLE_MATERIAL_ATLAS_DISK_CACHE": {
         "code": "MaterialAtlas.EnableCaching",
         "name": "MaterialAtlas.EnableCaching",

@@ -109,7 +109,9 @@ vec2 VgeApplyPomUv_WithTbn(vec2 uv, mat3 tbn, float handedness, vec3 worldPosWs,
 
     // Transform view direction into tangent space.
     vec3 viewDirTs = transpose(tbn) * viewDirWs;
-    viewDirTs.y *= handedness;
+    // NOTE: Do not apply an extra handedness flip here.
+    // Our TBN construction can already encode UV mirroring; applying a separate flip can introduce
+    // view-dependent discontinuities when derivative-based handedness changes across pixel quads.
 
     // Angle + distance stability fades.
     float angleWeight = smoothstep(0.35, 0.85, viewDirTs.z);
@@ -128,6 +130,17 @@ vec2 VgeApplyPomUv_WithTbn(vec2 uv, mat3 tbn, float handedness, vec3 worldPosWs,
 
     // Clamp starting UV to rect for safety.
     vec2 baseUv = VgeClampUvToRect(uv, uvBase, uvExtent);
+
+    // Fade POM out near atlas rect edges to avoid abrupt clamp boundaries.
+    // Without this, a subset of pixels can hit the hard rect clamp while neighbors do not,
+    // producing view-dependent "slice" lines (especially at grazing angles / near camera).
+    float edgeWeight = VgeUvRectEdgeDistance01(baseUv, uvBase, uvExtent);
+    weight *= edgeWeight;
+
+    if (weight <= 0.0)
+    {
+      return uv;
+    }
 
     // Scale the maximum parallax amount.
     float denom = max(viewDirTs.z, 0.2);

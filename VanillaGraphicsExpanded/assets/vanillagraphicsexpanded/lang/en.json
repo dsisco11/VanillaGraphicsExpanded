@@ -144,9 +144,6 @@
   "config-material-atlas-async-enabled": "Enable Async Material Atlas",
   "config-material-atlas-async-enabled-tooltip": "Build the material params + normal/height sidecar atlases progressively using a per-frame budget. Reduces loading hitches at the cost of longer total build time.",
 
-  "config-normal-depth-atlas-enabled": "Enable Normal/Height Sidecar Atlas",
-  "config-normal-depth-atlas-enabled-tooltip": "Enables baking and binding the normal/height (normal+depth) sidecar atlas during loading. Requires restart / re-entering the world to fully apply.",
-
   "config-material-atlas-disk-cache-enabled": "Enable Material Atlas Disk Cache",
   "config-material-atlas-disk-cache-enabled-tooltip": "Caches material params and normal/height tiles on disk so subsequent sessions can skip expensive work.",
 

@@ -52,8 +52,9 @@ bool VgeTryBuildTbnFromDerivatives(vec3 worldPosWs, vec2 uv, vec3 normalWs, out 
     vec2 duvdx = dFdx(uv);
     vec2 duvdy = dFdy(uv);
 
-    float det = duvdx.x * duvdy.y - duvdx.y * duvdy.x;
-    if (abs(det) < 1e-10)
+    // Derivatives can be undefined at screen/primitive boundaries. Bail out on bad inputs.
+    if (any(isnan(dpdx)) || any(isnan(dpdy)) || any(isnan(duvdx)) || any(isnan(duvdy)) ||
+        any(isinf(dpdx)) || any(isinf(dpdy)) || any(isinf(duvdx)) || any(isinf(duvdy)))
     {
         outHandedness = 1.0;
         vec3 up = abs(n.y) < 0.999
@@ -66,35 +67,57 @@ bool VgeTryBuildTbnFromDerivatives(vec3 worldPosWs, vec2 uv, vec3 normalWs, out 
         return false;
     }
 
-    // UV determinant sign indicates whether the UV mapping is mirrored.
-    // We keep TBN right-handed and apply this sign to the tangent-space normal (Y) at use-site.
-    outHandedness = det < 0.0 ? -1.0 : 1.0;
+    // Stable cotangent-frame TBN (no determinant division).
+    // This avoids quad-boundary flips that can happen when det ~ 0 or handedness tests change.
+    vec3 dp2perp = cross(dpdy, n);
+    vec3 dp1perp = cross(n, dpdx);
 
-    float invDet = 1.0 / det;
+    vec3 t = dp2perp * duvdx.x + dp1perp * duvdy.x;
+    vec3 b = dp2perp * duvdx.y + dp1perp * duvdy.y;
 
-    vec3 t = (dpdx * duvdy.y - dpdy * duvdx.y) * invDet;
-    vec3 b = (dpdy * duvdx.x - dpdx * duvdy.x) * invDet;
-
-    // Orthonormalize against the geometric normal for stability.
-    t = t - n * dot(n, t);
     float tLen2 = dot(t, t);
-    if (tLen2 < 1e-12)
+    float bLen2 = dot(b, b);
+    float tbLen2 = max(tLen2, bLen2);
+
+    vec3 up = abs(n.y) < 0.999
+        ? vec3(0.0, 1.0, 0.0)
+        : vec3(1.0, 0.0, 0.0);
+
+    vec3 tFallback = normalize(cross(up, n));
+    vec3 bFallback = cross(n, tFallback);
+
+    // Blend out of degenerate derivative cases to avoid hard seams.
+    float w = smoothstep(1e-16, 1e-10, tbLen2);
+    t = mix(tFallback, t, w);
+    b = mix(bFallback, b, w);
+
+    // Orthonormalize.
+    t = t - n * dot(n, t);
+    float t2 = dot(t, t);
+    if (t2 < 1e-16)
     {
-        vec3 up = abs(n.y) < 0.999
-            ? vec3(0.0, 1.0, 0.0)
-            : vec3(1.0, 0.0, 0.0);
-
-        vec3 tFallback = normalize(cross(up, n));
-        vec3 bFallback = cross(n, tFallback);
-        outTbn = mat3(tFallback, bFallback, n);
-        return false;
+        t = tFallback;
     }
-    t *= inversesqrt(tLen2);
+    else
+    {
+        t *= inversesqrt(t2);
+    }
 
-    // Right-handed TBN.
-    vec3 bOrtho = normalize(cross(n, t));
-    outTbn = mat3(t, bOrtho, n);
-    return true;
+    b = b - n * dot(n, b);
+    b = b - t * dot(t, b);
+    float b2 = dot(b, b);
+    if (b2 < 1e-16)
+    {
+        b = bFallback;
+    }
+    else
+    {
+        b *= inversesqrt(b2);
+    }
+
+    outHandedness = 1.0;
+    outTbn = mat3(t, b, n);
+    return w > 0.0;
 }
 
 bool VgeIsNeutralNormalSigned(vec3 normalSigned)
@@ -102,6 +125,9 @@ bool VgeIsNeutralNormalSigned(vec3 normalSigned)
     // Neutral for our bake is approximately (0,0,1) in signed space.
     return abs(normalSigned.x) < 1e-3 && abs(normalSigned.y) < 1e-3 && normalSigned.z > 0.999;
 }
+
+// NOTE: Intentionally no per-texel "strength" gating.
+// Strength heuristics can introduce visible bands when mip levels change.
 
 // TBN-reuse helper: caller supplies tangent frame and handedness (usually computed once per-fragment).
 // Optionally also supplies the already-sampled atlas normal/height to avoid resampling.
@@ -116,15 +142,12 @@ vec4 VgeComputePackedWorldNormal01Height01_WithTbn(
 {
     vec3 nGeom = normalize(geometricNormalWs);
 
-    if (VgeIsNeutralNormalSigned(nAtlasSigned))
-    {
-        return vec4(nGeom * 0.5 + 0.5, height01);
-    }
-
-    // Apply UV-handedness to the tangent-space normal to avoid mirrored UVs producing inverted bumps.
     // Tangent space convention: X=tangent, Y=bitangent, Z=normal.
-    nAtlasSigned.y *= handedness;
-    vec3 nWs = normalize(tbn * nAtlasSigned);
+    // Do not apply a separate handedness flip here. If UVs are mirrored, the TBN already encodes it.
+    // Enforce a forward-facing tangent-space normal to avoid discontinuous hemisphere flips.
+    nAtlasSigned.z = max(nAtlasSigned.z, 1e-3);
+    nAtlasSigned = normalize(nAtlasSigned);
+    vec3 nWsMap = normalize(tbn * nAtlasSigned);
 
     // VGE: Distance attenuation for normal-map contribution.
     // Assumption: `worldPosWs` is camera-relative world-space (common in VS terrain shaders),
@@ -133,12 +156,14 @@ vec4 VgeComputePackedWorldNormal01Height01_WithTbn(
     const float VGE_NORMALMAP_FADE_END = 24.0;
     float vge_dist = length(worldPosWs);
     float vge_normalMapWeight = 1.0 - smoothstep(VGE_NORMALMAP_FADE_START, VGE_NORMALMAP_FADE_END, vge_dist);
-    nWs = normalize(mix(nGeom, nWs, vge_normalMapWeight));
+    vec3 nWs = normalize(mix(nGeom, nWsMap, vge_normalMapWeight));
 
-    // Keep the result in the same hemisphere as the geometric normal (stability).
-    if (dot(nWs, nGeom) < 0.0)
+    // Keep the result in the same hemisphere as the geometric normal, but do it continuously
+    // (hard flips can produce visible slice lines when dot() crosses 0 due to tiny sampling changes).
+    float hemi = dot(nWs, nGeom);
+    if (hemi < 0.0)
     {
-        nWs = -nWs;
+        nWs = normalize(mix(nWs, nGeom, clamp(-hemi, 0.0, 1.0)));
     }
 
     return vec4(nWs * 0.5 + 0.5, height01);
@@ -161,11 +186,6 @@ vec4 VgeComputePackedWorldNormal01Height01(vec2 uv, vec3 geometricNormalWs, vec3
 
     vec3 nAtlasSigned = ReadNormalSigned(uv);
     float height01 = ReadHeight01(uv);
-
-    if (VgeIsNeutralNormalSigned(nAtlasSigned))
-    {
-        return vec4(nGeom * 0.5 + 0.5, height01);
-    }
 
     mat3 tbn;
     float handedness;

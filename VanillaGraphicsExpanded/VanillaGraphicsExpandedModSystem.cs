@@ -23,6 +23,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     private GlGpuProfilerRenderer? gpuProfilerRenderer;
     private HarmonyLib.Harmony? harmony;
 
+    private bool? lastEnablePom;
+
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
@@ -80,6 +82,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
         ConfigModSystem.Config.Sanitize();
 
+        // Track config values that require shader recompilation when changed.
+        lastEnablePom = ConfigModSystem.Config.MaterialAtlas.EnableParallaxOcclusionMapping;
+
         // Register built-in debug views for the unified debug viewer.
         VgeBuiltInDebugViews.RegisterAll(api, gBufferManager);
 
@@ -92,7 +97,32 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
     public void OnConfigReloaded(ICoreAPI api)
     {
-        // Intentionally empty: live config reload is handled by specialized mod systems.
+        if (capi is null) return;
+
+        bool enablePom = ConfigModSystem.Config.MaterialAtlas.EnableParallaxOcclusionMapping;
+
+        bool shaderReloadNeeded = lastEnablePom.HasValue && lastEnablePom.Value != enablePom;
+
+        lastEnablePom = enablePom;
+
+        if (!shaderReloadNeeded) return;
+
+        capi.Event.EnqueueMainThreadTask(
+            () =>
+            {
+                TerrainMaterialParamsTextureBindingHook.ClearUniformCache();
+
+                bool ok = capi.Shader.ReloadShaders();
+
+                // Ensure all VGE memory programs are registered again after the global reload.
+                LoadShaders(capi);
+
+                capi.Logger.Notification(
+                    "[VGE] Shaders reloaded due to config change (POM={0}). ok={1}",
+                    enablePom,
+                    ok);
+            },
+            "vge-reload-shaders-on-config-change");
     }
 
     public override void Dispose()
