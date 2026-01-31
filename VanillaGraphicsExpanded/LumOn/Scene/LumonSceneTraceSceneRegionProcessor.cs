@@ -77,11 +77,20 @@ internal sealed class LumonSceneTraceSceneRegionProcessor : IChunkProcessor<Lumo
                     continue;
                 }
 
+                // The occupancy clipmap uses 0u as "empty". Ensure solid cells never pack to 0u even in edge cases
+                // (e.g., zero light + zero sun + materialPaletteIndex==0).
+                ushort materialPaletteIndex = c.MaterialPaletteIndex == 0 ? (ushort)1 : c.MaterialPaletteIndex;
+
                 dst[i] = LumonSceneOccupancyPacking.Pack(
                     blockLevel: c.BlockLevel,
                     sunLevel: c.SunLevel,
                     lightId: c.LightId,
-                    materialPaletteIndex: c.MaterialPaletteIndex);
+                    materialPaletteIndex: materialPaletteIndex);
+
+                if (dst[i] == 0u)
+                {
+                    dst[i] = 1u;
+                }
             }
 
             return ValueTask.FromResult(new LumonSceneTraceSceneRegionArtifact(snapshot.Key, snapshot.Version, regionCoord, dst));
@@ -92,4 +101,3 @@ internal sealed class LumonSceneTraceSceneRegionProcessor : IChunkProcessor<Lumo
             $"Expected PooledChunkSnapshot<uint> or PooledChunkSnapshot<{nameof(LumonSceneTraceSceneSourceCell)}>.");
     }
 }
-

@@ -13,6 +13,46 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class TraceSceneRegionProcessorTests
 {
     [Fact]
+    public async Task SolidSourceCell_WithAllZeros_DoesNotPackToZero()
+    {
+        var key = ChunkKey.FromChunkCoords(0, 0, 0);
+        const int version = 1;
+
+        int n = LumonSceneTraceSceneRegionUploadGpuResources.RegionCellCount;
+        var buf = ArrayPool<LumonSceneTraceSceneSourceCell>.Shared.Rent(n);
+        Array.Clear(buf, 0, n);
+        var snap = new PooledChunkSnapshot<LumonSceneTraceSceneSourceCell>(
+            key: key,
+            version: version,
+            sizeX: 32,
+            sizeY: 32,
+            sizeZ: 32,
+            buffer: buf,
+            length: n);
+
+        try
+        {
+            // This is a pathological but plausible case: solid cell with all other payload components zero.
+            // The clipmap reserves 0u for empty, so the processor must ensure this packs to a non-zero word.
+            buf[0] = new LumonSceneTraceSceneSourceCell(
+                isSolid: 1,
+                blockLevel: 0,
+                sunLevel: 0,
+                lightId: 0,
+                materialPaletteIndex: 0);
+
+            var proc = new LumonSceneTraceSceneRegionProcessor();
+            LumonSceneTraceSceneRegionArtifact art = await proc.ProcessAsync(snap, CancellationToken.None);
+
+            Assert.NotEqual(0u, art.PayloadWords[0]);
+        }
+        finally
+        {
+            snap.Dispose();
+        }
+    }
+
+    [Fact]
     public async Task Packs_SourceCells_ToOccupancyWords()
     {
         var key = ChunkKey.FromChunkCoords(10, 2, -3);
