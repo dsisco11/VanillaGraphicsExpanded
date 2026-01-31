@@ -1,0 +1,96 @@
+LumOn - Phase 22.X - Multi-ChunkSlot Surface Cache Support
+
+Goal
+- [ ] Enable proper multi-chunk surface cache addressing so many visible chunks can concurrently populate material/depth/irradiance tiles without aliasing (virtual address = chunkSlot + virtualPageIndex).
+
+Non-goals (for this todo)
+- [ ] Implement surface-cache mips (defer).
+- [ ] Full UE5-Lumen card parity (defer; focus on chunk identity + page table correctness).
+
+
+Phase 1 - Decide Slot Topology + Contracts
+- [ ] Decide whether the surface cache window is 2D (XZ) or 3D (XYZ) in chunk units.
+- [ ] Specify window dimensions in chunks (W×D or W×H×D).
+- [ ] Specify `originMinChunk` and ring offsets.
+- [ ] Define `chunkSlotCount` relationship to window dimensions.
+- [ ] Define deterministic mapping: `chunkCoord -> localIndex -> ring-wrapped chunkSlot`.
+- [ ] Define per-slot generation semantics (counter, wrap, stale rejection).
+- [ ] Decide where generation is encoded (PatchIdGBuffer.x high bits vs PatchIdGBuffer.w).
+- [ ] Write a short “CPU/GPU contract” note for chunkSlot + generation.
+
+
+Phase 2 - PatchIdGBuffer: Encode Real chunkSlot (+ optional generation)
+- [ ] Add GLSL helper to compute `chunkCoord` from `worldPos` (chunk size 32).
+- [ ] Add GLSL helper `MapChunkCoordToSlot(chunkCoord, originMinChunk, ring, dims) -> chunkSlot`.
+- [ ] Update PBR chunk shader injection so PatchIdGBuffer emits real `chunkSlot` (and generation if used).
+- [ ] Keep existing voxel patchId mapping unchanged initially.
+- [ ] Update/extend debug GBuffer view(s) to visualize chunkSlot (+ generation).
+
+
+Phase 3 - Feedback Dedup: Make Mark/Compact Multi-Slot
+- [ ] Replace single 128×128 stamp with per-slot stamp: `uimage2DArray vge_pageUsageStamp` sized 128×128×chunkSlotCount.
+- [ ] Update `lumonscene_feedback_mark_pages.csh`:
+  - [ ] Remove `chunkSlot!=0` early-out.
+  - [ ] Mark: `imageAtomicMax(stamp, ivec3(vx,vy,chunkSlot), frameStamp)`.
+  - [ ] If generation is enabled: reject mismatched generation.
+- [ ] Update `lumonscene_feedback_compact_pages.csh`:
+  - [ ] Dispatch over `(virtualPageIndex, chunkSlot)`.
+  - [ ] Output requests with real `chunkSlot`.
+- [ ] Add bounded-request fairness:
+  - [ ] Choose strategy (per-slot budgets vs scan offset/round robin).
+  - [ ] Implement strategy and document expected behavior.
+
+
+Phase 4 - CPU Residency + PageTable Mirrors: Key by (chunkSlot, vpage)
+- [ ] Update `LumonSceneFeedbackRequestProcessor`:
+  - [ ] Remove `chunkSlot==0` restriction.
+  - [ ] Key residency dictionaries by `(chunkSlot, virtualPageIndex)` (e.g. 64-bit packed key).
+  - [ ] Resize/reshape `pageTableMirror` to `[chunkSlotCount * VirtualPagesPerChunk]`.
+  - [ ] Ensure eviction clears correct page table slice.
+- [ ] Update `LumonSceneFeedbackUpdateRenderer`:
+  - [ ] Allocate mirrors based on configured `chunkSlotCount`.
+  - [ ] Read/process request batches across multiple slots.
+  - [ ] Make recapture bookkeeping slot-aware (or explicitly per-slot).
+
+
+Phase 5 - Slot Lifecycle + Reuse Safety
+- [ ] Add slot assignment tracking: `chunkCoord -> chunkSlot` and reverse.
+- [ ] On reassignment:
+  - [ ] Clear page table slice for slot.
+  - [ ] Release/free physical pages associated with slot.
+  - [ ] Increment `slotGeneration[chunkSlot]`.
+- [ ] Ensure generation is GPU-visible (e.g. `ChunkSlotInfoBuffer`) and used for stale rejection.
+
+
+Phase 6 - Capture + Relight: Provide Per-Slot Chunk Origins/Transforms
+- [ ] Add GPU buffer: `ChunkSlotInfoBuffer[chunkSlot]` containing:
+  - [ ] chunk origin (block units) or chunkCoord
+  - [ ] generation
+  - [ ] optional transform hooks for rotated blocks / mesh cards later
+- [ ] Update voxel capture compute to use chunkSlot info for world-space reconstruction (as needed).
+- [ ] Update voxel relight tracer to use chunkSlot info for ray origins/bounds (as needed).
+
+
+Phase 7 - Tests: Multi-Slot + Multi-Frame Convergence
+- [ ] GPU tests (feedback):
+  - [ ] Multi-slot mark/compact produces requests for each slot without collisions.
+  - [ ] Bounded `vge_maxRequests` does not permanently starve higher slots (fairness test).
+- [ ] GPU tests (capture):
+  - [ ] Multi-slot capture writes distinct tiles for identical patchIds in different slots.
+- [ ] Integration test:
+  - [ ] “100 chunks visible” synthetic scene over N frames:
+    - [ ] Emit 100 chunkSlots worth of patch ids.
+    - [ ] Run mark→compact→CPU alloc→capture repeatedly under budget.
+    - [ ] Assert per-slot tile coverage grows over time (convergence).
+- [ ] Slot reuse tests:
+  - [ ] Generation increments and stale requests are rejected (GPU + CPU).
+
+
+Phase 8 - Runtime Instrumentation + Debugging
+- [ ] Add LumonScene stats:
+  - [ ] requests by chunkSlot (top-k)
+  - [ ] skipped due to generation mismatch
+  - [ ] skipped due to per-slot budgets / fairness behavior
+- [ ] Add debug overlay(s):
+  - [ ] chunkSlot visualization
+  - [ ] optional page table occupancy heatmap per slot
