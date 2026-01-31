@@ -1,0 +1,313 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+
+using OpenTK.Graphics.OpenGL;
+
+using VanillaGraphicsExpanded.LumOn.Scene;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+
+using Xunit;
+
+namespace VanillaGraphicsExpanded.Tests.GPU;
+
+[Collection("GPU")]
+[Trait("Category", "GPU")]
+public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
+{
+    public LumonScenePatchIdFeedbackLimitsTests(HeadlessGLFixture fixture) : base(fixture) { }
+
+    [Fact]
+    public void PatchIdFeedback_MarkCompact_CanReturnManyUniquePages_UpToMaxRequests()
+    {
+        EnsureContextValid();
+
+        using var helper = CreateShaderHelperOrSkip();
+        int markProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_mark_pages.csh");
+        int compactProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_compact_pages.csh");
+
+        const int desiredPages = 4096;
+        const int gW = 128;
+        const int gH = 32;
+        Assert.Equal(desiredPages, gW * gH);
+
+        using var patchIdGBuffer = Texture2D.Create(gW, gH, PixelInternalFormat.Rgba32ui, debugName: "Test_PatchIdGBuffer");
+        using var usageStamp = Texture2D.Create(128, 128, PixelInternalFormat.R32ui, debugName: "Test_PageUsageStamp");
+        usageStamp.UploadDataImmediate(new uint[128 * 128]);
+
+        uint[] pidTexels = new uint[gW * gH * 4];
+        for (int i = 0; i < desiredPages; i++)
+        {
+            int idx = i * 4;
+            pidTexels[idx + 0] = 0u;          // chunkSlot
+            pidTexels[idx + 1] = (uint)(i + 1); // patchId
+            pidTexels[idx + 2] = 0u;
+            pidTexels[idx + 3] = 0u;
+        }
+        patchIdGBuffer.UploadDataImmediate(pidTexels);
+
+        using var pageRequests = CreateSsbo<LumonScenePageRequestGpu>("Test_PageRequests", capacityItems: desiredPages);
+        using var pageRequestCounter = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 1);
+
+        // Pass A: mark pages.
+        GL.UseProgram(markProgram);
+        BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
+        SetUniform1ui(markProgram, "vge_frameStamp", 1u);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
+        GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
+        GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        // Pass B: compact.
+        GL.UseProgram(compactProgram);
+        pageRequestCounter.BindBase(bindingIndex: 0);
+        pageRequests.BindBase(bindingIndex: 0);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
+        SetUniform1ui(compactProgram, "vge_maxRequests", (uint)desiredPages);
+        SetUniform1ui(compactProgram, "vge_frameStamp", 1u);
+        GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk + 255) / 256, 1, 1);
+        GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        uint requestCount = ReadAtomicCounter(pageRequestCounter, counterIndex: 0);
+        Assert.Equal((uint)desiredPages, requestCount);
+
+        LumonScenePageRequestGpu[] requests = ReadSsbo<LumonScenePageRequestGpu>(pageRequests, itemCount: desiredPages);
+
+        var seen = new HashSet<uint>(capacity: desiredPages);
+        for (int i = 0; i < requests.Length; i++)
+        {
+            Assert.Equal(0u, requests[i].ChunkSlot);
+            Assert.Equal(0u, requests[i].Mip);
+
+            uint v = requests[i].VirtualPageIndex;
+            Assert.InRange(v, 0u, (uint)(LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk - 1));
+            seen.Add(v);
+        }
+
+        // With patchId = 1..4096 and virtualPageIndex = patchId % 16384, we expect 4096 unique vpages.
+        Assert.Equal(desiredPages, seen.Count);
+
+        GL.DeleteProgram(markProgram);
+        GL.DeleteProgram(compactProgram);
+    }
+
+    [Fact]
+    public void PatchIdFeedback_Mark_IgnoresNonZeroChunkSlots()
+    {
+        EnsureContextValid();
+
+        using var helper = CreateShaderHelperOrSkip();
+        int markProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_mark_pages.csh");
+        int compactProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_compact_pages.csh");
+
+        const int gW = 16;
+        const int gH = 16;
+        const int desiredPages = 32;
+
+        using var patchIdGBuffer = Texture2D.Create(gW, gH, PixelInternalFormat.Rgba32ui, debugName: "Test_PatchIdGBuffer");
+        using var usageStamp = Texture2D.Create(128, 128, PixelInternalFormat.R32ui, debugName: "Test_PageUsageStamp");
+        usageStamp.UploadDataImmediate(new uint[128 * 128]);
+
+        uint[] pidTexels = new uint[gW * gH * 4];
+        for (int i = 0; i < desiredPages; i++)
+        {
+            int idx = i * 4;
+            pidTexels[idx + 0] = 1u;            // chunkSlot != 0 => ignored by shader
+            pidTexels[idx + 1] = (uint)(i + 1); // patchId
+        }
+        patchIdGBuffer.UploadDataImmediate(pidTexels);
+
+        using var pageRequests = CreateSsbo<LumonScenePageRequestGpu>("Test_PageRequests", capacityItems: desiredPages);
+        using var pageRequestCounter = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 1);
+
+        GL.UseProgram(markProgram);
+        BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
+        SetUniform1ui(markProgram, "vge_frameStamp", 1u);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
+        GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
+        GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GL.UseProgram(compactProgram);
+        pageRequestCounter.BindBase(bindingIndex: 0);
+        pageRequests.BindBase(bindingIndex: 0);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
+        SetUniform1ui(compactProgram, "vge_maxRequests", (uint)desiredPages);
+        SetUniform1ui(compactProgram, "vge_frameStamp", 1u);
+        GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk + 255) / 256, 1, 1);
+        GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        uint requestCount = ReadAtomicCounter(pageRequestCounter, counterIndex: 0);
+        Assert.Equal(0u, requestCount);
+
+        GL.DeleteProgram(markProgram);
+        GL.DeleteProgram(compactProgram);
+    }
+
+    [Fact]
+    public void PatchIdFeedback_MarkCompact_ModuloCollisions_CanCollapseToFewPages()
+    {
+        EnsureContextValid();
+
+        using var helper = CreateShaderHelperOrSkip();
+        int markProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_mark_pages.csh");
+        int compactProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_compact_pages.csh");
+
+        const int desiredPages = 1024;
+        const int gW = 64;
+        const int gH = 16;
+        Assert.Equal(desiredPages, gW * gH);
+
+        using var patchIdGBuffer = Texture2D.Create(gW, gH, PixelInternalFormat.Rgba32ui, debugName: "Test_PatchIdGBuffer");
+        using var usageStamp = Texture2D.Create(128, 128, PixelInternalFormat.R32ui, debugName: "Test_PageUsageStamp");
+        usageStamp.UploadDataImmediate(new uint[128 * 128]);
+
+        // Choose patchIds that all map to virtualPageIndex==1 via modulo 16384.
+        uint[] pidTexels = new uint[gW * gH * 4];
+        for (int i = 0; i < desiredPages; i++)
+        {
+            int idx = i * 4;
+            pidTexels[idx + 0] = 0u;
+            pidTexels[idx + 1] = 1u + (uint)(i * LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk);
+        }
+        patchIdGBuffer.UploadDataImmediate(pidTexels);
+
+        using var pageRequests = CreateSsbo<LumonScenePageRequestGpu>("Test_PageRequests", capacityItems: desiredPages);
+        using var pageRequestCounter = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 1);
+
+        GL.UseProgram(markProgram);
+        BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
+        SetUniform1ui(markProgram, "vge_frameStamp", 1u);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
+        GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
+        GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GL.UseProgram(compactProgram);
+        pageRequestCounter.BindBase(bindingIndex: 0);
+        pageRequests.BindBase(bindingIndex: 0);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
+        SetUniform1ui(compactProgram, "vge_maxRequests", (uint)desiredPages);
+        SetUniform1ui(compactProgram, "vge_frameStamp", 1u);
+        GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk + 255) / 256, 1, 1);
+        GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        uint requestCount = ReadAtomicCounter(pageRequestCounter, counterIndex: 0);
+        Assert.Equal(1u, requestCount);
+
+        LumonScenePageRequestGpu[] requests = ReadSsbo<LumonScenePageRequestGpu>(pageRequests, itemCount: 1);
+        Assert.Equal(1u, requests[0].VirtualPageIndex);
+
+        GL.DeleteProgram(markProgram);
+        GL.DeleteProgram(compactProgram);
+    }
+
+    [Fact]
+    public void PatchIdFeedback_Compaction_IsGatedByFrameStamp()
+    {
+        EnsureContextValid();
+
+        using var helper = CreateShaderHelperOrSkip();
+        int compactProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_compact_pages.csh");
+
+        using var usageStamp = Texture2D.Create(128, 128, PixelInternalFormat.R32ui, debugName: "Test_PageUsageStamp");
+
+        // Pretend mark pass wrote frameStamp=1 to one page.
+        uint[] stamp = new uint[128 * 128];
+        stamp[1] = 1u;
+        usageStamp.UploadDataImmediate(stamp);
+
+        using var pageRequests = CreateSsbo<LumonScenePageRequestGpu>("Test_PageRequests", capacityItems: 8);
+        using var pageRequestCounter = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 1);
+
+        GL.UseProgram(compactProgram);
+        pageRequestCounter.BindBase(bindingIndex: 0);
+        pageRequests.BindBase(bindingIndex: 0);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: false, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
+        SetUniform1ui(compactProgram, "vge_maxRequests", 8u);
+        SetUniform1ui(compactProgram, "vge_frameStamp", 2u); // mismatch => no requests
+        GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk + 255) / 256, 1, 1);
+        GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        uint requestCount = ReadAtomicCounter(pageRequestCounter, counterIndex: 0);
+        Assert.Equal(0u, requestCount);
+
+        GL.DeleteProgram(compactProgram);
+    }
+
+    private static ShaderTestHelper CreateShaderHelperOrSkip()
+    {
+        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
+        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
+
+        if (!Directory.Exists(shaderPath) || !Directory.Exists(includePath))
+        {
+            Assert.Skip("Shader assets not available - test output content may be missing");
+        }
+
+        return new ShaderTestHelper(shaderPath, includePath);
+    }
+
+    private static int CompileAndLinkCompute(ShaderTestHelper helper, string computeShaderFile)
+    {
+        var cs = helper.CompileShader(computeShaderFile, ShaderType.ComputeShader);
+        Assert.True(cs.IsSuccess, cs.ErrorMessage);
+
+        int program = GL.CreateProgram();
+        GL.AttachShader(program, cs.ShaderId);
+        GL.LinkProgram(program);
+
+        GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int ok);
+        string log = GL.GetProgramInfoLog(program) ?? string.Empty;
+        Assert.True(ok != 0, $"Compute program link failed:\n{log}");
+
+        return program;
+    }
+
+    private static void BindSampler2DUint(int program, string uniformName, int textureId, int unit)
+    {
+        int loc = GL.GetUniformLocation(program, uniformName);
+        Assert.True(loc >= 0, $"Missing uniform {uniformName}");
+        GL.ActiveTexture(TextureUnit.Texture0 + unit);
+        GL.BindTexture(TextureTarget.Texture2D, textureId);
+        GL.Uniform1(loc, unit);
+    }
+
+    private static void SetUniform1ui(int program, string name, uint value)
+    {
+        int loc = GL.GetUniformLocation(program, name);
+        Assert.True(loc >= 0, $"Missing uniform {name}");
+        GL.Uniform1(loc, value);
+    }
+
+    private static GpuAtomicCounterBuffer CreateAtomicCounterBuffer(uint initialValue, int counterCount)
+    {
+        var buf = GpuAtomicCounterBuffer.Create(BufferUsageHint.DynamicDraw, debugName: "Test_AtomicCounter");
+        buf.InitializeCounters(counterCount, initialValue);
+        return buf;
+    }
+
+    private static uint ReadAtomicCounter(GpuAtomicCounterBuffer buffer, int counterIndex)
+    {
+        using var mapped = buffer.MapRange<uint>(dstOffsetBytes: counterIndex * sizeof(uint), elementCount: 1, access: MapBufferAccessMask.MapReadBit);
+        Assert.True(mapped.IsMapped);
+        return mapped.Span[0];
+    }
+
+    private static GpuShaderStorageBuffer CreateSsbo<T>(string name, int capacityItems) where T : unmanaged
+    {
+        var ssbo = GpuShaderStorageBuffer.Create(BufferUsageHint.DynamicDraw, debugName: name);
+        ssbo.Allocate(checked(capacityItems * Unsafe.SizeOf<T>()));
+        return ssbo;
+    }
+
+    private static T[] ReadSsbo<T>(GpuShaderStorageBuffer ssbo, int itemCount) where T : unmanaged
+    {
+        T[] dst = new T[itemCount];
+        using var mapped = ssbo.MapRange<T>(dstOffsetBytes: 0, elementCount: itemCount, access: MapBufferAccessMask.MapReadBit);
+        Assert.True(mapped.IsMapped);
+        mapped.Span.CopyTo(dst);
+        return dst;
+    }
+}
