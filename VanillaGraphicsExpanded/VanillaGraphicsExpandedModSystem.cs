@@ -36,6 +36,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
         // Manually apply terrain material params texture binding patches (property setters).
         TerrainMaterialParamsTextureBindingHook.ApplyPatches(harmony, api.Logger.Notification);
+        TerrainLumonSceneChunkSlotUniformBindingHook.ApplyPatches(harmony, api.Logger.Notification);
 
         // Preload OpenGL extension strings as early as possible (best-effort; requires a current GL context).
         api.Event.EnqueueMainThreadTask(() => GlExtensions.TryLoadExtensions(), "vge-load-gl-extensions");
@@ -77,6 +78,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         {
             // Clear cached uniform locations before shader recompile.
             TerrainMaterialParamsTextureBindingHook.ClearUniformCache();
+            TerrainLumonSceneChunkSlotUniformBindingHook.ClearUniformCache();
             return LoadShaders(api);
         };
 

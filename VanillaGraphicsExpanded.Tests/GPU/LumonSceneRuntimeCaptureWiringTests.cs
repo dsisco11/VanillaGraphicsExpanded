@@ -66,12 +66,16 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
             debugName: "Test_PageUsageStamp");
         usageStamp.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
+        using var genTex = Texture2D.Create(chunkSlotCount, 1, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, debugName: "Test_ChunkSlotGeneration");
+        genTex.UploadDataImmediate(new uint[chunkSlotCount], x: 0, y: 0, regionWidth: chunkSlotCount, regionHeight: 1);
+
         using var pageRequests = CreateSsbo<LumonScenePageRequestGpu>("Test_PageRequests", capacityItems: desiredPages);
         using var pageRequestCounter = CreateAtomicCounterBuffer(initialValue: 0u);
 
         // Pass A: mark.
         GL.UseProgram(markProgram);
         BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
+        BindSampler2DUint(markProgram, "vge_chunkSlotGenerationTex", genTex.TextureId, unit: 1);
         SetUniform(markProgram, "vge_frameStamp", 1u);
         GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);

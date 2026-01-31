@@ -5,6 +5,7 @@ using System.Threading;
 using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
 
@@ -42,6 +43,15 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     private Texture3D? pageUsageStamp;
     private uint feedbackFrameStamp = 1u;
     private uint compactScanOffset = 0u;
+
+    private VectorInt3 slotOriginMinChunk;
+    private VectorInt3 slotDims;
+    private VectorInt3 slotRing;
+    private VectorInt3[] slotOwners = Array.Empty<VectorInt3>();
+    private System.Collections.Generic.Dictionary<VectorInt3, uint> chunkToSlot = new();
+    private ushort[] slotGenerations = Array.Empty<ushort>();
+    private Texture2D? slotGenerationTex;
+    private VectorInt3 lastAnchorChunk;
 
     private LumonScenePageTableEntry[] pageTableMirror = Array.Empty<LumonScenePageTableEntry>();
     private System.Collections.Generic.Dictionary<ulong, uint> virtualToPhysical = new();
@@ -208,6 +218,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         }
 
         EnsureConfigured();
+        UpdateSlotWindowForNextFrame();
 
         EnsurePageUsageStampCreated();
 
@@ -227,6 +238,15 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                 target: TextureTarget.Texture2D,
                 textureId: patchIdTex,
                 samplerId: 0);
+
+            if (slotGenerationTex is not null && slotGenerationTex.IsValid)
+            {
+                _ = feedbackMarkPipeline.ProgramLayout.TryBindSamplerTexture(
+                    samplerUniformName: "vge_chunkSlotGenerationTex",
+                    target: TextureTarget.Texture2D,
+                    textureId: slotGenerationTex.TextureId,
+                    samplerId: 0);
+            }
 
             _ = feedbackMarkPipeline.ProgramLayout.TryBindImageTexture(
                 imageUniformName: "vge_pageUsageStamp",
@@ -318,6 +338,18 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         virtualToPhysical.Clear();
         physicalToVirtual.Clear();
 
+        Array.Clear(slotOwners);
+        chunkToSlot.Clear();
+        Array.Clear(slotGenerations);
+        slotGenerationTex?.Dispose();
+        slotGenerationTex = null;
+
+        slotOriginMinChunk = default;
+        slotDims = default;
+        slotRing = default;
+        lastAnchorChunk = default;
+        LumonSceneChunkSlotUniformState.Disable();
+
         ResetRecaptureList();
     }
 
@@ -331,6 +363,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         int planHash = HashCode.Combine(
             cfg.NearTexelsPerVoxelFaceEdge,
             cfg.NearRadiusChunks,
+            cfg.NearRadiusYChunks,
             physicalPools.Near.Plan.CapacityPages);
 
         if (configured && planHash == lastPlanHash)
@@ -341,7 +374,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         lastPlanHash = planHash;
         configured = true;
 
-        int chunkSlotCount = Math.Max(1, physicalPools.Near.Plan.RequestedPages);
+        int chunkSlotCount = Math.Max(1, LumonScenePoolSizingUtil.ComputeChunkSlotCountBoxField(cfg.NearRadiusChunks, cfg.NearRadiusYChunks));
 
         // Allocate Near GPU resources sized to the physical capacity.
         nearGpu.Configure(chunkSlotCount: chunkSlotCount, physicalPageCapacity: Math.Max(1, physicalPools.Near.Plan.CapacityPages));
@@ -354,6 +387,8 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         virtualToPhysical = new System.Collections.Generic.Dictionary<ulong, uint>(capacity: Math.Max(16, chunkSlotCount));
         physicalToVirtual = new System.Collections.Generic.Dictionary<uint, ulong>(capacity: Math.Max(16, chunkSlotCount));
 
+        EnsureSlotStateConfigured(chunkSlotCount);
+
         cpuProcessor = new LumonSceneFeedbackRequestProcessor(
             physicalPools.Near,
             pageTableMirror,
@@ -365,6 +400,259 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
         // Best-effort clear GPU page table to zeros.
         nearGpu.PageTable.EnsureCreated();
+    }
+
+    private void EnsureSlotStateConfigured(int chunkSlotCount)
+    {
+        // v1: 3D chunkSlot window with core dims = (2*R+1) per axis (R is Chebyshev radius in chunk coords).
+        int rXZ = Math.Max(0, config.LumOn.LumonScene.NearRadiusChunks);
+        int rY = Math.Max(0, config.LumOn.LumonScene.NearRadiusYChunks);
+        int dimX = checked(rXZ * 2 + 1);
+        int dimY = checked(rY * 2 + 1);
+        int dimZ = dimX;
+
+        if (checked(dimX * dimY * dimZ) != chunkSlotCount)
+        {
+            slotDims = default;
+            slotOriginMinChunk = default;
+            slotRing = default;
+            slotOwners = Array.Empty<VectorInt3>();
+            chunkToSlot = new System.Collections.Generic.Dictionary<VectorInt3, uint>();
+            slotGenerations = Array.Empty<ushort>();
+            slotGenerationTex?.Dispose();
+            slotGenerationTex = null;
+            LumonSceneChunkSlotUniformState.Disable();
+            capi.Logger.Warning(
+                "[VGE] LumonScene: cannot configure chunkSlot window dims for chunkSlotCount={0} (NearRadiusChunks={1}, NearRadiusYChunks={2}). Mapping disabled.",
+                chunkSlotCount,
+                rXZ,
+                rY);
+            return;
+        }
+
+        slotDims = new VectorInt3(dimX, dimY, dimZ);
+        slotRing = default;
+        slotOwners = new VectorInt3[chunkSlotCount];
+        chunkToSlot = new System.Collections.Generic.Dictionary<VectorInt3, uint>(capacity: Math.Max(16, chunkSlotCount));
+        slotGenerations = new ushort[chunkSlotCount];
+
+        slotGenerationTex?.Dispose();
+        slotGenerationTex = Texture2D.Create(
+            width: chunkSlotCount,
+            height: 1,
+            format: PixelInternalFormat.R32ui,
+            filter: TextureFilterMode.Nearest,
+            debugName: $"LumOn.LumonScene.{LumonSceneField.Near}.ChunkSlotGeneration(R32UI)");
+
+        // Clear to zero once (generation starts at 0). We'll upload per-slot updates as they change.
+        slotGenerationTex.UploadDataImmediate(new uint[checked(chunkSlotCount)], x: 0, y: 0, regionWidth: chunkSlotCount, regionHeight: 1);
+
+        // Seed window from current anchor (will take effect next frame).
+        if (TryGetAnchorChunkCoord(out VectorInt3 anchorChunk))
+        {
+            lastAnchorChunk = anchorChunk;
+            slotOriginMinChunk = ComputeOriginMinChunkForAnchor(anchorChunk);
+        }
+        else
+        {
+            lastAnchorChunk = default;
+            slotOriginMinChunk = default;
+        }
+
+        RebuildSlotAssignmentsAndRecycleReassignedSlots(forceRecycleAll: true);
+        LumonSceneChunkSlotUniformState.Update(slotOriginMinChunk, slotDims, slotRing, slotGenerationTex.TextureId);
+    }
+
+    private bool TryGetAnchorChunkCoord(out VectorInt3 chunkCoord)
+    {
+        chunkCoord = default;
+        try
+        {
+            var player = capi.World?.Player;
+            var entity = player?.Entity;
+            if (entity is null)
+            {
+                return false;
+            }
+
+            // Entity positions are in block units.
+            double x = entity.Pos.X;
+            double y = entity.Pos.Y;
+            double z = entity.Pos.Z;
+
+            int cx = (int)Math.Floor(x * (1.0 / 32.0));
+            int cy = (int)Math.Floor(y * (1.0 / 32.0));
+            int cz = (int)Math.Floor(z * (1.0 / 32.0));
+            chunkCoord = new VectorInt3(cx, cy, cz);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private VectorInt3 ComputeOriginMinChunkForAnchor(VectorInt3 anchorChunk)
+    {
+        int rXZ = Math.Max(0, config.LumOn.LumonScene.NearRadiusChunks);
+        int rY = Math.Max(0, config.LumOn.LumonScene.NearRadiusYChunks);
+
+        return new VectorInt3(
+            anchorChunk.X - rXZ,
+            anchorChunk.Y - rY,
+            anchorChunk.Z - rXZ);
+    }
+
+    private void UpdateSlotWindowForNextFrame()
+    {
+        if (slotDims == default || slotGenerationTex is null || !slotGenerationTex.IsValid)
+        {
+            return;
+        }
+
+        if (!TryGetAnchorChunkCoord(out VectorInt3 anchorChunk))
+        {
+            return;
+        }
+
+        if (anchorChunk == lastAnchorChunk)
+        {
+            return;
+        }
+
+        VectorInt3 newOrigin = ComputeOriginMinChunkForAnchor(anchorChunk);
+        VectorInt3 delta = newOrigin - slotOriginMinChunk;
+        slotOriginMinChunk = newOrigin;
+
+        // ring = (ring + delta) mod dims (per-axis).
+        slotRing = new VectorInt3(
+            ModPositive(slotRing.X + delta.X, slotDims.X),
+            ModPositive(slotRing.Y + delta.Y, slotDims.Y),
+            ModPositive(slotRing.Z + delta.Z, slotDims.Z));
+
+        lastAnchorChunk = anchorChunk;
+
+        RebuildSlotAssignmentsAndRecycleReassignedSlots(forceRecycleAll: false);
+        LumonSceneChunkSlotUniformState.Update(slotOriginMinChunk, slotDims, slotRing, slotGenerationTex.TextureId);
+    }
+
+    private void RebuildSlotAssignmentsAndRecycleReassignedSlots(bool forceRecycleAll)
+    {
+        if (slotOwners.Length == 0 || slotGenerations.Length != slotOwners.Length)
+        {
+            return;
+        }
+
+        chunkToSlot.Clear();
+
+        int dimX = slotDims.X;
+        int dimY = slotDims.Y;
+        int dimZ = slotDims.Z;
+        int ringX = slotRing.X;
+        int ringY = slotRing.Y;
+        int ringZ = slotRing.Z;
+
+        for (uint slot = 0; slot < (uint)slotOwners.Length; slot++)
+        {
+            // Inverse mapping of: outChunkSlot = (sy * dimZ + sz) * dimX + sx
+            int sx = (int)(slot % (uint)dimX);
+            uint tmp = slot / (uint)dimX;
+            int sz = (int)(tmp % (uint)dimZ);
+            int sy = (int)(tmp / (uint)dimZ);
+
+            int localX = ModPositive(sx - ringX, dimX);
+            int localY = ModPositive(sy - ringY, dimY);
+            int localZ = ModPositive(sz - ringZ, dimZ);
+
+            VectorInt3 owner = slotOriginMinChunk + new VectorInt3(localX, localY, localZ);
+
+            if (forceRecycleAll || slotOwners[slot] != owner)
+            {
+                ReassignSlot(slot, owner);
+            }
+            else
+            {
+                chunkToSlot[owner] = slot;
+            }
+        }
+    }
+
+    private void ReassignSlot(uint slot, VectorInt3 newOwner)
+    {
+        // Clear any resident pages for this slot and bump generation so stale PatchId pixels are rejected.
+        ClearSlotResidency(slot);
+        slotGenerations[slot] = unchecked((ushort)(slotGenerations[slot] + 1));
+
+        if (slotGenerationTex is not null && slotGenerationTex.IsValid)
+        {
+            uint gen = slotGenerations[slot];
+            slotGenerationTex.UploadDataImmediate(new[] { gen }, x: (int)slot, y: 0, regionWidth: 1, regionHeight: 1);
+        }
+
+        slotOwners[slot] = newOwner;
+        chunkToSlot[newOwner] = slot;
+    }
+
+    private void ClearSlotResidency(uint chunkSlot)
+    {
+        if (!configured)
+        {
+            return;
+        }
+
+        if (virtualToPhysical.Count <= 0)
+        {
+            return;
+        }
+
+        int rent = Math.Max(1, virtualToPhysical.Count);
+        ulong[] keys = ArrayPool<ulong>.Shared.Rent(rent);
+        int count = 0;
+
+        try
+        {
+            foreach (var kvp in virtualToPhysical)
+            {
+                if (LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(kvp.Key) == chunkSlot)
+                {
+                    keys[count++] = kvp.Key;
+                }
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                ulong key = keys[i];
+                if (!virtualToPhysical.TryGetValue(key, out uint physicalPageId))
+                {
+                    continue;
+                }
+
+                virtualToPhysical.Remove(key);
+                physicalToVirtual.Remove(physicalPageId);
+
+                int vpage = (int)LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(key);
+                int mirrorIndex = checked((int)chunkSlot * VirtualPagesPerChunk + vpage);
+                if ((uint)mirrorIndex < (uint)pageTableMirror.Length)
+                {
+                    pageTableMirror[mirrorIndex] = default;
+                }
+
+                UploadPageTableEntryMip0(chunkSlot: (int)chunkSlot, virtualPageIndex: vpage, packedEntry: 0u);
+
+                physicalPools.Near.Free(physicalPageId);
+            }
+        }
+        finally
+        {
+            ArrayPool<ulong>.Shared.Return(keys, clearArray: false);
+        }
+    }
+
+    private static int ModPositive(int v, int m)
+    {
+        if (m <= 0) return 0;
+        int r = v % m;
+        return (r < 0) ? (r + m) : r;
     }
 
     private void EnsurePageUsageStampCreated()

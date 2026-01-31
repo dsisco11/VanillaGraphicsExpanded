@@ -14,28 +14,27 @@ It is deliberately biased toward correctness + debuggability over minimal memory
 
 ## 2) Topology Decision (Phase 1)
 
-### Decision: 3D slot window (XYZ)
+### Decision: 3D slot window (XYZ) for v1
 
-We use a **3D** chunk slot window so that chunk identity is preserved across chunk Y layers.
-This is required because voxel `patchId` is chunk-local and would otherwise alias across different `(cx,cy,cz)` that share the same `(cx,cz)` but differ in `cy`.
+We use a **bounded 3D** chunk slot window in chunk coordinates.
 
 ### Window dimensions
 
 Per field:
 
-- `radiusXZChunks` (configurable)
-- `radiusYChunks` (configurable)
+- `radiusXZChunks` (configurable; applied to X/Z)
+- `radiusYChunks` (configurable; applied to Y)
 
 Derived dimensions:
 
 ```
 dimX = 2*radiusXZChunks + 1
-dimY = 2*radiusYChunks  + 1
+dimY = 2*radiusYChunks + 1
 dimZ = 2*radiusXZChunks + 1
 chunkSlotCount = dimX * dimY * dimZ
 ```
 
-Note: we keep X and Z symmetric for now; Y is independent.
+Note: X and Z are symmetric; Y is independent.
 
 
 ## 3) Ring-Buffered Slot Mapping (Deterministic)
@@ -124,6 +123,11 @@ The “mark→compact” visibility stamp must also become per-slot:
 vge_pageUsageStamp: R32UI, size 128×128×chunkSlotCount (2D array image)
 ```
 
+### Physical page pool note
+
+`chunkSlotCount` is **not** the physical page pool size. The physical pool budgets a separate page count
+(`RequestedPages` / `CapacityPages`) and may exceed `chunkSlotCount` to absorb re-anchors and update bursts.
+
 
 ## 6) CPU Responsibilities / Invariants
 
@@ -143,4 +147,3 @@ vge_pageUsageStamp: R32UI, size 128×128×chunkSlotCount (2D array image)
   - if out-of-window, set `patchId=0` so feedback ignores it
 - Fairness in compaction:
   - bounded `maxRequests` should avoid starving higher slots; use round-robin offset or per-slot budgets
-

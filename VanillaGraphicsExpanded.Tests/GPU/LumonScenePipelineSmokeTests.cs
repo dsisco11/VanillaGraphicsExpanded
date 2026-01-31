@@ -81,6 +81,9 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
             debugName: "Test_PageUsageStamp");
         usageStamp.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
+        using var genTex = Texture2D.Create(chunkSlotCount, 1, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, debugName: "Test_ChunkSlotGeneration");
+        genTex.UploadDataImmediate(new uint[chunkSlotCount], x: 0, y: 0, regionWidth: chunkSlotCount, regionHeight: 1);
+
         // Compute patch ids that (a) map to distinct virtual pages, and (b) are "safe" for the relight tracer.
         //
         // v2 request compaction loses per-pixel patchId (by design); v1 voxel patches use the identity mapping
@@ -109,6 +112,7 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         // Pass A: mark pages.
         GL.UseProgram(markProgram);
         BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
+        BindSampler2DUint(markProgram, "vge_chunkSlotGenerationTex", genTex.TextureId, unit: 1);
         SetUniform(markProgram, "vge_frameStamp", 1u);
         GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);

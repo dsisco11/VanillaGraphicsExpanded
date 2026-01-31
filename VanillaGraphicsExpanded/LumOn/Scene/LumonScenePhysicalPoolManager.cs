@@ -19,12 +19,15 @@ internal sealed class LumonScenePhysicalPoolManager : IDisposable
         LumonScenePhysicalPoolPlan nearPlan = LumonScenePhysicalPoolPlanner.CreateNearPlan(
             cfg.NearTexelsPerVoxelFaceEdge,
             cfg.NearRadiusChunks,
+            cfg.NearRadiusYChunks,
             maxAtlasCount);
 
         LumonScenePhysicalPoolPlan farPlan = LumonScenePhysicalPoolPlanner.CreateFarPlanAnnulus(
             cfg.FarTexelsPerVoxelFaceEdge,
             cfg.NearRadiusChunks,
+            cfg.NearRadiusYChunks,
             cfg.FarRadiusChunks,
+            cfg.FarRadiusYChunks,
             maxAtlasCount);
 
         near.Configure(nearPlan);

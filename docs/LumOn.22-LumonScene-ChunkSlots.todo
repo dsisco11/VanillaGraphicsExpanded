@@ -17,6 +17,7 @@ Phase 1 - Decide Slot Topology + Contracts
 - [x] Define per-slot generation semantics (counter, wrap, stale rejection).
 - [x] Decide where generation is encoded (PatchIdGBuffer.x high bits vs PatchIdGBuffer.w).
 - [x] Write a short “CPU/GPU contract” note for chunkSlot + generation.
+- [x] Decouple `chunkSlotCount` (page table layers) from physical pool `RequestedPages`/`CapacityPages`.
 
 
 Phase 2 - PatchIdGBuffer: Encode Real chunkSlot (+ optional generation)
@@ -29,11 +30,11 @@ Phase 2 - PatchIdGBuffer: Encode Real chunkSlot (+ optional generation)
 
 Phase 3 - Feedback Dedup: Make Mark/Compact Multi-Slot
 - [x] Replace single 128×128 stamp with per-slot stamp: `uimage2DArray vge_pageUsageStamp` sized 128×128×chunkSlotCount.
-- [ ] Update `lumonscene_feedback_mark_pages.csh`:
+- [x] Update `lumonscene_feedback_mark_pages.csh`:
   - [x] Remove `chunkSlot!=0` early-out.
   - [x] Mark: `imageAtomicMax(stamp, ivec3(vx,vy,chunkSlot), frameStamp)`.
-  - [ ] If generation is enabled: reject mismatched generation.
-- [ ] Update `lumonscene_feedback_compact_pages.csh`:
+  - [x] If generation is enabled: reject mismatched generation.
+- [x] Update `lumonscene_feedback_compact_pages.csh`:
   - [x] Dispatch over `(virtualPageIndex, chunkSlot)`.
   - [x] Output requests with real `chunkSlot`.
 - [ ] Add bounded-request fairness:
@@ -54,12 +55,12 @@ Phase 4 - CPU Residency + PageTable Mirrors: Key by (chunkSlot, vpage)
 
 
 Phase 5 - Slot Lifecycle + Reuse Safety
-- [ ] Add slot assignment tracking: `chunkCoord -> chunkSlot` and reverse.
-- [ ] On reassignment:
-  - [ ] Clear page table slice for slot.
-  - [ ] Release/free physical pages associated with slot.
-  - [ ] Increment `slotGeneration[chunkSlot]`.
-- [ ] Ensure generation is GPU-visible (e.g. `ChunkSlotInfoBuffer`) and used for stale rejection.
+- [x] Add slot assignment tracking: `chunkCoord -> chunkSlot` and reverse.
+- [x] On reassignment:
+  - [x] Clear page table slice for slot.
+  - [x] Release/free physical pages associated with slot.
+  - [x] Increment `slotGeneration[chunkSlot]`.
+- [x] Ensure generation is GPU-visible (e.g. `ChunkSlotInfoBuffer`) and used for stale rejection.
 
 
 Phase 6 - Capture + Relight: Provide Per-Slot Chunk Origins/Transforms

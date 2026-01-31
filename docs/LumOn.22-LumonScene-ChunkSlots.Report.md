@@ -81,7 +81,7 @@ Conceptually: treat chunk slots like a **ring-buffered 2D/3D window**, similar t
 
 Add a “slot topology” for each field:
 
-- `chunkSlotCount` (already exists in `LumonSceneSurfaceCacheGpuResources.ConfigureFrom`)
+- `chunkSlotCount` (derived from window dims; not the physical page budget)
 - window size in chunks (e.g., `W×H×D` or at least `W×D` + Y policy)
 - `originMinChunk` (world chunk coord of the window min corner)
 - `ring` (ring offset in chunk units; keeps physical slot indices stable under movement)
@@ -92,9 +92,9 @@ GPU needs this to compute:
 chunkSlot = MapChunkCoordToSlot(chunkCoord, originMinChunk, ring, windowDims)
 ```
 
-**Decision needed:** is the surface cache window 2D (XZ) or 3D (XYZ)?
-- The patchId mapping is 32³, so full 3D is consistent, but 2D may be acceptable for a “surface cache”
-  if you only care about terrain surfaces and can derive Y from worldPos without needing a separate chunk slot.
+**Decision (v1):** the surface cache window is **3D (XYZ)**, with `radiusXZChunks` and `radiusYChunks` configs.
+
+See: `docs/LumOn.22-LumonScene-ChunkSlots.Phase1.Contracts.md`
 
 
 ### 2) PatchIdGBuffer Encoding (PBR chunk shaders)

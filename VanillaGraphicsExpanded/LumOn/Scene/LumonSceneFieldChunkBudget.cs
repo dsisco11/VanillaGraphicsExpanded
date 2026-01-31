@@ -1,20 +1,23 @@
+using VanillaGraphicsExpanded.Numerics;
+
 namespace VanillaGraphicsExpanded.LumOn.Scene;
 
-internal readonly struct LumonSceneFieldChunkBudget
-{
-    public readonly int RadiusChunks;
-    public readonly int SideChunks;
-    public readonly int CoveredChunks;
-    public readonly int ExtraChunks;
-    public readonly int TotalChunks;
-
-    public LumonSceneFieldChunkBudget(int radiusChunks, int sideChunks, int coveredChunks, int extraChunks, int totalChunks)
-    {
-        RadiusChunks = radiusChunks;
-        SideChunks = sideChunks;
-        CoveredChunks = coveredChunks;
-        ExtraChunks = extraChunks;
-        TotalChunks = totalChunks;
-    }
-}
+/// <summary>
+/// Chunk budgeting helper for LumonScene physical page planning.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Covered chunks are the core 3D chunk window size (no extra margin): <c>(2*Rxy+1)×(2*Ry+1)×(2*Rxy+1)</c>.
+/// </para>
+/// <para>
+/// Extra chunks are an additional physical-page budget (not extra chunk slots) used to absorb re-anchors.
+/// </para>
+/// </remarks>
+internal readonly record struct LumonSceneFieldChunkBudget(
+    int RadiusXZChunks,
+    int RadiusYChunks,
+    VectorInt3 DimsChunks,
+    int CoveredChunks,
+    int ExtraChunks,
+    int TotalChunks);
 

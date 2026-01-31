@@ -10,7 +10,8 @@ public sealed class LumonScenePhysicalPoolPlannerTests
     {
         LumonScenePhysicalPoolPlan p = LumonScenePhysicalPoolPlanner.CreateNearPlan(
             nearTexelsPerVoxelFaceEdge: 4,
-            nearRadiusChunks: 8,
+            nearRadiusXZChunks: 8,
+            nearRadiusYChunks: 0,
             maxAtlasCount: 64);
 
         Assert.Equal(LumonSceneField.Near, p.Field);
@@ -28,8 +29,10 @@ public sealed class LumonScenePhysicalPoolPlannerTests
     {
         LumonScenePhysicalPoolPlan p = LumonScenePhysicalPoolPlanner.CreateFarPlanAnnulus(
             farTexelsPerVoxelFaceEdge: 1,
-            nearRadiusChunks: 8,
-            farRadiusChunks: 32,
+            nearRadiusXZChunks: 8,
+            nearRadiusYChunks: 0,
+            farRadiusXZChunks: 32,
+            farRadiusYChunks: 0,
             maxAtlasCount: 64);
 
         Assert.Equal(LumonSceneField.Far, p.Field);

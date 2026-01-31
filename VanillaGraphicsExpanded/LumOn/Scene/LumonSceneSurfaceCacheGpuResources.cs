@@ -17,8 +17,9 @@ internal sealed class LumonSceneSurfaceCacheGpuResources : IDisposable
     {
         if (pools is null) throw new ArgumentNullException(nameof(pools));
 
-        // v1: ChunkSlotCount == RequestedPages (1 guaranteed page per chunk in the window).
-        // If later we decouple these, chunk slots should be configured separately.
+        // Note: chunkSlotCount (page table layers) is conceptually the number of active chunk slots in the field window,
+        // while RequestedPages/CapacityPages are physical page budgets. This helper is currently unused; keep conservative
+        // defaults until it is wired up with explicit window sizing.
         near.Configure(
             chunkSlotCount: pools.Near.Plan.RequestedPages <= 0 ? 1 : pools.Near.Plan.RequestedPages,
             physicalPageCapacity: pools.Near.Plan.CapacityPages <= 0 ? 1 : pools.Near.Plan.CapacityPages);
@@ -129,4 +130,3 @@ internal sealed class LumonSceneFieldGpuResources : IDisposable
         relightWork = null;
     }
 }
-

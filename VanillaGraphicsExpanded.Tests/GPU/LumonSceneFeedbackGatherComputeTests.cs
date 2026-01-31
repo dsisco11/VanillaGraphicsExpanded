@@ -44,6 +44,9 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
             debugName: "Test_PageUsageStamp");
         usageStamp.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
+        using var genTex = Texture2D.Create(chunkSlotCount, 1, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, debugName: "Test_ChunkSlotGeneration");
+        genTex.UploadDataImmediate(new uint[chunkSlotCount], x: 0, y: 0, regionWidth: chunkSlotCount, regionHeight: 1);
+
         uint[] pid = new uint[w * h * 4];
         void Set(int x, int y, uint chunkSlot, uint patch)
         {
@@ -51,7 +54,7 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
             pid[idx + 0] = chunkSlot;
             pid[idx + 1] = patch;
             pid[idx + 2] = 0u;
-            pid[idx + 3] = 0u;
+            pid[idx + 3] = 0u; // generation16
         }
 
         // patchId==0 should be ignored.
@@ -74,6 +77,7 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         // Pass A: mark pages.
         GL.UseProgram(markProgram);
         BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchId.TextureId, unit: 0);
+        BindSampler2DUint(markProgram, "vge_chunkSlotGenerationTex", genTex.TextureId, unit: 1);
         SetUniform(markProgram, "vge_frameStamp", 1u);
         GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
         GL.DispatchCompute((w + 7) / 8, (h + 7) / 8, 1);
@@ -119,6 +123,84 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
     }
 
     [Fact]
+    public void FeedbackGather_GenerationMismatch_IsRejectedInMarkPass()
+    {
+        EnsureContextValid();
+
+        using var helper = CreateShaderHelperOrSkip();
+        int markProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_mark_pages.csh");
+        int compactProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_compact_pages.csh");
+
+        const int w = 8;
+        const int h = 8;
+
+        const int chunkSlotCount = 2;
+
+        using var patchId = Texture2D.Create(w, h, PixelInternalFormat.Rgba32ui, debugName: "Test_PatchIdGBuffer");
+        using var usageStamp = Texture3D.Create(
+            128,
+            128,
+            chunkSlotCount,
+            PixelInternalFormat.R32ui,
+            filter: TextureFilterMode.Nearest,
+            textureTarget: TextureTarget.Texture2DArray,
+            debugName: "Test_PageUsageStamp");
+        usageStamp.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
+
+        using var genTex = Texture2D.Create(chunkSlotCount, 1, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, debugName: "Test_ChunkSlotGeneration");
+        genTex.UploadDataImmediate(new uint[] { 1u, 2u }, x: 0, y: 0, regionWidth: chunkSlotCount, regionHeight: 1);
+
+        uint[] pid = new uint[w * h * 4];
+        void Set(int x, int y, uint chunkSlot, uint patch, uint gen16)
+        {
+            int idx = (y * w + x) * 4;
+            pid[idx + 0] = chunkSlot;
+            pid[idx + 1] = patch;
+            pid[idx + 2] = 0u;
+            pid[idx + 3] = gen16;
+        }
+
+        // One valid pixel (slot 0, generation 1).
+        Set(0, 0, chunkSlot: 0u, patch: 1u, gen16: 1u);
+
+        // One stale pixel (slot 1 wants generation 2, but PatchId says 1).
+        Set(1, 0, chunkSlot: 1u, patch: 1u, gen16: 1u);
+
+        patchId.UploadDataImmediate(pid);
+
+        const uint capacity = 16;
+        using var requests = CreateSsbo<RequestGpu>("Test_PageRequests", capacityItems: (int)capacity, sentinel: Sentinel);
+        using var counter = CreateAtomicCounterBuffer(initialValue: 0u);
+
+        GL.UseProgram(markProgram);
+        BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchId.TextureId, unit: 0);
+        BindSampler2DUint(markProgram, "vge_chunkSlotGenerationTex", genTex.TextureId, unit: 1);
+        SetUniform(markProgram, "vge_frameStamp", 1u);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
+        GL.DispatchCompute((w + 7) / 8, (h + 7) / 8, 1);
+        GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GL.UseProgram(compactProgram);
+        counter.BindBase(bindingIndex: 0);
+        requests.BindBase(bindingIndex: 0);
+        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
+        SetUniform(compactProgram, "vge_maxRequests", capacity);
+        SetUniform(compactProgram, "vge_frameStamp", 1u);
+        SetUniform(compactProgram, "vge_scanOffset", 0u);
+        GL.DispatchCompute((16384 * chunkSlotCount + 255) / 256, 1, 1);
+        GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        uint requestCount = counter.Read();
+        Assert.Equal(1u, requestCount);
+
+        RequestGpu[] outReq = requests.ReadBack(count: (int)requestCount);
+        Assert.Equal(new RequestGpu(0u, 1u, 0u, 1u), outReq[0]);
+
+        GL.DeleteProgram(markProgram);
+        GL.DeleteProgram(compactProgram);
+    }
+
+    [Fact]
     public void FeedbackGather_DeduplicatesDuplicatePatchIds()
     {
         EnsureContextValid();
@@ -143,13 +225,16 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
             debugName: "Test_PageUsageStamp");
         usageStamp.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
+        using var genTex = Texture2D.Create(chunkSlotCount, 1, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, debugName: "Test_ChunkSlotGeneration");
+        genTex.UploadDataImmediate(new uint[chunkSlotCount], x: 0, y: 0, regionWidth: chunkSlotCount, regionHeight: 1);
+
         uint[] pid = new uint[w * h * 4];
         for (int i = 0; i < w * h; i++)
         {
             pid[i * 4 + 0] = 0u;
             pid[i * 4 + 1] = 777u;
             pid[i * 4 + 2] = 0u;
-            pid[i * 4 + 3] = 0u;
+            pid[i * 4 + 3] = 0u; // generation16
         }
         patchId.UploadDataImmediate(pid);
 
@@ -159,6 +244,7 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
 
         GL.UseProgram(markProgram);
         BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchId.TextureId, unit: 0);
+        BindSampler2DUint(markProgram, "vge_chunkSlotGenerationTex", genTex.TextureId, unit: 1);
         SetUniform(markProgram, "vge_frameStamp", 1u);
         GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
         GL.DispatchCompute((w + 7) / 8, (h + 7) / 8, 1);

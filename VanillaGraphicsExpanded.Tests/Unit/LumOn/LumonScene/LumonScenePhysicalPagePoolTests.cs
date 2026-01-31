@@ -10,7 +10,8 @@ public sealed class LumonScenePhysicalPagePoolTests
     {
         LumonScenePhysicalPoolPlan plan = LumonScenePhysicalPoolPlanner.CreateNearPlan(
             nearTexelsPerVoxelFaceEdge: 4,
-            nearRadiusChunks: 0,
+            nearRadiusXZChunks: 0,
+            nearRadiusYChunks: 0,
             maxAtlasCount: 64);
 
         var pool = new LumonScenePhysicalPagePool(plan);

@@ -1,0 +1,137 @@
+using HarmonyLib;
+
+using OpenTK.Graphics.OpenGL;
+
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+
+using VanillaGraphicsExpanded.LumOn.Scene;
+
+using Vintagestory.Client.NoObf;
+
+namespace VanillaGraphicsExpanded.HarmonyPatches;
+
+internal static class TerrainLumonSceneChunkSlotUniformBindingHook
+{
+    private static readonly (string TypeName, string PropertyName)[] TargetProperties =
+    {
+        ("Vintagestory.Client.NoObf.ShaderProgramChunkopaque", "TerrainTex2D"),
+        ("Vintagestory.Client.NoObf.ShaderProgramChunkopaque", "TerrainTex2DLinear"),
+        ("Vintagestory.Client.NoObf.ShaderProgramChunktopsoil", "TerrainTex2D"),
+        ("Vintagestory.Client.NoObf.ShaderProgramChunktopsoil", "TerrainTex2DLinear"),
+        ("Vintagestory.Client.NoObf.ShaderProgramChunkliquid", "TerrainTex2D"),
+        ("Vintagestory.Client.NoObf.ShaderProgramChunktransparent", "TerrainTex2D"),
+    };
+
+    private static readonly Dictionary<int, int> originMinLocCache = new();
+    private static readonly Dictionary<int, int> dimsLocCache = new();
+    private static readonly Dictionary<int, int> ringLocCache = new();
+    private static readonly Dictionary<int, int> genSamplerLocCache = new();
+
+    private static readonly Dictionary<int, int> lastAppliedVersionByProgramId = new();
+
+    public static void ApplyPatches(Harmony harmony, Action<string> log)
+    {
+        var postfix = new HarmonyMethod(typeof(TerrainLumonSceneChunkSlotUniformBindingHook), nameof(SetTex2dTerrain_Postfix));
+        int patchedCount = 0;
+
+        foreach ((string typeName, string propertyName) in TargetProperties)
+        {
+            Type? type = AccessTools.TypeByName(typeName);
+            if (type is null)
+            {
+                log($"[VGE] TerrainLumonSceneChunkSlotUniformBindingHook: type not found: {typeName}");
+                continue;
+            }
+
+            MethodInfo? setter = AccessTools.PropertySetter(type, propertyName);
+            if (setter is null)
+            {
+                log($"[VGE] TerrainLumonSceneChunkSlotUniformBindingHook: property setter not found: {typeName}.{propertyName}");
+                continue;
+            }
+
+            try
+            {
+                harmony.Patch(setter, postfix: postfix);
+                patchedCount++;
+                log($"[VGE] Patched {typeName}.set_{propertyName} (LumonScene chunkSlot uniforms)");
+            }
+            catch (Exception ex)
+            {
+                log($"[VGE] Failed to patch {typeName}.set_{propertyName} (LumonScene chunkSlot uniforms): {ex.Message}");
+            }
+        }
+
+        log($"[VGE] TerrainLumonSceneChunkSlotUniformBindingHook: {patchedCount}/{TargetProperties.Length} property setters patched.");
+    }
+
+    public static void SetTex2dTerrain_Postfix(ShaderProgramBase __instance, int value)
+    {
+        // Only run for valid program ids; ignore early init/shutdown.
+        int programId = __instance.ProgramId;
+        if (programId == 0)
+        {
+            return;
+        }
+
+        int version = LumonSceneChunkSlotUniformState.Version;
+        if (lastAppliedVersionByProgramId.TryGetValue(programId, out int last) && last == version)
+        {
+            return;
+        }
+
+        lastAppliedVersionByProgramId[programId] = version;
+
+        try
+        {
+            int originLoc = GetUniformLocCached(originMinLocCache, programId, LumonSceneChunkSlotUniformState.OriginMinChunkUniform);
+            int dimsLoc = GetUniformLocCached(dimsLocCache, programId, LumonSceneChunkSlotUniformState.DimsUniform);
+            int ringLoc = GetUniformLocCached(ringLocCache, programId, LumonSceneChunkSlotUniformState.RingUniform);
+            int genLoc = GetUniformLocCached(genSamplerLocCache, programId, LumonSceneChunkSlotUniformState.GenerationSamplerUniform);
+
+            var origin = LumonSceneChunkSlotUniformState.OriginMinChunk;
+            var dims = LumonSceneChunkSlotUniformState.Dims;
+            var ring = LumonSceneChunkSlotUniformState.Ring;
+
+            if (originLoc >= 0) GL.Uniform3(originLoc, origin.X, origin.Y, origin.Z);
+            if (dimsLoc >= 0) GL.Uniform3(dimsLoc, dims.X, dims.Y, dims.Z);
+            if (ringLoc >= 0) GL.Uniform3(ringLoc, ring.X, ring.Y, ring.Z);
+
+            int texId = LumonSceneChunkSlotUniformState.GenerationTextureId;
+            if (genLoc >= 0 && texId != 0)
+            {
+                GL.ActiveTexture(TextureUnit.Texture0 + LumonSceneChunkSlotUniformState.GenerationTextureUnit);
+                GL.BindTexture(TextureTarget.Texture2D, texId);
+                GL.Uniform1(genLoc, LumonSceneChunkSlotUniformState.GenerationTextureUnit);
+            }
+        }
+        catch
+        {
+            // Swallow GL errors during early init / shutdown to avoid crashing the game.
+        }
+    }
+
+    private static int GetUniformLocCached(Dictionary<int, int> cache, int programId, string uniformName)
+    {
+        if (cache.TryGetValue(programId, out int loc))
+        {
+            return loc;
+        }
+
+        loc = GL.GetUniformLocation(programId, uniformName);
+        cache[programId] = loc;
+        return loc;
+    }
+
+    public static void ClearUniformCache()
+    {
+        originMinLocCache.Clear();
+        dimsLocCache.Clear();
+        ringLocCache.Clear();
+        genSamplerLocCache.Clear();
+        lastAppliedVersionByProgramId.Clear();
+    }
+}
+

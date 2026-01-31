@@ -208,8 +208,8 @@ flat in uint vge_faceId;
     uint chunkSlot = 0u;
     bool vge_slotOk = VgeLumonSceneTryMapChunkCoordToSlot(VgeLumonSceneChunkCoordFromWorldPos(worldPos.xyz), chunkSlot);
 
-    // Slot generation is reserved for stale rejection (Phase 22.X); not wired yet in v1.
-    uint vge_slotGeneration16 = 0u;
+    // Slot generation for stale rejection (Phase 22.X).
+    uint vge_slotGeneration16 = VgeLumonSceneGetChunkSlotGeneration16(chunkSlot);
 
     // If mapping is enabled and the chunk is outside the active window, suppress PatchId output entirely.
     // This prevents out-of-window chunks from spamming feedback requests once multi-slot is enabled.

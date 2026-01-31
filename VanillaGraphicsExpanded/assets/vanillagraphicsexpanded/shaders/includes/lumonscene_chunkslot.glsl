@@ -12,6 +12,7 @@
 //   which window is active (Near/Far); that is provided by the runtime via uniforms.
 // - Safe fallback: if dims are not configured (<=0), mapping is treated as disabled and
 //   `chunkSlot` defaults to 0 for backwards compatibility.
+// - v1: chunkSlot window is a bounded 3D box in chunk coordinates.
 // ============================================================================
 
 // Runtime-provided slot window parameters.
@@ -21,6 +22,7 @@
 uniform ivec3 vge_lumonSceneChunkSlotOriginMinChunk;
 uniform ivec3 vge_lumonSceneChunkSlotDims;
 uniform ivec3 vge_lumonSceneChunkSlotRing;
+uniform usampler2D vge_lumonSceneChunkSlotGenerationTex;
 
 // Convert world position in block units to chunk coord (chunk size is 32 blocks).
 ivec3 VgeLumonSceneChunkCoordFromWorldPos(vec3 worldPosBlocks)
@@ -28,6 +30,18 @@ ivec3 VgeLumonSceneChunkCoordFromWorldPos(vec3 worldPosBlocks)
     // floor() handles negative coordinates correctly.
     vec3 c = floor(worldPosBlocks * (1.0 / 32.0));
     return ivec3(c);
+}
+
+uint VgeLumonSceneGetChunkSlotGeneration16(uint chunkSlot)
+{
+    // Safe fallback: if mapping is disabled (dims <= 0), treat generation as 0 and avoid sampling.
+    ivec3 dims = vge_lumonSceneChunkSlotDims;
+    if (dims.x <= 0 || dims.y <= 0 || dims.z <= 0)
+    {
+        return 0u;
+    }
+
+    return texelFetch(vge_lumonSceneChunkSlotGenerationTex, ivec2(int(chunkSlot), 0), 0).x & 0xFFFFu;
 }
 
 int VgeLumonSceneModPositive(int v, int m)
@@ -72,4 +86,3 @@ bool VgeLumonSceneTryMapChunkCoordToSlot(ivec3 chunkCoord, out uint outChunkSlot
 }
 
 #endif // VGE_LUMONSCENE_CHUNKSLOT_GLSL
-

@@ -290,7 +290,8 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
         int texelsPerVoxelFaceEdge = capacityNotClamped ? 4 : 512;
         LumonScenePhysicalPoolPlan plan = LumonScenePhysicalPoolPlanner.CreateNearPlan(
             nearTexelsPerVoxelFaceEdge: texelsPerVoxelFaceEdge,
-            nearRadiusChunks: 1,
+            nearRadiusXZChunks: 1,
+            nearRadiusYChunks: 0,
             maxAtlasCount: 1);
 
         pool.Configure(plan);

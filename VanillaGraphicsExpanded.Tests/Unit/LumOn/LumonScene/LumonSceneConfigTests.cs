@@ -17,7 +17,9 @@ public sealed class LumonSceneConfigTests
                     NearTexelsPerVoxelFaceEdge = -5,
                     FarTexelsPerVoxelFaceEdge = 999,
                     NearRadiusChunks = 12345,
+                    NearRadiusYChunks = 12345,
                     FarRadiusChunks = -1,
+                    FarRadiusYChunks = -1,
                 }
             }
         };
@@ -28,7 +30,10 @@ public sealed class LumonSceneConfigTests
         Assert.Equal(64, cfg.LumOn.LumonScene.FarTexelsPerVoxelFaceEdge);
 
         Assert.InRange(cfg.LumOn.LumonScene.NearRadiusChunks, 0, 128);
+        Assert.InRange(cfg.LumOn.LumonScene.NearRadiusYChunks, 0, 128);
         Assert.InRange(cfg.LumOn.LumonScene.FarRadiusChunks, 0, 128);
+        Assert.InRange(cfg.LumOn.LumonScene.FarRadiusYChunks, 0, 128);
         Assert.True(cfg.LumOn.LumonScene.FarRadiusChunks >= cfg.LumOn.LumonScene.NearRadiusChunks);
+        Assert.True(cfg.LumOn.LumonScene.FarRadiusYChunks >= cfg.LumOn.LumonScene.NearRadiusYChunks);
     }
 }

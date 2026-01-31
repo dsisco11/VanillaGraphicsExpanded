@@ -693,11 +693,26 @@ public class VgeConfig
             public int NearRadiusChunks { get; set; } = 8;
 
             /// <summary>
+            /// Near-field vertical radius expressed in chunk distance (Chebyshev distance in chunk coordinates).
+            /// Default: 0 (single chunk Y layer). Increase this to include multiple chunk Y layers in the slot window.
+            /// </summary>
+            [JsonProperty]
+            public int NearRadiusYChunks { get; set; } = 0;
+
+            /// <summary>
             /// Far-field radius expressed in chunk distance (Chebyshev distance in chunk coordinates).
             /// Must be &gt;= <see cref="NearRadiusChunks"/>.
             /// </summary>
             [JsonProperty]
             public int FarRadiusChunks { get; set; } = 32;
+
+            /// <summary>
+            /// Far-field vertical radius expressed in chunk distance (Chebyshev distance in chunk coordinates).
+            /// Must be &gt;= <see cref="NearRadiusYChunks"/>.
+            /// Default: 0 (single chunk Y layer). Increase this to include multiple chunk Y layers in the slot window.
+            /// </summary>
+            [JsonProperty]
+            public int FarRadiusYChunks { get; set; } = 0;
 
             /// <summary>
             /// Trace scene settings (occupancy clipmap + update budgets).
@@ -784,10 +799,16 @@ public class VgeConfig
                 FarTexelsPerVoxelFaceEdge = SanitizeTexelsPerVoxelFaceEdge(FarTexelsPerVoxelFaceEdge);
 
                 NearRadiusChunks = Math.Clamp(NearRadiusChunks, 0, 128);
+                NearRadiusYChunks = Math.Clamp(NearRadiusYChunks, 0, 128);
                 FarRadiusChunks = Math.Clamp(FarRadiusChunks, 0, 128);
+                FarRadiusYChunks = Math.Clamp(FarRadiusYChunks, 0, 128);
                 if (FarRadiusChunks < NearRadiusChunks)
                 {
                     FarRadiusChunks = NearRadiusChunks;
+                }
+                if (FarRadiusYChunks < NearRadiusYChunks)
+                {
+                    FarRadiusYChunks = NearRadiusYChunks;
                 }
 
                 TraceScene ??= new TraceSceneConfig();

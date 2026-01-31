@@ -13,12 +13,15 @@ public sealed class LumonSceneChunkResidencyManagerTests
         var pools = new LumonScenePhysicalPoolManager();
         pools.Near.Configure(LumonScenePhysicalPoolPlanner.CreateNearPlan(
             nearTexelsPerVoxelFaceEdge: 4,
-            nearRadiusChunks: 0,
+            nearRadiusXZChunks: 0,
+            nearRadiusYChunks: 0,
             maxAtlasCount: 64));
         pools.Far.Configure(LumonScenePhysicalPoolPlanner.CreateFarPlanAnnulus(
             farTexelsPerVoxelFaceEdge: 1,
-            nearRadiusChunks: 0,
-            farRadiusChunks: 0,
+            nearRadiusXZChunks: 0,
+            nearRadiusYChunks: 0,
+            farRadiusXZChunks: 0,
+            farRadiusYChunks: 0,
             maxAtlasCount: 64));
 
         var residency = new LumonSceneChunkResidencyManager(pools);
@@ -46,12 +49,15 @@ public sealed class LumonSceneChunkResidencyManagerTests
         // Then clamp to 1 atlas so requested pages > capacity => eviction path engaged.
         pools.Near.Configure(LumonScenePhysicalPoolPlanner.CreateNearPlan(
             nearTexelsPerVoxelFaceEdge: 512,
-            nearRadiusChunks: 1,
+            nearRadiusXZChunks: 1,
+            nearRadiusYChunks: 0,
             maxAtlasCount: 1));
         pools.Far.Configure(LumonScenePhysicalPoolPlanner.CreateFarPlanAnnulus(
             farTexelsPerVoxelFaceEdge: 512,
-            nearRadiusChunks: 0,
-            farRadiusChunks: 0,
+            nearRadiusXZChunks: 0,
+            nearRadiusYChunks: 0,
+            farRadiusXZChunks: 0,
+            farRadiusYChunks: 0,
             maxAtlasCount: 1));
 
         var residency = new LumonSceneChunkResidencyManager(pools);
@@ -77,12 +83,15 @@ public sealed class LumonSceneChunkResidencyManagerTests
         var pools = new LumonScenePhysicalPoolManager();
         pools.Near.Configure(LumonScenePhysicalPoolPlanner.CreateNearPlan(
             nearTexelsPerVoxelFaceEdge: 4,
-            nearRadiusChunks: 0,
+            nearRadiusXZChunks: 0,
+            nearRadiusYChunks: 0,
             maxAtlasCount: 64));
         pools.Far.Configure(LumonScenePhysicalPoolPlanner.CreateFarPlanAnnulus(
             farTexelsPerVoxelFaceEdge: 1,
-            nearRadiusChunks: 0,
-            farRadiusChunks: 0,
+            nearRadiusXZChunks: 0,
+            nearRadiusYChunks: 0,
+            farRadiusXZChunks: 0,
+            farRadiusYChunks: 0,
             maxAtlasCount: 64));
 
         var residency = new LumonSceneChunkResidencyManager(pools);
@@ -104,4 +113,3 @@ public sealed class LumonSceneChunkResidencyManagerTests
             e.Reason == LumonScenePageReleaseReason.FieldTransition);
     }
 }
-

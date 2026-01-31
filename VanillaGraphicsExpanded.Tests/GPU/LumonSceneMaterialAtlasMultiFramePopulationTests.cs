@@ -76,6 +76,9 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
             debugName: "Test_PageUsageStamp");
         usageStamp.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
+        using var genTex = Texture2D.Create(chunkSlotCount, 1, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, debugName: "Test_ChunkSlotGeneration");
+        genTex.UploadDataImmediate(new uint[chunkSlotCount], x: 0, y: 0, regionWidth: chunkSlotCount, regionHeight: 1);
+
         uint[] pidTexels = new uint[gW * gH * 4];
         for (int i = 0; i < desiredPages; i++)
         {
@@ -104,6 +107,7 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
             // Pass A: mark pages.
             GL.UseProgram(markProgram);
             BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
+            BindSampler2DUint(markProgram, "vge_chunkSlotGenerationTex", genTex.TextureId, unit: 1);
             SetUniform1ui(markProgram, "vge_frameStamp", frameStamp);
             GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
             GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
@@ -217,6 +221,9 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
             debugName: "Test_PageUsageStamp");
         usageStamp.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
+        using var genTex = Texture2D.Create(chunkSlotCount, 1, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, debugName: "Test_ChunkSlotGeneration");
+        genTex.UploadDataImmediate(new uint[chunkSlotCount], x: 0, y: 0, regionWidth: chunkSlotCount, regionHeight: 1);
+
         uint[] pidTexels = new uint[gW * gH * 4];
         for (int c = 0; c < chunksVisible; c++)
         {
@@ -235,6 +242,7 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
 
         GL.UseProgram(markProgram);
         BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
+        BindSampler2DUint(markProgram, "vge_chunkSlotGenerationTex", genTex.TextureId, unit: 1);
         SetUniform1ui(markProgram, "vge_frameStamp", 1u);
         GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
