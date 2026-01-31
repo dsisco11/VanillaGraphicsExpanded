@@ -22,7 +22,7 @@ env:
 
 jobs:
   # ============================================================================
-  # Unit Tests (non-GPU)
+  # Unit Tests (non-GPU, uses VintageStory client)
   # ============================================================================
   test:
     runs-on: ubuntu-latest
@@ -36,23 +36,10 @@ jobs:
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
-    - name: Cache VintageStory Server (for tests)
-      id: cache-vs-test
-      uses: actions/cache@v4
+    - name: Setup VintageStory Client
+      uses: ./.github/workflows/actions/setup-vs-client
       with:
-        path: ~/vs-server
-        key: vs-server-${{ env.VS_VERSION }}
-
-    - name: Download VintageStory Server (for tests)
-      if: steps.cache-vs-test.outputs.cache-hit != 'true'
-      run: |
-        mkdir -p ~/vs-server
-        curl -L -o ~/vs-server.tar.gz "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_${{ env.VS_VERSION }}.tar.gz"
-        tar -xzf ~/vs-server.tar.gz -C ~/vs-server --strip-components=0
-        rm ~/vs-server.tar.gz
-
-    - name: Set VINTAGE_STORY environment variable
-      run: echo "VINTAGE_STORY=$HOME/vs-server" >> $GITHUB_ENV
+        vs-version: ${{ env.VS_VERSION }}
 
     - name: Restore dependencies
       run: dotnet restore
@@ -61,7 +48,7 @@ jobs:
       run: dotnet test --filter "Category!=GPU" --logger "console;verbosity=normal"
 
   # ============================================================================
-  # GPU Shader Tests (with Mesa llvmpipe software renderer)
+  # GPU Shader Tests (VintageStory client + Mesa llvmpipe software renderer)
   # ============================================================================
   test-gpu:
     runs-on: ubuntu-latest
@@ -81,24 +68,13 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y mesa-utils libosmesa6 libgl1-mesa-dri xvfb
 
-    - name: Cache VintageStory Server
-      id: cache-vs-gpu
-      uses: actions/cache@v4
+    - name: Setup VintageStory Client
+      uses: ./.github/workflows/actions/setup-vs-client
       with:
-        path: ~/vs-server
-        key: vs-server-${{ env.VS_VERSION }}
-
-    - name: Download VintageStory Server
-      if: steps.cache-vs-gpu.outputs.cache-hit != 'true'
-      run: |
-        mkdir -p ~/vs-server
-        curl -L -o ~/vs-server.tar.gz "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_${{ env.VS_VERSION }}.tar.gz"
-        tar -xzf ~/vs-server.tar.gz -C ~/vs-server --strip-components=0
-        rm ~/vs-server.tar.gz
+        vs-version: ${{ env.VS_VERSION }}
 
     - name: Set environment variables
       run: |
-        echo "VINTAGE_STORY=$HOME/vs-server" >> $GITHUB_ENV
         echo "LIBGL_ALWAYS_SOFTWARE=1" >> $GITHUB_ENV
         echo "GALLIUM_DRIVER=llvmpipe" >> $GITHUB_ENV
 
@@ -112,7 +88,7 @@ jobs:
         DISPLAY: ":99"
 
   # ============================================================================
-  # Build and Package
+  # Build and Package (uses VintageStory client)
   # ============================================================================
   build:
     runs-on: ubuntu-latest
@@ -127,25 +103,10 @@ jobs:
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
-    - name: Cache VintageStory Server
-      id: cache-vs
-      uses: actions/cache@v4
+    - name: Setup VintageStory Client
+      uses: ./.github/workflows/actions/setup-vs-client
       with:
-        path: ~/vs-server
-        key: vs-server-${{ env.VS_VERSION }}
-
-    - name: Download VintageStory Server
-      if: steps.cache-vs.outputs.cache-hit != 'true'
-      run: |
-        mkdir -p ~/vs-server
-        echo "Downloading VintageStory Server v${{ env.VS_VERSION }}..."
-        curl -L -o ~/vs-server.tar.gz "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_${{ env.VS_VERSION }}.tar.gz"
-        tar -xzf ~/vs-server.tar.gz -C ~/vs-server --strip-components=0
-        rm ~/vs-server.tar.gz
-        ls -la ~/vs-server
-
-    - name: Set VINTAGE_STORY environment variable
-      run: echo "VINTAGE_STORY=$HOME/vs-server" >> $GITHUB_ENV
+        vs-version: ${{ env.VS_VERSION }}
 
     - name: Restore dependencies
       run: dotnet restore
