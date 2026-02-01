@@ -74,6 +74,10 @@ public sealed class MaterialAtlasModSystem : ModSystem
             populateCallbackId = api.Event.RegisterCallback(
                 _ => MaterialAtlasSystem.Instance.PopulateAtlasContents(api),
                 millisecondDelay: 500);
+
+            // Defensive: ensure any residual artifact work is idle before leaving the loading screen.
+            // (In the direct-upload warmup path, no artifact jobs should be enqueued.)
+            MaterialAtlasSystem.Instance.WaitForIdleAsync().GetAwaiter().GetResult();
         };
 
         // Optional: small in-game progress overlay while the material atlas builds.
