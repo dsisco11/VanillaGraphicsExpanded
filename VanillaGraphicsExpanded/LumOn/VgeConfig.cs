@@ -917,6 +917,15 @@ public class VgeConfig
         public float TemporalAlpha { get; set; } = 0.95f;
 
         /// <summary>
+        /// Probe-atlas temporal disocclusion threshold based on hit distance delta.
+        /// Lower values = more aggressive history rejection (less ghosting, more noise).
+        /// Higher values = more stable but can smear during camera translation.
+        /// Hot-reloadable.
+        /// </summary>
+        [JsonProperty]
+        public float ProbeAtlasHitDistanceRejectThreshold { get; set; } = 0.1f;
+
+        /// <summary>
         /// Depth discontinuity threshold for edge detection.
         /// Used to identify edges between probes. Hot-reloadable.
         /// </summary>
@@ -1217,6 +1226,9 @@ public class VgeConfig
             RayThickness = Math.Clamp(RayThickness, 0.01f, 16.0f);
 
             TemporalAlpha = Math.Clamp(TemporalAlpha, 0.0f, 1.0f);
+
+            // Avoid pathological settings; values too small will constantly reset history.
+            ProbeAtlasHitDistanceRejectThreshold = Math.Clamp(ProbeAtlasHitDistanceRejectThreshold, 0.05f, 1.0f);
             DepthDiscontinuityThreshold = Math.Clamp(DepthDiscontinuityThreshold, 0.0f, 10.0f);
 
             VelocityRejectThreshold = Math.Clamp(VelocityRejectThreshold, 0.0f, 1.0f);

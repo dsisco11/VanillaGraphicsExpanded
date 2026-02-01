@@ -928,7 +928,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         // Pass temporal blending parameters
         shader.TemporalAlpha = config.LumOn.TemporalAlpha;
-        shader.HitDistanceRejectThreshold = 0.3f;  // 30% relative difference threshold
+        shader.HitDistanceRejectThreshold = config.LumOn.ProbeAtlasHitDistanceRejectThreshold;
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);
