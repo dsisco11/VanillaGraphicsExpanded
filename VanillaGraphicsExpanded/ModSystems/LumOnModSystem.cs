@@ -30,9 +30,6 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
 
     private HudLumOnStatsPanel? lumOnStatsPanel;
 
-    private long selfCheckTickListenerId;
-    private long nextSelfCheckLogMs;
-
     private LumOnLiveConfigSnapshot? lastLiveConfigSnapshot;
 
     private readonly record struct LumOnLiveConfigSnapshot(
@@ -70,8 +67,6 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         {
             lumOnStatsPanel?.Show();
         }
-
-        selfCheckTickListenerId = api.Event.RegisterGameTickListener(OnSelfCheckTick, 250);
     }
 
     internal bool IsLumOnEnabled()
@@ -258,42 +253,15 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             int a = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.AppliedRegions;
             long r = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionRequestsIssued;
             long s = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotsRequested;
+            int na = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotNonAirCells;
+            int sol = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotSolidCells;
 
-            return $"TS: q:{q} f:{f} a:{a} r:{r} s:{s}";
+            return $"TS: q:{q} f:{f} a:{a} r:{r} s:{s} na:{na} sol:{sol}";
         }
         catch
         {
             return "TS: error";
         }
-    }
-
-    private void OnSelfCheckTick(float dt)
-    {
-        _ = dt;
-
-        if (capi is null)
-        {
-            return;
-        }
-
-        if (!ConfigModSystem.Config.Debug.LumOnRuntimeSelfCheckEnabled)
-        {
-            return;
-        }
-
-        long nowMs = Environment.TickCount64;
-        if (nowMs < nextSelfCheckLogMs)
-        {
-            return;
-        }
-
-        nextSelfCheckLogMs = nowMs + 1000;
-
-        string ls = GetLumonSceneSurfaceCacheStatusLineSafe();
-        string lsr = GetLumonSceneRelightStatusLineSafe();
-        string ts = GetTraceSceneStatusLineSafe();
-
-        capi.Logger.Debug("[VGE] LumOn SelfCheck: {0} | {1} | {2}", ls, lsr, ts);
     }
 
     internal LumOnBufferManager? GetLumOnBufferManagerOrNull()
@@ -393,11 +361,6 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         if (capi is not null)
         {
             capi.Event.BlockChanged -= OnClientBlockChanged;
-            if (selfCheckTickListenerId != 0)
-            {
-                capi.Event.UnregisterGameTickListener(selfCheckTickListenerId);
-                selfCheckTickListenerId = 0;
-            }
         }
 
         if (commonEvents is not null)

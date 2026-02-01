@@ -22,6 +22,9 @@ internal static class LumonSceneTraceSceneMetrics
     private static long snapshotsRequested;
     private static long snapshotsUnavailable;
 
+    private static int lastSnapshotNonAirCells;
+    private static int lastSnapshotSolidCells;
+
     public static long RegionsUploaded => Interlocked.Read(ref regionsUploaded);
     public static long RegionsDispatched => Interlocked.Read(ref regionsDispatched);
     public static long BytesUploaded => Interlocked.Read(ref bytesUploaded);
@@ -30,6 +33,9 @@ internal static class LumonSceneTraceSceneMetrics
     public static long RegionRequestsIssued => Interlocked.Read(ref regionRequestsIssued);
     public static long SnapshotsRequested => Interlocked.Read(ref snapshotsRequested);
     public static long SnapshotsUnavailable => Interlocked.Read(ref snapshotsUnavailable);
+
+    public static int LastSnapshotNonAirCells => Volatile.Read(ref lastSnapshotNonAirCells);
+    public static int LastSnapshotSolidCells => Volatile.Read(ref lastSnapshotSolidCells);
 
     public static int QueueLength => Volatile.Read(ref queueLength);
     public static int InFlight => Volatile.Read(ref inFlight);
@@ -67,5 +73,11 @@ internal static class LumonSceneTraceSceneMetrics
     public static void OnSnapshotUnavailable()
     {
         Interlocked.Increment(ref snapshotsUnavailable);
+    }
+
+    public static void SetLastSnapshotCellCounts(int nonAirCells, int solidCells)
+    {
+        Volatile.Write(ref lastSnapshotNonAirCells, nonAirCells);
+        Volatile.Write(ref lastSnapshotSolidCells, solidCells);
     }
 }
