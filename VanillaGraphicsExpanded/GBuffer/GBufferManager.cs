@@ -271,18 +271,58 @@ public sealed class GBufferManager : IDisposable
         if (!isInitialized || !isInjected)
             return;
 
-        if (framebuffer == EnumFrameBuffer.Primary)
+        if (framebuffer != EnumFrameBuffer.Primary)
         {
-            // Clear our G-buffer attachments to default values
-            // Using glClearBuffer to clear individual attachments without affecting VS attachments
-            
-            // Clear normal buffer (attachment 4) to (0, 0, 0, 0) - no normal data
-            GL.ClearBuffer(ClearBuffer.Color, NormalSlotId, clearColor);
-            
-            // Clear material buffer (attachment 5) to (0, 0, 0, 0) - no material data
-            GL.ClearBuffer(ClearBuffer.Color, MaterialSlotId, clearColor);
+            return;
+        }
 
-            // Clear patch id buffer (attachment 6) to 0s (integer clear).
+        // Prefer clearing the textures directly. This is robust even if VS unbinds the FBO
+        // before our ClearFrameBuffer postfix runs (and also avoids draw-buffer state issues).
+        // Fallback to glClearBuffer on the primary FBO if clear-texture isn't available.
+        bool clearedNormal = normalTex?.TryClearToZero() == true;
+        bool clearedMaterial = materialTex?.TryClearToZero() == true;
+        bool clearedPatchId = patchIdTex?.TryClearToZero() == true;
+
+        if (clearedNormal && clearedMaterial && clearedPatchId)
+        {
+            return;
+        }
+
+        FrameBufferRef? primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
+        if (primaryFb is null)
+        {
+            return;
+        }
+
+        // Fallback: bind the primary FBO and clear the attachments by index.
+        var gl = GlStateCache.Current;
+        using var _ = gl.BindFramebufferScope(FramebufferTarget.Framebuffer, primaryFb.FboId);
+
+        // Ensure our draw buffers are addressable (some drivers validate indices against the active list).
+        DrawBuffersEnum[] drawBuffers =
+        [
+            DrawBuffersEnum.ColorAttachment0,
+            DrawBuffersEnum.ColorAttachment1,
+            DrawBuffersEnum.ColorAttachment2,
+            DrawBuffersEnum.ColorAttachment3,
+            DrawBuffersEnum.ColorAttachment4,
+            DrawBuffersEnum.ColorAttachment5,
+            DrawBuffersEnum.ColorAttachment6
+        ];
+        GL.DrawBuffers(7, drawBuffers);
+
+        if (!clearedNormal)
+        {
+            GL.ClearBuffer(ClearBuffer.Color, NormalSlotId, clearColor);
+        }
+
+        if (!clearedMaterial)
+        {
+            GL.ClearBuffer(ClearBuffer.Color, MaterialSlotId, clearColor);
+        }
+
+        if (!clearedPatchId)
+        {
             GL.ClearBuffer(ClearBuffer.Color, PatchIdSlotId, clearUInt4AsInt);
         }
     }

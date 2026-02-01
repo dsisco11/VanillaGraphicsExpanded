@@ -62,7 +62,17 @@ vec4 RenderDebug_LumOnScenesOverview(vec2 screenPos)
 
     vec3 viewPos = lumonReconstructViewPos(uv01, depth, invProjectionMatrix);
     vec3 worldPosRel = (invViewMatrix * vec4(viewPos, 1.0)).xyz;
-    ivec3 worldCell = VgeMatrixSpacePosToWorldCell(worldPosRel);
+
+    // Match TraceScene occupancy queries to the solid side of the visible surface.
+    vec3 n01 = texelFetch(gBufferNormal, ivec2(screenPos), 0).xyz;
+    vec3 normalWS = normalize(n01 * 2.0 - 1.0);
+    vec3 occPosRel = worldPosRel;
+    if (dot(normalWS, normalWS) > 1e-6)
+    {
+        occPosRel = worldPosRel - normalWS * 0.51;
+    }
+
+    ivec3 worldCell = VgeMatrixSpacePosToWorldCell(occPosRel);
 
     bool inBounds = VgeOccInBoundsL0(worldCell, vge_traceOccOriginMinCell0, vge_traceOccResolution);
     uint payloadPacked = VgeSampleOccL0(

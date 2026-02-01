@@ -75,6 +75,10 @@ vec4 renderLumonScenePageReadyDebug()
 
     uvec4 pid = texelFetch(gBufferPatchId, ivec2(gl_FragCoord.xy), 0);
     float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
     if (!lumonIsSky(depth) && pid.y == 0u)
     {
         // Geometry present but no PatchId written (or suppressed): make this obvious.
@@ -128,6 +132,10 @@ vec4 renderLumonScenePatchUvDebug()
 
     uvec4 pid = texelFetch(gBufferPatchId, ivec2(gl_FragCoord.xy), 0);
     float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
     if (!lumonIsSky(depth) && pid.y == 0u)
     {
         return vec4(0.8, 0.0, 0.8, 1.0);
@@ -153,6 +161,10 @@ vec4 renderLumonSceneIrradianceDebug()
 
     uvec4 pid = texelFetch(gBufferPatchId, ivec2(gl_FragCoord.xy), 0);
     float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
     if (!lumonIsSky(depth) && pid.y == 0u)
     {
         return vec4(0.8, 0.0, 0.8, 1.0);
@@ -196,6 +208,10 @@ vec4 renderLumonSceneChunkSlotDebug()
 {
     uvec4 pid = texelFetch(gBufferPatchId, ivec2(gl_FragCoord.xy), 0);
     float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
     if (!lumonIsSky(depth) && pid.y == 0u)
     {
         return vec4(0.8, 0.0, 0.8, 1.0);
@@ -229,6 +245,10 @@ vec4 renderLumonSceneSlotGenerationDebug()
 {
     uvec4 pid = texelFetch(gBufferPatchId, ivec2(gl_FragCoord.xy), 0);
     float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
     if (!lumonIsSky(depth) && pid.y == 0u)
     {
         return vec4(0.8, 0.0, 0.8, 1.0);
@@ -259,6 +279,10 @@ vec4 renderLumonScenePageTableOccupancyDebug()
 
     uvec4 pid = texelFetch(gBufferPatchId, ivec2(gl_FragCoord.xy), 0);
     float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
     if (!lumonIsSky(depth) && pid.y == 0u)
     {
         return vec4(0.8, 0.0, 0.8, 1.0);

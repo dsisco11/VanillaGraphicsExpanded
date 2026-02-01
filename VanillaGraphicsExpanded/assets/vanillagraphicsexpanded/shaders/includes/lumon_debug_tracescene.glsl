@@ -48,7 +48,18 @@ vec4 RenderDebug_TraceScene(vec2 screenPos)
 
     vec3 viewPos = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
     vec3 worldPosRel = (invViewMatrix * vec4(viewPos, 1.0)).xyz;
-    ivec3 worldCell = VgeMatrixSpacePosToWorldCell(worldPosRel);
+
+    // Depth reconstruction lands on the visible surface (often on a voxel face boundary), so floor(worldPos)
+    // can select the "outside" (air) cell. Step slightly into the surface along the normal for occupancy queries.
+    vec3 n01 = texelFetch(gBufferNormal, ivec2(screenPos), 0).xyz;
+    vec3 normalWS = normalize(n01 * 2.0 - 1.0);
+    vec3 occPosRel = worldPosRel;
+    if (dot(normalWS, normalWS) > 1e-6)
+    {
+        occPosRel = worldPosRel - normalWS * 0.51;
+    }
+
+    ivec3 worldCell = VgeMatrixSpacePosToWorldCell(occPosRel);
 
     bool inBounds = VgeOccInBoundsL0(worldCell, vge_traceOccOriginMinCell0, vge_traceOccResolution);
     uint payloadPacked = VgeSampleOccL0(vge_traceOccL0, worldCell, vge_traceOccOriginMinCell0, vge_traceOccRing0, vge_traceOccResolution);
