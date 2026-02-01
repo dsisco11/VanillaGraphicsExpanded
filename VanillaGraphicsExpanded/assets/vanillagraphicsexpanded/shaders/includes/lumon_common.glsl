@@ -13,8 +13,10 @@ const float LUMON_TAU = 6.283185307179586;
 const float LUMON_GOLDEN_ANGLE = 2.399963229728653;
 const float LUMON_PHI = 1.618033988749895;
 
-// Sky depth threshold (values >= this are considered sky)
-const float LUMON_SKY_DEPTH_THRESHOLD = 0.9999;
+// Sky depth threshold (values >= this are considered sky).
+// Note: 0.9999 was too aggressive with large far planes and caused distant geometry
+// to be treated as sky, breaking velocity/reprojection.
+const float LUMON_SKY_DEPTH_THRESHOLD = 0.9999995;
 
 // #endregion
 
