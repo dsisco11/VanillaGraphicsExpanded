@@ -252,11 +252,23 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             int f = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.InFlight;
             int a = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.AppliedRegions;
             long r = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionRequestsIssued;
-            long s = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotsRequested;
+            long sReq = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotsRequested;
+            long sOk = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotsSucceeded;
+            long sNo = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotsUnavailable;
+
             int na = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotNonAirCells;
             int sol = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotSolidCells;
+            int cf = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotChunkFound;
+            int bc = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotBulkCloneUsed;
+            int b0 = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotBlockId0;
+            int bC = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotBlockIdCenter;
+            int bL = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotBlockIdLast;
+            int bD = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotDirectBlockIdCenter;
+            int cx = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotChunkX;
+            int cy = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotChunkY;
+            int cz = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotChunkZ;
 
-            return $"TS: q:{q} f:{f} a:{a} r:{r} s:{s} na:{na} sol:{sol}";
+            return $"TS: q:{q} f:{f} a:{a} r:{r} s:{sReq}/{sOk}/{sNo} c:{cf} bc:{bc} key:{cx},{cy},{cz} b:{b0}/{bC}/{bL} d:{bD} na:{na} sol:{sol}";
         }
         catch
         {

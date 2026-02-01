@@ -66,7 +66,10 @@ public sealed class MaterialAtlasModSystem : ModSystem
             if (ConfigModSystem.Config.MaterialAtlas.ForceCacheWarmupDirectUploadsOnWorldLoad)
             {
                 MaterialAtlasSystem.Instance.PopulateAtlasContents(capi!, startBackgroundSchedulers: false);
+                var sw = System.Diagnostics.Stopwatch.StartNew();
                 MaterialAtlasSystem.Instance.FinishBuildOnCurrentThreadForWorldLoad(capi!);
+                sw.Stop();
+                capi!.Logger.Debug("[VGE] FinishBuildOnCurrentThreadForWorldLoad: {0:0.0}ms (BlockTexturesLoaded)", sw.Elapsed.TotalMilliseconds);
             }
             else
             {
@@ -98,7 +101,10 @@ public sealed class MaterialAtlasModSystem : ModSystem
         if (ConfigModSystem.Config.MaterialAtlas.ForceCacheWarmupDirectUploadsOnWorldLoad)
         {
             MaterialAtlasSystem.Instance.PopulateAtlasContents(capi!, startBackgroundSchedulers: false);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             MaterialAtlasSystem.Instance.FinishBuildOnCurrentThreadForWorldLoad(capi!);
+            sw.Stop();
+            capi!.Logger.Debug("[VGE] FinishBuildOnCurrentThreadForWorldLoad: {0:0.0}ms (LevelFinalize)", sw.Elapsed.TotalMilliseconds);
             return;
         }
 
