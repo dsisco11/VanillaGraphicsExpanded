@@ -27,68 +27,74 @@ public sealed class MaterialAtlasModSystem : ModSystem
         // - Phase 2 (populate/bake) must only run after the block atlas is finalized
         MaterialAtlasSystem.Instance.CreateTextureObjects(api);
 
-        api.Event.BlockTexturesLoaded += () =>
-        {
-            // Keep textures in sync with the block atlas as soon as it exists,
-            // but defer the expensive population/bake until the world is fully ready.
-            MaterialAtlasSystem.Instance.CreateTextureObjects(api);
-
-            // Cache-only warmup during the loading screen: upload cached tiles early,
-            // while deferring cache misses to the normal pipeline.
-            if (ConfigModSystem.Config.MaterialAtlas.ForceCacheWarmupDirectUploadsOnWorldLoad)
-            {
-                MaterialAtlasSystem.Instance.WarmupAtlasCacheBlockingDirectUploads(api);
-            }
-            else
-            {
-                MaterialAtlasSystem.Instance.WarmupAtlasCache(api);
-            }
-
-            if (isLevelFinalized)
-            {
-                MaterialAtlasSystem.Instance.PopulateAtlasContents(api);
-            }
-            else
-            {
-                pendingPopulate = true;
-            }
-        };
-
-        api.Event.LevelFinalize += () =>
-        {
-            isLevelFinalized = true;
-
-            if (!pendingPopulate)
-            {
-                return;
-            }
-
-            pendingPopulate = false;
-
-            if (populateCallbackId != 0)
-            {
-                api.Event.UnregisterCallback(populateCallbackId);
-            }
-
-            // Give the client a brief moment after finalize to finish settling (GUI, chunk init, etc.).
-            populateCallbackId = api.Event.RegisterCallback(
-                _ => MaterialAtlasSystem.Instance.PopulateAtlasContents(api),
-                millisecondDelay: 500);
-
-            // Defensive: ensure any residual artifact work is idle before leaving the loading screen.
-            // (In the direct-upload warmup path, no artifact jobs should be enqueued.)
-            MaterialAtlasSystem.Instance.WaitForIdleAsync().GetAwaiter().GetResult();
-        };
+        api.Event.BlockTexturesLoaded += OnBlockTexturesLoaded;
+        api.Event.LevelFinalize += OnLevelFinalize;
+        api.Event.ReloadTextures += OnReloadTextures;
 
         // Optional: small in-game progress overlay while the material atlas builds.
         progressPanel = new HudMaterialAtlasProgressPanel(api, MaterialAtlasSystem.Instance);
-
-        api.Event.ReloadTextures += () =>
-        {
-            api.Logger.Debug("[VGE] ReloadTextures event");
-            MaterialAtlasSystem.Instance.RequestRebuild(api);
-        };
     }
+
+    #region Event Handlers
+    private void OnBlockTexturesLoaded()
+    {
+        // Keep textures in sync with the block atlas as soon as it exists,
+        // but defer the expensive population/bake until the world is fully ready.
+        MaterialAtlasSystem.Instance.CreateTextureObjects(capi!);
+
+        // Cache-only warmup during the loading screen: upload cached tiles early,
+        // while deferring cache misses to the normal pipeline.
+        if (ConfigModSystem.Config.MaterialAtlas.ForceCacheWarmupDirectUploadsOnWorldLoad)
+        {
+            MaterialAtlasSystem.Instance.WarmupAtlasCacheBlockingDirectUploads(capi!);
+        }
+        else
+        {
+            MaterialAtlasSystem.Instance.WarmupAtlasCache(capi!);
+        }
+
+        if (isLevelFinalized)
+        {
+            MaterialAtlasSystem.Instance.PopulateAtlasContents(capi!);
+        }
+        else
+        {
+            pendingPopulate = true;
+        }
+    }
+
+    private void OnLevelFinalize()
+    {
+        isLevelFinalized = true;
+
+        if (!pendingPopulate)
+        {
+            return;
+        }
+
+        pendingPopulate = false;
+
+        if (populateCallbackId != 0)
+        {
+            capi!.Event.UnregisterCallback(populateCallbackId);
+        }
+
+        // Give the client a brief moment after finalize to finish settling (GUI, chunk init, etc.).
+        populateCallbackId = capi!.Event.RegisterCallback(
+            _ => MaterialAtlasSystem.Instance.PopulateAtlasContents(capi!),
+            millisecondDelay: 500);
+
+        // Defensive: ensure any residual artifact work is idle before leaving the loading screen.
+        // (In the direct-upload warmup path, no artifact jobs should be enqueued.)
+        MaterialAtlasSystem.Instance.WaitForIdleAsync().GetAwaiter().GetResult();        
+    }
+
+    private void OnReloadTextures()
+    {
+        capi!.Logger.Debug("[VGE] ReloadTextures event");
+        MaterialAtlasSystem.Instance.RequestRebuild(capi!);
+    }
+    #endregion
 
     public override void Dispose()
     {
