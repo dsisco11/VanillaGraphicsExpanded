@@ -11,7 +11,7 @@
 
 // Binding point contract.
 // GLSL 330 requires binding from C# via glUniformBlockBinding / glBindBufferBase.
-#define LUMON_UBO_TERRAIN_BRIDGE_BINDING 14
+#define LUMON_UBO_TERRAIN_BRIDGE_BINDING 27
 
 layout(std140) uniform LumOnTerrainBridgeUBO
 {
@@ -29,4 +29,3 @@ layout(std140) uniform LumOnTerrainBridgeUBO
 #define vge_lumonSceneWorldBlockOffsetRem   (vgeTerrainBridge.vge_worldBlockOffsetRem.xyz)
 
 #endif // LUMON_TERRAIN_BRIDGE_UBO_GLSL
-

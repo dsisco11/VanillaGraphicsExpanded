@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 internal static class LumOnTerrainBridgeUboState
 {
     public const string BlockName = "LumOnTerrainBridgeUBO";
-    public const int Binding = 14;
+    public const int Binding = 27;
 
     private const int UboSizeBytes = 32; // ivec4 + vec4 (std140)
 
@@ -83,4 +83,3 @@ internal static class LumOnTerrainBridgeUboState
         BinaryPrimitives.WriteInt32LittleEndian(b.Slice(12, 4), w);
     }
 }
-

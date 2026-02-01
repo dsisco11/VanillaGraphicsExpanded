@@ -94,13 +94,6 @@ internal sealed class LumOnTerrainBridgeUpdateRenderer : IRenderer, IDisposable
         LumOnTerrainBridgeUboState.Update(
             new VectorInt3(offChunkX, offChunkY, offChunkZ),
             new Vector3d(remX, remY, remZ));
-
-        // Keep the buffer bound (cheap) so programs that already have the block binding can fetch it.
-        int bufferId = LumOnTerrainBridgeUboState.BufferId;
-        if (bufferId != 0)
-        {
-            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, LumOnTerrainBridgeUboState.Binding, bufferId);
-        }
     }
 
     public void Dispose()

@@ -28,7 +28,9 @@ uniform usampler2D vge_lumonSceneChunkSlotGenerationTex;
 
 // Backwards-compatible name used by injected patch code.
 ivec3 VgeLumonSceneChunkCoordFromWorldPos(vec3 worldPosRelBlocks)
-    => VgeMatrixSpacePosToWorldChunkCoord(worldPosRelBlocks);
+{
+    return VgeMatrixSpacePosToWorldChunkCoord(worldPosRelBlocks);
+}
 
 uint VgeLumonSceneGetChunkSlotGeneration16(uint chunkSlot)
 {
