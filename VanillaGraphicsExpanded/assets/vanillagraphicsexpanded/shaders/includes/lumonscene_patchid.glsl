@@ -13,8 +13,13 @@
 // (chunkSlot is still a v1 placeholder).
 // ============================================================================
 
+// World/matrix space bridge (see lumonscene_chunkslot.glsl for full explanation).
+// For the patch-id mapping we only need a stable "block modulo 32" domain, so the remainder term is sufficient.
+uniform ivec3 vge_lumonSceneWorldChunkCoordOffset;
+uniform vec3 vge_lumonSceneWorldBlockOffsetRem;
+
 void VgeLumonSceneComputeVoxelPatchIdAndUv(
-    vec3 worldPos,
+    vec3 worldPosRel,
     vec3 geometricNormal,
     out uint outPatchId,
     out vec2 outPatchUv01)
@@ -47,7 +52,9 @@ void VgeLumonSceneComputeVoxelPatchIdAndUv(
     }
 
     // Bias toward the surface interior so floor() resolves the owning block consistently.
-    vec3 p = worldPos - axisN * 1e-4;
+    // NOTE: In vanilla chunk shaders, `worldPos` is in matrix space. The remainder term yields the correct
+    // block-grid phase in world space, which is all we need for chunk-local indexing.
+    vec3 p = (worldPosRel + vge_lumonSceneWorldBlockOffsetRem) - axisN * 1e-4;
     ivec3 block = ivec3(floor(p));
 
     // Chunk-local cell coords [0..31] (two's-complement & is stable and fast).

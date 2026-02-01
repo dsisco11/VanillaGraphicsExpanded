@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Reflection;
 
 using VanillaGraphicsExpanded.LumOn.Scene;
+using VanillaGraphicsExpanded.Numerics;
 
 using Vintagestory.Client.NoObf;
 
@@ -28,6 +29,9 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
     private static readonly Dictionary<int, int> dimsLocCache = new();
     private static readonly Dictionary<int, int> ringLocCache = new();
     private static readonly Dictionary<int, int> genSamplerLocCache = new();
+
+    private static readonly Dictionary<int, int> worldChunkOffsetLocCache = new();
+    private static readonly Dictionary<int, int> worldBlockRemLocCache = new();
 
     private static readonly Dictionary<int, int> lastAppliedVersionByProgramId = new();
 
@@ -108,7 +112,7 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
             return;
         }
 
-        int version = LumonSceneChunkSlotUniformState.Version;
+        int version = HashCode.Combine(LumonSceneChunkSlotUniformState.Version, LumonSceneWorldCoordUniformState.Version);
         if (lastAppliedVersionByProgramId.TryGetValue(programId, out int last) && last == version)
         {
             return;
@@ -122,6 +126,8 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
             int dimsLoc = GetUniformLocCached(dimsLocCache, programId, LumonSceneChunkSlotUniformState.DimsUniform);
             int ringLoc = GetUniformLocCached(ringLocCache, programId, LumonSceneChunkSlotUniformState.RingUniform);
             int genLoc = GetUniformLocCached(genSamplerLocCache, programId, LumonSceneChunkSlotUniformState.GenerationSamplerUniform);
+            int worldChunkLoc = GetUniformLocCached(worldChunkOffsetLocCache, programId, LumonSceneWorldCoordUniformState.WorldChunkCoordOffsetUniform);
+            int worldRemLoc = GetUniformLocCached(worldBlockRemLocCache, programId, LumonSceneWorldCoordUniformState.WorldBlockOffsetRemUniform);
 
             var origin = LumonSceneChunkSlotUniformState.OriginMinChunk;
             var dims = LumonSceneChunkSlotUniformState.Dims;
@@ -130,6 +136,12 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
             if (originLoc >= 0) GL.Uniform3(originLoc, origin.X, origin.Y, origin.Z);
             if (dimsLoc >= 0) GL.Uniform3(dimsLoc, dims.X, dims.Y, dims.Z);
             if (ringLoc >= 0) GL.Uniform3(ringLoc, ring.X, ring.Y, ring.Z);
+
+            VectorInt3 offChunk = LumonSceneWorldCoordUniformState.WorldChunkCoordOffset;
+            Vector3d offRem = LumonSceneWorldCoordUniformState.WorldBlockOffsetRem;
+
+            if (worldChunkLoc >= 0) GL.Uniform3(worldChunkLoc, offChunk.X, offChunk.Y, offChunk.Z);
+            if (worldRemLoc >= 0) GL.Uniform3(worldRemLoc, (float)offRem.X, (float)offRem.Y, (float)offRem.Z);
 
             int texId = LumonSceneChunkSlotUniformState.GenerationTextureId;
             if (genLoc >= 0 && texId != 0)
@@ -166,6 +178,8 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
         dimsLocCache.Clear();
         ringLocCache.Clear();
         genSamplerLocCache.Clear();
+        worldChunkOffsetLocCache.Clear();
+        worldBlockRemLocCache.Clear();
         lastAppliedVersionByProgramId.Clear();
     }
 }

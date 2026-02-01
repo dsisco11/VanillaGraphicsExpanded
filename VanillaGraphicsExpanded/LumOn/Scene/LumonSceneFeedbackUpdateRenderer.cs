@@ -11,6 +11,7 @@ using VanillaGraphicsExpanded.Rendering;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
+using Vintagestory.API.MathTools;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene;
 
@@ -36,6 +37,9 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
     private readonly LumonScenePhysicalPoolManager physicalPools = new();
     private readonly LumonSceneFieldGpuResources nearGpu = new(LumonSceneField.Near);
+
+    private readonly float[] modelViewMatrix = new float[16];
+    private readonly float[] invModelViewMatrix = new float[16];
 
     private GpuComputePipeline? feedbackMarkPipeline;
     private GpuComputePipeline? feedbackCompactPipeline;
@@ -84,6 +88,8 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
     private uint[] lastTopChunkSlots = Array.Empty<uint>();
     private int[] lastTopChunkSlotCounts = Array.Empty<int>();
+    private VectorInt3 lastWorldChunkCoordOffset;
+    private Vector3d lastWorldBlockOffsetRem;
 
     private int recaptureAllRequested;
     private ulong[]? recaptureVirtualPageKeys;
@@ -230,6 +236,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
         EnsureConfigured();
         UpdateSlotWindowForNextFrame();
+        UpdateWorldCoordUniformState();
 
         EnsurePageUsageStampCreated();
 
@@ -370,6 +377,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         slotRing = default;
         lastAnchorChunk = default;
         LumonSceneChunkSlotUniformState.Disable();
+        LumonSceneWorldCoordUniformState.Disable();
 
         feedbackMarkDebugCounters?.Dispose();
         feedbackMarkDebugCounters = null;
@@ -412,6 +420,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         physicalToVirtual = new System.Collections.Generic.Dictionary<uint, ulong>(capacity: Math.Max(16, chunkSlotCount));
 
         EnsureSlotStateConfigured(chunkSlotCount);
+        UpdateWorldCoordUniformState();
 
         cpuProcessor = new LumonSceneFeedbackRequestProcessor(
             physicalPools.Near,
@@ -591,6 +600,58 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
         RebuildSlotAssignmentsAndRecycleReassignedSlots(forceRecycleAll: false);
         LumonSceneChunkSlotUniformState.Update(slotOriginMinChunk, slotDims, slotRing, slotGenerationTex.TextureId);
+    }
+
+    private void UpdateWorldCoordUniformState()
+    {
+        try
+        {
+            var player = capi.World?.Player;
+            var entity = player?.Entity;
+            if (entity is null)
+            {
+                return;
+            }
+
+            // World camera position (double precision, world coords).
+            double camWorldX = entity.CameraPos.X;
+            double camWorldY = entity.CameraPos.Y;
+            double camWorldZ = entity.CameraPos.Z;
+
+            // Camera position in render "matrix space" (derived from the camera matrix origin).
+            // This matches the coordinate system used by terrain shaders for `worldPos`.
+            Array.Copy(capi.Render.CameraMatrixOriginf, modelViewMatrix, 16);
+            Array.Copy(modelViewMatrix, invModelViewMatrix, 16);
+            MatrixHelper.Invert(invModelViewMatrix, invModelViewMatrix);
+
+            double camMatrixX = invModelViewMatrix[12];
+            double camMatrixY = invModelViewMatrix[13];
+            double camMatrixZ = invModelViewMatrix[14];
+
+            // offsetBlocks = camWorld - camMatrix.
+            double offX = camWorldX - camMatrixX;
+            double offY = camWorldY - camMatrixY;
+            double offZ = camWorldZ - camMatrixZ;
+
+            int offChunkX = (int)Math.Floor(offX * (1.0 / 32.0));
+            int offChunkY = (int)Math.Floor(offY * (1.0 / 32.0));
+            int offChunkZ = (int)Math.Floor(offZ * (1.0 / 32.0));
+
+            double remX = offX - (offChunkX * 32.0);
+            double remY = offY - (offChunkY * 32.0);
+            double remZ = offZ - (offChunkZ * 32.0);
+
+            LumonSceneWorldCoordUniformState.Update(
+                new VectorInt3(offChunkX, offChunkY, offChunkZ),
+                new Vector3d(remX, remY, remZ));
+
+            lastWorldChunkCoordOffset = new VectorInt3(offChunkX, offChunkY, offChunkZ);
+            lastWorldBlockOffsetRem = new Vector3d(remX, remY, remZ);
+        }
+        catch
+        {
+            // Best-effort: leave last values.
+        }
     }
 
     private void RebuildSlotAssignmentsAndRecycleReassignedSlots(bool forceRecycleAll)
@@ -1314,6 +1375,8 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             $"exist:{lastProcessStats.RequestsAcceptedExisting} new:{lastProcessStats.RequestsAllocatedNew} ev:{lastProcessStats.AllocationEvictions} fail:{lastProcessStats.AllocationFailures} " +
             $"skipBud:{lastProcessStats.RequestsSkippedBudget} genMis:{lastMarkRejectGenMismatch} slotOob:{lastMarkRejectChunkSlotOob} pid0:{lastMarkRejectPatchId0} " +
             $"uniq:{lastUniqueVirtualPages} top:{lastTopChunkSlot},{lastTopVirtualPage}:{lastTopVirtualPageCount}{topSlots} " +
+            $"wOff:{lastWorldChunkCoordOffset.X},{lastWorldChunkCoordOffset.Y},{lastWorldChunkCoordOffset.Z} " +
+            $"wRem:{lastWorldBlockOffsetRem.X:0.##},{lastWorldBlockOffsetRem.Y:0.##},{lastWorldBlockOffsetRem.Z:0.##} " +
             $"res:{residentPages}/{cap} ready:{ready} nc:{needsCap} nr:{needsRel} capQ:{lastCaptureCount} relQ:{lastRelightCount} " +
             $"rc:{lastProcessStats.RecaptureSucceeded}/{lastProcessStats.RecaptureAttempted}";
 

@@ -24,12 +24,16 @@ uniform ivec3 vge_lumonSceneChunkSlotDims;
 uniform ivec3 vge_lumonSceneChunkSlotRing;
 uniform usampler2D vge_lumonSceneChunkSlotGenerationTex;
 
-// Convert world position in block units to chunk coord (chunk size is 32 blocks).
-ivec3 VgeLumonSceneChunkCoordFromWorldPos(vec3 worldPosBlocks)
+// World/matrix space bridge (Phase 22.X).
+// Uniforms are declared in lumonscene_patchid.glsl (imported before this file in chunk shaders).
+
+// Convert matrix-space position (block units) to *world* chunk coord (chunk size is 32 blocks).
+ivec3 VgeLumonSceneChunkCoordFromWorldPos(vec3 worldPosRelBlocks)
 {
     // floor() handles negative coordinates correctly.
-    vec3 c = floor(worldPosBlocks * (1.0 / 32.0));
-    return ivec3(c);
+    vec3 p = worldPosRelBlocks + vge_lumonSceneWorldBlockOffsetRem;
+    ivec3 local = ivec3(floor(p * (1.0 / 32.0)));
+    return local + vge_lumonSceneWorldChunkCoordOffset;
 }
 
 uint VgeLumonSceneGetChunkSlotGeneration16(uint chunkSlot)
