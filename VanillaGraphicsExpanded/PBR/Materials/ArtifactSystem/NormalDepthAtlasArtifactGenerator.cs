@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 using OpenTK.Graphics.OpenGL;
@@ -56,6 +57,9 @@ internal sealed class NormalDepthAtlasArtifactGenerator
     public void BumpSession() => scheduler.BumpSession();
 
     public ArtifactSchedulerStats GetStatsSnapshot() => scheduler.GetStatsSnapshot();
+
+    public Task WaitForIdleAsync(CancellationToken cancellationToken = default)
+        => scheduler.WaitForIdleAsync(cancellationToken);
 
     public bool Enqueue(WorkKey key) => scheduler.Enqueue(new WorkItem(key));
 

@@ -40,6 +40,10 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
     private long computeSamples;
     private long outputSamples;
 
+    private long pendingApply;
+    private readonly object idleGate = new();
+    private TaskCompletionSource<object?> idleTcs = CreateCompletedIdleTcs();
+
     public ArtifactScheduler(
         ICoreClientAPI capi,
         IArtifactComputer<TKey, TOutput> computer,
@@ -106,6 +110,10 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
 
         // Best-effort: do not block the game thread.
         _ = loop;
+
+        // After stop, we treat the scheduler as quiescent for waiters even if the internal queue still has entries.
+        // (Nothing will drain them once the run loop is canceled.)
+        ForceSignalIdle();
     }
 
     public void BumpSession()
@@ -125,7 +133,40 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
     public bool Enqueue(IArtifactWorkItem<TKey> item)
     {
         if (item is null) throw new ArgumentNullException(nameof(item));
-        return queue.TryEnqueue(item.Priority, item);
+        bool enqueued = queue.TryEnqueue(item.Priority, item);
+        if (enqueued)
+        {
+            MarkNonIdle();
+        }
+        return enqueued;
+    }
+
+    public async Task WaitForIdleAsync(CancellationToken cancellationToken = default)
+    {
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (IsIdle() || !IsRunning())
+            {
+                return;
+            }
+
+            Task task;
+            lock (idleGate)
+            {
+                // Defensive: there is a very small race where the queue transitions to non-idle
+                // before Enqueue() updates idleTcs. If that happens, self-heal here to avoid a spin.
+                if (!IsIdle() && idleTcs.Task.IsCompleted)
+                {
+                    idleTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+                }
+
+                task = idleTcs.Task;
+            }
+
+            await task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 
     public ArtifactSchedulerStats GetStatsSnapshot()
@@ -171,6 +212,7 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
         {
             if (!queue.TryDequeue(out IArtifactWorkItem<TKey> item))
             {
+                SignalIdleIfNeeded();
                 try { await Task.Delay(5, token).ConfigureAwait(false); } catch { }
                 continue;
             }
@@ -225,16 +267,34 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
 
                     if (result.RequiresApply && applier is not null)
                     {
-                        capi.Event.EnqueueMainThreadTask(() =>
-                        {
-                            if (capturedSessionId != Interlocked.Read(ref sessionId))
-                            {
-                                return;
-                            }
+                        Interlocked.Increment(ref pendingApply);
 
-                            var applyCtx = new ArtifactApplyContext<TKey, TOutput>(capi, session, item.Key, result.Output);
-                            applier.Apply(in applyCtx);
-                        }, "vge-artifact-apply");
+                        try
+                        {
+                            capi.Event.EnqueueMainThreadTask(() =>
+                            {
+                                try
+                                {
+                                    if (capturedSessionId != Interlocked.Read(ref sessionId))
+                                    {
+                                        return;
+                                    }
+
+                                    var applyCtx = new ArtifactApplyContext<TKey, TOutput>(capi, session, item.Key, result.Output);
+                                    applier.Apply(in applyCtx);
+                                }
+                                finally
+                                {
+                                    Interlocked.Decrement(ref pendingApply);
+                                    SignalIdleIfNeeded();
+                                }
+                            }, "vge-artifact-apply");
+                        }
+                        catch
+                        {
+                            Interlocked.Decrement(ref pendingApply);
+                            SignalIdleIfNeeded();
+                        }
                     }
 
                     Interlocked.Increment(ref completed);
@@ -248,11 +308,69 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
                 {
                     concurrencyGate.Release();
                     Interlocked.Decrement(ref inFlight);
+                    SignalIdleIfNeeded();
                 }
             }, CancellationToken.None);
 
             await Task.Yield();
         }
+    }
+
+    private bool IsRunning()
+    {
+        lock (lifecycleGate)
+        {
+            return runCts is not null;
+        }
+    }
+
+    private bool IsIdle()
+        => queue.Count == 0
+            && Interlocked.Read(ref inFlight) == 0
+            && Interlocked.Read(ref pendingApply) == 0;
+
+    private void MarkNonIdle()
+    {
+        lock (idleGate)
+        {
+            if (idleTcs.Task.IsCompleted)
+            {
+                idleTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+        }
+    }
+
+    private void SignalIdleIfNeeded()
+    {
+        if (!IsIdle())
+        {
+            return;
+        }
+
+        lock (idleGate)
+        {
+            if (!IsIdle())
+            {
+                return;
+            }
+
+            idleTcs.TrySetResult(null);
+        }
+    }
+
+    private void ForceSignalIdle()
+    {
+        lock (idleGate)
+        {
+            idleTcs.TrySetResult(null);
+        }
+    }
+
+    private static TaskCompletionSource<object?> CreateCompletedIdleTcs()
+    {
+        var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        tcs.TrySetResult(null);
+        return tcs;
     }
 
     private bool TryAcquireReservations(

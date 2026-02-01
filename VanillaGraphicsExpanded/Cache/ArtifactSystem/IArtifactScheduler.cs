@@ -1,3 +1,6 @@
+using System.Threading;
+using System.Threading.Tasks;
+
 namespace VanillaGraphicsExpanded.Cache.ArtifactSystem;
 
 /// <summary>
@@ -20,6 +23,12 @@ internal interface IArtifactScheduler<TKey>
     /// Intended for reloads.
     /// </summary>
     void BumpSession();
+
+    /// <summary>
+    /// Asynchronously waits until the scheduler becomes idle (no queued items, no in-flight work,
+    /// and no pending apply callbacks).
+    /// </summary>
+    Task WaitForIdleAsync(CancellationToken cancellationToken = default);
 
     ArtifactSchedulerStats GetStatsSnapshot();
 }

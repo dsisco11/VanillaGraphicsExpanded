@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 
 using OpenTK.Graphics.OpenGL;
 
@@ -127,6 +128,28 @@ internal sealed class MaterialAtlasSystem : IDisposable
     }
 
     internal MaterialAtlasTextureStore TextureStore => textureStore;
+
+    public async Task WaitForIdleAsync(CancellationToken cancellationToken = default)
+    {
+        MaterialParamsAtlasArtifactGenerator? mp;
+        NormalDepthAtlasArtifactGenerator? nd;
+
+        lock (schedulerLock)
+        {
+            mp = materialParamsArtifactGen;
+            nd = normalDepthArtifactGen;
+        }
+
+        if (mp is not null)
+        {
+            await mp.WaitForIdleAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (nd is not null)
+        {
+            await nd.WaitForIdleAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
 
     internal bool TryGetArtifactBuildDiagnostics(out MaterialAtlasArtifactBuildDiagnostics diagnostics)
     {
