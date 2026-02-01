@@ -973,6 +973,80 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
     #endregion
 
+    #region Test: VelocityInvalid_RejectsHistory
+
+    /// <summary>
+    /// Ensures that when velocity reprojection is enabled but the velocity sample is invalid,
+    /// the temporal pass rejects history instead of blending against an unreprojected history sample.
+    /// This prevents ghosting/smearing during camera motion when the velocity buffer cannot provide
+    /// a stable reprojection.
+    /// </summary>
+    [Fact]
+    public void VelocityInvalid_RejectsHistory()
+    {
+        EnsureShaderTestAvailable();
+
+        float hitDist = 10f;
+        var anchorPos = CreateValidProbeAnchors();
+        var currentAtlas = CreateClampFriendlyCurrentAtlas(EncodeHitDistance(hitDist));
+        var historyAtlas = CreateHistoryAtlas(EncodeHitDistance(hitDist));
+
+        // Velocity texture: all zeros => flags=0 (invalid), velUv=(0,0)
+        var velocityData = new float[ScreenWidth * ScreenHeight * 4];
+
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
+        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
+        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+
+        var metaCurrentData = CreateUniformMetaAtlas(1.0f, 0.0f);
+        var metaHistoryData = CreateUniformMetaAtlas(1.0f, 0.0f);
+        using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaCurrentData);
+        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+
+        using var velocityTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba32f, velocityData);
+
+        using var outputAtlas = TestFramework.CreateTestGBuffer(
+            AtlasWidth, AtlasHeight,
+            PixelInternalFormat.Rgba16f,
+            PixelInternalFormat.Rg32f);
+
+        var programId = CompileOctahedralTemporalShader(texelsPerFrame: 64);
+        SetupOctahedralTemporalUniforms(
+            programId,
+            frameIndex: 0,
+            texelsPerFrame: 64,
+            temporalAlpha: 0.9f);
+
+        // Enable velocity reprojection via the frame UBO so the shader tries to use the velocity buffer.
+        UpdateAndBindLumOnFrameUbo(
+            programId,
+            frameIndex: 0,
+            historyValid: 1,
+            enableVelocityReprojection: 1,
+            velocityRejectThreshold: 0.01f,
+            anchorJitterEnabled: 0,
+            pmjCycleLength: 1,
+            anchorJitterScale: 0.0f);
+
+        currentAtlasTex.Bind(0);
+        historyAtlasTex.Bind(1);
+        anchorPosTex.Bind(2);
+        metaCurrentTex.Bind(3);
+        metaHistoryTex.Bind(4);
+        velocityTex.Bind(5);
+
+        TestFramework.RenderQuadTo(programId, outputAtlas);
+        var outputData = outputAtlas[0].ReadPixels();
+
+        // Sample a clamp-friendly texel (4,4). If history were blended, blue would be > 0.
+        var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
+        Assert.True(b < 0.1f, $"Expected history to be rejected with invalid velocity (blue~0), got blue={b:F3}");
+
+        GL.DeleteProgram(programId);
+    }
+
+    #endregion
+
     #region Test: FrameIndex_AffectsTracedTexels
 
     /// <summary>

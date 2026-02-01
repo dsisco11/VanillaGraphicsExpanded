@@ -123,6 +123,7 @@ void computeHistoryAtlasCoord(
     if (!lumonVelocityIsValid(velFlags) || lumonIsNanVec2(velUv))
     {
         temporalRejectBits |= LUMON_META_TEMPREJ_VELOCITY_INVALID;
+        rejectHistoryFromVelocity = true;
         return;
     }
 
