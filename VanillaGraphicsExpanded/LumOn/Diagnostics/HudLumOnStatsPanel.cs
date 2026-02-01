@@ -143,6 +143,6 @@ internal sealed class HudLumOnStatsPanel : HudElement
         }
 
         SingleComposer?.Dispose();
-        SingleComposer = null;
+        Composers?.Remove("single");
     }
 }
