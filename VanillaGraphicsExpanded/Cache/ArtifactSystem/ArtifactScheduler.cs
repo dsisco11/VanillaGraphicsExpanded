@@ -130,6 +130,59 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
         }
     }
 
+    public void FinishOnCurrentThread(CancellationToken cancellationToken = default)
+    {
+        lock (lifecycleGate)
+        {
+            if (runCts is not null)
+            {
+                throw new InvalidOperationException("FinishOnCurrentThread requires the scheduler to not be started. Call this before Start(), or stop and recreate the scheduler for a synchronous loading-screen drain.");
+            }
+        }
+
+        long capturedSessionId = Interlocked.Read(ref sessionId);
+        CancellationToken sessionToken = sessionCts?.Token ?? CancellationToken.None;
+
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, sessionToken);
+        CancellationToken token = linkedCts.Token;
+
+        while (!token.IsCancellationRequested && queue.TryDequeue(out IArtifactWorkItem<TKey> item))
+        {
+            ArtifactSession session = new(capturedSessionId, token, ArtifactExecutionMode.InlineCurrentThread);
+            var ctx = new ArtifactComputeContext<TKey>(capi, session, item.Key);
+
+            try
+            {
+                ArtifactComputeResult<TOutput> result = computer.ComputeAsync(ctx).GetAwaiter().GetResult();
+
+                if (token.IsCancellationRequested || capturedSessionId != Interlocked.Read(ref sessionId))
+                {
+                    continue;
+                }
+
+                if (!result.IsNoop && result.Output.HasValue && outputStage is not null)
+                {
+                    outputStage.OutputAsync(new ArtifactOutputContext<TKey, TOutput>(capi, session, item.Key, result.Output.Value))
+                        .GetAwaiter().GetResult();
+                }
+
+                if (result.RequiresApply && applier is not null)
+                {
+                    var applyCtx = new ArtifactApplyContext<TKey, TOutput>(capi, session, item.Key, result.Output);
+                    applier.Apply(in applyCtx);
+                }
+
+                Interlocked.Increment(ref completed);
+            }
+            catch
+            {
+                Interlocked.Increment(ref errors);
+            }
+        }
+
+        SignalIdleIfNeeded();
+    }
+
     public bool Enqueue(IArtifactWorkItem<TKey> item)
     {
         if (item is null) throw new ArgumentNullException(nameof(item));
@@ -242,7 +295,7 @@ internal sealed class ArtifactScheduler<TKey, TOutput> : IArtifactScheduler<TKey
                     using (diskToken)
                     using (gpuToken)
                     {
-                    ArtifactSession session = new(capturedSessionId, workToken);
+                    ArtifactSession session = new(capturedSessionId, workToken, ArtifactExecutionMode.Background);
                     var ctx = new ArtifactComputeContext<TKey>(capi, session, item.Key);
 
                     long c0 = Stopwatch.GetTimestamp();

@@ -53,9 +53,25 @@ public sealed class MaterialAtlasModSystem : ModSystem
             MaterialAtlasSystem.Instance.WarmupAtlasCache(capi!);
         }
 
+        // If warmup determined that the cache fully covers this atlas state, treat the build as complete
+        // and avoid scheduling any additional post-load population work.
+        if (MaterialAtlasSystem.Instance.IsBuildComplete)
+        {
+            pendingPopulate = false;
+            return;
+        }
+
         if (isLevelFinalized)
         {
-            MaterialAtlasSystem.Instance.PopulateAtlasContents(capi!);
+            if (ConfigModSystem.Config.MaterialAtlas.ForceCacheWarmupDirectUploadsOnWorldLoad)
+            {
+                MaterialAtlasSystem.Instance.PopulateAtlasContents(capi!, startBackgroundSchedulers: false);
+                MaterialAtlasSystem.Instance.FinishBuildOnCurrentThreadForWorldLoad(capi!);
+            }
+            else
+            {
+                MaterialAtlasSystem.Instance.PopulateAtlasContents(capi!);
+            }
         }
         else
         {
@@ -79,14 +95,14 @@ public sealed class MaterialAtlasModSystem : ModSystem
             capi!.Event.UnregisterCallback(populateCallbackId);
         }
 
-        // Give the client a brief moment after finalize to finish settling (GUI, chunk init, etc.).
-        populateCallbackId = capi!.Event.RegisterCallback(
-            _ => MaterialAtlasSystem.Instance.PopulateAtlasContents(capi!),
-            millisecondDelay: 500);
+        if (ConfigModSystem.Config.MaterialAtlas.ForceCacheWarmupDirectUploadsOnWorldLoad)
+        {
+            MaterialAtlasSystem.Instance.PopulateAtlasContents(capi!, startBackgroundSchedulers: false);
+            MaterialAtlasSystem.Instance.FinishBuildOnCurrentThreadForWorldLoad(capi!);
+            return;
+        }
 
-        // Defensive: ensure any residual artifact work is idle before leaving the loading screen.
-        // (In the direct-upload warmup path, no artifact jobs should be enqueued.)
-        MaterialAtlasSystem.Instance.WaitForIdleAsync().GetAwaiter().GetResult();        
+        MaterialAtlasSystem.Instance.PopulateAtlasContents(capi!);
     }
 
     private void OnReloadTextures()

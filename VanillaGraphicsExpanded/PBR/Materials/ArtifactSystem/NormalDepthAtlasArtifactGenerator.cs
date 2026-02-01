@@ -6,6 +6,7 @@ using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Cache.ArtifactSystem;
 using VanillaGraphicsExpanded.ModSystems;
+using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.PBR.Materials.Cache;
 using VanillaGraphicsExpanded.Rendering;
 
@@ -28,6 +29,7 @@ internal sealed class NormalDepthAtlasArtifactGenerator
         IMaterialAtlasDiskCache diskCache,
         MaterialAtlasArtifactRenderQueue renderQueue,
         MaterialAtlasArtifactBuildTracker tracker,
+        System.Func<int, MaterialAtlasPageTextures?> tryGetPageTextures,
         int maxConcurrency = 1,
         int ioCapacity = 1,
         int gpuCapacity = 2)
@@ -36,6 +38,7 @@ internal sealed class NormalDepthAtlasArtifactGenerator
         this.diskCache = diskCache ?? throw new ArgumentNullException(nameof(diskCache));
         this.renderQueue = renderQueue ?? throw new ArgumentNullException(nameof(renderQueue));
         this.tracker = tracker ?? throw new ArgumentNullException(nameof(tracker));
+        _ = tryGetPageTextures ?? throw new ArgumentNullException(nameof(tryGetPageTextures));
 
         var diskReservations = new ArtifactReservationPool(Math.Max(0, ioCapacity));
         var gpuReservations = new ArtifactReservationPool(Math.Max(0, gpuCapacity));
@@ -43,7 +46,7 @@ internal sealed class NormalDepthAtlasArtifactGenerator
         scheduler = new ArtifactScheduler<WorkKey, Output>(
             capi,
             new Computer(diskCache),
-            new OutputStage(capi, diskCache, renderQueue),
+            new OutputStage(capi, diskCache, renderQueue, tryGetPageTextures),
             new Applier(tracker),
             maxConcurrency: Math.Max(1, maxConcurrency),
             diskReservations: diskReservations,
@@ -60,6 +63,9 @@ internal sealed class NormalDepthAtlasArtifactGenerator
 
     public Task WaitForIdleAsync(CancellationToken cancellationToken = default)
         => scheduler.WaitForIdleAsync(cancellationToken);
+
+    public void FinishOnCurrentThread(CancellationToken cancellationToken = default)
+        => scheduler.FinishOnCurrentThread(cancellationToken);
 
     public bool Enqueue(WorkKey key) => scheduler.Enqueue(new WorkItem(key));
 
@@ -281,11 +287,18 @@ internal sealed class NormalDepthAtlasArtifactGenerator
         private readonly ICoreClientAPI capi;
         private readonly IMaterialAtlasDiskCache diskCache;
         private readonly MaterialAtlasArtifactRenderQueue renderQueue;
-        public OutputStage(ICoreClientAPI capi, IMaterialAtlasDiskCache diskCache, MaterialAtlasArtifactRenderQueue renderQueue)
+        private readonly System.Func<int, MaterialAtlasPageTextures?> tryGetPageTextures;
+
+        public OutputStage(
+            ICoreClientAPI capi,
+            IMaterialAtlasDiskCache diskCache,
+            MaterialAtlasArtifactRenderQueue renderQueue,
+            System.Func<int, MaterialAtlasPageTextures?> tryGetPageTextures)
         {
             this.capi = capi;
             this.diskCache = diskCache;
             this.renderQueue = renderQueue;
+            this.tryGetPageTextures = tryGetPageTextures;
         }
 
         public async ValueTask OutputAsync(ArtifactOutputContext<WorkKey, Output> context)
@@ -301,27 +314,55 @@ internal sealed class NormalDepthAtlasArtifactGenerator
             if (context.Output.Kind == JobKind.Bake
                 && !ConfigModSystem.Config.MaterialAtlas.ForceCacheWarmupDirectUploadsOnWorldLoad)
             {
-                await renderQueue.EnsureNormalDepthPageClearedAsync(
-                    capi,
-                    context.Output.GenerationId,
-                    context.Output.AtlasTextureId,
-                    context.Output.AtlasWidth,
-                    context.Output.AtlasHeight,
-                    context.Session.CancellationToken).ConfigureAwait(false);
+                if (context.Session.Mode == ArtifactExecutionMode.InlineCurrentThread)
+                {
+                    renderQueue.EnsureNormalDepthPageClearedImmediate(
+                        capi,
+                        context.Output.GenerationId,
+                        context.Output.AtlasTextureId,
+                        context.Output.AtlasWidth,
+                        context.Output.AtlasHeight);
+                }
+                else
+                {
+                    await renderQueue.EnsureNormalDepthPageClearedAsync(
+                        capi,
+                        context.Output.GenerationId,
+                        context.Output.AtlasTextureId,
+                        context.Output.AtlasWidth,
+                        context.Output.AtlasHeight,
+                        context.Session.CancellationToken).ConfigureAwait(false);
+                }
             }
 
             if (context.Output.Kind == JobKind.Bake)
             {
-                float[]? baked = await renderQueue.BakeAndReadbackAsync(
-                    capi,
-                    context.Output.GenerationId,
-                    context.Output.AtlasTextureId,
-                    context.Output.AtlasWidth,
-                    context.Output.AtlasHeight,
-                    context.Output.Rect,
-                    context.Output.NormalScale,
-                    context.Output.DepthScale,
-                    context.Session.CancellationToken).ConfigureAwait(false);
+                float[]? baked;
+
+                if (context.Session.Mode == ArtifactExecutionMode.InlineCurrentThread)
+                {
+                    baked = renderQueue.BakeAndReadbackImmediate(
+                        capi,
+                        context.Output.AtlasTextureId,
+                        context.Output.AtlasWidth,
+                        context.Output.AtlasHeight,
+                        context.Output.Rect,
+                        context.Output.NormalScale,
+                        context.Output.DepthScale);
+                }
+                else
+                {
+                    baked = await renderQueue.BakeAndReadbackAsync(
+                        capi,
+                        context.Output.GenerationId,
+                        context.Output.AtlasTextureId,
+                        context.Output.AtlasWidth,
+                        context.Output.AtlasHeight,
+                        context.Output.Rect,
+                        context.Output.NormalScale,
+                        context.Output.DepthScale,
+                        context.Session.CancellationToken).ConfigureAwait(false);
+                }
 
                 if (baked is null)
                 {
@@ -342,15 +383,28 @@ internal sealed class NormalDepthAtlasArtifactGenerator
                 return;
             }
 
-            _ = TextureStreamingSystem.StageCopy(
-                textureId: context.Output.NormalDepthTextureId,
-                target: TextureUploadTarget.For2D(),
-                region: TextureUploadRegion.For2D(context.Output.Rect.X, context.Output.Rect.Y, context.Output.Rect.Width, context.Output.Rect.Height),
-                pixelFormat: PixelFormat.Rgba,
-                pixelType: PixelType.Float,
-                data: rgba,
-                priority: TextureUploadPriority.Normal,
-                unpackAlignment: 4);
+            if (context.Session.Mode == ArtifactExecutionMode.InlineCurrentThread)
+            {
+                MaterialAtlasPageTextures? pageTextures = tryGetPageTextures(context.Output.AtlasTextureId);
+                pageTextures?.NormalDepthTexture?.UploadDataImmediate(
+                    rgba,
+                    context.Output.Rect.X,
+                    context.Output.Rect.Y,
+                    context.Output.Rect.Width,
+                    context.Output.Rect.Height);
+            }
+            else
+            {
+                _ = TextureStreamingSystem.StageCopy(
+                    textureId: context.Output.NormalDepthTextureId,
+                    target: TextureUploadTarget.For2D(),
+                    region: TextureUploadRegion.For2D(context.Output.Rect.X, context.Output.Rect.Y, context.Output.Rect.Width, context.Output.Rect.Height),
+                    pixelFormat: PixelFormat.Rgba,
+                    pixelType: PixelType.Float,
+                    data: rgba,
+                    priority: TextureUploadPriority.Normal,
+                    unpackAlignment: 4);
+            }
 
             if (context.Output.StoreToDisk && context.Output.CacheKey.SchemaVersion != 0)
             {

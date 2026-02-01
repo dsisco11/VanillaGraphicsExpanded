@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Cache.ArtifactSystem;
+using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.PBR.Materials.Cache;
 using VanillaGraphicsExpanded.Rendering;
 
@@ -25,6 +26,7 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
         ICoreClientAPI capi,
         IMaterialAtlasDiskCache diskCache,
         MaterialAtlasArtifactBuildTracker tracker,
+        System.Func<int, MaterialAtlasPageTextures?> tryGetPageTextures,
         int maxConcurrency = 2,
         int ioCapacity = 1,
         int gpuCapacity = 2)
@@ -32,6 +34,7 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
         this.diskCache = diskCache ?? throw new ArgumentNullException(nameof(diskCache));
         this.tracker = tracker ?? throw new ArgumentNullException(nameof(tracker));
+        _ = tryGetPageTextures ?? throw new ArgumentNullException(nameof(tryGetPageTextures));
 
         var diskReservations = new ArtifactReservationPool(Math.Max(0, ioCapacity));
         var gpuReservations = new ArtifactReservationPool(Math.Max(0, gpuCapacity));
@@ -39,7 +42,7 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
         scheduler = new ArtifactScheduler<WorkKey, Output>(
             capi,
             new Computer(diskCache),
-            new OutputStage(diskCache),
+            new OutputStage(diskCache, tryGetPageTextures),
             new Applier(tracker),
             maxConcurrency: Math.Max(1, maxConcurrency),
             diskReservations: diskReservations,
@@ -56,6 +59,9 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
 
     public Task WaitForIdleAsync(CancellationToken cancellationToken = default)
         => scheduler.WaitForIdleAsync(cancellationToken);
+
+    public void FinishOnCurrentThread(CancellationToken cancellationToken = default)
+        => scheduler.FinishOnCurrentThread(cancellationToken);
 
     public bool Enqueue(WorkKey key)
     {
@@ -236,10 +242,12 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
     private sealed class OutputStage : IArtifactOutputStage<WorkKey, Output>
     {
         private readonly IMaterialAtlasDiskCache diskCache;
+        private readonly System.Func<int, MaterialAtlasPageTextures?> tryGetPageTextures;
 
-        public OutputStage(IMaterialAtlasDiskCache diskCache)
+        public OutputStage(IMaterialAtlasDiskCache diskCache, System.Func<int, MaterialAtlasPageTextures?> tryGetPageTextures)
         {
             this.diskCache = diskCache;
+            this.tryGetPageTextures = tryGetPageTextures;
         }
 
         public ValueTask OutputAsync(ArtifactOutputContext<WorkKey, Output> context)
@@ -249,15 +257,28 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
                 return ValueTask.CompletedTask;
             }
 
-            _ = TextureStreamingSystem.StageCopy(
-                textureId: context.Output.MaterialParamsTextureId,
-                target: TextureUploadTarget.For2D(),
-                region: TextureUploadRegion.For2D(context.Output.Rect.X, context.Output.Rect.Y, context.Output.Rect.Width, context.Output.Rect.Height),
-                pixelFormat: PixelFormat.Rgb,
-                pixelType: PixelType.Float,
-                data: context.Output.RgbTriplets,
-                priority: TextureUploadPriority.Normal,
-                unpackAlignment: 4);
+            if (context.Session.Mode == ArtifactExecutionMode.InlineCurrentThread)
+            {
+                MaterialAtlasPageTextures? pageTextures = tryGetPageTextures(context.Output.AtlasTextureId);
+                pageTextures?.MaterialParamsTexture.UploadDataImmediate(
+                    context.Output.RgbTriplets,
+                    context.Output.Rect.X,
+                    context.Output.Rect.Y,
+                    context.Output.Rect.Width,
+                    context.Output.Rect.Height);
+            }
+            else
+            {
+                _ = TextureStreamingSystem.StageCopy(
+                    textureId: context.Output.MaterialParamsTextureId,
+                    target: TextureUploadTarget.For2D(),
+                    region: TextureUploadRegion.For2D(context.Output.Rect.X, context.Output.Rect.Y, context.Output.Rect.Width, context.Output.Rect.Height),
+                    pixelFormat: PixelFormat.Rgb,
+                    pixelType: PixelType.Float,
+                    data: context.Output.RgbTriplets,
+                    priority: TextureUploadPriority.Normal,
+                    unpackAlignment: 4);
+            }
 
             // Disk cache writes (best-effort; runs off-thread).
             if (context.Output.StoreBase && context.Output.BaseCacheKey.SchemaVersion != 0)

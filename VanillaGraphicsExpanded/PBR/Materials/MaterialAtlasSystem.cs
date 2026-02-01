@@ -51,6 +51,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
     private MaterialParamsAtlasArtifactGenerator? materialParamsArtifactGen;
     private NormalDepthAtlasArtifactGenerator? normalDepthArtifactGen;
     private bool artifactGeneratorsRegistered;
+    private bool artifactGeneratorsStarted;
 
     private int statsBaselineGenerationId;
     private long mpCompletedBaseline;
@@ -117,6 +118,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
                 artifactRenderQueueRenderer = null;
                 artifactRenderQueue = null;
                 artifactGeneratorsRegistered = false;
+                artifactGeneratorsStarted = false;
             }
         }
 
@@ -209,6 +211,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
         this.capi = capi;
         EnsureDiskCacheInitialized(capi);
         EnsureSchedulerRegistered(capi);
+        EnsureArtifactGeneratorsStarted();
 
         CreateTextureObjects(capi);
         if (!texturesCreated)
@@ -991,12 +994,28 @@ internal sealed class MaterialAtlasSystem : IDisposable
     /// Intended to run after the block atlas is finalized (e.g. on BlockTexturesLoaded).
     /// </summary>
     public void PopulateAtlasContents(ICoreClientAPI capi)
+        => PopulateAtlasContents(capi, startBackgroundSchedulers: true);
+
+    /// <summary>
+    /// Phase 2: compute and upload material params, then (optionally) bake normal+depth.
+    /// When <paramref name="startBackgroundSchedulers"/> is false, this schedules work into the artifact queues
+    /// without starting the background scheduler threads. This is intended for loading-screen workflows where
+    /// the caller will synchronously drain the queues (see <see cref="FinishBuildOnCurrentThreadForWorldLoad"/>).
+    /// </summary>
+    public void PopulateAtlasContents(ICoreClientAPI capi, bool startBackgroundSchedulers)
     {
         if (capi is null) throw new ArgumentNullException(nameof(capi));
 
         this.capi = capi;
         EnsureDiskCacheInitialized(capi);
         EnsureSchedulerRegistered(capi);
+
+        // Normal async runtime operation: ensure the artifact schedulers are running in the background.
+        // Loading-screen "finish" is handled separately via FinishBuildOnCurrentThreadForWorldLoad.
+        if (startBackgroundSchedulers && ConfigModSystem.Config.MaterialAtlas.EnableAsync)
+        {
+            EnsureArtifactGeneratorsStarted();
+        }
 
         // Guard: avoid repopulating when nothing changed.
         // Note: some mods may insert additional textures into the atlas after BlockTexturesLoaded.
@@ -1241,6 +1260,19 @@ internal sealed class MaterialAtlasSystem : IDisposable
         return (reloadIteration, nonNullCount);
     }
 
+    private void MarkBuildCompleteForAtlasState(short reloadIteration, int nonNullCount)
+    {
+        IsInitialized = textureStore.PageCount > 0;
+        IsBuildComplete = true;
+        buildRequested = false;
+
+        lastBlockAtlasReloadIteration = reloadIteration;
+        lastBlockAtlasNonNullPositions = nonNullCount;
+
+        lastScheduledAtlasReloadIteration = reloadIteration;
+        lastScheduledAtlasNonNullPositions = nonNullCount;
+    }
+
     public void RequestRebuild(ICoreClientAPI capi)
     {
         if (capi is null) throw new ArgumentNullException(nameof(capi));
@@ -1268,6 +1300,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
         artifactRenderQueueRenderer = null;
         artifactRenderQueue = null;
         artifactGeneratorsRegistered = false;
+        artifactGeneratorsStarted = false;
     }
 
     public void CancelActiveBuildSession()
@@ -1301,6 +1334,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
                     capi,
                     diskCache,
                     artifactBuildTracker,
+                    TryGetPageTexturesByAtlasTexId,
                     maxConcurrency: 2,
                     ioCapacity: 1,
                     gpuCapacity: 2);
@@ -1310,16 +1344,78 @@ internal sealed class MaterialAtlasSystem : IDisposable
                     diskCache,
                     artifactRenderQueue,
                     artifactBuildTracker,
+                    TryGetPageTexturesByAtlasTexId,
                     maxConcurrency: 1,
                     ioCapacity: 1,
                     gpuCapacity: 2);
 
-                materialParamsArtifactGen.Start();
-                normalDepthArtifactGen.Start();
-
                 artifactGeneratorsRegistered = true;
+                artifactGeneratorsStarted = false;
             }
         }
+    }
+
+    private void EnsureArtifactGeneratorsStarted()
+    {
+        lock (schedulerLock)
+        {
+            if (!artifactGeneratorsRegistered || artifactGeneratorsStarted)
+            {
+                return;
+            }
+
+            materialParamsArtifactGen?.Start();
+            normalDepthArtifactGen?.Start();
+            artifactGeneratorsStarted = true;
+        }
+    }
+
+    public void FinishBuildOnCurrentThreadForWorldLoad(ICoreClientAPI capi)
+    {
+        if (capi is null) throw new ArgumentNullException(nameof(capi));
+
+        if (!ConfigModSystem.Config.MaterialAtlas.EnableAsync)
+        {
+            return;
+        }
+
+        MaterialParamsAtlasArtifactGenerator? mp;
+        NormalDepthAtlasArtifactGenerator? nd;
+
+        lock (schedulerLock)
+        {
+            mp = materialParamsArtifactGen;
+            nd = normalDepthArtifactGen;
+        }
+
+        // No generators => nothing to finish.
+        if (mp is null && nd is null)
+        {
+            return;
+        }
+
+        // World-load finish mode relies on synchronous drain, so the schedulers must not be running.
+        // (Background scheduling uses EnqueueMainThreadTask for apply, which would deadlock the loading thread.)
+        if (mp is not null)
+        {
+            mp.FinishOnCurrentThread();
+        }
+
+        if (nd is not null)
+        {
+            nd.FinishOnCurrentThread();
+        }
+
+        // If the scheduled work completed, mark the build complete for the current atlas state.
+        IBlockTextureAtlasAPI atlas = capi.BlockTextureAtlas;
+        (short currentReload, int nonNullCount) = GetAtlasStats(atlas);
+        if (currentReload >= 0 && artifactBuildTracker.IsComplete)
+        {
+            MarkBuildCompleteForAtlasState(currentReload, nonNullCount);
+        }
+
+        // Start background schedulers for any future runtime work (reloads, late textures, etc.).
+        EnsureArtifactGeneratorsStarted();
     }
 
     private MaterialAtlasPageTextures? TryGetPageTexturesByAtlasTexId(int atlasTextureId)

@@ -90,6 +90,30 @@ public sealed class ArtifactSchedulerIdleTests
         await scheduler.WaitForIdleAsync(cts.Token);
     }
 
+    [Fact]
+    public void FinishOnCurrentThread_DrainsQueue_AndRunsApplyInline()
+    {
+        IClientEventAPI eventsApi = QueuedClientEventApiProxy.Create(out QueuedClientEventApiProxy events);
+        ICoreClientAPI capi = CoreClientApiProxy.Create(eventsApi);
+
+        int applied = 0;
+
+        var scheduler = new ArtifactScheduler<int, int>(
+            capi,
+            computer: new ImmediateComputer(requiresApply: true),
+            outputStage: null,
+            applier: new CountingApplier(() => Interlocked.Increment(ref applied)),
+            maxConcurrency: 1);
+
+        Assert.True(scheduler.Enqueue(new WorkItem(1)));
+        Assert.True(scheduler.Enqueue(new WorkItem(2)));
+
+        scheduler.FinishOnCurrentThread();
+
+        Assert.Equal(2, Volatile.Read(ref applied));
+        Assert.Equal(0, events.PendingCount);
+    }
+
     private static async Task<bool> WaitUntilAsync(Func<bool> predicate, int timeoutMs)
     {
         long t0 = Environment.TickCount64;

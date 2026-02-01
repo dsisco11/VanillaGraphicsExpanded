@@ -45,6 +45,34 @@ internal sealed class MaterialAtlasArtifactRenderQueue
         });
     }
 
+    public void EnsureNormalDepthPageClearedImmediate(
+        ICoreClientAPI capi,
+        int generationId,
+        int atlasTextureId,
+        int atlasWidth,
+        int atlasHeight)
+    {
+        var key = (generationId, atlasTextureId);
+
+        // Ensure we only clear once per generation/page even in synchronous drain mode.
+        if (!pageClearTasks.TryAdd(key, Task.CompletedTask))
+        {
+            return;
+        }
+
+        MaterialAtlasPageTextures? pageTextures = tryGetPageTextures(atlasTextureId);
+        if (pageTextures?.NormalDepthTexture is null || !pageTextures.NormalDepthTexture.IsValid)
+        {
+            return;
+        }
+
+        MaterialAtlasNormalDepthGpuBuilder.ClearAtlasPage(
+            capi,
+            destNormalDepthTexId: pageTextures.NormalDepthTexture.TextureId,
+            atlasWidth: atlasWidth,
+            atlasHeight: atlasHeight);
+    }
+
     public Task<float[]?> BakeAndReadbackAsync(
         ICoreClientAPI capi,
         int generationId,
@@ -75,6 +103,43 @@ internal sealed class MaterialAtlasArtifactRenderQueue
             tryGetPageTextures));
 
         return tcs.Task;
+    }
+
+    public float[]? BakeAndReadbackImmediate(
+        ICoreClientAPI capi,
+        int atlasTextureId,
+        int atlasWidth,
+        int atlasHeight,
+        AtlasRect rect,
+        float normalScale,
+        float depthScale)
+    {
+        MaterialAtlasPageTextures? pageTextures = tryGetPageTextures(atlasTextureId);
+        if (pageTextures?.NormalDepthTexture is null || !pageTextures.NormalDepthTexture.IsValid)
+        {
+            return null;
+        }
+
+        _ = MaterialAtlasNormalDepthGpuBuilder.BakePerRect(
+            capi,
+            baseAlbedoAtlasPageTexId: atlasTextureId,
+            destNormalDepthTexId: pageTextures.NormalDepthTexture.TextureId,
+            atlasWidth: atlasWidth,
+            atlasHeight: atlasHeight,
+            rectX: rect.X,
+            rectY: rect.Y,
+            rectWidth: rect.Width,
+            rectHeight: rect.Height,
+            normalScale: normalScale,
+            depthScale: depthScale);
+
+        float[] rgbaQuads = pageTextures.NormalDepthTexture.ReadPixelsRegion(rect.X, rect.Y, rect.Width, rect.Height);
+        if (rgbaQuads.Length != checked(rect.Width * rect.Height * 4))
+        {
+            return null;
+        }
+
+        return rgbaQuads;
     }
 
     public void Drain(int maxItemsPerFrame = 8)
