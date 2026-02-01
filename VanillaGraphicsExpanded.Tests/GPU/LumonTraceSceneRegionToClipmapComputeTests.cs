@@ -72,18 +72,19 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
         updatesSsbo.BindBase(bindingIndex: 1);
         atomicCounter.BindBase(bindingIndex: 0);
 
-        // Image binding: image unit 0.
+        // Image binding: image unit 0 (3D images must be bound layered=true).
         occ.BindImageUnit(
             unit: 0,
             access: TextureAccess.WriteOnly,
             level: 0,
-            layered: false,
+            layered: true,
             layer: 0,
             format: SizedInternalFormat.R32ui);
 
         // Uniforms.
         SetUniform(program, "vge_levels", 1);
         SetUniform(program, "vge_resolution", res);
+        SetUniform1ui(program, "vge_regionUpdateCount", 1u);
         SetUniform3i(program, "vge_originMinCell[0]", 0, 0, 0);
         SetUniform3i(program, "vge_ring[0]", 0, 0, 0);
 
@@ -182,6 +183,7 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
 
         SetUniform(program, "vge_levels", 3);
         SetUniform(program, "vge_resolution", res);
+        SetUniform1ui(program, "vge_regionUpdateCount", 1u);
 
         // Identity mapping for all levels (region only covers 0..31 anyway).
         for (int level = 0; level < 3; level++)
@@ -278,6 +280,7 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
 
         SetUniform(program, "vge_levels", 1);
         SetUniform(program, "vge_resolution", res);
+        SetUniform1ui(program, "vge_regionUpdateCount", 1u);
         SetUniform3i(program, "vge_originMinCell[0]", originMin.X, originMin.Y, originMin.Z);
         SetUniform3i(program, "vge_ring[0]", ring.X, ring.Y, ring.Z);
 
@@ -408,6 +411,13 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
         int loc = GL.GetUniformLocation(program, name);
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform3(loc, x, y, z);
+    }
+
+    private static void SetUniform1ui(int program, string name, uint value)
+    {
+        int loc = GL.GetUniformLocation(program, name);
+        Assert.True(loc >= 0, $"Missing uniform {name}");
+        GL.Uniform1(loc, value);
     }
 
     private static uint[] ReadTexImageR32ui(int textureId, TextureTarget target, int width, int height, int depth)

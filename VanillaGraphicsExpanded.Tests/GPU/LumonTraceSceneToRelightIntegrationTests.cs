@@ -69,10 +69,12 @@ public sealed class LumonTraceSceneToRelightIntegrationTests : RenderTestBase
         updatesSsbo.BindBase(bindingIndex: 1);
         updateCountCounter.BindBase(bindingIndex: 0);
 
-        occL0.BindImageUnit(unit: 0, access: TextureAccess.WriteOnly, level: 0, layered: false, layer: 0, format: SizedInternalFormat.R32ui);
+        // 3D images must be bound layered=true so z-slices are addressable by the shader.
+        occL0.BindImageUnit(unit: 0, access: TextureAccess.WriteOnly, level: 0, layered: true, layer: 0, format: SizedInternalFormat.R32ui);
 
         SetUniform(regionToClipProgram, "vge_levels", levels);
         SetUniform(regionToClipProgram, "vge_resolution", res);
+        SetUniform(regionToClipProgram, "vge_regionUpdateCount", 1u);
         SetUniform3i(regionToClipProgram, "vge_originMinCell[0]", 0, 0, 0);
         SetUniform3i(regionToClipProgram, "vge_ring[0]", 0, 0, 0);
 

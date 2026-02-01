@@ -230,7 +230,8 @@ public class LumOnDebugShaderProgram : GpuProgram
 
     public VectorInt3 TraceSceneOccRing0 { set => SetUniform("vge_traceOccRing0", value); }
 
-    public GpuTexture? TraceSceneOccL0 { set => BindTexture3D("vge_traceOccL0", value, 32); }
+    // Keep this within typical GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS on older drivers.
+    public GpuTexture? TraceSceneOccL0 { set => BindTexture3D("vge_traceOccL0", value, 20); }
 
     #endregion
 

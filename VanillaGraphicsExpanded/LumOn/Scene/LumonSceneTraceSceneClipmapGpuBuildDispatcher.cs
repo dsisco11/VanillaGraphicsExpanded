@@ -89,6 +89,7 @@ internal sealed class LumonSceneTraceSceneClipmapGpuBuildDispatcher : IDisposabl
 
             _ = pipeline.TrySetUniform1("vge_levels", levels);
             _ = pipeline.TrySetUniform1("vge_resolution", resolution);
+            _ = pipeline.TrySetUniform1("vge_regionUpdateCount", (uint)count);
 
             // Upload origin/ring arrays (best-effort; unused elements are ignored).
             for (int i = 0; i < Math.Min(8, levels); i++)

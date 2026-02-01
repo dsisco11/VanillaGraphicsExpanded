@@ -105,6 +105,7 @@ public sealed class LumonTraceSceneRuntimeWiringEndToEndTests : RenderTestBase
 
         SetUniform1i(program, "vge_levels", 1);
         SetUniform1i(program, "vge_resolution", resources.Resolution);
+        SetUniform1ui(program, "vge_regionUpdateCount", 1u);
         SetUniform3i(program, "vge_originMinCell[0]", 0, 0, 0);
         SetUniform3i(program, "vge_ring[0]", 0, 0, 0);
 
@@ -434,6 +435,13 @@ public sealed class LumonTraceSceneRuntimeWiringEndToEndTests : RenderTestBase
     }
 
     private static void SetUniform1i(int program, string name, int value)
+    {
+        int loc = GL.GetUniformLocation(program, name);
+        Assert.True(loc >= 0, $"Missing uniform {name}");
+        GL.Uniform1(loc, value);
+    }
+
+    private static void SetUniform1ui(int program, string name, uint value)
     {
         int loc = GL.GetUniformLocation(program, name);
         Assert.True(loc >= 0, $"Missing uniform {name}");

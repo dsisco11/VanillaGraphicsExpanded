@@ -25,8 +25,9 @@ layout(std430, binding = 1) readonly buffer VgeRegionUpdates
     VgeRegionUpdate vge_regionUpdates[];
 };
 
-// Count of valid region updates in the SSBO (written by CPU via atomic counter buffer).
-layout(binding = 0, offset = 0) uniform atomic_uint vge_regionUpdateCount;
+// Count of valid region updates in the SSBO (written by CPU as a uniform).
+// Note: do NOT use atomicCounter() here; that increments and would corrupt the count.
+uniform uint vge_regionUpdateCount;
 
 // Destination images: bind OccupancyLevels[i] to image unit i.
 layout(binding = 0, r32ui) writeonly uniform uimage3D vge_occLevels[8];
@@ -89,7 +90,7 @@ void main()
     uint updateIndex = gl_WorkGroupID.z / groupsPerRegionZ;
     uint groupZWithin = gl_WorkGroupID.z - updateIndex * groupsPerRegionZ;
 
-    uint updateCount = atomicCounter(vge_regionUpdateCount);
+    uint updateCount = vge_regionUpdateCount;
     if (updateIndex >= updateCount)
     {
         return;
