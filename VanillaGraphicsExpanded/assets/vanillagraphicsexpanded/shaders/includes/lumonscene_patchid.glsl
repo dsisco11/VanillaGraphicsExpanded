@@ -13,10 +13,7 @@
 // (chunkSlot is still a v1 placeholder).
 // ============================================================================
 
-// World/matrix space bridge (see lumonscene_chunkslot.glsl for full explanation).
-// For the patch-id mapping we only need a stable "block modulo 32" domain, so the remainder term is sufficient.
-uniform ivec3 vge_lumonSceneWorldChunkCoordOffset;
-uniform vec3 vge_lumonSceneWorldBlockOffsetRem;
+@import "./vge_worldspace_bridge.glsl"
 
 void VgeLumonSceneComputeVoxelPatchIdAndUv(
     vec3 worldPosRel,
@@ -52,10 +49,10 @@ void VgeLumonSceneComputeVoxelPatchIdAndUv(
     }
 
     // Bias toward the surface interior so floor() resolves the owning block consistently.
-    // NOTE: In vanilla chunk shaders, `worldPos` is in matrix space. The remainder term yields the correct
-    // block-grid phase in world space, which is all we need for chunk-local indexing.
-    vec3 p = (worldPosRel + vge_lumonSceneWorldBlockOffsetRem) - axisN * 1e-4;
-    ivec3 block = ivec3(floor(p));
+    // Matrix-space -> world: keep a float copy for stable per-voxel fractional coordinates (UV within the face).
+    vec3 w = worldPosRel + vge_lumonSceneWorldBlockOffsetRem;
+
+    ivec3 block = VgeMatrixSpacePosToWorldCell(worldPosRel - axisN * 1e-4);
 
     // Chunk-local cell coords [0..31] (two's-complement & is stable and fast).
     int lx = block.x & (VGE_LUMONSCENE_CHUNK_SIZE - 1);
@@ -76,19 +73,19 @@ void VgeLumonSceneComputeVoxelPatchIdAndUv(
     {
         planeIndex = lx;
         uCell = lz; vCell = ly;
-        uFrac = fract(p.z); vFrac = fract(p.y);
+        uFrac = fract(w.z); vFrac = fract(w.y);
     }
     else if (axisId <= 3u)
     {
         planeIndex = ly;
         uCell = lx; vCell = lz;
-        uFrac = fract(p.x); vFrac = fract(p.z);
+        uFrac = fract(w.x); vFrac = fract(w.z);
     }
     else
     {
         planeIndex = lz;
         uCell = lx; vCell = ly;
-        uFrac = fract(p.x); vFrac = fract(p.y);
+        uFrac = fract(w.x); vFrac = fract(w.y);
     }
 
     int patchU = clamp(uCell / VGE_LUMONSCENE_PATCH_SIZE, 0, VGE_LUMONSCENE_PATCHES_PER_AXIS - 1);

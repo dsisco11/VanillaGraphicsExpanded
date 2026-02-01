@@ -9,6 +9,7 @@ using Vintagestory.Client.NoObf;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.Numerics;
+using VanillaGraphicsExpanded.LumOn.Scene;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -22,6 +23,7 @@ public class LumOnDebugShaderProgram : GpuProgram
     {
         RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
         RegisterUniformBlockBinding("LumOnWorldProbeUBO", LumOnUniformBuffers.WorldProbeBinding, required: false);
+        RegisterUniformBlockBinding(LumOnTerrainBridgeUboState.BlockName, LumOnTerrainBridgeUboState.Binding, required: false);
     }
 
     #region Static

@@ -6,6 +6,7 @@
 
 // UBO contracts (Phase 23).
 @import "./lumon_ubos.glsl"
+@import "./vge_worldspace_bridge.glsl"
 
 // G-buffer textures
 uniform sampler2D primaryDepth;

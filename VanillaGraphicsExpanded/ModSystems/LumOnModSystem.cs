@@ -26,6 +26,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
     private LumonSceneFeedbackUpdateRenderer? lumonSceneFeedbackUpdateRenderer;
     private LumonSceneOccupancyClipmapUpdateRenderer? lumonSceneOccupancyClipmapUpdateRenderer;
     private LumonSceneRelightUpdateRenderer? lumonSceneRelightUpdateRenderer;
+    private LumOnTerrainBridgeUpdateRenderer? lumOnTerrainBridgeUpdateRenderer;
 
     private HudLumOnStatsPanel? lumOnStatsPanel;
 
@@ -420,6 +421,9 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         lumonSceneRelightUpdateRenderer?.Dispose();
         lumonSceneRelightUpdateRenderer = null;
 
+        lumOnTerrainBridgeUpdateRenderer?.Dispose();
+        lumOnTerrainBridgeUpdateRenderer = null;
+
         lumOnRenderer?.Dispose();
         lumOnRenderer = null;
 
@@ -530,6 +534,11 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             lumonSceneOccupancyClipmapUpdateRenderer = new LumonSceneOccupancyClipmapUpdateRenderer(capi, ConfigModSystem.Config);
         }
         lumOnDebugRenderer?.SetLumonSceneOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
+
+        if (lumOnTerrainBridgeUpdateRenderer is null && ConfigModSystem.Config.LumOn.LumonScene.Enabled)
+        {
+            lumOnTerrainBridgeUpdateRenderer = new LumOnTerrainBridgeUpdateRenderer(capi, ConfigModSystem.Config);
+        }
 
         if (lumonSceneRelightUpdateRenderer is null
             && ConfigModSystem.Config.LumOn.LumonScene.Enabled

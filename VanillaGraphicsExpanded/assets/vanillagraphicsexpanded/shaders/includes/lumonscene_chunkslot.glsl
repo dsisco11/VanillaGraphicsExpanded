@@ -15,6 +15,8 @@
 // - v1: chunkSlot window is a bounded 3D box in chunk coordinates.
 // ============================================================================
 
+@import "./vge_worldspace_bridge.glsl"
+
 // Runtime-provided slot window parameters.
 // - `originMinChunk`: inclusive minimum chunk coord of the active slot window.
 // - `dims`: window dimensions in chunks (must be > 0 per axis when enabled).
@@ -24,17 +26,9 @@ uniform ivec3 vge_lumonSceneChunkSlotDims;
 uniform ivec3 vge_lumonSceneChunkSlotRing;
 uniform usampler2D vge_lumonSceneChunkSlotGenerationTex;
 
-// World/matrix space bridge (Phase 22.X).
-// Uniforms are declared in lumonscene_patchid.glsl (imported before this file in chunk shaders).
-
-// Convert matrix-space position (block units) to *world* chunk coord (chunk size is 32 blocks).
+// Backwards-compatible name used by injected patch code.
 ivec3 VgeLumonSceneChunkCoordFromWorldPos(vec3 worldPosRelBlocks)
-{
-    // floor() handles negative coordinates correctly.
-    vec3 p = worldPosRelBlocks + vge_lumonSceneWorldBlockOffsetRem;
-    ivec3 local = ivec3(floor(p * (1.0 / 32.0)));
-    return local + vge_lumonSceneWorldChunkCoordOffset;
-}
+    => VgeMatrixSpacePosToWorldChunkCoord(worldPosRelBlocks);
 
 uint VgeLumonSceneGetChunkSlotGeneration16(uint chunkSlot)
 {

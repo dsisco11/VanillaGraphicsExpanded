@@ -803,6 +803,12 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 shader.TryBindUniformBlock("LumOnWorldProbeUBO", worldProbeUbo);
             }
 
+            var terrainBridgeUbo = LumOnTerrainBridgeUboState.UboOrNull;
+            if (terrainBridgeUbo is not null)
+            {
+                shader.TryBindUniformBlock(LumOnTerrainBridgeUboState.BlockName, terrainBridgeUbo);
+            }
+
             // Bind textures
             shader.PrimaryDepth = primaryFb.DepthTextureId;
             // Use VGE's G-buffer normal (ColorAttachment4) which contains world-space normals

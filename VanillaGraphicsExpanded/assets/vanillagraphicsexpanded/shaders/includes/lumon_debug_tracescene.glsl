@@ -47,9 +47,8 @@ vec4 RenderDebug_TraceScene(vec2 screenPos)
     }
 
     vec3 viewPos = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
-    vec3 worldPos = (invViewMatrix * vec4(viewPos, 1.0)).xyz;
-
-    ivec3 worldCell = ivec3(floor(worldPos));
+    vec3 worldPosRel = (invViewMatrix * vec4(viewPos, 1.0)).xyz;
+    ivec3 worldCell = VgeMatrixSpacePosToWorldCell(worldPosRel);
 
     bool inBounds = VgeOccInBoundsL0(worldCell, vge_traceOccOriginMinCell0, vge_traceOccResolution);
     uint payloadPacked = VgeSampleOccL0(vge_traceOccL0, worldCell, vge_traceOccOriginMinCell0, vge_traceOccRing0, vge_traceOccResolution);

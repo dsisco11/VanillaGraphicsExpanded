@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.Reflection;
 
 using VanillaGraphicsExpanded.LumOn.Scene;
-using VanillaGraphicsExpanded.Numerics;
 
 using Vintagestory.Client.NoObf;
 
@@ -30,8 +29,7 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
     private static readonly Dictionary<int, int> ringLocCache = new();
     private static readonly Dictionary<int, int> genSamplerLocCache = new();
 
-    private static readonly Dictionary<int, int> worldChunkOffsetLocCache = new();
-    private static readonly Dictionary<int, int> worldBlockRemLocCache = new();
+    private static readonly Dictionary<int, int> terrainBridgeBlockIndexCache = new();
 
     private static readonly Dictionary<int, int> lastAppliedVersionByProgramId = new();
 
@@ -112,7 +110,7 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
             return;
         }
 
-        int version = HashCode.Combine(LumonSceneChunkSlotUniformState.Version, LumonSceneWorldCoordUniformState.Version);
+        int version = HashCode.Combine(LumonSceneChunkSlotUniformState.Version, LumOnTerrainBridgeUboState.Version);
         if (lastAppliedVersionByProgramId.TryGetValue(programId, out int last) && last == version)
         {
             return;
@@ -126,8 +124,6 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
             int dimsLoc = GetUniformLocCached(dimsLocCache, programId, LumonSceneChunkSlotUniformState.DimsUniform);
             int ringLoc = GetUniformLocCached(ringLocCache, programId, LumonSceneChunkSlotUniformState.RingUniform);
             int genLoc = GetUniformLocCached(genSamplerLocCache, programId, LumonSceneChunkSlotUniformState.GenerationSamplerUniform);
-            int worldChunkLoc = GetUniformLocCached(worldChunkOffsetLocCache, programId, LumonSceneWorldCoordUniformState.WorldChunkCoordOffsetUniform);
-            int worldRemLoc = GetUniformLocCached(worldBlockRemLocCache, programId, LumonSceneWorldCoordUniformState.WorldBlockOffsetRemUniform);
 
             var origin = LumonSceneChunkSlotUniformState.OriginMinChunk;
             var dims = LumonSceneChunkSlotUniformState.Dims;
@@ -136,12 +132,6 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
             if (originLoc >= 0) GL.Uniform3(originLoc, origin.X, origin.Y, origin.Z);
             if (dimsLoc >= 0) GL.Uniform3(dimsLoc, dims.X, dims.Y, dims.Z);
             if (ringLoc >= 0) GL.Uniform3(ringLoc, ring.X, ring.Y, ring.Z);
-
-            VectorInt3 offChunk = LumonSceneWorldCoordUniformState.WorldChunkCoordOffset;
-            Vector3d offRem = LumonSceneWorldCoordUniformState.WorldBlockOffsetRem;
-
-            if (worldChunkLoc >= 0) GL.Uniform3(worldChunkLoc, offChunk.X, offChunk.Y, offChunk.Z);
-            if (worldRemLoc >= 0) GL.Uniform3(worldRemLoc, (float)offRem.X, (float)offRem.Y, (float)offRem.Z);
 
             int texId = LumonSceneChunkSlotUniformState.GenerationTextureId;
             if (genLoc >= 0 && texId != 0)
@@ -152,6 +142,18 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
 
                 // Restore to unit 0 (engine code generally assumes this).
                 GL.ActiveTexture(TextureUnit.Texture0);
+            }
+
+            // Bind the terrain bridge UBO (if the shader declares it).
+            int blockIndex = GetUniformBlockIndexCached(terrainBridgeBlockIndexCache, programId, LumOnTerrainBridgeUboState.BlockName);
+            if (blockIndex >= 0)
+            {
+                GL.UniformBlockBinding(programId, blockIndex, LumOnTerrainBridgeUboState.Binding);
+                int bufferId = LumOnTerrainBridgeUboState.BufferId;
+                if (bufferId != 0)
+                {
+                    GL.BindBufferBase(BufferRangeTarget.UniformBuffer, LumOnTerrainBridgeUboState.Binding, bufferId);
+                }
             }
         }
         catch
@@ -172,14 +174,37 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
         return loc;
     }
 
+    private static int GetUniformBlockIndexCached(Dictionary<int, int> cache, int programId, string blockName)
+    {
+        if (cache.TryGetValue(programId, out int idx))
+        {
+            return idx;
+        }
+
+        // GL_INVALID_INDEX is uint.MaxValue when queried via glGetUniformBlockIndex.
+        int blockIndex = -1;
+        try
+        {
+            // OpenTK returns an int here (typically -1 when not found).
+            int uidx = GL.GetUniformBlockIndex(programId, blockName);
+            blockIndex = (uidx < 0) ? -1 : uidx;
+        }
+        catch
+        {
+            blockIndex = -1;
+        }
+
+        cache[programId] = blockIndex;
+        return blockIndex;
+    }
+
     public static void ClearUniformCache()
     {
         originMinLocCache.Clear();
         dimsLocCache.Clear();
         ringLocCache.Clear();
         genSamplerLocCache.Clear();
-        worldChunkOffsetLocCache.Clear();
-        worldBlockRemLocCache.Clear();
+        terrainBridgeBlockIndexCache.Clear();
         lastAppliedVersionByProgramId.Clear();
     }
 }
