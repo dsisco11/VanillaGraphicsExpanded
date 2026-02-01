@@ -74,6 +74,13 @@ vec4 renderLumonScenePageReadyDebug()
     }
 
     uvec4 pid = texelFetch(gBufferPatchId, ivec2(gl_FragCoord.xy), 0);
+    float depth = texture(primaryDepth, uv).r;
+    if (!lumonIsSky(depth) && pid.y == 0u)
+    {
+        // Geometry present but no PatchId written (or suppressed): make this obvious.
+        return vec4(0.8, 0.0, 0.8, 1.0);
+    }
+
     uint chunkSlot, patchId;
     vec2 patchUv01;
     if (!VgeLumonSceneTryDecodePatchId(pid, chunkSlot, patchId, patchUv01))
@@ -120,6 +127,12 @@ vec4 renderLumonScenePatchUvDebug()
     }
 
     uvec4 pid = texelFetch(gBufferPatchId, ivec2(gl_FragCoord.xy), 0);
+    float depth = texture(primaryDepth, uv).r;
+    if (!lumonIsSky(depth) && pid.y == 0u)
+    {
+        return vec4(0.8, 0.0, 0.8, 1.0);
+    }
+
     uint chunkSlot, patchId;
     vec2 patchUv01;
     if (!VgeLumonSceneTryDecodePatchId(pid, chunkSlot, patchId, patchUv01))
@@ -139,6 +152,12 @@ vec4 renderLumonSceneIrradianceDebug()
     }
 
     uvec4 pid = texelFetch(gBufferPatchId, ivec2(gl_FragCoord.xy), 0);
+    float depth = texture(primaryDepth, uv).r;
+    if (!lumonIsSky(depth) && pid.y == 0u)
+    {
+        return vec4(0.8, 0.0, 0.8, 1.0);
+    }
+
     uint chunkSlot, patchId;
     vec2 patchUv01;
     if (!VgeLumonSceneTryDecodePatchId(pid, chunkSlot, patchId, patchUv01))
@@ -176,6 +195,12 @@ vec4 renderLumonSceneIrradianceDebug()
 vec4 renderLumonSceneChunkSlotDebug()
 {
     uvec4 pid = texelFetch(gBufferPatchId, ivec2(gl_FragCoord.xy), 0);
+    float depth = texture(primaryDepth, uv).r;
+    if (!lumonIsSky(depth) && pid.y == 0u)
+    {
+        return vec4(0.8, 0.0, 0.8, 1.0);
+    }
+
     uint chunkSlot, patchId;
     vec2 patchUv01;
     if (!VgeLumonSceneTryDecodePatchId(pid, chunkSlot, patchId, patchUv01))
@@ -203,6 +228,12 @@ vec4 renderLumonSceneChunkSlotDebug()
 vec4 renderLumonSceneSlotGenerationDebug()
 {
     uvec4 pid = texelFetch(gBufferPatchId, ivec2(gl_FragCoord.xy), 0);
+    float depth = texture(primaryDepth, uv).r;
+    if (!lumonIsSky(depth) && pid.y == 0u)
+    {
+        return vec4(0.8, 0.0, 0.8, 1.0);
+    }
+
     uint chunkSlot, patchId;
     vec2 patchUv01;
     if (!VgeLumonSceneTryDecodePatchId(pid, chunkSlot, patchId, patchUv01))
@@ -216,6 +247,60 @@ vec4 renderLumonSceneSlotGenerationDebug()
     // Visualize as a repeating grayscale ramp.
     float g = float(gen16 & 255u) / 255.0;
     return vec4(vec3(g), 1.0);
+}
+
+// Debug Mode 61: LumonScene page table occupancy visualization (Phase 22.X)
+vec4 renderLumonScenePageTableOccupancyDebug()
+{
+    if (vge_lumonSceneEnabled == 0)
+    {
+        return vec4(0.2, 0.0, 0.2, 1.0);
+    }
+
+    uvec4 pid = texelFetch(gBufferPatchId, ivec2(gl_FragCoord.xy), 0);
+    float depth = texture(primaryDepth, uv).r;
+    if (!lumonIsSky(depth) && pid.y == 0u)
+    {
+        return vec4(0.8, 0.0, 0.8, 1.0);
+    }
+
+    uint chunkSlot, patchId;
+    vec2 patchUv01;
+    if (!VgeLumonSceneTryDecodePatchId(pid, chunkSlot, patchId, patchUv01))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    uint virtualPageIndex = patchId % VGE_LUMONSCENE_VIRTUAL_COUNT;
+    uint vx = virtualPageIndex & (VGE_LUMONSCENE_VIRTUAL_W - 1u);
+    uint vy = virtualPageIndex / VGE_LUMONSCENE_VIRTUAL_W;
+
+    uint packedEntry = texelFetch(vge_lumonScenePageTableMip0, ivec3(int(vx), int(vy), int(chunkSlot)), 0).x;
+    uint physicalPageId = packedEntry & VGE_LUMONSCENE_PAGE_PHYS_ID_MASK;
+    uint flags = packedEntry >> VGE_LUMONSCENE_PAGE_FLAG_SHIFT;
+
+    if (physicalPageId == 0u)
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    if ((flags & VGE_LUMONSCENE_FLAG_RESIDENT) == 0u)
+    {
+        return vec4(1.0, 0.0, 0.0, 1.0);
+    }
+
+    if ((flags & (VGE_LUMONSCENE_FLAG_NEEDS_CAPTURE | VGE_LUMONSCENE_FLAG_NEEDS_RELIGHT)) != 0u)
+    {
+        return vec4(1.0, 1.0, 0.0, 1.0);
+    }
+
+    // Stable random-ish color per physical page.
+    uint h = Squirrel3HashU(physicalPageId);
+    vec3 c = vec3(
+        float((h) & 255u) / 255.0,
+        float((h >> 8) & 255u) / 255.0,
+        float((h >> 16) & 255u) / 255.0);
+    return vec4(c, 1.0);
 }
 
 // Program entry: SceneGBuffer
@@ -232,6 +317,7 @@ vec4 RenderDebug_SceneGBuffer(vec2 screenPos)
         case 54: return renderLumonSceneIrradianceDebug();
         case 59: return renderLumonSceneChunkSlotDebug();
         case 60: return renderLumonSceneSlotGenerationDebug();
+        case 61: return renderLumonScenePageTableOccupancyDebug();
         default: return vec4(0.0, 0.0, 0.0, 1.0);
     }
 }

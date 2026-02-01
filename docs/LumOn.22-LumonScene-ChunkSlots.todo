@@ -88,10 +88,10 @@ Phase 7 - Tests: Multi-Slot + Multi-Frame Convergence
 
 
 Phase 8 - Runtime Instrumentation + Debugging
-- [ ] Add LumonScene stats:
-  - [ ] requests by chunkSlot (top-k)
-  - [ ] skipped due to generation mismatch
-  - [ ] skipped due to per-slot budgets / fairness behavior
-- [ ] Add debug overlay(s):
-  - [ ] chunkSlot visualization
-  - [ ] optional page table occupancy heatmap per slot
+- [x] Add LumonScene stats:
+  - [x] requests by chunkSlot (top-k)
+  - [x] skipped due to generation mismatch
+  - [x] skipped due to per-slot budgets / fairness behavior
+- [x] Add debug overlay(s):
+  - [x] chunkSlot visualization
+  - [x] optional page table occupancy heatmap per slot

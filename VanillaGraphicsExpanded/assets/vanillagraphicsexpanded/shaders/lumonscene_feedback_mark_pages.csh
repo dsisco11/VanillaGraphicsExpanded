@@ -17,6 +17,12 @@ layout(binding = 1) uniform usampler2D vge_chunkSlotGenerationTex;
 // Virtual page usage stamp (R32UI). Texel contains the last frame stamp that touched it.
 layout(binding = 0, r32ui) uniform uimage2DArray vge_pageUsageStamp;
 
+// Debug atomic counters (Phase 22.X).
+// Bound by the renderer to an ACBO with at least 3 uint counters.
+layout(binding = 0, offset = 0) uniform atomic_uint vge_markRejectPatchId0;
+layout(binding = 0, offset = 4) uniform atomic_uint vge_markRejectChunkSlotOob;
+layout(binding = 0, offset = 8) uniform atomic_uint vge_markRejectGenMismatch;
+
 // Current frame stamp (must be non-zero; monotonically increasing is fine).
 uniform uint vge_frameStamp;
 
@@ -34,12 +40,14 @@ void main()
     uint patchId = pid.y;
     if (patchId == 0u)
     {
+        atomicCounterIncrement(vge_markRejectPatchId0);
         return;
     }
 
     ivec2 genSize = textureSize(vge_chunkSlotGenerationTex, 0);
     if (chunkSlot >= uint(max(genSize.x, 0)))
     {
+        atomicCounterIncrement(vge_markRejectChunkSlotOob);
         return;
     }
 
@@ -47,12 +55,14 @@ void main()
     uint pidGen16 = pid.w & 0xFFFFu;
     if (pidGen16 != gen16)
     {
+        atomicCounterIncrement(vge_markRejectGenMismatch);
         return;
     }
 
     ivec3 stampSize = imageSize(vge_pageUsageStamp);
     if (chunkSlot >= uint(stampSize.z))
     {
+        atomicCounterIncrement(vge_markRejectChunkSlotOob);
         return;
     }
 

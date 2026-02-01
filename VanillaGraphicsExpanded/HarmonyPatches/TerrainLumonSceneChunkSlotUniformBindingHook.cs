@@ -65,12 +65,44 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
         }
 
         log($"[VGE] TerrainLumonSceneChunkSlotUniformBindingHook: {patchedCount}/{TargetProperties.Length} property setters patched.");
+
+        // Also patch ShaderProgramBase.Use() as a reliable fallback (property setters are not guaranteed to run
+        // after we update the slot window each frame). We keep this light by caching per-program version.
+        try
+        {
+            MethodInfo? useMethod = AccessTools.Method(typeof(ShaderProgramBase), nameof(ShaderProgramBase.Use));
+            if (useMethod is null)
+            {
+                log("[VGE] TerrainLumonSceneChunkSlotUniformBindingHook: ShaderProgramBase.Use() not found.");
+            }
+            else
+            {
+                var usePostfix = new HarmonyMethod(typeof(TerrainLumonSceneChunkSlotUniformBindingHook), nameof(Use_Postfix));
+                harmony.Patch(useMethod, postfix: usePostfix);
+                log("[VGE] Patched ShaderProgramBase.Use() (LumonScene chunkSlot uniforms)");
+            }
+        }
+        catch (Exception ex)
+        {
+            log($"[VGE] Failed to patch ShaderProgramBase.Use() (LumonScene chunkSlot uniforms): {ex.Message}");
+        }
     }
 
     public static void SetTex2dTerrain_Postfix(ShaderProgramBase __instance, int value)
     {
+        _ = value;
+        ApplyUniformsIfNeeded(__instance);
+    }
+
+    public static void Use_Postfix(ShaderProgramBase __instance)
+    {
+        ApplyUniformsIfNeeded(__instance);
+    }
+
+    private static void ApplyUniformsIfNeeded(ShaderProgramBase program)
+    {
         // Only run for valid program ids; ignore early init/shutdown.
-        int programId = __instance.ProgramId;
+        int programId = program.ProgramId;
         if (programId == 0)
         {
             return;
@@ -105,6 +137,9 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
                 GL.ActiveTexture(TextureUnit.Texture0 + LumonSceneChunkSlotUniformState.GenerationTextureUnit);
                 GL.BindTexture(TextureTarget.Texture2D, texId);
                 GL.Uniform1(genLoc, LumonSceneChunkSlotUniformState.GenerationTextureUnit);
+
+                // Restore to unit 0 (engine code generally assumes this).
+                GL.ActiveTexture(TextureUnit.Texture0);
             }
         }
         catch
@@ -134,4 +169,3 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
         lastAppliedVersionByProgramId.Clear();
     }
 }
-

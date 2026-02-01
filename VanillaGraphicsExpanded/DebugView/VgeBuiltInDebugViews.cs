@@ -382,6 +382,7 @@ public static class VgeBuiltInDebugViews
                 LumOnDebugMode.LumonSceneIrradiance,
                 LumOnDebugMode.LumonSceneChunkSlot,
                 LumOnDebugMode.LumonSceneSlotGeneration,
+                LumOnDebugMode.LumonScenePageTableOccupancy,
                 LumOnDebugMode.TraceSceneBoundsL0,
                 LumOnDebugMode.TraceSceneOccupancyL0,
                 LumOnDebugMode.TraceScenePayloadL0,

@@ -115,4 +115,7 @@ public enum LumOnDebugMode
     // Phase 22.X: ChunkSlot diagnostics (append-only)
     LumonSceneChunkSlot = 59,
     LumonSceneSlotGeneration = 60,
+
+    // Phase 22.X: Page table diagnostics (append-only)
+    LumonScenePageTableOccupancy = 61,
 }

@@ -28,6 +28,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
     private const int DefaultMaxRequestsPerFrame = 1024;
     private const int DefaultMaxNewAllocationsPerFrame = 16;
+    private const int FeedbackMarkDebugCounterCount = 3;
 
     private readonly ICoreClientAPI capi;
     private readonly VgeConfig config;
@@ -41,6 +42,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     private GpuComputePipeline? captureVoxelPipeline;
 
     private Texture3D? pageUsageStamp;
+    private GpuAtomicCounterBuffer? feedbackMarkDebugCounters;
     private uint feedbackFrameStamp = 1u;
     private uint compactScanOffset = 0u;
 
@@ -67,6 +69,8 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     private uint lastRequestCount;
     private int lastRequestsRead;
     private int lastRequestsProcessed;
+    private int lastRequestsDroppedGpu;
+    private int lastRequestsDroppedCpuBudget;
     private int lastCaptureCount;
     private int lastRelightCount;
     private LumonSceneFeedbackRequestProcessor.ProcessStats lastProcessStats;
@@ -74,6 +78,12 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     private uint lastTopChunkSlot;
     private int lastTopVirtualPage;
     private int lastTopVirtualPageCount;
+    private uint lastMarkRejectPatchId0;
+    private uint lastMarkRejectChunkSlotOob;
+    private uint lastMarkRejectGenMismatch;
+
+    private uint[] lastTopChunkSlots = Array.Empty<uint>();
+    private int[] lastTopChunkSlotCounts = Array.Empty<int>();
 
     private int recaptureAllRequested;
     private ulong[]? recaptureVirtualPageKeys;
@@ -228,12 +238,17 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             return;
         }
 
+        EnsureFeedbackMarkDebugCountersCreated();
+        ResetFeedbackMarkDebugCounters();
+
         uint frameStamp = feedbackFrameStamp++;
         if (frameStamp == 0u) frameStamp = feedbackFrameStamp++; // avoid 0 as a valid stamp
 
         // Pass A: mark visible pages into a dedup stamp texture.
         using (feedbackMarkPipeline!.UseScope())
         {
+            feedbackMarkDebugCounters?.BindBase(bindingIndex: 0);
+
             _ = feedbackMarkPipeline.ProgramLayout.TryBindSamplerTexture(
                 samplerUniformName: "vge_patchIdGBuffer",
                 target: TextureTarget.Texture2D,
@@ -265,7 +280,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             GL.DispatchCompute(gx, gy, 1);
         }
 
-        GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
+        GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit);
 
         // Pass B: compact stamps -> bounded request list.
         nearGpu.PageRequests.Reset();
@@ -325,6 +340,9 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         pageUsageStamp?.Dispose();
         pageUsageStamp = null;
 
+        feedbackMarkDebugCounters?.Dispose();
+        feedbackMarkDebugCounters = null;
+
         nearGpu.Dispose();
     }
 
@@ -352,6 +370,9 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         slotRing = default;
         lastAnchorChunk = default;
         LumonSceneChunkSlotUniformState.Disable();
+
+        feedbackMarkDebugCounters?.Dispose();
+        feedbackMarkDebugCounters = null;
 
         ResetRecaptureList();
     }
@@ -403,6 +424,33 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
         // Best-effort clear GPU page table to zeros.
         nearGpu.PageTable.EnsureCreated();
+
+        EnsureFeedbackMarkDebugCountersCreated();
+    }
+
+    private void EnsureFeedbackMarkDebugCountersCreated()
+    {
+        if (feedbackMarkDebugCounters is not null && feedbackMarkDebugCounters.IsValid)
+        {
+            return;
+        }
+
+        feedbackMarkDebugCounters?.Dispose();
+        feedbackMarkDebugCounters = GpuAtomicCounterBuffer.Create(
+            usage: BufferUsageHint.DynamicRead,
+            debugName: "LumOn.LumonScene.Feedback.MarkCounters(ACBO)");
+        feedbackMarkDebugCounters.InitializeCounters(counterCount: FeedbackMarkDebugCounterCount, initialValue: 0u);
+    }
+
+    private void ResetFeedbackMarkDebugCounters()
+    {
+        if (feedbackMarkDebugCounters is null || !feedbackMarkDebugCounters.IsValid)
+        {
+            return;
+        }
+
+        Span<uint> zero = stackalloc uint[FeedbackMarkDebugCounterCount] { 0u, 0u, 0u };
+        feedbackMarkDebugCounters.UploadSubData((ReadOnlySpan<uint>)zero, dstOffsetBytes: 0);
     }
 
     private void EnsureSlotStateConfigured(int chunkSlotCount)
@@ -851,10 +899,15 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             lastRequestCount = requestCount;
             lastRequestsRead = toRead;
             lastRequestsProcessed = toProcess;
+            lastRequestsDroppedGpu = requestCount <= (uint)toRead ? 0 : (int)Math.Min(int.MaxValue, requestCount - (uint)toRead);
+            lastRequestsDroppedCpuBudget = Math.Max(0, toRead - toProcess);
             lastUniqueVirtualPages = 0;
             lastTopChunkSlot = 0u;
             lastTopVirtualPage = 0;
             lastTopVirtualPageCount = 0;
+            lastMarkRejectPatchId0 = 0u;
+            lastMarkRejectChunkSlotOob = 0u;
+            lastMarkRejectGenMismatch = 0u;
 
             if (toProcess > 0)
             {
@@ -869,6 +922,24 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                     }
 
                     mappedItems.Span.CopyTo(scratch);
+                }
+            }
+
+            if (config.Debug.LumOnRuntimeSelfCheckEnabled)
+            {
+                if (feedbackMarkDebugCounters is not null && feedbackMarkDebugCounters.IsValid)
+                {
+                    using var mapped = feedbackMarkDebugCounters.MapRange<uint>(
+                        dstOffsetBytes: 0,
+                        elementCount: FeedbackMarkDebugCounterCount,
+                        access: MapBufferAccessMask.MapReadBit);
+
+                    if (mapped.IsMapped && mapped.Span.Length >= FeedbackMarkDebugCounterCount)
+                    {
+                        lastMarkRejectPatchId0 = mapped.Span[0];
+                        lastMarkRejectChunkSlotOob = mapped.Span[1];
+                        lastMarkRejectGenMismatch = mapped.Span[2];
+                    }
                 }
             }
 
@@ -910,6 +981,64 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                 lastTopChunkSlot = topSlot;
                 lastTopVirtualPage = topVpage;
                 lastTopVirtualPageCount = topCount;
+
+                int chunkSlotCount = Math.Max(1, nearGpu.PageTable.ChunkSlotCount);
+
+                if (lastTopChunkSlots.Length != 4 || lastTopChunkSlotCounts.Length != 4)
+                {
+                    lastTopChunkSlots = new uint[4];
+                    lastTopChunkSlotCounts = new int[4];
+                }
+
+                int[] slotCounts = ArrayPool<int>.Shared.Rent(chunkSlotCount);
+                try
+                {
+                    Array.Clear(slotCounts, 0, chunkSlotCount);
+
+                    for (int i = 0; i < toProcess; i++)
+                    {
+                        uint s = scratch[i].ChunkSlot;
+                        if (s >= (uint)chunkSlotCount)
+                        {
+                            continue;
+                        }
+
+                        slotCounts[(int)s]++;
+                    }
+
+                    Span<int> topCounts = stackalloc int[4] { 0, 0, 0, 0 };
+                    Span<uint> topSlots = stackalloc uint[4] { 0u, 0u, 0u, 0u };
+
+                    for (int s = 0; s < chunkSlotCount; s++)
+                    {
+                        int c = slotCounts[s];
+                        if (c <= topCounts[3])
+                        {
+                            continue;
+                        }
+
+                        // Insert into descending top-4.
+                        int j = 3;
+                        while (j > 0 && c > topCounts[j - 1])
+                        {
+                            topCounts[j] = topCounts[j - 1];
+                            topSlots[j] = topSlots[j - 1];
+                            j--;
+                        }
+                        topCounts[j] = c;
+                        topSlots[j] = (uint)s;
+                    }
+
+                    for (int i = 0; i < 4; i++)
+                    {
+                        lastTopChunkSlots[i] = topSlots[i];
+                        lastTopChunkSlotCounts[i] = topCounts[i];
+                    }
+                }
+                finally
+                {
+                    ArrayPool<int>.Shared.Return(slotCounts, clearArray: false);
+                }
             }
 
             cpuProcessor!.Process(
@@ -1172,10 +1301,19 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             if (LumonScenePageTableEntryPacking.IsReadyForSampling(entry)) ready++;
         }
 
+        string topSlots = string.Empty;
+        if (lastTopChunkSlots.Length == 4 && lastTopChunkSlotCounts.Length == 4 && lastTopChunkSlotCounts[0] > 0)
+        {
+            topSlots =
+                $" slots:{lastTopChunkSlots[0]}={lastTopChunkSlotCounts[0]}" +
+                $" ({lastTopChunkSlots[1]}={lastTopChunkSlotCounts[1]} {lastTopChunkSlots[2]}={lastTopChunkSlotCounts[2]} {lastTopChunkSlots[3]}={lastTopChunkSlotCounts[3]})";
+        }
+
         line =
-            $"LS: req:{lastRequestCount} read:{lastRequestsRead} proc:{lastProcessStats.RequestsConsidered} " +
+            $"LS: req:{lastRequestCount} read:{lastRequestsRead} dropG:{lastRequestsDroppedGpu} dropC:{lastRequestsDroppedCpuBudget} proc:{lastProcessStats.RequestsConsidered} " +
             $"exist:{lastProcessStats.RequestsAcceptedExisting} new:{lastProcessStats.RequestsAllocatedNew} ev:{lastProcessStats.AllocationEvictions} fail:{lastProcessStats.AllocationFailures} " +
-            $"uniq:{lastUniqueVirtualPages} top:{lastTopChunkSlot},{lastTopVirtualPage}:{lastTopVirtualPageCount} " +
+            $"skipBud:{lastProcessStats.RequestsSkippedBudget} genMis:{lastMarkRejectGenMismatch} slotOob:{lastMarkRejectChunkSlotOob} pid0:{lastMarkRejectPatchId0} " +
+            $"uniq:{lastUniqueVirtualPages} top:{lastTopChunkSlot},{lastTopVirtualPage}:{lastTopVirtualPageCount}{topSlots} " +
             $"res:{residentPages}/{cap} ready:{ready} nc:{needsCap} nr:{needsRel} capQ:{lastCaptureCount} relQ:{lastRelightCount} " +
             $"rc:{lastProcessStats.RecaptureSucceeded}/{lastProcessStats.RecaptureAttempted}";
 
