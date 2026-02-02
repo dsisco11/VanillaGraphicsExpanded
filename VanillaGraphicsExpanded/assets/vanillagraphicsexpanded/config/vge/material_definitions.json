@@ -86,6 +86,14 @@
     "snow": { "roughness": 0.5, "metallic": 0.0 },
     "lava": { "roughness": 0.1, "metallic": 0.0, "emissive": 10.0 },
     "fire": { "roughness": 1.0, "metallic": 0.0, "emissive": 3.0, "scale": { "normal": 0.0, "depth": 0.0 } },
+    "ember": { "roughness": 1.0, "metallic": 0.0, "emissive": 1.0, "scale": { "normal": 0.0, "depth": 0.0 } },
+    "warm_lamp": { "roughness": 0.65, "metallic": 0.0, "emissive": 0.25, "scale": { "normal": 0.0, "depth": 0.0 } },
+
+    "candle_lit": { "roughness": 0.6, "metallic": 0.0, "emissive": 0.35 },
+    "torch_flammable_lit": { "roughness": 1.0, "metallic": 0.0, "emissive": 1.0, "scale": { "normal": 0.0, "depth": 0.0 } },
+    "torch_lit": { "roughness": 0.75, "metallic": 0.0, "emissive": 0.15 },
+    "bioluminescent": { "roughness": 0.8, "metallic": 0.0, "emissive": 0.25 },
+    "tech_glow": { "roughness": 0.45, "metallic": 0.0, "emissive": 0.35 },
     "tar": { "roughness": 0.08, "metallic": 0.0 },
     "honey": { "roughness": 0.05, "metallic": 0.0 },
 
@@ -224,6 +232,86 @@
       },
       "values": {
         "material": "fire"
+      }
+    },
+    {
+      "id": "coal-ember",
+      "description": "Coal ember texture used by various lit/ember shapes (emissive).",
+      "match": {
+        "glob": "assets/**/textures/block/coal/ember.png"
+      },
+      "values": {
+        "material": "ember"
+      }
+    },
+    {
+      "id": "stove-front-lit",
+      "description": "Lit stove front texture; used with glow in stove shapes (emissive).",
+      "match": {
+        "glob": "assets/**/textures/block/stone/stove/front-lit.png"
+      },
+      "values": {
+        "material": "warm_lamp"
+      }
+    },
+    {
+      "id": "rocksalt-lamp",
+      "description": "Rock salt lamp texture used by lamp shapes (emissive).",
+      "match": {
+        "glob": "assets/**/textures/block/stone/rocksaltlamp.png"
+      },
+      "values": {
+        "material": "warm_lamp"
+      }
+    },
+    {
+      "id": "torch-flammable-lit",
+      "description": "Torch head/cloth textures used by lit torch shapes (emissive).",
+      "match": {
+        "glob": "assets/**/textures/block/wood/torch/flammable-lit.png"
+      },
+      "values": {
+        "material": "torch_flammable_lit"
+      }
+    },
+    {
+      "id": "torch-lit",
+      "description": "Lit torch atlas texture (contains both handle + lit head; keep emissive conservative).",
+      "match": {
+        "glob": "assets/**/textures/block/wood/torch/torch-lit.png"
+      },
+      "values": {
+        "material": "torch_lit"
+      }
+    },
+    {
+      "id": "candle-lit",
+      "description": "Lit candle texture used by candle/lantern shapes (emissive).",
+      "match": {
+        "glob": "assets/**/textures/block/candle.png"
+      },
+      "values": {
+        "material": "candle_lit"
+      }
+    },
+    {
+      "id": "glowworm",
+      "description": "Glowworm texture referenced by glow shapes (emissive).",
+      "match": {
+        "glob": "assets/**/textures/block/creature/glowworm/glowworm.png"
+      },
+      "values": {
+        "material": "bioluminescent"
+      }
+    },
+    {
+      "id": "statictranslocator-rustyglow",
+      "description": "Static translocator glow texture referenced by shapes (emissive).",
+      "match": {
+        "glob": "assets/**/textures/block/machine/statictranslocator/rustyglow.png"
+      },
+      "values": {
+        "material": "tech_glow"
       }
     },
     {
