@@ -8,13 +8,12 @@ using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene;
 
-internal sealed class TraceSceneRegionScheduler
+internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
 {
     private const long MinRetryMs = 50;
     private const long MaxBackoffMs = 5000;
     private const long ChunkUnavailableBaseBackoffMs = 100;
     private const int NearDequeueBurst = 8;
-    private const int NearRadiusRegions = 4;
 
     private readonly Dictionary<ulong, TraceSceneRegionCell> cellsByPacked = new();
 
@@ -52,6 +51,8 @@ internal sealed class TraceSceneRegionScheduler
     public int SuppressedCount => cooldownUntilByKey.Count;
 
     public bool HasWindow => hasWindow;
+
+    public long NowTick => lastNowTick;
 
     public void Reset()
     {
@@ -384,6 +385,41 @@ internal sealed class TraceSceneRegionScheduler
         cooldownQueue.Push(tick, packedKey);
     }
 
+    void IWorldCellWorkSink.SetCooldown(WorldCellKey key, long tick)
+        => SetCooldown(key.Packed, tick);
+
+    void IWorldCellWorkSink.Remove(WorldCellKey key, WorldCellWorkQueue queue)
+    {
+        if (queue == WorldCellWorkQueue.EligibleNear)
+        {
+            nearEligible.Remove(key.Packed);
+            return;
+        }
+
+        if (queue == WorldCellWorkQueue.EligibleFar)
+        {
+            farEligible.Remove(key.Packed);
+            return;
+        }
+    }
+
+    void IWorldCellWorkSink.Upsert(WorldCellKey key, WorldCellWorkQueue queue, float priority)
+    {
+        if (queue == WorldCellWorkQueue.EligibleNear)
+        {
+            nearEligible.Upsert(key.Packed, priority);
+            farEligible.Remove(key.Packed);
+            return;
+        }
+
+        if (queue == WorldCellWorkQueue.EligibleFar)
+        {
+            farEligible.Upsert(key.Packed, priority);
+            nearEligible.Remove(key.Packed);
+            return;
+        }
+    }
+
     public bool TryGetTopK(int k, long nowTick, out string line)
     {
         line = string.Empty;
@@ -620,49 +656,33 @@ internal sealed class TraceSceneRegionScheduler
 
         if (!IsInWindow(cell.RegionCoord) || cell.InFlightVersion != 0)
         {
-            RemoveFromHeaps(cell.ChunkKey.Packed);
+            cell.DequeueSelf(this);
             return;
         }
 
-        float priority = cell.CalculatePriority(in context);
-        cell.Priority = priority;
+        // Phase 9: desired-state gating (TraceScene maps window membership to Active vs Unloaded).
+        var stateContext = new global::VanillaGraphicsExpanded.LumOn.WorldCells.WorldCellStateTransitionContext(
+            CameraBlockPos: context.CameraBlockPos,
+            AnchorBlockPos: context.AnchorBlockPos,
+            HasAnchor: context.HasAnchor,
+            LoadedWindowMinRegion: context.WindowMinRegion,
+            LoadedWindowMaxRegion: context.WindowMaxRegion,
+            HasLoadedWindow: context.HasWindow,
+            ActiveWindowMinRegion: context.WindowMinRegion,
+            ActiveWindowMaxRegion: context.WindowMaxRegion,
+            HasActiveWindow: context.HasWindow,
+            NowTick: context.NowTick,
+            IsCellLikelyLoaded: context.IsCellLikelyLoaded);
 
-        if (float.IsNegativeInfinity(priority) || float.IsNaN(priority))
+        cell.DesiredState = cell.CalculateDesiredState(in stateContext);
+        if (cell.DesiredState == global::VanillaGraphicsExpanded.LumOn.WorldCells.WorldCellDesiredState.Unloaded)
         {
-            RemoveFromHeaps(cell.ChunkKey.Packed);
-
-            if (cell.NextEligibleTick > lastNowTick)
-            {
-                SetCooldown(cell.ChunkKey.Packed, cell.NextEligibleTick);
-            }
-
+            cell.DequeueSelf(this);
             return;
         }
 
-        bool isNear = IsNear(cell, in context);
-        if (isNear)
-        {
-            nearEligible.Upsert(cell.ChunkKey.Packed, priority);
-            farEligible.Remove(cell.ChunkKey.Packed);
-        }
-        else
-        {
-            farEligible.Upsert(cell.ChunkKey.Packed, priority);
-            nearEligible.Remove(cell.ChunkKey.Packed);
-        }
-    }
-
-    private static bool IsNear(TraceSceneRegionCell cell, in WorldCellPriorityContext context)
-    {
-        VectorInt3 anchorBlock = context.HasAnchor ? context.AnchorBlockPos : context.CameraBlockPos;
-        VectorInt3 anchorRegion = LumonSceneTraceSceneClipmapMath.WorldCellToRegionCoord(anchorBlock);
-
-        int dx = cell.RegionCoord.X - anchorRegion.X;
-        int dy = cell.RegionCoord.Y - anchorRegion.Y;
-        int dz = cell.RegionCoord.Z - anchorRegion.Z;
-
-        long dist2 = (long)dx * dx + (long)dy * dy + (long)dz * dz;
-        return dist2 <= (long)NearRadiusRegions * NearRadiusRegions;
+        // Cells own queue placement logic; scheduler provides the sink implementation.
+        cell.EnqueueSelf(this, in context);
     }
 
     private void MarkDirty(ulong packedKey)

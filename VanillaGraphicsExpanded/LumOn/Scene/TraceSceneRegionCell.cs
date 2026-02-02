@@ -33,6 +33,58 @@ internal sealed class TraceSceneRegionCell : WorldCell
 
     public TraceSceneRegionPriorityReason LastPriorityReasons { get; private set; }
 
+    public void EnqueueSelf(IWorldCellWorkSink scheduler, in WorldCellPriorityContext context)
+    {
+        float priority = CalculatePriority(in context);
+        Priority = priority;
+
+        if (float.IsNegativeInfinity(priority) || float.IsNaN(priority))
+        {
+            scheduler.Remove(Key, WorldCellWorkQueue.EligibleNear);
+            scheduler.Remove(Key, WorldCellWorkQueue.EligibleFar);
+
+            if (NextEligibleTick > scheduler.NowTick)
+            {
+                scheduler.SetCooldown(Key, NextEligibleTick);
+            }
+
+            return;
+        }
+
+        bool isNear = IsNear(in context);
+        if (isNear)
+        {
+            scheduler.Upsert(Key, WorldCellWorkQueue.EligibleNear, priority);
+        }
+        else
+        {
+            scheduler.Upsert(Key, WorldCellWorkQueue.EligibleFar, priority);
+        }
+    }
+
+    public void DequeueSelf(IWorldCellWorkSink scheduler)
+    {
+        scheduler.Remove(Key, WorldCellWorkQueue.EligibleNear);
+        scheduler.Remove(Key, WorldCellWorkQueue.EligibleFar);
+    }
+
+    public override WorldCellDesiredState CalculateDesiredState(in WorldCellStateTransitionContext context)
+    {
+        if (context.HasActiveWindow)
+        {
+            bool inWindow = RegionCoord.X >= context.ActiveWindowMinRegion.X
+                            && RegionCoord.Y >= context.ActiveWindowMinRegion.Y
+                            && RegionCoord.Z >= context.ActiveWindowMinRegion.Z
+                            && RegionCoord.X <= context.ActiveWindowMaxRegion.X
+                            && RegionCoord.Y <= context.ActiveWindowMaxRegion.Y
+                            && RegionCoord.Z <= context.ActiveWindowMaxRegion.Z;
+
+            return inWindow ? WorldCellDesiredState.Active : WorldCellDesiredState.Unloaded;
+        }
+
+        return WorldCellDesiredState.Active;
+    }
+
     public override float CalculatePriority(in WorldCellPriorityContext context)
     {
         TraceSceneRegionPriorityReason reasons = TraceSceneRegionPriorityReason.None;
@@ -108,5 +160,18 @@ internal sealed class TraceSceneRegionCell : WorldCell
 
         LastPriorityReasons = reasons;
         return priority;
+    }
+
+    private bool IsNear(in WorldCellPriorityContext context)
+    {
+        VectorInt3 anchorBlock = context.HasAnchor ? context.AnchorBlockPos : context.CameraBlockPos;
+        VectorInt3 anchorRegion = LumonSceneTraceSceneClipmapMath.WorldCellToRegionCoord(anchorBlock);
+
+        int dx = RegionCoord.X - anchorRegion.X;
+        int dy = RegionCoord.Y - anchorRegion.Y;
+        int dz = RegionCoord.Z - anchorRegion.Z;
+
+        long dist2 = (long)dx * dx + (long)dy * dy + (long)dz * dz;
+        return dist2 <= (long)TraceSceneRegionPriorityConstants.NearRadiusRegions * TraceSceneRegionPriorityConstants.NearRadiusRegions;
     }
 }

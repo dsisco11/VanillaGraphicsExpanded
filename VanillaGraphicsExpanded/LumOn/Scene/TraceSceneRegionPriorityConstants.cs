@@ -2,6 +2,8 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 
 internal static class TraceSceneRegionPriorityConstants
 {
+    public const int NearRadiusRegions = 4;
+
     public const float DistanceWeight = 1000f;
 
     public const float StaleBonus = 250f;

@@ -157,7 +157,7 @@ Design sketch (non-binding)
     - “Active window”: tighter range; cells inside should be `Active`.
   - Typical hysteresis behavior: leaving the Active window downgrades `Active→Loaded` (keep slot/residency), and only leaving the Loaded window downgrades `Loaded→Unloaded`.
 - Actual state (recommended for debugging + correctness):
-  - `WorldCellActualState`: `Unloaded`, `LoadingSlot`, `LoadedIdle`, `ActiveNeedsCapture`, `ActiveCapturing`, `ActiveNeedsRelight`, `ActiveRelighting`, `ActiveReady`, `Unloading`.
+  - `WorldCellActualState`: keep this generic/coarse (e.g., `Unloaded/Loading/Loaded/Activating/Active/Unloading`) and allow cells to carry domain-specific substate fields (capture/relight readiness, in-flight flags, etc.).
 - Transition invariants:
   - No skipping required intermediate work: `ResidentNeedsCapture` must pass through capture before `Ready`.
   - Cancellation is explicit: only cancel in-flight when desired state regresses or window changes.
@@ -175,26 +175,28 @@ Design sketch (non-binding)
   - Reason bits can extend to state-machine reasons (e.g., `NeedsCapture`, `NeedsRelight`, `EvictPressure`).
 
 - [ ] Add a per-cell “desired state” concept (UE5 World Partition inspired):
-  - [ ] Define `WorldCellDesiredState` = `Unloaded`, `Loaded`, `Active`.
-  - [ ] Define a dual-window/range model: “Loaded window” and tighter “Active window” (hysteresis).
-  - [ ] Define `WorldCellActualState` (current lifecycle state) if needed.
+  - [x] Define `WorldCellDesiredState` = `Unloaded`, `Loaded`, `Active`.
+  - [x] Define a dual-window/range model: “Loaded window” and tighter “Active window” (hysteresis).
+  - [x] Define `WorldCellActualState` (current lifecycle state) if needed.
   - [ ] Define allowed transitions + invariants (no illegal skips, cancellation rules).
 - [ ] Extend `IWorldCell`/`WorldCell`:
-  - [ ] `DesiredState` property
-  - [ ] `ActualState` property (optional but recommended for debugging)
-  - [ ] `CalculateDesiredState(ctx)` (pure/cheap, similar to `CalculatePriority`)
-- [ ] Add a `WorldCellStateTransitionContext` (loadedness hints, resource budgets, distance thresholds).
-- [ ] Add a generic `WorldCellStateMachine` helper:
-  - [ ] transition evaluator (Desired→Actual)
-  - [ ] per-state actions interface (enqueue load, enqueue unload, cancel in-flight, etc.)
+  - [x] `DesiredState` property
+  - [x] `ActualState` property (optional but recommended for debugging)
+  - [x] `CalculateDesiredState(ctx)` (pure/cheap, similar to `CalculatePriority`)
+- [x] Add a `WorldCellStateTransitionContext` (loadedness hints, resource budgets, distance thresholds).
+- [x] Add a generic `WorldCellStateMachine` helper:
+  - [x] transition evaluator (Desired→Actual)
+  - [x] per-state actions interface (enqueue load, enqueue unload, cancel in-flight, etc.)
+    - Implemented as `IWorldCellWorkSink` + `WorldCellWorkQueue` + `NullWorldCellWorkSink` and exercised by TraceScene.
   - [ ] backoff/cooldown integration for failed transitions
 - [ ] Integrate desired-state with the scheduler:
-  - [ ] scheduler should only consider cells eligible for “work” when DesiredState requires it
+  - [x] scheduler should only consider cells eligible for “work” when DesiredState requires it
   - [ ] avoid thrash by adding hysteresis via Loaded vs Active windows (and optional timers)
+    - Note: Phase 9 should provide reusable hysteresis helpers; Phase 9.1 implements LumonScene policy using two windows.
 - [ ] Tests:
-  - [ ] deterministic desired-state decisions for a synthetic camera path
-  - [ ] transition ordering correctness (no illegal transitions)
-  - [ ] thrash prevention (hysteresis works)
+  - [ ] deterministic desired-state decisions for a synthetic camera path (generic window policy)
+  - [ ] transition ordering correctness (generic state machine: Desired→Actual action selection)
+  - [ ] thrash prevention (generic hysteresis helper behavior)
 
 Phase 9.1 - Integrate WorldCell Desired/Actual State with LumonScene Region Scheduling
 - [ ] Implement `LumonSceneRegionCell` as a real `WorldCell` specialization (beyond design-only Phase 8):
@@ -227,6 +229,6 @@ Phase 9.1 - Integrate WorldCell Desired/Actual State with LumonScene Region Sche
   - [ ] add overlay/debug-view lines for Loaded/Active counts and transition stats
   - [ ] add “dump LumonScene cell state” log button (top N by work pressure)
 - [ ] Tests:
-  - [ ] desired-state decision tests for loaded/active window hysteresis
+  - [ ] desired-state decision tests for loaded/active window hysteresis (LumonScene-specific thresholds + heat)
   - [ ] transition legality tests (no work issued for Loaded-only cells)
   - [ ] integration smoke test: active cells receive capture/relight work; loaded-but-not-active do not

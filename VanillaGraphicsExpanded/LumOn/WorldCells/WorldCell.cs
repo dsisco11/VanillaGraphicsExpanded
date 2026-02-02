@@ -9,6 +9,9 @@ internal abstract class WorldCell : IWorldCell
     {
         Key = key;
         HeapIndex = -1;
+
+        DesiredState = WorldCellDesiredState.Active;
+        ActualState = WorldCellActualState.Active;
     }
 
     public WorldCellKey Key { get; }
@@ -23,6 +26,10 @@ internal abstract class WorldCell : IWorldCell
 
     public int AppliedVersion { get; set; }
 
+    public WorldCellDesiredState DesiredState { get; set; }
+
+    public WorldCellActualState ActualState { get; set; }
+
     internal int HeapIndex { get; set; }
 
     internal int CooldownStreak { get; set; }
@@ -30,4 +37,9 @@ internal abstract class WorldCell : IWorldCell
     internal long LastAttemptTick { get; set; }
 
     public abstract float CalculatePriority(in WorldCellPriorityContext context);
+
+    public virtual WorldCellDesiredState CalculateDesiredState(in WorldCellStateTransitionContext context)
+    {
+        return WorldCellDesiredState.Active;
+    }
 }

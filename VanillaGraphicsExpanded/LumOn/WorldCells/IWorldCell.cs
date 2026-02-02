@@ -17,5 +17,11 @@ internal interface IWorldCell
 
     int AppliedVersion { get; set; }
 
+    WorldCellDesiredState DesiredState { get; set; }
+
+    WorldCellActualState ActualState { get; set; }
+
     float CalculatePriority(in WorldCellPriorityContext context);
+
+    WorldCellDesiredState CalculateDesiredState(in WorldCellStateTransitionContext context);
 }
