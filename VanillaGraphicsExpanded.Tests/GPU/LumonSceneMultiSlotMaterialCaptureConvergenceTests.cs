@@ -161,6 +161,7 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
                 requests: requests,
                 maxRequestsToProcess: toRead,
                 maxNewAllocations: maxNewAllocsPerFrame,
+                maxPagesPerChunkSlot: 1024,
                 recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
                 recaptureCursor: ref recaptureCursor,
                 maxRecapture: 0,

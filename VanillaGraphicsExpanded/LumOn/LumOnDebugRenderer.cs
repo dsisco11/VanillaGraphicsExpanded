@@ -951,6 +951,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 or LumOnDebugMode.LumonScenePatchUv
                 or LumOnDebugMode.LumonSceneIrradiance
                 or LumOnDebugMode.LumonSceneMaterial
+                or LumOnDebugMode.LumonSceneMaterialAtlasAll
                 or LumOnDebugMode.LumonSceneChunkSlot
                 or LumOnDebugMode.LumonSceneSlotGeneration
                 or LumOnDebugMode.LumonScenePageTableOccupancy
@@ -2644,6 +2645,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             or LumOnDebugMode.LumonScenePageTableOccupancy
             or LumOnDebugMode.LumonSceneIrradiance
             or LumOnDebugMode.LumonSceneMaterial
+            or LumOnDebugMode.LumonSceneMaterialAtlasAll
             => LumOnDebugShaderProgramKind.SceneGBuffer,
 
         // Temporal

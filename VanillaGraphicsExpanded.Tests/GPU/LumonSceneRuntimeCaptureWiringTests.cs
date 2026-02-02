@@ -129,6 +129,7 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
             requests: requests,
             maxRequestsToProcess: desiredPages,
             maxNewAllocations: desiredPages,
+            maxPagesPerChunkSlot: 1024,
             recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
             recaptureCursor: ref recaptureCursor,
             maxRecapture: 0,

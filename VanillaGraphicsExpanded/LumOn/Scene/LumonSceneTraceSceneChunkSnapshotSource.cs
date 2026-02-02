@@ -22,84 +22,6 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 /// </remarks>
 internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSource
 {
-    private static class ChunkBlocksBulkClone
-    {
-        private static readonly Dictionary<Type, MemberInfo?> dataMemberByType = new();
-
-        public static bool TryCloneTo(IChunkBlocks blocks, int[] dst, int len)
-        {
-            if (blocks is null || dst is null) return false;
-            if ((uint)len > (uint)dst.Length) return false;
-
-            // Fast-path: direct cast if the runtime type happens to expose a public int[] Data property.
-            // Many VS internal types do, but the interface doesn't.
-            MemberInfo? member;
-            Type t = blocks.GetType();
-
-            lock (dataMemberByType)
-            {
-                dataMemberByType.TryGetValue(t, out member);
-            }
-
-            if (member is null && !TryResolveDataMember(t, out member))
-            {
-                lock (dataMemberByType) dataMemberByType[t] = null;
-                return false;
-            }
-
-            object? value = member switch
-            {
-                PropertyInfo p => p.GetValue(blocks),
-                FieldInfo f => f.GetValue(blocks),
-                _ => null
-            };
-
-            if (value is int[] ints && ints.Length >= len)
-            {
-                Array.Copy(ints, 0, dst, 0, len);
-                return true;
-            }
-
-            if (value is ushort[] ushorts && ushorts.Length >= len)
-            {
-                for (int i = 0; i < len; i++)
-                {
-                    dst[i] = ushorts[i];
-                }
-                return true;
-            }
-
-            if (value is short[] shorts && shorts.Length >= len)
-            {
-                for (int i = 0; i < len; i++)
-                {
-                    dst[i] = shorts[i];
-                }
-                return true;
-            }
-
-            return false;
-        }
-
-        private static bool TryResolveDataMember(Type t, out MemberInfo? member)
-        {
-            // Prefer `Data` field/property; fall back to other known names.
-            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-
-            member = t.GetProperty("Data", flags)
-                     ?? (MemberInfo?)t.GetField("Data", flags)
-                     ?? t.GetProperty("data", flags)
-                     ?? (MemberInfo?)t.GetField("data", flags);
-
-            lock (dataMemberByType)
-            {
-                dataMemberByType[t] = member;
-            }
-
-            return member is not null;
-        }
-    }
-
     private readonly ICoreClientAPI capi;
     private readonly LumonSceneTraceSceneChunkVersionProvider versionProvider;
     private readonly LumonSceneTraceSceneLightIdRegistry lightIds;
@@ -214,18 +136,12 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
                     blocks.TakeBulkReadLock();
                     try
                     {
-                        // Preferred: bulk clone the backing array (fast, minimal virtual calls).
-                        if (ChunkBlocksBulkClone.TryCloneTo(blocks, blockIds, len))
+                        // NOTE: do not reflect/copy IChunkBlocks.Data directly. The backing storage can be packed
+                        // (palette/compressed) and is not guaranteed to be raw block IDs.
+                        // The only correct fast path is the engine accessor under the bulk read lock.
+                        for (int i = 0; i < len; i++)
                         {
-                            bulkCloneUsed = true;
-                        }
-                        else
-                        {
-                            // Fallback: unsafe indexer (still bulk-locked).
-                            for (int i = 0; i < len; i++)
-                            {
-                                blockIds[i] = blocks.GetBlockIdUnsafe(i);
-                            }
+                            blockIds[i] = blocks.GetBlockIdUnsafe(i);
                         }
                     }
                     finally

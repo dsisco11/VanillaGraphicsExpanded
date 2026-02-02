@@ -170,18 +170,19 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
 
         for (int frame = 0; frame < 32 && virtualToPhysical.Count < desiredPages; frame++)
         {
-            cpuProc.Process(
-                requests: requests,
-                maxRequestsToProcess: desiredPages,
-                maxNewAllocations: maxNewAllocsPerFrame,
-                recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
-                recaptureCursor: ref recaptureCursor,
-                maxRecapture: 0,
-                captureWorkOut: captureOut,
-                relightWorkOut: relightOut,
-                captureCount: out int captureCount,
-                relightCount: out int relightCount,
-                stats: out _);
+        cpuProc.Process(
+            requests: requests,
+            maxRequestsToProcess: desiredPages,
+            maxNewAllocations: maxNewAllocsPerFrame,
+            maxPagesPerChunkSlot: 1024,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+            recaptureCursor: ref recaptureCursor,
+            maxRecapture: 0,
+            captureWorkOut: captureOut,
+            relightWorkOut: relightOut,
+            captureCount: out int captureCount,
+            relightCount: out int relightCount,
+            stats: out _);
 
             Assert.Equal(captureCount, relightCount);
 

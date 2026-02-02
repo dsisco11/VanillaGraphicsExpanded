@@ -766,6 +766,29 @@ public class VgeConfig
                 public int ClipmapSlicesPerFrame { get; set; } = 8;
 
                 /// <summary>
+                /// CPU time budget (ms) per frame for issuing new 32^3 region extraction requests (Phase 23).
+                /// This controls how much time we spend draining the pending region queue into the async job system.
+                /// Set to 0 to pause issuing new region requests.
+                /// </summary>
+                [JsonProperty]
+                public float ClipmapIssueBudgetMs { get; set; } = 0.25f;
+
+                /// <summary>
+                /// Max number of in-flight region extraction requests allowed at once (Phase 23).
+                /// This caps memory/CPU pressure and improves spatial convergence stability (less “random scatter”).
+                /// Set to 0 to pause issuing new region requests.
+                /// </summary>
+                [JsonProperty]
+                public int ClipmapMaxInFlightRegions { get; set; } = 256;
+
+                /// <summary>
+                /// CPU time budget (ms) per frame for consuming completed region jobs and dispatching GPU clipmap updates (Phase 23).
+                /// Set to 0 to pause dispatching region updates (occupancy clipmap will stop updating).
+                /// </summary>
+                [JsonProperty]
+                public float ClipmapDispatchBudgetMs { get; set; } = 0.25f;
+
+                /// <summary>
                 /// Max number of 32^3 region payloads to upload per frame for the GPU-built clipmap path (Phase 23).
                 /// This is a CPU->GPU bandwidth limiter; it does not directly control compute cost.
                 /// </summary>
@@ -784,6 +807,9 @@ public class VgeConfig
                     ClipmapResolution = SanitizeTraceSceneClipmapResolution(ClipmapResolution);
                     ClipmapLevels = Math.Clamp(ClipmapLevels, 1, 8);
                     ClipmapSlicesPerFrame = Math.Clamp(ClipmapSlicesPerFrame, 0, 512);
+                    ClipmapIssueBudgetMs = Math.Clamp(ClipmapIssueBudgetMs, 0.0f, 50.0f);
+                    ClipmapMaxInFlightRegions = Math.Clamp(ClipmapMaxInFlightRegions, 0, 65_536);
+                    ClipmapDispatchBudgetMs = Math.Clamp(ClipmapDispatchBudgetMs, 0.0f, 50.0f);
                     ClipmapMaxRegionUploadsPerFrame = Math.Clamp(ClipmapMaxRegionUploadsPerFrame, 0, 4096);
                     ClipmapMaxRegionsDispatchedPerFrame = Math.Clamp(ClipmapMaxRegionsDispatchedPerFrame, 0, 4096);
                 }

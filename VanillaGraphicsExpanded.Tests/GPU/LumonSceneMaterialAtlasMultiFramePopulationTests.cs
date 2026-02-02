@@ -139,6 +139,7 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
                 requests: requests,
                 maxRequestsToProcess: desiredPages,
                 maxNewAllocations: maxNewAllocsPerFrame,
+                maxPagesPerChunkSlot: 1024,
                 recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
                 recaptureCursor: ref recaptureCursor,
                 maxRecapture: 0,

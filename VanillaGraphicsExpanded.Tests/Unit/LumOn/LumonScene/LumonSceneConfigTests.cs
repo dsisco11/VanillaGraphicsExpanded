@@ -20,6 +20,12 @@ public sealed class LumonSceneConfigTests
                     NearRadiusYChunks = 12345,
                     FarRadiusChunks = -1,
                     FarRadiusYChunks = -1,
+                    TraceScene = new VgeConfig.LumOnSettingsConfig.LumonSceneConfig.TraceSceneConfig
+                    {
+                        ClipmapIssueBudgetMs = -1f,
+                        ClipmapDispatchBudgetMs = -1f,
+                        ClipmapMaxInFlightRegions = -1,
+                    }
                 }
             }
         };
@@ -35,5 +41,9 @@ public sealed class LumonSceneConfigTests
         Assert.InRange(cfg.LumOn.LumonScene.FarRadiusYChunks, 0, 128);
         Assert.True(cfg.LumOn.LumonScene.FarRadiusChunks >= cfg.LumOn.LumonScene.NearRadiusChunks);
         Assert.True(cfg.LumOn.LumonScene.FarRadiusYChunks >= cfg.LumOn.LumonScene.NearRadiusYChunks);
+
+        Assert.True(cfg.LumOn.LumonScene.TraceScene.ClipmapIssueBudgetMs >= 0f);
+        Assert.True(cfg.LumOn.LumonScene.TraceScene.ClipmapDispatchBudgetMs >= 0f);
+        Assert.True(cfg.LumOn.LumonScene.TraceScene.ClipmapMaxInFlightRegions >= 0);
     }
 }

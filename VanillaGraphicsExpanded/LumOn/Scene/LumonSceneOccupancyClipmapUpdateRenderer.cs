@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -195,16 +196,21 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         }
 
         // Keep the request queue topped up until we've seeded the whole window at least once.
-        EnqueueWindowSeed(targetQueueLen: Math.Max(16, traceCfg.ClipmapMaxRegionUploadsPerFrame * 8));
+        EnqueueWindowSeed(targetQueueLen: Math.Max(16, Math.Min(65_536, traceCfg.ClipmapMaxInFlightRegions * 4)));
 
         // Maintenance: periodically re-request a few regions even without movement (helps cover late loads/unloads).
         EnqueueMaintenance(traceCfg.ClipmapMaxRegionUploadsPerFrame);
 
         // Start async region extraction jobs under budget.
-        IssueRegionRequests(traceCfg.ClipmapMaxRegionUploadsPerFrame);
+        IssueRegionRequests(
+            issueBudgetMs: traceCfg.ClipmapIssueBudgetMs,
+            maxInFlightRegions: traceCfg.ClipmapMaxInFlightRegions);
 
         // Consume completed results and dispatch region->clipmap compute writes under budgets.
-        DispatchCompleted(traceCfg.ClipmapMaxRegionUploadsPerFrame, traceCfg.ClipmapMaxRegionsDispatchedPerFrame);
+        DispatchCompleted(
+            dispatchBudgetMs: traceCfg.ClipmapDispatchBudgetMs,
+            maxUploadsPerFrame: traceCfg.ClipmapMaxRegionUploadsPerFrame,
+            maxRegionsPerFrame: traceCfg.ClipmapMaxRegionsDispatchedPerFrame);
 
         LumonSceneTraceSceneMetrics.SetState(
             queueHighLength: pendingRegionsHigh.Count,
@@ -686,16 +692,34 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         }
     }
 
-    private void IssueRegionRequests(int maxRequestsPerFrame)
+    private void IssueRegionRequests(float issueBudgetMs, int maxInFlightRegions)
     {
-        if (chunkProcessing is null || chunkVersions is null || maxRequestsPerFrame <= 0)
+        if (chunkProcessing is null || chunkVersions is null || issueBudgetMs <= 0f || maxInFlightRegions <= 0)
+        {
+            return;
+        }
+
+        int inFlightRoom = maxInFlightRegions - inFlightByRegion.Count;
+        if (inFlightRoom <= 0)
+        {
+            return;
+        }
+
+        long start = Stopwatch.GetTimestamp();
+        long budgetTicks = (long)(issueBudgetMs * 0.001f * Stopwatch.Frequency);
+        if (budgetTicks <= 0)
         {
             return;
         }
 
         int issued = 0;
-        while (issued < maxRequestsPerFrame && PendingRegionCount > 0)
+        while (issued < inFlightRoom && PendingRegionCount > 0)
         {
+            if (Stopwatch.GetTimestamp() - start > budgetTicks)
+            {
+                break;
+            }
+
             RegionRequest req = pendingRegionsHigh.Count > 0 ? pendingRegionsHigh.Dequeue() : pendingRegionsLow.Dequeue();
             ChunkKey key = ChunkKey.FromChunkCoords(req.RegionCoord.X, req.RegionCoord.Y, req.RegionCoord.Z);
             pendingRegionKeys.Remove(key.Packed);
@@ -728,14 +752,21 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         }
     }
 
-    private void DispatchCompleted(int maxUploadsPerFrame, int maxRegionsPerFrame)
+    private void DispatchCompleted(float dispatchBudgetMs, int maxUploadsPerFrame, int maxRegionsPerFrame)
     {
-        if (resources is null || gpuDispatcher is null)
+        if (resources is null || gpuDispatcher is null || dispatchBudgetMs <= 0f)
         {
             return;
         }
 
         using var cpuScope = Profiler.BeginScope("LumOn.TraceScene.DispatchCompleted", "Render");
+
+        long start = Stopwatch.GetTimestamp();
+        long budgetTicks = (long)(dispatchBudgetMs * 0.001f * Stopwatch.Frequency);
+        if (budgetTicks <= 0)
+        {
+            return;
+        }
 
         int budget = Math.Min(Math.Max(0, maxUploadsPerFrame), Math.Max(0, maxRegionsPerFrame));
         if (budget <= 0 || inFlightByRegion.Count <= 0 || levelStates.Length <= 0 || !levelStates[0].HasAnchor)
@@ -765,6 +796,11 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
             while (budget > 0 && inFlightByRegion.Count > 0)
             {
+                if (Stopwatch.GetTimestamp() - start > budgetTicks)
+                {
+                    break;
+                }
+
                 int batchCap = Math.Min(budget, 16);
 
                 VectorInt3[] regionCoords = ArrayPool<VectorInt3>.Shared.Rent(batchCap);
