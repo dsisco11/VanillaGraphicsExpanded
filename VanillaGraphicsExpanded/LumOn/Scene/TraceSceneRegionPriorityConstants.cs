@@ -10,7 +10,7 @@ internal static class TraceSceneRegionPriorityConstants
 
     public const float SeenLoadedRecentlyBonus = 75f;
 
-    public const int SeenLoadedRecentTicks = 120;
+    public const int SeenLoadedRecentTicks = 2000;
 
     public const float MissingPenaltyPerStreak = 200f;
 }

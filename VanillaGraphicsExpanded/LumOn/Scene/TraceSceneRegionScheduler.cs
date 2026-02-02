@@ -10,6 +10,9 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 
 internal sealed class TraceSceneRegionScheduler
 {
+    private const long MinRetryMs = 50;
+    private const long MaxBackoffMs = 5000;
+    private const long ChunkUnavailableBaseBackoffMs = 100;
     private const int NearDequeueBurst = 8;
     private const int NearRadiusRegions = 4;
 
@@ -127,6 +130,14 @@ internal sealed class TraceSceneRegionScheduler
         lastNowTick = Math.Max(lastNowTick, nowTick);
         TraceSceneRegionCell cell = GetOrCreateCell(chunkKey);
         cell.LastSeenLoadedTick = lastNowTick;
+
+        // If we previously cooled down due to missing chunk, re-enable quickly.
+        if (cell.MissingStreak > 0 || cell.NextEligibleTick > lastNowTick)
+        {
+            cell.MissingStreak = 0;
+            cell.NextEligibleTick = 0;
+        }
+
         MarkDirty(cell.ChunkKey.Packed);
     }
 
@@ -316,6 +327,9 @@ internal sealed class TraceSceneRegionScheduler
             case ChunkWorkStatus.Superseded:
             default:
                 // Re-evaluate; caller may have re-issued or window may have changed.
+                // Never retry faster than MinRetryMs to avoid per-frame churn.
+                cell.NextEligibleTick = Math.Max(cell.NextEligibleTick, checked(lastNowTick + MinRetryMs));
+                cooldownQueue.Push(cell.NextEligibleTick, cell.ChunkKey.Packed);
                 MarkDirty(cell.ChunkKey.Packed);
                 break;
         }
@@ -326,6 +340,7 @@ internal sealed class TraceSceneRegionScheduler
         cell.MissingStreak++;
 
         long delay = ComputeBackoffTicks(cell.MissingStreak, aggressive);
+        delay = Math.Max(delay, MinRetryMs);
         cell.NextEligibleTick = checked(lastNowTick + delay);
 
         RemoveFromHeaps(cell.ChunkKey.Packed);
@@ -336,15 +351,14 @@ internal sealed class TraceSceneRegionScheduler
 
     private static long ComputeBackoffTicks(int missingStreak, bool aggressive)
     {
-        int s = Math.Clamp(missingStreak, 1, 20);
+        int s = Math.Clamp(missingStreak, 1, 30);
 
-        long baseTicks = aggressive ? 30 : 10;
-        long maxTicks = aggressive ? 900 : 300;
+        long baseMs = aggressive ? ChunkUnavailableBaseBackoffMs : (ChunkUnavailableBaseBackoffMs / 2);
+        long backoff = baseMs;
+        int shift = Math.Min(s - 1, 10);
+        backoff <<= shift;
 
-        int shift = Math.Min(s - 1, 6);
-        long backoff = baseTicks << shift;
-
-        return Math.Min(backoff, maxTicks);
+        return Math.Min(backoff, MaxBackoffMs);
     }
 
     private bool TryDequeueFromHeaps(bool preferNear, bool allowFar, out ulong packedKey, out bool fromNear)

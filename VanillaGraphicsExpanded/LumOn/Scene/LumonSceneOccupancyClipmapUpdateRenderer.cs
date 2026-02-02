@@ -54,7 +54,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
     private VectorInt3 currentWindowRegionMax;
     private bool hasWindowRegionBounds;
 
-    private long traceSceneTick;
+    private long traceSceneNowMs;
 
     public double RenderOrder => RenderOrderValue;
     public int RenderRange => RenderRangeValue;
@@ -152,7 +152,8 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
             return;
         }
 
-        traceSceneTick++;
+        // Scheduler cooldown/backoff operates in milliseconds.
+        traceSceneNowMs = capi.World.ElapsedMilliseconds;
 
         var traceCfg = config.LumOn.LumonScene.TraceScene;
 
@@ -198,7 +199,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
             WindowMinRegion: default,
             WindowMaxRegion: default,
             HasWindow: false,
-            NowTick: traceSceneTick);
+            NowTick: traceSceneNowMs);
 
         RefreshScheduler(in priorityContext, budget: Math.Max(64, traceCfg.ClipmapMaxInFlightRegions * 8));
 
@@ -265,7 +266,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         regionScheduler.Reset();
         inFlightByRegion.Clear();
         hasWindowRegionBounds = false;
-        traceSceneTick = 0;
+        traceSceneNowMs = 0;
 
         rebuildAllRequested = 0;
     }
@@ -351,10 +352,10 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         chunkVersions.MarkDirty(key);
 
         int currentVersion = chunkVersions.GetCurrentVersion(key);
-        regionScheduler.NotifyChunkDirty(key, currentVersion: currentVersion, nowTick: traceSceneTick, reason: reason.ToString());
+        regionScheduler.NotifyChunkDirty(key, currentVersion: currentVersion, nowTick: traceSceneNowMs, reason: reason.ToString());
 
         // Loadedness hint: ChunkDirty implies the chunk was observed loaded.
-        regionScheduler.NotifyChunkSeenLoaded(key, nowTick: traceSceneTick);
+        regionScheduler.NotifyChunkSeenLoaded(key, nowTick: traceSceneNowMs);
     }
 
     private void RequestRebuildAll()
@@ -364,7 +365,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         regionScheduler.Reset();
         inFlightByRegion.Clear();
         hasWindowRegionBounds = false;
-        traceSceneTick = 0;
+        traceSceneNowMs = 0;
     }
 
     private bool UpdateAnchor(LevelState ls, int camX, int camY, int camZ)
@@ -486,7 +487,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                     {
                         if (inFlightByRegion.Remove(keys[i], out InFlightRegion inflight))
                         {
-                            regionScheduler.OnRequestCompleted(ck, ChunkWorkStatus.Superseded, requestedVersion: inflight.Version, nowTick: traceSceneTick);
+                            regionScheduler.OnRequestCompleted(ck, ChunkWorkStatus.Superseded, requestedVersion: inflight.Version, nowTick: traceSceneNowMs);
                         }
                     }
                 }
@@ -537,7 +538,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                 break;
             }
 
-            if (!regionScheduler.TryDequeueNextEligible(traceSceneTick, out ChunkKey key, out int priorityHint))
+            if (!regionScheduler.TryDequeueNextEligible(traceSceneNowMs, out ChunkKey key, out int priorityHint))
             {
                 break;
             }
@@ -549,11 +550,11 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                 && !existing.Task.IsCompleted)
             {
                 // Keep scheduler in sync if we somehow lost in-flight bookkeeping.
-                regionScheduler.OnRequestIssued(key, version, nowTick: traceSceneTick);
+                regionScheduler.OnRequestIssued(key, version, nowTick: traceSceneNowMs);
                 continue;
             }
 
-            regionScheduler.OnRequestIssued(key, version, nowTick: traceSceneTick);
+            regionScheduler.OnRequestIssued(key, version, nowTick: traceSceneNowMs);
 
             var options = new ChunkWorkOptions { Priority = priorityHint };
             Task<ChunkWorkResult<LumonSceneTraceSceneRegionArtifact>> task =
@@ -672,7 +673,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                                         ck,
                                         status: res.Status,
                                         requestedVersion: res.RequestedVersion,
-                                        nowTick: traceSceneTick,
+                                        nowTick: traceSceneNowMs,
                                         error: res.Error);
                                 }
                             }
@@ -682,7 +683,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                                     ck,
                                     status: ChunkWorkStatus.Failed,
                                     requestedVersion: inflight.Version,
-                                    nowTick: traceSceneTick,
+                                    nowTick: traceSceneNowMs,
                                     error: ChunkWorkError.Unknown);
                             }
                         }
@@ -725,7 +726,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                             new ChunkKey(regionKeys[i]),
                             status: ChunkWorkStatus.Success,
                             requestedVersion: versions[i],
-                            nowTick: traceSceneTick);
+                            nowTick: traceSceneNowMs);
                     }
 
                     // If the GPU budget/dispatcher shorted us, retry the remainder next frame.
@@ -735,7 +736,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                             new ChunkKey(regionKeys[i]),
                             status: ChunkWorkStatus.Canceled,
                             requestedVersion: versions[i],
-                            nowTick: traceSceneTick);
+                            nowTick: traceSceneNowMs);
                     }
 
                     budget -= dispatched;

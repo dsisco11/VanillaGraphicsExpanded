@@ -82,12 +82,12 @@ Phase 5 - Wire Scheduler Into `LumonSceneOccupancyClipmapUpdateRenderer`
 
 
 Phase 6 - Backoff/Cooldown Policy (Convergence Under Missing Chunks)
-- [ ] Implement exponential backoff for `ChunkUnavailable` with clamp (e.g. up to 5s).
-- [ ] Add “never retry faster than X ms” to prevent per-frame churn.
-- [ ] Add “seen loaded recently” override to re-enable quickly when chunk arrives.
-- [ ] Unit tests:
-  - [ ] missing chunk does not dominate dequeue results
-  - [ ] once chunk becomes available, it regains priority and is scheduled promptly
+- [x] Implement exponential backoff for `ChunkUnavailable` with clamp (e.g. up to 5s).
+- [x] Add “never retry faster than X ms” to prevent per-frame churn.
+- [x] Add “seen loaded recently” override to re-enable quickly when chunk arrives.
+- [x] Unit tests:
+  - [x] missing chunk does not dominate dequeue results
+  - [x] once chunk becomes available, it regains priority and is scheduled promptly
 
 
 Phase 7 - Metrics + Debugging Hooks
