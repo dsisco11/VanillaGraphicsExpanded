@@ -1,0 +1,112 @@
+LumOn - Phase 23.8.X - WorldCell + TraceSceneRegionScheduler
+
+Goal
+- [ ] Replace TraceScene’s ad-hoc region queues with a scheduler that provides: dedup by construction, in-place priority updates, backoff/cooldowns for missing chunks, and stable convergence.
+- [ ] Introduce a reusable `IWorldCell`/`WorldCell` abstraction for “sub-partitions of world space”, enabling later reuse by LumonScene surface-cache scheduling.
+
+Non-goals (initial)
+- [ ] Rewrite LumonScene surface-cache scheduling to fully use `WorldCell` (defer until TraceScene scheduler is proven).
+- [ ] Achieve UE5 Lumen parity (this is scheduling + robustness work).
+
+
+Phase 1 - WorldCell Primitives (Contracts + Types)
+- [ ] Define `WorldCellKind` enum (TraceSceneRegion, LumonSceneNear/Far, etc.).
+- [ ] Define `WorldCellKey` (packed `ulong` + kind encoding; allow using `ChunkKey.Packed` for TraceSceneRegion).
+- [ ] Define `WorldCellPriorityContext` (camera/anchor/window, frame tick, loadedness hints).
+- [ ] Define `IWorldCell` contract:
+  - [ ] `Key`, `Kind`, `Priority`, `NextEligibleTick`
+  - [ ] `CalculatePriority(ctx)` (pure/cheap)
+  - [ ] versioning fields (`CurrentVersion`, `AppliedVersion`) for staleness detection
+- [ ] Add base `WorldCell` type with common scheduling fields (heap index, cooldown bookkeeping).
+- [ ] Add unit tests for key packing/equality + basic priority contract expectations.
+
+
+Phase 2 - Indexed Priority Queue (No Duplicates, O(logN) Updates)
+- [ ] Implement `IndexedMaxHeap<TKey>` (or `IndexedPriorityQueue<TKey>`) with:
+  - [ ] `Upsert(key, priority)`
+  - [ ] `UpdatePriority(key, priority)`
+  - [ ] `Remove(key)`
+  - [ ] `TryPopMax(out key)`
+  - [ ] O(1) key→heapIndex mapping (stored on entry or in a dictionary)
+- [ ] Unit tests:
+  - [ ] insert/pop ordering
+  - [ ] increase/decrease key updates
+  - [ ] remove arbitrary key
+  - [ ] “Upsert does not duplicate”
+
+
+Phase 3 - TraceSceneRegionCell (WorldCell Specialization)
+- [ ] Implement `TraceSceneRegionCell : WorldCell` (or `WorldCell` + per-kind payload) with:
+  - [ ] `ChunkKey` / region coord (chunk units)
+  - [ ] `MissingStreak`, `LastSeenLoadedTick`, `LastAttemptTick`
+  - [ ] `CurrentVersion`, `AppliedVersion`, `InFlightVersion`
+  - [ ] reason flags for priority composition (distance/stale/loaded/missing)
+- [ ] Define TraceScene priority function terms and constants:
+  - [ ] distance term (camera or clipmap-anchor based)
+  - [ ] staleness term (never applied / applied != current)
+  - [ ] loadedness bonus (recently seen loaded)
+  - [ ] missing penalty + cooldown gate
+- [ ] Unit tests for priority ordering across a small synthetic window.
+
+
+Phase 4 - TraceSceneRegionScheduler (Core Scheduling)
+- [ ] Create `TraceSceneRegionScheduler` owning:
+  - [ ] cell dictionary (authoritative entry per region)
+  - [ ] indexed heap of eligible cells
+  - [ ] window bounds + incremental window seeding cursor
+  - [ ] in-flight tracking and completion processing
+  - [ ] cooldown/backoff computation for `ChunkUnavailable` / snapshot unavailable
+- [ ] Provide public API (initial sketch):
+  - [ ] `SetWindow(min,max)`
+  - [ ] `NotifyChunkDirty(chunkKey, reason)` (optional, internal to TraceScene renderer)
+  - [ ] `NotifyChunkSeenLoaded(chunkKey)` (optional)
+  - [ ] `RefreshPriorities(ctx, budget)` (incremental or lazy)
+  - [ ] `TryDequeueNextEligible(nowTick, out key)` / `DequeueBatch(...)`
+  - [ ] `OnRequestIssued(key, version)` / `OnRequestCompleted(key, status)`
+- [ ] Add fairness guarantees:
+  - [ ] ensure “near window” cells can’t be permanently starved by far cells
+  - [ ] ensure cooldown-suppressed cells don’t block other work
+
+
+Phase 5 - Wire Scheduler Into `LumonSceneOccupancyClipmapUpdateRenderer`
+- [ ] Replace:
+  - [ ] `pendingRegionsHigh/Low`, `pendingRegionKeys`
+  - [ ] `maintenanceCursor`, `windowSeedCursor`, `windowSeedTotal`
+  - [ ] ad-hoc re-enqueue on failure
+- [ ] Drive scheduling from budgets:
+  - [ ] keep `ClipmapIssueBudgetMs` / `ClipmapDispatchBudgetMs`
+  - [ ] use `ClipmapMaxInFlightRegions` as the hard cap
+  - [ ] keep `ClipmapMaxRegionUploadsPerFrame` / `ClipmapMaxRegionsDispatchedPerFrame` as GPU safety limits
+- [ ] Ensure TraceScene only reacts to engine `ChunkDirty` via its own subscription (no LumOnModSystem invalidation).
+- [ ] Add a small “loadedness hint” path using observed chunk events (inside TraceScene renderer).
+
+
+Phase 6 - Backoff/Cooldown Policy (Convergence Under Missing Chunks)
+- [ ] Implement exponential backoff for `ChunkUnavailable` with clamp (e.g. up to 5s).
+- [ ] Add “never retry faster than X ms” to prevent per-frame churn.
+- [ ] Add “seen loaded recently” override to re-enable quickly when chunk arrives.
+- [ ] Unit tests:
+  - [ ] missing chunk does not dominate dequeue results
+  - [ ] once chunk becomes available, it regains priority and is scheduled promptly
+
+
+Phase 7 - Metrics + Debugging Hooks
+- [ ] Add scheduler metrics:
+  - [ ] eligible heap size
+  - [ ] suppressed (cooldown) count
+  - [ ] in-flight count
+  - [ ] applied count
+  - [ ] completion breakdown (success/unavailable/canceled/superseded/failed)
+  - [ ] cooldown skips
+- [ ] Extend TS overlay string to include scheduler counters (top-k + reason bits).
+- [ ] Add optional debug “dump scheduler state” log button (top N entries with reason).
+
+
+Phase 8 - Extend WorldCell For LumonScene (Design-only Follow-up)
+- [ ] Define `LumonSceneRegionCell : WorldCell` responsibilities (near/far membership + residency/capture/relight summary).
+- [ ] Define how chunkSlot + generation + atlas residency map into the cell.
+- [ ] Identify which existing LumonScene systems become “cell processors” later:
+  - [ ] PatchId feedback → capture queue
+  - [ ] Relight queue
+  - [ ] Eviction / residency safety rules
+
