@@ -36,17 +36,17 @@ Phase 2 - Indexed Priority Queue (No Duplicates, O(logN) Updates)
 
 
 Phase 3 - TraceSceneRegionCell (WorldCell Specialization)
-- [ ] Implement `TraceSceneRegionCell : WorldCell` (or `WorldCell` + per-kind payload) with:
-  - [ ] `ChunkKey` / region coord (chunk units)
-  - [ ] `MissingStreak`, `LastSeenLoadedTick`, `LastAttemptTick`
-  - [ ] `CurrentVersion`, `AppliedVersion`, `InFlightVersion`
-  - [ ] reason flags for priority composition (distance/stale/loaded/missing)
-- [ ] Define TraceScene priority function terms and constants:
-  - [ ] distance term (camera or clipmap-anchor based)
-  - [ ] staleness term (never applied / applied != current)
-  - [ ] loadedness bonus (recently seen loaded)
-  - [ ] missing penalty + cooldown gate
-- [ ] Unit tests for priority ordering across a small synthetic window.
+- [x] Implement `TraceSceneRegionCell : WorldCell` (or `WorldCell` + per-kind payload) with:
+  - [x] `ChunkKey` / region coord (chunk units)
+  - [x] `MissingStreak`, `LastSeenLoadedTick`, `LastAttemptTick`
+  - [x] `CurrentVersion`, `AppliedVersion`, `InFlightVersion`
+  - [x] reason flags for priority composition (distance/stale/loaded/missing)
+- [x] Define TraceScene priority function terms and constants:
+  - [x] distance term (camera or clipmap-anchor based)
+  - [x] staleness term (never applied / applied != current)
+  - [x] loadedness bonus (recently seen loaded)
+  - [x] missing penalty + cooldown gate
+- [x] Unit tests for priority ordering across a small synthetic window.
 
 
 Phase 4 - TraceSceneRegionScheduler (Core Scheduling)
