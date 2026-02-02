@@ -249,6 +249,8 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             }
 
             int q = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.QueueLength;
+            int qh = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.QueueHighLength;
+            int ql = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.QueueLowLength;
             int f = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.InFlight;
             int a = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.AppliedRegions;
             long r = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionRequestsIssued;
@@ -274,7 +276,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             int ev = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotExpectedVersion;
             int cv = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotCurrentVersion;
 
-            return $"TS: q:{q} f:{f} a:{a} r:{r} s:{sReq}/{sOk}/{sNo} fail:{sfC}/{sfM}/{sfU}/{sfE} v:{ev}->{cv} c:{cf} bc:{bc} key:{cx},{cy},{cz} b:{b0}/{bC}/{bL} d:{bD} na:{na} sol:{sol}";
+            return $"TS: q:{q}({qh}/{ql}) f:{f} a:{a} r:{r} s:{sReq}/{sOk}/{sNo} fail:{sfC}/{sfM}/{sfU}/{sfE} v:{ev}->{cv} c:{cf} bc:{bc} key:{cx},{cy},{cz} b:{b0}/{bC}/{bL} d:{bD} na:{na} sol:{sol}";
         }
         catch
         {

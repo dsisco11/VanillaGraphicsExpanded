@@ -15,6 +15,8 @@ internal static class LumonSceneTraceSceneMetrics
     private static long computeDispatchCount;
 
     private static int queueLength;
+    private static int queueHighLength;
+    private static int queueLowLength;
     private static int inFlight;
     private static int appliedRegions;
 
@@ -72,12 +74,17 @@ internal static class LumonSceneTraceSceneMetrics
     public static int LastSnapshotCurrentVersion => Volatile.Read(ref lastSnapshotCurrentVersion);
 
     public static int QueueLength => Volatile.Read(ref queueLength);
+    public static int QueueHighLength => Volatile.Read(ref queueHighLength);
+    public static int QueueLowLength => Volatile.Read(ref queueLowLength);
     public static int InFlight => Volatile.Read(ref inFlight);
     public static int AppliedRegions => Volatile.Read(ref appliedRegions);
 
-    public static void SetState(int queueLength, int inFlight, int appliedRegions)
+    public static void SetState(int queueHighLength, int queueLowLength, int inFlight, int appliedRegions)
     {
-        Volatile.Write(ref LumonSceneTraceSceneMetrics.queueLength, queueLength);
+        int total = queueHighLength + queueLowLength;
+        Volatile.Write(ref LumonSceneTraceSceneMetrics.queueLength, total);
+        Volatile.Write(ref LumonSceneTraceSceneMetrics.queueHighLength, queueHighLength);
+        Volatile.Write(ref LumonSceneTraceSceneMetrics.queueLowLength, queueLowLength);
         Volatile.Write(ref LumonSceneTraceSceneMetrics.inFlight, inFlight);
         Volatile.Write(ref LumonSceneTraceSceneMetrics.appliedRegions, appliedRegions);
     }

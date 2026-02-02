@@ -96,5 +96,38 @@ internal static class LumonSceneTraceSceneClipmapMath
         int r = x % m;
         return r < 0 ? r + m : r;
     }
-}
 
+    /// <summary>
+    /// Computes inclusive world-cell bounds (block coords in v1) covered by a clipmap level window.
+    /// </summary>
+    /// <remarks>
+    /// - originMinCellLevel is expressed in level-cell coordinates (worldCell >> level).
+    /// - resolution is in level cells (per axis).
+    /// - Output bounds are in world cells (level 0 cells).
+    /// </remarks>
+    public static void ComputeWorldCellBoundsForLevelWindow(
+        in VectorInt3 originMinCellLevel,
+        int level,
+        int resolution,
+        out VectorInt3 worldMinCell,
+        out VectorInt3 worldMaxInclusiveCell)
+    {
+        if (resolution <= 0) throw new ArgumentOutOfRangeException(nameof(resolution));
+        if ((uint)level > 30u) throw new ArgumentOutOfRangeException(nameof(level));
+
+        long minX = (long)originMinCellLevel.X << level;
+        long minY = (long)originMinCellLevel.Y << level;
+        long minZ = (long)originMinCellLevel.Z << level;
+
+        int maxLevelCellX = checked(originMinCellLevel.X + (resolution - 1));
+        int maxLevelCellY = checked(originMinCellLevel.Y + (resolution - 1));
+        int maxLevelCellZ = checked(originMinCellLevel.Z + (resolution - 1));
+
+        long maxX = ((long)maxLevelCellX << level) + ((1L << level) - 1L);
+        long maxY = ((long)maxLevelCellY << level) + ((1L << level) - 1L);
+        long maxZ = ((long)maxLevelCellZ << level) + ((1L << level) - 1L);
+
+        worldMinCell = new VectorInt3(checked((int)minX), checked((int)minY), checked((int)minZ));
+        worldMaxInclusiveCell = new VectorInt3(checked((int)maxX), checked((int)maxY), checked((int)maxZ));
+    }
+}
