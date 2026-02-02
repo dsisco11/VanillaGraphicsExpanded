@@ -94,6 +94,9 @@
     "torch_lit": { "roughness": 0.75, "metallic": 0.0, "emissive": 0.15 },
     "bioluminescent": { "roughness": 0.8, "metallic": 0.0, "emissive": 0.25 },
     "tech_glow": { "roughness": 0.45, "metallic": 0.0, "emissive": 0.35 },
+    "soft_glow": { "roughness": 0.6, "metallic": 0.0, "emissive": 0.15, "scale": { "normal": 0.0, "depth": 0.0 } },
+    "ember_faint": { "roughness": 1.0, "metallic": 0.0, "emissive": 0.12, "scale": { "normal": 0.0, "depth": 0.0 } },
+    "luminescent_liquid": { "roughness": 0.02, "metallic": 0.0, "emissive": 0.6, "scale": { "normal": 0.0, "depth": 0.0 } },
     "tar": { "roughness": 0.08, "metallic": 0.0 },
     "honey": { "roughness": 0.05, "metallic": 0.0 },
 
@@ -305,6 +308,16 @@
       }
     },
     {
+      "id": "glowworm-variants",
+      "description": "Additional glowworm segment/end textures referenced by glow shapes (emissive).",
+      "match": {
+        "glob": "assets/**/textures/block/creature/glowworm/*.png"
+      },
+      "values": {
+        "material": "bioluminescent"
+      }
+    },
+    {
       "id": "statictranslocator-rustyglow",
       "description": "Static translocator glow texture referenced by shapes (emissive).",
       "match": {
@@ -312,6 +325,116 @@
       },
       "values": {
         "material": "tech_glow"
+      }
+    },
+    {
+      "id": "luminescent-liquid",
+      "description": "Luminescent liquid texture referenced by glow shapes (emissive).",
+      "match": {
+        "glob": "assets/**/textures/block/liquid/luminescentliquid.png"
+      },
+      "values": {
+        "material": "luminescent_liquid"
+      }
+    },
+    {
+      "id": "tech-powergenerator-bottom",
+      "description": "Tech power generator bottom texture referenced by glow shapes (emissive).",
+      "match": {
+        "glob": "assets/**/textures/block/machine/tech/tech-powergeneratorbottom.png"
+      },
+      "values": {
+        "material": "tech_glow"
+      }
+    },
+    {
+      "id": "command-block-interiors",
+      "description": "Command block interior textures referenced by glow shapes (emissive).",
+      "match": {
+        "glob": "assets/**/textures/block/meta/command*-inside*.png"
+      },
+      "values": {
+        "material": "tech_glow"
+      }
+    },
+    {
+      "id": "temporal-gear",
+      "description": "Temporal gear texture referenced by glow shapes (emissive).",
+      "match": {
+        "glob": "assets/**/textures/item/resource/temporalgear.png"
+      },
+      "values": {
+        "material": "tech_glow"
+      }
+    },
+    {
+      "id": "schematics",
+      "description": "Schematic item textures referenced by glow shapes (emissive).",
+      "match": {
+        "glob": "assets/**/textures/item/utility/schematic-*.png"
+      },
+      "values": {
+        "material": "soft_glow"
+      }
+    },
+    {
+      "id": "lore-marked",
+      "description": "Lore marked scroll texture referenced by glow shapes (emissive).",
+      "match": {
+        "glob": "assets/**/textures/item/lore/lore-marked.png"
+      },
+      "values": {
+        "material": "soft_glow"
+      }
+    },
+    {
+      "id": "firefly",
+      "description": "Firefly entity texture referenced by glow shapes (emissive).",
+      "match": {
+        "glob": "assets/**/textures/entity/firefly.png"
+      },
+      "values": {
+        "material": "bioluminescent"
+      }
+    },
+    {
+      "id": "seraph-eyes-jonas",
+      "description": "Glowing Jonas eye texture referenced by glow shapes (emissive).",
+      "match": {
+        "glob": "assets/**/textures/entity/humanoid/seraphskinparts/eyes/jonas.png"
+      },
+      "values": {
+        "material": "soft_glow"
+      }
+    },
+    {
+      "id": "christmas-bauble-acid",
+      "description": "Christmas bauble acid texture referenced by glow shapes (emissive).",
+      "match": {
+        "glob": "assets/**/textures/block/christmas/bauble/acid.png"
+      },
+      "values": {
+        "material": "soft_glow"
+      }
+    },
+    {
+      "id": "uranium-gem",
+      "description": "Uranium gem texture referenced by glow shapes (emissive).",
+      "match": {
+        "glob": "assets/**/textures/block/stone/gem/uranium.png"
+      },
+      "values": {
+        "material": "soft_glow"
+      }
+    },
+    {
+      "id": "firepit-burntlog",
+      "description": "Firepit burnt log texture referenced by glow shapes (faint emissive).",
+      "match": {
+        "glob": "assets/**/textures/block/wood/firepit/burntlog.png"
+      },
+      "values": {
+        "material": "ember_faint"
       }
     },
     {
