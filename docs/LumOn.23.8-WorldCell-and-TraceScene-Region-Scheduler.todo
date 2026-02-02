@@ -22,17 +22,17 @@ Phase 1 - WorldCell Primitives (Contracts + Types)
 
 
 Phase 2 - Indexed Priority Queue (No Duplicates, O(logN) Updates)
-- [ ] Implement `IndexedMaxHeap<TKey>` (or `IndexedPriorityQueue<TKey>`) with:
-  - [ ] `Upsert(key, priority)`
-  - [ ] `UpdatePriority(key, priority)`
-  - [ ] `Remove(key)`
-  - [ ] `TryPopMax(out key)`
-  - [ ] O(1) key→heapIndex mapping (stored on entry or in a dictionary)
-- [ ] Unit tests:
-  - [ ] insert/pop ordering
-  - [ ] increase/decrease key updates
-  - [ ] remove arbitrary key
-  - [ ] “Upsert does not duplicate”
+- [x] Implement `IndexedMaxHeap<TKey>` (or `IndexedPriorityQueue<TKey>`) with:
+  - [x] `Upsert(key, priority)`
+  - [x] `UpdatePriority(key, priority)`
+  - [x] `Remove(key)`
+  - [x] `TryPopMax(out key)`
+  - [x] O(1) key→heapIndex mapping (stored on entry or in a dictionary)
+- [x] Unit tests:
+  - [x] insert/pop ordering
+  - [x] increase/decrease key updates
+  - [x] remove arbitrary key
+  - [x] “Upsert does not duplicate”
 
 
 Phase 3 - TraceSceneRegionCell (WorldCell Specialization)
