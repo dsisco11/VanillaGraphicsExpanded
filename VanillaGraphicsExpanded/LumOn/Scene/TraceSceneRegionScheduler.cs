@@ -25,6 +25,7 @@ internal sealed class TraceSceneRegionScheduler
     private readonly HashSet<ulong> dirtySet = new();
 
     private readonly CooldownMinQueue cooldownQueue = new();
+    private readonly Dictionary<ulong, long> cooldownUntilByKey = new();
 
     private VectorInt3 windowMin;
     private VectorInt3 windowMax;
@@ -48,6 +49,8 @@ internal sealed class TraceSceneRegionScheduler
 
     public int AppliedCount => appliedCount;
 
+    public int SuppressedCount => cooldownUntilByKey.Count;
+
     public bool HasWindow => hasWindow;
 
     public void Reset()
@@ -58,6 +61,7 @@ internal sealed class TraceSceneRegionScheduler
         dirtyQueue.Clear();
         dirtySet.Clear();
         cooldownQueue.Clear();
+        cooldownUntilByKey.Clear();
 
         windowMin = default;
         windowMax = default;
@@ -154,6 +158,13 @@ internal sealed class TraceSceneRegionScheduler
         while (cooldownQueue.TryPeek(out long tick, out ulong packed) && tick <= lastNowTick)
         {
             _ = cooldownQueue.TryPop(out _, out packed);
+
+            if (cooldownUntilByKey.TryGetValue(packed, out long currentTick) && currentTick != tick)
+            {
+                continue;
+            }
+
+            cooldownUntilByKey.Remove(packed);
 
             if (!cellsByPacked.TryGetValue(packed, out TraceSceneRegionCell? cell))
             {
@@ -329,7 +340,7 @@ internal sealed class TraceSceneRegionScheduler
                 // Re-evaluate; caller may have re-issued or window may have changed.
                 // Never retry faster than MinRetryMs to avoid per-frame churn.
                 cell.NextEligibleTick = Math.Max(cell.NextEligibleTick, checked(lastNowTick + MinRetryMs));
-                cooldownQueue.Push(cell.NextEligibleTick, cell.ChunkKey.Packed);
+                SetCooldown(cell.ChunkKey.Packed, cell.NextEligibleTick);
                 MarkDirty(cell.ChunkKey.Packed);
                 break;
         }
@@ -344,7 +355,7 @@ internal sealed class TraceSceneRegionScheduler
         cell.NextEligibleTick = checked(lastNowTick + delay);
 
         RemoveFromHeaps(cell.ChunkKey.Packed);
-        cooldownQueue.Push(cell.NextEligibleTick, cell.ChunkKey.Packed);
+        SetCooldown(cell.ChunkKey.Packed, cell.NextEligibleTick);
 
         MarkDirty(cell.ChunkKey.Packed);
     }
@@ -359,6 +370,173 @@ internal sealed class TraceSceneRegionScheduler
         backoff <<= shift;
 
         return Math.Min(backoff, MaxBackoffMs);
+    }
+
+    private void SetCooldown(ulong packedKey, long tick)
+    {
+        if (tick <= 0)
+        {
+            cooldownUntilByKey.Remove(packedKey);
+            return;
+        }
+
+        cooldownUntilByKey[packedKey] = tick;
+        cooldownQueue.Push(tick, packedKey);
+    }
+
+    public bool TryGetTopK(int k, long nowTick, out string line)
+    {
+        line = string.Empty;
+
+        if (k <= 0)
+        {
+            return false;
+        }
+
+        lastNowTick = Math.Max(lastNowTick, nowTick);
+
+        Span<ulong> near = stackalloc ulong[Math.Min(k, nearEligible.Count)];
+        Span<ulong> far = stackalloc ulong[Math.Min(k, farEligible.Count)];
+
+        int nearCount = nearEligible.CopyTopKeys(near);
+        int farCount = farEligible.CopyTopKeys(far);
+
+        if (nearCount <= 0 && farCount <= 0)
+        {
+            return false;
+        }
+
+        Span<ulong> merged = stackalloc ulong[Math.Min(k * 2, Math.Max(1, nearCount + farCount))];
+        int mergedCount = 0;
+        for (int i = 0; i < nearCount && mergedCount < merged.Length; i++) merged[mergedCount++] = near[i];
+        for (int i = 0; i < farCount && mergedCount < merged.Length; i++) merged[mergedCount++] = far[i];
+
+        Span<ulong> top = stackalloc ulong[Math.Min(k, mergedCount)];
+        Span<float> topPri = stackalloc float[top.Length];
+        int topCount = 0;
+
+        for (int i = 0; i < mergedCount; i++)
+        {
+            ulong pk = merged[i];
+            if (!cellsByPacked.TryGetValue(pk, out TraceSceneRegionCell? cell)) continue;
+            if (!IsInWindow(cell.RegionCoord)) continue;
+            if (cell.InFlightVersion != 0) continue;
+            if (cell.NextEligibleTick > lastNowTick) continue;
+
+            float p = cell.Priority;
+            if (float.IsNegativeInfinity(p) || float.IsNaN(p)) continue;
+
+            int insert = topCount;
+            while (insert > 0 && p > topPri[insert - 1])
+            {
+                if (insert < top.Length)
+                {
+                    top[insert] = top[insert - 1];
+                    topPri[insert] = topPri[insert - 1];
+                }
+
+                insert--;
+            }
+
+            if (insert < top.Length)
+            {
+                if (topCount < top.Length) topCount++;
+                top[insert] = pk;
+                topPri[insert] = p;
+            }
+        }
+
+        if (topCount <= 0)
+        {
+            return false;
+        }
+
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < topCount; i++)
+        {
+            if (!cellsByPacked.TryGetValue(top[i], out TraceSceneRegionCell? cell)) continue;
+            if (sb.Length > 0) sb.Append(" | ");
+            sb.Append(cell.RegionCoord.X).Append(',').Append(cell.RegionCoord.Y).Append(',').Append(cell.RegionCoord.Z);
+            sb.Append(" p:").Append(cell.Priority.ToString("0.0"));
+            sb.Append(" r:").Append(FormatReasonAbbrev(cell.LastPriorityReasons));
+        }
+
+        line = sb.ToString();
+        return line.Length > 0;
+    }
+
+    public string DumpState(int topN, long nowTick)
+    {
+        lastNowTick = Math.Max(lastNowTick, nowTick);
+        topN = Math.Clamp(topN, 1, 256);
+
+        var sb = new System.Text.StringBuilder();
+        sb.Append("TraceSceneRegionScheduler: ");
+        sb.Append("eligible=").Append(nearEligible.Count + farEligible.Count);
+        sb.Append(" (near=").Append(nearEligible.Count).Append(", far=").Append(farEligible.Count).Append(')');
+        sb.Append(" suppressed=").Append(SuppressedCount);
+        sb.Append(" inflight=").Append(InFlightCount);
+        sb.Append(" applied=").Append(AppliedCount);
+        sb.Append(" nowMs=").Append(lastNowTick);
+
+        if (TryGetTopK(Math.Min(8, topN), nowTick, out string topLine))
+        {
+            sb.Append("\nTop: ").Append(topLine);
+        }
+
+        int scanned = 0;
+        List<TraceSceneRegionCell> best = new(capacity: Math.Min(topN, 64));
+        foreach (TraceSceneRegionCell cell in cellsByPacked.Values)
+        {
+            scanned++;
+            if (!IsInWindow(cell.RegionCoord)) continue;
+            if (cell.InFlightVersion != 0) continue;
+
+            float p = cell.Priority;
+            if (float.IsNegativeInfinity(p) || float.IsNaN(p)) continue;
+
+            best.Add(cell);
+        }
+
+        best.Sort((a, b) => b.Priority.CompareTo(a.Priority));
+        int take = Math.Min(topN, best.Count);
+
+        sb.Append("\nEntries (top ").Append(take).Append(" of ").Append(best.Count).Append(", scanned ").Append(scanned).Append("):");
+        for (int i = 0; i < take; i++)
+        {
+            TraceSceneRegionCell c = best[i];
+            sb.Append("\n  ");
+            sb.Append(c.RegionCoord.X).Append(',').Append(c.RegionCoord.Y).Append(',').Append(c.RegionCoord.Z);
+            sb.Append(" p=").Append(c.Priority.ToString("0.00"));
+            sb.Append(" r=").Append(FormatReasonAbbrev(c.LastPriorityReasons));
+            sb.Append(" v=").Append(c.AppliedVersion).Append("->").Append(c.CurrentVersion);
+            if (c.MissingStreak > 0) sb.Append(" miss=").Append(c.MissingStreak);
+            if (c.NextEligibleTick > lastNowTick) sb.Append(" cdUntil=").Append(c.NextEligibleTick);
+        }
+
+        return sb.ToString();
+    }
+
+    private static string FormatReasonAbbrev(TraceSceneRegionPriorityReason reasons)
+    {
+        if (reasons == TraceSceneRegionPriorityReason.None) return "-";
+
+        var sb = new System.Text.StringBuilder();
+
+        void Add(char c)
+        {
+            if (sb.Length > 0) sb.Append('+');
+            sb.Append(c);
+        }
+
+        if ((reasons & TraceSceneRegionPriorityReason.Distance) != 0) Add('D');
+        if ((reasons & TraceSceneRegionPriorityReason.Stale) != 0) Add('S');
+        if ((reasons & TraceSceneRegionPriorityReason.NeverApplied) != 0) Add('N');
+        if ((reasons & TraceSceneRegionPriorityReason.SeenLoadedRecently) != 0) Add('L');
+        if ((reasons & TraceSceneRegionPriorityReason.MissingPenalty) != 0) Add('M');
+        if ((reasons & TraceSceneRegionPriorityReason.CooldownSuppressed) != 0) Add('C');
+
+        return sb.ToString();
     }
 
     private bool TryDequeueFromHeaps(bool preferNear, bool allowFar, out ulong packedKey, out bool fromNear)
@@ -421,7 +599,8 @@ internal sealed class TraceSceneRegionScheduler
 
             if (cell.NextEligibleTick > lastNowTick)
             {
-                cooldownQueue.Push(cell.NextEligibleTick, packedKey);
+                SetCooldown(packedKey, cell.NextEligibleTick);
+                LumonSceneTraceSceneMetrics.OnCooldownSkip();
                 continue;
             }
 
@@ -454,7 +633,7 @@ internal sealed class TraceSceneRegionScheduler
 
             if (cell.NextEligibleTick > lastNowTick)
             {
-                cooldownQueue.Push(cell.NextEligibleTick, cell.ChunkKey.Packed);
+                SetCooldown(cell.ChunkKey.Packed, cell.NextEligibleTick);
             }
 
             return;

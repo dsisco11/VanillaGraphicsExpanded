@@ -36,6 +36,14 @@ internal sealed class VgeProfilingEventSource : EventSource
     private PollingCounter? traceSceneQueueLength;
     private PollingCounter? traceSceneInFlight;
     private PollingCounter? traceSceneAppliedRegions;
+    private PollingCounter? traceSceneSuppressed;
+
+    private IncrementingPollingCounter? traceSceneCooldownSkipsRate;
+    private IncrementingPollingCounter? traceSceneCompletedSuccessRate;
+    private IncrementingPollingCounter? traceSceneCompletedUnavailableRate;
+    private IncrementingPollingCounter? traceSceneCompletedCanceledRate;
+    private IncrementingPollingCounter? traceSceneCompletedSupersededRate;
+    private IncrementingPollingCounter? traceSceneCompletedFailedRate;
 
     private IncrementingPollingCounter? traceSceneRegionsUploadedRate;
     private IncrementingPollingCounter? traceSceneBytesUploadedRate;
@@ -149,6 +157,53 @@ internal sealed class VgeProfilingEventSource : EventSource
         traceSceneAppliedRegions = new PollingCounter("lumon-tracescene-applied", this, () => LumonSceneTraceSceneMetrics.AppliedRegions)
         {
             DisplayName = "LumOn TraceScene Applied Regions",
+        };
+
+        traceSceneSuppressed = new PollingCounter("lumon-tracescene-suppressed", this, () => LumonSceneTraceSceneMetrics.SuppressedCooldown)
+        {
+            DisplayName = "LumOn TraceScene Suppressed (Cooldown)",
+        };
+
+        traceSceneCooldownSkipsRate = new IncrementingPollingCounter(
+            "lumon-tracescene-cooldown-skips", this, () => LumonSceneTraceSceneMetrics.CooldownSkips)
+        {
+            DisplayName = "LumOn TraceScene Cooldown Skips / sec",
+            DisplayUnits = "skips/sec",
+        };
+
+        traceSceneCompletedSuccessRate = new IncrementingPollingCounter(
+            "lumon-tracescene-completed-success", this, () => LumonSceneTraceSceneMetrics.RegionCompleteSuccess)
+        {
+            DisplayName = "LumOn TraceScene Completed / sec (Success)",
+            DisplayUnits = "requests/sec",
+        };
+
+        traceSceneCompletedUnavailableRate = new IncrementingPollingCounter(
+            "lumon-tracescene-completed-unavailable", this, () => LumonSceneTraceSceneMetrics.RegionCompleteChunkUnavailable)
+        {
+            DisplayName = "LumOn TraceScene Completed / sec (ChunkUnavailable)",
+            DisplayUnits = "requests/sec",
+        };
+
+        traceSceneCompletedCanceledRate = new IncrementingPollingCounter(
+            "lumon-tracescene-completed-canceled", this, () => LumonSceneTraceSceneMetrics.RegionCompleteCanceled)
+        {
+            DisplayName = "LumOn TraceScene Completed / sec (Canceled)",
+            DisplayUnits = "requests/sec",
+        };
+
+        traceSceneCompletedSupersededRate = new IncrementingPollingCounter(
+            "lumon-tracescene-completed-superseded", this, () => LumonSceneTraceSceneMetrics.RegionCompleteSuperseded)
+        {
+            DisplayName = "LumOn TraceScene Completed / sec (Superseded)",
+            DisplayUnits = "requests/sec",
+        };
+
+        traceSceneCompletedFailedRate = new IncrementingPollingCounter(
+            "lumon-tracescene-completed-failed", this, () => LumonSceneTraceSceneMetrics.RegionCompleteFailed)
+        {
+            DisplayName = "LumOn TraceScene Completed / sec (Failed)",
+            DisplayUnits = "requests/sec",
         };
 
         traceSceneRegionsUploadedRate = new IncrementingPollingCounter(

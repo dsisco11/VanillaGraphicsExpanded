@@ -1,5 +1,7 @@
 using System.Threading;
 
+using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
+
 namespace VanillaGraphicsExpanded.LumOn.Scene;
 
 /// <summary>
@@ -17,8 +19,17 @@ internal static class LumonSceneTraceSceneMetrics
     private static int queueLength;
     private static int queueHighLength;
     private static int queueLowLength;
+    private static int suppressedCooldown;
     private static int inFlight;
     private static int appliedRegions;
+
+    private static long cooldownSkips;
+
+    private static long regionCompleteSuccess;
+    private static long regionCompleteChunkUnavailable;
+    private static long regionCompleteCanceled;
+    private static long regionCompleteSuperseded;
+    private static long regionCompleteFailed;
 
     private static long regionRequestsIssued;
     private static long snapshotsRequested;
@@ -76,17 +87,61 @@ internal static class LumonSceneTraceSceneMetrics
     public static int QueueLength => Volatile.Read(ref queueLength);
     public static int QueueHighLength => Volatile.Read(ref queueHighLength);
     public static int QueueLowLength => Volatile.Read(ref queueLowLength);
+    public static int SuppressedCooldown => Volatile.Read(ref suppressedCooldown);
     public static int InFlight => Volatile.Read(ref inFlight);
     public static int AppliedRegions => Volatile.Read(ref appliedRegions);
 
-    public static void SetState(int queueHighLength, int queueLowLength, int inFlight, int appliedRegions)
+    public static long CooldownSkips => Interlocked.Read(ref cooldownSkips);
+
+    public static long RegionCompleteSuccess => Interlocked.Read(ref regionCompleteSuccess);
+    public static long RegionCompleteChunkUnavailable => Interlocked.Read(ref regionCompleteChunkUnavailable);
+    public static long RegionCompleteCanceled => Interlocked.Read(ref regionCompleteCanceled);
+    public static long RegionCompleteSuperseded => Interlocked.Read(ref regionCompleteSuperseded);
+    public static long RegionCompleteFailed => Interlocked.Read(ref regionCompleteFailed);
+
+    public static void SetState(int queueHighLength, int queueLowLength, int inFlight, int appliedRegions, int suppressed = 0)
     {
         int total = queueHighLength + queueLowLength;
         Volatile.Write(ref LumonSceneTraceSceneMetrics.queueLength, total);
         Volatile.Write(ref LumonSceneTraceSceneMetrics.queueHighLength, queueHighLength);
         Volatile.Write(ref LumonSceneTraceSceneMetrics.queueLowLength, queueLowLength);
+        Volatile.Write(ref LumonSceneTraceSceneMetrics.suppressedCooldown, suppressed);
         Volatile.Write(ref LumonSceneTraceSceneMetrics.inFlight, inFlight);
         Volatile.Write(ref LumonSceneTraceSceneMetrics.appliedRegions, appliedRegions);
+    }
+
+    public static void OnCooldownSkip()
+    {
+        Interlocked.Increment(ref cooldownSkips);
+    }
+
+    public static void OnRegionCompleted(ChunkWorkStatus status)
+    {
+        switch (status)
+        {
+            case ChunkWorkStatus.Success:
+                Interlocked.Increment(ref regionCompleteSuccess);
+                break;
+
+            case ChunkWorkStatus.ChunkUnavailable:
+                Interlocked.Increment(ref regionCompleteChunkUnavailable);
+                break;
+
+            case ChunkWorkStatus.Canceled:
+                Interlocked.Increment(ref regionCompleteCanceled);
+                break;
+
+            case ChunkWorkStatus.Superseded:
+                Interlocked.Increment(ref regionCompleteSuperseded);
+                break;
+
+            case ChunkWorkStatus.Failed:
+                Interlocked.Increment(ref regionCompleteFailed);
+                break;
+
+            default:
+                break;
+        }
     }
 
     public static void OnUploaded(int regions, long bytes)

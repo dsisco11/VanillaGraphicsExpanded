@@ -198,6 +198,7 @@ public static class VgeBuiltInDebugViews
             ElementBounds b2 = ElementBounds.Fixed(0, (rowH + rowGapY) * 2, buttonW, rowH).WithParent(bounds);
             ElementBounds b3 = ElementBounds.Fixed(0, (rowH + rowGapY) * 3, buttonW, rowH).WithParent(bounds);
             ElementBounds b4 = ElementBounds.Fixed(0, (rowH + rowGapY) * 4, buttonW, rowH).WithParent(bounds);
+            ElementBounds b5 = ElementBounds.Fixed(0, (rowH + rowGapY) * 5, buttonW, rowH).WithParent(bounds);
 
             bool viewerOpen = VgeDebugViewerManager.IsDialogOpen();
 
@@ -280,6 +281,27 @@ public static class VgeBuiltInDebugViews
                     bounds: b4,
                     style: EnumButtonStyle.Normal,
                     key: $"{keyPrefix}-lumonstatslog");
+
+            composer
+                .AddSmallButton(
+                    text: "Dump TraceScene Scheduler",
+                    onClick: () =>
+                    {
+                        try
+                        {
+                            string dump = lumOn.GetTraceSceneSchedulerDumpSafe(topN: 64);
+                            capi.Logger.Debug("[VGE] {0}", dump);
+                        }
+                        catch
+                        {
+                            capi.Logger.Debug("[VGE] TS scheduler dump: (error)");
+                        }
+
+                        return true;
+                    },
+                    bounds: b5,
+                    style: EnumButtonStyle.Normal,
+                    key: $"{keyPrefix}-tracescenedump");
 
             _ = fontLabel;
         }

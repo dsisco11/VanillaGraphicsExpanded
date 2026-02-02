@@ -100,4 +100,28 @@ public sealed class IndexedMaxHeapTests
         Assert.Equal("a", key);
         Assert.Equal(0, heap.Count);
     }
+
+    [Fact]
+    public void CopyTopKeys_ReturnsTopK_WithoutMutating()
+    {
+        var heap = new IndexedMaxHeap<string>();
+
+        heap.Upsert("a", 1);
+        heap.Upsert("b", 10);
+        heap.Upsert("c", 5);
+        heap.Upsert("d", 7);
+
+        var top = new string[3];
+        int n = heap.CopyTopKeys(top);
+
+        Assert.Equal(3, n);
+        Assert.Equal("b", top[0]);
+        Assert.Equal("d", top[1]);
+        Assert.Equal("c", top[2]);
+
+        // Heap should be unchanged.
+        Assert.Equal(4, heap.Count);
+        Assert.True(heap.TryPopMax(out string first));
+        Assert.Equal("b", first);
+    }
 }

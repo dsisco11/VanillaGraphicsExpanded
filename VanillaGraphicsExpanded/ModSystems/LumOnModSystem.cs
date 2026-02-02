@@ -187,6 +187,28 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         return lines;
     }
 
+    internal string GetTraceSceneSchedulerDumpSafe(int topN = 64)
+    {
+        try
+        {
+            if (!ConfigModSystem.Config.LumOn.LumonScene.Enabled)
+            {
+                return "TS scheduler: off";
+            }
+
+            if (lumonSceneOccupancyClipmapUpdateRenderer is null)
+            {
+                return "TS scheduler: init";
+            }
+
+            return lumonSceneOccupancyClipmapUpdateRenderer.DumpTraceSceneSchedulerState(topN);
+        }
+        catch
+        {
+            return "TS scheduler: error";
+        }
+    }
+
     private string GetLumonSceneSurfaceCacheStatusLineSafe()
     {
         try
@@ -248,9 +270,17 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             int q = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.QueueLength;
             int qh = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.QueueHighLength;
             int ql = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.QueueLowLength;
+            int sup = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SuppressedCooldown;
             int f = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.InFlight;
             int a = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.AppliedRegions;
+            long cd = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.CooldownSkips;
             long r = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionRequestsIssued;
+
+            long cOk = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionCompleteSuccess;
+            long cNo = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionCompleteChunkUnavailable;
+            long cCa = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionCompleteCanceled;
+            long cSu = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionCompleteSuperseded;
+            long cFa = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionCompleteFailed;
             long sReq = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotsRequested;
             long sOk = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotsSucceeded;
             long sNo = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotsUnavailable;
@@ -273,7 +303,27 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             int ev = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotExpectedVersion;
             int cv = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotCurrentVersion;
 
-            return $"TS: q:{q}({qh}/{ql}) f:{f} a:{a} r:{r} s:{sReq}/{sOk}/{sNo} fail:{sfC}/{sfM}/{sfU}/{sfE} v:{ev}->{cv} c:{cf} bc:{bc} key:{cx},{cy},{cz} b:{b0}/{bC}/{bL} d:{bD} na:{na} sol:{sol}";
+            string top = string.Empty;
+            try
+            {
+                if (lumonSceneOccupancyClipmapUpdateRenderer.TryGetTraceSceneSchedulerTopKLine(k: 3, out string topLine))
+                {
+                    top = topLine;
+                }
+            }
+            catch
+            {
+                top = string.Empty;
+            }
+
+            string baseLine = $"TS: q:{q}({qh}/{ql}) sup:{sup} f:{f} a:{a} cd:{cd} comp:{cOk}/{cNo}/{cCa}/{cSu}/{cFa} r:{r} s:{sReq}/{sOk}/{sNo} fail:{sfC}/{sfM}/{sfU}/{sfE} v:{ev}->{cv} c:{cf} bc:{bc} key:{cx},{cy},{cz} b:{b0}/{bC}/{bL} d:{bD} na:{na} sol:{sol}";
+
+            if (string.IsNullOrWhiteSpace(top))
+            {
+                return baseLine;
+            }
+
+            return baseLine + " top:" + top;
         }
         catch
         {

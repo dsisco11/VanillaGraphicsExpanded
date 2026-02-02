@@ -61,6 +61,30 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
     public LumonSceneOccupancyClipmapGpuResources? Resources => resources;
 
+    internal bool TryGetTraceSceneSchedulerTopKLine(int k, out string line)
+    {
+        if (k <= 0)
+        {
+            line = string.Empty;
+            return false;
+        }
+
+        if (!config.LumOn.Enabled || !config.LumOn.LumonScene.Enabled)
+        {
+            line = string.Empty;
+            return false;
+        }
+
+        long nowMs = capi.World.ElapsedMilliseconds;
+        return regionScheduler.TryGetTopK(k, nowMs, out line);
+    }
+
+    internal string DumpTraceSceneSchedulerState(int topN)
+    {
+        long nowMs = capi.World.ElapsedMilliseconds;
+        return regionScheduler.DumpState(topN, nowMs);
+    }
+
     internal static bool TryGetDispatchPayload(
         in ChunkWorkResult<LumonSceneTraceSceneRegionArtifact> result,
         out ReadOnlyMemory<uint> payloadWords)
@@ -218,7 +242,8 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
             queueHighLength: regionScheduler.EligibleNearCount,
             queueLowLength: regionScheduler.EligibleFarCount,
             inFlight: inFlightByRegion.Count,
-            appliedRegions: regionScheduler.AppliedCount);
+            appliedRegions: regionScheduler.AppliedCount,
+            suppressed: regionScheduler.SuppressedCount);
 
         if (lightIds.TryCopyAndClearDirtyLut(lightLutUpload))
         {
@@ -488,6 +513,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                         if (inFlightByRegion.Remove(keys[i], out InFlightRegion inflight))
                         {
                             regionScheduler.OnRequestCompleted(ck, ChunkWorkStatus.Superseded, requestedVersion: inflight.Version, nowTick: traceSceneNowMs);
+                            LumonSceneTraceSceneMetrics.OnRegionCompleted(ChunkWorkStatus.Superseded);
                         }
                     }
                 }
@@ -675,6 +701,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                                         requestedVersion: res.RequestedVersion,
                                         nowTick: traceSceneNowMs,
                                         error: res.Error);
+                                    LumonSceneTraceSceneMetrics.OnRegionCompleted(res.Status);
                                 }
                             }
                             catch
@@ -685,6 +712,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                                     requestedVersion: inflight.Version,
                                     nowTick: traceSceneNowMs,
                                     error: ChunkWorkError.Unknown);
+                                LumonSceneTraceSceneMetrics.OnRegionCompleted(ChunkWorkStatus.Failed);
                             }
                         }
                     }
@@ -727,6 +755,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                             status: ChunkWorkStatus.Success,
                             requestedVersion: versions[i],
                             nowTick: traceSceneNowMs);
+                        LumonSceneTraceSceneMetrics.OnRegionCompleted(ChunkWorkStatus.Success);
                     }
 
                     // If the GPU budget/dispatcher shorted us, retry the remainder next frame.
@@ -737,6 +766,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                             status: ChunkWorkStatus.Canceled,
                             requestedVersion: versions[i],
                             nowTick: traceSceneNowMs);
+                        LumonSceneTraceSceneMetrics.OnRegionCompleted(ChunkWorkStatus.Canceled);
                     }
 
                     budget -= dispatched;

@@ -121,6 +121,90 @@ internal sealed class IndexedMaxHeap<TKey>
         return true;
     }
 
+    /// <summary>
+    /// Copies up to <paramref name="dst"/>.Length keys from the heap in descending priority order,
+    /// without mutating the heap.
+    /// Intended for debug overlays and telemetry; keep <paramref name="dst"/> small.
+    /// </summary>
+    public int CopyTopKeys(Span<TKey> dst)
+    {
+        if (dst.Length <= 0 || Count <= 0)
+        {
+            return 0;
+        }
+
+        int want = Math.Min(dst.Length, Count);
+
+        // Candidate indices into the heap arrays. We do a small best-first search over indices.
+        // For small K this avoids cloning or mutating the heap.
+        int initialCap = Math.Min(Count, Math.Max(8, want * 4));
+        int[] cand = System.Buffers.ArrayPool<int>.Shared.Rent(initialCap);
+        int candCount = 0;
+
+        try
+        {
+            cand[candCount++] = 0;
+
+            int written = 0;
+            while (written < want && candCount > 0)
+            {
+                int bestPos = 0;
+                float bestPri = priorities[cand[0]];
+
+                for (int i = 1; i < candCount; i++)
+                {
+                    float p = priorities[cand[i]];
+                    if (p > bestPri)
+                    {
+                        bestPri = p;
+                        bestPos = i;
+                    }
+                }
+
+                int bestIndex = cand[bestPos];
+                cand[bestPos] = cand[candCount - 1];
+                candCount--;
+
+                dst[written++] = keys[bestIndex];
+
+                int left = (bestIndex << 1) + 1;
+                int right = left + 1;
+
+                if (left < Count)
+                {
+                    if (candCount >= cand.Length)
+                    {
+                        int[] grown = System.Buffers.ArrayPool<int>.Shared.Rent(Math.Min(Count, cand.Length * 2));
+                        Array.Copy(cand, grown, cand.Length);
+                        System.Buffers.ArrayPool<int>.Shared.Return(cand, clearArray: false);
+                        cand = grown;
+                    }
+
+                    cand[candCount++] = left;
+                }
+
+                if (right < Count)
+                {
+                    if (candCount >= cand.Length)
+                    {
+                        int[] grown = System.Buffers.ArrayPool<int>.Shared.Rent(Math.Min(Count, cand.Length * 2));
+                        Array.Copy(cand, grown, cand.Length);
+                        System.Buffers.ArrayPool<int>.Shared.Return(cand, clearArray: false);
+                        cand = grown;
+                    }
+
+                    cand[candCount++] = right;
+                }
+            }
+
+            return written;
+        }
+        finally
+        {
+            System.Buffers.ArrayPool<int>.Shared.Return(cand, clearArray: false);
+        }
+    }
+
     private void RemoveAt(int index)
     {
         int lastIndex = Count - 1;
