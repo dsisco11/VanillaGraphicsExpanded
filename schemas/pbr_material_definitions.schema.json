@@ -39,8 +39,9 @@
       "properties": {
         "roughness": { "$ref": "#/$defs/unitFloat" },
         "metallic": { "$ref": "#/$defs/unitFloat" },
-        "emissive": { "$ref": "#/$defs/unitFloat" },
-        "noise": { "$ref": "#/$defs/noise" }
+        "emissive": { "$ref": "#/$defs/emissiveFloat" },
+        "noise": { "$ref": "#/$defs/noise" },
+        "scale": { "$ref": "#/$defs/scale" }
       }
     },
     "material": {
@@ -49,8 +50,9 @@
       "properties": {
         "roughness": { "$ref": "#/$defs/unitFloat" },
         "metallic": { "$ref": "#/$defs/unitFloat" },
-        "emissive": { "$ref": "#/$defs/unitFloat" },
+        "emissive": { "$ref": "#/$defs/emissiveFloat" },
         "noise": { "$ref": "#/$defs/noise" },
+        "scale": { "$ref": "#/$defs/scale" },
         "notes": { "type": "string" },
         "priority": { "$ref": "#/$defs/priority" }
       }
@@ -62,7 +64,7 @@
       "properties": {
         "roughness": { "$ref": "#/$defs/unitFloat" },
         "metallic": { "$ref": "#/$defs/unitFloat" },
-        "emissive": { "$ref": "#/$defs/unitFloat" },
+        "emissive": { "$ref": "#/$defs/emissiveFloat" },
         "reflectivity": { "$ref": "#/$defs/unitFloat" },
         "normals": { "$ref": "#/$defs/unitFloat" }
       }
@@ -127,6 +129,18 @@
         }
       }
     },
+    "scale": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Non-negative multipliers applied to generated/baked channels. Missing values are treated as 1.0 at runtime.",
+      "properties": {
+        "roughness": { "$ref": "#/$defs/nonNegativeFloat" },
+        "metallic": { "$ref": "#/$defs/nonNegativeFloat" },
+        "emissive": { "$ref": "#/$defs/nonNegativeFloat" },
+        "normal": { "$ref": "#/$defs/nonNegativeFloat" },
+        "depth": { "$ref": "#/$defs/nonNegativeFloat" }
+      }
+    },
     "overrideScale": {
       "type": "object",
       "additionalProperties": false,
@@ -142,6 +156,15 @@
       "type": "number",
       "minimum": 0.0,
       "maximum": 1.0
+    },
+    "emissiveFloat": {
+      "type": "number",
+      "minimum": 0.0,
+      "description": "Non-negative emissive intensity. Not clamped to 1.0; values >1 are allowed to represent HDR emissive materials."
+    },
+    "nonNegativeFloat": {
+      "type": "number",
+      "minimum": 0.0
     },
     "scaleFloatOrNull": {
       "description": "Optional non-negative multiplier. Missing/null => 1.0 at runtime.",

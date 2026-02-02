@@ -1,8 +1,9 @@
 {
-  "$schema": "../../../../schemas/pbr_material_definitions.schema.json",
+  "$schema": "../../../../../schemas/pbr_material_definitions.schema.json",
   "version": 1,
   "notes": [
-    "All values are floats in the range [0.0, 1.0].",
+    "All values are floats. Roughness/metallic/noise are generally in [0.0, 1.0].",
+    "Emissive intensity and scale multipliers may exceed 1.0.",
     "These values are intended as deterministic defaults for generating packed *_pbr.png maps:",
     "  R = roughness, G = metallic, B = 0, A = 1.",
     "Per-pixel metallic is not inferred; use overrides to mark entire textures/material families as metallic.",
