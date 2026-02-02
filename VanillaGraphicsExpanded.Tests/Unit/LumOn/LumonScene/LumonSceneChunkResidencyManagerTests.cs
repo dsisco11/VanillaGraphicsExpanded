@@ -15,6 +15,7 @@ public sealed class LumonSceneChunkResidencyManagerTests
             nearTexelsPerVoxelFaceEdge: 4,
             nearRadiusXZChunks: 0,
             nearRadiusYChunks: 0,
+            nearPagesPerChunkBudget: 1,
             maxAtlasCount: 64));
         pools.Far.Configure(LumonScenePhysicalPoolPlanner.CreateFarPlanAnnulus(
             farTexelsPerVoxelFaceEdge: 1,
@@ -22,6 +23,7 @@ public sealed class LumonSceneChunkResidencyManagerTests
             nearRadiusYChunks: 0,
             farRadiusXZChunks: 0,
             farRadiusYChunks: 0,
+            farPagesPerChunkBudget: 1,
             maxAtlasCount: 64));
 
         var residency = new LumonSceneChunkResidencyManager(pools);
@@ -51,6 +53,7 @@ public sealed class LumonSceneChunkResidencyManagerTests
             nearTexelsPerVoxelFaceEdge: 512,
             nearRadiusXZChunks: 1,
             nearRadiusYChunks: 0,
+            nearPagesPerChunkBudget: 1,
             maxAtlasCount: 1));
         pools.Far.Configure(LumonScenePhysicalPoolPlanner.CreateFarPlanAnnulus(
             farTexelsPerVoxelFaceEdge: 512,
@@ -58,6 +61,7 @@ public sealed class LumonSceneChunkResidencyManagerTests
             nearRadiusYChunks: 0,
             farRadiusXZChunks: 0,
             farRadiusYChunks: 0,
+            farPagesPerChunkBudget: 1,
             maxAtlasCount: 1));
 
         var residency = new LumonSceneChunkResidencyManager(pools);
@@ -85,6 +89,7 @@ public sealed class LumonSceneChunkResidencyManagerTests
             nearTexelsPerVoxelFaceEdge: 4,
             nearRadiusXZChunks: 0,
             nearRadiusYChunks: 0,
+            nearPagesPerChunkBudget: 1,
             maxAtlasCount: 64));
         pools.Far.Configure(LumonScenePhysicalPoolPlanner.CreateFarPlanAnnulus(
             farTexelsPerVoxelFaceEdge: 1,
@@ -92,6 +97,7 @@ public sealed class LumonSceneChunkResidencyManagerTests
             nearRadiusYChunks: 0,
             farRadiusXZChunks: 0,
             farRadiusYChunks: 0,
+            farPagesPerChunkBudget: 1,
             maxAtlasCount: 64));
 
         var residency = new LumonSceneChunkResidencyManager(pools);

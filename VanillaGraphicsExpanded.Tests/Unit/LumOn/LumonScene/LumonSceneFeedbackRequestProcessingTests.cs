@@ -372,6 +372,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             nearTexelsPerVoxelFaceEdge: texelsPerVoxelFaceEdge,
             nearRadiusXZChunks: 1,
             nearRadiusYChunks: 0,
+            nearPagesPerChunkBudget: 1,
             maxAtlasCount: 1);
 
         pool.Configure(plan);

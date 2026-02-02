@@ -12,6 +12,7 @@ public sealed class LumonScenePhysicalPagePoolTests
             nearTexelsPerVoxelFaceEdge: 4,
             nearRadiusXZChunks: 0,
             nearRadiusYChunks: 0,
+            nearPagesPerChunkBudget: 1,
             maxAtlasCount: 64);
 
         var pool = new LumonScenePhysicalPagePool(plan);

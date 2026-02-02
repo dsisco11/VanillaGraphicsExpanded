@@ -7,17 +7,23 @@ internal static class LumonScenePhysicalPoolPlanner
     public const int PatchSizeVoxels = LumonSceneVoxelPatchLayout.VoxelsPerPatchEdge; // 4
     public const int PhysicalAtlasSizeTexels = LumonSceneVirtualAtlasConstants.PhysicalAtlasSizeTexels; // 4096
 
-    public static LumonScenePhysicalPoolPlan CreateNearPlan(int nearTexelsPerVoxelFaceEdge, int nearRadiusXZChunks, int nearRadiusYChunks, int maxAtlasCount)
+    public static LumonScenePhysicalPoolPlan CreateNearPlan(int nearTexelsPerVoxelFaceEdge, int nearRadiusXZChunks, int nearRadiusYChunks, int nearPagesPerChunkBudget, int maxAtlasCount)
     {
+        if (nearPagesPerChunkBudget <= 0) throw new ArgumentOutOfRangeException(nameof(nearPagesPerChunkBudget));
+
         int tileSizeTexels = checked(nearTexelsPerVoxelFaceEdge * PatchSizeVoxels);
-        int requestedPages = LumonScenePoolSizingUtil.ComputeGuaranteedResidentPagesBoxField(nearRadiusXZChunks, nearRadiusYChunks);
+        int requestedChunks = LumonScenePoolSizingUtil.ComputeGuaranteedResidentPagesBoxField(nearRadiusXZChunks, nearRadiusYChunks);
+        int requestedPages = checked(requestedChunks * nearPagesPerChunkBudget);
         return CreatePlan(LumonSceneField.Near, tileSizeTexels, requestedPages, maxAtlasCount);
     }
 
-    public static LumonScenePhysicalPoolPlan CreateFarPlanAnnulus(int farTexelsPerVoxelFaceEdge, int nearRadiusXZChunks, int nearRadiusYChunks, int farRadiusXZChunks, int farRadiusYChunks, int maxAtlasCount)
+    public static LumonScenePhysicalPoolPlan CreateFarPlanAnnulus(int farTexelsPerVoxelFaceEdge, int nearRadiusXZChunks, int nearRadiusYChunks, int farRadiusXZChunks, int farRadiusYChunks, int farPagesPerChunkBudget, int maxAtlasCount)
     {
+        if (farPagesPerChunkBudget <= 0) throw new ArgumentOutOfRangeException(nameof(farPagesPerChunkBudget));
+
         int tileSizeTexels = checked(farTexelsPerVoxelFaceEdge * PatchSizeVoxels);
-        int requestedPages = LumonScenePoolSizingUtil.ComputeGuaranteedResidentPagesFarAnnulus(nearRadiusXZChunks, nearRadiusYChunks, farRadiusXZChunks, farRadiusYChunks);
+        int requestedChunks = LumonScenePoolSizingUtil.ComputeGuaranteedResidentPagesFarAnnulus(nearRadiusXZChunks, nearRadiusYChunks, farRadiusXZChunks, farRadiusYChunks);
+        int requestedPages = checked(requestedChunks * farPagesPerChunkBudget);
         return CreatePlan(LumonSceneField.Far, tileSizeTexels, requestedPages, maxAtlasCount);
     }
 

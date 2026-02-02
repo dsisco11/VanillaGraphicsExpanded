@@ -12,14 +12,15 @@ public sealed class LumonScenePhysicalPoolPlannerTests
             nearTexelsPerVoxelFaceEdge: 4,
             nearRadiusXZChunks: 8,
             nearRadiusYChunks: 0,
+            nearPagesPerChunkBudget: 16,
             maxAtlasCount: 64);
 
         Assert.Equal(LumonSceneField.Near, p.Field);
         Assert.Equal(16, p.TileSizeTexels);
         Assert.Equal(256, p.TilesPerAxis);
         Assert.Equal(256 * 256, p.TilesPerAtlas);
-        Assert.Equal(323, p.RequestedPages);
-        Assert.Equal(323, p.CapacityPages);
+        Assert.Equal(323 * 16, p.RequestedPages);
+        Assert.Equal(323 * 16, p.CapacityPages);
         Assert.Equal(1, p.AtlasCount);
         Assert.False(p.IsClampedByMaxAtlases);
     }
@@ -33,6 +34,7 @@ public sealed class LumonScenePhysicalPoolPlannerTests
             nearRadiusYChunks: 0,
             farRadiusXZChunks: 32,
             farRadiusYChunks: 0,
+            farPagesPerChunkBudget: 1,
             maxAtlasCount: 64);
 
         Assert.Equal(LumonSceneField.Far, p.Field);

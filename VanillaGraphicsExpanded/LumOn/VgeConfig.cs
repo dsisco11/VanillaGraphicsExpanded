@@ -667,10 +667,18 @@ public class VgeConfig
         public sealed class LumonSceneConfig
         {
             /// <summary>
-            /// Enables the Phase 22 LumonScene surface cache (experimental).
-            /// </summary>
+             /// Enables the Phase 22 LumonScene surface cache (experimental).
+             /// </summary>
             [JsonProperty]
             public bool Enabled { get; set; } = true;
+
+            /// <summary>
+            /// Max number of 4096x4096 physical atlas textures to allocate per field (Near/Far).
+            /// Increasing this increases VRAM usage.
+            /// Default: 64.
+            /// </summary>
+            [JsonProperty]
+            public int MaxAtlasCount { get; set; } = 128;
 
             /// <summary>
             /// Near-field voxel surface-cache resolution expressed as texels per voxel face edge (mip 0).
@@ -685,6 +693,19 @@ public class VgeConfig
             /// </summary>
             [JsonProperty]
             public int FarTexelsPerVoxelFaceEdge { get; set; } = 1;
+
+            /// <summary>
+            /// Near-field physical page budget expressed as "max pages per chunk" (including margin chunks).
+            /// This controls how many surface-cache tiles can be allocated while chunks remain within the near-field window.
+            /// </summary>
+            [JsonProperty]
+            public int NearPagesPerChunkBudget { get; set; } = 32;
+
+            /// <summary>
+            /// Far-field physical page budget expressed as "max pages per chunk" (including margin chunks).
+            /// </summary>
+            [JsonProperty]
+            public int FarPagesPerChunkBudget { get; set; } = 1;
 
             /// <summary>
             /// Near-field radius expressed in chunk distance (Chebyshev distance in chunk coordinates).
@@ -795,8 +816,13 @@ public class VgeConfig
 
             internal void Sanitize()
             {
+                MaxAtlasCount = Math.Clamp(MaxAtlasCount, 1, 1024);
+
                 NearTexelsPerVoxelFaceEdge = SanitizeTexelsPerVoxelFaceEdge(NearTexelsPerVoxelFaceEdge);
                 FarTexelsPerVoxelFaceEdge = SanitizeTexelsPerVoxelFaceEdge(FarTexelsPerVoxelFaceEdge);
+
+                NearPagesPerChunkBudget = Math.Clamp(NearPagesPerChunkBudget, 1, 4096);
+                FarPagesPerChunkBudget = Math.Clamp(FarPagesPerChunkBudget, 1, 4096);
 
                 NearRadiusChunks = Math.Clamp(NearRadiusChunks, 0, 128);
                 NearRadiusYChunks = Math.Clamp(NearRadiusYChunks, 0, 128);

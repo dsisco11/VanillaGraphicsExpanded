@@ -408,12 +408,13 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         var cfg = config.LumOn.LumonScene;
 
         // v1: Near field only (chunkSlotCount=1). Far field integration comes later.
-        physicalPools.ConfigureFrom(cfg, maxAtlasCount: LumonScenePhysicalPoolManager.MaxAtlasCountDefault);
+        physicalPools.ConfigureFrom(cfg, maxAtlasCount: cfg.MaxAtlasCount);
 
         int planHash = HashCode.Combine(
             cfg.NearTexelsPerVoxelFaceEdge,
             cfg.NearRadiusChunks,
             cfg.NearRadiusYChunks,
+            cfg.NearPagesPerChunkBudget,
             physicalPools.Near.Plan.CapacityPages);
 
         if (configured && planHash == lastPlanHash)
