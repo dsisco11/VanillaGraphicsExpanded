@@ -110,3 +110,25 @@ Phase 8 - Extend WorldCell For LumonScene (Design-only Follow-up)
   - [ ] Relight queue
   - [ ] Eviction / residency safety rules
 
+
+Phase 9 - Desired State (World Partition-Style Cell State Machine)
+- [ ] Add a per-cell “desired state” concept (UE5 World Partition inspired):
+  - [ ] Define `WorldCellDesiredState` (Unloaded, Loading, Loaded, Unloading, etc.).
+  - [ ] Define `WorldCellActualState` (current lifecycle state) if needed.
+  - [ ] Define allowed transitions + invariants (no illegal skips, cancellation rules).
+- [ ] Extend `IWorldCell`/`WorldCell`:
+  - [ ] `DesiredState` property
+  - [ ] `ActualState` property (optional but recommended for debugging)
+  - [ ] `CalculateDesiredState(ctx)` (pure/cheap, similar to `CalculatePriority`)
+- [ ] Add a `WorldCellStateTransitionContext` (loadedness hints, resource budgets, distance thresholds).
+- [ ] Add a generic `WorldCellStateMachine` helper:
+  - [ ] transition evaluator (Desired→Actual)
+  - [ ] per-state actions interface (enqueue load, enqueue unload, cancel in-flight, etc.)
+  - [ ] backoff/cooldown integration for failed transitions
+- [ ] Integrate desired-state with the scheduler:
+  - [ ] scheduler should only consider cells eligible for “work” when DesiredState requires it
+  - [ ] avoid thrash by adding hysteresis (e.g., hold Loaded until outside radius for N frames)
+- [ ] Tests:
+  - [ ] deterministic desired-state decisions for a synthetic camera path
+  - [ ] transition ordering correctness (no illegal transitions)
+  - [ ] thrash prevention (hysteresis works)
