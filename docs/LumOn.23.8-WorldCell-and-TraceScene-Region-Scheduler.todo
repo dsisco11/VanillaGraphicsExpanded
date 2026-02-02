@@ -103,12 +103,40 @@ Phase 7 - Metrics + Debugging Hooks
 
 
 Phase 8 - Extend WorldCell For LumonScene (Design-only Follow-up)
-- [ ] Define `LumonSceneRegionCell : WorldCell` responsibilities (near/far membership + residency/capture/relight summary).
-- [ ] Define how chunkSlot + generation + atlas residency map into the cell.
-- [ ] Identify which existing LumonScene systems become “cell processors” later:
-  - [ ] PatchId feedback → capture queue
-  - [ ] Relight queue
-  - [ ] Eviction / residency safety rules
+- [x] Define `LumonSceneRegionCell : WorldCell` responsibilities (near/far membership + residency/capture/relight summary).
+  - Identity: `WorldCellKind.LumonSceneNear|LumonSceneFar` + packed chunk coord (`LumonSceneChunkCoord.ToKey()`).
+  - Membership: `Kind` encodes field; `ChunkCoord` is stable even as `chunkSlot` assignment changes.
+  - Slot view (near/far window): `ChunkSlot` (uint), `SlotGeneration` (ushort), `LastSeenInSlotTick` (long).
+  - Residency summary (per chunk): derived from page table mirror + physical pool mappings.
+    - Counts: `ResidentPages`, `NeedsCapture`, `Capturing`, `NeedsRelight`, `Relighting`, `ReadyToSample`.
+    - Heat: `FeedbackRequestCount` (or decayed “heat”) from PatchId feedback / usage stamps.
+  - Scheduling fields:
+    - `CurrentVersion`/`AppliedVersion` represent “content staleness” (e.g. slotGeneration or dirty stamp increments).
+    - `NextEligibleTick` for cooldown/backoff when chunk slot is invalid/unloaded or budgets are exhausted.
+  - Priority sketch (not implemented): prioritize by (NeedsCapture/NeedsRelight backlog) > (feedback heat / visible demand) > (distance-to-anchor), with penalties for cooldown/missing.
+
+- [x] Define how chunkSlot + generation + atlas residency map into the cell.
+  - chunkSlot ownership comes from `LumonSceneFeedbackUpdateRenderer` slot state (`slotOwners` + `chunkToSlot`).
+  - `slotGenerations[chunkSlot]` gates validity:
+    - if (slotGen mismatch) treat the cell as “not in slot” (unloaded/transitioning) and suppress work.
+    - when slot reassigned, that is a “version bump” for the cell (staleness trigger).
+  - Virtual page identity is (chunkSlot, virtualPageIndex) via `LumonSceneVirtualPageKeyUtil.Pack(...)`.
+  - Atlas residency + readiness is expressed by the page table mirror entry:
+    - `virtualToPhysical` / `physicalToVirtual` (CPU maps) + `pageTableMirror` (per-virtual-page flags).
+    - `LumonScenePageTableEntryPacking.Flags` drive per-cell work:
+      - `NeedsCapture` → capture work
+      - `NeedsRelight` → relight work
+      - `Capturing`/`Relighting` → in-flight
+      - `IsReadyForSampling(...)` → safe to sample for shading/debug.
+  - Release/cleanup events (chunk unload / field transition / eviction) should clear mappings + invalidate affected cell summaries.
+
+- [x] Identify which existing LumonScene systems become “cell processors” later:
+  - [x] PatchId feedback → capture queue
+    - `LumonSceneFeedbackUpdateRenderer` (GPU feedback gather + slot management) and `LumonSceneFeedbackRequestProcessor` (CPU allocation + capture/relight work item creation + page table writes).
+  - [x] Relight queue
+    - `LumonSceneRelightUpdateRenderer` (currently MRU-based selection; future: consume per-cell relight backlog).
+  - [x] Eviction / residency safety rules
+    - `LumonSceneChunkResidencyManager` + pool planning/management for page allocation/eviction; releases on chunk unload/field transitions; avoid evicting pages for active slots.
 
 
 Phase 9 - Desired State (World Partition-Style Cell State Machine)
