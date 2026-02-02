@@ -140,8 +140,43 @@ Phase 8 - Extend WorldCell For LumonScene (Design-only Follow-up)
 
 
 Phase 9 - Desired State (World Partition-Style Cell State Machine)
+
+Design sketch (non-binding)
+- Intent: treat each `WorldCell` as a tiny lifecycle state machine where the scheduler is responsible for prioritizing “actions” needed to move Actual→Desired under budgets.
+- Split responsibilities:
+  - `CalculateDesiredState(ctx)`: pure, cheap policy (distance thresholds, visibility/feedback heat, window membership, loadedness hints).
+  - State machine: enforces legal transitions and issues work (alloc, capture, relight, unload/free) with backoff/hysteresis.
+- Desired state (per-cell policy):
+  - `WorldCellDesiredState`: `Unloaded`, `Loaded`, `Active`.
+    - `Active`: cell participates in scheduling for scene updates (page population, recapture, relight, etc.).
+    - `Loaded`: cell has an assigned chunk slot / residency, but is excluded from update scheduling (used for hysteresis / stability).
+    - `Unloaded`: no slot / no residency; safe to reclaim resources.
+- Windows / ranges model:
+  - Maintain two spatial windows (or radii):
+    - “Loaded window”: broader range; cells inside should be at least `Loaded`.
+    - “Active window”: tighter range; cells inside should be `Active`.
+  - Typical hysteresis behavior: leaving the Active window downgrades `Active→Loaded` (keep slot/residency), and only leaving the Loaded window downgrades `Loaded→Unloaded`.
+- Actual state (recommended for debugging + correctness):
+  - `WorldCellActualState`: `Unloaded`, `LoadingSlot`, `LoadedIdle`, `ActiveNeedsCapture`, `ActiveCapturing`, `ActiveNeedsRelight`, `ActiveRelighting`, `ActiveReady`, `Unloading`.
+- Transition invariants:
+  - No skipping required intermediate work: `ResidentNeedsCapture` must pass through capture before `Ready`.
+  - Cancellation is explicit: only cancel in-flight when desired state regresses or window changes.
+  - “Ready” implies `LumonScenePageTableEntryPacking.IsReadyForSampling(...)` for all required pages in the cell.
+- Hysteresis/thrash control:
+  - Dual-window hysteresis (primary): `Active→Loaded` when leaving Active window; `Loaded→Unloaded` when leaving Loaded window.
+  - Optional hold timers: keep `Active` for N frames after briefly leaving Active window (avoid flicker during quick camera motion).
+  - Budget-aware degradation: under pressure, allow downgrade `Active→Loaded` without unloading.
+- Backoff integration:
+  - If a transition fails (allocation failure, chunk missing, GPU budget short), set `NextEligibleTick` and track a streak to increase delay.
+  - “Seen loaded recently” / “feedback heat spike” can override cooldown for rapid recovery.
+- Scheduler integration sketch:
+  - Priority becomes “work pressure”: magnitude reflects urgency to reach Desired.
+  - Eligibility is gated: only enqueue cells whose Actual != Desired (or have pending required work).
+  - Reason bits can extend to state-machine reasons (e.g., `NeedsCapture`, `NeedsRelight`, `EvictPressure`).
+
 - [ ] Add a per-cell “desired state” concept (UE5 World Partition inspired):
-  - [ ] Define `WorldCellDesiredState` (Unloaded, Loading, Loaded, Unloading, etc.).
+  - [ ] Define `WorldCellDesiredState` = `Unloaded`, `Loaded`, `Active`.
+  - [ ] Define a dual-window/range model: “Loaded window” and tighter “Active window” (hysteresis).
   - [ ] Define `WorldCellActualState` (current lifecycle state) if needed.
   - [ ] Define allowed transitions + invariants (no illegal skips, cancellation rules).
 - [ ] Extend `IWorldCell`/`WorldCell`:
@@ -155,8 +190,43 @@ Phase 9 - Desired State (World Partition-Style Cell State Machine)
   - [ ] backoff/cooldown integration for failed transitions
 - [ ] Integrate desired-state with the scheduler:
   - [ ] scheduler should only consider cells eligible for “work” when DesiredState requires it
-  - [ ] avoid thrash by adding hysteresis (e.g., hold Loaded until outside radius for N frames)
+  - [ ] avoid thrash by adding hysteresis via Loaded vs Active windows (and optional timers)
 - [ ] Tests:
   - [ ] deterministic desired-state decisions for a synthetic camera path
   - [ ] transition ordering correctness (no illegal transitions)
   - [ ] thrash prevention (hysteresis works)
+
+Phase 9.1 - Integrate WorldCell Desired/Actual State with LumonScene Region Scheduling
+- [ ] Implement `LumonSceneRegionCell` as a real `WorldCell` specialization (beyond design-only Phase 8):
+  - [ ] stable identity uses chunk coord key (not chunkSlot) + `WorldCellKind.LumonSceneNear/Far`
+  - [ ] track slot assignment (`ChunkSlot`, `SlotGeneration`) and derive `CurrentVersion` from generation/dirty stamps
+  - [ ] derive backlog summary from page-table mirror (NeedsCapture/NeedsRelight/Capturing/Relighting/Ready)
+- [ ] Define `LumonSceneRegionCellDesiredStatePolicy` (or equivalent) using two windows:
+  - [ ] compute DesiredState based on Active window vs Loaded window membership
+  - [ ] incorporate feedback “heat” (PatchId feedback / usage stamps) as an Activating signal
+  - [ ] incorporate loadedness hints (slot ownership/generation validity) to prevent scheduling on invalid slots
+- [ ] Add a `LumonSceneRegionCellStateMachine` (or generic `WorldCellStateMachine` implementation) for LumonScene:
+  - [ ] transitions for `Unloaded↔Loaded↔Active` and mapping to concrete actions (allocate slot, retain slot, stop scheduling)
+  - [ ] integrate cooldown/backoff for repeated allocation failures / GPU budget starvation
+  - [ ] ensure `Active` implies “eligible for capture/relight work”; `Loaded` implies “no update work issued”
+- [ ] Introduce an explicit LumonScene “region scheduler” layer (name TBD):
+  - [ ] maintain two heaps/queues: (a) cells needing activation/deactivation (state transitions) and (b) active cells needing update work
+  - [ ] expose budgets for: allocations, captures, relights, and per-frame CPU/GPU limits
+  - [ ] surface metrics: counts per desired/actual state, transitions/sec, active/loaded window sizes, backoff/suppressed
+- [ ] Wire to existing LumonScene systems (incremental integration):
+  - [ ] Feedback/alloc/capture:
+    - [ ] adapt `LumonSceneFeedbackRequestProcessor` input selection to be driven by active cells (not just raw GPU request order)
+    - [ ] route recapture (dirty-driven) through active cells; allow Loaded cells to remain resident but not recaptured
+  - [ ] Relight:
+    - [ ] replace MRU-only relight selection in `LumonSceneRelightUpdateRenderer` with scheduler-driven work from active cells
+    - [ ] ensure relight respects per-cell backoff and does not starve NeedsCapture
+  - [ ] Residency/eviction safety:
+    - [ ] integrate `LumonSceneChunkResidencyManager` events (chunk unload, field transition, eviction) to drive `ActualState` updates
+    - [ ] on slot reassignment/generation mismatch: downgrade to `Loaded` or `Unloaded` and clear any in-flight work
+- [ ] Debugging/observability:
+  - [ ] add overlay/debug-view lines for Loaded/Active counts and transition stats
+  - [ ] add “dump LumonScene cell state” log button (top N by work pressure)
+- [ ] Tests:
+  - [ ] desired-state decision tests for loaded/active window hysteresis
+  - [ ] transition legality tests (no work issued for Loaded-only cells)
+  - [ ] integration smoke test: active cells receive capture/relight work; loaded-but-not-active do not
