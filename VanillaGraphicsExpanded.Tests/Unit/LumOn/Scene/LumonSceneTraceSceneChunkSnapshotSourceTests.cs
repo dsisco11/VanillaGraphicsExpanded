@@ -67,6 +67,45 @@ public sealed class LumonSceneTraceSceneChunkSnapshotSourceTests
     }
 
     [Fact]
+    public async Task TryCreateSnapshotAsync_WhenUnpackReadOnlyReturnsFalse_StillReturnsSnapshot()
+    {
+        var versionProvider = new LumonSceneTraceSceneChunkVersionProvider();
+        var lightIds = new LumonSceneTraceSceneLightIdRegistry();
+
+        int[] blocks = new int[LumonSceneTraceSceneRegionUploadGpuResources.RegionCellCount];
+        blocks[0] = 1;
+
+        byte[] blockLight = new byte[blocks.Length];
+        byte[] sunLight = new byte[blocks.Length];
+
+        IChunkBlocks chunkBlocks = TestChunkBlocksProxy.Create(blocks, out _);
+        IChunkLight chunkLight = TestChunkLightProxy.Create(blockLight, sunLight, out _);
+        IWorldChunk chunk = TestWorldChunkProxy.Create(chunkBlocks, chunkLight, unpackResult: false, disposed: false, out _);
+
+        var blockAccessor = FunctionalBlockAccessorProxy.Create(
+            getChunk: (_, _, _) => chunk,
+            getLightRgb: (_, _, _) => 0);
+
+        var world = FunctionalClientWorldAccessorProxy.Create(
+            blockAccessor: blockAccessor,
+            getBlockById: id => id == 1 ? TestBlocks.SolidFull : TestBlocks.Air);
+
+        var events = FunctionalClientEventApiProxy.Create(runMainThreadTaskInline: true);
+        ICoreClientAPI capi = FunctionalCoreClientApiProxy.Create(events: events, world: world);
+
+        var src = new LumonSceneTraceSceneChunkSnapshotSource(capi, versionProvider, lightIds);
+
+        ChunkKey key = ChunkKey.FromChunkCoords(0, 0, 0);
+        int version = versionProvider.GetCurrentVersion(key);
+
+        using IChunkSnapshot? snapshot = await src.TryCreateSnapshotAsync(key, version, CancellationToken.None);
+
+        Assert.NotNull(snapshot);
+        var typed = Assert.IsType<PooledChunkSnapshot<LumonSceneTraceSceneSourceCell>>(snapshot);
+        Assert.Equal(1, typed.Voxels.Span[0].IsSolid);
+    }
+
+    [Fact]
     public async Task TryCreateSnapshotAsync_WhenBlocklightNonZero_AssignsLightIdFromRgb()
     {
         var versionProvider = new LumonSceneTraceSceneChunkVersionProvider();

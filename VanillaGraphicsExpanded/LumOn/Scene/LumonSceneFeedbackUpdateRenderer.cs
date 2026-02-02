@@ -155,12 +155,14 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
     internal bool TryGetNearDebugSamplingState(
         out Texture3D pageTableMip0,
+        out Texture3D materialAtlas,
         out Texture3D irradianceAtlas,
         out int tileSizeTexels,
         out int tilesPerAxis,
         out int tilesPerAtlas)
     {
         pageTableMip0 = default!;
+        materialAtlas = default!;
         irradianceAtlas = default!;
         tileSizeTexels = 0;
         tilesPerAxis = 0;
@@ -180,11 +182,12 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         try
         {
             pageTableMip0 = nearGpu.PageTable.PageTableMip0;
+            materialAtlas = atlases.MaterialAtlas;
             irradianceAtlas = atlases.IrradianceAtlas;
             tileSizeTexels = physicalPools.Near.Plan.TileSizeTexels;
             tilesPerAxis = physicalPools.Near.Plan.TilesPerAxis;
             tilesPerAtlas = physicalPools.Near.Plan.TilesPerAtlas;
-            return pageTableMip0.IsValid && irradianceAtlas.IsValid;
+            return pageTableMip0.IsValid && materialAtlas.IsValid && irradianceAtlas.IsValid;
         }
         catch
         {
@@ -302,6 +305,12 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                 layer: 0,
                 formatOverride: SizedInternalFormat.R32ui);
 
+            _ = feedbackCompactPipeline.ProgramLayout.TryBindSamplerTexture(
+                samplerUniformName: "vge_pageTableMip0",
+                target: TextureTarget.Texture2DArray,
+                textureId: nearGpu.PageTable.PageTableMip0.TextureId,
+                samplerId: 0);
+
             nearGpu.PageRequests.Counter.BindBase(bindingIndex: 0);
             nearGpu.PageRequests.Items.BindBase(bindingIndex: 0);
 
@@ -314,6 +323,10 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             _ = feedbackCompactPipeline.TrySetUniform1("vge_scanOffset", compactScanOffset);
 
             int gx = (totalEntries + 255) / 256;
+
+            // v2: only emit unmapped pages. We no longer rely on the bounded request list to "keep alive" resident pages;
+            // residency is bound to the chunk-slot window (pages are released on slot reassignment/world leave).
+            _ = feedbackCompactPipeline.TrySetUniform1("vge_compactMode", 1u);
             GL.DispatchCompute(gx, 1, 1);
         }
 
@@ -359,6 +372,11 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         lastPlanHash = 0;
         feedbackFrameStamp = 1u;
         compactScanOffset = 0u;
+
+        // CPU-side virtual mappings are discarded on world leave, so the backing physical pools must return all pages
+        // to their free lists. Otherwise, rejoining a world with the same pool plan would start with a "full" pool.
+        physicalPools.Near.ResetResidency();
+        physicalPools.Far.ResetResidency();
 
         Array.Clear(pageTableMirror);
         virtualToPhysical.Clear();

@@ -215,38 +215,9 @@ internal sealed class LumonSceneFeedbackRequestProcessor
 
     private bool TryAllocateOrEvictOne(out LumonScenePhysicalPage page, out bool didEvict)
     {
+        // Residency policy (v2): do not evict pages while their chunkSlot is still within the active loaded range.
+        // Pages are released when a chunkSlot is reassigned (anchor shift) or on world leave/reset.
         didEvict = false;
-        if (pool.TryAllocate(out page))
-        {
-            return true;
-        }
-
-        if (!pool.TryGetEvictionCandidate(out uint evictId))
-        {
-            page = default;
-            return false;
-        }
-
-        if (physicalToVirtual.TryGetValue(evictId, out ulong key))
-        {
-            physicalToVirtual.Remove(evictId);
-            virtualToPhysical.Remove(key);
-
-            uint chunkSlot = LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(key);
-            int vpage = (int)LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(key);
-
-            int mirrorIndex = checked((int)chunkSlot * LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk + vpage);
-            if ((uint)mirrorIndex < (uint)pageTableMirror.Length)
-            {
-                pageTableMirror[mirrorIndex] = default;
-            }
-
-            pageTableWriter.WriteMip0(chunkSlot: (int)chunkSlot, virtualPageIndex: vpage, packedEntry: 0u);
-        }
-
-        pool.Free(evictId);
-        didEvict = true;
-
         return pool.TryAllocate(out page);
     }
 }

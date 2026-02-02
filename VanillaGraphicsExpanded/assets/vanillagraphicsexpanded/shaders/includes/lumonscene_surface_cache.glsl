@@ -110,4 +110,66 @@ bool VgeLumonSceneTrySampleIrradiance_NearFieldV1(
     return true;
 }
 
+bool VgeLumonSceneTrySampleMaterial_NearFieldV1(
+    uint chunkSlot,
+    uint patchId,
+    vec2 patchUv01,
+    usampler2DArray pageTableMip0,
+    sampler2DArray materialAtlas,
+    int tileSizeTexels,
+    int tilesPerAxis,
+    int tilesPerAtlas,
+    out vec4 outMaterial,
+    out uint outFlags,
+    out uint outPhysicalPageId)
+{
+    outMaterial = vec4(0.0);
+    outFlags = 0u;
+    outPhysicalPageId = 0u;
+
+    if (tileSizeTexels <= 0 || tilesPerAxis <= 0 || tilesPerAtlas <= 0)
+    {
+        return false;
+    }
+
+    // v1: virtual page is derived from patchId (placeholder until PatchMetadata is wired).
+    uint virtualPageIndex = patchId % VGE_LUMONSCENE_VIRTUAL_COUNT;
+    uint vx = virtualPageIndex & (VGE_LUMONSCENE_VIRTUAL_W - 1u);
+    uint vy = virtualPageIndex / VGE_LUMONSCENE_VIRTUAL_W;
+
+    uint packedEntry = texelFetch(pageTableMip0, ivec3(int(vx), int(vy), int(chunkSlot)), 0).x;
+    outPhysicalPageId = packedEntry & VGE_LUMONSCENE_PAGE_PHYS_ID_MASK;
+    outFlags = packedEntry >> VGE_LUMONSCENE_PAGE_FLAG_SHIFT;
+
+    if (outPhysicalPageId == 0u)
+    {
+        return false;
+    }
+
+    // Material only requires a captured page (relight not required).
+    if ((outFlags & VGE_LUMONSCENE_FLAG_RESIDENT) == 0u)
+    {
+        return false;
+    }
+    if ((outFlags & VGE_LUMONSCENE_FLAG_NEEDS_CAPTURE) != 0u)
+    {
+        return false;
+    }
+
+    uint pageIndex = outPhysicalPageId - 1u;
+    uint atlasIndex = pageIndex / uint(tilesPerAtlas);
+    uint local = pageIndex - atlasIndex * uint(tilesPerAtlas);
+    uint tileY = local / uint(tilesPerAxis);
+    uint tileX = local - tileY * uint(tilesPerAxis);
+
+    ivec2 base = ivec2(int(tileX) * tileSizeTexels, int(tileY) * tileSizeTexels);
+    ivec2 inTile = ivec2(
+        int(clamp(floor(patchUv01.x * float(tileSizeTexels)), 0.0, float(tileSizeTexels - 1))),
+        int(clamp(floor(patchUv01.y * float(tileSizeTexels)), 0.0, float(tileSizeTexels - 1))));
+
+    ivec3 atlasTexel = ivec3(base + inTile, int(atlasIndex));
+    outMaterial = texelFetch(materialAtlas, atlasTexel, 0);
+    return true;
+}
+
 #endif // VGE_LUMONSCENE_SURFACE_CACHE_GLSL

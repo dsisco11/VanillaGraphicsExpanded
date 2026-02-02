@@ -13,7 +13,11 @@
 // GLSL 330 requires binding from C# via glUniformBlockBinding / glBindBufferBase.
 #define LUMON_UBO_TERRAIN_BRIDGE_BINDING 27
 
+#if __VERSION__ >= 420
+layout(std140, binding = LUMON_UBO_TERRAIN_BRIDGE_BINDING) uniform LumOnTerrainBridgeUBO
+#else
 layout(std140) uniform LumOnTerrainBridgeUBO
+#endif
 {
     // xyz = chunkCoord offset between matrix space and world space (in chunk units).
     // w reserved (std140 alignment).

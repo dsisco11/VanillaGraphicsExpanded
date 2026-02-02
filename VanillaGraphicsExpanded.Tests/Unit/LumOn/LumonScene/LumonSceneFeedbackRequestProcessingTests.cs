@@ -184,9 +184,9 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
     }
 
     [Fact]
-    public void Eviction_UnderPressure_ClearsOldVirtualPageEntry()
+    public void WhenPoolSaturated_DoesNotEvictExistingPages_AndSkipsNewAllocations()
     {
-        using var pool = CreateNearPool(capacityNotClamped: false); // very small capacity to force eviction
+        using var pool = CreateNearPool(capacityNotClamped: false); // very small capacity to force saturation
 
         var pageTable = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
         var virtualToPhysical = new Dictionary<ulong, uint>();
@@ -217,20 +217,100 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             relightCount: out _,
             stats: out _);
 
-        // Capacity is 4 pages; after 6 unique requests, the first two should have been evicted.
+        // Capacity is 4 pages; after 6 unique requests, the first 4 should remain allocated and the last 2 should be skipped.
         Assert.Equal(4, virtualToPhysical.Count);
-        Assert.False(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 0u)));
-        Assert.False(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 1u)));
+        Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 0u)));
+        Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 1u)));
         Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 2u)));
         Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 3u)));
-        Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 4u)));
-        Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 5u)));
+        Assert.False(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 4u)));
+        Assert.False(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 5u)));
 
-        Assert.Equal(0u, LumonScenePageTableEntryPacking.UnpackPhysicalPageId(pageTable[0]));
-        Assert.Equal(0u, LumonScenePageTableEntryPacking.UnpackPhysicalPageId(pageTable[1]));
+        Assert.NotEqual(0u, LumonScenePageTableEntryPacking.UnpackPhysicalPageId(pageTable[0]));
+        Assert.NotEqual(0u, LumonScenePageTableEntryPacking.UnpackPhysicalPageId(pageTable[1]));
+        Assert.NotEqual(0u, LumonScenePageTableEntryPacking.UnpackPhysicalPageId(pageTable[2]));
+        Assert.NotEqual(0u, LumonScenePageTableEntryPacking.UnpackPhysicalPageId(pageTable[3]));
+        Assert.Equal(0u, LumonScenePageTableEntryPacking.UnpackPhysicalPageId(pageTable[4]));
+        Assert.Equal(0u, LumonScenePageTableEntryPacking.UnpackPhysicalPageId(pageTable[5]));
 
-        Assert.Contains(writes.Writes, w => w.VirtualPageIndex == 0 && w.PackedEntry == 0u);
-        Assert.Contains(writes.Writes, w => w.VirtualPageIndex == 1 && w.PackedEntry == 0u);
+        Assert.DoesNotContain(writes.Writes, w => w.VirtualPageIndex == 0 && w.PackedEntry == 0u);
+        Assert.DoesNotContain(writes.Writes, w => w.VirtualPageIndex == 1 && w.PackedEntry == 0u);
+    }
+
+    [Fact]
+    public void WhenPoolSaturated_DoesNotEvictAcrossChunkSlots()
+    {
+        using var pool = CreateNearPool(capacityNotClamped: false); // very small capacity to force saturation
+
+        var pageTable = new LumonScenePageTableEntry[checked(LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * 2)];
+        var virtualToPhysical = new Dictionary<ulong, uint>();
+        var physicalToVirtual = new Dictionary<uint, ulong>();
+        var writes = new RecordingPageTableWriter();
+        var proc = new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+
+        // Fill the pool with 4 unique pages across two chunkSlots.
+        var initial = new[]
+        {
+            new LumonScenePageRequestGpu(chunkSlot: 0u, virtualPageIndex: 0u, mip: 0u, flags: 10u),
+            new LumonScenePageRequestGpu(chunkSlot: 0u, virtualPageIndex: 1u, mip: 0u, flags: 11u),
+            new LumonScenePageRequestGpu(chunkSlot: 1u, virtualPageIndex: 0u, mip: 0u, flags: 20u),
+            new LumonScenePageRequestGpu(chunkSlot: 1u, virtualPageIndex: 1u, mip: 0u, flags: 21u),
+        };
+
+        var capture = new LumonSceneCaptureWorkGpu[32];
+        var relight = new LumonSceneRelightWorkGpu[32];
+        int recaptureCursor = 0;
+
+        proc.Process(
+            requests: initial,
+            maxRequestsToProcess: 1024,
+            maxNewAllocations: 1024,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+            recaptureCursor: ref recaptureCursor,
+            maxRecapture: 0,
+            captureWorkOut: capture,
+            relightWorkOut: relight,
+            captureCount: out _,
+            relightCount: out _,
+            stats: out _);
+
+        Assert.Equal(4, virtualToPhysical.Count);
+
+        // Now request additional unique pages; they should be skipped (no eviction), preserving earlier allocations.
+        var saturated = new[]
+        {
+            new LumonScenePageRequestGpu(chunkSlot: 0u, virtualPageIndex: 2u, mip: 0u, flags: 12u),
+            new LumonScenePageRequestGpu(chunkSlot: 1u, virtualPageIndex: 2u, mip: 0u, flags: 22u),
+            new LumonScenePageRequestGpu(chunkSlot: 0u, virtualPageIndex: 3u, mip: 0u, flags: 13u),
+            new LumonScenePageRequestGpu(chunkSlot: 1u, virtualPageIndex: 3u, mip: 0u, flags: 23u),
+        };
+
+        proc.Process(
+            requests: saturated,
+            maxRequestsToProcess: 1024,
+            maxNewAllocations: 1024,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+            recaptureCursor: ref recaptureCursor,
+            maxRecapture: 0,
+            captureWorkOut: capture,
+            relightWorkOut: relight,
+            captureCount: out _,
+            relightCount: out _,
+            stats: out _);
+
+        Assert.Equal(4, virtualToPhysical.Count);
+
+        Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 0u)));
+        Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 1u)));
+        Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(1u, 0u)));
+        Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(1u, 1u)));
+
+        Assert.False(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 2u)));
+        Assert.False(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(1u, 2u)));
+        Assert.False(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 3u)));
+        Assert.False(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(1u, 3u)));
+
+        Assert.DoesNotContain(writes.Writes, w => w.PackedEntry == 0u);
     }
 
     [Fact]
@@ -286,7 +366,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
         var pool = new LumonScenePhysicalFieldPool(LumonSceneField.Near);
 
         // capacityNotClamped=true yields a capacity >= 15 pages (nearRadiusChunks=1, tileSize=16 => huge tilesPerAtlas).
-        // capacityNotClamped=false yields a tiny capacity (tileSize=2048 => 2x2 tiles => 4 pages) forcing eviction.
+        // capacityNotClamped=false yields a tiny capacity (tileSize=2048 => 2x2 tiles => 4 pages) forcing saturation.
         int texelsPerVoxelFaceEdge = capacityNotClamped ? 4 : 512;
         LumonScenePhysicalPoolPlan plan = LumonScenePhysicalPoolPlanner.CreateNearPlan(
             nearTexelsPerVoxelFaceEdge: texelsPerVoxelFaceEdge,

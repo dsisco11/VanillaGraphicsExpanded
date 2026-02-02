@@ -66,6 +66,23 @@ internal sealed class LumonScenePhysicalFieldPool : IDisposable
     }
 
     /// <summary>
+    /// Resets all physical page allocations while keeping the current pool plan (and any existing GPU resources).
+    /// Intended for world-leave/reset flows where CPU virtual mappings are discarded and all pages should return to the free list.
+    /// </summary>
+    public void ResetResidency()
+    {
+        if (pagePool is null)
+        {
+            return;
+        }
+
+        pagePool = new LumonScenePhysicalPagePool(plan);
+        AllocCount = 0;
+        FreeCount = 0;
+        EvictionCandidateCount = 0;
+    }
+
+    /// <summary>
     /// Must be called on the render thread (GL context required).
     /// </summary>
     public void EnsureGpuResources()

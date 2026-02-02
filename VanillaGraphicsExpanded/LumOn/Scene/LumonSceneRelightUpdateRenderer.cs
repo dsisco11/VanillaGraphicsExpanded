@@ -173,6 +173,13 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
                 bool dbg = config.Debug.LumOnRuntimeSelfCheckEnabled;
                 EnsureDebugCountersCreated();
 
+                // Bridge UBO: required to convert matrix-space patch positions into absolute world-cell coords for occupancy sampling.
+                var terrainBridgeUbo = LumOnTerrainBridgeUboState.UboOrNull;
+                if (terrainBridgeUbo is not null)
+                {
+                    _ = relightVoxelPipeline.ProgramLayout.TryBindUniformBlock(LumOnTerrainBridgeUboState.BlockName, terrainBridgeUbo);
+                }
+
                 nearGpu.RelightWork.Items.BindBase(bindingIndex: 0);
                 nearGpu.PatchMetadata.Ssbo.BindBase(bindingIndex: 1);
 

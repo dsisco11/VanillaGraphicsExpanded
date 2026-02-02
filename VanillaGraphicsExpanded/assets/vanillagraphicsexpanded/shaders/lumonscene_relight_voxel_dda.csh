@@ -6,6 +6,7 @@
 // Import deterministic hash (shared across LumOn shaders)
 @import "./includes/squirrel3.glsl"
 @import "./includes/lumonscene_trace_scene_occupancy.glsl"
+@import "./includes/vge_worldspace_bridge.glsl"
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
@@ -293,14 +294,23 @@ void main()
             int(seedBase % uint(res)),
             int(Squirrel3HashU(seedBase, 1u) % uint(res)),
             int(Squirrel3HashU(seedBase, 2u) % uint(res)));
-        ivec3 worldCell = vge_occOriginMinCell0 + localCell;
+        ivec3 worldCellAbs = vge_occOriginMinCell0 + localCell;
+
+        // Convert absolute world position back into matrix space so the rest of the shader can treat surfacePos/origin
+        // as matrix-space coordinates, then bridge to absolute for occupancy sampling.
+        vec3 worldPosAbs = vec3(worldCellAbs) + vec3(0.5);
+        vec3 worldPosRel = VgeWorldPosAbsToMatrixSpacePos(worldPosAbs);
 
         vec2 p = (uv * 2.0 - 1.0) * 2.0; // v1: 4-block wide proxy patch
-        surfacePos = vec3(worldCell) + vec3(0.5) + t * p.x + b * p.y;
+        surfacePos = worldPosRel + t * p.x + b * p.y;
     }
 
     // Push the origin slightly off the surface along the normal.
-    vec3 origin = surfacePos + normalWS * 0.51;
+    vec3 originRel = surfacePos + normalWS * 0.51;
+
+    // The trace scene occupancy clipmap is addressed in absolute world-cell coordinates, but patch metadata and the
+    // material/depth atlases are currently in engine "matrix space". Bridge the ray origin into absolute world space.
+    vec3 origin = VgeMatrixSpacePosToWorldPosAbs(originRel);
 
     vec3 acc = vec3(0.0);
     uint rays = max(1u, vge_raysPerTexel);

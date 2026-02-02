@@ -941,6 +941,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             // Only used by LumonScene debug modes; other modes ignore these uniforms.
             int lumonSceneEnabled = 0;
             GpuTexture? lumonScenePageTableMip0 = null;
+            GpuTexture? lumonSceneMaterialAtlas = null;
             GpuTexture? lumonSceneIrradianceAtlas = null;
             int tileSizeTexels = 0;
             int tilesPerAxis = 0;
@@ -949,6 +950,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             if (mode is LumOnDebugMode.LumonScenePageReady
                 or LumOnDebugMode.LumonScenePatchUv
                 or LumOnDebugMode.LumonSceneIrradiance
+                or LumOnDebugMode.LumonSceneMaterial
                 or LumOnDebugMode.LumonSceneChunkSlot
                 or LumOnDebugMode.LumonSceneSlotGeneration
                 or LumOnDebugMode.LumonScenePageTableOccupancy
@@ -958,6 +960,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 {
                     if (lumonSceneFeedbackUpdateRenderer.TryGetNearDebugSamplingState(
                         out var pageTable,
+                        out var material,
                         out var irradiance,
                         out tileSizeTexels,
                         out tilesPerAxis,
@@ -965,6 +968,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     {
                         lumonSceneEnabled = 1;
                         lumonScenePageTableMip0 = pageTable;
+                        lumonSceneMaterialAtlas = material;
                         lumonSceneIrradianceAtlas = irradiance;
                     }
                 }
@@ -972,6 +976,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
             shader.LumonSceneEnabled = lumonSceneEnabled;
             shader.LumonScenePageTableMip0 = lumonScenePageTableMip0;
+            shader.LumonSceneMaterialAtlas = lumonSceneMaterialAtlas;
             shader.LumonSceneIrradianceAtlas = lumonSceneIrradianceAtlas;
             shader.LumonSceneTileSizeTexels = tileSizeTexels;
             shader.LumonSceneTilesPerAxis = tilesPerAxis;
@@ -2638,6 +2643,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             or LumOnDebugMode.LumonSceneSlotGeneration
             or LumOnDebugMode.LumonScenePageTableOccupancy
             or LumOnDebugMode.LumonSceneIrradiance
+            or LumOnDebugMode.LumonSceneMaterial
             => LumOnDebugShaderProgramKind.SceneGBuffer,
 
         // Temporal

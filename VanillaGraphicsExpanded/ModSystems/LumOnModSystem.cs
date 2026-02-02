@@ -255,6 +255,10 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             long sReq = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotsRequested;
             long sOk = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotsSucceeded;
             long sNo = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotsUnavailable;
+            long sfC = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotFailCanceled;
+            long sfM = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotFailChunkMissing;
+            long sfU = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotFailUnpack;
+            long sfE = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotFailException;
 
             int na = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotNonAirCells;
             int sol = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotSolidCells;
@@ -267,8 +271,10 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             int cx = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotChunkX;
             int cy = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotChunkY;
             int cz = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotChunkZ;
+            int ev = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotExpectedVersion;
+            int cv = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotCurrentVersion;
 
-            return $"TS: q:{q} f:{f} a:{a} r:{r} s:{sReq}/{sOk}/{sNo} c:{cf} bc:{bc} key:{cx},{cy},{cz} b:{b0}/{bC}/{bL} d:{bD} na:{na} sol:{sol}";
+            return $"TS: q:{q} f:{f} a:{a} r:{r} s:{sReq}/{sOk}/{sNo} fail:{sfC}/{sfM}/{sfU}/{sfE} v:{ev}->{cv} c:{cf} bc:{bc} key:{cx},{cy},{cz} b:{b0}/{bC}/{bL} d:{bD} na:{na} sol:{sol}";
         }
         catch
         {

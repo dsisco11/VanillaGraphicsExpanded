@@ -118,4 +118,7 @@ public enum LumOnDebugMode
 
     // Phase 22.X: Page table diagnostics (append-only)
     LumonScenePageTableOccupancy = 61,
+
+    // Phase 22.X: Surface cache material debug (append-only)
+    LumonSceneMaterial = 62,
 }

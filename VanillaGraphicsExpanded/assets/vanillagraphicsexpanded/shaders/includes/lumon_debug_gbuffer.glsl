@@ -203,6 +203,72 @@ vec4 renderLumonSceneIrradianceDebug()
     return vec4(clamp(c, 0.0, 1.0), 1.0);
 }
 
+// Debug Mode 62: LumonScene material preview (Near field v1)
+vec4 renderLumonSceneMaterialDebug()
+{
+    if (vge_lumonSceneEnabled == 0)
+    {
+        return vec4(0.2, 0.0, 0.2, 1.0);
+    }
+
+    uvec4 pid = texelFetch(gBufferPatchId, ivec2(gl_FragCoord.xy), 0);
+    float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+    if (!lumonIsSky(depth) && pid.y == 0u)
+    {
+        return vec4(0.8, 0.0, 0.8, 1.0);
+    }
+
+    uint chunkSlot, patchId;
+    vec2 patchUv01;
+    if (!VgeLumonSceneTryDecodePatchId(pid, chunkSlot, patchId, patchUv01))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    vec4 mat;
+    uint flags;
+    uint physicalPageId;
+    bool ok = VgeLumonSceneTrySampleMaterial_NearFieldV1(
+        chunkSlot,
+        patchId,
+        patchUv01,
+        vge_lumonScenePageTableMip0,
+        vge_lumonSceneMaterialAtlas,
+        vge_lumonSceneTileSizeTexels,
+        vge_lumonSceneTilesPerAxis,
+        vge_lumonSceneTilesPerAtlas,
+        mat,
+        flags,
+        physicalPageId);
+
+    if (!ok)
+    {
+        if (physicalPageId == 0u)
+        {
+            return vec4(0.0, 0.0, 0.0, 1.0);
+        }
+
+        if ((flags & VGE_LUMONSCENE_FLAG_RESIDENT) == 0u)
+        {
+            return vec4(1.0, 0.0, 0.0, 1.0);
+        }
+
+        if ((flags & VGE_LUMONSCENE_FLAG_NEEDS_CAPTURE) != 0u)
+        {
+            return vec4(1.0, 1.0, 0.0, 1.0);
+        }
+
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    // v1: material atlas contents are RGBA8 placeholder (currently normals are written into RGB).
+    return vec4(clamp(mat.rgb, 0.0, 1.0), 1.0);
+}
+
 // Debug Mode 59: LumonScene chunkSlot visualization (Phase 22.X)
 vec4 renderLumonSceneChunkSlotDebug()
 {
@@ -342,6 +408,7 @@ vec4 RenderDebug_SceneGBuffer(vec2 screenPos)
         case 59: return renderLumonSceneChunkSlotDebug();
         case 60: return renderLumonSceneSlotGenerationDebug();
         case 61: return renderLumonScenePageTableOccupancyDebug();
+        case 62: return renderLumonSceneMaterialDebug();
         default: return vec4(0.0, 0.0, 0.0, 1.0);
     }
 }

@@ -64,12 +64,35 @@ vec4 RenderDebug_LumOnScenesOverview(vec2 screenPos)
     vec3 worldPosRel = (invViewMatrix * vec4(viewPos, 1.0)).xyz;
 
     // Match TraceScene occupancy queries to the solid side of the visible surface.
-    vec3 n01 = texelFetch(gBufferNormal, ivec2(screenPos), 0).xyz;
-    vec3 normalWS = normalize(n01 * 2.0 - 1.0);
-    vec3 occPosRel = worldPosRel;
-    if (dot(normalWS, normalWS) > 1e-6)
+    // Prefer PatchId axis (robust for voxel terrain), fall back to GBuffer normal.
+    uvec4 pid = texelFetch(gBufferPatchId, ivec2(screenPos), 0);
+    uint patchId = pid.y;
+
+    vec3 stepN = vec3(0.0);
+    if (patchId != 0U)
     {
-        occPosRel = worldPosRel - normalWS * 0.51;
+        uint axisId = (patchId - 1U) % 6U;
+        if (axisId == 0U) stepN = vec3( 1.0, 0.0, 0.0);
+        if (axisId == 1U) stepN = vec3(-1.0, 0.0, 0.0);
+        if (axisId == 2U) stepN = vec3( 0.0, 1.0, 0.0);
+        if (axisId == 3U) stepN = vec3( 0.0,-1.0, 0.0);
+        if (axisId == 4U) stepN = vec3( 0.0, 0.0, 1.0);
+        if (axisId == 5U) stepN = vec3( 0.0, 0.0,-1.0);
+    }
+    else
+    {
+        vec3 n01 = texelFetch(gBufferNormal, ivec2(screenPos), 0).xyz;
+        vec3 normalWS = normalize(n01 * 2.0 - 1.0);
+        if (dot(normalWS, normalWS) > 1e-6)
+        {
+            stepN = normalWS;
+        }
+    }
+
+    vec3 occPosRel = worldPosRel;
+    if (dot(stepN, stepN) > 1e-6)
+    {
+        occPosRel = worldPosRel - stepN * 0.51;
     }
 
     ivec3 worldCell = VgeMatrixSpacePosToWorldCell(occPosRel);

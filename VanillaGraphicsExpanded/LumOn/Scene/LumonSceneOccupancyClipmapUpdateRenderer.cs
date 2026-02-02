@@ -55,12 +55,24 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
     private bool hasWindowRegionBounds;
     private int maintenanceCursor;
 
-    private readonly uint[] zeroPayload = new uint[LumonSceneTraceSceneRegionUploadGpuResources.RegionCellCount];
-
     public double RenderOrder => RenderOrderValue;
     public int RenderRange => RenderRangeValue;
 
     public LumonSceneOccupancyClipmapGpuResources? Resources => resources;
+
+    internal static bool TryGetDispatchPayload(
+        in ChunkWorkResult<LumonSceneTraceSceneRegionArtifact> result,
+        out ReadOnlyMemory<uint> payloadWords)
+    {
+        if (result.Status == ChunkWorkStatus.Success && result.Artifact is not null)
+        {
+            payloadWords = result.Artifact.PayloadWords;
+            return true;
+        }
+
+        payloadWords = default;
+        return false;
+    }
 
     internal bool TryGetLevel0RuntimeParams(out VectorInt3 originMinCell, out VectorInt3 ring, out int resolution)
     {
@@ -570,6 +582,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                 int[] versions = ArrayPool<int>.Shared.Rent(batchCap);
 
                 int count = 0;
+                int completedRemoved = 0;
 
                 try
                 {
@@ -596,26 +609,33 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                             }
 
                             inFlightByRegion.Remove(rk);
+                            completedRemoved++;
 
                             ChunkKey ck = new ChunkKey(rk);
                             ck.Decode(out int rx, out int ry, out int rz);
-                            regionCoords[count] = new VectorInt3(rx, ry, rz);
-                            regionKeys[count] = rk;
-                            versions[count] = inflight.Version;
+                            var rc = new VectorInt3(rx, ry, rz);
 
                             try
                             {
                                 ChunkWorkResult<LumonSceneTraceSceneRegionArtifact> res = inflight.Task.GetAwaiter().GetResult();
-                                payloads[count] = (res.Status == ChunkWorkStatus.Success && res.Artifact is not null)
-                                    ? res.Artifact.PayloadWords
-                                    : zeroPayload;
+                                if (TryGetDispatchPayload(res, out ReadOnlyMemory<uint> payload))
+                                {
+                                    regionCoords[count] = rc;
+                                    regionKeys[count] = rk;
+                                    versions[count] = inflight.Version;
+                                    payloads[count] = payload;
+                                    count++;
+                                }
+                                else
+                                {
+                                    // No payload available yet (chunk missing/unpacked/canceled/etc) - retry later.
+                                    EnqueueRegion(rc, priority: 0);
+                                }
                             }
                             catch
                             {
-                                payloads[count] = zeroPayload;
+                                EnqueueRegion(rc, priority: 0);
                             }
-
-                            count++;
                         }
                     }
                     finally
@@ -625,7 +645,14 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
                     if (count <= 0)
                     {
-                        return;
+                        // If we consumed some completed work but none produced payloads, keep looping to drain more.
+                        // Otherwise, nothing dispatchable this frame.
+                        if (completedRemoved <= 0)
+                        {
+                            return;
+                        }
+
+                        continue;
                     }
 
                     int dispatched = gpuDispatcher.UploadAndDispatchBatch(
@@ -646,6 +673,12 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                     for (int i = 0; i < dispatched; i++)
                     {
                         appliedVersionByRegion[regionKeys[i]] = versions[i];
+                    }
+
+                    // If the GPU budget/dispatcher shorted us, retry the remainder next frame.
+                    for (int i = dispatched; i < count; i++)
+                    {
+                        EnqueueRegion(regionCoords[i], priority: 1);
                     }
 
                     budget -= dispatched;

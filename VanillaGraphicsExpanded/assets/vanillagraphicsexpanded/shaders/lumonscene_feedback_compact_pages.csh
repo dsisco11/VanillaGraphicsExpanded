@@ -8,6 +8,10 @@ layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 // Virtual page usage stamp written by lumonscene_feedback_mark_pages.csh.
 layout(binding = 0, r32ui) readonly uniform uimage2DArray vge_pageUsageStamp;
 
+// Near-field page table mip0 (R32UI packed entry) used to filter mapped vs unmapped virtual pages.
+// Note: binding here refers to the texture unit, not the image/SSBO binding points.
+layout(binding = 1) uniform usampler2DArray vge_pageTableMip0;
+
 layout(binding = 0, offset = 0) uniform atomic_uint vge_pageRequestCount;
 
 // Each request is (chunkSlot, virtualPageIndex, mip, flags/patchId)
@@ -19,6 +23,7 @@ layout(std430, binding = 0) buffer VgePageRequests
 uniform uint vge_maxRequests;
 uniform uint vge_frameStamp;
 uniform uint vge_scanOffset;
+uniform uint vge_compactMode; // 0=emit mapped pages only, 1=emit unmapped pages only (runtime uses 1)
 
 void main()
 {
@@ -44,6 +49,22 @@ void main()
     if (stamp != vge_frameStamp)
     {
         return;
+    }
+
+    // Determine whether the virtual page is already mapped in the page table.
+    // packedEntry.x: [0..23]=physicalPageId, [24..31]=flags
+    uint packedEntry = texelFetch(vge_pageTableMip0, ivec3(vtexel), 0).x;
+    bool mapped = (packedEntry & 0xFFFFFFu) != 0u;
+
+    if (vge_compactMode == 0u)
+    {
+        // Emit only pages that already have a mapping (diagnostics / optional maintenance pass).
+        if (!mapped) return;
+    }
+    else
+    {
+        // Emit only pages that are currently unmapped (allocation pass).
+        if (mapped) return;
     }
 
     uint idx = atomicCounterIncrement(vge_pageRequestCount);

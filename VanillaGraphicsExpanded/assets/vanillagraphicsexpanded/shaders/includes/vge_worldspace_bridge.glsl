@@ -16,6 +16,23 @@ ivec3 VgeMatrixSpacePosToWorldCell(vec3 posRelBlocks)
     return baseCell + vge_lumonSceneWorldChunkCoordOffset * 32;
 }
 
+// Convert matrix-space position (block units) to absolute world position (block units, float).
+// Use when you need a continuous world position (e.g., ray origins for occupancy sampling).
+vec3 VgeMatrixSpacePosToWorldPosAbs(vec3 posRelBlocks)
+{
+    return posRelBlocks
+        + vge_lumonSceneWorldBlockOffsetRem
+        + vec3(vge_lumonSceneWorldChunkCoordOffset) * 32.0;
+}
+
+// Convert absolute world position (block units, float) back to matrix-space position (block units, float).
+vec3 VgeWorldPosAbsToMatrixSpacePos(vec3 posAbsBlocks)
+{
+    return posAbsBlocks
+        - vge_lumonSceneWorldBlockOffsetRem
+        - vec3(vge_lumonSceneWorldChunkCoordOffset) * 32.0;
+}
+
 // Convert matrix-space position (block units) to absolute world chunk coord (chunk size = 32 blocks).
 ivec3 VgeMatrixSpacePosToWorldChunkCoord(vec3 posRelBlocks)
 {
@@ -25,4 +42,3 @@ ivec3 VgeMatrixSpacePosToWorldChunkCoord(vec3 posRelBlocks)
 }
 
 #endif // VGE_WORLDSPACE_BRIDGE_GLSL
-
