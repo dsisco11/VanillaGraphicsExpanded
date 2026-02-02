@@ -10,15 +10,15 @@ Non-goals (initial)
 
 
 Phase 1 - WorldCell Primitives (Contracts + Types)
-- [ ] Define `WorldCellKind` enum (TraceSceneRegion, LumonSceneNear/Far, etc.).
-- [ ] Define `WorldCellKey` (packed `ulong` + kind encoding; allow using `ChunkKey.Packed` for TraceSceneRegion).
-- [ ] Define `WorldCellPriorityContext` (camera/anchor/window, frame tick, loadedness hints).
-- [ ] Define `IWorldCell` contract:
-  - [ ] `Key`, `Kind`, `Priority`, `NextEligibleTick`
-  - [ ] `CalculatePriority(ctx)` (pure/cheap)
-  - [ ] versioning fields (`CurrentVersion`, `AppliedVersion`) for staleness detection
-- [ ] Add base `WorldCell` type with common scheduling fields (heap index, cooldown bookkeeping).
-- [ ] Add unit tests for key packing/equality + basic priority contract expectations.
+- [x] Define `WorldCellKind` enum (TraceSceneRegion, LumonSceneNear/Far, etc.).
+- [x] Define `WorldCellKey` (packed `ulong` + kind encoding; allow using `ChunkKey.Packed` for TraceSceneRegion).
+- [x] Define `WorldCellPriorityContext` (camera/anchor/window, frame tick, loadedness hints).
+- [x] Define `IWorldCell` contract:
+  - [x] `Key`, `Kind`, `Priority`, `NextEligibleTick`
+  - [x] `CalculatePriority(ctx)` (pure/cheap)
+  - [x] versioning fields (`CurrentVersion`, `AppliedVersion`) for staleness detection
+- [x] Add base `WorldCell` type with common scheduling fields (heap index, cooldown bookkeeping).
+- [x] Add unit tests for key packing/equality + basic priority contract expectations.
 
 
 Phase 2 - Indexed Priority Queue (No Duplicates, O(logN) Updates)
