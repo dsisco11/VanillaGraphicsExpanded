@@ -24,6 +24,13 @@ internal sealed class IndexedMaxHeap<TKey>
 
     public int Count => keys.Count;
 
+    public void Clear()
+    {
+        keys.Clear();
+        priorities.Clear();
+        indexByKey.Clear();
+    }
+
     public bool ContainsKey(TKey key) => indexByKey.ContainsKey(key);
 
     public bool TryPeekMax(out TKey key, out float priority)

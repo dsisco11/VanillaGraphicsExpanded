@@ -50,22 +50,22 @@ Phase 3 - TraceSceneRegionCell (WorldCell Specialization)
 
 
 Phase 4 - TraceSceneRegionScheduler (Core Scheduling)
-- [ ] Create `TraceSceneRegionScheduler` owning:
-  - [ ] cell dictionary (authoritative entry per region)
-  - [ ] indexed heap of eligible cells
-  - [ ] window bounds + incremental window seeding cursor
-  - [ ] in-flight tracking and completion processing
-  - [ ] cooldown/backoff computation for `ChunkUnavailable` / snapshot unavailable
-- [ ] Provide public API (initial sketch):
-  - [ ] `SetWindow(min,max)`
-  - [ ] `NotifyChunkDirty(chunkKey, reason)` (optional, internal to TraceScene renderer)
-  - [ ] `NotifyChunkSeenLoaded(chunkKey)` (optional)
-  - [ ] `RefreshPriorities(ctx, budget)` (incremental or lazy)
-  - [ ] `TryDequeueNextEligible(nowTick, out key)` / `DequeueBatch(...)`
-  - [ ] `OnRequestIssued(key, version)` / `OnRequestCompleted(key, status)`
-- [ ] Add fairness guarantees:
-  - [ ] ensure “near window” cells can’t be permanently starved by far cells
-  - [ ] ensure cooldown-suppressed cells don’t block other work
+- [x] Create `TraceSceneRegionScheduler` owning:
+  - [x] cell dictionary (authoritative entry per region)
+  - [x] indexed heap of eligible cells
+  - [x] window bounds + incremental window seeding cursor
+  - [x] in-flight tracking and completion processing
+  - [x] cooldown/backoff computation for `ChunkUnavailable` / snapshot unavailable
+- [x] Provide public API (initial sketch):
+  - [x] `SetWindow(min,max)`
+  - [x] `NotifyChunkDirty(chunkKey, reason)` (optional, internal to TraceScene renderer)
+  - [x] `NotifyChunkSeenLoaded(chunkKey)` (optional)
+  - [x] `RefreshPriorities(ctx, budget)` (incremental or lazy)
+  - [x] `TryDequeueNextEligible(nowTick, out key)` / `DequeueBatch(...)`
+  - [x] `OnRequestIssued(key, version)` / `OnRequestCompleted(key, status)`
+- [x] Add fairness guarantees:
+  - [x] ensure “near window” cells can’t be permanently starved by far cells
+  - [x] ensure cooldown-suppressed cells don’t block other work
 
 
 Phase 5 - Wire Scheduler Into `LumonSceneOccupancyClipmapUpdateRenderer`
