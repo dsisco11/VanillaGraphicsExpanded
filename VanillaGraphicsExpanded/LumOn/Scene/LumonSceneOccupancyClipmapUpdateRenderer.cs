@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
+using VanillaGraphicsExpanded.LumOn.WorldCells;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.Rendering;
@@ -46,22 +47,14 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
     private LumonSceneTraceSceneChunkSnapshotSource? snapshotSource;
     private readonly LumonSceneTraceSceneRegionProcessor regionProcessor = new();
 
-    private readonly Queue<RegionRequest> pendingRegionsHigh = new();
-    private readonly Queue<RegionRequest> pendingRegionsLow = new();
-    private readonly HashSet<ulong> pendingRegionKeys = new();
-    private readonly Dictionary<ulong, int> appliedVersionByRegion = new();
+    private readonly TraceSceneRegionScheduler regionScheduler = new();
     private readonly Dictionary<ulong, InFlightRegion> inFlightByRegion = new();
 
     private VectorInt3 currentWindowRegionMin;
     private VectorInt3 currentWindowRegionMax;
     private bool hasWindowRegionBounds;
-    private int maintenanceCursor;
 
-    private long windowSeedCursor;
-    private long windowSeedTotal;
-    private bool windowSeedActive;
-
-    private int PendingRegionCount => pendingRegionsHigh.Count + pendingRegionsLow.Count;
+    private long traceSceneTick;
 
     public double RenderOrder => RenderOrderValue;
     public int RenderRange => RenderRangeValue;
@@ -104,8 +97,6 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         resolution = ls.Resolution;
         return true;
     }
-
-    private readonly record struct RegionRequest(VectorInt3 RegionCoord, int Priority);
 
     private sealed class LevelState
     {
@@ -161,6 +152,8 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
             return;
         }
 
+        traceSceneTick++;
+
         var traceCfg = config.LumOn.LumonScene.TraceScene;
 
         // Apply rebuild request.
@@ -195,11 +188,19 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
             UpdateWindowAndEnqueueNew(regionMin, regionMax, enqueueAll: !hasWindowRegionBounds || maxLevelMoved);
         }
 
-        // Keep the request queue topped up until we've seeded the whole window at least once.
-        EnqueueWindowSeed(targetQueueLen: Math.Max(16, Math.Min(65_536, traceCfg.ClipmapMaxInFlightRegions * 4)));
+        // Refresh priorities + incrementally seed the window.
+        var priorityContext = new WorldCellPriorityContext(
+            CameraBlockPos: new VectorInt3(camX, camY, camZ),
+            AnchorBlockPos: levelStates.Length > 0 && levelStates[0].HasAnchor
+                ? new VectorInt3(levelStates[0].AnchorCell.X, levelStates[0].AnchorCell.Y, levelStates[0].AnchorCell.Z)
+                : new VectorInt3(camX, camY, camZ),
+            HasAnchor: levelStates.Length > 0 && levelStates[0].HasAnchor,
+            WindowMinRegion: default,
+            WindowMaxRegion: default,
+            HasWindow: false,
+            NowTick: traceSceneTick);
 
-        // Maintenance: periodically re-request a few regions even without movement (helps cover late loads/unloads).
-        EnqueueMaintenance(traceCfg.ClipmapMaxRegionUploadsPerFrame);
+        RefreshScheduler(in priorityContext, budget: Math.Max(64, traceCfg.ClipmapMaxInFlightRegions * 8));
 
         // Start async region extraction jobs under budget.
         IssueRegionRequests(
@@ -213,10 +214,10 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
             maxRegionsPerFrame: traceCfg.ClipmapMaxRegionsDispatchedPerFrame);
 
         LumonSceneTraceSceneMetrics.SetState(
-            queueHighLength: pendingRegionsHigh.Count,
-            queueLowLength: pendingRegionsLow.Count,
+            queueHighLength: regionScheduler.EligibleNearCount,
+            queueLowLength: regionScheduler.EligibleFarCount,
             inFlight: inFlightByRegion.Count,
-            appliedRegions: appliedVersionByRegion.Count);
+            appliedRegions: regionScheduler.AppliedCount);
 
         if (lightIds.TryCopyAndClearDirtyLut(lightLutUpload))
         {
@@ -261,19 +262,10 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
         lightIds.Reset();
 
-        pendingRegionsHigh.Clear();
-        pendingRegionsLow.Clear();
-        pendingRegionKeys.Clear();
-        appliedVersionByRegion.Clear();
+        regionScheduler.Reset();
         inFlightByRegion.Clear();
         hasWindowRegionBounds = false;
-        maintenanceCursor = 0;
-        windowSeedCursor = 0;
-        windowSeedTotal = 0;
-        windowSeedActive = false;
-        windowSeedCursor = 0;
-        windowSeedTotal = 0;
-        windowSeedActive = false;
+        traceSceneTick = 0;
 
         rebuildAllRequested = 0;
     }
@@ -335,13 +327,9 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         // Reset trace-scene state (new resources => stale GPU contents).
         lightIds.Reset();
 
-        pendingRegionsHigh.Clear();
-        pendingRegionsLow.Clear();
-        pendingRegionKeys.Clear();
-        appliedVersionByRegion.Clear();
+        regionScheduler.Reset();
         inFlightByRegion.Clear();
         hasWindowRegionBounds = false;
-        maintenanceCursor = 0;
 
         chunkProcessing?.Dispose();
         chunkProcessing = null;
@@ -354,9 +342,6 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
     private void OnChunkDirty(Vec3i chunkCoord, IWorldChunk chunk, EnumChunkDirtyReason reason)
     {
-        _ = chunk;
-        _ = reason;
-
         if (chunkVersions is null)
         {
             return;
@@ -364,32 +349,22 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
         ChunkKey key = ChunkKey.FromChunkCoords(chunkCoord.X, chunkCoord.Y, chunkCoord.Z);
         chunkVersions.MarkDirty(key);
-        appliedVersionByRegion.Remove(key.Packed);
 
-        if (hasWindowRegionBounds)
-        {
-            var rc = new VectorInt3(chunkCoord.X, chunkCoord.Y, chunkCoord.Z);
-            if (IsInWindow(rc))
-            {
-                EnqueueRegion(rc, priority: 1);
-            }
-        }
+        int currentVersion = chunkVersions.GetCurrentVersion(key);
+        regionScheduler.NotifyChunkDirty(key, currentVersion: currentVersion, nowTick: traceSceneTick, reason: reason.ToString());
+
+        // Loadedness hint: ChunkDirty implies the chunk was observed loaded.
+        regionScheduler.NotifyChunkSeenLoaded(key, nowTick: traceSceneTick);
     }
 
     private void RequestRebuildAll()
     {
         chunkVersions?.BumpGlobalGeneration();
 
-        pendingRegionsHigh.Clear();
-        pendingRegionsLow.Clear();
-        pendingRegionKeys.Clear();
-        appliedVersionByRegion.Clear();
+        regionScheduler.Reset();
         inFlightByRegion.Clear();
         hasWindowRegionBounds = false;
-        maintenanceCursor = 0;
-        windowSeedCursor = 0;
-        windowSeedTotal = 0;
-        windowSeedActive = false;
+        traceSceneTick = 0;
     }
 
     private bool UpdateAnchor(LevelState ls, int camX, int camY, int camZ)
@@ -456,6 +431,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         {
             // Entire window lies below the world; disable window bounds until we move into valid range.
             hasWindowRegionBounds = false;
+            regionScheduler.SetWindow(clampedMin, clampedMax);
             return;
         }
 
@@ -472,117 +448,25 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         currentWindowRegionMax = clampedMax;
         hasWindowRegionBounds = true;
 
-        // The clipmap is a bounded ring-buffer. When regions leave the current window, their texels are eventually
-        // overwritten by other regions; so we must forget "applied" state for regions outside the new window.
+        // Window changes must drop any in-flight work outside the new window so it won't be dispatched.
         if (hadPrev && (prevMin != currentWindowRegionMin || prevMax != currentWindowRegionMax))
         {
-            TrimAppliedAndInFlightToWindow();
+            TrimInFlightToWindow();
         }
 
-        ResetWindowSeed();
+        regionScheduler.SetWindow(currentWindowRegionMin, currentWindowRegionMax);
 
-        // Seeding happens incrementally each frame via EnqueueWindowSeed().
         _ = enqueueAll;
     }
 
-    private void ResetWindowSeed()
-    {
-        if (!hasWindowRegionBounds)
-        {
-            windowSeedCursor = 0;
-            windowSeedTotal = 0;
-            windowSeedActive = false;
-            return;
-        }
-
-        long sizeX = (long)currentWindowRegionMax.X - currentWindowRegionMin.X + 1L;
-        long sizeY = (long)currentWindowRegionMax.Y - currentWindowRegionMin.Y + 1L;
-        long sizeZ = (long)currentWindowRegionMax.Z - currentWindowRegionMin.Z + 1L;
-
-        if (sizeX <= 0 || sizeY <= 0 || sizeZ <= 0)
-        {
-            windowSeedCursor = 0;
-            windowSeedTotal = 0;
-            windowSeedActive = false;
-            return;
-        }
-
-        windowSeedCursor = 0;
-        windowSeedTotal = checked(sizeX * checked(sizeY * sizeZ));
-        windowSeedActive = windowSeedTotal > 0;
-    }
-
-    private void EnqueueWindowSeed(int targetQueueLen)
-    {
-        if (!hasWindowRegionBounds || !windowSeedActive || targetQueueLen <= 0)
-        {
-            return;
-        }
-
-        long sizeX = (long)currentWindowRegionMax.X - currentWindowRegionMin.X + 1L;
-        long sizeY = (long)currentWindowRegionMax.Y - currentWindowRegionMin.Y + 1L;
-        long sizeZ = (long)currentWindowRegionMax.Z - currentWindowRegionMin.Z + 1L;
-        if (sizeX <= 0 || sizeY <= 0 || sizeZ <= 0)
-        {
-            windowSeedActive = false;
-            return;
-        }
-
-        long strideXY = checked(sizeX * sizeY);
-
-        while (PendingRegionCount < targetQueueLen && windowSeedCursor < windowSeedTotal)
-        {
-            long idx = windowSeedCursor++;
-
-            int rx = checked(currentWindowRegionMin.X + (int)(idx % sizeX));
-            int ry = checked(currentWindowRegionMin.Y + (int)((idx / sizeX) % sizeY));
-            int rz = checked(currentWindowRegionMin.Z + (int)(idx / strideXY));
-
-            EnqueueRegion(new VectorInt3(rx, ry, rz), priority: 1);
-        }
-
-        if (windowSeedCursor >= windowSeedTotal)
-        {
-            windowSeedActive = false;
-        }
-    }
-
-    private void TrimAppliedAndInFlightToWindow()
+    private void TrimInFlightToWindow()
     {
         if (!hasWindowRegionBounds)
         {
             return;
         }
 
-        // appliedVersionByRegion: drop anything outside window so it will be re-uploaded if it re-enters.
-        if (appliedVersionByRegion.Count > 0)
-        {
-            ulong[] keys = ArrayPool<ulong>.Shared.Rent(appliedVersionByRegion.Count);
-            int keyCount = 0;
-            try
-            {
-                foreach (ulong rk in appliedVersionByRegion.Keys)
-                {
-                    keys[keyCount++] = rk;
-                }
-
-                for (int i = 0; i < keyCount; i++)
-                {
-                    ChunkKey ck = new ChunkKey(keys[i]);
-                    ck.Decode(out int rx, out int ry, out int rz);
-                    if (!IsInWindow(new VectorInt3(rx, ry, rz)))
-                    {
-                        appliedVersionByRegion.Remove(keys[i]);
-                    }
-                }
-            }
-            finally
-            {
-                ArrayPool<ulong>.Shared.Return(keys, clearArray: false);
-            }
-        }
-
-        // inFlightByRegion: drop anything outside window so it won't be dispatched (work still completes in background).
+        // Drop anything outside window so it won't be dispatched (work still completes in background).
         if (inFlightByRegion.Count > 0)
         {
             ulong[] keys = ArrayPool<ulong>.Shared.Rent(inFlightByRegion.Count);
@@ -600,7 +484,10 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                     ck.Decode(out int rx, out int ry, out int rz);
                     if (!IsInWindow(new VectorInt3(rx, ry, rz)))
                     {
-                        inFlightByRegion.Remove(keys[i]);
+                        if (inFlightByRegion.Remove(keys[i], out InFlightRegion inflight))
+                        {
+                            regionScheduler.OnRequestCompleted(ck, ChunkWorkStatus.Superseded, requestedVersion: inflight.Version, nowTick: traceSceneTick);
+                        }
                     }
                 }
             }
@@ -611,21 +498,6 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         }
     }
 
-    private void EnqueueAllInWindow(int priority)
-    {
-        if (!hasWindowRegionBounds)
-        {
-            return;
-        }
-
-        for (int rz = currentWindowRegionMin.Z; rz <= currentWindowRegionMax.Z; rz++)
-        for (int ry = currentWindowRegionMin.Y; ry <= currentWindowRegionMax.Y; ry++)
-        for (int rx = currentWindowRegionMin.X; rx <= currentWindowRegionMax.X; rx++)
-        {
-            EnqueueRegion(new VectorInt3(rx, ry, rz), priority);
-        }
-    }
-
     private bool IsInWindow(in VectorInt3 regionCoord)
     {
         return regionCoord.X >= currentWindowRegionMin.X && regionCoord.X <= currentWindowRegionMax.X
@@ -633,64 +505,9 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
             && regionCoord.Z >= currentWindowRegionMin.Z && regionCoord.Z <= currentWindowRegionMax.Z;
     }
 
-    private bool EnqueueRegion(in VectorInt3 regionCoord, int priority)
-    {
-        if (regionCoord.Y < 0)
-        {
-            return false;
-        }
 
-        ChunkKey key = ChunkKey.FromChunkCoords(regionCoord.X, regionCoord.Y, regionCoord.Z);
-        if (!pendingRegionKeys.Add(key.Packed))
-        {
-            return false;
-        }
-
-        if (priority > 0)
-        {
-            pendingRegionsHigh.Enqueue(new RegionRequest(regionCoord, priority));
-        }
-        else
-        {
-            pendingRegionsLow.Enqueue(new RegionRequest(regionCoord, priority));
-        }
-        return true;
-    }
-
-    private void EnqueueMaintenance(int maxUploadsPerFrame)
-    {
-        if (!hasWindowRegionBounds || maxUploadsPerFrame <= 0)
-        {
-            return;
-        }
-
-        if (PendingRegionCount > 0)
-        {
-            return;
-        }
-
-        int sizeX = currentWindowRegionMax.X - currentWindowRegionMin.X + 1;
-        int sizeY = currentWindowRegionMax.Y - currentWindowRegionMin.Y + 1;
-        int sizeZ = currentWindowRegionMax.Z - currentWindowRegionMin.Z + 1;
-        if (sizeX <= 0 || sizeY <= 0 || sizeZ <= 0)
-        {
-            return;
-        }
-
-        int total = checked(sizeX * sizeY * sizeZ);
-        int want = Math.Min(maxUploadsPerFrame, 2);
-
-        for (int i = 0; i < want; i++)
-        {
-            int idx = maintenanceCursor++ % total;
-
-            int rx = currentWindowRegionMin.X + (idx % sizeX);
-            int ry = currentWindowRegionMin.Y + ((idx / sizeX) % sizeY);
-            int rz = currentWindowRegionMin.Z + (idx / (sizeX * sizeY));
-
-            EnqueueRegion(new VectorInt3(rx, ry, rz), priority: 0);
-        }
-    }
+    private void RefreshScheduler(in WorldCellPriorityContext context, int budget)
+        => _ = regionScheduler.RefreshPriorities(in context, budget);
 
     private void IssueRegionRequests(float issueBudgetMs, int maxInFlightRegions)
     {
@@ -713,36 +530,32 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         }
 
         int issued = 0;
-        while (issued < inFlightRoom && PendingRegionCount > 0)
+        while (issued < inFlightRoom)
         {
             if (Stopwatch.GetTimestamp() - start > budgetTicks)
             {
                 break;
             }
 
-            RegionRequest req = pendingRegionsHigh.Count > 0 ? pendingRegionsHigh.Dequeue() : pendingRegionsLow.Dequeue();
-            ChunkKey key = ChunkKey.FromChunkCoords(req.RegionCoord.X, req.RegionCoord.Y, req.RegionCoord.Z);
-            pendingRegionKeys.Remove(key.Packed);
-
-            if (hasWindowRegionBounds && !IsInWindow(req.RegionCoord))
+            if (!regionScheduler.TryDequeueNextEligible(traceSceneTick, out ChunkKey key, out int priorityHint))
             {
-                continue;
+                break;
             }
 
             int version = chunkVersions.GetCurrentVersion(key);
-            if (appliedVersionByRegion.TryGetValue(key.Packed, out int applied) && applied == version)
-            {
-                continue;
-            }
 
             if (inFlightByRegion.TryGetValue(key.Packed, out InFlightRegion existing)
                 && existing.Version == version
                 && !existing.Task.IsCompleted)
             {
+                // Keep scheduler in sync if we somehow lost in-flight bookkeeping.
+                regionScheduler.OnRequestIssued(key, version, nowTick: traceSceneTick);
                 continue;
             }
 
-            var options = new ChunkWorkOptions { Priority = req.Priority };
+            regionScheduler.OnRequestIssued(key, version, nowTick: traceSceneTick);
+
+            var options = new ChunkWorkOptions { Priority = priorityHint };
             Task<ChunkWorkResult<LumonSceneTraceSceneRegionArtifact>> task =
                 chunkProcessing.RequestAsync(key, version, regionProcessor, options);
 
@@ -849,19 +662,28 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                                 {
                                     regionCoords[count] = rc;
                                     regionKeys[count] = rk;
-                                    versions[count] = inflight.Version;
+                                    versions[count] = res.RequestedVersion;
                                     payloads[count] = payload;
                                     count++;
                                 }
                                 else
                                 {
-                                    // No payload available yet (chunk missing/unpacked/canceled/etc) - retry later.
-                                    EnqueueRegion(rc, priority: 0);
+                                    regionScheduler.OnRequestCompleted(
+                                        ck,
+                                        status: res.Status,
+                                        requestedVersion: res.RequestedVersion,
+                                        nowTick: traceSceneTick,
+                                        error: res.Error);
                                 }
                             }
                             catch
                             {
-                                EnqueueRegion(rc, priority: 0);
+                                regionScheduler.OnRequestCompleted(
+                                    ck,
+                                    status: ChunkWorkStatus.Failed,
+                                    requestedVersion: inflight.Version,
+                                    nowTick: traceSceneTick,
+                                    error: ChunkWorkError.Unknown);
                             }
                         }
                     }
@@ -899,13 +721,21 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
                     for (int i = 0; i < dispatched; i++)
                     {
-                        appliedVersionByRegion[regionKeys[i]] = versions[i];
+                        regionScheduler.OnRequestCompleted(
+                            new ChunkKey(regionKeys[i]),
+                            status: ChunkWorkStatus.Success,
+                            requestedVersion: versions[i],
+                            nowTick: traceSceneTick);
                     }
 
                     // If the GPU budget/dispatcher shorted us, retry the remainder next frame.
                     for (int i = dispatched; i < count; i++)
                     {
-                        EnqueueRegion(regionCoords[i], priority: 1);
+                        regionScheduler.OnRequestCompleted(
+                            new ChunkKey(regionKeys[i]),
+                            status: ChunkWorkStatus.Canceled,
+                            requestedVersion: versions[i],
+                            nowTick: traceSceneTick);
                     }
 
                     budget -= dispatched;

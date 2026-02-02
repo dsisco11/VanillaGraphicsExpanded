@@ -62,6 +62,13 @@ internal sealed class TraceSceneRegionCell : WorldCell
             return float.NegativeInfinity;
         }
 
+        // Fresh and already applied: not eligible unless it becomes stale or enters retry state.
+        if (AppliedVersion != 0 && AppliedVersion == CurrentVersion)
+        {
+            LastPriorityReasons = reasons;
+            return float.NegativeInfinity;
+        }
+
         VectorInt3 anchorBlock = context.HasAnchor ? context.AnchorBlockPos : context.CameraBlockPos;
         VectorInt3 anchorRegion = LumonSceneTraceSceneClipmapMath.WorldCellToRegionCoord(anchorBlock);
 

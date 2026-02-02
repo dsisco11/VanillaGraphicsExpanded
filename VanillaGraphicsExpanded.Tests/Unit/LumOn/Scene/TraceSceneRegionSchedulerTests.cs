@@ -16,8 +16,8 @@ public sealed class TraceSceneRegionSchedulerTests
         sched.SetWindow(min: new VectorInt3(0, 0, 0), max: new VectorInt3(16, 0, 0));
 
         // Mark two regions dirty so they get created and prioritized.
-        sched.NotifyChunkDirty(ChunkKey.FromChunkCoords(0, 0, 0));
-        sched.NotifyChunkDirty(ChunkKey.FromChunkCoords(10, 0, 0));
+        sched.NotifyChunkDirty(ChunkKey.FromChunkCoords(0, 0, 0), currentVersion: 1, nowTick: 100);
+        sched.NotifyChunkDirty(ChunkKey.FromChunkCoords(10, 0, 0), currentVersion: 1, nowTick: 100);
 
         var ctx = new WorldCellPriorityContext(
             CameraBlockPos: new VectorInt3(0, 0, 0),
@@ -30,7 +30,7 @@ public sealed class TraceSceneRegionSchedulerTests
 
         _ = sched.RefreshPriorities(in ctx, budget: 16);
 
-        Assert.True(sched.TryDequeueNextEligible(nowTick: 100, out ChunkKey first));
+        Assert.True(sched.TryDequeueNextEligible(nowTick: 100, out ChunkKey first, out _));
         Assert.Equal(ChunkKey.FromChunkCoords(0, 0, 0), first);
     }
 
@@ -43,8 +43,8 @@ public sealed class TraceSceneRegionSchedulerTests
         ChunkKey a = ChunkKey.FromChunkCoords(0, 0, 0);
         ChunkKey b = ChunkKey.FromChunkCoords(0, 0, 1);
 
-        sched.NotifyChunkDirty(a);
-        sched.NotifyChunkDirty(b);
+        sched.NotifyChunkDirty(a, currentVersion: 1, nowTick: 1);
+        sched.NotifyChunkDirty(b, currentVersion: 1, nowTick: 1);
 
         var ctx = new WorldCellPriorityContext(
             CameraBlockPos: new VectorInt3(0, 0, 0),
@@ -57,13 +57,13 @@ public sealed class TraceSceneRegionSchedulerTests
 
         _ = sched.RefreshPriorities(in ctx, budget: 16);
 
-        Assert.True(sched.TryDequeueNextEligible(nowTick: 1, out ChunkKey first));
-        sched.OnRequestIssued(first, version: 1);
+        Assert.True(sched.TryDequeueNextEligible(nowTick: 1, out ChunkKey first, out _));
+        sched.OnRequestIssued(first, version: 1, nowTick: 1);
 
         // Refresh to ensure heap updates reflect in-flight state.
         _ = sched.RefreshPriorities(in ctx, budget: 16);
 
-        Assert.True(sched.TryDequeueNextEligible(nowTick: 1, out ChunkKey second));
+        Assert.True(sched.TryDequeueNextEligible(nowTick: 1, out ChunkKey second, out _));
         Assert.NotEqual(first, second);
     }
 
@@ -76,8 +76,8 @@ public sealed class TraceSceneRegionSchedulerTests
         ChunkKey missing = ChunkKey.FromChunkCoords(0, 0, 0);
         ChunkKey other = ChunkKey.FromChunkCoords(0, 0, 1);
 
-        sched.NotifyChunkDirty(missing);
-        sched.NotifyChunkDirty(other);
+        sched.NotifyChunkDirty(missing, currentVersion: 1, nowTick: 10);
+        sched.NotifyChunkDirty(other, currentVersion: 1, nowTick: 10);
 
         var ctx = new WorldCellPriorityContext(
             CameraBlockPos: new VectorInt3(0, 0, 0),
@@ -90,16 +90,16 @@ public sealed class TraceSceneRegionSchedulerTests
 
         _ = sched.RefreshPriorities(in ctx, budget: 16);
 
-        Assert.True(sched.TryDequeueNextEligible(nowTick: 10, out ChunkKey first));
-        sched.OnRequestIssued(first, version: 1);
+        Assert.True(sched.TryDequeueNextEligible(nowTick: 10, out ChunkKey first, out _));
+        sched.OnRequestIssued(first, version: 1, nowTick: 10);
 
         // Complete as unavailable; should apply a cooldown.
-        sched.OnRequestCompleted(first, ChunkWorkStatus.ChunkUnavailable, requestedVersion: 1);
+        sched.OnRequestCompleted(first, ChunkWorkStatus.ChunkUnavailable, requestedVersion: 1, nowTick: 10);
 
         // Recompute priorities at the same tick; the other cell should still be schedulable.
         _ = sched.RefreshPriorities(in ctx, budget: 16);
 
-        Assert.True(sched.TryDequeueNextEligible(nowTick: 10, out ChunkKey next));
+        Assert.True(sched.TryDequeueNextEligible(nowTick: 10, out ChunkKey next, out _));
         Assert.Equal(other, next);
     }
 }

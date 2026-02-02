@@ -33,11 +33,42 @@ internal sealed class TraceSceneRegionScheduler
 
     private long lastNowTick;
 
+    private int appliedCount;
+
     private int nearBurstCount;
 
     public int InFlightCount { get; private set; }
 
+    public int EligibleNearCount => nearEligible.Count;
+
+    public int EligibleFarCount => farEligible.Count;
+
+    public int AppliedCount => appliedCount;
+
     public bool HasWindow => hasWindow;
+
+    public void Reset()
+    {
+        cellsByPacked.Clear();
+        nearEligible.Clear();
+        farEligible.Clear();
+        dirtyQueue.Clear();
+        dirtySet.Clear();
+        cooldownQueue.Clear();
+
+        windowMin = default;
+        windowMax = default;
+        hasWindow = false;
+
+        seedCursor = 0;
+        seedTotal = 0;
+        seedActive = false;
+
+        lastNowTick = 0;
+        nearBurstCount = 0;
+        InFlightCount = 0;
+        appliedCount = 0;
+    }
 
     public void SetWindow(in VectorInt3 min, in VectorInt3 max)
     {
@@ -75,22 +106,25 @@ internal sealed class TraceSceneRegionScheduler
         }
     }
 
-    public void NotifyChunkDirty(ChunkKey chunkKey, string? reason = null)
+    public void NotifyChunkDirty(ChunkKey chunkKey, int currentVersion, long nowTick, string? reason = null)
     {
         _ = reason;
 
+        lastNowTick = Math.Max(lastNowTick, nowTick);
+
         TraceSceneRegionCell cell = GetOrCreateCell(chunkKey);
 
-        // Ensure monotonically increasing change version.
-        int nextVersion = cell.CurrentVersion + 1;
-        if (nextVersion <= 0) nextVersion = 1;
-        cell.CurrentVersion = nextVersion;
+        if (currentVersion > cell.CurrentVersion)
+        {
+            cell.CurrentVersion = currentVersion;
+        }
 
         MarkDirty(cell.ChunkKey.Packed);
     }
 
-    public void NotifyChunkSeenLoaded(ChunkKey chunkKey)
+    public void NotifyChunkSeenLoaded(ChunkKey chunkKey, long nowTick)
     {
+        lastNowTick = Math.Max(lastNowTick, nowTick);
         TraceSceneRegionCell cell = GetOrCreateCell(chunkKey);
         cell.LastSeenLoadedTick = lastNowTick;
         MarkDirty(cell.ChunkKey.Packed);
@@ -160,7 +194,7 @@ internal sealed class TraceSceneRegionScheduler
         return refreshed;
     }
 
-    public bool TryDequeueNextEligible(long nowTick, out ChunkKey key)
+    public bool TryDequeueNextEligible(long nowTick, out ChunkKey key, out int priorityHint)
     {
         lastNowTick = nowTick;
 
@@ -171,10 +205,12 @@ internal sealed class TraceSceneRegionScheduler
         {
             nearBurstCount = fromNear ? nearBurstCount + 1 : 0;
             key = new ChunkKey(packedKey);
+            priorityHint = fromNear ? 1 : 0;
             return true;
         }
 
         key = default;
+        priorityHint = 0;
         return false;
     }
 
@@ -188,7 +224,7 @@ internal sealed class TraceSceneRegionScheduler
         int count = 0;
         for (; count < dst.Length; count++)
         {
-            if (!TryDequeueNextEligible(nowTick, out ChunkKey key))
+            if (!TryDequeueNextEligible(nowTick, out ChunkKey key, out _))
             {
                 break;
             }
@@ -199,9 +235,15 @@ internal sealed class TraceSceneRegionScheduler
         return count;
     }
 
-    public void OnRequestIssued(ChunkKey key, int version)
+    public void OnRequestIssued(ChunkKey key, int version, long nowTick)
     {
+        lastNowTick = Math.Max(lastNowTick, nowTick);
         TraceSceneRegionCell cell = GetOrCreateCell(key);
+
+        if (version > cell.CurrentVersion)
+        {
+            cell.CurrentVersion = version;
+        }
 
         if (cell.InFlightVersion != 0)
         {
@@ -215,8 +257,14 @@ internal sealed class TraceSceneRegionScheduler
         RemoveFromHeaps(cell.ChunkKey.Packed);
     }
 
-    public void OnRequestCompleted(ChunkKey key, ChunkWorkStatus status, int requestedVersion, ChunkWorkError error = ChunkWorkError.None)
+    public void OnRequestCompleted(
+        ChunkKey key,
+        ChunkWorkStatus status,
+        int requestedVersion,
+        long nowTick,
+        ChunkWorkError error = ChunkWorkError.None)
     {
+        lastNowTick = Math.Max(lastNowTick, nowTick);
         TraceSceneRegionCell cell = GetOrCreateCell(key);
 
         if (cell.InFlightVersion != 0)
@@ -235,6 +283,12 @@ internal sealed class TraceSceneRegionScheduler
             case ChunkWorkStatus.Success:
                 cell.MissingStreak = 0;
                 cell.NextEligibleTick = 0;
+
+                if (cell.AppliedVersion == 0)
+                {
+                    appliedCount++;
+                }
+
                 cell.AppliedVersion = requestedVersion;
 
                 // If it changed while in-flight, it is immediately eligible again.
@@ -573,6 +627,12 @@ internal sealed class TraceSceneRegionScheduler
         foreach (ulong packed in toRemove)
         {
             RemoveFromHeaps(packed);
+
+            if (cellsByPacked.TryGetValue(packed, out TraceSceneRegionCell? cell) && cell.AppliedVersion != 0)
+            {
+                appliedCount = Math.Max(0, appliedCount - 1);
+            }
+
             cellsByPacked.Remove(packed);
             dirtySet.Remove(packed);
         }
@@ -581,6 +641,8 @@ internal sealed class TraceSceneRegionScheduler
     private sealed class CooldownMinQueue
     {
         private readonly List<Entry> heap = new();
+
+        public void Clear() => heap.Clear();
 
         public void Push(long tick, ulong packedKey)
         {

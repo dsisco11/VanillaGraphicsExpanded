@@ -15,21 +15,27 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.Scene;
 public sealed class LumonSceneOccupancyClipmapUpdateRendererQueueTests
 {
     [Fact]
-    public void EnqueueRegion_RejectsNegativeY()
+    public void UpdateWindowAndEnqueueNew_DisablesWindow_WhenBelowWorld()
     {
         ICoreClientAPI capi = FunctionalCoreClientApiProxy.Create();
         var cfg = new VgeConfig();
 
         using var renderer = new LumonSceneOccupancyClipmapUpdateRenderer(capi, cfg);
 
-        MethodInfo? enqueue = typeof(LumonSceneOccupancyClipmapUpdateRenderer)
-            .GetMethod("EnqueueRegion", BindingFlags.Instance | BindingFlags.NonPublic);
+        MethodInfo? updateWindow = typeof(LumonSceneOccupancyClipmapUpdateRenderer)
+            .GetMethod("UpdateWindowAndEnqueueNew", BindingFlags.Instance | BindingFlags.NonPublic);
 
-        Assert.NotNull(enqueue);
+        Assert.NotNull(updateWindow);
 
-        object[] args = { new VectorInt3(0, -1, 0), 0 };
-        bool ok = (bool)enqueue!.Invoke(renderer, args)!;
-        Assert.False(ok);
+        // Entire window lies below the world (Y < 0): should disable window bounds.
+        object[] args = { new VectorInt3(0, -10, 0), new VectorInt3(0, -1, 0), false };
+        updateWindow!.Invoke(renderer, args);
+
+        FieldInfo? hasWindow = typeof(LumonSceneOccupancyClipmapUpdateRenderer)
+            .GetField("hasWindowRegionBounds", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(hasWindow);
+        Assert.False((bool)hasWindow!.GetValue(renderer)!);
     }
 
     private class FunctionalCoreClientApiProxy : DispatchProxy

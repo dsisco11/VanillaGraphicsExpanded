@@ -69,16 +69,16 @@ Phase 4 - TraceSceneRegionScheduler (Core Scheduling)
 
 
 Phase 5 - Wire Scheduler Into `LumonSceneOccupancyClipmapUpdateRenderer`
-- [ ] Replace:
-  - [ ] `pendingRegionsHigh/Low`, `pendingRegionKeys`
-  - [ ] `maintenanceCursor`, `windowSeedCursor`, `windowSeedTotal`
-  - [ ] ad-hoc re-enqueue on failure
-- [ ] Drive scheduling from budgets:
-  - [ ] keep `ClipmapIssueBudgetMs` / `ClipmapDispatchBudgetMs`
-  - [ ] use `ClipmapMaxInFlightRegions` as the hard cap
-  - [ ] keep `ClipmapMaxRegionUploadsPerFrame` / `ClipmapMaxRegionsDispatchedPerFrame` as GPU safety limits
-- [ ] Ensure TraceScene only reacts to engine `ChunkDirty` via its own subscription (no LumOnModSystem invalidation).
-- [ ] Add a small “loadedness hint” path using observed chunk events (inside TraceScene renderer).
+- [x] Replace:
+  - [x] `pendingRegionsHigh/Low`, `pendingRegionKeys`
+  - [x] `maintenanceCursor`, `windowSeedCursor`, `windowSeedTotal`
+  - [x] ad-hoc re-enqueue on failure
+- [x] Drive scheduling from budgets:
+  - [x] keep `ClipmapIssueBudgetMs` / `ClipmapDispatchBudgetMs`
+  - [x] use `ClipmapMaxInFlightRegions` as the hard cap
+  - [x] keep `ClipmapMaxRegionUploadsPerFrame` / `ClipmapMaxRegionsDispatchedPerFrame` as GPU safety limits
+- [x] Ensure TraceScene only reacts to engine `ChunkDirty` via its own subscription (no LumOnModSystem invalidation).
+- [x] Add a small “loadedness hint” path using observed chunk events (inside TraceScene renderer).
 
 
 Phase 6 - Backoff/Cooldown Policy (Convergence Under Missing Chunks)
