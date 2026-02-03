@@ -1,0 +1,98 @@
+```todo
+Goal: Add build-time compilation of VGE OpenGL shaders into SPIR-V, and prefer loading SPIR-V binaries at runtime (when present + supported), falling back to GLSL source.
+
+Scope notes:
+- Start with VGE-owned compute shaders (lowest risk; already OpenTK-based).
+- Decide separately whether to support VGE-owned vertex/fragment programs via an OpenTK path (engine IShaderAPI appears GLSL-source-only).
+- Do NOT attempt vanilla/base-game shader SPIR-V initially (runtime patching/hooks rewrite GLSL after load).
+
+References:
+- OpenGL extension ARB_gl_spirv: https://registry.khronos.org/OpenGL/extensions/ARB/ARB_gl_spirv.txt
+- glShaderBinary refpage: https://registry.khronos.org/OpenGL-Refpages/gl4/html/glShaderBinary.xhtml
+- glSpecializeShader refpage: https://registry.khronos.org/OpenGL-Refpages/gl4/html/glSpecializeShader.xhtml
+- glslang (glslangValidator): https://github.com/KhronosGroup/glslang
+- shaderc: https://github.com/google/shaderc
+- Repo docs: docs/GpuProgram.md, docs/OpenGL.PipelineStateObject.Overview.md
+
+☐ Phase 0 — Conventions, Capability, and Scope
+  Exit artifacts: naming scheme chosen; toolchain chosen; runtime gating rules defined.
+  ☐ Choose binary naming convention (recommended):
+    - Compute: `<name>.csh.spv`
+    - Vertex: `<name>.vsh.spv`
+    - Fragment: `<name>.fsh.spv`
+    - Optional future: `.gsh.spv` for geometry
+  ☐ Define runtime selection rules:
+    - Prefer `.spv` only when `GL_ARB_gl_spirv` (or GL 4.6) is available
+    - Otherwise load GLSL source as today
+    - Log once per session when falling back due to missing extension
+  ☐ Decide build output location strategy:
+    - Recommended: generate to `artifacts/spirv/...` (mirrors `assets/...`) and overlay-copy into package staging
+    - Avoid writing `.spv` into the working `assets/` tree to keep git clean
+
+☐ Phase 1 — Build Pipeline: Offline SPIR-V Compilation
+  Exit artifacts: Cake task produces SPIR-V for supported stages; packaged output contains `.spv` alongside source.
+  ☐ Add Cake task in CakeBuild/Program.cs (dependency of `Package`) e.g. `CompileSpirVShaders`.
+  ☐ Enumerate shader sources under `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/`:
+    - Include `.csh` first; optionally include `.vsh/.fsh` later (Phase 3)
+    - Ignore include-only assets if they exist (or compile only entrypoints)
+  ☐ Run VGE shader preprocessing before invoking external compiler:
+    - Must resolve VGE `@import` and define injection (same behavior as runtime)
+    - Implement a filesystem-based resolver analogous to `AssetSyntaxTreeResourceResolver`
+    - Reuse `ShaderSourceCode` preprocessing if feasible (share project reference), else port minimal preprocessor into CakeBuild/tools
+  ☐ Invoke external compiler per shader stage:
+    - Preferred tool: `glslangValidator`
+    - For compute: emit OpenGL SPIR-V; keep entrypoint `main` unless specialization requires otherwise
+    - Emit to `artifacts/spirv/vanillagraphicsexpanded/shaders/<name>.<stage>.spv`
+  ☐ Add build configuration knobs:
+    - Enable/disable SPIR-V compilation (default: enabled in Release builds)
+    - Compiler path override (env var + optional Cake arg)
+    - Optional: treat warnings as errors toggle
+  ☐ Integrate packaging overlay:
+    - During `Package`, copy `artifacts/spirv/...` into the staging folder so `.spv` ships with the mod
+  ☐ Add CI-friendly diagnostics:
+    - Print compiler version
+    - Print counts: compiled / skipped / failed
+    - Fail build when compilation fails (unless explicitly disabled)
+
+☐ Phase 2 — Runtime: Prefer SPIR-V for Compute Pipelines
+  Exit artifacts: VGE compute uses `.spv` when available; GLSL fallback remains correct.
+  ☐ Add a helper in `GpuComputePipeline` to resolve either `.csh.spv` or `.csh` asset path.
+  ☐ Load `.spv` bytes via the asset system (same domain), then:
+    - Create shader module using `GpuShaderModule.LoadSpirVFromBytes(...)`
+    - Link as today
+  ☐ Maintain GLSL fallback path:
+    - If `.spv` missing OR extension unavailable OR load fails -> load `.csh` and compile GLSL
+  ☐ Add one-time debug logging counters (optional):
+    - `SpirVUsedCount`, `SpirVMissingCount`, `SpirVUnsupportedCount`
+
+☐ Phase 3 — Runtime: Vertex/Fragment Programs (Decision Point)
+  Exit artifacts: explicit decision recorded; either compute-only shipped, or graphics programs gain SPIR-V support.
+  ☐ Investigate feasibility of SPIR-V for graphics programs:
+    - Engine shader API (`IShaderAPI`) appears source-based; confirm no binary hook
+    - Confirm VGE `GpuProgram` can accept externally-linked program IDs (or add a parallel OpenTK program pipeline)
+  ☐ Option A (recommended initially): keep graphics shaders GLSL-only
+    - Build still may compile `.vsh/.fsh.spv` for future use, but runtime ignores them
+  ☐ Option B: implement OpenTK-based graphics program creation in VGE:
+    - Prefer `.vsh.spv/.fsh.spv` when present + supported
+    - Keep preprocessor parity with GLSL path (same defines/imports semantics)
+    - Ensure uniform/attribute binding expectations match existing `GpuProgram` contract
+
+☐ Phase 4 — Dev Workflow and Tooling
+  Exit artifacts: developer experience is predictable; rebuilds are fast; troubleshooting is easy.
+  ☐ Add documentation for installing compiler toolchain:
+    - Windows: install `glslangValidator` (and where Cake expects it)
+    - Linux: package suggestions
+  ☐ Add a quick manual smoke workflow:
+    - Build -> verify `.spv` present in release output
+    - Run game with a config flag to force GLSL for comparison
+  ☐ Optional: add a dev-only command/flag to disable SPIR-V at runtime for bisecting
+
+☐ Phase 5 — Validation and Regression Safety
+  Exit artifacts: failures are caught early; runtime fallbacks are safe.
+  ☐ Add unit tests for shader path mapping (source -> binary naming) if test harness fits existing patterns.
+  ☐ Add a runtime self-check (dev builds):
+    - If `.spv` exists but fails to load, log error once and fall back to GLSL
+  ☐ Document limitations:
+    - macOS / older GL likely GLSL-only
+    - Base-game shaders not compiled to SPIR-V due to runtime patching
+```
