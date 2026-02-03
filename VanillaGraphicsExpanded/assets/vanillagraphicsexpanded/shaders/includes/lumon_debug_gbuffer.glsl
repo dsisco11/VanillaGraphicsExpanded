@@ -195,6 +195,26 @@ vec4 renderLumonSceneIrradianceDebug()
 
     if (!ok)
     {
+        if (physicalPageId == 0u)
+        {
+            return vec4(0.0, 0.0, 0.0, 1.0);
+        }
+
+        if ((flags & VGE_LUMONSCENE_FLAG_RESIDENT) == 0u)
+        {
+            return vec4(1.0, 0.0, 0.0, 1.0);
+        }
+
+        if ((flags & VGE_LUMONSCENE_FLAG_NEEDS_CAPTURE) != 0u)
+        {
+            return vec4(1.0, 1.0, 0.0, 1.0);
+        }
+
+        if ((flags & VGE_LUMONSCENE_FLAG_NEEDS_RELIGHT) != 0u)
+        {
+            return vec4(0.2, 0.4, 1.0, 1.0);
+        }
+
         return vec4(0.0, 0.0, 0.0, 1.0);
     }
 

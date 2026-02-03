@@ -172,7 +172,8 @@ bool TraceDdaL0(vec3 origin, vec3 dir, out ivec3 hitCell, out ivec3 hitN, out fl
         }
 
         uint occ = SampleOccL0(cell);
-        if (occ != 0u)
+        // Solidness is encoded via materialPaletteIndex != 0. Air cells may carry lighting payload.
+        if (UnpackMaterialPaletteIndex(occ) != 0u)
         {
             hitCell = cell;
             return true;
@@ -331,12 +332,33 @@ void main()
             float falloff = 1.0 / (1.0 + hitT * hitT);
             acc += radiance * falloff;
         }
-        else if (dbg)
+        else
         {
-            atomicCounterIncrement(vge_dbgMisses);
+            // Misses contribute sky radiance (TraceScene contract: out-of-bounds => sky).
+            // Use the start cell sunlight level as a cheap proxy for "am I outdoors?"
+            vec3 sky = vec3(0.0);
             if (!startedInBounds)
             {
-                atomicCounterIncrement(vge_dbgOobStarts);
+                sky = vec3(32.0);
+            }
+            else
+            {
+                ivec3 startCell = ivec3(floor(origin));
+                uint p0 = SampleOccL0(startCell);
+                uint sunLevel0 = min(UnpackSunLevel(p0), 32u);
+                float sunScalar0 = texelFetch(vge_sunLevelScalarLut, ivec2(int(sunLevel0), 0), 0).r;
+                sky = vec3(1.0) * (sunScalar0 * 32.0);
+            }
+
+            acc += sky;
+
+            if (dbg)
+            {
+                atomicCounterIncrement(vge_dbgMisses);
+                if (!startedInBounds)
+                {
+                    atomicCounterIncrement(vge_dbgOobStarts);
+                }
             }
         }
     }

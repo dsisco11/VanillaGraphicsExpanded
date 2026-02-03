@@ -78,14 +78,27 @@ internal sealed class LumonSceneTraceSceneRegionProcessor : IChunkProcessor<Lumo
                 ct.ThrowIfCancellationRequested();
 
                 var c = src[i];
+
+                // Non-solid cells (air) can still carry lighting payload (sun/block light). These must be packed so
+                // the DDA tracer can shade from the outside-of-solid cell. Solidness is detected via materialPaletteIndex != 0.
                 if (c.IsSolid == 0)
                 {
-                    dst[i] = 0u;
+                    if (c.BlockLevel == 0 && c.SunLevel == 0 && c.LightId == 0)
+                    {
+                        dst[i] = 0u;
+                        continue;
+                    }
+
+                    dst[i] = LumonSceneOccupancyPacking.Pack(
+                        blockLevel: c.BlockLevel,
+                        sunLevel: c.SunLevel,
+                        lightId: c.LightId,
+                        materialPaletteIndex: 0);
                     continue;
                 }
 
-                // The occupancy clipmap uses 0u as "empty". Ensure solid cells never pack to 0u even in edge cases
-                // (e.g., zero light + zero sun + materialPaletteIndex==0).
+                // Ensure solid cells always have a non-zero materialPaletteIndex so GPU code can distinguish solids
+                // from lit air (and so solid cells never pack to 0u).
                 ushort materialPaletteIndex = c.MaterialPaletteIndex == 0 ? (ushort)1 : c.MaterialPaletteIndex;
 
                 dst[i] = LumonSceneOccupancyPacking.Pack(
@@ -93,11 +106,6 @@ internal sealed class LumonSceneTraceSceneRegionProcessor : IChunkProcessor<Lumo
                     sunLevel: c.SunLevel,
                     lightId: c.LightId,
                     materialPaletteIndex: materialPaletteIndex);
-
-                if (dst[i] == 0u)
-                {
-                    dst[i] = 1u;
-                }
             }
 
             return ValueTask.FromResult(new LumonSceneTraceSceneRegionArtifact(snapshot.Key, snapshot.Version, regionCoord, dst));

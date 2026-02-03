@@ -45,6 +45,7 @@ public sealed class TraceSceneRegionProcessorTests
             LumonSceneTraceSceneRegionArtifact art = await proc.ProcessAsync(snap, CancellationToken.None);
 
             Assert.NotEqual(0u, art.PayloadWords[0]);
+            Assert.NotEqual(0u, LumonSceneOccupancyPacking.UnpackMaterialPaletteIndex(art.PayloadWords[0]));
         }
         finally
         {
@@ -72,7 +73,7 @@ public sealed class TraceSceneRegionProcessorTests
 
         try
         {
-            // First cell: empty -> 0
+            // First cell: non-solid cell can still carry lighting payload (sun/block light) -> packed non-zero
             buf[0] = new LumonSceneTraceSceneSourceCell(
                 isSolid: 0,
                 blockLevel: 32,
@@ -95,9 +96,11 @@ public sealed class TraceSceneRegionProcessorTests
             Assert.Equal(version, art.Version);
             Assert.Equal(n, art.PayloadWords.Length);
 
-            Assert.Equal(0u, art.PayloadWords[0]);
-            uint expected = LumonSceneOccupancyPacking.Pack(12, 3, 7, 999);
-            Assert.Equal(expected, art.PayloadWords[1]);
+            uint expectedAir = LumonSceneOccupancyPacking.Pack(32, 32, 63, 0);
+            Assert.Equal(expectedAir, art.PayloadWords[0]);
+
+            uint expectedSolid = LumonSceneOccupancyPacking.Pack(12, 3, 7, 999);
+            Assert.Equal(expectedSolid, art.PayloadWords[1]);
         }
         finally
         {

@@ -107,7 +107,9 @@ vec4 RenderDebug_TraceScene(vec2 screenPos)
 
     if (debugMode == 56)
     {
-        return payloadPacked != 0U ? vec4(1.0) : vec4(0.0, 0.0, 0.0, 1.0);
+        // Occupancy = solid presence (materialPaletteIndex != 0). Air cells may still carry lighting payload.
+        bool isSolid = VgeUnpackMaterialPaletteIndex(payloadPacked) != 0U;
+        return isSolid ? vec4(1.0) : vec4(0.0, 0.0, 0.0, 1.0);
     }
 
     if (debugMode == 57)

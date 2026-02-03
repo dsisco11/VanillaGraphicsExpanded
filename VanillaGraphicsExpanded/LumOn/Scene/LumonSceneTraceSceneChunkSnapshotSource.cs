@@ -178,15 +178,6 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
                             ct.ThrowIfCancellationRequested();
 
                             int blockId = blockIds[i];
-                            if (blockId == 0)
-                            {
-                                buf[i] = default;
-                                continue;
-                            }
-
-                            nonAirCells++;
-                            solidCells++;
-
                             int blockLevel = lighting.GetBlocklight(i);
                             int sunLevel = lighting.GetSunlight(i);
 
@@ -203,8 +194,35 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
                                 lightId = lightIds.GetOrAssignLightId(rgb);
                             }
 
+                            if (blockId == 0)
+                            {
+                                // Air: preserve lighting payload (sun/block light), but keep materialPaletteIndex=0
+                                // so GPU code can distinguish lit air from solids.
+                                if (blockLevel == 0 && sunLevel == 0 && lightId == 0)
+                                {
+                                    buf[i] = default;
+                                    continue;
+                                }
+
+                                buf[i] = new LumonSceneTraceSceneSourceCell(
+                                    isSolid: 0,
+                                    blockLevel: (byte)Math.Clamp(blockLevel, 0, 32),
+                                    sunLevel: (byte)Math.Clamp(sunLevel, 0, 32),
+                                    lightId: (byte)Math.Clamp(lightId, 0, (int)LumonSceneOccupancyPacking.LightIdMask),
+                                    materialPaletteIndex: 0);
+                                continue;
+                            }
+
+                            nonAirCells++;
+                            solidCells++;
+
                             // v1 material palette: stable placeholder derived from block id (does not encode per-face variation yet).
                             int materialPaletteIndex = blockId & (int)LumonSceneOccupancyPacking.MaterialPaletteIndexMask;
+                            if (materialPaletteIndex == 0)
+                            {
+                                // Reserve 0 for "non-solid / no material".
+                                materialPaletteIndex = 1;
+                            }
 
                             buf[i] = new LumonSceneTraceSceneSourceCell(
                                 isSolid: 1,

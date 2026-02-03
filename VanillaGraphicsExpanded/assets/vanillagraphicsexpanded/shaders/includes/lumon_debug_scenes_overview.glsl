@@ -108,17 +108,18 @@ vec4 RenderDebug_LumOnScenesOverview(vec2 screenPos)
         vge_traceOccOriginMinCell0,
         vge_traceOccRing0,
         vge_traceOccResolution);
+    bool isSolid = VgeUnpackMaterialPaletteIndex(payloadPacked) != 0U;
 
     // Middle: occupancy presence
     if (uv01.x < (2.0 / 3.0))
     {
         if (!inBounds) return vec4(0.85, 0.15, 0.15, 1.0);
-        return (payloadPacked != 0U) ? vec4(1.0) : vec4(0.0, 0.0, 0.0, 1.0);
+        return isSolid ? vec4(1.0) : vec4(0.0, 0.0, 0.0, 1.0);
     }
 
     // Right: materialPaletteIndex color (hashed for stable visualization)
     if (!inBounds) return vec4(0.25, 0.05, 0.05, 1.0);
-    if (payloadPacked == 0U) return vec4(0.0, 0.0, 0.0, 1.0);
+    if (!isSolid) return vec4(0.0, 0.0, 0.0, 1.0);
 
     uint mat = VgeUnpackMaterialPaletteIndex(payloadPacked);
     vec3 c = VgeHashColorU(mat);
