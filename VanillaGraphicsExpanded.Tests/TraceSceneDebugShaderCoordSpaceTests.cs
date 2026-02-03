@@ -90,4 +90,18 @@ public sealed class TraceSceneDebugShaderCoordSpaceTests
         Assert.Contains("VGE_LUMONSCENE_FLAG_NEEDS_CAPTURE", src, StringComparison.Ordinal);
         Assert.DoesNotContain("VGE_LUMONSCENE_FLAG_NEEDS_CAPTURE | VGE_LUMONSCENE_FLAG_NEEDS_RELIGHT", src, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void RelightShader_UsesCpuBatchIndex_ForDeterministicCoverage()
+    {
+        string src = ReadRepoFileOrSkip(Path.Combine(
+            "VanillaGraphicsExpanded",
+            "assets",
+            "vanillagraphicsexpanded",
+            "shaders",
+            "lumonscene_relight_voxel_dda.csh"));
+
+        Assert.Contains("uint batchIndexIn = w.z", src, StringComparison.Ordinal);
+        Assert.Contains("Squirrel3HashU(physicalPageId, virtualPageIndex, linear)", src, StringComparison.Ordinal);
+    }
 }

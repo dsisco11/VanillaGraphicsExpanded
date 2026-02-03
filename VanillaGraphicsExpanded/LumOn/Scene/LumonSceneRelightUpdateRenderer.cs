@@ -46,7 +46,10 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
 
     // When RelightTexelsPerPagePerFrame < tileSize^2, a single dispatch only covers a subset of texels.
     // Track per-virtual-page remaining batches so we don't clear NeedsRelight until the whole tile has been touched.
-    private readonly Dictionary<ulong, int> relightBatchesRemainingByVirtualKey = new(capacity: 1024);
+    private readonly Dictionary<ulong, RelightBatchState> relightBatchStateByVirtualKey = new(capacity: 1024);
+    private int lastBatchCount = 1;
+
+    private readonly record struct RelightBatchState(int NextBatchIndex, int RemainingBatches);
 
     public double RenderOrder => RenderOrderValue;
     public int RenderRange => RenderRangeValue;
@@ -116,9 +119,32 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
             return;
         }
 
+        if (cfg.RelightTexelsPerPagePerFrame <= 0)
+        {
+            return;
+        }
+
         int tileSize = nearPool.Plan.TileSizeTexels;
         int tilesPerAxis = nearPool.Plan.TilesPerAxis;
         int tilesPerAtlas = nearPool.Plan.TilesPerAtlas;
+
+        uint totalTexelsU = (uint)(tileSize * tileSize);
+        uint kU = (uint)Math.Max(0, cfg.RelightTexelsPerPagePerFrame);
+        uint batchCountU = kU == 0u ? 0u : ((totalTexelsU + (kU - 1u)) / kU);
+        int batchCount = (int)Math.Clamp(batchCountU, 0u, 1_000_000u);
+        bool isPartial = batchCount > 1;
+        if (batchCount <= 0)
+        {
+            batchCount = 1;
+            isPartial = false;
+        }
+
+        if (batchCount != lastBatchCount)
+        {
+            // Batch schedule state depends on batchCount. If config changes, reset state.
+            relightBatchStateByVirtualKey.Clear();
+            lastBatchCount = batchCount;
+        }
 
         // Select pages to relight:
         // - Prefer scheduler-driven selection from active cells with NeedsRelight backlog.
@@ -191,10 +217,10 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
                         continue;
                     }
 
-                    // v1: patchId is placeholder; use virtualPageIndex as a stable seed.
-                    uint patchId = (uint)vpage;
-                    work[workCount++] = new LumonSceneRelightWorkGpu(physicalPageId, chunkSlot: chunkSlot, patchId, virtualPageIndex: (uint)vpage);
-                    workVirtualKeys[workCount - 1] = key;
+                    uint virtualPageIndex = (uint)vpage;
+                    work[workCount] = new LumonSceneRelightWorkGpu(physicalPageId, chunkSlot: chunkSlot, patchId: virtualPageIndex, virtualPageIndex: virtualPageIndex);
+                    workVirtualKeys[workCount] = key;
+                    workCount++;
                 }
             }
 
@@ -204,6 +230,20 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
             }
 
             lastWorkCount = workCount;
+
+            // Ensure per-page batch selection is deterministic and progresses across frames.
+            // We use the WorkGpu.PatchId field as `batchIndex` for the shader (v1 placeholder; PatchId is otherwise unused here).
+            for (int i = 0; i < workCount; i++)
+            {
+                ulong key = workVirtualKeys[i];
+                uint batchIndex = GetAndAdvanceBatchIndex(key, batchCount, isPartial);
+                var w = work[i];
+                work[i] = new LumonSceneRelightWorkGpu(
+                    physicalPageId: w.PhysicalPageId,
+                    chunkSlot: w.ChunkSlot,
+                    patchId: batchIndex,
+                    virtualPageIndex: w.VirtualPageIndex);
+            }
 
             // Upload work buffer for GPU consumption.
             nearGpu.RelightWork.ResetAndUpload(work.AsSpan(0, workCount));
@@ -296,11 +336,6 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
             // Scheduling is MRU-based so pages will continue to accumulate even without the flag.
             int clearOk = 0;
             int clearFail = 0;
-            uint totalTexels = (uint)(tileSize * tileSize);
-            uint k = (uint)Math.Max(0, cfg.RelightTexelsPerPagePerFrame);
-            uint batchCountU = k == 0u ? 0u : ((totalTexels + (k - 1u)) / k);
-            int batchCount = (int)Math.Clamp(batchCountU, 0u, 1_000_000u);
-            bool isPartial = batchCount > 1;
 
             for (int i = 0; i < workCount; i++)
             {
@@ -308,19 +343,19 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
 
                 if (isPartial)
                 {
-                    if (!relightBatchesRemainingByVirtualKey.TryGetValue(key, out int remaining))
+                    if (!relightBatchStateByVirtualKey.TryGetValue(key, out RelightBatchState state))
                     {
-                        remaining = batchCount;
+                        state = new RelightBatchState(NextBatchIndex: 0, RemainingBatches: batchCount);
                     }
 
-                    remaining--;
+                    int remaining = state.RemainingBatches - 1;
                     if (remaining > 0)
                     {
-                        relightBatchesRemainingByVirtualKey[key] = remaining;
+                        relightBatchStateByVirtualKey[key] = new RelightBatchState(state.NextBatchIndex, remaining);
                         continue;
                     }
 
-                    relightBatchesRemainingByVirtualKey.Remove(key);
+                    relightBatchStateByVirtualKey.Remove(key);
                 }
 
                 uint chunkSlot = LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(key);
@@ -369,7 +404,8 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
         lastDbgOobStarts = 0;
         lastClearedNeedsRelightOk = 0;
         lastClearedNeedsRelightFail = 0;
-        relightBatchesRemainingByVirtualKey.Clear();
+        relightBatchStateByVirtualKey.Clear();
+        lastBatchCount = 1;
         relightVoxelPipeline?.Dispose();
         relightVoxelPipeline = null;
 
@@ -442,5 +478,30 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
         }
 
         return relightVoxelPipeline is not null;
+    }
+
+    private uint GetAndAdvanceBatchIndex(ulong virtualKey, int batchCount, bool isPartial)
+    {
+        if (!isPartial)
+        {
+            return 0u;
+        }
+
+        if (!relightBatchStateByVirtualKey.TryGetValue(virtualKey, out RelightBatchState state)
+            || state.RemainingBatches <= 0
+            || state.RemainingBatches > batchCount)
+        {
+            state = new RelightBatchState(NextBatchIndex: 0, RemainingBatches: batchCount);
+        }
+
+        int idx = state.NextBatchIndex;
+        if (idx < 0 || idx >= batchCount) idx = 0;
+
+        int next = idx + 1;
+        if (next >= batchCount) next = 0;
+
+        // Advance batch cursor now (so even if the same virtualKey is selected twice in a frame, it progresses).
+        relightBatchStateByVirtualKey[virtualKey] = new RelightBatchState(next, state.RemainingBatches);
+        return (uint)idx;
     }
 }

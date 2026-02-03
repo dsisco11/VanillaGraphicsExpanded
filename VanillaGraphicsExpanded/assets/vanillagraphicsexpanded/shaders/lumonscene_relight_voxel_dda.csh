@@ -222,7 +222,7 @@ void main()
 
     uvec4 w = vge_relightWork[workIndex];
     uint physicalPageId = w.x;
-    uint patchId = w.z;
+    uint batchIndexIn = w.z;
     uint virtualPageIndex = w.w;
 
     if (physicalPageId == 0u)
@@ -241,11 +241,10 @@ void main()
     if (k < totalTexels)
     {
         uint batchCount = (totalTexels + (k - 1u)) / k;
-        // IMPORTANT: avoid visible "row striping" when k < totalTexels.
-        // Select texels via a stable hashed bucket instead of contiguous linear ranges.
-        uint seed = Squirrel3HashU(uint(vge_frameIndex), physicalPageId, patchId);
-        uint batchIndex = (batchCount <= 1u) ? 0u : (seed % batchCount);
-        uint bucket = (batchCount <= 1u) ? 0u : (Squirrel3HashU(physicalPageId, patchId, linear) % batchCount);
+        // IMPORTANT: avoid visible striping and guarantee full coverage across frames.
+        // CPU provides `batchIndexIn` for each page; each texel maps to a deterministic bucket.
+        uint batchIndex = (batchCount <= 1u) ? 0u : (batchIndexIn % batchCount);
+        uint bucket = (batchCount <= 1u) ? 0u : (Squirrel3HashU(physicalPageId, virtualPageIndex, linear) % batchCount);
         if (bucket != batchIndex)
         {
             return;
@@ -280,7 +279,7 @@ void main()
     vec3 t, b;
     OrthonormalBasis(normalWS, t, b);
 
-    uint seedBase = Squirrel3HashU(virtualPageIndex, physicalPageId, patchId);
+    uint seedBase = Squirrel3HashU(virtualPageIndex, physicalPageId, batchIndexIn);
 
     vec2 uv = (vec2(inTile) + vec2(0.5)) / float(max(1u, vge_tileSizeTexels));
 
