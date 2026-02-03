@@ -80,31 +80,10 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
 
     public void SetWindow(in VectorInt3 min, in VectorInt3 max)
     {
-        VectorInt3 clampedMin = min;
-        VectorInt3 clampedMax = max;
+        bool changed = !hasWindow || min != windowMin || max != windowMax;
 
-        // VintageStory chunks do not exist below 0.
-        if (clampedMin.Y < 0) clampedMin = new VectorInt3(clampedMin.X, 0, clampedMin.Z);
-        if (clampedMax.Y < 0) clampedMax = new VectorInt3(clampedMax.X, -1, clampedMax.Z);
-
-        if (clampedMax.Y < clampedMin.Y)
-        {
-            hasWindow = false;
-            seedActive = false;
-            seedCursor = 0;
-            seedTotal = 0;
-
-            nearEligible.Clear();
-            farEligible.Clear();
-
-            TrimCellsToWindow();
-            return;
-        }
-
-        bool changed = !hasWindow || clampedMin != windowMin || clampedMax != windowMax;
-
-        windowMin = clampedMin;
-        windowMax = clampedMax;
+        windowMin = min;
+        windowMax = max;
         hasWindow = true;
 
         if (changed)

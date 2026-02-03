@@ -471,32 +471,17 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
     private void UpdateWindowAndEnqueueNew(in VectorInt3 newMin, in VectorInt3 newMax, bool enqueueAll)
     {
-        // Clamp Y to valid world chunk coords. VintageStory chunks do not exist below 0.
-        // (We don't clamp X/Z because negative chunk coords are valid.)
-        VectorInt3 clampedMin = newMin;
-        VectorInt3 clampedMax = newMax;
-        if (clampedMin.Y < 0) clampedMin = new VectorInt3(clampedMin.X, 0, clampedMin.Z);
-        if (clampedMax.Y < 0) clampedMax = new VectorInt3(clampedMax.X, -1, clampedMax.Z);
-
-        if (clampedMax.Y < clampedMin.Y)
-        {
-            // Entire window lies below the world; disable window bounds until we move into valid range.
-            hasWindowRegionBounds = false;
-            regionScheduler.SetWindow(clampedMin, clampedMax);
-            return;
-        }
-
         VectorInt3 prevMin = currentWindowRegionMin;
         VectorInt3 prevMax = currentWindowRegionMax;
         bool hadPrev = hasWindowRegionBounds;
 
-        if (hadPrev && clampedMin == prevMin && clampedMax == prevMax)
+        if (hadPrev && newMin == prevMin && newMax == prevMax)
         {
             return;
         }
 
-        currentWindowRegionMin = clampedMin;
-        currentWindowRegionMax = clampedMax;
+        currentWindowRegionMin = newMin;
+        currentWindowRegionMax = newMax;
         hasWindowRegionBounds = true;
 
         // Window changes must drop any in-flight work outside the new window so it won't be dispatched.
