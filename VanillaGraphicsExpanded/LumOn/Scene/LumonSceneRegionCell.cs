@@ -228,7 +228,9 @@ internal sealed class LumonSceneRegionCell : WorldCell
             if (action == WorldCellTransitionAction.EnsureLoaded || action == WorldCellTransitionAction.EnsureActive)
             {
                 // Bias closer chunks higher (cheap heuristic).
-                transitionPriority += CalculatePriority(in priorityContext);
+                float p = CalculatePriority(in priorityContext);
+                if (!float.IsFinite(p) || p < 0f) p = 0f;
+                transitionPriority += p;
             }
 
             sink.Upsert(Key, WorldCellWorkQueue.StateTransition, transitionPriority);

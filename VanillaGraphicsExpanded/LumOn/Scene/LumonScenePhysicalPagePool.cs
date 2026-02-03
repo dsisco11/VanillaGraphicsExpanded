@@ -117,6 +117,30 @@ internal sealed class LumonScenePhysicalPagePool
         return false;
     }
 
+    public bool TryGetEvictionCandidate(Func<uint, bool> canEvict, out uint physicalPageId)
+    {
+        if (canEvict is null) throw new ArgumentNullException(nameof(canEvict));
+
+        int idx = lruTail;
+        while (idx >= 0)
+        {
+            if (allocated[idx] && pinCount[idx] == 0)
+            {
+                uint id = (uint)(idx + 1);
+                if (canEvict(id))
+                {
+                    physicalPageId = id;
+                    return true;
+                }
+            }
+
+            idx = lruPrev[idx];
+        }
+
+        physicalPageId = 0;
+        return false;
+    }
+
     public void Touch(uint physicalPageId)
     {
         int idx = (int)physicalPageId - 1;

@@ -672,13 +672,13 @@ public class VgeConfig
             [JsonProperty]
             public bool Enabled { get; set; } = true;
 
-            /// <summary>
-            /// Max number of 4096x4096 physical atlas textures to allocate per field (Near/Far).
-            /// Increasing this increases VRAM usage.
-            /// Default: 64.
-            /// </summary>
-            [JsonProperty]
-            public int MaxAtlasCount { get; set; } = 128;
+             /// <summary>
+             /// Max number of 4096x4096 physical atlas textures to allocate per field (Near/Far).
+             /// Increasing this increases VRAM usage.
+             /// Default: 64.
+             /// </summary>
+             [JsonProperty]
+            public int MaxAtlasCount { get; set; } = 64;
 
             /// <summary>
             /// Near-field voxel surface-cache resolution expressed as texels per voxel face edge (mip 0).
@@ -694,18 +694,18 @@ public class VgeConfig
             [JsonProperty]
             public int FarTexelsPerVoxelFaceEdge { get; set; } = 1;
 
-            /// <summary>
-            /// Near-field physical page budget expressed as "max pages per chunk" (including margin chunks).
-            /// This controls how many surface-cache tiles can be allocated while chunks remain within the near-field window.
-            /// </summary>
-            [JsonProperty]
-            public int NearPagesPerChunkBudget { get; set; } = 32;
+             /// <summary>
+            /// Near-field physical page budget expressed as an expected pages-per-chunk for pool sizing (including margin chunks).
+            /// This is not a per-chunk hard cap; it controls how many surface-cache tiles the pool will provision for the near-field window.
+             /// </summary>
+             [JsonProperty]
+             public int NearPagesPerChunkBudget { get; set; } = 32;
 
-            /// <summary>
-            /// Far-field physical page budget expressed as "max pages per chunk" (including margin chunks).
-            /// </summary>
-            [JsonProperty]
-            public int FarPagesPerChunkBudget { get; set; } = 1;
+             /// <summary>
+            /// Far-field physical page budget expressed as an expected pages-per-chunk for pool sizing (including margin chunks).
+             /// </summary>
+             [JsonProperty]
+             public int FarPagesPerChunkBudget { get; set; } = 1;
 
             /// <summary>
             /// Near-field radius expressed in chunk distance (Chebyshev distance in chunk coordinates).
