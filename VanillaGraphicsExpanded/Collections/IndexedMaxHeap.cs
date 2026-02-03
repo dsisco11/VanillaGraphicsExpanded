@@ -33,6 +33,18 @@ internal sealed class IndexedMaxHeap<TKey>
 
     public bool ContainsKey(TKey key) => indexByKey.ContainsKey(key);
 
+    public bool TryGetPriority(TKey key, out float priority)
+    {
+        if (indexByKey.TryGetValue(key, out int index))
+        {
+            priority = priorities[index];
+            return true;
+        }
+
+        priority = default;
+        return false;
+    }
+
     public bool TryPeekMax(out TKey key, out float priority)
     {
         if (Count <= 0)

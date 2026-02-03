@@ -21,4 +21,10 @@ internal readonly record struct WorldCellKey(WorldCellKind Kind, ulong Packed)
 
     public static WorldCellKey FromTraceSceneRegion(ulong packedChunkKey)
         => new(WorldCellKind.TraceSceneRegion, packedChunkKey);
+
+    public static WorldCellKey FromLumonSceneNear(ulong packedChunkCoordKey)
+        => new(WorldCellKind.LumonSceneNear, packedChunkCoordKey);
+
+    public static WorldCellKey FromLumonSceneFar(ulong packedChunkCoordKey)
+        => new(WorldCellKind.LumonSceneFar, packedChunkCoordKey);
 }

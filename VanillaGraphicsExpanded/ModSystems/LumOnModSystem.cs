@@ -209,6 +209,28 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         }
     }
 
+    internal string GetLumonSceneSchedulerDumpSafe(int topN = 64)
+    {
+        try
+        {
+            if (!ConfigModSystem.Config.LumOn.LumonScene.Enabled)
+            {
+                return "LS scheduler: off";
+            }
+
+            if (lumonSceneFeedbackUpdateRenderer is null)
+            {
+                return "LS scheduler: init";
+            }
+
+            return lumonSceneFeedbackUpdateRenderer.DumpNearRegionSchedulerState(topN);
+        }
+        catch
+        {
+            return "LS scheduler: error";
+        }
+    }
+
     private string GetLumonSceneSurfaceCacheStatusLineSafe()
     {
         try

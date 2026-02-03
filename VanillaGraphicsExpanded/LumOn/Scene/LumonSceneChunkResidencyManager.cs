@@ -195,12 +195,12 @@ internal sealed class LumonSceneChunkResidencyManager
 
             if (!pageToChunk.TryGetValue(physicalPageId, out ulong ownerKey))
             {
-                // The page existed in the pool but isn't tracked as "chunk-owned" yet.
-                // Still allow eviction by freeing it directly.
+                // The page exists in the pool but isn't tracked as chunk-owned.
+                // Do not evict untracked pages: other subsystems may own them.
                 hasOwner = false;
                 owner = default;
-                EvictionCount++;
-                return true;
+                physicalPageId = 0;
+                return false;
             }
 
             hasOwner = true;

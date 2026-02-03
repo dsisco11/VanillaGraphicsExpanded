@@ -368,6 +368,158 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
         Assert.Equal(totalDistinct, virtualToPhysical.Count);
     }
 
+    [Fact]
+    public void SlotStats_ReportBudgetStarvationAndAllocationFailures()
+    {
+        // Global allocation budget starvation.
+        {
+            using var pool = CreateNearPool(capacityNotClamped: true);
+
+            var pageTable = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
+            var virtualToPhysical = new Dictionary<ulong, uint>();
+            var physicalToVirtual = new Dictionary<uint, ulong>();
+            var writes = new RecordingPageTableWriter();
+            var proc = new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+
+            var req = new LumonScenePageRequestGpu[10];
+            for (int i = 0; i < req.Length; i++)
+            {
+                req[i] = new LumonScenePageRequestGpu(0u, (uint)i, 0u, 1u);
+            }
+
+            var capture = new LumonSceneCaptureWorkGpu[16];
+            var relight = new LumonSceneRelightWorkGpu[16];
+            int recaptureCursor = 0;
+
+            Span<ushort> newAllocs = stackalloc ushort[1];
+            Span<ushort> skippedBudget = stackalloc ushort[1];
+            Span<ushort> skippedSlotBudget = stackalloc ushort[1];
+            Span<ushort> allocFailures = stackalloc ushort[1];
+
+            proc.Process(
+                requests: req,
+                maxRequestsToProcess: 1024,
+                maxNewAllocations: 2,
+                maxPagesPerChunkSlot: 1024,
+                recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+                recaptureCursor: ref recaptureCursor,
+                maxRecapture: 0,
+                captureWorkOut: capture,
+                relightWorkOut: relight,
+                captureCount: out _,
+                relightCount: out _,
+                stats: out _,
+                newAllocationsByChunkSlot: newAllocs,
+                skippedGlobalBudgetByChunkSlot: skippedBudget,
+                skippedChunkSlotBudgetByChunkSlot: skippedSlotBudget,
+                allocationFailuresByChunkSlot: allocFailures);
+
+            Assert.Equal((ushort)2, newAllocs[0]);
+            Assert.Equal((ushort)8, skippedBudget[0]);
+            Assert.Equal((ushort)0, skippedSlotBudget[0]);
+            Assert.Equal((ushort)0, allocFailures[0]);
+        }
+
+        // Per-slot budget starvation.
+        {
+            using var pool = CreateNearPool(capacityNotClamped: true);
+
+            var pageTable = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
+            var virtualToPhysical = new Dictionary<ulong, uint>();
+            var physicalToVirtual = new Dictionary<uint, ulong>();
+            var writes = new RecordingPageTableWriter();
+            var proc = new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+
+            var req = new[]
+            {
+                new LumonScenePageRequestGpu(0u, 0u, 0u, 1u),
+                new LumonScenePageRequestGpu(0u, 1u, 0u, 1u),
+                new LumonScenePageRequestGpu(0u, 2u, 0u, 1u),
+            };
+
+            var capture = new LumonSceneCaptureWorkGpu[16];
+            var relight = new LumonSceneRelightWorkGpu[16];
+            int recaptureCursor = 0;
+
+            Span<ushort> newAllocs = stackalloc ushort[1];
+            Span<ushort> skippedBudget = stackalloc ushort[1];
+            Span<ushort> skippedSlotBudget = stackalloc ushort[1];
+            Span<ushort> allocFailures = stackalloc ushort[1];
+
+            proc.Process(
+                requests: req,
+                maxRequestsToProcess: 1024,
+                maxNewAllocations: 1024,
+                maxPagesPerChunkSlot: 1,
+                recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+                recaptureCursor: ref recaptureCursor,
+                maxRecapture: 0,
+                captureWorkOut: capture,
+                relightWorkOut: relight,
+                captureCount: out _,
+                relightCount: out _,
+                stats: out _,
+                newAllocationsByChunkSlot: newAllocs,
+                skippedGlobalBudgetByChunkSlot: skippedBudget,
+                skippedChunkSlotBudgetByChunkSlot: skippedSlotBudget,
+                allocationFailuresByChunkSlot: allocFailures);
+
+            Assert.Equal((ushort)1, newAllocs[0]);
+            Assert.Equal((ushort)0, skippedBudget[0]);
+            Assert.Equal((ushort)2, skippedSlotBudget[0]);
+            Assert.Equal((ushort)0, allocFailures[0]);
+        }
+
+        // Allocation failures (pool saturated, no eviction).
+        {
+            using var pool = CreateNearPool(capacityNotClamped: false);
+
+            var pageTable = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
+            var virtualToPhysical = new Dictionary<ulong, uint>();
+            var physicalToVirtual = new Dictionary<uint, ulong>();
+            var writes = new RecordingPageTableWriter();
+            var proc = new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+
+            var req = new LumonScenePageRequestGpu[6];
+            for (int i = 0; i < req.Length; i++)
+            {
+                req[i] = new LumonScenePageRequestGpu(0u, (uint)i, 0u, 1u);
+            }
+
+            var capture = new LumonSceneCaptureWorkGpu[32];
+            var relight = new LumonSceneRelightWorkGpu[32];
+            int recaptureCursor = 0;
+
+            Span<ushort> newAllocs = stackalloc ushort[1];
+            Span<ushort> skippedBudget = stackalloc ushort[1];
+            Span<ushort> skippedSlotBudget = stackalloc ushort[1];
+            Span<ushort> allocFailures = stackalloc ushort[1];
+
+            proc.Process(
+                requests: req,
+                maxRequestsToProcess: 1024,
+                maxNewAllocations: 1024,
+                maxPagesPerChunkSlot: 1024,
+                recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+                recaptureCursor: ref recaptureCursor,
+                maxRecapture: 0,
+                captureWorkOut: capture,
+                relightWorkOut: relight,
+                captureCount: out _,
+                relightCount: out _,
+                stats: out _,
+                newAllocationsByChunkSlot: newAllocs,
+                skippedGlobalBudgetByChunkSlot: skippedBudget,
+                skippedChunkSlotBudgetByChunkSlot: skippedSlotBudget,
+                allocationFailuresByChunkSlot: allocFailures);
+
+            Assert.Equal((ushort)4, newAllocs[0]);
+            Assert.Equal((ushort)0, skippedBudget[0]);
+            Assert.Equal((ushort)0, skippedSlotBudget[0]);
+            Assert.Equal((ushort)2, allocFailures[0]);
+        }
+    }
+
     private static LumonScenePhysicalFieldPool CreateNearPool(bool capacityNotClamped)
     {
         // Use deterministic CPU-only pools; no GPU resources created.

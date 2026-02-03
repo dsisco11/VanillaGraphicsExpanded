@@ -5,6 +5,7 @@ using System.Threading;
 using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.LumOn.WorldCells;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
@@ -66,6 +67,27 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
     private LumonSceneFeedbackRequestProcessor? cpuProcessor;
 
+    // Phase 9.1: chunk residency manager integration (eviction/unload safety).
+    private LumonSceneChunkResidencyManager? chunkResidency;
+
+    private readonly LumonSceneRegionScheduler nearRegionScheduler = new();
+    private int lastRegionCells;
+    private int lastRegionActive;
+    private int lastRegionLoaded;
+    private int lastRegionDesiredUnloaded;
+    private int lastRegionDesiredLoaded;
+    private int lastRegionDesiredActive;
+    private int lastRegionSuppressed;
+    private int lastLoadedWindowSize;
+    private int lastActiveWindowSize;
+    private int lastBudgetMaxRequests;
+    private int lastBudgetMaxNewAllocs;
+    private int lastBudgetMaxRelightPages;
+
+    private WorldCellStateTransitionContext lastNearStateContext;
+    private WorldCellPriorityContext lastNearPriorityContext;
+    private bool hasLastNearContexts;
+
     private bool configured;
     private int lastPlanHash;
 
@@ -75,6 +97,9 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     private int lastRequestsProcessed;
     private int lastRequestsDroppedGpu;
     private int lastRequestsDroppedCpuBudget;
+    private int lastRequestsDroppedInactive;
+    private int lastRequestsPrioritized;
+    private int lastPrioritizeTopK;
     private int lastCaptureCount;
     private int lastRelightCount;
     private LumonSceneFeedbackRequestProcessor.ProcessStats lastProcessStats;
@@ -119,6 +144,155 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         }
 
         return true;
+    }
+
+    internal bool TryBuildNearRelightWorkFromScheduler(
+        int maxPages,
+        Span<LumonSceneRelightWorkGpu> workOut,
+        Span<ulong> workVirtualKeysOut,
+        out int workCount)
+    {
+        workCount = 0;
+
+        if (!configured || !hasLastNearContexts)
+        {
+            return false;
+        }
+
+        if (maxPages <= 0 || workOut.IsEmpty || workVirtualKeysOut.IsEmpty)
+        {
+            return true;
+        }
+
+        if (nearRegionScheduler.RelightCount <= 0)
+        {
+            return true;
+        }
+
+        if (slotOwners.Length == 0 || pageTableMirror.Length == 0)
+        {
+            return false;
+        }
+
+        long nowTick = lastNearStateContext.NowTick;
+        int vpc = LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk;
+
+        int topK = Math.Min(64, nearRegionScheduler.RelightCount);
+        WorldCellKey[] topKeysArr = ArrayPool<WorldCellKey>.Shared.Rent(topK);
+
+        try
+        {
+            Span<WorldCellKey> topKeys = topKeysArr.AsSpan(0, topK);
+            int got = nearRegionScheduler.CopyTopRelightKeys(topKeys);
+            if (got <= 0)
+            {
+                return true;
+            }
+
+            topKeys = topKeys.Slice(0, got);
+
+            for (int k = 0; k < topKeys.Length && workCount < maxPages; k++)
+            {
+                WorldCellKey key = topKeys[k];
+                if (!nearRegionScheduler.TryGetCell(key, out LumonSceneRegionCell cell))
+                {
+                    continue;
+                }
+
+                if (cell.NextEligibleTick > nowTick)
+                {
+                    continue;
+                }
+
+                if (cell.DesiredState != WorldCellDesiredState.Active)
+                {
+                    continue;
+                }
+
+                if (!cell.HasAssignedSlot)
+                {
+                    continue;
+                }
+
+                // Avoid starving capture: if the cell still has capture backlog, prioritize capture.
+                if (cell.NeedsCapturePages > 0)
+                {
+                    continue;
+                }
+
+                int baseIndex = checked((int)cell.ChunkSlot * vpc);
+                if ((uint)baseIndex >= (uint)pageTableMirror.Length)
+                {
+                    continue;
+                }
+
+                int end = Math.Min(pageTableMirror.Length, baseIndex + vpc);
+                for (int i = baseIndex; i < end && workCount < maxPages; i++)
+                {
+                    var entry = pageTableMirror[i];
+                    uint physicalPageId = LumonScenePageTableEntryPacking.UnpackPhysicalPageId(entry);
+                    if (physicalPageId == 0u)
+                    {
+                        continue;
+                    }
+
+                    var flags = LumonScenePageTableEntryPacking.UnpackFlags(entry);
+                    if ((flags & LumonScenePageTableEntryPacking.Flags.Resident) == 0)
+                    {
+                        continue;
+                    }
+
+                    if ((flags & LumonScenePageTableEntryPacking.Flags.NeedsRelight) == 0)
+                    {
+                        continue;
+                    }
+
+                    // Don't relight while capture is needed/in-flight.
+                    if ((flags & (LumonScenePageTableEntryPacking.Flags.NeedsCapture | LumonScenePageTableEntryPacking.Flags.Capturing)) != 0)
+                    {
+                        continue;
+                    }
+
+                    if ((flags & LumonScenePageTableEntryPacking.Flags.Relighting) != 0)
+                    {
+                        continue;
+                    }
+
+                    int vpage = i - baseIndex;
+                    uint virtualPageIndex = (uint)vpage;
+
+                    // v1: patchId is placeholder; use virtualPageIndex as a stable seed.
+                    uint patchId = virtualPageIndex;
+                    uint chunkSlot = cell.ChunkSlot;
+                    workOut[workCount] = new LumonSceneRelightWorkGpu(
+                        physicalPageId,
+                        chunkSlot: chunkSlot,
+                        patchId: patchId,
+                        virtualPageIndex: virtualPageIndex);
+
+                    workVirtualKeysOut[workCount] = LumonSceneVirtualPageKeyUtil.Pack(chunkSlot, virtualPageIndex);
+                    workCount++;
+                }
+            }
+
+            return true;
+        }
+        finally
+        {
+            ArrayPool<WorldCellKey>.Shared.Return(topKeysArr, clearArray: false);
+        }
+    }
+
+    internal string DumpNearRegionSchedulerState(int topN)
+    {
+        try
+        {
+            return nearRegionScheduler.DumpState(topN);
+        }
+        catch
+        {
+            return "LS scheduler: (error)";
+        }
     }
 
     internal bool TryClearNearPageFlagsMip0(uint chunkSlot, int virtualPageIndex, LumonScenePageTableEntryPacking.Flags flagsToClear)
@@ -193,6 +367,31 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         {
             return false;
         }
+    }
+
+    internal bool TryGetNearChunkSlotAndGeneration(in VectorInt3 chunkCoord, out uint chunkSlot, out ushort generation)
+    {
+        chunkSlot = 0;
+        generation = 0;
+
+        if (slotOwners.Length == 0 || slotGenerations.Length != slotOwners.Length)
+        {
+            return false;
+        }
+
+        if (!chunkToSlot.TryGetValue(chunkCoord, out uint slot))
+        {
+            return false;
+        }
+
+        if (slot >= (uint)slotGenerations.Length)
+        {
+            return false;
+        }
+
+        chunkSlot = slot;
+        generation = slotGenerations[slot];
+        return true;
     }
 
     public void NotifyAllDirty(string reason)
@@ -332,6 +531,9 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit);
 
+        // Phase 9.1: ensure DesiredState is up to date before CPU request processing.
+        UpdateNearRegionScheduler(frameStamp);
+
         int captureCount = ProcessRequestsCpu(
             maxRequestsToProcess: DefaultMaxRequestsPerFrame,
             maxNewAllocations: DefaultMaxNewAllocationsPerFrame);
@@ -342,11 +544,21 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
             FinalizeCaptureFlagsFromGpuQueue(captureCount);
         }
+
+        // Phase 9.1: update region scheduler from latest slot assignments + page-table mirror.
+        // Running this post-capture helps backlog counts converge in the same frame.
+        UpdateNearRegionScheduler(frameStamp);
     }
 
     public void Dispose()
     {
         capi.Event.LeaveWorld -= OnLeaveWorld;
+
+        if (chunkResidency is not null)
+        {
+            chunkResidency.PageReleased -= OnChunkResidencyPageReleased;
+            chunkResidency = null;
+        }
 
         feedbackMarkPipeline?.Dispose();
         feedbackMarkPipeline = null;
@@ -368,6 +580,12 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
     private void OnLeaveWorld()
     {
+        if (chunkResidency is not null)
+        {
+            chunkResidency.PageReleased -= OnChunkResidencyPageReleased;
+            chunkResidency = null;
+        }
+
         configured = false;
         lastPlanHash = 0;
         feedbackFrameStamp = 1u;
@@ -401,6 +619,215 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         feedbackMarkDebugCounters = null;
 
         ResetRecaptureList();
+
+        nearRegionScheduler.Reset(nowTick: 0);
+        lastRegionCells = 0;
+        lastRegionActive = 0;
+        lastRegionLoaded = 0;
+        lastRegionDesiredUnloaded = 0;
+        lastRegionDesiredLoaded = 0;
+        lastRegionDesiredActive = 0;
+        lastRegionSuppressed = 0;
+        lastLoadedWindowSize = 0;
+        lastActiveWindowSize = 0;
+        lastBudgetMaxRequests = 0;
+        lastBudgetMaxNewAllocs = 0;
+        lastBudgetMaxRelightPages = 0;
+        hasLastNearContexts = false;
+    }
+
+    private void UpdateNearRegionScheduler(uint frameStamp)
+    {
+        // Best-effort scaffolding: keep the scheduler in sync with the current chunk-slot window.
+        // This does not yet drive allocation or GPU dispatch; it prepares the state for Phase 9.1 wiring.
+        nearRegionScheduler.SetNowTick(unchecked((long)frameStamp));
+
+        if (!configured || slotDims == default || slotGenerations.Length == 0 || pageTableMirror.Length == 0)
+        {
+            lastRegionCells = 0;
+            lastRegionActive = 0;
+            lastRegionLoaded = 0;
+            lastRegionDesiredUnloaded = 0;
+            lastRegionDesiredLoaded = 0;
+            lastRegionDesiredActive = 0;
+            lastRegionSuppressed = 0;
+            lastLoadedWindowSize = 0;
+            lastActiveWindowSize = 0;
+            lastBudgetMaxRequests = 0;
+            lastBudgetMaxNewAllocs = 0;
+            lastBudgetMaxRelightPages = 0;
+            return;
+        }
+
+        VectorInt3 loadedMin = slotOriginMinChunk;
+        VectorInt3 loadedMax = slotOriginMinChunk + new VectorInt3(slotDims.X - 1, slotDims.Y - 1, slotDims.Z - 1);
+
+        // v1: active window is a tighter box than the loaded (slot) window to provide hysteresis.
+        // Heat can promote Loaded→Active outside the active window.
+        int rXZ = Math.Max(0, config.LumOn.LumonScene.NearRadiusChunks);
+        int rY = Math.Max(0, config.LumOn.LumonScene.NearRadiusYChunks);
+        int arXZ = Math.Max(0, rXZ - 1);
+        int arY = Math.Max(0, rY - 1);
+
+        VectorInt3 activeMin = new VectorInt3(lastAnchorChunk.X - arXZ, lastAnchorChunk.Y - arY, lastAnchorChunk.Z - arXZ);
+        VectorInt3 activeMax = new VectorInt3(lastAnchorChunk.X + arXZ, lastAnchorChunk.Y + arY, lastAnchorChunk.Z + arXZ);
+
+        lastLoadedWindowSize = slotOwners.Length;
+        lastActiveWindowSize = checked((arXZ * 2 + 1) * (arY * 2 + 1) * (arXZ * 2 + 1));
+        lastBudgetMaxRequests = DefaultMaxRequestsPerFrame;
+        lastBudgetMaxNewAllocs = DefaultMaxNewAllocationsPerFrame;
+        lastBudgetMaxRelightPages = Math.Max(0, config.LumOn.LumonScene.RelightMaxPagesPerFrame);
+
+        VectorInt3 anchorBlock = new VectorInt3(lastAnchorChunk.X * 32, lastAnchorChunk.Y * 32, lastAnchorChunk.Z * 32);
+
+        var stateContext = new WorldCellStateTransitionContext(
+            CameraBlockPos: anchorBlock,
+            AnchorBlockPos: anchorBlock,
+            HasAnchor: true,
+            LoadedWindowMinRegion: loadedMin,
+            LoadedWindowMaxRegion: loadedMax,
+            HasLoadedWindow: true,
+            ActiveWindowMinRegion: activeMin,
+            ActiveWindowMaxRegion: activeMax,
+            HasActiveWindow: true,
+            NowTick: unchecked((long)frameStamp));
+
+        var priorityContext = new WorldCellPriorityContext(
+            CameraBlockPos: anchorBlock,
+            AnchorBlockPos: anchorBlock,
+            HasAnchor: true,
+            WindowMinRegion: loadedMin,
+            WindowMaxRegion: loadedMax,
+            HasWindow: true,
+            NowTick: unchecked((long)frameStamp),
+            IsCellLikelyLoaded: null);
+
+        lastNearStateContext = stateContext;
+        lastNearPriorityContext = priorityContext;
+        hasLastNearContexts = true;
+
+        var keep = new System.Collections.Generic.HashSet<WorldCellKey>(capacity: Math.Max(16, chunkToSlot.Count));
+
+        int active = 0;
+        int loaded = 0;
+        int desiredActive = 0;
+        int desiredLoaded = 0;
+        int desiredUnloaded = 0;
+        int suppressed = 0;
+
+        foreach (var kvp in chunkToSlot)
+        {
+            VectorInt3 owner = kvp.Key;
+            uint slot = kvp.Value;
+            if (slot >= (uint)slotGenerations.Length)
+            {
+                continue;
+            }
+
+            var coord = new LumonSceneChunkCoord(owner.X, owner.Y, owner.Z);
+            LumonSceneRegionCell cell = nearRegionScheduler.GetOrCreate(WorldCellKind.LumonSceneNear, in coord);
+            keep.Add(cell.Key);
+
+            cell.UpdateSlotAssignment(slot, slotGenerations[slot], unchecked((long)frameStamp));
+            _ = cell.TryUpdateBacklogFromPageTableMirror(pageTableMirror);
+
+            cell.DesiredState = cell.CalculateDesiredState(in stateContext);
+            if (cell.NextEligibleTick > stateContext.NowTick) suppressed++;
+
+
+
+            switch (cell.DesiredState)
+            {
+                case WorldCellDesiredState.Active:
+                    desiredActive++;
+                    active++;
+                    loaded++;
+                    break;
+
+                case WorldCellDesiredState.Loaded:
+                    desiredLoaded++;
+                    loaded++;
+                    break;
+
+                case WorldCellDesiredState.Unloaded:
+                default:
+                    desiredUnloaded++;
+                    break;
+            }
+
+            cell.EnqueueStateAndWork(nearRegionScheduler, in priorityContext);
+        }
+
+        // Phase 9.1: drive ActualState toward DesiredState via queued transitions.
+        ProcessNearRegionTransitions(maxTransitions: 64);
+
+        nearRegionScheduler.PruneToKeys(keep);
+        lastRegionCells = keep.Count;
+        lastRegionActive = active;
+        lastRegionLoaded = loaded;
+        lastRegionDesiredActive = desiredActive;
+        lastRegionDesiredLoaded = desiredLoaded;
+        lastRegionDesiredUnloaded = desiredUnloaded;
+        lastRegionSuppressed = suppressed;
+    }
+
+    private void ProcessNearRegionTransitions(int maxTransitions)
+    {
+        if (!hasLastNearContexts)
+        {
+            return;
+        }
+
+        long nowTick = lastNearStateContext.NowTick;
+        int budget = Math.Max(0, maxTransitions);
+
+        for (int i = 0; i < budget; i++)
+        {
+            if (!nearRegionScheduler.TryPopTransition(out WorldCellKey key))
+            {
+                break;
+            }
+
+            if (!nearRegionScheduler.TryGetCell(key, out LumonSceneRegionCell cell))
+            {
+                continue;
+            }
+
+            if (cell.NextEligibleTick > nowTick)
+            {
+                cell.EnqueueStateAndWork(nearRegionScheduler, in lastNearPriorityContext);
+                continue;
+            }
+
+            if (!WorldCellStateMachine.TryGetNextAction(cell.DesiredState, cell.ActualState, out WorldCellTransitionAction action))
+            {
+                continue;
+            }
+
+            switch (action)
+            {
+                case WorldCellTransitionAction.EnsureLoaded:
+                    cell.ActualState = cell.HasAssignedSlot ? WorldCellActualState.Loaded : WorldCellActualState.Unloaded;
+                    break;
+
+                case WorldCellTransitionAction.EnsureActive:
+                    cell.ActualState = cell.HasAssignedSlot ? WorldCellActualState.Active : WorldCellActualState.Unloaded;
+                    break;
+
+                case WorldCellTransitionAction.DeactivateToLoaded:
+                    cell.ActualState = cell.HasAssignedSlot ? WorldCellActualState.Loaded : WorldCellActualState.Unloaded;
+                    break;
+
+                case WorldCellTransitionAction.EnsureUnloaded:
+                    cell.ActualState = WorldCellActualState.Unloaded;
+                    break;
+
+                default:
+                    break;
+            }
+
+            cell.EnqueueStateAndWork(nearRegionScheduler, in lastNearPriorityContext);
+        }
     }
 
     private void EnsureConfigured()
@@ -433,6 +860,15 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
         physicalPools.EnsureGpuResources();
         EnsurePageUsageStampCreated();
+
+        if (chunkResidency is not null)
+        {
+            chunkResidency.PageReleased -= OnChunkResidencyPageReleased;
+            chunkResidency = null;
+        }
+
+        chunkResidency = new LumonSceneChunkResidencyManager(physicalPools);
+        chunkResidency.PageReleased += OnChunkResidencyPageReleased;
 
         pageTableMirror = new LumonScenePageTableEntry[checked(VirtualPagesPerChunk * chunkSlotCount)];
         virtualToPhysical = new System.Collections.Generic.Dictionary<ulong, uint>(capacity: Math.Max(16, chunkSlotCount));
@@ -606,6 +1042,16 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         }
 
         VectorInt3 newOrigin = ComputeOriginMinChunkForAnchor(anchorChunk);
+
+        // Phase 9.1: Unloaded is outside the Loaded window.
+        // Before we remap slot ownership (ring shift), release residency for chunks that leave the loaded window.
+        // This makes residency release a consequence of the window/state policy, not of slot reassignment.
+        VectorInt3 oldMin = slotOriginMinChunk;
+        VectorInt3 oldMax = oldMin + (slotDims - new VectorInt3(1, 1, 1));
+        VectorInt3 newMin = newOrigin;
+        VectorInt3 newMax = newMin + (slotDims - new VectorInt3(1, 1, 1));
+        ReleaseSlotsForChunksLeavingLoadedWindow(oldMin, oldMax, newMin, newMax);
+
         VectorInt3 delta = newOrigin - slotOriginMinChunk;
         slotOriginMinChunk = newOrigin;
 
@@ -619,6 +1065,94 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
         RebuildSlotAssignmentsAndRecycleReassignedSlots(forceRecycleAll: false);
         LumonSceneChunkSlotUniformState.Update(slotOriginMinChunk, slotDims, slotRing, slotGenerationTex.TextureId);
+    }
+
+    private void ReleaseSlotsForChunksLeavingLoadedWindow(VectorInt3 oldMin, VectorInt3 oldMax, VectorInt3 newMin, VectorInt3 newMax)
+    {
+        if (!configured || slotOwners.Length == 0)
+        {
+            return;
+        }
+
+        // Old window volume is small (dims are based on NearRadius), so a full scan on anchor changes is OK.
+        for (int y = oldMin.Y; y <= oldMax.Y; y++)
+        {
+            for (int z = oldMin.Z; z <= oldMax.Z; z++)
+            {
+                for (int x = oldMin.X; x <= oldMax.X; x++)
+                {
+                    // If still inside new loaded window, keep.
+                    if (x >= newMin.X && x <= newMax.X
+                        && y >= newMin.Y && y <= newMax.Y
+                        && z >= newMin.Z && z <= newMax.Z)
+                    {
+                        continue;
+                    }
+
+                    var coord = new VectorInt3(x, y, z);
+                    if (!chunkToSlot.TryGetValue(coord, out uint slot))
+                    {
+                        continue;
+                    }
+
+                    if (slot >= (uint)slotOwners.Length)
+                    {
+                        continue;
+                    }
+
+                    // Only release if the slot currently belongs to this chunk coord.
+                    if (slotOwners[slot] != coord)
+                    {
+                        continue;
+                    }
+
+                    // Notify chunk lifecycle (best-effort). This is used to drive eviction/unload safety.
+                    chunkResidency?.OnChunkUnloaded(new LumonSceneChunkCoord(coord.X, coord.Y, coord.Z));
+
+                    ClearSlotResidency(slot);
+                }
+            }
+        }
+    }
+
+    private void OnChunkResidencyPageReleased(LumonScenePageReleasedEvent e)
+    {
+        // Eviction/unload safety: if a physical page is released, clear any virtual-page mapping that still references it.
+        // Also downgrade the owning cell's ActualState so we don't keep issuing work for stale content.
+
+        if (e.Field != LumonSceneField.Near)
+        {
+            return;
+        }
+
+        if (e.PhysicalPageId != 0 && physicalToVirtual.TryGetValue(e.PhysicalPageId, out ulong key))
+        {
+            physicalToVirtual.Remove(e.PhysicalPageId);
+            virtualToPhysical.Remove(key);
+
+            uint slot = LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(key);
+            int vpage = (int)LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(key);
+
+            int mirrorIndex = checked((int)slot * VirtualPagesPerChunk + vpage);
+            if ((uint)mirrorIndex < (uint)pageTableMirror.Length)
+            {
+                pageTableMirror[mirrorIndex] = default;
+            }
+
+            UploadPageTableEntryMip0(chunkSlot: (int)slot, virtualPageIndex: vpage, packedEntry: 0u);
+        }
+
+        if (hasLastNearContexts)
+        {
+            WorldCellKey cellKey = WorldCellKey.FromLumonSceneNear(e.Chunk.ToKey());
+            if (nearRegionScheduler.TryGetCell(cellKey, out LumonSceneRegionCell cell))
+            {
+                cell.ActualState = WorldCellActualState.Unloaded;
+                // Cool down a bit to avoid immediate thrash if the pool is under pressure.
+                cell.NextEligibleTick = Math.Max(cell.NextEligibleTick, lastNearStateContext.NowTick + 30);
+                cell.EnqueueStateAndWork(nearRegionScheduler, in lastNearPriorityContext);
+            }
+        }
     }
 
     private void UpdateWorldCoordUniformState()
@@ -974,6 +1508,16 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         LumonSceneCaptureWorkGpu[] captureScratch = ArrayPool<LumonSceneCaptureWorkGpu>.Shared.Rent(maxCapture);
         LumonSceneRelightWorkGpu[] relightScratch = ArrayPool<LumonSceneRelightWorkGpu>.Shared.Rent(maxCapture);
 
+        ushort[]? slotNewAllocsArr = null;
+        ushort[]? slotStarvedBudgetArr = null;
+        ushort[]? slotStarvedSlotBudgetArr = null;
+        ushort[]? slotAllocFailuresArr = null;
+
+        Span<ushort> slotNewAllocs = Span<ushort>.Empty;
+        Span<ushort> slotStarvedBudget = Span<ushort>.Empty;
+        Span<ushort> slotStarvedSlotBudget = Span<ushort>.Empty;
+        Span<ushort> slotAllocFailures = Span<ushort>.Empty;
+
         try
         {
             lastRequestCount = requestCount;
@@ -981,6 +1525,9 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             lastRequestsProcessed = toProcess;
             lastRequestsDroppedGpu = requestCount <= (uint)toRead ? 0 : (int)Math.Min(int.MaxValue, requestCount - (uint)toRead);
             lastRequestsDroppedCpuBudget = Math.Max(0, toRead - toProcess);
+            lastRequestsDroppedInactive = 0;
+            lastRequestsPrioritized = 0;
+            lastPrioritizeTopK = 0;
             lastUniqueVirtualPages = 0;
             lastTopChunkSlot = 0u;
             lastTopVirtualPage = 0;
@@ -1002,6 +1549,199 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                     }
 
                     mappedItems.Span.CopyTo(scratch);
+                }
+            }
+
+            // Phase 9.1: heat signal from raw GPU requests.
+            // We apply this before filtering so a briefly-visible chunk can become Active in the same frame.
+            if (toProcess > 0 && hasLastNearContexts && slotOwners.Length > 0)
+            {
+                int slotCount = slotOwners.Length;
+                int[] heatCounts = ArrayPool<int>.Shared.Rent(slotCount);
+                uint[] changed = ArrayPool<uint>.Shared.Rent(Math.Min(toProcess, slotCount));
+                int changedCount = 0;
+
+                try
+                {
+                    Array.Clear(heatCounts, 0, slotCount);
+
+                    for (int i = 0; i < toProcess; i++)
+                    {
+                        uint slot = scratch[i].ChunkSlot;
+                        if (slot >= (uint)slotCount)
+                        {
+                            continue;
+                        }
+
+                        if (heatCounts[(int)slot] == 0)
+                        {
+                            changed[changedCount++] = slot;
+                        }
+
+                        heatCounts[(int)slot]++;
+                    }
+
+                    long nowTick = lastNearStateContext.NowTick;
+
+                    for (int i = 0; i < changedCount; i++)
+                    {
+                        uint slot = changed[i];
+                        VectorInt3 owner = slotOwners[slot];
+                        var coord = new LumonSceneChunkCoord(owner.X, owner.Y, owner.Z);
+                        WorldCellKey key = WorldCellKey.FromLumonSceneNear(coord.ToKey());
+
+                        if (!nearRegionScheduler.TryGetCell(key, out LumonSceneRegionCell cell))
+                        {
+                            continue;
+                        }
+
+                        cell.ApplyHeatFromRequests(heatCounts[(int)slot], nowTick);
+                        cell.DesiredState = cell.CalculateDesiredState(in lastNearStateContext);
+                        cell.EnqueueStateAndWork(nearRegionScheduler, in lastNearPriorityContext);
+                    }
+                }
+                finally
+                {
+                    ArrayPool<int>.Shared.Return(heatCounts, clearArray: false);
+                    ArrayPool<uint>.Shared.Return(changed, clearArray: false);
+                }
+            }
+
+            // Phase 9.1: scheduler-driven gating. Only accept requests whose owning cell is DesiredState.Active.
+            if (toProcess > 0 && slotOwners.Length > 0 && slotGenerations.Length == slotOwners.Length)
+            {
+                int write = 0;
+                for (int i = 0; i < toProcess; i++)
+                {
+                    uint slot = scratch[i].ChunkSlot;
+                    if (slot >= (uint)slotOwners.Length)
+                    {
+                        lastRequestsDroppedInactive++;
+                        continue;
+                    }
+
+                    VectorInt3 owner = slotOwners[slot];
+                    var coord = new LumonSceneChunkCoord(owner.X, owner.Y, owner.Z);
+                    WorldCellKey key = WorldCellKey.FromLumonSceneNear(coord.ToKey());
+
+                    if (nearRegionScheduler.TryGetCell(key, out LumonSceneRegionCell cell)
+                        && cell.DesiredState == WorldCellDesiredState.Active
+                        && (!hasLastNearContexts || cell.NextEligibleTick <= lastNearStateContext.NowTick))
+                    {
+                        scratch[write++] = scratch[i];
+                    }
+                    else
+                    {
+                        lastRequestsDroppedInactive++;
+                    }
+                }
+
+                toProcess = write;
+                lastRequestsProcessed = toProcess;
+            }
+
+            // Phase 9.1: scheduler-driven selection. Prioritize requests belonging to the highest-priority capture cells.
+            // cpuProcessor.Process consumes requests in-order; since budgets are capped, earlier requests win.
+            if (toProcess > 1 && slotOwners.Length > 0 && nearRegionScheduler.CaptureCount > 0)
+            {
+                int topK = Math.Min(32, nearRegionScheduler.CaptureCount);
+                WorldCellKey[] topKeysArr = ArrayPool<WorldCellKey>.Shared.Rent(topK);
+
+                try
+                {
+                    Span<WorldCellKey> topKeys = topKeysArr.AsSpan(0, topK);
+                    int got = nearRegionScheduler.CopyTopCaptureKeys(topKeys);
+                    if (got > 0)
+                    {
+                        topKeys = topKeys.Slice(0, got);
+
+                        // Build per-slot rank map: lower = higher priority, int.MaxValue = not prioritized.
+                        int slotCount = slotOwners.Length;
+                        int[] slotRank = ArrayPool<int>.Shared.Rent(slotCount);
+                        try
+                        {
+                            Array.Fill(slotRank, int.MaxValue, 0, slotCount);
+
+                            for (int r = 0; r < topKeys.Length; r++)
+                            {
+                                WorldCellKey key = topKeys[r];
+                                LumonSceneChunkCoord coord = LumonSceneChunkCoord.FromKey(key.Packed);
+                                var owner = new VectorInt3(coord.X, coord.Y, coord.Z);
+
+                                if (!chunkToSlot.TryGetValue(owner, out uint slot) || slot >= (uint)slotCount)
+                                {
+                                    continue;
+                                }
+
+                                int existing = slotRank[(int)slot];
+                                if (r < existing)
+                                {
+                                    slotRank[(int)slot] = r;
+                                }
+                            }
+
+                            // Stable bucket reorder into K+1 buckets (topK ranks + remainder).
+                            LumonScenePageRequestGpu[] reordered = ArrayPool<LumonScenePageRequestGpu>.Shared.Rent(toProcess);
+                            try
+                            {
+                                Span<int> counts = stackalloc int[33];
+                                counts.Clear();
+
+                                int bucketCount = Math.Min(32, topKeys.Length) + 1;
+                                int restBucket = bucketCount - 1;
+
+                                lastPrioritizeTopK = restBucket;
+
+                                for (int i = 0; i < toProcess; i++)
+                                {
+                                    uint slot = scratch[i].ChunkSlot;
+                                    int rank = (slot < (uint)slotCount) ? slotRank[(int)slot] : int.MaxValue;
+                                    int b = (rank >= 0 && rank < restBucket) ? rank : restBucket;
+                                    counts[b]++;
+                                }
+
+                                int prioritized = 0;
+                                for (int b = 0; b < restBucket; b++)
+                                {
+                                    prioritized += counts[b];
+                                }
+
+                                lastRequestsPrioritized = prioritized;
+
+                                Span<int> starts = stackalloc int[33];
+                                starts.Clear();
+                                int sum = 0;
+                                for (int b = 0; b < bucketCount; b++)
+                                {
+                                    starts[b] = sum;
+                                    sum += counts[b];
+                                }
+
+                                for (int i = 0; i < toProcess; i++)
+                                {
+                                    uint slot = scratch[i].ChunkSlot;
+                                    int rank = (slot < (uint)slotCount) ? slotRank[(int)slot] : int.MaxValue;
+                                    int b = (rank >= 0 && rank < restBucket) ? rank : restBucket;
+                                    int dst = starts[b]++;
+                                    reordered[dst] = scratch[i];
+                                }
+
+                                reordered.AsSpan(0, toProcess).CopyTo(scratch);
+                            }
+                            finally
+                            {
+                                ArrayPool<LumonScenePageRequestGpu>.Shared.Return(reordered, clearArray: false);
+                            }
+                        }
+                        finally
+                        {
+                            ArrayPool<int>.Shared.Return(slotRank, clearArray: false);
+                        }
+                    }
+                }
+                finally
+                {
+                    ArrayPool<WorldCellKey>.Shared.Return(topKeysArr, clearArray: false);
                 }
             }
 
@@ -1121,6 +1861,21 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                 }
             }
 
+            // Phase 9.1: allocate per-slot stats buffers for cooldown/backoff attribution.
+            int slotCountForStats = slotOwners.Length;
+            if (slotCountForStats > 0)
+            {
+                slotNewAllocsArr = ArrayPool<ushort>.Shared.Rent(slotCountForStats);
+                slotStarvedBudgetArr = ArrayPool<ushort>.Shared.Rent(slotCountForStats);
+                slotStarvedSlotBudgetArr = ArrayPool<ushort>.Shared.Rent(slotCountForStats);
+                slotAllocFailuresArr = ArrayPool<ushort>.Shared.Rent(slotCountForStats);
+
+                slotNewAllocs = slotNewAllocsArr.AsSpan(0, slotCountForStats);
+                slotStarvedBudget = slotStarvedBudgetArr.AsSpan(0, slotCountForStats);
+                slotStarvedSlotBudget = slotStarvedSlotBudgetArr.AsSpan(0, slotCountForStats);
+                slotAllocFailures = slotAllocFailuresArr.AsSpan(0, slotCountForStats);
+            }
+
             cpuProcessor!.Process(
                 requests: scratch.AsSpan(0, toProcess),
                 maxRequestsToProcess: maxRequestsToProcess,
@@ -1133,7 +1888,22 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                 relightWorkOut: relightScratch,
                 captureCount: out int captureCount,
                 relightCount: out int relightCount,
-                stats: out lastProcessStats);
+                stats: out lastProcessStats,
+                newAllocationsByChunkSlot: slotNewAllocs,
+                skippedGlobalBudgetByChunkSlot: slotStarvedBudget,
+                skippedChunkSlotBudgetByChunkSlot: slotStarvedSlotBudget,
+                allocationFailuresByChunkSlot: slotAllocFailures);
+
+            // Phase 9.1: cooldown/backoff based on allocation failures and budget starvation.
+            if (hasLastNearContexts && slotOwners.Length > 0)
+            {
+                ApplyNearCooldownFromSlotStats(
+                    nowTick: lastNearStateContext.NowTick,
+                    slotNewAllocs,
+                    slotStarvedBudget,
+                    slotStarvedSlotBudget,
+                    slotAllocFailures);
+            }
 
             lastCaptureCount = captureCount;
             lastRelightCount = relightCount;
@@ -1159,6 +1929,77 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             ArrayPool<LumonScenePageRequestGpu>.Shared.Return(scratch, clearArray: false);
             ArrayPool<LumonSceneCaptureWorkGpu>.Shared.Return(captureScratch, clearArray: false);
             ArrayPool<LumonSceneRelightWorkGpu>.Shared.Return(relightScratch, clearArray: false);
+
+            if (slotNewAllocsArr is not null) ArrayPool<ushort>.Shared.Return(slotNewAllocsArr, clearArray: true);
+            if (slotStarvedBudgetArr is not null) ArrayPool<ushort>.Shared.Return(slotStarvedBudgetArr, clearArray: true);
+            if (slotStarvedSlotBudgetArr is not null) ArrayPool<ushort>.Shared.Return(slotStarvedSlotBudgetArr, clearArray: true);
+            if (slotAllocFailuresArr is not null) ArrayPool<ushort>.Shared.Return(slotAllocFailuresArr, clearArray: true);
+        }
+    }
+
+    private void ApplyNearCooldownFromSlotStats(
+        long nowTick,
+        ReadOnlySpan<ushort> slotNewAllocs,
+        ReadOnlySpan<ushort> slotStarvedBudget,
+        ReadOnlySpan<ushort> slotStarvedSlotBudget,
+        ReadOnlySpan<ushort> slotAllocFailures)
+    {
+        int slotCount = slotOwners.Length;
+        if (slotCount <= 0)
+        {
+            return;
+        }
+
+        int n = Math.Min(slotCount, slotNewAllocs.Length);
+        n = Math.Min(n, slotStarvedBudget.Length);
+        n = Math.Min(n, slotStarvedSlotBudget.Length);
+        n = Math.Min(n, slotAllocFailures.Length);
+        if (n <= 0)
+        {
+            return;
+        }
+
+        for (int slot = 0; slot < n; slot++)
+        {
+            ushort newAllocs = slotNewAllocs[slot];
+            ushort starvedBudget = slotStarvedBudget[slot];
+            ushort starvedSlotBudget = slotStarvedSlotBudget[slot];
+            ushort allocFailures = slotAllocFailures[slot];
+
+            if ((newAllocs | starvedBudget | starvedSlotBudget | allocFailures) == 0)
+            {
+                continue;
+            }
+
+            VectorInt3 owner = slotOwners[slot];
+            var coord = new LumonSceneChunkCoord(owner.X, owner.Y, owner.Z);
+            WorldCellKey key = WorldCellKey.FromLumonSceneNear(coord.ToKey());
+
+            if (!nearRegionScheduler.TryGetCell(key, out LumonSceneRegionCell cell))
+            {
+                continue;
+            }
+
+            // Backoff precedence: allocation failure > per-slot budget > global budget > success reset.
+            if (allocFailures > 0)
+            {
+                cell.ApplyAllocationFailureBackoff(nowTick);
+            }
+            else if (starvedSlotBudget > 0)
+            {
+                cell.ApplyBudgetStarvationBackoff(nowTick, isPerSlotBudget: true);
+            }
+            else if (starvedBudget > 0)
+            {
+                cell.ApplyBudgetStarvationBackoff(nowTick, isPerSlotBudget: false);
+            }
+            else if (newAllocs > 0)
+            {
+                cell.NotifyAllocationSuccess(nowTick);
+            }
+
+            // Refresh queues after cooldown update.
+            cell.EnqueueStateAndWork(nearRegionScheduler, in lastNearPriorityContext);
         }
     }
 
@@ -1179,9 +2020,40 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
         ulong[] pages = ArrayPool<ulong>.Shared.Rent(count);
         int i = 0;
+
+        // Phase 9.1: route recapture through active cells only.
+        // This avoids spending recapture budget on Loaded-but-not-Active slots.
+        bool canFilter = hasLastNearContexts && slotOwners.Length > 0;
+
         foreach (ulong key in virtualToPhysical.Keys)
         {
-            pages[i++] = key;
+            if (!canFilter)
+            {
+                pages[i++] = key;
+                continue;
+            }
+
+            uint slot = LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(key);
+            if (slot >= (uint)slotOwners.Length)
+            {
+                continue;
+            }
+
+            VectorInt3 owner = slotOwners[slot];
+            var coord = new LumonSceneChunkCoord(owner.X, owner.Y, owner.Z);
+            WorldCellKey cellKey = WorldCellKey.FromLumonSceneNear(coord.ToKey());
+
+            if (nearRegionScheduler.TryGetCell(cellKey, out LumonSceneRegionCell cell)
+                && cell.DesiredState == WorldCellDesiredState.Active)
+            {
+                pages[i++] = key;
+            }
+        }
+
+        if (i <= 0)
+        {
+            ArrayPool<ulong>.Shared.Return(pages, clearArray: false);
+            return;
         }
 
         recaptureVirtualPageKeys = pages;
@@ -1391,10 +2263,15 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         }
 
         line =
-            $"LS: req:{lastRequestCount} read:{lastRequestsRead} dropG:{lastRequestsDroppedGpu} dropC:{lastRequestsDroppedCpuBudget} proc:{lastProcessStats.RequestsConsidered} " +
+            $"LS: req:{lastRequestCount} read:{lastRequestsRead} dropG:{lastRequestsDroppedGpu} dropC:{lastRequestsDroppedCpuBudget} dropI:{lastRequestsDroppedInactive} proc:{lastProcessStats.RequestsConsidered} " +
             $"exist:{lastProcessStats.RequestsAcceptedExisting} new:{lastProcessStats.RequestsAllocatedNew} ev:{lastProcessStats.AllocationEvictions} fail:{lastProcessStats.AllocationFailures} " +
             $"skipBud:{lastProcessStats.RequestsSkippedBudget} skipSlotCap:{lastProcessStats.RequestsSkippedChunkSlotBudget} genMis:{lastMarkRejectGenMismatch} slotOob:{lastMarkRejectChunkSlotOob} pid0:{lastMarkRejectPatchId0} " +
             $"uniq:{lastUniqueVirtualPages} top:{lastTopChunkSlot},{lastTopVirtualPage}:{lastTopVirtualPageCount}{topSlots} " +
+            $"prioK:{lastPrioritizeTopK} prioReq:{lastRequestsPrioritized} " +
+            $"cells:{lastRegionCells} dA:{lastRegionDesiredActive} dL:{lastRegionDesiredLoaded} dU:{lastRegionDesiredUnloaded} supp:{lastRegionSuppressed} " +
+            $"act:{lastRegionActive} load:{lastRegionLoaded} winL:{lastLoadedWindowSize} winA:{lastActiveWindowSize} " +
+            $"budReq:{lastBudgetMaxRequests} budNew:{lastBudgetMaxNewAllocs} budRel:{lastBudgetMaxRelightPages} " +
+            $"qT:{nearRegionScheduler.TransitionCount} qC:{nearRegionScheduler.CaptureCount} qR:{nearRegionScheduler.RelightCount} " +
             $"wOff:{lastWorldChunkCoordOffset.X},{lastWorldChunkCoordOffset.Y},{lastWorldChunkCoordOffset.Z} " +
             $"wRem:{lastWorldBlockOffsetRem.X:0.##},{lastWorldBlockOffsetRem.Y:0.##},{lastWorldBlockOffsetRem.Z:0.##} " +
             $"res:{residentPages}/{cap} ready:{ready} nc:{needsCap} nr:{needsRel} capQ:{lastCaptureCount} relQ:{lastRelightCount} " +

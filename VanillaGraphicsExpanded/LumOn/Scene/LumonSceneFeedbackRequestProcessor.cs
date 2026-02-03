@@ -60,6 +60,41 @@ internal sealed class LumonSceneFeedbackRequestProcessor
         out int captureCount,
         out int relightCount,
         out ProcessStats stats)
+        => Process(
+            requests,
+            maxRequestsToProcess,
+            maxNewAllocations,
+            maxPagesPerChunkSlot,
+            recaptureVirtualPageKeys,
+            ref recaptureCursor,
+            maxRecapture,
+            captureWorkOut,
+            relightWorkOut,
+            out captureCount,
+            out relightCount,
+            out stats,
+            newAllocationsByChunkSlot: Span<ushort>.Empty,
+            skippedGlobalBudgetByChunkSlot: Span<ushort>.Empty,
+            skippedChunkSlotBudgetByChunkSlot: Span<ushort>.Empty,
+            allocationFailuresByChunkSlot: Span<ushort>.Empty);
+
+    public void Process(
+        ReadOnlySpan<LumonScenePageRequestGpu> requests,
+        int maxRequestsToProcess,
+        int maxNewAllocations,
+        int maxPagesPerChunkSlot,
+        ReadOnlySpan<ulong> recaptureVirtualPageKeys,
+        ref int recaptureCursor,
+        int maxRecapture,
+        Span<LumonSceneCaptureWorkGpu> captureWorkOut,
+        Span<LumonSceneRelightWorkGpu> relightWorkOut,
+        out int captureCount,
+        out int relightCount,
+        out ProcessStats stats,
+        Span<ushort> newAllocationsByChunkSlot,
+        Span<ushort> skippedGlobalBudgetByChunkSlot,
+        Span<ushort> skippedChunkSlotBudgetByChunkSlot,
+        Span<ushort> allocationFailuresByChunkSlot)
     {
         captureCount = 0;
         relightCount = 0;
@@ -80,6 +115,19 @@ internal sealed class LumonSceneFeedbackRequestProcessor
 
         int chunkSlotCount = Math.Max(1, pageTableMirror.Length / LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk);
         maxPagesPerChunkSlot = Math.Max(1, maxPagesPerChunkSlot);
+
+        bool hasSlotStats = newAllocationsByChunkSlot.Length >= chunkSlotCount
+            && skippedGlobalBudgetByChunkSlot.Length >= chunkSlotCount
+            && skippedChunkSlotBudgetByChunkSlot.Length >= chunkSlotCount
+            && allocationFailuresByChunkSlot.Length >= chunkSlotCount;
+
+        if (hasSlotStats)
+        {
+            newAllocationsByChunkSlot.Slice(0, chunkSlotCount).Clear();
+            skippedGlobalBudgetByChunkSlot.Slice(0, chunkSlotCount).Clear();
+            skippedChunkSlotBudgetByChunkSlot.Slice(0, chunkSlotCount).Clear();
+            allocationFailuresByChunkSlot.Slice(0, chunkSlotCount).Clear();
+        }
 
         // Enforce a per-chunkSlot cap so one visible chunk cannot consume the entire pool budget.
         // This aligns runtime behavior with the config's "pages per chunk" budget.
@@ -129,23 +177,40 @@ internal sealed class LumonSceneFeedbackRequestProcessor
             if (pagesPerSlot[(int)chunkSlot] >= maxPagesPerChunkSlot)
             {
                 skippedChunkSlotBudget++;
+                if (hasSlotStats)
+                {
+                    IncrementClamped(skippedChunkSlotBudgetByChunkSlot, (int)chunkSlot);
+                }
                 continue;
             }
 
             if (newAllocs >= maxNewAllocations)
             {
                 skippedBudget++;
+                if (hasSlotStats)
+                {
+                    IncrementClamped(skippedGlobalBudgetByChunkSlot, (int)chunkSlot);
+                }
                 continue;
             }
 
             if (!TryAllocateOrEvictOne(out LumonScenePhysicalPage page, out bool didEvict))
             {
                 allocFailures++;
+                if (hasSlotStats)
+                {
+                    IncrementClamped(allocationFailuresByChunkSlot, (int)chunkSlot);
+                }
                 continue;
             }
 
             newAllocs++;
             if (didEvict) evictions++;
+
+            if (hasSlotStats)
+            {
+                IncrementClamped(newAllocationsByChunkSlot, (int)chunkSlot);
+            }
 
             uint physicalPageId = page.PhysicalPageId;
             virtualToPhysical[key] = physicalPageId;
@@ -238,6 +303,22 @@ internal sealed class LumonSceneFeedbackRequestProcessor
             AllocationFailures: allocFailures,
             RecaptureAttempted: recaptureAttempted,
             RecaptureSucceeded: recaptureSucceeded);
+    }
+
+    private static void IncrementClamped(Span<ushort> counts, int index)
+    {
+        if ((uint)index >= (uint)counts.Length)
+        {
+            return;
+        }
+
+        ushort v = counts[index];
+        if (v == ushort.MaxValue)
+        {
+            return;
+        }
+
+        counts[index] = (ushort)(v + 1);
     }
 
     private bool TryAllocateOrEvictOne(out LumonScenePhysicalPage page, out bool didEvict)

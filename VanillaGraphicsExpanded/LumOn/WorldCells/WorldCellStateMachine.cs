@@ -22,6 +22,48 @@ internal enum WorldCellTransitionAction : byte
 /// </summary>
 internal static class WorldCellStateMachine
 {
+    public static void NotifyTransitionSucceeded(IWorldCell cell)
+    {
+        if (cell is null) throw new ArgumentNullException(nameof(cell));
+
+        if (cell is WorldCell wc)
+        {
+            wc.CooldownStreak = 0;
+        }
+    }
+
+    public static void NotifyTransitionFailed(IWorldCell cell, long nowTick, long minCooldownTicks = 2, long maxCooldownTicks = 120)
+    {
+        if (cell is null) throw new ArgumentNullException(nameof(cell));
+
+        if (nowTick <= 0)
+        {
+            return;
+        }
+
+        if (cell is not WorldCell wc)
+        {
+            // Best-effort: without streak bookkeeping, apply a small bounded cooldown.
+            long cooldownTicks = Math.Clamp(minCooldownTicks, 0, maxCooldownTicks);
+            cell.NextEligibleTick = Math.Max(cell.NextEligibleTick, nowTick + cooldownTicks);
+            return;
+        }
+
+        if (nowTick - wc.LastAttemptTick > 1)
+        {
+            wc.CooldownStreak = 0;
+        }
+
+        wc.LastAttemptTick = nowTick;
+        wc.CooldownStreak = Math.Min(8, wc.CooldownStreak + 1);
+
+        // Exponential backoff: min*2^streak, clamped.
+        int shift = Math.Min(6, wc.CooldownStreak);
+        long cdExp = minCooldownTicks <= 0 ? 0 : checked(minCooldownTicks << shift);
+        long cooldownTicksExp = Math.Min(maxCooldownTicks, cdExp);
+        cell.NextEligibleTick = Math.Max(cell.NextEligibleTick, nowTick + cooldownTicksExp);
+    }
+
     public static bool TryGetNextAction(IWorldCell cell, in WorldCellStateTransitionContext context, out WorldCellTransitionAction action)
     {
         if (cell is null) throw new ArgumentNullException(nameof(cell));

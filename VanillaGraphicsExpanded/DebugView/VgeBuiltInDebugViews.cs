@@ -303,6 +303,27 @@ public static class VgeBuiltInDebugViews
                     style: EnumButtonStyle.Normal,
                     key: $"{keyPrefix}-tracescenedump");
 
+            composer
+                .AddSmallButton(
+                    text: "Dump LumonScene Scheduler",
+                    onClick: () =>
+                    {
+                        try
+                        {
+                            string dump = lumOn.GetLumonSceneSchedulerDumpSafe(topN: 64);
+                            capi.Logger.Debug("[VGE] {0}", dump);
+                        }
+                        catch
+                        {
+                            capi.Logger.Debug("[VGE] LS scheduler dump: (error)");
+                        }
+
+                        return true;
+                    },
+                    bounds: b5.FlatCopy().WithFixedOffset(0, 25),
+                    style: EnumButtonStyle.Normal,
+                    key: $"{keyPrefix}-lumonscenedump");
+
             _ = fontLabel;
         }
 

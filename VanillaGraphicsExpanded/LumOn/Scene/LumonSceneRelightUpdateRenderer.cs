@@ -41,6 +41,7 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
     private int lastOccResolution;
 
     private int frameIndex;
+    private string lastSelectionMode = string.Empty;
 
     public double RenderOrder => RenderOrderValue;
     public int RenderRange => RenderRangeValue;
@@ -114,7 +115,9 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
         int tilesPerAxis = nearPool.Plan.TilesPerAxis;
         int tilesPerAtlas = nearPool.Plan.TilesPerAtlas;
 
-        // Select pages to relight (prioritize MRU pages as a proxy for "visible/recently requested").
+        // Select pages to relight:
+        // - Prefer scheduler-driven selection from active cells with NeedsRelight backlog.
+        // - Fallback to MRU selection (legacy behavior) if scheduler work is unavailable.
         int wantIds = Math.Min(checked(maxPages * 4), nearPool.PagePool.CapacityPages);
         uint[] mruIds = ArrayPool<uint>.Shared.Rent(Math.Max(1, wantIds));
         LumonSceneRelightWorkGpu[] work = ArrayPool<LumonSceneRelightWorkGpu>.Shared.Rent(Math.Max(1, maxPages));
@@ -125,32 +128,69 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
 
         try
         {
-            mruWritten = nearPool.PagePool.CopyMostRecentlyUsed(mruIds.AsSpan(0, wantIds));
-            for (int i = 0; i < mruWritten && workCount < maxPages; i++)
+            bool usedScheduler = feedback.TryBuildNearRelightWorkFromScheduler(
+                maxPages: maxPages,
+                workOut: work.AsSpan(0, maxPages),
+                workVirtualKeysOut: workVirtualKeys.AsSpan(0, maxPages),
+                workCount: out workCount);
+
+            if (usedScheduler)
             {
-                uint physicalPageId = mruIds[i];
-                if (physicalPageId == 0u)
+                lastSelectionMode = "sched";
+            }
+
+            // Fallback: MRU selection.
+            if (!usedScheduler || workCount <= 0)
+            {
+                lastSelectionMode = "mru";
+                workCount = 0;
+
+                mruWritten = nearPool.PagePool.CopyMostRecentlyUsed(mruIds.AsSpan(0, wantIds));
+                for (int i = 0; i < mruWritten && workCount < maxPages; i++)
                 {
-                    continue;
+                    uint physicalPageId = mruIds[i];
+                    if (physicalPageId == 0u)
+                    {
+                        continue;
+                    }
+
+                    if (!physicalToVirtual.TryGetValue(physicalPageId, out ulong key))
+                    {
+                        continue;
+                    }
+
+                    uint chunkSlot = LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(key);
+                    int vpage = (int)LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(key);
+
+                    if ((uint)vpage >= (uint)LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk)
+                    {
+                        continue;
+                    }
+
+                    // Filter to NeedsRelight pages when using MRU, otherwise we waste budget.
+                    int mirrorIndex = checked((int)chunkSlot * LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk + vpage);
+                    if ((uint)mirrorIndex >= (uint)pageTableMirrorMip0.Length)
+                    {
+                        continue;
+                    }
+
+                    var entry = pageTableMirrorMip0[mirrorIndex];
+                    var flags = LumonScenePageTableEntryPacking.UnpackFlags(entry);
+                    if ((flags & LumonScenePageTableEntryPacking.Flags.NeedsRelight) == 0)
+                    {
+                        continue;
+                    }
+
+                    if ((flags & LumonScenePageTableEntryPacking.Flags.NeedsCapture) != 0)
+                    {
+                        continue;
+                    }
+
+                    // v1: patchId is placeholder; use virtualPageIndex as a stable seed.
+                    uint patchId = (uint)vpage;
+                    work[workCount++] = new LumonSceneRelightWorkGpu(physicalPageId, chunkSlot: chunkSlot, patchId, virtualPageIndex: (uint)vpage);
+                    workVirtualKeys[workCount - 1] = key;
                 }
-
-                if (!physicalToVirtual.TryGetValue(physicalPageId, out ulong key))
-                {
-                    continue;
-                }
-
-                uint chunkSlot = LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(key);
-                int vpage = (int)LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(key);
-
-                if ((uint)vpage >= (uint)LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk)
-                {
-                    continue;
-                }
-
-                // v1: patchId is placeholder; use virtualPageIndex as a stable seed.
-                uint patchId = (uint)vpage;
-                work[workCount++] = new LumonSceneRelightWorkGpu(physicalPageId, chunkSlot: chunkSlot, patchId, virtualPageIndex: (uint)vpage);
-                workVirtualKeys[workCount - 1] = key;
             }
 
             if (workCount <= 0)
@@ -325,7 +365,7 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
         }
 
         line =
-            $"LSR: pages:{lastWorkCount} clr:{lastClearedNeedsRelightOk}/{lastWorkCount} fail:{lastClearedNeedsRelightFail} " +
+            $"LSR: mode:{lastSelectionMode} pages:{lastWorkCount} clr:{lastClearedNeedsRelightOk}/{lastWorkCount} fail:{lastClearedNeedsRelightFail} " +
             $"rays:{lastDbgRays} hit:{lastDbgHits} miss:{lastDbgMisses} oob0:{lastDbgOobStarts} " +
             $"occ0:({lastOccOriginMinCell0.X},{lastOccOriginMinCell0.Y},{lastOccOriginMinCell0.Z}) r:({lastOccRing0.X},{lastOccRing0.Y},{lastOccRing0.Z}) res:{lastOccResolution}";
         return true;
