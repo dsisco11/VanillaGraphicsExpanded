@@ -46,12 +46,8 @@ internal static class LumonScenePhysicalPoolPlanner
         int atlasCount = Math.Min(atlasCountNeeded, maxAtlasCount);
 
         int capacityPages = checked(atlasCount * tilesPerAtlas);
-        if (!clamped && capacityPages > requestedPages)
-        {
-            // We only provision the requested number of pages in the pool, even if the last atlas has spare tiles.
-            // This keeps the pool aligned with the “only allocate enough pages” requirement.
-            capacityPages = requestedPages;
-        }
+        // Provision all tiles for the allocated atlas textures. Residency is expected to persist while a world-cell is loaded,
+        // so we avoid an artificial "requestedPages" cap that would otherwise force eviction/thrash despite spare tiles.
 
         return new LumonScenePhysicalPoolPlan(
             field: field,

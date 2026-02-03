@@ -88,27 +88,6 @@ internal sealed class LumonSceneChunkResidencyManager
             return true;
         }
 
-        // Try to evict and retry once.
-        if (!desired.TryEvictOne(out uint evictedId, out bool hasOwner, out LumonSceneChunkCoord evictedOwner))
-        {
-            page = default;
-            return false;
-        }
-
-        if (hasOwner)
-        {
-            desired.Release(evictedOwner, evictedId, LumonScenePageReleaseReason.Evicted, PageReleased);
-        }
-        else
-        {
-            desired.FreeUntracked(evictedId);
-        }
-
-        if (desired.TryEnsureOnePage(chunk, out physicalPageId, out page))
-        {
-            return true;
-        }
-
         page = default;
         return false;
     }
