@@ -35,6 +35,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     private readonly ICoreClientAPI capi;
     private readonly VgeConfig config;
     private readonly GBufferManager gBufferManager;
+    private LumonSceneOccupancyClipmapUpdateRenderer? occupancyClipmap;
 
     private readonly LumonScenePhysicalPoolManager physicalPools = new();
     private readonly LumonSceneFieldGpuResources nearGpu = new(LumonSceneField.Near);
@@ -145,6 +146,11 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         }
 
         return true;
+    }
+
+    internal void SetOccupancyClipmapUpdateRenderer(LumonSceneOccupancyClipmapUpdateRenderer? occupancy)
+    {
+        occupancyClipmap = occupancy;
     }
 
     internal bool TryBuildNearRelightWorkFromScheduler(
@@ -2132,10 +2138,35 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                 layer: 0,
                 formatOverride: SizedInternalFormat.Rgba8);
 
+            // TraceScene sampling inputs (optional; capture will write zeros if missing).
+            int occResolution = 0;
+            VectorInt3 occOriginMinCell0 = default;
+            VectorInt3 occRing0 = default;
+
+            var occRes = occupancyClipmap?.Resources;
+            if (occRes is not null
+                && occRes.OccupancyLevels.Length > 0
+                && occupancyClipmap!.TryGetLevel0RuntimeParams(out occOriginMinCell0, out occRing0, out occResolution)
+                && occResolution > 0)
+            {
+                _ = captureVoxelPipeline.ProgramLayout.TryBindSamplerTexture("vge_occL0", TextureTarget.Texture3D, occRes.OccupancyLevels[0].TextureId);
+                _ = captureVoxelPipeline.ProgramLayout.TryBindSamplerTexture("vge_materialPalette", TextureTarget.Texture2D, occRes.MaterialPalette.TextureId);
+            }
+            else
+            {
+                occResolution = 0;
+                occOriginMinCell0 = default;
+                occRing0 = default;
+            }
+
             _ = captureVoxelPipeline.TrySetUniform1("vge_tileSizeTexels", (uint)tileSize);
             _ = captureVoxelPipeline.TrySetUniform1("vge_tilesPerAxis", (uint)tilesPerAxis);
             _ = captureVoxelPipeline.TrySetUniform1("vge_tilesPerAtlas", (uint)tilesPerAtlas);
             _ = captureVoxelPipeline.TrySetUniform1("vge_borderTexels", 0u);
+
+            _ = captureVoxelPipeline.TrySetUniform3("vge_occOriginMinCell0", occOriginMinCell0.X, occOriginMinCell0.Y, occOriginMinCell0.Z);
+            _ = captureVoxelPipeline.TrySetUniform3("vge_occRing0", occRing0.X, occRing0.Y, occRing0.Z);
+            _ = captureVoxelPipeline.TrySetUniform1("vge_occResolution", occResolution);
 
             int gx = (tileSize + 7) / 8;
             int gy = (tileSize + 7) / 8;

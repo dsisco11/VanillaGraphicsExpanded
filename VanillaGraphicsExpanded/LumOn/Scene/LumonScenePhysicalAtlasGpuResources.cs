@@ -36,7 +36,7 @@ internal sealed class LumonScenePhysicalAtlasGpuResources : IDisposable
 
         // v1 formats (subject to change):
         // - Depth: R16F displacement (or 0 for planar)
-        // - Material: RGBA8 placeholder (later: pack normal + material ids)
+        // - Material: RGBA8 (v1: baseColor rgb, roughness a)
         // - Irradiance: RGBA16F (RGB=irradiance, A=weight/age)
         string prefix = field == LumonSceneField.Near ? "LumonScene_Near" : "LumonScene_Far";
 

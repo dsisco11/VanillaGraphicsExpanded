@@ -23,15 +23,18 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
     private readonly ICoreClientAPI capi;
     private readonly LumonSceneTraceSceneChunkVersionProvider versionProvider;
     private readonly LumonSceneTraceSceneLightIdRegistry lightIds;
+    private readonly LumonSceneTraceSceneMaterialPaletteRegistry materialPalette;
 
     public LumonSceneTraceSceneChunkSnapshotSource(
         ICoreClientAPI capi,
         LumonSceneTraceSceneChunkVersionProvider versionProvider,
-        LumonSceneTraceSceneLightIdRegistry lightIds)
+        LumonSceneTraceSceneLightIdRegistry lightIds,
+        LumonSceneTraceSceneMaterialPaletteRegistry materialPalette)
     {
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
         this.versionProvider = versionProvider ?? throw new ArgumentNullException(nameof(versionProvider));
         this.lightIds = lightIds ?? throw new ArgumentNullException(nameof(lightIds));
+        this.materialPalette = materialPalette ?? throw new ArgumentNullException(nameof(materialPalette));
     }
 
     public ValueTask<IChunkSnapshot?> TryCreateSnapshotAsync(ChunkKey key, int expectedVersion, CancellationToken ct)
@@ -149,6 +152,10 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
 
                     // Rent + fill snapshot buffer (source-cell path).
                     LumonSceneTraceSceneSourceCell[] buf = ArrayPool<LumonSceneTraceSceneSourceCell>.Shared.Rent(len);
+                    bool[] seenMpi = ArrayPool<bool>.Shared.Rent(LumonSceneOccupancyClipmapGpuResources.MaxMaterialPaletteEntries);
+                    int[] usedMpi = ArrayPool<int>.Shared.Rent(256);
+                    int usedMpiCount = 0;
+                    var palettePos = new BlockPos(0);
 
                     try
                     {
@@ -224,6 +231,23 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
                                 materialPaletteIndex = 1;
                             }
 
+                            // Ensure palette entry exists for this material id (dedupe within this snapshot).
+                            if (!seenMpi[materialPaletteIndex])
+                            {
+                                seenMpi[materialPaletteIndex] = true;
+
+                                if (usedMpiCount == usedMpi.Length)
+                                {
+                                    int[] grown = ArrayPool<int>.Shared.Rent(usedMpi.Length * 2);
+                                    Array.Copy(usedMpi, grown, usedMpiCount);
+                                    ArrayPool<int>.Shared.Return(usedMpi, clearArray: false);
+                                    usedMpi = grown;
+                                }
+
+                                usedMpi[usedMpiCount++] = materialPaletteIndex;
+                                materialPalette.EnsureEntryForBlockId(capi, blockId, materialPaletteIndex, palettePos);
+                            }
+
                             buf[i] = new LumonSceneTraceSceneSourceCell(
                                 isSolid: 1,
                                 blockLevel: (byte)Math.Clamp(blockLevel, 0, 32),
@@ -262,6 +286,25 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
                     }
                     finally
                     {
+                        if (usedMpi is not null)
+                        {
+                            for (int i = 0; i < usedMpiCount; i++)
+                            {
+                                int idx = usedMpi[i];
+                                if ((uint)idx < (uint)seenMpi.Length)
+                                {
+                                    seenMpi[idx] = false;
+                                }
+                            }
+
+                            ArrayPool<int>.Shared.Return(usedMpi, clearArray: false);
+                        }
+
+                        if (seenMpi is not null)
+                        {
+                            ArrayPool<bool>.Shared.Return(seenMpi, clearArray: false);
+                        }
+
                         if (buf is not null)
                         {
                             ArrayPool<LumonSceneTraceSceneSourceCell>.Shared.Return(buf);

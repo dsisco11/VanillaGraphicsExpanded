@@ -152,9 +152,18 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new[] { 16, 16, 16, 0 });
 
         // Occupancy volume + LUTs (simple deterministic radiance).
-        uint occPacked = LumonSceneOccupancyPacking.PackClamped(blockLevel: 32, sunLevel: 0, lightId: 1, materialPaletteIndex: 0);
+        // Note: materialPaletteIndex must be non-zero for DDA to register hits (solidness is encoded via matIdx != 0).
+        uint occPacked = LumonSceneOccupancyPacking.PackClamped(blockLevel: 32, sunLevel: 0, lightId: 1, materialPaletteIndex: 1);
         using var occ = Texture3D.Create(occRes, occRes, occRes, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, TextureTarget.Texture3D, "Test_OccL0");
         FillR32ui3D(occ.TextureId, occRes, occRes, occRes, occPacked);
+
+        using var materialPalette = Texture2D.Create(width: 64, height: 1, format: PixelInternalFormat.Rgba32ui, filter: TextureFilterMode.Nearest, debugName: "Test_MaterialPalette");
+        uint[] pal = new uint[64 * 4];
+        pal[1 * 4 + 0] = 10u;
+        pal[1 * 4 + 1] = 20u;
+        pal[1 * 4 + 2] = 30u;
+        pal[1 * 4 + 3] = 255u;
+        materialPalette.UploadDataImmediate(pal);
 
         using var lightColorLut = Texture2D.Create(64, 1, PixelInternalFormat.Rgba16f, debugName: "Test_LightColorLut");
         using var blockScalar = Texture2D.Create(33, 1, PixelInternalFormat.R16f, debugName: "Test_BlockScalar");
@@ -201,12 +210,17 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
             captureSsbo.BindBase(bindingIndex: 0);
             patchMetaSsbo.BindBase(bindingIndex: 1);
             slotInfoSsbo.BindBase(bindingIndex: 2);
+            BindSampler(TextureTarget.Texture3D, unit: 2, occ.TextureId);
+            BindSampler(TextureTarget.Texture2D, unit: 3, materialPalette.TextureId);
             GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
             GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
             SetUniform(captureProgram, "vge_tileSizeTexels", (uint)tileSize);
             SetUniform(captureProgram, "vge_tilesPerAxis", (uint)tilesPerAxis);
             SetUniform(captureProgram, "vge_tilesPerAtlas", (uint)tilesPerAtlas);
             _ = TrySetUniform(captureProgram, "vge_borderTexels", 0u);
+            SetUniform3i(captureProgram, "vge_occOriginMinCell0", 0, 0, 0);
+            SetUniform3i(captureProgram, "vge_occRing0", 0, 0, 0);
+            SetUniform(captureProgram, "vge_occResolution", occRes);
             GL.DispatchCompute((tileSize + 7) / 8, (tileSize + 7) / 8, captureCount);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.ShaderStorageBarrierBit);
 

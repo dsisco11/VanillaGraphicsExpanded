@@ -3,12 +3,20 @@
 // Phase 22.7: Voxel patch capture v1 (fast)
 // For each CaptureWork item, fills the corresponding physical tile in:
 // - DepthAtlas (r16f): planar depth = 0
-// - MaterialAtlas (rgba8): placeholder normal (axis) + placeholder material
+// - MaterialAtlas (rgba8): v1 stores base color (from TraceScene material palette) + roughness (A)
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 layout(binding = 0, r16f) writeonly uniform image2DArray vge_depthAtlas;
 layout(binding = 1, rgba8) writeonly uniform image2DArray vge_materialAtlas;
+
+// TraceScene sampling inputs (L0 only in v1).
+layout(binding = 2) uniform usampler3D vge_occL0;
+layout(binding = 3) uniform usampler2D vge_materialPalette; // RGBA32UI (x/y/z=color 0..255, w=roughness 0..255)
+
+uniform ivec3 vge_occOriginMinCell0;
+uniform ivec3 vge_occRing0;
+uniform int vge_occResolution;
 
 layout(std430, binding = 0) buffer VgeCaptureWork
 {
@@ -50,6 +58,8 @@ uniform uint vge_tileSizeTexels;
 uniform uint vge_tilesPerAxis;
 uniform uint vge_tilesPerAtlas;
 uniform uint vge_borderTexels; // v1 default 0
+
+@import "./includes/lumonscene_trace_scene_occupancy.glsl"
 
 vec3 NormalFromPatchId(uint patchId)
 {
@@ -197,10 +207,56 @@ void main()
     // Depth: planar.
     imageStore(vge_depthAtlas, texel, vec4(0.0));
 
-    // Material: placeholder axis normal in RGB, constant alpha.
-    vec3 n = NormalFromPatchId(patchId);
-    vec3 n01 = n * 0.5 + 0.5;
-    imageStore(vge_materialAtlas, texel, vec4(n01, 1.0));
+    // Material: base color from TraceScene material palette, roughness in A.
+    vec4 outMat = vec4(0.0);
+    if (vge_occResolution > 0)
+    {
+        ivec4 og = vge_chunkOriginBlocksAndGeneration[chunkSlot];
+        ivec3 chunkOrigin = og.xyz;
+
+        uint axisId, planeIndex, patchU, patchV;
+        vec3 originWS, axisUWS, axisVWS, normalWS;
+
+        if (!DecodeVoxelPatchId(patchId, axisId, planeIndex, patchU, patchV))
+        {
+            originWS = vec3(chunkOrigin);
+            axisUWS = vec3(0.0);
+            axisVWS = vec3(0.0);
+            normalWS = vec3(0.0, 1.0, 0.0);
+        }
+        else
+        {
+            ComputeVoxelPatchBasisAndOrigin(chunkOrigin, axisId, planeIndex, patchU, patchV, originWS, axisUWS, axisVWS, normalWS);
+        }
+
+        const uint PatchSizeVoxels = 4u;
+        uint faceTexels = max(1u, vge_tileSizeTexels / PatchSizeVoxels);
+
+        uint cellU = min(PatchSizeVoxels - 1u, inTile.x / faceTexels);
+        uint cellV = min(PatchSizeVoxels - 1u, inTile.y / faceTexels);
+
+        uint inU = inTile.x - cellU * faceTexels;
+        uint inV = inTile.y - cellV * faceTexels;
+
+        float fu = (float(inU) + 0.5) / float(faceTexels);
+        float fv = (float(inV) + 0.5) / float(faceTexels);
+
+        vec3 stepU = axisUWS * (1.0 / float(PatchSizeVoxels));
+        vec3 stepV = axisVWS * (1.0 / float(PatchSizeVoxels));
+
+        vec3 surfacePos = originWS + stepU * (float(cellU) + fu) + stepV * (float(cellV) + fv);
+        ivec3 sampleCell = ivec3(floor(surfacePos - normalWS * 0.01));
+
+        uint payloadPacked = VgeSampleOccL0(vge_occL0, sampleCell, vge_occOriginMinCell0, vge_occRing0, vge_occResolution);
+        uint matIndex = (payloadPacked >> 18u) & 16383u;
+        if (matIndex != 0u)
+        {
+            uvec4 m = texelFetch(vge_materialPalette, ivec2(int(matIndex), 0), 0);
+            outMat = vec4(vec3(m.xyz) * (1.0 / 255.0), float(m.w) * (1.0 / 255.0));
+        }
+    }
+
+    imageStore(vge_materialAtlas, texel, outMat);
 
     // Write patch metadata once per work item (avoid per-texel SSBO traffic).
     if (inTile.x == 0u && inTile.y == 0u)

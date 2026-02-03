@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Numerics;
 using System.Runtime.InteropServices;
 
 using OpenTK.Graphics.OpenGL;
@@ -21,7 +20,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
     public LumonSceneVoxelCaptureComputeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     [Fact]
-    public void CaptureVoxel_SingleWorkItem_WritesDepthZero_AndExpectedNormal()
+    public void CaptureVoxel_SingleWorkItem_WritesDepthZero_AndExpectedMaterial()
     {
         EnsureContextValid();
 
@@ -36,8 +35,25 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         using var depthAtlas = Texture3D.Create(tileSize, tileSize, atlasCount, PixelInternalFormat.R16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_DepthAtlas");
         using var materialAtlas = Texture3D.Create(tileSize, tileSize, atlasCount, PixelInternalFormat.Rgba8, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_MaterialAtlas");
 
+        const int occRes = 32;
+        using var occL0 = Texture3D.Create(occRes, occRes, occRes, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, TextureTarget.Texture3D, "Test_OccL0");
+        using var materialPalette = Texture2D.Create(width: 64, height: 1, format: PixelInternalFormat.Rgba32ui, filter: TextureFilterMode.Nearest, debugName: "Test_MaterialPalette");
+
         ClearR16f2DArray(depthAtlas.TextureId, tileSize, tileSize, atlasCount, value: 1f);
         ClearRgba8_2DArray(materialAtlas.TextureId, tileSize, tileSize, atlasCount, r: 0, g: 0, b: 0, a: 0);
+
+        // Fill occupancy with a constant material id (5) and palette entry (5) with a known color.
+        uint occPacked = LumonSceneOccupancyPacking.Pack(blockLevel: 0, sunLevel: 0, lightId: 0, materialPaletteIndex: 5);
+        uint[] occ = new uint[occRes * occRes * occRes];
+        Array.Fill(occ, occPacked);
+        occL0.UploadDataImmediate(occ, x: 0, y: 0, z: 0, regionWidth: occRes, regionHeight: occRes, regionDepth: occRes, mipLevel: 0);
+
+        uint[] pal = new uint[64 * 4];
+        pal[5 * 4 + 0] = 10u;
+        pal[5 * 4 + 1] = 20u;
+        pal[5 * 4 + 2] = 30u;
+        pal[5 * 4 + 3] = 255u;
+        materialPalette.UploadDataImmediate(pal);
 
         // physicalPageId=1 maps to tile (0,0) in atlas layer 0.
         Span<LumonSceneCaptureWorkGpu> work = stackalloc LumonSceneCaptureWorkGpu[1];
@@ -55,10 +71,16 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
         GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
 
+        BindSampler3D(unit: 2, occL0.TextureId);
+        BindSampler2D(unit: 3, materialPalette.TextureId);
+
         SetUniform(program, "vge_tileSizeTexels", (uint)tileSize);
         SetUniform(program, "vge_tilesPerAxis", (uint)tilesPerAxis);
         SetUniform(program, "vge_tilesPerAtlas", (uint)tilesPerAtlas);
         _ = TrySetUniform(program, "vge_borderTexels", 0u);
+        SetUniform3i(program, "vge_occOriginMinCell0", 0, 0, 0);
+        SetUniform3i(program, "vge_occRing0", 0, 0, 0);
+        SetUniform1i(program, "vge_occResolution", occRes);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
@@ -71,9 +93,11 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         Assert.InRange(max, -0.02f, 0.02f);
 
         byte[] material = ReadTexImageRgba8_2DArray(materialAtlas.TextureId, tileSize, tileSize, atlasCount);
-        (Vector3 n, byte a) = ReadNormalAndAlphaAt(material, tileSize, tileSize, layer: 0, x: tileSize / 2, y: tileSize / 2);
+        (byte r, byte g, byte b, byte a) = ReadRgbaAt(material, tileSize, tileSize, layer: 0, x: tileSize / 2, y: tileSize / 2);
+        Assert.Equal((byte)10, r);
+        Assert.Equal((byte)20, g);
+        Assert.Equal((byte)30, b);
         Assert.Equal((byte)255, a);
-        Assert.True(Vector3.Dot(n, Vector3.UnitX) > 0.99f, $"Captured normal dot expected too low: {Vector3.Dot(n, Vector3.UnitX)}");
 
         GL.DeleteProgram(program);
     }
@@ -169,9 +193,24 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
 
         using var depthAtlas = Texture3D.Create(w, h, atlasCount, PixelInternalFormat.R16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_DepthAtlas");
         using var materialAtlas = Texture3D.Create(w, h, atlasCount, PixelInternalFormat.Rgba8, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_MaterialAtlas");
+        const int occRes = 32;
+        using var occL0 = Texture3D.Create(occRes, occRes, occRes, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, TextureTarget.Texture3D, "Test_OccL0");
+        using var materialPalette = Texture2D.Create(width: 64, height: 1, format: PixelInternalFormat.Rgba32ui, filter: TextureFilterMode.Nearest, debugName: "Test_MaterialPalette");
 
         ClearR16f2DArray(depthAtlas.TextureId, w, h, atlasCount, value: 1f);
         ClearRgba8_2DArray(materialAtlas.TextureId, w, h, atlasCount, r: 0, g: 0, b: 0, a: 0);
+
+        uint occPacked = LumonSceneOccupancyPacking.Pack(blockLevel: 0, sunLevel: 0, lightId: 0, materialPaletteIndex: 5);
+        uint[] occ = new uint[occRes * occRes * occRes];
+        Array.Fill(occ, occPacked);
+        occL0.UploadDataImmediate(occ, x: 0, y: 0, z: 0, regionWidth: occRes, regionHeight: occRes, regionDepth: occRes, mipLevel: 0);
+
+        uint[] pal = new uint[64 * 4];
+        pal[5 * 4 + 0] = 10u;
+        pal[5 * 4 + 1] = 20u;
+        pal[5 * 4 + 2] = 30u;
+        pal[5 * 4 + 3] = 255u;
+        materialPalette.UploadDataImmediate(pal);
 
         // Work:
         // - pid=1 -> pageIndex=0 -> atlas0 tile(0,0)
@@ -193,10 +232,16 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
         GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
 
+        BindSampler3D(unit: 2, occL0.TextureId);
+        BindSampler2D(unit: 3, materialPalette.TextureId);
+
         SetUniform(program, "vge_tileSizeTexels", (uint)tileSize);
         SetUniform(program, "vge_tilesPerAxis", (uint)tilesPerAxis);
         SetUniform(program, "vge_tilesPerAtlas", (uint)tilesPerAtlas);
         _ = TrySetUniform(program, "vge_borderTexels", 0u);
+        SetUniform3i(program, "vge_occOriginMinCell0", 0, 0, 0);
+        SetUniform3i(program, "vge_occRing0", 0, 0, 0);
+        SetUniform1i(program, "vge_occResolution", occRes);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
@@ -209,20 +254,17 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         // atlas1 tile(0,0): center at (tileSize/2, tileSize/2) in layer 1
         byte[] material = ReadTexImageRgba8_2DArray(materialAtlas.TextureId, w, h, atlasCount);
 
-        (Vector3 n00, byte a00) = ReadNormalAndAlphaAt(material, w, h, layer: 0, x: tileSize / 2, y: tileSize / 2);
+        (byte _, byte _, byte _, byte a00) = ReadRgbaAt(material, w, h, layer: 0, x: tileSize / 2, y: tileSize / 2);
         Assert.Equal((byte)255, a00);
-        Assert.True(Vector3.Dot(n00, Vector3.UnitX) > 0.99f);
 
-        (Vector3 n11, byte a11) = ReadNormalAndAlphaAt(material, w, h, layer: 0, x: tileSize + tileSize / 2, y: tileSize + tileSize / 2);
+        (byte _, byte _, byte _, byte a11) = ReadRgbaAt(material, w, h, layer: 0, x: tileSize + tileSize / 2, y: tileSize + tileSize / 2);
         Assert.Equal((byte)255, a11);
-        Assert.True(Vector3.Dot(n11, -Vector3.UnitX) > 0.99f);
 
-        (Vector3 nLayer1, byte aLayer1) = ReadNormalAndAlphaAt(material, w, h, layer: 1, x: tileSize / 2, y: tileSize / 2);
+        (byte _, byte _, byte _, byte aLayer1) = ReadRgbaAt(material, w, h, layer: 1, x: tileSize / 2, y: tileSize / 2);
         Assert.Equal((byte)255, aLayer1);
-        Assert.True(Vector3.Dot(nLayer1, Vector3.UnitY) > 0.99f);
 
         // Unwritten tile atlas0 tile(1,0) center should remain alpha=0 and depth=1.
-        (Vector3 _, byte aUnwritten) = ReadNormalAndAlphaAt(material, w, h, layer: 0, x: tileSize + tileSize / 2, y: tileSize / 2);
+        (byte _, byte _, byte _, byte aUnwritten) = ReadRgbaAt(material, w, h, layer: 0, x: tileSize + tileSize / 2, y: tileSize / 2);
         Assert.Equal((byte)0, aUnwritten);
 
         float[] depth = ReadTexImageR32f_2DArray(depthAtlas.TextureId, w, h, atlasCount);
@@ -244,9 +286,24 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
 
         using var depthAtlas = Texture3D.Create(tileSize, tileSize, depth: 1, PixelInternalFormat.R16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_DepthAtlas");
         using var materialAtlas = Texture3D.Create(tileSize, tileSize, depth: 1, PixelInternalFormat.Rgba8, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_MaterialAtlas");
+        const int occRes = 32;
+        using var occL0 = Texture3D.Create(occRes, occRes, occRes, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, TextureTarget.Texture3D, "Test_OccL0");
+        using var materialPalette = Texture2D.Create(width: 64, height: 1, format: PixelInternalFormat.Rgba32ui, filter: TextureFilterMode.Nearest, debugName: "Test_MaterialPalette");
 
         ClearR16f2DArray(depthAtlas.TextureId, tileSize, tileSize, depth: 1, value: 1f);
         ClearRgba8_2DArray(materialAtlas.TextureId, tileSize, tileSize, depth: 1, r: 0, g: 0, b: 0, a: 0);
+
+        uint occPacked = LumonSceneOccupancyPacking.Pack(blockLevel: 0, sunLevel: 0, lightId: 0, materialPaletteIndex: 5);
+        uint[] occ = new uint[occRes * occRes * occRes];
+        Array.Fill(occ, occPacked);
+        occL0.UploadDataImmediate(occ, x: 0, y: 0, z: 0, regionWidth: occRes, regionHeight: occRes, regionDepth: occRes, mipLevel: 0);
+
+        uint[] pal = new uint[64 * 4];
+        pal[5 * 4 + 0] = 10u;
+        pal[5 * 4 + 1] = 20u;
+        pal[5 * 4 + 2] = 30u;
+        pal[5 * 4 + 3] = 255u;
+        materialPalette.UploadDataImmediate(pal);
 
         Span<LumonSceneCaptureWorkGpu> work = stackalloc LumonSceneCaptureWorkGpu[1];
         work[0] = new LumonSceneCaptureWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: 6u, virtualPageIndex: 0u); // -Z
@@ -262,10 +319,16 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
         GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
 
+        BindSampler3D(unit: 2, occL0.TextureId);
+        BindSampler2D(unit: 3, materialPalette.TextureId);
+
         SetUniform(program, "vge_tileSizeTexels", (uint)tileSize);
         SetUniform(program, "vge_tilesPerAxis", 1u);
         SetUniform(program, "vge_tilesPerAtlas", 1u);
         _ = TrySetUniform(program, "vge_borderTexels", 2u);
+        SetUniform3i(program, "vge_occOriginMinCell0", 0, 0, 0);
+        SetUniform3i(program, "vge_occRing0", 0, 0, 0);
+        SetUniform1i(program, "vge_occResolution", occRes);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
@@ -273,9 +336,11 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         byte[] material = ReadTexImageRgba8_2DArray(materialAtlas.TextureId, tileSize, tileSize, depth: 1);
-        (Vector3 n, byte a) = ReadNormalAndAlphaAt(material, tileSize, tileSize, layer: 0, x: tileSize / 2, y: tileSize / 2);
+        (byte r, byte g, byte b, byte a) = ReadRgbaAt(material, tileSize, tileSize, layer: 0, x: tileSize / 2, y: tileSize / 2);
+        Assert.Equal((byte)10, r);
+        Assert.Equal((byte)20, g);
+        Assert.Equal((byte)30, b);
         Assert.Equal((byte)255, a);
-        Assert.True(Vector3.Dot(n, -Vector3.UnitZ) > 0.99f);
 
         GL.DeleteProgram(program);
     }
@@ -314,6 +379,20 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         int loc = GL.GetUniformLocation(program, name);
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform1(loc, value);
+    }
+
+    private static void SetUniform1i(int program, string name, int value)
+    {
+        int loc = GL.GetUniformLocation(program, name);
+        Assert.True(loc >= 0, $"Missing uniform {name}");
+        GL.Uniform1(loc, value);
+    }
+
+    private static void SetUniform3i(int program, string name, int x, int y, int z)
+    {
+        int loc = GL.GetUniformLocation(program, name);
+        Assert.True(loc >= 0, $"Missing uniform {name}");
+        GL.Uniform3(loc, x, y, z);
     }
 
     private static bool TrySetUniform(int program, string name, uint value)
@@ -385,7 +464,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
     private static int LinearIndex(int width, int height, int layer, int x, int y)
         => ((layer * height + y) * width) + x;
 
-    private static (Vector3 Normal, byte Alpha) ReadNormalAndAlphaAt(byte[] rgba, int width, int height, int layer, int x, int y)
+    private static (byte R, byte G, byte B, byte A) ReadRgbaAt(byte[] rgba, int width, int height, int layer, int x, int y)
     {
         int idx = ((layer * height + y) * width + x) * 4;
         byte r = rgba[idx + 0];
@@ -393,9 +472,21 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         byte b = rgba[idx + 2];
         byte a = rgba[idx + 3];
 
-        Vector3 n01 = new(r / 255f, g / 255f, b / 255f);
-        Vector3 n = Vector3.Normalize(n01 * 2f - Vector3.One);
-        return (n, a);
+        return (r, g, b, a);
+    }
+
+    private static void BindSampler3D(int unit, int textureId)
+    {
+        GL.ActiveTexture(TextureUnit.Texture0 + unit);
+        GL.BindTexture(TextureTarget.Texture3D, textureId);
+        GL.ActiveTexture(TextureUnit.Texture0);
+    }
+
+    private static void BindSampler2D(int unit, int textureId)
+    {
+        GL.ActiveTexture(TextureUnit.Texture0 + unit);
+        GL.BindTexture(TextureTarget.Texture2D, textureId);
+        GL.ActiveTexture(TextureUnit.Texture0);
     }
 
     private static (float Min, float Max) MinMax(ReadOnlySpan<float> v)

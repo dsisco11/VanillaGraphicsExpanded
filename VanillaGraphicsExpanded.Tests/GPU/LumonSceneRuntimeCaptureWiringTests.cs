@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Numerics;
 using System.Runtime.InteropServices;
 
 using OpenTK.Graphics.OpenGL;
@@ -149,9 +148,24 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
 
         using var depthAtlas = Texture3D.Create(atlasW, atlasH, atlasCount, PixelInternalFormat.R16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_DepthAtlas");
         using var materialAtlas = Texture3D.Create(atlasW, atlasH, atlasCount, PixelInternalFormat.Rgba8, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_MaterialAtlas");
+        const int occRes = 32;
+        using var occL0 = Texture3D.Create(occRes, occRes, occRes, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, TextureTarget.Texture3D, "Test_OccL0");
+        using var materialPalette = Texture2D.Create(width: 64, height: 1, format: PixelInternalFormat.Rgba32ui, filter: TextureFilterMode.Nearest, debugName: "Test_MaterialPalette");
 
         ClearR16f2DArray(depthAtlas.TextureId, atlasW, atlasH, atlasCount, value: 1f);
         ClearRgba8_2DArray(materialAtlas.TextureId, atlasW, atlasH, atlasCount, r: 0, g: 0, b: 0, a: 0);
+
+        uint occPacked = LumonSceneOccupancyPacking.Pack(blockLevel: 0, sunLevel: 0, lightId: 0, materialPaletteIndex: 1);
+        uint[] occ = new uint[occRes * occRes * occRes];
+        Array.Fill(occ, occPacked);
+        occL0.UploadDataImmediate(occ, x: 0, y: 0, z: 0, regionWidth: occRes, regionHeight: occRes, regionDepth: occRes, mipLevel: 0);
+
+        uint[] pal = new uint[64 * 4];
+        pal[1 * 4 + 0] = 10u;
+        pal[1 * 4 + 1] = 20u;
+        pal[1 * 4 + 2] = 30u;
+        pal[1 * 4 + 3] = 255u;
+        materialPalette.UploadDataImmediate(pal);
 
         using var captureWorkSsbo = CreateSsbo<LumonSceneCaptureWorkGpu>("Test_CaptureWorkSSBO", captureOut.AsSpan(0, captureCount));
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[desiredPages + 1]);
@@ -164,34 +178,37 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
         GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
 
+        BindSampler3D(unit: 2, occL0.TextureId);
+        BindSampler2D(unit: 3, materialPalette.TextureId);
+
         SetUniform(captureProgram, "vge_tileSizeTexels", (uint)tileSize);
         SetUniform(captureProgram, "vge_tilesPerAxis", (uint)tilesPerAxis);
         SetUniform(captureProgram, "vge_tilesPerAtlas", (uint)tilesPerAtlas);
         _ = TrySetUniform(captureProgram, "vge_borderTexels", 0u);
+        SetUniform3i(captureProgram, "vge_occOriginMinCell0", 0, 0, 0);
+        SetUniform3i(captureProgram, "vge_occRing0", 0, 0, 0);
+        SetUniform1i(captureProgram, "vge_occResolution", occRes);
 
         int gxCap = (tileSize + 7) / 8;
         int gyCap = (tileSize + 7) / 8;
         GL.DispatchCompute(gxCap, gyCap, captureCount);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
-        // Validate: each captured tile center has alpha=255 and the expected normal for its patchId.
+        // Validate: each captured tile center matches the bound material palette entry.
         byte[] mat = ReadTexImageRgba8_2DArray(materialAtlas.TextureId, atlasW, atlasH, atlasCount);
 
         for (int i = 0; i < captureCount; i++)
         {
             uint physicalPageId = captureOut[i].PhysicalPageId;
-            uint patchId = captureOut[i].PatchId;
-
             pool.PagePool.DecodePhysicalId(physicalPageId, out ushort atlasIdx, out ushort tileX, out ushort tileY);
             int cx = tileX * tileSize + tileSize / 2;
             int cy = tileY * tileSize + tileSize / 2;
 
-            (Vector3 n, byte a) = ReadNormalAndAlphaAt(mat, atlasW, atlasH, layer: atlasIdx, x: cx, y: cy);
+            (byte r, byte g, byte b, byte a) = ReadRgbaAt(mat, atlasW, atlasH, layer: atlasIdx, x: cx, y: cy);
+            Assert.Equal((byte)10, r);
+            Assert.Equal((byte)20, g);
+            Assert.Equal((byte)30, b);
             Assert.Equal((byte)255, a);
-
-            Vector3 expected = ExpectedNormalFromPatchId(patchId);
-            float dot = Vector3.Dot(Vector3.Normalize(n), expected);
-            Assert.True(dot > 0.99f, $"Expected normal {expected} for patchId={patchId}, got {n} (dot={dot}).");
         }
 
         GL.DeleteProgram(markProgram);
@@ -372,27 +389,37 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         return data;
     }
 
-    private static (Vector3 Normal, byte A) ReadNormalAndAlphaAt(byte[] rgba, int width, int height, int layer, int x, int y)
+    private static (byte R, byte G, byte B, byte A) ReadRgbaAt(byte[] rgba, int width, int height, int layer, int x, int y)
     {
         int idx = (((layer * height) + y) * width + x) * 4;
-        float nx = (rgba[idx + 0] / 255f) * 2f - 1f;
-        float ny = (rgba[idx + 1] / 255f) * 2f - 1f;
-        float nz = (rgba[idx + 2] / 255f) * 2f - 1f;
-        return (new Vector3(nx, ny, nz), rgba[idx + 3]);
+        return (rgba[idx + 0], rgba[idx + 1], rgba[idx + 2], rgba[idx + 3]);
     }
 
-    private static Vector3 ExpectedNormalFromPatchId(uint patchId)
+    private static void SetUniform1i(int program, string name, int value)
     {
-        if (patchId == 0u) return Vector3.UnitZ;
-        uint f = (patchId - 1u) % 6u;
-        return f switch
-        {
-            0u => Vector3.UnitX,
-            1u => -Vector3.UnitX,
-            2u => Vector3.UnitY,
-            3u => -Vector3.UnitY,
-            4u => Vector3.UnitZ,
-            _ => -Vector3.UnitZ,
-        };
+        int loc = GL.GetUniformLocation(program, name);
+        Assert.True(loc >= 0, $"Missing uniform {name}");
+        GL.Uniform1(loc, value);
+    }
+
+    private static void SetUniform3i(int program, string name, int x, int y, int z)
+    {
+        int loc = GL.GetUniformLocation(program, name);
+        Assert.True(loc >= 0, $"Missing uniform {name}");
+        GL.Uniform3(loc, x, y, z);
+    }
+
+    private static void BindSampler3D(int unit, int textureId)
+    {
+        GL.ActiveTexture(TextureUnit.Texture0 + unit);
+        GL.BindTexture(TextureTarget.Texture3D, textureId);
+        GL.ActiveTexture(TextureUnit.Texture0);
+    }
+
+    private static void BindSampler2D(int unit, int textureId)
+    {
+        GL.ActiveTexture(TextureUnit.Texture0 + unit);
+        GL.BindTexture(TextureTarget.Texture2D, textureId);
+        GL.ActiveTexture(TextureUnit.Texture0);
     }
 }

@@ -21,6 +21,7 @@ public sealed class LumonSceneTraceSceneChunkSnapshotSourceTests
     {
         var versionProvider = new LumonSceneTraceSceneChunkVersionProvider();
         var lightIds = new LumonSceneTraceSceneLightIdRegistry();
+        var materialPalette = new LumonSceneTraceSceneMaterialPaletteRegistry();
 
         int[] blocks = new int[LumonSceneTraceSceneRegionUploadGpuResources.RegionCellCount];
         blocks[0] = 1;
@@ -45,7 +46,7 @@ public sealed class LumonSceneTraceSceneChunkSnapshotSourceTests
 
         ICoreClientAPI capi = FunctionalCoreClientApiProxy.Create(events: events, world: world);
 
-        var src = new LumonSceneTraceSceneChunkSnapshotSource(capi, versionProvider, lightIds);
+        var src = new LumonSceneTraceSceneChunkSnapshotSource(capi, versionProvider, lightIds, materialPalette);
 
         ChunkKey key = ChunkKey.FromChunkCoords(0, 0, 0);
         int version = versionProvider.GetCurrentVersion(key);
@@ -71,6 +72,7 @@ public sealed class LumonSceneTraceSceneChunkSnapshotSourceTests
     {
         var versionProvider = new LumonSceneTraceSceneChunkVersionProvider();
         var lightIds = new LumonSceneTraceSceneLightIdRegistry();
+        var materialPalette = new LumonSceneTraceSceneMaterialPaletteRegistry();
 
         int[] blocks = new int[LumonSceneTraceSceneRegionUploadGpuResources.RegionCellCount];
         blocks[0] = 1;
@@ -93,7 +95,7 @@ public sealed class LumonSceneTraceSceneChunkSnapshotSourceTests
         var events = FunctionalClientEventApiProxy.Create(runMainThreadTaskInline: true);
         ICoreClientAPI capi = FunctionalCoreClientApiProxy.Create(events: events, world: world);
 
-        var src = new LumonSceneTraceSceneChunkSnapshotSource(capi, versionProvider, lightIds);
+        var src = new LumonSceneTraceSceneChunkSnapshotSource(capi, versionProvider, lightIds, materialPalette);
 
         ChunkKey key = ChunkKey.FromChunkCoords(0, 0, 0);
         int version = versionProvider.GetCurrentVersion(key);
@@ -110,6 +112,7 @@ public sealed class LumonSceneTraceSceneChunkSnapshotSourceTests
     {
         var versionProvider = new LumonSceneTraceSceneChunkVersionProvider();
         var lightIds = new LumonSceneTraceSceneLightIdRegistry();
+        var materialPalette = new LumonSceneTraceSceneMaterialPaletteRegistry();
 
         int[] blocks = new int[LumonSceneTraceSceneRegionUploadGpuResources.RegionCellCount];
         blocks[0] = 1;
@@ -138,7 +141,7 @@ public sealed class LumonSceneTraceSceneChunkSnapshotSourceTests
         var events = FunctionalClientEventApiProxy.Create(runMainThreadTaskInline: true);
         ICoreClientAPI capi = FunctionalCoreClientApiProxy.Create(events: events, world: world);
 
-        var src = new LumonSceneTraceSceneChunkSnapshotSource(capi, versionProvider, lightIds);
+        var src = new LumonSceneTraceSceneChunkSnapshotSource(capi, versionProvider, lightIds, materialPalette);
 
         ChunkKey key = ChunkKey.FromChunkCoords(0, 0, 0);
         int version = versionProvider.GetCurrentVersion(key);

@@ -49,6 +49,7 @@ public sealed class LumonTraceSceneRuntimeWiringEndToEndTests : RenderTestBase
 
         var versionProvider = new LumonSceneTraceSceneChunkVersionProvider();
         var lightIds = new LumonSceneTraceSceneLightIdRegistry();
+        var materialPalette = new LumonSceneTraceSceneMaterialPaletteRegistry();
 
         var blockAccessor = FunctionalBlockAccessorProxy.Create(
             getChunk: (_, _, _) => chunk,
@@ -62,7 +63,7 @@ public sealed class LumonTraceSceneRuntimeWiringEndToEndTests : RenderTestBase
 
         ICoreClientAPI capi = FunctionalCoreClientApiProxy.Create(events: events, world: world);
 
-        var snapshotSource = new LumonSceneTraceSceneChunkSnapshotSource(capi, versionProvider, lightIds);
+        var snapshotSource = new LumonSceneTraceSceneChunkSnapshotSource(capi, versionProvider, lightIds, materialPalette);
         using var chunkProcessing = new ChunkProcessingService(
             snapshotSource: snapshotSource,
             versionProvider: versionProvider,

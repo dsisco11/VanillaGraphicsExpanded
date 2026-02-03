@@ -291,7 +291,7 @@ vec4 renderLumonSceneMaterialDebug()
         return vec4(0.0, 0.0, 0.0, 1.0);
     }
 
-    // v1: material atlas contents are RGBA8 placeholder (currently normals are written into RGB).
+    // v1: material atlas contents are RGBA8 (baseColor rgb, roughness a).
     return vec4(clamp(mat.rgb, 0.0, 1.0), 1.0);
 }
 

@@ -96,9 +96,24 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         // GPU atlas outputs (we only validate material alpha coverage).
         using var depthAtlas = Texture3D.Create(atlasW, atlasH, atlasCount, PixelInternalFormat.R16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_DepthAtlas");
         using var materialAtlas = Texture3D.Create(atlasW, atlasH, atlasCount, PixelInternalFormat.Rgba8, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_MaterialAtlas");
+        const int occRes = 32;
+        using var occL0 = Texture3D.Create(occRes, occRes, occRes, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, TextureTarget.Texture3D, "Test_OccL0");
+        using var materialPalette = Texture2D.Create(width: 64, height: 1, format: PixelInternalFormat.Rgba32ui, filter: TextureFilterMode.Nearest, debugName: "Test_MaterialPalette");
 
         FillR16f2DArray(depthAtlas.TextureId, atlasW, atlasH, atlasCount, value: 0f);
         FillRgba8_2DArray(materialAtlas.TextureId, atlasW, atlasH, atlasCount, r: 0, g: 0, b: 0, a: 0);
+
+        uint occPacked = LumonSceneOccupancyPacking.Pack(blockLevel: 0, sunLevel: 0, lightId: 0, materialPaletteIndex: 1);
+        uint[] occ = new uint[occRes * occRes * occRes];
+        Array.Fill(occ, occPacked);
+        occL0.UploadDataImmediate(occ, x: 0, y: 0, z: 0, regionWidth: occRes, regionHeight: occRes, regionDepth: occRes, mipLevel: 0);
+
+        uint[] pal = new uint[64 * 4];
+        pal[1 * 4 + 0] = 10u;
+        pal[1 * 4 + 1] = 20u;
+        pal[1 * 4 + 2] = 30u;
+        pal[1 * 4 + 3] = 255u;
+        materialPalette.UploadDataImmediate(pal);
 
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[desiredPages + 1]);
         using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new int[4]);
@@ -165,10 +180,16 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
             GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
             GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
 
+            BindSampler3D(unit: 2, occL0.TextureId);
+            BindSampler2D(unit: 3, materialPalette.TextureId);
+
             SetUniform1ui(captureProgram, "vge_tileSizeTexels", (uint)tileSize);
             SetUniform1ui(captureProgram, "vge_tilesPerAxis", (uint)tilesPerAxis);
             SetUniform1ui(captureProgram, "vge_tilesPerAtlas", (uint)tilesPerAtlas);
             SetUniform1ui(captureProgram, "vge_borderTexels", 0u);
+            SetUniform3i(captureProgram, "vge_occOriginMinCell0", 0, 0, 0);
+            SetUniform3i(captureProgram, "vge_occRing0", 0, 0, 0);
+            SetUniform1i(captureProgram, "vge_occResolution", occRes);
 
             int gx = (tileSize + 7) / 8;
             int gy = (tileSize + 7) / 8;
@@ -330,6 +351,34 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         int loc = GL.GetUniformLocation(program, name);
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform1(loc, value);
+    }
+
+    private static void SetUniform1i(int program, string name, int value)
+    {
+        int loc = GL.GetUniformLocation(program, name);
+        Assert.True(loc >= 0, $"Missing uniform {name}");
+        GL.Uniform1(loc, value);
+    }
+
+    private static void SetUniform3i(int program, string name, int x, int y, int z)
+    {
+        int loc = GL.GetUniformLocation(program, name);
+        Assert.True(loc >= 0, $"Missing uniform {name}");
+        GL.Uniform3(loc, x, y, z);
+    }
+
+    private static void BindSampler3D(int unit, int textureId)
+    {
+        GL.ActiveTexture(TextureUnit.Texture0 + unit);
+        GL.BindTexture(TextureTarget.Texture3D, textureId);
+        GL.ActiveTexture(TextureUnit.Texture0);
+    }
+
+    private static void BindSampler2D(int unit, int textureId)
+    {
+        GL.ActiveTexture(TextureUnit.Texture0 + unit);
+        GL.BindTexture(TextureTarget.Texture2D, textureId);
+        GL.ActiveTexture(TextureUnit.Texture0);
     }
 
     private static GpuAtomicCounterBuffer CreateAtomicCounterBuffer(int counterCount)

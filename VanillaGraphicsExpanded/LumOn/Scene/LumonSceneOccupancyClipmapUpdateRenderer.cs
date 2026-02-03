@@ -38,6 +38,8 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
     private readonly LumonSceneTraceSceneLightIdRegistry lightIds = new();
     private readonly float[] lightLutUpload = new float[LumonSceneOccupancyClipmapGpuResources.MaxLightColors * 4];
+    private readonly LumonSceneTraceSceneMaterialPaletteRegistry materialPalette = new();
+    private readonly uint[] materialPaletteUpload = new uint[LumonSceneOccupancyClipmapGpuResources.MaxMaterialPaletteEntries * 4];
 
     private LevelState[] levelStates = Array.Empty<LevelState>();
 
@@ -264,6 +266,11 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         {
             resources.LightColorLut.UploadDataImmediate(lightLutUpload);
         }
+
+        if (materialPalette.TryCopyAndClearDirtyPalette(materialPaletteUpload))
+        {
+            resources.MaterialPalette.UploadDataImmediate(materialPaletteUpload);
+        }
     }
 
     public void Dispose()
@@ -302,6 +309,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         levelStates = Array.Empty<LevelState>();
 
         lightIds.Reset();
+        materialPalette.Reset();
 
         regionScheduler.Reset();
         inFlightByRegion.Clear();
@@ -368,6 +376,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
         // Reset trace-scene state (new resources => stale GPU contents).
         lightIds.Reset();
+        materialPalette.Reset();
 
         regionScheduler.Reset();
         inFlightByRegion.Clear();
@@ -377,7 +386,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         chunkProcessing?.Dispose();
         chunkProcessing = null;
         chunkVersions = new LumonSceneTraceSceneChunkVersionProvider();
-        snapshotSource = new LumonSceneTraceSceneChunkSnapshotSource(capi, chunkVersions, lightIds);
+        snapshotSource = new LumonSceneTraceSceneChunkSnapshotSource(capi, chunkVersions, lightIds, materialPalette);
         chunkProcessing = new ChunkProcessingService(snapshotSource, chunkVersions);
 
         gpuDispatcher ??= new LumonSceneTraceSceneClipmapGpuBuildDispatcher(capi);

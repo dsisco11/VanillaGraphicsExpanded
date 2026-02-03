@@ -53,7 +53,7 @@ uniform sampler2D worldProbeDebugState0;
 // Phase 22: LumonScene surface cache debug inputs (Near field v1).
 uniform int vge_lumonSceneEnabled;                 // 0/1 gate
 uniform usampler2DArray vge_lumonScenePageTableMip0;   // R32UI packed entry
-uniform sampler2DArray vge_lumonSceneMaterialAtlas;    // RGBA8 (v1 placeholder)
+uniform sampler2DArray vge_lumonSceneMaterialAtlas;    // RGBA8 (v1: baseColor rgb, roughness a)
 uniform sampler2DArray vge_lumonSceneIrradianceAtlas;  // RGBA16F (rgb irradiance, a weight)
 uniform int vge_lumonSceneTileSizeTexels;
 uniform int vge_lumonSceneTilesPerAxis;
