@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
@@ -49,6 +50,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
     private readonly TraceSceneRegionScheduler regionScheduler = new();
     private readonly Dictionary<ulong, InFlightRegion> inFlightByRegion = new();
+    private readonly ConcurrentQueue<InFlightCompletion> completedRegions = new();
 
     private VectorInt3 currentWindowRegionMin;
     private VectorInt3 currentWindowRegionMax;
@@ -135,6 +137,16 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
     }
 
     private readonly record struct InFlightRegion(int Version, Task<ChunkWorkResult<LumonSceneTraceSceneRegionArtifact>> Task);
+
+    private readonly record struct InFlightCompletion(
+        ulong RegionKeyPacked,
+        int RequestedVersion,
+        Task<ChunkWorkResult<LumonSceneTraceSceneRegionArtifact>> Task);
+
+    private readonly record struct CompletionEnqueueState(
+        ConcurrentQueue<InFlightCompletion> Queue,
+        ulong RegionKeyPacked,
+        int RequestedVersion);
 
     public LumonSceneOccupancyClipmapUpdateRenderer(ICoreClientAPI capi, VgeConfig config)
     {
@@ -225,7 +237,10 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
             HasWindow: false,
             NowTick: traceSceneNowMs);
 
-        RefreshScheduler(in priorityContext, budget: Math.Max(64, traceCfg.ClipmapMaxInFlightRegions * 8));
+        RefreshScheduler(
+            in priorityContext,
+            refreshBudgetMs: traceCfg.ClipmapRefreshBudgetMs,
+            maxCells: Math.Max(256, traceCfg.ClipmapMaxInFlightRegions * 4));
 
         // Start async region extraction jobs under budget.
         IssueRegionRequests(
@@ -290,6 +305,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
         regionScheduler.Reset();
         inFlightByRegion.Clear();
+        ClearCompletedRegionsQueue();
         hasWindowRegionBounds = false;
         traceSceneNowMs = 0;
 
@@ -355,6 +371,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
         regionScheduler.Reset();
         inFlightByRegion.Clear();
+        ClearCompletedRegionsQueue();
         hasWindowRegionBounds = false;
 
         chunkProcessing?.Dispose();
@@ -389,8 +406,16 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
         regionScheduler.Reset();
         inFlightByRegion.Clear();
+        ClearCompletedRegionsQueue();
         hasWindowRegionBounds = false;
         traceSceneNowMs = 0;
+    }
+
+    private void ClearCompletedRegionsQueue()
+    {
+        while (completedRegions.TryDequeue(out _))
+        {
+        }
     }
 
     private bool UpdateAnchor(LevelState ls, int camX, int camY, int camZ)
@@ -533,8 +558,38 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
     }
 
 
-    private void RefreshScheduler(in WorldCellPriorityContext context, int budget)
-        => _ = regionScheduler.RefreshPriorities(in context, budget);
+    private void RefreshScheduler(in WorldCellPriorityContext context, float refreshBudgetMs, int maxCells)
+    {
+        if (refreshBudgetMs <= 0f || maxCells <= 0)
+        {
+            return;
+        }
+
+        long start = Stopwatch.GetTimestamp();
+        long budgetTicks = (long)(refreshBudgetMs * 0.001f * Stopwatch.Frequency);
+        if (budgetTicks <= 0)
+        {
+            return;
+        }
+
+        int refreshed = 0;
+        while (refreshed < maxCells)
+        {
+            if (Stopwatch.GetTimestamp() - start > budgetTicks)
+            {
+                break;
+            }
+
+            int step = Math.Min(128, maxCells - refreshed);
+            int did = regionScheduler.RefreshPriorities(in context, step);
+            refreshed += did;
+
+            if (did < step)
+            {
+                break;
+            }
+        }
+    }
 
     private void IssueRegionRequests(float issueBudgetMs, int maxInFlightRegions)
     {
@@ -587,6 +642,25 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                 chunkProcessing.RequestAsync(key, version, regionProcessor, options);
 
             inFlightByRegion[key.Packed] = new InFlightRegion(version, task);
+
+            if (task.IsCompleted)
+            {
+                completedRegions.Enqueue(new InFlightCompletion(key.Packed, version, task));
+            }
+            else
+            {
+                _ = task.ContinueWith(
+                    static (t, stateObj) =>
+                    {
+                        var state = (CompletionEnqueueState)stateObj!;
+                        state.Queue.Enqueue(new InFlightCompletion(state.RegionKeyPacked, state.RequestedVersion, t));
+                    },
+                    state: new CompletionEnqueueState(completedRegions, key.Packed, version),
+                    cancellationToken: CancellationToken.None,
+                    continuationOptions: TaskContinuationOptions.ExecuteSynchronously,
+                    scheduler: TaskScheduler.Default);
+            }
+
             LumonSceneTraceSceneMetrics.OnRegionRequestsIssued(1);
             issued++;
         }
@@ -649,83 +723,75 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                 int[] versions = ArrayPool<int>.Shared.Rent(batchCap);
 
                 int count = 0;
-                int completedRemoved = 0;
+                int completedHandled = 0;
 
                 try
                 {
-                    ulong[] keys = ArrayPool<ulong>.Shared.Rent(inFlightByRegion.Count);
-                    int keyCount = 0;
-                    try
+                    int attempts = 0;
+                    while (count < batchCap && completedRegions.TryDequeue(out InFlightCompletion completion))
                     {
-                        foreach (var kvp in inFlightByRegion)
+                        // Avoid spending unbounded time on stale completions (e.g. window-trimmed or superseded).
+                        if (++attempts > batchCap * 8)
                         {
-                            keys[keyCount++] = kvp.Key;
+                            break;
                         }
 
-                        for (int i = 0; i < keyCount && count < batchCap; i++)
+                        if (!inFlightByRegion.TryGetValue(completion.RegionKeyPacked, out InFlightRegion inflight))
                         {
-                            ulong rk = keys[i];
-                            if (!inFlightByRegion.TryGetValue(rk, out InFlightRegion inflight))
+                            continue;
+                        }
+
+                        if (!ReferenceEquals(inflight.Task, completion.Task))
+                        {
+                            continue;
+                        }
+
+                        inFlightByRegion.Remove(completion.RegionKeyPacked);
+                        completedHandled++;
+
+                        ChunkKey ck = new ChunkKey(completion.RegionKeyPacked);
+                        ck.Decode(out int rx, out int ry, out int rz);
+                        var rc = new VectorInt3(rx, ry, rz);
+
+                        try
+                        {
+                            ChunkWorkResult<LumonSceneTraceSceneRegionArtifact> res = inflight.Task.GetAwaiter().GetResult();
+                            if (TryGetDispatchPayload(res, out ReadOnlyMemory<uint> payload))
                             {
-                                continue;
+                                regionCoords[count] = rc;
+                                regionKeys[count] = completion.RegionKeyPacked;
+                                versions[count] = res.RequestedVersion;
+                                payloads[count] = payload;
+                                count++;
                             }
-
-                            if (!inflight.Task.IsCompleted)
-                            {
-                                continue;
-                            }
-
-                            inFlightByRegion.Remove(rk);
-                            completedRemoved++;
-
-                            ChunkKey ck = new ChunkKey(rk);
-                            ck.Decode(out int rx, out int ry, out int rz);
-                            var rc = new VectorInt3(rx, ry, rz);
-
-                            try
-                            {
-                                ChunkWorkResult<LumonSceneTraceSceneRegionArtifact> res = inflight.Task.GetAwaiter().GetResult();
-                                if (TryGetDispatchPayload(res, out ReadOnlyMemory<uint> payload))
-                                {
-                                    regionCoords[count] = rc;
-                                    regionKeys[count] = rk;
-                                    versions[count] = res.RequestedVersion;
-                                    payloads[count] = payload;
-                                    count++;
-                                }
-                                else
-                                {
-                                    regionScheduler.OnRequestCompleted(
-                                        ck,
-                                        status: res.Status,
-                                        requestedVersion: res.RequestedVersion,
-                                        nowTick: traceSceneNowMs,
-                                        error: res.Error);
-                                    LumonSceneTraceSceneMetrics.OnRegionCompleted(res.Status);
-                                }
-                            }
-                            catch
+                            else
                             {
                                 regionScheduler.OnRequestCompleted(
                                     ck,
-                                    status: ChunkWorkStatus.Failed,
-                                    requestedVersion: inflight.Version,
+                                    status: res.Status,
+                                    requestedVersion: res.RequestedVersion,
                                     nowTick: traceSceneNowMs,
-                                    error: ChunkWorkError.Unknown);
-                                LumonSceneTraceSceneMetrics.OnRegionCompleted(ChunkWorkStatus.Failed);
+                                    error: res.Error);
+                                LumonSceneTraceSceneMetrics.OnRegionCompleted(res.Status);
                             }
                         }
-                    }
-                    finally
-                    {
-                        ArrayPool<ulong>.Shared.Return(keys, clearArray: false);
+                        catch
+                        {
+                            regionScheduler.OnRequestCompleted(
+                                ck,
+                                status: ChunkWorkStatus.Failed,
+                                requestedVersion: inflight.Version,
+                                nowTick: traceSceneNowMs,
+                                error: ChunkWorkError.Unknown);
+                            LumonSceneTraceSceneMetrics.OnRegionCompleted(ChunkWorkStatus.Failed);
+                        }
                     }
 
                     if (count <= 0)
                     {
                         // If we consumed some completed work but none produced payloads, keep looping to drain more.
                         // Otherwise, nothing dispatchable this frame.
-                        if (completedRemoved <= 0)
+                        if (completedHandled <= 0)
                         {
                             return;
                         }

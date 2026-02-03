@@ -766,6 +766,15 @@ public class VgeConfig
                 public int ClipmapSlicesPerFrame { get; set; } = 8;
 
                 /// <summary>
+                /// CPU time budget (ms) per frame for refreshing the TraceScene region scheduler priorities and seeding
+                /// the current window (Phase 23).
+                /// This controls how much time we spend doing CPU-only scheduling work (priority updates and window seeding).
+                /// Set to 0 to pause priority refresh (queue order will become stale; not recommended).
+                /// </summary>
+                [JsonProperty]
+                public float ClipmapRefreshBudgetMs { get; set; } = 0.25f;
+
+                /// <summary>
                 /// CPU time budget (ms) per frame for issuing new 32^3 region extraction requests (Phase 23).
                 /// This controls how much time we spend draining the pending region queue into the async job system.
                 /// Set to 0 to pause issuing new region requests.
@@ -807,6 +816,7 @@ public class VgeConfig
                     ClipmapResolution = SanitizeTraceSceneClipmapResolution(ClipmapResolution);
                     ClipmapLevels = Math.Clamp(ClipmapLevels, 1, 8);
                     ClipmapSlicesPerFrame = Math.Clamp(ClipmapSlicesPerFrame, 0, 512);
+                    ClipmapRefreshBudgetMs = Math.Clamp(ClipmapRefreshBudgetMs, 0.0f, 50.0f);
                     ClipmapIssueBudgetMs = Math.Clamp(ClipmapIssueBudgetMs, 0.0f, 50.0f);
                     ClipmapMaxInFlightRegions = Math.Clamp(ClipmapMaxInFlightRegions, 0, 65_536);
                     ClipmapDispatchBudgetMs = Math.Clamp(ClipmapDispatchBudgetMs, 0.0f, 50.0f);
