@@ -32,19 +32,22 @@ internal sealed class LumonSceneFeedbackRequestProcessor
     private readonly Dictionary<ulong, uint> virtualToPhysical;
     private readonly Dictionary<uint, ulong> physicalToVirtual;
     private readonly ILumonScenePageTableWriter pageTableWriter;
+    private readonly LumonScenePageTableStatsTracker pageTableStats;
 
     public LumonSceneFeedbackRequestProcessor(
         LumonScenePhysicalFieldPool pool,
         LumonScenePageTableEntry[] pageTableMirror,
         Dictionary<ulong, uint> virtualToPhysical,
         Dictionary<uint, ulong> physicalToVirtual,
-        ILumonScenePageTableWriter pageTableWriter)
+        ILumonScenePageTableWriter pageTableWriter,
+        LumonScenePageTableStatsTracker pageTableStats)
     {
         this.pool = pool ?? throw new ArgumentNullException(nameof(pool));
         this.pageTableMirror = pageTableMirror ?? throw new ArgumentNullException(nameof(pageTableMirror));
         this.virtualToPhysical = virtualToPhysical ?? throw new ArgumentNullException(nameof(virtualToPhysical));
         this.physicalToVirtual = physicalToVirtual ?? throw new ArgumentNullException(nameof(physicalToVirtual));
         this.pageTableWriter = pageTableWriter ?? throw new ArgumentNullException(nameof(pageTableWriter));
+        this.pageTableStats = pageTableStats ?? throw new ArgumentNullException(nameof(pageTableStats));
     }
 
     public void Process(
@@ -223,7 +226,9 @@ internal sealed class LumonSceneFeedbackRequestProcessor
                     | LumonScenePageTableEntryPacking.Flags.NeedsCapture
                     | LumonScenePageTableEntryPacking.Flags.NeedsRelight);
 
+            LumonScenePageTableEntry oldEntry = pageTableMirror[mirrorIndex];
             pageTableMirror[mirrorIndex] = entry;
+            pageTableStats.ApplyEntryChange(chunkSlot, in oldEntry, in entry);
             pageTableWriter.WriteMip0(chunkSlot: (int)chunkSlot, virtualPageIndex: vpage, entry.Packed);
 
             if (captureCount < captureWorkOut.Length)
@@ -275,7 +280,9 @@ internal sealed class LumonSceneFeedbackRequestProcessor
                 var flags = LumonScenePageTableEntryPacking.UnpackFlags(existingEntry);
                 flags |= LumonScenePageTableEntryPacking.Flags.NeedsCapture | LumonScenePageTableEntryPacking.Flags.NeedsRelight;
                 LumonScenePageTableEntry updated = LumonScenePageTableEntryPacking.Pack(pid, flags);
+                LumonScenePageTableEntry oldEntry = existingEntry;
                 pageTableMirror[mirrorIndex] = updated;
+                pageTableStats.ApplyEntryChange(chunkSlot, in oldEntry, in updated);
                 pageTableWriter.WriteMip0(chunkSlot: (int)chunkSlot, virtualPageIndex: vpage, updated.Packed);
                 recaptureSucceeded++;
 

@@ -90,7 +90,9 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
         var pageTableMirror = new LumonScenePageTableEntry[chunkSlotCount * LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
         var virtualToPhysical = new Dictionary<ulong, uint>(capacity: totalPages);
         var physicalToVirtual = new Dictionary<uint, ulong>(capacity: totalPages);
-        var cpuProc = new LumonSceneFeedbackRequestProcessor(pool, pageTableMirror, virtualToPhysical, physicalToVirtual, new NoopPageTableWriter());
+        var pageTableStats = new LumonScenePageTableStatsTracker();
+        pageTableStats.Reset(newChunkSlotCount: chunkSlotCount);
+        var cpuProc = new LumonSceneFeedbackRequestProcessor(pool, pageTableMirror, virtualToPhysical, physicalToVirtual, new NoopPageTableWriter(), pageTableStats);
 
         // GPU atlas outputs.
         using var depthAtlas = Texture3D.Create(atlasW, atlasH, atlasCount, PixelInternalFormat.R16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_DepthAtlas");

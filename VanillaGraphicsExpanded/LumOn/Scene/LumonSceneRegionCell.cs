@@ -183,6 +183,8 @@ internal sealed class LumonSceneRegionCell : WorldCell
         for (int i = baseIndex; i < end; i++)
         {
             var entry = pageTableMirror[i];
+            if (LumonScenePageTableEntryPacking.UnpackPhysicalPageId(entry) == 0u) continue;
+
             var flags = LumonScenePageTableEntryPacking.UnpackFlags(entry);
             if ((flags & LumonScenePageTableEntryPacking.Flags.Resident) != 0) resident++;
             if ((flags & LumonScenePageTableEntryPacking.Flags.NeedsCapture) != 0) needsCapture++;
@@ -199,6 +201,16 @@ internal sealed class LumonSceneRegionCell : WorldCell
         RelightingPages = relighting;
         ReadyToSamplePages = ready;
         return true;
+    }
+
+    public void UpdateBacklogFromSlotStats(in LumonSceneChunkSlotPageTableStats stats)
+    {
+        ResidentPages = stats.Resident;
+        NeedsCapturePages = stats.NeedsCapture;
+        CapturingPages = stats.Capturing;
+        NeedsRelightPages = stats.NeedsRelight;
+        RelightingPages = stats.Relighting;
+        ReadyToSamplePages = stats.ReadyToSample;
     }
 
     public void EnqueueStateAndWork(IWorldCellWorkSink sink, in WorldCellPriorityContext priorityContext)

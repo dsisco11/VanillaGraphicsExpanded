@@ -56,7 +56,9 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         var pageTableMirror = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
         var virtualToPhysical = new Dictionary<ulong, uint>(capacity: desiredPages);
         var physicalToVirtual = new Dictionary<uint, ulong>(capacity: desiredPages);
-        var cpuProc = new LumonSceneFeedbackRequestProcessor(pool, pageTableMirror, virtualToPhysical, physicalToVirtual, new NoopPageTableWriter());
+        var pageTableStats = new LumonScenePageTableStatsTracker();
+        pageTableStats.Reset(newChunkSlotCount: 1);
+        var cpuProc = new LumonSceneFeedbackRequestProcessor(pool, pageTableMirror, virtualToPhysical, physicalToVirtual, new NoopPageTableWriter(), pageTableStats);
 
         // PatchIdGBuffer: request 256 unique pages (patchId==virtualPageIndex in [1..256]).
         const int gW = 64;

@@ -119,7 +119,9 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         var pageTableMirror = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
         var virtualToPhysical = new Dictionary<ulong, uint>();
         var physicalToVirtual = new Dictionary<uint, ulong>();
-        var cpuProc = new LumonSceneFeedbackRequestProcessor(pool, pageTableMirror, virtualToPhysical, physicalToVirtual, new NullPageTableWriter());
+        var pageTableStats = new LumonScenePageTableStatsTracker();
+        pageTableStats.Reset(newChunkSlotCount: 1);
+        var cpuProc = new LumonSceneFeedbackRequestProcessor(pool, pageTableMirror, virtualToPhysical, physicalToVirtual, new NullPageTableWriter(), pageTableStats);
 
         var captureOut = new LumonSceneCaptureWorkGpu[desiredPages];
         var relightOut = new LumonSceneRelightWorkGpu[desiredPages];

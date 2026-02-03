@@ -9,6 +9,19 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.LumonScene;
 
 public sealed class LumonSceneFeedbackRequestProcessingTests
 {
+    private static LumonSceneFeedbackRequestProcessor CreateProcessor(
+        LumonScenePhysicalFieldPool pool,
+        LumonScenePageTableEntry[] pageTable,
+        Dictionary<ulong, uint> virtualToPhysical,
+        Dictionary<uint, ulong> physicalToVirtual,
+        ILumonScenePageTableWriter writer)
+    {
+        var stats = new LumonScenePageTableStatsTracker();
+        int slots = Math.Max(1, pageTable.Length / LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk);
+        stats.Reset(slots);
+        return new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writer, stats);
+    }
+
     [Fact]
     public void NewAllocation_UpdatesMappingsPageTable_AndEmitsCaptureAndRelightWork()
     {
@@ -19,7 +32,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
         var physicalToVirtual = new Dictionary<uint, ulong>();
         var writes = new RecordingPageTableWriter();
 
-        var proc = new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+        var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
 
         var requests = new[]
         {
@@ -83,7 +96,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
         var physicalToVirtual = new Dictionary<uint, ulong>();
         var writes = new RecordingPageTableWriter();
 
-        var proc = new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+        var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
 
         var capture = new LumonSceneCaptureWorkGpu[16];
         var relight = new LumonSceneRelightWorkGpu[16];
@@ -149,7 +162,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
         var virtualToPhysical = new Dictionary<ulong, uint>();
         var physicalToVirtual = new Dictionary<uint, ulong>();
         var writes = new RecordingPageTableWriter();
-        var proc = new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+        var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
 
         var req = new LumonScenePageRequestGpu[10];
         for (int i = 0; i < req.Length; i++)
@@ -196,7 +209,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
         var virtualToPhysical = new Dictionary<ulong, uint>();
         var physicalToVirtual = new Dictionary<uint, ulong>();
         var writes = new RecordingPageTableWriter();
-        var proc = new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+        var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
 
         var req = new LumonScenePageRequestGpu[6];
         for (int i = 0; i < req.Length; i++)
@@ -251,7 +264,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
         var virtualToPhysical = new Dictionary<ulong, uint>();
         var physicalToVirtual = new Dictionary<uint, ulong>();
         var writes = new RecordingPageTableWriter();
-        var proc = new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+        var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
 
         // Fill the pool with 4 unique pages across two chunkSlots.
         var initial = new[]
@@ -329,7 +342,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
         var virtualToPhysical = new Dictionary<ulong, uint>();
         var physicalToVirtual = new Dictionary<uint, ulong>();
         var writes = new RecordingPageTableWriter();
-        var proc = new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+        var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
 
         const int totalDistinct = 10;
         var req = new LumonScenePageRequestGpu[totalDistinct];
@@ -379,7 +392,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             var virtualToPhysical = new Dictionary<ulong, uint>();
             var physicalToVirtual = new Dictionary<uint, ulong>();
             var writes = new RecordingPageTableWriter();
-            var proc = new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+            var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
 
             var req = new LumonScenePageRequestGpu[10];
             for (int i = 0; i < req.Length; i++)
@@ -428,7 +441,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             var virtualToPhysical = new Dictionary<ulong, uint>();
             var physicalToVirtual = new Dictionary<uint, ulong>();
             var writes = new RecordingPageTableWriter();
-            var proc = new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+            var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
 
             var req = new[]
             {
@@ -478,7 +491,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             var virtualToPhysical = new Dictionary<ulong, uint>();
             var physicalToVirtual = new Dictionary<uint, ulong>();
             var writes = new RecordingPageTableWriter();
-            var proc = new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+            var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
 
             var req = new LumonScenePageRequestGpu[6];
             for (int i = 0; i < req.Length; i++)

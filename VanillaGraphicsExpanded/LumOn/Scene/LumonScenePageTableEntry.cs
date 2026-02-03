@@ -91,23 +91,12 @@ internal static class LumonScenePageTableEntryPacking
     /// </summary>
     public static bool IsReadyForSampling(in LumonScenePageTableEntry entry)
     {
-        uint physicalPageId = UnpackPhysicalPageId(entry);
-        if (physicalPageId == 0u)
-        {
-            return false;
-        }
+        uint packed = entry.Packed;
+        if ((packed & PhysicalPageIdMask) == 0u) return false;
 
-        var flags = UnpackFlags(entry);
-        if ((flags & Flags.Resident) == 0)
-        {
-            return false;
-        }
-
-        if ((flags & (Flags.NeedsCapture | Flags.NeedsRelight)) != 0)
-        {
-            return false;
-        }
-
-        return true;
+        uint flags = (packed >> FlagShift) & FlagsMask;
+        const uint residentMask = (uint)Flags.Resident;
+        const uint notReadyMask = (uint)(Flags.NeedsCapture | Flags.NeedsRelight);
+        return (flags & residentMask) != 0u && (flags & notReadyMask) == 0u;
     }
 }

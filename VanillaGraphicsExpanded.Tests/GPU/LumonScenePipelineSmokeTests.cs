@@ -62,7 +62,9 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         var virtualToPhysical = new Dictionary<ulong, uint>();
         var physicalToVirtual = new Dictionary<uint, ulong>();
         var writer = new RecordingPageTableWriter();
-        var cpuProc = new LumonSceneFeedbackRequestProcessor(pool, pageTableMirror, virtualToPhysical, physicalToVirtual, writer);
+        var pageTableStats = new LumonScenePageTableStatsTracker();
+        pageTableStats.Reset(newChunkSlotCount: 1);
+        var cpuProc = new LumonSceneFeedbackRequestProcessor(pool, pageTableMirror, virtualToPhysical, physicalToVirtual, writer, pageTableStats);
 
         // PatchIdGBuffer (RGBA32UI): place `desiredPages` sparse pixels, rest zero.
         const int gW = 32;

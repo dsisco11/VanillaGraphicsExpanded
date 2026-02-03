@@ -64,6 +64,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     private LumonScenePageTableEntry[] pageTableMirror = Array.Empty<LumonScenePageTableEntry>();
     private System.Collections.Generic.Dictionary<ulong, uint> virtualToPhysical = new();
     private System.Collections.Generic.Dictionary<uint, ulong> physicalToVirtual = new();
+    private readonly LumonScenePageTableStatsTracker pageTableStats = new();
 
     private LumonSceneFeedbackRequestProcessor? cpuProcessor;
 
@@ -320,6 +321,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
         LumonScenePageTableEntry updated = LumonScenePageTableEntryPacking.Pack(pid, flags);
         pageTableMirror[idx] = updated;
+        pageTableStats.ApplyEntryChange(chunkSlot, in entry, in updated);
         UploadPageTableEntryMip0(chunkSlot: (int)chunkSlot, virtualPageIndex: virtualPageIndex, updated.Packed);
         return true;
     }
@@ -729,7 +731,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             keep.Add(cell.Key);
 
             cell.UpdateSlotAssignment(slot, slotGenerations[slot], unchecked((long)frameStamp));
-            _ = cell.TryUpdateBacklogFromPageTableMirror(pageTableMirror);
+            cell.UpdateBacklogFromSlotStats(pageTableStats.GetSlot(slot));
 
             cell.DesiredState = cell.CalculateDesiredState(in stateContext);
             if (cell.NextEligibleTick > stateContext.NowTick) suppressed++;
@@ -873,6 +875,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         pageTableMirror = new LumonScenePageTableEntry[checked(VirtualPagesPerChunk * chunkSlotCount)];
         virtualToPhysical = new System.Collections.Generic.Dictionary<ulong, uint>(capacity: Math.Max(16, chunkSlotCount));
         physicalToVirtual = new System.Collections.Generic.Dictionary<uint, ulong>(capacity: Math.Max(16, chunkSlotCount));
+        pageTableStats.Reset(chunkSlotCount);
 
         EnsureSlotStateConfigured(chunkSlotCount);
         UpdateWorldCoordUniformState();
@@ -882,7 +885,8 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             pageTableMirror,
             virtualToPhysical,
             physicalToVirtual,
-            new RendererPageTableWriter(this));
+            new RendererPageTableWriter(this),
+            pageTableStats);
 
         ResetRecaptureList();
 
@@ -1136,7 +1140,10 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             int mirrorIndex = checked((int)slot * VirtualPagesPerChunk + vpage);
             if ((uint)mirrorIndex < (uint)pageTableMirror.Length)
             {
-                pageTableMirror[mirrorIndex] = default;
+                LumonScenePageTableEntry oldEntry = pageTableMirror[mirrorIndex];
+                LumonScenePageTableEntry newEntry = default;
+                pageTableMirror[mirrorIndex] = newEntry;
+                pageTableStats.ApplyEntryChange(slot, in oldEntry, in newEntry);
             }
 
             UploadPageTableEntryMip0(chunkSlot: (int)slot, virtualPageIndex: vpage, packedEntry: 0u);
@@ -1319,7 +1326,10 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                 int mirrorIndex = checked((int)chunkSlot * VirtualPagesPerChunk + vpage);
                 if ((uint)mirrorIndex < (uint)pageTableMirror.Length)
                 {
-                    pageTableMirror[mirrorIndex] = default;
+                    LumonScenePageTableEntry oldEntry = pageTableMirror[mirrorIndex];
+                    LumonScenePageTableEntry newEntry = default;
+                    pageTableMirror[mirrorIndex] = newEntry;
+                    pageTableStats.ApplyEntryChange(chunkSlot, in oldEntry, in newEntry);
                 }
 
                 UploadPageTableEntryMip0(chunkSlot: (int)chunkSlot, virtualPageIndex: vpage, packedEntry: 0u);
@@ -2182,6 +2192,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
                 LumonScenePageTableEntry updated = LumonScenePageTableEntryPacking.Pack(pid, flags);
                 pageTableMirror[idx] = updated;
+                pageTableStats.ApplyEntryChange(chunkSlot, in entry, in updated);
                 UploadPageTableEntryMip0(chunkSlot: (int)chunkSlot, virtualPageIndex: vpage, updated.Packed);
             }
         }
@@ -2236,23 +2247,10 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         int residentPages = virtualToPhysical.Count;
         int cap = physicalPools.Near.PagePool.CapacityPages;
 
-        int ready = 0;
-        int needsCap = 0;
-        int needsRel = 0;
-
-        for (int i = 0; i < pageTableMirror.Length; i++)
-        {
-            var entry = pageTableMirror[i];
-            if (LumonScenePageTableEntryPacking.UnpackPhysicalPageId(entry) == 0u)
-            {
-                continue;
-            }
-
-            var flags = LumonScenePageTableEntryPacking.UnpackFlags(entry);
-            if ((flags & LumonScenePageTableEntryPacking.Flags.NeedsCapture) != 0) needsCap++;
-            if ((flags & LumonScenePageTableEntryPacking.Flags.NeedsRelight) != 0) needsRel++;
-            if (LumonScenePageTableEntryPacking.IsReadyForSampling(entry)) ready++;
-        }
+        LumonSceneChunkSlotPageTableStats totals = pageTableStats.Total;
+        int ready = totals.ReadyToSample;
+        int needsCap = totals.NeedsCapture;
+        int needsRel = totals.NeedsRelight;
 
         string topSlots = string.Empty;
         if (lastTopChunkSlots.Length == 4 && lastTopChunkSlotCounts.Length == 4 && lastTopChunkSlotCounts[0] > 0)
