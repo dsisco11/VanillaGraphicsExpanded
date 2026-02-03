@@ -302,6 +302,9 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         }
     }
 
+    internal int CopyNearRegionDebugSnapshots(Span<LumonSceneRegionCellDebugSnapshot> dst)
+        => nearRegionScheduler.CopyDebugSnapshots(dst);
+
     internal bool TryClearNearPageFlagsMip0(uint chunkSlot, int virtualPageIndex, LumonScenePageTableEntryPacking.Flags flagsToClear)
     {
         if ((uint)virtualPageIndex >= (uint)VirtualPagesPerChunk)
