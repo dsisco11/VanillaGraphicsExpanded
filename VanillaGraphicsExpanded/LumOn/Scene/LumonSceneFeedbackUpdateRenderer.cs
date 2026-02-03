@@ -2141,6 +2141,17 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             int gy = (tileSize + 7) / 8;
             GL.DispatchCompute(gx, gy, captureCount);
         }
+
+        // Capture writes:
+        // - images: depth/material atlases (imageStore)
+        // - SSBO: patch metadata (std430)
+        // These are consumed later in the frame by:
+        // - relight compute (texture fetch + SSBO reads)
+        // - debug/material sampling passes (texture fetch)
+        GL.MemoryBarrier(
+            MemoryBarrierFlags.ShaderImageAccessBarrierBit
+            | MemoryBarrierFlags.ShaderStorageBarrierBit
+            | MemoryBarrierFlags.TextureFetchBarrierBit);
     }
 
     private void FinalizeCaptureFlagsFromGpuQueue(int captureCount)

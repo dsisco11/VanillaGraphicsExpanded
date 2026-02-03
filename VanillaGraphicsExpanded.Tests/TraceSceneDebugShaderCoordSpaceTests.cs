@@ -74,4 +74,20 @@ public sealed class TraceSceneDebugShaderCoordSpaceTests
         Assert.Contains("(local.y * VGE_REGION_SIZE + local.z) * VGE_REGION_SIZE + local.x", src, StringComparison.Ordinal);
         Assert.DoesNotContain("(local.z * VGE_REGION_SIZE + local.y) * VGE_REGION_SIZE + local.x", src, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void SurfaceCache_IrradianceSampling_DoesNotRejectNeedsRelight()
+    {
+        string src = ReadRepoFileOrSkip(Path.Combine(
+            "VanillaGraphicsExpanded",
+            "assets",
+            "vanillagraphicsexpanded",
+            "shaders",
+            "includes",
+            "lumonscene_surface_cache.glsl"));
+
+        // We only reject NeedsCapture; NeedsRelight must still allow sampling.
+        Assert.Contains("VGE_LUMONSCENE_FLAG_NEEDS_CAPTURE", src, StringComparison.Ordinal);
+        Assert.DoesNotContain("VGE_LUMONSCENE_FLAG_NEEDS_CAPTURE | VGE_LUMONSCENE_FLAG_NEEDS_RELIGHT", src, StringComparison.Ordinal);
+    }
 }

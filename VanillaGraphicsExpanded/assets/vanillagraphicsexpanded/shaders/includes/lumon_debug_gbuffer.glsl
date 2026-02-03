@@ -220,6 +220,12 @@ vec4 renderLumonSceneIrradianceDebug()
 
     // Simple tonemap for preview.
     vec3 c = irr / (irr + vec3(1.0));
+
+    // If the page is still marked NeedsRelight, tint slightly blue to indicate "in progress".
+    if ((flags & VGE_LUMONSCENE_FLAG_NEEDS_RELIGHT) != 0u)
+    {
+        c = mix(c, vec3(0.2, 0.4, 1.0), 0.25);
+    }
     return vec4(clamp(c, 0.0, 1.0), 1.0);
 }
 

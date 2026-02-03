@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.Collections.Generic;
 
 using OpenTK.Graphics.OpenGL;
 
@@ -42,6 +43,10 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
 
     private int frameIndex;
     private string lastSelectionMode = string.Empty;
+
+    // When RelightTexelsPerPagePerFrame < tileSize^2, a single dispatch only covers a subset of texels.
+    // Track per-virtual-page remaining batches so we don't clear NeedsRelight until the whole tile has been touched.
+    private readonly Dictionary<ulong, int> relightBatchesRemainingByVirtualKey = new(capacity: 1024);
 
     public double RenderOrder => RenderOrderValue;
     public int RenderRange => RenderRangeValue;
@@ -271,7 +276,9 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
                 relightVoxelPipeline.Dispatch(gx, gy, workCount);
             }
 
-            GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
+            // Relight writes irradiance via imageStore, then the same texture is sampled as a sampler2DArray
+            // by later passes (debug/combining). Ensure visibility for both image access and texture fetch.
+            GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
             if (config.Debug.LumOnRuntimeSelfCheckEnabled && debugCounters is not null && debugCounters.IsValid)
             {
@@ -289,10 +296,35 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
             // Scheduling is MRU-based so pages will continue to accumulate even without the flag.
             int clearOk = 0;
             int clearFail = 0;
+            uint totalTexels = (uint)(tileSize * tileSize);
+            uint k = (uint)Math.Max(0, cfg.RelightTexelsPerPagePerFrame);
+            uint batchCountU = k == 0u ? 0u : ((totalTexels + (k - 1u)) / k);
+            int batchCount = (int)Math.Clamp(batchCountU, 0u, 1_000_000u);
+            bool isPartial = batchCount > 1;
+
             for (int i = 0; i < workCount; i++)
             {
-                uint chunkSlot = LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(workVirtualKeys[i]);
-                int vpage = (int)LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(workVirtualKeys[i]);
+                ulong key = workVirtualKeys[i];
+
+                if (isPartial)
+                {
+                    if (!relightBatchesRemainingByVirtualKey.TryGetValue(key, out int remaining))
+                    {
+                        remaining = batchCount;
+                    }
+
+                    remaining--;
+                    if (remaining > 0)
+                    {
+                        relightBatchesRemainingByVirtualKey[key] = remaining;
+                        continue;
+                    }
+
+                    relightBatchesRemainingByVirtualKey.Remove(key);
+                }
+
+                uint chunkSlot = LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(key);
+                int vpage = (int)LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(key);
                 if (feedback.TryClearNearPageFlagsMip0(chunkSlot, vpage, LumonScenePageTableEntryPacking.Flags.NeedsRelight))
                 {
                     clearOk++;
@@ -337,6 +369,7 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
         lastDbgOobStarts = 0;
         lastClearedNeedsRelightOk = 0;
         lastClearedNeedsRelightFail = 0;
+        relightBatchesRemainingByVirtualKey.Clear();
         relightVoxelPipeline?.Dispose();
         relightVoxelPipeline = null;
 

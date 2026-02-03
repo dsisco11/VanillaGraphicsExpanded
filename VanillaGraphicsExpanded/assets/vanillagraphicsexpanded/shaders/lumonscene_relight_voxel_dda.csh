@@ -241,9 +241,12 @@ void main()
     if (k < totalTexels)
     {
         uint batchCount = (totalTexels + (k - 1u)) / k;
+        // IMPORTANT: avoid visible "row striping" when k < totalTexels.
+        // Select texels via a stable hashed bucket instead of contiguous linear ranges.
         uint seed = Squirrel3HashU(uint(vge_frameIndex), physicalPageId, patchId);
         uint batchIndex = (batchCount <= 1u) ? 0u : (seed % batchCount);
-        if ((linear / k) != batchIndex)
+        uint bucket = (batchCount <= 1u) ? 0u : (Squirrel3HashU(physicalPageId, patchId, linear) % batchCount);
+        if (bucket != batchIndex)
         {
             return;
         }

@@ -89,7 +89,9 @@ bool VgeLumonSceneTrySampleIrradiance_NearFieldV1(
     {
         return false;
     }
-    if ((outFlags & (VGE_LUMONSCENE_FLAG_NEEDS_CAPTURE | VGE_LUMONSCENE_FLAG_NEEDS_RELIGHT)) != 0u)
+    // NeedsCapture means the material/depth/metadata haven't been written yet, so sampling is invalid.
+    // NeedsRelight means irradiance is stale/incomplete; sampling is still useful (debug + progressive accumulation).
+    if ((outFlags & VGE_LUMONSCENE_FLAG_NEEDS_CAPTURE) != 0u)
     {
         return false;
     }
