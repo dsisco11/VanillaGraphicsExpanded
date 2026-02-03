@@ -5,6 +5,7 @@
 
 @import "./lumon_common.glsl"
 @import "./lumonscene_trace_scene_occupancy.glsl"
+@import "./vge_worldspace_bridge.glsl"
 
 // Packed payload layout (R32UI):
 // - bits  0..5  : blockLightLevel (0..63; gameplay currently clamps to 0..32)
@@ -47,6 +48,8 @@ vec4 RenderDebug_TraceScene(vec2 screenPos)
     }
 
     vec3 viewPos = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+    // Note: `invViewMatrix` produces the engine's render "matrix space" positions.
+    // Convert to absolute world cell coords via `vge_worldspace_bridge.glsl` before sampling the occupancy clipmap.
     vec3 worldPosRel = (invViewMatrix * vec4(viewPos, 1.0)).xyz;
 
     // Depth reconstruction lands on the visible surface (often on a voxel face boundary), so floor(worldPos)

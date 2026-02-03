@@ -108,7 +108,10 @@ void main()
         return;
     }
 
-    uint linear = (local.z * VGE_REGION_SIZE + local.y) * VGE_REGION_SIZE + local.x;
+    // IMPORTANT: VintageStory chunk "index3d" layout is X (low), Z (mid), Y (high):
+    // index3d = x | (z << 5) | (y << 10).
+    // Keep the region payload word order matching IChunkBlocks.GetBlockIdUnsafe(index3d).
+    uint linear = (local.y * VGE_REGION_SIZE + local.z) * VGE_REGION_SIZE + local.x;
     uint payload = vge_regionPayloadWords[upd.SrcOffsetWords + linear];
 
     ivec3 worldCell = upd.RegionCoord.xyz * int(VGE_REGION_SIZE) + ivec3(local);

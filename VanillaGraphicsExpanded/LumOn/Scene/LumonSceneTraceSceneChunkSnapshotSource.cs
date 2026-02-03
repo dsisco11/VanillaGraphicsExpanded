@@ -1,7 +1,5 @@
 using System;
 using System.Buffers;
-using System.Collections.Generic;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -154,11 +152,6 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
 
                     try
                     {
-                        // Cache collision/occupancy decisions per block id (huge win vs per-voxel block lookup).
-                        var solidByBlockId = new Dictionary<int, bool>(capacity: 128);
-
-                        var pos = new BlockPos(0);
-
                         int nonAirCells = 0;
                         int solidCells = 0;
 
@@ -171,6 +164,7 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
                         int directBlockIdCenter = 0;
                         try
                         {
+                            var pos = new BlockPos(0);
                             pos.Set(baseX + 16, baseY + 16, baseZ + 16);
                             directBlockIdCenter = blockAccessor.GetBlockId(pos);
                         }
@@ -191,41 +185,20 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
                             }
 
                             nonAirCells++;
-
-                            int x = i & 31;
-                            int y = (i >> 5) & 31;
-                            int z = i >> 10;
-
-                            if (!solidByBlockId.TryGetValue(blockId, out bool solid))
-                            {
-                                Block? block = capi.World.GetBlock(blockId);
-
-                                // Use the engine's collision query rather than the raw CollisionBoxes property.
-                                // Many blocks compute collision boxes dynamically (shape/rotation/etc) and the property
-                                // may be empty even when collisions exist.
-                                pos.Set(baseX + x, baseY + y, baseZ + z);
-                                Cuboidf[]? boxes = block?.GetCollisionBoxes(blockAccessor, pos);
-                                solid = boxes is not null && boxes.Length > 0;
-                                solidByBlockId[blockId] = solid;
-                            }
-
-                            // v1 occupancy: treat blocks without collision boxes as empty (air/foliage/etc).
-                            if (!solid)
-                            {
-                                buf[i] = default;
-                                continue;
-                            }
-
                             solidCells++;
 
                             int blockLevel = lighting.GetBlocklight(i);
                             int sunLevel = lighting.GetSunlight(i);
 
-                            // v1 colored light: keep the old RGB accessor only when blocklight is non-zero.
-                            // (Chunk lighting exposes levels efficiently; RGB composition is still via the engine path.)
+                            // v1 colored light: keep RGB composition only when blocklight is non-zero.
+                            // VintageStory uses "index3d" layout: x | (z << 5) | (y << 10).
                             int lightId = 0;
                             if (blockLevel > 0)
                             {
+                                int x = i & 31;
+                                int z = (i >> 5) & 31;
+                                int y = (i >> 10) & 31;
+
                                 int rgb = blockAccessor.GetLightRGBsAsInt(baseX + x, baseY + y, baseZ + z) & 0x00FFFFFF;
                                 lightId = lightIds.GetOrAssignLightId(rgb);
                             }

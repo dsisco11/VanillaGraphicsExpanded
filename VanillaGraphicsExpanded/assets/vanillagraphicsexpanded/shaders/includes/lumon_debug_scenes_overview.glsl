@@ -17,6 +17,8 @@
 // NOTE: This include is imported by `lumon_debug.fsh` after all other debug includes.
 // Do not @import other debug includes here to avoid duplicate function definitions.
 
+@import "./vge_worldspace_bridge.glsl"
+
 vec3 VgeHashColorU(uint key)
 {
     uint h = Squirrel3HashU(key);
@@ -61,6 +63,8 @@ vec4 RenderDebug_LumOnScenesOverview(vec2 screenPos)
     }
 
     vec3 viewPos = lumonReconstructViewPos(uv01, depth, invProjectionMatrix);
+    // Note: `invViewMatrix` produces the engine's render "matrix space" positions.
+    // Convert to absolute world cell coords via `vge_worldspace_bridge.glsl` before sampling the occupancy clipmap.
     vec3 worldPosRel = (invViewMatrix * vec4(viewPos, 1.0)).xyz;
 
     // Match TraceScene occupancy queries to the solid side of the visible surface.
