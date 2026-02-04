@@ -244,7 +244,7 @@ public static partial class VgeBuiltInDebugViews
                 return;
             }
 
-            UpdateCurrentViewProjMatrixNoTranslate(shader);
+            UpdateCurrentViewProjMatrixNoTranslate();
 
             bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
             bool prevBlend = GL.IsEnabled(EnableCap.Blend);
@@ -268,6 +268,9 @@ public static partial class VgeBuiltInDebugViews
 
                 shader.Use();
                 shaderUsed = true;
+
+                shader.ModelViewProjectionMatrix = currentViewProjMatrix;
+                shader.WorldOffset = new Vec3f(0, 0, 0);
 
                 int stride = Marshal.SizeOf<LineVertex>();
                 vbo!.UploadData(vertices, written * stride);
@@ -297,7 +300,7 @@ public static partial class VgeBuiltInDebugViews
             }
         }
 
-        private void UpdateCurrentViewProjMatrixNoTranslate(VgeDebugLinesShaderProgram shader)
+        private void UpdateCurrentViewProjMatrixNoTranslate()
         {
             Array.Copy(capi.Render.CurrentProjectionMatrix, tempProjectionMatrix, 16);
             Array.Copy(capi.Render.CameraMatrixOriginf, tempModelViewMatrix, 16);
@@ -307,9 +310,6 @@ public static partial class VgeBuiltInDebugViews
             tempModelViewMatrix[14] = 0;
 
             MatrixHelper.Multiply(tempProjectionMatrix, tempModelViewMatrix, currentViewProjMatrix);
-
-            shader.ModelViewProjectionMatrix = currentViewProjMatrix;
-            shader.WorldOffset = new Vec3f(0, 0, 0);
         }
 
         private void EnsureGlObjects()
