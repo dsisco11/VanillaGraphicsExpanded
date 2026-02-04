@@ -38,13 +38,13 @@ References:
   ☐ Run VGE shader preprocessing before invoking external compiler:
     - Must resolve VGE `@import` and define injection (same behavior as runtime)
     - Implement a filesystem-based resolver analogous to `AssetSyntaxTreeResourceResolver`
-    - Reuse `ShaderSourceCode` preprocessing if feasible (share project reference), else port minimal preprocessor into CakeBuild/tools
+    - Reuse `ShaderSourceCode` preprocessing (share project reference)
   ☐ Invoke external compiler per shader stage:
     - Preferred tool: `glslangValidator`
     - For compute: emit OpenGL SPIR-V; keep entrypoint `main` unless specialization requires otherwise
     - Emit to `artifacts/spirv/vanillagraphicsexpanded/shaders/<name>.<stage>.spv`
   ☐ Add build configuration knobs:
-    - Enable/disable SPIR-V compilation (default: enabled in Release builds)
+    - Enable/disable SPIR-V compilation (default: enabled in all builds)
     - Compiler path override (env var + optional Cake arg)
     - Optional: treat warnings as errors toggle
   ☐ Integrate packaging overlay:
