@@ -20,10 +20,10 @@ layout(std430, binding = 0) buffer VgePageRequests
     uvec4 vge_pageRequests[];
 };
 
-uniform uint vge_maxRequests;
-uniform uint vge_frameStamp;
-uniform uint vge_scanOffset;
-uniform uint vge_compactMode; // 0=emit mapped pages only, 1=emit unmapped pages only (runtime uses 1)
+layout(location = 0) uniform uint vge_maxRequests;
+layout(location = 1) uniform uint vge_frameStamp;
+layout(location = 2) uniform uint vge_scanOffset;
+layout(location = 3) uniform uint vge_compactMode; // 0=emit mapped pages only, 1=emit unmapped pages only (runtime uses 1)
 
 void main()
 {

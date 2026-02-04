@@ -80,4 +80,57 @@
   </Content>
 </ItemGroup>
 
+  <!-- Phase 6: MSBuild-integrated SPIR-V compilation (compute shaders). -->
+  <PropertyGroup>
+    <!-- Default: enabled for all builds (Debug + Release). -->
+    <EnableSpirv Condition="'$(EnableSpirv)' == ''">true</EnableSpirv>
+
+    <SpirvDomain Condition="'$(SpirvDomain)' == ''">vanillagraphicsexpanded</SpirvDomain>
+    <SpirvArtifactsDir Condition="'$(SpirvArtifactsDir)' == ''">$(MSBuildProjectDirectory)\artifacts\spirv</SpirvArtifactsDir>
+    <SpirvTargetEnv Condition="'$(SpirvTargetEnv)' == ''">opengl4.5</SpirvTargetEnv>
+    <SpirvWarningsAsErrors Condition="'$(SpirvWarningsAsErrors)' == ''">false</SpirvWarningsAsErrors>
+
+    <SpirvWarningsAsErrorsArg Condition="'$(SpirvWarningsAsErrors)' == 'true'">--warningsAsErrors</SpirvWarningsAsErrorsArg>
+    <SpirvWarningsAsErrorsArg Condition="'$(SpirvWarningsAsErrors)' != 'true'"></SpirvWarningsAsErrorsArg>
+
+    <!-- Solution root (contains .config/dotnet-tools.json and ShaderBuildTool). -->
+    <VgeSolutionRoot>$(MSBuildProjectDirectory)\..</VgeSolutionRoot>
+    <SpirvBuildToolProject>$(VgeSolutionRoot)\ShaderBuildTool\ShaderBuildTool.csproj</SpirvBuildToolProject>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(EnableSpirv)' == 'true'">
+    <VgeComputeShaders Include="assets\$(SpirvDomain)\shaders\**\*.csh" />
+    <VgeShaderIncludes Include="assets\$(SpirvDomain)\shaders\includes\**\*.*" />
+  </ItemGroup>
+
+  <Target Name="RestoreDotnetShadercTool" Condition="'$(EnableSpirv)' == 'true'" BeforeTargets="CompileSpirvShaders">
+    <Exec WorkingDirectory="$(VgeSolutionRoot)" Command="dotnet tool restore" />
+  </Target>
+
+  <Target Name="CompileSpirvShaders"
+          Condition="'$(EnableSpirv)' == 'true'"
+          Inputs="@(VgeComputeShaders);@(VgeShaderIncludes)"
+          Outputs="@(VgeComputeShaders->'$(SpirvArtifactsDir)\$(SpirvDomain)\shaders\%(Filename)%(Extension).spv')"
+          AfterTargets="Build">
+    <Exec
+      WorkingDirectory="$(VgeSolutionRoot)"
+      Command="dotnet run --project &quot;$(SpirvBuildToolProject)&quot; -- --assetsRoot &quot;$(MSBuildProjectDirectory)\\assets&quot; --outputRoot &quot;$(SpirvArtifactsDir)&quot; --domain $(SpirvDomain) --targetEnv $(SpirvTargetEnv) $(SpirvWarningsAsErrorsArg) --workingDir &quot;$(VgeSolutionRoot)&quot;" />
+  </Target>
+
+  <Target Name="CopySpirvArtifactsToOutputAssets"
+          Condition="'$(EnableSpirv)' == 'true'"
+          AfterTargets="CompileSpirvShaders">
+    <ItemGroup>
+      <_SpirvFiles Include="$(SpirvArtifactsDir)\**\*.spv" />
+      <_SpirvOutDirs Include="@(_SpirvFiles->'$(TargetDir)assets\%(RecursiveDir)')" />
+    </ItemGroup>
+
+    <MakeDir Directories="@(_SpirvOutDirs)" />
+
+    <Copy
+      SourceFiles="@(_SpirvFiles)"
+      DestinationFiles="@(_SpirvFiles->'$(TargetDir)assets\%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

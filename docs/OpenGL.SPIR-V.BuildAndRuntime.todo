@@ -23,7 +23,7 @@ References:
     - Vertex: `<name>.vsh.spv`
     - Fragment: `<name>.fsh.spv`
     - Optional future: `.gsh.spv` for geometry
-  ✔ Choose compiler/toolchain (initial): `glslangValidator` (fallback later: shaderc)
+  ✔ Choose compiler/toolchain (initial): shaderc (`dotnet-shaderc`)
   ✔ Define runtime selection rules:
     - Prefer `.spv` only when `GL_ARB_gl_spirv` (or GL 4.6) is available
     - Otherwise load GLSL source as today
@@ -44,7 +44,7 @@ References:
     - Implement a filesystem-based resolver analogous to `AssetSyntaxTreeResourceResolver`
     - Reuse `ShaderSourceCode` preprocessing (share project reference)
   ✔ Invoke external compiler per shader stage:
-    - Preferred tool: `glslangValidator`
+    - Preferred tool: shaderc (`dotnet-shaderc`)
     - For compute: emit OpenGL SPIR-V; keep entrypoint `main` unless specialization requires otherwise
     - Emit to `artifacts/spirv/vanillagraphicsexpanded/shaders/<name>.<stage>.spv`
   ✔ Add build configuration knobs:
@@ -102,24 +102,25 @@ References:
     - macOS / older GL likely GLSL-only
     - Base-game shaders not compiled to SPIR-V due to runtime patching
 
-☐ Phase 6 — MSBuild Integration (dotnet build)
+✔ Phase 6 — MSBuild Integration (dotnet build)
   Exit artifacts: `dotnet build` (MSBuild) can generate `.spv` without requiring Cake; incremental rebuild behaves sensibly.
   Goal: make SPIR-V compilation part of the normal build so contributors don't need to run Cake for shader binaries.
-  ☐ Create a small tool project (recommended): `ShaderBuildTool` (net8.0 console)
-    - Reuse VGE preprocessing (`ShaderSourceCode.FromSource(...)`) so `@import` works
+  ✔ Create a small tool project (recommended): `ShaderBuildTool` (net8.0 console)
+    - Reuse VGE preprocessing helpers (GLSL schema + `ShaderSyntaxTreePreprocessor`) so `@import` works without the engine asset system
     - Invoke `glslangValidator` (OpenGL SPIR-V: `-G`) to emit `.spv` files
     - Emit to `VanillaGraphicsExpanded/artifacts/spirv/...` (same layout as Cake)
-  ☐ Add MSBuild targets to `VanillaGraphicsExpanded.csproj`:
-    - `CompileSpirvShaders` target gated by property `EnableSpirv` (default on/off per config)
+  ✔ Add MSBuild targets to `VanillaGraphicsExpanded.csproj`:
+    - `CompileSpirvShaders` target gated by property `EnableSpirv` (default: off; requires compiler installed)
     - Inputs: `assets/vanillagraphicsexpanded/shaders/**/*.csh` + `shaders/includes/**/*` (or full shaders tree)
     - Outputs: `artifacts/spirv/vanillagraphicsexpanded/shaders/*.spv` (at minimum)
     - Use `Exec` to run the tool with `dotnet run` or `dotnet exec` for CI
-  ☐ Add configuration knobs:
+  ✔ Add configuration knobs:
     - `EnableSpirv` MSBuild property
-    - `GlslangValidatorPath` MSBuild property (or inherit `VGE_GLSLANG_VALIDATOR` env var)
+    - `GlslangValidatorPath` MSBuild property (or inherit `VGE_GLSLANG_VALIDATOR` / `GLSLANG_VALIDATOR` env var)
     - Optional: `SpirvWarningsAsErrors`
-  ☐ Ensure output packaging/copy works for non-Cake builds:
+  ✔ Ensure output packaging/copy works for non-Cake builds:
     - Copy `artifacts/spirv/**` into output `Mods/mod/.../assets/**` (or into `Releases` staging when packaging)
-  ☐ Document usage:
-    - Example `dotnet build -p:EnableSpirv=true -p:GlslangValidatorPath=...`
+  ✔ Document usage:
+    - Example: `dotnet build -c Release -p:EnableSpirv=true`
+    - Note: shaderc requires explicit `layout(location=...)` for standalone (non-opaque) uniforms in SPIR-V mode
 ```

@@ -27,15 +27,15 @@ layout(std430, binding = 1) readonly buffer VgeRegionUpdates
 
 // Count of valid region updates in the SSBO (written by CPU as a uniform).
 // Note: do NOT use atomicCounter() here; that increments and would corrupt the count.
-uniform uint vge_regionUpdateCount;
+layout(location = 0) uniform uint vge_regionUpdateCount;
 
 // Destination images: bind OccupancyLevels[i] to image unit i.
 layout(binding = 0, r32ui) writeonly uniform uimage3D vge_occLevels[8];
 
-uniform int vge_levels;      // <= 8
-uniform int vge_resolution;  // per axis
-uniform ivec3 vge_originMinCell[8];
-uniform ivec3 vge_ring[8];
+layout(location = 1) uniform int vge_levels;      // <= 8
+layout(location = 2) uniform int vge_resolution;  // per axis
+layout(location = 3) uniform ivec3 vge_originMinCell[8];
+layout(location = 11) uniform ivec3 vge_ring[8];
 
 const uint VGE_REGION_SIZE = 32u;
 const uint VGE_REGION_SHIFT = 5u;

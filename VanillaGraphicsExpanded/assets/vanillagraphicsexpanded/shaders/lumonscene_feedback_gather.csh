@@ -15,7 +15,7 @@
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
 // PatchIdGBuffer: (chunkSlot, patchId, packedPatchUv, misc/flags)
-uniform usampler2D vge_patchIdGBuffer;
+layout(binding = 0) uniform usampler2D vge_patchIdGBuffer;
 
 layout(binding = 0, offset = 0) uniform atomic_uint vge_pageRequestCount;
 
@@ -25,10 +25,10 @@ layout(std430, binding = 0) buffer VgePageRequests
     uvec4 vge_pageRequests[];
 };
 
-uniform uint vge_maxRequests;
-uniform uint vge_frameIndex;
-uniform uvec2 vge_screenSize;
-uniform uint vge_sampleCount;
+layout(location = 0) uniform uint vge_maxRequests;
+layout(location = 1) uniform uint vge_frameIndex;
+layout(location = 2) uniform uvec2 vge_screenSize;
+layout(location = 3) uniform uint vge_sampleCount;
 
 void main()
 {

@@ -56,26 +56,26 @@ layout(std430, binding = 1) readonly buffer VgePatchMetadata
 
 // Optional debug counters (enabled via vge_debugCountersEnabled).
 // Bound by CPU to atomic counter binding=1, offsets in bytes.
-layout(binding = 1, offset = 0) uniform atomic_uint vge_dbgRays;
-layout(binding = 1, offset = 4) uniform atomic_uint vge_dbgHits;
-layout(binding = 1, offset = 8) uniform atomic_uint vge_dbgMisses;
-layout(binding = 1, offset = 12) uniform atomic_uint vge_dbgOobStarts;
+layout(binding = 0, offset = 0) uniform atomic_uint vge_dbgRays;
+layout(binding = 0, offset = 4) uniform atomic_uint vge_dbgHits;
+layout(binding = 0, offset = 8) uniform atomic_uint vge_dbgMisses;
+layout(binding = 0, offset = 12) uniform atomic_uint vge_dbgOobStarts;
 
-uniform uint vge_tileSizeTexels;
-uniform uint vge_tilesPerAxis;
-uniform uint vge_tilesPerAtlas;
-uniform uint vge_borderTexels; // v1 default 0
+layout(location = 0) uniform uint vge_tileSizeTexels;
+layout(location = 1) uniform uint vge_tilesPerAxis;
+layout(location = 2) uniform uint vge_tilesPerAtlas;
+layout(location = 3) uniform uint vge_borderTexels; // v1 default 0
 
-uniform int vge_frameIndex;
-uniform uint vge_texelsPerPagePerFrame;
-uniform uint vge_raysPerTexel;
-uniform uint vge_maxDdaSteps;
+layout(location = 4) uniform int vge_frameIndex;
+layout(location = 5) uniform uint vge_texelsPerPagePerFrame;
+layout(location = 6) uniform uint vge_raysPerTexel;
+layout(location = 7) uniform uint vge_maxDdaSteps;
 
-uniform uint vge_debugCountersEnabled;
+layout(location = 8) uniform uint vge_debugCountersEnabled;
 
-uniform ivec3 vge_occOriginMinCell0;
-uniform ivec3 vge_occRing0;
-uniform int vge_occResolution;
+layout(location = 9) uniform ivec3 vge_occOriginMinCell0;
+layout(location = 10) uniform ivec3 vge_occRing0;
+layout(location = 11) uniform int vge_occResolution;
 
 // Packed payload decode (matches LumonSceneOccupancyPacking).
 uint UnpackBlockLevel(uint p) { return (p >> 0u) & 63u; }

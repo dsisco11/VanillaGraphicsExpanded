@@ -54,12 +54,12 @@ layout(std430, binding = 2) readonly buffer VgeTriangles
     VgeTriangle vge_triangles[];
 };
 
-uniform uint vge_tileSizeTexels;
-uniform uint vge_tilesPerAxis;
-uniform uint vge_tilesPerAtlas;
-uniform uint vge_borderTexels; // v1 default 0
+layout(location = 0) uniform uint vge_tileSizeTexels;
+layout(location = 1) uniform uint vge_tilesPerAxis;
+layout(location = 2) uniform uint vge_tilesPerAtlas;
+layout(location = 3) uniform uint vge_borderTexels; // v1 default 0
 
-uniform float vge_captureDepthRange; // signed depth range is [-range, +range]
+layout(location = 4) uniform float vge_captureDepthRange; // signed depth range is [-range, +range]
 
 bool IntersectRayTriangle(vec3 ro, vec3 rd, vec3 v0, vec3 v1, vec3 v2, out float t)
 {

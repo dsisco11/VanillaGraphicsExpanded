@@ -24,7 +24,7 @@ layout(binding = 0, offset = 4) uniform atomic_uint vge_markRejectChunkSlotOob;
 layout(binding = 0, offset = 8) uniform atomic_uint vge_markRejectGenMismatch;
 
 // Current frame stamp (must be non-zero; monotonically increasing is fine).
-uniform uint vge_frameStamp;
+layout(location = 0) uniform uint vge_frameStamp;
 
 void main()
 {

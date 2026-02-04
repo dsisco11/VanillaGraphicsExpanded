@@ -313,7 +313,7 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
                 {
                     Span<uint> zero = stackalloc uint[4] { 0u, 0u, 0u, 0u };
                     debugCounters.UploadSubData((ReadOnlySpan<uint>)zero, dstOffsetBytes: 0);
-                    debugCounters.BindBase(bindingIndex: 1);
+                    debugCounters.BindBase(bindingIndex: 0);
                 }
 
                 int gx = (tileSize + 7) / 8;
