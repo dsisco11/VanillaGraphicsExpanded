@@ -26,6 +26,8 @@ public static partial class VgeBuiltInDebugViews
                 LumOnDebugMode.LumonSceneMaterial,
                 LumOnDebugMode.LumonSceneMaterialRoughness,
                 LumOnDebugMode.LumonSceneMaterialAtlasAll,
+                LumOnDebugMode.LumonSceneMaterialAtlasAllRoughness,
+                LumOnDebugMode.LumonSceneMaterialAtlasAllNormals,
                 LumOnDebugMode.LumonSceneChunkSlot,
                 LumOnDebugMode.LumonSceneSlotGeneration,
                 LumOnDebugMode.LumonScenePageTableOccupancy,

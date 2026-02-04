@@ -367,8 +367,8 @@ vec4 renderLumonSceneMaterialRoughnessDebug()
     return vec4(vec3(clamp(roughness, 0.0, 1.0)), 1.0);
 }
 
-// Debug Mode 63: LumonScene material atlas visualization (all layers)
-// Shows the raw material atlas contents laid out as an NxM grid of array layers.
+// Debug Mode 63: LumonScene material atlas albedo visualization (all layers)
+// Shows the MaterialAtlas contents laid out as an NxM grid of array layers, resolving surfaceId -> albedo via SurfaceLut.
 vec4 renderLumonSceneMaterialAtlasAllDebug()
 {
     if (vge_lumonSceneEnabled == 0)
@@ -402,6 +402,96 @@ vec4 renderLumonSceneMaterialAtlasAllDebug()
     vec2 cellUv = fract(vec2(uv01.x * float(gridX), uv01.y * float(gridY)));
 
     // Draw a subtle grid border.
+    float px = 1.0 / max(1.0, screenSize.x);
+    float py = 1.0 / max(1.0, screenSize.y);
+    if (cellUv.x < px || cellUv.y < py || (1.0 - cellUv.x) < px || (1.0 - cellUv.y) < py)
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    vec4 mat = texture(vge_lumonSceneMaterialAtlas, vec3(cellUv, float(layer)));
+    uint surfaceId = VgeLumonSceneUnpackSurfaceIdFromMaterialAtlas(mat);
+    uvec4 s = texelFetch(vge_lumonSceneSurfaceLut, VgeLumonSceneSurfaceLutUv(surfaceId), 0);
+    vec3 albedo = vec3(s.xyz) * (1.0 / 255.0);
+    return vec4(clamp(albedo, 0.0, 1.0), 1.0);
+}
+
+// Debug Mode 65: LumonScene material atlas roughness visualization (all layers)
+vec4 renderLumonSceneMaterialAtlasAllRoughnessDebug()
+{
+    if (vge_lumonSceneEnabled == 0)
+    {
+        return vec4(0.2, 0.0, 0.2, 1.0);
+    }
+
+    ivec3 sz = textureSize(vge_lumonSceneMaterialAtlas, 0);
+    int layers = max(1, sz.z);
+
+    int gridX = int(ceil(sqrt(float(layers))));
+    int gridY = int(ceil(float(layers) / float(max(1, gridX))));
+
+    vec2 uv01 = gl_FragCoord.xy / screenSize;
+
+    int cx = int(floor(uv01.x * float(gridX)));
+    int cy = int(floor(uv01.y * float(gridY)));
+    if (cx < 0 || cy < 0 || cx >= gridX || cy >= gridY)
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    int layer = cy * gridX + cx;
+    if (layer < 0 || layer >= layers)
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    vec2 cellUv = fract(vec2(uv01.x * float(gridX), uv01.y * float(gridY)));
+
+    float px = 1.0 / max(1.0, screenSize.x);
+    float py = 1.0 / max(1.0, screenSize.y);
+    if (cellUv.x < px || cellUv.y < py || (1.0 - cellUv.x) < px || (1.0 - cellUv.y) < py)
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    vec4 mat = texture(vge_lumonSceneMaterialAtlas, vec3(cellUv, float(layer)));
+    uint surfaceId = VgeLumonSceneUnpackSurfaceIdFromMaterialAtlas(mat);
+    uvec4 s = texelFetch(vge_lumonSceneSurfaceLut, VgeLumonSceneSurfaceLutUv(surfaceId), 0);
+    float roughness = float(s.w) * (1.0 / 255.0);
+    return vec4(vec3(clamp(roughness, 0.0, 1.0)), 1.0);
+}
+
+// Debug Mode 66: LumonScene material atlas normals visualization (all layers)
+vec4 renderLumonSceneMaterialAtlasAllNormalsDebug()
+{
+    if (vge_lumonSceneEnabled == 0)
+    {
+        return vec4(0.2, 0.0, 0.2, 1.0);
+    }
+
+    ivec3 sz = textureSize(vge_lumonSceneMaterialAtlas, 0);
+    int layers = max(1, sz.z);
+
+    int gridX = int(ceil(sqrt(float(layers))));
+    int gridY = int(ceil(float(layers) / float(max(1, gridX))));
+
+    vec2 uv01 = gl_FragCoord.xy / screenSize;
+
+    int cx = int(floor(uv01.x * float(gridX)));
+    int cy = int(floor(uv01.y * float(gridY)));
+    if (cx < 0 || cy < 0 || cx >= gridX || cy >= gridY)
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    int layer = cy * gridX + cx;
+    if (layer < 0 || layer >= layers)
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    vec2 cellUv = fract(vec2(uv01.x * float(gridX), uv01.y * float(gridY)));
+
     float px = 1.0 / max(1.0, screenSize.x);
     float py = 1.0 / max(1.0, screenSize.y);
     if (cellUv.x < px || cellUv.y < py || (1.0 - cellUv.x) < px || (1.0 - cellUv.y) < py)
@@ -557,6 +647,8 @@ vec4 RenderDebug_SceneGBuffer(vec2 screenPos)
         case 62: return renderLumonSceneMaterialDebug();
         case 63: return renderLumonSceneMaterialAtlasAllDebug();
         case 64: return renderLumonSceneMaterialRoughnessDebug();
+        case 65: return renderLumonSceneMaterialAtlasAllRoughnessDebug();
+        case 66: return renderLumonSceneMaterialAtlasAllNormalsDebug();
         default: return vec4(0.0, 0.0, 0.0, 1.0);
     }
 }

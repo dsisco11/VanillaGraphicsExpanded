@@ -954,6 +954,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 or LumOnDebugMode.LumonSceneMaterial
                 or LumOnDebugMode.LumonSceneMaterialRoughness
                 or LumOnDebugMode.LumonSceneMaterialAtlasAll
+                or LumOnDebugMode.LumonSceneMaterialAtlasAllRoughness
+                or LumOnDebugMode.LumonSceneMaterialAtlasAllNormals
                 or LumOnDebugMode.LumonSceneChunkSlot
                 or LumOnDebugMode.LumonSceneSlotGeneration
                 or LumOnDebugMode.LumonScenePageTableOccupancy
@@ -2656,6 +2658,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             or LumOnDebugMode.LumonSceneMaterial
             or LumOnDebugMode.LumonSceneMaterialRoughness
             or LumOnDebugMode.LumonSceneMaterialAtlasAll
+            or LumOnDebugMode.LumonSceneMaterialAtlasAllRoughness
+            or LumOnDebugMode.LumonSceneMaterialAtlasAllNormals
             => LumOnDebugShaderProgramKind.SceneGBuffer,
 
         // Temporal
@@ -2767,7 +2771,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         return (mode is >= LumOnDebugMode.ProbeGrid and <= LumOnDebugMode.CompositeMaterial)
             || (mode is >= LumOnDebugMode.VelocityMagnitude and <= LumOnDebugMode.VelocityPrevUv)
             || (mode is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeOrbsPoints)
-            || (mode is >= LumOnDebugMode.LumonScenePageReady and <= LumOnDebugMode.LumonSceneMaterialRoughness)
+            || (mode is >= LumOnDebugMode.LumonScenePageReady and <= LumOnDebugMode.LumonSceneMaterialAtlasAllNormals)
             || (mode is LumOnDebugMode.LumonSceneChunkSlot
                 or LumOnDebugMode.LumonSceneSlotGeneration
                 or LumOnDebugMode.LumonScenePageTableOccupancy)
