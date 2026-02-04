@@ -12,6 +12,12 @@ internal sealed class LumonSceneOccupancyClipmapGpuResources : IDisposable
     public const int MaxLightLevels = 33; // 0..32 inclusive
     public const int MaxSurfaceLutEntries = LumonScenePbrSurfaceLutRegistry.MaxSurfaceEntries;
 
+    // IMPORTANT:
+    // SurfaceLut is indexed by a 16-bit surfaceId (0..65535). Many drivers report GL_MAX_TEXTURE_SIZE=16384,
+    // so a 65536×1 texture is invalid. Use a 2D atlas shape that stays well under typical limits.
+    public const int SurfaceLutWidth = 256;
+    public const int SurfaceLutHeight = MaxSurfaceLutEntries / SurfaceLutWidth;
+
     private readonly Texture3D[] occupancyLevels;
 
     public int Resolution { get; }
@@ -76,8 +82,8 @@ internal sealed class LumonSceneOccupancyClipmapGpuResources : IDisposable
             debugName: $"{debugNamePrefix}.MaterialPalette");
 
         SurfaceLut = Texture2D.Create(
-            width: MaxSurfaceLutEntries,
-            height: 1,
+            width: SurfaceLutWidth,
+            height: SurfaceLutHeight,
             format: PixelInternalFormat.Rgba32ui,
             filter: TextureFilterMode.Nearest,
             debugName: $"{debugNamePrefix}.SurfaceLut");
