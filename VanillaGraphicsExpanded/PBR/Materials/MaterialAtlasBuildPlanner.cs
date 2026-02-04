@@ -180,7 +180,7 @@ internal sealed class MaterialAtlasBuildPlanner
                     DepthScale: depthScale,
                     Priority: 0));
 
-                if (registry.OverridesByTexture.TryGetValue(texture, out PbrMaterialTextureOverrides overrides)
+                if (registry.TryGetOverrides(texture, out PbrMaterialTextureOverrides overrides)
                     && overrides.NormalHeight is not null)
                 {
                     normalDepthOverrides.Add(new AtlasBuildPlan.NormalDepthOverrideJob(

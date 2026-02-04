@@ -87,14 +87,12 @@ internal static class BlockFaceTextureKeyResolver
             path = "textures/" + path.TrimStart('/');
         }
 
-        // Mapping keys in the registry are file-like and include the extension.
-        // CompositeTexture.Base often omits it, so default to .png when absent.
+        // Registry keys are extensionless so multiple formats map consistently.
         int lastSlash = path.LastIndexOf('/');
         int lastDot = path.LastIndexOf('.');
-        bool hasExt = lastDot > lastSlash;
-        if (!hasExt)
+        if (lastDot > lastSlash)
         {
-            path += ".png";
+            path = path[..lastDot];
         }
 
         texture = new AssetLocation(domain.ToLowerInvariant(), path.ToLowerInvariant());

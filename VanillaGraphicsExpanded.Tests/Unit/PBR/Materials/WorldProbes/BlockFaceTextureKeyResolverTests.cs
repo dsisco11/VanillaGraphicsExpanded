@@ -28,19 +28,19 @@ public sealed class BlockFaceTextureKeyResolverTests
 
         Assert.True(BlockFaceTextureKeyResolver.TryResolveBaseTextureLocation(block, faceIndex: 0, out AssetLocation tex, out string? from));
         Assert.Equal("north", from);
-        Assert.Equal(new AssetLocation("game", "textures/block/northtex.png"), tex);
+        Assert.Equal(new AssetLocation("game", "textures/block/northtex"), tex);
 
         Assert.True(BlockFaceTextureKeyResolver.TryResolveBaseTextureLocation(block, faceIndex: 1, out AssetLocation texEast, out string? fromEast));
         Assert.Equal("side", fromEast);
-        Assert.Equal(new AssetLocation("game", "textures/block/sidetex.png"), texEast);
+        Assert.Equal(new AssetLocation("game", "textures/block/sidetex"), texEast);
 
         Assert.True(BlockFaceTextureKeyResolver.TryResolveBaseTextureLocation(block, faceIndex: 4, out AssetLocation texUp, out string? fromUp));
         Assert.Equal("all", fromUp);
-        Assert.Equal(new AssetLocation("game", "textures/block/alltex.png"), texUp);
+        Assert.Equal(new AssetLocation("game", "textures/block/alltex"), texUp);
     }
 
     [Fact]
-    public void TryResolveBaseTextureLocation_PreservesTexturesPrefixAndExtension()
+    public void TryResolveBaseTextureLocation_PreservesTexturesPrefix_AndStripsExtension()
     {
         var block = new Block
         {
@@ -53,6 +53,6 @@ public sealed class BlockFaceTextureKeyResolverTests
         };
 
         Assert.True(BlockFaceTextureKeyResolver.TryResolveBaseTextureLocation(block, faceIndex: 2, out AssetLocation tex, out _));
-        Assert.Equal(new AssetLocation("game", "textures/block/foo/bar.png"), tex);
+        Assert.Equal(new AssetLocation("game", "textures/block/foo/bar"), tex);
     }
 }

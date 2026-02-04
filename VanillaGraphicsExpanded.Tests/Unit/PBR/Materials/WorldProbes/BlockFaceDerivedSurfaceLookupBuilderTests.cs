@@ -29,7 +29,7 @@ public sealed class BlockFaceDerivedSurfaceLookupBuilderTests
 
         IList<Block> blocks = new List<Block> { block };
 
-        var texKey = new AssetLocation("game", "textures/block/test/albedo.png");
+        var texKey = new AssetLocation("game", "textures/block/test/albedo");
         var surfaceByTexture = new Dictionary<AssetLocation, PbrMaterialSurface>
         {
             [texKey] = new PbrMaterialSurface(

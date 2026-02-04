@@ -28,7 +28,7 @@ public sealed class LumonSceneTraceSceneMaterialPaletteRegistryTests
 
             Block block = CreateBlockWithTexture(faceKey: "up", textureDomain: "game", texturePath: "block/test_albedo");
 
-            AssetLocation surfaceKey = new("game", "textures/block/test_albedo.png");
+            AssetLocation surfaceKey = new("game", "textures/block/test_albedo");
             var surface = new PbrMaterialSurface(
                 Roughness: 0.5f,
                 Metallic: 0f,
@@ -99,7 +99,7 @@ public sealed class LumonSceneTraceSceneMaterialPaletteRegistryTests
 
             Block block = CreateBlockWithTexture(faceKey: "up", textureDomain: "game", texturePath: "block/test2");
 
-            AssetLocation surfaceKey = new("game", "textures/block/test2.png");
+            AssetLocation surfaceKey = new("game", "textures/block/test2");
             var surface = new PbrMaterialSurface(
                 Roughness: 0.25f,
                 Metallic: 0f,

@@ -36,6 +36,7 @@ internal sealed class PbrMaterialRegistry
     private readonly Dictionary<AssetLocation, PbrMaterialTextureOverrides> overridesByTexture = new();
     private readonly Dictionary<AssetLocation, PbrOverrideScale> scaleByTexture = new();
     private readonly Dictionary<AssetLocation, PbrMaterialSurface> surfaceByTexture = new();
+    private readonly Dictionary<AssetLocation, AssetLocation> concreteTextureByKey = new();
 
     private readonly object baseColorCacheLock = new();
     private readonly Dictionary<AtlasCacheKey, Vector3> baseColorLinearByKey = new();
@@ -125,6 +126,7 @@ internal sealed class PbrMaterialRegistry
         overridesByTexture.Clear();
         scaleByTexture.Clear();
         surfaceByTexture.Clear();
+        concreteTextureByKey.Clear();
         materialIndexById.Clear();
         materialsByIndex = Array.Empty<PbrMaterialDefinition>();
         mappingRules.Clear();
@@ -133,7 +135,8 @@ internal sealed class PbrMaterialRegistry
 
         BuildMergedMaterials(logger);
         BuildMappingRules(logger, strict);
-        BuildTextureMappings(logger, textureLocations);
+        BuildConcreteTextureKeys(textureLocations);
+        BuildTextureMappings(logger, concreteTextureByKey.Keys);
         AssignMaterialIndices();
 
         int totalMaterials = sources.Sum(s => s.File.Materials?.Count ?? 0);
@@ -156,11 +159,6 @@ internal sealed class PbrMaterialRegistry
 
     public bool TryGetSurface(AssetLocation texture, out PbrMaterialSurface surface)
     {
-        if (surfaceByTexture.TryGetValue(texture, out surface))
-        {
-            return true;
-        }
-
         AssetLocation normalized = NormalizeTextureLocation(texture);
         return surfaceByTexture.TryGetValue(normalized, out surface);
     }
@@ -217,12 +215,14 @@ internal sealed class PbrMaterialRegistry
 
     public bool TryGetMaterialId(AssetLocation texture, out string materialId)
     {
-        return materialIdByTexture.TryGetValue(texture, out materialId!);
+        AssetLocation normalized = NormalizeTextureLocation(texture);
+        return materialIdByTexture.TryGetValue(normalized, out materialId!);
     }
 
     public bool TryGetMaterial(AssetLocation texture, out PbrMaterialDefinition definition)
     {
-        if (!materialIdByTexture.TryGetValue(texture, out string? materialId))
+        AssetLocation normalized = NormalizeTextureLocation(texture);
+        if (!materialIdByTexture.TryGetValue(normalized, out string? materialId))
         {
             definition = default;
             return false;
@@ -233,13 +233,14 @@ internal sealed class PbrMaterialRegistry
 
     public bool TryGetScale(AssetLocation texture, out PbrOverrideScale scale)
     {
-        if (scaleByTexture.TryGetValue(texture, out scale))
-        {
-            return true;
-        }
-
         AssetLocation normalized = NormalizeTextureLocation(texture);
         return scaleByTexture.TryGetValue(normalized, out scale);
+    }
+
+    public bool TryGetOverrides(AssetLocation texture, out PbrMaterialTextureOverrides overrides)
+    {
+        AssetLocation normalized = NormalizeTextureLocation(texture);
+        return overridesByTexture.TryGetValue(normalized, out overrides);
     }
 
     public void Clear()
@@ -252,6 +253,7 @@ internal sealed class PbrMaterialRegistry
         overridesByTexture.Clear();
         scaleByTexture.Clear();
         surfaceByTexture.Clear();
+        concreteTextureByKey.Clear();
         derivedSurfaceByBlockFace = Array.Empty<DerivedSurface>();
         materialIndexById.Clear();
         materialsByIndex = Array.Empty<PbrMaterialDefinition>();
@@ -836,7 +838,14 @@ internal sealed class PbrMaterialRegistry
         baseColorLinear = default;
         reason = null;
 
-        IAsset? asset = capi.Assets.TryGet(texture, loadAsset: true);
+        // Registry keys are extensionless, but assets are extensionful on disk.
+        // Use the enumerated texture index to select a concrete asset location without assuming a format.
+        AssetLocation key = NormalizeTextureLocation(texture);
+        AssetLocation concrete = Instance.concreteTextureByKey.TryGetValue(key, out AssetLocation resolved)
+            ? resolved
+            : NormalizeTextureLocationForAssetLoad(texture);
+
+        IAsset? asset = capi.Assets.TryGet(concrete, loadAsset: true);
         if (asset == null)
         {
             reason = "asset not found";
@@ -997,6 +1006,8 @@ internal sealed class PbrMaterialRegistry
                     continue;
                 }
 
+                glob = NormalizeTextureGlob(glob);
+
                 string? materialRef = rule.Values?.Material;
                 if (string.IsNullOrWhiteSpace(materialRef))
                 {
@@ -1049,12 +1060,13 @@ internal sealed class PbrMaterialRegistry
         }
     }
 
-    private void BuildTextureMappings(ILogger logger, IReadOnlyList<AssetLocation> textureLocations)
+    private void BuildTextureMappings(ILogger logger, IEnumerable<AssetLocation> textureLocations)
     {
         // Eagerly pre-expand all globs into concrete texture locations.
         // Candidate set: all assets under textures/ across all domains.
         List<AssetLocation> ordered = textureLocations
             .Select(NormalizeTextureLocation)
+            .Distinct()
             .OrderBy(loc => loc.Domain, StringComparer.Ordinal)
             .ThenBy(loc => loc.Path, StringComparer.Ordinal)
             .ToList();
@@ -1180,13 +1192,116 @@ internal sealed class PbrMaterialRegistry
 
         string domain = location.Domain.ToLowerInvariant();
 
-        string path = location.Path.Replace('\\', '/').ToLowerInvariant();
+        string path = location.Path.Replace('\\', '/').ToLowerInvariant().TrimStart('/');
         if (!path.StartsWith("textures/", StringComparison.Ordinal))
         {
-            path = "textures/" + path.TrimStart('/');
+            path = "textures/" + path;
+        }
+
+        // Registry keys are extensionless so multiple texture formats can map to one material entry.
+        int lastSlash = path.LastIndexOf('/');
+        int lastDot = path.LastIndexOf('.');
+        if (lastDot > lastSlash)
+        {
+            path = path[..lastDot];
         }
 
         return new AssetLocation(domain, path);
+    }
+
+    private static AssetLocation NormalizeTextureLocationForAssetLoad(AssetLocation location)
+    {
+        // Same as NormalizeTextureLocation, but retains the extension so Assets.TryGet can resolve it.
+        string domain = location.Domain.ToLowerInvariant();
+
+        string path = location.Path.Replace('\\', '/').ToLowerInvariant().TrimStart('/');
+        if (!path.StartsWith("textures/", StringComparison.Ordinal))
+        {
+            path = "textures/" + path;
+        }
+
+        return new AssetLocation(domain, path);
+    }
+
+    private void BuildConcreteTextureKeys(IReadOnlyList<AssetLocation> textureLocations)
+    {
+        // Build stable mapping: extensionless key -> concrete texture asset (with extension).
+        foreach (AssetLocation raw in textureLocations)
+        {
+            AssetLocation concrete = NormalizeTextureLocationForAssetLoad(raw);
+            AssetLocation key = NormalizeTextureLocation(raw);
+
+            if (!concrete.Valid || !key.Valid)
+            {
+                continue;
+            }
+
+            if (!concreteTextureByKey.TryGetValue(key, out AssetLocation existing))
+            {
+                concreteTextureByKey[key] = concrete;
+                continue;
+            }
+
+            // Prefer .png, then .dds, then any other extension; tie-break by path.
+            if (CompareConcreteTexturePreference(existing.Path, concrete.Path) > 0)
+            {
+                concreteTextureByKey[key] = concrete;
+            }
+        }
+    }
+
+    private static int CompareConcreteTexturePreference(string existingPath, string candidatePath)
+    {
+        int a = ExtensionPreference(existingPath);
+        int b = ExtensionPreference(candidatePath);
+        if (a != b)
+        {
+            return a.CompareTo(b);
+        }
+
+        return string.CompareOrdinal(existingPath, candidatePath);
+    }
+
+    private static int ExtensionPreference(string path)
+    {
+        int lastSlash = path.LastIndexOf('/');
+        int lastDot = path.LastIndexOf('.');
+        if (lastDot <= lastSlash)
+        {
+            return 10;
+        }
+
+        string ext = path[lastDot..];
+        if (ext.Equals(".png", StringComparison.Ordinal))
+        {
+            return 0;
+        }
+        if (ext.Equals(".dds", StringComparison.Ordinal))
+        {
+            return 1;
+        }
+        return 2;
+    }
+
+    private static string NormalizeTextureGlob(string glob)
+    {
+        // Registry keys are extensionless, but user globs are typically file-like (e.g. "*.png").
+        // Strip a trailing extension so existing configs continue to work across formats.
+        glob = glob.Trim();
+
+        static bool EndsWithExt(string s, string ext) => s.EndsWith(ext, StringComparison.OrdinalIgnoreCase);
+
+        if (EndsWithExt(glob, ".png") || EndsWithExt(glob, ".dds") || EndsWithExt(glob, ".jpg") || EndsWithExt(glob, ".jpeg")
+            || EndsWithExt(glob, ".tga") || EndsWithExt(glob, ".bmp") || EndsWithExt(glob, ".gif") || EndsWithExt(glob, ".webp"))
+        {
+            int lastDot = glob.LastIndexOf('.');
+            if (lastDot >= 0)
+            {
+                glob = glob[..lastDot];
+            }
+        }
+
+        return glob;
     }
 
     private void AssignMaterialIndices()

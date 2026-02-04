@@ -282,6 +282,45 @@ public sealed class PbrMaterialRegistryPhase8Tests
     }
 
     [Fact]
+    public void Mapping_Works_WhenTextureLocationsOmitExtensions_AndLookupAcceptsExtensionfulQueries()
+    {
+        // Some engine/mod call sites use extensionless texture keys ("block/test").
+        // Our mapping rules are often file-like ("*.png"), but the registry keyspace is extensionless.
+        var logger = new TestLogger();
+
+        var src = Source(
+            domain: "game",
+            path: "config/vge/material_definitions.json",
+            json: """
+            {
+              "version": 1,
+              "materials": {
+                "a": { "roughness": 0.1 }
+              },
+              "mapping": [
+                {
+                  "id": "rule",
+                  "priority": 0,
+                  "match": { "glob": "assets/game/textures/block/test.png" },
+                  "values": { "material": "a" }
+                }
+              ]
+            }
+            """);
+
+        var textures = Textures("block/test");
+
+        PbrMaterialRegistry.Instance.InitializeFromParsedSources(
+            logger,
+            parsedSources: new[] { src },
+            textureLocations: textures,
+            strict: true);
+
+        Assert.True(PbrMaterialRegistry.Instance.TryGetMaterialId(new AssetLocation("game", "textures/block/test.png"), out var materialId));
+        Assert.Equal("game:a", materialId);
+    }
+
+    [Fact]
     public void MappingRuleOrdering_Tie_FirstRuleWins()
     {
         var logger = new TestLogger();
@@ -363,7 +402,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
             strict: true);
 
         var key = new AssetLocation("game", "textures/block/test.png");
-        Assert.True(PbrMaterialRegistry.Instance.OverridesByTexture.TryGetValue(key, out PbrMaterialTextureOverrides overrides));
+        Assert.True(PbrMaterialRegistry.Instance.TryGetOverrides(key, out PbrMaterialTextureOverrides overrides));
 
         Assert.Equal("rule", overrides.RuleId);
         Assert.Equal(new AssetLocation("game", "config/vge/material_definitions.json"), overrides.RuleSource);
@@ -428,7 +467,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
         Assert.True(PbrMaterialRegistry.Instance.TryGetMaterialId(key, out var materialId));
         Assert.Equal("game:a", materialId);
 
-        Assert.True(PbrMaterialRegistry.Instance.OverridesByTexture.TryGetValue(key, out PbrMaterialTextureOverrides overrides));
+        Assert.True(PbrMaterialRegistry.Instance.TryGetOverrides(key, out PbrMaterialTextureOverrides overrides));
         Assert.Equal("first", overrides.RuleId);
         Assert.Equal(new AssetLocation("game", "textures/vge/params/first.png"), overrides.MaterialParams);
     }
@@ -529,7 +568,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
           strict: true);
 
         var key = new AssetLocation("game", "textures/block/test.png");
-        Assert.True(PbrMaterialRegistry.Instance.OverridesByTexture.TryGetValue(key, out PbrMaterialTextureOverrides overrides));
+        Assert.True(PbrMaterialRegistry.Instance.TryGetOverrides(key, out PbrMaterialTextureOverrides overrides));
 
         Assert.Equal(PbrOverrideScale.Identity, overrides.Scale);
         Assert.Empty(warnings);
@@ -584,7 +623,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
           strict: true);
 
         var key = new AssetLocation("game", "textures/block/test.png");
-        Assert.True(PbrMaterialRegistry.Instance.OverridesByTexture.TryGetValue(key, out PbrMaterialTextureOverrides overrides));
+        Assert.True(PbrMaterialRegistry.Instance.TryGetOverrides(key, out PbrMaterialTextureOverrides overrides));
 
         Assert.Equal(1f, overrides.Scale.Roughness);
         Assert.Equal(2f, overrides.Scale.Metallic);
@@ -657,7 +696,7 @@ public sealed class PbrMaterialRegistryPhase8Tests
           strict: true);
 
         var key = new AssetLocation("game", "textures/block/test.png");
-        Assert.True(PbrMaterialRegistry.Instance.OverridesByTexture.TryGetValue(key, out PbrMaterialTextureOverrides overrides));
+        Assert.True(PbrMaterialRegistry.Instance.TryGetOverrides(key, out PbrMaterialTextureOverrides overrides));
 
         Assert.Equal(1f, overrides.Scale.Roughness);
         Assert.Equal(1f, overrides.Scale.Metallic);
