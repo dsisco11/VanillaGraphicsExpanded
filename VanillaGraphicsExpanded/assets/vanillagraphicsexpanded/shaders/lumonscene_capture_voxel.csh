@@ -208,7 +208,8 @@ void main()
     // Depth: planar.
     imageStore(vge_depthAtlas, texel, vec4(0.0));
 
-    // Material: base color from TraceScene material palette, roughness in A.
+    // Material: packed normal + surfaceId (resolved from TraceScene material palette).
+    vec3 normalWS = NormalFromPatchId(patchId);
     vec4 outMat = VgeLumonScenePackMaterialAtlas(normalWS, 0u);
     if (vge_occResolution > 0)
     {
@@ -216,19 +217,21 @@ void main()
         ivec3 chunkOrigin = og.xyz;
 
         uint axisId, planeIndex, patchU, patchV;
-        vec3 originWS, axisUWS, axisVWS, normalWS;
+        vec3 originWS, axisUWS, axisVWS, patchNormalWS;
 
         if (!DecodeVoxelPatchId(patchId, axisId, planeIndex, patchU, patchV))
         {
             originWS = vec3(chunkOrigin);
             axisUWS = vec3(0.0);
             axisVWS = vec3(0.0);
-            normalWS = vec3(0.0, 1.0, 0.0);
+            patchNormalWS = vec3(0.0, 1.0, 0.0);
         }
         else
         {
-            ComputeVoxelPatchBasisAndOrigin(chunkOrigin, axisId, planeIndex, patchU, patchV, originWS, axisUWS, axisVWS, normalWS);
+            ComputeVoxelPatchBasisAndOrigin(chunkOrigin, axisId, planeIndex, patchU, patchV, originWS, axisUWS, axisVWS, patchNormalWS);
         }
+
+        normalWS = patchNormalWS;
 
         const uint PatchSizeVoxels = 4u;
         uint faceTexels = max(1u, vge_tileSizeTexels / PatchSizeVoxels);
@@ -246,7 +249,7 @@ void main()
         vec3 stepV = axisVWS * (1.0 / float(PatchSizeVoxels));
 
         vec3 surfacePos = originWS + stepU * (float(cellU) + fu) + stepV * (float(cellV) + fv);
-        ivec3 sampleCell = ivec3(floor(surfacePos - normalWS * 0.01));
+        ivec3 sampleCell = ivec3(floor(surfacePos - patchNormalWS * 0.01));
 
         uint payloadPacked = VgeSampleOccL0(vge_occL0, sampleCell, vge_occOriginMinCell0, vge_occRing0, vge_occResolution);
         uint matIndex = (payloadPacked >> 18u) & 16383u;
@@ -255,7 +258,7 @@ void main()
             uvec4 faces = texelFetch(vge_materialPalette, ivec2(int(matIndex), 0), 0);
             uint faceIndex = VgeLumonSceneAxisIdToBlockFaceIndex(axisId);
             uint surfaceId = VgeLumonSceneUnpackFaceSurfaceId(faces, faceIndex);
-            outMat = VgeLumonScenePackMaterialAtlas(normalWS, surfaceId);
+            outMat = VgeLumonScenePackMaterialAtlas(patchNormalWS, surfaceId);
         }
     }
 

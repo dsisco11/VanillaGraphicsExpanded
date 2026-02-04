@@ -102,14 +102,15 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         byte[] material = ReadTexImageRgba8(materialAtlas.TextureId, TextureTarget.Texture2DArray, tileSize, tileSize);
         Assert.Equal(tileSize * tileSize * 4, material.Length);
 
-        // Spot check center pixel normal ~= (0,0,1) encoded to (128,128,255), alpha=255.
+        // Spot check center pixel:
+        // MaterialAtlas packing: RG = oct-encoded normal, BA = 16-bit surfaceId (here 0).
         int cx = tileSize / 2;
         int cy = tileSize / 2;
         int idx = (cy * tileSize + cx) * 4;
-        Assert.InRange(material[idx + 0], (byte)120, (byte)136);
-        Assert.InRange(material[idx + 1], (byte)120, (byte)136);
-        Assert.InRange(material[idx + 2], (byte)250, (byte)255);
-        Assert.Equal((byte)255, material[idx + 3]);
+        Assert.InRange(material[idx + 0], (byte)120, (byte)136); // ~0.5
+        Assert.InRange(material[idx + 1], (byte)120, (byte)136); // ~0.5
+        Assert.Equal((byte)0, material[idx + 2]); // surfaceId lo
+        Assert.Equal((byte)0, material[idx + 3]); // surfaceId hi
 
         GL.DeleteProgram(program);
     }
@@ -263,13 +264,27 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         int cx = tileSize / 2;
         int cy = tileSize / 2;
         int idx = (cy * tileSize + cx) * 4;
-        Assert.Equal((byte)255, material[idx + 3]); // valid
-
-        Vector3 n01 = new(material[idx + 0] / 255f, material[idx + 1] / 255f, material[idx + 2] / 255f);
-        Vector3 decoded = Vector3.Normalize(n01 * 2f - Vector3.One);
+        Assert.Equal((byte)0, material[idx + 2]);
+        Assert.Equal((byte)0, material[idx + 3]);
+        // RG encodes oct-normal; BA encodes surfaceId.
+        Vector3 decoded = DecodeOctNormal01(new Vector2(material[idx + 0] / 255f, material[idx + 1] / 255f));
         Assert.True(Vector3.Dot(decoded, n) > 0.99f, $"Captured normal dot expected too low: {Vector3.Dot(decoded, n)}");
 
         GL.DeleteProgram(program);
+    }
+
+    private static Vector3 DecodeOctNormal01(Vector2 oct01)
+    {
+        Vector2 f = oct01 * 2f - Vector2.One; // [-1,1]
+        Vector3 v = new(f.X, f.Y, 1f - MathF.Abs(f.X) - MathF.Abs(f.Y));
+        if (v.Z < 0f)
+        {
+            float oldX = v.X;
+            v.X = (1f - MathF.Abs(v.Y)) * MathF.Sign(oldX);
+            v.Y = (1f - MathF.Abs(oldX)) * MathF.Sign(v.Y);
+        }
+
+        return Vector3.Normalize(v);
     }
 
     private static ShaderTestHelper CreateShaderHelperOrSkip()

@@ -339,14 +339,16 @@ void main()
         {
             // Misses contribute sky radiance (TraceScene contract: out-of-bounds => sky).
             // Use the start cell sunlight level as a cheap proxy for "am I outdoors?"
-            vec3 sky = vec3(0.0);
-            if (!startedInBounds)
-            {
-                sky = vec3(32.0);
-            }
-            else
-            {
-                ivec3 startCell = ivec3(floor(origin));
+             vec3 sky = vec3(0.0);
+             if (!startedInBounds)
+             {
+                 // No valid start cell exists; treat as full-sun sky (scaled by the LUT).
+                 float sunScalarMax = texelFetch(vge_sunLevelScalarLut, ivec2(32, 0), 0).r;
+                 sky = vec3(1.0) * (sunScalarMax * 32.0);
+             }
+             else
+             {
+                 ivec3 startCell = ivec3(floor(origin));
                 uint p0 = SampleOccL0(startCell);
                 uint sunLevel0 = min(UnpackSunLevel(p0), 32u);
                 float sunScalar0 = texelFetch(vge_sunLevelScalarLut, ivec2(int(sunLevel0), 0), 0).r;

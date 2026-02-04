@@ -41,7 +41,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         FillMaterialNormalPlusZ(materialAtlas.TextureId, tileSize, tileSize, atlasCount);
 
         // TraceScene occupancy: fill entire volume as solid so DDA hits deterministically.
-        uint packed = LumonSceneOccupancyPacking.PackClamped(blockLevel: 32, sunLevel: 0, lightId: 1, materialPaletteIndex: 0);
+        uint packed = LumonSceneOccupancyPacking.PackClamped(blockLevel: 32, sunLevel: 0, lightId: 1, materialPaletteIndex: 1);
         using var occ = Texture3D.Create(occRes, occRes, occRes, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, TextureTarget.Texture3D, "Test_OccL0");
         FillR32ui3D(occ.TextureId, occRes, occRes, occRes, packed);
 
@@ -404,7 +404,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
             out int localZ);
 
         int startZ = localZ + 1; // floor(localZ + 1.01)
-        uint packedSolid = LumonSceneOccupancyPacking.PackClamped(blockLevel: 32, sunLevel: 0, lightId: 1, materialPaletteIndex: 0);
+        uint packedSolid = LumonSceneOccupancyPacking.PackClamped(blockLevel: 32, sunLevel: 0, lightId: 1, materialPaletteIndex: 1);
 
         using var occ = Texture3D.Create(occRes, occRes, occRes, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, TextureTarget.Texture3D, "Test_OccL0");
         FillOccHalfspaceZ(occ.TextureId, occRes, thresholdZ: startZ, solidForZGreaterOrEqual: true, packedSolid: packedSolid);
@@ -482,7 +482,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         FillR16f2DArray(depthAtlas.TextureId, tileSize, tileSize, atlasCount, value: 0f);
         FillMaterialNormalPlusZ(materialAtlas.TextureId, tileSize, tileSize, atlasCount);
 
-        uint packed = LumonSceneOccupancyPacking.PackClamped(blockLevel: 32, sunLevel: 0, lightId: 1, materialPaletteIndex: 0);
+        uint packed = LumonSceneOccupancyPacking.PackClamped(blockLevel: 32, sunLevel: 0, lightId: 1, materialPaletteIndex: 1);
         using var occ = Texture3D.Create(occRes, occRes, occRes, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, TextureTarget.Texture3D, "Test_OccL0");
         FillR32ui3D(occ.TextureId, occRes, occRes, occRes, packed);
 
@@ -753,14 +753,15 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
     private static void FillMaterialNormalPlusZ(int textureId, int width, int height, int depth)
     {
-        // Encode normal (0,0,1) into [0..255] as (128,128,255). Alpha=255.
+        // MaterialAtlas packing: RG = oct-encoded normal, BA = 16-bit surfaceId.
+        // +Z oct encodes to (0.5, 0.5) => (128,128). surfaceId=0.
         byte[] data = new byte[checked(width * height * depth * 4)];
         for (int i = 0; i < data.Length; i += 4)
         {
             data[i + 0] = 128;
             data[i + 1] = 128;
-            data[i + 2] = 255;
-            data[i + 3] = 255;
+            data[i + 2] = 0;
+            data[i + 3] = 0;
         }
 
         GL.BindTexture(TextureTarget.Texture2DArray, textureId);
@@ -770,14 +771,14 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
     private static void FillMaterialNormalPlusZ16f(int textureId, int width, int height, int depth)
     {
-        // Exact (0.5, 0.5, 1.0) encoding so decode produces an exact +Z normal (avoids tiny tangent Z components).
+        // Exact (0.5, 0.5) oct encoding so decode produces an exact +Z normal.
         float[] data = new float[checked(width * height * depth * 4)];
         for (int i = 0; i < data.Length; i += 4)
         {
             data[i + 0] = 0.5f;
             data[i + 1] = 0.5f;
-            data[i + 2] = 1.0f;
-            data[i + 3] = 1.0f;
+            data[i + 2] = 0.0f;
+            data[i + 3] = 0.0f;
         }
 
         GL.BindTexture(TextureTarget.Texture2DArray, textureId);

@@ -44,6 +44,18 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         Array.Fill(data, frameStamp);
         usageStamp.UploadDataImmediate(data, 0, 0, 0, 128, 128, chunkSlotCount);
 
+        // Page table is required by the compaction shader (filters mapped vs unmapped pages).
+        // For this test, keep it all-zero so every stamped page is treated as unmapped.
+        using var pageTableMip0 = Texture3D.Create(
+            128,
+            128,
+            chunkSlotCount,
+            PixelInternalFormat.R32ui,
+            filter: TextureFilterMode.Nearest,
+            textureTarget: TextureTarget.Texture2DArray,
+            debugName: "Test_PageTableMip0");
+        pageTableMip0.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
+
         using var requests = CreateSsbo<RequestGpu>("Test_PageRequests", capacityItems: (int)maxRequests, sentinel: Sentinel);
         using var counter = CreateAtomicCounterBuffer(initialValue: 0u);
 
@@ -52,7 +64,8 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         GL.UseProgram(compactProgram);
         counter.BindBase(bindingIndex: 0);
         requests.BindBase(bindingIndex: 0);
-        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
+        BindSampler2DArrayUint(compactProgram, "vge_pageUsageStamp", usageStamp.TextureId, unit: 0);
+        BindSampler2DArrayUint(compactProgram, "vge_pageTableMip0", pageTableMip0.TextureId, unit: 1);
 
         // Verify scanOffset rotation: offset increments by VirtualPagesPerChunk each "frame"
         // and should rotate the dominant slot for the bounded request list.
@@ -64,6 +77,7 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
             SetUniform(compactProgram, "vge_maxRequests", maxRequests);
             SetUniform(compactProgram, "vge_frameStamp", frameStamp);
             SetUniform(compactProgram, "vge_scanOffset", f * virtualPagesPerChunk);
+            SetUniform(compactProgram, "vge_compactMode", 1u);
 
             // Dispatch only a single workgroup so the outcome is deterministic (no cross-workgroup atomic ordering).
             // This validates the scanOffset mapping logic itself (slot rotation), which is the core fairness mechanism.
@@ -120,6 +134,16 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
             debugName: "Test_PageUsageStamp");
         usageStamp.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
+        using var pageTableMip0 = Texture3D.Create(
+            128,
+            128,
+            chunkSlotCount,
+            PixelInternalFormat.R32ui,
+            filter: TextureFilterMode.Nearest,
+            textureTarget: TextureTarget.Texture2DArray,
+            debugName: "Test_PageTableMip0");
+        pageTableMip0.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
+
         using var genTex = Texture2D.Create(chunkSlotCount, 1, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, debugName: "Test_ChunkSlotGeneration");
         genTex.UploadDataImmediate(new uint[chunkSlotCount], x: 0, y: 0, regionWidth: chunkSlotCount, regionHeight: 1);
 
@@ -163,10 +187,12 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         GL.UseProgram(compactProgram);
         counter.BindBase(bindingIndex: 0);
         requests.BindBase(bindingIndex: 0);
-        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
+        BindSampler2DArrayUint(compactProgram, "vge_pageUsageStamp", usageStamp.TextureId, unit: 0);
+        BindSampler2DArrayUint(compactProgram, "vge_pageTableMip0", pageTableMip0.TextureId, unit: 1);
         SetUniform(compactProgram, "vge_maxRequests", capacity);
         SetUniform(compactProgram, "vge_frameStamp", 1u);
         SetUniform(compactProgram, "vge_scanOffset", 0u);
+        SetUniform(compactProgram, "vge_compactMode", 1u);
         GL.DispatchCompute((16384 * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
@@ -223,6 +249,16 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
             debugName: "Test_PageUsageStamp");
         usageStamp.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
+        using var pageTableMip0 = Texture3D.Create(
+            128,
+            128,
+            chunkSlotCount,
+            PixelInternalFormat.R32ui,
+            filter: TextureFilterMode.Nearest,
+            textureTarget: TextureTarget.Texture2DArray,
+            debugName: "Test_PageTableMip0");
+        pageTableMip0.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
+
         using var genTex = Texture2D.Create(chunkSlotCount, 1, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, debugName: "Test_ChunkSlotGeneration");
         genTex.UploadDataImmediate(new uint[] { 1u, 2u }, x: 0, y: 0, regionWidth: chunkSlotCount, regionHeight: 1);
 
@@ -246,9 +282,11 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
 
         const uint capacity = 16;
         using var requests = CreateSsbo<RequestGpu>("Test_PageRequests", capacityItems: (int)capacity, sentinel: Sentinel);
+        using var markCounters = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 3);
         using var counter = CreateAtomicCounterBuffer(initialValue: 0u);
 
         GL.UseProgram(markProgram);
+        markCounters.BindBase(bindingIndex: 0);
         BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchId.TextureId, unit: 0);
         BindSampler2DUint(markProgram, "vge_chunkSlotGenerationTex", genTex.TextureId, unit: 1);
         SetUniform(markProgram, "vge_frameStamp", 1u);
@@ -259,10 +297,12 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         GL.UseProgram(compactProgram);
         counter.BindBase(bindingIndex: 0);
         requests.BindBase(bindingIndex: 0);
-        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
+        BindSampler2DArrayUint(compactProgram, "vge_pageUsageStamp", usageStamp.TextureId, unit: 0);
+        BindSampler2DArrayUint(compactProgram, "vge_pageTableMip0", pageTableMip0.TextureId, unit: 1);
         SetUniform(compactProgram, "vge_maxRequests", capacity);
         SetUniform(compactProgram, "vge_frameStamp", 1u);
         SetUniform(compactProgram, "vge_scanOffset", 0u);
+        SetUniform(compactProgram, "vge_compactMode", 1u);
         GL.DispatchCompute((16384 * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
@@ -301,6 +341,16 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
             debugName: "Test_PageUsageStamp");
         usageStamp.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
+        using var pageTableMip0 = Texture3D.Create(
+            128,
+            128,
+            chunkSlotCount,
+            PixelInternalFormat.R32ui,
+            filter: TextureFilterMode.Nearest,
+            textureTarget: TextureTarget.Texture2DArray,
+            debugName: "Test_PageTableMip0");
+        pageTableMip0.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
+
         using var genTex = Texture2D.Create(chunkSlotCount, 1, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, debugName: "Test_ChunkSlotGeneration");
         genTex.UploadDataImmediate(new uint[chunkSlotCount], x: 0, y: 0, regionWidth: chunkSlotCount, regionHeight: 1);
 
@@ -316,9 +366,11 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
 
         const uint capacity = 16;
         using var requests = CreateSsbo<RequestGpu>("Test_PageRequests", capacityItems: (int)capacity, sentinel: Sentinel);
+        using var markCounters = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 3);
         using var counter = CreateAtomicCounterBuffer(initialValue: 0u);
 
         GL.UseProgram(markProgram);
+        markCounters.BindBase(bindingIndex: 0);
         BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchId.TextureId, unit: 0);
         BindSampler2DUint(markProgram, "vge_chunkSlotGenerationTex", genTex.TextureId, unit: 1);
         SetUniform(markProgram, "vge_frameStamp", 1u);
@@ -329,10 +381,12 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         GL.UseProgram(compactProgram);
         counter.BindBase(bindingIndex: 0);
         requests.BindBase(bindingIndex: 0);
-        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
+        BindSampler2DArrayUint(compactProgram, "vge_pageUsageStamp", usageStamp.TextureId, unit: 0);
+        BindSampler2DArrayUint(compactProgram, "vge_pageTableMip0", pageTableMip0.TextureId, unit: 1);
         SetUniform(compactProgram, "vge_maxRequests", capacity);
         SetUniform(compactProgram, "vge_frameStamp", 1u);
         SetUniform(compactProgram, "vge_scanOffset", 0u);
+        SetUniform(compactProgram, "vge_compactMode", 1u);
         GL.DispatchCompute((16384 * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
@@ -398,11 +452,15 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         }
     }
 
-    private static AtomicCounterBuffer CreateAtomicCounterBuffer(uint initialValue)
+    private static AtomicCounterBuffer CreateAtomicCounterBuffer(uint initialValue, int counterCount = 1)
     {
+        if (counterCount <= 0) throw new ArgumentOutOfRangeException(nameof(counterCount));
+
         int id = GL.GenBuffer();
         GL.BindBuffer(BufferTarget.AtomicCounterBuffer, id);
-        GL.BufferData(BufferTarget.AtomicCounterBuffer, sizeof(uint), ref initialValue, BufferUsageHint.DynamicDraw);
+        uint[] init = new uint[counterCount];
+        init[0] = initialValue;
+        GL.BufferData(BufferTarget.AtomicCounterBuffer, checked(sizeof(uint) * counterCount), init, BufferUsageHint.DynamicDraw);
         GL.BindBuffer(BufferTarget.AtomicCounterBuffer, 0);
         return new AtomicCounterBuffer(id);
     }
@@ -455,6 +513,15 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         Assert.True(loc >= 0, $"Missing uniform {uniformName}");
         GL.ActiveTexture(TextureUnit.Texture0 + unit);
         GL.BindTexture(TextureTarget.Texture2D, textureId);
+        GL.Uniform1(loc, unit);
+    }
+
+    private static void BindSampler2DArrayUint(int program, string uniformName, int textureId, int unit)
+    {
+        int loc = GL.GetUniformLocation(program, uniformName);
+        Assert.True(loc >= 0, $"Missing uniform {uniformName}");
+        GL.ActiveTexture(TextureUnit.Texture0 + unit);
+        GL.BindTexture(TextureTarget.Texture2DArray, textureId);
         GL.Uniform1(loc, unit);
     }
 

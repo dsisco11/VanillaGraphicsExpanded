@@ -65,14 +65,26 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
             debugName: "Test_PageUsageStamp");
         usageStamp.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
+        using var pageTableMip0 = Texture3D.Create(
+            128,
+            128,
+            chunkSlotCount,
+            PixelInternalFormat.R32ui,
+            filter: TextureFilterMode.Nearest,
+            textureTarget: TextureTarget.Texture2DArray,
+            debugName: "Test_PageTableMip0");
+        pageTableMip0.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
+
         using var genTex = Texture2D.Create(chunkSlotCount, 1, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, debugName: "Test_ChunkSlotGeneration");
         genTex.UploadDataImmediate(new uint[chunkSlotCount], x: 0, y: 0, regionWidth: chunkSlotCount, regionHeight: 1);
 
         using var pageRequests = CreateSsbo<LumonScenePageRequestGpu>("Test_PageRequests", capacityItems: desiredPages);
         using var pageRequestCounter = CreateAtomicCounterBuffer(initialValue: 0u);
+        using var markCounters = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 3);
 
         // Pass A: mark.
         GL.UseProgram(markProgram);
+        markCounters.BindBase(bindingIndex: 0);
         BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
         BindSampler2DUint(markProgram, "vge_chunkSlotGenerationTex", genTex.TextureId, unit: 1);
         SetUniform(markProgram, "vge_frameStamp", 1u);
@@ -84,10 +96,12 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         GL.UseProgram(compactProgram);
         pageRequestCounter.BindBase(bindingIndex: 0);
         pageRequests.BindBase(bindingIndex: 0);
-        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadOnly, format: SizedInternalFormat.R32ui);
+        BindSampler2DArrayUint(compactProgram, "vge_pageUsageStamp", usageStamp.TextureId, unit: 0);
+        BindSampler2DArrayUint(compactProgram, "vge_pageTableMip0", pageTableMip0.TextureId, unit: 1);
         SetUniform(compactProgram, "vge_maxRequests", (uint)desiredPages);
         SetUniform(compactProgram, "vge_frameStamp", 1u);
         SetUniform(compactProgram, "vge_scanOffset", 0u);
+        SetUniform(compactProgram, "vge_compactMode", 1u);
         GL.DispatchCompute((16384 * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
@@ -207,8 +221,8 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
             int cy = tileY * tileSize + tileSize / 2;
 
             (byte r, byte g, byte b, byte a) = ReadRgbaAt(mat, atlasW, atlasH, layer: atlasIdx, x: cx, y: cy);
-            Assert.NotEqual((byte)0, r);
-            Assert.NotEqual((byte)0, g);
+            // Oct-normal encoding can legitimately hit 0/255 on one axis (e.g. -X encodes to R=0).
+            Assert.True(r != 0 || g != 0, $"Expected non-zero oct normal (RG not both zero), got r={r} g={g}");
             Assert.Equal((byte)9, b);
             Assert.Equal((byte)0, a);
         }
@@ -251,9 +265,21 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
 
     private static AtomicCounterBuffer CreateAtomicCounterBuffer(uint initialValue)
     {
+        return CreateAtomicCounterBuffer(initialValue, counterCount: 1);
+    }
+
+    private static AtomicCounterBuffer CreateAtomicCounterBuffer(uint initialValue, int counterCount)
+    {
+        if (counterCount <= 0) counterCount = 1;
+
         int id = GL.GenBuffer();
         GL.BindBuffer(BufferTarget.AtomicCounterBuffer, id);
-        GL.BufferData(BufferTarget.AtomicCounterBuffer, sizeof(uint), ref initialValue, BufferUsageHint.DynamicDraw);
+        uint[] data = new uint[counterCount];
+        if (initialValue != 0u)
+        {
+            Array.Fill(data, initialValue);
+        }
+        GL.BufferData(BufferTarget.AtomicCounterBuffer, sizeof(uint) * counterCount, data, BufferUsageHint.DynamicDraw);
         GL.BindBuffer(BufferTarget.AtomicCounterBuffer, 0);
         return new AtomicCounterBuffer(id);
     }
@@ -339,6 +365,15 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         Assert.True(loc >= 0, $"Missing uniform {uniformName}");
         GL.ActiveTexture(TextureUnit.Texture0 + unit);
         GL.BindTexture(TextureTarget.Texture2D, textureId);
+        GL.Uniform1(loc, unit);
+    }
+
+    private static void BindSampler2DArrayUint(int program, string uniformName, int textureId, int unit)
+    {
+        int loc = GL.GetUniformLocation(program, uniformName);
+        Assert.True(loc >= 0, $"Missing uniform {uniformName}");
+        GL.ActiveTexture(TextureUnit.Texture0 + unit);
+        GL.BindTexture(TextureTarget.Texture2DArray, textureId);
         GL.Uniform1(loc, unit);
     }
 

@@ -506,14 +506,11 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         nearGpu.PageRequests.Reset();
         using (feedbackCompactPipeline!.UseScope())
         {
-            _ = feedbackCompactPipeline.ProgramLayout.TryBindImageTexture(
-                imageUniformName: "vge_pageUsageStamp",
-                texture: pageUsageStamp!,
-                access: TextureAccess.ReadOnly,
-                level: 0,
-                layered: true,
-                layer: 0,
-                formatOverride: SizedInternalFormat.R32ui);
+            _ = feedbackCompactPipeline.ProgramLayout.TryBindSamplerTexture(
+                samplerUniformName: "vge_pageUsageStamp",
+                target: TextureTarget.Texture2DArray,
+                textureId: pageUsageStamp!.TextureId,
+                samplerId: 0);
 
             _ = feedbackCompactPipeline.ProgramLayout.TryBindSamplerTexture(
                 samplerUniformName: "vge_pageTableMip0",

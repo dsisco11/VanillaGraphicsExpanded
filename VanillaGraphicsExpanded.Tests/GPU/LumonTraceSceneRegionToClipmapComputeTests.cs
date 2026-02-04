@@ -95,14 +95,17 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
         // Readback and spot-check a few texels.
         uint[] outData = ReadTexImageR32ui(occ.TextureId, TextureTarget.Texture3D, res, res, res);
 
-        static int Linear(int x, int y, int z) => (z * 32 + y) * 32 + x;
+        static int TexIndex32(int x, int y, int z) => (z * 32 + y) * 32 + x;
+        // IMPORTANT: must match shader payload word order: x | (z<<5) | (y<<10) => (y*32 + z)*32 + x.
+        static int VsIndex32(int x, int y, int z) => (y * 32 + z) * 32 + x;
+        static uint ExpectedAt(int x, int y, int z) => (uint)(VsIndex32(x, y, z) + 1);
 
-        Assert.Equal((uint)(Linear(0, 0, 0) + 1), outData[Linear(0, 0, 0)]);
-        Assert.Equal((uint)(Linear(31, 0, 0) + 1), outData[Linear(31, 0, 0)]);
-        Assert.Equal((uint)(Linear(0, 31, 0) + 1), outData[Linear(0, 31, 0)]);
-        Assert.Equal((uint)(Linear(0, 0, 31) + 1), outData[Linear(0, 0, 31)]);
+        Assert.Equal(ExpectedAt(0, 0, 0), outData[TexIndex32(0, 0, 0)]);
+        Assert.Equal(ExpectedAt(31, 0, 0), outData[TexIndex32(31, 0, 0)]);
+        Assert.Equal(ExpectedAt(0, 31, 0), outData[TexIndex32(0, 31, 0)]);
+        Assert.Equal(ExpectedAt(0, 0, 31), outData[TexIndex32(0, 0, 31)]);
 
-        Assert.Equal((uint)(Linear(13, 7, 21) + 1), outData[Linear(13, 7, 21)]);
+        Assert.Equal(ExpectedAt(13, 7, 21), outData[TexIndex32(13, 7, 21)]);
 
         GL.DeleteProgram(program);
     }
@@ -198,27 +201,28 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
         uint[] outL1 = ReadTexImageR32ui(occ1.TextureId, TextureTarget.Texture3D, res, res, res);
         uint[] outL2 = ReadTexImageR32ui(occ2.TextureId, TextureTarget.Texture3D, res, res, res);
 
-        static int Linear32(int x, int y, int z) => (z * 32 + y) * 32 + x;
-
-        static uint ExpectedPayloadAtLocal(int x, int y, int z) => (uint)(Linear32(x, y, z) + 1);
+        static int TexIndex32(int x, int y, int z) => (z * 32 + y) * 32 + x;
+        // IMPORTANT: must match shader payload word order: x | (z<<5) | (y<<10) => (y*32 + z)*32 + x.
+        static int VsIndex32(int x, int y, int z) => (y * 32 + z) * 32 + x;
+        static uint ExpectedPayloadAtLocal(int x, int y, int z) => (uint)(VsIndex32(x, y, z) + 1);
 
         // Level 1 (spacing=2): representative worldCell is (levelCell*2+1).
-        Assert.Equal(ExpectedPayloadAtLocal(1, 1, 1), outL1[Linear32(0, 0, 0)]);
-        Assert.Equal(ExpectedPayloadAtLocal(3, 1, 1), outL1[Linear32(1, 0, 0)]);
-        Assert.Equal(ExpectedPayloadAtLocal(1, 3, 5), outL1[Linear32(0, 1, 2)]);
-        Assert.Equal(ExpectedPayloadAtLocal(31, 31, 31), outL1[Linear32(15, 15, 15)]);
+        Assert.Equal(ExpectedPayloadAtLocal(1, 1, 1), outL1[TexIndex32(0, 0, 0)]);
+        Assert.Equal(ExpectedPayloadAtLocal(3, 1, 1), outL1[TexIndex32(1, 0, 0)]);
+        Assert.Equal(ExpectedPayloadAtLocal(1, 3, 5), outL1[TexIndex32(0, 1, 2)]);
+        Assert.Equal(ExpectedPayloadAtLocal(31, 31, 31), outL1[TexIndex32(15, 15, 15)]);
 
         // No representative sample exists for levelCell >= 16 in this single 32^3 region.
-        Assert.Equal(0u, outL1[Linear32(16, 0, 0)]);
-        Assert.Equal(0u, outL1[Linear32(31, 31, 31)]);
+        Assert.Equal(0u, outL1[TexIndex32(16, 0, 0)]);
+        Assert.Equal(0u, outL1[TexIndex32(31, 31, 31)]);
 
         // Level 2 (spacing=4): representative worldCell is (levelCell*4+2).
-        Assert.Equal(ExpectedPayloadAtLocal(2, 2, 2), outL2[Linear32(0, 0, 0)]);
-        Assert.Equal(ExpectedPayloadAtLocal(6, 2, 2), outL2[Linear32(1, 0, 0)]);
-        Assert.Equal(ExpectedPayloadAtLocal(2, 6, 10), outL2[Linear32(0, 1, 2)]);
-        Assert.Equal(ExpectedPayloadAtLocal(30, 30, 30), outL2[Linear32(7, 7, 7)]);
+        Assert.Equal(ExpectedPayloadAtLocal(2, 2, 2), outL2[TexIndex32(0, 0, 0)]);
+        Assert.Equal(ExpectedPayloadAtLocal(6, 2, 2), outL2[TexIndex32(1, 0, 0)]);
+        Assert.Equal(ExpectedPayloadAtLocal(2, 6, 10), outL2[TexIndex32(0, 1, 2)]);
+        Assert.Equal(ExpectedPayloadAtLocal(30, 30, 30), outL2[TexIndex32(7, 7, 7)]);
 
-        Assert.Equal(0u, outL2[Linear32(8, 0, 0)]);
+        Assert.Equal(0u, outL2[TexIndex32(8, 0, 0)]);
 
         GL.DeleteProgram(program);
     }
@@ -289,9 +293,11 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
 
         uint[] outData = ReadTexImageR32ui(occ.TextureId, TextureTarget.Texture3D, res, res, res);
 
-        static int Linear32(int x, int y, int z) => (z * 32 + y) * 32 + x;
+        static int TexIndex32(int x, int y, int z) => (z * 32 + y) * 32 + x;
+        // IMPORTANT: must match shader payload word order: x | (z<<5) | (y<<10) => (y*32 + z)*32 + x.
+        static int VsIndex32(int x, int y, int z) => (y * 32 + z) * 32 + x;
 
-        static uint ExpectedPayloadAtLocal(int x, int y, int z) => (uint)(Linear32(x, y, z) + 1);
+        static uint ExpectedPayloadAtLocal(int x, int y, int z) => (uint)(VsIndex32(x, y, z) + 1);
 
         // Spot-check a few world cells in the region and validate the shader's mapping matches CPU math.
         Assert.True(LumonSceneTraceSceneClipmapMath.TryMapLevelCellToTexel(
@@ -300,7 +306,7 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
             ring: ring,
             resolution: res,
             out VectorInt3 tex0));
-        Assert.Equal(ExpectedPayloadAtLocal(0, 0, 0), outData[Linear32(tex0.X, tex0.Y, tex0.Z)]);
+        Assert.Equal(ExpectedPayloadAtLocal(0, 0, 0), outData[TexIndex32(tex0.X, tex0.Y, tex0.Z)]);
 
         Assert.True(LumonSceneTraceSceneClipmapMath.TryMapLevelCellToTexel(
             levelCell: new VectorInt3(-1, -1, -1),
@@ -308,7 +314,7 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
             ring: ring,
             resolution: res,
             out VectorInt3 tex1));
-        Assert.Equal(ExpectedPayloadAtLocal(31, 31, 31), outData[Linear32(tex1.X, tex1.Y, tex1.Z)]);
+        Assert.Equal(ExpectedPayloadAtLocal(31, 31, 31), outData[TexIndex32(tex1.X, tex1.Y, tex1.Z)]);
 
         Assert.True(LumonSceneTraceSceneClipmapMath.TryMapLevelCellToTexel(
             levelCell: new VectorInt3(-17, -9, -23),
@@ -316,7 +322,7 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
             ring: ring,
             resolution: res,
             out VectorInt3 tex2));
-        Assert.Equal(ExpectedPayloadAtLocal(15, 23, 9), outData[Linear32(tex2.X, tex2.Y, tex2.Z)]);
+        Assert.Equal(ExpectedPayloadAtLocal(15, 23, 9), outData[TexIndex32(tex2.X, tex2.Y, tex2.Z)]);
 
         GL.DeleteProgram(program);
     }

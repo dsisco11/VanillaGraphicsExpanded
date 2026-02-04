@@ -6,7 +6,7 @@
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
 // Virtual page usage stamp written by lumonscene_feedback_mark_pages.csh.
-layout(binding = 0, r32ui) readonly uniform uimage2DArray vge_pageUsageStamp;
+layout(binding = 0) uniform usampler2DArray vge_pageUsageStamp;
 
 // Near-field page table mip0 (R32UI packed entry) used to filter mapped vs unmapped virtual pages.
 // Note: binding here refers to the texture unit, not the image/SSBO binding points.
@@ -27,7 +27,7 @@ uniform uint vge_compactMode; // 0=emit mapped pages only, 1=emit unmapped pages
 
 void main()
 {
-    ivec3 stampSize = imageSize(vge_pageUsageStamp);
+    ivec3 stampSize = textureSize(vge_pageUsageStamp, 0);
     uint chunkSlotCount = uint(max(stampSize.z, 1));
     uint totalEntries = uint(128u * 128u) * chunkSlotCount;
 
@@ -45,7 +45,7 @@ void main()
     uint chunkSlot = idx0 / uint(128u * 128u);
 
     ivec3 vtexel = ivec3(int(virtualPageIndex & 127u), int(virtualPageIndex >> 7u), int(chunkSlot));
-    uint stamp = imageLoad(vge_pageUsageStamp, vtexel).x;
+    uint stamp = texelFetch(vge_pageUsageStamp, vtexel, 0).x;
     if (stamp != vge_frameStamp)
     {
         return;
