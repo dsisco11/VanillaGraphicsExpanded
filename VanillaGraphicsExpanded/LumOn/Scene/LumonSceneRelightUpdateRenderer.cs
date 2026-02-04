@@ -455,20 +455,9 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
         relightVoxelPipeline?.Dispose();
         relightVoxelPipeline = null;
 
-        var loc = AssetLocation.Create("shaders/lumonscene_relight_voxel_dda.csh", ShaderImportsSystem.DefaultDomain);
-        IAsset? asset = capi.Assets.TryGet(loc, loadAsset: true);
-        if (asset is null)
-        {
-            capi.Logger.Warning("[VGE] Missing LumonScene relight shader asset: {0}", loc);
-            return false;
-        }
-
-        string src = asset.ToText();
-
-        if (!GpuComputePipeline.TryCompileAndCreateGlslPreprocessed(
+        if (!GpuComputePipeline.TryCreateFromAssetsPreferSpirv(
             api: capi,
             shaderName: "lumonscene_relight_voxel_dda",
-            glslSource: src,
             pipeline: out relightVoxelPipeline,
             sourceCode: out _,
             infoLog: out string infoLog,

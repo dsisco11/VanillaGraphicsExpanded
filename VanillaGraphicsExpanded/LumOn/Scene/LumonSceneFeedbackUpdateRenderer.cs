@@ -1395,20 +1395,9 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         feedbackMarkPipeline?.Dispose();
         feedbackMarkPipeline = null;
 
-        var loc = AssetLocation.Create("shaders/lumonscene_feedback_mark_pages.csh", ShaderImportsSystem.DefaultDomain);
-        IAsset? asset = capi.Assets.TryGet(loc, loadAsset: true);
-        if (asset is null)
-        {
-            capi.Logger.Warning("[VGE] Missing LumonScene feedback mark shader asset: {0}", loc);
-            return false;
-        }
-
-        string src = asset.ToText();
-
-        if (!GpuComputePipeline.TryCompileAndCreateGlslPreprocessed(
+        if (!GpuComputePipeline.TryCreateFromAssetsPreferSpirv(
             api: capi,
             shaderName: "lumonscene_feedback_mark_pages",
-            glslSource: src,
             pipeline: out feedbackMarkPipeline,
             sourceCode: out _,
             infoLog: out string infoLog,
@@ -1435,20 +1424,9 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         feedbackCompactPipeline?.Dispose();
         feedbackCompactPipeline = null;
 
-        var loc = AssetLocation.Create("shaders/lumonscene_feedback_compact_pages.csh", ShaderImportsSystem.DefaultDomain);
-        IAsset? asset = capi.Assets.TryGet(loc, loadAsset: true);
-        if (asset is null)
-        {
-            capi.Logger.Warning("[VGE] Missing LumonScene feedback compact shader asset: {0}", loc);
-            return false;
-        }
-
-        string src = asset.ToText();
-
-        if (!GpuComputePipeline.TryCompileAndCreateGlslPreprocessed(
+        if (!GpuComputePipeline.TryCreateFromAssetsPreferSpirv(
             api: capi,
             shaderName: "lumonscene_feedback_compact_pages",
-            glslSource: src,
             pipeline: out feedbackCompactPipeline,
             sourceCode: out _,
             infoLog: out string infoLog,
@@ -1475,20 +1453,9 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         captureVoxelPipeline?.Dispose();
         captureVoxelPipeline = null;
 
-        var loc = AssetLocation.Create("shaders/lumonscene_capture_voxel.csh", ShaderImportsSystem.DefaultDomain);
-        IAsset? asset = capi.Assets.TryGet(loc, loadAsset: true);
-        if (asset is null)
-        {
-            capi.Logger.Warning("[VGE] Missing LumonScene capture shader asset: {0}", loc);
-            return false;
-        }
-
-        string src = asset.ToText();
-
-        if (!GpuComputePipeline.TryCompileAndCreateGlslPreprocessed(
+        if (!GpuComputePipeline.TryCreateFromAssetsPreferSpirv(
             api: capi,
             shaderName: "lumonscene_capture_voxel",
-            glslSource: src,
             pipeline: out captureVoxelPipeline,
             sourceCode: out _,
             infoLog: out string infoLog,

@@ -130,20 +130,9 @@ internal sealed class LumonSceneTraceSceneClipmapGpuBuildDispatcher : IDisposabl
         pipeline?.Dispose();
         pipeline = null;
 
-        var loc = AssetLocation.Create("shaders/lumonscene_trace_scene_region_to_clipmap.csh", ShaderImportsSystem.DefaultDomain);
-        IAsset? asset = capi.Assets.TryGet(loc, loadAsset: true);
-        if (asset is null)
-        {
-            capi.Logger.Warning("[VGE] Missing TraceScene region->clipmap compute shader asset: {0}", loc);
-            return false;
-        }
-
-        string src = asset.ToText();
-
-        if (!GpuComputePipeline.TryCompileAndCreateGlslPreprocessed(
+        if (!GpuComputePipeline.TryCreateFromAssetsPreferSpirv(
             api: capi,
             shaderName: "lumonscene_trace_scene_region_to_clipmap",
-            glslSource: src,
             pipeline: out pipeline,
             sourceCode: out _,
             infoLog: out string infoLog,

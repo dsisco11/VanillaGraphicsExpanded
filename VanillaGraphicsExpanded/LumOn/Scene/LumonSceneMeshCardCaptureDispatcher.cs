@@ -151,20 +151,9 @@ internal sealed class LumonSceneMeshCardCaptureDispatcher : IDisposable
         captureMeshCardPipeline?.Dispose();
         captureMeshCardPipeline = null;
 
-        var loc = AssetLocation.Create("shaders/lumonscene_capture_meshcard.csh", ShaderImportsSystem.DefaultDomain);
-        IAsset? asset = capi.Assets.TryGet(loc, loadAsset: true);
-        if (asset is null)
-        {
-            capi.Logger.Warning("[VGE] Missing LumonScene mesh-card capture shader asset: {0}", loc);
-            return false;
-        }
-
-        string src = asset.ToText();
-
-        if (!GpuComputePipeline.TryCompileAndCreateGlslPreprocessed(
+        if (!GpuComputePipeline.TryCreateFromAssetsPreferSpirv(
             api: capi,
             shaderName: "lumonscene_capture_meshcard",
-            glslSource: src,
             pipeline: out captureMeshCardPipeline,
             sourceCode: out _,
             infoLog: out string infoLog,

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
 
 using OpenTK.Graphics.OpenGL;
 
@@ -218,6 +219,131 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
         }
 
         return true;
+    }
+
+    private static int spirvUnsupportedLogged;
+    private static int spirvUsedCount;
+    private static int spirvMissingCount;
+    private static int spirvUnsupportedCount;
+
+    /// <summary>
+    /// Creates a compute pipeline by preferring a packaged SPIR-V binary (<c>.csh.spv</c>) when present and supported,
+    /// falling back to loading and compiling the GLSL source (<c>.csh</c>) through the existing preprocessing pipeline.
+    /// </summary>
+    /// <remarks>
+    /// This is the recommended runtime entry point for VGE-owned compute shaders.
+    /// </remarks>
+    public static bool TryCreateFromAssetsPreferSpirv(
+        ICoreAPI api,
+        string shaderName,
+        out GpuComputePipeline? pipeline,
+        out global::VanillaGraphicsExpanded.ShaderSourceCode? sourceCode,
+        out string infoLog,
+        string stageExtension = "csh",
+        IReadOnlyDictionary<string, string?>? defines = null,
+        string? debugName = null,
+        ILogger? log = null,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(api);
+        ArgumentException.ThrowIfNullOrWhiteSpace(shaderName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(stageExtension);
+
+        pipeline = null;
+        sourceCode = null;
+        infoLog = string.Empty;
+
+        string stageName = $"{shaderName}.{stageExtension}";
+        string spvStageName = stageName + ".spv";
+
+        // 1) Prefer SPIR-V if present and supported.
+        var locSpv = AssetLocation.Create($"shaders/{spvStageName}", VanillaGraphicsExpanded.PBR.ShaderImportsSystem.DefaultDomain);
+        IAsset? spvAsset = api.Assets.TryGet(locSpv, loadAsset: true);
+        if (spvAsset is not null)
+        {
+            if (GpuShaderModule.SupportsSpirv())
+            {
+                byte[] bytes = spvAsset.Data ?? Array.Empty<byte>();
+                if (bytes.Length > 0)
+                {
+                    if (GpuShaderModule.TryLoadSpirv(
+                        shaderType: ShaderType.ComputeShader,
+                        spirvBytes: bytes,
+                        entryPoint: "main",
+                        specializationConstants: ReadOnlySpan<GpuShaderModule.SpirvSpecializationConstant>.Empty,
+                        module: out var module,
+                        infoLog: out string spirvLog,
+                        debugName: debugName))
+                    {
+                        if (module is not null && TryCreate(module, out pipeline, out string linkLog, debugName, disposeShaderAfterLink: true))
+                        {
+                            Interlocked.Increment(ref spirvUsedCount);
+                            infoLog = (spirvLog.Length > 0 ? spirvLog + "\n" : string.Empty) + linkLog;
+                            return true;
+                        }
+
+                        module?.Dispose();
+                        // Fall back to GLSL if linking failed.
+                        infoLog = (spirvLog.Length > 0 ? spirvLog + "\n" : string.Empty) + "[VGE] SPIR-V program link failed; falling back to GLSL.";
+                    }
+                    else
+                    {
+                        // Fall back to GLSL if SPIR-V specialization/compile failed.
+                        infoLog = (spirvLog.Length > 0 ? spirvLog + "\n" : string.Empty) + "[VGE] SPIR-V load failed; falling back to GLSL.";
+                    }
+                }
+                else
+                {
+                    Interlocked.Increment(ref spirvMissingCount);
+                }
+            }
+            else
+            {
+                Interlocked.Increment(ref spirvUnsupportedCount);
+
+                // Log once per session when SPIR-V exists but isn't supported.
+                if (Interlocked.Exchange(ref spirvUnsupportedLogged, 1) == 0)
+                {
+                    (log ?? api.Logger)?.Warning("[VGE] SPIR-V binaries found but GL_ARB_gl_spirv is not supported; falling back to GLSL.");
+                }
+            }
+        }
+        else
+        {
+            Interlocked.Increment(ref spirvMissingCount);
+        }
+
+        // 2) GLSL fallback: load the source asset and use existing preprocessing + compilation.
+        var loc = AssetLocation.Create($"shaders/{stageName}", VanillaGraphicsExpanded.PBR.ShaderImportsSystem.DefaultDomain);
+        IAsset? asset = api.Assets.TryGet(loc, loadAsset: true);
+        if (asset is null)
+        {
+            infoLog = $"[VGE] Missing compute shader asset: {loc}";
+            pipeline = null;
+            return false;
+        }
+
+        string src = asset.ToText();
+        if (!TryCompileAndCreateGlslPreprocessed(
+            api: api,
+            shaderName: shaderName,
+            glslSource: src,
+            pipeline: out pipeline,
+            sourceCode: out sourceCode,
+            infoLog: out string glslLog,
+            stageExtension: stageExtension,
+            defines: defines,
+            debugName: debugName,
+            log: log,
+            ct: ct))
+        {
+            infoLog = (infoLog.Length > 0 ? infoLog + "\n" : string.Empty) + glslLog;
+            pipeline = null;
+            return false;
+        }
+
+        infoLog = (infoLog.Length > 0 ? infoLog + "\n" : string.Empty) + glslLog;
+        return pipeline is not null;
     }
 
     /// <summary>

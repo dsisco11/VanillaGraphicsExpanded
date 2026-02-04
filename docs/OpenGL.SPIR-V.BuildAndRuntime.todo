@@ -55,15 +55,15 @@ References:
     - Print counts: compiled / skipped / failed
     - Fail build when compilation fails (unless explicitly disabled)
 
-☐ Phase 2 — Runtime: Prefer SPIR-V for Compute Pipelines
+✔ Phase 2 — Runtime: Prefer SPIR-V for Compute Pipelines
   Exit artifacts: VGE compute uses `.spv` when available; GLSL fallback remains correct.
-  ☐ Add a helper in `GpuComputePipeline` to resolve either `.csh.spv` or `.csh` asset path.
-  ☐ Load `.spv` bytes via the asset system (same domain), then:
+  ✔ Add a helper in `GpuComputePipeline` to resolve either `.csh.spv` or `.csh` asset path.
+  ✔ Load `.spv` bytes via the asset system (same domain), then:
     - Create shader module using `GpuShaderModule.LoadSpirVFromBytes(...)`
     - Link as today
-  ☐ Maintain GLSL fallback path:
+  ✔ Maintain GLSL fallback path:
     - If `.spv` missing OR extension unavailable OR load fails -> load `.csh` and compile GLSL
-  ☐ Add one-time debug logging counters (optional):
+  ✔ Add one-time debug logging counters (optional):
     - `SpirVUsedCount`, `SpirVMissingCount`, `SpirVUnsupportedCount`
 
 ☐ Phase 3 — Runtime: Vertex/Fragment Programs (Decision Point)
