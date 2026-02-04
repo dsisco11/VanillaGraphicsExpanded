@@ -803,14 +803,14 @@ public class VgeConfig
                 /// This is a CPU->GPU bandwidth limiter; it does not directly control compute cost.
                 /// </summary>
                 [JsonProperty]
-                public int ClipmapMaxRegionUploadsPerFrame { get; set; } = 8;
+                public int ClipmapMaxRegionUploadsPerFrame { get; set; } = 16;
 
                 /// <summary>
                 /// Max number of 32^3 region updates to dispatch per frame for the GPU-built clipmap path (Phase 23).
                 /// This is a compute limiter; it may be further constrained by the dispatcher batch capacity.
                 /// </summary>
                 [JsonProperty]
-                public int ClipmapMaxRegionsDispatchedPerFrame { get; set; } = 8;
+                public int ClipmapMaxRegionsDispatchedPerFrame { get; set; } = 16;
 
                 internal void Sanitize()
                 {
