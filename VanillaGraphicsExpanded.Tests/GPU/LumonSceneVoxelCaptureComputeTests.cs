@@ -42,17 +42,19 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         ClearR16f2DArray(depthAtlas.TextureId, tileSize, tileSize, atlasCount, value: 1f);
         ClearRgba8_2DArray(materialAtlas.TextureId, tileSize, tileSize, atlasCount, r: 0, g: 0, b: 0, a: 0);
 
-        // Fill occupancy with a constant material id (5) and palette entry (5) with a known color.
+        // Fill occupancy with a constant material palette index (5) and palette entry (5) with a known surface id.
         uint occPacked = LumonSceneOccupancyPacking.Pack(blockLevel: 0, sunLevel: 0, lightId: 0, materialPaletteIndex: 5);
         uint[] occ = new uint[occRes * occRes * occRes];
         Array.Fill(occ, occPacked);
         occL0.UploadDataImmediate(occ, x: 0, y: 0, z: 0, regionWidth: occRes, regionHeight: occRes, regionDepth: occRes, mipLevel: 0);
 
         uint[] pal = new uint[64 * 4];
-        pal[5 * 4 + 0] = 10u;
-        pal[5 * 4 + 1] = 20u;
-        pal[5 * 4 + 2] = 30u;
-        pal[5 * 4 + 3] = 255u;
+        uint sid = 9u;
+        uint packed2 = sid | (sid << 16);
+        pal[5 * 4 + 0] = packed2;
+        pal[5 * 4 + 1] = packed2;
+        pal[5 * 4 + 2] = packed2;
+        pal[5 * 4 + 3] = 0u;
         materialPalette.UploadDataImmediate(pal);
 
         // physicalPageId=1 maps to tile (0,0) in atlas layer 0.
@@ -94,10 +96,10 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
 
         byte[] material = ReadTexImageRgba8_2DArray(materialAtlas.TextureId, tileSize, tileSize, atlasCount);
         (byte r, byte g, byte b, byte a) = ReadRgbaAt(material, tileSize, tileSize, layer: 0, x: tileSize / 2, y: tileSize / 2);
-        Assert.Equal((byte)10, r);
-        Assert.Equal((byte)20, g);
-        Assert.Equal((byte)30, b);
-        Assert.Equal((byte)255, a);
+        Assert.NotEqual((byte)0, r); // oct-normal x
+        Assert.NotEqual((byte)0, g); // oct-normal y
+        Assert.Equal((byte)9, b);    // surfaceId low byte
+        Assert.Equal((byte)0, a);    // surfaceId high byte
 
         GL.DeleteProgram(program);
     }
@@ -206,10 +208,12 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         occL0.UploadDataImmediate(occ, x: 0, y: 0, z: 0, regionWidth: occRes, regionHeight: occRes, regionDepth: occRes, mipLevel: 0);
 
         uint[] pal = new uint[64 * 4];
-        pal[5 * 4 + 0] = 10u;
-        pal[5 * 4 + 1] = 20u;
-        pal[5 * 4 + 2] = 30u;
-        pal[5 * 4 + 3] = 255u;
+        uint sid = 9u;
+        uint packed2 = sid | (sid << 16);
+        pal[5 * 4 + 0] = packed2;
+        pal[5 * 4 + 1] = packed2;
+        pal[5 * 4 + 2] = packed2;
+        pal[5 * 4 + 3] = 0u;
         materialPalette.UploadDataImmediate(pal);
 
         // Work:
@@ -254,17 +258,21 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         // atlas1 tile(0,0): center at (tileSize/2, tileSize/2) in layer 1
         byte[] material = ReadTexImageRgba8_2DArray(materialAtlas.TextureId, w, h, atlasCount);
 
-        (byte _, byte _, byte _, byte a00) = ReadRgbaAt(material, w, h, layer: 0, x: tileSize / 2, y: tileSize / 2);
-        Assert.Equal((byte)255, a00);
+        (byte _, byte _, byte b00, byte a00) = ReadRgbaAt(material, w, h, layer: 0, x: tileSize / 2, y: tileSize / 2);
+        Assert.Equal((byte)9, b00);
+        Assert.Equal((byte)0, a00);
 
-        (byte _, byte _, byte _, byte a11) = ReadRgbaAt(material, w, h, layer: 0, x: tileSize + tileSize / 2, y: tileSize + tileSize / 2);
-        Assert.Equal((byte)255, a11);
+        (byte _, byte _, byte b11, byte a11) = ReadRgbaAt(material, w, h, layer: 0, x: tileSize + tileSize / 2, y: tileSize + tileSize / 2);
+        Assert.Equal((byte)9, b11);
+        Assert.Equal((byte)0, a11);
 
-        (byte _, byte _, byte _, byte aLayer1) = ReadRgbaAt(material, w, h, layer: 1, x: tileSize / 2, y: tileSize / 2);
-        Assert.Equal((byte)255, aLayer1);
+        (byte _, byte _, byte bLayer1, byte aLayer1) = ReadRgbaAt(material, w, h, layer: 1, x: tileSize / 2, y: tileSize / 2);
+        Assert.Equal((byte)9, bLayer1);
+        Assert.Equal((byte)0, aLayer1);
 
-        // Unwritten tile atlas0 tile(1,0) center should remain alpha=0 and depth=1.
-        (byte _, byte _, byte _, byte aUnwritten) = ReadRgbaAt(material, w, h, layer: 0, x: tileSize + tileSize / 2, y: tileSize / 2);
+        // Unwritten tile atlas0 tile(1,0) center should remain surfaceId=0 and depth=1.
+        (byte _, byte _, byte bUnwritten, byte aUnwritten) = ReadRgbaAt(material, w, h, layer: 0, x: tileSize + tileSize / 2, y: tileSize / 2);
+        Assert.Equal((byte)0, bUnwritten);
         Assert.Equal((byte)0, aUnwritten);
 
         float[] depth = ReadTexImageR32f_2DArray(depthAtlas.TextureId, w, h, atlasCount);
@@ -299,10 +307,12 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         occL0.UploadDataImmediate(occ, x: 0, y: 0, z: 0, regionWidth: occRes, regionHeight: occRes, regionDepth: occRes, mipLevel: 0);
 
         uint[] pal = new uint[64 * 4];
-        pal[5 * 4 + 0] = 10u;
-        pal[5 * 4 + 1] = 20u;
-        pal[5 * 4 + 2] = 30u;
-        pal[5 * 4 + 3] = 255u;
+        uint sid = 9u;
+        uint packed2 = sid | (sid << 16);
+        pal[5 * 4 + 0] = packed2;
+        pal[5 * 4 + 1] = packed2;
+        pal[5 * 4 + 2] = packed2;
+        pal[5 * 4 + 3] = 0u;
         materialPalette.UploadDataImmediate(pal);
 
         Span<LumonSceneCaptureWorkGpu> work = stackalloc LumonSceneCaptureWorkGpu[1];
@@ -337,10 +347,10 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
 
         byte[] material = ReadTexImageRgba8_2DArray(materialAtlas.TextureId, tileSize, tileSize, depth: 1);
         (byte r, byte g, byte b, byte a) = ReadRgbaAt(material, tileSize, tileSize, layer: 0, x: tileSize / 2, y: tileSize / 2);
-        Assert.Equal((byte)10, r);
-        Assert.Equal((byte)20, g);
-        Assert.Equal((byte)30, b);
-        Assert.Equal((byte)255, a);
+        Assert.NotEqual((byte)0, r);
+        Assert.NotEqual((byte)0, g);
+        Assert.Equal((byte)9, b);
+        Assert.Equal((byte)0, a);
 
         GL.DeleteProgram(program);
     }

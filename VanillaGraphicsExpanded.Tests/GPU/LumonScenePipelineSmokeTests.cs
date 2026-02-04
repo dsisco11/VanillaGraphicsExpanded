@@ -159,10 +159,12 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
 
         using var materialPalette = Texture2D.Create(width: 64, height: 1, format: PixelInternalFormat.Rgba32ui, filter: TextureFilterMode.Nearest, debugName: "Test_MaterialPalette");
         uint[] pal = new uint[64 * 4];
-        pal[1 * 4 + 0] = 10u;
-        pal[1 * 4 + 1] = 20u;
-        pal[1 * 4 + 2] = 30u;
-        pal[1 * 4 + 3] = 255u;
+        uint sid = 9u;
+        uint packed2 = sid | (sid << 16);
+        pal[1 * 4 + 0] = packed2;
+        pal[1 * 4 + 1] = packed2;
+        pal[1 * 4 + 2] = packed2;
+        pal[1 * 4 + 3] = 0u;
         materialPalette.UploadDataImmediate(pal);
 
         using var lightColorLut = Texture2D.Create(64, 1, PixelInternalFormat.Rgba16f, debugName: "Test_LightColorLut");

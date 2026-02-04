@@ -220,6 +220,8 @@ public class LumOnDebugShaderProgram : GpuProgram
 
     public GpuTexture? LumonSceneMaterialAtlas { set => BindTexture2D("vge_lumonSceneMaterialAtlas", value, 32); }
 
+    public GpuTexture? LumonSceneSurfaceLut { set => BindTexture2D("vge_lumonSceneSurfaceLut", value, 33); }
+
     #endregion
 
     #region TraceScene (Phase 23)

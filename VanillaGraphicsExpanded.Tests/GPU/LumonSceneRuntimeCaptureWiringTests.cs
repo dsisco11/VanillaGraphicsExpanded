@@ -161,10 +161,12 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         occL0.UploadDataImmediate(occ, x: 0, y: 0, z: 0, regionWidth: occRes, regionHeight: occRes, regionDepth: occRes, mipLevel: 0);
 
         uint[] pal = new uint[64 * 4];
-        pal[1 * 4 + 0] = 10u;
-        pal[1 * 4 + 1] = 20u;
-        pal[1 * 4 + 2] = 30u;
-        pal[1 * 4 + 3] = 255u;
+        uint sid = 9u;
+        uint packed2 = sid | (sid << 16);
+        pal[1 * 4 + 0] = packed2;
+        pal[1 * 4 + 1] = packed2;
+        pal[1 * 4 + 2] = packed2;
+        pal[1 * 4 + 3] = 0u;
         materialPalette.UploadDataImmediate(pal);
 
         using var captureWorkSsbo = CreateSsbo<LumonSceneCaptureWorkGpu>("Test_CaptureWorkSSBO", captureOut.AsSpan(0, captureCount));
@@ -194,7 +196,7 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         GL.DispatchCompute(gxCap, gyCap, captureCount);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
-        // Validate: each captured tile center matches the bound material palette entry.
+        // Validate: each captured tile center writes the expected surfaceId.
         byte[] mat = ReadTexImageRgba8_2DArray(materialAtlas.TextureId, atlasW, atlasH, atlasCount);
 
         for (int i = 0; i < captureCount; i++)
@@ -205,10 +207,10 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
             int cy = tileY * tileSize + tileSize / 2;
 
             (byte r, byte g, byte b, byte a) = ReadRgbaAt(mat, atlasW, atlasH, layer: atlasIdx, x: cx, y: cy);
-            Assert.Equal((byte)10, r);
-            Assert.Equal((byte)20, g);
-            Assert.Equal((byte)30, b);
-            Assert.Equal((byte)255, a);
+            Assert.NotEqual((byte)0, r);
+            Assert.NotEqual((byte)0, g);
+            Assert.Equal((byte)9, b);
+            Assert.Equal((byte)0, a);
         }
 
         GL.DeleteProgram(markProgram);

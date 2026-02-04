@@ -21,7 +21,8 @@ public sealed class LumonSceneTraceSceneChunkSnapshotSourceTests
     {
         var versionProvider = new LumonSceneTraceSceneChunkVersionProvider();
         var lightIds = new LumonSceneTraceSceneLightIdRegistry();
-        var materialPalette = new LumonSceneTraceSceneMaterialPaletteRegistry();
+        var surfaceLut = new LumonScenePbrSurfaceLutRegistry();
+        var materialPalette = new LumonSceneTraceSceneMaterialPaletteRegistry(surfaceLut);
 
         int[] blocks = new int[LumonSceneTraceSceneRegionUploadGpuResources.RegionCellCount];
         blocks[0] = 1;
@@ -72,7 +73,8 @@ public sealed class LumonSceneTraceSceneChunkSnapshotSourceTests
     {
         var versionProvider = new LumonSceneTraceSceneChunkVersionProvider();
         var lightIds = new LumonSceneTraceSceneLightIdRegistry();
-        var materialPalette = new LumonSceneTraceSceneMaterialPaletteRegistry();
+        var surfaceLut = new LumonScenePbrSurfaceLutRegistry();
+        var materialPalette = new LumonSceneTraceSceneMaterialPaletteRegistry(surfaceLut);
 
         int[] blocks = new int[LumonSceneTraceSceneRegionUploadGpuResources.RegionCellCount];
         blocks[0] = 1;
@@ -112,7 +114,8 @@ public sealed class LumonSceneTraceSceneChunkSnapshotSourceTests
     {
         var versionProvider = new LumonSceneTraceSceneChunkVersionProvider();
         var lightIds = new LumonSceneTraceSceneLightIdRegistry();
-        var materialPalette = new LumonSceneTraceSceneMaterialPaletteRegistry();
+        var surfaceLut = new LumonScenePbrSurfaceLutRegistry();
+        var materialPalette = new LumonSceneTraceSceneMaterialPaletteRegistry(surfaceLut);
 
         int[] blocks = new int[LumonSceneTraceSceneRegionUploadGpuResources.RegionCellCount];
         blocks[0] = 1;

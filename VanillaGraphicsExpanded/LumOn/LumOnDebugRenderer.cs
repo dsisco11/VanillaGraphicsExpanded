@@ -943,6 +943,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             GpuTexture? lumonScenePageTableMip0 = null;
             GpuTexture? lumonSceneMaterialAtlas = null;
             GpuTexture? lumonSceneIrradianceAtlas = null;
+            GpuTexture? lumonSceneSurfaceLut = null;
             int tileSizeTexels = 0;
             int tilesPerAxis = 0;
             int tilesPerAtlas = 0;
@@ -951,6 +952,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 or LumOnDebugMode.LumonScenePatchUv
                 or LumOnDebugMode.LumonSceneIrradiance
                 or LumOnDebugMode.LumonSceneMaterial
+                or LumOnDebugMode.LumonSceneMaterialRoughness
                 or LumOnDebugMode.LumonSceneMaterialAtlasAll
                 or LumOnDebugMode.LumonSceneChunkSlot
                 or LumOnDebugMode.LumonSceneSlotGeneration
@@ -975,10 +977,16 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 }
             }
 
+            if (lumonSceneEnabled != 0 && lumonSceneOccupancyClipmapUpdateRenderer is not null)
+            {
+                lumonSceneSurfaceLut = lumonSceneOccupancyClipmapUpdateRenderer.Resources?.SurfaceLut;
+            }
+
             shader.LumonSceneEnabled = lumonSceneEnabled;
             shader.LumonScenePageTableMip0 = lumonScenePageTableMip0;
             shader.LumonSceneMaterialAtlas = lumonSceneMaterialAtlas;
             shader.LumonSceneIrradianceAtlas = lumonSceneIrradianceAtlas;
+            shader.LumonSceneSurfaceLut = lumonSceneSurfaceLut;
             shader.LumonSceneTileSizeTexels = tileSizeTexels;
             shader.LumonSceneTilesPerAxis = tilesPerAxis;
             shader.LumonSceneTilesPerAtlas = tilesPerAtlas;
@@ -2645,6 +2653,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             or LumOnDebugMode.LumonScenePageTableOccupancy
             or LumOnDebugMode.LumonSceneIrradiance
             or LumOnDebugMode.LumonSceneMaterial
+            or LumOnDebugMode.LumonSceneMaterialRoughness
             or LumOnDebugMode.LumonSceneMaterialAtlasAll
             => LumOnDebugShaderProgramKind.SceneGBuffer,
 
@@ -2757,7 +2766,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         return (mode is >= LumOnDebugMode.ProbeGrid and <= LumOnDebugMode.CompositeMaterial)
             || (mode is >= LumOnDebugMode.VelocityMagnitude and <= LumOnDebugMode.VelocityPrevUv)
             || (mode is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeOrbsPoints)
-            || (mode is >= LumOnDebugMode.LumonScenePageReady and <= LumOnDebugMode.LumonSceneIrradiance)
+            || (mode is >= LumOnDebugMode.LumonScenePageReady and <= LumOnDebugMode.LumonSceneMaterialRoughness)
             || (mode is LumOnDebugMode.LumonSceneChunkSlot
                 or LumOnDebugMode.LumonSceneSlotGeneration
                 or LumOnDebugMode.LumonScenePageTableOccupancy)

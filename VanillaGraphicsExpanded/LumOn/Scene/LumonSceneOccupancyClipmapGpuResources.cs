@@ -10,6 +10,7 @@ internal sealed class LumonSceneOccupancyClipmapGpuResources : IDisposable
     public const int MaxLightColors = 64;
     public const int MaxMaterialPaletteEntries = 16384;
     public const int MaxLightLevels = 33; // 0..32 inclusive
+    public const int MaxSurfaceLutEntries = LumonScenePbrSurfaceLutRegistry.MaxSurfaceEntries;
 
     private readonly Texture3D[] occupancyLevels;
 
@@ -22,6 +23,7 @@ internal sealed class LumonSceneOccupancyClipmapGpuResources : IDisposable
     public Texture2D BlockLevelScalarLut { get; }
     public Texture2D SunLevelScalarLut { get; }
     public Texture2D MaterialPalette { get; }
+    public Texture2D SurfaceLut { get; }
 
     public LumonSceneOccupancyClipmapGpuResources(int resolution, int levels, string debugNamePrefix)
     {
@@ -73,6 +75,13 @@ internal sealed class LumonSceneOccupancyClipmapGpuResources : IDisposable
             filter: TextureFilterMode.Nearest,
             debugName: $"{debugNamePrefix}.MaterialPalette");
 
+        SurfaceLut = Texture2D.Create(
+            width: MaxSurfaceLutEntries,
+            height: 1,
+            format: PixelInternalFormat.Rgba32ui,
+            filter: TextureFilterMode.Nearest,
+            debugName: $"{debugNamePrefix}.SurfaceLut");
+
         InitializeDefaults();
     }
 
@@ -112,6 +121,15 @@ internal sealed class LumonSceneOccupancyClipmapGpuResources : IDisposable
         int mpExpected = checked(MaxMaterialPaletteEntries * 4);
         uint[] mp = new uint[mpExpected];
         MaterialPalette.UploadDataImmediate(mp);
+
+        // Surface LUT: initialize to PbrMaterialSurface.Default encoded in entry 0, rest 0.
+        int surfExpected = checked(MaxSurfaceLutEntries * 4);
+        uint[] surf = new uint[surfExpected];
+        surf[0] = 140u; // 0.55 * 255
+        surf[1] = 140u;
+        surf[2] = 140u;
+        surf[3] = 217u; // 0.85 * 255
+        SurfaceLut.UploadDataImmediate(surf);
     }
 
     public void Dispose()
@@ -125,5 +143,6 @@ internal sealed class LumonSceneOccupancyClipmapGpuResources : IDisposable
         BlockLevelScalarLut.Dispose();
         SunLevelScalarLut.Dispose();
         MaterialPalette.Dispose();
+        SurfaceLut.Dispose();
     }
 }

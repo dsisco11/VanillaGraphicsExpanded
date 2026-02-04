@@ -38,7 +38,9 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
     private readonly LumonSceneTraceSceneLightIdRegistry lightIds = new();
     private readonly float[] lightLutUpload = new float[LumonSceneOccupancyClipmapGpuResources.MaxLightColors * 4];
-    private readonly LumonSceneTraceSceneMaterialPaletteRegistry materialPalette = new();
+    private readonly LumonScenePbrSurfaceLutRegistry surfaceLut = new();
+    private readonly uint[] surfaceLutUpload = new uint[LumonScenePbrSurfaceLutRegistry.MaxSurfaceEntries * 4];
+    private readonly LumonSceneTraceSceneMaterialPaletteRegistry materialPalette;
     private readonly uint[] materialPaletteUpload = new uint[LumonSceneOccupancyClipmapGpuResources.MaxMaterialPaletteEntries * 4];
 
     private LevelState[] levelStates = Array.Empty<LevelState>();
@@ -156,6 +158,8 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         this.config = config ?? throw new ArgumentNullException(nameof(config));
         commonEvents = ((ICoreAPI)capi).Event;
 
+        materialPalette = new LumonSceneTraceSceneMaterialPaletteRegistry(surfaceLut);
+
         capi.Event.RegisterRenderer(this, EnumRenderStage.Done, "vge_lumonscene_occupancy_clipmap");
         capi.Event.LeaveWorld += OnLeaveWorld;
         commonEvents.ChunkDirty += OnChunkDirty;
@@ -267,6 +271,14 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
             resources.LightColorLut.UploadDataImmediate(lightLutUpload);
         }
 
+        // Opportunistically upgrade any surface LUT entries that were created before PBR surfaces were available.
+        _ = surfaceLut.UpgradeUnresolvedEntries(maxToUpgrade: 256);
+
+        if (surfaceLut.TryCopyAndClearDirtyLut(surfaceLutUpload))
+        {
+            resources.SurfaceLut.UploadDataImmediate(surfaceLutUpload);
+        }
+
         if (materialPalette.TryCopyAndClearDirtyPalette(materialPaletteUpload))
         {
             resources.MaterialPalette.UploadDataImmediate(materialPaletteUpload);
@@ -309,6 +321,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         levelStates = Array.Empty<LevelState>();
 
         lightIds.Reset();
+        surfaceLut.Reset();
         materialPalette.Reset();
 
         regionScheduler.Reset();

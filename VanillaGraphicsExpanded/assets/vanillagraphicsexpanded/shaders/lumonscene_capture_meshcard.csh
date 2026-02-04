@@ -3,12 +3,14 @@
 // Phase 22.11: Mesh-card capture v1 (GL 4.3 compute)
 // For each MeshCardCaptureWork item, fills the corresponding physical tile in:
 // - DepthAtlas (r16f): signed displacement along card normal (depth in card space)
-// - MaterialAtlas (rgba8): v1 stores a per-texel normal in RGB, alpha=valid
+// - MaterialAtlas (rgba8): RG = oct-encoded normal, BA = 16-bit surfaceId (v1 mesh cards use surfaceId=0)
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 layout(binding = 0, r16f) writeonly uniform image2DArray vge_depthAtlas;
 layout(binding = 1, rgba8) writeonly uniform image2DArray vge_materialAtlas;
+
+@import "./includes/lumonscene_material_packing.glsl"
 
 layout(std430, binding = 0) buffer VgeMeshCardCaptureWork
 {
@@ -194,13 +196,10 @@ void main()
     if (!hit)
     {
         imageStore(vge_depthAtlas, texel, vec4(0.0));
-        vec3 n01 = normalWS * 0.5 + 0.5;
-        imageStore(vge_materialAtlas, texel, vec4(n01, 0.0));
+        imageStore(vge_materialAtlas, texel, VgeLumonScenePackMaterialAtlas(normalWS, 0u));
         return;
     }
 
     imageStore(vge_depthAtlas, texel, vec4(bestDepth));
-    vec3 n01 = bestN * 0.5 + 0.5;
-    imageStore(vge_materialAtlas, texel, vec4(n01, 1.0));
+    imageStore(vge_materialAtlas, texel, VgeLumonScenePackMaterialAtlas(bestN, 0u));
 }
-

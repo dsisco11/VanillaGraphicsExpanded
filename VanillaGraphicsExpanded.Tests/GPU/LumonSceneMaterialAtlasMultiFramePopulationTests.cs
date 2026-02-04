@@ -93,7 +93,7 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         using var pageRequests = CreateSsbo<LumonScenePageRequestGpu>("Test_PageRequests", capacityItems: desiredPages);
         using var pageRequestCounter = CreateAtomicCounterBuffer(counterCount: 1);
 
-        // GPU atlas outputs (we only validate material alpha coverage).
+        // GPU atlas outputs (we only validate that tiles are written).
         using var depthAtlas = Texture3D.Create(atlasW, atlasH, atlasCount, PixelInternalFormat.R16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_DepthAtlas");
         using var materialAtlas = Texture3D.Create(atlasW, atlasH, atlasCount, PixelInternalFormat.Rgba8, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_MaterialAtlas");
         const int occRes = 32;
@@ -109,10 +109,12 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         occL0.UploadDataImmediate(occ, x: 0, y: 0, z: 0, regionWidth: occRes, regionHeight: occRes, regionDepth: occRes, mipLevel: 0);
 
         uint[] pal = new uint[64 * 4];
-        pal[1 * 4 + 0] = 10u;
-        pal[1 * 4 + 1] = 20u;
-        pal[1 * 4 + 2] = 30u;
-        pal[1 * 4 + 3] = 255u;
+        uint sid = 9u;
+        uint packed2 = sid | (sid << 16);
+        pal[1 * 4 + 0] = packed2;
+        pal[1 * 4 + 1] = packed2;
+        pal[1 * 4 + 2] = packed2;
+        pal[1 * 4 + 3] = 0u;
         materialPalette.UploadDataImmediate(pal);
 
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[desiredPages + 1]);
@@ -199,7 +201,7 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
 
         Assert.Equal(desiredPages, virtualToPhysical.Count);
 
-        // Read back material atlas and validate that every allocated physical page has alpha!=0 in its tile.
+        // Read back material atlas and validate that every allocated physical page has non-zero oct-normal in its tile.
         byte[] rgba = ReadTexImageRgba8_2DArray(materialAtlas.TextureId, atlasW, atlasH, atlasCount);
 
         for (uint physicalPageId = 1; physicalPageId <= (uint)desiredPages; physicalPageId++)
@@ -210,8 +212,9 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
             int texelY = tileY * tileSize;
 
             int idx = (((atlasIndex * atlasH) + texelY) * atlasW + texelX) * 4;
-            byte a = rgba[idx + 3];
-            Assert.True(a != 0, $"Expected tile for physicalPageId={physicalPageId} to be written (alpha!=0).");
+            byte r = rgba[idx + 0];
+            byte g = rgba[idx + 1];
+            Assert.True((r | g) != 0, $"Expected tile for physicalPageId={physicalPageId} to be written (oct-normal!=0).");
         }
 
         GL.DeleteProgram(markProgram);

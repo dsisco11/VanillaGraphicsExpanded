@@ -109,10 +109,12 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
         occL0.UploadDataImmediate(occ, x: 0, y: 0, z: 0, regionWidth: occRes, regionHeight: occRes, regionDepth: occRes, mipLevel: 0);
 
         uint[] pal = new uint[64 * 4];
-        pal[1 * 4 + 0] = 10u;
-        pal[1 * 4 + 1] = 20u;
-        pal[1 * 4 + 2] = 30u;
-        pal[1 * 4 + 3] = 255u;
+        uint sid = 9u;
+        uint packed2 = sid | (sid << 16);
+        pal[1 * 4 + 0] = packed2;
+        pal[1 * 4 + 1] = packed2;
+        pal[1 * 4 + 2] = packed2;
+        pal[1 * 4 + 3] = 0u;
         materialPalette.UploadDataImmediate(pal);
 
         // Patch metadata (indexed by physicalPageId).
@@ -233,7 +235,7 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
             Assert.Equal(pagesPerChunk, perSlot[s]);
         }
 
-        // Validate: every allocated physical page has alpha!=0 in its tile.
+        // Validate: every allocated physical page has non-zero oct-normal in its tile.
         byte[] rgba = ReadTexImageRgba8_2DArray(materialAtlas.TextureId, atlasW, atlasH, atlasCount);
         foreach (uint physicalPageId in virtualToPhysical.Values)
         {
@@ -241,8 +243,9 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
             int texelX = tileX * tileSize;
             int texelY = tileY * tileSize;
             int idx = (((atlasIdx * atlasH) + texelY) * atlasW + texelX) * 4;
-            byte a = rgba[idx + 3];
-            Assert.True(a != 0, $"Expected tile for physicalPageId={physicalPageId} to be written (alpha!=0).");
+            byte r = rgba[idx + 0];
+            byte g = rgba[idx + 1];
+            Assert.True((r | g) != 0, $"Expected tile for physicalPageId={physicalPageId} to be written (oct-normal!=0).");
         }
 
         GL.DeleteProgram(markProgram);

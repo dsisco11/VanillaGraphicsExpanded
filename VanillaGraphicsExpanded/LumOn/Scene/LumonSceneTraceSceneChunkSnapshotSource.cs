@@ -152,11 +152,6 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
 
                     // Rent + fill snapshot buffer (source-cell path).
                     LumonSceneTraceSceneSourceCell[] buf = ArrayPool<LumonSceneTraceSceneSourceCell>.Shared.Rent(len);
-                    bool[] seenMpi = ArrayPool<bool>.Shared.Rent(LumonSceneOccupancyClipmapGpuResources.MaxMaterialPaletteEntries);
-                    int[] usedMpi = ArrayPool<int>.Shared.Rent(256);
-                    int usedMpiCount = 0;
-                    var palettePos = new BlockPos(0);
-
                     try
                     {
                         int nonAirCells = 0;
@@ -231,22 +226,10 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
                                 materialPaletteIndex = 1;
                             }
 
-                            // Ensure palette entry exists for this material id (dedupe within this snapshot).
-                            if (!seenMpi[materialPaletteIndex])
-                            {
-                                seenMpi[materialPaletteIndex] = true;
-
-                                if (usedMpiCount == usedMpi.Length)
-                                {
-                                    int[] grown = ArrayPool<int>.Shared.Rent(usedMpi.Length * 2);
-                                    Array.Copy(usedMpi, grown, usedMpiCount);
-                                    ArrayPool<int>.Shared.Return(usedMpi, clearArray: false);
-                                    usedMpi = grown;
-                                }
-
-                                usedMpi[usedMpiCount++] = materialPaletteIndex;
-                                materialPalette.EnsureEntryForBlockId(capi, blockId, materialPaletteIndex, palettePos);
-                            }
+                            // Ensure palette entry exists for this material id.
+                            // IMPORTANT: pooled arrays are not zeroed, so do not use them for dedupe unless cleared.
+                            // The registry does its own internal dedupe and is safe to call repeatedly.
+                            materialPalette.EnsureEntryForBlockId(capi, blockId, materialPaletteIndex);
 
                             buf[i] = new LumonSceneTraceSceneSourceCell(
                                 isSolid: 1,
@@ -286,25 +269,6 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
                     }
                     finally
                     {
-                        if (usedMpi is not null)
-                        {
-                            for (int i = 0; i < usedMpiCount; i++)
-                            {
-                                int idx = usedMpi[i];
-                                if ((uint)idx < (uint)seenMpi.Length)
-                                {
-                                    seenMpi[idx] = false;
-                                }
-                            }
-
-                            ArrayPool<int>.Shared.Return(usedMpi, clearArray: false);
-                        }
-
-                        if (seenMpi is not null)
-                        {
-                            ArrayPool<bool>.Shared.Return(seenMpi, clearArray: false);
-                        }
-
                         if (buf is not null)
                         {
                             ArrayPool<LumonSceneTraceSceneSourceCell>.Shared.Return(buf);

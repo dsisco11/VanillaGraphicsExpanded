@@ -49,7 +49,8 @@ public sealed class LumonTraceSceneRuntimeWiringEndToEndTests : RenderTestBase
 
         var versionProvider = new LumonSceneTraceSceneChunkVersionProvider();
         var lightIds = new LumonSceneTraceSceneLightIdRegistry();
-        var materialPalette = new LumonSceneTraceSceneMaterialPaletteRegistry();
+        var surfaceLut = new LumonScenePbrSurfaceLutRegistry();
+        var materialPalette = new LumonSceneTraceSceneMaterialPaletteRegistry(surfaceLut);
 
         var blockAccessor = FunctionalBlockAccessorProxy.Create(
             getChunk: (_, _, _) => chunk,

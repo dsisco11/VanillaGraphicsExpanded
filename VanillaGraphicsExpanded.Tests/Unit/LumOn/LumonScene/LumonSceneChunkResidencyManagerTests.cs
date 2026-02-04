@@ -43,7 +43,7 @@ public sealed class LumonSceneChunkResidencyManagerTests
     }
 
     [Fact]
-    public void Eviction_UnderPressure_ReleasesOldest()
+    public void Activation_WhenOverCapacity_FailsWithoutEviction()
     {
         var pools = new LumonScenePhysicalPoolManager();
 
@@ -69,16 +69,27 @@ public sealed class LumonSceneChunkResidencyManagerTests
         var released = new List<LumonScenePageReleasedEvent>();
         residency.PageReleased += released.Add;
 
-        // Activate more chunks than capacity; expect evictions.
+        // Activate more chunks than capacity; activation must fail once the pool is exhausted.
+        int ok = 0;
+        int fail = 0;
         for (int i = 0; i < 8; i++)
         {
             var chunk = new LumonSceneChunkCoord(i, 0, 0);
-            Assert.True(residency.TryActivateChunk(LumonSceneField.Near, chunk, out _));
+            if (residency.TryActivateChunk(LumonSceneField.Near, chunk, out _))
+            {
+                ok++;
+            }
+            else
+            {
+                fail++;
+            }
         }
 
+        Assert.Equal(4, ok);
+        Assert.Equal(4, fail);
         Assert.Equal(4, residency.ActiveChunksNear);
-        Assert.True(residency.EvictionsNear > 0);
-        Assert.Contains(released, e => e.Field == LumonSceneField.Near && e.Reason == LumonScenePageReleaseReason.Evicted);
+        Assert.Equal(0, residency.EvictionsNear);
+        Assert.DoesNotContain(released, e => e.Field == LumonSceneField.Near && e.Reason == LumonScenePageReleaseReason.Evicted);
     }
 
     [Fact]

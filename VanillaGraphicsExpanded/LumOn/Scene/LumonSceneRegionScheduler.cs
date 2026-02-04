@@ -38,6 +38,30 @@ internal sealed class LumonSceneRegionScheduler : IWorldCellWorkSink
     public bool TryGetCell(WorldCellKey key, out LumonSceneRegionCell cell)
         => cells.TryGetValue(key, out cell!);
 
+    public int CopyDebugSnapshots(Span<LumonSceneRegionCellDebugSnapshot> dst)
+    {
+        if (dst.Length <= 0 || cells.Count <= 0)
+        {
+            return 0;
+        }
+
+        int written = 0;
+        foreach (LumonSceneRegionCell cell in cells.Values)
+        {
+            if ((uint)written >= (uint)dst.Length)
+            {
+                break;
+            }
+
+            dst[written++] = new LumonSceneRegionCellDebugSnapshot(
+                ChunkCoord: cell.ChunkCoordInt3,
+                DesiredState: cell.DesiredState,
+                ActualState: cell.ActualState);
+        }
+
+        return written;
+    }
+
     public void Reset(long nowTick)
     {
         this.nowTick = nowTick;

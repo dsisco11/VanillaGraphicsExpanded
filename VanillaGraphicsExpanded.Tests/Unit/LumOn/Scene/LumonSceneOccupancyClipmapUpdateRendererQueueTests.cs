@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.Scene;
 public sealed class LumonSceneOccupancyClipmapUpdateRendererQueueTests
 {
     [Fact]
-    public void UpdateWindowAndEnqueueNew_DisablesWindow_WhenBelowWorld()
+    public void UpdateWindowAndEnqueueNew_AllowsNegativeY()
     {
         ICoreClientAPI capi = FunctionalCoreClientApiProxy.Create();
         var cfg = new VgeConfig();
@@ -27,7 +27,7 @@ public sealed class LumonSceneOccupancyClipmapUpdateRendererQueueTests
 
         Assert.NotNull(updateWindow);
 
-        // Entire window lies below the world (Y < 0): should disable window bounds.
+        // Region coords may be negative (world blocks may be negative in Y), so this should still be accepted.
         object[] args = { new VectorInt3(0, -10, 0), new VectorInt3(0, -1, 0), false };
         updateWindow!.Invoke(renderer, args);
 
@@ -35,7 +35,7 @@ public sealed class LumonSceneOccupancyClipmapUpdateRendererQueueTests
             .GetField("hasWindowRegionBounds", BindingFlags.Instance | BindingFlags.NonPublic);
 
         Assert.NotNull(hasWindow);
-        Assert.False((bool)hasWindow!.GetValue(renderer)!);
+        Assert.True((bool)hasWindow!.GetValue(renderer)!);
     }
 
     private class FunctionalCoreClientApiProxy : DispatchProxy

@@ -6,12 +6,13 @@
 // Import deterministic hash (shared across LumOn shaders)
 @import "./includes/squirrel3.glsl"
 @import "./includes/lumonscene_trace_scene_occupancy.glsl"
+@import "./includes/lumonscene_material_packing.glsl"
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 // Physical atlases (sampled).
 layout(binding = 0) uniform sampler2DArray vge_depthAtlas;    // r16f
-layout(binding = 1) uniform sampler2DArray vge_materialAtlas; // rgba8 (v1: normal in rgb)
+layout(binding = 1) uniform sampler2DArray vge_materialAtlas; // rgba8 (RG oct normal, BA 16-bit surfaceId)
 
 // Trace scene (v1 uses L0 only).
 layout(binding = 2) uniform usampler3D vge_occL0;             // r32ui packed payload
@@ -261,9 +262,9 @@ void main()
     ivec2 texelXY = base + ivec2(inTile);
     ivec3 atlasTexel = ivec3(texelXY, int(atlasIndex));
 
-    // Reconstruct normal from material atlas (v1 stores axis normal in RGB).
-    vec3 n01 = texelFetch(vge_materialAtlas, atlasTexel, 0).rgb;
-    vec3 normalWS = normalize(n01 * 2.0 - 1.0);
+    // Reconstruct normal from material atlas (RG stores oct-encoded normal).
+    vec4 mat = texelFetch(vge_materialAtlas, atlasTexel, 0);
+    vec3 normalWS = VgeLumonSceneDecodeNormalOct01(mat.rg);
 
     // Depth is currently constant (v1), but keep the read so the shader plumbing matches the intended approach.
     float depth = texelFetch(vge_depthAtlas, atlasTexel, 0).r;

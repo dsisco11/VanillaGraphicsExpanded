@@ -231,6 +231,9 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         }
     }
 
+    internal LumonSceneFeedbackUpdateRenderer? GetLumonSceneFeedbackUpdateRendererOrNull()
+        => lumonSceneFeedbackUpdateRenderer;
+
     private string GetLumonSceneSurfaceCacheStatusLineSafe()
     {
         try

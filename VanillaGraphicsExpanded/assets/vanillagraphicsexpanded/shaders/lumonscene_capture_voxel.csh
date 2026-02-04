@@ -3,7 +3,7 @@
 // Phase 22.7: Voxel patch capture v1 (fast)
 // For each CaptureWork item, fills the corresponding physical tile in:
 // - DepthAtlas (r16f): planar depth = 0
-// - MaterialAtlas (rgba8): v1 stores base color (from TraceScene material palette) + roughness (A)
+// - MaterialAtlas (rgba8): RG = oct-encoded normal, BA = 16-bit surfaceId (derived from PBR registry via TraceScene palette)
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
@@ -12,7 +12,7 @@ layout(binding = 1, rgba8) writeonly uniform image2DArray vge_materialAtlas;
 
 // TraceScene sampling inputs (L0 only in v1).
 layout(binding = 2) uniform usampler3D vge_occL0;
-layout(binding = 3) uniform usampler2D vge_materialPalette; // RGBA32UI (x/y/z=color 0..255, w=roughness 0..255)
+layout(binding = 3) uniform usampler2D vge_materialPalette; // RGBA32UI (packs 6x 16-bit surfaceIds: faces 0..5)
 
 uniform ivec3 vge_occOriginMinCell0;
 uniform ivec3 vge_occRing0;
@@ -60,6 +60,7 @@ uniform uint vge_tilesPerAtlas;
 uniform uint vge_borderTexels; // v1 default 0
 
 @import "./includes/lumonscene_trace_scene_occupancy.glsl"
+@import "./includes/lumonscene_material_packing.glsl"
 
 vec3 NormalFromPatchId(uint patchId)
 {
@@ -208,7 +209,7 @@ void main()
     imageStore(vge_depthAtlas, texel, vec4(0.0));
 
     // Material: base color from TraceScene material palette, roughness in A.
-    vec4 outMat = vec4(0.0);
+    vec4 outMat = VgeLumonScenePackMaterialAtlas(normalWS, 0u);
     if (vge_occResolution > 0)
     {
         ivec4 og = vge_chunkOriginBlocksAndGeneration[chunkSlot];
@@ -251,8 +252,10 @@ void main()
         uint matIndex = (payloadPacked >> 18u) & 16383u;
         if (matIndex != 0u)
         {
-            uvec4 m = texelFetch(vge_materialPalette, ivec2(int(matIndex), 0), 0);
-            outMat = vec4(vec3(m.xyz) * (1.0 / 255.0), float(m.w) * (1.0 / 255.0));
+            uvec4 faces = texelFetch(vge_materialPalette, ivec2(int(matIndex), 0), 0);
+            uint faceIndex = VgeLumonSceneAxisIdToBlockFaceIndex(axisId);
+            uint surfaceId = VgeLumonSceneUnpackFaceSurfaceId(faces, faceIndex);
+            outMat = VgeLumonScenePackMaterialAtlas(normalWS, surfaceId);
         }
     }
 

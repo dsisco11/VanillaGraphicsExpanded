@@ -124,4 +124,7 @@ public enum LumOnDebugMode
 
     // Phase 22.X: Surface cache atlas visualization (append-only)
     LumonSceneMaterialAtlasAll = 63,
+
+    // Phase 22.X: Surface cache material roughness (append-only)
+    LumonSceneMaterialRoughness = 64,
 }
