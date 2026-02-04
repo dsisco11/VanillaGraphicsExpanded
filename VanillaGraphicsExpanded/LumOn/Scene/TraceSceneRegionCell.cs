@@ -107,6 +107,15 @@ internal sealed class TraceSceneRegionCell : WorldCell
             reasons |= TraceSceneRegionPriorityReason.InWindow;
         }
 
+        // Never issue snapshot work for regions we haven't actually observed as loaded.
+        // The TraceScene window is typically larger than the loaded chunk range, so without this
+        // we would flood the pipeline with "chunk missing" snapshot failures.
+        if (LastSeenLoadedTick <= 0)
+        {
+            LastPriorityReasons = reasons;
+            return float.NegativeInfinity;
+        }
+
         if (context.NowTick < NextEligibleTick)
         {
             reasons |= TraceSceneRegionPriorityReason.CooldownSuppressed;

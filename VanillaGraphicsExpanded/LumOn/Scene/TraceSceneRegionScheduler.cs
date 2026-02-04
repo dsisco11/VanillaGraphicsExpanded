@@ -607,6 +607,11 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
                 continue;
             }
 
+            if (cell.LastSeenLoadedTick <= 0)
+            {
+                continue;
+            }
+
             if (cell.InFlightVersion != 0)
             {
                 continue;
