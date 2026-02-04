@@ -292,6 +292,8 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
                 return "TS: init";
             }
 
+            var traceCfg = ConfigModSystem.Config.LumOn.LumonScene.TraceScene;
+
             int q = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.QueueLength;
             int qh = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.QueueHighLength;
             int ql = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.QueueLowLength;
@@ -300,6 +302,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             int a = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.AppliedRegions;
             long cd = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.CooldownSkips;
             long r = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionRequestsIssued;
+            int ism = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.IssueSkipMask;
 
             long cOk = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionCompleteSuccess;
             long cNo = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionCompleteChunkUnavailable;
@@ -341,7 +344,9 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
                 top = string.Empty;
             }
 
-            string baseLine = $"TS: q:{q}({qh}/{ql}) sup:{sup} f:{f} a:{a} cd:{cd} comp:{cOk}/{cNo}/{cCa}/{cSu}/{cFa} r:{r} s:{sReq}/{sOk}/{sNo} fail:{sfC}/{sfM}/{sfU}/{sfE} v:{ev}->{cv} c:{cf} bc:{bc} key:{cx},{cy},{cz} b:{b0}/{bC}/{bL} d:{bD} na:{na} sol:{sol}";
+            string baseLine =
+                $"TS: q:{q}({qh}/{ql}) sup:{sup} f:{f} a:{a} cd:{cd} ism:{ism} comp:{cOk}/{cNo}/{cCa}/{cSu}/{cFa} r:{r} s:{sReq}/{sOk}/{sNo} fail:{sfC}/{sfM}/{sfU}/{sfE} v:{ev}->{cv} c:{cf} bc:{bc} key:{cx},{cy},{cz} b:{b0}/{bC}/{bL} d:{bD} na:{na} sol:{sol}"
+                + $" cfg:if:{traceCfg.ClipmapMaxInFlightRegions} i:{traceCfg.ClipmapIssueBudgetMs:0.###} d:{traceCfg.ClipmapDispatchBudgetMs:0.###} r:{traceCfg.ClipmapRefreshBudgetMs:0.###} up:{traceCfg.ClipmapMaxRegionUploadsPerFrame} dp:{traceCfg.ClipmapMaxRegionsDispatchedPerFrame}";
 
             if (string.IsNullOrWhiteSpace(top))
             {

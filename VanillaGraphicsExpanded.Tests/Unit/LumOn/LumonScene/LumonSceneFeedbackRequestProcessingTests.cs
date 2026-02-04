@@ -47,6 +47,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             requests: requests,
             maxRequestsToProcess: 1024,
             maxNewAllocations: 16,
+            maxResidentPagesPerChunkSlot: 0,
             recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
             recaptureCursor: ref recaptureCursor,
             maxRecapture: 0,
@@ -110,6 +111,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             },
             maxRequestsToProcess: 1024,
             maxNewAllocations: 16,
+            maxResidentPagesPerChunkSlot: 0,
             recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
             recaptureCursor: ref recaptureCursor,
             maxRecapture: 0,
@@ -129,6 +131,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             requests: new[] { new LumonScenePageRequestGpu(0u, 1u, 0u, 999u) },
             maxRequestsToProcess: 1024,
             maxNewAllocations: 0,
+            maxResidentPagesPerChunkSlot: 0,
             recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
             recaptureCursor: ref recaptureCursor,
             maxRecapture: 0,
@@ -175,6 +178,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             requests: req,
             maxRequestsToProcess: 5,
             maxNewAllocations: 2,
+            maxResidentPagesPerChunkSlot: 0,
             recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
             recaptureCursor: ref recaptureCursor,
             maxRecapture: 0,
@@ -221,6 +225,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
             requests: req,
             maxRequestsToProcess: 1024,
             maxNewAllocations: 1024,
+            maxResidentPagesPerChunkSlot: 0,
             recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
             recaptureCursor: ref recaptureCursor,
             maxRecapture: 0,
@@ -248,6 +253,104 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
 
         Assert.DoesNotContain(writes.Writes, w => w.VirtualPageIndex == 0 && w.PackedEntry == 0u);
         Assert.DoesNotContain(writes.Writes, w => w.VirtualPageIndex == 1 && w.PackedEntry == 0u);
+    }
+
+    [Fact]
+    public void PerChunkSlotCap_SkipsAllocationsBeyondCap()
+    {
+        using var pool = CreateNearPool(capacityNotClamped: true);
+
+        var pageTable = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
+        var virtualToPhysical = new Dictionary<ulong, uint>();
+        var physicalToVirtual = new Dictionary<uint, ulong>();
+        var writes = new RecordingPageTableWriter();
+        var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+
+        var capture = new LumonSceneCaptureWorkGpu[16];
+        var relight = new LumonSceneRelightWorkGpu[16];
+        int recaptureCursor = 0;
+
+        proc.Process(
+            requests: new[]
+            {
+                new LumonScenePageRequestGpu(0u, 0u, 0u, 1u),
+                new LumonScenePageRequestGpu(0u, 1u, 0u, 1u),
+            },
+            maxRequestsToProcess: 1024,
+            maxNewAllocations: 1024,
+            maxResidentPagesPerChunkSlot: 1,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+            recaptureCursor: ref recaptureCursor,
+            maxRecapture: 0,
+            captureWorkOut: capture,
+            relightWorkOut: relight,
+            captureCount: out _,
+            relightCount: out _,
+            stats: out var stats);
+
+        Assert.Equal(1, virtualToPhysical.Count);
+        Assert.Equal(1, stats.RequestsAllocatedNew);
+        Assert.Equal(1, stats.RequestsSkippedChunkBudget);
+    }
+
+    [Fact]
+    public void WhenPoolFull_EvictsFromOverCapSlot_ToAllocateForOtherSlot()
+    {
+        using var pool = CreateNearPool(capacityNotClamped: false); // capacity=4 pages
+
+        int vpc = LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk;
+        var pageTable = new LumonScenePageTableEntry[checked(vpc * 2)];
+        var virtualToPhysical = new Dictionary<ulong, uint>();
+        var physicalToVirtual = new Dictionary<uint, ulong>();
+        var writes = new RecordingPageTableWriter();
+        var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+
+        var capture = new LumonSceneCaptureWorkGpu[64];
+        var relight = new LumonSceneRelightWorkGpu[64];
+        int recaptureCursor = 0;
+
+        // Fill the pool with pages in slot 0 (4 pages).
+        proc.Process(
+            requests: new[]
+            {
+                new LumonScenePageRequestGpu(0u, 0u, 0u, 1u),
+                new LumonScenePageRequestGpu(0u, 1u, 0u, 1u),
+                new LumonScenePageRequestGpu(0u, 2u, 0u, 1u),
+                new LumonScenePageRequestGpu(0u, 3u, 0u, 1u),
+            },
+            maxRequestsToProcess: 1024,
+            maxNewAllocations: 1024,
+            maxResidentPagesPerChunkSlot: 0,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+            recaptureCursor: ref recaptureCursor,
+            maxRecapture: 0,
+            captureWorkOut: capture,
+            relightWorkOut: relight,
+            captureCount: out _,
+            relightCount: out _,
+            stats: out _);
+
+        Assert.Equal(4, virtualToPhysical.Count);
+
+        // Now allocate for slot 1 under cap=3; should evict one page from slot 0 (over cap) and then allocate for slot 1.
+        proc.Process(
+            requests: new[] { new LumonScenePageRequestGpu(1u, 0u, 0u, 1u) },
+            maxRequestsToProcess: 1024,
+            maxNewAllocations: 1024,
+            maxResidentPagesPerChunkSlot: 3,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+            recaptureCursor: ref recaptureCursor,
+            maxRecapture: 0,
+            captureWorkOut: capture,
+            relightWorkOut: relight,
+            captureCount: out _,
+            relightCount: out _,
+            stats: out var stats);
+
+        Assert.Equal(1, stats.RequestsAllocatedNew);
+        Assert.Equal(1, stats.AllocationEvictions);
+        Assert.Equal(4, virtualToPhysical.Count);
+        Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(1u, 0u)));
     }
 
     [Fact]
@@ -279,6 +382,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
                 requests: req,
                 maxRequestsToProcess: 1024,
                 maxNewAllocations: k,
+                maxResidentPagesPerChunkSlot: 0,
                 recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
                 recaptureCursor: ref recaptureCursor,
                 maxRecapture: 0,
@@ -322,12 +426,14 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
 
             Span<ushort> newAllocs = stackalloc ushort[1];
             Span<ushort> skippedBudget = stackalloc ushort[1];
+            Span<ushort> skippedChunkBudget = stackalloc ushort[1];
             Span<ushort> allocFailures = stackalloc ushort[1];
 
             proc.Process(
                 requests: req,
                 maxRequestsToProcess: 1024,
                 maxNewAllocations: 2,
+                maxResidentPagesPerChunkSlot: 0,
                 recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
                 recaptureCursor: ref recaptureCursor,
                 maxRecapture: 0,
@@ -338,10 +444,12 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
                 stats: out _,
                 newAllocationsByChunkSlot: newAllocs,
                 skippedGlobalBudgetByChunkSlot: skippedBudget,
+                skippedChunkBudgetByChunkSlot: skippedChunkBudget,
                 allocationFailuresByChunkSlot: allocFailures);
 
             Assert.Equal((ushort)2, newAllocs[0]);
             Assert.Equal((ushort)8, skippedBudget[0]);
+            Assert.Equal((ushort)0, skippedChunkBudget[0]);
             Assert.Equal((ushort)0, allocFailures[0]);
         }
 
@@ -368,12 +476,14 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
 
             Span<ushort> newAllocs = stackalloc ushort[1];
             Span<ushort> skippedBudget = stackalloc ushort[1];
+            Span<ushort> skippedChunkBudget = stackalloc ushort[1];
             Span<ushort> allocFailures = stackalloc ushort[1];
 
             proc.Process(
                 requests: fill,
                 maxRequestsToProcess: 1024,
                 maxNewAllocations: 1024,
+                maxResidentPagesPerChunkSlot: 0,
                 recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
                 recaptureCursor: ref recaptureCursor,
                 maxRecapture: 0,
@@ -384,14 +494,17 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
                 stats: out _,
                 newAllocationsByChunkSlot: newAllocs,
                 skippedGlobalBudgetByChunkSlot: skippedBudget,
+                skippedChunkBudgetByChunkSlot: skippedChunkBudget,
                 allocationFailuresByChunkSlot: allocFailures);
 
             Assert.Equal((ushort)4, newAllocs[0]);
             Assert.Equal((ushort)0, skippedBudget[0]);
+            Assert.Equal((ushort)0, skippedChunkBudget[0]);
             Assert.Equal((ushort)0, allocFailures[0]);
 
             newAllocs.Clear();
             skippedBudget.Clear();
+            skippedChunkBudget.Clear();
             allocFailures.Clear();
 
             // Now request additional unique pages; allocations should fail.
@@ -403,6 +516,7 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
                 },
                 maxRequestsToProcess: 1024,
                 maxNewAllocations: 1024,
+                maxResidentPagesPerChunkSlot: 0,
                 recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
                 recaptureCursor: ref recaptureCursor,
                 maxRecapture: 0,
@@ -413,10 +527,12 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
                 stats: out _,
                 newAllocationsByChunkSlot: newAllocs,
                 skippedGlobalBudgetByChunkSlot: skippedBudget,
+                skippedChunkBudgetByChunkSlot: skippedChunkBudget,
                 allocationFailuresByChunkSlot: allocFailures);
 
             Assert.Equal((ushort)0, newAllocs[0]);
             Assert.Equal((ushort)0, skippedBudget[0]);
+            Assert.Equal((ushort)0, skippedChunkBudget[0]);
             Assert.Equal((ushort)2, allocFailures[0]);
         }
     }

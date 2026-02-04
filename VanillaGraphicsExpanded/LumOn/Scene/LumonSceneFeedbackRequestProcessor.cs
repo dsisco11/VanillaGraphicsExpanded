@@ -18,6 +18,7 @@ internal sealed class LumonSceneFeedbackRequestProcessor
         int RequestsConsidered,
         int RequestsAcceptedExisting,
         int RequestsAllocatedNew,
+        int RequestsSkippedChunkBudget,
         int RequestsSkippedChunkSlot,
         int RequestsSkippedOobVirtualPage,
         int RequestsSkippedBudget,
@@ -53,6 +54,7 @@ internal sealed class LumonSceneFeedbackRequestProcessor
         ReadOnlySpan<LumonScenePageRequestGpu> requests,
         int maxRequestsToProcess,
         int maxNewAllocations,
+        int maxResidentPagesPerChunkSlot,
         ReadOnlySpan<ulong> recaptureVirtualPageKeys,
         ref int recaptureCursor,
         int maxRecapture,
@@ -65,6 +67,7 @@ internal sealed class LumonSceneFeedbackRequestProcessor
             requests,
             maxRequestsToProcess,
             maxNewAllocations,
+            maxResidentPagesPerChunkSlot,
             recaptureVirtualPageKeys,
             ref recaptureCursor,
             maxRecapture,
@@ -75,12 +78,14 @@ internal sealed class LumonSceneFeedbackRequestProcessor
             out stats,
             newAllocationsByChunkSlot: Span<ushort>.Empty,
             skippedGlobalBudgetByChunkSlot: Span<ushort>.Empty,
+            skippedChunkBudgetByChunkSlot: Span<ushort>.Empty,
             allocationFailuresByChunkSlot: Span<ushort>.Empty);
 
     public void Process(
         ReadOnlySpan<LumonScenePageRequestGpu> requests,
         int maxRequestsToProcess,
         int maxNewAllocations,
+        int maxResidentPagesPerChunkSlot,
         ReadOnlySpan<ulong> recaptureVirtualPageKeys,
         ref int recaptureCursor,
         int maxRecapture,
@@ -91,6 +96,7 @@ internal sealed class LumonSceneFeedbackRequestProcessor
         out ProcessStats stats,
         Span<ushort> newAllocationsByChunkSlot,
         Span<ushort> skippedGlobalBudgetByChunkSlot,
+        Span<ushort> skippedChunkBudgetByChunkSlot,
         Span<ushort> allocationFailuresByChunkSlot)
     {
         captureCount = 0;
@@ -103,6 +109,7 @@ internal sealed class LumonSceneFeedbackRequestProcessor
 
         int newAllocs = 0;
         int existingAccepted = 0;
+        int skippedChunkBudget = 0;
         int skippedChunkSlot = 0;
         int skippedOobVirtualPage = 0;
         int skippedBudget = 0;
@@ -113,14 +120,18 @@ internal sealed class LumonSceneFeedbackRequestProcessor
 
         bool hasSlotStats = newAllocationsByChunkSlot.Length >= chunkSlotCount
             && skippedGlobalBudgetByChunkSlot.Length >= chunkSlotCount
+            && skippedChunkBudgetByChunkSlot.Length >= chunkSlotCount
             && allocationFailuresByChunkSlot.Length >= chunkSlotCount;
 
         if (hasSlotStats)
         {
             newAllocationsByChunkSlot.Slice(0, chunkSlotCount).Clear();
             skippedGlobalBudgetByChunkSlot.Slice(0, chunkSlotCount).Clear();
+            skippedChunkBudgetByChunkSlot.Slice(0, chunkSlotCount).Clear();
             allocationFailuresByChunkSlot.Slice(0, chunkSlotCount).Clear();
         }
+
+        maxResidentPagesPerChunkSlot = Math.Max(0, maxResidentPagesPerChunkSlot);
 
         for (int i = 0; i < toProcess; i++)
         {
@@ -152,6 +163,16 @@ internal sealed class LumonSceneFeedbackRequestProcessor
                 continue;
             }
 
+            if (maxResidentPagesPerChunkSlot > 0 && pageTableStats.GetSlot(chunkSlot).Resident >= maxResidentPagesPerChunkSlot)
+            {
+                skippedChunkBudget++;
+                if (hasSlotStats)
+                {
+                    IncrementClamped(skippedChunkBudgetByChunkSlot, (int)chunkSlot);
+                }
+                continue;
+            }
+
             if (newAllocs >= maxNewAllocations)
             {
                 skippedBudget++;
@@ -162,7 +183,7 @@ internal sealed class LumonSceneFeedbackRequestProcessor
                 continue;
             }
 
-            if (!TryAllocateOrEvictOne(out LumonScenePhysicalPage page, out bool didEvict))
+            if (!TryAllocateOrEvictOne(maxResidentPagesPerChunkSlot, out LumonScenePhysicalPage page, out bool didEvict))
             {
                 allocFailures++;
                 if (hasSlotStats)
@@ -266,6 +287,7 @@ internal sealed class LumonSceneFeedbackRequestProcessor
             RequestsConsidered: toProcess,
             RequestsAcceptedExisting: existingAccepted,
             RequestsAllocatedNew: newAllocs,
+            RequestsSkippedChunkBudget: skippedChunkBudget,
             RequestsSkippedChunkSlot: skippedChunkSlot,
             RequestsSkippedOobVirtualPage: skippedOobVirtualPage,
             RequestsSkippedBudget: skippedBudget,
@@ -291,12 +313,74 @@ internal sealed class LumonSceneFeedbackRequestProcessor
         counts[index] = (ushort)(v + 1);
     }
 
-    private bool TryAllocateOrEvictOne(out LumonScenePhysicalPage page, out bool didEvict)
+    private bool TryAllocateOrEvictOne(int maxResidentPagesPerChunkSlot, out LumonScenePhysicalPage page, out bool didEvict)
     {
         didEvict = false;
 
-        // Residency policy: never evict while the owning world-cell is still loaded.
-        // Pages are only released when the chunk slot leaves the loaded window (anchor shift) or the chunk unloads/resets.
+        if (pool.TryAllocate(out page))
+        {
+            return true;
+        }
+
+        if (maxResidentPagesPerChunkSlot <= 0)
+        {
+            page = default;
+            return false;
+        }
+
+        if (!TryEvictOneOverCap(maxResidentPagesPerChunkSlot))
+        {
+            page = default;
+            return false;
+        }
+
+        didEvict = true;
         return pool.TryAllocate(out page);
+    }
+
+    private bool TryEvictOneOverCap(int maxResidentPagesPerChunkSlot)
+    {
+        if (maxResidentPagesPerChunkSlot <= 0)
+        {
+            return false;
+        }
+
+        int attempts = 0;
+        while (attempts++ < 128 && pool.TryGetEvictionCandidate(out uint physicalPageId))
+        {
+            if (!physicalToVirtual.TryGetValue(physicalPageId, out ulong key))
+            {
+                // Untracked page: do not evict here; try a different candidate.
+                pool.PagePool.Touch(physicalPageId);
+                continue;
+            }
+
+            uint chunkSlot = LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(key);
+            if (pageTableStats.GetSlot(chunkSlot).Resident <= maxResidentPagesPerChunkSlot)
+            {
+                // Not over cap; keep looking.
+                pool.PagePool.Touch(physicalPageId);
+                continue;
+            }
+
+            physicalToVirtual.Remove(physicalPageId);
+            virtualToPhysical.Remove(key);
+
+            int vpage = (int)LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(key);
+            int mirrorIndex = checked((int)chunkSlot * LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk + vpage);
+            if ((uint)mirrorIndex < (uint)pageTableMirror.Length)
+            {
+                LumonScenePageTableEntry oldEntry = pageTableMirror[mirrorIndex];
+                LumonScenePageTableEntry newEntry = default;
+                pageTableMirror[mirrorIndex] = newEntry;
+                pageTableStats.ApplyEntryChange(chunkSlot, in oldEntry, in newEntry);
+            }
+
+            pageTableWriter.WriteMip0(chunkSlot: (int)chunkSlot, virtualPageIndex: vpage, packedEntry: 0u);
+            pool.Free(physicalPageId);
+            return true;
+        }
+
+        return false;
     }
 }

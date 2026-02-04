@@ -678,7 +678,7 @@ public class VgeConfig
              /// Default: 64.
              /// </summary>
              [JsonProperty]
-            public int MaxAtlasCount { get; set; } = 64;
+            public int MaxAtlasCount { get; set; } = 32;
 
             /// <summary>
             /// Near-field voxel surface-cache resolution expressed as texels per voxel face edge (mip 0).
@@ -699,14 +699,14 @@ public class VgeConfig
             /// This controls how many 4096x4096 atlas textures are allocated (up to <see cref="MaxAtlasCount"/>).
              /// </summary>
             [JsonProperty]
-            public int NearPagesPerChunkBudget { get; set; } = 32;
+            public int NearPagesPerChunkBudget { get; set; } = 1024;
 
              /// <summary>
             /// Far-field physical page budget expressed as an expected pages-per-chunk for pool sizing (including margin chunks).
             /// This controls how many 4096x4096 atlas textures are allocated (up to <see cref="MaxAtlasCount"/>).
              /// </summary>
             [JsonProperty]
-            public int FarPagesPerChunkBudget { get; set; } = 1;
+            public int FarPagesPerChunkBudget { get; set; } = 256;
 
             /// <summary>
             /// Near-field radius expressed in chunk distance (Chebyshev distance in chunk coordinates).
@@ -750,21 +750,21 @@ public class VgeConfig
                 /// Larger values increase update cost and VRAM. Power-of-two values are recommended.
                 /// </summary>
                 [JsonProperty]
-                public int ClipmapResolution { get; set; } = 64;
+                public int ClipmapResolution { get; set; } = 128;
 
                 /// <summary>
                 /// Trace scene occupancy clipmap level count.
                 /// Level spacing is <c>1 &lt;&lt; level</c> blocks (v1).
                 /// </summary>
                 [JsonProperty]
-                public int ClipmapLevels { get; set; } = 5;
+                public int ClipmapLevels { get; set; } = 3;
 
                 /// <summary>
                 /// Max number of clipmap slice uploads per frame.
                 /// Higher values converge faster but increase CPU cost and GL traffic.
                 /// </summary>
                 [JsonProperty]
-                public int ClipmapSlicesPerFrame { get; set; } = 8;
+                public int ClipmapSlicesPerFrame { get; set; } = 32;
 
                 /// <summary>
                 /// CPU time budget (ms) per frame for refreshing the TraceScene region scheduler priorities and seeding

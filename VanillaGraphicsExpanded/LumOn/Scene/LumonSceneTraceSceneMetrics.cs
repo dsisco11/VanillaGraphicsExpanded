@@ -41,6 +41,8 @@ internal static class LumonSceneTraceSceneMetrics
     private static long snapshotFailUnpack;
     private static long snapshotFailException;
 
+    private static int issueSkipMask;
+
     private static int lastSnapshotNonAirCells;
     private static int lastSnapshotSolidCells;
     private static int lastSnapshotChunkFound;
@@ -69,6 +71,8 @@ internal static class LumonSceneTraceSceneMetrics
     public static long SnapshotFailChunkMissing => Interlocked.Read(ref snapshotFailChunkMissing);
     public static long SnapshotFailUnpack => Interlocked.Read(ref snapshotFailUnpack);
     public static long SnapshotFailException => Interlocked.Read(ref snapshotFailException);
+
+    public static int IssueSkipMask => Volatile.Read(ref issueSkipMask);
 
     public static int LastSnapshotNonAirCells => Volatile.Read(ref lastSnapshotNonAirCells);
     public static int LastSnapshotSolidCells => Volatile.Read(ref lastSnapshotSolidCells);
@@ -108,6 +112,11 @@ internal static class LumonSceneTraceSceneMetrics
         Volatile.Write(ref LumonSceneTraceSceneMetrics.suppressedCooldown, suppressed);
         Volatile.Write(ref LumonSceneTraceSceneMetrics.inFlight, inFlight);
         Volatile.Write(ref LumonSceneTraceSceneMetrics.appliedRegions, appliedRegions);
+    }
+
+    public static void SetIssueSkipMask(int mask)
+    {
+        Volatile.Write(ref issueSkipMask, mask);
     }
 
     public static void OnCooldownSkip()

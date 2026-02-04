@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -17,7 +18,13 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
 
     private long snapshotBytesInUse;
 
-    private readonly Channel<IChunkWorkItem> work;
+    private readonly Channel<QueuedWorkItem> workChannel;
+    private long queueSeq;
+
+    private readonly object readyGate = new();
+    private readonly PriorityQueue<IChunkWorkItem, (int negPriority, long seq)> readyQueue = new();
+    private readonly SemaphoreSlim readyAvailable = new(0);
+    private readonly Task pumpTask;
 
     private readonly ConcurrentDictionary<ArtifactKey, Task> inFlight = new();
 
@@ -30,6 +37,8 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
     private readonly Task[] workers;
 
     private readonly TimeSpan shutdownTimeout;
+
+    private int disposed;
 
     public ChunkProcessingService(
         IChunkSnapshotSource snapshotSource,
@@ -45,14 +54,14 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
 
         shutdownTimeout = options.ShutdownTimeout;
 
-        var channelOptions = new UnboundedChannelOptions
+        workChannel = Channel.CreateUnbounded<QueuedWorkItem>(new UnboundedChannelOptions
         {
             SingleReader = false,
             SingleWriter = false,
             AllowSynchronousContinuations = false,
-        };
+        });
 
-        work = Channel.CreateUnbounded<IChunkWorkItem>(channelOptions);
+        pumpTask = Task.Run(PumpLoop);
 
         int workerCount = Math.Max(1, options.WorkerCount);
         workers = new Task[workerCount];
@@ -76,6 +85,21 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
         if (processor is null)
         {
             throw new ArgumentNullException(nameof(processor));
+        }
+
+        if (Volatile.Read(ref disposed) != 0 || cts.IsCancellationRequested)
+        {
+            var unavailable = new ChunkWorkResult<TArtifact>(
+                Status: ChunkWorkStatus.Failed,
+                Key: key,
+                RequestedVersion: version,
+                ProcessorId: processor.Id,
+                Artifact: default,
+                Error: ChunkWorkError.Unknown,
+                Reason: "ServiceUnavailable");
+
+            ChunkProcessingMetrics.OnCompleted(unavailable.Status);
+            return Task.FromResult(unavailable);
         }
 
         if (ct.IsCancellationRequested)
@@ -275,32 +299,7 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
                 }
             }
 
-            if (!work.Writer.TryWrite(workItem))
-            {
-                if (inFlight.TryRemove(artifactKey, out _))
-                {
-                    ChunkProcessingMetrics.OnInFlightRemoved();
-                }
-
-                if (pendingByProcessorKey.TryGetValue(processorKey, out ConcurrentDictionary<int, IChunkWorkItem>? pending)
-                    && pending.TryRemove(version, out _)
-                    && pending.IsEmpty)
-                {
-                    pendingByProcessorKey.TryRemove(processorKey, out _);
-                }
-
-                var unavailable = new ChunkWorkResult<TArtifact>(
-                    Status: ChunkWorkStatus.Failed,
-                    Key: key,
-                    RequestedVersion: version,
-                    ProcessorId: processor.Id,
-                    Artifact: default,
-                    Error: ChunkWorkError.Unknown,
-                    Reason: "ServiceUnavailable");
-
-                ChunkProcessingMetrics.OnCompleted(unavailable.Status);
-                return Task.FromResult(unavailable);
-            }
+            EnqueueWorkItem(workItem, options?.Priority ?? 0);
 
             ChunkProcessingMetrics.OnEnqueued();
 
@@ -308,13 +307,31 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
         }
     }
 
+    private void EnqueueWorkItem(IChunkWorkItem item, int priority)
+    {
+        long seq = Interlocked.Increment(ref queueSeq);
+        var queued = new QueuedWorkItem(item, priority, seq);
+
+        // Unbounded channel: TryWrite should always succeed unless completed/disposed.
+        if (!workChannel.Writer.TryWrite(queued))
+        {
+            item.TryCompleteSuperseded("ServiceUnavailable");
+        }
+    }
+
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref disposed, 1) != 0)
+        {
+            return;
+        }
+
+        _ = workChannel.Writer.TryComplete();
         cts.Cancel();
-        work.Writer.TryComplete();
 
         try
         {
+            pumpTask.Wait(shutdownTimeout);
             Task.WaitAll(workers, shutdownTimeout);
         }
         catch
@@ -322,27 +339,67 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
             // Best-effort shutdown.
         }
 
+        readyAvailable.Dispose();
         cts.Dispose();
+    }
+
+    private async Task PumpLoop()
+    {
+        try
+        {
+            await foreach (QueuedWorkItem queued in workChannel.Reader.ReadAllAsync(cts.Token).ConfigureAwait(false))
+            {
+                int negPriority = unchecked(-queued.Priority);
+
+                lock (readyGate)
+                {
+                    readyQueue.Enqueue(queued.Item, (negPriority, queued.Seq));
+                }
+
+                readyAvailable.Release();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected on shutdown.
+        }
+        catch
+        {
+            // Swallow for now; higher-level integration will add logging.
+        }
     }
 
     private async Task WorkerLoop()
     {
         try
         {
-            while (await work.Reader.WaitToReadAsync(cts.Token).ConfigureAwait(false))
+            while (true)
             {
-                while (work.Reader.TryRead(out IChunkWorkItem? item))
+                await readyAvailable.WaitAsync(cts.Token).ConfigureAwait(false);
+
+                IChunkWorkItem? item = null;
+                lock (readyGate)
                 {
-                    try
+                    if (readyQueue.Count > 0)
                     {
-                        ChunkProcessingMetrics.OnDequeued();
-                        await item.ExecuteAsync(cts.Token).ConfigureAwait(false);
+                        item = readyQueue.Dequeue();
                     }
-                    catch
-                    {
-                        // Work items must swallow and report failures via their result wrappers.
-                        // This catch ensures a single misbehaving work item can't kill the worker loop.
-                    }
+                }
+
+                if (item is null)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    ChunkProcessingMetrics.OnDequeued();
+                    await item.ExecuteAsync(cts.Token).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Work items must swallow and report failures via their result wrappers.
+                    // This catch ensures a single misbehaving work item can't kill the worker loop.
                 }
             }
         }
@@ -355,6 +412,8 @@ public sealed class ChunkProcessingService : IChunkProcessingService, IDisposabl
             // Swallow for now; higher-level integration will add logging.
         }
     }
+
+    private readonly record struct QueuedWorkItem(IChunkWorkItem Item, int Priority, long Seq);
 
     internal ValueTask<IChunkSnapshot?> TryAcquireSnapshotLeaseAsync(ChunkKey key, int version, CancellationToken ct)
     {

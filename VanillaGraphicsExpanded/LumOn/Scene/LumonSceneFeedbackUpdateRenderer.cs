@@ -51,7 +51,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     private Texture3D? pageUsageStamp;
     private GpuAtomicCounterBuffer? feedbackMarkDebugCounters;
     private uint feedbackFrameStamp = 1u;
-    private uint compactScanOffset = 0u;
+
 
     private VectorInt3 slotOriginMinChunk;
     private VectorInt3 slotDims;
@@ -531,11 +531,9 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
             int chunkSlotCount = nearGpu.PageTable.ChunkSlotCount;
             int totalEntries = checked(VirtualPagesPerChunk * Math.Max(1, chunkSlotCount));
-            // v2: randomize compaction scan order slightly each frame to reduce bias when the request list saturates.
-            // (We still scan all entries; this only changes invocation->entry mapping, and thus atomic append ordering.)
-            const uint scanStep = 8191u; // odd and not divisible by 17, avoids aligning with VirtualPagesPerChunk (2^14)
-            compactScanOffset = totalEntries <= 0 ? 0u : (compactScanOffset + scanStep) % (uint)totalEntries;
-            _ = feedbackCompactPipeline.TrySetUniform1("vge_scanOffset", compactScanOffset);
+            // v2: deterministic scan order (no rotation). Keep the uniform for shader compatibility.
+            // Note: if the bounded request list saturates, earlier entries will win deterministically.
+            _ = feedbackCompactPipeline.TrySetUniform1("vge_scanOffset", 0u);
 
             int gx = (totalEntries + 255) / 256;
 
@@ -605,7 +603,6 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         configured = false;
         lastPlanHash = 0;
         feedbackFrameStamp = 1u;
-        compactScanOffset = 0u;
 
         // CPU-side virtual mappings are discarded on world leave, so the backing physical pools must return all pages
         // to their free lists. Otherwise, rejoining a world with the same pool plan would start with a "full" pool.
@@ -1502,10 +1499,12 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
         ushort[]? slotNewAllocsArr = null;
         ushort[]? slotStarvedBudgetArr = null;
+        ushort[]? slotStarvedChunkBudgetArr = null;
         ushort[]? slotAllocFailuresArr = null;
 
         Span<ushort> slotNewAllocs = Span<ushort>.Empty;
         Span<ushort> slotStarvedBudget = Span<ushort>.Empty;
+        Span<ushort> slotStarvedChunkBudget = Span<ushort>.Empty;
         Span<ushort> slotAllocFailures = Span<ushort>.Empty;
 
         try
@@ -1865,17 +1864,22 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             {
                 slotNewAllocsArr = ArrayPool<ushort>.Shared.Rent(slotCountForStats);
                 slotStarvedBudgetArr = ArrayPool<ushort>.Shared.Rent(slotCountForStats);
+                slotStarvedChunkBudgetArr = ArrayPool<ushort>.Shared.Rent(slotCountForStats);
                 slotAllocFailuresArr = ArrayPool<ushort>.Shared.Rent(slotCountForStats);
 
                 slotNewAllocs = slotNewAllocsArr.AsSpan(0, slotCountForStats);
                 slotStarvedBudget = slotStarvedBudgetArr.AsSpan(0, slotCountForStats);
+                slotStarvedChunkBudget = slotStarvedChunkBudgetArr.AsSpan(0, slotCountForStats);
                 slotAllocFailures = slotAllocFailuresArr.AsSpan(0, slotCountForStats);
             }
+
+            var cfg = config.LumOn.LumonScene;
 
             cpuProcessor!.Process(
                 requests: scratch.AsSpan(0, toProcess),
                 maxRequestsToProcess: maxRequestsToProcess,
                 maxNewAllocations: maxNewAllocations,
+                maxResidentPagesPerChunkSlot: ComputeMaxResidentPagesPerChunkSlot(physicalPools.Near.Plan.CapacityPages, in cfg),
                 recaptureVirtualPageKeys: recaptureVirtualPageKeys is null ? ReadOnlySpan<ulong>.Empty : recaptureVirtualPageKeys.AsSpan(0, recaptureCount),
                 recaptureCursor: ref recaptureCursor,
                 maxRecapture: maxRecapture,
@@ -1886,6 +1890,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                 stats: out lastProcessStats,
                 newAllocationsByChunkSlot: slotNewAllocs,
                 skippedGlobalBudgetByChunkSlot: slotStarvedBudget,
+                skippedChunkBudgetByChunkSlot: slotStarvedChunkBudget,
                 allocationFailuresByChunkSlot: slotAllocFailures);
 
             // Phase 9.1: cooldown/backoff based on allocation failures and budget starvation.
@@ -1895,6 +1900,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                     nowTick: lastNearStateContext.NowTick,
                     slotNewAllocs,
                     slotStarvedBudget,
+                    slotStarvedChunkBudget,
                     slotAllocFailures);
             }
 
@@ -1925,6 +1931,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
             if (slotNewAllocsArr is not null) ArrayPool<ushort>.Shared.Return(slotNewAllocsArr, clearArray: true);
             if (slotStarvedBudgetArr is not null) ArrayPool<ushort>.Shared.Return(slotStarvedBudgetArr, clearArray: true);
+            if (slotStarvedChunkBudgetArr is not null) ArrayPool<ushort>.Shared.Return(slotStarvedChunkBudgetArr, clearArray: true);
             if (slotAllocFailuresArr is not null) ArrayPool<ushort>.Shared.Return(slotAllocFailuresArr, clearArray: true);
         }
     }
@@ -1933,6 +1940,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         long nowTick,
         ReadOnlySpan<ushort> slotNewAllocs,
         ReadOnlySpan<ushort> slotStarvedBudget,
+        ReadOnlySpan<ushort> slotStarvedChunkBudget,
         ReadOnlySpan<ushort> slotAllocFailures)
     {
         int slotCount = slotOwners.Length;
@@ -1943,6 +1951,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
         int n = Math.Min(slotCount, slotNewAllocs.Length);
         n = Math.Min(n, slotStarvedBudget.Length);
+        n = Math.Min(n, slotStarvedChunkBudget.Length);
         n = Math.Min(n, slotAllocFailures.Length);
         if (n <= 0)
         {
@@ -1953,9 +1962,10 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         {
             ushort newAllocs = slotNewAllocs[slot];
             ushort starvedBudget = slotStarvedBudget[slot];
+            ushort starvedChunkBudget = slotStarvedChunkBudget[slot];
             ushort allocFailures = slotAllocFailures[slot];
 
-            if ((newAllocs | starvedBudget | allocFailures) == 0)
+            if ((newAllocs | starvedBudget | starvedChunkBudget | allocFailures) == 0)
             {
                 continue;
             }
@@ -1973,6 +1983,10 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             if (allocFailures > 0)
             {
                 cell.ApplyAllocationFailureBackoff(nowTick);
+            }
+            else if (starvedChunkBudget > 0)
+            {
+                cell.ApplyBudgetStarvationBackoff(nowTick, isPerSlotBudget: true);
             }
             else if (starvedBudget > 0)
             {
@@ -2276,7 +2290,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         line =
             $"LS: req:{lastRequestCount} read:{lastRequestsRead} dropG:{lastRequestsDroppedGpu} dropC:{lastRequestsDroppedCpuBudget} dropI:{lastRequestsDroppedInactive} proc:{lastProcessStats.RequestsConsidered} " +
             $"exist:{lastProcessStats.RequestsAcceptedExisting} new:{lastProcessStats.RequestsAllocatedNew} ev:{lastProcessStats.AllocationEvictions} fail:{lastProcessStats.AllocationFailures} " +
-            $"skipBud:{lastProcessStats.RequestsSkippedBudget} genMis:{lastMarkRejectGenMismatch} slotOob:{lastMarkRejectChunkSlotOob} pid0:{lastMarkRejectPatchId0} " +
+            $"skipBud:{lastProcessStats.RequestsSkippedBudget} skipChunk:{lastProcessStats.RequestsSkippedChunkBudget} genMis:{lastMarkRejectGenMismatch} slotOob:{lastMarkRejectChunkSlotOob} pid0:{lastMarkRejectPatchId0} " +
             $"uniq:{lastUniqueVirtualPages} top:{lastTopChunkSlot},{lastTopVirtualPage}:{lastTopVirtualPageCount}{topSlots} " +
             $"prioK:{lastPrioritizeTopK} prioReq:{lastRequestsPrioritized} " +
             $"cells:{lastRegionCells} dA:{lastRegionDesiredActive} dL:{lastRegionDesiredLoaded} dU:{lastRegionDesiredUnloaded} supp:{lastRegionSuppressed} " +
@@ -2289,5 +2303,23 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             $"rc:{lastProcessStats.RecaptureSucceeded}/{lastProcessStats.RecaptureAttempted}";
 
         return true;
+    }
+
+    private static int ComputeMaxResidentPagesPerChunkSlot(int physicalCapacityPages, in VgeConfig.LumOnSettingsConfig.LumonSceneConfig cfg)
+    {
+        int requestedChunks = LumonScenePoolSizingUtil.ComputeGuaranteedResidentPagesBoxField(cfg.NearRadiusChunks, cfg.NearRadiusYChunks);
+        int requestedPerChunk = Math.Max(64, cfg.NearPagesPerChunkBudget);
+        physicalCapacityPages = Math.Max(1, physicalCapacityPages);
+
+        // Fairness cap: do not allow a chunk slot to exceed the pool's effective average pages-per-chunk
+        // (based on the requestedChunks "covered + extra" sizing invariant). This prevents permanent starvation
+        // and preserves headroom for re-anchors without requiring eviction while loaded.
+        if (requestedChunks <= 0)
+        {
+            return requestedPerChunk;
+        }
+
+        int effectiveAvg = Math.Max(1, physicalCapacityPages / requestedChunks);
+        return Math.Min(requestedPerChunk, effectiveAvg);
     }
 }

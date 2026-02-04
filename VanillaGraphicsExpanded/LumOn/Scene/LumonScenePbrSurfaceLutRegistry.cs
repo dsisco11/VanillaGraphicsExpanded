@@ -78,6 +78,8 @@ internal sealed class LumonScenePbrSurfaceLutRegistry
             return 0;
         }
 
+        textureKey = NormalizeTextureKey(textureKey);
+
         lock (gate)
         {
             if (idByTexture.TryGetValue(textureKey, out ushort existing))
@@ -170,6 +172,27 @@ internal sealed class LumonScenePbrSurfaceLutRegistry
         lutData[o + 1] = Float01ToByte(surface.DiffuseAlbedo.Y);
         lutData[o + 2] = Float01ToByte(surface.DiffuseAlbedo.Z);
         lutData[o + 3] = Float01ToByte(surface.Roughness);
+    }
+
+    private static AssetLocation NormalizeTextureKey(AssetLocation key)
+    {
+        // Match PBR registry normalization: lowercase + "textures/" prefix + extensionless.
+        string domain = (key.Domain ?? "game").ToLowerInvariant();
+
+        string path = (key.Path ?? string.Empty).Replace('\\', '/').ToLowerInvariant().TrimStart('/');
+        if (!path.StartsWith("textures/", StringComparison.Ordinal))
+        {
+            path = "textures/" + path;
+        }
+
+        int lastSlash = path.LastIndexOf('/');
+        int lastDot = path.LastIndexOf('.');
+        if (lastDot > lastSlash)
+        {
+            path = path[..lastDot];
+        }
+
+        return new AssetLocation(domain, path);
     }
 
     private static uint Float01ToByte(float v)

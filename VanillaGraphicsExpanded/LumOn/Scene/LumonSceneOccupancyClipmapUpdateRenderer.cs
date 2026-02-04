@@ -30,6 +30,9 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
     private readonly ICoreClientAPI capi;
     private readonly VgeConfig config;
     private readonly IEventAPI commonEvents;
+    private readonly System.Func<WorldCellKey, bool> isTraceSceneRegionLikelyLoaded;
+    private VectorInt3 traceSceneLoadedMinChunk;
+    private VectorInt3 traceSceneLoadedMaxChunk;
 
     private LumonSceneOccupancyClipmapGpuResources? resources;
     private LumonSceneTraceSceneClipmapGpuBuildDispatcher? gpuDispatcher;
@@ -157,6 +160,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
         this.config = config ?? throw new ArgumentNullException(nameof(config));
         commonEvents = ((ICoreAPI)capi).Event;
+        isTraceSceneRegionLikelyLoaded = IsTraceSceneRegionLikelyLoaded;
 
         materialPalette = new LumonSceneTraceSceneMaterialPaletteRegistry(surfaceLut);
 
@@ -198,6 +202,18 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         traceSceneNowMs = capi.World.ElapsedMilliseconds;
 
         var traceCfg = config.LumOn.LumonScene.TraceScene;
+
+        // TraceScene should not probe the chunk map for loadedness; instead, treat the LumonScene
+        // configured field radius as the "loaded window" for occupancy processing.
+        // This keeps TraceScene aligned with the world-cell desired-state model: if a cell is within the
+        // configured loaded range, it should become eligible even if no ChunkDirty event was observed.
+        int rXZ = Math.Max(0, config.LumOn.LumonScene.FarRadiusChunks);
+        int rY = Math.Max(0, config.LumOn.LumonScene.FarRadiusYChunks);
+        int chunkX = camX >> 5;
+        int chunkY = camY >> 5;
+        int chunkZ = camZ >> 5;
+        traceSceneLoadedMinChunk = new VectorInt3(chunkX - rXZ, chunkY - rY, chunkZ - rXZ);
+        traceSceneLoadedMaxChunk = new VectorInt3(chunkX + rXZ, chunkY + rY, chunkZ + rXZ);
 
         // Apply rebuild request.
         if (Interlocked.Exchange(ref rebuildAllRequested, 0) != 0)
@@ -241,7 +257,8 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
             WindowMinRegion: default,
             WindowMaxRegion: default,
             HasWindow: false,
-            NowTick: traceSceneNowMs);
+            NowTick: traceSceneNowMs,
+            IsCellLikelyLoaded: isTraceSceneRegionLikelyLoaded);
 
         RefreshScheduler(
             in priorityContext,
@@ -600,14 +617,23 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
     private void IssueRegionRequests(float issueBudgetMs, int maxInFlightRegions)
     {
-        if (chunkProcessing is null || chunkVersions is null || issueBudgetMs <= 0f || maxInFlightRegions <= 0)
+        int skipMask = 0;
+
+        if (chunkProcessing is null) skipMask |= 1;
+        if (chunkVersions is null) skipMask |= 2;
+        if (issueBudgetMs <= 0f) skipMask |= 4;
+        if (maxInFlightRegions <= 0) skipMask |= 8;
+
+        if (skipMask != 0)
         {
+            LumonSceneTraceSceneMetrics.SetIssueSkipMask(skipMask);
             return;
         }
 
         int inFlightRoom = maxInFlightRegions - inFlightByRegion.Count;
         if (inFlightRoom <= 0)
         {
+            LumonSceneTraceSceneMetrics.SetIssueSkipMask(16);
             return;
         }
 
@@ -615,8 +641,11 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         long budgetTicks = (long)(issueBudgetMs * 0.001f * Stopwatch.Frequency);
         if (budgetTicks <= 0)
         {
+            LumonSceneTraceSceneMetrics.SetIssueSkipMask(4);
             return;
         }
+
+        int eligibleAtStart = regionScheduler.EligibleNearCount + regionScheduler.EligibleFarCount;
 
         int issued = 0;
         while (issued < inFlightRoom)
@@ -671,6 +700,9 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
             LumonSceneTraceSceneMetrics.OnRegionRequestsIssued(1);
             issued++;
         }
+
+        // Helps debug stalls where the scheduler reports eligible regions but we never issue.
+        LumonSceneTraceSceneMetrics.SetIssueSkipMask(issued == 0 && eligibleAtStart > 0 ? 32 : 0);
     }
 
     private void DispatchCompleted(float dispatchBudgetMs, int maxUploadsPerFrame, int maxRegionsPerFrame)
@@ -890,5 +922,21 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         if (mod <= 0) return 0;
         int m = v % mod;
         return m < 0 ? m + mod : m;
+    }
+
+    private bool IsTraceSceneRegionLikelyLoaded(WorldCellKey key)
+    {
+        if (key.Kind != WorldCellKind.TraceSceneRegion)
+        {
+            return false;
+        }
+
+        ChunkKey chunkKey = new(key.Packed);
+        chunkKey.Decode(out int cx, out int cy, out int cz);
+
+        // Interpret "likely loaded" via the configured field bounds (loaded window),
+        // not by probing the chunk map / block accessor.
+        return cx >= traceSceneLoadedMinChunk.X && cy >= traceSceneLoadedMinChunk.Y && cz >= traceSceneLoadedMinChunk.Z
+               && cx <= traceSceneLoadedMaxChunk.X && cy <= traceSceneLoadedMaxChunk.Y && cz <= traceSceneLoadedMaxChunk.Z;
     }
 }

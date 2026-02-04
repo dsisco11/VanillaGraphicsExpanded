@@ -10,14 +10,81 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.Scene;
 public sealed class TraceSceneRegionSchedulerTests
 {
     [Fact]
+    public void NeverSeenLoaded_CanBecomeEligible_ViaLoadednessProbe()
+    {
+        var sched = new TraceSceneRegionScheduler();
+        sched.SetWindow(min: new VectorInt3(0, 0, 0), max: new VectorInt3(0, 0, 0));
+
+        ChunkKey key = ChunkKey.FromChunkCoords(0, 0, 0);
+        sched.NotifyChunkDirty(key, currentVersion: 1, nowTick: 100);
+
+        var ctx = new WorldCellPriorityContext(
+            CameraBlockPos: new VectorInt3(0, 0, 0),
+            AnchorBlockPos: default,
+            HasAnchor: false,
+            WindowMinRegion: default,
+            WindowMaxRegion: default,
+            HasWindow: false,
+            NowTick: 100,
+            IsCellLikelyLoaded: static cellKey => cellKey.Kind == WorldCellKind.TraceSceneRegion);
+
+        _ = sched.RefreshPriorities(in ctx, budget: 32);
+
+        Assert.True(sched.TryDequeueNextEligible(nowTick: 100, out ChunkKey dequeued, out _));
+        Assert.Equal(key, dequeued);
+    }
+
+    [Fact]
+    public void NeverSeenLoaded_IsPeriodicallyRechecked_AndEventuallyScheduled()
+    {
+        var sched = new TraceSceneRegionScheduler();
+        sched.SetWindow(min: new VectorInt3(0, 0, 0), max: new VectorInt3(0, 0, 0));
+
+        ChunkKey key = ChunkKey.FromChunkCoords(0, 0, 0);
+        sched.NotifyChunkDirty(key, currentVersion: 1, nowTick: 0);
+
+        var notLoadedCtx = new WorldCellPriorityContext(
+            CameraBlockPos: new VectorInt3(0, 0, 0),
+            AnchorBlockPos: default,
+            HasAnchor: false,
+            WindowMinRegion: default,
+            WindowMaxRegion: default,
+            HasWindow: false,
+            NowTick: 0,
+            IsCellLikelyLoaded: static _ => false);
+
+        _ = sched.RefreshPriorities(in notLoadedCtx, budget: 32);
+
+        Assert.True(sched.SuppressedCount > 0);
+        Assert.False(sched.TryDequeueNextEligible(nowTick: 0, out _, out _));
+
+        // Advance far enough that the probe cooldown will expire.
+        var loadedCtx = notLoadedCtx with
+        {
+            NowTick = 10_000,
+            IsCellLikelyLoaded = static cellKey => cellKey.Kind == WorldCellKind.TraceSceneRegion
+        };
+
+        _ = sched.RefreshPriorities(in loadedCtx, budget: 32);
+
+        Assert.True(sched.TryDequeueNextEligible(nowTick: loadedCtx.NowTick, out ChunkKey dequeued, out _));
+        Assert.Equal(key, dequeued);
+    }
+
+    [Fact]
     public void Dequeue_PrefersNearRegions()
     {
         var sched = new TraceSceneRegionScheduler();
         sched.SetWindow(min: new VectorInt3(0, 0, 0), max: new VectorInt3(16, 0, 0));
 
         // Mark two regions dirty so they get created and prioritized.
-        sched.NotifyChunkDirty(ChunkKey.FromChunkCoords(0, 0, 0), currentVersion: 1, nowTick: 100);
-        sched.NotifyChunkDirty(ChunkKey.FromChunkCoords(10, 0, 0), currentVersion: 1, nowTick: 100);
+        ChunkKey near = ChunkKey.FromChunkCoords(0, 0, 0);
+        ChunkKey far = ChunkKey.FromChunkCoords(10, 0, 0);
+
+        sched.NotifyChunkDirty(near, currentVersion: 1, nowTick: 100);
+        sched.NotifyChunkSeenLoaded(near, nowTick: 100);
+        sched.NotifyChunkDirty(far, currentVersion: 1, nowTick: 100);
+        sched.NotifyChunkSeenLoaded(far, nowTick: 100);
 
         var ctx = new WorldCellPriorityContext(
             CameraBlockPos: new VectorInt3(0, 0, 0),
@@ -44,7 +111,9 @@ public sealed class TraceSceneRegionSchedulerTests
         ChunkKey b = ChunkKey.FromChunkCoords(0, 0, 1);
 
         sched.NotifyChunkDirty(a, currentVersion: 1, nowTick: 1);
+        sched.NotifyChunkSeenLoaded(a, nowTick: 1);
         sched.NotifyChunkDirty(b, currentVersion: 1, nowTick: 1);
+        sched.NotifyChunkSeenLoaded(b, nowTick: 1);
 
         var ctx = new WorldCellPriorityContext(
             CameraBlockPos: new VectorInt3(0, 0, 0),
@@ -77,7 +146,9 @@ public sealed class TraceSceneRegionSchedulerTests
         ChunkKey other = ChunkKey.FromChunkCoords(0, 0, 1);
 
         sched.NotifyChunkDirty(missing, currentVersion: 1, nowTick: 10);
+        sched.NotifyChunkSeenLoaded(missing, nowTick: 10);
         sched.NotifyChunkDirty(other, currentVersion: 1, nowTick: 10);
+        sched.NotifyChunkSeenLoaded(other, nowTick: 10);
 
         var ctx = new WorldCellPriorityContext(
             CameraBlockPos: new VectorInt3(0, 0, 0),
@@ -113,7 +184,9 @@ public sealed class TraceSceneRegionSchedulerTests
         ChunkKey other = ChunkKey.FromChunkCoords(0, 0, 1);
 
         sched.NotifyChunkDirty(missing, currentVersion: 1, nowTick: 10);
+        sched.NotifyChunkSeenLoaded(missing, nowTick: 10);
         sched.NotifyChunkDirty(other, currentVersion: 1, nowTick: 10);
+        sched.NotifyChunkSeenLoaded(other, nowTick: 10);
 
         var ctx = new WorldCellPriorityContext(
             CameraBlockPos: new VectorInt3(0, 0, 0),
@@ -152,11 +225,13 @@ public sealed class TraceSceneRegionSchedulerTests
 
         // Make "other" already applied so it won't compete.
         sched.NotifyChunkDirty(other, currentVersion: 1, nowTick: 0);
+        sched.NotifyChunkSeenLoaded(other, nowTick: 0);
         sched.OnRequestIssued(other, version: 1, nowTick: 0);
         sched.OnRequestCompleted(other, ChunkWorkStatus.Success, requestedVersion: 1, nowTick: 0);
 
         // Now mark missing dirty and fail it as unavailable to put it on cooldown.
         sched.NotifyChunkDirty(missing, currentVersion: 1, nowTick: 10);
+        sched.NotifyChunkSeenLoaded(missing, nowTick: 9);
 
         var ctx = new WorldCellPriorityContext(
             CameraBlockPos: new VectorInt3(0, 0, 0),

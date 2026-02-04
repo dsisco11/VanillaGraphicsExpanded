@@ -13,6 +13,7 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
     private const long MinRetryMs = 50;
     private const long MaxBackoffMs = 5000;
     private const long ChunkUnavailableBaseBackoffMs = 100;
+    private const long NotSeenLoadedProbeMs = 500;
     private const int NearDequeueBurst = 8;
 
     private readonly Dictionary<ulong, TraceSceneRegionCell> cellsByPacked = new();
@@ -200,10 +201,11 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
     {
         lastNowTick = nowTick;
 
-        // Prefer near to ensure near window cannot be starved.
+        // Prefer near to ensure the near window cannot be starved, but never block when no near work exists.
+        // (If nearEligible is empty, we must allow far immediately.)
         bool allowFar = nearBurstCount >= NearDequeueBurst;
 
-        if (TryDequeueFromHeaps(preferNear: true, allowFar: allowFar, out ulong packedKey, out bool fromNear))
+        if (TryDequeueFromHeapsPreferNearAllowFar(out ulong packedKey, out bool fromNear, ref allowFar))
         {
             nearBurstCount = fromNear ? nearBurstCount + 1 : 0;
             key = new ChunkKey(packedKey);
@@ -213,6 +215,32 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
 
         key = default;
         priorityHint = 0;
+        return false;
+    }
+
+    private bool TryDequeueFromHeapsPreferNearAllowFar(out ulong packedKey, out bool fromNear, ref bool allowFar)
+    {
+        // Try near first.
+        if (TryPopValid(nearEligible, out packedKey))
+        {
+            fromNear = true;
+            return true;
+        }
+
+        // If near drained to empty (or is empty), allow far regardless of burst gating.
+        if (nearEligible.Count == 0)
+        {
+            allowFar = true;
+        }
+
+        if (allowFar && TryPopValid(farEligible, out packedKey))
+        {
+            fromNear = false;
+            return true;
+        }
+
+        packedKey = 0;
+        fromNear = false;
         return false;
     }
 
@@ -663,6 +691,31 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
         {
             cell.DequeueSelf(this);
             return;
+        }
+
+        // If a region has never been observed loaded, it won't be eligible to request a snapshot.
+        // However, relying solely on ChunkDirty can miss initial/quiet chunk loads; use an optional
+        // loadedness probe to "discover" loaded chunks and periodically re-check.
+        if (cell.LastSeenLoadedTick <= 0)
+        {
+            bool isLoaded = context.IsCellLikelyLoaded is not null && context.IsCellLikelyLoaded(cell.Key);
+            if (isLoaded)
+            {
+                cell.LastSeenLoadedTick = context.NowTick;
+
+                // If we previously cooled down due to missing chunk, re-enable quickly.
+                if (cell.MissingStreak > 0 || cell.NextEligibleTick > context.NowTick)
+                {
+                    cell.MissingStreak = 0;
+                    cell.NextEligibleTick = 0;
+                }
+            }
+            else
+            {
+                // Schedule a future probe so the cell becomes eligible once the chunk loads,
+                // even if no ChunkDirty is observed for it.
+                cell.NextEligibleTick = Math.Max(cell.NextEligibleTick, checked(context.NowTick + NotSeenLoadedProbeMs));
+            }
         }
 
         // Cells own queue placement logic; scheduler provides the sink implementation.

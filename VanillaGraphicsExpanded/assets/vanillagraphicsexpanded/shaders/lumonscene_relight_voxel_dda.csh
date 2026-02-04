@@ -216,14 +216,15 @@ vec3 ShadeHitFromOutsideCell(ivec3 outsideCell, ivec3 hitN)
     uint sunLevel = min(UnpackSunLevel(packedWord), 32u);
     uint lightId = min(UnpackLightId(packedWord), 63u);
     uint matIdx = UnpackMaterialPaletteIndex(packedWord);
+    vec3 albedo = vec3(1.0);
     if (matIdx != 0u)
     {
-        // Fetch surfaceId for the hit face (future: use for translucency/emissive/material response).
+        // Fetch surfaceId for the hit face and derive albedo from SurfaceLut.
         uvec4 faces = texelFetch(vge_materialPalette, ivec2(int(matIdx), 0), 0);
         uint faceIndex = HitFaceIndexFromNormal(hitN);
         uint surfaceId = VgeLumonSceneUnpackFaceSurfaceId(faces, faceIndex);
         uvec4 surf = FetchSurfaceLut(surfaceId);
-        if (surf.x != 0u) { } // keep from being optimized out
+        albedo = vec3(surf.xyz) * (1.0 / 255.0);
     }
 
     float blockScalar = texelFetch(vge_blockLevelScalarLut, ivec2(int(blockLevel), 0), 0).r;
@@ -233,7 +234,7 @@ vec3 ShadeHitFromOutsideCell(ivec3 outsideCell, ivec3 hitN)
     // v1: simple additive model (tune later).
     vec3 block = lightColor * (blockScalar * 32.0);
     vec3 sun = vec3(1.0) * (sunScalar * 32.0);
-    return block + sun;
+    return (block + sun) * albedo;
 }
 
 void main()

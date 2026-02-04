@@ -17,6 +17,47 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.Scene;
 public sealed class LumonSceneTraceSceneMaterialPaletteRegistryTests
 {
     [Fact]
+    public void SurfaceLut_NormalizesTextureKeys_ToBeExtensionlessAndTexturesPrefixed()
+    {
+        PbrMaterialRegistry.Instance.Clear();
+
+        try
+        {
+            AssetLocation normalizedKey = new("game", "textures/block/test_norm");
+
+            var surface = new PbrMaterialSurface(
+                Roughness: 0.1f,
+                Metallic: 0f,
+                Emissive: 0f,
+                DiffuseAlbedo: new Vector3(0.1f, 0.2f, 0.3f),
+                SpecularF0: new Vector3(0.04f));
+
+            var surfaceMap = (Dictionary<AssetLocation, PbrMaterialSurface>)PbrMaterialRegistry.Instance.SurfaceByTexture;
+            surfaceMap[normalizedKey] = surface;
+
+            var surfaceLut = new LumonScenePbrSurfaceLutRegistry();
+
+            ushort idA = surfaceLut.GetOrAssignSurfaceId(new AssetLocation("GAME", "block/test_norm.png"));
+            ushort idB = surfaceLut.GetOrAssignSurfaceId(new AssetLocation("game", "textures/block/test_norm"));
+
+            Assert.Equal(idA, idB);
+
+            uint[] surfaceBuf = new uint[LumonScenePbrSurfaceLutRegistry.MaxSurfaceEntries * 4];
+            Assert.True(surfaceLut.TryCopyAndClearDirtyLut(surfaceBuf));
+
+            int o = idA * 4;
+            Assert.Equal(26u, surfaceBuf[o + 0]);  // 0.1 * 255
+            Assert.Equal(51u, surfaceBuf[o + 1]);  // 0.2 * 255
+            Assert.Equal(77u, surfaceBuf[o + 2]);  // 0.3 * 255
+            Assert.Equal(26u, surfaceBuf[o + 3]);  // 0.1 * 255
+        }
+        finally
+        {
+            PbrMaterialRegistry.Instance.Clear();
+        }
+    }
+
+    [Fact]
     public void EnsureEntryForBlockId_WritesFaceSurfaceIds_AndSurfaceLutHasPbrValues()
     {
         PbrMaterialRegistry.Instance.Clear();

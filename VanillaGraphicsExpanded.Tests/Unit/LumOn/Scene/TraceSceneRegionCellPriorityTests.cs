@@ -11,8 +11,8 @@ public sealed class TraceSceneRegionCellPriorityTests
     [Fact]
     public void Priority_PrefersNearerRegions_WhenOtherTermsEqual()
     {
-        var near = new TraceSceneRegionCell(new VectorInt3(0, 0, 0));
-        var far = new TraceSceneRegionCell(new VectorInt3(10, 0, 0));
+        var near = new TraceSceneRegionCell(new VectorInt3(0, 0, 0)) { LastSeenLoadedTick = 1 };
+        var far = new TraceSceneRegionCell(new VectorInt3(10, 0, 0)) { LastSeenLoadedTick = 1 };
 
         var ctx = CreateContext(nowTick: 100, cameraBlockPos: new VectorInt3(0, 0, 0));
 
@@ -30,12 +30,14 @@ public sealed class TraceSceneRegionCellPriorityTests
         {
             CurrentVersion = 2,
             AppliedVersion = 1,
+            LastSeenLoadedTick = 1,
         };
 
         var fresh = new TraceSceneRegionCell(new VectorInt3(1, 0, 0))
         {
             CurrentVersion = 2,
             AppliedVersion = 2,
+            LastSeenLoadedTick = 1,
         };
 
         var ctx = CreateContext(nowTick: 100, cameraBlockPos: new VectorInt3(32, 0, 0));
@@ -75,6 +77,7 @@ public sealed class TraceSceneRegionCellPriorityTests
         var cell = new TraceSceneRegionCell(new VectorInt3(0, 0, 0))
         {
             NextEligibleTick = 200,
+            LastSeenLoadedTick = 1,
         };
 
         var ctx = CreateContext(nowTick: 100, cameraBlockPos: new VectorInt3(0, 0, 0));

@@ -201,6 +201,7 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
             requests: requests,
             maxRequestsToProcess: desiredPages,
             maxNewAllocations: maxNewAllocsPerFrame,
+            maxResidentPagesPerChunkSlot: 0,
             recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
             recaptureCursor: ref recaptureCursor,
             maxRecapture: 0,
