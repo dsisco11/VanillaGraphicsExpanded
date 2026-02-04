@@ -5,6 +5,8 @@ Scope notes:
 - Start with VGE-owned compute shaders (lowest risk; already OpenTK-based).
 - Decide separately whether to support VGE-owned vertex/fragment programs via an OpenTK path (engine IShaderAPI appears GLSL-source-only).
 - Do NOT attempt vanilla/base-game shader SPIR-V initially (runtime patching/hooks rewrite GLSL after load).
+- Preferred build integration: SPIR-V compilation should be part of normal `dotnet build`/MSBuild workflow.
+- Cake-based compilation is a stopgap/prototype; keep it optional and do not require it for day-to-day builds.
 
 References:
 - OpenGL extension ARB_gl_spirv: https://registry.khronos.org/OpenGL/extensions/ARB/ARB_gl_spirv.txt
@@ -32,6 +34,7 @@ References:
 
 ✔ Phase 1 — Build Pipeline: Offline SPIR-V Compilation
   Exit artifacts: Cake task produces SPIR-V for supported stages; packaged output contains `.spv` alongside source.
+  NOTE: This phase exists as a working reference implementation; the intended end state is Phase 6 (MSBuild) so developers can just run `dotnet build`.
   ✔ Add Cake task in CakeBuild/Program.cs (dependency of `Package`) e.g. `CompileSpirVShaders`.
   ✔ Enumerate shader sources under `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/`:
     - Include `.csh` first; optionally include `.vsh/.fsh` later (Phase 3)
@@ -81,7 +84,7 @@ References:
 ☐ Phase 4 — Dev Workflow and Tooling
   Exit artifacts: developer experience is predictable; rebuilds are fast; troubleshooting is easy.
   ☐ Add documentation for installing compiler toolchain:
-    - Windows: install `glslangValidator` (and where Cake expects it)
+    - Windows: install `glslangValidator` (and where the build expects it)
     - Linux: package suggestions
   ☐ Add a quick manual smoke workflow:
     - Build -> verify `.spv` present in release output
@@ -96,4 +99,25 @@ References:
   ☐ Document limitations:
     - macOS / older GL likely GLSL-only
     - Base-game shaders not compiled to SPIR-V due to runtime patching
+
+☐ Phase 6 — MSBuild Integration (dotnet build)
+  Exit artifacts: `dotnet build` (MSBuild) can generate `.spv` without requiring Cake; incremental rebuild behaves sensibly.
+  Goal: make SPIR-V compilation part of the normal build so contributors don't need to run Cake for shader binaries.
+  ☐ Create a small tool project (recommended): `ShaderBuildTool` (net8.0 console)
+    - Reuse VGE preprocessing (`ShaderSourceCode.FromSource(...)`) so `@import` works
+    - Invoke `glslangValidator` (OpenGL SPIR-V: `-G`) to emit `.spv` files
+    - Emit to `VanillaGraphicsExpanded/artifacts/spirv/...` (same layout as Cake)
+  ☐ Add MSBuild targets to `VanillaGraphicsExpanded.csproj`:
+    - `CompileSpirvShaders` target gated by property `EnableSpirv` (default on/off per config)
+    - Inputs: `assets/vanillagraphicsexpanded/shaders/**/*.csh` + `shaders/includes/**/*` (or full shaders tree)
+    - Outputs: `artifacts/spirv/vanillagraphicsexpanded/shaders/*.spv` (at minimum)
+    - Use `Exec` to run the tool with `dotnet run` or `dotnet exec` for CI
+  ☐ Add configuration knobs:
+    - `EnableSpirv` MSBuild property
+    - `GlslangValidatorPath` MSBuild property (or inherit `VGE_GLSLANG_VALIDATOR` env var)
+    - Optional: `SpirvWarningsAsErrors`
+  ☐ Ensure output packaging/copy works for non-Cake builds:
+    - Copy `artifacts/spirv/**` into output `Mods/mod/.../assets/**` (or into `Releases` staging when packaging)
+  ☐ Document usage:
+    - Example `dotnet build -p:EnableSpirv=true -p:GlslangValidatorPath=...`
 ```
