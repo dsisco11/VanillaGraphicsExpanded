@@ -69,14 +69,16 @@ References:
   ✔ Add one-time debug logging counters (optional):
     - `SpirVUsedCount`, `SpirVMissingCount`, `SpirVUnsupportedCount`
 
-☐ Phase 3 — Runtime: Vertex/Fragment Programs (Decision Point)
+✔ Phase 3 — Runtime: Vertex/Fragment Programs (Decision Point)
   Exit artifacts: explicit decision recorded; either compute-only shipped, or graphics programs gain SPIR-V support.
-  ☐ Investigate feasibility of SPIR-V for graphics programs:
-    - Engine shader API (`IShaderAPI`) appears source-based; confirm no binary hook
-    - Confirm VGE `GpuProgram` can accept externally-linked program IDs (or add a parallel OpenTK program pipeline)
-  ☐ Option A (recommended initially): keep graphics shaders GLSL-only
-    - Build still may compile `.vsh/.fsh.spv` for future use, but runtime ignores them
-  ☐ Option B: implement OpenTK-based graphics program creation in VGE:
+  ✔ Investigate feasibility of SPIR-V for graphics programs:
+    - Engine shader API (`IShaderAPI`/`IShaderProgram`) is GLSL-source-based (string `Code` + `Compile()`), with no public binary/SPIR-V hook.
+    - VGE graphics shaders (`GpuProgram : ShaderProgram`) currently compile through the engine shader system for integration (render passes, uniform helpers).
+    - A SPIR-V graphics path would likely require either engine-side patches (Harmony) to its shader compilation/link steps, or a parallel OpenTK program stack plus significant integration work.
+  ✔ Option A (chosen): keep graphics shaders GLSL-only
+    - Compute continues to prefer `.spv` (Phase 2); graphics stages remain GLSL via the engine shader API.
+    - Build may still compile `.vsh/.fsh.spv` later for experimentation/future support, but runtime ignores them for now.
+  ☐ Option B (deferred): implement OpenTK-based graphics program creation in VGE:
     - Prefer `.vsh.spv/.fsh.spv` when present + supported
     - Keep preprocessor parity with GLSL path (same defines/imports semantics)
     - Ensure uniform/attribute binding expectations match existing `GpuProgram` contract
