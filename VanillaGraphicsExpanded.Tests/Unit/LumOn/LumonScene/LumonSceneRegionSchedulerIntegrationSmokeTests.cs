@@ -10,7 +10,7 @@ public sealed class LumonSceneRegionSchedulerIntegrationSmokeTests
     [Fact]
     public void ActiveCells_EnqueueCaptureAndRelight_LoadedOnlyDoNot()
     {
-        var scheduler = new LumonSceneRegionScheduler();
+        var scheduler = new LumonSceneRegionScheduler(new WorldPartitionSystem());
         scheduler.Reset(nowTick: 0);
 
         var activeCell = scheduler.GetOrCreate(WorldCellKind.LumonSceneNear, new LumonSceneChunkCoord(0, 0, 0));

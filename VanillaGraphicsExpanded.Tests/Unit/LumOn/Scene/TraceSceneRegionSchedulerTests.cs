@@ -12,7 +12,7 @@ public sealed class TraceSceneRegionSchedulerTests
     [Fact]
     public void NeverSeenLoaded_CanBecomeEligible_ViaLoadednessProbe()
     {
-        var sched = new TraceSceneRegionScheduler();
+        var sched = new TraceSceneRegionScheduler(new WorldPartitionSystem());
         sched.SetWindow(min: new VectorInt3(0, 0, 0), max: new VectorInt3(0, 0, 0));
 
         ChunkKey key = ChunkKey.FromChunkCoords(0, 0, 0);
@@ -37,7 +37,7 @@ public sealed class TraceSceneRegionSchedulerTests
     [Fact]
     public void NeverSeenLoaded_IsPeriodicallyRechecked_AndEventuallyScheduled()
     {
-        var sched = new TraceSceneRegionScheduler();
+        var sched = new TraceSceneRegionScheduler(new WorldPartitionSystem());
         sched.SetWindow(min: new VectorInt3(0, 0, 0), max: new VectorInt3(0, 0, 0));
 
         ChunkKey key = ChunkKey.FromChunkCoords(0, 0, 0);
@@ -74,7 +74,7 @@ public sealed class TraceSceneRegionSchedulerTests
     [Fact]
     public void Dequeue_PrefersNearRegions()
     {
-        var sched = new TraceSceneRegionScheduler();
+        var sched = new TraceSceneRegionScheduler(new WorldPartitionSystem());
         sched.SetWindow(min: new VectorInt3(0, 0, 0), max: new VectorInt3(16, 0, 0));
 
         // Mark two regions dirty so they get created and prioritized.
@@ -104,7 +104,7 @@ public sealed class TraceSceneRegionSchedulerTests
     [Fact]
     public void InFlightCell_IsNotReturnedAgain()
     {
-        var sched = new TraceSceneRegionScheduler();
+        var sched = new TraceSceneRegionScheduler(new WorldPartitionSystem());
         sched.SetWindow(min: new VectorInt3(0, 0, 0), max: new VectorInt3(0, 0, 1));
 
         ChunkKey a = ChunkKey.FromChunkCoords(0, 0, 0);
@@ -139,7 +139,7 @@ public sealed class TraceSceneRegionSchedulerTests
     [Fact]
     public void ChunkUnavailable_AppliesCooldown_AndDoesNotBlockOtherWork()
     {
-        var sched = new TraceSceneRegionScheduler();
+        var sched = new TraceSceneRegionScheduler(new WorldPartitionSystem());
         sched.SetWindow(min: new VectorInt3(0, 0, 0), max: new VectorInt3(0, 0, 1));
 
         ChunkKey missing = ChunkKey.FromChunkCoords(0, 0, 0);
@@ -177,7 +177,7 @@ public sealed class TraceSceneRegionSchedulerTests
     [Fact]
     public void MissingChunk_DoesNotDominate_DequeueResults()
     {
-        var sched = new TraceSceneRegionScheduler();
+        var sched = new TraceSceneRegionScheduler(new WorldPartitionSystem());
         sched.SetWindow(min: new VectorInt3(0, 0, 0), max: new VectorInt3(0, 0, 1));
 
         ChunkKey missing = ChunkKey.FromChunkCoords(0, 0, 0);
@@ -217,7 +217,7 @@ public sealed class TraceSceneRegionSchedulerTests
     [Fact]
     public void SeenLoadedRecently_OverridesCooldown_AndSchedulesPromptly()
     {
-        var sched = new TraceSceneRegionScheduler();
+        var sched = new TraceSceneRegionScheduler(new WorldPartitionSystem());
         sched.SetWindow(min: new VectorInt3(0, 0, 0), max: new VectorInt3(0, 0, 1));
 
         ChunkKey missing = ChunkKey.FromChunkCoords(0, 0, 0);

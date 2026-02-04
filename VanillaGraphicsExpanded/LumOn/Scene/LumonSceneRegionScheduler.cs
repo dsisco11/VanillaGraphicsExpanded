@@ -14,6 +14,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 /// </summary>
 internal sealed class LumonSceneRegionScheduler : IWorldCellWorkSink
 {
+    private readonly WorldPartitionSystem worldPartition;
     private readonly Dictionary<WorldCellKey, LumonSceneRegionCell> cells = new();
 
     // Cells that need lifecycle transitions (Unloaded↔Loaded↔Active).
@@ -34,6 +35,11 @@ internal sealed class LumonSceneRegionScheduler : IWorldCellWorkSink
     public int CaptureCount => capture.Count;
 
     public int RelightCount => relight.Count;
+
+    public LumonSceneRegionScheduler(WorldPartitionSystem worldPartition)
+    {
+        this.worldPartition = worldPartition ?? throw new ArgumentNullException(nameof(worldPartition));
+    }
 
     public bool TryGetCell(WorldCellKey key, out LumonSceneRegionCell cell)
         => cells.TryGetValue(key, out cell!);
@@ -65,6 +71,12 @@ internal sealed class LumonSceneRegionScheduler : IWorldCellWorkSink
     public void Reset(long nowTick)
     {
         this.nowTick = nowTick;
+
+        foreach (LumonSceneRegionCell cell in cells.Values)
+        {
+            _ = worldPartition.Remove(cell.Key);
+        }
+
         cells.Clear();
         transitions.Clear();
         capture.Clear();
@@ -93,6 +105,11 @@ internal sealed class LumonSceneRegionScheduler : IWorldCellWorkSink
 
         foreach (WorldCellKey key in toRemove)
         {
+            if (cells.TryGetValue(key, out LumonSceneRegionCell? cell))
+            {
+                _ = worldPartition.Remove(cell.Key);
+            }
+
             cells.Remove(key);
             transitions.Remove(key);
             capture.Remove(key);
@@ -102,16 +119,17 @@ internal sealed class LumonSceneRegionScheduler : IWorldCellWorkSink
 
     public LumonSceneRegionCell GetOrCreate(WorldCellKind kind, in LumonSceneChunkCoord coord)
     {
+        LumonSceneChunkCoord coordCopy = coord;
         var key = kind == WorldCellKind.LumonSceneNear
-            ? WorldCellKey.FromLumonSceneNear(coord.ToKey())
-            : WorldCellKey.FromLumonSceneFar(coord.ToKey());
+            ? WorldCellKey.FromLumonSceneNear(coordCopy.ToKey())
+            : WorldCellKey.FromLumonSceneFar(coordCopy.ToKey());
 
         if (cells.TryGetValue(key, out LumonSceneRegionCell? existing))
         {
             return existing;
         }
 
-        var created = new LumonSceneRegionCell(kind, in coord);
+        LumonSceneRegionCell created = worldPartition.GetOrCreate(key, () => new LumonSceneRegionCell(kind, in coordCopy));
         cells.Add(key, created);
         return created;
     }

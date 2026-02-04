@@ -14,56 +14,92 @@ namespace VanillaGraphicsExpanded.LumOn.WorldCells;
 /// </remarks>
 internal sealed class WorldPartitionSystem
 {
+    private readonly object gate = new();
     private readonly Dictionary<WorldCellKey, IWorldCell> cells = new();
 
-    public int CellCount => cells.Count;
+    public int CellCount
+    {
+        get
+        {
+            lock (gate)
+            {
+                return cells.Count;
+            }
+        }
+    }
 
     public bool TryGet(WorldCellKey key, out IWorldCell cell)
-        => cells.TryGetValue(key, out cell!);
+    {
+        lock (gate)
+        {
+            return cells.TryGetValue(key, out cell!);
+        }
+    }
 
     public TCell GetOrCreate<TCell>(WorldCellKey key, Func<TCell> factory)
         where TCell : class, IWorldCell
     {
         if (factory is null) throw new ArgumentNullException(nameof(factory));
 
-        if (cells.TryGetValue(key, out IWorldCell? existing))
+        lock (gate)
         {
-            return (TCell)existing;
-        }
+            if (cells.TryGetValue(key, out IWorldCell? existing))
+            {
+                return (TCell)existing;
+            }
 
-        TCell created = factory();
-        cells.Add(key, created);
-        return created;
+            TCell created = factory();
+            cells.Add(key, created);
+            return created;
+        }
     }
 
     public bool Remove(WorldCellKey key)
-        => cells.Remove(key);
+    {
+        lock (gate)
+        {
+            return cells.Remove(key);
+        }
+    }
 
     public void Clear()
-        => cells.Clear();
+    {
+        lock (gate)
+        {
+            cells.Clear();
+        }
+    }
 
     public int CopyKeysByDesiredState(WorldCellKind kind, WorldCellDesiredState desired, Span<WorldCellKey> dst)
     {
-        if (dst.Length <= 0 || cells.Count <= 0)
+        if (dst.Length <= 0)
         {
             return 0;
         }
 
         int written = 0;
-        foreach (var kvp in cells)
+        lock (gate)
         {
-            IWorldCell cell = kvp.Value;
-            if (cell.Kind != kind || cell.DesiredState != desired)
+            if (cells.Count <= 0)
             {
-                continue;
+                return 0;
             }
 
-            if ((uint)written >= (uint)dst.Length)
+            foreach (var kvp in cells)
             {
-                break;
-            }
+                IWorldCell cell = kvp.Value;
+                if (cell.Kind != kind || cell.DesiredState != desired)
+                {
+                    continue;
+                }
 
-            dst[written++] = kvp.Key;
+                if ((uint)written >= (uint)dst.Length)
+                {
+                    break;
+                }
+
+                dst[written++] = kvp.Key;
+            }
         }
 
         return written;
@@ -71,29 +107,36 @@ internal sealed class WorldPartitionSystem
 
     public int CopyKeysByActualState(WorldCellKind kind, WorldCellActualState actual, Span<WorldCellKey> dst)
     {
-        if (dst.Length <= 0 || cells.Count <= 0)
+        if (dst.Length <= 0)
         {
             return 0;
         }
 
         int written = 0;
-        foreach (var kvp in cells)
+        lock (gate)
         {
-            IWorldCell cell = kvp.Value;
-            if (cell.Kind != kind || cell.ActualState != actual)
+            if (cells.Count <= 0)
             {
-                continue;
+                return 0;
             }
 
-            if ((uint)written >= (uint)dst.Length)
+            foreach (var kvp in cells)
             {
-                break;
-            }
+                IWorldCell cell = kvp.Value;
+                if (cell.Kind != kind || cell.ActualState != actual)
+                {
+                    continue;
+                }
 
-            dst[written++] = kvp.Key;
+                if ((uint)written >= (uint)dst.Length)
+                {
+                    break;
+                }
+
+                dst[written++] = kvp.Key;
+            }
         }
 
         return written;
     }
 }
-

@@ -73,7 +73,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     // Phase 9.1: chunk residency manager integration (eviction/unload safety).
     private LumonSceneChunkResidencyManager? chunkResidency;
 
-    private readonly LumonSceneRegionScheduler nearRegionScheduler = new();
+    private readonly LumonSceneRegionScheduler nearRegionScheduler;
     private int lastRegionCells;
     private int lastRegionActive;
     private int lastRegionLoaded;
@@ -415,11 +415,14 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     public double RenderOrder => RenderOrderValue;
     public int RenderRange => RenderRangeValue;
 
-    public LumonSceneFeedbackUpdateRenderer(ICoreClientAPI capi, VgeConfig config, GBufferManager gBufferManager)
+    public LumonSceneFeedbackUpdateRenderer(ICoreClientAPI capi, VgeConfig config, GBufferManager gBufferManager, WorldPartitionSystem worldPartition)
     {
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
         this.config = config ?? throw new ArgumentNullException(nameof(config));
         this.gBufferManager = gBufferManager ?? throw new ArgumentNullException(nameof(gBufferManager));
+        _ = worldPartition ?? throw new ArgumentNullException(nameof(worldPartition));
+
+        nearRegionScheduler = new LumonSceneRegionScheduler(worldPartition);
 
         capi.Event.RegisterRenderer(this, EnumRenderStage.Done, "vge_lumonscene_feedback");
         capi.Event.LeaveWorld += OnLeaveWorld;

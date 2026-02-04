@@ -56,7 +56,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
     private LumonSceneTraceSceneChunkSnapshotSource? snapshotSource;
     private readonly LumonSceneTraceSceneRegionProcessor regionProcessor = new();
 
-    private readonly TraceSceneRegionScheduler regionScheduler = new();
+    private readonly TraceSceneRegionScheduler regionScheduler;
     private readonly Dictionary<ulong, InFlightRegion> inFlightByRegion = new();
     private readonly ConcurrentQueue<InFlightCompletion> completedRegions = new();
 
@@ -156,13 +156,15 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         ulong RegionKeyPacked,
         int RequestedVersion);
 
-    public LumonSceneOccupancyClipmapUpdateRenderer(ICoreClientAPI capi, VgeConfig config)
+    public LumonSceneOccupancyClipmapUpdateRenderer(ICoreClientAPI capi, VgeConfig config, WorldPartitionSystem worldPartition)
     {
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
         this.config = config ?? throw new ArgumentNullException(nameof(config));
+        _ = worldPartition ?? throw new ArgumentNullException(nameof(worldPartition));
         commonEvents = ((ICoreAPI)capi).Event;
         isTraceSceneRegionLikelyLoaded = IsTraceSceneRegionLikelyLoaded;
 
+        regionScheduler = new TraceSceneRegionScheduler(worldPartition);
         materialPalette = new LumonSceneTraceSceneMaterialPaletteRegistry(surfaceLut);
 
         capi.Event.RegisterRenderer(this, EnumRenderStage.Done, "vge_lumonscene_occupancy_clipmap");

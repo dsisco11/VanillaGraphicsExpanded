@@ -16,6 +16,7 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
     private const long NotSeenLoadedProbeMs = 500;
     private const int NearDequeueBurst = 8;
 
+    private readonly WorldPartitionSystem worldPartition;
     private readonly Dictionary<ulong, TraceSceneRegionCell> cellsByPacked = new();
 
     private readonly IndexedMaxHeap<ulong> nearEligible = new();
@@ -51,8 +52,18 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
 
     public long NowTick => lastNowTick;
 
+    public TraceSceneRegionScheduler(WorldPartitionSystem worldPartition)
+    {
+        this.worldPartition = worldPartition ?? throw new ArgumentNullException(nameof(worldPartition));
+    }
+
     public void Reset()
     {
+        foreach (TraceSceneRegionCell cell in cellsByPacked.Values)
+        {
+            _ = worldPartition.Remove(cell.Key);
+        }
+
         cellsByPacked.Clear();
         nearEligible.Clear();
         farEligible.Clear();
@@ -737,7 +748,8 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
             return existing;
         }
 
-        var cell = new TraceSceneRegionCell(chunkKey);
+        WorldCellKey key = WorldCellKey.FromTraceSceneRegion(chunkKey);
+        TraceSceneRegionCell cell = worldPartition.GetOrCreate(key, () => new TraceSceneRegionCell(chunkKey));
         cellsByPacked[packed] = cell;
         return cell;
     }
@@ -812,6 +824,11 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
             if (cellsByPacked.TryGetValue(packed, out TraceSceneRegionCell? cell) && cell.AppliedVersion != 0)
             {
                 appliedCount = Math.Max(0, appliedCount - 1);
+            }
+
+            if (cellsByPacked.TryGetValue(packed, out TraceSceneRegionCell? removed))
+            {
+                _ = worldPartition.Remove(removed.Key);
             }
 
             cellsByPacked.Remove(packed);

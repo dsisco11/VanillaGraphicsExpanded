@@ -69,7 +69,7 @@ public sealed class LumonSceneTraceSceneMaterialPaletteRegistryTests
 
             Block block = CreateBlockWithTexture(faceKey: "up", textureDomain: "game", texturePath: "block/test_albedo");
 
-            AssetLocation surfaceKey = new("game", "textures/block/test_albedo");
+            AssetLocation surfaceKey = NormalizeTextureKeyForTest(new AssetLocation("game", "block/test_albedo.png"));
             var surface = new PbrMaterialSurface(
                 Roughness: 0.5f,
                 Metallic: 0f,
@@ -140,7 +140,8 @@ public sealed class LumonSceneTraceSceneMaterialPaletteRegistryTests
 
             Block block = CreateBlockWithTexture(faceKey: "up", textureDomain: "game", texturePath: "block/test2");
 
-            AssetLocation surfaceKey = new("game", "textures/block/test2");
+            // Use registry normalization so the key shape matches production (textures/ prefix + extensionless).
+            AssetLocation surfaceKey = NormalizeTextureKeyForTest(new AssetLocation("game", "block/test2.png"));
             var surface = new PbrMaterialSurface(
                 Roughness: 0.25f,
                 Metallic: 0f,
@@ -175,7 +176,8 @@ public sealed class LumonSceneTraceSceneMaterialPaletteRegistryTests
             // Now enable PBR resolution and ensure the LUT entry upgrades.
             surfaceMap[surfaceKey] = surface;
 
-            _ = surfaceLut.UpgradeUnresolvedEntries(maxToUpgrade: 8);
+            int upgraded = surfaceLut.UpgradeUnresolvedEntries(maxToUpgrade: 8);
+            Assert.True(upgraded > 0);
 
             uint[] surf2 = new uint[LumonScenePbrSurfaceLutRegistry.MaxSurfaceEntries * 4];
             Assert.True(surfaceLut.TryCopyAndClearDirtyLut(surf2));
@@ -189,6 +191,19 @@ public sealed class LumonSceneTraceSceneMaterialPaletteRegistryTests
         {
             PbrMaterialRegistry.Instance.Clear();
         }
+    }
+
+    private static AssetLocation NormalizeTextureKeyForTest(AssetLocation input)
+    {
+        var mi = typeof(PbrMaterialRegistry).GetMethod(
+            "NormalizeTextureLocation",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(mi);
+
+        object? result = mi!.Invoke(null, new object?[] { input });
+        Assert.IsType<AssetLocation>(result);
+        return (AssetLocation)result!;
     }
 
     private static Block CreateBlockWithTexture(string faceKey, string textureDomain, string texturePath)
