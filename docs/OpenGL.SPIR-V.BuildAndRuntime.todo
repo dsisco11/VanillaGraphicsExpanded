@@ -30,27 +30,27 @@ References:
     - Recommended: generate to `artifacts/spirv/...` (mirrors `assets/...`) and overlay-copy into package staging
     - Avoid writing `.spv` into the working `assets/` tree to keep git clean
 
-☐ Phase 1 — Build Pipeline: Offline SPIR-V Compilation
+✔ Phase 1 — Build Pipeline: Offline SPIR-V Compilation
   Exit artifacts: Cake task produces SPIR-V for supported stages; packaged output contains `.spv` alongside source.
-  ☐ Add Cake task in CakeBuild/Program.cs (dependency of `Package`) e.g. `CompileSpirVShaders`.
-  ☐ Enumerate shader sources under `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/`:
+  ✔ Add Cake task in CakeBuild/Program.cs (dependency of `Package`) e.g. `CompileSpirVShaders`.
+  ✔ Enumerate shader sources under `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/`:
     - Include `.csh` first; optionally include `.vsh/.fsh` later (Phase 3)
     - Ignore include-only assets if they exist (or compile only entrypoints)
-  ☐ Run VGE shader preprocessing before invoking external compiler:
+  ✔ Run VGE shader preprocessing before invoking external compiler:
     - Must resolve VGE `@import` and define injection (same behavior as runtime)
     - Implement a filesystem-based resolver analogous to `AssetSyntaxTreeResourceResolver`
     - Reuse `ShaderSourceCode` preprocessing (share project reference)
-  ☐ Invoke external compiler per shader stage:
+  ✔ Invoke external compiler per shader stage:
     - Preferred tool: `glslangValidator`
     - For compute: emit OpenGL SPIR-V; keep entrypoint `main` unless specialization requires otherwise
     - Emit to `artifacts/spirv/vanillagraphicsexpanded/shaders/<name>.<stage>.spv`
-  ☐ Add build configuration knobs:
+  ✔ Add build configuration knobs:
     - Enable/disable SPIR-V compilation (default: enabled in all builds)
     - Compiler path override (env var + optional Cake arg)
     - Optional: treat warnings as errors toggle
-  ☐ Integrate packaging overlay:
+  ✔ Integrate packaging overlay:
     - During `Package`, copy `artifacts/spirv/...` into the staging folder so `.spv` ships with the mod
-  ☐ Add CI-friendly diagnostics:
+  ✔ Add CI-friendly diagnostics:
     - Print compiler version
     - Print counts: compiled / skipped / failed
     - Fail build when compilation fails (unless explicitly disabled)
