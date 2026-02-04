@@ -14,18 +14,19 @@ References:
 - shaderc: https://github.com/google/shaderc
 - Repo docs: docs/GpuProgram.md, docs/OpenGL.PipelineStateObject.Overview.md
 
-☐ Phase 0 — Conventions, Capability, and Scope
+✔ Phase 0 — Conventions, Capability, and Scope
   Exit artifacts: naming scheme chosen; toolchain chosen; runtime gating rules defined.
-  ☐ Choose binary naming convention (recommended):
+  ✔ Choose binary naming convention (recommended):
     - Compute: `<name>.csh.spv`
     - Vertex: `<name>.vsh.spv`
     - Fragment: `<name>.fsh.spv`
     - Optional future: `.gsh.spv` for geometry
-  ☐ Define runtime selection rules:
+  ✔ Choose compiler/toolchain (initial): `glslangValidator` (fallback later: shaderc)
+  ✔ Define runtime selection rules:
     - Prefer `.spv` only when `GL_ARB_gl_spirv` (or GL 4.6) is available
     - Otherwise load GLSL source as today
     - Log once per session when falling back due to missing extension
-  ☐ Decide build output location strategy:
+  ✔ Decide build output location strategy:
     - Recommended: generate to `artifacts/spirv/...` (mirrors `assets/...`) and overlay-copy into package staging
     - Avoid writing `.spv` into the working `assets/` tree to keep git clean
 
