@@ -734,23 +734,16 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
                 try
                 {
-                    int attempts = 0;
-                    while (count < batchCap && completedRegions.TryDequeue(out InFlightCompletion completion))
+                    while (count < batchCap)
                     {
-                        // Avoid spending unbounded time on stale completions (e.g. window-trimmed or superseded).
-                        if (++attempts > batchCap * 8)
+                        if (Stopwatch.GetTimestamp() - start > budgetTicks)
                         {
                             break;
                         }
 
-                        if (!inFlightByRegion.TryGetValue(completion.RegionKeyPacked, out InFlightRegion inflight))
+                        if (!TryDequeueValidCompletion(start, budgetTicks, out InFlightCompletion completion, out InFlightRegion inflight))
                         {
-                            continue;
-                        }
-
-                        if (!ReferenceEquals(inflight.Task, completion.Task))
-                        {
-                            continue;
+                            break;
                         }
 
                         inFlightByRegion.Remove(completion.RegionKeyPacked);
@@ -858,6 +851,38 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
             ArrayPool<VectorInt3>.Shared.Return(originMin, clearArray: false);
             ArrayPool<VectorInt3>.Shared.Return(ring, clearArray: false);
         }
+    }
+
+    private bool TryDequeueValidCompletion(
+        long startTimestamp,
+        long budgetTicks,
+        out InFlightCompletion completion,
+        out InFlightRegion inflight)
+    {
+        while (completedRegions.TryDequeue(out completion))
+        {
+            if (Stopwatch.GetTimestamp() - startTimestamp > budgetTicks)
+            {
+                inflight = default;
+                return false;
+            }
+
+            if (!inFlightByRegion.TryGetValue(completion.RegionKeyPacked, out inflight))
+            {
+                continue;
+            }
+
+            if (!ReferenceEquals(inflight.Task, completion.Task))
+            {
+                continue;
+            }
+
+            return true;
+        }
+
+        completion = default;
+        inflight = default;
+        return false;
     }
 
     private static int Wrap(int v, int mod)
