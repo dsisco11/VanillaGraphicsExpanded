@@ -6,6 +6,7 @@ using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Profiling;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -97,6 +98,8 @@ internal sealed class LumonSceneMeshCardCaptureDispatcher : IDisposable
 
             using (captureMeshCardPipeline!.UseScope())
             {
+                using var gpuScope = GlGpuProfiler.Instance.Scope("Capture.MeshCard");
+
                 // SSBO bindings.
                 meshCardCaptureWork.Items.BindBase(bindingIndex: 0);
                 fieldGpu.PatchMetadata.Ssbo.BindBase(bindingIndex: 1);

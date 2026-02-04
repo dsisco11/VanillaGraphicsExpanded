@@ -6,6 +6,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Profiling;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -68,6 +69,8 @@ internal sealed class LumonSceneTraceSceneClipmapGpuBuildDispatcher : IDisposabl
         {
             return 0;
         }
+
+        using var gpuScope = GlGpuProfiler.Instance.Scope("TraceScene.RegionToClipmap");
 
         using (pipeline!.UseScope())
         {

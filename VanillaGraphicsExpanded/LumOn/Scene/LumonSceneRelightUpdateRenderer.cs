@@ -7,6 +7,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Profiling;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -255,6 +256,8 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
 
             using (relightVoxelPipeline!.UseScope())
             {
+                using var gpuScope = GlGpuProfiler.Instance.Scope("Relight.VoxelDda");
+
                 bool dbg = config.Debug.LumOnRuntimeSelfCheckEnabled;
                 EnsureDebugCountersCreated();
 

@@ -1036,6 +1036,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             // Render fullscreen quad
             using var cpuScope = Profiler.BeginScope("Debug.LumOn", "Render");
             using (GlGpuProfiler.Instance.Scope("Debug.LumOn"))
+            using (GlGpuProfiler.Instance.Scope(shader.PassName))
             {
                 capi.Render.RenderMesh(quadMeshRef);
             }

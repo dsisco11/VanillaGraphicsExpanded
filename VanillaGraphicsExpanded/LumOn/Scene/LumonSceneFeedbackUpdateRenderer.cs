@@ -9,6 +9,7 @@ using VanillaGraphicsExpanded.LumOn.WorldCells;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Profiling;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -467,6 +468,8 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         // Pass A: mark visible pages into a dedup stamp texture.
         using (feedbackMarkPipeline!.UseScope())
         {
+            using var gpuScope = GlGpuProfiler.Instance.Scope("Feedback.MarkPages");
+
             feedbackMarkDebugCounters?.BindBase(bindingIndex: 0);
 
             _ = feedbackMarkPipeline.ProgramLayout.TryBindSamplerTexture(
@@ -506,6 +509,8 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         nearGpu.PageRequests.Reset();
         using (feedbackCompactPipeline!.UseScope())
         {
+            using var gpuScope = GlGpuProfiler.Instance.Scope("Feedback.CompactPages");
+
             _ = feedbackCompactPipeline.ProgramLayout.TryBindSamplerTexture(
                 samplerUniformName: "vge_pageUsageStamp",
                 target: TextureTarget.Texture2DArray,
@@ -2115,6 +2120,8 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
         using (captureVoxelPipeline!.UseScope())
         {
+            using var gpuScope = GlGpuProfiler.Instance.Scope("Capture.Voxel");
+
             nearGpu.CaptureWork.Items.BindBase(bindingIndex: 0);
             nearGpu.PatchMetadata.Ssbo.BindBase(bindingIndex: 1);
             slotInfoBuffer.Ssbo.BindBase(bindingIndex: 2);

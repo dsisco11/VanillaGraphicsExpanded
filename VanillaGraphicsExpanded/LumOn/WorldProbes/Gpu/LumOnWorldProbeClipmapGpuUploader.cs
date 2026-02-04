@@ -181,41 +181,47 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         // Pass 1: tile samples -> radiance atlas
         if (tileProg is not null && !tileProg.LoadError && !tileProg.Disposed && tileVertices.Count > 0)
         {
-            tileProg.Use();
-            tileProg.AtlasSize = new Vec2f(resources.RadianceAtlasWidth, resources.RadianceAtlasHeight);
+            using (GlGpuProfiler.Instance.Scope(tileProg.PassName))
+            {
+                tileProg.Use();
+                tileProg.AtlasSize = new Vec2f(resources.RadianceAtlasWidth, resources.RadianceAtlasHeight);
 
-            using var vaoScope = tileVao.BindScope();
+                using var vaoScope = tileVao.BindScope();
 
-            var rfbo = resources.GetRadianceFbo();
-            rfbo.Bind();
-            GL.Viewport(0, 0, resources.RadianceAtlasWidth, resources.RadianceAtlasHeight);
+                var rfbo = resources.GetRadianceFbo();
+                rfbo.Bind();
+                GL.Viewport(0, 0, resources.RadianceAtlasWidth, resources.RadianceAtlasHeight);
 
-            TileResolveVertex[] tileData = tileVertices.ToArray();
-            tileVbo.UploadData(tileData);
+                TileResolveVertex[] tileData = tileVertices.ToArray();
+                tileVbo.UploadData(tileData);
 
-            GL.DrawArrays(PrimitiveType.Points, 0, tileData.Length);
-            Rendering.GpuFramebuffer.Unbind();
-            tileProg.Stop();
+                GL.DrawArrays(PrimitiveType.Points, 0, tileData.Length);
+                Rendering.GpuFramebuffer.Unbind();
+                tileProg.Stop();
+            }
         }
 
         // Pass 2: per-probe scalars -> vis/dist/meta atlases
-        probeProg.Use();
-        probeProg.AtlasSize = new Vec2f(resources.AtlasWidth, resources.AtlasHeight);
-
-        using (var vaoScope = probeVao.BindScope())
+        using (GlGpuProfiler.Instance.Scope(probeProg.PassName))
         {
-            var fbo = resources.GetFbo();
-            fbo.Bind();
-            GL.Viewport(0, 0, resources.AtlasWidth, resources.AtlasHeight);
+            probeProg.Use();
+            probeProg.AtlasSize = new Vec2f(resources.AtlasWidth, resources.AtlasHeight);
 
-            ProbeResolveVertex[] probeData = probeVertices.ToArray();
-            probeVbo.UploadData(probeData);
+            using (var vaoScope = probeVao.BindScope())
+            {
+                var fbo = resources.GetFbo();
+                fbo.Bind();
+                GL.Viewport(0, 0, resources.AtlasWidth, resources.AtlasHeight);
 
-            GL.DrawArrays(PrimitiveType.Points, 0, probeData.Length);
-            Rendering.GpuFramebuffer.Unbind();
+                ProbeResolveVertex[] probeData = probeVertices.ToArray();
+                probeVbo.UploadData(probeData);
+
+                GL.DrawArrays(PrimitiveType.Points, 0, probeData.Length);
+                Rendering.GpuFramebuffer.Unbind();
+            }
+
+            probeProg.Stop();
         }
-
-        probeProg.Stop();
 
         return usedProbes;
     }

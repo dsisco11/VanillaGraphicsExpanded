@@ -531,6 +531,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (shader is null || shader.LoadError)
             return;
 
+        using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
+
         bufferManager.VelocityFbo.BindWithViewport();
         bufferManager.VelocityFbo.Clear();
 
@@ -568,6 +570,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         var shader = capi.Shader.GetProgramByName("lumon_probe_anchor") as LumOnProbeAnchorShaderProgram;
         if (shader is null || shader.LoadError)
             return;
+
+        using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
         var fbo = bufferManager.ProbeAnchorFbo;
         if (fbo is null) return;
@@ -613,6 +617,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_pis_mask") as LumOnProbeAtlasPisMaskShaderProgram;
         if (shader is null || shader.LoadError)
             return;
+
+        using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
         var fbo = bufferManager.ProbeTraceMaskFbo;
         if (fbo is null || bufferManager.ProbeTraceMaskTex is null)
@@ -661,6 +667,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_trace") as LumOnScreenProbeAtlasTraceShaderProgram;
         if (shader is null || shader.LoadError)
             return;
+
+        using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
         var fbo = bufferManager.ScreenProbeAtlasTraceFbo;
         if (fbo is null) return;
@@ -824,29 +832,35 @@ public class LumOnRenderer : IRenderer, IDisposable
         fbo.AttachColorTextureId(hzb.TextureId, attachmentIndex: 0, mipLevel: 0);
         GL.Viewport(0, 0, hzb.Width, hzb.Height);
 
-        copy.Use();
-        copy.PrimaryDepth = primaryFb.DepthTextureId;
-        capi.Render.RenderMesh(quadMeshRef);
-        copy.Stop();
-
-        // Downsample the mip chain using MIN depth.
-        down.Use();
-        down.HzbDepth = hzb;
-
-        for (int dstMip = 1; dstMip < hzb.MipLevels; dstMip++)
+        using (GlGpuProfiler.Instance.Scope(copy.PassName))
         {
-            int dstW = Math.Max(1, hzb.Width >> dstMip);
-            int dstH = Math.Max(1, hzb.Height >> dstMip);
-
-            fbo.Bind();
-            fbo.AttachColorTextureId(hzb.TextureId, attachmentIndex: 0, mipLevel: dstMip);
-            GL.Viewport(0, 0, dstW, dstH);
-
-            down.SrcMip = dstMip - 1;
+            copy.Use();
+            copy.PrimaryDepth = primaryFb.DepthTextureId;
             capi.Render.RenderMesh(quadMeshRef);
+            copy.Stop();
         }
 
-        down.Stop();
+        // Downsample the mip chain using MIN depth.
+        using (GlGpuProfiler.Instance.Scope(down.PassName))
+        {
+            down.Use();
+            down.HzbDepth = hzb;
+
+            for (int dstMip = 1; dstMip < hzb.MipLevels; dstMip++)
+            {
+                int dstW = Math.Max(1, hzb.Width >> dstMip);
+                int dstH = Math.Max(1, hzb.Height >> dstMip);
+
+                fbo.Bind();
+                fbo.AttachColorTextureId(hzb.TextureId, attachmentIndex: 0, mipLevel: dstMip);
+                GL.Viewport(0, 0, dstW, dstH);
+
+                down.SrcMip = dstMip - 1;
+                capi.Render.RenderMesh(quadMeshRef);
+            }
+
+            down.Stop();
+        }
 
         Rendering.GpuFramebuffer.RestoreBinding(previousFbo);
         GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
@@ -863,6 +877,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_temporal") as LumOnScreenProbeAtlasTemporalShaderProgram;
         if (shader is null || shader.LoadError)
             return;
+
+        using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
         var fbo = bufferManager.ScreenProbeAtlasCurrentFbo;
         if (fbo is null) return;
@@ -960,6 +976,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (shader is null || shader.LoadError)
             return;
 
+        using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
+
         var outFbo = bufferManager.ProbeSh9Fbo;
         if (outFbo is null) return;
 
@@ -996,6 +1014,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         var shader = capi.Shader.GetProgramByName("lumon_probe_sh9_gather") as LumOnProbeSh9GatherShaderProgram;
         if (shader is null || shader.LoadError)
             return;
+
+        using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
         var fbo = bufferManager.IndirectHalfFbo;
         if (fbo is null) return;
@@ -1042,6 +1062,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_gather") as LumOnScreenProbeAtlasGatherShaderProgram;
         if (shader is null || shader.LoadError)
             return;
+
+        using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
         var fbo = bufferManager.IndirectHalfFbo;
         if (fbo is null) return;
@@ -1132,7 +1154,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (shader is null || shader.LoadError)
             return;
 
-        using var gpuScope = GlGpuProfiler.Instance.Scope("LumOn.ProbeAtlas.Filter");
+        using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
         var fbo = bufferManager.ScreenProbeAtlasFilteredFbo;
         if (fbo is null) return;
@@ -1171,6 +1193,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         var shader = capi.Shader.GetProgramByName("lumon_upsample") as LumOnUpsampleShaderProgram;
         if (shader is null || shader.LoadError)
             return;
+
+        using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
         // Preferred path: write to full-res indirect buffer for the final composite.
         // This keeps the primary scene untouched until PBRCompositeRenderer merges everything.
