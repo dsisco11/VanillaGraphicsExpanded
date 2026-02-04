@@ -12,6 +12,8 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 internal sealed class LumonSceneRegionCell : WorldCell
 {
     private const int HeatHoldFrames = 10;
+    private const int ChunkSizeBlocks = LumonSceneVoxelPatchKeyUtil.ChunkSizeVoxels;
+    private const int ChunkCenterHalfBlocks = ChunkSizeBlocks - 1;
 
     public LumonSceneRegionCell(WorldCellKind kind, in LumonSceneChunkCoord chunkCoord)
         : base(CreateKey(kind, in chunkCoord))
@@ -24,6 +26,10 @@ internal sealed class LumonSceneRegionCell : WorldCell
         ChunkCoord = chunkCoord;
         ChunkCoordKey = chunkCoord.ToKey();
         ChunkCoordInt3 = new VectorInt3(chunkCoord.X, chunkCoord.Y, chunkCoord.Z);
+
+        // Chunk spans [base..base+31] in block coords. Center is base+15.5, represented as half-block:
+        // (base * 2) + 31.
+        CenterHalfBlockPos = (ChunkCoordInt3 * (ChunkSizeBlocks * 2)) + ChunkCenterHalfBlocks;
 
         ChunkSlot = uint.MaxValue;
         SlotGeneration = 0;

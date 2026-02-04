@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Numerics;
+
 namespace VanillaGraphicsExpanded.LumOn.WorldCells;
 
 /// <summary>
@@ -17,6 +19,8 @@ internal abstract class WorldCell : IWorldCell
     public WorldCellKey Key { get; }
 
     public WorldCellKind Kind => Key.Kind;
+
+    public VectorInt3 CenterHalfBlockPos { get; protected set; }
 
     public float Priority { get; set; }
 

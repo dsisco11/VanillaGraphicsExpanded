@@ -31,10 +31,6 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
     private VectorInt3 windowMax;
     private bool hasWindow;
 
-    private long seedCursor;
-    private long seedTotal;
-    private bool seedActive;
-
     private long lastNowTick;
 
     private int appliedCount;
@@ -69,10 +65,6 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
         windowMax = default;
         hasWindow = false;
 
-        seedCursor = 0;
-        seedTotal = 0;
-        seedActive = false;
-
         lastNowTick = 0;
         nearBurstCount = 0;
         InFlightCount = 0;
@@ -89,7 +81,6 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
 
         if (changed)
         {
-            ResetSeed();
             TrimCellsToWindow();
         }
     }
@@ -179,14 +170,6 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
             if (TryDequeueDirty(out ulong packedKey))
             {
                 RefreshCell(packedKey, in schedulerContext);
-                refreshed++;
-                continue;
-            }
-
-            if (TryGetNextSeedRegion(out VectorInt3 regionCoord))
-            {
-                TraceSceneRegionCell cell = GetOrCreateCell(regionCoord);
-                RefreshCell(cell.ChunkKey.Packed, in schedulerContext);
                 refreshed++;
                 continue;
             }
@@ -783,59 +766,7 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
                && regionCoord.Z <= windowMax.Z;
     }
 
-    private void ResetSeed()
-    {
-        if (!hasWindow)
-        {
-            seedCursor = 0;
-            seedTotal = 0;
-            seedActive = false;
-            return;
-        }
-
-        long sizeX = (long)windowMax.X - windowMin.X + 1L;
-        long sizeY = (long)windowMax.Y - windowMin.Y + 1L;
-        long sizeZ = (long)windowMax.Z - windowMin.Z + 1L;
-
-        if (sizeX <= 0 || sizeY <= 0 || sizeZ <= 0)
-        {
-            seedCursor = 0;
-            seedTotal = 0;
-            seedActive = false;
-            return;
-        }
-
-        seedCursor = 0;
-        seedTotal = checked(sizeX * checked(sizeY * sizeZ));
-        seedActive = seedTotal > 0;
-    }
-
-    private bool TryGetNextSeedRegion(out VectorInt3 regionCoord)
-    {
-        if (!seedActive || seedCursor >= seedTotal)
-        {
-            regionCoord = default;
-            seedActive = false;
-            return false;
-        }
-
-        long sizeX = (long)windowMax.X - windowMin.X + 1L;
-        long sizeY = (long)windowMax.Y - windowMin.Y + 1L;
-
-        long i = seedCursor++;
-
-        long z = i / (sizeX * sizeY);
-        long rem = i - (z * sizeX * sizeY);
-        long y = rem / sizeX;
-        long x = rem - (y * sizeX);
-
-        regionCoord = new VectorInt3(
-            checked(windowMin.X + (int)x),
-            checked(windowMin.Y + (int)y),
-            checked(windowMin.Z + (int)z));
-
-        return true;
-    }
+    // Seeding/scanning logic removed in favor of explicit window-delta enqueueing by the clipmap renderer.
 
     private void TrimCellsToWindow()
     {

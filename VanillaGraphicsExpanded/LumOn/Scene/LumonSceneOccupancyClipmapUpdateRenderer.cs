@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -212,8 +213,10 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
         int chunkX = camX >> 5;
         int chunkY = camY >> 5;
         int chunkZ = camZ >> 5;
-        traceSceneLoadedMinChunk = new VectorInt3(chunkX - rXZ, chunkY - rY, chunkZ - rXZ);
-        traceSceneLoadedMaxChunk = new VectorInt3(chunkX + rXZ, chunkY + rY, chunkZ + rXZ);
+        VectorInt3 chunkCoord = new(chunkX, chunkY, chunkZ);
+        VectorInt3 offsetToMin = new(rXZ, rY, rXZ);
+        traceSceneLoadedMinChunk = chunkCoord - offsetToMin;
+        traceSceneLoadedMaxChunk = chunkCoord + offsetToMin;
 
         // Apply rebuild request.
         if (Interlocked.Exchange(ref rebuildAllRequested, 0) != 0)
@@ -531,7 +534,122 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
         regionScheduler.SetWindow(currentWindowRegionMin, currentWindowRegionMax);
 
-        _ = enqueueAll;
+        // Seed TraceScene region work for newly visible regions. This is the authoritative discovery mechanism:
+        // - When the window moves, enqueue the delta slabs only.
+        // - On first init / coarse re-anchor, enqueue the whole window.
+        //
+        // This avoids hidden "scan order" biases and ensures quiet regions still get an initial upload.
+        if (chunkVersions is not null)
+        {
+            if (!hadPrev || enqueueAll)
+            {
+                EnqueueRegionBox(in currentWindowRegionMin, in currentWindowRegionMax, reason: "WindowInit");
+            }
+            else
+            {
+                EnqueueRegionDelta(in prevMin, in prevMax, in currentWindowRegionMin, in currentWindowRegionMax);
+            }
+        }
+    }
+
+    private void EnqueueRegionBox(in VectorInt3 min, in VectorInt3 max, string reason)
+    {
+        if (chunkVersions is null)
+        {
+            return;
+        }
+
+        for (int x = min.X; x <= max.X; x++)
+        {
+            for (int y = min.Y; y <= max.Y; y++)
+            {
+                for (int z = min.Z; z <= max.Z; z++)
+                {
+                    EnqueueRegion(x, y, z, reason);
+                }
+            }
+        }
+    }
+
+    private void EnqueueRegionDelta(in VectorInt3 prevMin, in VectorInt3 prevMax, in VectorInt3 newMin, in VectorInt3 newMax)
+    {
+        if (chunkVersions is null)
+        {
+            return;
+        }
+
+        int x0 = Math.Max(newMin.X, prevMin.X);
+        int x1 = Math.Min(newMax.X, prevMax.X);
+        int y0 = Math.Max(newMin.Y, prevMin.Y);
+        int y1 = Math.Min(newMax.Y, prevMax.Y);
+        int z0 = Math.Max(newMin.Z, prevMin.Z);
+        int z1 = Math.Min(newMax.Z, prevMax.Z);
+
+        // X slabs (outside overlap)
+        for (int x = newMin.X; x <= newMax.X; x++)
+        {
+            if (x >= x0 && x <= x1) continue;
+            for (int y = newMin.Y; y <= newMax.Y; y++)
+            {
+                for (int z = newMin.Z; z <= newMax.Z; z++)
+                {
+                    EnqueueRegion(x, y, z, reason: "WindowEnterX");
+                }
+            }
+        }
+
+        // If there is no X overlap, we're done (the X slabs covered the entire new box)
+        if (x0 > x1)
+        {
+            return;
+        }
+
+        // Y slabs (within X overlap, outside Y overlap)
+        for (int x = x0; x <= x1; x++)
+        {
+            for (int y = newMin.Y; y <= newMax.Y; y++)
+            {
+                if (y >= y0 && y <= y1) continue;
+                for (int z = newMin.Z; z <= newMax.Z; z++)
+                {
+                    EnqueueRegion(x, y, z, reason: "WindowEnterY");
+                }
+            }
+        }
+
+        // If there is no Y overlap, we're done (X overlap + Y slabs covered remaining new volume)
+        if (y0 > y1)
+        {
+            return;
+        }
+
+        // Z slabs (within X & Y overlap, outside Z overlap)
+        for (int x = x0; x <= x1; x++)
+        {
+            for (int y = y0; y <= y1; y++)
+            {
+                for (int z = newMin.Z; z <= newMax.Z; z++)
+                {
+                    if (z >= z0 && z <= z1) continue;
+                    EnqueueRegion(x, y, z, reason: "WindowEnterZ");
+                }
+            }
+        }
+    }
+
+    private void EnqueueRegion(int regionX, int regionY, int regionZ, string reason)
+    {
+        if (chunkVersions is null)
+        {
+            return;
+        }
+
+        ChunkKey key = ChunkKey.FromChunkCoords(regionX, regionY, regionZ);
+        chunkVersions.MarkDirty(key);
+
+        int currentVersion = chunkVersions.GetCurrentVersion(key);
+        regionScheduler.NotifyChunkDirty(key, currentVersion: currentVersion, nowTick: traceSceneNowMs, reason: reason);
+        regionScheduler.NotifyChunkSeenLoaded(key, nowTick: traceSceneNowMs);
     }
 
     private void TrimInFlightToWindow()

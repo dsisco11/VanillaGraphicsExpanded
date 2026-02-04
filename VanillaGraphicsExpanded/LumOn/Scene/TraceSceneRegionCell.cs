@@ -8,12 +8,19 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 
 internal sealed class TraceSceneRegionCell : WorldCell
 {
+    private const int RegionSize = LumonSceneTraceSceneClipmapMath.RegionSize;
+    private const int RegionCenterHalfBlocks = RegionSize - 1;
+
     public TraceSceneRegionCell(ChunkKey chunkKey)
         : base(WorldCellKey.FromTraceSceneRegion(chunkKey))
     {
         ChunkKey = chunkKey;
         chunkKey.Decode(out int x, out int y, out int z);
         RegionCoord = new VectorInt3(x, y, z);
+
+        // Region spans [base..base+31] in block coords. Center is base+15.5, represented as half-block:
+        // (base * 2) + 31.
+        CenterHalfBlockPos = (RegionCoord << (LumonSceneTraceSceneClipmapMath.RegionShift + 1)) + RegionCenterHalfBlocks;
     }
 
     public TraceSceneRegionCell(VectorInt3 regionCoord)
