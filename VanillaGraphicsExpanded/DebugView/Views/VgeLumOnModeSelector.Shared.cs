@@ -233,6 +233,7 @@ public static partial class VgeBuiltInDebugViews
             LumOnDebugMode.TraceSceneBoundsL0 => "TraceScene: Bounds (L0)",
             LumOnDebugMode.TraceSceneOccupancyL0 => "TraceScene: Occupancy (L0)",
             LumOnDebugMode.TraceScenePayloadL0 => "TraceScene: Payload (L0)",
+            LumOnDebugMode.TraceSceneDdaDistanceL0 => "TraceScene: Voxel DDA Distance (SDF)",
             LumOnDebugMode.LumOnScenesOverview => "LumOn Scenes Overview",
             _ => mode.ToString()
         };

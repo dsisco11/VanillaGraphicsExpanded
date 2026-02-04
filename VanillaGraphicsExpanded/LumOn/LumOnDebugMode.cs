@@ -131,4 +131,8 @@ public enum LumOnDebugMode
     // Phase 22.X: Surface cache atlas visualization variants (append-only)
     LumonSceneMaterialAtlasAllRoughness = 65,
     LumonSceneMaterialAtlasAllNormals = 66,
+
+    // Phase 23.X: TraceScene voxel DDA clipmap debug (append-only)
+    // SDF-style grayscale gradient of distance-to-hit along the camera ray.
+    TraceSceneDdaDistanceL0 = 67,
 }

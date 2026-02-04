@@ -191,6 +191,7 @@ void main(void)
         case 55:
         case 56:
         case 57:
+        case 67:
             outColor = RenderDebug_TraceScene(screenPos);
             break;
 

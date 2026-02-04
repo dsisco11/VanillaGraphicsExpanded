@@ -13,6 +13,7 @@ public static partial class VgeBuiltInDebugViews
     private const string CategoryProfiling = "Profiling";
     private const string CategoryGBuffer = "GBuffer";
     private const string CategoryGeometry = "Geometry";
+    private const string CategoryScenes = "Scenes";
     private const string CategoryTools = "Tools";
 
     private const string ProbesDebugViewId = "vge.lumon.probes";
@@ -25,6 +26,7 @@ public static partial class VgeBuiltInDebugViews
     private const string ToolsViewId = "vge.tools";
     private const string ArtifactsViewId = "vge.pbr.artifacts";
     private const string WorldCellBoundsViewId = "vge.geometry.worldCellBounds";
+    private const string TraceSceneClipmapViewId = "vge.lumon.tracescene.clipmap";
 
     public static void RegisterAll(
         ICoreClientAPI capi,
@@ -44,6 +46,7 @@ public static partial class VgeBuiltInDebugViews
         DebugViewRegistry.Instance.Register(CreateGpuDebugGroupsView());
         DebugViewRegistry.Instance.Register(CreateGBufferOverlayView(gBufferManager));
         DebugViewRegistry.Instance.Register(CreateWorldCellBoundsView());
+        DebugViewRegistry.Instance.Register(CreateTraceSceneClipmapDebugView());
         DebugViewRegistry.Instance.Register(CreateToolsView());
         DebugViewRegistry.Instance.Register(CreateArtifactsView());
     }

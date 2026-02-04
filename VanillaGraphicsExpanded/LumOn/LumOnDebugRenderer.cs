@@ -1003,6 +1003,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             if (mode is LumOnDebugMode.TraceSceneBoundsL0
                 or LumOnDebugMode.TraceSceneOccupancyL0
                 or LumOnDebugMode.TraceScenePayloadL0
+                or LumOnDebugMode.TraceSceneDdaDistanceL0
                 or LumOnDebugMode.LumOnScenesOverview)
             {
                 if (config.LumOn.Enabled && config.LumOn.LumonScene.Enabled && lumonSceneOccupancyClipmapUpdateRenderer is not null)
