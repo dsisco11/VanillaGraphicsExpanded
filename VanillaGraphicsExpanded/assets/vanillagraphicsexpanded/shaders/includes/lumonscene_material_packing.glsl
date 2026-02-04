@@ -57,6 +57,13 @@ vec3 VgeLumonSceneDecodeNormalOct01(vec2 oct01)
     return normalize(lumonOctahedralUVToDirection(uv));
 }
 
+ivec2 VgeLumonSceneSurfaceLutUv(uint surfaceId16)
+{
+    // SurfaceLut is a 256x256 usampler2D addressed by 16-bit surfaceId.
+    // x = low 8 bits, y = high 8 bits.
+    return ivec2(int(surfaceId16 & 255u), int(surfaceId16 >> 8u));
+}
+
 vec4 VgeLumonScenePackMaterialAtlas(vec3 normalWS, uint surfaceId16)
 {
     vec2 oct01 = VgeLumonSceneEncodeNormalOct01(normalWS);
@@ -73,4 +80,3 @@ uint VgeLumonSceneUnpackSurfaceIdFromMaterialAtlas(vec4 mat)
 }
 
 #endif // VGE_LUMONSCENE_MATERIAL_PACKING_GLSL
-

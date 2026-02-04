@@ -293,10 +293,8 @@ vec4 renderLumonSceneMaterialDebug()
     }
 
     // MaterialAtlas stores a surfaceId; resolve to albedo via the surface LUT.
-    // SurfaceLut is a 2D atlas (256x256) indexed by 16-bit surfaceId.
     uint surfaceId = VgeLumonSceneUnpackSurfaceIdFromMaterialAtlas(mat);
-    ivec2 surfUv = ivec2(int(surfaceId & 255u), int(surfaceId >> 8u));
-    uvec4 s = texelFetch(vge_lumonSceneSurfaceLut, surfUv, 0);
+    uvec4 s = texelFetch(vge_lumonSceneSurfaceLut, VgeLumonSceneSurfaceLutUv(surfaceId), 0);
     vec3 albedo = vec3(s.xyz) * (1.0 / 255.0);
     return vec4(clamp(albedo, 0.0, 1.0), 1.0);
 }
@@ -364,8 +362,7 @@ vec4 renderLumonSceneMaterialRoughnessDebug()
     }
 
     uint surfaceId = VgeLumonSceneUnpackSurfaceIdFromMaterialAtlas(mat);
-    ivec2 surfUv = ivec2(int(surfaceId & 255u), int(surfaceId >> 8u));
-    uvec4 s = texelFetch(vge_lumonSceneSurfaceLut, surfUv, 0);
+    uvec4 s = texelFetch(vge_lumonSceneSurfaceLut, VgeLumonSceneSurfaceLutUv(surfaceId), 0);
     float roughness = float(s.w) * (1.0 / 255.0);
     return vec4(vec3(clamp(roughness, 0.0, 1.0)), 1.0);
 }

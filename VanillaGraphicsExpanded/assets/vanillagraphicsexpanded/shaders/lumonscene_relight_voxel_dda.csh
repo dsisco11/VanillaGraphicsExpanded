@@ -19,6 +19,8 @@ layout(binding = 2) uniform usampler3D vge_occL0;             // r32ui packed pa
 layout(binding = 3) uniform sampler2D vge_lightColorLut;      // rgba16f
 layout(binding = 4) uniform sampler2D vge_blockLevelScalarLut;// r16f
 layout(binding = 5) uniform sampler2D vge_sunLevelScalarLut;  // r16f
+layout(binding = 6) uniform usampler2D vge_materialPalette;   // rgba32ui (per-face surfaceIds)
+layout(binding = 7) uniform usampler2D vge_surfaceLut;        // rgba32ui (albedo rgb 0..255, roughness 0..255)
 
 // Output atlas (read+write for temporal accumulation).
 layout(binding = 0, rgba16f) uniform image2DArray vge_irradianceAtlas;
@@ -187,7 +189,22 @@ bool TraceDdaL0(vec3 origin, vec3 dir, out ivec3 hitCell, out ivec3 hitN, out fl
     return false;
 }
 
-vec3 ShadeHitFromOutsideCell(ivec3 outsideCell)
+uint HitFaceIndexFromNormal(ivec3 hitN)
+{
+    if (hitN.x > 0) return 1u; // +X East
+    if (hitN.x < 0) return 3u; // -X West
+    if (hitN.y > 0) return 4u; // +Y Up
+    if (hitN.y < 0) return 5u; // -Y Down
+    if (hitN.z > 0) return 2u; // +Z South
+    return 0u;                 // -Z North
+}
+
+uvec4 FetchSurfaceLut(uint surfaceId)
+{
+    return texelFetch(vge_surfaceLut, VgeLumonSceneSurfaceLutUv(surfaceId), 0);
+}
+
+vec3 ShadeHitFromOutsideCell(ivec3 outsideCell, ivec3 hitN)
 {
     uint packedWord = SampleOccL0(outsideCell);
     if (packedWord == 0u)
@@ -199,7 +216,15 @@ vec3 ShadeHitFromOutsideCell(ivec3 outsideCell)
     uint sunLevel = min(UnpackSunLevel(packedWord), 32u);
     uint lightId = min(UnpackLightId(packedWord), 63u);
     uint matIdx = UnpackMaterialPaletteIndex(packedWord);
-    if (matIdx != 0u) { }
+    if (matIdx != 0u)
+    {
+        // Fetch surfaceId for the hit face (future: use for translucency/emissive/material response).
+        uvec4 faces = texelFetch(vge_materialPalette, ivec2(int(matIdx), 0), 0);
+        uint faceIndex = HitFaceIndexFromNormal(hitN);
+        uint surfaceId = VgeLumonSceneUnpackFaceSurfaceId(faces, faceIndex);
+        uvec4 surf = FetchSurfaceLut(surfaceId);
+        if (surf.x != 0u) { } // keep from being optimized out
+    }
 
     float blockScalar = texelFetch(vge_blockLevelScalarLut, ivec2(int(blockLevel), 0), 0).r;
     float sunScalar = texelFetch(vge_sunLevelScalarLut, ivec2(int(sunLevel), 0), 0).r;
@@ -331,7 +356,7 @@ void main()
         {
             if (dbg) { atomicCounterIncrement(vge_dbgHits); }
             ivec3 outsideCell = hitCell + hitN; // outside-face convention
-            vec3 radiance = ShadeHitFromOutsideCell(outsideCell);
+            vec3 radiance = ShadeHitFromOutsideCell(outsideCell, hitN);
             float falloff = 1.0 / (1.0 + hitT * hitT);
             acc += radiance * falloff;
         }

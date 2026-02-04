@@ -276,6 +276,8 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
                 _ = relightVoxelPipeline.ProgramLayout.TryBindSamplerTexture("vge_lightColorLut", TextureTarget.Texture2D, occRes.LightColorLut.TextureId);
                 _ = relightVoxelPipeline.ProgramLayout.TryBindSamplerTexture("vge_blockLevelScalarLut", TextureTarget.Texture2D, occRes.BlockLevelScalarLut.TextureId);
                 _ = relightVoxelPipeline.ProgramLayout.TryBindSamplerTexture("vge_sunLevelScalarLut", TextureTarget.Texture2D, occRes.SunLevelScalarLut.TextureId);
+                _ = relightVoxelPipeline.ProgramLayout.TryBindSamplerTexture("vge_materialPalette", TextureTarget.Texture2D, occRes.MaterialPalette.TextureId);
+                _ = relightVoxelPipeline.ProgramLayout.TryBindSamplerTexture("vge_surfaceLut", TextureTarget.Texture2D, occRes.SurfaceLut.TextureId);
 
                 // Output atlas as layered image (unit derived from shader layout(binding=...)).
                 _ = relightVoxelPipeline.ProgramLayout.TryBindImageTexture(

@@ -49,9 +49,12 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var lightColorLut = Texture2D.Create(64, 1, PixelInternalFormat.Rgba16f, debugName: "Test_LightColorLut");
         using var blockScalar = Texture2D.Create(33, 1, PixelInternalFormat.R16f, debugName: "Test_BlockScalar");
         using var sunScalar = Texture2D.Create(33, 1, PixelInternalFormat.R16f, debugName: "Test_SunScalar");
+        using var materialPalette = Texture2D.Create(16384, 1, PixelInternalFormat.Rgba32ui, debugName: "Test_MaterialPalette");
+        using var surfaceLut = Texture2D.Create(256, 256, PixelInternalFormat.Rgba32ui, debugName: "Test_SurfaceLut");
         UploadLightColorLut(lightColorLut, redId: 1);
         UploadLinearScalarLut(blockScalar, scale: 1f);
         UploadLinearScalarLut(sunScalar, scale: 0f); // disable sun
+        UploadMaterialPaletteAndSurfaceLut(materialPalette, surfaceLut);
 
         // Output irradiance atlas.
         using var irradiance = Texture3D.Create(tileSize, tileSize, atlasCount, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_IrradianceAtlas");
@@ -84,6 +87,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         BindSampler(TextureTarget.Texture2D, unit: 3, lightColorLut.TextureId);
         BindSampler(TextureTarget.Texture2D, unit: 4, blockScalar.TextureId);
         BindSampler(TextureTarget.Texture2D, unit: 5, sunScalar.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 6, materialPalette.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 7, surfaceLut.TextureId);
 
         // Output image binding matches shader: layout(binding=0, rgba16f) image2DArray.
         GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
@@ -141,9 +146,12 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var lightColorLut = Texture2D.Create(64, 1, PixelInternalFormat.Rgba16f, debugName: "Test_LightColorLut");
         using var blockScalar = Texture2D.Create(33, 1, PixelInternalFormat.R16f, debugName: "Test_BlockScalar");
         using var sunScalar = Texture2D.Create(33, 1, PixelInternalFormat.R16f, debugName: "Test_SunScalar");
+        using var materialPalette = Texture2D.Create(16384, 1, PixelInternalFormat.Rgba32ui, debugName: "Test_MaterialPalette");
+        using var surfaceLut = Texture2D.Create(256, 256, PixelInternalFormat.Rgba32ui, debugName: "Test_SurfaceLut");
         UploadLightColorLut(lightColorLut, redId: 1);
         UploadLinearScalarLut(blockScalar, scale: 1f);
         UploadLinearScalarLut(sunScalar, scale: 0f);
+        UploadMaterialPaletteAndSurfaceLut(materialPalette, surfaceLut);
 
         using var irradiance = Texture3D.Create(tileSize, tileSize, atlasCount, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_IrradianceAtlas");
         FillRgba16f2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount, r: 0f, g: 0f, b: 0f, a: 0f);
@@ -169,6 +177,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         BindSampler(TextureTarget.Texture2D, unit: 3, lightColorLut.TextureId);
         BindSampler(TextureTarget.Texture2D, unit: 4, blockScalar.TextureId);
         BindSampler(TextureTarget.Texture2D, unit: 5, sunScalar.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 6, materialPalette.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 7, surfaceLut.TextureId);
 
         GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
 
@@ -223,9 +233,12 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var lightColorLut = Texture2D.Create(64, 1, PixelInternalFormat.Rgba16f, debugName: "Test_LightColorLut");
         using var blockScalar = Texture2D.Create(33, 1, PixelInternalFormat.R16f, debugName: "Test_BlockScalar");
         using var sunScalar = Texture2D.Create(33, 1, PixelInternalFormat.R16f, debugName: "Test_SunScalar");
+        using var materialPalette = Texture2D.Create(16384, 1, PixelInternalFormat.Rgba32ui, debugName: "Test_MaterialPalette");
+        using var surfaceLut = Texture2D.Create(256, 256, PixelInternalFormat.Rgba32ui, debugName: "Test_SurfaceLut");
         UploadLightColorLut(lightColorLut, redId: 1);
         UploadLinearScalarLut(blockScalar, scale: 1f);
         UploadLinearScalarLut(sunScalar, scale: 0f);
+        UploadMaterialPaletteAndSurfaceLut(materialPalette, surfaceLut);
 
         using var irradiance = Texture3D.Create(tileSize, tileSize, atlasCount, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_IrradianceAtlas");
         FillRgba16f2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount, r: 0f, g: 0f, b: 0f, a: 0f);
@@ -247,6 +260,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         BindSampler(TextureTarget.Texture2D, unit: 3, lightColorLut.TextureId);
         BindSampler(TextureTarget.Texture2D, unit: 4, blockScalar.TextureId);
         BindSampler(TextureTarget.Texture2D, unit: 5, sunScalar.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 6, materialPalette.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 7, surfaceLut.TextureId);
 
         GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
 
@@ -749,6 +764,28 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
             data[i] = (i / 32f) * scale;
         }
         lut.UploadDataImmediate(data);
+    }
+
+    private static void UploadMaterialPaletteAndSurfaceLut(Texture2D materialPalette, Texture2D surfaceLut)
+    {
+        // Populate only entry 1: all faces use surfaceId=1.
+        uint sid = 1u;
+        uint packed2 = sid | (sid << 16);
+        uint[] pal = new uint[16384 * 4];
+        pal[1 * 4 + 0] = packed2;
+        pal[1 * 4 + 1] = packed2;
+        pal[1 * 4 + 2] = packed2;
+        pal[1 * 4 + 3] = 0u;
+        materialPalette.UploadDataImmediate(pal);
+
+        // SurfaceLut: set surfaceId=1 at (x=1,y=0) to white albedo, roughness=0.
+        uint[] surf = new uint[256 * 256 * 4];
+        int o = (0 * 256 + 1) * 4;
+        surf[o + 0] = 255u;
+        surf[o + 1] = 255u;
+        surf[o + 2] = 255u;
+        surf[o + 3] = 0u;
+        surfaceLut.UploadDataImmediate(surf);
     }
 
     private static void FillMaterialNormalPlusZ(int textureId, int width, int height, int depth)
