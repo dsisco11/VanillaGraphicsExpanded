@@ -455,7 +455,7 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
         relightVoxelPipeline?.Dispose();
         relightVoxelPipeline = null;
 
-        if (!GpuComputePipeline.TryCreateFromAssetsPreferSpirv(
+        if (!GpuComputePipeline.TryCreateFromAssets(
             api: capi,
             shaderName: "lumonscene_relight_voxel_dda",
             pipeline: out relightVoxelPipeline,

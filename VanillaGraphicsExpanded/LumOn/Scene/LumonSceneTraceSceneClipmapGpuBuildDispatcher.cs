@@ -130,7 +130,7 @@ internal sealed class LumonSceneTraceSceneClipmapGpuBuildDispatcher : IDisposabl
         pipeline?.Dispose();
         pipeline = null;
 
-        if (!GpuComputePipeline.TryCreateFromAssetsPreferSpirv(
+        if (!GpuComputePipeline.TryCreateFromAssets(
             api: capi,
             shaderName: "lumonscene_trace_scene_region_to_clipmap",
             pipeline: out pipeline,

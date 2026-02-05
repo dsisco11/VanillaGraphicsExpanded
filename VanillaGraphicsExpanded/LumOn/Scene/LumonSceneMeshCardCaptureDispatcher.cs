@@ -151,7 +151,7 @@ internal sealed class LumonSceneMeshCardCaptureDispatcher : IDisposable
         captureMeshCardPipeline?.Dispose();
         captureMeshCardPipeline = null;
 
-        if (!GpuComputePipeline.TryCreateFromAssetsPreferSpirv(
+        if (!GpuComputePipeline.TryCreateFromAssets(
             api: capi,
             shaderName: "lumonscene_capture_meshcard",
             pipeline: out captureMeshCardPipeline,

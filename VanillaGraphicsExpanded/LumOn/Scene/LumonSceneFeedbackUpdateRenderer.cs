@@ -1395,7 +1395,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         feedbackMarkPipeline?.Dispose();
         feedbackMarkPipeline = null;
 
-        if (!GpuComputePipeline.TryCreateFromAssetsPreferSpirv(
+        if (!GpuComputePipeline.TryCreateFromAssets(
             api: capi,
             shaderName: "lumonscene_feedback_mark_pages",
             pipeline: out feedbackMarkPipeline,
@@ -1424,7 +1424,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         feedbackCompactPipeline?.Dispose();
         feedbackCompactPipeline = null;
 
-        if (!GpuComputePipeline.TryCreateFromAssetsPreferSpirv(
+        if (!GpuComputePipeline.TryCreateFromAssets(
             api: capi,
             shaderName: "lumonscene_feedback_compact_pages",
             pipeline: out feedbackCompactPipeline,
@@ -1453,7 +1453,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         captureVoxelPipeline?.Dispose();
         captureVoxelPipeline = null;
 
-        if (!GpuComputePipeline.TryCreateFromAssetsPreferSpirv(
+        if (!GpuComputePipeline.TryCreateFromAssets(
             api: capi,
             shaderName: "lumonscene_capture_voxel",
             pipeline: out captureVoxelPipeline,

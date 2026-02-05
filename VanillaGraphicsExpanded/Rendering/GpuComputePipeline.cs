@@ -227,18 +227,20 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
     private static int spirvUnsupportedCount;
 
     /// <summary>
-    /// Creates a compute pipeline by preferring a packaged SPIR-V binary (<c>.csh.spv</c>) when present and supported,
-    /// falling back to loading and compiling the GLSL source (<c>.csh</c>) through the existing preprocessing pipeline.
+    /// Creates a compute pipeline by loading a packaged SPIR-V binary (<c>.csh.spv</c>) when <paramref name="preferSpirv" /> is true,
+    /// present, and supported; otherwise falls back to loading and compiling the GLSL source (<c>.csh</c>) through the existing
+    /// preprocessing pipeline.
     /// </summary>
     /// <remarks>
     /// This is the recommended runtime entry point for VGE-owned compute shaders.
     /// </remarks>
-    public static bool TryCreateFromAssetsPreferSpirv(
+    public static bool TryCreateFromAssets(
         ICoreAPI api,
         string shaderName,
         out GpuComputePipeline? pipeline,
         out global::VanillaGraphicsExpanded.ShaderSourceCode? sourceCode,
         out string infoLog,
+        bool preferSpirv = false,
         string stageExtension = "csh",
         IReadOnlyDictionary<string, string?>? defines = null,
         string? debugName = null,
@@ -256,61 +258,64 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
         string stageName = $"{shaderName}.{stageExtension}";
         string spvStageName = stageName + ".spv";
 
-        // 1) Prefer SPIR-V if present and supported.
-        var locSpv = AssetLocation.Create($"shaders/{spvStageName}", VanillaGraphicsExpanded.PBR.ShaderImportsSystem.DefaultDomain);
-        IAsset? spvAsset = api.Assets.TryGet(locSpv, loadAsset: true);
-        if (spvAsset is not null)
+        // 1) Optionally prefer SPIR-V if present and supported.
+        if (preferSpirv)
         {
-            if (GpuShaderModule.SupportsSpirv())
+            var locSpv = AssetLocation.Create($"shaders/{spvStageName}", VanillaGraphicsExpanded.PBR.ShaderImportsSystem.DefaultDomain);
+            IAsset? spvAsset = api.Assets.TryGet(locSpv, loadAsset: true);
+            if (spvAsset is not null)
             {
-                byte[] bytes = spvAsset.Data ?? Array.Empty<byte>();
-                if (bytes.Length > 0)
+                if (GpuShaderModule.SupportsSpirv())
                 {
-                    if (GpuShaderModule.TryLoadSpirv(
-                        shaderType: ShaderType.ComputeShader,
-                        spirvBytes: bytes,
-                        entryPoint: "main",
-                        specializationConstants: ReadOnlySpan<GpuShaderModule.SpirvSpecializationConstant>.Empty,
-                        module: out var module,
-                        infoLog: out string spirvLog,
-                        debugName: debugName))
+                    byte[] bytes = spvAsset.Data ?? Array.Empty<byte>();
+                    if (bytes.Length > 0)
                     {
-                        if (module is not null && TryCreate(module, out pipeline, out string linkLog, debugName, disposeShaderAfterLink: true))
+                        if (GpuShaderModule.TryLoadSpirv(
+                            shaderType: ShaderType.ComputeShader,
+                            spirvBytes: bytes,
+                            entryPoint: "main",
+                            specializationConstants: ReadOnlySpan<GpuShaderModule.SpirvSpecializationConstant>.Empty,
+                            module: out var module,
+                            infoLog: out string spirvLog,
+                            debugName: debugName))
                         {
-                            Interlocked.Increment(ref spirvUsedCount);
-                            infoLog = (spirvLog.Length > 0 ? spirvLog + "\n" : string.Empty) + linkLog;
-                            return true;
-                        }
+                            if (module is not null && TryCreate(module, out pipeline, out string linkLog, debugName, disposeShaderAfterLink: true))
+                            {
+                                Interlocked.Increment(ref spirvUsedCount);
+                                infoLog = (spirvLog.Length > 0 ? spirvLog + "\n" : string.Empty) + linkLog;
+                                return true;
+                            }
 
-                        module?.Dispose();
-                        // Fall back to GLSL if linking failed.
-                        infoLog = (spirvLog.Length > 0 ? spirvLog + "\n" : string.Empty) + "[VGE] SPIR-V program link failed; falling back to GLSL.";
+                            module?.Dispose();
+                            // Fall back to GLSL if linking failed.
+                            infoLog = (spirvLog.Length > 0 ? spirvLog + "\n" : string.Empty) + "[VGE] SPIR-V program link failed; falling back to GLSL.";
+                        }
+                        else
+                        {
+                            // Fall back to GLSL if SPIR-V specialization/compile failed.
+                            infoLog = (spirvLog.Length > 0 ? spirvLog + "\n" : string.Empty) + "[VGE] SPIR-V load failed; falling back to GLSL.";
+                        }
                     }
                     else
                     {
-                        // Fall back to GLSL if SPIR-V specialization/compile failed.
-                        infoLog = (spirvLog.Length > 0 ? spirvLog + "\n" : string.Empty) + "[VGE] SPIR-V load failed; falling back to GLSL.";
+                        Interlocked.Increment(ref spirvMissingCount);
                     }
                 }
                 else
                 {
-                    Interlocked.Increment(ref spirvMissingCount);
+                    Interlocked.Increment(ref spirvUnsupportedCount);
+
+                    // Log once per session when SPIR-V exists but isn't supported.
+                    if (Interlocked.Exchange(ref spirvUnsupportedLogged, 1) == 0)
+                    {
+                        (log ?? api.Logger)?.Warning("[VGE] SPIR-V binaries found but GL_ARB_gl_spirv is not supported; falling back to GLSL.");
+                    }
                 }
             }
             else
             {
-                Interlocked.Increment(ref spirvUnsupportedCount);
-
-                // Log once per session when SPIR-V exists but isn't supported.
-                if (Interlocked.Exchange(ref spirvUnsupportedLogged, 1) == 0)
-                {
-                    (log ?? api.Logger)?.Warning("[VGE] SPIR-V binaries found but GL_ARB_gl_spirv is not supported; falling back to GLSL.");
-                }
+                Interlocked.Increment(ref spirvMissingCount);
             }
-        }
-        else
-        {
-            Interlocked.Increment(ref spirvMissingCount);
         }
 
         // 2) GLSL fallback: load the source asset and use existing preprocessing + compilation.
@@ -346,6 +351,30 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
         return pipeline is not null;
     }
 
+    [Obsolete("Use TryCreateFromAssets(..., preferSpirv: true/false, ...) instead.")]
+    public static bool TryCreateFromAssetsPreferSpirv(
+        ICoreAPI api,
+        string shaderName,
+        out GpuComputePipeline? pipeline,
+        out global::VanillaGraphicsExpanded.ShaderSourceCode? sourceCode,
+        out string infoLog,
+        string stageExtension = "csh",
+        IReadOnlyDictionary<string, string?>? defines = null,
+        string? debugName = null,
+        ILogger? log = null,
+        CancellationToken ct = default)
+        => TryCreateFromAssets(
+            api: api,
+            shaderName: shaderName,
+            pipeline: out pipeline,
+            sourceCode: out sourceCode,
+            infoLog: out infoLog,
+            preferSpirv: true,
+            stageExtension: stageExtension,
+            defines: defines,
+            debugName: debugName,
+            log: log,
+            ct: ct);
     /// <summary>
     /// Uses this compute pipeline via <c>glUseProgram</c>.
     /// </summary>
