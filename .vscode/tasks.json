@@ -110,8 +110,9 @@
                 "build",
                 "-c",
                 "Debug",
-                "--no-incremental",
-                "-v:n"
+                "--tl:on",
+                "-v:n",
+                "${workspaceFolder}/VanillaGraphicsExpanded/VanillaGraphicsExpanded.csproj"
             ],
             "options": {
                 "cwd": "${workspaceFolder}/VanillaGraphicsExpanded",

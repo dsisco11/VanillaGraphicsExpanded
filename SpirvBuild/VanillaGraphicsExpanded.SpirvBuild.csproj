@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+
+    <!-- Default: enabled for all builds unless explicitly disabled. -->
+    <EnableSpirv Condition="'$(EnableSpirv)' == ''">true</EnableSpirv>
+
+    <SpirvDomain Condition="'$(SpirvDomain)' == ''">vanillagraphicsexpanded</SpirvDomain>
+    <SpirvTargetEnv Condition="'$(SpirvTargetEnv)' == ''">opengl4.5</SpirvTargetEnv>
+    <SpirvWarningsAsErrors Condition="'$(SpirvWarningsAsErrors)' == ''">false</SpirvWarningsAsErrors>
+
+    <SpirvWarningsAsErrorsArg Condition="'$(SpirvWarningsAsErrors)' == 'true' Or '$(SpirvWarningsAsErrors)' == 'True'">--warningsAsErrors</SpirvWarningsAsErrorsArg>
+    <SpirvWarningsAsErrorsArg Condition="'$(SpirvWarningsAsErrors)' != 'true' And '$(SpirvWarningsAsErrors)' != 'True'"></SpirvWarningsAsErrorsArg>
+
+    <!-- Repo layout assumptions -->
+    <VgeSolutionRoot>$(MSBuildThisFileDirectory)..</VgeSolutionRoot>
+    <VgeModProjectDir>$(MSBuildThisFileDirectory)..\VanillaGraphicsExpanded</VgeModProjectDir>
+
+    <!-- Keep output path aligned with existing VGE convention (inside the mod project folder). -->
+    <SpirvArtifactsDir Condition="'$(SpirvArtifactsDir)' == ''">$(VgeModProjectDir)\artifacts\spirv</SpirvArtifactsDir>
+
+    <SpirvBuildToolProject>$(VgeSolutionRoot)\ShaderBuildTool\ShaderBuildTool.csproj</SpirvBuildToolProject>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(EnableSpirv)' == 'true' Or '$(EnableSpirv)' == 'True'">
+    <VgeComputeShaders Include="$(VgeModProjectDir)\assets\$(SpirvDomain)\shaders\**\*.csh" />
+    <VgeShaderIncludes Include="$(VgeModProjectDir)\assets\$(SpirvDomain)\shaders\includes\**\*.*" />
+  </ItemGroup>
+
+  <Target Name="RestoreDotnetShadercTool"
+          Condition="'$(EnableSpirv)' == 'true' Or '$(EnableSpirv)' == 'True'"
+          BeforeTargets="CompileSpirvShaders">
+    <Exec WorkingDirectory="$(VgeSolutionRoot)" Command="dotnet tool restore" />
+  </Target>
+
+  <Target Name="CompileSpirvShaders"
+          Condition="'$(EnableSpirv)' == 'true' Or '$(EnableSpirv)' == 'True'"
+          Inputs="@(VgeComputeShaders);@(VgeShaderIncludes)"
+          Outputs="@(VgeComputeShaders-&gt;'$(SpirvArtifactsDir)\$(SpirvDomain)\shaders\%(Filename)%(Extension).spv')"
+          AfterTargets="Build">
+    <Exec
+      WorkingDirectory="$(VgeSolutionRoot)"
+      Command="dotnet run --project &quot;$(SpirvBuildToolProject)&quot; -- --assetsRoot &quot;$(VgeModProjectDir)\assets&quot; --outputRoot &quot;$(SpirvArtifactsDir)&quot; --domain $(SpirvDomain) --targetEnv $(SpirvTargetEnv) $(SpirvWarningsAsErrorsArg) --workingDir &quot;$(VgeSolutionRoot)&quot;" />
+  </Target>
+
+</Project>
