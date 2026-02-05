@@ -98,17 +98,17 @@
     <SpirvBuildToolProject>$(VgeSolutionRoot)\ShaderBuildTool\ShaderBuildTool.csproj</SpirvBuildToolProject>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(EnableSpirv)' == 'true'">
+  <ItemGroup Condition="'$(EnableSpirv)' == 'true' Or '$(EnableSpirv)' == 'True'">
     <VgeComputeShaders Include="assets\$(SpirvDomain)\shaders\**\*.csh" />
     <VgeShaderIncludes Include="assets\$(SpirvDomain)\shaders\includes\**\*.*" />
   </ItemGroup>
 
-  <Target Name="RestoreDotnetShadercTool" Condition="'$(EnableSpirv)' == 'true'" BeforeTargets="CompileSpirvShaders">
+  <Target Name="RestoreDotnetShadercTool" Condition="'$(EnableSpirv)' == 'true' Or '$(EnableSpirv)' == 'True'" BeforeTargets="CompileSpirvShaders">
     <Exec WorkingDirectory="$(VgeSolutionRoot)" Command="dotnet tool restore" />
   </Target>
 
   <Target Name="CompileSpirvShaders"
-          Condition="'$(EnableSpirv)' == 'true'"
+          Condition="'$(EnableSpirv)' == 'true' Or '$(EnableSpirv)' == 'True'"
           Inputs="@(VgeComputeShaders);@(VgeShaderIncludes)"
           Outputs="@(VgeComputeShaders->'$(SpirvArtifactsDir)\$(SpirvDomain)\shaders\%(Filename)%(Extension).spv')"
           AfterTargets="Build">
@@ -117,8 +117,26 @@
       Command="dotnet run --project &quot;$(SpirvBuildToolProject)&quot; -- --assetsRoot &quot;$(MSBuildProjectDirectory)\\assets&quot; --outputRoot &quot;$(SpirvArtifactsDir)&quot; --domain $(SpirvDomain) --targetEnv $(SpirvTargetEnv) $(SpirvWarningsAsErrorsArg) --workingDir &quot;$(VgeSolutionRoot)&quot;" />
   </Target>
 
+  <Target Name="LogSpirvCompileStatus" AfterTargets="Build">
+    <!-- Deterministic status log: prints whether SPIR-V outputs are up-to-date vs shader inputs. -->
+    <Exec
+      Condition="'$(OS)' == 'Windows_NT' And ('$(EnableSpirv)' == 'true' Or '$(EnableSpirv)' == 'True')"
+      ConsoleToMSBuild="true"
+      StandardOutputImportance="High"
+      StandardErrorImportance="High"
+      EchoOff="true"
+      Command="pwsh -NoProfile -ExecutionPolicy Bypass -Command &quot;$domain='$(SpirvDomain)'; $assetsRoot=Join-Path '$(MSBuildProjectDirectory)' 'assets'; $inRoot=Join-Path $assetsRoot ($domain + '\\shaders'); $outRoot='$(SpirvArtifactsDir)'; $outDir=Join-Path $outRoot ($domain + '\\shaders'); if(-not (Test-Path $inRoot)) { Write-Host '[SPIR-V] status: no input shaders folder (skipped)'; exit 0 }; $inputs=Get-ChildItem -Path $inRoot -Recurse -File | Where-Object { $_.Extension -ieq '.csh' -or $_.FullName -match '\\includes\\' }; $outs = @(); if(Test-Path $outDir) { $outs = Get-ChildItem -Path $outDir -Recurse -File -Filter '*.spv' }; if($outs.Count -eq 0) { Write-Host ('[SPIR-V] status: missing outputs (would rebuild) outDir=' + $outDir); exit 0 }; $newIn = ($inputs | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime; $newOut = ($outs | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime; if($newIn -gt $newOut) { Write-Host ('[SPIR-V] status: stale (would rebuild) newestIn=' + $newIn + ' newestOut=' + $newOut) } else { Write-Host ('[SPIR-V] status: up-to-date (skipped) newestIn=' + $newIn + ' newestOut=' + $newOut) }&quot;" />
+
+    <Exec
+      Condition="'$(OS)' == 'Windows_NT' And ('$(EnableSpirv)' != 'true' And '$(EnableSpirv)' != 'True')"
+      ConsoleToMSBuild="true"
+      StandardOutputImportance="High"
+      EchoOff="true"
+      Command="pwsh -NoProfile -ExecutionPolicy Bypass -Command &quot;Write-Host '[SPIR-V] status: disabled (EnableSpirv=$(EnableSpirv))'&quot;" />
+  </Target>
+
   <Target Name="CopySpirvArtifactsToOutputAssets"
-          Condition="'$(EnableSpirv)' == 'true'"
+          Condition="'$(EnableSpirv)' == 'true' Or '$(EnableSpirv)' == 'True'"
           AfterTargets="CompileSpirvShaders">
     <ItemGroup>
       <_SpirvFiles Include="$(SpirvArtifactsDir)\**\*.spv" />

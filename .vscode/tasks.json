@@ -110,7 +110,8 @@
                 "build",
                 "-c",
                 "Debug",
-                "--no-incremental"
+                "--no-incremental",
+                "-v:n"
             ],
             "options": {
                 "cwd": "${workspaceFolder}/VanillaGraphicsExpanded",
