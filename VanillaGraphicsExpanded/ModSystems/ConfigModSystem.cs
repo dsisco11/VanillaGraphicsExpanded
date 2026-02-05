@@ -26,7 +26,7 @@ internal sealed class ConfigModSystem : ModSystem
 
     private ICoreAPI? api;
     private readonly object configLibMappingLock = new();
-    private System.Collections.Generic.Dictionary<string, string>? configLibMappingKeyToCodePath;
+    private Dictionary<string, string>? configLibMappingKeyToCodePath;
     private int configLibHasPendingChanges;
     
     /// <summary>
@@ -96,7 +96,7 @@ internal sealed class ConfigModSystem : ModSystem
     {
         if (api is null) return;
 
-        api.Logger.Debug("[VGE] ConfigLib event: {0}. data={1}", eventName, SafeAttributeDump(data));
+        // api.Logger.Debug("[VGE] ConfigLib event: {0}. data={1}", eventName, SafeAttributeDump(data));
 
         bool isSaved = string.Equals(eventName, string.Format(ConfigSavedEvent, Constants.ModId), StringComparison.OrdinalIgnoreCase);
         bool isReload = string.Equals(eventName, ConfigReloadEvent, StringComparison.OrdinalIgnoreCase);
@@ -112,10 +112,6 @@ internal sealed class ConfigModSystem : ModSystem
             api.Logger.Debug("[VGE] Config (after ConfigLib apply): {0}", SafeDebugJson(Config));
             LiveConfigReload.NotifyAll(api);
         }
-        else
-        {
-            api.Logger.Debug("[VGE] ConfigLib event produced no applicable setting updates. event={0}", eventName);
-        }
 
         if (isSaved || isReload)
         {
@@ -125,10 +121,6 @@ internal sealed class ConfigModSystem : ModSystem
             {
                 Config.Sanitize();
                 PersistConfigAndNotifyReloadRequired(api, source: "ConfigLib");
-            }
-            else
-            {
-                api.Logger.Debug("[VGE] ConfigLib {0} event with no pending applied changes; skipping mod config persistence.", eventName);
             }
         }
     }
