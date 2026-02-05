@@ -131,6 +131,7 @@ public static class GpuSupport
 
     private static void CaptureContextStrings()
     {
+        GlDebug.ClearErrors();
         VersionString = SafeGetString(StringName.Version);
         VendorString = SafeGetString(StringName.Vendor);
         RendererString = SafeGetString(StringName.Renderer);
@@ -143,6 +144,7 @@ public static class GpuSupport
         ShadingLanguageVersion = TryParseLeadingVersion(ShadingLanguageVersionString);
 
         IsSharedContext = TryGetSharedContextFlag();
+        GlDebug.ThrowIfErrors();
     }
 
     private static string SafeGetString(StringName name)
@@ -251,6 +253,7 @@ public static class GpuSupport
 
     private static void CaptureContextFlagsAndProfile()
     {
+        GlDebug.ClearErrors();
         // Many context queries were introduced in GL 3.x; avoid emitting GL errors on older contexts.
         if (!IsAtLeast(ApiVersion, 3, 0))
         {
@@ -287,6 +290,7 @@ public static class GpuSupport
             IsCoreProfile = false;
             IsCompatibilityProfile = false;
         }
+        GlDebug.ThrowIfErrors();
     }
 
     #endregion
@@ -328,6 +332,7 @@ public static class GpuSupport
 
     private static void CaptureLimits()
     {
+        GlDebug.ClearErrors();
         MaxTextureSize = SafeGetInt(GetPName.MaxTextureSize);
         Max3DTextureSize = SafeGetInt(GetPName.Max3DTextureSize);
         MaxCubeMapTextureSize = SafeGetInt(GetPName.MaxCubeMapTextureSize);
@@ -371,8 +376,8 @@ public static class GpuSupport
         if (SupportsArbShaderImageLoadStore)
         {
             // Some OpenTK builds used by VS don't expose these enums; keep numeric fallbacks.
-            MaxImageUnits = SafeGetInt((GetPName)0x8F38 /* GL_MAX_IMAGE_UNITS */);
-            MaxCombinedImageUnits = SafeGetInt((GetPName)0x8F39 /* GL_MAX_COMBINED_IMAGE_UNITS */);
+            MaxImageUnits = SafeGetInt(GetPName.MaxTextureImageUnits /* (GetPName)0x8F38 GL_MAX_IMAGE_UNITS */);
+            MaxCombinedImageUnits = SafeGetInt(GetPName.MaxCombinedTextureImageUnits /* (GetPName)0x8F39 GL_MAX_COMBINED_IMAGE_UNITS */);
         }
         else
         {
@@ -394,7 +399,7 @@ public static class GpuSupport
             MaxComputeWorkGroupCount = SafeGetInt3(GetPName.MaxComputeWorkGroupCount);
             MaxComputeWorkGroupSize = SafeGetInt3(GetPName.MaxComputeWorkGroupSize);
             MaxComputeWorkGroupInvocations = SafeGetInt(GetPName.MaxComputeWorkGroupInvocations);
-            MaxComputeSharedMemorySize = SafeGetInt((GetPName)0x8262 /* GL_MAX_COMPUTE_SHARED_MEMORY_SIZE */);
+            // MaxComputeSharedMemorySize = SafeGetInt((GetPName)0x8262 /* GL_MAX_COMPUTE_SHARED_MEMORY_SIZE */);
         }
         else
         {
@@ -403,6 +408,7 @@ public static class GpuSupport
             MaxComputeWorkGroupInvocations = 0;
             MaxComputeSharedMemorySize = 0;
         }
+        GlDebug.ThrowIfErrors();
     }
 
     private static int SafeGetInt(GetPName pname)
@@ -486,6 +492,7 @@ public static class GpuSupport
 
     private static void CaptureExtensionFlags()
     {
+        GlDebug.ClearErrors();
         SupportsKhrDebug = GlExtensions.Supports("GL_KHR_debug");
         SupportsArbDirectStateAccess = GlExtensions.Supports("GL_ARB_direct_state_access");
         SupportsArbMultiBind = GlExtensions.Supports("GL_ARB_multi_bind");
@@ -504,6 +511,7 @@ public static class GpuSupport
         SupportsExtSemaphoreFd = GlExtensions.Supports("GL_EXT_semaphore_fd");
         SupportsExtMemoryObject = GlExtensions.Supports("GL_EXT_memory_object");
         SupportsExtMemoryObjectFd = GlExtensions.Supports("GL_EXT_memory_object_fd");
+        GlDebug.ThrowIfErrors();
     }
 
     private static bool IsAtLeast(Version? version, int major, int minor)

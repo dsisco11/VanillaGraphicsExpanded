@@ -151,6 +151,7 @@ internal static class GlDebug
             // Guard against KHR_debug errors when labeling IDs that aren't valid in the current context
             // (e.g., after disposal, context switches, or driver limitations).
             bool valid = identifier switch
+            
             {
                 ObjectLabelIdentifier.VertexArray => GL.IsVertexArray(id),
                 ObjectLabelIdentifier.Buffer => GL.IsBuffer(id),
@@ -241,6 +242,29 @@ internal static class GlDebug
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Drains (clears) any pending OpenGL errors on the current thread/context.
+    /// </summary>
+    public static void ClearErrors(int max = 64)
+    {
+        _ = GetErrors(max);
+    }
+
+    /// <summary>
+    /// Drains pending OpenGL errors and throws when any are present.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when OpenGL reports one or more errors.</exception>
+    public static void ThrowIfErrors(string? context = null, int max = 64)
+    {
+        string message = GetErrorsString(context, max);
+        if (message.Length == 0)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException($"OpenGL error(s): {message}");
     }
 
     public static void TryLabelFramebuffer(int framebufferId, string? name)
