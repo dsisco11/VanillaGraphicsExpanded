@@ -26,7 +26,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_relight_voxel_dda.csh");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda.csh", debugName: "Tests.RelightVoxelDda.Hit");
+        int program = computeProgram.ProgramId;
 
         const int tileSize = 8;
         const int tilesPerAxis = 1;
@@ -78,7 +79,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         // SSBO binding matches shader: binding=0.
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
-        debugCounter.BindBase(bindingIndex: 1);
+        debugCounter.BindBase(bindingIndex: 0);
 
         // Samplers use layout(binding=N): bind textures to those units.
         BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
@@ -120,7 +121,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Assert.InRange(a, 0.99f, 1.01f);
         Assert.True(r > 0.001f || g > 0.001f || b > 0.001f, $"Expected non-zero irradiance, got rgb=({r},{g},{b})");
 
-        GL.DeleteProgram(program);
+        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -129,7 +130,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_relight_voxel_dda.csh");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda.csh", debugName: "Tests.RelightVoxelDda.LightId");
+        int program = computeProgram.ProgramId;
 
         const int tileSize = 8;
         const int atlasCount = 1;
@@ -151,6 +153,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         UploadLightColorLut(lightColorLut, redId: 1);
         UploadLinearScalarLut(blockScalar, scale: 1f);
         UploadLinearScalarLut(sunScalar, scale: 0f);
+
         UploadMaterialPaletteAndSurfaceLut(materialPalette, surfaceLut);
 
         using var irradiance = Texture3D.Create(tileSize, tileSize, atlasCount, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_IrradianceAtlas");
@@ -169,7 +172,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
-        debugCounter.BindBase(bindingIndex: 1);
+        debugCounter.BindBase(bindingIndex: 0);
 
         BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
         BindSampler(TextureTarget.Texture2DArray, unit: 1, materialAtlas.TextureId);
@@ -177,6 +180,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         BindSampler(TextureTarget.Texture2D, unit: 3, lightColorLut.TextureId);
         BindSampler(TextureTarget.Texture2D, unit: 4, blockScalar.TextureId);
         BindSampler(TextureTarget.Texture2D, unit: 5, sunScalar.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 6, materialPalette.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 7, surfaceLut.TextureId);
         BindSampler(TextureTarget.Texture2D, unit: 6, materialPalette.TextureId);
         BindSampler(TextureTarget.Texture2D, unit: 7, surfaceLut.TextureId);
 
@@ -207,7 +212,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Assert.Equal(expectedRays, counters[2]); // misses
         Assert.Equal(0u, counters[3]);           // oob starts
 
-        GL.DeleteProgram(program);
+        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -216,7 +221,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_relight_voxel_dda.csh");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda.csh", debugName: "Tests.RelightVoxelDda.Miss");
+        int program = computeProgram.ProgramId;
 
         const int tileSize = 8;
         const int atlasCount = 1;
@@ -252,7 +258,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
-        debugCounter.BindBase(bindingIndex: 1);
+        debugCounter.BindBase(bindingIndex: 0);
 
         BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
         BindSampler(TextureTarget.Texture2DArray, unit: 1, materialAtlas.TextureId);
@@ -290,7 +296,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Assert.InRange(g, -1e-4f, 1e-4f);
         Assert.InRange(b, -1e-4f, 1e-4f);
 
-        GL.DeleteProgram(program);
+        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -299,7 +305,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_relight_voxel_dda.csh");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda.csh", debugName: "Tests.RelightVoxelDda.TStep");
+        int program = computeProgram.ProgramId;
 
         const int tileSize = 8;
         const int atlasCount = 1;
@@ -339,7 +346,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
-        debugCounter.BindBase(bindingIndex: 1);
+        debugCounter.BindBase(bindingIndex: 0);
 
         BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
         BindSampler(TextureTarget.Texture2DArray, unit: 1, materialAtlas.TextureId);
@@ -381,7 +388,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Assert.False(float.IsNaN(r) || float.IsNaN(g) || float.IsNaN(b));
         Assert.False(float.IsInfinity(r) || float.IsInfinity(g) || float.IsInfinity(b));
 
-        GL.DeleteProgram(program);
+        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -390,7 +397,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_relight_voxel_dda.csh");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda.csh", debugName: "Tests.RelightVoxelDda.SelfHit");
+        int program = computeProgram.ProgramId;
 
         const int tileSize = 8;
         const int atlasCount = 1;
@@ -407,6 +415,10 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         UploadLightColorLut(lightColorLut, redId: 1);
         UploadLinearScalarLut(blockScalar, scale: 1f);
         UploadLinearScalarLut(sunScalar, scale: 0f);
+
+        using var materialPalette = Texture2D.Create(16384, 1, PixelInternalFormat.Rgba32ui, debugName: "Test_MaterialPalette");
+        using var surfaceLut = Texture2D.Create(256, 256, PixelInternalFormat.Rgba32ui, debugName: "Test_SurfaceLut");
+        UploadMaterialPaletteAndSurfaceLut(materialPalette, surfaceLut);
 
         using var irradiance = Texture3D.Create(tileSize, tileSize, atlasCount, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_IrradianceAtlas");
         FillRgba16f2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount, r: 0f, g: 0f, b: 0f, a: 0f);
@@ -435,7 +447,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
-        debugCounter.BindBase(bindingIndex: 1);
+        debugCounter.BindBase(bindingIndex: 0);
 
         BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
         BindSampler(TextureTarget.Texture2DArray, unit: 1, materialAtlas.TextureId);
@@ -443,6 +455,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         BindSampler(TextureTarget.Texture2D, unit: 3, lightColorLut.TextureId);
         BindSampler(TextureTarget.Texture2D, unit: 4, blockScalar.TextureId);
         BindSampler(TextureTarget.Texture2D, unit: 5, sunScalar.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 6, materialPalette.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 7, surfaceLut.TextureId);
 
         GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
 
@@ -475,7 +489,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Assert.InRange(a, 0.99f, 1.01f);
         Assert.True(r > 1e-3f || g > 1e-3f || b > 1e-3f, "Expected non-zero irradiance from halfspace hits.");
 
-        GL.DeleteProgram(program);
+        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -484,7 +498,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_relight_voxel_dda.csh");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda.csh", debugName: "Tests.RelightVoxelDda.SelfHit2");
+        int program = computeProgram.ProgramId;
 
         const int tileSize = 8;
         const int atlasCount = 1;
@@ -520,7 +535,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
-        debugCounter.BindBase(bindingIndex: 1);
+        debugCounter.BindBase(bindingIndex: 0);
 
         BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
         BindSampler(TextureTarget.Texture2DArray, unit: 1, materialAtlas.TextureId);
@@ -556,7 +571,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Assert.InRange(g, -1e-4f, 1e-4f);
         Assert.InRange(b, -1e-4f, 1e-4f);
 
-        GL.DeleteProgram(program);
+        // Program disposed via ComputeProgram.
     }
 
     private static void FindSafeSeedForOccRes(int occRes, uint physicalPageId, uint virtualPageIndex, out uint patchId)
@@ -641,55 +656,6 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         return new ShaderTestHelper(shaderPath, includePath);
     }
 
-    private static int CompileAndLinkCompute(ShaderTestHelper helper, string computeShaderFile)
-    {
-        string? processedSource = helper.GetProcessedSource(computeShaderFile);
-        Assert.False(string.IsNullOrWhiteSpace(processedSource), $"Missing processed shader source: {computeShaderFile}");
-
-        int shaderId = GL.CreateShader(ShaderType.ComputeShader);
-        GL.ShaderSource(shaderId, processedSource);
-        GL.CompileShader(shaderId);
-
-        GL.GetShader(shaderId, ShaderParameter.CompileStatus, out int okShader);
-        if (okShader == 0)
-        {
-            string infoLog = GL.GetShaderInfoLog(shaderId) ?? string.Empty;
-            string head = GetFirstLines(processedSource, 60);
-            Assert.True(okShader != 0, $"Compilation failed for {computeShaderFile}:\n{infoLog}\n--- source head ---\n{head}");
-        }
-
-        int program = GL.CreateProgram();
-        GL.AttachShader(program, shaderId);
-        GL.LinkProgram(program);
-
-        GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int ok);
-        string log = GL.GetProgramInfoLog(program) ?? string.Empty;
-        Assert.True(ok != 0, $"Compute program link failed:\n{log}");
-
-        return program;
-    }
-
-    private static string GetFirstLines(string src, int maxLines)
-    {
-        if (maxLines <= 0) return string.Empty;
-        int count = 0;
-        int idx = 0;
-        while (idx < src.Length && count < maxLines)
-        {
-            int nl = src.IndexOf('\n', idx);
-            if (nl < 0)
-            {
-                idx = src.Length;
-                break;
-            }
-
-            idx = nl + 1;
-            count++;
-        }
-
-        return src.Substring(0, idx);
-    }
-
     private static void BindSampler(TextureTarget target, int unit, int textureId)
     {
         GL.ActiveTexture(TextureUnit.Texture0 + unit);
@@ -699,6 +665,11 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
     private static void SetUniform(int program, string name, uint value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform1(loc, value);
     }
@@ -706,6 +677,11 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
     private static bool TrySetUniform(int program, string name, uint value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         if (loc < 0) return false;
         GL.Uniform1(loc, value);
         return true;
@@ -714,6 +690,11 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
     private static new void SetUniform(int program, string name, int value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform1(loc, value);
     }
@@ -721,6 +702,11 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
     private static void SetUniform3i(int program, string name, int x, int y, int z)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform3(loc, x, y, z);
     }

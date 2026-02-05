@@ -32,7 +32,8 @@ public sealed class LumonTraceSceneRuntimeWiringEndToEndTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_trace_scene_region_to_clipmap.csh");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_trace_scene_region_to_clipmap.csh", debugName: "Tests.LumonTraceSceneRuntimeWiring.RegionToClipmap");
+        int program = computeProgram.ProgramId;
 
         // World-cell (aka chunk) payload: all solid except one air cell.
         const int len = LumonSceneTraceSceneRegionUploadGpuResources.RegionCellCount;
@@ -126,7 +127,7 @@ public sealed class LumonTraceSceneRuntimeWiringEndToEndTests : RenderTestBase
         Assert.Equal(expectedSolid, occ[Linear64(31, 31, 31)]);
         Assert.Equal(0u, occ[Linear64(33, 0, 0)]); // outside the written 32^3 region
 
-        GL.DeleteProgram(program);
+        // Program disposed via ComputeProgram.
     }
 
     private static uint[] ReadTexImageR32ui(int textureId, TextureTarget target, int width, int height, int depth)
@@ -420,25 +421,14 @@ public sealed class LumonTraceSceneRuntimeWiringEndToEndTests : RenderTestBase
         return new ShaderTestHelper(shaderPath, includePath);
     }
 
-    private static int CompileAndLinkCompute(ShaderTestHelper helper, string computeShaderFile)
-    {
-        var cs = helper.CompileShader(computeShaderFile, ShaderType.ComputeShader);
-        Assert.True(cs.IsSuccess, cs.ErrorMessage);
-
-        int program = GL.CreateProgram();
-        GL.AttachShader(program, cs.ShaderId);
-        GL.LinkProgram(program);
-
-        GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int ok);
-        string log = GL.GetProgramInfoLog(program) ?? string.Empty;
-        Assert.True(ok != 0, $"Compute program link failed:\n{log}");
-
-        return program;
-    }
-
     private static void SetUniform1i(int program, string name, int value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform1(loc, value);
     }
@@ -446,6 +436,11 @@ public sealed class LumonTraceSceneRuntimeWiringEndToEndTests : RenderTestBase
     private static void SetUniform1ui(int program, string name, uint value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform1(loc, value);
     }
@@ -453,6 +448,11 @@ public sealed class LumonTraceSceneRuntimeWiringEndToEndTests : RenderTestBase
     private static void SetUniform3i(int program, string name, int x, int y, int z)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform3(loc, x, y, z);
     }

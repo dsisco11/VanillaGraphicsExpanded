@@ -27,8 +27,10 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int markProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_mark_pages.csh");
-        int compactProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_compact_pages.csh");
+        using var markComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages.csh", debugName: "Tests.PatchIdFeedbackLimits.Mark");
+        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages.csh", debugName: "Tests.PatchIdFeedbackLimits.Compact");
+        int markProgram = markComputeProgram.ProgramId;
+        int compactProgram = compactComputeProgram.ProgramId;
 
         const int desiredPages = 4096;
         const int gW = 128;
@@ -118,8 +120,7 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         // With patchId = 1..4096 and virtualPageIndex = patchId % 16384, we expect 4096 unique vpages.
         Assert.Equal(desiredPages, seen.Count);
 
-        GL.DeleteProgram(markProgram);
-        GL.DeleteProgram(compactProgram);
+        // Programs are disposed via ComputeProgram.
     }
 
     [Fact]
@@ -128,8 +129,10 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int markProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_mark_pages.csh");
-        int compactProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_compact_pages.csh");
+        using var markComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages.csh", debugName: "Tests.PatchIdFeedbackLimits2.Mark");
+        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages.csh", debugName: "Tests.PatchIdFeedbackLimits2.Compact");
+        int markProgram = markComputeProgram.ProgramId;
+        int compactProgram = compactComputeProgram.ProgramId;
 
         const int gW = 16;
         const int gH = 16;
@@ -198,8 +201,7 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         uint requestCount = ReadAtomicCounter(pageRequestCounter, counterIndex: 0);
         Assert.Equal(0u, requestCount);
 
-        GL.DeleteProgram(markProgram);
-        GL.DeleteProgram(compactProgram);
+        // Programs are disposed via ComputeProgram.
     }
 
     [Fact]
@@ -208,8 +210,10 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int markProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_mark_pages.csh");
-        int compactProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_compact_pages.csh");
+        using var markComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages.csh", debugName: "Tests.PatchIdFeedbackLimits3.Mark");
+        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages.csh", debugName: "Tests.PatchIdFeedbackLimits3.Compact");
+        int markProgram = markComputeProgram.ProgramId;
+        int compactProgram = compactComputeProgram.ProgramId;
 
         const int desiredPages = 1024;
         const int gW = 64;
@@ -283,8 +287,7 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         LumonScenePageRequestGpu[] requests = ReadSsbo<LumonScenePageRequestGpu>(pageRequests, itemCount: 1);
         Assert.Equal(1u, requests[0].VirtualPageIndex);
 
-        GL.DeleteProgram(markProgram);
-        GL.DeleteProgram(compactProgram);
+        // Programs are disposed via ComputeProgram.
     }
 
     [Fact]
@@ -293,7 +296,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int compactProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_compact_pages.csh");
+        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages.csh", debugName: "Tests.PatchIdFeedbackLimits4.Compact");
+        int compactProgram = compactComputeProgram.ProgramId;
 
         const int chunkSlotCount = 1;
         using var usageStamp = Texture3D.Create(
@@ -338,7 +342,7 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         uint requestCount = ReadAtomicCounter(pageRequestCounter, counterIndex: 0);
         Assert.Equal(0u, requestCount);
 
-        GL.DeleteProgram(compactProgram);
+        // Program disposed via ComputeProgram.
     }
 
     private static ShaderTestHelper CreateShaderHelperOrSkip()
@@ -354,43 +358,28 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         return new ShaderTestHelper(shaderPath, includePath);
     }
 
-    private static int CompileAndLinkCompute(ShaderTestHelper helper, string computeShaderFile)
-    {
-        var cs = helper.CompileShader(computeShaderFile, ShaderType.ComputeShader);
-        Assert.True(cs.IsSuccess, cs.ErrorMessage);
-
-        int program = GL.CreateProgram();
-        GL.AttachShader(program, cs.ShaderId);
-        GL.LinkProgram(program);
-
-        GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int ok);
-        string log = GL.GetProgramInfoLog(program) ?? string.Empty;
-        Assert.True(ok != 0, $"Compute program link failed:\n{log}");
-
-        return program;
-    }
-
     private static void BindSampler2DUint(int program, string uniformName, int textureId, int unit)
     {
-        int loc = GL.GetUniformLocation(program, uniformName);
-        Assert.True(loc >= 0, $"Missing uniform {uniformName}");
         GL.ActiveTexture(TextureUnit.Texture0 + unit);
         GL.BindTexture(TextureTarget.Texture2D, textureId);
-        GL.Uniform1(loc, unit);
+        GL.ActiveTexture(TextureUnit.Texture0);
     }
 
     private static void BindSampler2DArrayUint(int program, string uniformName, int textureId, int unit)
     {
-        int loc = GL.GetUniformLocation(program, uniformName);
-        Assert.True(loc >= 0, $"Missing uniform {uniformName}");
         GL.ActiveTexture(TextureUnit.Texture0 + unit);
         GL.BindTexture(TextureTarget.Texture2DArray, textureId);
-        GL.Uniform1(loc, unit);
+        GL.ActiveTexture(TextureUnit.Texture0);
     }
 
     private static void SetUniform1ui(int program, string name, uint value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform1(loc, value);
     }

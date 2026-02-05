@@ -5,6 +5,7 @@ using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Profiling;
 
@@ -21,7 +22,7 @@ internal sealed class LumonSceneMeshCardCaptureDispatcher : IDisposable
 {
     private readonly ICoreClientAPI capi;
 
-    private GpuComputePipeline? captureMeshCardPipeline;
+    private LumonSceneCaptureMeshCardComputeShader? captureMeshCardShader;
 
     private readonly LumonSceneWorkQueueGpu<LumonSceneMeshCardCaptureWorkGpu> meshCardCaptureWork;
     private GpuShaderStorageBuffer? trianglesSsbo;
@@ -37,8 +38,8 @@ internal sealed class LumonSceneMeshCardCaptureDispatcher : IDisposable
 
     public void Dispose()
     {
-        captureMeshCardPipeline?.Dispose();
-        captureMeshCardPipeline = null;
+        captureMeshCardShader?.Dispose();
+        captureMeshCardShader = null;
 
         meshCardCaptureWork.Dispose();
 
@@ -70,7 +71,7 @@ internal sealed class LumonSceneMeshCardCaptureDispatcher : IDisposable
         if (fieldGpu is null) throw new ArgumentNullException(nameof(fieldGpu));
         if (atlases is null) throw new ArgumentNullException(nameof(atlases));
 
-        if (!EnsureCaptureMeshCardPipeline())
+        if (!EnsureCaptureMeshCardShader())
         {
             return;
         }
@@ -96,39 +97,25 @@ internal sealed class LumonSceneMeshCardCaptureDispatcher : IDisposable
 
             meshCardCaptureWork.ResetAndUpload(workScratch.AsSpan(0, jobs.Length));
 
-            using (captureMeshCardPipeline!.UseScope())
+            using (captureMeshCardShader!.UseScope())
             {
                 using var gpuScope = GlGpuProfiler.Instance.Scope("Capture.MeshCard");
 
                 // SSBO bindings.
-                meshCardCaptureWork.Items.BindBase(bindingIndex: 0);
-                fieldGpu.PatchMetadata.Ssbo.BindBase(bindingIndex: 1);
-                trianglesSsbo!.BindBase(bindingIndex: 2);
+                captureMeshCardShader.BindMeshCardCaptureWorkSsbo(meshCardCaptureWork.Items);
+                captureMeshCardShader.BindPatchMetadataSsbo(fieldGpu.PatchMetadata.Ssbo);
+                captureMeshCardShader.BindTrianglesSsbo(trianglesSsbo!);
 
-                // Bind outputs as layered images.
-                _ = captureMeshCardPipeline.ProgramLayout.TryBindImageTexture(
-                    imageUniformName: "vge_depthAtlas",
-                    texture: atlases.DepthAtlas,
-                    access: TextureAccess.WriteOnly,
-                    level: 0,
-                    layered: true,
-                    layer: 0,
-                    formatOverride: SizedInternalFormat.R16f);
+                captureMeshCardShader.BindDepthAtlasImage(atlases.DepthAtlas, access: TextureAccess.WriteOnly);
+                captureMeshCardShader.BindMaterialAtlasImage(atlases.MaterialAtlas, access: TextureAccess.WriteOnly);
 
-                _ = captureMeshCardPipeline.ProgramLayout.TryBindImageTexture(
-                    imageUniformName: "vge_materialAtlas",
-                    texture: atlases.MaterialAtlas,
-                    access: TextureAccess.WriteOnly,
-                    level: 0,
-                    layered: true,
-                    layer: 0,
-                    formatOverride: SizedInternalFormat.Rgba8);
+                captureMeshCardShader.SetAtlasLayout(
+                    tileSizeTexels: (uint)Math.Max(1, tileSizeTexels),
+                    tilesPerAxis: (uint)Math.Max(1, tilesPerAxis),
+                    tilesPerAtlas: (uint)Math.Max(1, tilesPerAtlas),
+                    borderTexels: 0u);
 
-                _ = captureMeshCardPipeline.TrySetUniform1("vge_tileSizeTexels", (uint)Math.Max(1, tileSizeTexels));
-                _ = captureMeshCardPipeline.TrySetUniform1("vge_tilesPerAxis", (uint)Math.Max(1, tilesPerAxis));
-                _ = captureMeshCardPipeline.TrySetUniform1("vge_tilesPerAtlas", (uint)Math.Max(1, tilesPerAtlas));
-                _ = captureMeshCardPipeline.TrySetUniform1("vge_borderTexels", 0u);
-                _ = captureMeshCardPipeline.TrySetUniform1("vge_captureDepthRange", Math.Max(1e-6f, captureDepthRange));
+                captureMeshCardShader.CaptureDepthRange = Math.Max(1e-6f, captureDepthRange);
 
                 int gx = (Math.Max(1, tileSizeTexels) + 7) / 8;
                 int gy = (Math.Max(1, tileSizeTexels) + 7) / 8;
@@ -141,33 +128,29 @@ internal sealed class LumonSceneMeshCardCaptureDispatcher : IDisposable
         }
     }
 
-    private bool EnsureCaptureMeshCardPipeline()
+    private bool EnsureCaptureMeshCardShader()
     {
-        if (captureMeshCardPipeline is not null && captureMeshCardPipeline.IsValid)
+        if (captureMeshCardShader is not null && captureMeshCardShader.IsValid)
         {
             return true;
         }
 
-        captureMeshCardPipeline?.Dispose();
-        captureMeshCardPipeline = null;
+        captureMeshCardShader?.Dispose();
+        captureMeshCardShader = null;
 
-        if (!GpuComputePipeline.TryCreateFromAssets(
+        if (!LumonSceneCaptureMeshCardComputeShader.TryCreate(
             api: capi,
-            shaderName: "lumonscene_capture_meshcard",
-            pipeline: out captureMeshCardPipeline,
-            sourceCode: out _,
+            shader: out captureMeshCardShader,
             infoLog: out string infoLog,
-            stageExtension: "csh",
-            defines: null,
-            debugName: "LumOn.LumonScene.CaptureMeshCard",
-            log: capi.Logger))
+            preferSpirv: true,
+            debugName: "LumOn.LumonScene.CaptureMeshCard"))
         {
             capi.Logger.Error("[VGE] Failed to compile LumonScene capture mesh-card compute shader: {0}", infoLog);
-            captureMeshCardPipeline = null;
+            captureMeshCardShader = null;
             return false;
         }
 
-        return captureMeshCardPipeline is not null;
+        return captureMeshCardShader is not null;
     }
 
     private void EnsureTrianglesBufferCreated()

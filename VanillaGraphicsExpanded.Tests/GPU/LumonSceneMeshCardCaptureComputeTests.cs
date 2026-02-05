@@ -25,7 +25,8 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_capture_meshcard.csh");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_meshcard.csh", debugName: "Tests.MeshCardCapture.PlanarQuad");
+        int program = computeProgram.ProgramId;
 
         const int tileSize = 16;
         using var depthAtlas = Texture3D.Create(tileSize, tileSize, depth: 1, PixelInternalFormat.R16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_DepthAtlas");
@@ -112,7 +113,7 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         Assert.Equal((byte)0, material[idx + 2]); // surfaceId lo
         Assert.Equal((byte)0, material[idx + 3]); // surfaceId hi
 
-        GL.DeleteProgram(program);
+        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -121,7 +122,8 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_capture_meshcard.csh");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_meshcard.csh", debugName: "Tests.MeshCardCapture.Slanted");
+        int program = computeProgram.ProgramId;
 
         const int tileSize = 16;
         using var depthAtlas = Texture3D.Create(tileSize, tileSize, depth: 1, PixelInternalFormat.R16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_DepthAtlas");
@@ -187,7 +189,7 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         Assert.InRange(min, dz - 0.03f, dz + 0.03f);
         Assert.InRange(max, dz - 0.03f, dz + 0.03f);
 
-        GL.DeleteProgram(program);
+        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -196,7 +198,8 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_capture_meshcard.csh");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_meshcard.csh", debugName: "Tests.MeshCardCapture.Coverage");
+        int program = computeProgram.ProgramId;
 
         const int tileSize = 16;
         using var depthAtlas = Texture3D.Create(tileSize, tileSize, depth: 1, PixelInternalFormat.R16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_DepthAtlas");
@@ -270,7 +273,7 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         Vector3 decoded = DecodeOctNormal01(new Vector2(material[idx + 0] / 255f, material[idx + 1] / 255f));
         Assert.True(Vector3.Dot(decoded, n) > 0.99f, $"Captured normal dot expected too low: {Vector3.Dot(decoded, n)}");
 
-        GL.DeleteProgram(program);
+        // Program disposed via ComputeProgram.
     }
 
     private static Vector3 DecodeOctNormal01(Vector2 oct01)
@@ -300,22 +303,6 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         return new ShaderTestHelper(shaderPath, includePath);
     }
 
-    private static int CompileAndLinkCompute(ShaderTestHelper helper, string computeShaderFile)
-    {
-        var cs = helper.CompileShader(computeShaderFile, ShaderType.ComputeShader);
-        Assert.True(cs.IsSuccess, cs.ErrorMessage);
-
-        int program = GL.CreateProgram();
-        GL.AttachShader(program, cs.ShaderId);
-        GL.LinkProgram(program);
-
-        GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int ok);
-        string log = GL.GetProgramInfoLog(program) ?? string.Empty;
-        Assert.True(ok != 0, $"Compute program link failed:\n{log}");
-
-        return program;
-    }
-
     private static GpuShaderStorageBuffer CreateSsbo<T>(string name, ReadOnlySpan<T> data) where T : unmanaged
     {
         var ssbo = GpuShaderStorageBuffer.Create(BufferUsageHint.DynamicDraw, debugName: name);
@@ -328,6 +315,11 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
     private static void SetUniformLocal(int program, string name, uint value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform1(loc, value);
     }
@@ -335,6 +327,11 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
     private static void SetUniformLocal(int program, string name, float value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform1(loc, value);
     }
@@ -342,6 +339,11 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
     private static bool TrySetUniformLocal(int program, string name, uint value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         if (loc < 0)
         {
             return false;

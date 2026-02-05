@@ -268,8 +268,12 @@ internal static class Program
 
         string werror = warningsAsErrors ? " -Werror" : string.Empty;
 
+        // Keep debug names in SPIR-V so OpenGL can reflect uniforms by name.
+        // (Without OpName/OpMemberName, glGetUniformLocation() will fail for many bindings.)
+        const string keepNames = " -g";
+
         string args =
-            $"tool run dotnet-shaderc -- --shader-stage={stage} --target-env={targetEnv} -x=glsl{werror} -o \"{outputFile}\" \"{inputFile}\"";
+            $"tool run dotnet-shaderc -- --shader-stage={stage} --target-env={targetEnv}{keepNames} -x=glsl{werror} -o \"{outputFile}\" \"{inputFile}\"";
 
         var psi = new ProcessStartInfo
         {

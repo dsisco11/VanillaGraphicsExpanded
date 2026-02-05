@@ -4,6 +4,7 @@ using System.Collections.Generic;
 
 using OpenTK.Graphics.OpenGL;
 
+using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
@@ -28,7 +29,7 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
     private readonly LumonSceneFeedbackUpdateRenderer feedback;
     private readonly LumonSceneOccupancyClipmapUpdateRenderer occupancy;
 
-    private GpuComputePipeline? relightVoxelPipeline;
+    private LumonSceneRelightVoxelDdaComputeShader? relightVoxelShader;
     private GpuAtomicCounterBuffer? debugCounters;
 
     private int lastWorkCount;
@@ -249,12 +250,12 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
             // Upload work buffer for GPU consumption.
             nearGpu.RelightWork.ResetAndUpload(work.AsSpan(0, workCount));
 
-            if (!EnsureRelightVoxelPipeline())
+            if (!EnsureRelightVoxelShader())
             {
                 return;
             }
 
-            using (relightVoxelPipeline!.UseScope())
+            using (relightVoxelShader!.UseScope())
             {
                 using var gpuScope = GlGpuProfiler.Instance.Scope("Relight.VoxelDda");
 
@@ -265,60 +266,56 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
                 var terrainBridgeUbo = LumOnTerrainBridgeUboState.UboOrNull;
                 if (terrainBridgeUbo is not null)
                 {
-                    _ = relightVoxelPipeline.ProgramLayout.TryBindUniformBlock(LumOnTerrainBridgeUboState.BlockName, terrainBridgeUbo);
+                    relightVoxelShader.BindTerrainBridgeUbo(terrainBridgeUbo);
                 }
 
-                nearGpu.RelightWork.Items.BindBase(bindingIndex: 0);
-                nearGpu.PatchMetadata.Ssbo.BindBase(bindingIndex: 1);
+                relightVoxelShader.BindRelightWorkSsbo(nearGpu.RelightWork.Items);
+                relightVoxelShader.BindPatchMetaSsbo(nearGpu.PatchMetadata.Ssbo);
 
-                // Samplers (use layout(binding=...) in GLSL, cached by ProgramLayout).
-                _ = relightVoxelPipeline.ProgramLayout.TryBindSamplerTexture("vge_depthAtlas", TextureTarget.Texture2DArray, atlases.DepthAtlasTextureId);
-                _ = relightVoxelPipeline.ProgramLayout.TryBindSamplerTexture("vge_materialAtlas", TextureTarget.Texture2DArray, atlases.MaterialAtlasTextureId);
+                relightVoxelShader.BindDepthAtlas(atlases.DepthAtlasTextureId);
+                relightVoxelShader.BindMaterialAtlas(atlases.MaterialAtlasTextureId);
 
-                _ = relightVoxelPipeline.ProgramLayout.TryBindSamplerTexture("vge_occL0", TextureTarget.Texture3D, occRes.OccupancyLevels[0].TextureId);
-                _ = relightVoxelPipeline.ProgramLayout.TryBindSamplerTexture("vge_lightColorLut", TextureTarget.Texture2D, occRes.LightColorLut.TextureId);
-                _ = relightVoxelPipeline.ProgramLayout.TryBindSamplerTexture("vge_blockLevelScalarLut", TextureTarget.Texture2D, occRes.BlockLevelScalarLut.TextureId);
-                _ = relightVoxelPipeline.ProgramLayout.TryBindSamplerTexture("vge_sunLevelScalarLut", TextureTarget.Texture2D, occRes.SunLevelScalarLut.TextureId);
-                _ = relightVoxelPipeline.ProgramLayout.TryBindSamplerTexture("vge_materialPalette", TextureTarget.Texture2D, occRes.MaterialPalette.TextureId);
-                _ = relightVoxelPipeline.ProgramLayout.TryBindSamplerTexture("vge_surfaceLut", TextureTarget.Texture2D, occRes.SurfaceLut.TextureId);
+                relightVoxelShader.BindOccL0(occRes.OccupancyLevels[0].TextureId);
+                relightVoxelShader.BindLightColorLut(occRes.LightColorLut.TextureId);
+                relightVoxelShader.BindBlockLevelScalarLut(occRes.BlockLevelScalarLut.TextureId);
+                relightVoxelShader.BindSunLevelScalarLut(occRes.SunLevelScalarLut.TextureId);
+                relightVoxelShader.BindMaterialPalette(occRes.MaterialPalette.TextureId);
+                relightVoxelShader.BindSurfaceLut(occRes.SurfaceLut.TextureId);
 
-                // Output atlas as layered image (unit derived from shader layout(binding=...)).
-                _ = relightVoxelPipeline.ProgramLayout.TryBindImageTexture(
-                    imageUniformName: "vge_irradianceAtlas",
-                    texture: atlases.IrradianceAtlas,
-                    access: TextureAccess.ReadWrite,
-                    level: 0,
-                    layered: true,
-                    layer: 0,
-                    formatOverride: SizedInternalFormat.Rgba16f);
+                relightVoxelShader.BindIrradianceAtlasImage(atlases.IrradianceAtlas, access: TextureAccess.ReadWrite);
 
-                _ = relightVoxelPipeline.TrySetUniform1("vge_tileSizeTexels", (uint)tileSize);
-                _ = relightVoxelPipeline.TrySetUniform1("vge_tilesPerAxis", (uint)tilesPerAxis);
-                _ = relightVoxelPipeline.TrySetUniform1("vge_tilesPerAtlas", (uint)tilesPerAtlas);
-                _ = relightVoxelPipeline.TrySetUniform1("vge_borderTexels", 0u);
+                relightVoxelShader.SetAtlasLayout(
+                    tileSizeTexels: (uint)tileSize,
+                    tilesPerAxis: (uint)tilesPerAxis,
+                    tilesPerAtlas: (uint)tilesPerAtlas,
+                    borderTexels: 0u);
 
-                _ = relightVoxelPipeline.TrySetUniform1("vge_frameIndex", frameIndex);
-                _ = relightVoxelPipeline.TrySetUniform1("vge_texelsPerPagePerFrame", (uint)Math.Max(0, cfg.RelightTexelsPerPagePerFrame));
-                _ = relightVoxelPipeline.TrySetUniform1("vge_raysPerTexel", (uint)Math.Max(0, cfg.RelightRaysPerTexel));
-                _ = relightVoxelPipeline.TrySetUniform1("vge_maxDdaSteps", (uint)Math.Max(0, cfg.RelightMaxDdaSteps));
+                relightVoxelShader.SetRelightParams(
+                    frameIndex: frameIndex,
+                    texelsPerPagePerFrame: (uint)Math.Max(0, cfg.RelightTexelsPerPagePerFrame),
+                    raysPerTexel: (uint)Math.Max(0, cfg.RelightRaysPerTexel),
+                    maxDdaSteps: (uint)Math.Max(0, cfg.RelightMaxDdaSteps),
+                    debugCountersEnabled: dbg);
 
-                _ = relightVoxelPipeline.TrySetUniform1("vge_debugCountersEnabled", dbg ? 1u : 0u);
-
-                _ = relightVoxelPipeline.TrySetUniform3("vge_occOriginMinCell0", occOriginMinCell0.X, occOriginMinCell0.Y, occOriginMinCell0.Z);
-                _ = relightVoxelPipeline.TrySetUniform3("vge_occRing0", occRing0.X, occRing0.Y, occRing0.Z);
-
-                _ = relightVoxelPipeline.TrySetUniform1("vge_occResolution", occResolution);
+                relightVoxelShader.SetOccupancyMapping(
+                    originMinCellX: occOriginMinCell0.X,
+                    originMinCellY: occOriginMinCell0.Y,
+                    originMinCellZ: occOriginMinCell0.Z,
+                    ringX: occRing0.X,
+                    ringY: occRing0.Y,
+                    ringZ: occRing0.Z,
+                    resolution: occResolution);
 
                 if (debugCounters is not null && debugCounters.IsValid)
                 {
                     Span<uint> zero = stackalloc uint[4] { 0u, 0u, 0u, 0u };
                     debugCounters.UploadSubData((ReadOnlySpan<uint>)zero, dstOffsetBytes: 0);
-                    debugCounters.BindBase(bindingIndex: 0);
+                    relightVoxelShader.BindDebugCounters(debugCounters);
                 }
 
                 int gx = (tileSize + 7) / 8;
                 int gy = (tileSize + 7) / 8;
-                relightVoxelPipeline.Dispatch(gx, gy, workCount);
+                GL.DispatchCompute(gx, gy, workCount);
             }
 
             // Relight writes irradiance via imageStore, then the same texture is sampled as a sampler2DArray
@@ -392,8 +389,8 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
     {
         capi.Event.LeaveWorld -= OnLeaveWorld;
 
-        relightVoxelPipeline?.Dispose();
-        relightVoxelPipeline = null;
+        relightVoxelShader?.Dispose();
+        relightVoxelShader = null;
 
         debugCounters?.Dispose();
         debugCounters = null;
@@ -411,8 +408,8 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
         lastClearedNeedsRelightFail = 0;
         relightBatchStateByVirtualKey.Clear();
         lastBatchCount = 1;
-        relightVoxelPipeline?.Dispose();
-        relightVoxelPipeline = null;
+        relightVoxelShader?.Dispose();
+        relightVoxelShader = null;
 
         debugCounters?.Dispose();
         debugCounters = null;
@@ -445,33 +442,29 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
         return true;
     }
 
-    private bool EnsureRelightVoxelPipeline()
+    private bool EnsureRelightVoxelShader()
     {
-        if (relightVoxelPipeline is not null && relightVoxelPipeline.IsValid)
+        if (relightVoxelShader is not null && relightVoxelShader.IsValid)
         {
             return true;
         }
 
-        relightVoxelPipeline?.Dispose();
-        relightVoxelPipeline = null;
+        relightVoxelShader?.Dispose();
+        relightVoxelShader = null;
 
-        if (!GpuComputePipeline.TryCreateFromAssets(
+        if (!LumonSceneRelightVoxelDdaComputeShader.TryCreate(
             api: capi,
-            shaderName: "lumonscene_relight_voxel_dda",
-            pipeline: out relightVoxelPipeline,
-            sourceCode: out _,
+            shader: out relightVoxelShader,
             infoLog: out string infoLog,
-            stageExtension: "csh",
-            defines: null,
-            debugName: "LumOn.LumonScene.RelightVoxelDda",
-            log: capi.Logger))
+            preferSpirv: true,
+            debugName: "LumOn.LumonScene.RelightVoxelDda"))
         {
             capi.Logger.Error("[VGE] Failed to compile LumonScene relight compute shader: {0}", infoLog);
-            relightVoxelPipeline = null;
+            relightVoxelShader = null;
             return false;
         }
 
-        return relightVoxelPipeline is not null;
+        return relightVoxelShader is not null;
     }
 
     private uint GetAndAdvanceBatchIndex(ulong virtualKey, int batchCount, bool isPartial)

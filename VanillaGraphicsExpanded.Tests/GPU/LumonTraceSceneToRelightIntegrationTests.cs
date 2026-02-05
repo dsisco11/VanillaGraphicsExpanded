@@ -27,8 +27,10 @@ public sealed class LumonTraceSceneToRelightIntegrationTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int regionToClipProgram = CompileAndLinkCompute(helper, "lumonscene_trace_scene_region_to_clipmap.csh");
-        int relightProgram = CompileAndLinkCompute(helper, "lumonscene_relight_voxel_dda.csh");
+        using var regionToClipComputeProgram = ComputeProgram.Create(helper, "lumonscene_trace_scene_region_to_clipmap.csh", debugName: "Tests.LumonTraceSceneToRelight.RegionToClipmap");
+        using var relightComputeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda.csh", debugName: "Tests.LumonTraceSceneToRelight.Relight");
+        int regionToClipProgram = regionToClipComputeProgram.ProgramId;
+        int relightProgram = relightComputeProgram.ProgramId;
 
         // Clipmap config: single level, 32^3, origin/ring at 0 (no wrap offsets).
         const int res = 32;
@@ -97,6 +99,28 @@ public sealed class LumonTraceSceneToRelightIntegrationTests : RenderTestBase
         UploadLinearScalarLut(blockScalar, scale: 1f);
         UploadLinearScalarLut(sunScalar, scale: 0f);
 
+        using var materialPalette = Texture2D.Create(width: 64, height: 1, format: PixelInternalFormat.Rgba32ui, filter: TextureFilterMode.Nearest, debugName: "Test_MaterialPalette");
+        using var surfaceLut = Texture2D.Create(width: 256, height: 256, format: PixelInternalFormat.Rgba32ui, filter: TextureFilterMode.Nearest, debugName: "Test_SurfaceLut");
+
+        // materialPaletteIndex=1 => palette texel x=1. Set all faces to surfaceId=1.
+        uint[] pal = new uint[64 * 4];
+        uint surfaceId = 1u;
+        uint packed2 = surfaceId | (surfaceId << 16);
+        pal[1 * 4 + 0] = packed2;
+        pal[1 * 4 + 1] = packed2;
+        pal[1 * 4 + 2] = packed2;
+        pal[1 * 4 + 3] = 0u;
+        materialPalette.UploadDataImmediate(pal);
+
+        // SurfaceLut is addressed by 16-bit surfaceId: (x=lo8, y=hi8). Put surfaceId=1 at (1,0).
+        uint[] surf = new uint[256 * 256 * 4];
+        int surfO = ((0 * 256) + 1) * 4;
+        surf[surfO + 0] = 255u;
+        surf[surfO + 1] = 255u;
+        surf[surfO + 2] = 255u;
+        surf[surfO + 3] = 0u;
+        surfaceLut.UploadDataImmediate(surf);
+
         using var irradiance = Texture3D.Create(tileSize, tileSize, atlasCount, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_IrradianceAtlas");
         FillRgba16f2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount, r: 0f, g: 0f, b: 0f, a: 0f);
 
@@ -114,31 +138,19 @@ public sealed class LumonTraceSceneToRelightIntegrationTests : RenderTestBase
         GL.UseProgram(relightProgram);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
-        debugCounter.BindBase(bindingIndex: 1);
+        debugCounter.BindBase(bindingIndex: 0);
 
-        // Bind samplers/images through the production program-layout cache (matches runtime binding behavior).
-        var layout = GpuProgramLayout.TryBuild(relightProgram);
-        Assert.True(layout.SamplerBindings.Count > 0, "GpuProgramLayout.TryBuild produced no sampler bindings for the relight program.");
-        Assert.True(layout.ImageBindings.Count > 0, "GpuProgramLayout.TryBuild produced no image bindings for the relight program.");
+        // SPIR-V: bind samplers/images by explicit binding indices from the shader.
+        BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
+        BindSampler(TextureTarget.Texture2DArray, unit: 1, materialAtlas.TextureId);
+        BindSampler(TextureTarget.Texture3D, unit: 2, occL0.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 3, lightColorLut.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 4, blockScalar.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 5, sunScalar.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 6, materialPalette.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 7, surfaceLut.TextureId);
 
-        // Note: vge_depthAtlas may be optimized out in the current relight shader; treat it as optional.
-        if (layout.SamplerBindings.ContainsKey("vge_depthAtlas"))
-        {
-            Assert.True(layout.TryBindSamplerTexture("vge_depthAtlas", TextureTarget.Texture2DArray, depthAtlas.TextureId), $"Failed to bind vge_depthAtlas. Known: {FormatKeys(layout.SamplerBindings)}");
-        }
-        Assert.True(layout.TryBindSamplerTexture("vge_materialAtlas", TextureTarget.Texture2DArray, materialAtlas.TextureId), $"Missing sampler binding for vge_materialAtlas. Known: {FormatKeys(layout.SamplerBindings)}");
-        Assert.True(layout.TryBindSamplerTexture("vge_occL0", TextureTarget.Texture3D, occL0.TextureId), $"Missing sampler binding for vge_occL0. Known: {FormatKeys(layout.SamplerBindings)}");
-        Assert.True(layout.TryBindSamplerTexture("vge_lightColorLut", TextureTarget.Texture2D, lightColorLut.TextureId), $"Missing sampler binding for vge_lightColorLut. Known: {FormatKeys(layout.SamplerBindings)}");
-        Assert.True(layout.TryBindSamplerTexture("vge_blockLevelScalarLut", TextureTarget.Texture2D, blockScalar.TextureId), $"Missing sampler binding for vge_blockLevelScalarLut. Known: {FormatKeys(layout.SamplerBindings)}");
-        Assert.True(layout.TryBindSamplerTexture("vge_sunLevelScalarLut", TextureTarget.Texture2D, sunScalar.TextureId), $"Missing sampler binding for vge_sunLevelScalarLut. Known: {FormatKeys(layout.SamplerBindings)}");
-        Assert.True(layout.TryBindImageTexture(
-            "vge_irradianceAtlas",
-            irradiance,
-            access: TextureAccess.ReadWrite,
-            level: 0,
-            layered: true,
-            layer: 0,
-            formatOverride: SizedInternalFormat.Rgba16f), $"Missing image binding for vge_irradianceAtlas. Known: {FormatKeys(layout.ImageBindings)}");
+        irradiance.BindImageUnit(unit: 0, access: TextureAccess.ReadWrite, level: 0, layered: true, layer: 0, format: SizedInternalFormat.Rgba16f);
 
         SetUniform(relightProgram, "vge_tileSizeTexels", (uint)tileSize);
         SetUniform(relightProgram, "vge_tilesPerAxis", 1u);
@@ -167,8 +179,14 @@ public sealed class LumonTraceSceneToRelightIntegrationTests : RenderTestBase
         Assert.Equal(0u, counters[2]);           // misses
         Assert.Equal(0u, counters[3]);           // oob starts
 
-        GL.DeleteProgram(regionToClipProgram);
-        GL.DeleteProgram(relightProgram);
+        // Programs are disposed via ComputeProgram.
+    }
+
+    private static void BindSampler(TextureTarget target, int unit, int textureId)
+    {
+        GL.ActiveTexture(TextureUnit.Texture0 + unit);
+        GL.BindTexture(target, textureId);
+        GL.ActiveTexture(TextureUnit.Texture0);
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -267,6 +285,11 @@ public sealed class LumonTraceSceneToRelightIntegrationTests : RenderTestBase
     private static void SetUniform3i(int program, string name, int x, int y, int z)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform3(loc, x, y, z);
     }
@@ -274,6 +297,11 @@ public sealed class LumonTraceSceneToRelightIntegrationTests : RenderTestBase
     private static new void SetUniform(int program, string name, int value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform1(loc, value);
     }
@@ -281,6 +309,11 @@ public sealed class LumonTraceSceneToRelightIntegrationTests : RenderTestBase
     private static void SetUniform(int program, string name, uint value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform1(loc, value);
     }
@@ -288,6 +321,11 @@ public sealed class LumonTraceSceneToRelightIntegrationTests : RenderTestBase
     private static bool TrySetUniform(int program, string name, uint value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         if (loc < 0) return false;
         GL.Uniform1(loc, value);
         return true;
@@ -397,22 +435,6 @@ public sealed class LumonTraceSceneToRelightIntegrationTests : RenderTestBase
         }
 
         return new ShaderTestHelper(shaderPath, includePath);
-    }
-
-    private static int CompileAndLinkCompute(ShaderTestHelper helper, string computeShaderFile)
-    {
-        var cs = helper.CompileShader(computeShaderFile, ShaderType.ComputeShader);
-        Assert.True(cs.IsSuccess, cs.ErrorMessage);
-
-        int program = GL.CreateProgram();
-        GL.AttachShader(program, cs.ShaderId);
-        GL.LinkProgram(program);
-
-        GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int ok);
-        string log = GL.GetProgramInfoLog(program) ?? string.Empty;
-        Assert.True(ok != 0, $"Compute program link failed:\n{log}");
-
-        return program;
     }
 
     private static string FormatKeys(System.Collections.Generic.IReadOnlyDictionary<string, int> dict)

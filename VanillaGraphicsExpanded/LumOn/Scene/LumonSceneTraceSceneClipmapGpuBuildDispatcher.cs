@@ -5,6 +5,7 @@ using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Profiling;
 
@@ -20,7 +21,7 @@ internal sealed class LumonSceneTraceSceneClipmapGpuBuildDispatcher : IDisposabl
 {
     private readonly ICoreClientAPI capi;
 
-    private GpuComputePipeline? pipeline;
+    private LumonSceneTraceSceneRegionToClipmapComputeShader? shader;
 
     private readonly LumonSceneTraceSceneRegionUploadGpuResources staging;
 
@@ -32,8 +33,8 @@ internal sealed class LumonSceneTraceSceneClipmapGpuBuildDispatcher : IDisposabl
 
     public void Dispose()
     {
-        pipeline?.Dispose();
-        pipeline = null;
+        shader?.Dispose();
+        shader = null;
         staging.Dispose();
     }
 
@@ -59,7 +60,7 @@ internal sealed class LumonSceneTraceSceneClipmapGpuBuildDispatcher : IDisposabl
             return 0;
         }
 
-        if (!EnsurePipeline())
+        if (!EnsureShader())
         {
             return 0;
         }
@@ -72,7 +73,7 @@ internal sealed class LumonSceneTraceSceneClipmapGpuBuildDispatcher : IDisposabl
 
         using var gpuScope = GlGpuProfiler.Instance.Scope("TraceScene.RegionToClipmap");
 
-        using (pipeline!.UseScope())
+        using (shader!.UseScope())
         {
             // Bind staging SSBOs + counter.
             staging.BindForCompute();
@@ -81,18 +82,12 @@ internal sealed class LumonSceneTraceSceneClipmapGpuBuildDispatcher : IDisposabl
             int max = Math.Min(8, resources.OccupancyLevels.Length);
             for (int i = 0; i < max; i++)
             {
-                resources.OccupancyLevels[i].BindImageUnit(
-                    unit: i,
-                    access: TextureAccess.WriteOnly,
-                    level: 0,
-                    layered: true,
-                    layer: 0,
-                    format: SizedInternalFormat.R32ui);
+                shader.BindOccLevelImage(i, resources.OccupancyLevels[i], access: TextureAccess.WriteOnly);
             }
 
-            _ = pipeline.TrySetUniform1("vge_levels", levels);
-            _ = pipeline.TrySetUniform1("vge_resolution", resolution);
-            _ = pipeline.TrySetUniform1("vge_regionUpdateCount", (uint)count);
+            shader.Levels = levels;
+            shader.Resolution = resolution;
+            shader.RegionUpdateCount = (uint)count;
 
             // Upload origin/ring arrays (best-effort; unused elements are ignored).
             for (int i = 0; i < Math.Min(8, levels); i++)
@@ -100,8 +95,8 @@ internal sealed class LumonSceneTraceSceneClipmapGpuBuildDispatcher : IDisposabl
                 VectorInt3 o = i < originMinCellByLevel.Length ? originMinCellByLevel[i] : default;
                 VectorInt3 r = i < ringByLevel.Length ? ringByLevel[i] : default;
 
-                _ = pipeline.TrySetUniform3($"vge_originMinCell[{i}]", o.X, o.Y, o.Z);
-                _ = pipeline.TrySetUniform3($"vge_ring[{i}]", r.X, r.Y, r.Z);
+                shader.SetOriginMinCell(i, o.X, o.Y, o.Z);
+                shader.SetRing(i, r.X, r.Y, r.Z);
             }
 
             // Dispatch:
@@ -120,32 +115,28 @@ internal sealed class LumonSceneTraceSceneClipmapGpuBuildDispatcher : IDisposabl
         return count;
     }
 
-    private bool EnsurePipeline()
+    private bool EnsureShader()
     {
-        if (pipeline is not null && pipeline.IsValid)
+        if (shader is not null && shader.IsValid)
         {
             return true;
         }
 
-        pipeline?.Dispose();
-        pipeline = null;
+        shader?.Dispose();
+        shader = null;
 
-        if (!GpuComputePipeline.TryCreateFromAssets(
+        if (!LumonSceneTraceSceneRegionToClipmapComputeShader.TryCreate(
             api: capi,
-            shaderName: "lumonscene_trace_scene_region_to_clipmap",
-            pipeline: out pipeline,
-            sourceCode: out _,
+            shader: out shader,
             infoLog: out string infoLog,
-            stageExtension: "csh",
-            defines: null,
-            debugName: "LumOn.TraceScene.RegionToClipmap",
-            log: capi.Logger))
+            preferSpirv: true,
+            debugName: "LumOn.TraceScene.RegionToClipmap"))
         {
             capi.Logger.Error("[VGE] Failed to compile TraceScene region->clipmap compute shader: {0}", infoLog);
-            pipeline = null;
+            shader = null;
             return false;
         }
 
-        return pipeline is not null;
+        return shader is not null;
     }
 }

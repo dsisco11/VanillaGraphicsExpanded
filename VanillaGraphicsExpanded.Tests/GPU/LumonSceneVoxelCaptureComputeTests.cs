@@ -25,7 +25,8 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_capture_voxel.csh");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel.csh", debugName: "Tests.LumonSceneVoxelCapture.SingleWorkItem");
+        int program = computeProgram.ProgramId;
 
         const int tileSize = 16;
         const int tilesPerAxis = 1;
@@ -101,7 +102,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         Assert.Equal((byte)9, b);    // surfaceId low byte
         Assert.Equal((byte)0, a);    // surfaceId high byte
 
-        GL.DeleteProgram(program);
+        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -110,7 +111,8 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_capture_voxel.csh");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel.csh", debugName: "Tests.LumonSceneVoxelCapture.MultiChunkSlots");
+        int program = computeProgram.ProgramId;
 
         const int tileSize = 16;
         const int tilesPerAxis = 2;
@@ -174,7 +176,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         Assert.InRange(m1.OriginWS.Y, -0.01f, 0.01f);
         Assert.InRange(m1.OriginWS.Z, -0.01f, 0.01f);
 
-        GL.DeleteProgram(program);
+        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -183,7 +185,8 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_capture_voxel.csh");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel.csh", debugName: "Tests.LumonSceneVoxelCapture.MultipleAtlases");
+        int program = computeProgram.ProgramId;
 
         const int tileSize = 8;
         const int tilesPerAxis = 2;
@@ -279,7 +282,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         float dUnwritten = depth[LinearIndex(w, h, layer: 0, x: tileSize + tileSize / 2, y: tileSize / 2)];
         Assert.InRange(dUnwritten, 0.98f, 1.02f);
 
-        GL.DeleteProgram(program);
+        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -288,7 +291,8 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_capture_voxel.csh");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel.csh", debugName: "Tests.LumonSceneVoxelCapture.LayeredWrites");
+        int program = computeProgram.ProgramId;
 
         const int tileSize = 16;
 
@@ -352,7 +356,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         Assert.Equal((byte)9, b);
         Assert.Equal((byte)0, a);
 
-        GL.DeleteProgram(program);
+        // Program disposed via ComputeProgram.
     }
 
     private static ShaderTestHelper CreateShaderHelperOrSkip()
@@ -368,25 +372,14 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         return new ShaderTestHelper(shaderPath, includePath);
     }
 
-    private static int CompileAndLinkCompute(ShaderTestHelper helper, string computeShaderFile)
-    {
-        var cs = helper.CompileShader(computeShaderFile, ShaderType.ComputeShader);
-        Assert.True(cs.IsSuccess, cs.ErrorMessage);
-
-        int program = GL.CreateProgram();
-        GL.AttachShader(program, cs.ShaderId);
-        GL.LinkProgram(program);
-
-        GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int ok);
-        string log = GL.GetProgramInfoLog(program) ?? string.Empty;
-        Assert.True(ok != 0, $"Compute program link failed:\n{log}");
-
-        return program;
-    }
-
     private static void SetUniform(int program, string name, uint value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform1(loc, value);
     }
@@ -394,6 +387,11 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
     private static void SetUniform1i(int program, string name, int value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform1(loc, value);
     }
@@ -401,6 +399,11 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
     private static void SetUniform3i(int program, string name, int x, int y, int z)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform3(loc, x, y, z);
     }
@@ -408,6 +411,11 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
     private static bool TrySetUniform(int program, string name, uint value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         if (loc < 0)
         {
             return false;

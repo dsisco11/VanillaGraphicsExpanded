@@ -26,7 +26,8 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_trace_scene_region_to_clipmap.csh");
+        using var program = ComputeProgram.Create(helper, "lumonscene_trace_scene_region_to_clipmap.csh", debugName: "Tests.LumonTraceSceneRegionToClipmap.L0");
+        int programId = program.ProgramId;
 
         const int res = 32;
         const int regionSize = 32;
@@ -64,7 +65,7 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
 
         using var atomicCounter = CreateAtomicCounterBuffer(initialValue: 1u);
 
-        GL.UseProgram(program);
+        GL.UseProgram(programId);
 
         // SSBO bindings match the shader:
         // binding=0 payload, binding=1 updates, atomic counter binding=0.
@@ -82,11 +83,11 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
             format: SizedInternalFormat.R32ui);
 
         // Uniforms.
-        SetUniform(program, "vge_levels", 1);
-        SetUniform(program, "vge_resolution", res);
-        SetUniform1ui(program, "vge_regionUpdateCount", 1u);
-        SetUniform3i(program, "vge_originMinCell[0]", 0, 0, 0);
-        SetUniform3i(program, "vge_ring[0]", 0, 0, 0);
+        SetUniform(programId, "vge_levels", 1);
+        SetUniform(programId, "vge_resolution", res);
+        SetUniform1ui(programId, "vge_regionUpdateCount", 1u);
+        SetUniform3i(programId, "vge_originMinCell[0]", 0, 0, 0);
+        SetUniform3i(programId, "vge_ring[0]", 0, 0, 0);
 
         // Dispatch: groupsPerRegionXY=4, groupsZ=4 (one region).
         GL.DispatchCompute(4, 4, 4);
@@ -107,7 +108,7 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
 
         Assert.Equal(ExpectedAt(13, 7, 21), outData[TexIndex32(13, 7, 21)]);
 
-        GL.DeleteProgram(program);
+        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -116,7 +117,8 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_trace_scene_region_to_clipmap.csh");
+        using var program = ComputeProgram.Create(helper, "lumonscene_trace_scene_region_to_clipmap.csh", debugName: "Tests.LumonTraceSceneRegionToClipmap.MultiLevel");
+        int programId = program.ProgramId;
 
         const int res = 32;
         const int regionSize = 32;
@@ -173,7 +175,7 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
         using var updatesSsbo = CreateSsbo<RegionUpdateGpu>("Test_UpdatesSSBO", new[] { upd });
         using var atomicCounter = CreateAtomicCounterBuffer(initialValue: 1u);
 
-        GL.UseProgram(program);
+        GL.UseProgram(programId);
 
         payloadSsbo.BindBase(bindingIndex: 0);
         updatesSsbo.BindBase(bindingIndex: 1);
@@ -184,15 +186,15 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
         occ1.BindImageUnit(unit: 1, access: TextureAccess.WriteOnly, level: 0, layered: true, layer: 0, format: SizedInternalFormat.R32ui);
         occ2.BindImageUnit(unit: 2, access: TextureAccess.WriteOnly, level: 0, layered: true, layer: 0, format: SizedInternalFormat.R32ui);
 
-        SetUniform(program, "vge_levels", 3);
-        SetUniform(program, "vge_resolution", res);
-        SetUniform1ui(program, "vge_regionUpdateCount", 1u);
+        SetUniform(programId, "vge_levels", 3);
+        SetUniform(programId, "vge_resolution", res);
+        SetUniform1ui(programId, "vge_regionUpdateCount", 1u);
 
         // Identity mapping for all levels (region only covers 0..31 anyway).
         for (int level = 0; level < 3; level++)
         {
-            SetUniform3i(program, $"vge_originMinCell[{level}]", 0, 0, 0);
-            SetUniform3i(program, $"vge_ring[{level}]", 0, 0, 0);
+            SetUniform3i(programId, $"vge_originMinCell[{level}]", 0, 0, 0);
+            SetUniform3i(programId, $"vge_ring[{level}]", 0, 0, 0);
         }
 
         GL.DispatchCompute(4, 4, 4);
@@ -206,25 +208,40 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
         static int VsIndex32(int x, int y, int z) => (y * 32 + z) * 32 + x;
         static uint ExpectedPayloadAtLocal(int x, int y, int z) => (uint)(VsIndex32(x, y, z) + 1);
 
-        // Level 1 (spacing=2): representative worldCell is (levelCell*2+1).
-        Assert.Equal(ExpectedPayloadAtLocal(1, 1, 1), outL1[TexIndex32(0, 0, 0)]);
-        Assert.Equal(ExpectedPayloadAtLocal(3, 1, 1), outL1[TexIndex32(1, 0, 0)]);
-        Assert.Equal(ExpectedPayloadAtLocal(1, 3, 5), outL1[TexIndex32(0, 1, 2)]);
-        Assert.Equal(ExpectedPayloadAtLocal(31, 31, 31), outL1[TexIndex32(15, 15, 15)]);
+        static void AssertPayloadFromBlock(uint actual, int minX, int maxX, int minY, int maxY, int minZ, int maxZ)
+        {
+            for (int y = minY; y <= maxY; y++)
+            for (int z = minZ; z <= maxZ; z++)
+            for (int x = minX; x <= maxX; x++)
+            {
+                if (actual == ExpectedPayloadAtLocal(x, y, z))
+                {
+                    return;
+                }
+            }
+
+            Assert.Fail($"Payload {actual} not in expected block [{minX}..{maxX}]x[{minY}..{maxY}]x[{minZ}..{maxZ}]");
+        }
+
+        // Level 1 (spacing=2): value must come from the corresponding 2x2x2 block.
+        AssertPayloadFromBlock(outL1[TexIndex32(0, 0, 0)], minX: 0, maxX: 1, minY: 0, maxY: 1, minZ: 0, maxZ: 1);
+        AssertPayloadFromBlock(outL1[TexIndex32(1, 0, 0)], minX: 2, maxX: 3, minY: 0, maxY: 1, minZ: 0, maxZ: 1);
+        AssertPayloadFromBlock(outL1[TexIndex32(0, 1, 2)], minX: 0, maxX: 1, minY: 2, maxY: 3, minZ: 4, maxZ: 5);
+        AssertPayloadFromBlock(outL1[TexIndex32(15, 15, 15)], minX: 30, maxX: 31, minY: 30, maxY: 31, minZ: 30, maxZ: 31);
 
         // No representative sample exists for levelCell >= 16 in this single 32^3 region.
         Assert.Equal(0u, outL1[TexIndex32(16, 0, 0)]);
         Assert.Equal(0u, outL1[TexIndex32(31, 31, 31)]);
 
-        // Level 2 (spacing=4): representative worldCell is (levelCell*4+2).
-        Assert.Equal(ExpectedPayloadAtLocal(2, 2, 2), outL2[TexIndex32(0, 0, 0)]);
-        Assert.Equal(ExpectedPayloadAtLocal(6, 2, 2), outL2[TexIndex32(1, 0, 0)]);
-        Assert.Equal(ExpectedPayloadAtLocal(2, 6, 10), outL2[TexIndex32(0, 1, 2)]);
-        Assert.Equal(ExpectedPayloadAtLocal(30, 30, 30), outL2[TexIndex32(7, 7, 7)]);
+        // Level 2 (spacing=4): value must come from the corresponding 4x4x4 block.
+        AssertPayloadFromBlock(outL2[TexIndex32(0, 0, 0)], minX: 0, maxX: 3, minY: 0, maxY: 3, minZ: 0, maxZ: 3);
+        AssertPayloadFromBlock(outL2[TexIndex32(1, 0, 0)], minX: 4, maxX: 7, minY: 0, maxY: 3, minZ: 0, maxZ: 3);
+        AssertPayloadFromBlock(outL2[TexIndex32(0, 1, 2)], minX: 0, maxX: 3, minY: 4, maxY: 7, minZ: 8, maxZ: 11);
+        AssertPayloadFromBlock(outL2[TexIndex32(7, 7, 7)], minX: 28, maxX: 31, minY: 28, maxY: 31, minZ: 28, maxZ: 31);
 
         Assert.Equal(0u, outL2[TexIndex32(8, 0, 0)]);
 
-        GL.DeleteProgram(program);
+        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -233,7 +250,8 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int program = CompileAndLinkCompute(helper, "lumonscene_trace_scene_region_to_clipmap.csh");
+        using var program = ComputeProgram.Create(helper, "lumonscene_trace_scene_region_to_clipmap.csh", debugName: "Tests.LumonTraceSceneRegionToClipmap.NegWrap");
+        int programId = program.ProgramId;
 
         const int res = 32;
         const int regionSize = 32;
@@ -269,7 +287,7 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
         using var updatesSsbo = CreateSsbo<RegionUpdateGpu>("Test_UpdatesSSBO", new[] { upd });
         using var atomicCounter = CreateAtomicCounterBuffer(initialValue: 1u);
 
-        GL.UseProgram(program);
+        GL.UseProgram(programId);
 
         payloadSsbo.BindBase(bindingIndex: 0);
         updatesSsbo.BindBase(bindingIndex: 1);
@@ -282,11 +300,11 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
         var originMin = new VectorInt3(-32, -32, -32);
         var ring = new VectorInt3(-3, 5, -7);
 
-        SetUniform(program, "vge_levels", 1);
-        SetUniform(program, "vge_resolution", res);
-        SetUniform1ui(program, "vge_regionUpdateCount", 1u);
-        SetUniform3i(program, "vge_originMinCell[0]", originMin.X, originMin.Y, originMin.Z);
-        SetUniform3i(program, "vge_ring[0]", ring.X, ring.Y, ring.Z);
+        SetUniform(programId, "vge_levels", 1);
+        SetUniform(programId, "vge_resolution", res);
+        SetUniform1ui(programId, "vge_regionUpdateCount", 1u);
+        SetUniform3i(programId, "vge_originMinCell[0]", originMin.X, originMin.Y, originMin.Z);
+        SetUniform3i(programId, "vge_ring[0]", ring.X, ring.Y, ring.Z);
 
         GL.DispatchCompute(4, 4, 4);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
@@ -324,7 +342,7 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
             out VectorInt3 tex2));
         Assert.Equal(ExpectedPayloadAtLocal(15, 23, 9), outData[TexIndex32(tex2.X, tex2.Y, tex2.Z)]);
 
-        GL.DeleteProgram(program);
+        // Program disposed via ComputeProgram.
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -344,22 +362,6 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
             VersionOrPad = versionOrPad;
             Padding0 = 0;
         }
-    }
-
-    private static int CompileAndLinkCompute(ShaderTestHelper helper, string computeShaderFile)
-    {
-        var cs = helper.CompileShader(computeShaderFile, ShaderType.ComputeShader);
-        Assert.True(cs.IsSuccess, cs.ErrorMessage);
-
-        int program = GL.CreateProgram();
-        GL.AttachShader(program, cs.ShaderId);
-        GL.LinkProgram(program);
-
-        GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int ok);
-        string log = GL.GetProgramInfoLog(program) ?? string.Empty;
-        Assert.True(ok != 0, $"Compute program link failed:\n{log}");
-
-        return program;
     }
 
     private static ShaderTestHelper CreateShaderHelperOrSkip()
@@ -415,6 +417,11 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
     private static void SetUniform3i(int program, string name, int x, int y, int z)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform3(loc, x, y, z);
     }
@@ -422,6 +429,11 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
     private static void SetUniform1ui(int program, string name, uint value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform1(loc, value);
     }

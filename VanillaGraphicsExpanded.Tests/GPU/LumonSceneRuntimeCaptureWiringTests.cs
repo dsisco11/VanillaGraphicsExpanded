@@ -26,9 +26,12 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int markProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_mark_pages.csh");
-        int compactProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_compact_pages.csh");
-        int captureProgram = CompileAndLinkCompute(helper, "lumonscene_capture_voxel.csh");
+        using var markComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages.csh", debugName: "Tests.LumonSceneRuntimeCaptureWiring.Mark");
+        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages.csh", debugName: "Tests.LumonSceneRuntimeCaptureWiring.Compact");
+        using var captureComputeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel.csh", debugName: "Tests.LumonSceneRuntimeCaptureWiring.Capture");
+        int markProgram = markComputeProgram.ProgramId;
+        int compactProgram = compactComputeProgram.ProgramId;
+        int captureProgram = captureComputeProgram.ProgramId;
 
         // Use patchIds 1..6 which correspond to +/-X,+/-Y,+/-Z normals in the capture shader.
         // Keep patchId == virtualPageIndex for v1/v2, so the compacted request's Flags field still works as patchId.
@@ -228,9 +231,7 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
             Assert.Equal((byte)0, a);
         }
 
-        GL.DeleteProgram(markProgram);
-        GL.DeleteProgram(compactProgram);
-        GL.DeleteProgram(captureProgram);
+        // Programs are disposed via ComputeProgram.
     }
 
     private sealed class NullPageTableWriter : ILumonScenePageTableWriter
@@ -344,43 +345,28 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         return new ShaderTestHelper(shaderPath, includePath);
     }
 
-    private static int CompileAndLinkCompute(ShaderTestHelper helper, string computeShaderFile)
-    {
-        var cs = helper.CompileShader(computeShaderFile, ShaderType.ComputeShader);
-        Assert.True(cs.IsSuccess, cs.ErrorMessage);
-
-        int program = GL.CreateProgram();
-        GL.AttachShader(program, cs.ShaderId);
-        GL.LinkProgram(program);
-
-        GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int ok);
-        string log = GL.GetProgramInfoLog(program) ?? string.Empty;
-        Assert.True(ok != 0, $"Compute program link failed:\n{log}");
-
-        return program;
-    }
-
     private static void BindSampler2DUint(int program, string uniformName, int textureId, int unit)
     {
-        int loc = GL.GetUniformLocation(program, uniformName);
-        Assert.True(loc >= 0, $"Missing uniform {uniformName}");
         GL.ActiveTexture(TextureUnit.Texture0 + unit);
         GL.BindTexture(TextureTarget.Texture2D, textureId);
-        GL.Uniform1(loc, unit);
+        GL.ActiveTexture(TextureUnit.Texture0);
     }
 
     private static void BindSampler2DArrayUint(int program, string uniformName, int textureId, int unit)
     {
-        int loc = GL.GetUniformLocation(program, uniformName);
-        Assert.True(loc >= 0, $"Missing uniform {uniformName}");
         GL.ActiveTexture(TextureUnit.Texture0 + unit);
         GL.BindTexture(TextureTarget.Texture2DArray, textureId);
-        GL.Uniform1(loc, unit);
+        GL.ActiveTexture(TextureUnit.Texture0);
     }
 
     private static void SetUniform(int program, string name, uint value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform1(loc, value);
     }
@@ -388,6 +374,11 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
     private static bool TrySetUniform(int program, string name, uint value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         if (loc < 0) return false;
         GL.Uniform1(loc, value);
         return true;
@@ -436,6 +427,11 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
     private static void SetUniform1i(int program, string name, int value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform1(loc, value);
     }
@@ -443,6 +439,11 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
     private static void SetUniform3i(int program, string name, int x, int y, int z)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform3(loc, x, y, z);
     }

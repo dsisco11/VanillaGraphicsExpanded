@@ -27,10 +27,14 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        int markProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_mark_pages.csh");
-        int compactProgram = CompileAndLinkCompute(helper, "lumonscene_feedback_compact_pages.csh");
-        int captureProgram = CompileAndLinkCompute(helper, "lumonscene_capture_voxel.csh");
-        int relightProgram = CompileAndLinkCompute(helper, "lumonscene_relight_voxel_dda.csh");
+        using var markComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages.csh", debugName: "Tests.LumonScenePipelineSmoke.Mark");
+        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages.csh", debugName: "Tests.LumonScenePipelineSmoke.Compact");
+        using var captureComputeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel.csh", debugName: "Tests.LumonScenePipelineSmoke.Capture");
+        using var relightComputeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda.csh", debugName: "Tests.LumonScenePipelineSmoke.Relight");
+        int markProgram = markComputeProgram.ProgramId;
+        int compactProgram = compactComputeProgram.ProgramId;
+        int captureProgram = captureComputeProgram.ProgramId;
+        int relightProgram = relightComputeProgram.ProgramId;
 
         const int tileSize = 8;
         const int tilesPerAxis = 8; // atlas dims 64x64
@@ -181,6 +185,17 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         pal[1 * 4 + 3] = 0u;
         materialPalette.UploadDataImmediate(pal);
 
+        using var surfaceLut = Texture2D.Create(256, 256, PixelInternalFormat.Rgba32ui, debugName: "Test_SurfaceLut");
+        uint[] surf = new uint[256 * 256 * 4];
+        int surfX = (int)(sid & 255u);
+        int surfY = (int)(sid >> 8);
+        int surfO = ((surfY * 256) + surfX) * 4;
+        surf[surfO + 0] = 255u;
+        surf[surfO + 1] = 255u;
+        surf[surfO + 2] = 255u;
+        surf[surfO + 3] = 0u;
+        surfaceLut.UploadDataImmediate(surf);
+
         using var lightColorLut = Texture2D.Create(64, 1, PixelInternalFormat.Rgba16f, debugName: "Test_LightColorLut");
         using var blockScalar = Texture2D.Create(33, 1, PixelInternalFormat.R16f, debugName: "Test_BlockScalar");
         using var sunScalar = Texture2D.Create(33, 1, PixelInternalFormat.R16f, debugName: "Test_SunScalar");
@@ -253,6 +268,8 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
             BindSampler(TextureTarget.Texture2D, unit: 3, lightColorLut.TextureId);
             BindSampler(TextureTarget.Texture2D, unit: 4, blockScalar.TextureId);
             BindSampler(TextureTarget.Texture2D, unit: 5, sunScalar.TextureId);
+            BindSampler(TextureTarget.Texture2D, unit: 6, materialPalette.TextureId);
+            BindSampler(TextureTarget.Texture2D, unit: 7, surfaceLut.TextureId);
             GL.BindImageTexture(0, irradianceAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
 
             SetUniform(relightProgram, "vge_tileSizeTexels", (uint)tileSize);
@@ -294,10 +311,7 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         Assert.True(pagesWithWeight >= desiredPages - 1, $"Expected most pages to have weight, got {pagesWithWeight}/{desiredPages}");
         Assert.True(pagesWithRgb >= (desiredPages * 3) / 4, $"Expected most pages to have RGB, got {pagesWithRgb}/{desiredPages}");
 
-        GL.DeleteProgram(markProgram);
-        GL.DeleteProgram(compactProgram);
-        GL.DeleteProgram(captureProgram);
-        GL.DeleteProgram(relightProgram);
+        // Programs are disposed via ComputeProgram.
     }
 
     private static uint[] FindSafeVoxelPatchIdsForSortedRequests(int desiredPages, int occRes)
@@ -351,22 +365,6 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         return new ShaderTestHelper(shaderPath, includePath);
     }
 
-    private static int CompileAndLinkCompute(ShaderTestHelper helper, string computeShaderFile)
-    {
-        var cs = helper.CompileShader(computeShaderFile, ShaderType.ComputeShader);
-        Assert.True(cs.IsSuccess, cs.ErrorMessage);
-
-        int program = GL.CreateProgram();
-        GL.AttachShader(program, cs.ShaderId);
-        GL.LinkProgram(program);
-
-        GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int ok);
-        string log = GL.GetProgramInfoLog(program) ?? string.Empty;
-        Assert.True(ok != 0, $"Compute program link failed:\n{log}");
-
-        return program;
-    }
-
     private static void BindSampler(TextureTarget target, int unit, int textureId)
     {
         GL.ActiveTexture(TextureUnit.Texture0 + unit);
@@ -375,25 +373,26 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
 
     private static void BindSampler2DUint(int program, string uniformName, int textureId, int unit)
     {
-        int loc = GL.GetUniformLocation(program, uniformName);
-        Assert.True(loc >= 0, $"Missing uniform {uniformName}");
         GL.ActiveTexture(TextureUnit.Texture0 + unit);
         GL.BindTexture(TextureTarget.Texture2D, textureId);
-        GL.Uniform1(loc, unit);
+        GL.ActiveTexture(TextureUnit.Texture0);
     }
 
     private static void BindSampler2DArrayUint(int program, string uniformName, int textureId, int unit)
     {
-        int loc = GL.GetUniformLocation(program, uniformName);
-        Assert.True(loc >= 0, $"Missing uniform {uniformName}");
         GL.ActiveTexture(TextureUnit.Texture0 + unit);
         GL.BindTexture(TextureTarget.Texture2DArray, textureId);
-        GL.Uniform1(loc, unit);
+        GL.ActiveTexture(TextureUnit.Texture0);
     }
 
     private static void SetUniform(int program, string name, uint value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform1(loc, value);
     }
@@ -401,6 +400,11 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
     private static new void SetUniform(int program, string name, int value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform1(loc, value);
     }
@@ -408,6 +412,11 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
     private static bool TrySetUniform(int program, string name, uint value)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         if (loc < 0) return false;
         GL.Uniform1(loc, value);
         return true;
@@ -416,6 +425,11 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
     private static void SetUniform3i(int program, string name, int x, int y, int z)
     {
         int loc = GL.GetUniformLocation(program, name);
+        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
+        {
+            loc = explicitLoc;
+        }
+
         Assert.True(loc >= 0, $"Missing uniform {name}");
         GL.Uniform3(loc, x, y, z);
     }

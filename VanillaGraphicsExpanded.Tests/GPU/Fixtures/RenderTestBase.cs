@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -283,6 +284,10 @@ public abstract class RenderTestBase : IDisposable
     protected void SetUniform(int programId, string name, float value)
     {
         var location = GL.GetUniformLocation(programId, name);
+        if (location < 0 && ComputeProgram.TryGetExplicitUniformLocation(programId, name, out int explicitLocation))
+        {
+            location = explicitLocation;
+        }
         if (location >= 0)
         {
             GL.UseProgram(programId);
@@ -296,6 +301,10 @@ public abstract class RenderTestBase : IDisposable
     protected void SetUniform(int programId, string name, float x, float y)
     {
         var location = GL.GetUniformLocation(programId, name);
+        if (location < 0 && ComputeProgram.TryGetExplicitUniformLocation(programId, name, out int explicitLocation))
+        {
+            location = explicitLocation;
+        }
         if (location >= 0)
         {
             GL.UseProgram(programId);
@@ -309,6 +318,10 @@ public abstract class RenderTestBase : IDisposable
     protected void SetUniform(int programId, string name, float x, float y, float z)
     {
         var location = GL.GetUniformLocation(programId, name);
+        if (location < 0 && ComputeProgram.TryGetExplicitUniformLocation(programId, name, out int explicitLocation))
+        {
+            location = explicitLocation;
+        }
         if (location >= 0)
         {
             GL.UseProgram(programId);
@@ -322,6 +335,10 @@ public abstract class RenderTestBase : IDisposable
     protected void SetUniform(int programId, string name, float x, float y, float z, float w)
     {
         var location = GL.GetUniformLocation(programId, name);
+        if (location < 0 && ComputeProgram.TryGetExplicitUniformLocation(programId, name, out int explicitLocation))
+        {
+            location = explicitLocation;
+        }
         if (location >= 0)
         {
             GL.UseProgram(programId);
@@ -335,6 +352,10 @@ public abstract class RenderTestBase : IDisposable
     protected void SetUniform(int programId, string name, int value)
     {
         var location = GL.GetUniformLocation(programId, name);
+        if (location < 0 && ComputeProgram.TryGetExplicitUniformLocation(programId, name, out int explicitLocation))
+        {
+            location = explicitLocation;
+        }
         if (location >= 0)
         {
             GL.UseProgram(programId);

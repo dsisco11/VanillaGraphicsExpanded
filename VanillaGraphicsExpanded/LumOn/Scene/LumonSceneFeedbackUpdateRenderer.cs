@@ -6,6 +6,7 @@ using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.WorldCells;
+using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
@@ -44,9 +45,9 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     private readonly float[] modelViewMatrix = new float[16];
     private readonly float[] invModelViewMatrix = new float[16];
 
-    private GpuComputePipeline? feedbackMarkPipeline;
-    private GpuComputePipeline? feedbackCompactPipeline;
-    private GpuComputePipeline? captureVoxelPipeline;
+    private LumonSceneFeedbackMarkPagesComputeShader? feedbackMarkShader;
+    private LumonSceneFeedbackCompactPagesComputeShader? feedbackCompactShader;
+    private LumonSceneCaptureVoxelComputeShader? captureVoxelShader;
 
     private Texture3D? pageUsageStamp;
     private GpuAtomicCounterBuffer? feedbackMarkDebugCounters;
@@ -457,7 +458,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
         EnsurePageUsageStampCreated();
 
-        if (!EnsureFeedbackMarkPipeline() || !EnsureFeedbackCompactPipeline())
+        if (!EnsureFeedbackMarkShader() || !EnsureFeedbackCompactShader())
         {
             return;
         }
@@ -469,80 +470,60 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         if (frameStamp == 0u) frameStamp = feedbackFrameStamp++; // avoid 0 as a valid stamp
 
         // Pass A: mark visible pages into a dedup stamp texture.
-        using (feedbackMarkPipeline!.UseScope())
+        using (feedbackMarkShader!.UseScope())
         {
             using var gpuScope = GlGpuProfiler.Instance.Scope("Feedback.MarkPages");
 
-            feedbackMarkDebugCounters?.BindBase(bindingIndex: 0);
+            feedbackMarkShader.BindDebugCounters(feedbackMarkDebugCounters);
+            feedbackMarkShader.BindPatchIdGBuffer(patchIdTex);
 
-            _ = feedbackMarkPipeline.ProgramLayout.TryBindSamplerTexture(
-                samplerUniformName: "vge_patchIdGBuffer",
-                target: TextureTarget.Texture2D,
-                textureId: patchIdTex,
-                samplerId: 0);
+            int genTexId = (slotGenerationTex is not null && slotGenerationTex.IsValid)
+                ? slotGenerationTex.TextureId
+                : 0;
 
-            if (slotGenerationTex is not null && slotGenerationTex.IsValid)
+            if (genTexId != 0)
             {
-                _ = feedbackMarkPipeline.ProgramLayout.TryBindSamplerTexture(
-                    samplerUniformName: "vge_chunkSlotGenerationTex",
-                    target: TextureTarget.Texture2D,
-                    textureId: slotGenerationTex.TextureId,
-                    samplerId: 0);
+                feedbackMarkShader.BindChunkSlotGenerationTex(genTexId);
             }
 
-            _ = feedbackMarkPipeline.ProgramLayout.TryBindImageTexture(
-                imageUniformName: "vge_pageUsageStamp",
-                texture: pageUsageStamp!,
-                access: TextureAccess.ReadWrite,
-                level: 0,
-                layered: true,
-                layer: 0,
-                formatOverride: SizedInternalFormat.R32ui);
-
-            _ = feedbackMarkPipeline.TrySetUniform1("vge_frameStamp", frameStamp);
+            feedbackMarkShader.BindPageUsageStampImage(pageUsageStamp!, access: TextureAccess.ReadWrite);
+            feedbackMarkShader.FrameStamp = frameStamp;
 
             int gx = (capi.Render.FrameWidth + 7) / 8;
             int gy = (capi.Render.FrameHeight + 7) / 8;
             GL.DispatchCompute(gx, gy, 1);
         }
 
-        GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit);
+        // MarkPages writes vge_pageUsageStamp via imageAtomics; CompactPages reads it via sampler fetch.
+        // TextureFetchBarrierBit is required for image-write -> texture-fetch visibility.
+        GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit);
 
         // Pass B: compact stamps -> bounded request list.
         nearGpu.PageRequests.Reset();
-        using (feedbackCompactPipeline!.UseScope())
+        using (feedbackCompactShader!.UseScope())
         {
             using var gpuScope = GlGpuProfiler.Instance.Scope("Feedback.CompactPages");
 
-            _ = feedbackCompactPipeline.ProgramLayout.TryBindSamplerTexture(
-                samplerUniformName: "vge_pageUsageStamp",
-                target: TextureTarget.Texture2DArray,
-                textureId: pageUsageStamp!.TextureId,
-                samplerId: 0);
+            feedbackCompactShader.BindPageUsageStamp(pageUsageStamp!.TextureId);
+            feedbackCompactShader.BindPageTableMip0(nearGpu.PageTable.PageTableMip0.TextureId);
 
-            _ = feedbackCompactPipeline.ProgramLayout.TryBindSamplerTexture(
-                samplerUniformName: "vge_pageTableMip0",
-                target: TextureTarget.Texture2DArray,
-                textureId: nearGpu.PageTable.PageTableMip0.TextureId,
-                samplerId: 0);
+            feedbackCompactShader.BindRequestCounter(nearGpu.PageRequests.Counter);
+            feedbackCompactShader.BindRequestsSsbo(nearGpu.PageRequests.Items);
 
-            nearGpu.PageRequests.Counter.BindBase(bindingIndex: 0);
-            nearGpu.PageRequests.Items.BindBase(bindingIndex: 0);
-
-            _ = feedbackCompactPipeline.TrySetUniform1("vge_maxRequests", (uint)nearGpu.PageRequests.CapacityItems);
-            _ = feedbackCompactPipeline.TrySetUniform1("vge_frameStamp", frameStamp);
+            feedbackCompactShader.MaxRequests = (uint)nearGpu.PageRequests.CapacityItems;
+            feedbackCompactShader.FrameStamp = frameStamp;
 
             int chunkSlotCount = nearGpu.PageTable.ChunkSlotCount;
             int totalEntries = checked(VirtualPagesPerChunk * Math.Max(1, chunkSlotCount));
             // v2: deterministic scan order (no rotation). Keep the uniform for shader compatibility.
             // Note: if the bounded request list saturates, earlier entries will win deterministically.
-            _ = feedbackCompactPipeline.TrySetUniform1("vge_scanOffset", 0u);
+            feedbackCompactShader.ScanOffset = 0u;
 
             int gx = (totalEntries + 255) / 256;
 
             // v2: only emit unmapped pages. We no longer rely on the bounded request list to "keep alive" resident pages;
             // residency is bound to the chunk-slot window (pages are released on slot reassignment/world leave).
-            _ = feedbackCompactPipeline.TrySetUniform1("vge_compactMode", 1u);
+            feedbackCompactShader.CompactMode = 1u;
             GL.DispatchCompute(gx, 1, 1);
         }
 
@@ -577,14 +558,14 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             chunkResidency = null;
         }
 
-        feedbackMarkPipeline?.Dispose();
-        feedbackMarkPipeline = null;
+        feedbackMarkShader?.Dispose();
+        feedbackMarkShader = null;
 
-        feedbackCompactPipeline?.Dispose();
-        feedbackCompactPipeline = null;
+        feedbackCompactShader?.Dispose();
+        feedbackCompactShader = null;
 
-        captureVoxelPipeline?.Dispose();
-        captureVoxelPipeline = null;
+        captureVoxelShader?.Dispose();
+        captureVoxelShader = null;
 
         pageUsageStamp?.Dispose();
         pageUsageStamp = null;
@@ -606,6 +587,15 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         configured = false;
         lastPlanHash = 0;
         feedbackFrameStamp = 1u;
+
+        feedbackMarkShader?.Dispose();
+        feedbackMarkShader = null;
+
+        feedbackCompactShader?.Dispose();
+        feedbackCompactShader = null;
+
+        captureVoxelShader?.Dispose();
+        captureVoxelShader = null;
 
         // CPU-side virtual mappings are discarded on world leave, so the backing physical pools must return all pages
         // to their free lists. Otherwise, rejoining a world with the same pool plan would start with a "full" pool.
@@ -1385,91 +1375,79 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         _ = pageUsageStamp.TryClearToZero();
     }
 
-    private bool EnsureFeedbackMarkPipeline()
+    private bool EnsureFeedbackMarkShader()
     {
-        if (feedbackMarkPipeline is not null && feedbackMarkPipeline.IsValid)
+        if (feedbackMarkShader is not null && feedbackMarkShader.IsValid)
         {
             return true;
         }
 
-        feedbackMarkPipeline?.Dispose();
-        feedbackMarkPipeline = null;
+        feedbackMarkShader?.Dispose();
+        feedbackMarkShader = null;
 
-        if (!GpuComputePipeline.TryCreateFromAssets(
+        if (!LumonSceneFeedbackMarkPagesComputeShader.TryCreate(
             api: capi,
-            shaderName: "lumonscene_feedback_mark_pages",
-            pipeline: out feedbackMarkPipeline,
-            sourceCode: out _,
+            shader: out feedbackMarkShader,
             infoLog: out string infoLog,
-            stageExtension: "csh",
-            defines: null,
-            debugName: "LumOn.LumonScene.FeedbackMarkPages",
-            log: capi.Logger))
+            preferSpirv: true,
+            debugName: "LumOn.LumonScene.FeedbackMarkPages"))
         {
             capi.Logger.Error("[VGE] Failed to compile LumonScene feedback mark compute shader: {0}", infoLog);
-            feedbackMarkPipeline = null;
+            feedbackMarkShader = null;
             return false;
         }
 
-        return feedbackMarkPipeline is not null;
+        return feedbackMarkShader is not null;
     }
 
-    private bool EnsureFeedbackCompactPipeline()
+    private bool EnsureFeedbackCompactShader()
     {
-        if (feedbackCompactPipeline is not null && feedbackCompactPipeline.IsValid)
+        if (feedbackCompactShader is not null && feedbackCompactShader.IsValid)
         {
             return true;
         }
 
-        feedbackCompactPipeline?.Dispose();
-        feedbackCompactPipeline = null;
+        feedbackCompactShader?.Dispose();
+        feedbackCompactShader = null;
 
-        if (!GpuComputePipeline.TryCreateFromAssets(
+        if (!LumonSceneFeedbackCompactPagesComputeShader.TryCreate(
             api: capi,
-            shaderName: "lumonscene_feedback_compact_pages",
-            pipeline: out feedbackCompactPipeline,
-            sourceCode: out _,
+            shader: out feedbackCompactShader,
             infoLog: out string infoLog,
-            stageExtension: "csh",
-            defines: null,
-            debugName: "LumOn.LumonScene.FeedbackCompactPages",
-            log: capi.Logger))
+            preferSpirv: true,
+            debugName: "LumOn.LumonScene.FeedbackCompactPages"))
         {
             capi.Logger.Error("[VGE] Failed to compile LumonScene feedback compact compute shader: {0}", infoLog);
-            feedbackCompactPipeline = null;
+            feedbackCompactShader = null;
             return false;
         }
 
-        return feedbackCompactPipeline is not null;
+        return feedbackCompactShader is not null;
     }
 
-    private bool EnsureCaptureVoxelPipeline()
+    private bool EnsureCaptureVoxelShader()
     {
-        if (captureVoxelPipeline is not null && captureVoxelPipeline.IsValid)
+        if (captureVoxelShader is not null && captureVoxelShader.IsValid)
         {
             return true;
         }
 
-        captureVoxelPipeline?.Dispose();
-        captureVoxelPipeline = null;
+        captureVoxelShader?.Dispose();
+        captureVoxelShader = null;
 
-        if (!GpuComputePipeline.TryCreateFromAssets(
+        if (!LumonSceneCaptureVoxelComputeShader.TryCreate(
             api: capi,
-            shaderName: "lumonscene_capture_voxel",
-            pipeline: out captureVoxelPipeline,
-            sourceCode: out _,
+            shader: out captureVoxelShader,
             infoLog: out string infoLog,
-            stageExtension: "csh",
-            defines: null,
-            debugName: "LumOn.LumonScene.CaptureVoxel",
-            log: capi.Logger))
+            preferSpirv: true,
+            debugName: "LumOn.LumonScene.CaptureVoxel"))
         {
             capi.Logger.Error("[VGE] Failed to compile LumonScene capture voxel compute shader: {0}", infoLog);
-            captureVoxelPipeline = null;
+            captureVoxelShader = null;
             return false;
         }
 
-        return captureVoxelPipeline is not null;
+        return captureVoxelShader is not null;
     }
 
     private int ProcessRequestsCpu(int maxRequestsToProcess, int maxNewAllocations)
@@ -2082,7 +2060,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (!EnsureCaptureVoxelPipeline())
+        if (!EnsureCaptureVoxelShader())
         {
             return;
         }
@@ -2102,32 +2080,16 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         int tilesPerAxis = physicalPools.Near.Plan.TilesPerAxis;
         int tilesPerAtlas = physicalPools.Near.Plan.TilesPerAtlas;
 
-        using (captureVoxelPipeline!.UseScope())
+        using (captureVoxelShader!.UseScope())
         {
             using var gpuScope = GlGpuProfiler.Instance.Scope("Capture.Voxel");
 
-            nearGpu.CaptureWork.Items.BindBase(bindingIndex: 0);
-            nearGpu.PatchMetadata.Ssbo.BindBase(bindingIndex: 1);
-            slotInfoBuffer.Ssbo.BindBase(bindingIndex: 2);
+            captureVoxelShader.BindCaptureWorkSsbo(nearGpu.CaptureWork.Items);
+            captureVoxelShader.BindPatchMetaSsbo(nearGpu.PatchMetadata.Ssbo);
+            captureVoxelShader.BindChunkSlotInfoSsbo(slotInfoBuffer.Ssbo);
 
-            // Bind outputs as layered images (units derived from shader layout(binding=...)).
-            _ = captureVoxelPipeline.ProgramLayout.TryBindImageTexture(
-                imageUniformName: "vge_depthAtlas",
-                texture: atlases.DepthAtlas,
-                access: TextureAccess.WriteOnly,
-                level: 0,
-                layered: true,
-                layer: 0,
-                formatOverride: SizedInternalFormat.R16f);
-
-            _ = captureVoxelPipeline.ProgramLayout.TryBindImageTexture(
-                imageUniformName: "vge_materialAtlas",
-                texture: atlases.MaterialAtlas,
-                access: TextureAccess.WriteOnly,
-                level: 0,
-                layered: true,
-                layer: 0,
-                formatOverride: SizedInternalFormat.Rgba8);
+            captureVoxelShader.BindDepthAtlasImage(atlases.DepthAtlas, access: TextureAccess.WriteOnly);
+            captureVoxelShader.BindMaterialAtlasImage(atlases.MaterialAtlas, access: TextureAccess.WriteOnly);
 
             // TraceScene sampling inputs (optional; capture will write zeros if missing).
             int occResolution = 0;
@@ -2140,8 +2102,8 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                 && occupancyClipmap!.TryGetLevel0RuntimeParams(out occOriginMinCell0, out occRing0, out occResolution)
                 && occResolution > 0)
             {
-                _ = captureVoxelPipeline.ProgramLayout.TryBindSamplerTexture("vge_occL0", TextureTarget.Texture3D, occRes.OccupancyLevels[0].TextureId);
-                _ = captureVoxelPipeline.ProgramLayout.TryBindSamplerTexture("vge_materialPalette", TextureTarget.Texture2D, occRes.MaterialPalette.TextureId);
+                captureVoxelShader.BindOccL0(occRes.OccupancyLevels[0].TextureId);
+                captureVoxelShader.BindMaterialPalette(occRes.MaterialPalette.TextureId);
             }
             else
             {
@@ -2150,14 +2112,20 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                 occRing0 = default;
             }
 
-            _ = captureVoxelPipeline.TrySetUniform1("vge_tileSizeTexels", (uint)tileSize);
-            _ = captureVoxelPipeline.TrySetUniform1("vge_tilesPerAxis", (uint)tilesPerAxis);
-            _ = captureVoxelPipeline.TrySetUniform1("vge_tilesPerAtlas", (uint)tilesPerAtlas);
-            _ = captureVoxelPipeline.TrySetUniform1("vge_borderTexels", 0u);
+            captureVoxelShader.SetAtlasLayout(
+                tileSizeTexels: (uint)tileSize,
+                tilesPerAxis: (uint)tilesPerAxis,
+                tilesPerAtlas: (uint)tilesPerAtlas,
+                borderTexels: 0u);
 
-            _ = captureVoxelPipeline.TrySetUniform3("vge_occOriginMinCell0", occOriginMinCell0.X, occOriginMinCell0.Y, occOriginMinCell0.Z);
-            _ = captureVoxelPipeline.TrySetUniform3("vge_occRing0", occRing0.X, occRing0.Y, occRing0.Z);
-            _ = captureVoxelPipeline.TrySetUniform1("vge_occResolution", occResolution);
+            captureVoxelShader.SetOccupancyMapping(
+                originMinCellX: occOriginMinCell0.X,
+                originMinCellY: occOriginMinCell0.Y,
+                originMinCellZ: occOriginMinCell0.Z,
+                ringX: occRing0.X,
+                ringY: occRing0.Y,
+                ringZ: occRing0.Z,
+                resolution: occResolution);
 
             int gx = (tileSize + 7) / 8;
             int gy = (tileSize + 7) / 8;
