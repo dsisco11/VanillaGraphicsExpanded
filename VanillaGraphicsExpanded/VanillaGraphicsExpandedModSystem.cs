@@ -39,7 +39,13 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         TerrainLumonSceneChunkSlotUniformBindingHook.ApplyPatches(harmony, api.Logger.Notification);
 
         // Preload OpenGL extension strings as early as possible (best-effort; requires a current GL context).
-        api.Event.EnqueueMainThreadTask(() => GlExtensions.TryLoadExtensions(), "vge-load-gl-extensions");
+        api.Event.EnqueueMainThreadTask(
+            () =>
+            {
+                GlExtensions.TryLoadExtensions();
+                GpuSupport.TryInitialize();
+            },
+            "vge-load-gl-extensions");
     }
 
     public override void AssetsLoaded(ICoreAPI api)
