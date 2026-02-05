@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Threading;
 
 using OpenTK.Graphics.OpenGL;
@@ -226,6 +227,102 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
     private static int spirvMissingCount;
     private static int spirvUnsupportedCount;
 
+    public static bool TryLoadFromSpirv(
+        string spirvBinaryPath,
+        out GpuComputePipeline? pipeline,
+        out string infoLog,
+        string? debugName = null)
+    {
+        pipeline = null;
+        infoLog = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(spirvBinaryPath))
+        {
+            infoLog = "[VGE] SPIR-V path was null/empty.";
+            return false;
+        }
+
+        if (!File.Exists(spirvBinaryPath))
+        {
+            infoLog = $"[VGE] SPIR-V file not found: {spirvBinaryPath}";
+            return false;
+        }
+
+        byte[] bytes;
+        try
+        {
+            bytes = File.ReadAllBytes(spirvBinaryPath);
+        }
+        catch (Exception ex)
+        {
+            infoLog = $"[VGE] Failed to read SPIR-V file '{spirvBinaryPath}': {ex.Message}";
+            return false;
+        }
+
+        if (bytes.Length == 0)
+        {
+            infoLog = $"[VGE] SPIR-V file was empty: {spirvBinaryPath}";
+            return false;
+        }
+
+        bool ok = TryCreateFromSpirvBytes(bytes, out pipeline, out string spirvLog, debugName);
+        infoLog = spirvLog;
+        return ok;
+    }
+
+    private static bool TryCreateFromSpirvBytes(
+        ReadOnlySpan<byte> spirvBytes,
+        out GpuComputePipeline? pipeline,
+        out string infoLog,
+        string? debugName = null)
+    {
+        pipeline = null;
+        infoLog = string.Empty;
+
+        if (spirvBytes.Length == 0)
+        {
+            infoLog = "[VGE] SPIR-V bytes were empty.";
+            return false;
+        }
+
+        if (!GpuShaderModule.SupportsSpirv())
+        {
+            infoLog = "[VGE] GL_ARB_gl_spirv not supported by current context.";
+            return false;
+        }
+
+        if (!GpuShaderModule.TryLoadSpirv(
+            shaderType: ShaderType.ComputeShader,
+            spirvBytes: spirvBytes,
+            entryPoint: "main",
+            specializationConstants: ReadOnlySpan<GpuShaderModule.SpirvSpecializationConstant>.Empty,
+            module: out var module,
+            infoLog: out string spirvLog,
+            debugName: debugName))
+        {
+            infoLog = spirvLog;
+            return false;
+        }
+
+        if (module is null)
+        {
+            infoLog = (spirvLog.Length > 0 ? spirvLog + "\n" : string.Empty) + "[VGE] SPIR-V load succeeded but module was null (unexpected).";
+            return false;
+        }
+
+        if (!TryCreate(module, out pipeline, out string linkLog, debugName, disposeShaderAfterLink: true))
+        {
+            module.Dispose();
+            pipeline = null;
+            infoLog = (spirvLog.Length > 0 ? spirvLog + "\n" : string.Empty) + linkLog;
+            return false;
+        }
+
+        Interlocked.Increment(ref spirvUsedCount);
+        infoLog = (spirvLog.Length > 0 ? spirvLog + "\n" : string.Empty) + linkLog;
+        return true;
+    }
+
     /// <summary>
     /// Creates a compute pipeline by loading a packaged SPIR-V binary (<c>.csh.spv</c>) when <paramref name="preferSpirv" /> is true,
     /// present, and supported; otherwise falls back to loading and compiling the GLSL source (<c>.csh</c>) through the existing
@@ -270,31 +367,14 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
                     byte[] bytes = spvAsset.Data ?? Array.Empty<byte>();
                     if (bytes.Length > 0)
                     {
-                        if (GpuShaderModule.TryLoadSpirv(
-                            shaderType: ShaderType.ComputeShader,
-                            spirvBytes: bytes,
-                            entryPoint: "main",
-                            specializationConstants: ReadOnlySpan<GpuShaderModule.SpirvSpecializationConstant>.Empty,
-                            module: out var module,
-                            infoLog: out string spirvLog,
-                            debugName: debugName))
+                        if (TryCreateFromSpirvBytes(bytes, out pipeline, out string spirvInfo, debugName))
                         {
-                            if (module is not null && TryCreate(module, out pipeline, out string linkLog, debugName, disposeShaderAfterLink: true))
-                            {
-                                Interlocked.Increment(ref spirvUsedCount);
-                                infoLog = (spirvLog.Length > 0 ? spirvLog + "\n" : string.Empty) + linkLog;
-                                return true;
-                            }
+                            infoLog = spirvInfo;
+                            return true;
+                        }
 
-                            module?.Dispose();
-                            // Fall back to GLSL if linking failed.
-                            infoLog = (spirvLog.Length > 0 ? spirvLog + "\n" : string.Empty) + "[VGE] SPIR-V program link failed; falling back to GLSL.";
-                        }
-                        else
-                        {
-                            // Fall back to GLSL if SPIR-V specialization/compile failed.
-                            infoLog = (spirvLog.Length > 0 ? spirvLog + "\n" : string.Empty) + "[VGE] SPIR-V load failed; falling back to GLSL.";
-                        }
+                        // Fall back to GLSL when SPIR-V fails to load/link.
+                        infoLog = (spirvInfo.Length > 0 ? spirvInfo + "\n" : string.Empty) + "[VGE] SPIR-V load/link failed; falling back to GLSL.";
                     }
                     else
                     {
