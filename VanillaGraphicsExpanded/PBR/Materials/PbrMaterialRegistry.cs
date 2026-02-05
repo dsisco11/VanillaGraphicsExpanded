@@ -841,7 +841,7 @@ internal sealed class PbrMaterialRegistry
         // Registry keys are extensionless, but assets are extensionful on disk.
         // Use the enumerated texture index to select a concrete asset location without assuming a format.
         AssetLocation key = NormalizeTextureLocation(texture);
-        AssetLocation concrete = Instance.concreteTextureByKey.TryGetValue(key, out AssetLocation resolved)
+        AssetLocation concrete = Instance.concreteTextureByKey.TryGetValue(key, out AssetLocation? resolved)
             ? resolved
             : NormalizeTextureLocationForAssetLoad(texture);
 
@@ -1236,7 +1236,7 @@ internal sealed class PbrMaterialRegistry
                 continue;
             }
 
-            if (!concreteTextureByKey.TryGetValue(key, out AssetLocation existing))
+            if (!concreteTextureByKey.TryGetValue(key, out AssetLocation? existing))
             {
                 concreteTextureByKey[key] = concrete;
                 continue;

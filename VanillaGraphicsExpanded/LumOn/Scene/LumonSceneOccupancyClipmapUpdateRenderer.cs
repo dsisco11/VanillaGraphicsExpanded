@@ -780,7 +780,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
                 break;
             }
 
-            int version = chunkVersions.GetCurrentVersion(key);
+            int version = chunkVersions!.GetCurrentVersion(key);
 
             if (inFlightByRegion.TryGetValue(key.Packed, out InFlightRegion existing)
                 && existing.Version == version
@@ -795,7 +795,7 @@ internal sealed class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDis
 
             var options = new ChunkWorkOptions { Priority = priorityHint };
             Task<ChunkWorkResult<LumonSceneTraceSceneRegionArtifact>> task =
-                chunkProcessing.RequestAsync(key, version, regionProcessor, options);
+                chunkProcessing!.RequestAsync(key, version, regionProcessor, options);
 
             inFlightByRegion[key.Packed] = new InFlightRegion(version, task);
 
