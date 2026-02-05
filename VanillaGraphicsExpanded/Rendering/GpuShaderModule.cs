@@ -204,6 +204,17 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
         // Compile the emitted source after preprocessing.
         if (!TryCompileGlsl(shaderType, sourceCode.EmittedSource, out module, out infoLog, debugName))
         {
+            // VGE shader failures can generate very large sources; avoid dumping the full shader text into logs.
+            // Instead, dump the uploaded source to GamePaths.Logs/VGE/<shader-name>.dump.txt.
+            if (VgeShaderSourceDump.TryDumpSingleStage(shaderName, stageExtension, sourceCode.EmittedSource, out string? dumpPath, out string? dumpError))
+            {
+                infoLog = (infoLog.Length > 0 ? infoLog + "\n" : string.Empty) + $"[VGE] Shader source dumped to: {dumpPath}";
+            }
+            else if (!string.IsNullOrWhiteSpace(dumpError))
+            {
+                infoLog = (infoLog.Length > 0 ? infoLog + "\n" : string.Empty) + $"[VGE] Failed to dump shader source: {dumpError}";
+            }
+
             // Preserve preprocessing diagnostics when compilation fails.
             if (sourceCode.ImportInlining.Diagnostics.Length > 0)
             {

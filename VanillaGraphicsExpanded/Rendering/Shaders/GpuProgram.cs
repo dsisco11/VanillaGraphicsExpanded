@@ -1101,6 +1101,22 @@ public abstract class GpuProgram : ShaderProgram
         // All OpenGL diagnostics are best-effort and must never throw.
         try
         {
+            // Dump the uploaded sources for easier debugging without spamming the console.
+            if (VanillaGraphicsExpanded.Rendering.VgeShaderSourceDump.TryDumpProgram(
+                programName: ShaderName,
+                vertexSource: vertexStage.EmittedSource,
+                fragmentSource: fragmentStage.EmittedSource,
+                geometrySource: geometryStage.EmittedSource,
+                dumpPath: out string? dumpPath,
+                error: out string? dumpError))
+            {
+                log?.Error($"[VGE][{ShaderName}] Shader source dumped to: {dumpPath}");
+            }
+            else if (!string.IsNullOrWhiteSpace(dumpError))
+            {
+                log?.Warning($"[VGE][{ShaderName}] Failed to dump shader sources: {dumpError}");
+            }
+
             var v = vertexStage.CompileDiagnostics();
             var f = fragmentStage.CompileDiagnostics();
             var g = geometryStage.EmittedSource is null ? new StageShader.StageCompileDiagnostics { Success = true, InfoLog = string.Empty, ShaderId = 0 } : geometryStage.CompileDiagnostics();
