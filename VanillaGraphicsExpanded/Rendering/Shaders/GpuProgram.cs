@@ -31,7 +31,13 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 /// </summary>
 public abstract class GpuProgram : ShaderProgram
 {
+    #region Types
+
     private readonly record struct ProgramBlockBindingSpec(int BindingIndex, bool Required);
+
+    #endregion
+
+    #region Fields
 
     private readonly StageShader vertexStage;
     private readonly StageShader fragmentStage;
@@ -53,6 +59,10 @@ public abstract class GpuProgram : ShaderProgram
     private ILogger? log;
 
     private int recompileQueued;
+
+    #endregion
+
+    #region Properties and Hooks
 
     /// <summary>
     /// Returns <c>true</c> when this program has a non-zero <see cref="ShaderProgram.ProgramId"/>.
@@ -87,6 +97,10 @@ public abstract class GpuProgram : ShaderProgram
     /// Optional hook for derived programs that need to refresh caches after (re)compile.
     /// </summary>
     protected virtual void OnAfterCompile() { }
+
+    #endregion
+
+    #region Uniform Block Binding (UBO)
 
     /// <summary>
     /// Best-effort helper to assign a uniform-block binding point by block name (GLSL 330 friendly).
@@ -186,6 +200,8 @@ public abstract class GpuProgram : ShaderProgram
         }
     }
 
+    #endregion
+
     #region Texture Binding (Sampler-Aware)
 
     protected void BindTexture2D(string uniformName, GpuTexture? texture, int unit)
@@ -228,11 +244,17 @@ public abstract class GpuProgram : ShaderProgram
 
     #endregion
 
+    #region Program Layout
+
     /// <summary>
     /// Gets cached binding-related resources for the currently linked program.
     /// Updated after successful <see cref="CompileAndLink"/>.
     /// </summary>
     internal GpuProgramLayout ResourceBindings => resourceBindings;
+
+    #endregion
+
+    #region Initialization and Defines
 
     /// <summary>
     /// Call from the program's Register method to enable define-triggered recompiles.
@@ -307,6 +329,8 @@ public abstract class GpuProgram : ShaderProgram
 
         return changed;
     }
+
+    #endregion
 
 
     #region Uniform Setters (VGE Numerics)
@@ -994,6 +1018,8 @@ public abstract class GpuProgram : ShaderProgram
 
     #endregion
 
+    #region Compilation
+
     /// <summary>
     /// Compiles and links using VGE's source pipeline (imports + AST define injection).
     /// Intended for memory shader programs.
@@ -1127,6 +1153,10 @@ public abstract class GpuProgram : ShaderProgram
         }
     }
 
+    #endregion
+
+    #region Recompile Scheduling
+
     protected virtual void RequestRecompile()
     {
         var api = capi;
@@ -1158,6 +1188,10 @@ public abstract class GpuProgram : ShaderProgram
             $"vge:recompile:{ShaderName}");
     }
 
+    #endregion
+
+    #region Construction
+
     protected GpuProgram()
     {
         vertexStage = new StageShader(
@@ -1178,4 +1212,6 @@ public abstract class GpuProgram : ShaderProgram
             getSlot: () => GeometryShader,
             setSlot: s => GeometryShader = (global::Vintagestory.Client.NoObf.Shader)s);
     }
+
+    #endregion
 }
