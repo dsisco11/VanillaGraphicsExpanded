@@ -982,6 +982,50 @@ public class GpuProgramLayout
     }
 
     /// <summary>
+    /// Binds a UBO subrange to the binding point for the named uniform block.
+    /// </summary>
+    internal bool TryBindUniformBlockRange(
+        int programId,
+        string blockName,
+        GpuUniformBuffer buffer,
+        nint offsetBytes,
+        nint sizeBytes,
+        Action<string>? warn = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
+        ArgumentNullException.ThrowIfNull(buffer);
+
+        var active = ResolveUniformBlockActive(programId, blockName);
+        if (active.State == ResolutionState.Missing)
+        {
+            if (uniformBlockContract.TryGetValue(blockName, out var spec) && spec.Required)
+            {
+                WarnOnce($"ubo:{blockName}", $"Uniform block '{blockName}' is inactive/optimized-away; skipping bind-range.", warn);
+            }
+
+#if DEBUG
+            Diagnostics.SkippedUboBindsMissing++;
+#endif
+            return false;
+        }
+
+        if (active.State == ResolutionState.Unknown)
+        {
+#if DEBUG
+            Diagnostics.SkippedDueToUnknown++;
+#endif
+        }
+
+        if (!TryGetUniformBlockBinding(blockName, out int binding))
+        {
+            return false;
+        }
+
+        buffer.BindRange(binding, offsetBytes, sizeBytes);
+        return true;
+    }
+
+    /// <summary>
     /// Binds an SSBO to the binding point for the named shader storage block.
     /// </summary>
     internal bool TryBindShaderStorageBlock(int programId, string blockName, GpuShaderStorageBuffer buffer, Action<string>? warn = null)

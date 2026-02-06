@@ -104,15 +104,15 @@ References:
     - images (rw textures)
     - samplers (if any)
 
-☐ Phase 7 — Runtime Update Strategy: UBO Uploads Instead of `glUniform*` Storm
+✔ Phase 7 — Runtime Update Strategy: UBO Uploads Instead of `glUniform*` Storm
   Exit artifacts: per-frame constants updated once; per-draw/per-dispatch uses ranges/ring buffers; fewer driver calls.
-  ☐ Implement/update UBO upload strategy:
+  ✔ Implement/update UBO upload strategy:
     - Preferred: persistent mapped ring buffer (if supported)
     - Fallback: orphan + subdata or map-range invalidate
-  ☐ Split update cadence:
+  ✔ Split update cadence:
     - Frame/View UBO: once per frame
     - Object/Material UBO: per draw/dispatch (ideally bind-range)
-  ☐ Confirm correctness across shader recompiles and feature toggles.
+  ✔ Confirm correctness across shader recompiles and feature toggles.
 
 ☐ Phase 8 — Validation, Tooling, and Cleanup
   Exit artifacts: regression risk is managed; old uniform paths removed.
