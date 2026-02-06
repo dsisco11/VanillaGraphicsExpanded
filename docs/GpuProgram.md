@@ -59,9 +59,27 @@ VGE targets GLSL `#version 330`, so uniform-block bindings cannot rely on `layou
 
 Preferred pattern:
 
-- In your `GpuProgram` constructor, declare the contract:
-  - `RegisterUniformBlockBinding("MyBlockUBO", bindingIndex: 12, required: true)`
+- Define a program layout contract by overriding `CreateLayout()` with a shader-specific `GpuProgramLayout` subclass.
+- Register expected UBO binding points (and optionally sampler/image units) inside that layout.
 - After `Use()` (per pass), bind a buffer to the block by name:
   - `program.TryBindUniformBlock("MyBlockUBO", myUniformBuffer)`
+
+Example:
+
+```csharp
+internal sealed class MyShaderLayout : GpuProgramLayout
+{
+    public MyShaderLayout()
+    {
+        RegisterUniformBlockBinding("MyBlockUBO", bindingIndex: 12, required: true);
+        RegisterSamplerUnit("albedoTex", unit: 0, required: true);
+    }
+}
+
+public sealed class MyShaderProgram : GpuProgram
+{
+    protected override GpuProgramLayout CreateLayout() => new MyShaderLayout();
+}
+```
 
 This keeps binding indices centralized in the program wrapper and avoids renderers hardcoding `glUniformBlockBinding` calls.

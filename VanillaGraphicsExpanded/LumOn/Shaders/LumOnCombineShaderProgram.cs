@@ -19,11 +19,7 @@ public class LumOnCombineShaderProgram : GpuProgram
 {
     private LumOnCombineParamsUbo? paramsUbo;
 
-    public LumOnCombineShaderProgram()
-    {
-        RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
-        RegisterUniformBlockBinding(LumOnCombineParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
-    }
+    protected override GpuProgramLayout CreateLayout() => new LumOnCombineProgramLayout();
 
     private LumOnCombineParamsUbo Params => paramsUbo ??= new LumOnCombineParamsUbo();
 

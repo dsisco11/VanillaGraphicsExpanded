@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 using OpenTK.Graphics.OpenGL;
 
@@ -8,42 +9,206 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>
 /// Captures a snapshot of binding-related program resources after link (UBO/SSBO bindings, sampler/image units).
 /// </summary>
-internal sealed class GpuProgramLayout
+public class GpuProgramLayout
 {
+    #region Types
+
+    private readonly record struct BindingSpec(int BindingOrUnit, bool Required);
+
+    #endregion
+
     private static readonly IReadOnlyDictionary<string, int> EmptyBindings = new Dictionary<string, int>(StringComparer.Ordinal);
 
-    public static GpuProgramLayout Empty { get; } = new(null, null, null, null);
+    public static GpuProgramLayout Empty { get; } = new();
+
+    #region Contract
+
+    private readonly Dictionary<string, BindingSpec> uniformBlockContract = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, BindingSpec> shaderStorageBlockContract = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, BindingSpec> samplerContract = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, BindingSpec> imageContract = new(StringComparer.Ordinal);
+
+    #endregion
+
+    #region Active Cache (Snapshot)
+
+    private IReadOnlyDictionary<string, int> uniformBlockBindings = EmptyBindings;
+    private IReadOnlyDictionary<string, int> shaderStorageBlockBindings = EmptyBindings;
+    private IReadOnlyDictionary<string, int> samplerBindings = EmptyBindings;
+    private IReadOnlyDictionary<string, int> imageBindings = EmptyBindings;
+
+    // Resolution caches; cleared when the program id changes.
+    private readonly Dictionary<string, int> uniformLocationCache = new(StringComparer.Ordinal);
+    private int uniformLocationCacheProgramId;
+
+    private readonly Dictionary<string, int> uniformBlockIndexCache = new(StringComparer.Ordinal);
+    private int uniformBlockIndexCacheProgramId;
+
+    private readonly Dictionary<string, int> shaderStorageBlockIndexCache = new(StringComparer.Ordinal);
+    private int shaderStorageBlockIndexCacheProgramId;
+
+    #endregion
 
     /// <summary>
     /// Gets cached uniform block binding points (<c>layout(binding=...)</c> for UBOs).
     /// </summary>
-    public IReadOnlyDictionary<string, int> UniformBlockBindings { get; }
+    public IReadOnlyDictionary<string, int> UniformBlockBindings => uniformBlockBindings;
 
     /// <summary>
     /// Gets cached shader storage block binding points (<c>layout(binding=...)</c> for SSBOs).
     /// </summary>
-    public IReadOnlyDictionary<string, int> ShaderStorageBlockBindings { get; }
+    public IReadOnlyDictionary<string, int> ShaderStorageBlockBindings => shaderStorageBlockBindings;
 
     /// <summary>
     /// Gets cached sampler uniform values (texture units). This is a snapshot at cache build time.
     /// </summary>
-    public IReadOnlyDictionary<string, int> SamplerBindings { get; }
+    public IReadOnlyDictionary<string, int> SamplerBindings => samplerBindings;
 
     /// <summary>
     /// Gets cached image uniform values (image units). This is a snapshot at cache build time.
     /// </summary>
-    public IReadOnlyDictionary<string, int> ImageBindings { get; }
+    public IReadOnlyDictionary<string, int> ImageBindings => imageBindings;
 
-    private GpuProgramLayout(
+    /// <summary>
+    /// Creates a layout with an empty contract.
+    /// </summary>
+    public GpuProgramLayout()
+    {
+    }
+
+    private void SetActiveSnapshot(
         IReadOnlyDictionary<string, int>? uniformBlockBindings,
         IReadOnlyDictionary<string, int>? shaderStorageBlockBindings,
         IReadOnlyDictionary<string, int>? samplerBindings,
         IReadOnlyDictionary<string, int>? imageBindings)
     {
-        UniformBlockBindings = uniformBlockBindings ?? EmptyBindings;
-        ShaderStorageBlockBindings = shaderStorageBlockBindings ?? EmptyBindings;
-        SamplerBindings = samplerBindings ?? EmptyBindings;
-        ImageBindings = imageBindings ?? EmptyBindings;
+        this.uniformBlockBindings = uniformBlockBindings ?? EmptyBindings;
+        this.shaderStorageBlockBindings = shaderStorageBlockBindings ?? EmptyBindings;
+        this.samplerBindings = samplerBindings ?? EmptyBindings;
+        this.imageBindings = imageBindings ?? EmptyBindings;
+    }
+
+    /// <summary>
+    /// Registers a uniform block binding point expectation for this program contract.
+    /// </summary>
+    public void RegisterUniformBlockBinding(string blockName, int bindingIndex, bool required = true)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
+        if (bindingIndex < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(bindingIndex), bindingIndex, "Binding index must be >= 0.");
+        }
+
+        uniformBlockContract[blockName] = new BindingSpec(bindingIndex, required);
+    }
+
+    /// <summary>
+    /// Registers a shader storage block binding point expectation for this program contract.
+    /// </summary>
+    public void RegisterShaderStorageBlockBinding(string blockName, int bindingIndex, bool required = true)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
+        if (bindingIndex < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(bindingIndex), bindingIndex, "Binding index must be >= 0.");
+        }
+
+        shaderStorageBlockContract[blockName] = new BindingSpec(bindingIndex, required);
+    }
+
+    /// <summary>
+    /// Registers an expected sampler uniform texture unit for this program contract.
+    /// </summary>
+    public void RegisterSamplerUnit(string samplerUniformName, int unit, bool required = true)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(samplerUniformName);
+        if (unit < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(unit), unit, "Texture unit must be >= 0.");
+        }
+
+        samplerContract[samplerUniformName] = new BindingSpec(unit, required);
+    }
+
+    /// <summary>
+    /// Attempts to get a sampler unit from the registered contract only (ignores the active reflection snapshot).
+    /// </summary>
+    public bool TryGetContractSamplerUnit(string samplerUniformName, out int unit)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(samplerUniformName);
+
+        if (samplerContract.TryGetValue(samplerUniformName, out var spec))
+        {
+            unit = spec.BindingOrUnit;
+            return true;
+        }
+
+        unit = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Registers an expected image uniform image unit for this program contract.
+    /// </summary>
+    public void RegisterImageUnit(string imageUniformName, int unit, bool required = true)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(imageUniformName);
+        if (unit < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(unit), unit, "Image unit must be >= 0.");
+        }
+
+        imageContract[imageUniformName] = new BindingSpec(unit, required);
+    }
+
+    /// <summary>
+    /// Applies the registered contract to a linked program (UBO/SSBO binding points and sampler/image units).
+    /// </summary>
+    /// <remarks>
+    /// This is intended to be called once after a successful link (and after any re-link/recompile).
+    /// </remarks>
+    public void ApplyContract(int programId, Action<string>? warn = null)
+    {
+        if (programId == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            ApplyUniformBlockContract(programId, warn);
+            ApplyShaderStorageBlockContract(programId, warn);
+            ApplyUniformUnitContract(programId, samplerContract, warn);
+            ApplyUniformUnitContract(programId, imageContract, warn);
+        }
+        finally
+        {
+            RebuildCache(programId);
+        }
+    }
+
+    /// <summary>
+    /// Rebuilds the active binding snapshot for a linked program.
+    /// </summary>
+    public void RebuildCache(int programId)
+    {
+        if (programId == 0)
+        {
+            SetActiveSnapshot(null, null, null, null);
+            return;
+        }
+
+        try
+        {
+            var uniformBlocks = TryBuildBufferBindingByName(programId, ProgramInterface.UniformBlock);
+            var storageBlocks = TryBuildBufferBindingByName(programId, ProgramInterface.ShaderStorageBlock);
+            var (samplers, images) = TryBuildTextureUnitBindings(programId);
+            SetActiveSnapshot(uniformBlocks, storageBlocks, samplers, images);
+        }
+        catch
+        {
+            SetActiveSnapshot(null, null, null, null);
+        }
     }
 
     /// <summary>
@@ -57,19 +222,214 @@ internal sealed class GpuProgramLayout
             return Empty;
         }
 
+        var layout = new GpuProgramLayout();
+        layout.RebuildCache(programId);
+        return layout;
+    }
+
+    private void ApplyUniformBlockContract(int programId, Action<string>? warn)
+    {
+        if (uniformBlockContract.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var (blockName, spec) in uniformBlockContract)
+        {
+            int blockIndex = GetUniformBlockIndexCached(programId, blockName);
+            if (blockIndex < 0)
+            {
+                if (spec.Required)
+                {
+                    warn?.Invoke($"Program did not expose required uniform block '{blockName}'.");
+                }
+                continue;
+            }
+
+            try
+            {
+                GL.UniformBlockBinding(programId, blockIndex, spec.BindingOrUnit);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[GpuProgramLayout] Failed to assign UBO binding for '{blockName}': {ex.Message}");
+            }
+        }
+    }
+
+    private void ApplyShaderStorageBlockContract(int programId, Action<string>? warn)
+    {
+        if (shaderStorageBlockContract.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var (blockName, spec) in shaderStorageBlockContract)
+        {
+            int blockIndex = GetShaderStorageBlockIndexCached(programId, blockName);
+            if (blockIndex < 0)
+            {
+                if (spec.Required)
+                {
+                    warn?.Invoke($"Program did not expose required shader storage block '{blockName}'.");
+                }
+                continue;
+            }
+
+            try
+            {
+                GL.ShaderStorageBlockBinding(programId, blockIndex, spec.BindingOrUnit);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[GpuProgramLayout] Failed to assign SSBO binding for '{blockName}': {ex.Message}");
+            }
+        }
+    }
+
+    private void ApplyUniformUnitContract(int programId, Dictionary<string, BindingSpec> contract, Action<string>? warn)
+    {
+        if (contract.Count == 0)
+        {
+            return;
+        }
+
+        int prevProgram = 0;
+        bool hasPrevProgram = false;
+
         try
         {
-            var uniformBlocks = TryBuildBufferBindingByName(programId, ProgramInterface.UniformBlock);
-            var storageBlocks = TryBuildBufferBindingByName(programId, ProgramInterface.ShaderStorageBlock);
-
-            var (samplers, images) = TryBuildTextureUnitBindings(programId);
-
-            return new GpuProgramLayout(uniformBlocks, storageBlocks, samplers, images);
+            GL.GetInteger(GetPName.CurrentProgram, out prevProgram);
+            hasPrevProgram = true;
         }
         catch
         {
-            return Empty;
         }
+
+        try
+        {
+            GL.UseProgram(programId);
+
+            foreach (var (uniformName, spec) in contract)
+            {
+                int loc = GetUniformLocationOrArray0Cached(programId, uniformName);
+                if (loc < 0)
+                {
+                    if (spec.Required)
+                    {
+                        warn?.Invoke($"Program did not expose required uniform '{uniformName}'.");
+                    }
+                    continue;
+                }
+
+                try
+                {
+                    GL.Uniform1(loc, spec.BindingOrUnit);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[GpuProgramLayout] Failed to set uniform '{uniformName}' to {spec.BindingOrUnit}: {ex.Message}");
+                }
+            }
+        }
+        finally
+        {
+            try
+            {
+                if (hasPrevProgram)
+                {
+                    GL.UseProgram(prevProgram);
+                }
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private int GetUniformLocationOrArray0Cached(int programId, string uniformName)
+    {
+        if (uniformLocationCacheProgramId != programId)
+        {
+            uniformLocationCacheProgramId = programId;
+            uniformLocationCache.Clear();
+        }
+
+        if (uniformLocationCache.TryGetValue(uniformName, out int cached))
+        {
+            return cached;
+        }
+
+        int loc = -1;
+        try
+        {
+            loc = GL.GetUniformLocation(programId, uniformName);
+            if (loc < 0)
+            {
+                loc = GL.GetUniformLocation(programId, $"{uniformName}[0]");
+            }
+        }
+        catch
+        {
+            loc = -1;
+        }
+
+        uniformLocationCache[uniformName] = loc;
+        return loc;
+    }
+
+    private int GetUniformBlockIndexCached(int programId, string blockName)
+    {
+        if (uniformBlockIndexCacheProgramId != programId)
+        {
+            uniformBlockIndexCacheProgramId = programId;
+            uniformBlockIndexCache.Clear();
+        }
+
+        if (uniformBlockIndexCache.TryGetValue(blockName, out int cached))
+        {
+            return cached;
+        }
+
+        int index = -1;
+        try
+        {
+            index = GL.GetUniformBlockIndex(programId, blockName);
+        }
+        catch
+        {
+            index = -1;
+        }
+
+        uniformBlockIndexCache[blockName] = index;
+        return index;
+    }
+
+    private int GetShaderStorageBlockIndexCached(int programId, string blockName)
+    {
+        if (shaderStorageBlockIndexCacheProgramId != programId)
+        {
+            shaderStorageBlockIndexCacheProgramId = programId;
+            shaderStorageBlockIndexCache.Clear();
+        }
+
+        if (shaderStorageBlockIndexCache.TryGetValue(blockName, out int cached))
+        {
+            return cached;
+        }
+
+        int index = -1;
+        try
+        {
+            index = GL.GetProgramResourceIndex(programId, ProgramInterface.ShaderStorageBlock, blockName);
+        }
+        catch
+        {
+            index = -1;
+        }
+
+        shaderStorageBlockIndexCache[blockName] = index;
+        return index;
     }
 
     private static IReadOnlyDictionary<string, int> TryBuildBufferBindingByName(int programId, ProgramInterface programInterface)
@@ -288,7 +648,14 @@ internal sealed class GpuProgramLayout
     public bool TryGetUniformBlockBinding(string blockName, out int bindingIndex)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
-        return UniformBlockBindings.TryGetValue(blockName, out bindingIndex);
+
+        if (uniformBlockContract.TryGetValue(blockName, out var spec))
+        {
+            bindingIndex = spec.BindingOrUnit;
+            return true;
+        }
+
+        return uniformBlockBindings.TryGetValue(blockName, out bindingIndex);
     }
 
     /// <summary>
@@ -297,7 +664,14 @@ internal sealed class GpuProgramLayout
     public bool TryGetShaderStorageBlockBinding(string blockName, out int bindingIndex)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
-        return ShaderStorageBlockBindings.TryGetValue(blockName, out bindingIndex);
+
+        if (shaderStorageBlockContract.TryGetValue(blockName, out var spec))
+        {
+            bindingIndex = spec.BindingOrUnit;
+            return true;
+        }
+
+        return shaderStorageBlockBindings.TryGetValue(blockName, out bindingIndex);
     }
 
     /// <summary>
@@ -306,7 +680,14 @@ internal sealed class GpuProgramLayout
     public bool TryGetSamplerUnit(string samplerUniformName, out int unit)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(samplerUniformName);
-        return SamplerBindings.TryGetValue(samplerUniformName, out unit);
+
+        if (samplerContract.TryGetValue(samplerUniformName, out var spec))
+        {
+            unit = spec.BindingOrUnit;
+            return true;
+        }
+
+        return samplerBindings.TryGetValue(samplerUniformName, out unit);
     }
 
     /// <summary>
@@ -315,13 +696,20 @@ internal sealed class GpuProgramLayout
     public bool TryGetImageUnit(string imageUniformName, out int unit)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(imageUniformName);
-        return ImageBindings.TryGetValue(imageUniformName, out unit);
+
+        if (imageContract.TryGetValue(imageUniformName, out var spec))
+        {
+            unit = spec.BindingOrUnit;
+            return true;
+        }
+
+        return imageBindings.TryGetValue(imageUniformName, out unit);
     }
 
     /// <summary>
     /// Binds a UBO to the binding point for the named uniform block.
     /// </summary>
-    public bool TryBindUniformBlock(string blockName, GpuUniformBuffer buffer)
+    internal bool TryBindUniformBlock(string blockName, GpuUniformBuffer buffer)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
         ArgumentNullException.ThrowIfNull(buffer);
@@ -338,7 +726,7 @@ internal sealed class GpuProgramLayout
     /// <summary>
     /// Binds an SSBO to the binding point for the named shader storage block.
     /// </summary>
-    public bool TryBindShaderStorageBlock(string blockName, GpuShaderStorageBuffer buffer)
+    internal bool TryBindShaderStorageBlock(string blockName, GpuShaderStorageBuffer buffer)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
         ArgumentNullException.ThrowIfNull(buffer);

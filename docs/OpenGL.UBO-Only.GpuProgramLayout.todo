@@ -48,15 +48,15 @@ References:
   ✔ Create a compatibility macro layer (temporary):
     - Legacy uniform names become macro aliases to UBO fields to reduce churn.
 
-☐ Phase 2 — `GpuProgramLayout` as the Single Source of Truth
+✔ Phase 2 — `GpuProgramLayout` as the Single Source of Truth
   Exit artifacts: every program/pipeline has an associated layout object that knows bindings and can apply/validate them.
-  ☐ Extend docs for the contract concept and responsibilities.
-  ☐ Add a shader-specific subclass pattern:
+  ✔ Extend docs for the contract concept and responsibilities.
+  ✔ Add a shader-specific subclass pattern:
     - `MyShaderLayout : GpuProgramLayout`
     - Contains strongly-typed accessors for resources (UBO handles, textures, images, SSBOs).
-  ☐ Implement a unified “ApplyContract(program)” entrypoint:
+  ✔ Implement a unified “ApplyContract(program)” entrypoint:
     - Applies UBO binding points, SSBO bindings, image bindings, and (if needed) sampler-unit uniforms.
-  ☐ Make `GpuProgramLayout` the only place allowed to:
+  ✔ Make `GpuProgramLayout` the only place allowed to:
     - Resolve bindings by name (reflection)
     - Cache resolved locations/indices
     - Decide whether a resource is optional/required

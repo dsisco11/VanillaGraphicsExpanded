@@ -31,12 +31,6 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 /// </summary>
 public abstract class GpuProgram : ShaderProgram
 {
-    #region Types
-
-    private readonly record struct ProgramBlockBindingSpec(int BindingIndex, bool Required);
-
-    #endregion
-
     #region Fields
 
     private readonly StageShader vertexStage;
@@ -49,16 +43,20 @@ public abstract class GpuProgram : ShaderProgram
     private readonly Dictionary<string, int> uniformLocationCache = new(StringComparer.Ordinal);
     private int uniformLocationCacheProgramId;
 
-    private GpuProgramLayout resourceBindings = GpuProgramLayout.Empty;
-
-    private readonly Dictionary<string, ProgramBlockBindingSpec> uniformBlockBindingSpecs = new(StringComparer.Ordinal);
-    private int uniformBlockBindingSpecsProgramId;
-    private readonly HashSet<string> warnedMissingUniformBlocks = new(StringComparer.Ordinal);
+    private GpuProgramLayout? programLayout;
 
     private ICoreClientAPI? capi;
     private ILogger? log;
 
     private int recompileQueued;
+
+    #endregion
+
+    #region Layout
+
+    protected virtual GpuProgramLayout CreateLayout() => new();
+
+    internal GpuProgramLayout ProgramLayout => programLayout ??= CreateLayout();
 
     #endregion
 
@@ -103,33 +101,6 @@ public abstract class GpuProgram : ShaderProgram
     #region Uniform Block Binding (UBO)
 
     /// <summary>
-    /// Best-effort helper to assign a uniform-block binding point by block name (GLSL 330 friendly).
-    /// </summary>
-    protected bool TryAssignUniformBlockBinding(string blockName, int bindingIndex)
-    {
-        if (ProgramId == 0 || string.IsNullOrWhiteSpace(blockName))
-        {
-            return false;
-        }
-
-        try
-        {
-            int blockIndex = GL.GetUniformBlockIndex(ProgramId, blockName);
-            if (blockIndex < 0)
-            {
-                return false;
-            }
-
-            GL.UniformBlockBinding(ProgramId, blockIndex, bindingIndex);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    /// <summary>
     /// Registers an expected uniform block binding for this program.
     /// </summary>
     /// <remarks>
@@ -137,13 +108,7 @@ public abstract class GpuProgram : ShaderProgram
     /// </remarks>
     protected void RegisterUniformBlockBinding(string blockName, int bindingIndex, bool required = true)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
-        if (bindingIndex < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(bindingIndex), bindingIndex, "Binding index must be >= 0.");
-        }
-
-        uniformBlockBindingSpecs[blockName] = new ProgramBlockBindingSpec(bindingIndex, required);
+        ProgramLayout.RegisterUniformBlockBinding(blockName, bindingIndex, required);
     }
 
     /// <summary>
@@ -154,50 +119,7 @@ public abstract class GpuProgram : ShaderProgram
         ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
         ArgumentNullException.ThrowIfNull(buffer);
 
-        // Prefer the cached layout when available.
-        if (resourceBindings.TryBindUniformBlock(blockName, buffer))
-        {
-            return true;
-        }
-
-        // Fallback: bind by the registered contract binding point (works even if interface queries are unavailable).
-        if (uniformBlockBindingSpecs.TryGetValue(blockName, out var spec))
-        {
-            buffer.BindBase(spec.BindingIndex);
-            return true;
-        }
-
-        return false;
-    }
-
-    private void ApplyRegisteredUniformBlockBindings()
-    {
-        if (ProgramId == 0 || uniformBlockBindingSpecs.Count == 0)
-        {
-            return;
-        }
-
-        // Reset warning cache when the program object changes (recompile).
-        if (uniformBlockBindingSpecsProgramId != ProgramId)
-        {
-            uniformBlockBindingSpecsProgramId = ProgramId;
-            warnedMissingUniformBlocks.Clear();
-        }
-
-        foreach (var (blockName, spec) in uniformBlockBindingSpecs)
-        {
-            bool ok = TryAssignUniformBlockBinding(blockName, spec.BindingIndex);
-            if (ok || !spec.Required)
-            {
-                continue;
-            }
-
-            // Warn once per linked program.
-            if (warnedMissingUniformBlocks.Add(blockName))
-            {
-                log?.Warning($"[VGE][{ShaderName}] Program did not expose required uniform block '{blockName}'.");
-            }
-        }
+        return ProgramLayout.TryBindUniformBlock(blockName, buffer);
     }
 
     #endregion
@@ -206,40 +128,59 @@ public abstract class GpuProgram : ShaderProgram
 
     protected void BindTexture2D(string uniformName, GpuTexture? texture, int unit)
     {
-        SetUniform(uniformName, unit);
+        if (!ProgramLayout.TryGetContractSamplerUnit(uniformName, out int contractUnit))
+        {
+            // Legacy behavior: bind unit is caller-driven, set uniform every time.
+            SetUniform(uniformName, unit);
+            contractUnit = unit;
+        }
 
         if (texture is null)
         {
-            GlStateCache.Current.BindTexture(TextureTarget.Texture2D, unit, 0, sampler: null);
+            GlStateCache.Current.BindTexture(TextureTarget.Texture2D, contractUnit, 0, sampler: null);
             return;
         }
 
-        texture.Bind(unit);
+        texture.Bind(contractUnit);
     }
 
     protected void BindTexture3D(string uniformName, GpuTexture? texture, int unit)
     {
-        SetUniform(uniformName, unit);
+        if (!ProgramLayout.TryGetContractSamplerUnit(uniformName, out int contractUnit))
+        {
+            SetUniform(uniformName, unit);
+            contractUnit = unit;
+        }
 
         if (texture is null)
         {
-            GlStateCache.Current.BindTexture(TextureTarget.Texture3D, unit, 0, sampler: null);
+            GlStateCache.Current.BindTexture(TextureTarget.Texture3D, contractUnit, 0, sampler: null);
             return;
         }
 
-        texture.Bind(unit);
+        texture.Bind(contractUnit);
     }
 
     protected void BindExternalTexture2D(string uniformName, int textureId, int unit, GpuSampler sampler)
     {
-        SetUniform(uniformName, unit);
-        GlStateCache.Current.BindTexture(TextureTarget.Texture2D, unit, textureId, sampler);
+        if (!ProgramLayout.TryGetContractSamplerUnit(uniformName, out int contractUnit))
+        {
+            SetUniform(uniformName, unit);
+            contractUnit = unit;
+        }
+
+        GlStateCache.Current.BindTexture(TextureTarget.Texture2D, contractUnit, textureId, sampler);
     }
 
     protected void BindExternalTexture3D(string uniformName, int textureId, int unit, GpuSampler sampler)
     {
-        SetUniform(uniformName, unit);
-        GlStateCache.Current.BindTexture(TextureTarget.Texture3D, unit, textureId, sampler);
+        if (!ProgramLayout.TryGetContractSamplerUnit(uniformName, out int contractUnit))
+        {
+            SetUniform(uniformName, unit);
+            contractUnit = unit;
+        }
+
+        GlStateCache.Current.BindTexture(TextureTarget.Texture3D, contractUnit, textureId, sampler);
     }
 
     #endregion
@@ -250,7 +191,7 @@ public abstract class GpuProgram : ShaderProgram
     /// Gets cached binding-related resources for the currently linked program.
     /// Updated after successful <see cref="CompileAndLink"/>.
     /// </summary>
-    internal GpuProgramLayout ResourceBindings => resourceBindings;
+    internal GpuProgramLayout ResourceBindings => ProgramLayout;
 
     #endregion
 
@@ -1073,14 +1014,13 @@ public abstract class GpuProgram : ShaderProgram
             bool ok = Compile();
             if (ok)
             {
-                ApplyRegisteredUniformBlockBindings();
-                resourceBindings = GpuProgramLayout.TryBuild(ProgramId);
+                ProgramLayout.ApplyContract(ProgramId, msg => log?.Warning($"[VGE][{ShaderName}] {msg}"));
                 GlDebug.TryLabel(OpenTK.Graphics.OpenGL.ObjectLabelIdentifier.Program, ProgramId, ShaderName);
                 OnAfterCompile();
             }
             else
             {
-                resourceBindings = GpuProgramLayout.Empty;
+                ProgramLayout.RebuildCache(programId: 0);
                 log?.Warning($"[VGE] Shader compile failed: {ShaderName}");
                 LogDiagnostics();
             }

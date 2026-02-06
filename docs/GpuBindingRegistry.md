@@ -74,3 +74,5 @@ Current convention (recommended to keep):
 - 16..31: high-value debug/world-probe/lumon resources
 
 Note: exact per-shader units should be captured and enforced by shader-specific `GpuProgramLayout` subclasses.
+
+In VGE-owned shader programs (`GpuProgram`), these contracts are applied once after link via `GpuProgramLayout.ApplyContract(...)`.
