@@ -14,8 +14,8 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 internal sealed class LumOnUniformBuffers : IDisposable
 {
-    public const int FrameBinding = 12;
-    public const int WorldProbeBinding = 13;
+    public const int FrameBinding = GpuBindingRegistry.Ubo.Frame;
+    public const int WorldProbeBinding = GpuBindingRegistry.Ubo.WorldProbe;
 
     private const int WorldProbeMaxLevels = 8;
 

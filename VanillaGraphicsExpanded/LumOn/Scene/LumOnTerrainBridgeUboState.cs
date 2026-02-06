@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 internal static class LumOnTerrainBridgeUboState
 {
     public const string BlockName = "LumOnTerrainBridgeUBO";
-    public const int Binding = 27;
+    public const int Binding = GpuBindingRegistry.Ubo.TerrainBridge;
 
     private const int UboSizeBytes = 32; // ivec4 + vec4 (std140)
 

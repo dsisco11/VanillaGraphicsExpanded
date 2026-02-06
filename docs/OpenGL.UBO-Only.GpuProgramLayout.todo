@@ -19,20 +19,20 @@ References:
 - SPIR-V in OpenGL (ARB_gl_spirv): https://registry.khronos.org/OpenGL/extensions/ARB/ARB_gl_spirv.txt
 - Repo: docs/OpenGL.SPIR-V.BuildAndRuntime.todo, docs/GpuProgram.md, docs/OpenGL.PipelineStateObject.Overview.md
 
-☐ Phase 0 — Binding Registry + Conventions
+✔ Phase 0 — Binding Registry + Conventions
   Exit artifacts: binding tables exist; naming is stable; everyone agrees what “UBO-only” means.
-  ☐ Reserve binding points for common blocks (example):
+  ✔ Reserve binding points for common blocks (example):
     - Frame/View UBO (per-frame constants)
     - Object UBO (per-draw / per-dispatch constants)
     - Material UBO (material params)
     - Lights UBO (dynamic light lists)
-  ☐ Reserve binding ranges for compute-only resources:
+  ✔ Reserve binding ranges for compute-only resources:
     - SSBO bindings
     - image units
-  ☐ Reserve texture-unit ranges per pass (graphics) and per pipeline (compute) for fallbacks.
-  ☐ Document engine attribute indices and enforce vertex shaders using:
+  ✔ Reserve texture-unit ranges per pass (graphics) and per pipeline (compute) for fallbacks.
+  ✔ Document engine attribute indices and enforce vertex shaders using:
     - `#extension GL_ARB_explicit_attrib_location: enable`
-  ☐ Decide SPIR-V GLSL version baseline for VGE shaders (recommended: `#version 460 core` for SPIR-V path).
+  ✔ Decide SPIR-V GLSL version baseline for VGE shaders (recommended: `#version 460 core` for SPIR-V path).
 
 ☐ Phase 1 — Shader Interface Migration: “UBO-only” (Non-opaque)
   Exit artifacts: no standalone float/vec/mat uniforms remain; parameters are grouped into UBOs.
