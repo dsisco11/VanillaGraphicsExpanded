@@ -17,11 +17,11 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public class LumOnCombineShaderProgram : GpuProgram
 {
-    private LumOnCombineParamsUbo? paramsUbo;
-
     protected override GpuProgramLayout CreateLayout() => new LumOnCombineProgramLayout();
 
-    private LumOnCombineParamsUbo Params => paramsUbo ??= new LumOnCombineParamsUbo();
+    private LumOnCombineProgramLayout Layout => (LumOnCombineProgramLayout)ProgramLayout;
+
+    private LumOnCombineParamsUbo Params => Layout.Params;
 
     #region Static
 
@@ -45,32 +45,32 @@ public class LumOnCombineShaderProgram : GpuProgram
     /// <summary>
     /// Scene with direct lighting only (captured before GI application).
     /// </summary>
-    public GpuTexture? SceneDirect { set => BindTexture2D("sceneDirect", value, 0); }
+    public GpuTexture? SceneDirect { set => Layout.BindSceneDirect(ProgramId, value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// LumOn indirect diffuse output (upsampled to full resolution).
     /// </summary>
-    public GpuTexture? IndirectDiffuse { set => BindTexture2D("indirectDiffuse", value, 1); }
+    public GpuTexture? IndirectDiffuse { set => Layout.BindIndirectDiffuse(ProgramId, value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// G-Buffer albedo texture for material modulation.
     /// </summary>
-    public int GBufferAlbedo { set => BindExternalTexture2D("gBufferAlbedo", value, 2, GpuSamplers.NearestClamp); }
+    public int GBufferAlbedo { set => Layout.BindGBufferAlbedo(ProgramId, value, LayoutWarn); }
 
     /// <summary>
     /// G-Buffer material properties (roughness, metallic, etc.).
     /// </summary>
-    public int GBufferMaterial { set => BindExternalTexture2D("gBufferMaterial", value, 3, GpuSamplers.NearestClamp); }
+    public int GBufferMaterial { set => Layout.BindGBufferMaterial(ProgramId, value, LayoutWarn); }
 
     /// <summary>
     /// G-Buffer world-space normals.
     /// </summary>
-    public int GBufferNormal { set => BindExternalTexture2D("gBufferNormal", value, 5, GpuSamplers.NearestClamp); }
+    public int GBufferNormal { set => Layout.BindGBufferNormal(ProgramId, value, LayoutWarn); }
 
     /// <summary>
     /// Primary depth texture for sky detection.
     /// </summary>
-    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 4, GpuSamplers.NearestClamp); }
+    public int PrimaryDepth { set => Layout.BindPrimaryDepth(ProgramId, value, LayoutWarn); }
 
     #endregion
 
@@ -92,7 +92,7 @@ public class LumOnCombineShaderProgram : GpuProgram
         set
         {
             Params.DiffuseAOStrength = value;
-            Params.BindTo(this, LumOnCombineParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -101,7 +101,7 @@ public class LumOnCombineShaderProgram : GpuProgram
         set
         {
             Params.SpecularAOStrength = value;
-            Params.BindTo(this, LumOnCombineParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -118,7 +118,7 @@ public class LumOnCombineShaderProgram : GpuProgram
         set
         {
             Params.IndirectIntensity = value;
-            Params.BindTo(this, LumOnCombineParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -130,7 +130,7 @@ public class LumOnCombineShaderProgram : GpuProgram
         set
         {
             Params.IndirectTint = new System.Numerics.Vector3(value.X, value.Y, value.Z);
-            Params.BindTo(this, LumOnCombineParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 

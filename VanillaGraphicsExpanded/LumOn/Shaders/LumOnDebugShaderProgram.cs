@@ -20,17 +20,11 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public class LumOnDebugShaderProgram : GpuProgram
 {
-    private LumOnDebugParamsUbo? paramsUbo;
+    protected override GpuProgramLayout CreateLayout() => new LumOnDebugProgramLayout();
 
-    public LumOnDebugShaderProgram()
-    {
-        RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
-        RegisterUniformBlockBinding("LumOnWorldProbeUBO", LumOnUniformBuffers.WorldProbeBinding, required: false);
-        RegisterUniformBlockBinding(LumOnTerrainBridgeUboState.BlockName, LumOnTerrainBridgeUboState.Binding, required: false);
-        RegisterUniformBlockBinding(LumOnDebugParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
-    }
+    private LumOnDebugProgramLayout Layout => (LumOnDebugProgramLayout)ProgramLayout;
 
-    private LumOnDebugParamsUbo Params => paramsUbo ??= new LumOnDebugParamsUbo();
+    private LumOnDebugParamsUbo Params => Layout.Params;
 
     #region Static
 
@@ -77,11 +71,11 @@ public class LumOnDebugShaderProgram : GpuProgram
         return !changed;
     }
 
-    public GpuTexture? WorldProbeRadianceAtlas { set => BindTexture2D("worldProbeRadianceAtlas", value, 19); }
-    public GpuTexture? WorldProbeVis0 { set => BindTexture2D("worldProbeVis0", value, 22); }
-    public GpuTexture? WorldProbeDist0 { set => BindTexture2D("worldProbeDist0", value, 23); }
-    public GpuTexture? WorldProbeMeta0 { set => BindTexture2D("worldProbeMeta0", value, 24); }
-    public GpuTexture? WorldProbeDebugState0 { set => BindTexture2D("worldProbeDebugState0", value, 25); }
+    public GpuTexture? WorldProbeRadianceAtlas { set => Layout.BindTexture2D(ProgramId, "worldProbeRadianceAtlas", value?.TextureId ?? 0, LayoutWarn); }
+    public GpuTexture? WorldProbeVis0 { set => Layout.BindTexture2D(ProgramId, "worldProbeVis0", value?.TextureId ?? 0, LayoutWarn); }
+    public GpuTexture? WorldProbeDist0 { set => Layout.BindTexture2D(ProgramId, "worldProbeDist0", value?.TextureId ?? 0, LayoutWarn); }
+    public GpuTexture? WorldProbeMeta0 { set => Layout.BindTexture2D(ProgramId, "worldProbeMeta0", value?.TextureId ?? 0, LayoutWarn); }
+    public GpuTexture? WorldProbeDebugState0 { set => Layout.BindTexture2D(ProgramId, "worldProbeDebugState0", value?.TextureId ?? 0, LayoutWarn); }
 
     public float WorldProbeBaseSpacing { set => SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, value.ToString("0.0####", CultureInfo.InvariantCulture)); }
 
@@ -96,117 +90,117 @@ public class LumOnDebugShaderProgram : GpuProgram
     /// <summary>
     /// Primary depth texture.
     /// </summary>
-    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 0, GpuSamplers.NearestClamp); }
+    public int PrimaryDepth { set => Layout.BindNearestClamp2D(ProgramId, "primaryDepth", value, LayoutWarn); }
 
     /// <summary>
     /// G-buffer normals texture.
     /// </summary>
-    public int GBufferNormal { set => BindExternalTexture2D("gBufferNormal", value, 1, GpuSamplers.NearestClamp); }
+    public int GBufferNormal { set => Layout.BindNearestClamp2D(ProgramId, "gBufferNormal", value, LayoutWarn); }
 
     /// <summary>
     /// PatchId G-buffer (RGBA32UI) used by LumonScene debug views.
     /// </summary>
-    public int GBufferPatchId { set => BindExternalTexture2D("gBufferPatchId", value, 29, GpuSamplers.NearestClamp); }
+    public int GBufferPatchId { set => Layout.BindNearestClamp2D(ProgramId, "gBufferPatchId", value, LayoutWarn); }
 
     /// <summary>
     /// Probe anchor positions (posWS.xyz, valid).
     /// </summary>
-    public GpuTexture? ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 2); }
+    public GpuTexture? ProbeAnchorPosition { set => Layout.BindTexture2D(ProgramId, "probeAnchorPosition", value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// Probe anchor normals.
     /// </summary>
-    public GpuTexture? ProbeAnchorNormal { set => BindTexture2D("probeAnchorNormal", value, 3); }
+    public GpuTexture? ProbeAnchorNormal { set => Layout.BindTexture2D(ProgramId, "probeAnchorNormal", value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// Radiance SH texture 0 (for SH debug view).
     /// </summary>
-    public GpuTexture? RadianceTexture0 { set => BindTexture2D("radianceTexture0", value, 4); }
+    public GpuTexture? RadianceTexture0 { set => Layout.BindTexture2D(ProgramId, "radianceTexture0", value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// Radiance SH texture 1 (for SH debug view - second texture for full unpacking).
     /// </summary>
-    public GpuTexture? RadianceTexture1 { set => BindTexture2D("radianceTexture1", value, 5); }
+    public GpuTexture? RadianceTexture1 { set => Layout.BindTexture2D(ProgramId, "radianceTexture1", value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// Half-resolution indirect diffuse.
     /// </summary>
-    public GpuTexture? IndirectHalf { set => BindTexture2D("indirectHalf", value, 6); }
+    public GpuTexture? IndirectHalf { set => Layout.BindTexture2D(ProgramId, "indirectHalf", value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// History metadata texture (depth, normal, accumCount) for temporal debug.
     /// </summary>
-    public GpuTexture? HistoryMeta { set => BindTexture2D("historyMeta", value, 7); }
+    public GpuTexture? HistoryMeta { set => Layout.BindTexture2D(ProgramId, "historyMeta", value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// Screen-probe atlas meta (confidence/flags) for probe-atlas debug modes.
     /// </summary>
-    public GpuTexture? ProbeAtlasMeta { set => BindTexture2D("probeAtlasMeta", value, 8); }
+    public GpuTexture? ProbeAtlasMeta { set => Layout.BindTexture2D(ProgramId, "probeAtlasMeta", value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// Screen-probe atlas radiance (current/temporal output) for probe-atlas debug modes.
     /// </summary>
-    public GpuTexture? ProbeAtlasCurrent { set => BindTexture2D("probeAtlasCurrent", value, 9); }
+    public GpuTexture? ProbeAtlasCurrent { set => Layout.BindTexture2D(ProgramId, "probeAtlasCurrent", value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// Screen-probe atlas radiance (filtered output) for probe-atlas debug modes.
     /// </summary>
-    public GpuTexture? ProbeAtlasFiltered { set => BindTexture2D("probeAtlasFiltered", value, 10); }
+    public GpuTexture? ProbeAtlasFiltered { set => Layout.BindTexture2D(ProgramId, "probeAtlasFiltered", value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// The atlas texture currently selected as gather input (raw vs filtered).
     /// </summary>
-    public GpuTexture? ProbeAtlasGatherInput { set => BindTexture2D("probeAtlasGatherInput", value, 11); }
+    public GpuTexture? ProbeAtlasGatherInput { set => Layout.BindTexture2D(ProgramId, "probeAtlasGatherInput", value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// Raw/trace probe-atlas radiance (pre-temporal). Used by probe-atlas debug modes.
     /// </summary>
-    public GpuTexture? ProbeAtlasTrace { set => BindTexture2D("probeAtlasTrace", value, 27); }
+    public GpuTexture? ProbeAtlasTrace { set => Layout.BindTexture2D(ProgramId, "probeAtlasTrace", value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// Phase 10: probe-resolution trace mask (RG32F packed uint bits).
     /// </summary>
-    public GpuTexture? ProbeTraceMask { set => BindTexture2D("probeTraceMask", value, 26); }
+    public GpuTexture? ProbeTraceMask { set => Layout.BindTexture2D(ProgramId, "probeTraceMask", value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// Phase 10: probe-resolution importance energy (R32F, sum of weights).
     /// </summary>
-    public GpuTexture? ProbePisEnergy { set => BindTexture2D("probePisEnergy", value, 28); }
+    public GpuTexture? ProbePisEnergy { set => Layout.BindTexture2D(ProgramId, "probePisEnergy", value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// Full-resolution indirect diffuse (upsampled) used by composite debug views.
     /// </summary>
-    public GpuTexture? IndirectDiffuseFull { set => BindTexture2D("indirectDiffuseFull", value, 12); }
+    public GpuTexture? IndirectDiffuseFull { set => Layout.BindTexture2D(ProgramId, "indirectDiffuseFull", value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// Albedo source for composite debug views (fallback: captured scene).
     /// </summary>
-    public GpuTexture? GBufferAlbedo { set => BindTexture2D("gBufferAlbedo", value, 13); }
+    public GpuTexture? GBufferAlbedo { set => Layout.BindTexture2D(ProgramId, "gBufferAlbedo", value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// Material properties (roughness/metallic/emissive/reflectivity) for composite debug views.
     /// </summary>
-    public int GBufferMaterial { set => BindExternalTexture2D("gBufferMaterial", value, 14, GpuSamplers.NearestClamp); }
+    public int GBufferMaterial { set => Layout.BindNearestClamp2D(ProgramId, "gBufferMaterial", value, LayoutWarn); }
 
     /// <summary>
     /// Direct diffuse radiance (direct lighting debug views).
     /// </summary>
-    public GpuTexture? DirectDiffuse { set => BindTexture2D("directDiffuse", value, 15); }
+    public GpuTexture? DirectDiffuse { set => Layout.BindTexture2D(ProgramId, "directDiffuse", value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// Direct specular radiance (direct lighting debug views).
     /// </summary>
-    public GpuTexture? DirectSpecular { set => BindTexture2D("directSpecular", value, 16); }
+    public GpuTexture? DirectSpecular { set => Layout.BindTexture2D(ProgramId, "directSpecular", value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// Emissive radiance (direct lighting debug views).
     /// </summary>
-    public GpuTexture? Emissive { set => BindTexture2D("emissive", value, 17); }
+    public GpuTexture? Emissive { set => Layout.BindTexture2D(ProgramId, "emissive", value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>
     /// Full-resolution velocity texture (RGBA32F): RG = velocityUv, A = packed flags.
     /// </summary>
-    public GpuTexture? VelocityTex { set => BindTexture2D("velocityTex", value, 18); }
+    public GpuTexture? VelocityTex { set => Layout.BindTexture2D(ProgramId, "velocityTex", value?.TextureId ?? 0, LayoutWarn); }
 
     #endregion
 
@@ -217,7 +211,7 @@ public class LumOnDebugShaderProgram : GpuProgram
         set
         {
             Params.LumonSceneEnabled = value;
-            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -226,7 +220,7 @@ public class LumOnDebugShaderProgram : GpuProgram
         set
         {
             Params.LumonSceneTileSizeTexels = value;
-            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -235,7 +229,7 @@ public class LumOnDebugShaderProgram : GpuProgram
         set
         {
             Params.LumonSceneTilesPerAxis = value;
-            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -244,17 +238,17 @@ public class LumOnDebugShaderProgram : GpuProgram
         set
         {
             Params.LumonSceneTilesPerAtlas = value;
-            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
-    public GpuTexture? LumonScenePageTableMip0 { set => BindTexture2D("vge_lumonScenePageTableMip0", value, 30); }
+    public GpuTexture? LumonScenePageTableMip0 { set => Layout.BindTexture2D(ProgramId, "vge_lumonScenePageTableMip0", value?.TextureId ?? 0, LayoutWarn); }
 
-    public GpuTexture? LumonSceneIrradianceAtlas { set => BindTexture2D("vge_lumonSceneIrradianceAtlas", value, 31); }
+    public GpuTexture? LumonSceneIrradianceAtlas { set => Layout.BindTexture2D(ProgramId, "vge_lumonSceneIrradianceAtlas", value?.TextureId ?? 0, LayoutWarn); }
 
-    public GpuTexture? LumonSceneMaterialAtlas { set => BindTexture2D("vge_lumonSceneMaterialAtlas", value, 32); }
+    public GpuTexture? LumonSceneMaterialAtlas { set => Layout.BindTexture2D(ProgramId, "vge_lumonSceneMaterialAtlas", value?.TextureId ?? 0, LayoutWarn); }
 
-    public GpuTexture? LumonSceneSurfaceLut { set => BindTexture2D("vge_lumonSceneSurfaceLut", value, 33); }
+    public GpuTexture? LumonSceneSurfaceLut { set => Layout.BindTexture2D(ProgramId, "vge_lumonSceneSurfaceLut", value?.TextureId ?? 0, LayoutWarn); }
 
     #endregion
 
@@ -265,7 +259,7 @@ public class LumOnDebugShaderProgram : GpuProgram
         set
         {
             Params.TraceSceneEnabled = value;
-            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -274,7 +268,7 @@ public class LumOnDebugShaderProgram : GpuProgram
         set
         {
             Params.TraceSceneOccResolution = value;
-            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -283,7 +277,7 @@ public class LumOnDebugShaderProgram : GpuProgram
         set
         {
             Params.TraceSceneOccOriginMinCell0 = value;
-            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -292,12 +286,12 @@ public class LumOnDebugShaderProgram : GpuProgram
         set
         {
             Params.TraceSceneOccRing0 = value;
-            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
     // Keep this within typical GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS on older drivers.
-    public GpuTexture? TraceSceneOccL0 { set => BindTexture3D("vge_traceOccL0", value, 20); }
+    public GpuTexture? TraceSceneOccL0 { set => Layout.BindTexture3D(ProgramId, "vge_traceOccL0", value?.TextureId ?? 0, LayoutWarn); }
 
     #endregion
 
@@ -313,7 +307,7 @@ public class LumOnDebugShaderProgram : GpuProgram
         set
         {
             Params.TemporalAlpha = value;
-            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -325,7 +319,7 @@ public class LumOnDebugShaderProgram : GpuProgram
         set
         {
             Params.DepthRejectThreshold = value;
-            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -337,7 +331,7 @@ public class LumOnDebugShaderProgram : GpuProgram
         set
         {
             Params.NormalRejectThreshold = value;
-            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -353,7 +347,7 @@ public class LumOnDebugShaderProgram : GpuProgram
         set
         {
             Params.DebugMode = value;
-            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -366,7 +360,7 @@ public class LumOnDebugShaderProgram : GpuProgram
         set
         {
             Params.GatherAtlasSource = value;
-            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -379,7 +373,7 @@ public class LumOnDebugShaderProgram : GpuProgram
         set
         {
             Params.IndirectIntensity = value;
-            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -388,7 +382,7 @@ public class LumOnDebugShaderProgram : GpuProgram
         set
         {
             Params.IndirectTint = new System.Numerics.Vector3(value.X, value.Y, value.Z);
-            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -406,7 +400,7 @@ public class LumOnDebugShaderProgram : GpuProgram
         set
         {
             Params.DiffuseAOStrength = value;
-            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -415,7 +409,7 @@ public class LumOnDebugShaderProgram : GpuProgram
         set
         {
             Params.SpecularAOStrength = value;
-            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 

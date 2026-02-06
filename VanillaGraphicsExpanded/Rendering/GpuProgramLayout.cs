@@ -1012,11 +1012,6 @@ public class GpuProgramLayout
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(samplerUniformName);
 
-        if (textureId == 0)
-        {
-            return false;
-        }
-
         var loc = ResolveUniformLocation(programId, samplerUniformName);
         if (loc.State == ResolutionState.Missing)
         {
@@ -1040,6 +1035,10 @@ public class GpuProgramLayout
         if (samplerId != 0)
         {
             GlStateCache.Current.BindSampler(unit, samplerId);
+        }
+        else
+        {
+            GlStateCache.Current.UnbindSampler(unit);
         }
 
         return true;
@@ -1104,11 +1103,6 @@ public class GpuProgramLayout
         Action<string>? warn)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(imageUniformName);
-
-        if (textureId == 0)
-        {
-            return false;
-        }
 
         var loc = ResolveUniformLocation(programId, imageUniformName);
         if (loc.State == ResolutionState.Missing)

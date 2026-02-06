@@ -19,11 +19,13 @@ namespace VanillaGraphicsExpanded.PBR;
 /// </summary>
 public sealed class PBRDirectLightingShaderProgram : GpuProgram
 {
-    private PbrDirectLightingParamsUbo? paramsUbo;
-    
     // Cached state for compound properties
     private float _zNear, _zFar, _shadowRangeNear, _shadowRangeFar;
     private float _shadowZExtendNear, _shadowZExtendFar, _dropShadowIntensity;
+
+    protected override GpuProgramLayout CreateLayout() => new PbrDirectLightingProgramLayout();
+
+    private PbrDirectLightingProgramLayout Layout => (PbrDirectLightingProgramLayout)ProgramLayout;
 
     #region Static
 
@@ -34,7 +36,6 @@ public sealed class PBRDirectLightingShaderProgram : GpuProgram
             PassName = "pbr_direct_lighting",
             AssetDomain = "vanillagraphicsexpanded"
         };
-        instance.RegisterUniformBlockBinding(PbrDirectLightingParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
         instance.Initialize(api);
         instance.CompileAndLink();
 
@@ -43,11 +44,11 @@ public sealed class PBRDirectLightingShaderProgram : GpuProgram
 
     #endregion
 
-    private PbrDirectLightingParamsUbo Params => paramsUbo ??= new PbrDirectLightingParamsUbo();
+    private PbrDirectLightingParamsUbo Params => Layout.Params;
 
     private void UploadAndBindParamsUbo()
     {
-        Params.BindTo(this, PbrDirectLightingParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
     }
 
     #region Texture Samplers
@@ -55,36 +56,36 @@ public sealed class PBRDirectLightingShaderProgram : GpuProgram
     /// <summary>
     /// Primary scene color (baseColor) texture (texture unit 0).
     /// </summary>
-    public int PrimaryScene { set => BindExternalTexture2D("primaryScene", value, 0, GpuSamplers.LinearClamp); }
+    public int PrimaryScene { set => Layout.BindPrimaryScene(ProgramId, value, LayoutWarn); }
 
     /// <summary>
     /// Primary depth texture (texture unit 1).
     /// </summary>
-    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 1, GpuSamplers.NearestClamp); }
+    public int PrimaryDepth { set => Layout.BindPrimaryDepth(ProgramId, value, LayoutWarn); }
 
     /// <summary>
     /// G-buffer normal texture (Attachment4) (texture unit 2).
     /// Packed normalWS = n*0.5+0.5
     /// </summary>
-    public int GBufferNormal { set => BindExternalTexture2D("gBufferNormal", value, 2, GpuSamplers.NearestClamp); }
+    public int GBufferNormal { set => Layout.BindGBufferNormal(ProgramId, value, LayoutWarn); }
 
     /// <summary>
     /// G-buffer material texture (Attachment5) (texture unit 3).
     /// Contains: Roughness (R), Metallic (G), Emissive (B), Reflectivity (A).
     /// </summary>
-    public int GBufferMaterial { set => BindExternalTexture2D("gBufferMaterial", value, 3, GpuSamplers.NearestClamp); }
+    public int GBufferMaterial { set => Layout.BindGBufferMaterial(ProgramId, value, LayoutWarn); }
 
     /// <summary>
     /// Near shadow map (texture unit 4).
     /// Expected to be the depth texture of EnumFrameBuffer.ShadowmapNear.
     /// </summary>
-    public int ShadowMapNear { set => BindExternalTexture2D("shadowMapNear", value, 4, GpuSamplers.ShadowCompareLinearClamp); }
+    public int ShadowMapNear { set => Layout.BindShadowMapNear(ProgramId, value, LayoutWarn); }
 
     /// <summary>
     /// Far shadow map (texture unit 5).
     /// Expected to be the depth texture of EnumFrameBuffer.ShadowmapFar.
     /// </summary>
-    public int ShadowMapFar { set => BindExternalTexture2D("shadowMapFar", value, 5, GpuSamplers.ShadowCompareLinearClamp); }
+    public int ShadowMapFar { set => Layout.BindShadowMapFar(ProgramId, value, LayoutWarn); }
 
     #endregion
 

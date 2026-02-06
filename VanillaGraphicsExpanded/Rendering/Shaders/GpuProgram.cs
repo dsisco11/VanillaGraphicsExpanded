@@ -99,6 +99,12 @@ public abstract class GpuProgram : ShaderProgram
     /// </summary>
     protected virtual void OnAfterCompile() { }
 
+    /// <summary>
+    /// Optional warning sink for layout/contract guardrails.
+    /// </summary>
+    protected Action<string>? LayoutWarn
+        => log is null ? null : msg => log.Warning($"[VGE][{ShaderName}] {msg}");
+
     #endregion
 
     #region Uniform Block Binding (UBO)

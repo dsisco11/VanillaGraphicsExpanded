@@ -15,13 +15,15 @@ namespace VanillaGraphicsExpanded.PBR;
 /// </summary>
 public sealed class PBRCompositeShaderProgram : GpuProgram
 {
-    private PbrCompositeParamsUbo? paramsUbo;
-    
     // Cached state for compound properties
     private float _fogDensity, _fogMin;
     private System.Numerics.Vector3 _indirectTint;
     private float _indirectIntensity;
     private float _diffuseAO, _specularAO;
+
+    protected override GpuProgramLayout CreateLayout() => new PbrCompositeProgramLayout();
+
+    private PbrCompositeProgramLayout Layout => (PbrCompositeProgramLayout)ProgramLayout;
 
     #region Static
 
@@ -32,7 +34,6 @@ public sealed class PBRCompositeShaderProgram : GpuProgram
             PassName = "pbr_composite",
             AssetDomain = "vanillagraphicsexpanded"
         };
-        instance.RegisterUniformBlockBinding(PbrCompositeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
         instance.Initialize(api);
         instance.CompileAndLink();
 
@@ -41,30 +42,30 @@ public sealed class PBRCompositeShaderProgram : GpuProgram
 
     #endregion
 
-    private PbrCompositeParamsUbo Params => paramsUbo ??= new PbrCompositeParamsUbo();
+    private PbrCompositeParamsUbo Params => Layout.Params;
 
     private void UploadAndBindParamsUbo()
     {
-        Params.BindTo(this, PbrCompositeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
     }
 
     #region Texture Samplers
 
-    public GpuTexture? DirectDiffuse { set => BindTexture2D("directDiffuse", value, 0); }
+    public GpuTexture? DirectDiffuse { set => Layout.BindDirectDiffuse(ProgramId, value?.TextureId ?? 0, LayoutWarn); }
 
-    public GpuTexture? DirectSpecular { set => BindTexture2D("directSpecular", value, 1); }
+    public GpuTexture? DirectSpecular { set => Layout.BindDirectSpecular(ProgramId, value?.TextureId ?? 0, LayoutWarn); }
 
-    public GpuTexture? Emissive { set => BindTexture2D("emissive", value, 2); }
+    public GpuTexture? Emissive { set => Layout.BindEmissive(ProgramId, value?.TextureId ?? 0, LayoutWarn); }
 
-    public GpuTexture? IndirectDiffuse { set => BindTexture2D("indirectDiffuse", value, 3); }
+    public GpuTexture? IndirectDiffuse { set => Layout.BindIndirectDiffuse(ProgramId, value?.TextureId ?? 0, LayoutWarn); }
 
-    public int GBufferAlbedo { set => BindExternalTexture2D("gBufferAlbedo", value, 4, GpuSamplers.NearestClamp); }
+    public int GBufferAlbedo { set => Layout.BindGBufferAlbedo(ProgramId, value, LayoutWarn); }
 
-    public int GBufferMaterial { set => BindExternalTexture2D("gBufferMaterial", value, 5, GpuSamplers.NearestClamp); }
+    public int GBufferMaterial { set => Layout.BindGBufferMaterial(ProgramId, value, LayoutWarn); }
 
-    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 6, GpuSamplers.NearestClamp); }
+    public int PrimaryDepth { set => Layout.BindPrimaryDepth(ProgramId, value, LayoutWarn); }
 
-    public int GBufferNormal { set => BindExternalTexture2D("gBufferNormal", value, 7, GpuSamplers.NearestClamp); }
+    public int GBufferNormal { set => Layout.BindGBufferNormal(ProgramId, value, LayoutWarn); }
 
     #endregion
 

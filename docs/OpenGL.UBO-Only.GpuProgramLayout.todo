@@ -85,12 +85,12 @@ References:
   ✔ Add an “optional resource” marker to suppress warnings for feature-flagged shaders.
   ✔ Add lightweight diagnostics counters (dev-only): attempted sets skipped due to inactive.
 
-☐ Phase 5 — Integrate Layouts into Graphics (`GpuProgram`) Lifecycle
+✔ Phase 5 — Integrate Layouts into Graphics (`GpuProgram`) Lifecycle
   Exit artifacts: graphics programs apply layout contracts on link/relink and expose only layout-driven accessors.
-  ☐ Ensure `GpuProgram`:
+  ✔ Ensure `GpuProgram`:
     - Owns/attaches a `GpuProgramLayout`
     - Calls `layout.ApplyContract(...)` after successful link and after any recompile
-  ☐ Refactor existing per-shader wrappers (LumOn, PBR, debug, etc):
+  ✔ Refactor existing per-shader wrappers (LumOn, PBR, debug, etc):
     - Move uniform/texture/UBO property accessors into layout subclasses
     - Wrapper becomes thin: create program, attach layout, set defines, bind resources
 
