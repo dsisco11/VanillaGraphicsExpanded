@@ -83,3 +83,9 @@ public sealed class MyShaderProgram : GpuProgram
 ```
 
 This keeps binding indices centralized in the program wrapper and avoids renderers hardcoding `glUniformBlockBinding` calls.
+
+Notes on explicit bindings:
+
+- Compute shaders (`#version 430+`) can use explicit `layout(binding=...)` directly.
+- For graphics shaders that target `#version 330`, explicit `layout(binding=...)` may be available when the driver supports `GL_ARB_shading_language_420pack`.
+- Regardless, VGE applies the layout contract once after link as a deterministic fallback (UBOs via `glUniformBlockBinding`, samplers/images via `glUniform1i`).

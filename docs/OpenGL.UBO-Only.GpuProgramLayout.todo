@@ -61,14 +61,14 @@ References:
     - Cache resolved locations/indices
     - Decide whether a resource is optional/required
 
-☐ Phase 3 — Explicit Binding Support Matrix + Fallback Policy
+✔ Phase 3 — Explicit Binding Support Matrix + Fallback Policy
   Exit artifacts: behavior is deterministic on modern GL; graceful degradation on limited drivers.
-  ☐ Define capability checks (via `GpuSupport`) that determine when to use:
+  ✔ Define capability checks (via `GpuSupport`) that determine when to use:
     - Hardcoded explicit bindings (preferred)
     - Reflection-based resolution and binding (fallback)
-  ☐ For GLSL fallback paths that cannot compile `layout(binding=...)`:
+  ✔ For GLSL fallback paths that cannot compile `layout(binding=...)`:
     - Use `glUniformBlockBinding` after link based on layout contract.
-  ☐ For samplers (opaque uniforms):
+  ✔ For samplers (opaque uniforms):
     - Preferred: explicit binding decorations in SPIR-V / GLSL where supported.
     - Fallback: set sampler uniforms to fixed units once after link (never per-frame).
 

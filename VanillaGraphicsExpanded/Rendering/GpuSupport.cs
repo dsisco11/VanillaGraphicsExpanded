@@ -474,6 +474,9 @@ public static class GpuSupport
     public static bool SupportsArbExplicitUniformLocation { get; private set; }
     public static bool SupportsArbBufferStorage { get; private set; }
 
+    public static bool SupportsArbShadingLanguage420Pack { get; private set; }
+    public static bool SupportsArbProgramInterfaceQuery { get; private set; }
+
     public static bool SupportsArbGlSpirv { get; private set; }
 
     public static bool SupportsExtSemaphore { get; private set; }
@@ -504,6 +507,12 @@ public static class GpuSupport
         SupportsArbShaderAtomicCounters = GlExtensions.Supports("GL_ARB_shader_atomic_counters") || IsAtLeast(ApiVersion, 4, 2);
         SupportsArbExplicitUniformLocation = GlExtensions.Supports("GL_ARB_explicit_uniform_location") || IsAtLeast(ApiVersion, 4, 3);
         SupportsArbBufferStorage = GlExtensions.Supports("GL_ARB_buffer_storage") || IsAtLeast(ApiVersion, 4, 4);
+
+        // Enables layout(binding=...) in older GLSL (e.g., #version 330) when supported by the driver.
+        SupportsArbShadingLanguage420Pack = GlExtensions.Supports("GL_ARB_shading_language_420pack") || IsAtLeast(ApiVersion, 4, 2);
+
+        // Required for glGetProgramResource* and friends.
+        SupportsArbProgramInterfaceQuery = GlExtensions.Supports("GL_ARB_program_interface_query") || IsAtLeast(ApiVersion, 4, 3);
 
         SupportsArbGlSpirv = GlExtensions.Supports("GL_ARB_gl_spirv") || IsAtLeast(ApiVersion, 4, 6);
 

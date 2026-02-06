@@ -187,6 +187,19 @@ public class GpuProgramLayout
         }
     }
 
+    private static bool SupportsProgramInterfaceQueries()
+    {
+        // Prefer cached support when available, but keep this method safe for unit tests
+        // that create their own headless contexts without initializing GpuSupport.
+        if (GpuSupport.IsInitialized)
+        {
+            return GpuSupport.SupportsArbProgramInterfaceQuery;
+        }
+
+        // Best-effort: query extensions directly.
+        return GlExtensions.Supports("GL_ARB_program_interface_query");
+    }
+
     /// <summary>
     /// Rebuilds the active binding snapshot for a linked program.
     /// </summary>
@@ -194,6 +207,14 @@ public class GpuProgramLayout
     {
         if (programId == 0)
         {
+            SetActiveSnapshot(null, null, null, null);
+            return;
+        }
+
+        if (!SupportsProgramInterfaceQueries())
+        {
+            // Reflection snapshot relies on program interface queries; keep the cache empty
+            // and let contract-based fallback (by name) handle binding where needed.
             SetActiveSnapshot(null, null, null, null);
             return;
         }
@@ -244,6 +265,20 @@ public class GpuProgramLayout
                     warn?.Invoke($"Program did not expose required uniform block '{blockName}'.");
                 }
                 continue;
+            }
+
+            // Prefer explicit bindings when present (skip redundant assignment if the block is already bound correctly).
+            try
+            {
+                GL.GetActiveUniformBlock(programId, blockIndex, ActiveUniformBlockParameter.UniformBlockBinding, out int current);
+                if (current == spec.BindingOrUnit)
+                {
+                    continue;
+                }
+            }
+            catch
+            {
+                // Best-effort only.
             }
 
             try
@@ -320,6 +355,20 @@ public class GpuProgramLayout
                         warn?.Invoke($"Program did not expose required uniform '{uniformName}'.");
                     }
                     continue;
+                }
+
+                // Prefer explicit bindings when present (skip redundant assignment if already correct).
+                try
+                {
+                    GL.GetUniform(programId, loc, out int current);
+                    if (current == spec.BindingOrUnit)
+                    {
+                        continue;
+                    }
+                }
+                catch
+                {
+                    // Best-effort only.
                 }
 
                 try
