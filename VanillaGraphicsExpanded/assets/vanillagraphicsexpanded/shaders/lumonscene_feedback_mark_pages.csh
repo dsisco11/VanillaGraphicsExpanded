@@ -44,19 +44,26 @@ void main()
         return;
     }
 
+    // Generation rejection is best-effort.
+    // If the generation texture is missing/unbound (size==0) or the GBuffer didn't provide a generation (pidGen16==0),
+    // do not reject; otherwise we can end up with "no feedback => no pages allocated" failure modes.
     ivec2 genSize = textureSize(vge_chunkSlotGenerationTex, 0);
-    if (chunkSlot >= uint(max(genSize.x, 0)))
+    if (genSize.x > 0)
     {
-        atomicCounterIncrement(vge_markRejectChunkSlotOob);
-        return;
-    }
+        if (chunkSlot >= uint(genSize.x))
+        {
+            atomicCounterIncrement(vge_markRejectChunkSlotOob);
+            return;
+        }
 
-    uint gen16 = texelFetch(vge_chunkSlotGenerationTex, ivec2(int(chunkSlot), 0), 0).x & 0xFFFFu;
-    uint pidGen16 = pid.w & 0xFFFFu;
-    if (pidGen16 != gen16)
-    {
-        atomicCounterIncrement(vge_markRejectGenMismatch);
-        return;
+        uint gen16 = texelFetch(vge_chunkSlotGenerationTex, ivec2(int(chunkSlot), 0), 0).x & 0xFFFFu;
+        uint pidGen16 = pid.w & 0xFFFFu;
+
+        if (pidGen16 != 0u && pidGen16 != gen16)
+        {
+            atomicCounterIncrement(vge_markRejectGenMismatch);
+            return;
+        }
     }
 
     ivec3 stampSize = imageSize(vge_pageUsageStamp);
