@@ -28,6 +28,7 @@ layout(location = 1) out vec4 outNormal;    // normalWS.xyz, reserved
 
 // Phase 23: shared per-frame state via UBOs.
 @import "./includes/lumon_ubos.glsl"
+@import "./includes/lumon_probe_params_ubo.glsl"
 
 // PMJ temporal jitter sequence (provided by CPU as an RG16_UNorm 1xN texture)
 
@@ -38,7 +39,6 @@ uniform sampler2D gBufferNormal;   // World-space normals
 uniform sampler2D pmjJitter;
 
 // Edge detection parameter
-uniform float depthDiscontinuityThreshold;  // Recommended: 0.1
 
 // ============================================================================
 // Depth Discontinuity Detection

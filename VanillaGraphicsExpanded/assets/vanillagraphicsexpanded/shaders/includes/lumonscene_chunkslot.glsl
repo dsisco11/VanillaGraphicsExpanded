@@ -16,14 +16,12 @@
 // ============================================================================
 
 @import "./vge_worldspace_bridge.glsl"
+@import "./lumonscene_chunkslot_params_ubo.glsl"
 
 // Runtime-provided slot window parameters.
 // - `originMinChunk`: inclusive minimum chunk coord of the active slot window.
 // - `dims`: window dimensions in chunks (must be > 0 per axis when enabled).
 // - `ring`: ring offsets in chunk units (used to keep slot indices stable under window movement).
-uniform ivec3 vge_lumonSceneChunkSlotOriginMinChunk;
-uniform ivec3 vge_lumonSceneChunkSlotDims;
-uniform ivec3 vge_lumonSceneChunkSlotRing;
 uniform usampler2D vge_lumonSceneChunkSlotGenerationTex;
 
 // Backwards-compatible name used by injected patch code.

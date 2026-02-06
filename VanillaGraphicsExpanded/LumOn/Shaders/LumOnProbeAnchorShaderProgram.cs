@@ -1,9 +1,12 @@
+using System;
+
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.LumOn.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -23,10 +26,15 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public class LumOnProbeAnchorShaderProgram : GpuProgram
 {
+    private LumOnProbeParamsUbo? paramsUbo;
+
     public LumOnProbeAnchorShaderProgram()
     {
         RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
+        RegisterUniformBlockBinding(LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
     }
+
+    private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();
 
     #region Static
 
@@ -73,7 +81,14 @@ public class LumOnProbeAnchorShaderProgram : GpuProgram
     /// for reduced temporal accumulation weight.
     /// Recommended value: 0.1
     /// </summary>
-    public float DepthDiscontinuityThreshold { set => Uniform("depthDiscontinuityThreshold", value); }
+    public float DepthDiscontinuityThreshold
+    {
+        set
+        {
+            Params.DepthDiscontinuityThreshold = value;
+            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     #endregion
 }

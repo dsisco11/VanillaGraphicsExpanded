@@ -34,18 +34,18 @@ References:
     - `#extension GL_ARB_explicit_attrib_location: enable`
   ✔ Decide SPIR-V GLSL version baseline for VGE shaders (recommended: `#version 460 core` for SPIR-V path).
 
-☐ Phase 1 — Shader Interface Migration: “UBO-only” (Non-opaque)
+✔ Phase 1 — Shader Interface Migration: “UBO-only” (Non-opaque)
   Exit artifacts: no standalone float/vec/mat uniforms remain; parameters are grouped into UBOs.
-  ☐ Define std140 block schemas in shared includes (VGE `@import`):
+  ✔ Define std140 block schemas in shared includes (VGE `@import`):
     - Frame/View block (matrices, fog, time, camera)
     - Object block (model/chunk transforms, draw flags)
     - Material block (tints/PBR knobs)
     - Lights block (counts + vec4 arrays)
-  ☐ Add explicit UBO bindings for SPIR-V builds:
+  ✔ Add explicit UBO bindings for SPIR-V builds:
     - `layout(std140, binding = N) uniform <BlockName> { ... };
-  ☐ Remove “set-every-uniform-every-frame” style for non-opaque values:
+  ✔ Remove “set-every-uniform-every-frame” style for non-opaque values:
     - All those values must come from UBOs.
-  ☐ Create a compatibility macro layer (temporary):
+  ✔ Create a compatibility macro layer (temporary):
     - Legacy uniform names become macro aliases to UBO fields to reduce churn.
 
 ☐ Phase 2 — `GpuProgramLayout` as the Single Source of Truth

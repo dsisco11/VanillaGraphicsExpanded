@@ -30,6 +30,7 @@ layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFlo
 
 // Phase 23: shared per-frame state via UBOs.
 @import "./includes/lumon_ubos.glsl"
+@import "./includes/lumon_probe_params_ubo.glsl"
 
 // ============================================================================
 // Uniforms
@@ -62,8 +63,6 @@ uniform sampler2D velocityTex;
 uniform sampler2D pmjJitter;
 
 // Temporal blending parameters
-uniform float temporalAlpha;              // Base blend factor (e.g., 0.9)
-uniform float hitDistanceRejectThreshold; // Relative threshold (e.g., 0.3 = 30%)
 
 // Phase 14: velocity reprojection toggles
 // (Now supplied by the per-frame UBO.)

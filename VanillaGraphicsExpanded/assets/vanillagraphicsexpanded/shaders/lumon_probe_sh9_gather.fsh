@@ -18,6 +18,7 @@ out vec4 outColor;
 
 // Phase 23: shared per-frame state via UBOs.
 @import "./includes/lumon_ubos.glsl"
+@import "./includes/lumon_probe_params_ubo.glsl"
 
 // SH9 packed textures (7 MRT attachments from projection pass)
 uniform sampler2D probeSh0;
@@ -37,8 +38,6 @@ uniform sampler2D primaryDepth;
 uniform sampler2D gBufferNormal;
 
 // Quality parameters
-uniform float intensity;
-uniform vec3 indirectTint;
 
 // ============================================================================
 // World Probe Clipmap (Phase 18)

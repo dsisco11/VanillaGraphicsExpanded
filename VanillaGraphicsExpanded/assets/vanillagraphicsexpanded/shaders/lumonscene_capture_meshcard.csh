@@ -54,12 +54,14 @@ layout(std430, binding = 2) readonly buffer VgeTriangles
     VgeTriangle vge_triangles[];
 };
 
-layout(location = 0) uniform uint vge_tileSizeTexels;
-layout(location = 1) uniform uint vge_tilesPerAxis;
-layout(location = 2) uniform uint vge_tilesPerAtlas;
-layout(location = 3) uniform uint vge_borderTexels; // v1 default 0
+@import "./includes/lumonscene_capture_meshcard_params_ubo.glsl"
 
-layout(location = 4) uniform float vge_captureDepthRange; // signed depth range is [-range, +range]
+#define vge_tileSizeTexels (vgeCaptureMeshCardParams.atlasLayout.x)
+#define vge_tilesPerAxis   (vgeCaptureMeshCardParams.atlasLayout.y)
+#define vge_tilesPerAtlas  (vgeCaptureMeshCardParams.atlasLayout.z)
+#define vge_borderTexels   (vgeCaptureMeshCardParams.atlasLayout.w)
+
+#define vge_captureDepthRange (vgeCaptureMeshCardParams.captureFloats0.x)
 
 bool IntersectRayTriangle(vec3 ro, vec3 rd, vec3 v0, vec3 v1, vec3 v2, out float t)
 {

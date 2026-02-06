@@ -16,6 +16,8 @@ out vec4 outColor;
 // Import global defines (feature toggles with defaults)
 @import "./includes/vge_global_defines.glsl"
 
+@import "./includes/pbr_composite_params_ubo.glsl"
+
 // Direct buffers (linear, fog-free)
 uniform sampler2D directDiffuse;
 uniform sampler2D directSpecular;
@@ -31,20 +33,6 @@ uniform sampler2D gBufferNormal;
 uniform sampler2D primaryDepth;
 
 // Fog (VS convention)
-uniform vec4 rgbaFogIn;
-uniform float fogDensityIn;
-uniform float fogMinIn;
-
-// Indirect controls
-uniform float indirectIntensity;
-uniform vec3 indirectTint;
-
-// Phase 15 AO strength (kept as uniforms since they're float tuning values)
-uniform float diffuseAOStrength;
-uniform float specularAOStrength;
-
-uniform mat4 invProjectionMatrix;
-uniform mat4 viewMatrix;
 
 void main(void)
 {

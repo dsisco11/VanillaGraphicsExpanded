@@ -6,7 +6,7 @@ layout(location = 0) out float outDepth;
 // Assumes depth convention: near ~0, far/sky ~1.
 
 uniform sampler2D hzbDepth;
-uniform int srcMip;
+@import "./includes/lumon_hzb_params_ubo.glsl"
 
 void main(void)
 {

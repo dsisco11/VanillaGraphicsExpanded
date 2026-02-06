@@ -14,40 +14,11 @@ uniform sampler2D primaryDepth;
 uniform sampler2D gBufferNormal;   // ColorAttachment4: normal packed (RGBA16F)
 uniform sampler2D gBufferMaterial; // ColorAttachment5: Roughness, Metallic, Emissive, Reflectivity (RGBA16F)
 
-// Matrices for world position reconstruction
-uniform mat4 invProjectionMatrix;
-uniform mat4 invModelViewMatrix;
-
-// Z-planes
-uniform float zNear;
-uniform float zFar;
-
-// Camera split origin for precision
-uniform vec3 cameraOriginFloor;
-uniform vec3 cameraOriginFrac;
-
-// Lighting (directional + ambient)
-uniform vec3 lightDirection; // normalized direction toward the sun
-uniform vec3 rgbaAmbientIn;
-uniform vec3 rgbaLightIn;
-
-// Point lights
-// NOTE: Layout/space of these arrays is verified in Phase 16.0, but exact semantic space
-// (world vs camera-relative) may still require adjustment when wiring the pass.
-uniform int pointLightsCount;
-uniform vec3 pointLights3[100];
-uniform vec3 pointLightColors3[100];
+@import "./includes/pbr_direct_lighting_params_ubo.glsl"
 
 // Shadows (wired in Phase 16.3/16.4; shader defines the surface now)
 uniform sampler2DShadow shadowMapNear;
 uniform sampler2DShadow shadowMapFar;
-uniform mat4 toShadowMapSpaceMatrixNear;
-uniform mat4 toShadowMapSpaceMatrixFar;
-uniform float shadowRangeNear;
-uniform float shadowRangeFar;
-uniform float shadowZExtendNear;
-uniform float shadowZExtendFar;
-uniform float dropShadowIntensity;
 
 @import "./includes/pbr_common.glsl"
 @import "./includes/pbr_shadowmaps.glsl"
@@ -165,8 +136,8 @@ void main()
     int count = clamp(pointLightsCount, 0, 100);
     for (int i = 0; i < count; i++)
     {
-        vec3 lp = pointLights3[i];
-        vec3 lc = pointLightColors3[i];
+        vec3 lp = VgePbrPointLightPos(i);
+        vec3 lc = VgePbrPointLightColor(i);
 
         vec3 toLight = lp - worldPos;
         float distSq = max(dot(toLight, toLight), 0.0001);

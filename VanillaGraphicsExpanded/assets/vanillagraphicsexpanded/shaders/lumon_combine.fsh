@@ -23,6 +23,7 @@ out vec4 outColor;
 
 // Phase 23: shared per-frame state via UBOs.
 @import "./includes/lumon_ubos.glsl"
+@import "./includes/lumon_combine_params_ubo.glsl"
 
 // ============================================================================
 // Textures
@@ -45,12 +46,6 @@ uniform sampler2D primaryDepth;       // Depth for sky detection
 // ============================================================================
 
 // Intensity and color adjustment
-uniform float indirectIntensity;      // Global multiplier (default: 1.0)
-uniform vec3 indirectTint;            // RGB tint applied to indirect light
-
-// Phase 15 AO strength (kept as uniforms since they're float tuning values)
-uniform float diffuseAOStrength;
-uniform float specularAOStrength;
 
 // ============================================================================
 // Main

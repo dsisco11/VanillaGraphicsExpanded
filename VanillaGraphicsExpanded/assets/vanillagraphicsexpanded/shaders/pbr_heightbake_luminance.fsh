@@ -6,8 +6,7 @@
 out vec4 outColor;
 
 uniform sampler2D u_atlas;
-uniform ivec4 u_atlasRectPx; // (x, y, w, h) in atlas pixels
-uniform ivec2 u_outSize;      // output size in pixels (w, h)
+@import "./includes/pbr_heightbake_params_ubo.glsl"
 
 ivec2 Wrap(ivec2 p, ivec2 size)
 {

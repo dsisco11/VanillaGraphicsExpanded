@@ -8,6 +8,7 @@ using Vintagestory.Client.NoObf;
 
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.LumOn.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -17,10 +18,15 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public class LumOnProbeSh9GatherShaderProgram : GpuProgram
 {
+    private LumOnProbeParamsUbo? paramsUbo;
+
     public LumOnProbeSh9GatherShaderProgram()
     {
         RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
+        RegisterUniformBlockBinding(LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
     }
+
+    private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();
 
     #region Static
 
@@ -72,9 +78,23 @@ public class LumOnProbeSh9GatherShaderProgram : GpuProgram
 
     #region Uniforms
 
-    public float Intensity { set => Uniform("intensity", value); }
+    public float Intensity
+    {
+        set
+        {
+            Params.Intensity = value;
+            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
-    public float[] IndirectTint { set => Uniform("indirectTint", new Vec3f(value[0], value[1], value[2])); }
+    public float[] IndirectTint
+    {
+        set
+        {
+            Params.IndirectTint = new System.Numerics.Vector3(value[0], value[1], value[2]);
+            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     #endregion
 

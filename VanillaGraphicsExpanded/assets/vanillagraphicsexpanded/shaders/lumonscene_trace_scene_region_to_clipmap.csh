@@ -6,6 +6,8 @@
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
+@import "./includes/lumonscene_trace_region_params_ubo.glsl"
+
 layout(std430, binding = 0) readonly buffer VgeRegionPayloadWords
 {
     uint vge_regionPayloadWords[];
@@ -25,17 +27,15 @@ layout(std430, binding = 1) readonly buffer VgeRegionUpdates
     VgeRegionUpdate vge_regionUpdates[];
 };
 
-// Count of valid region updates in the SSBO (written by CPU as a uniform).
-// Note: do NOT use atomicCounter() here; that increments and would corrupt the count.
-layout(location = 0) uniform uint vge_regionUpdateCount;
-
 // Destination images: bind OccupancyLevels[i] to image unit i.
 layout(binding = 0, r32ui) writeonly uniform uimage3D vge_occLevels[8];
 
-layout(location = 1) uniform int vge_levels;      // <= 8
-layout(location = 2) uniform int vge_resolution;  // per axis
-layout(location = 3) uniform ivec3 vge_originMinCell[8];
-layout(location = 11) uniform ivec3 vge_ring[8];
+uint vge_regionUpdateCount() { return vgeTraceRegionParams.counts.x; }
+int vge_levels() { return int(vgeTraceRegionParams.counts.y); }
+int vge_resolution() { return int(vgeTraceRegionParams.counts.z); }
+
+ivec3 vge_originMinCell(int level) { return vgeTraceRegionParams.originMinCell[level].xyz; }
+ivec3 vge_ring(int level) { return vgeTraceRegionParams.ring[level].xyz; }
 
 const uint VGE_REGION_SIZE = 32u;
 const uint VGE_REGION_SHIFT = 5u;
@@ -48,20 +48,21 @@ int Wrap(int x, int m)
 
 bool TryMapLevelCellToTexel(int level, ivec3 levelCell, out ivec3 texel)
 {
-    ivec3 local = levelCell - vge_originMinCell[level];
-    if (uint(local.x) >= uint(vge_resolution) ||
-        uint(local.y) >= uint(vge_resolution) ||
-        uint(local.z) >= uint(vge_resolution))
+    int resolution = vge_resolution();
+    ivec3 local = levelCell - vge_originMinCell(level);
+    if (uint(local.x) >= uint(resolution) ||
+        uint(local.y) >= uint(resolution) ||
+        uint(local.z) >= uint(resolution))
     {
         texel = ivec3(0);
         return false;
     }
 
-    ivec3 ring = vge_ring[level];
+    ivec3 ring = vge_ring(level);
     texel = ivec3(
-        Wrap(local.x + ring.x, vge_resolution),
-        Wrap(local.y + ring.y, vge_resolution),
-        Wrap(local.z + ring.z, vge_resolution));
+        Wrap(local.x + ring.x, resolution),
+        Wrap(local.y + ring.y, resolution),
+        Wrap(local.z + ring.z, resolution));
     return true;
 }
 
@@ -90,7 +91,7 @@ void main()
     uint updateIndex = gl_WorkGroupID.z / groupsPerRegionZ;
     uint groupZWithin = gl_WorkGroupID.z - updateIndex * groupsPerRegionZ;
 
-    uint updateCount = vge_regionUpdateCount;
+    uint updateCount = vge_regionUpdateCount();
     if (updateIndex >= updateCount)
     {
         return;
@@ -116,7 +117,7 @@ void main()
 
     ivec3 worldCell = upd.RegionCoord.xyz * int(VGE_REGION_SIZE) + ivec3(local);
 
-    int maxLevel = min(max(vge_levels, 0), 8);
+    int maxLevel = min(max(vge_levels(), 0), 8);
 
     for (int level = 0; level < maxLevel; level++)
     {

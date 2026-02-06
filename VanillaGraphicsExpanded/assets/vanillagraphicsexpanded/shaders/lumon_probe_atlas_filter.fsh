@@ -21,6 +21,7 @@ layout(location = 1) out vec2 outMeta;      // R = filtered confidence, G = uint
 
 // Phase 23: shared per-frame state via UBOs.
 @import "./includes/lumon_ubos.glsl"
+@import "./includes/lumon_probe_params_ubo.glsl"
 
 // Input stabilized atlas (typically the temporal output for this frame)
 uniform sampler2D octahedralAtlas;
@@ -32,8 +33,6 @@ uniform sampler2D probeAtlasMeta;
 uniform sampler2D probeAnchorPosition;  // xyz = posWS, w = validity
 
 // Filter parameters
-uniform int filterRadius;         // e.g. 1 for 3x3
-uniform float hitDistanceSigma;   // decoded distance sigma for edge stopping
 
 float gaussian(float x, float sigma)
 {

@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Diagnostics;
 
 using OpenTK.Graphics.OpenGL;
@@ -13,15 +14,16 @@ internal sealed class LumonSceneTraceSceneRegionToClipmapComputeShader : IDispos
 {
     public const string ShaderName = "lumonscene_trace_scene_region_to_clipmap";
 
+    private const int ParamsUboBinding = GpuBindingRegistry.Ubo.Object; // VGE_UBO_OBJECT_BINDING
+    private const int ParamsUboSizeBytes = 16 + (8 * 16) + (8 * 16); // uvec4 + ivec4[8] + ivec4[8]
+    private const int OriginMinCellOffsetBytes = 16;
+    private const int RingOffsetBytes = 16 + (8 * 16);
+
     private const int RegionPayloadWordsSsboBindingIndex = 0; // layout(std430, binding=0)
     private const int RegionUpdatesSsboBindingIndex = 1;      // layout(std430, binding=1)
 
-    private const int RegionUpdateCountLocation = 0; // layout(location=0) uint
-    private const int LevelsLocation = 1;            // layout(location=1) int
-    private const int ResolutionLocation = 2;        // layout(location=2) int
-
-    private const int OriginMinCellBaseLocation = 3; // layout(location=3) ivec3[8]
-    private const int RingBaseLocation = 11;         // layout(location=11) ivec3[8]
+    private readonly byte[] paramsBytes = new byte[ParamsUboSizeBytes];
+    private GpuUniformBuffer? paramsUbo;
 
     private const int OccLevelImageBaseUnit = 0;     // layout(binding=0) uimage3D vge_occLevels[8]
 
@@ -34,6 +36,16 @@ internal sealed class LumonSceneTraceSceneRegionToClipmapComputeShader : IDispos
     private LumonSceneTraceSceneRegionToClipmapComputeShader(GpuComputePipeline pipeline)
     {
         this.pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
+
+        // Params UBO (non-opaque uniforms) for this compute pipeline.
+        paramsUbo = GpuUniformBuffer.Create(debugName: "LumOnScene.TraceRegion.ParamsUBO");
+    }
+
+    private void ApplyParamsUbo()
+    {
+        paramsUbo ??= GpuUniformBuffer.Create(debugName: "LumOnScene.TraceRegion.ParamsUBO");
+        paramsUbo.UploadOrResize(paramsBytes, ParamsUboSizeBytes, growExponentially: false);
+        paramsUbo.BindBase(ParamsUboBinding);
     }
 
     public static bool TryCreate(
@@ -104,8 +116,8 @@ internal sealed class LumonSceneTraceSceneRegionToClipmapComputeShader : IDispos
     {
         set
         {
-            Use();
-            GL.Uniform1(RegionUpdateCountLocation, value);
+            UboPacking.WriteUVec4(paramsBytes, 0, value, GetCountsY(), GetCountsZ(), 0u);
+            ApplyParamsUbo();
         }
     }
 
@@ -113,8 +125,8 @@ internal sealed class LumonSceneTraceSceneRegionToClipmapComputeShader : IDispos
     {
         set
         {
-            Use();
-            GL.Uniform1(LevelsLocation, value);
+            UboPacking.WriteUVec4(paramsBytes, 0, GetCountsX(), unchecked((uint)value), GetCountsZ(), 0u);
+            ApplyParamsUbo();
         }
     }
 
@@ -122,29 +134,35 @@ internal sealed class LumonSceneTraceSceneRegionToClipmapComputeShader : IDispos
     {
         set
         {
-            Use();
-            GL.Uniform1(ResolutionLocation, value);
+            UboPacking.WriteUVec4(paramsBytes, 0, GetCountsX(), GetCountsY(), unchecked((uint)value), 0u);
+            ApplyParamsUbo();
         }
     }
 
     public void SetOriginMinCell(int level, int x, int y, int z)
     {
         if (level < 0 || level >= 8) throw new ArgumentOutOfRangeException(nameof(level));
-        Use();
-        GL.Uniform3(OriginMinCellBaseLocation + level, x, y, z);
+        UboPacking.WriteIVec4(paramsBytes, OriginMinCellOffsetBytes + level * 16, x, y, z, 0);
+        ApplyParamsUbo();
     }
 
     public void SetRing(int level, int x, int y, int z)
     {
         if (level < 0 || level >= 8) throw new ArgumentOutOfRangeException(nameof(level));
-        Use();
-        GL.Uniform3(RingBaseLocation + level, x, y, z);
+        UboPacking.WriteIVec4(paramsBytes, RingOffsetBytes + level * 16, x, y, z, 0);
+        ApplyParamsUbo();
     }
+
+    private uint GetCountsX() => BinaryPrimitives.ReadUInt32LittleEndian(paramsBytes.AsSpan(0, 4));
+    private uint GetCountsY() => BinaryPrimitives.ReadUInt32LittleEndian(paramsBytes.AsSpan(4, 4));
+    private uint GetCountsZ() => BinaryPrimitives.ReadUInt32LittleEndian(paramsBytes.AsSpan(8, 4));
 
     public void Dispose()
     {
         try
         {
+            paramsUbo?.Dispose();
+            paramsUbo = null;
             pipeline.Dispose();
         }
         catch (Exception ex)

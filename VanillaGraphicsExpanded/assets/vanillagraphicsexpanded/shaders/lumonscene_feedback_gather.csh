@@ -25,26 +25,29 @@ layout(std430, binding = 0) buffer VgePageRequests
     uvec4 vge_pageRequests[];
 };
 
-layout(location = 0) uniform uint vge_maxRequests;
-layout(location = 1) uniform uint vge_frameIndex;
-layout(location = 2) uniform uvec2 vge_screenSize;
-layout(location = 3) uniform uint vge_sampleCount;
+@import "./includes/lumonscene_feedback_gather_params_ubo.glsl"
+
+uint vge_maxRequests() { return vgeFeedbackGatherParams.u0.x; }
+uint vge_frameIndex() { return vgeFeedbackGatherParams.u0.y; }
+uvec2 vge_screenSize() { return vgeFeedbackGatherParams.u1.xy; }
+uint vge_sampleCount() { return vgeFeedbackGatherParams.u0.z; }
 
 void main()
 {
     uint sampleIndex = gl_GlobalInvocationID.x;
-    if (sampleIndex >= vge_sampleCount)
+    if (sampleIndex >= vge_sampleCount())
     {
         return;
     }
 
-    uint w = max(1u, vge_screenSize.x);
-    uint h = max(1u, vge_screenSize.y);
+    uvec2 ss = vge_screenSize();
+    uint w = max(1u, ss.x);
+    uint h = max(1u, ss.y);
     uint pixelCount = w * h;
 
     // Deterministic permutation-ish mapping (good distribution; exact bijection for power-of-two pixelCount).
     // Keep constants odd so power-of-two domains have full period.
-    uint pixelLinear = (sampleIndex * 747796405u + vge_frameIndex * 2891336453u) % pixelCount;
+    uint pixelLinear = (sampleIndex * 747796405u + vge_frameIndex() * 2891336453u) % pixelCount;
     ivec2 p = ivec2(int(pixelLinear % w), int(pixelLinear / w));
 
     uvec4 pid = texelFetch(vge_patchIdGBuffer, p, 0);
@@ -59,7 +62,7 @@ void main()
     uint virtualPageIndex = patchId % uint(128u * 128u);
 
     uint idx = atomicCounterIncrement(vge_pageRequestCount);
-    if (idx >= vge_maxRequests)
+    if (idx >= vge_maxRequests())
     {
         return;
     }

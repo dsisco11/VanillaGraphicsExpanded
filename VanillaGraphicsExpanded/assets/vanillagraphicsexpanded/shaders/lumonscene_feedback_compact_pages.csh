@@ -20,10 +20,12 @@ layout(std430, binding = 0) buffer VgePageRequests
     uvec4 vge_pageRequests[];
 };
 
-layout(location = 0) uniform uint vge_maxRequests;
-layout(location = 1) uniform uint vge_frameStamp;
-layout(location = 2) uniform uint vge_scanOffset;
-layout(location = 3) uniform uint vge_compactMode; // 0=emit mapped pages only, 1=emit unmapped pages only (runtime uses 1)
+@import "./includes/lumonscene_feedback_compact_params_ubo.glsl"
+
+uint vge_maxRequests() { return vgeFeedbackCompactParams.u0.x; }
+uint vge_frameStamp() { return vgeFeedbackCompactParams.u0.y; }
+uint vge_scanOffset() { return vgeFeedbackCompactParams.u0.z; }
+uint vge_compactMode() { return vgeFeedbackCompactParams.u0.w; }
 
 void main()
 {
@@ -39,14 +41,14 @@ void main()
 
     // Fairness: scan offset ensures no single chunkSlot permanently dominates the bounded request list.
     // The CPU increments vge_scanOffset each frame (typically by VirtualPagesPerChunk) to rotate slots.
-    uint idx0 = (linear + vge_scanOffset) % totalEntries;
+    uint idx0 = (linear + vge_scanOffset()) % totalEntries;
 
     uint virtualPageIndex = idx0 % uint(128u * 128u);
     uint chunkSlot = idx0 / uint(128u * 128u);
 
     ivec3 vtexel = ivec3(int(virtualPageIndex & 127u), int(virtualPageIndex >> 7u), int(chunkSlot));
     uint stamp = texelFetch(vge_pageUsageStamp, vtexel, 0).x;
-    if (stamp != vge_frameStamp)
+    if (stamp != vge_frameStamp())
     {
         return;
     }
@@ -56,7 +58,7 @@ void main()
     uint packedEntry = texelFetch(vge_pageTableMip0, ivec3(vtexel), 0).x;
     bool mapped = (packedEntry & 0xFFFFFFu) != 0u;
 
-    if (vge_compactMode == 0u)
+    if (vge_compactMode() == 0u)
     {
         // Emit only pages that already have a mapping (diagnostics / optional maintenance pass).
         if (!mapped) return;
@@ -68,7 +70,7 @@ void main()
     }
 
     uint idx = atomicCounterIncrement(vge_pageRequestCount);
-    if (idx >= vge_maxRequests)
+    if (idx >= vge_maxRequests())
     {
         return;
     }

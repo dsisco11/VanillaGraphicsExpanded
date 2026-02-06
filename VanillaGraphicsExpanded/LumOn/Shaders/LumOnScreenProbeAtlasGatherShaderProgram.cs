@@ -8,6 +8,7 @@ using Vintagestory.Client.NoObf;
 
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.LumOn.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -18,10 +19,30 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
 {
+    private LumOnProbeParamsUbo? paramsUbo;
+
     public LumOnScreenProbeAtlasGatherShaderProgram()
     {
         RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
+        RegisterUniformBlockBinding(LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
     }
+
+    private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();
+
+    /// <summary>
+    /// Provides access to the underlying params UBO for advanced batched updates.
+    /// Example:
+    /// <code>
+    /// using (program.ParamsUbo.BeginBatchUpdate())
+    /// {
+    ///     program.Intensity = 1.5f;
+    ///     program.IndirectTint = new float[] { 1, 0.9f, 0.8f };
+    ///     program.SampleStride = 2;
+    ///     // Single GPU upload happens when scope exits
+    /// }
+    /// </code>
+    /// </summary>
+    public LumOnProbeParamsUbo ParamsUbo => Params;
 
     #region Static
 
@@ -83,12 +104,26 @@ public class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
     /// <summary>
     /// Intensity multiplier for indirect lighting output.
     /// </summary>
-    public float Intensity { set => Uniform("intensity", value); }
+    public float Intensity
+    {
+        set
+        {
+            Params.Intensity = value;
+            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     /// <summary>
     /// RGB tint applied to indirect lighting.
     /// </summary>
-    public float[] IndirectTint { set => Uniform("indirectTint", new Vec3f(value[0], value[1], value[2])); }
+    public float[] IndirectTint
+    {
+        set
+        {
+            Params.IndirectTint = new System.Numerics.Vector3(value[0], value[1], value[2]);
+            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     /// <summary>
     /// Leak prevention threshold.
@@ -96,14 +131,28 @@ public class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
     /// the contribution is reduced to prevent light leaking.
     /// Default: 0.5 (50% tolerance)
     /// </summary>
-    public float LeakThreshold { set => Uniform("leakThreshold", value); }
+    public float LeakThreshold
+    {
+        set
+        {
+            Params.LeakThreshold = value;
+            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     /// <summary>
     /// Sample stride for hemisphere integration.
     /// 1 = full quality (64 samples per probe)
     /// 2 = performance mode (16 samples per probe)
     /// </summary>
-    public int SampleStride { set => Uniform("sampleStride", value); }
+    public int SampleStride
+    {
+        set
+        {
+            Params.SampleStride = value;
+            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     #endregion
 

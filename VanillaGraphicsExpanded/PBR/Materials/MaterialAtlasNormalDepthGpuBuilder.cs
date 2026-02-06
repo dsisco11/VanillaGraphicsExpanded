@@ -59,6 +59,8 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
 
     private const int MaxRadius = 64;
 
+    private static PbrHeightBakeParamsUbo? paramsUbo;
+
     private static bool initialized;
     private static GpuVao? vao;
     private static GpuFramebuffer? scratchFbo;
@@ -77,19 +79,26 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
 
     private static float Clamp(float v, float lo, float hi) => v < lo ? lo : (v > hi ? hi : v);
 
-    private static VgeStageNamedShaderProgram? progLuminance;
-    private static VgeStageNamedShaderProgram? progGauss1D;
-    private static VgeStageNamedShaderProgram? progSub;
-    private static VgeStageNamedShaderProgram? progCombine;
-    private static VgeStageNamedShaderProgram? progGradient;
-    private static VgeStageNamedShaderProgram? progDivergence;
-    private static VgeStageNamedShaderProgram? progJacobi;
-    private static VgeStageNamedShaderProgram? progResidual;
-    private static VgeStageNamedShaderProgram? progRestrict;
-    private static VgeStageNamedShaderProgram? progProlongateAdd;
-    private static VgeStageNamedShaderProgram? progNormalize;
-    private static VgeStageNamedShaderProgram? progPackToAtlas;
-    private static VgeStageNamedShaderProgram? progCopy;
+    private static PbrHeightBakeShaderProgram? progLuminance;
+    private static PbrHeightBakeShaderProgram? progGauss1D;
+    private static PbrHeightBakeShaderProgram? progSub;
+    private static PbrHeightBakeShaderProgram? progCombine;
+    private static PbrHeightBakeShaderProgram? progGradient;
+    private static PbrHeightBakeShaderProgram? progDivergence;
+    private static PbrHeightBakeShaderProgram? progJacobi;
+    private static PbrHeightBakeShaderProgram? progResidual;
+    private static PbrHeightBakeShaderProgram? progRestrict;
+    private static PbrHeightBakeShaderProgram? progProlongateAdd;
+    private static PbrHeightBakeShaderProgram? progNormalize;
+    private static PbrHeightBakeShaderProgram? progPackToAtlas;
+    private static PbrHeightBakeShaderProgram? progCopy;
+
+    private static PbrHeightBakeParamsUbo Params => paramsUbo ??= new PbrHeightBakeParamsUbo();
+
+    private static void UploadAndBindParamsUbo(VgeStageNamedShaderProgram prog)
+    {
+        Params.BindTo(prog, PbrHeightBakeParamsUbo.BlockName, "VGE.HeightBake.Params");
+    }
 
     // Intermediate textures are reused and resized per tile.
     private static TileResources? tile;
@@ -752,19 +761,20 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
 
         // Compile all programs using VGE's shader pipeline (imports, diagnostics, debug labels).
         // Each pass shares the same fullscreen vertex stage, but has its own fragment stage.
-        progLuminance = new VgeStageNamedShaderProgram(FshLuminance, Vsh, FshLuminance, Domain);
-        progGauss1D = new VgeStageNamedShaderProgram(FshGauss1D, Vsh, FshGauss1D, Domain);
-        progSub = new VgeStageNamedShaderProgram(FshSub, Vsh, FshSub, Domain);
-        progCombine = new VgeStageNamedShaderProgram(FshCombine, Vsh, FshCombine, Domain);
-        progGradient = new VgeStageNamedShaderProgram(FshGradient, Vsh, FshGradient, Domain);
-        progDivergence = new VgeStageNamedShaderProgram(FshDivergence, Vsh, FshDivergence, Domain);
-        progJacobi = new VgeStageNamedShaderProgram(FshJacobi, Vsh, FshJacobi, Domain);
-        progResidual = new VgeStageNamedShaderProgram(FshResidual, Vsh, FshResidual, Domain);
-        progRestrict = new VgeStageNamedShaderProgram(FshRestrict, Vsh, FshRestrict, Domain);
-        progProlongateAdd = new VgeStageNamedShaderProgram(FshProlongateAdd, Vsh, FshProlongateAdd, Domain);
-        progNormalize = new VgeStageNamedShaderProgram(FshNormalize, Vsh, FshNormalize, Domain);
-        progPackToAtlas = new VgeStageNamedShaderProgram(FshPackToAtlas, Vsh, FshPackToAtlas, Domain);
-        progCopy = new VgeStageNamedShaderProgram(FshCopy, Vsh, FshCopy, Domain);
+        // PbrHeightBakeShaderProgram automatically registers the shared params UBO binding.
+        progLuminance = new PbrHeightBakeShaderProgram(FshLuminance, Vsh, FshLuminance, Domain);
+        progGauss1D = new PbrHeightBakeShaderProgram(FshGauss1D, Vsh, FshGauss1D, Domain);
+        progSub = new PbrHeightBakeShaderProgram(FshSub, Vsh, FshSub, Domain);
+        progCombine = new PbrHeightBakeShaderProgram(FshCombine, Vsh, FshCombine, Domain);
+        progGradient = new PbrHeightBakeShaderProgram(FshGradient, Vsh, FshGradient, Domain);
+        progDivergence = new PbrHeightBakeShaderProgram(FshDivergence, Vsh, FshDivergence, Domain);
+        progJacobi = new PbrHeightBakeShaderProgram(FshJacobi, Vsh, FshJacobi, Domain);
+        progResidual = new PbrHeightBakeShaderProgram(FshResidual, Vsh, FshResidual, Domain);
+        progRestrict = new PbrHeightBakeShaderProgram(FshRestrict, Vsh, FshRestrict, Domain);
+        progProlongateAdd = new PbrHeightBakeShaderProgram(FshProlongateAdd, Vsh, FshProlongateAdd, Domain);
+        progNormalize = new PbrHeightBakeShaderProgram(FshNormalize, Vsh, FshNormalize, Domain);
+        progPackToAtlas = new PbrHeightBakeShaderProgram(FshPackToAtlas, Vsh, FshPackToAtlas, Domain);
+        progCopy = new PbrHeightBakeShaderProgram(FshCopy, Vsh, FshCopy, Domain);
 
         progLuminance.Initialize(capi);
         progGauss1D.Initialize(capi);
@@ -859,14 +869,34 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         try
         {
             BindSampler2D(progLuminance, "u_atlas", 0, atlasTexId, GpuSamplers.NearestClamp);
-            progLuminance.Uniform4i("u_atlasRectPx", atlasRectPx.x, atlasRectPx.y, atlasRectPx.w, atlasRectPx.h);
-            progLuminance.Uniform2i("u_outSize", dst.Width, dst.Height);
+
+            using (Params.BeginBatchUpdate())
+            {
+                Params.LuminanceAtlasRect = atlasRectPx;
+                Params.LuminanceDstSize = (dst.Width, dst.Height);
+            }
+
+            UploadAndBindParamsUbo(progLuminance);
             DrawFullscreenTriangle();
         }
         finally
         {
             progLuminance.Stop();
         }
+    }
+
+    private static void WritePackedWeights65(float[] weights, int radius)
+    {
+        int r = Math.Clamp(radius, 0, MaxRadius);
+        
+        // Clamp weights to actual radius
+        float[] clampedWeights = new float[r + 1];
+        for (int i = 0; i <= r && i < weights.Length; i++)
+        {
+            clampedWeights[i] = weights[i];
+        }
+        
+        Params.SetKernelWeights(clampedWeights, r + 1);
     }
 
     private static void RunGaussian(DynamicTexture2D src, DynamicTexture2D tmp, DynamicTexture2D dst, float sigma)
@@ -892,10 +922,16 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         try
         {
             BindSampler2D(progGauss1D, "u_src", 0, src);
-            progGauss1D.Uniform2i("u_size", src.Width, src.Height);
-            progGauss1D.Uniform2i("u_dir", 1, 0);
-            progGauss1D.Uniform("u_radius", radius);
-            progGauss1D.Uniform1fv("u_weights", weights);
+
+            using (Params.BeginBatchUpdate())
+            {
+                Params.CommonSize = (src.Width, src.Height);
+                Params.GaussianDirection = (1, 0);
+                Params.GaussianParams = (radius, 0);
+                WritePackedWeights65(weights, radius);
+            }
+
+            UploadAndBindParamsUbo(progGauss1D);
             DrawFullscreenTriangle();
         }
         finally
@@ -909,10 +945,16 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         try
         {
             BindSampler2D(progGauss1D, "u_src", 0, tmp);
-            progGauss1D.Uniform2i("u_size", dst.Width, dst.Height);
-            progGauss1D.Uniform2i("u_dir", 0, 1);
-            progGauss1D.Uniform("u_radius", radius);
-            progGauss1D.Uniform1fv("u_weights", weights);
+
+            using (Params.BeginBatchUpdate())
+            {
+                Params.CommonSize = (dst.Width, dst.Height);
+                Params.GaussianDirection = (0, 1);
+                Params.GaussianParams = (radius, 0);
+                WritePackedWeights65(weights, radius);
+            }
+
+            UploadAndBindParamsUbo(progGauss1D);
             DrawFullscreenTriangle();
         }
         finally
@@ -929,12 +971,15 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         {
             BindSampler2D(progSub, "u_a", 0, a);
             BindSampler2D(progSub, "u_b", 1, b);
-            progSub.Uniform2i("u_size", dst.Width, dst.Height);
-            progSub.Uniform("u_relContrast", relContrast ? 1 : 0);
-            // Small epsilon so multiplicative dark tints don't collapse the signal;
-            // clamp range prevents extreme spikes when base is near-zero.
-            progSub.Uniform("u_eps", 1e-6f);
-            progSub.Uniform("u_vMax", 8f);
+
+            using (Params.BeginBatchUpdate())
+            {
+                Params.CommonSize = (dst.Width, dst.Height);
+                Params.GaussianParams = (0, relContrast ? 1 : 0);
+                Params.SubParams = (1e-6f, 8f);
+            }
+
+            UploadAndBindParamsUbo(progSub);
             DrawFullscreenTriangle();
         }
         finally
@@ -950,7 +995,8 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         try
         {
             BindSampler2D(progCopy, "u_src", 0, src);
-            progCopy.Uniform2i("u_size", dst.Width, dst.Height);
+            Params.CommonSize = (dst.Width, dst.Height);
+            UploadAndBindParamsUbo(progCopy);
             DrawFullscreenTriangle();
         }
         finally
@@ -969,8 +1015,13 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             BindSampler2D(progCombine, "u_g2", 1, g2);
             BindSampler2D(progCombine, "u_g3", 2, g3);
             BindSampler2D(progCombine, "u_g4", 3, g4);
-            progCombine.Uniform3f("u_w", w1, w2, w3);
-            progCombine.Uniform2i("u_size", dst.Width, dst.Height);
+
+            using (Params.BeginBatchUpdate())
+            {
+                Params.CombineWeights = (w1, w2, w3);
+                Params.CommonSize = (dst.Width, dst.Height);
+            }
+            UploadAndBindParamsUbo(progCombine);
             DrawFullscreenTriangle();
         }
         finally
@@ -986,10 +1037,13 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         try
         {
             BindSampler2D(progGradient, "u_d", 0, d);
-            progGradient.Uniform2i("u_size", d.Width, d.Height);
-            progGradient.Uniform("u_gain", gain);
-            progGradient.Uniform("u_maxSlope", maxSlope);
-            progGradient.Uniform2f("u_edgeT", edgeT0, edgeT1);
+
+            using (Params.BeginBatchUpdate())
+            {
+                Params.CommonSize = (d.Width, d.Height);
+                Params.GradientParams = (gain, maxSlope, edgeT0, edgeT1);
+            }
+            UploadAndBindParamsUbo(progGradient);
             DrawFullscreenTriangle();
         }
         finally
@@ -1005,7 +1059,8 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         try
         {
             BindSampler2D(progDivergence, "u_g", 0, g);
-            progDivergence.Uniform2i("u_size", dstDiv.Width, dstDiv.Height);
+            Params.CommonSize = (dstDiv.Width, dstDiv.Height);
+            UploadAndBindParamsUbo(progDivergence);
             DrawFullscreenTriangle();
         }
         finally
@@ -1021,12 +1076,14 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         try
         {
             BindSampler2D(progNormalize, "u_h", 0, h);
-            progNormalize.Uniform2i("u_size", dst.Width, dst.Height);
-            progNormalize.Uniform("u_mean", mean);
-            progNormalize.Uniform("u_invNeg", invNeg);
-            progNormalize.Uniform("u_invPos", invPos);
-            progNormalize.Uniform("u_heightStrength", heightStrength);
-            progNormalize.Uniform("u_gamma", gamma);
+
+            using (Params.BeginBatchUpdate())
+            {
+                Params.CommonSize = (dst.Width, dst.Height);
+                Params.NormalizeParams = (mean, invNeg, invPos, heightStrength);
+                Params.NormalizeGamma = gamma;
+            }
+            UploadAndBindParamsUbo(progNormalize);
             DrawFullscreenTriangle();
         }
         finally
@@ -1053,13 +1110,15 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         {
             BindSampler2D(progPackToAtlas, "u_height", 0, heightTex);
             BindSampler2D(progPackToAtlas, "u_albedoAtlas", 1, baseAlbedoAtlasTexId, GpuSamplers.NearestClamp);
-            progPackToAtlas.Uniform2i("u_solverSize", solverSizePx.w, solverSizePx.h);
-            progPackToAtlas.Uniform2i("u_tileSize", tileSizePx.w, tileSizePx.h);
-            progPackToAtlas.Uniform2i("u_viewportOrigin", viewportOriginPx.x, viewportOriginPx.y);
-            progPackToAtlas.Uniform("u_normalStrength", normalStrength);
-            progPackToAtlas.Uniform("u_normalScale", normalScale);
-            progPackToAtlas.Uniform("u_depthScale", depthScale);
-            progPackToAtlas.Uniform("u_alphaCutoff", 0.001f);
+
+            using (Params.BeginBatchUpdate())
+            {
+                Params.SolverSize = (solverSizePx.w, solverSizePx.h);
+                Params.TileSize = (tileSizePx.w, tileSizePx.h);
+                Params.ViewportOrigin = (viewportOriginPx.x, viewportOriginPx.y);
+                Params.PackParams = (normalStrength, normalScale, depthScale, 0.001f);
+            }
+            UploadAndBindParamsUbo(progPackToAtlas);
             DrawFullscreenTriangle();
         }
         finally
@@ -1380,7 +1439,8 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             {
                 BindSampler2D(progJacobi, "u_h", 0, h);
                 BindSampler2D(progJacobi, "u_b", 1, b);
-                progJacobi.Uniform2i("u_size", dst.Width, dst.Height);
+                Params.CommonSize = (dst.Width, dst.Height);
+                UploadAndBindParamsUbo(progJacobi);
                 DrawFullscreenTriangle();
             }
             finally
@@ -1397,7 +1457,8 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             {
                 BindSampler2D(progResidual, "u_h", 0, h);
                 BindSampler2D(progResidual, "u_b", 1, b);
-                progResidual.Uniform2i("u_size", dst.Width, dst.Height);
+                Params.CommonSize = (dst.Width, dst.Height);
+                UploadAndBindParamsUbo(progResidual);
                 DrawFullscreenTriangle();
             }
             finally
@@ -1413,8 +1474,12 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             try
             {
                 BindSampler2D(progRestrict, "u_fine", 0, fine);
-                progRestrict.Uniform2i("u_fineSize", fine.Width, fine.Height);
-                progRestrict.Uniform2i("u_coarseSize", coarse.Width, coarse.Height);
+                using (Params.BeginBatchUpdate())
+                {
+                    Params.MultigridFineSize = (fine.Width, fine.Height);
+                    Params.MultigridCoarseSize = (coarse.Width, coarse.Height);
+                }
+                UploadAndBindParamsUbo(progRestrict);
                 DrawFullscreenTriangle();
             }
             finally
@@ -1431,8 +1496,12 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             {
                 BindSampler2D(progProlongateAdd, "u_fineH", 0, fineH);
                 BindSampler2D(progProlongateAdd, "u_coarseE", 1, coarseE);
-                progProlongateAdd.Uniform2i("u_fineSize", fineH.Width, fineH.Height);
-                progProlongateAdd.Uniform2i("u_coarseSize", coarseE.Width, coarseE.Height);
+                using (Params.BeginBatchUpdate())
+                {
+                    Params.MultigridFineSize = (fineH.Width, fineH.Height);
+                    Params.MultigridCoarseSize = (coarseE.Width, coarseE.Height);
+                }
+                UploadAndBindParamsUbo(progProlongateAdd);
                 DrawFullscreenTriangle();
             }
             finally

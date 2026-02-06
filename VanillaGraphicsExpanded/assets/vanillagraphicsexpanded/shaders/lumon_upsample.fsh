@@ -21,6 +21,7 @@ out vec4 outColor;
 
 // Phase 23: shared per-frame state via UBOs.
 @import "./includes/lumon_ubos.glsl"
+@import "./includes/lumon_upsample_params_ubo.glsl"
 
 // Half-resolution indirect diffuse
 uniform sampler2D indirectHalf;
@@ -28,16 +29,6 @@ uniform sampler2D indirectHalf;
 // G-buffer for edge detection
 uniform sampler2D primaryDepth;
 uniform sampler2D gBufferNormal;
-
-// Quality parameters (from spec Section 3.1)
-uniform float upsampleDepthSigma;   // e.g., 0.1
-uniform float upsampleNormalSigma;  // e.g., 16.0
-uniform float upsampleSpatialSigma; // e.g., 1.0
-
-// Hole filling (Phase 14 - bounded fallback)
-// Uses the alpha channel of indirectHalf as a confidence/quality metric.
-uniform int holeFillRadius;           // half-res pixel radius (e.g., 2)
-uniform float holeFillMinConfidence;  // minimum neighbor confidence to use (e.g., 0.05)
 
 // ============================================================================
 // Bilateral Upsample

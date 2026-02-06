@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Diagnostics;
 
 using OpenTK.Graphics.OpenGL;
@@ -13,6 +14,9 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 internal sealed class LumonSceneRelightVoxelDdaComputeShader : IDisposable
 {
     public const string ShaderName = "lumonscene_relight_voxel_dda";
+
+    private const int ParamsUboBinding = GpuBindingRegistry.Ubo.Object; // VGE_UBO_OBJECT_BINDING
+    private const int ParamsUboSizeBytes = 80; // uvec4 + uvec4 + ivec4 + ivec4 + ivec4
 
     private const int DepthAtlasSamplerUnit = 0;
     private const int MaterialAtlasSamplerUnit = 1;
@@ -30,21 +34,14 @@ internal sealed class LumonSceneRelightVoxelDdaComputeShader : IDisposable
 
     private const int DebugCountersBindingIndex = 0;   // layout(binding=0, offset=...)
 
-    private const int TileSizeTexelsLocation = 0;
-    private const int TilesPerAxisLocation = 1;
-    private const int TilesPerAtlasLocation = 2;
-    private const int BorderTexelsLocation = 3;
+    private const int AtlasLayoutOffsetBytes = 0;
+    private const int RelightUints0OffsetBytes = 16;
+    private const int RelightInts0OffsetBytes = 32;
+    private const int OccOriginMinCell0OffsetBytes = 48;
+    private const int OccRing0OffsetBytes = 64;
 
-    private const int FrameIndexLocation = 4;
-    private const int TexelsPerPagePerFrameLocation = 5;
-    private const int RaysPerTexelLocation = 6;
-    private const int MaxDdaStepsLocation = 7;
-
-    private const int DebugCountersEnabledLocation = 8;
-
-    private const int OccOriginMinCell0Location = 9; // ivec3
-    private const int OccRing0Location = 10;         // ivec3
-    private const int OccResolutionLocation = 11;    // int
+    private readonly byte[] paramsBytes = new byte[ParamsUboSizeBytes];
+    private GpuUniformBuffer? paramsUbo;
 
     private readonly GpuComputePipeline pipeline;
 
@@ -55,7 +52,19 @@ internal sealed class LumonSceneRelightVoxelDdaComputeShader : IDisposable
     private LumonSceneRelightVoxelDdaComputeShader(GpuComputePipeline pipeline)
     {
         this.pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
+
+        paramsUbo = GpuUniformBuffer.Create(debugName: "LumOnScene.Relight.ParamsUBO");
     }
+
+    private void ApplyParamsUbo()
+    {
+        paramsUbo ??= GpuUniformBuffer.Create(debugName: "LumOnScene.Relight.ParamsUBO");
+        paramsUbo.UploadOrResize(paramsBytes, ParamsUboSizeBytes, growExponentially: false);
+        paramsUbo.BindBase(ParamsUboBinding);
+    }
+
+    private uint ReadU32(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(paramsBytes.AsSpan(offset, 4));
+    private int ReadI32(int offset) => BinaryPrimitives.ReadInt32LittleEndian(paramsBytes.AsSpan(offset, 4));
 
     public static bool TryCreate(
         ICoreAPI api,
@@ -181,29 +190,33 @@ internal sealed class LumonSceneRelightVoxelDdaComputeShader : IDisposable
 
     public void SetAtlasLayout(uint tileSizeTexels, uint tilesPerAxis, uint tilesPerAtlas, uint borderTexels)
     {
-        Use();
-        GL.Uniform1(TileSizeTexelsLocation, tileSizeTexels);
-        GL.Uniform1(TilesPerAxisLocation, tilesPerAxis);
-        GL.Uniform1(TilesPerAtlasLocation, tilesPerAtlas);
-        GL.Uniform1(BorderTexelsLocation, borderTexels);
+        UboPacking.WriteUVec4(paramsBytes, AtlasLayoutOffsetBytes, tileSizeTexels, tilesPerAxis, tilesPerAtlas, borderTexels);
+        ApplyParamsUbo();
     }
 
     public void SetRelightParams(int frameIndex, uint texelsPerPagePerFrame, uint raysPerTexel, uint maxDdaSteps, bool debugCountersEnabled)
     {
-        Use();
-        GL.Uniform1(FrameIndexLocation, frameIndex);
-        GL.Uniform1(TexelsPerPagePerFrameLocation, texelsPerPagePerFrame);
-        GL.Uniform1(RaysPerTexelLocation, raysPerTexel);
-        GL.Uniform1(MaxDdaStepsLocation, maxDdaSteps);
-        GL.Uniform1(DebugCountersEnabledLocation, debugCountersEnabled ? 1u : 0u);
+        UboPacking.WriteUVec4(
+            paramsBytes,
+            RelightUints0OffsetBytes,
+            texelsPerPagePerFrame,
+            raysPerTexel,
+            maxDdaSteps,
+            debugCountersEnabled ? 1u : 0u);
+
+        int occResolution = ReadI32(RelightInts0OffsetBytes + 4);
+        UboPacking.WriteIVec4(paramsBytes, RelightInts0OffsetBytes, frameIndex, occResolution, 0, 0);
+        ApplyParamsUbo();
     }
 
     public void SetOccupancyMapping(int originMinCellX, int originMinCellY, int originMinCellZ, int ringX, int ringY, int ringZ, int resolution)
     {
-        Use();
-        GL.Uniform3(OccOriginMinCell0Location, originMinCellX, originMinCellY, originMinCellZ);
-        GL.Uniform3(OccRing0Location, ringX, ringY, ringZ);
-        GL.Uniform1(OccResolutionLocation, resolution);
+        UboPacking.WriteIVec4(paramsBytes, OccOriginMinCell0OffsetBytes, originMinCellX, originMinCellY, originMinCellZ, 0);
+        UboPacking.WriteIVec4(paramsBytes, OccRing0OffsetBytes, ringX, ringY, ringZ, 0);
+
+        int frameIndex = ReadI32(RelightInts0OffsetBytes);
+        UboPacking.WriteIVec4(paramsBytes, RelightInts0OffsetBytes, frameIndex, resolution, 0, 0);
+        ApplyParamsUbo();
     }
 
     public void DispatchBound(int numGroupsX, int numGroupsY, int numGroupsZ) => pipeline.DispatchBound(numGroupsX, numGroupsY, numGroupsZ);
@@ -212,6 +225,8 @@ internal sealed class LumonSceneRelightVoxelDdaComputeShader : IDisposable
     {
         try
         {
+            paramsUbo?.Dispose();
+            paramsUbo = null;
             pipeline.Dispose();
         }
         catch (Exception ex)

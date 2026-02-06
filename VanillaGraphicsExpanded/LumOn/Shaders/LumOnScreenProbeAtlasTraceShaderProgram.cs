@@ -7,6 +7,7 @@ using Vintagestory.Client.NoObf;
 
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.LumOn.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -18,11 +19,16 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
 {
+    private LumOnProbeParamsUbo? paramsUbo;
+
     public LumOnScreenProbeAtlasTraceShaderProgram()
     {
         RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
         RegisterUniformBlockBinding("LumOnWorldProbeUBO", LumOnUniformBuffers.WorldProbeBinding, required: false);
+        RegisterUniformBlockBinding(LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
     }
+
+    private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();
 
     #region Static
 
@@ -171,7 +177,14 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
     /// <summary>
     /// Tint color applied to indirect lighting.
     /// </summary>
-    public Vec3f IndirectTint { set => Uniform("indirectTint", value); }
+    public Vec3f IndirectTint
+    {
+        set
+        {
+            Params.IndirectTint = new System.Numerics.Vector3(value.X, value.Y, value.Z);
+            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     #endregion
 

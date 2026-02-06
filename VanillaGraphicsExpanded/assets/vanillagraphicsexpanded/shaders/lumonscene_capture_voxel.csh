@@ -14,9 +14,11 @@ layout(binding = 1, rgba8) writeonly uniform image2DArray vge_materialAtlas;
 layout(binding = 2) uniform usampler3D vge_occL0;
 layout(binding = 3) uniform usampler2D vge_materialPalette; // RGBA32UI (packs 6x 16-bit surfaceIds: faces 0..5)
 
-layout(location = 0) uniform ivec3 vge_occOriginMinCell0;
-layout(location = 1) uniform ivec3 vge_occRing0;
-layout(location = 2) uniform int vge_occResolution;
+@import "./includes/lumonscene_capture_voxel_params_ubo.glsl"
+
+#define vge_occOriginMinCell0 (vgeCaptureVoxelParams.occOriginMinCell0.xyz)
+#define vge_occRing0          (vgeCaptureVoxelParams.occRing0.xyz)
+#define vge_occResolution     (vgeCaptureVoxelParams.occInts0.x)
 
 layout(std430, binding = 0) buffer VgeCaptureWork
 {
@@ -54,10 +56,10 @@ layout(std430, binding = 2) readonly buffer VgeChunkSlotInfo
     ivec4 vge_chunkOriginBlocksAndGeneration[]; // (originX, originY, originZ, generation)
 };
 
-layout(location = 3) uniform uint vge_tileSizeTexels;
-layout(location = 4) uniform uint vge_tilesPerAxis;
-layout(location = 5) uniform uint vge_tilesPerAtlas;
-layout(location = 6) uniform uint vge_borderTexels; // v1 default 0
+#define vge_tileSizeTexels (vgeCaptureVoxelParams.atlasLayout.x)
+#define vge_tilesPerAxis   (vgeCaptureVoxelParams.atlasLayout.y)
+#define vge_tilesPerAtlas  (vgeCaptureVoxelParams.atlasLayout.z)
+#define vge_borderTexels   (vgeCaptureVoxelParams.atlasLayout.w)
 
 @import "./includes/lumonscene_trace_scene_occupancy.glsl"
 @import "./includes/lumonscene_material_packing.glsl"

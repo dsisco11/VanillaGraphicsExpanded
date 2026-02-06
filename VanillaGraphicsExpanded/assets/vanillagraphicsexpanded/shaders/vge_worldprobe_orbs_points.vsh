@@ -5,12 +5,7 @@ layout(location = 0) in vec3 vertex;
 layout(location = 1) in vec4 color;
 layout(location = 2) in vec2 atlasCoord;
 
-uniform mat4 modelViewProjectionMatrix;
-uniform vec3 cameraPos;
-uniform vec3 worldOffset;
-uniform float pointSize;
-uniform float fadeNear;
-uniform float fadeFar;
+@import "./includes/vge_worldprobe_orbs_points_params_ubo.glsl"
 
 out vec4 vColor;
 out vec2 vAtlasCoord;

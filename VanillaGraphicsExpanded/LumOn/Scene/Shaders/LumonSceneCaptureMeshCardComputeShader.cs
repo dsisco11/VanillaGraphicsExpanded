@@ -13,6 +13,12 @@ internal sealed class LumonSceneCaptureMeshCardComputeShader : IDisposable
 {
     public const string ShaderName = "lumonscene_capture_meshcard";
 
+    private const int ParamsUboBinding = GpuBindingRegistry.Ubo.Object; // VGE_UBO_OBJECT_BINDING
+    private const int ParamsUboSizeBytes = 32; // uvec4 + vec4
+
+    private const int AtlasLayoutOffsetBytes = 0;
+    private const int CaptureFloats0OffsetBytes = 16;
+
     private const int DepthAtlasImageUnit = 0;    // layout(binding=0, r16f)
     private const int MaterialAtlasImageUnit = 1; // layout(binding=1, rgba8)
 
@@ -20,12 +26,14 @@ internal sealed class LumonSceneCaptureMeshCardComputeShader : IDisposable
     private const int PatchMetadataSsboBindingIndex = 1;       // layout(std430, binding=1)
     private const int TrianglesSsboBindingIndex = 2;           // layout(std430, binding=2)
 
-    private const int TileSizeTexelsLocation = 0; // layout(location=0)
-    private const int TilesPerAxisLocation = 1;   // layout(location=1)
-    private const int TilesPerAtlasLocation = 2;  // layout(location=2)
-    private const int BorderTexelsLocation = 3;   // layout(location=3)
+    private readonly byte[] paramsBytes = new byte[ParamsUboSizeBytes];
+    private GpuUniformBuffer? paramsUbo;
 
-    private const int CaptureDepthRangeLocation = 4; // layout(location=4)
+    private uint tileSizeTexels;
+    private uint tilesPerAxis;
+    private uint tilesPerAtlas;
+    private uint borderTexels;
+    private float captureDepthRange;
 
     private readonly GpuComputePipeline pipeline;
 
@@ -36,6 +44,17 @@ internal sealed class LumonSceneCaptureMeshCardComputeShader : IDisposable
     private LumonSceneCaptureMeshCardComputeShader(GpuComputePipeline pipeline)
     {
         this.pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
+
+        paramsUbo = GpuUniformBuffer.Create(debugName: "LumOnScene.CaptureMeshCard.ParamsUBO");
+    }
+
+    private void ApplyParamsUbo()
+    {
+        paramsUbo ??= GpuUniformBuffer.Create(debugName: "LumOnScene.CaptureMeshCard.ParamsUBO");
+        UboPacking.WriteUVec4(paramsBytes, AtlasLayoutOffsetBytes, tileSizeTexels, tilesPerAxis, tilesPerAtlas, borderTexels);
+        UboPacking.WriteVec4(paramsBytes, CaptureFloats0OffsetBytes, captureDepthRange, 0f, 0f, 0f);
+        paramsUbo.UploadOrResize(paramsBytes, ParamsUboSizeBytes, growExponentially: false);
+        paramsUbo.BindBase(ParamsUboBinding);
     }
 
     public static bool TryCreate(
@@ -122,19 +141,19 @@ internal sealed class LumonSceneCaptureMeshCardComputeShader : IDisposable
 
     public void SetAtlasLayout(uint tileSizeTexels, uint tilesPerAxis, uint tilesPerAtlas, uint borderTexels)
     {
-        Use();
-        GL.Uniform1(TileSizeTexelsLocation, tileSizeTexels);
-        GL.Uniform1(TilesPerAxisLocation, tilesPerAxis);
-        GL.Uniform1(TilesPerAtlasLocation, tilesPerAtlas);
-        GL.Uniform1(BorderTexelsLocation, borderTexels);
+        this.tileSizeTexels = tileSizeTexels;
+        this.tilesPerAxis = tilesPerAxis;
+        this.tilesPerAtlas = tilesPerAtlas;
+        this.borderTexels = borderTexels;
+        ApplyParamsUbo();
     }
 
     public float CaptureDepthRange
     {
         set
         {
-            Use();
-            GL.Uniform1(CaptureDepthRangeLocation, value);
+            captureDepthRange = value;
+            ApplyParamsUbo();
         }
     }
 
@@ -142,6 +161,8 @@ internal sealed class LumonSceneCaptureMeshCardComputeShader : IDisposable
     {
         try
         {
+            paramsUbo?.Dispose();
+            paramsUbo = null;
             pipeline.Dispose();
         }
         catch (Exception ex)

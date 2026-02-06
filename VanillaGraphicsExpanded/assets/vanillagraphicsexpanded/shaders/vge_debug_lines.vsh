@@ -4,8 +4,7 @@
 layout(location = 0) in vec3 vertex;
 layout(location = 1) in vec4 color;
 
-uniform mat4 modelViewProjectionMatrix;
-uniform vec3 worldOffset;
+@import "./includes/vge_debug_lines_params_ubo.glsl"
 
 out vec4 vColor;
 

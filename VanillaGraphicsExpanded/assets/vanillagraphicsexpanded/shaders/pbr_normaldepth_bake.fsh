@@ -11,7 +11,7 @@ uniform sampler2D baseAlbedoAtlas;
 
 // 0 = constant depth (0)
 // 1 = use luminance(baseAlbedoAtlas) as depth
-uniform int vge_useLuminanceDepth;
+@import "./includes/pbr_normaldepth_bake_params_ubo.glsl"
 
 void main()
 {

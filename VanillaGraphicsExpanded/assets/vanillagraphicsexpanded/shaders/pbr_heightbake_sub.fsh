@@ -10,10 +10,7 @@ out vec4 outColor;
 
 uniform sampler2D u_a;
 uniform sampler2D u_b;
-uniform ivec2 u_size;
-uniform int u_relContrast;
-uniform float u_eps;
-uniform float u_vMax;
+@import "./includes/pbr_heightbake_params_ubo.glsl"
 
 void main()
 {

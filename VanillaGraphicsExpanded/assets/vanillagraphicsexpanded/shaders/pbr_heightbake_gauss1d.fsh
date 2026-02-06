@@ -6,10 +6,7 @@
 out vec4 outColor;
 
 uniform sampler2D u_src;
-uniform ivec2 u_size;
-uniform ivec2 u_dir;     // (1,0) for horizontal, (0,1) for vertical
-uniform int u_radius;
-uniform float u_weights[65];
+@import "./includes/pbr_heightbake_params_ubo.glsl"
 
 ivec2 Wrap(ivec2 p, ivec2 size)
 {
@@ -28,13 +25,13 @@ void main()
     ivec2 p = ivec2(gl_FragCoord.xy);
     p = clamp(p, ivec2(0), u_size - ivec2(1));
 
-    float sum = u_weights[0] * LoadR(p);
+    float sum = VgeHeightBakeGaussWeight(0) * LoadR(p);
 
     int r = clamp(u_radius, 0, 64);
     for (int i = 1; i <= r; i++)
     {
         ivec2 o = u_dir * i;
-        float w = u_weights[i];
+        float w = VgeHeightBakeGaussWeight(i);
         sum += w * (LoadR(p + o) + LoadR(p - o));
     }
 

@@ -1,12 +1,12 @@
 using System;
+
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
-
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.PBR;
 
@@ -19,10 +19,11 @@ namespace VanillaGraphicsExpanded.PBR;
 /// </summary>
 public sealed class PBRDirectLightingShaderProgram : GpuProgram
 {
-    private int cachedUniformProgramId;
-    private int locPointLightsCount = -1;
-    private int locPointLights3 = -1;
-    private int locPointLightColors3 = -1;
+    private PbrDirectLightingParamsUbo? paramsUbo;
+    
+    // Cached state for compound properties
+    private float _zNear, _zFar, _shadowRangeNear, _shadowRangeFar;
+    private float _shadowZExtendNear, _shadowZExtendFar, _dropShadowIntensity;
 
     #region Static
 
@@ -33,6 +34,7 @@ public sealed class PBRDirectLightingShaderProgram : GpuProgram
             PassName = "pbr_direct_lighting",
             AssetDomain = "vanillagraphicsexpanded"
         };
+        instance.RegisterUniformBlockBinding(PbrDirectLightingParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
         instance.Initialize(api);
         instance.CompileAndLink();
 
@@ -41,9 +43,11 @@ public sealed class PBRDirectLightingShaderProgram : GpuProgram
 
     #endregion
 
-    protected override void OnAfterCompile()
+    private PbrDirectLightingParamsUbo Params => paramsUbo ??= new PbrDirectLightingParamsUbo();
+
+    private void UploadAndBindParamsUbo()
     {
-        CacheUniformLocations();
+        Params.BindTo(this, PbrDirectLightingParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
     }
 
     #region Texture Samplers
@@ -86,41 +90,163 @@ public sealed class PBRDirectLightingShaderProgram : GpuProgram
 
     #region Matrices
 
-    public float[] InvProjectionMatrix { set => UniformMatrix("invProjectionMatrix", value); }
+    public float[] InvProjectionMatrix
+    {
+        set
+        {
+            Params.InvProjectionMatrix = value;
+            UploadAndBindParamsUbo();
+        }
+    }
 
-    public float[] InvModelViewMatrix { set => UniformMatrix("invModelViewMatrix", value); }
+    public float[] InvModelViewMatrix
+    {
+        set
+        {
+            Params.InvModelViewMatrix = value;
+            UploadAndBindParamsUbo();
+        }
+    }
 
-    public float[] ToShadowMapSpaceMatrixNear { set => UniformMatrix("toShadowMapSpaceMatrixNear", value); }
+    public float[] ToShadowMapSpaceMatrixNear
+    {
+        set
+        {
+            Params.ToShadowMapSpaceMatrixNear = value;
+            UploadAndBindParamsUbo();
+        }
+    }
 
-    public float[] ToShadowMapSpaceMatrixFar { set => UniformMatrix("toShadowMapSpaceMatrixFar", value); }
+    public float[] ToShadowMapSpaceMatrixFar
+    {
+        set
+        {
+            Params.ToShadowMapSpaceMatrixFar = value;
+            UploadAndBindParamsUbo();
+        }
+    }
 
     #endregion
 
-    #region Z Planes
+    #region Z Planes and Shadow Ranges
 
-    public float ZNear { set => Uniform("zNear", value); }
+    /// <summary>
+    /// Sets all Z planes and shadow ranges at once (use for batch updates).
+    /// </summary>
+    public (float zNear, float zFar, float shadowRangeNear, float shadowRangeFar) ZPlanesAndShadowRanges
+    {
+        set
+        {
+            _zNear = value.zNear;
+            _zFar = value.zFar;
+            _shadowRangeNear = value.shadowRangeNear;
+            _shadowRangeFar = value.shadowRangeFar;
+            Params.ZPlanesAndShadowRanges = value;
+            UploadAndBindParamsUbo();
+        }
+    }
 
-    public float ZFar { set => Uniform("zFar", value); }
+    public float ZNear
+    {
+        set
+        {
+            _zNear = value;
+            Params.ZPlanesAndShadowRanges = (_zNear, _zFar, _shadowRangeNear, _shadowRangeFar);
+            UploadAndBindParamsUbo();
+        }
+    }
+
+    public float ZFar
+    {
+        set
+        {
+            _zFar = value;
+            Params.ZPlanesAndShadowRanges = (_zNear, _zFar, _shadowRangeNear, _shadowRangeFar);
+            UploadAndBindParamsUbo();
+        }
+    }
+
+    public float ShadowRangeNear
+    {
+        set
+        {
+            _shadowRangeNear = value;
+            Params.ZPlanesAndShadowRanges = (_zNear, _zFar, _shadowRangeNear, _shadowRangeFar);
+            UploadAndBindParamsUbo();
+        }
+    }
+
+    public float ShadowRangeFar
+    {
+        set
+        {
+            _shadowRangeFar = value;
+            Params.ZPlanesAndShadowRanges = (_zNear, _zFar, _shadowRangeNear, _shadowRangeFar);
+            UploadAndBindParamsUbo();
+        }
+    }
 
     #endregion
 
     #region Camera
 
-    public Vec3f CameraOriginFloor { set => Uniform("cameraOriginFloor", value); }
+    public Vec3f CameraOriginFloor
+    {
+        set
+        {
+            Params.CameraOriginFloor = new System.Numerics.Vector3(value.X, value.Y, value.Z);
+            UploadAndBindParamsUbo();
+        }
+    }
 
-    public Vec3f CameraOriginFrac { set => Uniform("cameraOriginFrac", value); }
+    public Vec3f CameraOriginFrac
+    {
+        set
+        {
+            Params.CameraOriginFrac = new System.Numerics.Vector3(value.X, value.Y, value.Z);
+            UploadAndBindParamsUbo();
+        }
+    }
 
     #endregion
 
     #region Lighting
 
-    public Vec3f LightDirection { set => Uniform("lightDirection", value); }
+    public Vec3f LightDirection
+    {
+        set
+        {
+            Params.LightDirection = new System.Numerics.Vector3(value.X, value.Y, value.Z);
+            UploadAndBindParamsUbo();
+        }
+    }
 
-    public Vec3f RgbaAmbientIn { set => Uniform("rgbaAmbientIn", value); }
+    public Vec3f RgbaAmbientIn
+    {
+        set
+        {
+            Params.RgbaAmbientIn = new System.Numerics.Vector3(value.X, value.Y, value.Z);
+            UploadAndBindParamsUbo();
+        }
+    }
 
-    public Vec3f RgbaLightIn { set => Uniform("rgbaLightIn", value); }
+    public Vec3f RgbaLightIn
+    {
+        set
+        {
+            Params.RgbaLightIn = new System.Numerics.Vector3(value.X, value.Y, value.Z);
+            UploadAndBindParamsUbo();
+        }
+    }
 
-    public int PointLightsCount { set => Uniform("pointLightsCount", value); }
+    public int PointLightsCount
+    {
+        set
+        {
+            Params.SetPointLights(value, null, null);
+            UploadAndBindParamsUbo();
+        }
+    }
 
     /// <summary>
     /// Uploads point light arrays and count to the currently-bound program.
@@ -131,79 +257,43 @@ public sealed class PBRDirectLightingShaderProgram : GpuProgram
     /// </summary>
     public void SetPointLights(int count, float[]? pointLights3, float[]? pointLightColors3)
     {
-        int clampedCount = Math.Clamp(count, 0, 100);
-
-        EnsureUniformLocations();
-
-        if (locPointLightsCount >= 0)
-        {
-            GL.Uniform1(locPointLightsCount, clampedCount);
-        }
-
-        UploadVec3ArrayUniform(locPointLights3, pointLights3, clampedCount);
-        UploadVec3ArrayUniform(locPointLightColors3, pointLightColors3, clampedCount);
-    }
-
-    #endregion
-
-    #region Helpers
-
-    private void EnsureUniformLocations()
-    {
-        // Locations are per-program; refresh if we were recompiled/reloaded.
-        if (ProgramId != 0 && cachedUniformProgramId != ProgramId)
-        {
-            CacheUniformLocations();
-        }
-    }
-
-    private void CacheUniformLocations()
-    {
-        cachedUniformProgramId = ProgramId;
-
-        if (cachedUniformProgramId == 0)
-        {
-            locPointLightsCount = -1;
-            locPointLights3 = -1;
-            locPointLightColors3 = -1;
-            return;
-        }
-
-        locPointLightsCount = GL.GetUniformLocation(cachedUniformProgramId, "pointLightsCount");
-        locPointLights3 = GL.GetUniformLocation(cachedUniformProgramId, "pointLights3");
-        locPointLightColors3 = GL.GetUniformLocation(cachedUniformProgramId, "pointLightColors3");
-    }
-
-    private static void UploadVec3ArrayUniform(int location, float[]? data, int vec3Count)
-    {
-        if (location < 0 || vec3Count <= 0 || data is null || data.Length < 3)
-        {
-            return;
-        }
-
-        int requiredFloats = vec3Count * 3;
-        if (data.Length < requiredFloats)
-        {
-            vec3Count = Math.Min(vec3Count, data.Length / 3);
-            if (vec3Count <= 0) return;
-        }
-
-        GL.Uniform3(location, vec3Count, data);
+        Params.SetPointLights(count, pointLights3, pointLightColors3);
+        UploadAndBindParamsUbo();
     }
 
     #endregion
 
     #region Shadows
 
-    public float ShadowRangeNear { set => Uniform("shadowRangeNear", value); }
+    public float ShadowZExtendNear
+    {
+        set
+        {
+            _shadowZExtendNear = value;
+            Params.ShadowExtendAndDrop = (_shadowZExtendNear, _shadowZExtendFar, _dropShadowIntensity);
+            UploadAndBindParamsUbo();
+        }
+    }
 
-    public float ShadowRangeFar { set => Uniform("shadowRangeFar", value); }
+    public float ShadowZExtendFar
+    {
+        set
+        {
+            _shadowZExtendFar = value;
+            Params.ShadowExtendAndDrop = (_shadowZExtendNear, _shadowZExtendFar, _dropShadowIntensity);
+            UploadAndBindParamsUbo();
+        }
+    }
 
-    public float ShadowZExtendNear { set => Uniform("shadowZExtendNear", value); }
-
-    public float ShadowZExtendFar { set => Uniform("shadowZExtendFar", value); }
-
-    public float DropShadowIntensity { set => Uniform("dropShadowIntensity", value); }
+    public float DropShadowIntensity
+    {
+        set
+        {
+            _dropShadowIntensity = value;
+            Params.ShadowExtendAndDrop = (_shadowZExtendNear, _shadowZExtendFar, _dropShadowIntensity);
+            UploadAndBindParamsUbo();
+        }
+    }
 
     #endregion
 }

@@ -3,7 +3,7 @@
 layout(location = 0) in vec2 inAtlasCoord;
 layout(location = 1) in vec4 inRadiance;
 
-uniform vec2 atlasSize;
+@import "./includes/lumon_worldprobe_resolve_params_ubo.glsl"
 
 out vec4 vRadiance;
 

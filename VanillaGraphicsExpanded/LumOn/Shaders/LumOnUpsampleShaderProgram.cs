@@ -1,9 +1,12 @@
+using System;
+
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.LumOn.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -13,10 +16,15 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public class LumOnUpsampleShaderProgram : GpuProgram
 {
+    private LumOnUpsampleParamsUbo? paramsUbo;
+
     public LumOnUpsampleShaderProgram()
     {
         RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
+        RegisterUniformBlockBinding(LumOnUpsampleParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
     }
+
+    private LumOnUpsampleParamsUbo Params => paramsUbo ??= new LumOnUpsampleParamsUbo();
 
     #region Static
 
@@ -68,21 +76,42 @@ public class LumOnUpsampleShaderProgram : GpuProgram
     /// Controls how strictly depth differences affect upsampling.
     /// Default: 0.1 (from SPG-008 spec Section 3.1)
     /// </summary>
-    public float UpsampleDepthSigma { set => Uniform("upsampleDepthSigma", value); }
+    public float UpsampleDepthSigma
+    {
+        set
+        {
+            Params.UpsampleDepthSigma = value;
+            Params.BindTo(this, LumOnUpsampleParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     /// <summary>
     /// Normal similarity power for bilateral upsample.
     /// Controls how strictly normal differences affect upsampling.
     /// Default: 16.0 (from SPG-008 spec Section 3.1)
     /// </summary>
-    public float UpsampleNormalSigma { set => Uniform("upsampleNormalSigma", value); }
+    public float UpsampleNormalSigma
+    {
+        set
+        {
+            Params.UpsampleNormalSigma = value;
+            Params.BindTo(this, LumOnUpsampleParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     /// <summary>
     /// Spatial kernel sigma for optional spatial denoise.
     /// Controls blur radius of spatial filter.
     /// Default: 1.0 (from SPG-008 spec Section 3.1)
     /// </summary>
-    public float UpsampleSpatialSigma { set => Uniform("upsampleSpatialSigma", value); }
+    public float UpsampleSpatialSigma
+    {
+        set
+        {
+            Params.UpsampleSpatialSigma = value;
+            Params.BindTo(this, LumOnUpsampleParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     #endregion
 
@@ -98,12 +127,26 @@ public class LumOnUpsampleShaderProgram : GpuProgram
     /// Neighborhood radius in half-res pixels used for hole filling.
     /// Kept as uniform since it controls loop iteration bounds at runtime.
     /// </summary>
-    public int HoleFillRadius { set => Uniform("holeFillRadius", value); }
+    public int HoleFillRadius
+    {
+        set
+        {
+            Params.HoleFillRadius = value;
+            Params.BindTo(this, LumOnUpsampleParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     /// <summary>
     /// Minimum confidence (alpha) required for a neighbor sample to contribute to hole filling.
     /// </summary>
-    public float HoleFillMinConfidence { set => Uniform("holeFillMinConfidence", value); }
+    public float HoleFillMinConfidence
+    {
+        set
+        {
+            Params.HoleFillMinConfidence = value;
+            Params.BindTo(this, LumOnUpsampleParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     #endregion
 }

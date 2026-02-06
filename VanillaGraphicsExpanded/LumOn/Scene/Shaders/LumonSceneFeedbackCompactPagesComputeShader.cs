@@ -13,16 +13,22 @@ internal sealed class LumonSceneFeedbackCompactPagesComputeShader : IDisposable
 {
     public const string ShaderName = "lumonscene_feedback_compact_pages";
 
+    private const int ParamsUboBinding = GpuBindingRegistry.Ubo.Object; // VGE_UBO_OBJECT_BINDING
+    private const int ParamsUboSizeBytes = 16; // uvec4
+
     private const int PageUsageStampSamplerUnit = 0; // layout(binding=0)
     private const int PageTableMip0SamplerUnit = 1; // layout(binding=1)
 
     private const int PageRequestCountBindingIndex = 0; // layout(binding=0, offset=0)
     private const int PageRequestsSsboBindingIndex = 0; // layout(std430, binding=0)
 
-    private const int MaxRequestsLocation = 0; // layout(location=0)
-    private const int FrameStampLocation = 1; // layout(location=1)
-    private const int ScanOffsetLocation = 2; // layout(location=2)
-    private const int CompactModeLocation = 3; // layout(location=3)
+    private readonly byte[] paramsBytes = new byte[ParamsUboSizeBytes];
+    private GpuUniformBuffer? paramsUbo;
+
+    private uint maxRequests;
+    private uint frameStamp;
+    private uint scanOffset;
+    private uint compactMode;
 
     private readonly GpuComputePipeline pipeline;
 
@@ -33,6 +39,16 @@ internal sealed class LumonSceneFeedbackCompactPagesComputeShader : IDisposable
     private LumonSceneFeedbackCompactPagesComputeShader(GpuComputePipeline pipeline)
     {
         this.pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
+
+        paramsUbo = GpuUniformBuffer.Create(debugName: "LumOnScene.CompactPages.ParamsUBO");
+    }
+
+    private void ApplyParamsUbo()
+    {
+        paramsUbo ??= GpuUniformBuffer.Create(debugName: "LumOnScene.CompactPages.ParamsUBO");
+        UboPacking.WriteUVec4(paramsBytes, 0, maxRequests, frameStamp, scanOffset, compactMode);
+        paramsUbo.UploadOrResize(paramsBytes, ParamsUboSizeBytes, growExponentially: false);
+        paramsUbo.BindBase(ParamsUboBinding);
     }
 
     public static bool TryCreate(
@@ -101,8 +117,8 @@ internal sealed class LumonSceneFeedbackCompactPagesComputeShader : IDisposable
     {
         set
         {
-            Use();
-            GL.Uniform1(MaxRequestsLocation, value);
+            maxRequests = value;
+            ApplyParamsUbo();
         }
     }
 
@@ -110,8 +126,8 @@ internal sealed class LumonSceneFeedbackCompactPagesComputeShader : IDisposable
     {
         set
         {
-            Use();
-            GL.Uniform1(FrameStampLocation, value);
+            frameStamp = value;
+            ApplyParamsUbo();
         }
     }
 
@@ -119,8 +135,8 @@ internal sealed class LumonSceneFeedbackCompactPagesComputeShader : IDisposable
     {
         set
         {
-            Use();
-            GL.Uniform1(ScanOffsetLocation, value);
+            scanOffset = value;
+            ApplyParamsUbo();
         }
     }
 
@@ -128,8 +144,8 @@ internal sealed class LumonSceneFeedbackCompactPagesComputeShader : IDisposable
     {
         set
         {
-            Use();
-            GL.Uniform1(CompactModeLocation, value);
+            compactMode = value;
+            ApplyParamsUbo();
         }
     }
 
@@ -139,6 +155,8 @@ internal sealed class LumonSceneFeedbackCompactPagesComputeShader : IDisposable
     {
         try
         {
+            paramsUbo?.Dispose();
+            paramsUbo = null;
             pipeline.Dispose();
         }
         catch (Exception ex)

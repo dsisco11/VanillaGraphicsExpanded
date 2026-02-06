@@ -8,7 +8,7 @@ out vec4 outColor;
 
 uniform sampler2D u_h;
 uniform sampler2D u_b;
-uniform ivec2 u_size;
+@import "./includes/pbr_heightbake_params_ubo.glsl"
 
 ivec2 Wrap(ivec2 p, ivec2 size)
 {

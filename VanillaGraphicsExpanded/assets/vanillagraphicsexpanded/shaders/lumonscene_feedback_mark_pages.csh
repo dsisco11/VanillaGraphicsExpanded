@@ -8,6 +8,8 @@
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
+@import "./includes/lumonscene_feedback_mark_params_ubo.glsl"
+
 // PatchIdGBuffer: (chunkSlot, patchId, packedPatchUv, misc/flags)
 layout(binding = 0) uniform usampler2D vge_patchIdGBuffer;
 
@@ -24,7 +26,7 @@ layout(binding = 0, offset = 4) uniform atomic_uint vge_markRejectChunkSlotOob;
 layout(binding = 0, offset = 8) uniform atomic_uint vge_markRejectGenMismatch;
 
 // Current frame stamp (must be non-zero; monotonically increasing is fine).
-layout(location = 0) uniform uint vge_frameStamp;
+uint vge_frameStamp() { return vgeFeedbackMarkParams.u0.x; }
 
 void main()
 {
@@ -77,5 +79,5 @@ void main()
     ivec3 vtexel = ivec3(int(virtualPageIndex & 127u), int(virtualPageIndex >> 7u), int(chunkSlot));
 
     // Use max so repeated writes are idempotent and we don't need a clear pass.
-    imageAtomicMax(vge_pageUsageStamp, vtexel, vge_frameStamp);
+    imageAtomicMax(vge_pageUsageStamp, vtexel, vge_frameStamp());
 }

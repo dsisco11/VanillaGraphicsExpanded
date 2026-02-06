@@ -10,8 +10,7 @@ uniform sampler2D u_g1;
 uniform sampler2D u_g2;
 uniform sampler2D u_g3;
 uniform sampler2D u_g4;
-uniform vec3 u_w;   // (w1,w2,w3)
-uniform ivec2 u_size;
+@import "./includes/pbr_heightbake_params_ubo.glsl"
 
 void main()
 {

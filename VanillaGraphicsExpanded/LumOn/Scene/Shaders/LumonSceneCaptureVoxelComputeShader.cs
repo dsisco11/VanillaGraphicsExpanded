@@ -13,6 +13,14 @@ internal sealed class LumonSceneCaptureVoxelComputeShader : IDisposable
 {
     public const string ShaderName = "lumonscene_capture_voxel";
 
+    private const int ParamsUboBinding = GpuBindingRegistry.Ubo.Object; // VGE_UBO_OBJECT_BINDING
+    private const int ParamsUboSizeBytes = 64; // uvec4 + ivec4 + ivec4 + ivec4
+
+    private const int AtlasLayoutOffsetBytes = 0;
+    private const int OccOriginMinCell0OffsetBytes = 16;
+    private const int OccRing0OffsetBytes = 32;
+    private const int OccInts0OffsetBytes = 48;
+
     private const int DepthAtlasImageUnit = 0;    // layout(binding=0, r16f)
     private const int MaterialAtlasImageUnit = 1; // layout(binding=1, rgba8)
 
@@ -23,14 +31,8 @@ internal sealed class LumonSceneCaptureVoxelComputeShader : IDisposable
     private const int PatchMetaSsboBindingIndex = 1;   // layout(std430, binding=1)
     private const int ChunkSlotInfoSsboBindingIndex = 2; // layout(std430, binding=2)
 
-    private const int OccOriginMinCell0Location = 0; // layout(location=0) ivec3
-    private const int OccRing0Location = 1;          // layout(location=1) ivec3
-    private const int OccResolutionLocation = 2;     // layout(location=2) int
-
-    private const int TileSizeTexelsLocation = 3; // layout(location=3) uint
-    private const int TilesPerAxisLocation = 4;   // layout(location=4) uint
-    private const int TilesPerAtlasLocation = 5;  // layout(location=5) uint
-    private const int BorderTexelsLocation = 6;   // layout(location=6) uint
+    private readonly byte[] paramsBytes = new byte[ParamsUboSizeBytes];
+    private GpuUniformBuffer? paramsUbo;
 
     private readonly GpuComputePipeline pipeline;
 
@@ -41,6 +43,15 @@ internal sealed class LumonSceneCaptureVoxelComputeShader : IDisposable
     private LumonSceneCaptureVoxelComputeShader(GpuComputePipeline pipeline)
     {
         this.pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
+
+        paramsUbo = GpuUniformBuffer.Create(debugName: "LumOnScene.CaptureVoxel.ParamsUBO");
+    }
+
+    private void ApplyParamsUbo()
+    {
+        paramsUbo ??= GpuUniformBuffer.Create(debugName: "LumOnScene.CaptureVoxel.ParamsUBO");
+        paramsUbo.UploadOrResize(paramsBytes, ParamsUboSizeBytes, growExponentially: false);
+        paramsUbo.BindBase(ParamsUboBinding);
     }
 
     public static bool TryCreate(
@@ -139,25 +150,24 @@ internal sealed class LumonSceneCaptureVoxelComputeShader : IDisposable
 
     public void SetOccupancyMapping(int originMinCellX, int originMinCellY, int originMinCellZ, int ringX, int ringY, int ringZ, int resolution)
     {
-        Use();
-        GL.Uniform3(OccOriginMinCell0Location, originMinCellX, originMinCellY, originMinCellZ);
-        GL.Uniform3(OccRing0Location, ringX, ringY, ringZ);
-        GL.Uniform1(OccResolutionLocation, resolution);
+        UboPacking.WriteIVec4(paramsBytes, OccOriginMinCell0OffsetBytes, originMinCellX, originMinCellY, originMinCellZ, 0);
+        UboPacking.WriteIVec4(paramsBytes, OccRing0OffsetBytes, ringX, ringY, ringZ, 0);
+        UboPacking.WriteIVec4(paramsBytes, OccInts0OffsetBytes, resolution, 0, 0, 0);
+        ApplyParamsUbo();
     }
 
     public void SetAtlasLayout(uint tileSizeTexels, uint tilesPerAxis, uint tilesPerAtlas, uint borderTexels)
     {
-        Use();
-        GL.Uniform1(TileSizeTexelsLocation, tileSizeTexels);
-        GL.Uniform1(TilesPerAxisLocation, tilesPerAxis);
-        GL.Uniform1(TilesPerAtlasLocation, tilesPerAtlas);
-        GL.Uniform1(BorderTexelsLocation, borderTexels);
+        UboPacking.WriteUVec4(paramsBytes, AtlasLayoutOffsetBytes, tileSizeTexels, tilesPerAxis, tilesPerAtlas, borderTexels);
+        ApplyParamsUbo();
     }
 
     public void Dispose()
     {
         try
         {
+            paramsUbo?.Dispose();
+            paramsUbo = null;
             pipeline.Dispose();
         }
         catch (Exception ex)

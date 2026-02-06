@@ -10,6 +10,7 @@ using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.LumOn.Scene;
+using VanillaGraphicsExpanded.LumOn.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -19,12 +20,17 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public class LumOnDebugShaderProgram : GpuProgram
 {
+    private LumOnDebugParamsUbo? paramsUbo;
+
     public LumOnDebugShaderProgram()
     {
         RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
         RegisterUniformBlockBinding("LumOnWorldProbeUBO", LumOnUniformBuffers.WorldProbeBinding, required: false);
         RegisterUniformBlockBinding(LumOnTerrainBridgeUboState.BlockName, LumOnTerrainBridgeUboState.Binding, required: false);
+        RegisterUniformBlockBinding(LumOnDebugParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
     }
+
+    private LumOnDebugParamsUbo Params => paramsUbo ??= new LumOnDebugParamsUbo();
 
     #region Static
 
@@ -206,13 +212,41 @@ public class LumOnDebugShaderProgram : GpuProgram
 
     #region LumonScene (Phase 22)
 
-    public int LumonSceneEnabled { set => Uniform("vge_lumonSceneEnabled", value); }
+    public int LumonSceneEnabled
+    {
+        set
+        {
+            Params.LumonSceneEnabled = value;
+            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
-    public int LumonSceneTileSizeTexels { set => Uniform("vge_lumonSceneTileSizeTexels", value); }
+    public int LumonSceneTileSizeTexels
+    {
+        set
+        {
+            Params.LumonSceneTileSizeTexels = value;
+            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
-    public int LumonSceneTilesPerAxis { set => Uniform("vge_lumonSceneTilesPerAxis", value); }
+    public int LumonSceneTilesPerAxis
+    {
+        set
+        {
+            Params.LumonSceneTilesPerAxis = value;
+            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
-    public int LumonSceneTilesPerAtlas { set => Uniform("vge_lumonSceneTilesPerAtlas", value); }
+    public int LumonSceneTilesPerAtlas
+    {
+        set
+        {
+            Params.LumonSceneTilesPerAtlas = value;
+            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     public GpuTexture? LumonScenePageTableMip0 { set => BindTexture2D("vge_lumonScenePageTableMip0", value, 30); }
 
@@ -226,13 +260,41 @@ public class LumOnDebugShaderProgram : GpuProgram
 
     #region TraceScene (Phase 23)
 
-    public int TraceSceneEnabled { set => Uniform("vge_traceSceneEnabled", value); }
+    public int TraceSceneEnabled
+    {
+        set
+        {
+            Params.TraceSceneEnabled = value;
+            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
-    public int TraceSceneOccResolution { set => Uniform("vge_traceOccResolution", value); }
+    public int TraceSceneOccResolution
+    {
+        set
+        {
+            Params.TraceSceneOccResolution = value;
+            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
-    public VectorInt3 TraceSceneOccOriginMinCell0 { set => SetUniform("vge_traceOccOriginMinCell0", value); }
+    public VectorInt3 TraceSceneOccOriginMinCell0
+    {
+        set
+        {
+            Params.TraceSceneOccOriginMinCell0 = value;
+            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
-    public VectorInt3 TraceSceneOccRing0 { set => SetUniform("vge_traceOccRing0", value); }
+    public VectorInt3 TraceSceneOccRing0
+    {
+        set
+        {
+            Params.TraceSceneOccRing0 = value;
+            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     // Keep this within typical GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS on older drivers.
     public GpuTexture? TraceSceneOccL0 { set => BindTexture3D("vge_traceOccL0", value, 20); }
@@ -246,17 +308,38 @@ public class LumOnDebugShaderProgram : GpuProgram
     /// <summary>
     /// Temporal blend factor.
     /// </summary>
-    public float TemporalAlpha { set => Uniform("temporalAlpha", value); }
+    public float TemporalAlpha
+    {
+        set
+        {
+            Params.TemporalAlpha = value;
+            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     /// <summary>
     /// Depth rejection threshold.
     /// </summary>
-    public float DepthRejectThreshold { set => Uniform("depthRejectThreshold", value); }
+    public float DepthRejectThreshold
+    {
+        set
+        {
+            Params.DepthRejectThreshold = value;
+            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     /// <summary>
     /// Normal rejection threshold (dot product).
     /// </summary>
-    public float NormalRejectThreshold { set => Uniform("normalRejectThreshold", value); }
+    public float NormalRejectThreshold
+    {
+        set
+        {
+            Params.NormalRejectThreshold = value;
+            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     #endregion
 
@@ -265,21 +348,49 @@ public class LumOnDebugShaderProgram : GpuProgram
     /// <summary>
     /// Debug visualization mode.
     /// </summary>
-    public int DebugMode { set => Uniform("debugMode", value); }
+    public int DebugMode
+    {
+        set
+        {
+            Params.DebugMode = value;
+            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     /// <summary>
     /// Which atlas source is currently selected for gather input.
     /// 0=trace, 1=current (temporal), 2=filtered.
     /// </summary>
-    public int GatherAtlasSource { set => Uniform("gatherAtlasSource", value); }
+    public int GatherAtlasSource
+    {
+        set
+        {
+            Params.GatherAtlasSource = value;
+            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     #endregion
 
     #region Composite Debug Defines (SetDefine migration)
 
-    public float IndirectIntensity { set => Uniform("indirectIntensity", value); }
+    public float IndirectIntensity
+    {
+        set
+        {
+            Params.IndirectIntensity = value;
+            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
-    public Vec3f IndirectTint { set => Uniform("indirectTint", value); }
+    public Vec3f IndirectTint
+    {
+        set
+        {
+            Params.IndirectTint = new System.Numerics.Vector3(value.X, value.Y, value.Z);
+            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     public bool EnablePbrComposite { set => SetDefine(VgeShaderDefines.LumOnPbrComposite, value ? "1" : "0"); }
 
@@ -290,9 +401,23 @@ public class LumOnDebugShaderProgram : GpuProgram
     [System.Obsolete("Renamed to EnableShortRangeAo.")]
     public bool EnableBentNormal { set => EnableShortRangeAo = value; }
 
-    public float DiffuseAOStrength { set => Uniform("diffuseAOStrength", value); }
+    public float DiffuseAOStrength
+    {
+        set
+        {
+            Params.DiffuseAOStrength = value;
+            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
-    public float SpecularAOStrength { set => Uniform("specularAOStrength", value); }
+    public float SpecularAOStrength
+    {
+        set
+        {
+            Params.SpecularAOStrength = value;
+            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     #endregion
 }

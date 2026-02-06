@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 ///
 /// Intended for multi-pass pipelines that share a common fullscreen vertex stage.
 /// </summary>
-internal sealed class VgeStageNamedShaderProgram : GpuProgram
+internal class VgeStageNamedShaderProgram : GpuProgram
 {
     private readonly string vertexStageShaderName;
     private readonly string fragmentStageShaderName;
@@ -43,6 +43,9 @@ internal sealed class VgeStageNamedShaderProgram : GpuProgram
         this.fragmentStageShaderName = fragmentStageShaderName;
         this.geometryStageShaderName = geometryStageShaderName ?? passName;
     }
+
+    public void RegisterUniformBlockBindingContract(string blockName, int bindingIndex, bool required = true)
+        => RegisterUniformBlockBinding(blockName, bindingIndex, required);
 
     private int GetUniformLocationCached(string uniformName)
     {

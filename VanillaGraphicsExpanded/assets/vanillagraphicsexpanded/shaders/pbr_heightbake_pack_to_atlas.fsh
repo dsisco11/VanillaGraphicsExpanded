@@ -10,15 +10,7 @@ uniform sampler2D u_height; // R32F tile-sized height
 
 // Base albedo atlas page (for alpha masking).
 uniform sampler2D u_albedoAtlas;
-uniform float u_alphaCutoff;
-
-uniform ivec2 u_solverSize;      // size of height texture (tile)
-uniform ivec2 u_tileSize;        // viewport/tile size within atlas
-uniform ivec2 u_viewportOrigin;  // atlas viewport origin in pixels
-
-uniform float u_normalStrength;
-uniform float u_normalScale;
-uniform float u_depthScale;
+@import "./includes/pbr_heightbake_params_ubo.glsl"
 
 ivec2 Wrap(ivec2 p, ivec2 size)
 {

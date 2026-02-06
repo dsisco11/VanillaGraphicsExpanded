@@ -23,6 +23,7 @@ out vec4 outColor;
 
 // Phase 23: shared per-frame state via UBOs.
 @import "./includes/lumon_ubos.glsl"
+@import "./includes/lumon_probe_params_ubo.glsl"
 
 // ============================================================================
 // Uniforms
@@ -39,14 +40,6 @@ uniform sampler2D probeAnchorNormal;    // xyz = normalWS (encoded)
 // G-buffer for pixel info
 uniform sampler2D primaryDepth;
 uniform sampler2D gBufferNormal;
-// Quality parameters
-uniform float intensity;
-uniform vec3 indirectTint;
-uniform float leakThreshold;  // Leak prevention threshold (e.g., 0.5 = 50%)
-
-// Sampling configuration
-// Use 4×4 subgrid (16 samples) for performance vs 8×8 (64 samples) for quality
-uniform int sampleStride;  // 1 = full 64 samples, 2 = 16 samples
 
 // ============================================================================
 // World Probe Clipmap (Phase 18)

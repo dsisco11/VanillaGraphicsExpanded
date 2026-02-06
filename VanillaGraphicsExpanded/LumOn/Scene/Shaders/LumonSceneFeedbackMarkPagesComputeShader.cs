@@ -13,6 +13,9 @@ internal sealed class LumonSceneFeedbackMarkPagesComputeShader : IDisposable
 {
     public const string ShaderName = "lumonscene_feedback_mark_pages";
 
+    private const int ParamsUboBinding = GpuBindingRegistry.Ubo.Object; // VGE_UBO_OBJECT_BINDING
+    private const int ParamsUboSizeBytes = 16; // uvec4
+
     private const int PatchIdGBufferSamplerUnit = 0; // layout(binding=0)
     private const int ChunkSlotGenerationSamplerUnit = 1; // layout(binding=1)
 
@@ -20,7 +23,8 @@ internal sealed class LumonSceneFeedbackMarkPagesComputeShader : IDisposable
 
     private const int MarkDebugCountersBindingIndex = 0; // layout(binding=0, offset=...)
 
-    private const int FrameStampLocation = 0; // layout(location=0)
+    private readonly byte[] paramsBytes = new byte[ParamsUboSizeBytes];
+    private GpuUniformBuffer? paramsUbo;
 
     private readonly GpuComputePipeline pipeline;
 
@@ -31,6 +35,15 @@ internal sealed class LumonSceneFeedbackMarkPagesComputeShader : IDisposable
     private LumonSceneFeedbackMarkPagesComputeShader(GpuComputePipeline pipeline)
     {
         this.pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
+
+        paramsUbo = GpuUniformBuffer.Create(debugName: "LumOnScene.MarkPages.ParamsUBO");
+    }
+
+    private void ApplyParamsUbo()
+    {
+        paramsUbo ??= GpuUniformBuffer.Create(debugName: "LumOnScene.MarkPages.ParamsUBO");
+        paramsUbo.UploadOrResize(paramsBytes, ParamsUboSizeBytes, growExponentially: false);
+        paramsUbo.BindBase(ParamsUboBinding);
     }
 
     public static bool TryCreate(
@@ -75,8 +88,8 @@ internal sealed class LumonSceneFeedbackMarkPagesComputeShader : IDisposable
     {
         set
         {
-            Use();
-            GL.Uniform1(FrameStampLocation, value);
+            UboPacking.WriteUVec4(paramsBytes, 0, value, 0u, 0u, 0u);
+            ApplyParamsUbo();
         }
     }
 
@@ -114,6 +127,8 @@ internal sealed class LumonSceneFeedbackMarkPagesComputeShader : IDisposable
     {
         try
         {
+            paramsUbo?.Dispose();
+            paramsUbo = null;
             pipeline.Dispose();
         }
         catch (Exception ex)

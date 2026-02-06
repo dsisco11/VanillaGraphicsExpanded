@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 
 using Vintagestory.API.Client;
@@ -6,6 +7,7 @@ using Vintagestory.Client.NoObf;
 
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.LumOn.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -18,10 +20,15 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public class LumOnScreenProbeAtlasTemporalShaderProgram : GpuProgram
 {
+    private LumOnProbeParamsUbo? paramsUbo;
+
     public LumOnScreenProbeAtlasTemporalShaderProgram()
     {
         RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
+        RegisterUniformBlockBinding(LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
     }
+
+    private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();
 
     #region Static
 
@@ -133,14 +140,28 @@ public class LumOnScreenProbeAtlasTemporalShaderProgram : GpuProgram
     /// Higher values = more history = more stable but slower response.
     /// E.g., 0.9 = 90% history, 10% current.
     /// </summary>
-    public float TemporalAlpha { set => Uniform("temporalAlpha", value); }
+    public float TemporalAlpha
+    {
+        set
+        {
+            Params.TemporalAlpha = value;
+            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     /// <summary>
     /// Hit-distance rejection threshold for disocclusion detection.
     /// Relative difference threshold (e.g., 0.3 = 30%).
     /// If hit distance changed more than this, reject history.
     /// </summary>
-    public float HitDistanceRejectThreshold { set => Uniform("hitDistanceRejectThreshold", value); }
+    public float HitDistanceRejectThreshold
+    {
+        set
+        {
+            Params.HitDistanceRejectThreshold = value;
+            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     #endregion
 }

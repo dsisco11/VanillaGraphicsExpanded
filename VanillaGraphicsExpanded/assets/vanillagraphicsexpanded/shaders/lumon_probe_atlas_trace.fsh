@@ -34,6 +34,7 @@ layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFlo
 @import "./includes/squirrel3.glsl"
 
 // Phase 23: shared per-frame state via UBOs is imported by lumon_worldprobe.glsl.
+@import "./includes/lumon_probe_params_ubo.glsl"
 
 // Probe anchor textures (world-space)
 uniform sampler2D probeAnchorPosition;  // posWS.xyz, valid
@@ -59,7 +60,6 @@ uniform sampler2D emissive;
 uniform sampler2D hzbDepth;
 
 // Indirect lighting tuning
-uniform vec3 indirectTint;
 
 // History for temporal blending (read from previous frame)
 uniform sampler2D octahedralHistory;

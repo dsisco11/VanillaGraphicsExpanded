@@ -1,9 +1,12 @@
+using System;
+
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.LumOn.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -13,10 +16,15 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public class LumOnScreenProbeAtlasFilterShaderProgram : GpuProgram
 {
+    private LumOnProbeParamsUbo? paramsUbo;
+
     public LumOnScreenProbeAtlasFilterShaderProgram()
     {
         RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
+        RegisterUniformBlockBinding(LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
     }
+
+    private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();
 
     #region Static
 
@@ -60,12 +68,26 @@ public class LumOnScreenProbeAtlasFilterShaderProgram : GpuProgram
     /// <summary>
     /// Filter radius in texels (1 = 3x3).
     /// </summary>
-    public int FilterRadius { set => Uniform("filterRadius", value); }
+    public int FilterRadius
+    {
+        set
+        {
+            Params.FilterRadius = value;
+            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     /// <summary>
     /// Edge-stopping sigma for hit-distance differences (decoded distance units).
     /// </summary>
-    public float HitDistanceSigma { set => Uniform("hitDistanceSigma", value); }
+    public float HitDistanceSigma
+    {
+        set
+        {
+            Params.HitDistanceSigma = value;
+            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     #endregion
 }

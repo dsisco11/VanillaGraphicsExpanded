@@ -6,12 +6,7 @@
 out vec4 outColor;
 
 uniform sampler2D u_h;
-uniform ivec2 u_size;
-uniform float u_mean;
-uniform float u_invNeg;
-uniform float u_invPos;
-uniform float u_heightStrength;
-uniform float u_gamma;
+@import "./includes/pbr_heightbake_params_ubo.glsl"
 
 float Shape(float x, float gamma)
 {

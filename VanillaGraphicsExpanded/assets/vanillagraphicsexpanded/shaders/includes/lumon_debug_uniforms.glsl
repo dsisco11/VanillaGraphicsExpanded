@@ -7,6 +7,7 @@
 // UBO contracts (Phase 23).
 @import "./lumon_ubos.glsl"
 @import "./vge_worldspace_bridge.glsl"
+@import "./lumon_debug_params_ubo.glsl"
 
 // G-buffer textures
 uniform sampler2D primaryDepth;
@@ -51,26 +52,15 @@ uniform sampler2D velocityTex;
 uniform sampler2D worldProbeDebugState0;
 
 // Phase 22: LumonScene surface cache debug inputs (Near field v1).
-uniform int vge_lumonSceneEnabled;                 // 0/1 gate
 uniform usampler2DArray vge_lumonScenePageTableMip0;   // R32UI packed entry
 uniform sampler2DArray vge_lumonSceneMaterialAtlas;    // RGBA8 (RG oct normal, BA 16-bit surfaceId)
 uniform sampler2DArray vge_lumonSceneIrradianceAtlas;  // RGBA16F (rgb irradiance, a weight)
 uniform usampler2D vge_lumonSceneSurfaceLut;           // RGBA32UI (rgb albedo 0..255, a roughness 0..255)
-uniform int vge_lumonSceneTileSizeTexels;
-uniform int vge_lumonSceneTilesPerAxis;
-uniform int vge_lumonSceneTilesPerAtlas;
 
 // Phase 23: TraceScene occupancy clipmap debug inputs (L0 only in v1).
-uniform int vge_traceSceneEnabled;            // 0/1 gate
 uniform usampler3D vge_traceOccL0;            // R32UI packed payload
-uniform ivec3 vge_traceOccOriginMinCell0;
-uniform ivec3 vge_traceOccRing0;
-uniform int vge_traceOccResolution;
 
 // Temporal config
-uniform float temporalAlpha;
-uniform float depthRejectThreshold;
-uniform float normalRejectThreshold;
 
 // Phase 14: velocity debug scaling
 // (velocityRejectThreshold is provided via LumOnFrameUBO)
@@ -79,15 +69,9 @@ uniform float normalRejectThreshold;
 // (invViewMatrix and prevViewProjMatrix are provided via LumOnFrameUBO)
 
 // Debug mode (still used to select a view inside a program-kind entrypoint)
-uniform int debugMode;
 
 // Gather atlas selection: 0=trace, 1=current, 2=filtered
-uniform int gatherAtlasSource;
 
 // Phase 15: compositing parameters (to match lumon_combine behavior)
-uniform float indirectIntensity;
-uniform vec3 indirectTint;
-uniform float diffuseAOStrength;
-uniform float specularAOStrength;
 
 #endif // LUMON_DEBUG_UNIFORMS_GLSL

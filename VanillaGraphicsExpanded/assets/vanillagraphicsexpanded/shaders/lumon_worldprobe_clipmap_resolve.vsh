@@ -8,7 +8,7 @@ layout(location = 4) in float inMeanLogHitDistance;
 layout(location = 5) in float inSkyIntensity;
 layout(location = 6) in uint inFlags;
 
-uniform vec2 atlasSize;
+@import "./includes/lumon_worldprobe_resolve_params_ubo.glsl"
 
 out vec3 vAoDirWorld;
 out float vAoConfidence;

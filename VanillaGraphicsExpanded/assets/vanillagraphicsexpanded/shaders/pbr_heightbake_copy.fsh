@@ -6,7 +6,7 @@
 out vec4 outColor;
 
 uniform sampler2D u_src;
-uniform ivec2 u_size;
+@import "./includes/pbr_heightbake_params_ubo.glsl"
 
 void main()
 {

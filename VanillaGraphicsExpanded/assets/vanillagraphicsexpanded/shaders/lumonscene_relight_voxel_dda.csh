@@ -7,6 +7,7 @@
 @import "./includes/squirrel3.glsl"
 @import "./includes/lumonscene_trace_scene_occupancy.glsl"
 @import "./includes/lumonscene_material_packing.glsl"
+@import "./includes/lumonscene_relight_params_ubo.glsl"
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
@@ -61,21 +62,22 @@ layout(binding = 0, offset = 4) uniform atomic_uint vge_dbgHits;
 layout(binding = 0, offset = 8) uniform atomic_uint vge_dbgMisses;
 layout(binding = 0, offset = 12) uniform atomic_uint vge_dbgOobStarts;
 
-layout(location = 0) uniform uint vge_tileSizeTexels;
-layout(location = 1) uniform uint vge_tilesPerAxis;
-layout(location = 2) uniform uint vge_tilesPerAtlas;
-layout(location = 3) uniform uint vge_borderTexels; // v1 default 0
+// Shader code below uses these as identifiers (no parentheses), so keep them as macros.
+#define vge_tileSizeTexels        (vgeRelightParams.atlasLayout.x)
+#define vge_tilesPerAxis          (vgeRelightParams.atlasLayout.y)
+#define vge_tilesPerAtlas         (vgeRelightParams.atlasLayout.z)
+#define vge_borderTexels          (vgeRelightParams.atlasLayout.w)
 
-layout(location = 4) uniform int vge_frameIndex;
-layout(location = 5) uniform uint vge_texelsPerPagePerFrame;
-layout(location = 6) uniform uint vge_raysPerTexel;
-layout(location = 7) uniform uint vge_maxDdaSteps;
+#define vge_frameIndex            (vgeRelightParams.relightInts0.x)
+#define vge_occResolution         (vgeRelightParams.relightInts0.y)
 
-layout(location = 8) uniform uint vge_debugCountersEnabled;
+#define vge_texelsPerPagePerFrame (vgeRelightParams.relightUints0.x)
+#define vge_raysPerTexel          (vgeRelightParams.relightUints0.y)
+#define vge_maxDdaSteps           (vgeRelightParams.relightUints0.z)
+#define vge_debugCountersEnabled  (vgeRelightParams.relightUints0.w)
 
-layout(location = 9) uniform ivec3 vge_occOriginMinCell0;
-layout(location = 10) uniform ivec3 vge_occRing0;
-layout(location = 11) uniform int vge_occResolution;
+#define vge_occOriginMinCell0     (vgeRelightParams.occOriginMinCell0.xyz)
+#define vge_occRing0              (vgeRelightParams.occRing0.xyz)
 
 // Packed payload decode (matches LumonSceneOccupancyPacking).
 uint UnpackBlockLevel(uint p) { return (p >> 0u) & 63u; }

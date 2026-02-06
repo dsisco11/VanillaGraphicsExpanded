@@ -1,9 +1,12 @@
+using System;
+
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.LumOn.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -14,10 +17,15 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public class LumOnCombineShaderProgram : GpuProgram
 {
+    private LumOnCombineParamsUbo? paramsUbo;
+
     public LumOnCombineShaderProgram()
     {
         RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
+        RegisterUniformBlockBinding(LumOnCombineParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
     }
+
+    private LumOnCombineParamsUbo Params => paramsUbo ??= new LumOnCombineParamsUbo();
 
     #region Static
 
@@ -83,9 +91,23 @@ public class LumOnCombineShaderProgram : GpuProgram
     [System.Obsolete("Renamed to EnableShortRangeAo.")]
     public bool EnableBentNormal { set => EnableShortRangeAo = value; }
 
-    public float DiffuseAOStrength { set => Uniform("diffuseAOStrength", value); }
+    public float DiffuseAOStrength
+    {
+        set
+        {
+            Params.DiffuseAOStrength = value;
+            Params.BindTo(this, LumOnCombineParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
-    public float SpecularAOStrength { set => Uniform("specularAOStrength", value); }
+    public float SpecularAOStrength
+    {
+        set
+        {
+            Params.SpecularAOStrength = value;
+            Params.BindTo(this, LumOnCombineParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     #endregion
 
@@ -95,12 +117,26 @@ public class LumOnCombineShaderProgram : GpuProgram
     /// Global intensity multiplier for indirect lighting.
     /// Default: 1.0
     /// </summary>
-    public float IndirectIntensity { set => Uniform("indirectIntensity", value); }
+    public float IndirectIntensity
+    {
+        set
+        {
+            Params.IndirectIntensity = value;
+            Params.BindTo(this, LumOnCombineParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     /// <summary>
     /// RGB tint applied to indirect lighting.
     /// </summary>
-    public Vec3f IndirectTint { set => Uniform("indirectTint", value); }
+    public Vec3f IndirectTint
+    {
+        set
+        {
+            Params.IndirectTint = new System.Numerics.Vector3(value.X, value.Y, value.Z);
+            Params.BindTo(this, LumOnCombineParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 
     #endregion
 
