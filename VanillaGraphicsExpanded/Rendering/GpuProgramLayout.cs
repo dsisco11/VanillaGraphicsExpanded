@@ -166,6 +166,34 @@ public class GpuProgramLayout
     }
 
     /// <summary>
+    /// Registers an expected sampler uniform array mapping starting at <paramref name="firstUnit"/>.
+    /// </summary>
+    /// <remarks>
+    /// This is useful for declarations like <c>uniform sampler2D foo[8]</c> or <c>uniform uimage3D bar[8]</c>
+    /// where explicit bindings may be unavailable on some GLSL fallback paths.
+    /// </remarks>
+    public void RegisterSamplerUnitArray(string samplerUniformBaseName, int firstUnit, int count, bool required = true)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(samplerUniformBaseName);
+        if (firstUnit < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(firstUnit), firstUnit, "Texture unit must be >= 0.");
+        }
+
+        if (count <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(count), count, "Count must be > 0.");
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            // Avoid spamming required warnings per element; treat element 0 as the required sentinel.
+            bool elementRequired = i == 0 && required;
+            RegisterSamplerUnit($"{samplerUniformBaseName}[{i}]", firstUnit + i, elementRequired);
+        }
+    }
+
+    /// <summary>
     /// Attempts to get a sampler unit from the registered contract only (ignores the active reflection snapshot).
     /// </summary>
     public bool TryGetContractSamplerUnit(string samplerUniformName, out int unit)
@@ -226,6 +254,30 @@ public class GpuProgramLayout
         }
 
         imageContract[imageUniformName] = new BindingSpec(unit, required);
+    }
+
+    /// <summary>
+    /// Registers an expected image uniform array mapping starting at <paramref name="firstUnit"/>.
+    /// </summary>
+    public void RegisterImageUnitArray(string imageUniformBaseName, int firstUnit, int count, bool required = true)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(imageUniformBaseName);
+        if (firstUnit < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(firstUnit), firstUnit, "Image unit must be >= 0.");
+        }
+
+        if (count <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(count), count, "Count must be > 0.");
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            // Avoid spamming required warnings per element; treat element 0 as the required sentinel.
+            bool elementRequired = i == 0 && required;
+            RegisterImageUnit($"{imageUniformBaseName}[{i}]", firstUnit + i, elementRequired);
+        }
     }
 
     /// <summary>

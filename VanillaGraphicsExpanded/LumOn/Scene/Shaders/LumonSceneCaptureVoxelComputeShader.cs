@@ -73,7 +73,8 @@ internal sealed class LumonSceneCaptureVoxelComputeShader : IDisposable
             stageExtension: "csh",
             defines: null,
             debugName: debugName,
-            log: api.Logger))
+            log: api.Logger,
+            layout: new LumonSceneComputeProgramLayouts.CaptureVoxel()))
         {
             return false;
         }

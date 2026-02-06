@@ -20,8 +20,10 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
     private int programId;
     private GpuProgramLayout programLayout = GpuProgramLayout.Empty;
 
-    private readonly Dictionary<string, int> uniformLocationCache = new(StringComparer.Ordinal);
-    private int uniformLocationCacheProgramId;
+    private readonly HashSet<string> warnedMissingUniforms = new(StringComparer.Ordinal);
+    private int warnedMissingUniformsProgramId;
+
+    private Action<string>? warn;
 
     protected override nint ResourceId
     {
@@ -47,10 +49,11 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
     /// </summary>
     public new bool IsValid => programId != 0 && !IsDisposed;
 
-    private GpuComputePipeline(int programId, GpuProgramLayout programLayout)
+    private GpuComputePipeline(int programId, GpuProgramLayout programLayout, Action<string>? warn)
     {
         this.programId = programId;
         this.programLayout = programLayout;
+        this.warn = warn;
     }
 
     /// <summary>
@@ -80,7 +83,9 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
         out GpuComputePipeline? pipeline,
         out string infoLog,
         string? debugName = null,
-        bool disposeShaderAfterLink = true)
+        bool disposeShaderAfterLink = true,
+        GpuProgramLayout? layout = null,
+        Action<string>? warn = null)
     {
         ArgumentNullException.ThrowIfNull(computeShader);
 
@@ -126,8 +131,10 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
                 return false;
             }
 
-            var layout = GpuProgramLayout.TryBuild(programId);
-            pipeline = new GpuComputePipeline(programId, layout);
+            var layoutToUse = layout ?? new GpuProgramLayout();
+            layoutToUse.ApplyContract(programId, warn);
+
+            pipeline = new GpuComputePipeline(programId, layoutToUse, warn);
             pipeline.SetDebugName(debugName);
             return true;
         }
@@ -177,7 +184,8 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
         System.Collections.Generic.IReadOnlyDictionary<string, string?>? defines = null,
         string? debugName = null,
         ILogger? log = null,
-        System.Threading.CancellationToken ct = default)
+        System.Threading.CancellationToken ct = default,
+        GpuProgramLayout? layout = null)
     {
         ArgumentNullException.ThrowIfNull(api);
         ArgumentException.ThrowIfNullOrWhiteSpace(shaderName);
@@ -212,7 +220,14 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             return false;
         }
 
-        if (!TryCreate(module, out pipeline, out string linkLog, debugName, disposeShaderAfterLink: true))
+        if (!TryCreate(
+            computeShader: module,
+            pipeline: out pipeline,
+            infoLog: out string linkLog,
+            debugName: debugName,
+            disposeShaderAfterLink: true,
+            layout: layout,
+            warn: log is null ? null : msg => log.Warning($"[VGE][Compute:{shaderName}] {msg}")))
         {
             infoLog = (infoLog.Length > 0 ? infoLog + "\n" : string.Empty) + linkLog;
             pipeline = null;
@@ -231,7 +246,9 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
         string spirvBinaryPath,
         out GpuComputePipeline? pipeline,
         out string infoLog,
-        string? debugName = null)
+        string? debugName = null,
+        GpuProgramLayout? layout = null,
+        Action<string>? warn = null)
     {
         pipeline = null;
         infoLog = string.Empty;
@@ -265,7 +282,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             return false;
         }
 
-        bool ok = TryCreateFromSpirvBytes(bytes, out pipeline, out string spirvLog, debugName);
+        bool ok = TryCreateFromSpirvBytes(bytes, out pipeline, out string spirvLog, debugName, layout, warn);
         infoLog = spirvLog;
         return ok;
     }
@@ -274,7 +291,9 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
         ReadOnlySpan<byte> spirvBytes,
         out GpuComputePipeline? pipeline,
         out string infoLog,
-        string? debugName = null)
+        string? debugName = null,
+        GpuProgramLayout? layout = null,
+        Action<string>? warn = null)
     {
         pipeline = null;
         infoLog = string.Empty;
@@ -310,7 +329,14 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             return false;
         }
 
-        if (!TryCreate(module, out pipeline, out string linkLog, debugName, disposeShaderAfterLink: true))
+        if (!TryCreate(
+            computeShader: module,
+            pipeline: out pipeline,
+            infoLog: out string linkLog,
+            debugName: debugName,
+            disposeShaderAfterLink: true,
+            layout: layout,
+            warn: warn))
         {
             module.Dispose();
             pipeline = null;
@@ -342,7 +368,8 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
         IReadOnlyDictionary<string, string?>? defines = null,
         string? debugName = null,
         ILogger? log = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        GpuProgramLayout? layout = null)
     {
         ArgumentNullException.ThrowIfNull(api);
         ArgumentException.ThrowIfNullOrWhiteSpace(shaderName);
@@ -367,7 +394,11 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
                     byte[] bytes = spvAsset.Data ?? Array.Empty<byte>();
                     if (bytes.Length > 0)
                     {
-                        if (TryCreateFromSpirvBytes(bytes, out pipeline, out string spirvInfo, debugName))
+                        Action<string>? warn = (log ?? api.Logger) is null
+                            ? null
+                            : msg => (log ?? api.Logger).Warning($"[VGE][Compute:{shaderName}] {msg}");
+
+                        if (TryCreateFromSpirvBytes(bytes, out pipeline, out string spirvInfo, debugName, layout, warn))
                         {
                             infoLog = spirvInfo;
                             return true;
@@ -420,7 +451,8 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             defines: defines,
             debugName: debugName,
             log: log,
-            ct: ct))
+            ct: ct,
+            layout: layout))
         {
             infoLog = (infoLog.Length > 0 ? infoLog + "\n" : string.Empty) + glslLog;
             pipeline = null;
@@ -496,25 +528,51 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             return -1;
         }
 
-        if (uniformLocationCacheProgramId != programId)
+        var loc = programLayout.ResolveUniformLocation(programId, uniformName);
+        return loc.IsActive ? loc.Value : -1;
+    }
+
+    private void WarnMissingUniformOnce(string uniformName)
+    {
+        if (warn is null)
         {
-            uniformLocationCache.Clear();
-            uniformLocationCacheProgramId = programId;
+            return;
         }
 
-        if (uniformLocationCache.TryGetValue(uniformName, out int cached))
+        if (warnedMissingUniformsProgramId != programId)
         {
-            return cached;
+            warnedMissingUniformsProgramId = programId;
+            warnedMissingUniforms.Clear();
         }
 
-        int loc = GL.GetUniformLocation(programId, uniformName);
-        if (loc < 0)
+        if (warnedMissingUniforms.Add(uniformName))
         {
-            loc = GL.GetUniformLocation(programId, $"{uniformName}[0]");
+            warn($"Program did not expose uniform '{uniformName}'.");
+        }
+    }
+
+    private bool TryGetActiveUniformLocation(string uniformName, out int location)
+    {
+        location = -1;
+
+        if (!IsValid || string.IsNullOrWhiteSpace(uniformName))
+        {
+            return false;
         }
 
-        uniformLocationCache[uniformName] = loc;
-        return loc;
+        var loc = programLayout.ResolveUniformLocation(programId, uniformName);
+        if (loc.IsActive)
+        {
+            location = loc.Value;
+            return true;
+        }
+
+        if (loc.State == GpuProgramLayout.ResolutionState.Missing)
+        {
+            WarnMissingUniformOnce(uniformName);
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -536,8 +594,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             return false;
         }
 
-        int loc = GetUniformLocationOrArray0(uniformName);
-        if (loc < 0)
+        if (!TryGetActiveUniformLocation(uniformName, out int loc))
         {
             return false;
         }
@@ -564,8 +621,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             return false;
         }
 
-        int loc = GetUniformLocationOrArray0(uniformName);
-        if (loc < 0)
+        if (!TryGetActiveUniformLocation(uniformName, out int loc))
         {
             return false;
         }
@@ -592,8 +648,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             return false;
         }
 
-        int loc = GetUniformLocationOrArray0(uniformName);
-        if (loc < 0)
+        if (!TryGetActiveUniformLocation(uniformName, out int loc))
         {
             return false;
         }
@@ -629,8 +684,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             return false;
         }
 
-        int loc = GetUniformLocationOrArray0(uniformName);
-        if (loc < 0)
+        if (!TryGetActiveUniformLocation(uniformName, out int loc))
         {
             return false;
         }
@@ -657,8 +711,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             return false;
         }
 
-        int loc = GetUniformLocationOrArray0(uniformName);
-        if (loc < 0)
+        if (!TryGetActiveUniformLocation(uniformName, out int loc))
         {
             return false;
         }
@@ -685,8 +738,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             return false;
         }
 
-        int loc = GetUniformLocationOrArray0(uniformName);
-        if (loc < 0)
+        if (!TryGetActiveUniformLocation(uniformName, out int loc))
         {
             return false;
         }
@@ -713,8 +765,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             return false;
         }
 
-        int loc = GetUniformLocationOrArray0(uniformName);
-        if (loc < 0)
+        if (!TryGetActiveUniformLocation(uniformName, out int loc))
         {
             return false;
         }
@@ -741,8 +792,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             return false;
         }
 
-        int loc = GetUniformLocationOrArray0(uniformName);
-        if (loc < 0)
+        if (!TryGetActiveUniformLocation(uniformName, out int loc))
         {
             return false;
         }
@@ -769,8 +819,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             return false;
         }
 
-        int loc = GetUniformLocationOrArray0(uniformName);
-        if (loc < 0)
+        if (!TryGetActiveUniformLocation(uniformName, out int loc))
         {
             return false;
         }
@@ -797,8 +846,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             return false;
         }
 
-        int loc = GetUniformLocationOrArray0(uniformName);
-        if (loc < 0)
+        if (!TryGetActiveUniformLocation(uniformName, out int loc))
         {
             return false;
         }
@@ -825,8 +873,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             return false;
         }
 
-        int loc = GetUniformLocationOrArray0(uniformName);
-        if (loc < 0)
+        if (!TryGetActiveUniformLocation(uniformName, out int loc))
         {
             return false;
         }
@@ -853,8 +900,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             return false;
         }
 
-        int loc = GetUniformLocationOrArray0(uniformName);
-        if (loc < 0)
+        if (!TryGetActiveUniformLocation(uniformName, out int loc))
         {
             return false;
         }
@@ -953,7 +999,11 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
 
     protected override void OnAfterDelete()
     {
-        uniformLocationCache.Clear();
-        uniformLocationCacheProgramId = 0;
+        warnedMissingUniforms.Clear();
+        warnedMissingUniformsProgramId = 0;
+        warn = null;
+
+        // Keep the contract but clear the active snapshot for safety.
+        programLayout.RebuildCache(programId: 0);
     }
 }

@@ -71,7 +71,8 @@ internal sealed class LumonSceneFeedbackGatherComputeShader : IDisposable
             stageExtension: "csh",
             defines: null,
             debugName: debugName,
-            log: api.Logger))
+            log: api.Logger,
+            layout: new LumonSceneComputeProgramLayouts.FeedbackGather()))
         {
             return false;
         }

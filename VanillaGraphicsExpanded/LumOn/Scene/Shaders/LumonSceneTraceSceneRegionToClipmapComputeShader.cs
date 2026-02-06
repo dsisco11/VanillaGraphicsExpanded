@@ -67,7 +67,8 @@ internal sealed class LumonSceneTraceSceneRegionToClipmapComputeShader : IDispos
             stageExtension: "csh",
             defines: null,
             debugName: debugName,
-            log: api.Logger))
+            log: api.Logger,
+            layout: new LumonSceneComputeProgramLayouts.TraceSceneRegionToClipmap()))
         {
             return false;
         }

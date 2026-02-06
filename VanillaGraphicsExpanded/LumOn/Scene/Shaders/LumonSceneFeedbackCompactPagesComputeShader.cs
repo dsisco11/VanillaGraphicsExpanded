@@ -70,7 +70,8 @@ internal sealed class LumonSceneFeedbackCompactPagesComputeShader : IDisposable
             stageExtension: "csh",
             defines: null,
             debugName: debugName,
-            log: api.Logger))
+            log: api.Logger,
+            layout: new LumonSceneComputeProgramLayouts.FeedbackCompactPages()))
         {
             return false;
         }

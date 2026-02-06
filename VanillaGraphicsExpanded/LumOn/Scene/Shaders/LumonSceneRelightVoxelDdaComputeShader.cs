@@ -85,7 +85,8 @@ internal sealed class LumonSceneRelightVoxelDdaComputeShader : IDisposable
             stageExtension: "csh",
             defines: null,
             debugName: debugName,
-            log: api.Logger))
+            log: api.Logger,
+            layout: new LumonSceneComputeProgramLayouts.RelightVoxelDda()))
         {
             return false;
         }

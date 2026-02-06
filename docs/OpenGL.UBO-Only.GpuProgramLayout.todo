@@ -94,11 +94,11 @@ References:
     - Move uniform/texture/UBO property accessors into layout subclasses
     - Wrapper becomes thin: create program, attach layout, set defines, bind resources
 
-☐ Phase 6 — Integrate Layouts into Compute (`GpuComputePipeline`) Lifecycle
+✔ Phase 6 — Integrate Layouts into Compute (`GpuComputePipeline`) Lifecycle
   Exit artifacts: compute pipelines use the same contract application + inactive guards.
-  ☐ Make compute pipelines accept a `GpuProgramLayout` (or a compute-specialized subclass).
-  ☐ Replace compute’s ad-hoc uniform-location cache with layout resolution + guards.
-  ☐ Ensure resource binding for:
+  ✔ Make compute pipelines accept a `GpuProgramLayout` (or a compute-specialized subclass).
+  ✔ Replace compute’s ad-hoc uniform-location cache with layout resolution + guards.
+  ✔ Ensure resource binding for:
     - UBOs (frame/object)
     - SSBOs (buffers)
     - images (rw textures)
