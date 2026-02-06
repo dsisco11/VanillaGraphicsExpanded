@@ -15,6 +15,35 @@ public class GpuProgramLayout
 
     private readonly record struct BindingSpec(int BindingOrUnit, bool Required);
 
+    internal enum ResolutionState
+    {
+        Active,
+        Missing,
+        Unknown,
+    }
+
+    internal readonly record struct ResolutionInt(ResolutionState State, int Value)
+    {
+        public bool IsActive => State == ResolutionState.Active;
+    }
+
+    internal readonly record struct ResolutionBool(ResolutionState State, bool Value)
+    {
+        public bool IsActive => State == ResolutionState.Active;
+    }
+
+#if DEBUG
+    internal sealed class LayoutDiagnostics
+    {
+        public long SkippedUniformBindsMissing;
+        public long SkippedUboBindsMissing;
+        public long SkippedSsboBindsMissing;
+        public long SkippedSamplerBindsMissing;
+        public long SkippedImageBindsMissing;
+        public long SkippedDueToUnknown;
+    }
+#endif
+
     #endregion
 
     private static readonly IReadOnlyDictionary<string, int> EmptyBindings = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -27,6 +56,12 @@ public class GpuProgramLayout
     private readonly Dictionary<string, BindingSpec> shaderStorageBlockContract = new(StringComparer.Ordinal);
     private readonly Dictionary<string, BindingSpec> samplerContract = new(StringComparer.Ordinal);
     private readonly Dictionary<string, BindingSpec> imageContract = new(StringComparer.Ordinal);
+
+    private readonly HashSet<string> warnedOnce = new(StringComparer.Ordinal);
+
+#if DEBUG
+    internal LayoutDiagnostics Diagnostics { get; } = new();
+#endif
 
     #endregion
 
@@ -147,6 +182,38 @@ public class GpuProgramLayout
         return false;
     }
 
+    internal bool TryGetContractSamplerSpec(string samplerUniformName, out int unit, out bool required)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(samplerUniformName);
+
+        if (samplerContract.TryGetValue(samplerUniformName, out var spec))
+        {
+            unit = spec.BindingOrUnit;
+            required = spec.Required;
+            return true;
+        }
+
+        unit = default;
+        required = false;
+        return false;
+    }
+
+    internal bool TryGetContractImageSpec(string imageUniformName, out int unit, out bool required)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(imageUniformName);
+
+        if (imageContract.TryGetValue(imageUniformName, out var spec))
+        {
+            unit = spec.BindingOrUnit;
+            required = spec.Required;
+            return true;
+        }
+
+        unit = default;
+        required = false;
+        return false;
+    }
+
     /// <summary>
     /// Registers an expected image uniform image unit for this program contract.
     /// </summary>
@@ -184,6 +251,19 @@ public class GpuProgramLayout
         finally
         {
             RebuildCache(programId);
+        }
+    }
+
+    private void WarnOnce(string key, string message, Action<string>? warn)
+    {
+        if (warn is null)
+        {
+            return;
+        }
+
+        if (warnedOnce.Add(key))
+        {
+            warn(message);
         }
     }
 
@@ -262,8 +342,12 @@ public class GpuProgramLayout
             {
                 if (spec.Required)
                 {
-                    warn?.Invoke($"Program did not expose required uniform block '{blockName}'.");
+                    WarnOnce($"ubo:{blockName}", $"Program did not expose required uniform block '{blockName}'.", warn);
                 }
+
+#if DEBUG
+                Diagnostics.SkippedUboBindsMissing++;
+#endif
                 continue;
             }
 
@@ -306,8 +390,12 @@ public class GpuProgramLayout
             {
                 if (spec.Required)
                 {
-                    warn?.Invoke($"Program did not expose required shader storage block '{blockName}'.");
+                    WarnOnce($"ssbo:{blockName}", $"Program did not expose required shader storage block '{blockName}'.", warn);
                 }
+
+#if DEBUG
+                Diagnostics.SkippedSsboBindsMissing++;
+#endif
                 continue;
             }
 
@@ -352,8 +440,12 @@ public class GpuProgramLayout
                 {
                     if (spec.Required)
                     {
-                        warn?.Invoke($"Program did not expose required uniform '{uniformName}'.");
+                        WarnOnce($"uniform:{uniformName}", $"Program did not expose required uniform '{uniformName}'.", warn);
                     }
+
+#if DEBUG
+                    Diagnostics.SkippedUniformBindsMissing++;
+#endif
                     continue;
                 }
 
@@ -425,6 +517,50 @@ public class GpuProgramLayout
 
         uniformLocationCache[uniformName] = loc;
         return loc;
+    }
+
+    internal ResolutionInt ResolveUniformLocation(int programId, string uniformName)
+    {
+        if (programId == 0)
+        {
+            return new ResolutionInt(ResolutionState.Unknown, -1);
+        }
+
+        int loc = GetUniformLocationOrArray0Cached(programId, uniformName);
+        return loc >= 0
+            ? new ResolutionInt(ResolutionState.Active, loc)
+            : new ResolutionInt(ResolutionState.Missing, -1);
+    }
+
+    internal ResolutionBool ResolveUniformBlockActive(int programId, string blockName)
+    {
+        if (programId == 0)
+        {
+            return new ResolutionBool(ResolutionState.Unknown, false);
+        }
+
+        int index = GetUniformBlockIndexCached(programId, blockName);
+        return index >= 0
+            ? new ResolutionBool(ResolutionState.Active, true)
+            : new ResolutionBool(ResolutionState.Missing, false);
+    }
+
+    internal ResolutionBool ResolveShaderStorageBlockActive(int programId, string blockName)
+    {
+        if (programId == 0)
+        {
+            return new ResolutionBool(ResolutionState.Unknown, false);
+        }
+
+        if (!SupportsProgramInterfaceQueries())
+        {
+            return new ResolutionBool(ResolutionState.Unknown, false);
+        }
+
+        int index = GetShaderStorageBlockIndexCached(programId, blockName);
+        return index >= 0
+            ? new ResolutionBool(ResolutionState.Active, true)
+            : new ResolutionBool(ResolutionState.Missing, false);
     }
 
     private int GetUniformBlockIndexCached(int programId, string blockName)
@@ -758,10 +894,31 @@ public class GpuProgramLayout
     /// <summary>
     /// Binds a UBO to the binding point for the named uniform block.
     /// </summary>
-    internal bool TryBindUniformBlock(string blockName, GpuUniformBuffer buffer)
+    internal bool TryBindUniformBlock(int programId, string blockName, GpuUniformBuffer buffer, Action<string>? warn = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
         ArgumentNullException.ThrowIfNull(buffer);
+
+        var active = ResolveUniformBlockActive(programId, blockName);
+        if (active.State == ResolutionState.Missing)
+        {
+            if (uniformBlockContract.TryGetValue(blockName, out var spec) && spec.Required)
+            {
+                WarnOnce($"ubo:{blockName}", $"Uniform block '{blockName}' is inactive/optimized-away; skipping bind.", warn);
+            }
+
+#if DEBUG
+            Diagnostics.SkippedUboBindsMissing++;
+#endif
+            return false;
+        }
+
+        if (active.State == ResolutionState.Unknown)
+        {
+#if DEBUG
+            Diagnostics.SkippedDueToUnknown++;
+#endif
+        }
 
         if (!TryGetUniformBlockBinding(blockName, out int binding))
         {
@@ -775,10 +932,32 @@ public class GpuProgramLayout
     /// <summary>
     /// Binds an SSBO to the binding point for the named shader storage block.
     /// </summary>
-    internal bool TryBindShaderStorageBlock(string blockName, GpuShaderStorageBuffer buffer)
+    internal bool TryBindShaderStorageBlock(int programId, string blockName, GpuShaderStorageBuffer buffer, Action<string>? warn = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
         ArgumentNullException.ThrowIfNull(buffer);
+
+        var active = ResolveShaderStorageBlockActive(programId, blockName);
+        if (active.State == ResolutionState.Missing)
+        {
+            if (shaderStorageBlockContract.TryGetValue(blockName, out var spec) && spec.Required)
+            {
+                WarnOnce($"ssbo:{blockName}", $"Shader storage block '{blockName}' is inactive/optimized-away; skipping bind.", warn);
+            }
+
+#if DEBUG
+            Diagnostics.SkippedSsboBindsMissing++;
+#endif
+            return false;
+        }
+
+        if (active.State == ResolutionState.Unknown)
+        {
+            // Can't prove the resource is inactive; allow the bind to preserve behavior.
+#if DEBUG
+            Diagnostics.SkippedDueToUnknown++;
+#endif
+        }
 
         if (!TryGetShaderStorageBlockBinding(blockName, out int binding))
         {
@@ -802,6 +981,53 @@ public class GpuProgramLayout
 
         if (textureId == 0)
         {
+            return false;
+        }
+
+        if (!TryGetSamplerUnit(samplerUniformName, out int unit))
+        {
+            return false;
+        }
+
+        GlStateCache.Current.BindTexture(target, unit, textureId);
+        if (samplerId != 0)
+        {
+            GlStateCache.Current.BindSampler(unit, samplerId);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Binds a texture to the sampler unit for <paramref name="samplerUniformName"/> but only if the uniform is active.
+    /// This avoids issuing GL bind calls for uniforms optimized away.
+    /// </summary>
+    internal bool TryBindSamplerTextureActive(
+        int programId,
+        string samplerUniformName,
+        TextureTarget target,
+        int textureId,
+        int samplerId,
+        Action<string>? warn)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(samplerUniformName);
+
+        if (textureId == 0)
+        {
+            return false;
+        }
+
+        var loc = ResolveUniformLocation(programId, samplerUniformName);
+        if (loc.State == ResolutionState.Missing)
+        {
+            if (samplerContract.TryGetValue(samplerUniformName, out var spec) && spec.Required)
+            {
+                WarnOnce($"sampler:{samplerUniformName}", $"Sampler uniform '{samplerUniformName}' is inactive/optimized-away; skipping bind.", warn);
+            }
+
+#if DEBUG
+            Diagnostics.SkippedSamplerBindsMissing++;
+#endif
             return false;
         }
 
@@ -854,6 +1080,47 @@ public class GpuProgramLayout
 
         if (textureId == 0)
         {
+            return false;
+        }
+
+        if (!TryGetImageUnit(imageUniformName, out int unit))
+        {
+            return false;
+        }
+
+        GL.BindImageTexture(unit, textureId, level, layered, layer, access, format);
+        return true;
+    }
+
+    internal bool TryBindImageTextureActive(
+        int programId,
+        string imageUniformName,
+        int textureId,
+        int level,
+        bool layered,
+        int layer,
+        TextureAccess access,
+        SizedInternalFormat format,
+        Action<string>? warn)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(imageUniformName);
+
+        if (textureId == 0)
+        {
+            return false;
+        }
+
+        var loc = ResolveUniformLocation(programId, imageUniformName);
+        if (loc.State == ResolutionState.Missing)
+        {
+            if (imageContract.TryGetValue(imageUniformName, out var spec) && spec.Required)
+            {
+                WarnOnce($"image:{imageUniformName}", $"Image uniform '{imageUniformName}' is inactive/optimized-away; skipping bind.", warn);
+            }
+
+#if DEBUG
+            Diagnostics.SkippedImageBindsMissing++;
+#endif
             return false;
         }
 

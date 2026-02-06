@@ -72,18 +72,18 @@ References:
     - Preferred: explicit binding decorations in SPIR-V / GLSL where supported.
     - Fallback: set sampler uniforms to fixed units once after link (never per-frame).
 
-☐ Phase 4 — Unused / Optimized-away Resource Guards (No GL Errors)
+✔ Phase 4 — Unused / Optimized-away Resource Guards (No GL Errors)
   Exit artifacts: attempting to set an inactive resource is a no-op with optional warn-once logging.
-  ☐ Define a tri-state for each resource name:
+  ✔ Define a tri-state for each resource name:
     - Resolved & active
     - Missing/inactive (optimized away)
     - Reflection not supported / unknown
-  ☐ Add guard rails for each operation:
+  ✔ Add guard rails for each operation:
     - Uniform location `-1` → abort set (warn once)
     - Uniform block index invalid (`GL_INVALID_INDEX`) → abort bind (warn once)
     - Program resource not active (via program interface query) → abort (warn once)
-  ☐ Add an “optional resource” marker to suppress warnings for feature-flagged shaders.
-  ☐ Add lightweight diagnostics counters (dev-only): attempted sets skipped due to inactive.
+  ✔ Add an “optional resource” marker to suppress warnings for feature-flagged shaders.
+  ✔ Add lightweight diagnostics counters (dev-only): attempted sets skipped due to inactive.
 
 ☐ Phase 5 — Integrate Layouts into Graphics (`GpuProgram`) Lifecycle
   Exit artifacts: graphics programs apply layout contracts on link/relink and expose only layout-driven accessors.

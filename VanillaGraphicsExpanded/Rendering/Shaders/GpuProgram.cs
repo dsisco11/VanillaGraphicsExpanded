@@ -43,6 +43,9 @@ public abstract class GpuProgram : ShaderProgram
     private readonly Dictionary<string, int> uniformLocationCache = new(StringComparer.Ordinal);
     private int uniformLocationCacheProgramId;
 
+    private readonly HashSet<string> warnedMissingUniforms = new(StringComparer.Ordinal);
+    private int warnedMissingUniformsProgramId;
+
     private GpuProgramLayout? programLayout;
 
     private ICoreClientAPI? capi;
@@ -119,7 +122,34 @@ public abstract class GpuProgram : ShaderProgram
         ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
         ArgumentNullException.ThrowIfNull(buffer);
 
-        return ProgramLayout.TryBindUniformBlock(blockName, buffer);
+        return ProgramLayout.TryBindUniformBlock(ProgramId, blockName, buffer, msg => log?.Warning($"[VGE][{ShaderName}] {msg}"));
+    }
+
+    private bool IsUniformActive(string uniformName, bool warnIfMissing)
+    {
+        int loc = GetUniformLocationOrArray0(uniformName);
+        if (loc >= 0)
+        {
+            return true;
+        }
+
+        if (!warnIfMissing || log is null)
+        {
+            return false;
+        }
+
+        if (warnedMissingUniformsProgramId != ProgramId)
+        {
+            warnedMissingUniformsProgramId = ProgramId;
+            warnedMissingUniforms.Clear();
+        }
+
+        if (warnedMissingUniforms.Add(uniformName))
+        {
+            log.Warning($"[VGE][{ShaderName}] Uniform '{uniformName}' is inactive/optimized-away; skipping GL bind.");
+        }
+
+        return false;
     }
 
     #endregion
@@ -128,11 +158,23 @@ public abstract class GpuProgram : ShaderProgram
 
     protected void BindTexture2D(string uniformName, GpuTexture? texture, int unit)
     {
-        if (!ProgramLayout.TryGetContractSamplerUnit(uniformName, out int contractUnit))
+        bool hasContract = ProgramLayout.TryGetContractSamplerSpec(uniformName, out int contractUnit, out bool contractRequired);
+        if (!hasContract)
         {
             // Legacy behavior: bind unit is caller-driven, set uniform every time.
+            if (!IsUniformActive(uniformName, warnIfMissing: false))
+            {
+                return;
+            }
+
             SetUniform(uniformName, unit);
             contractUnit = unit;
+        }
+
+        // Contract path: don't bind/unbind if the sampler uniform is optimized away.
+        if (hasContract && !IsUniformActive(uniformName, warnIfMissing: contractRequired))
+        {
+            return;
         }
 
         if (texture is null)
@@ -146,10 +188,21 @@ public abstract class GpuProgram : ShaderProgram
 
     protected void BindTexture3D(string uniformName, GpuTexture? texture, int unit)
     {
-        if (!ProgramLayout.TryGetContractSamplerUnit(uniformName, out int contractUnit))
+        bool hasContract = ProgramLayout.TryGetContractSamplerSpec(uniformName, out int contractUnit, out bool contractRequired);
+        if (!hasContract)
         {
+            if (!IsUniformActive(uniformName, warnIfMissing: false))
+            {
+                return;
+            }
+
             SetUniform(uniformName, unit);
             contractUnit = unit;
+        }
+
+        if (hasContract && !IsUniformActive(uniformName, warnIfMissing: contractRequired))
+        {
+            return;
         }
 
         if (texture is null)
@@ -163,10 +216,21 @@ public abstract class GpuProgram : ShaderProgram
 
     protected void BindExternalTexture2D(string uniformName, int textureId, int unit, GpuSampler sampler)
     {
-        if (!ProgramLayout.TryGetContractSamplerUnit(uniformName, out int contractUnit))
+        bool hasContract = ProgramLayout.TryGetContractSamplerSpec(uniformName, out int contractUnit, out bool contractRequired);
+        if (!hasContract)
         {
+            if (!IsUniformActive(uniformName, warnIfMissing: false))
+            {
+                return;
+            }
+
             SetUniform(uniformName, unit);
             contractUnit = unit;
+        }
+
+        if (hasContract && !IsUniformActive(uniformName, warnIfMissing: contractRequired))
+        {
+            return;
         }
 
         GlStateCache.Current.BindTexture(TextureTarget.Texture2D, contractUnit, textureId, sampler);
@@ -174,10 +238,21 @@ public abstract class GpuProgram : ShaderProgram
 
     protected void BindExternalTexture3D(string uniformName, int textureId, int unit, GpuSampler sampler)
     {
-        if (!ProgramLayout.TryGetContractSamplerUnit(uniformName, out int contractUnit))
+        bool hasContract = ProgramLayout.TryGetContractSamplerSpec(uniformName, out int contractUnit, out bool contractRequired);
+        if (!hasContract)
         {
+            if (!IsUniformActive(uniformName, warnIfMissing: false))
+            {
+                return;
+            }
+
             SetUniform(uniformName, unit);
             contractUnit = unit;
+        }
+
+        if (hasContract && !IsUniformActive(uniformName, warnIfMissing: contractRequired))
+        {
+            return;
         }
 
         GlStateCache.Current.BindTexture(TextureTarget.Texture3D, contractUnit, textureId, sampler);
