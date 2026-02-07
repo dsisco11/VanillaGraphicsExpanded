@@ -141,10 +141,11 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         int[] prevViewport = new int[4];
         GL.GetInteger(GetPName.Viewport, prevViewport);
         int prevFbo = GpuFramebuffer.SaveBinding();
-        GL.GetInteger(GetPName.VertexArrayBinding, out int prevVao);
-        GL.GetInteger(GetPName.CurrentProgram, out int prevProgram);
-        GL.GetInteger(GetPName.ActiveTexture, out int prevActiveTex);
-        GL.GetInteger(GetPName.TextureBinding2D, out int prevTex2D);
+        var prevGl = GlStateCache.Current;
+        _ = prevGl.TryGetCachedCurrentVao(out int prevVao);
+        _ = prevGl.TryGetCachedCurrentProgram(out int prevProgram);
+        _ = prevGl.TryGetCachedActiveTextureUnit(out int prevActiveUnit);
+        _ = prevGl.TryGetCachedBoundTexture(TextureTarget.Texture2D, prevActiveUnit, out int prevTex2D);
 
         // Engine GL state can leak into the bake. Force a known-good state and restore after.
         using var fixedFunctionScope = GlStateCache.Current.CaptureLegacyFixedFunctionState();
@@ -472,8 +473,6 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             GpuFramebuffer.RestoreBinding(prevFbo);
             GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
 
-            int prevActiveUnit = prevActiveTex - (int)TextureUnit.Texture0;
-            if (prevActiveUnit < 0) prevActiveUnit = 0;
             gl.BindTexture(TextureTarget.Texture2D, prevActiveUnit, prevTex2D);
         }
     }
@@ -505,10 +504,11 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         int[] prevViewport = new int[4];
         GL.GetInteger(GetPName.Viewport, prevViewport);
         int prevFbo = GpuFramebuffer.SaveBinding();
-        GL.GetInteger(GetPName.VertexArrayBinding, out int prevVao);
-        GL.GetInteger(GetPName.CurrentProgram, out int prevProgram);
-        GL.GetInteger(GetPName.ActiveTexture, out int prevActiveTex);
-        GL.GetInteger(GetPName.TextureBinding2D, out int prevTex2D);
+        var prevGl = GlStateCache.Current;
+        _ = prevGl.TryGetCachedCurrentVao(out int prevVao);
+        _ = prevGl.TryGetCachedCurrentProgram(out int prevProgram);
+        _ = prevGl.TryGetCachedActiveTextureUnit(out int prevActiveUnit);
+        _ = prevGl.TryGetCachedBoundTexture(TextureTarget.Texture2D, prevActiveUnit, out int prevTex2D);
 
         using var fixedFunctionScope = GlStateCache.Current.CaptureLegacyFixedFunctionState();
 
@@ -538,8 +538,6 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             GpuFramebuffer.RestoreBinding(prevFbo);
             GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
 
-            int prevActiveUnit = prevActiveTex - (int)TextureUnit.Texture0;
-            if (prevActiveUnit < 0) prevActiveUnit = 0;
             gl.BindTexture(TextureTarget.Texture2D, prevActiveUnit, prevTex2D);
         }
     }
@@ -590,10 +588,11 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         int[] prevViewport = new int[4];
         GL.GetInteger(GetPName.Viewport, prevViewport);
         int prevFbo = GpuFramebuffer.SaveBinding();
-        GL.GetInteger(GetPName.VertexArrayBinding, out int prevVao);
-        GL.GetInteger(GetPName.CurrentProgram, out int prevProgram);
-        GL.GetInteger(GetPName.ActiveTexture, out int prevActiveTex);
-        GL.GetInteger(GetPName.TextureBinding2D, out int prevTex2D);
+        var prevGl = GlStateCache.Current;
+        _ = prevGl.TryGetCachedCurrentVao(out int prevVao);
+        _ = prevGl.TryGetCachedCurrentProgram(out int prevProgram);
+        _ = prevGl.TryGetCachedActiveTextureUnit(out int prevActiveUnit);
+        _ = prevGl.TryGetCachedBoundTexture(TextureTarget.Texture2D, prevActiveUnit, out int prevTex2D);
 
         using var fixedFunctionScope = GlStateCache.Current.CaptureLegacyFixedFunctionState();
 
@@ -692,8 +691,6 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             GpuFramebuffer.RestoreBinding(prevFbo);
             GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
 
-            int prevActiveUnit = prevActiveTex - (int)TextureUnit.Texture0;
-            if (prevActiveUnit < 0) prevActiveUnit = 0;
             gl.BindTexture(TextureTarget.Texture2D, prevActiveUnit, prevTex2D);
         }
     }

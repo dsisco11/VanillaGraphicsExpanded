@@ -62,25 +62,19 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
     /// <summary>
     /// Binds this buffer as the draw-indirect buffer and returns a scope that restores the previous binding.
     /// </summary>
-    public IndirectBindingScope BindDrawScope()
+    public GlStateCache.BufferScope BindDrawScope()
     {
-        int previous = 0;
-        try { GL.GetInteger(GetPName.DrawIndirectBufferBinding, out previous); } catch { }
-
         BindDraw();
-        return new IndirectBindingScope(BufferTarget.DrawIndirectBuffer, previous);
+        return GlStateCache.Current.BindBufferScope(BufferTarget.DrawIndirectBuffer, bufferId);
     }
 
     /// <summary>
     /// Binds this buffer as the dispatch-indirect buffer and returns a scope that restores the previous binding.
     /// </summary>
-    public IndirectBindingScope BindDispatchScope()
+    public GlStateCache.BufferScope BindDispatchScope()
     {
-        int previous = 0;
-        try { GL.GetInteger(GetPName.DispatchIndirectBufferBinding, out previous); } catch { }
-
         BindDispatch();
-        return new IndirectBindingScope(BufferTarget.DispatchIndirectBuffer, previous);
+        return GlStateCache.Current.BindBufferScope(BufferTarget.DispatchIndirectBuffer, bufferId);
     }
 
     /// <summary>
@@ -188,23 +182,4 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
         }
     }
 
-    /// <summary>
-    /// Scope that restores the previous indirect-buffer binding when disposed.
-    /// </summary>
-    public readonly struct IndirectBindingScope : IDisposable
-    {
-        private readonly BufferTarget target;
-        private readonly int previous;
-
-        public IndirectBindingScope(BufferTarget target, int previous)
-        {
-            this.target = target;
-            this.previous = previous;
-        }
-
-        public void Dispose()
-        {
-            GlStateCache.Current.BindBuffer(target, previous);
-        }
-    }
 }

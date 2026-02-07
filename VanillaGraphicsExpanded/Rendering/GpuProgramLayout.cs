@@ -585,73 +585,94 @@ public class GpuProgramLayout
             return;
         }
 
-        int prevProgram = 0;
-        bool hasPrevProgram = false;
+        bool needsBoundFallback = false;
 
-        try
+        foreach (var (uniformName, spec) in contract)
         {
-            GL.GetInteger(GetPName.CurrentProgram, out prevProgram);
-            hasPrevProgram = true;
-        }
-        catch
-        {
-        }
-
-        try
-        {
-            GL.UseProgram(programId);
-
-            foreach (var (uniformName, spec) in contract)
+            int loc = GetUniformLocationOrArray0Cached(programId, uniformName);
+            if (loc < 0)
             {
-                int loc = GetUniformLocationOrArray0Cached(programId, uniformName);
-                if (loc < 0)
+                if (spec.Required)
                 {
-                    if (spec.Required)
-                    {
-                        WarnOnce($"uniform:{uniformName}", $"Program did not expose required uniform '{uniformName}'.", warn);
-                    }
+                    WarnOnce($"uniform:{uniformName}", $"Program did not expose required uniform '{uniformName}'.", warn);
+                }
 
 #if DEBUG
-                    Diagnostics.SkippedUniformBindsMissing++;
+                Diagnostics.SkippedUniformBindsMissing++;
 #endif
-                    continue;
-                }
-
-                // Prefer explicit bindings when present (skip redundant assignment if already correct).
-                try
-                {
-                    GL.GetUniform(programId, loc, out int current);
-                    if (current == spec.BindingOrUnit)
-                    {
-                        continue;
-                    }
-                }
-                catch
-                {
-                    // Best-effort only.
-                }
-
-                try
-                {
-                    GL.Uniform1(loc, spec.BindingOrUnit);
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[GpuProgramLayout] Failed to set uniform '{uniformName}' to {spec.BindingOrUnit}: {ex.Message}");
-                }
+                continue;
             }
-        }
-        finally
-        {
+
+            // Prefer explicit bindings when present (skip redundant assignment if already correct).
             try
             {
-                if (hasPrevProgram)
+                GL.GetUniform(programId, loc, out int current);
+                if (current == spec.BindingOrUnit)
                 {
-                    GL.UseProgram(prevProgram);
+                    continue;
                 }
             }
             catch
             {
+                // Best-effort only.
+            }
+
+            try
+            {
+                GL.ProgramUniform1(programId, loc, spec.BindingOrUnit);
+            }
+            catch
+            {
+                needsBoundFallback = true;
+                break;
+            }
+        }
+
+        if (!needsBoundFallback)
+        {
+            return;
+        }
+
+        // Fallback path for drivers/contexts without ProgramUniform support.
+        // Bind the program temporarily and assign the contract via Uniform1.
+        using var _ = GlStateCache.Current.UseProgramScope(programId);
+
+        foreach (var (uniformName, spec) in contract)
+        {
+            int loc = GetUniformLocationOrArray0Cached(programId, uniformName);
+            if (loc < 0)
+            {
+                if (spec.Required)
+                {
+                    WarnOnce($"uniform:{uniformName}", $"Program did not expose required uniform '{uniformName}'.", warn);
+                }
+
+#if DEBUG
+                Diagnostics.SkippedUniformBindsMissing++;
+#endif
+                continue;
+            }
+
+            try
+            {
+                GL.GetUniform(programId, loc, out int current);
+                if (current == spec.BindingOrUnit)
+                {
+                    continue;
+                }
+            }
+            catch
+            {
+                // Best-effort only.
+            }
+
+            try
+            {
+                GL.Uniform1(loc, spec.BindingOrUnit);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[GpuProgramLayout] Failed to set uniform '{uniformName}' to {spec.BindingOrUnit}: {ex.Message}");
             }
         }
     }

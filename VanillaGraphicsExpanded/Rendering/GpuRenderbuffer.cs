@@ -185,18 +185,8 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
     /// </summary>
     public BindingScope BindScope()
     {
-        int previous = 0;
-        try
-        {
-            previous = GL.GetInteger(GetPName.RenderbufferBinding);
-        }
-        catch
-        {
-            previous = 0;
-        }
-
-        GlStateCache.Current.BindRenderbuffer(renderbufferId);
-        return new BindingScope(previous);
+        var scope = GlStateCache.Current.BindRenderbufferScope(renderbufferId);
+        return new BindingScope(scope);
     }
 
     /// <summary>
@@ -264,15 +254,32 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
     /// </summary>
     public readonly struct BindingScope : IDisposable
     {
+        private readonly GlStateCache.RenderbufferScope scope;
         private readonly int previous;
+        private readonly bool useCacheScope;
+
+        internal BindingScope(GlStateCache.RenderbufferScope scope)
+        {
+            this.scope = scope;
+            previous = 0;
+            useCacheScope = true;
+        }
 
         public BindingScope(int previous)
         {
+            scope = default;
             this.previous = previous;
+            useCacheScope = false;
         }
 
         public void Dispose()
         {
+            if (useCacheScope)
+            {
+                scope.Dispose();
+                return;
+            }
+
             GlStateCache.Current.BindRenderbuffer(previous);
         }
     }

@@ -207,7 +207,7 @@ public sealed class GBufferManager : IDisposable
             return;
 
         // Only reapply if Primary framebuffer is currently bound
-        int currentFbo = GL.GetInteger(GetPName.FramebufferBinding);
+        int currentFbo = GlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer);
         FrameBufferRef? primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primaryFb is null || currentFbo != primaryFb.FboId)
             return;

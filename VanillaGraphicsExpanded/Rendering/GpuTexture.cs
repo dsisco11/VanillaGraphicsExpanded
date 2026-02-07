@@ -92,55 +92,14 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
     public BindingScope BindScope(int unit)
     {
-        int previousActive = 0;
-        bool hasPreviousActive = false;
-        try
-        {
-            previousActive = GL.GetInteger(GetPName.ActiveTexture);
-            hasPreviousActive = true;
-        }
-        catch
-        {
-            previousActive = 0;
-        }
+        var gl = GlStateCache.Current;
 
-        int previousBinding = 0;
-        int previousSampler = 0;
-        try
-        {
-            GL.ActiveTexture(TextureUnit.Texture0 + unit);
-            if (TryGetBindingQuery(textureTarget, out GetPName bindingQuery))
-            {
-                GL.GetInteger(bindingQuery, out previousBinding);
-            }
-
-            try
-            {
-                previousSampler = GL.GetInteger(GetPName.SamplerBinding);
-            }
-            catch
-            {
-                previousSampler = 0;
-            }
-        }
-        catch
-        {
-            previousBinding = 0;
-            previousSampler = 0;
-        }
-        finally
-        {
-            if (hasPreviousActive)
-            {
-                try { GL.ActiveTexture((TextureUnit)previousActive); } catch { }
-            }
-        }
-
-        GlStateCache.Current.BindTexture(textureTarget, unit, textureId);
         // Ensure sampler-object state doesn't override texture-object parameters.
-        GlStateCache.Current.UnbindSampler(unit);
+        // Use GlStateCache scopes so binding restore is PSO-owned and cache-consistent.
+        var textureScope = gl.BindTextureScope(textureTarget, unit, textureId);
+        var samplerScope = gl.BindSamplerScope(unit, samplerId: 0);
 
-        return new BindingScope(textureTarget, unit, previousBinding, previousSampler, previousActive, hasPreviousActive);
+        return new BindingScope(textureScope, samplerScope);
     }
 
     #region Allocation Helpers
@@ -1184,44 +1143,66 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
     public readonly struct BindingScope : IDisposable
     {
+        private readonly GlStateCache.TextureScope textureScope;
+        private readonly GlStateCache.SamplerScope samplerScope;
+
         private readonly TextureTarget target;
         private readonly int unit;
         private readonly int previousBinding;
         private readonly int previousSampler;
-        private readonly int previousActive;
+        private readonly int previousActiveUnit;
         private readonly bool restoreActive;
+
+        private readonly bool useCacheScopes;
+
+        internal BindingScope(GlStateCache.TextureScope textureScope, GlStateCache.SamplerScope samplerScope)
+        {
+            this.textureScope = textureScope;
+            this.samplerScope = samplerScope;
+
+            target = default;
+            unit = 0;
+            previousBinding = 0;
+            previousSampler = 0;
+            previousActiveUnit = 0;
+            restoreActive = false;
+            useCacheScopes = true;
+        }
 
         public BindingScope(
             TextureTarget target,
             int unit,
             int previousBinding,
             int previousSampler,
-            int previousActive,
+            int previousActiveUnit,
             bool restoreActive)
         {
+            textureScope = default;
+            samplerScope = default;
             this.target = target;
             this.unit = unit;
             this.previousBinding = previousBinding;
             this.previousSampler = previousSampler;
-            this.previousActive = previousActive;
+            this.previousActiveUnit = previousActiveUnit;
             this.restoreActive = restoreActive;
+            useCacheScopes = false;
         }
 
         public void Dispose()
         {
+            if (useCacheScopes)
+            {
+                samplerScope.Dispose();
+                textureScope.Dispose();
+                return;
+            }
+
             GlStateCache.Current.BindTexture(target, unit, previousBinding);
             GlStateCache.Current.BindSampler(unit, previousSampler);
 
             if (restoreActive)
             {
-                try
-                {
-                    int prevUnit = previousActive - (int)TextureUnit.Texture0;
-                    GlStateCache.Current.ActiveTexture(prevUnit);
-                }
-                catch
-                {
-                }
+                GlStateCache.Current.ActiveTexture(previousActiveUnit);
             }
         }
     }

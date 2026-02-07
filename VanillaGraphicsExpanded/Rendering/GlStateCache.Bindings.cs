@@ -20,6 +20,24 @@ internal sealed partial class GlStateCache
     private int?[]? samplerBindingByUnit;
 
     private readonly Dictionary<BufferTarget, int?> bufferBindingByTarget = new();
+    private readonly Dictionary<int, int> elementArrayBufferByVao = new();
+
+    /// <summary>
+    /// Clears all cached GL bindings so the next access refetches from GL.
+    /// Useful when running alongside a mixed system that also mutates GL state.
+    /// </summary>
+    public void PurgeCache()
+    {
+        InvalidateBindings();
+    }
+
+    /// <summary>
+    /// Called once per frame to clear cached GL bindings.
+    /// </summary>
+    public void BeginFrame()
+    {
+        PurgeCache();
+    }
 
     private void InvalidateBindings()
     {
@@ -36,6 +54,7 @@ internal sealed partial class GlStateCache
         textureBindingsByUnit = null;
         samplerBindingByUnit = null;
         bufferBindingByTarget.Clear();
+        elementArrayBufferByVao.Clear();
     }
 
     public int GetCurrentProgram()
@@ -58,6 +77,96 @@ internal sealed partial class GlStateCache
 
         programId = 0;
         return false;
+    }
+
+    public bool TryGetCachedCurrentVao(out int vaoId)
+    {
+        if (currentVao.HasValue)
+        {
+            vaoId = currentVao.Value;
+            return true;
+        }
+
+        vaoId = 0;
+        return false;
+    }
+
+    public bool TryGetCachedCurrentFramebuffer(FramebufferTarget target, out int fboId)
+    {
+        int? cached = target switch
+        {
+            FramebufferTarget.ReadFramebuffer => currentReadFramebuffer,
+            FramebufferTarget.DrawFramebuffer => currentDrawFramebuffer,
+            _ => currentFramebuffer
+        };
+
+        if (cached.HasValue)
+        {
+            fboId = cached.Value;
+            return true;
+        }
+
+        fboId = 0;
+        return false;
+    }
+
+    public bool TryGetCachedActiveTextureUnit(out int unit)
+    {
+        if (activeTextureUnit.HasValue)
+        {
+            unit = activeTextureUnit.Value;
+            return true;
+        }
+
+        unit = 0;
+        return false;
+    }
+
+    public bool TryGetCachedBoundTexture(TextureTarget target, int unit, out int textureId)
+    {
+        textureId = 0;
+
+        if (unit < 0)
+        {
+            return false;
+        }
+
+        if (textureBindingsByUnit is null || unit >= textureBindingsByUnit.Length)
+        {
+            return false;
+        }
+
+        var dict = textureBindingsByUnit[unit];
+        if (dict is null)
+        {
+            return false;
+        }
+
+        return dict.TryGetValue(target, out textureId);
+    }
+
+    public bool TryGetCachedBoundSampler(int unit, out int samplerId)
+    {
+        samplerId = 0;
+
+        if (unit < 0)
+        {
+            return false;
+        }
+
+        if (samplerBindingByUnit is null || unit >= samplerBindingByUnit.Length)
+        {
+            return false;
+        }
+
+        int? cached = samplerBindingByUnit[unit];
+        if (!cached.HasValue)
+        {
+            return false;
+        }
+
+        samplerId = cached.Value;
+        return true;
     }
 
     public void UseProgram(int programId)
@@ -126,6 +235,12 @@ internal sealed partial class GlStateCache
         {
             GL.BindVertexArray(vaoId);
             currentVao = vaoId;
+
+            // Track per-VAO EBO bindings. Default to 0 until observed/bound through the cache.
+            if (!elementArrayBufferByVao.ContainsKey(vaoId))
+            {
+                elementArrayBufferByVao[vaoId] = 0;
+            }
         }
         catch
         {
@@ -549,35 +664,8 @@ internal sealed partial class GlStateCache
 
     public TextureScope BindTextureScope(TextureTarget target, int unit, int textureId)
     {
-        int prevActiveEnum = 0;
-        int prevActive = 0;
-        try
-        {
-            prevActiveEnum = GL.GetInteger(GetPName.ActiveTexture);
-            prevActive = prevActiveEnum - (int)TextureUnit.Texture0;
-        }
-        catch
-        {
-            prevActive = 0;
-        }
-
-        int prevTex = 0;
-        try
-        {
-            GL.ActiveTexture(TextureUnit.Texture0 + unit);
-            if (TryGetTextureBindingQuery(target, out GetPName pname))
-            {
-                prevTex = GL.GetInteger(pname);
-            }
-        }
-        catch
-        {
-            prevTex = 0;
-        }
-        finally
-        {
-            try { GL.ActiveTexture((TextureUnit)prevActiveEnum); } catch { }
-        }
+        int prevActive = GetActiveTextureUnit();
+        int prevTex = GetBoundTexture(target, unit);
 
         BindTexture(target, unit, textureId);
         return new TextureScope(this, target, unit, prevTex, prevActive);
@@ -668,29 +756,7 @@ internal sealed partial class GlStateCache
 
     public SamplerScope BindSamplerScope(int unit, int samplerId)
     {
-        int previous = 0;
-        int prevActiveEnum = 0;
-        try
-        {
-            prevActiveEnum = GL.GetInteger(GetPName.ActiveTexture);
-        }
-        catch
-        {
-        }
-
-        try
-        {
-            GL.ActiveTexture(TextureUnit.Texture0 + unit);
-            previous = GL.GetInteger(GetPName.SamplerBinding);
-        }
-        catch
-        {
-            previous = 0;
-        }
-        finally
-        {
-            try { GL.ActiveTexture((TextureUnit)prevActiveEnum); } catch { }
-        }
+        int previous = GetBoundSampler(unit);
 
         BindSampler(unit, samplerId);
         return new SamplerScope(this, unit, previous);
@@ -719,7 +785,24 @@ internal sealed partial class GlStateCache
     {
         if (target == BufferTarget.ElementArrayBuffer)
         {
-            return 0;
+            int vaoId = GetCurrentVao();
+
+            if (elementArrayBufferByVao.TryGetValue(vaoId, out int cachedEbo))
+            {
+                return cachedEbo;
+            }
+
+            try
+            {
+                int value = GL.GetInteger(GetPName.ElementArrayBufferBinding);
+                elementArrayBufferByVao[vaoId] = value;
+                return value;
+            }
+            catch
+            {
+                elementArrayBufferByVao[vaoId] = 0;
+                return 0;
+            }
         }
 
         if (bufferBindingByTarget.TryGetValue(target, out int? cached) && cached.HasValue)
@@ -744,11 +827,44 @@ internal sealed partial class GlStateCache
         return 0;
     }
 
+    public bool TryGetCachedBoundBuffer(BufferTarget target, out int bufferId)
+    {
+        if (target == BufferTarget.ElementArrayBuffer)
+        {
+            if (currentVao.HasValue && elementArrayBufferByVao.TryGetValue(currentVao.Value, out bufferId))
+            {
+                return true;
+            }
+
+            bufferId = 0;
+            return false;
+        }
+
+        if (bufferBindingByTarget.TryGetValue(target, out int? cached) && cached.HasValue)
+        {
+            bufferId = cached.Value;
+            return true;
+        }
+
+        bufferId = 0;
+        return false;
+    }
+
     public void BindBuffer(BufferTarget target, int bufferId)
     {
         if (target == BufferTarget.ElementArrayBuffer)
         {
-            GL.BindBuffer(target, bufferId);
+            try
+            {
+                GL.BindBuffer(target, bufferId);
+
+                // ElementArrayBuffer is VAO state.
+                int vaoId = currentVao ?? GetCurrentVao();
+                elementArrayBufferByVao[vaoId] = bufferId;
+            }
+            catch
+            {
+            }
             return;
         }
 
@@ -796,18 +912,7 @@ internal sealed partial class GlStateCache
 
     public BufferScope BindBufferScope(BufferTarget target, int bufferId)
     {
-        int previous = 0;
-        try
-        {
-            if (TryGetBufferBindingQuery(target, out GetPName pname))
-            {
-                previous = GL.GetInteger(pname);
-            }
-        }
-        catch
-        {
-            previous = 0;
-        }
+        int previous = GetBoundBuffer(target);
 
         BindBuffer(target, bufferId);
         return new BufferScope(this, target, previous);

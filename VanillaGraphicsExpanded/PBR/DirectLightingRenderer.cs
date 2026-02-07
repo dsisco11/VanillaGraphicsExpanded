@@ -95,7 +95,7 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
 
         // Save current FBO + viewport so we can restore engine state.
         // Must happen before EnsureBuffers(), which may recreate/bind/unbind FBOs during resize.
-        int prevFbo = GL.GetInteger(GetPName.FramebufferBinding);
+        int prevFbo = GpuFramebuffer.SaveBinding();
         int[] prevViewport = new int[4];
         GL.GetInteger(GetPName.Viewport, prevViewport);
 
