@@ -56,6 +56,10 @@ public abstract class RenderTestBase : IDisposable
     protected void EnsureContextValid()
     {
         _fixture.EnsureContextValid();
+
+        // Option B: UBO binding uses the per-thread ring allocator.
+        // In production this is installed by a renderer; in tests we activate it manually.
+        GpuUniformRingSystem.BeginTestFrame();
         
         // Drain any leftover GL errors so each test starts clean
         while (GL.GetError() != ErrorCode.NoError) { }

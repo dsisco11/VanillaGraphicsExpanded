@@ -1,33 +1,25 @@
 using System;
-using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>
-/// CPU-side uniform buffer wrapper that manages std140-packed data, deferred uploads, and batched updates.
-/// Provides a base for typed UBO parameter classes with automatic packing and upload management.
-/// 
-/// Usage example (single property):
-/// <code>
-/// shader.Intensity = 1.5f; // Uploads immediately
-/// </code>
-/// 
+/// CPU-side std140-packed uniform-block data.
+///
+/// This type is intentionally CPU-only: it owns no GL resources and performs no GL calls.
+/// Upload/binding is handled by external systems (e.g., a per-frame UBO ring allocator).
+///
 /// Usage example (batched updates):
 /// <code>
 /// using (shader.Params.BeginBatchUpdate())
 /// {
 ///     shader.Intensity = 1.5f;
-///     shader.IndirectTint = new Vec3f(1, 0.9f, 0.8f);
 ///     shader.SampleStride = 2;
-///     // Single upload happens here when scope exits
 /// }
 /// </code>
 /// </summary>
 public abstract class CpuUniformBuffer : IDisposable
 {
     private readonly byte[] data;
-    private GpuUniformBuffer? gpuBuffer;
-    private bool ownsGpuBuffer;
     private bool isDirty;
     private int dirtyStartBytes;
     private int dirtyEndExclusiveBytes;
@@ -41,22 +33,10 @@ public abstract class CpuUniformBuffer : IDisposable
         }
 
         data = new byte[sizeBytes];
-        ownsGpuBuffer = true;
         isDirty = false;
         dirtyStartBytes = int.MaxValue;
         dirtyEndExclusiveBytes = 0;
         uploadScopeDepth = 0;
-    }
-
-    /// <summary>
-    /// Attaches an existing GPU UBO so multiple CPU parameter objects can share a single GPU buffer.
-    /// When a shared GPU buffer is attached, this instance will not dispose it.
-    /// </summary>
-    internal void AttachSharedGpuBuffer(GpuUniformBuffer sharedBuffer)
-    {
-        ArgumentNullException.ThrowIfNull(sharedBuffer);
-        gpuBuffer = sharedBuffer;
-        ownsGpuBuffer = false;
     }
 
     /// <summary>
@@ -68,6 +48,11 @@ public abstract class CpuUniformBuffer : IDisposable
     /// Whether the CPU buffer has pending changes that need to be uploaded to GPU.
     /// </summary>
     public bool IsDirty => isDirty;
+
+    /// <summary>
+    /// Read-only view of the full packed buffer.
+    /// </summary>
+    public ReadOnlySpan<byte> Bytes => data;
 
     /// <summary>
     /// Direct access to the underlying byte array for advanced packing scenarios.
@@ -127,102 +112,38 @@ public abstract class CpuUniformBuffer : IDisposable
         isDirty = true;
         if (byteOffset < dirtyStartBytes) dirtyStartBytes = byteOffset;
         if (endExclusive > dirtyEndExclusiveBytes) dirtyEndExclusiveBytes = endExclusive;
-
-        // Auto-upload if not inside a batching scope.
-        if (uploadScopeDepth == 0)
-        {
-            UploadIfDirty();
-        }
     }
 
     /// <summary>
-    /// Ensures the GPU buffer is created.
+    /// Uploads and binds this block using the currently-active UBO ring (if any).
     /// </summary>
-    private void EnsureGpuBuffer(string debugName)
+    /// <remarks>
+    /// This is a convenience entrypoint for existing call sites.
+    /// If the ring isn't active on the calling thread, this is a no-op.
+    /// </remarks>
+    public void BindTo(Shaders.GpuProgram program, string blockName, string debugName)
     {
-        if (gpuBuffer is not null)
+        ArgumentNullException.ThrowIfNull(program);
+        ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(debugName);
+
+        if (uploadScopeDepth != 0)
+        {
+            // If callers batch updates, they should bind after the scope exits.
+            return;
+        }
+
+        if (Bytes.Length == 0)
         {
             return;
         }
 
-        gpuBuffer = GpuUniformBuffer.Create(debugName: debugName);
-        ownsGpuBuffer = true;
-    }
-
-    /// <summary>
-    /// Uploads the CPU buffer to GPU if dirty, then clears the dirty flag.
-    /// </summary>
-    private void UploadIfDirty()
-    {
-        if (!isDirty || gpuBuffer is null)
+        if (GpuUniformRingSystem.TryBind(program, blockName, Bytes, debugName, clearDirty: true))
         {
-            return;
+            isDirty = false;
+            dirtyStartBytes = int.MaxValue;
+            dirtyEndExclusiveBytes = 0;
         }
-
-        int start = dirtyStartBytes;
-        int endExclusive = dirtyEndExclusiveBytes;
-
-        // If the dirty range markers somehow aren't set, fall back to full upload.
-        if (start == int.MaxValue || endExclusive <= start)
-        {
-            start = 0;
-            endExclusive = data.Length;
-        }
-
-        int lengthBytes = endExclusive - start;
-
-        // Ensure the GPU buffer has enough capacity for the full UBO.
-        // For owned buffers, resizing also initializes contents with the current CPU buffer.
-        // For shared buffers, resizing must NOT overwrite untouched GPU bytes, so we only allocate.
-        if (gpuBuffer.SizeBytes < data.Length)
-        {
-            if (ownsGpuBuffer)
-            {
-                gpuBuffer.UploadOrResize(data, data.Length, growExponentially: false);
-            }
-            else
-            {
-                gpuBuffer.EnsureCapacity(data.Length, growExponentially: false);
-                gpuBuffer.UploadSubData<byte>((ReadOnlySpan<byte>)data.AsSpan(start, lengthBytes), start, lengthBytes);
-            }
-        }
-        else
-        {
-            gpuBuffer.UploadSubData<byte>((ReadOnlySpan<byte>)data.AsSpan(start, lengthBytes), start, lengthBytes);
-        }
-
-        isDirty = false;
-        dirtyStartBytes = int.MaxValue;
-        dirtyEndExclusiveBytes = 0;
-    }
-
-    /// <summary>
-    /// Ensures the GPU buffer exists and uploads pending changes.
-    /// </summary>
-    public void Upload(string debugName)
-    {
-        EnsureGpuBuffer(debugName);
-        UploadIfDirty();
-    }
-
-    /// <summary>
-    /// Gets (or creates) the underlying GPU buffer for sharing scenarios.
-    /// Intended for internal use to allow multiple CPU parameter objects to attach to the same GPU UBO.
-    /// </summary>
-    internal GpuUniformBuffer GetOrCreateGpuBuffer(string debugName)
-    {
-        EnsureGpuBuffer(debugName);
-        return gpuBuffer!;
-    }
-
-    /// <summary>
-    /// Binds this UBO to the specified program's uniform block.
-    /// Automatically uploads if dirty.
-    /// </summary>
-    public void BindTo(GpuProgram program, string blockName, string debugName)
-    {
-        Upload(debugName);
-        program.TryBindUniformBlock(blockName, gpuBuffer!);
     }
 
     /// <summary>
@@ -243,11 +164,6 @@ public abstract class CpuUniformBuffer : IDisposable
         if (uploadScopeDepth > 0)
         {
             uploadScopeDepth--;
-        }
-
-        if (uploadScopeDepth == 0)
-        {
-            UploadIfDirty();
         }
     }
 
@@ -280,11 +196,7 @@ public abstract class CpuUniformBuffer : IDisposable
 
     public void Dispose()
     {
-        if (ownsGpuBuffer)
-        {
-            gpuBuffer?.Dispose();
-        }
-        gpuBuffer = null;
-        ownsGpuBuffer = true;
+        // CPU-only: nothing to dispose.
+        // Derived classes may override if they add managed/unmanaged resources.
     }
 }
