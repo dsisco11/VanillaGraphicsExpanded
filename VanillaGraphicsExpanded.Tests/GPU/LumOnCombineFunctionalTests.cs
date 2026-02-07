@@ -93,19 +93,13 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
     {
         GL.UseProgram(programId);
 
-        // Intensity and tint
-        var intensityLoc = GL.GetUniformLocation(programId, "indirectIntensity");
-        var tintLoc = GL.GetUniformLocation(programId, "indirectTint");
-        
-        GL.Uniform1(intensityLoc, indirectIntensity);
-        var tint = indirectTint == default ? (1.0f, 1.0f, 1.0f) : indirectTint;
-        GL.Uniform3(tintLoc, tint.Item1, tint.Item2, tint.Item3);
-
-        // Phase 15 composite toggles
-        var diffAoLoc = GL.GetUniformLocation(programId, "diffuseAOStrength");
-        var specAoLoc = GL.GetUniformLocation(programId, "specularAOStrength");
-        GL.Uniform1(diffAoLoc, diffuseAOStrength);
-        GL.Uniform1(specAoLoc, specularAOStrength);
+        // Phase 23: combine params are UBO-backed (VgeLumOnCombineParamsUBO).
+        UpdateAndBindLumOnCombineParamsUbo(
+            programId,
+            indirectIntensity: indirectIntensity,
+            indirectTint: indirectTint,
+            diffuseAOStrength: diffuseAOStrength,
+            specularAOStrength: specularAOStrength);
 
         // Matrices (identity defaults are fine for deterministic testing)
         var invProjLoc = GL.GetUniformLocation(programId, "invProjectionMatrix");
@@ -197,14 +191,20 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         GL.Uniform1(GL.GetUniformLocation(programId, "normalRejectThreshold"), 0.9f);
         GL.Uniform1(GL.GetUniformLocation(programId, "gatherAtlasSource"), 0);
 
-        // Composite params
+        // Phase 23: debug selection + composite params are UBO-backed (VgeLumOnDebugParamsUBO).
+        // Keep the old uniform sets for back-compat; they no-op when optimized away.
         GL.Uniform1(GL.GetUniformLocation(programId, "indirectIntensity"), indirectIntensity);
         var tint = indirectTint == default ? (1.0f, 1.0f, 1.0f) : indirectTint;
         GL.Uniform3(GL.GetUniformLocation(programId, "indirectTint"), tint.Item1, tint.Item2, tint.Item3);
-        _ = enablePbrComposite;
-        _ = enableAO;
-        GL.Uniform1(GL.GetUniformLocation(programId, "diffuseAOStrength"), diffuseAOStrength);
-        GL.Uniform1(GL.GetUniformLocation(programId, "specularAOStrength"), specularAOStrength);
+
+        UpdateAndBindLumOnDebugParamsUbo(
+            programId,
+            debugMode: debugMode,
+            gatherAtlasSource: 0,
+            indirectIntensity: indirectIntensity,
+            indirectTint: indirectTint,
+            diffuseAOStrength: diffuseAOStrength,
+            specularAOStrength: specularAOStrength);
 
         // Sampler units (match LumOnDebugShaderProgram bindings)
         GL.Uniform1(GL.GetUniformLocation(programId, "primaryDepth"), 0);

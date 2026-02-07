@@ -585,55 +585,7 @@ public class GpuProgramLayout
             return;
         }
 
-        bool needsBoundFallback = false;
-
-        foreach (var (uniformName, spec) in contract)
-        {
-            int loc = GetUniformLocationOrArray0Cached(programId, uniformName);
-            if (loc < 0)
-            {
-                if (spec.Required)
-                {
-                    WarnOnce($"uniform:{uniformName}", $"Program did not expose required uniform '{uniformName}'.", warn);
-                }
-
-#if DEBUG
-                Diagnostics.SkippedUniformBindsMissing++;
-#endif
-                continue;
-            }
-
-            // Prefer explicit bindings when present (skip redundant assignment if already correct).
-            try
-            {
-                GL.GetUniform(programId, loc, out int current);
-                if (current == spec.BindingOrUnit)
-                {
-                    continue;
-                }
-            }
-            catch
-            {
-                // Best-effort only.
-            }
-
-            try
-            {
-                GL.ProgramUniform1(programId, loc, spec.BindingOrUnit);
-            }
-            catch
-            {
-                needsBoundFallback = true;
-                break;
-            }
-        }
-
-        if (!needsBoundFallback)
-        {
-            return;
-        }
-
-        // Fallback path for drivers/contexts without ProgramUniform support.
+        // Contract application is correctness-critical and should be PSO-owned.
         // Bind the program temporarily and assign the contract via Uniform1.
         using var _ = GlStateCache.Current.UseProgramScope(programId);
 
