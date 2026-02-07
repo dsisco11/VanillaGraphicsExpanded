@@ -2,6 +2,7 @@ using System;
 using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.MathTools;
 using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Noise;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -111,11 +112,94 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     private ShaderTestHelper? _shaderHelper;
     private ShaderTestFramework? _testFramework;
     private LumOnUniformBuffers? _lumOnUbos;
+    private readonly LumOnCombineParamsUbo _lumOnCombineParams = new();
+    private GpuUniformBuffer? _lumOnCombineParamsUbo;
+    private readonly LumOnDebugParamsUbo _lumOnDebugParams = new();
+    private GpuUniformBuffer? _lumOnDebugParamsUbo;
     private bool _disposed;
 
     private LumOnPmjJitterTexture? _pmjJitterTexture;
     private int _pmjJitterCycleLength;
     private uint _pmjJitterSeed;
+
+    #endregion
+
+    #region UBO Helpers (Phase 23 - Combine Params)
+
+    protected void UpdateAndBindLumOnCombineParamsUbo(
+        int programId,
+        float indirectIntensity,
+        (float r, float g, float b) indirectTint,
+        float diffuseAOStrength,
+        float specularAOStrength)
+    {
+        var tint = indirectTint == default ? (1.0f, 1.0f, 1.0f) : indirectTint;
+
+        _lumOnCombineParams.IndirectTint = new System.Numerics.Vector3(tint.Item1, tint.Item2, tint.Item3);
+        _lumOnCombineParams.IndirectIntensity = indirectIntensity;
+        _lumOnCombineParams.DiffuseAOStrength = diffuseAOStrength;
+        _lumOnCombineParams.SpecularAOStrength = specularAOStrength;
+
+        UploadAndBindCpuUbo(
+            programId,
+            cpuUbo: _lumOnCombineParams,
+            sizeBytes: LumOnCombineParamsUbo.UboSizeBytes,
+            blockName: LumOnCombineParamsUbo.BlockName,
+            bindingIndex: GpuBindingRegistry.Ubo.Object,
+            debugName: "Tests.LumOn.CombineParamsUBO",
+            gpuUbo: ref _lumOnCombineParamsUbo);
+    }
+
+    #endregion
+
+    #region UBO Helpers (Phase 23 - Debug Params)
+
+    protected void UpdateAndBindLumOnDebugParamsUbo(
+        int programId,
+        int debugMode,
+        int gatherAtlasSource,
+        float indirectIntensity,
+        (float r, float g, float b) indirectTint,
+        float diffuseAOStrength,
+        float specularAOStrength)
+    {
+        var tint = indirectTint == default ? (1.0f, 1.0f, 1.0f) : indirectTint;
+
+        _lumOnDebugParams.DebugMode = debugMode;
+        _lumOnDebugParams.GatherAtlasSource = gatherAtlasSource;
+        _lumOnDebugParams.IndirectTint = new System.Numerics.Vector3(tint.Item1, tint.Item2, tint.Item3);
+        _lumOnDebugParams.IndirectIntensity = indirectIntensity;
+        _lumOnDebugParams.DiffuseAOStrength = diffuseAOStrength;
+        _lumOnDebugParams.SpecularAOStrength = specularAOStrength;
+
+        UploadAndBindCpuUbo(
+            programId,
+            cpuUbo: _lumOnDebugParams,
+            sizeBytes: LumOnDebugParamsUbo.UboSizeBytes,
+            blockName: LumOnDebugParamsUbo.BlockName,
+            bindingIndex: GpuBindingRegistry.Ubo.Object,
+            debugName: "Tests.LumOn.DebugParamsUBO",
+            gpuUbo: ref _lumOnDebugParamsUbo);
+    }
+
+    private static void UploadAndBindCpuUbo(
+        int programId,
+        CpuUniformBuffer cpuUbo,
+        int sizeBytes,
+        string blockName,
+        int bindingIndex,
+        string debugName,
+        ref GpuUniformBuffer? gpuUbo)
+    {
+        if (gpuUbo is null || gpuUbo.BufferId == 0)
+        {
+            gpuUbo?.Dispose();
+            gpuUbo = GpuUniformBuffer.Create(debugName: debugName);
+        }
+
+        gpuUbo.UploadOrResize(cpuUbo.Bytes, sizeBytes, growExponentially: false);
+        BindLumOnUboIfPresent(programId, blockName, bindingIndex, gpuUbo);
+    }
 
     #endregion
 
@@ -636,6 +720,12 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
                 _testFramework?.Dispose();
                 _lumOnUbos?.Dispose();
                 _lumOnUbos = null;
+
+                _lumOnCombineParamsUbo?.Dispose();
+                _lumOnCombineParamsUbo = null;
+
+                _lumOnDebugParamsUbo?.Dispose();
+                _lumOnDebugParamsUbo = null;
             }
 
             _pmjJitterTexture?.Dispose();
