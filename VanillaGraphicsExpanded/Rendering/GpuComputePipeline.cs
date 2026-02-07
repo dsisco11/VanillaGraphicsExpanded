@@ -133,6 +133,9 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
 
             var layoutToUse = layout ?? new GpuProgramLayout();
             layoutToUse.ApplyContract(programId, warn);
+#if DEBUG
+            layoutToUse.ValidateContract(programId, warn);
+#endif
 
             pipeline = new GpuComputePipeline(programId, layoutToUse, warn);
             pipeline.SetDebugName(debugName);

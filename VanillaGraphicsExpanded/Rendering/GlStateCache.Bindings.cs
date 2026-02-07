@@ -48,6 +48,18 @@ internal sealed partial class GlStateCache
         return currentProgram.Value;
     }
 
+    public bool TryGetCachedCurrentProgram(out int programId)
+    {
+        if (currentProgram.HasValue)
+        {
+            programId = currentProgram.Value;
+            return true;
+        }
+
+        programId = 0;
+        return false;
+    }
+
     public void UseProgram(int programId)
     {
         try
@@ -58,6 +70,11 @@ internal sealed partial class GlStateCache
         catch
         {
         }
+    }
+
+    public void NotifyProgramBound(int programId)
+    {
+        currentProgram = programId;
     }
 
     public void UnbindProgram()

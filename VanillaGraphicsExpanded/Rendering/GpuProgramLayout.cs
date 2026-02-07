@@ -306,6 +306,122 @@ public class GpuProgramLayout
         }
     }
 
+#if DEBUG
+    /// <summary>
+    /// Dev-mode validation pass that compares the expected contract against the linked program's
+    /// reflected bindings/units. This never throws and only logs via <paramref name="warn"/>.
+    /// </summary>
+    public void ValidateContract(int programId, Action<string>? warn = null)
+    {
+        if (programId == 0 || warn is null)
+        {
+            return;
+        }
+
+        if (uniformBlockContract.Count == 0
+            && shaderStorageBlockContract.Count == 0
+            && samplerContract.Count == 0
+            && imageContract.Count == 0)
+        {
+            return;
+        }
+
+        if (!SupportsProgramInterfaceQueries())
+        {
+            WarnOnce(
+                key: "validate:piq",
+                message: "Contract validation skipped: GL_ARB_program_interface_query not available.",
+                warn: warn);
+            return;
+        }
+
+        try
+        {
+            var activeUboBindings = TryBuildBufferBindingByName(programId, ProgramInterface.UniformBlock);
+            var activeSsboBindings = TryBuildBufferBindingByName(programId, ProgramInterface.ShaderStorageBlock);
+            var (activeSamplers, activeImages) = TryBuildTextureUnitBindings(programId);
+
+            ValidateBufferContract(programId, "UBO", uniformBlockContract, activeUboBindings, warn);
+            ValidateBufferContract(programId, "SSBO", shaderStorageBlockContract, activeSsboBindings, warn);
+            ValidateUnitContract(programId, "Sampler", samplerContract, activeSamplers, warn);
+            ValidateUnitContract(programId, "Image", imageContract, activeImages, warn);
+        }
+        catch (Exception ex)
+        {
+            WarnOnce(
+                key: "validate:exception",
+                message: $"Contract validation failed (programId={programId}): {ex.Message}",
+                warn: warn);
+        }
+    }
+
+    private void ValidateBufferContract(
+        int programId,
+        string kind,
+        Dictionary<string, BindingSpec> contract,
+        IReadOnlyDictionary<string, int> reflectedBindings,
+        Action<string> warn)
+    {
+        foreach (var (name, spec) in contract)
+        {
+            if (!reflectedBindings.TryGetValue(name, out int actual))
+            {
+                if (spec.Required)
+                {
+                    WarnOnce(
+                        key: $"validate:{kind}:missing:{name}",
+                        message: $"Contract mismatch (programId={programId}): required {kind} '{name}' is not active.",
+                        warn: warn);
+                }
+                continue;
+            }
+
+            int expected = spec.BindingOrUnit;
+            if (actual != expected)
+            {
+                WarnOnce(
+                    key: $"validate:{kind}:binding:{name}",
+                    message: $"Contract mismatch (programId={programId}): {kind} '{name}' expected binding {expected}, got {actual}.",
+                    warn: warn);
+            }
+        }
+    }
+
+    private void ValidateUnitContract(
+        int programId,
+        string kind,
+        Dictionary<string, BindingSpec> contract,
+        IReadOnlyDictionary<string, int> reflectedUnits,
+        Action<string> warn)
+    {
+        foreach (var (rawName, spec) in contract)
+        {
+            string name = NormalizeUniformName(rawName);
+
+            if (!reflectedUnits.TryGetValue(name, out int actual))
+            {
+                if (spec.Required)
+                {
+                    WarnOnce(
+                        key: $"validate:{kind}:missing:{name}",
+                        message: $"Contract mismatch (programId={programId}): required {kind} uniform '{name}' is not active.",
+                        warn: warn);
+                }
+                continue;
+            }
+
+            int expected = spec.BindingOrUnit;
+            if (actual != expected)
+            {
+                WarnOnce(
+                    key: $"validate:{kind}:unit:{name}",
+                    message: $"Contract mismatch (programId={programId}): {kind} uniform '{name}' expected unit {expected}, got {actual}.",
+                    warn: warn);
+            }
+        }
+    }
+#endif
+
     private void WarnOnce(string key, string message, Action<string>? warn)
     {
         if (warn is null)

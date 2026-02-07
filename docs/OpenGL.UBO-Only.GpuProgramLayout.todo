@@ -116,10 +116,10 @@ References:
 
 ☐ Phase 8 — Validation, Tooling, and Cleanup
   Exit artifacts: regression risk is managed; old uniform paths removed.
-  ☐ Add a dev-mode validation pass:
+  ✔ Add a dev-mode validation pass:
     - Compare expected contract vs linked program reflection results
     - Log mismatches with shader/program identifiers
-  ☐ Add documentation:
+  ✔ Add documentation:
     - How to add a new shader: create layout subclass + UBO schema
     - Binding registry reference
     - Rules: “no standalone non-opaque uniforms”

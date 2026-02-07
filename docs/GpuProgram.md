@@ -84,8 +84,51 @@ public sealed class MyShaderProgram : GpuProgram
 
 This keeps binding indices centralized in the program wrapper and avoids renderers hardcoding `glUniformBlockBinding` calls.
 
+### UBO schemas (shared includes)
+
+Define the `std140` block layout in a shared include under:
+
+- `assets/vanillagraphicsexpanded/shaders/includes/`
+
+Then `@import` that include from every stage that uses the block, so the schema stays consistent.
+
+### Rules ("UBO-only" for non-opaque)
+
+- Do not use standalone non-opaque uniforms (`float`, `vec*`, `mat*`) for runtime parameters.
+- Put non-opaque runtime parameters into `std140` uniform blocks and update them via UBO uploads/bind-range.
+- Opaque types cannot live in UBOs by GLSL rules:
+  - Samplers (`sampler2D`, `sampler3D`, etc)
+  - Images (`image2D`, etc)
+    These must use explicit bindings where available, or a layout contract that assigns stable units once after link.
+
+### Binding Registry
+
+Global binding points/units are reserved and documented here:
+
+- [docs/GpuBindingRegistry.md](GpuBindingRegistry.md)
+
+Shader layouts should prefer these reserved binding points instead of inventing new ones.
+
+### Runtime updates (UBO ring)
+
+VGE supports a per-frame UBO ring allocator for high-churn blocks (object/material params). The intended cadence is:
+
+- Frame/View UBO: update once per frame.
+- Object/Material UBO: allocate+bind a range per draw/dispatch.
+
+In C#, `CpuUniformBuffer` is CPU-only packing; binding happens through a ring-backed `BindTo(...)` call.
+
 Notes on explicit bindings:
 
 - Compute shaders (`#version 430+`) can use explicit `layout(binding=...)` directly.
 - For graphics shaders that target `#version 330`, explicit `layout(binding=...)` may be available when the driver supports `GL_ARB_shading_language_420pack`.
 - Regardless, VGE applies the layout contract once after link as a deterministic fallback (UBOs via `glUniformBlockBinding`, samplers/images via `glUniform1i`).
+
+## Dev-mode contract validation
+
+In `DEBUG` builds, VGE runs a validation pass after link to compare the expected layout contract against the linked program’s reflection:
+
+- Missing required resources are logged once.
+- Binding/unit mismatches are logged once.
+
+This is intended to catch silent shader drift (renames, optimized-away required resources, incorrect binding decorations) early without crashing the client.
