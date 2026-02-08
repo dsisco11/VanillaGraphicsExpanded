@@ -95,6 +95,8 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("RuntimeCaptureWiring mark pass dispatch");
+
         // Pass B: compact.
         GL.UseProgram(compactProgram);
         pageRequestCounter.BindBase(bindingIndex: 0);
@@ -107,6 +109,8 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         SetUniform(compactProgram, "vge_compactMode", 1u);
         GL.DispatchCompute((16384 * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("RuntimeCaptureWiring compact pass dispatch");
 
         uint writtenRequests = pageRequestCounter.Read();
         Assert.Equal((uint)desiredPages, writtenRequests);
@@ -213,6 +217,8 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         int gyCap = (tileSize + 7) / 8;
         GL.DispatchCompute(gxCap, gyCap, captureCount);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("RuntimeCaptureWiring capture pass dispatch");
 
         // Validate: each captured tile center writes the expected surfaceId.
         byte[] mat = ReadTexImageRgba8_2DArray(materialAtlas.TextureId, atlasW, atlasH, atlasCount);

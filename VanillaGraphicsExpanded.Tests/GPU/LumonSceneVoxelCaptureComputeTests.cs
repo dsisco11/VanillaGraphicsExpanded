@@ -90,6 +90,8 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         GL.DispatchCompute(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("VoxelCapture dispatch (single)");
+
         float[] depth = ReadTexImageR32f_2DArray(depthAtlas.TextureId, tileSize, tileSize, atlasCount);
         (float min, float max) = MinMax(depth);
         Assert.InRange(min, -0.02f, 0.02f);
@@ -155,6 +157,8 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         int gy = (tileSize + 7) / 8;
         GL.DispatchCompute(gx, gy, 2);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("VoxelCapture dispatch (multi-slice)");
 
         using var mapped = patchMetaSsbo.MapRange<LumonScenePatchMetadataGpu>(dstOffsetBytes: 0, elementCount: 3, access: MapBufferAccessMask.MapReadBit);
         Assert.True(mapped.IsMapped);
@@ -255,6 +259,8 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         GL.DispatchCompute(gx, gy, 3);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("VoxelCapture dispatch (3D)");
+
         // Tile centers:
         // atlas0 tile(0,0): center at (tileSize/2, tileSize/2)
         // atlas0 tile(1,1): center at (tileSize + tileSize/2, tileSize + tileSize/2)
@@ -348,6 +354,8 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         int gy = (tileSize + 7) / 8;
         GL.DispatchCompute(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("VoxelCapture dispatch (final)");
 
         byte[] material = ReadTexImageRgba8_2DArray(materialAtlas.TextureId, tileSize, tileSize, depth: 1);
         (byte r, byte g, byte b, byte a) = ReadRgbaAt(material, tileSize, tileSize, layer: 0, x: tileSize / 2, y: tileSize / 2);

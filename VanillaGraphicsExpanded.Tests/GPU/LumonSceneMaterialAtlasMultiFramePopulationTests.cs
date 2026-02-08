@@ -150,6 +150,8 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
             GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
+            GpuTestFence.WaitForGpuOrSkip("MaterialAtlas multi-frame mark pass dispatch");
+
             ResetAtomicCounter(pageRequestCounter, counterIndex: 0);
 
             // Pass B: compact stamps -> bounded request list.
@@ -164,6 +166,8 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
             SetUniform1ui(compactProgram, "vge_compactMode", 1u);
             GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+            GpuTestFence.WaitForGpuOrSkip("MaterialAtlas multi-frame compact pass dispatch");
 
             uint requestCount = ReadAtomicCounter(pageRequestCounter, counterIndex: 0);
             Assert.Equal((uint)desiredPages, requestCount);
@@ -215,6 +219,8 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
             int gy = (tileSize + 7) / 8;
             GL.DispatchCompute(gx, gy, captureCount);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+            GpuTestFence.WaitForGpuOrSkip("MaterialAtlas multi-frame capture pass dispatch");
         }
 
         Assert.Equal(desiredPages, virtualToPhysical.Count);
@@ -309,6 +315,8 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("MaterialAtlas mark pass dispatch");
+
         GL.UseProgram(compactProgram);
         pageRequestCounter.BindBase(bindingIndex: 0);
         pageRequests.BindBase(bindingIndex: 0);
@@ -320,6 +328,8 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         SetUniform1ui(compactProgram, "vge_compactMode", 1u);
         GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("MaterialAtlas compact pass dispatch");
 
         uint requestCount = ReadAtomicCounter(pageRequestCounter, counterIndex: 0);
         Assert.Equal((uint)totalPixels, requestCount);

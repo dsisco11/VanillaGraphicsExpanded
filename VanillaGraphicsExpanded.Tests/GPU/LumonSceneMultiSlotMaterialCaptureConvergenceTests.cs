@@ -173,6 +173,8 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
             GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
+            GpuTestFence.WaitForGpuOrSkip("MultiSlotCapture mark pass dispatch");
+
             // Pass B: compact.
             pageRequestCounter.UploadZeros(counterCount: 1);
             GL.UseProgram(compactProgram);
@@ -186,6 +188,8 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
             SetUniform1ui(compactProgram, "vge_compactMode", 1u);
             GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+            GpuTestFence.WaitForGpuOrSkip("MultiSlotCapture compact pass dispatch");
 
             scanOffset = (scanOffset + (uint)LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk) % (uint)(LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount);
 
@@ -237,6 +241,8 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
             int gy = (tileSize + 7) / 8;
             GL.DispatchCompute(gx, gy, captureCount);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.ShaderStorageBarrierBit);
+
+            GpuTestFence.WaitForGpuOrSkip("MultiSlotCapture capture pass dispatch");
         }
 
         Assert.Equal(totalPages, virtualToPhysical.Count);

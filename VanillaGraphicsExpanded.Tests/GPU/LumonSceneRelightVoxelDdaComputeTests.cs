@@ -115,6 +115,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         GL.DispatchCompute(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 1)");
+
         float[] outRgba = ReadTexImageRgba16f_2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount);
         (float r, float g, float b, float a) = SampleRgba(outRgba, tileSize, tileSize, layer: 0, x: tileSize / 2, y: tileSize / 2);
 
@@ -205,6 +207,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         GL.DispatchCompute(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.AtomicCounterBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (atomic counter)");
+
         uint[] counters = debugCounter.Read(counterCount: 4);
         uint expectedRays = (uint)(tileSize * tileSize);
         Assert.Equal(expectedRays, counters[0]); // rays
@@ -287,6 +291,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         int gy = (tileSize + 7) / 8;
         GL.DispatchCompute(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 2)");
 
         float[] outRgba = ReadTexImageRgba16f_2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount);
         (float r, float g, float b, float a) = SampleRgba(outRgba, tileSize, tileSize, layer: 0, x: 0, y: 0);
@@ -376,10 +382,14 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         GL.DispatchCompute(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 3)");
+
         // Frame 1
         SetUniform(program, "vge_frameIndex", 1);
         GL.DispatchCompute(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 4)");
 
         float[] outRgba = ReadTexImageRgba16f_2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount);
         (float r, float g, float b, float a) = SampleRgba(outRgba, tileSize, tileSize, layer: 0, x: tileSize / 2, y: tileSize / 2);
@@ -477,6 +487,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         GL.DispatchCompute(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 5)");
+
         uint[] counters = debugCounter.Read(counterCount: 4);
         uint expectedRays = (uint)(tileSize * tileSize);
         Assert.Equal(expectedRays, counters[0]); // rays
@@ -562,6 +574,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         int gy = (tileSize + 7) / 8;
         GL.DispatchCompute(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 6)");
 
         float[] outRgba = ReadTexImageRgba16f_2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount);
         (float r, float g, float b, float a) = SampleRgba(outRgba, tileSize, tileSize, layer: 0, x: tileSize / 2, y: tileSize / 2);

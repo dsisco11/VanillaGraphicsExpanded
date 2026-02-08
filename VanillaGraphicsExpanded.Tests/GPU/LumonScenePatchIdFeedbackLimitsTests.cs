@@ -88,6 +88,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits mark pass dispatch (case 1)");
+
         // Pass B: compact.
         GL.UseProgram(compactProgram);
         pageRequestCounter.BindBase(bindingIndex: 0);
@@ -100,6 +102,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         SetUniform1ui(compactProgram, "vge_compactMode", 1u);
         GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits compact pass dispatch (case 1)");
 
         uint requestCount = ReadAtomicCounter(pageRequestCounter, counterIndex: 0);
         Assert.Equal((uint)desiredPages, requestCount);
@@ -186,6 +190,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits mark pass dispatch (case 2)");
+
         GL.UseProgram(compactProgram);
         pageRequestCounter.BindBase(bindingIndex: 0);
         pageRequests.BindBase(bindingIndex: 0);
@@ -197,6 +203,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         SetUniform1ui(compactProgram, "vge_compactMode", 1u);
         GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits compact pass dispatch (case 2)");
 
         uint requestCount = ReadAtomicCounter(pageRequestCounter, counterIndex: 0);
         Assert.Equal(0u, requestCount);
@@ -269,6 +277,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits mark pass dispatch (case 3)");
+
         GL.UseProgram(compactProgram);
         pageRequestCounter.BindBase(bindingIndex: 0);
         pageRequests.BindBase(bindingIndex: 0);
@@ -280,6 +290,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         SetUniform1ui(compactProgram, "vge_compactMode", 1u);
         GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits compact pass dispatch (case 3)");
 
         uint requestCount = ReadAtomicCounter(pageRequestCounter, counterIndex: 0);
         Assert.Equal(1u, requestCount);
@@ -338,6 +350,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         SetUniform1ui(compactProgram, "vge_compactMode", 1u);
         GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits compact pass dispatch (case 4)");
 
         uint requestCount = ReadAtomicCounter(pageRequestCounter, counterIndex: 0);
         Assert.Equal(0u, requestCount);

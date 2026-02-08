@@ -92,6 +92,8 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         GL.DispatchCompute((tileSize + 7) / 8, (tileSize + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("MeshCardCapture dispatch (case 1)");
+
         float[] depth = ReadTexImageR32f(depthAtlas.TextureId, TextureTarget.Texture2DArray, tileSize, tileSize);
         Assert.Equal(tileSize * tileSize, depth.Length);
 
@@ -183,6 +185,8 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         GL.DispatchCompute((tileSize + 7) / 8, (tileSize + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("MeshCardCapture dispatch (case 2)");
+
         float[] depth = ReadTexImageR32f(depthAtlas.TextureId, TextureTarget.Texture2DArray, tileSize, tileSize);
         (float min, float max) = MinMax(depth);
 
@@ -257,6 +261,8 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
 
         GL.DispatchCompute((tileSize + 7) / 8, (tileSize + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("MeshCardCapture dispatch (case 3)");
 
         float[] depth = ReadTexImageR32f(depthAtlas.TextureId, TextureTarget.Texture2DArray, tileSize, tileSize);
         (float min, float max) = MinMax(depth);

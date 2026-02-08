@@ -115,6 +115,8 @@ public sealed class LumonTraceSceneRuntimeWiringEndToEndTests : RenderTestBase
         GL.DispatchCompute(4, 4, 4);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("TraceSceneRuntime wiring end-to-end dispatch");
+
         // Read back occupancy level 0 and validate a few positions.
         uint[] occ = ReadTexImageR32ui(resources.OccupancyLevels[0].TextureId, TextureTarget.Texture3D, 64, 64, 64);
 

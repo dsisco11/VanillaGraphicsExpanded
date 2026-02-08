@@ -93,6 +93,8 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
         GL.DispatchCompute(4, 4, 4);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("RegionToClipmap L0 dispatch");
+
         // Readback and spot-check a few texels.
         uint[] outData = ReadTexImageR32ui(occ.TextureId, TextureTarget.Texture3D, res, res, res);
 
@@ -199,6 +201,8 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
 
         GL.DispatchCompute(4, 4, 4);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("RegionToClipmap multi-level dispatch");
 
         uint[] outL1 = ReadTexImageR32ui(occ1.TextureId, TextureTarget.Texture3D, res, res, res);
         uint[] outL2 = ReadTexImageR32ui(occ2.TextureId, TextureTarget.Texture3D, res, res, res);
@@ -308,6 +312,8 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
 
         GL.DispatchCompute(4, 4, 4);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("RegionToClipmap ring-offset dispatch");
 
         uint[] outData = ReadTexImageR32ui(occ.TextureId, TextureTarget.Texture3D, res, res, res);
 

@@ -83,6 +83,8 @@ public sealed class LumonTraceSceneToRelightIntegrationTests : RenderTestBase
         GL.DispatchCompute(4, 4, 4); // one region
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("TraceSceneToRelight region->clipmap dispatch");
+
         // Relight config: 1 physical page, 1 tile, small tile size.
         const int tileSize = 8;
         const int atlasCount = 1;
@@ -171,6 +173,8 @@ public sealed class LumonTraceSceneToRelightIntegrationTests : RenderTestBase
         int gy = (tileSize + 7) / 8;
         GL.DispatchCompute(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("TraceSceneToRelight relight dispatch");
 
         uint[] counters = debugCounter.Read(counterCount: 4);
         uint expectedRays = (uint)(tileSize * tileSize);

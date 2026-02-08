@@ -39,14 +39,20 @@ public sealed class ComputeProgram : IDisposable
         ProgramIdToShaderFile[_programId] = shaderFile;
     }
 
-    public static ComputeProgram Create(ShaderTestHelper helper, string computeShaderFile, string? debugName = null)
+    public static ComputeProgram Create(
+        ShaderTestHelper helper,
+        string computeShaderFile,
+        string? debugName = null,
+        bool preferSpirv = true,
+        GpuProgramLayout? layout = null,
+        Action<string>? layoutWarn = null)
     {
         ArgumentNullException.ThrowIfNull(helper);
         ArgumentException.ThrowIfNullOrWhiteSpace(computeShaderFile);
 
         string spvPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", computeShaderFile + ".spv");
 
-        if (GpuShaderModule.SupportsSpirv())
+        if (preferSpirv && GpuShaderModule.SupportsSpirv())
         {
             Assert.SkipWhen(!File.Exists(spvPath), $"SPIR-V test asset missing: {spvPath}");
 
@@ -61,6 +67,8 @@ public sealed class ComputeProgram : IDisposable
             Assert.True(pipeline!.IsValid);
             Assert.True(pipeline.ProgramId != 0);
 
+            layout?.ApplyContract(pipeline.ProgramId, warn: layoutWarn);
+
             return new ComputeProgram(pipeline, computeShaderFile);
         }
 
@@ -74,6 +82,8 @@ public sealed class ComputeProgram : IDisposable
         GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int okLink);
         string linkLog = GL.GetProgramInfoLog(program) ?? string.Empty;
         Assert.True(okLink != 0, $"Compute program link failed:\n{linkLog}");
+
+        layout?.ApplyContract(program, warn: layoutWarn);
 
         return new ComputeProgram(program, computeShaderFile);
     }

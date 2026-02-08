@@ -86,6 +86,8 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
             GL.DispatchCompute(1, 1, 1);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
+            GpuTestFence.WaitForGpuOrSkip($"FeedbackCompact scanOffset frame={f}");
+
             uint written = counter.Read();
             Assert.Equal(256u, written);
 
@@ -200,6 +202,8 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         GL.DispatchCompute((16384 * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("FeedbackGather compact pass (dedup unique requests)");
+
         uint requestCount = counter.Read();
         Assert.Equal(4u, requestCount);
 
@@ -309,6 +313,8 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         GL.DispatchCompute((16384 * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("FeedbackGather compact pass (generation mismatch)");
+
         uint requestCount = counter.Read();
         Assert.Equal(1u, requestCount);
 
@@ -391,6 +397,8 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         compactShader.CompactMode = 1u;
         GL.DispatchCompute((16384 * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("FeedbackGather compact pass (duplicate patchIds)");
 
         Assert.Equal(1u, counter.Read());
         RequestGpu[] outReq = requests.ReadBack(count: 1);

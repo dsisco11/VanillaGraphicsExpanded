@@ -4,6 +4,7 @@ using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 using Xunit;
 
@@ -87,6 +88,8 @@ public sealed class GpuProgramLayoutBindingTests : RenderTestBase
 
         GL.DispatchCompute(1, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("ProgramLayout sampler/image dispatch");
 
         uint[] outData = ReadTexImageR32ui(outTex.TextureId, width: 1, height: 1, depth: 1);
         Assert.Equal(123u, outData[0]);

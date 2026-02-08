@@ -136,6 +136,8 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("ScenePipelineSmoke mark pass dispatch");
+
         // Pass B: compact stamps -> bounded request list.
         GL.UseProgram(compactProgram);
         pageRequestCounter.BindBase(bindingIndex: 0);
@@ -148,6 +150,8 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         SetUniform(compactProgram, "vge_compactMode", 1u);
         GL.DispatchCompute((16384 * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("ScenePipelineSmoke compact pass dispatch");
 
         uint writtenRequests = pageRequestCounter.Read();
         Assert.Equal((uint)desiredPages, writtenRequests);
@@ -256,6 +260,8 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
             GL.DispatchCompute((tileSize + 7) / 8, (tileSize + 7) / 8, captureCount);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.ShaderStorageBarrierBit);
 
+            GpuTestFence.WaitForGpuOrSkip("ScenePipelineSmoke capture pass dispatch");
+
             // Relight → irradiance.
             GL.UseProgram(relightProgram);
             relightSsbo.BindBase(bindingIndex: 0);
@@ -288,6 +294,8 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
 
             GL.DispatchCompute((tileSize + 7) / 8, (tileSize + 7) / 8, relightCount);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+
+            GpuTestFence.WaitForGpuOrSkip("ScenePipelineSmoke relight pass dispatch");
         }
 
         Assert.Equal(desiredPages, virtualToPhysical.Count);

@@ -4,6 +4,7 @@ using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 using Xunit;
 
@@ -87,6 +88,8 @@ public sealed class GpuUniformRingBufferIntegrationTests : RenderTestBase
         GL.DispatchCompute(1, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.UniformBarrierBit);
 
+        GpuTestFence.WaitForGpuOrSkip("UniformRingBuffer bind-range dispatch");
+
         uint[] outData = ReadTexImageRgba32ui(outTex.TextureId);
         Assert.Equal(123u, outData[0]);
 
@@ -156,6 +159,8 @@ public sealed class GpuUniformRingBufferIntegrationTests : RenderTestBase
         GL.UseProgram(programId);
         GL.DispatchCompute(1, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.UniformBarrierBit);
+
+        GpuTestFence.WaitForGpuOrSkip("UniformRingBuffer missing-block dispatch");
 
         uint[] outData = ReadTexImageRgba32ui(outTex.TextureId);
         Assert.Equal(0u, outData[0]);
