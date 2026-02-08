@@ -20,6 +20,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 {
     public LumonSceneRelightVoxelDdaComputeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
+    private const int RelightParamsUboSizeBytes = 80;
+
     [Fact]
     public void Relight_HitProducesNonZeroIrradiance_AndWeightIncrements()
     {
@@ -74,6 +76,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
 
+        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneRelightVoxelDda.Hit.ParamsUBO");
+
         GL.UseProgram(program);
 
         // SSBO binding matches shader: binding=0.
@@ -94,21 +98,24 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         // Output image binding matches shader: layout(binding=0, rgba16f) image2DArray.
         GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
 
-        // Uniforms.
-        SetUniform(program, "vge_tileSizeTexels", (uint)tileSize);
-        SetUniform(program, "vge_tilesPerAxis", (uint)tilesPerAxis);
-        SetUniform(program, "vge_tilesPerAtlas", (uint)tilesPerAtlas);
-        _ = TrySetUniform(program, "vge_borderTexels", 0u); // may be optimized out
-
-        SetUniform(program, "vge_frameIndex", 0);
-        SetUniform(program, "vge_texelsPerPagePerFrame", (uint)(tileSize * tileSize)); // full update
-        SetUniform(program, "vge_raysPerTexel", 1u);
-        SetUniform(program, "vge_maxDdaSteps", 16u);
-        SetUniform(program, "vge_debugCountersEnabled", 0u);
-
-        SetUniform3i(program, "vge_occOriginMinCell0", 0, 0, 0);
-        SetUniform3i(program, "vge_occRing0", 0, 0, 0);
-        SetUniform(program, "vge_occResolution", occRes);
+        BindRelightParamsUbo(
+            paramsUbo,
+            tileSizeTexels: tileSize,
+            tilesPerAxis: tilesPerAxis,
+            tilesPerAtlas: tilesPerAtlas,
+            borderTexels: 0,
+            frameIndex: 0,
+            occResolution: occRes,
+            texelsPerPagePerFrame: (uint)(tileSize * tileSize),
+            raysPerTexel: 1u,
+            maxDdaSteps: 16u,
+            debugCountersEnabled: 0u,
+            occOriginMinCell0X: 0,
+            occOriginMinCell0Y: 0,
+            occOriginMinCell0Z: 0,
+            occRing0X: 0,
+            occRing0Y: 0,
+            occRing0Z: 0);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
@@ -171,6 +178,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
         debugCounter.UploadZeros(counterCount: 4);
 
+        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneRelightVoxelDda.DebugCounters.ParamsUBO");
+
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
@@ -189,18 +198,24 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
         GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
 
-        SetUniform(program, "vge_tileSizeTexels", (uint)tileSize);
-        SetUniform(program, "vge_tilesPerAxis", 1u);
-        SetUniform(program, "vge_tilesPerAtlas", 1u);
-        SetUniform(program, "vge_frameIndex", 0);
-        SetUniform(program, "vge_texelsPerPagePerFrame", (uint)(tileSize * tileSize));
-        SetUniform(program, "vge_raysPerTexel", 1u);
-        SetUniform(program, "vge_maxDdaSteps", 16u);
-        SetUniform(program, "vge_debugCountersEnabled", 1u);
-
-        SetUniform3i(program, "vge_occOriginMinCell0", 0, 0, 0);
-        SetUniform3i(program, "vge_occRing0", 0, 0, 0);
-        SetUniform(program, "vge_occResolution", occRes);
+        BindRelightParamsUbo(
+            paramsUbo,
+            tileSizeTexels: tileSize,
+            tilesPerAxis: 1,
+            tilesPerAtlas: 1,
+            borderTexels: 0,
+            frameIndex: 0,
+            occResolution: occRes,
+            texelsPerPagePerFrame: (uint)(tileSize * tileSize),
+            raysPerTexel: 1u,
+            maxDdaSteps: 16u,
+            debugCountersEnabled: 1u,
+            occOriginMinCell0X: 0,
+            occOriginMinCell0Y: 0,
+            occOriginMinCell0Z: 0,
+            occRing0X: 0,
+            occRing0Y: 0,
+            occRing0Z: 0);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
@@ -259,6 +274,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
 
+        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneRelightVoxelDda.Miss.ParamsUBO");
+
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
@@ -275,17 +292,24 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
         GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
 
-        SetUniform(program, "vge_tileSizeTexels", (uint)tileSize);
-        SetUniform(program, "vge_tilesPerAxis", 1u);
-        SetUniform(program, "vge_tilesPerAtlas", 1u);
-        SetUniform(program, "vge_frameIndex", 0);
-        SetUniform(program, "vge_texelsPerPagePerFrame", (uint)(tileSize * tileSize));
-        SetUniform(program, "vge_raysPerTexel", 1u);
-        SetUniform(program, "vge_maxDdaSteps", 8u);
-        SetUniform(program, "vge_debugCountersEnabled", 0u);
-        SetUniform3i(program, "vge_occOriginMinCell0", 0, 0, 0);
-        SetUniform3i(program, "vge_occRing0", 0, 0, 0);
-        SetUniform(program, "vge_occResolution", occRes);
+        BindRelightParamsUbo(
+            paramsUbo,
+            tileSizeTexels: tileSize,
+            tilesPerAxis: 1,
+            tilesPerAtlas: 1,
+            borderTexels: 0,
+            frameIndex: 0,
+            occResolution: occRes,
+            texelsPerPagePerFrame: (uint)(tileSize * tileSize),
+            raysPerTexel: 1u,
+            maxDdaSteps: 8u,
+            debugCountersEnabled: 0u,
+            occOriginMinCell0X: 0,
+            occOriginMinCell0Y: 0,
+            occOriginMinCell0Z: 0,
+            occRing0X: 0,
+            occRing0Y: 0,
+            occRing0Z: 0);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
@@ -349,6 +373,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
 
+        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneRelightVoxelDda.TemporalAccum.ParamsUBO");
+
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
@@ -363,29 +389,57 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
         GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
 
-        SetUniform(program, "vge_tileSizeTexels", (uint)tileSize);
-        SetUniform(program, "vge_tilesPerAxis", 1u);
-        SetUniform(program, "vge_tilesPerAtlas", 1u);
-        SetUniform(program, "vge_texelsPerPagePerFrame", (uint)(tileSize * tileSize));
-        SetUniform(program, "vge_raysPerTexel", 1u);
-        SetUniform(program, "vge_maxDdaSteps", 16u);
-        SetUniform(program, "vge_debugCountersEnabled", 0u);
-        SetUniform3i(program, "vge_occOriginMinCell0", 0, 0, 0);
-        SetUniform3i(program, "vge_occRing0", 0, 0, 0);
-        SetUniform(program, "vge_occResolution", occRes);
+        uint commonTexelsPerFrame = (uint)(tileSize * tileSize);
+        const uint commonRaysPerTexel = 1u;
+        const uint commonMaxDdaSteps = 16u;
+        const uint commonDebugCountersEnabled = 0u;
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
 
         // Frame 0
-        SetUniform(program, "vge_frameIndex", 0);
+        BindRelightParamsUbo(
+            paramsUbo,
+            tileSizeTexels: tileSize,
+            tilesPerAxis: 1,
+            tilesPerAtlas: 1,
+            borderTexels: 0,
+            frameIndex: 0,
+            occResolution: occRes,
+            texelsPerPagePerFrame: commonTexelsPerFrame,
+            raysPerTexel: commonRaysPerTexel,
+            maxDdaSteps: commonMaxDdaSteps,
+            debugCountersEnabled: commonDebugCountersEnabled,
+            occOriginMinCell0X: 0,
+            occOriginMinCell0Y: 0,
+            occOriginMinCell0Z: 0,
+            occRing0X: 0,
+            occRing0Y: 0,
+            occRing0Z: 0);
         GL.DispatchCompute(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 3)");
 
         // Frame 1
-        SetUniform(program, "vge_frameIndex", 1);
+        BindRelightParamsUbo(
+            paramsUbo,
+            tileSizeTexels: tileSize,
+            tilesPerAxis: 1,
+            tilesPerAtlas: 1,
+            borderTexels: 0,
+            frameIndex: 1,
+            occResolution: occRes,
+            texelsPerPagePerFrame: commonTexelsPerFrame,
+            raysPerTexel: commonRaysPerTexel,
+            maxDdaSteps: commonMaxDdaSteps,
+            debugCountersEnabled: commonDebugCountersEnabled,
+            occOriginMinCell0X: 0,
+            occOriginMinCell0Y: 0,
+            occOriginMinCell0Z: 0,
+            occRing0X: 0,
+            occRing0Y: 0,
+            occRing0Z: 0);
         GL.DispatchCompute(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
@@ -454,6 +508,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
         debugCounter.UploadZeros(counterCount: 4);
 
+        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneRelightVoxelDda.Halfspace.ParamsUBO");
+
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
@@ -470,17 +526,24 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
         GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
 
-        SetUniform(program, "vge_tileSizeTexels", (uint)tileSize);
-        SetUniform(program, "vge_tilesPerAxis", 1u);
-        SetUniform(program, "vge_tilesPerAtlas", 1u);
-        SetUniform(program, "vge_frameIndex", 0);
-        SetUniform(program, "vge_texelsPerPagePerFrame", (uint)(tileSize * tileSize));
-        SetUniform(program, "vge_raysPerTexel", 1u);
-        SetUniform(program, "vge_maxDdaSteps", 8u);
-        SetUniform(program, "vge_debugCountersEnabled", 1u);
-        SetUniform3i(program, "vge_occOriginMinCell0", 0, 0, 0);
-        SetUniform3i(program, "vge_occRing0", 0, 0, 0);
-        SetUniform(program, "vge_occResolution", occRes);
+        BindRelightParamsUbo(
+            paramsUbo,
+            tileSizeTexels: tileSize,
+            tilesPerAxis: 1,
+            tilesPerAtlas: 1,
+            borderTexels: 0,
+            frameIndex: 0,
+            occResolution: occRes,
+            texelsPerPagePerFrame: (uint)(tileSize * tileSize),
+            raysPerTexel: 1u,
+            maxDdaSteps: 8u,
+            debugCountersEnabled: 1u,
+            occOriginMinCell0X: 0,
+            occOriginMinCell0Y: 0,
+            occOriginMinCell0Z: 0,
+            occRing0X: 0,
+            occRing0Y: 0,
+            occRing0Z: 0);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
@@ -544,6 +607,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
 
+        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneRelightVoxelDda.OobStart.ParamsUBO");
+
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
@@ -558,17 +623,24 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
         GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
 
-        SetUniform(program, "vge_tileSizeTexels", (uint)tileSize);
-        SetUniform(program, "vge_tilesPerAxis", 1u);
-        SetUniform(program, "vge_tilesPerAtlas", 1u);
-        SetUniform(program, "vge_frameIndex", 0);
-        SetUniform(program, "vge_texelsPerPagePerFrame", (uint)(tileSize * tileSize));
-        SetUniform(program, "vge_raysPerTexel", 1u);
-        SetUniform(program, "vge_maxDdaSteps", 8u);
-        SetUniform(program, "vge_debugCountersEnabled", 0u);
-        SetUniform3i(program, "vge_occOriginMinCell0", 0, 0, 0);
-        SetUniform3i(program, "vge_occRing0", 0, 0, 0);
-        SetUniform(program, "vge_occResolution", occRes);
+        BindRelightParamsUbo(
+            paramsUbo,
+            tileSizeTexels: tileSize,
+            tilesPerAxis: 1,
+            tilesPerAtlas: 1,
+            borderTexels: 0,
+            frameIndex: 0,
+            occResolution: occRes,
+            texelsPerPagePerFrame: (uint)(tileSize * tileSize),
+            raysPerTexel: 1u,
+            maxDdaSteps: 8u,
+            debugCountersEnabled: 0u,
+            occOriginMinCell0X: 0,
+            occOriginMinCell0Y: 0,
+            occOriginMinCell0Z: 0,
+            occRing0X: 0,
+            occRing0Y: 0,
+            occRing0Z: 0);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
@@ -607,6 +679,36 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         }
 
         throw new InvalidOperationException($"Unable to find a safe patchId seed for occRes={occRes}.");
+    }
+
+    private static void BindRelightParamsUbo(
+        ObjectParamsUbo paramsUbo,
+        int tileSizeTexels,
+        int tilesPerAxis,
+        int tilesPerAtlas,
+        int borderTexels,
+        int frameIndex,
+        int occResolution,
+        uint texelsPerPagePerFrame,
+        uint raysPerTexel,
+        uint maxDdaSteps,
+        uint debugCountersEnabled,
+        int occOriginMinCell0X,
+        int occOriginMinCell0Y,
+        int occOriginMinCell0Z,
+        int occRing0X,
+        int occRing0Y,
+        int occRing0Z)
+    {
+        Span<byte> paramsBytes = stackalloc byte[RelightParamsUboSizeBytes];
+
+        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, (uint)tileSizeTexels, (uint)tilesPerAxis, (uint)tilesPerAtlas, (uint)borderTexels);
+        UboPacking.WriteUVec4(paramsBytes, byteOffset: 16, texelsPerPagePerFrame, raysPerTexel, maxDdaSteps, debugCountersEnabled);
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 32, frameIndex, occResolution, 0, 0);
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 48, occOriginMinCell0X, occOriginMinCell0Y, occOriginMinCell0Z, 0);
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 64, occRing0X, occRing0Y, occRing0Z, 0);
+
+        paramsUbo.UploadAndBind(paramsBytes);
     }
 
     private static void FindSafeSeedWithLocalZForHalfspace(int occRes, uint physicalPageId, uint virtualPageIndex, out uint patchId, out int localZ)

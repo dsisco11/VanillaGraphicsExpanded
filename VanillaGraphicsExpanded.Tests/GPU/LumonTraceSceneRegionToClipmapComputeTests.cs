@@ -20,6 +20,8 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
 {
     public LumonTraceSceneRegionToClipmapComputeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
+    private const int TraceRegionParamsUboSizeBytes = 272;
+
     [Fact]
     public void RegionToClipmap_L0_WritesExpectedPayload()
     {
@@ -65,6 +67,8 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
 
         using var atomicCounter = CreateAtomicCounterBuffer(initialValue: 1u);
 
+        using var paramsUbo = new ObjectParamsUbo("Tests.LumonTraceSceneRegionToClipmap.L0.ParamsUBO");
+
         GL.UseProgram(programId);
 
         // SSBO bindings match the shader:
@@ -82,12 +86,11 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
             layer: 0,
             format: SizedInternalFormat.R32ui);
 
-        // Uniforms.
-        SetUniform(programId, "vge_levels", 1);
-        SetUniform(programId, "vge_resolution", res);
-        SetUniform1ui(programId, "vge_regionUpdateCount", 1u);
-        SetUniform3i(programId, "vge_originMinCell[0]", 0, 0, 0);
-        SetUniform3i(programId, "vge_ring[0]", 0, 0, 0);
+        Span<byte> paramsBytes = stackalloc byte[TraceRegionParamsUboSizeBytes];
+        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, 1u, 1u, (uint)res, 0u);
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 16 + (0 * 16), 0, 0, 0, 0);
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 144 + (0 * 16), 0, 0, 0, 0);
+        paramsUbo.UploadAndBind(paramsBytes);
 
         // Dispatch: groupsPerRegionXY=4, groupsZ=4 (one region).
         GL.DispatchCompute(4, 4, 4);
@@ -177,6 +180,8 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
         using var updatesSsbo = CreateSsbo<RegionUpdateGpu>("Test_UpdatesSSBO", new[] { upd });
         using var atomicCounter = CreateAtomicCounterBuffer(initialValue: 1u);
 
+        using var paramsUbo = new ObjectParamsUbo("Tests.LumonTraceSceneRegionToClipmap.MultiLevel.ParamsUBO");
+
         GL.UseProgram(programId);
 
         payloadSsbo.BindBase(bindingIndex: 0);
@@ -188,16 +193,14 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
         occ1.BindImageUnit(unit: 1, access: TextureAccess.WriteOnly, level: 0, layered: true, layer: 0, format: SizedInternalFormat.R32ui);
         occ2.BindImageUnit(unit: 2, access: TextureAccess.WriteOnly, level: 0, layered: true, layer: 0, format: SizedInternalFormat.R32ui);
 
-        SetUniform(programId, "vge_levels", 3);
-        SetUniform(programId, "vge_resolution", res);
-        SetUniform1ui(programId, "vge_regionUpdateCount", 1u);
-
-        // Identity mapping for all levels (region only covers 0..31 anyway).
+        Span<byte> paramsBytes = stackalloc byte[TraceRegionParamsUboSizeBytes];
+        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, 1u, 3u, (uint)res, 0u);
         for (int level = 0; level < 3; level++)
         {
-            SetUniform3i(programId, $"vge_originMinCell[{level}]", 0, 0, 0);
-            SetUniform3i(programId, $"vge_ring[{level}]", 0, 0, 0);
+            UboPacking.WriteIVec4(paramsBytes, byteOffset: 16 + (level * 16), 0, 0, 0, 0);
+            UboPacking.WriteIVec4(paramsBytes, byteOffset: 144 + (level * 16), 0, 0, 0, 0);
         }
+        paramsUbo.UploadAndBind(paramsBytes);
 
         GL.DispatchCompute(4, 4, 4);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
@@ -291,6 +294,8 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
         using var updatesSsbo = CreateSsbo<RegionUpdateGpu>("Test_UpdatesSSBO", new[] { upd });
         using var atomicCounter = CreateAtomicCounterBuffer(initialValue: 1u);
 
+        using var paramsUbo = new ObjectParamsUbo("Tests.LumonTraceSceneRegionToClipmap.NegWrap.ParamsUBO");
+
         GL.UseProgram(programId);
 
         payloadSsbo.BindBase(bindingIndex: 0);
@@ -304,11 +309,11 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
         var originMin = new VectorInt3(-32, -32, -32);
         var ring = new VectorInt3(-3, 5, -7);
 
-        SetUniform(programId, "vge_levels", 1);
-        SetUniform(programId, "vge_resolution", res);
-        SetUniform1ui(programId, "vge_regionUpdateCount", 1u);
-        SetUniform3i(programId, "vge_originMinCell[0]", originMin.X, originMin.Y, originMin.Z);
-        SetUniform3i(programId, "vge_ring[0]", ring.X, ring.Y, ring.Z);
+        Span<byte> paramsBytes = stackalloc byte[TraceRegionParamsUboSizeBytes];
+        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, 1u, 1u, (uint)res, 0u);
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 16 + (0 * 16), originMin.X, originMin.Y, originMin.Z, 0);
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 144 + (0 * 16), ring.X, ring.Y, ring.Z, 0);
+        paramsUbo.UploadAndBind(paramsBytes);
 
         GL.DispatchCompute(4, 4, 4);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
@@ -418,30 +423,6 @@ public sealed class LumonTraceSceneRegionToClipmapComputeTests : RenderTestBase
         GL.BufferData(BufferTarget.AtomicCounterBuffer, sizeof(uint), ref initialValue, BufferUsageHint.DynamicDraw);
         GL.BindBuffer(BufferTarget.AtomicCounterBuffer, 0);
         return new AtomicCounterBuffer(id);
-    }
-
-    private static void SetUniform3i(int program, string name, int x, int y, int z)
-    {
-        int loc = GL.GetUniformLocation(program, name);
-        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
-        {
-            loc = explicitLoc;
-        }
-
-        Assert.True(loc >= 0, $"Missing uniform {name}");
-        GL.Uniform3(loc, x, y, z);
-    }
-
-    private static void SetUniform1ui(int program, string name, uint value)
-    {
-        int loc = GL.GetUniformLocation(program, name);
-        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
-        {
-            loc = explicitLoc;
-        }
-
-        Assert.True(loc >= 0, $"Missing uniform {name}");
-        GL.Uniform1(loc, value);
     }
 
     private static uint[] ReadTexImageR32ui(int textureId, TextureTarget target, int width, int height, int depth)

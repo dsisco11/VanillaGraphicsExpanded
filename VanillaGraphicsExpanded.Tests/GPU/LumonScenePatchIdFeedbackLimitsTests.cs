@@ -83,7 +83,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         markCounters.BindBase(bindingIndex: 0);
         BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
         BindSampler2DUint(markProgram, "vge_chunkSlotGenerationTex", genTex.TextureId, unit: 1);
-        SetUniform1ui(markProgram, "vge_frameStamp", 1u);
+        using var markParamsUbo = new ObjectParamsUbo("Tests.PatchIdFeedbackLimits.Mark.ParamsUBO");
+        LumonSceneFeedbackParamsUbo.BindMark(markParamsUbo, frameStamp: 1u);
         GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
@@ -96,10 +97,13 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         pageRequests.BindBase(bindingIndex: 0);
         BindSampler2DArrayUint(compactProgram, "vge_pageUsageStamp", usageStamp.TextureId, unit: 0);
         BindSampler2DArrayUint(compactProgram, "vge_pageTableMip0", pageTableMip0.TextureId, unit: 1);
-        SetUniform1ui(compactProgram, "vge_maxRequests", (uint)desiredPages);
-        SetUniform1ui(compactProgram, "vge_frameStamp", 1u);
-        SetUniform1ui(compactProgram, "vge_scanOffset", 0u);
-        SetUniform1ui(compactProgram, "vge_compactMode", 1u);
+        using var compactParamsUbo = new ObjectParamsUbo("Tests.PatchIdFeedbackLimits.Compact.ParamsUBO");
+        LumonSceneFeedbackParamsUbo.BindCompact(
+            compactParamsUbo,
+            maxRequests: (uint)desiredPages,
+            frameStamp: 1u,
+            scanOffset: 0u,
+            compactMode: 1u);
         GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
@@ -185,7 +189,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         markCounters.BindBase(bindingIndex: 0);
         BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
         BindSampler2DUint(markProgram, "vge_chunkSlotGenerationTex", genTex.TextureId, unit: 1);
-        SetUniform1ui(markProgram, "vge_frameStamp", 1u);
+        using var markParamsUbo = new ObjectParamsUbo("Tests.PatchIdFeedbackLimits2.Mark.ParamsUBO");
+        LumonSceneFeedbackParamsUbo.BindMark(markParamsUbo, frameStamp: 1u);
         GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
@@ -197,10 +202,13 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         pageRequests.BindBase(bindingIndex: 0);
         BindSampler2DArrayUint(compactProgram, "vge_pageUsageStamp", usageStamp.TextureId, unit: 0);
         BindSampler2DArrayUint(compactProgram, "vge_pageTableMip0", pageTableMip0.TextureId, unit: 1);
-        SetUniform1ui(compactProgram, "vge_maxRequests", (uint)desiredPages);
-        SetUniform1ui(compactProgram, "vge_frameStamp", 1u);
-        SetUniform1ui(compactProgram, "vge_scanOffset", 0u);
-        SetUniform1ui(compactProgram, "vge_compactMode", 1u);
+        using var compactParamsUbo = new ObjectParamsUbo("Tests.PatchIdFeedbackLimits2.Compact.ParamsUBO");
+        LumonSceneFeedbackParamsUbo.BindCompact(
+            compactParamsUbo,
+            maxRequests: (uint)desiredPages,
+            frameStamp: 1u,
+            scanOffset: 0u,
+            compactMode: 1u);
         GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
@@ -272,7 +280,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         markCounters.BindBase(bindingIndex: 0);
         BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
         BindSampler2DUint(markProgram, "vge_chunkSlotGenerationTex", genTex.TextureId, unit: 1);
-        SetUniform1ui(markProgram, "vge_frameStamp", 1u);
+        using var markParamsUbo = new ObjectParamsUbo("Tests.PatchIdFeedbackLimits3.Mark.ParamsUBO");
+        LumonSceneFeedbackParamsUbo.BindMark(markParamsUbo, frameStamp: 1u);
         GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
@@ -284,10 +293,13 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         pageRequests.BindBase(bindingIndex: 0);
         BindSampler2DArrayUint(compactProgram, "vge_pageUsageStamp", usageStamp.TextureId, unit: 0);
         BindSampler2DArrayUint(compactProgram, "vge_pageTableMip0", pageTableMip0.TextureId, unit: 1);
-        SetUniform1ui(compactProgram, "vge_maxRequests", (uint)desiredPages);
-        SetUniform1ui(compactProgram, "vge_frameStamp", 1u);
-        SetUniform1ui(compactProgram, "vge_scanOffset", 0u);
-        SetUniform1ui(compactProgram, "vge_compactMode", 1u);
+        using var compactParamsUbo = new ObjectParamsUbo("Tests.PatchIdFeedbackLimits3.Compact.ParamsUBO");
+        LumonSceneFeedbackParamsUbo.BindCompact(
+            compactParamsUbo,
+            maxRequests: (uint)desiredPages,
+            frameStamp: 1u,
+            scanOffset: 0u,
+            compactMode: 1u);
         GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
@@ -344,10 +356,13 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         pageRequests.BindBase(bindingIndex: 0);
         BindSampler2DArrayUint(compactProgram, "vge_pageUsageStamp", usageStamp.TextureId, unit: 0);
         BindSampler2DArrayUint(compactProgram, "vge_pageTableMip0", pageTableMip0.TextureId, unit: 1);
-        SetUniform1ui(compactProgram, "vge_maxRequests", 8u);
-        SetUniform1ui(compactProgram, "vge_frameStamp", 2u); // mismatch => no requests
-        SetUniform1ui(compactProgram, "vge_scanOffset", 0u);
-        SetUniform1ui(compactProgram, "vge_compactMode", 1u);
+        using var compactParamsUbo = new ObjectParamsUbo("Tests.PatchIdFeedbackLimits4.Compact.ParamsUBO");
+        LumonSceneFeedbackParamsUbo.BindCompact(
+            compactParamsUbo,
+            maxRequests: 8u,
+            frameStamp: 2u, // mismatch => no requests
+            scanOffset: 0u,
+            compactMode: 1u);
         GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 

@@ -19,6 +19,8 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
 {
     public LumonSceneVoxelCaptureComputeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
+    private const int CaptureVoxelParamsUboSizeBytes = 64;
+
     [Fact]
     public void CaptureVoxel_SingleWorkItem_WritesDepthZero_AndExpectedMaterial()
     {
@@ -65,6 +67,8 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new int[4]);
 
+        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneVoxelCapture.CaptureVoxel.ParamsUBO");
+
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
@@ -77,13 +81,12 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         BindSampler3D(unit: 2, occL0.TextureId);
         BindSampler2D(unit: 3, materialPalette.TextureId);
 
-        SetUniform(program, "vge_tileSizeTexels", (uint)tileSize);
-        SetUniform(program, "vge_tilesPerAxis", (uint)tilesPerAxis);
-        SetUniform(program, "vge_tilesPerAtlas", (uint)tilesPerAtlas);
-        _ = TrySetUniform(program, "vge_borderTexels", 0u);
-        SetUniform3i(program, "vge_occOriginMinCell0", 0, 0, 0);
-        SetUniform3i(program, "vge_occRing0", 0, 0, 0);
-        SetUniform1i(program, "vge_occResolution", occRes);
+        Span<byte> paramsBytes = stackalloc byte[CaptureVoxelParamsUboSizeBytes];
+        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, (uint)tileSize, (uint)tilesPerAxis, (uint)tilesPerAtlas, 0u);
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 16, 0, 0, 0, 0);
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 32, 0, 0, 0, 0);
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 48, occRes, 0, 0, 0);
+        paramsUbo.UploadAndBind(paramsBytes);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
@@ -140,6 +143,8 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         // Slot 0 origin=(0,0,0); slot 1 origin=(32,0,0). Generation=0.
         using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new[] { 0, 0, 0, 0, 32, 0, 0, 0 });
 
+        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneVoxelCapture.MultiChunkSlots.ParamsUBO");
+
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
@@ -148,10 +153,12 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
         GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
 
-        SetUniform(program, "vge_tileSizeTexels", (uint)tileSize);
-        SetUniform(program, "vge_tilesPerAxis", (uint)tilesPerAxis);
-        SetUniform(program, "vge_tilesPerAtlas", (uint)tilesPerAtlas);
-        _ = TrySetUniform(program, "vge_borderTexels", 0u);
+        Span<byte> paramsBytes = stackalloc byte[CaptureVoxelParamsUboSizeBytes];
+        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, (uint)tileSize, (uint)tilesPerAxis, (uint)tilesPerAtlas, 0u);
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 16, 0, 0, 0, 0);
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 32, 0, 0, 0, 0);
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 48, 0, 0, 0, 0);
+        paramsUbo.UploadAndBind(paramsBytes);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
@@ -235,6 +242,8 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[6]);
         using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new int[4]);
 
+        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneVoxelCapture.MultipleAtlases.ParamsUBO");
+
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
@@ -246,13 +255,12 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         BindSampler3D(unit: 2, occL0.TextureId);
         BindSampler2D(unit: 3, materialPalette.TextureId);
 
-        SetUniform(program, "vge_tileSizeTexels", (uint)tileSize);
-        SetUniform(program, "vge_tilesPerAxis", (uint)tilesPerAxis);
-        SetUniform(program, "vge_tilesPerAtlas", (uint)tilesPerAtlas);
-        _ = TrySetUniform(program, "vge_borderTexels", 0u);
-        SetUniform3i(program, "vge_occOriginMinCell0", 0, 0, 0);
-        SetUniform3i(program, "vge_occRing0", 0, 0, 0);
-        SetUniform1i(program, "vge_occResolution", occRes);
+        Span<byte> paramsBytes = stackalloc byte[CaptureVoxelParamsUboSizeBytes];
+        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, (uint)tileSize, (uint)tilesPerAxis, (uint)tilesPerAtlas, 0u);
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 16, 0, 0, 0, 0);
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 32, 0, 0, 0, 0);
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 48, occRes, 0, 0, 0);
+        paramsUbo.UploadAndBind(paramsBytes);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
@@ -331,6 +339,8 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new int[4]);
 
+        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneVoxelCapture.BorderTexels.ParamsUBO");
+
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
@@ -342,13 +352,12 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         BindSampler3D(unit: 2, occL0.TextureId);
         BindSampler2D(unit: 3, materialPalette.TextureId);
 
-        SetUniform(program, "vge_tileSizeTexels", (uint)tileSize);
-        SetUniform(program, "vge_tilesPerAxis", 1u);
-        SetUniform(program, "vge_tilesPerAtlas", 1u);
-        _ = TrySetUniform(program, "vge_borderTexels", 2u);
-        SetUniform3i(program, "vge_occOriginMinCell0", 0, 0, 0);
-        SetUniform3i(program, "vge_occRing0", 0, 0, 0);
-        SetUniform1i(program, "vge_occResolution", occRes);
+        Span<byte> paramsBytes = stackalloc byte[CaptureVoxelParamsUboSizeBytes];
+        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, (uint)tileSize, 1u, 1u, 2u);
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 16, 0, 0, 0, 0);
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 32, 0, 0, 0, 0);
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 48, occRes, 0, 0, 0);
+        paramsUbo.UploadAndBind(paramsBytes);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
@@ -378,58 +387,6 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         }
 
         return new ShaderTestHelper(shaderPath, includePath);
-    }
-
-    private static void SetUniform(int program, string name, uint value)
-    {
-        int loc = GL.GetUniformLocation(program, name);
-        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
-        {
-            loc = explicitLoc;
-        }
-
-        Assert.True(loc >= 0, $"Missing uniform {name}");
-        GL.Uniform1(loc, value);
-    }
-
-    private static void SetUniform1i(int program, string name, int value)
-    {
-        int loc = GL.GetUniformLocation(program, name);
-        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
-        {
-            loc = explicitLoc;
-        }
-
-        Assert.True(loc >= 0, $"Missing uniform {name}");
-        GL.Uniform1(loc, value);
-    }
-
-    private static void SetUniform3i(int program, string name, int x, int y, int z)
-    {
-        int loc = GL.GetUniformLocation(program, name);
-        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
-        {
-            loc = explicitLoc;
-        }
-
-        Assert.True(loc >= 0, $"Missing uniform {name}");
-        GL.Uniform3(loc, x, y, z);
-    }
-
-    private static bool TrySetUniform(int program, string name, uint value)
-    {
-        int loc = GL.GetUniformLocation(program, name);
-        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
-        {
-            loc = explicitLoc;
-        }
-
-        if (loc < 0)
-        {
-            return false;
-        }
-        GL.Uniform1(loc, value);
-        return true;
     }
 
     private static GpuShaderStorageBuffer CreateSsbo<T>(string name, ReadOnlySpan<T> data) where T : unmanaged

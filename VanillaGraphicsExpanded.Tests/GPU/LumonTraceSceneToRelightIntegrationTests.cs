@@ -21,6 +21,9 @@ public sealed class LumonTraceSceneToRelightIntegrationTests : RenderTestBase
 {
     public LumonTraceSceneToRelightIntegrationTests(HeadlessGLFixture fixture) : base(fixture) { }
 
+    private const int TraceRegionParamsUboSizeBytes = 272;
+    private const int RelightParamsUboSizeBytes = 80;
+
     [Fact]
     public void RegionToClipmapThenRelight_SolidPayload_ProducesAllHits()
     {
@@ -74,11 +77,12 @@ public sealed class LumonTraceSceneToRelightIntegrationTests : RenderTestBase
         // 3D images must be bound layered=true so z-slices are addressable by the shader.
         occL0.BindImageUnit(unit: 0, access: TextureAccess.WriteOnly, level: 0, layered: true, layer: 0, format: SizedInternalFormat.R32ui);
 
-        SetUniform(regionToClipProgram, "vge_levels", levels);
-        SetUniform(regionToClipProgram, "vge_resolution", res);
-        SetUniform(regionToClipProgram, "vge_regionUpdateCount", 1u);
-        SetUniform3i(regionToClipProgram, "vge_originMinCell[0]", 0, 0, 0);
-        SetUniform3i(regionToClipProgram, "vge_ring[0]", 0, 0, 0);
+        using var traceParamsUbo = new ObjectParamsUbo("Tests.LumonTraceSceneToRelight.RegionToClipmap.ParamsUBO");
+        Span<byte> traceParams = stackalloc byte[TraceRegionParamsUboSizeBytes];
+        UboPacking.WriteUVec4(traceParams, byteOffset: 0, x: 1u, y: (uint)levels, z: (uint)res, w: 0u); // regionUpdateCount, levels, resolution
+        UboPacking.WriteIVec4(traceParams, byteOffset: 16, 0, 0, 0, 0); // originMinCell[0]
+        UboPacking.WriteIVec4(traceParams, byteOffset: 144, 0, 0, 0, 0); // ring[0]
+        traceParamsUbo.UploadAndBind(traceParams);
 
         GL.DispatchCompute(4, 4, 4); // one region
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
@@ -154,20 +158,14 @@ public sealed class LumonTraceSceneToRelightIntegrationTests : RenderTestBase
 
         irradiance.BindImageUnit(unit: 0, access: TextureAccess.ReadWrite, level: 0, layered: true, layer: 0, format: SizedInternalFormat.Rgba16f);
 
-        SetUniform(relightProgram, "vge_tileSizeTexels", (uint)tileSize);
-        SetUniform(relightProgram, "vge_tilesPerAxis", 1u);
-        SetUniform(relightProgram, "vge_tilesPerAtlas", 1u);
-        _ = TrySetUniform(relightProgram, "vge_borderTexels", 0u);
-
-        SetUniform(relightProgram, "vge_frameIndex", 0);
-        SetUniform(relightProgram, "vge_texelsPerPagePerFrame", (uint)(tileSize * tileSize));
-        SetUniform(relightProgram, "vge_raysPerTexel", 1u);
-        SetUniform(relightProgram, "vge_maxDdaSteps", 16u);
-        SetUniform(relightProgram, "vge_debugCountersEnabled", 1u);
-
-        SetUniform3i(relightProgram, "vge_occOriginMinCell0", 0, 0, 0);
-        SetUniform3i(relightProgram, "vge_occRing0", 0, 0, 0);
-        SetUniform(relightProgram, "vge_occResolution", res);
+        using var relightParamsUbo = new ObjectParamsUbo("Tests.LumonTraceSceneToRelight.Relight.ParamsUBO");
+        Span<byte> relightParams = stackalloc byte[RelightParamsUboSizeBytes];
+        UboPacking.WriteUVec4(relightParams, byteOffset: 0, (uint)tileSize, 1u, 1u, 0u);
+        UboPacking.WriteUVec4(relightParams, byteOffset: 16, (uint)(tileSize * tileSize), 1u, 16u, 1u);
+        UboPacking.WriteIVec4(relightParams, byteOffset: 32, 0, res, 0, 0);
+        UboPacking.WriteIVec4(relightParams, byteOffset: 48, 0, 0, 0, 0);
+        UboPacking.WriteIVec4(relightParams, byteOffset: 64, 0, 0, 0, 0);
+        relightParamsUbo.UploadAndBind(relightParams);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;

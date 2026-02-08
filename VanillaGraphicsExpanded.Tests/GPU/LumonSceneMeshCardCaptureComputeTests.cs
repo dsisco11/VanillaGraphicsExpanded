@@ -19,6 +19,8 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
 {
     public LumonSceneMeshCardCaptureComputeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
+    private const int CaptureMeshCardParamsUboSizeBytes = 32;
+
     [Fact]
     public void Capture_PlanarQuad_WritesZeroDepthAndNormal()
     {
@@ -71,6 +73,8 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         twoTri[1] = tri1;
         using var triSsbo = CreateSsbo<LumonSceneMeshCardTriangleGpu>("Test_TriSSBO", twoTri);
 
+        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneMeshCardCapture.PlanarQuad.ParamsUBO");
+
         GL.UseProgram(program);
 
         // SSBO bindings match the shader:
@@ -83,11 +87,10 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
         GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
 
-        SetUniformLocal(program, "vge_tileSizeTexels", (uint)tileSize);
-        SetUniformLocal(program, "vge_tilesPerAxis", 1u);
-        SetUniformLocal(program, "vge_tilesPerAtlas", 1u);
-        _ = TrySetUniformLocal(program, "vge_borderTexels", 0u); // may be optimized out
-        SetUniformLocal(program, "vge_captureDepthRange", 1f);
+        Span<byte> paramsBytes = stackalloc byte[CaptureMeshCardParamsUboSizeBytes];
+        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, (uint)tileSize, 1u, 1u, 0u);
+        UboPacking.WriteVec4(paramsBytes, byteOffset: 16, 1f, 0f, 0f, 0f);
+        paramsUbo.UploadAndBind(paramsBytes);
 
         GL.DispatchCompute((tileSize + 7) / 8, (tileSize + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
@@ -168,6 +171,8 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         twoTri[1] = tri1;
         using var triSsbo = CreateSsbo<LumonSceneMeshCardTriangleGpu>("Test_TriSSBO", twoTri);
 
+        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneMeshCardCapture.OffsetQuad.ParamsUBO");
+
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
         metaSsbo.BindBase(bindingIndex: 1);
@@ -176,11 +181,10 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
         GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
 
-        SetUniformLocal(program, "vge_tileSizeTexels", (uint)tileSize);
-        SetUniformLocal(program, "vge_tilesPerAxis", 1u);
-        SetUniformLocal(program, "vge_tilesPerAtlas", 1u);
-        _ = TrySetUniformLocal(program, "vge_borderTexels", 0u); // may be optimized out
-        SetUniformLocal(program, "vge_captureDepthRange", 1f);
+        Span<byte> paramsBytes = stackalloc byte[CaptureMeshCardParamsUboSizeBytes];
+        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, (uint)tileSize, 1u, 1u, 0u);
+        UboPacking.WriteVec4(paramsBytes, byteOffset: 16, 1f, 0f, 0f, 0f);
+        paramsUbo.UploadAndBind(paramsBytes);
 
         GL.DispatchCompute((tileSize + 7) / 8, (tileSize + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
@@ -245,6 +249,8 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         twoTri[1] = new LumonSceneMeshCardTriangleGpu(new Vector4(p0, 0), new Vector4(p2, 0), new Vector4(p3, 0), new Vector4(n, 0));
         using var triSsbo = CreateSsbo<LumonSceneMeshCardTriangleGpu>("Test_TriSSBO", twoTri);
 
+        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneMeshCardCapture.RotatedQuad.ParamsUBO");
+
         GL.UseProgram(program);
         workSsbo.BindBase(bindingIndex: 0);
         metaSsbo.BindBase(bindingIndex: 1);
@@ -253,11 +259,10 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
         GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
 
-        SetUniformLocal(program, "vge_tileSizeTexels", (uint)tileSize);
-        SetUniformLocal(program, "vge_tilesPerAxis", 1u);
-        SetUniformLocal(program, "vge_tilesPerAtlas", 1u);
-        _ = TrySetUniformLocal(program, "vge_borderTexels", 0u);
-        SetUniformLocal(program, "vge_captureDepthRange", 1f);
+        Span<byte> paramsBytes = stackalloc byte[CaptureMeshCardParamsUboSizeBytes];
+        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, (uint)tileSize, 1u, 1u, 0u);
+        UboPacking.WriteVec4(paramsBytes, byteOffset: 16, 1f, 0f, 0f, 0f);
+        paramsUbo.UploadAndBind(paramsBytes);
 
         GL.DispatchCompute((tileSize + 7) / 8, (tileSize + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
@@ -316,46 +321,6 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         ssbo.EnsureCapacity(bytes, growExponentially: false);
         ssbo.UploadSubData(data, dstOffsetBytes: 0, byteCount: bytes);
         return ssbo;
-    }
-
-    private static void SetUniformLocal(int program, string name, uint value)
-    {
-        int loc = GL.GetUniformLocation(program, name);
-        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
-        {
-            loc = explicitLoc;
-        }
-
-        Assert.True(loc >= 0, $"Missing uniform {name}");
-        GL.Uniform1(loc, value);
-    }
-
-    private static void SetUniformLocal(int program, string name, float value)
-    {
-        int loc = GL.GetUniformLocation(program, name);
-        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
-        {
-            loc = explicitLoc;
-        }
-
-        Assert.True(loc >= 0, $"Missing uniform {name}");
-        GL.Uniform1(loc, value);
-    }
-
-    private static bool TrySetUniformLocal(int program, string name, uint value)
-    {
-        int loc = GL.GetUniformLocation(program, name);
-        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
-        {
-            loc = explicitLoc;
-        }
-
-        if (loc < 0)
-        {
-            return false;
-        }
-        GL.Uniform1(loc, value);
-        return true;
     }
 
     private static float[] ReadTexImageR32f(int textureId, TextureTarget target, int width, int height)

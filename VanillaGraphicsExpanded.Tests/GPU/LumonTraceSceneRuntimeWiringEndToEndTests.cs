@@ -8,6 +8,7 @@ using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.Numerics;
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
@@ -25,6 +26,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class LumonTraceSceneRuntimeWiringEndToEndTests : RenderTestBase
 {
     public LumonTraceSceneRuntimeWiringEndToEndTests(HeadlessGLFixture fixture) : base(fixture) { }
+
+    private const int TraceRegionParamsUboSizeBytes = 272;
 
     [Fact]
     public async Task SnapshotToChunkProcessingToGpuBuild_WritesOccupancyTexture()
@@ -106,11 +109,12 @@ public sealed class LumonTraceSceneRuntimeWiringEndToEndTests : RenderTestBase
             layer: 0,
             format: SizedInternalFormat.R32ui);
 
-        SetUniform1i(program, "vge_levels", 1);
-        SetUniform1i(program, "vge_resolution", resources.Resolution);
-        SetUniform1ui(program, "vge_regionUpdateCount", 1u);
-        SetUniform3i(program, "vge_originMinCell[0]", 0, 0, 0);
-        SetUniform3i(program, "vge_ring[0]", 0, 0, 0);
+        using var paramsUbo = new ObjectParamsUbo("Tests.LumonTraceSceneRuntimeWiring.RegionToClipmap.ParamsUBO");
+        byte[] paramsBytes = new byte[TraceRegionParamsUboSizeBytes];
+        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, x: 1u, y: 1u, z: (uint)resources.Resolution, w: 0u); // regionUpdateCount, levels, resolution
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 16, 0, 0, 0, 0); // originMinCell[0]
+        UboPacking.WriteIVec4(paramsBytes, byteOffset: 144, 0, 0, 0, 0); // ring[0]
+        paramsUbo.UploadAndBind(paramsBytes);
 
         GL.DispatchCompute(4, 4, 4);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
