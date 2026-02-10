@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -84,68 +85,25 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
     /// <summary>
     /// Sets up common uniforms for the probe-atlas temporal shader.
     /// </summary>
-    private void SetupOctahedralTemporalUniforms(
+    private ObjectParamsUbo SetupOctahedralTemporalUniforms(
         int programId,
         int frameIndex = 0,
         int texelsPerFrame = DefaultTexelsPerFrame,
         float temporalAlpha = DefaultTemporalAlpha,
         float hitDistanceRejectThreshold = DefaultHitDistanceRejectThreshold)
     {
+        var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.ProbeTemporal.ParamsUBO");
+
         GL.UseProgram(programId);
 
-        // Probe grid uniforms
-        var gridSizeLoc = GL.GetUniformLocation(programId, "probeGridSize");
-        GL.Uniform2(gridSizeLoc, (float)ProbeGridWidth, (float)ProbeGridHeight);
-
-        // Screen-space mapping (used by optional velocity reprojection)
-        var probeSpacingLoc = GL.GetUniformLocation(programId, "probeSpacing");
-        GL.Uniform1(probeSpacingLoc, ProbeSpacing);
-
-        var screenSizeLoc = GL.GetUniformLocation(programId, "screenSize");
-        GL.Uniform2(screenSizeLoc, (float)ScreenWidth, (float)ScreenHeight);
-
-        // Jitter controls (must exist even if disabled)
-        var anchorJitterEnabledLoc = GL.GetUniformLocation(programId, "anchorJitterEnabled");
-        GL.Uniform1(anchorJitterEnabledLoc, 0);
-
-        var anchorJitterScaleLoc = GL.GetUniformLocation(programId, "anchorJitterScale");
-        GL.Uniform1(anchorJitterScaleLoc, 0.0f);
-
-        var pmjCycleLengthLoc = GL.GetUniformLocation(programId, "pmjCycleLength");
-        GL.Uniform1(pmjCycleLengthLoc, 1);
-
-        // Phase 14: disable velocity reprojection in these unit tests unless explicitly testing it
-        var enableVelLoc = GL.GetUniformLocation(programId, "enableVelocityReprojection");
-        GL.Uniform1(enableVelLoc, 0);
-
-        var velRejectLoc = GL.GetUniformLocation(programId, "velocityRejectThreshold");
-        GL.Uniform1(velRejectLoc, 0.01f);
-
-        // Temporal distribution parameters
-        var frameIndexLoc = GL.GetUniformLocation(programId, "frameIndex");
-        GL.Uniform1(frameIndexLoc, frameIndex);
-
-        // Temporal blending parameters
-        var alphaLoc = GL.GetUniformLocation(programId, "temporalAlpha");
-        var hitDistThreshLoc = GL.GetUniformLocation(programId, "hitDistanceRejectThreshold");
-        GL.Uniform1(alphaLoc, temporalAlpha);
-        GL.Uniform1(hitDistThreshLoc, hitDistanceRejectThreshold);
-
         // Texture sampler uniforms
-        var currentLoc = GL.GetUniformLocation(programId, "octahedralCurrent");
-        var historyLoc = GL.GetUniformLocation(programId, "octahedralHistory");
-        var anchorPosLoc = GL.GetUniformLocation(programId, "probeAnchorPosition");
-        var metaCurrentLoc = GL.GetUniformLocation(programId, "probeAtlasMetaCurrent");
-        var metaHistoryLoc = GL.GetUniformLocation(programId, "probeAtlasMetaHistory");
-        var velocityTexLoc = GL.GetUniformLocation(programId, "velocityTex");
-        var pmjJitterLoc = GL.GetUniformLocation(programId, "pmjJitter");
-        GL.Uniform1(currentLoc, 0);
-        GL.Uniform1(historyLoc, 1);
-        GL.Uniform1(anchorPosLoc, 2);
-        GL.Uniform1(metaCurrentLoc, 3);
-        GL.Uniform1(metaHistoryLoc, 4);
-        GL.Uniform1(velocityTexLoc, 5);
-        GL.Uniform1(pmjJitterLoc, 6);
+        GL.Uniform1(GL.GetUniformLocation(programId, "octahedralCurrent"), 0);
+        GL.Uniform1(GL.GetUniformLocation(programId, "octahedralHistory"), 1);
+        GL.Uniform1(GL.GetUniformLocation(programId, "probeAnchorPosition"), 2);
+        GL.Uniform1(GL.GetUniformLocation(programId, "probeAtlasMetaCurrent"), 3);
+        GL.Uniform1(GL.GetUniformLocation(programId, "probeAtlasMetaHistory"), 4);
+        GL.Uniform1(GL.GetUniformLocation(programId, "velocityTex"), 5);
+        GL.Uniform1(GL.GetUniformLocation(programId, "pmjJitter"), 6);
 
         // Phase 23: UBO-backed frame state.
         UpdateAndBindLumOnFrameUbo(
@@ -158,7 +116,18 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             velocityRejectThreshold: 0.01f,
             anchorJitterScale: 0.0f);
 
+        // Phase 23: UBO-backed probe temporal parameters.
+        UniformBlockBindingUtil.EnsureBlockBound(programId, LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
+        var cpuParams = new LumOnProbeParamsUbo();
+        using (cpuParams.BeginBatchUpdate())
+        {
+            cpuParams.TemporalAlpha = temporalAlpha;
+            cpuParams.HitDistanceRejectThreshold = hitDistanceRejectThreshold;
+        }
+        objectParamsUbo.UploadAndBind(cpuParams.Bytes);
+
         GL.UseProgram(0);
+        return objectParamsUbo;
     }
 
     /// <summary>
@@ -381,7 +350,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: 64);
-        SetupOctahedralTemporalUniforms(
+        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,
@@ -461,7 +430,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
-        SetupOctahedralTemporalUniforms(
+        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,
@@ -545,7 +514,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
-        SetupOctahedralTemporalUniforms(programId);
+        using var objectParamsUbo = SetupOctahedralTemporalUniforms(programId);
 
         currentAtlasTex.Bind(0);
         historyAtlasTex.Bind(1);
@@ -625,7 +594,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
-        SetupOctahedralTemporalUniforms(
+        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 8);
@@ -724,7 +693,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader();
-        SetupOctahedralTemporalUniforms(
+        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,  // Trace all texels
@@ -816,7 +785,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader();
-        SetupOctahedralTemporalUniforms(
+        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,
@@ -907,7 +876,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader(texelsPerFrame: 64);
-            SetupOctahedralTemporalUniforms(
+            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
                 texelsPerFrame: 64,
@@ -945,7 +914,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader(texelsPerFrame: 64);
-            SetupOctahedralTemporalUniforms(
+            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
                 texelsPerFrame: 64,
@@ -1011,7 +980,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: 64);
-        SetupOctahedralTemporalUniforms(
+        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,
@@ -1094,7 +1063,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
-            SetupOctahedralTemporalUniforms(
+            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
                 texelsPerFrame: 8,
@@ -1129,7 +1098,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
-            SetupOctahedralTemporalUniforms(
+            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 1,
                 texelsPerFrame: 8,
@@ -1219,7 +1188,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader();
-            SetupOctahedralTemporalUniforms(
+            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
                 texelsPerFrame: 64,
@@ -1258,7 +1227,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader();
-            SetupOctahedralTemporalUniforms(
+            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
                 texelsPerFrame: 64,
@@ -1328,7 +1297,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader();
-        SetupOctahedralTemporalUniforms(
+        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,
@@ -1420,7 +1389,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader();
-            SetupOctahedralTemporalUniforms(
+            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
                 texelsPerFrame: 64,
@@ -1462,7 +1431,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader();
-            SetupOctahedralTemporalUniforms(
+            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
                 texelsPerFrame: 64,
@@ -1529,7 +1498,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader();
-        SetupOctahedralTemporalUniforms(
+        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,
@@ -1587,7 +1556,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileOctahedralTemporalShader();
-        SetupOctahedralTemporalUniforms(
+        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,
@@ -1659,7 +1628,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileOctahedralTemporalShader();
-        SetupOctahedralTemporalUniforms(
+        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,
@@ -1715,7 +1684,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileOctahedralTemporalShader();
-        SetupOctahedralTemporalUniforms(
+        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,
@@ -1782,7 +1751,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileOctahedralTemporalShader();
-            SetupOctahedralTemporalUniforms(
+            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
                 texelsPerFrame: 64,
@@ -1816,7 +1785,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileOctahedralTemporalShader();
-            SetupOctahedralTemporalUniforms(
+            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
                 texelsPerFrame: 64,

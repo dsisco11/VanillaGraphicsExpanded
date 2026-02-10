@@ -4,6 +4,8 @@ using System.Linq;
 
 using OpenTK.Graphics.OpenGL;
 
+using HeightBakeParamsUboCpu = VanillaGraphicsExpanded.PBR.Materials.PbrHeightBakeParamsUbo;
+
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -66,12 +68,16 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             using var outAtlas = DynamicTexture2D.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
 
             // 1) Luminance.
-            RenderTo(texL, progL, () =>
+            RenderTo(texL, progL, (paramsUbo) =>
             {
                 atlas.Bind(0);
                 GL.Uniform1(Uniform(progL, "u_atlas"), 0);
-                GL.Uniform4(Uniform(progL, "u_atlasRectPx"), 0, 0, w, h);
-                GL.Uniform2(Uniform(progL, "u_outSize"), w, h);
+
+                UploadHeightBakeParams(paramsUbo, progL, (cpu) =>
+                {
+                    cpu.LuminanceAtlasRect = (x: 0, y: 0, w: w, h: h);
+                    cpu.LuminanceDstSize = (width: w, height: h);
+                });
             });
             AssertFiniteAndHasVariance(texL, channels: 1, name: "L");
 
@@ -83,34 +89,46 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             AssertFinite(texBase, channels: 1, name: "Base");
 
             // 3) D0 = L - base
-            RenderTo(texD0, progSub, () =>
+            RenderTo(texD0, progSub, (paramsUbo) =>
             {
                 texL.Bind(0);
                 texBase.Bind(1);
                 GL.Uniform1(Uniform(progSub, "u_a"), 0);
                 GL.Uniform1(Uniform(progSub, "u_b"), 1);
-                GL.Uniform2(Uniform(progSub, "u_size"), w, h);
+
+                UploadHeightBakeParams(paramsUbo, progSub, (cpu) =>
+                {
+                    cpu.CommonSize = (width: w, height: h);
+                    cpu.GaussianParams = (radius: 0, relContrast: 0);
+                    cpu.SubParams = (eps: 1e-6f, vMax: 1e6f);
+                });
             });
             AssertFiniteAndHasVariance(texD0, channels: 1, name: "D0");
 
             // 4) Gradient field from D0 (we treat D0 as detail D).
-            RenderTo(texGxy, progGrad, () =>
+            RenderTo(texGxy, progGrad, (paramsUbo) =>
             {
                 texD0.Bind(0);
                 GL.Uniform1(Uniform(progGrad, "u_d"), 0);
-                GL.Uniform2(Uniform(progGrad, "u_size"), w, h);
-                GL.Uniform1(Uniform(progGrad, "u_gain"), cfg.Gain);
-                GL.Uniform1(Uniform(progGrad, "u_maxSlope"), cfg.MaxSlope);
-                GL.Uniform2(Uniform(progGrad, "u_edgeT"), cfg.EdgeT0, cfg.EdgeT1);
+
+                UploadHeightBakeParams(paramsUbo, progGrad, (cpu) =>
+                {
+                    cpu.CommonSize = (width: w, height: h);
+                    cpu.GradientParams = (gain: cfg.Gain, maxSlope: cfg.MaxSlope, edgeT0: cfg.EdgeT0, edgeT1: cfg.EdgeT1);
+                });
             });
             AssertFiniteAndHasVariance(texGxy, channels: 2, name: "Gxy");
 
             // 5) Divergence
-            RenderTo(texDiv, progDiv, () =>
+            RenderTo(texDiv, progDiv, (paramsUbo) =>
             {
                 texGxy.Bind(0);
                 GL.Uniform1(Uniform(progDiv, "u_g"), 0);
-                GL.Uniform2(Uniform(progDiv, "u_size"), w, h);
+
+                UploadHeightBakeParams(paramsUbo, progDiv, (cpu) =>
+                {
+                    cpu.CommonSize = (width: w, height: h);
+                });
             });
             AssertFiniteAndHasVariance(texDiv, channels: 1, name: "Div");
 
@@ -121,13 +139,17 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 DynamicTexture2D src = (i % 2 == 0) ? texH : texH2;
                 DynamicTexture2D dst = (i % 2 == 0) ? texH2 : texH;
 
-                RenderTo(dst, progJacobi, () =>
+                RenderTo(dst, progJacobi, (paramsUbo) =>
                 {
                     src.Bind(0);
                     texDiv.Bind(1);
                     GL.Uniform1(Uniform(progJacobi, "u_h"), 0);
                     GL.Uniform1(Uniform(progJacobi, "u_b"), 1);
-                    GL.Uniform2(Uniform(progJacobi, "u_size"), w, h);
+
+                    UploadHeightBakeParams(paramsUbo, progJacobi, (cpu) =>
+                    {
+                        cpu.CommonSize = (width: w, height: h);
+                    });
                 });
             }
             // After odd iteration count, texH contains the last output.
@@ -136,30 +158,36 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             // 7) Normalize (mean from CPU readback)
             float mean = MeanR32f(texH);
             (float invNeg, float invPos) = ComputeAsymmetricInvScales(texH, mean);
-            RenderTo(texHn, progNorm, () =>
+            RenderTo(texHn, progNorm, (paramsUbo) =>
             {
                 texH.Bind(0);
                 GL.Uniform1(Uniform(progNorm, "u_h"), 0);
-                GL.Uniform2(Uniform(progNorm, "u_size"), w, h);
-                GL.Uniform1(Uniform(progNorm, "u_mean"), mean);
-                GL.Uniform1(Uniform(progNorm, "u_invNeg"), invNeg);
-                GL.Uniform1(Uniform(progNorm, "u_invPos"), invPos);
-                GL.Uniform1(Uniform(progNorm, "u_heightStrength"), cfg.HeightStrength);
-                GL.Uniform1(Uniform(progNorm, "u_gamma"), cfg.Gamma);
+
+                UploadHeightBakeParams(paramsUbo, progNorm, (cpu) =>
+                {
+                    cpu.CommonSize = (width: w, height: h);
+                    cpu.NormalizeParams = (mean: mean, invNeg: invNeg, invPos: invPos, heightStrength: cfg.HeightStrength);
+                    cpu.NormalizeGamma = cfg.Gamma;
+                });
             });
             AssertFiniteAndHasVariance(texHn, channels: 1, name: "Hn");
 
             // 8) Pack to atlas
-            RenderTo(outAtlas, progPack, () =>
+            RenderTo(outAtlas, progPack, (paramsUbo) =>
             {
                 texHn.Bind(0);
                 GL.Uniform1(Uniform(progPack, "u_height"), 0);
-                GL.Uniform2(Uniform(progPack, "u_solverSize"), w, h);
-                GL.Uniform2(Uniform(progPack, "u_tileSize"), w, h);
-                GL.Uniform2(Uniform(progPack, "u_viewportOrigin"), 0, 0);
-                GL.Uniform1(Uniform(progPack, "u_normalStrength"), cfg.NormalStrength);
-                GL.Uniform1(Uniform(progPack, "u_normalScale"), 1f);
-                GL.Uniform1(Uniform(progPack, "u_depthScale"), 1f);
+
+                atlas.Bind(1);
+                GL.Uniform1(Uniform(progPack, "u_albedoAtlas"), 1);
+
+                UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
+                {
+                    cpu.SolverSize = (width: w, height: h);
+                    cpu.TileSize = (width: w, height: h);
+                    cpu.ViewportOrigin = (x: 0, y: 0);
+                    cpu.PackParams = (normalStrength: cfg.NormalStrength, normalScale: 1f, depthScale: 1f, eps: 0f);
+                });
             });
 
             float[] packed = outAtlas.ReadPixels();
@@ -209,39 +237,49 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             using var texHn = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
             using var outAtlas = DynamicTexture2D.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
 
-            RenderTo(texL, progL, () =>
+            RenderTo(texL, progL, (paramsUbo) =>
             {
                 atlas.Bind(0);
                 GL.Uniform1(Uniform(progL, "u_atlas"), 0);
-                GL.Uniform4(Uniform(progL, "u_atlasRectPx"), 0, 0, w, h);
-                GL.Uniform2(Uniform(progL, "u_outSize"), w, h);
+
+                UploadHeightBakeParams(paramsUbo, progL, (cpu) =>
+                {
+                    cpu.LuminanceAtlasRect = (x: 0, y: 0, w: w, h: h);
+                    cpu.LuminanceDstSize = (width: w, height: h);
+                });
             });
 
             // Treat luminance as the solved height field, just to stress normalize+pack.
             float mean = MeanR32f(texL);
             (float invNeg, float invPos) = ComputeAsymmetricInvScales(texL, mean);
-            RenderTo(texHn, progNorm, () =>
+            RenderTo(texHn, progNorm, (paramsUbo) =>
             {
                 texL.Bind(0);
                 GL.Uniform1(Uniform(progNorm, "u_h"), 0);
-                GL.Uniform2(Uniform(progNorm, "u_size"), w, h);
-                GL.Uniform1(Uniform(progNorm, "u_mean"), mean);
-                GL.Uniform1(Uniform(progNorm, "u_invNeg"), invNeg);
-                GL.Uniform1(Uniform(progNorm, "u_invPos"), invPos);
-                GL.Uniform1(Uniform(progNorm, "u_heightStrength"), cfg.HeightStrength);
-                GL.Uniform1(Uniform(progNorm, "u_gamma"), cfg.Gamma);
+
+                UploadHeightBakeParams(paramsUbo, progNorm, (cpu) =>
+                {
+                    cpu.CommonSize = (width: w, height: h);
+                    cpu.NormalizeParams = (mean: mean, invNeg: invNeg, invPos: invPos, heightStrength: cfg.HeightStrength);
+                    cpu.NormalizeGamma = cfg.Gamma;
+                });
             });
 
-            RenderTo(outAtlas, progPack, () =>
+            RenderTo(outAtlas, progPack, (paramsUbo) =>
             {
                 texHn.Bind(0);
                 GL.Uniform1(Uniform(progPack, "u_height"), 0);
-                GL.Uniform2(Uniform(progPack, "u_solverSize"), w, h);
-                GL.Uniform2(Uniform(progPack, "u_tileSize"), w, h);
-                GL.Uniform2(Uniform(progPack, "u_viewportOrigin"), 0, 0);
-                GL.Uniform1(Uniform(progPack, "u_normalStrength"), cfg.NormalStrength);
-                GL.Uniform1(Uniform(progPack, "u_normalScale"), 1f);
-                GL.Uniform1(Uniform(progPack, "u_depthScale"), 1f);
+
+                atlas.Bind(1);
+                GL.Uniform1(Uniform(progPack, "u_albedoAtlas"), 1);
+
+                UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
+                {
+                    cpu.SolverSize = (width: w, height: h);
+                    cpu.TileSize = (width: w, height: h);
+                    cpu.ViewportOrigin = (x: 0, y: 0);
+                    cpu.PackParams = (normalStrength: cfg.NormalStrength, normalScale: 1f, depthScale: 1f, eps: 0f);
+                });
             });
 
             float[] packed = outAtlas.ReadPixels();
@@ -297,12 +335,16 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             using var outAtlas2 = DynamicTexture2D.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
 
             // 1) Luminance.
-            RenderTo(texL, progL, () =>
+            RenderTo(texL, progL, (paramsUbo) =>
             {
                 atlas.Bind(0);
                 GL.Uniform1(Uniform(progL, "u_atlas"), 0);
-                GL.Uniform4(Uniform(progL, "u_atlasRectPx"), 0, 0, w, h);
-                GL.Uniform2(Uniform(progL, "u_outSize"), w, h);
+
+                UploadHeightBakeParams(paramsUbo, progL, (cpu) =>
+                {
+                    cpu.LuminanceAtlasRect = (x: 0, y: 0, w: w, h: h);
+                    cpu.LuminanceDstSize = (width: w, height: h);
+                });
             });
 
             // 2) base = Gauss(L, sigmaBig)
@@ -310,32 +352,44 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RunGaussian1D(texTmp, texBase, progG, sigma: cfg.SigmaBig, dirX: false);
 
             // 3) D0 = L - base
-            RenderTo(texD0, progSub, () =>
+            RenderTo(texD0, progSub, (paramsUbo) =>
             {
                 texL.Bind(0);
                 texBase.Bind(1);
                 GL.Uniform1(Uniform(progSub, "u_a"), 0);
                 GL.Uniform1(Uniform(progSub, "u_b"), 1);
-                GL.Uniform2(Uniform(progSub, "u_size"), w, h);
+
+                UploadHeightBakeParams(paramsUbo, progSub, (cpu) =>
+                {
+                    cpu.CommonSize = (width: w, height: h);
+                    cpu.GaussianParams = (radius: 0, relContrast: 0);
+                    cpu.SubParams = (eps: 1e-6f, vMax: 1e6f);
+                });
             });
 
             // 4) Gradient
-            RenderTo(texGxy, progGrad, () =>
+            RenderTo(texGxy, progGrad, (paramsUbo) =>
             {
                 texD0.Bind(0);
                 GL.Uniform1(Uniform(progGrad, "u_d"), 0);
-                GL.Uniform2(Uniform(progGrad, "u_size"), w, h);
-                GL.Uniform1(Uniform(progGrad, "u_gain"), cfg.Gain);
-                GL.Uniform1(Uniform(progGrad, "u_maxSlope"), cfg.MaxSlope);
-                GL.Uniform2(Uniform(progGrad, "u_edgeT"), cfg.EdgeT0, cfg.EdgeT1);
+
+                UploadHeightBakeParams(paramsUbo, progGrad, (cpu) =>
+                {
+                    cpu.CommonSize = (width: w, height: h);
+                    cpu.GradientParams = (gain: cfg.Gain, maxSlope: cfg.MaxSlope, edgeT0: cfg.EdgeT0, edgeT1: cfg.EdgeT1);
+                });
             });
 
             // 5) Divergence
-            RenderTo(texDiv, progDiv, () =>
+            RenderTo(texDiv, progDiv, (paramsUbo) =>
             {
                 texGxy.Bind(0);
                 GL.Uniform1(Uniform(progDiv, "u_g"), 0);
-                GL.Uniform2(Uniform(progDiv, "u_size"), w, h);
+
+                UploadHeightBakeParams(paramsUbo, progDiv, (cpu) =>
+                {
+                    cpu.CommonSize = (width: w, height: h);
+                });
             });
 
             // 6) Jacobi iterations
@@ -345,54 +399,69 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 DynamicTexture2D src = (i % 2 == 0) ? texH : texH2;
                 DynamicTexture2D dst = (i % 2 == 0) ? texH2 : texH;
 
-                RenderTo(dst, progJacobi, () =>
+                RenderTo(dst, progJacobi, (paramsUbo) =>
                 {
                     src.Bind(0);
                     texDiv.Bind(1);
                     GL.Uniform1(Uniform(progJacobi, "u_h"), 0);
                     GL.Uniform1(Uniform(progJacobi, "u_b"), 1);
-                    GL.Uniform2(Uniform(progJacobi, "u_size"), w, h);
+
+                    UploadHeightBakeParams(paramsUbo, progJacobi, (cpu) =>
+                    {
+                        cpu.CommonSize = (width: w, height: h);
+                    });
                 });
             }
 
             // 7) Normalize
             float mean = MeanR32f(texH);
             (float invNeg, float invPos) = ComputeAsymmetricInvScales(texH, mean);
-            RenderTo(texHn, progNorm, () =>
+            RenderTo(texHn, progNorm, (paramsUbo) =>
             {
                 texH.Bind(0);
                 GL.Uniform1(Uniform(progNorm, "u_h"), 0);
-                GL.Uniform2(Uniform(progNorm, "u_size"), w, h);
-                GL.Uniform1(Uniform(progNorm, "u_mean"), mean);
-                GL.Uniform1(Uniform(progNorm, "u_invNeg"), invNeg);
-                GL.Uniform1(Uniform(progNorm, "u_invPos"), invPos);
-                GL.Uniform1(Uniform(progNorm, "u_heightStrength"), cfg.HeightStrength);
-                GL.Uniform1(Uniform(progNorm, "u_gamma"), cfg.Gamma);
+
+                UploadHeightBakeParams(paramsUbo, progNorm, (cpu) =>
+                {
+                    cpu.CommonSize = (width: w, height: h);
+                    cpu.NormalizeParams = (mean: mean, invNeg: invNeg, invPos: invPos, heightStrength: cfg.HeightStrength);
+                    cpu.NormalizeGamma = cfg.Gamma;
+                });
             });
 
             // 8) Pack twice with different scales.
-            RenderTo(outAtlas1, progPack, () =>
+            RenderTo(outAtlas1, progPack, (paramsUbo) =>
             {
                 texHn.Bind(0);
                 GL.Uniform1(Uniform(progPack, "u_height"), 0);
-                GL.Uniform2(Uniform(progPack, "u_solverSize"), w, h);
-                GL.Uniform2(Uniform(progPack, "u_tileSize"), w, h);
-                GL.Uniform2(Uniform(progPack, "u_viewportOrigin"), 0, 0);
-                GL.Uniform1(Uniform(progPack, "u_normalStrength"), cfg.NormalStrength);
-                GL.Uniform1(Uniform(progPack, "u_normalScale"), 1f);
-                GL.Uniform1(Uniform(progPack, "u_depthScale"), 1f);
+
+                atlas.Bind(1);
+                GL.Uniform1(Uniform(progPack, "u_albedoAtlas"), 1);
+
+                UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
+                {
+                    cpu.SolverSize = (width: w, height: h);
+                    cpu.TileSize = (width: w, height: h);
+                    cpu.ViewportOrigin = (x: 0, y: 0);
+                    cpu.PackParams = (normalStrength: cfg.NormalStrength, normalScale: 1f, depthScale: 1f, eps: 0f);
+                });
             });
 
-            RenderTo(outAtlas2, progPack, () =>
+            RenderTo(outAtlas2, progPack, (paramsUbo) =>
             {
                 texHn.Bind(0);
                 GL.Uniform1(Uniform(progPack, "u_height"), 0);
-                GL.Uniform2(Uniform(progPack, "u_solverSize"), w, h);
-                GL.Uniform2(Uniform(progPack, "u_tileSize"), w, h);
-                GL.Uniform2(Uniform(progPack, "u_viewportOrigin"), 0, 0);
-                GL.Uniform1(Uniform(progPack, "u_normalStrength"), cfg.NormalStrength);
-                GL.Uniform1(Uniform(progPack, "u_normalScale"), 0.5f);
-                GL.Uniform1(Uniform(progPack, "u_depthScale"), 0.5f);
+
+                atlas.Bind(1);
+                GL.Uniform1(Uniform(progPack, "u_albedoAtlas"), 1);
+
+                UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
+                {
+                    cpu.SolverSize = (width: w, height: h);
+                    cpu.TileSize = (width: w, height: h);
+                    cpu.ViewportOrigin = (x: 0, y: 0);
+                    cpu.PackParams = (normalStrength: cfg.NormalStrength, normalScale: 0.5f, depthScale: 0.5f, eps: 0f);
+                });
             });
 
             float[] packed1 = outAtlas1.ReadPixels();
@@ -461,12 +530,16 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             using var outAtlasScaled = DynamicTexture2D.Create(w, h, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
 
             // 1) Luminance.
-            RenderTo(texL, progL, () =>
+            RenderTo(texL, progL, (paramsUbo) =>
             {
                 atlas.Bind(0);
                 GL.Uniform1(Uniform(progL, "u_atlas"), 0);
-                GL.Uniform4(Uniform(progL, "u_atlasRectPx"), 0, 0, w, h);
-                GL.Uniform2(Uniform(progL, "u_outSize"), w, h);
+
+                UploadHeightBakeParams(paramsUbo, progL, (cpu) =>
+                {
+                    cpu.LuminanceAtlasRect = (x: 0, y: 0, w: w, h: h);
+                    cpu.LuminanceDstSize = (width: w, height: h);
+                });
             });
 
             // 2) base = Gauss(L, sigmaBig)
@@ -474,32 +547,44 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RunGaussian1D(texTmp, texBase, progG, sigma: cfg.SigmaBig, dirX: false);
 
             // 3) D0 = L - base
-            RenderTo(texD0, progSub, () =>
+            RenderTo(texD0, progSub, (paramsUbo) =>
             {
                 texL.Bind(0);
                 texBase.Bind(1);
                 GL.Uniform1(Uniform(progSub, "u_a"), 0);
                 GL.Uniform1(Uniform(progSub, "u_b"), 1);
-                GL.Uniform2(Uniform(progSub, "u_size"), w, h);
+
+                UploadHeightBakeParams(paramsUbo, progSub, (cpu) =>
+                {
+                    cpu.CommonSize = (width: w, height: h);
+                    cpu.GaussianParams = (radius: 0, relContrast: 0);
+                    cpu.SubParams = (eps: 1e-6f, vMax: 1e6f);
+                });
             });
 
             // 4) Gradient
-            RenderTo(texGxy, progGrad, () =>
+            RenderTo(texGxy, progGrad, (paramsUbo) =>
             {
                 texD0.Bind(0);
                 GL.Uniform1(Uniform(progGrad, "u_d"), 0);
-                GL.Uniform2(Uniform(progGrad, "u_size"), w, h);
-                GL.Uniform1(Uniform(progGrad, "u_gain"), cfg.Gain);
-                GL.Uniform1(Uniform(progGrad, "u_maxSlope"), cfg.MaxSlope);
-                GL.Uniform2(Uniform(progGrad, "u_edgeT"), cfg.EdgeT0, cfg.EdgeT1);
+
+                UploadHeightBakeParams(paramsUbo, progGrad, (cpu) =>
+                {
+                    cpu.CommonSize = (width: w, height: h);
+                    cpu.GradientParams = (gain: cfg.Gain, maxSlope: cfg.MaxSlope, edgeT0: cfg.EdgeT0, edgeT1: cfg.EdgeT1);
+                });
             });
 
             // 5) Divergence
-            RenderTo(texDiv, progDiv, () =>
+            RenderTo(texDiv, progDiv, (paramsUbo) =>
             {
                 texGxy.Bind(0);
                 GL.Uniform1(Uniform(progDiv, "u_g"), 0);
-                GL.Uniform2(Uniform(progDiv, "u_size"), w, h);
+
+                UploadHeightBakeParams(paramsUbo, progDiv, (cpu) =>
+                {
+                    cpu.CommonSize = (width: w, height: h);
+                });
             });
 
             // 6) Jacobi iterations
@@ -509,54 +594,69 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 DynamicTexture2D src = (i % 2 == 0) ? texH : texH2;
                 DynamicTexture2D dst = (i % 2 == 0) ? texH2 : texH;
 
-                RenderTo(dst, progJacobi, () =>
+                RenderTo(dst, progJacobi, (paramsUbo) =>
                 {
                     src.Bind(0);
                     texDiv.Bind(1);
                     GL.Uniform1(Uniform(progJacobi, "u_h"), 0);
                     GL.Uniform1(Uniform(progJacobi, "u_b"), 1);
-                    GL.Uniform2(Uniform(progJacobi, "u_size"), w, h);
+
+                    UploadHeightBakeParams(paramsUbo, progJacobi, (cpu) =>
+                    {
+                        cpu.CommonSize = (width: w, height: h);
+                    });
                 });
             }
 
             // 7) Normalize
             float mean = MeanR32f(texH);
             (float invNeg, float invPos) = ComputeAsymmetricInvScales(texH, mean);
-            RenderTo(texHn, progNorm, () =>
+            RenderTo(texHn, progNorm, (paramsUbo) =>
             {
                 texH.Bind(0);
                 GL.Uniform1(Uniform(progNorm, "u_h"), 0);
-                GL.Uniform2(Uniform(progNorm, "u_size"), w, h);
-                GL.Uniform1(Uniform(progNorm, "u_mean"), mean);
-                GL.Uniform1(Uniform(progNorm, "u_invNeg"), invNeg);
-                GL.Uniform1(Uniform(progNorm, "u_invPos"), invPos);
-                GL.Uniform1(Uniform(progNorm, "u_heightStrength"), cfg.HeightStrength);
-                GL.Uniform1(Uniform(progNorm, "u_gamma"), cfg.Gamma);
+
+                UploadHeightBakeParams(paramsUbo, progNorm, (cpu) =>
+                {
+                    cpu.CommonSize = (width: w, height: h);
+                    cpu.NormalizeParams = (mean: mean, invNeg: invNeg, invPos: invPos, heightStrength: cfg.HeightStrength);
+                    cpu.NormalizeGamma = cfg.Gamma;
+                });
             });
 
             // 8) Pack with normalScale=0 (flat) and normalScale=1 (non-flat).
-            RenderTo(outAtlasFlat, progPack, () =>
+            RenderTo(outAtlasFlat, progPack, (paramsUbo) =>
             {
                 texHn.Bind(0);
                 GL.Uniform1(Uniform(progPack, "u_height"), 0);
-                GL.Uniform2(Uniform(progPack, "u_solverSize"), w, h);
-                GL.Uniform2(Uniform(progPack, "u_tileSize"), w, h);
-                GL.Uniform2(Uniform(progPack, "u_viewportOrigin"), 0, 0);
-                GL.Uniform1(Uniform(progPack, "u_normalStrength"), cfg.NormalStrength);
-                GL.Uniform1(Uniform(progPack, "u_normalScale"), 0f);
-                GL.Uniform1(Uniform(progPack, "u_depthScale"), 1f);
+
+                atlas.Bind(1);
+                GL.Uniform1(Uniform(progPack, "u_albedoAtlas"), 1);
+
+                UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
+                {
+                    cpu.SolverSize = (width: w, height: h);
+                    cpu.TileSize = (width: w, height: h);
+                    cpu.ViewportOrigin = (x: 0, y: 0);
+                    cpu.PackParams = (normalStrength: cfg.NormalStrength, normalScale: 0f, depthScale: 1f, eps: 0f);
+                });
             });
 
-            RenderTo(outAtlasScaled, progPack, () =>
+            RenderTo(outAtlasScaled, progPack, (paramsUbo) =>
             {
                 texHn.Bind(0);
                 GL.Uniform1(Uniform(progPack, "u_height"), 0);
-                GL.Uniform2(Uniform(progPack, "u_solverSize"), w, h);
-                GL.Uniform2(Uniform(progPack, "u_tileSize"), w, h);
-                GL.Uniform2(Uniform(progPack, "u_viewportOrigin"), 0, 0);
-                GL.Uniform1(Uniform(progPack, "u_normalStrength"), cfg.NormalStrength);
-                GL.Uniform1(Uniform(progPack, "u_normalScale"), 1f);
-                GL.Uniform1(Uniform(progPack, "u_depthScale"), 1f);
+
+                atlas.Bind(1);
+                GL.Uniform1(Uniform(progPack, "u_albedoAtlas"), 1);
+
+                UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
+                {
+                    cpu.SolverSize = (width: w, height: h);
+                    cpu.TileSize = (width: w, height: h);
+                    cpu.ViewportOrigin = (x: 0, y: 0);
+                    cpu.PackParams = (normalStrength: cfg.NormalStrength, normalScale: 1f, depthScale: 1f, eps: 0f);
+                });
             });
 
             float[] flat = outAtlasFlat.ReadPixels();
@@ -611,9 +711,23 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         return loc;
     }
 
-    private void RenderTo(DynamicTexture2D dst, int programId, Action setup)
+    private static void UploadHeightBakeParams(ObjectParamsUbo paramsUbo, int programId, Action<HeightBakeParamsUboCpu> configure)
+    {
+        PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(programId);
+
+        var cpu = new HeightBakeParamsUboCpu();
+        using (cpu.BeginBatchUpdate())
+        {
+            configure(cpu);
+        }
+
+        paramsUbo.UploadAndBind(cpu.Bytes);
+    }
+
+    private void RenderTo(DynamicTexture2D dst, int programId, Action<ObjectParamsUbo> setup)
     {
         using var fbo = GpuFramebuffer.CreateSingle(dst, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
+        using var objectParamsUbo = new ObjectParamsUbo($"Tests.Pbr.HeightBake.ParamsUBO.{programId}");
 
         fbo.Bind();
         GL.Viewport(0, 0, dst.Width, dst.Height);
@@ -623,7 +737,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
         GL.UseProgram(programId);
-        setup();
+        setup(objectParamsUbo);
 
         // Draw fullscreen geometry. The bake vertex shader uses gl_VertexID, so the quad works fine.
         RenderFullscreenQuad();
@@ -639,16 +753,18 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
         float[] weights = BuildGaussianWeights(sigma);
 
-        RenderTo(dst, programId, () =>
+        RenderTo(dst, programId, (paramsUbo) =>
         {
             src.Bind(0);
             GL.Uniform1(Uniform(programId, "u_src"), 0);
-            GL.Uniform2(Uniform(programId, "u_size"), dst.Width, dst.Height);
-            GL.Uniform2(Uniform(programId, "u_dir"), dirX ? 1 : 0, dirX ? 0 : 1);
-            GL.Uniform1(Uniform(programId, "u_radius"), radius);
 
-            int locWeights = Uniform(programId, "u_weights");
-            GL.Uniform1(locWeights, 65, weights);
+            UploadHeightBakeParams(paramsUbo, programId, (cpu) =>
+            {
+                cpu.CommonSize = (dst.Width, dst.Height);
+                cpu.GaussianDirection = (dirX ? 1 : 0, dirX ? 0 : 1);
+                cpu.GaussianParams = (radius: radius, relContrast: 0);
+                cpu.SetKernelWeights(weights, count: 65);
+            });
         });
     }
 

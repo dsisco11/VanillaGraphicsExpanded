@@ -1,10 +1,12 @@
 using System;
+using System.Numerics;
 
 using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 using Xunit;
 
@@ -469,35 +471,32 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             0, 0, 0, 1
         ];
 
-        SetMat4(programId, "invProjectionMatrix", identity);
-        SetMat4(programId, "invModelViewMatrix", identity);
+        // Phase 23: UBO-backed params (VgePbrDirectLightingParamsUBO @ object binding).
+        using var objectParamsUbo = new ObjectParamsUbo("Tests.Pbr.DirectLighting.ParamsUBO");
+        UniformBlockBindingUtil.EnsureBlockBound(programId, PbrDirectLightingParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
 
-        // Z-planes (not used directly in the pass right now)
-        SetFloat(programId, "zNear", 0.1f);
-        SetFloat(programId, "zFar", 100f);
+        float[]? pointLightPositions3 = null;
+        float[]? pointLightColors3 = null;
+        if (pointLightCount > 0)
+        {
+            pointLightPositions3 = [pointLightPos0.x, pointLightPos0.y, pointLightPos0.z];
+            pointLightColors3 = [pointLightColor0.r, pointLightColor0.g, pointLightColor0.b];
+        }
 
-        // Camera origin split
-        SetVec3(programId, "cameraOriginFloor", cameraOriginFloor.x, cameraOriginFloor.y, cameraOriginFloor.z);
-        SetVec3(programId, "cameraOriginFrac", cameraOriginFrac.x, cameraOriginFrac.y, cameraOriginFrac.z);
-
-        // Lighting
-        SetVec3(programId, "lightDirection", lightDirection.x, lightDirection.y, lightDirection.z);
-        SetVec3(programId, "rgbaLightIn", rgbaLightIn.r, rgbaLightIn.g, rgbaLightIn.b);
-        SetVec3(programId, "rgbaAmbientIn", 0f, 0f, 0f);
-
-        // Point lights
-        SetInt(programId, "pointLightsCount", pointLightCount);
-        SetVec3(programId, "pointLights3[0]", pointLightPos0.x, pointLightPos0.y, pointLightPos0.z);
-        SetVec3(programId, "pointLightColors3[0]", pointLightColor0.r, pointLightColor0.g, pointLightColor0.b);
-
-        // Shadow uniforms - set defaults to keep drivers happy
-        SetMat4(programId, "toShadowMapSpaceMatrixNear", identity);
-        SetMat4(programId, "toShadowMapSpaceMatrixFar", identity);
-        SetFloat(programId, "shadowRangeNear", 1f);
-        SetFloat(programId, "shadowRangeFar", 1f);
-        SetFloat(programId, "shadowZExtendNear", 1f);
-        SetFloat(programId, "shadowZExtendFar", 1f);
-        SetFloat(programId, "dropShadowIntensity", 0f);
+        var cpuParams = new PbrDirectLightingParamsUbo();
+        cpuParams.InvProjectionMatrix = identity;
+        cpuParams.InvModelViewMatrix = identity;
+        cpuParams.ToShadowMapSpaceMatrixNear = identity;
+        cpuParams.ToShadowMapSpaceMatrixFar = identity;
+        cpuParams.ZPlanesAndShadowRanges = (zNear: 0.1f, zFar: 100f, shadowRangeNear: 1f, shadowRangeFar: 1f);
+        cpuParams.ShadowExtendAndDrop = (shadowZExtendNear: 1f, shadowZExtendFar: 1f, dropShadowIntensity: 0f);
+        cpuParams.CameraOriginFloor = new Vector3(cameraOriginFloor.x, cameraOriginFloor.y, cameraOriginFloor.z);
+        cpuParams.CameraOriginFrac = new Vector3(cameraOriginFrac.x, cameraOriginFrac.y, cameraOriginFrac.z);
+        cpuParams.LightDirection = new Vector3(lightDirection.x, lightDirection.y, lightDirection.z);
+        cpuParams.RgbaLightIn = new Vector3(rgbaLightIn.r, rgbaLightIn.g, rgbaLightIn.b);
+        cpuParams.RgbaAmbientIn = Vector3.Zero;
+        cpuParams.SetPointLights(pointLightCount, pointLightPositions3, pointLightColors3);
+        objectParamsUbo.UploadAndBind(cpuParams.Bytes);
 
         // Draw
         GL.Disable(EnableCap.DepthTest);

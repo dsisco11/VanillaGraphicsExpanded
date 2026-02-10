@@ -32,6 +32,8 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         using var helper = CreateHelperOrSkip();
 
         int progResidual = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_residual.fsh");
+        PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(progResidual);
+        using var paramsUbo = new ObjectParamsUbo("Tests.PbrPoissonMultigridVCycle.Params");
 
         const int w = 8;
         const int h = 8;
@@ -49,7 +51,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             bTex.Bind(1);
             GL.Uniform1(Uniform(progResidual, "u_h"), 0);
             GL.Uniform1(Uniform(progResidual, "u_b"), 1);
-            GL.Uniform2(Uniform(progResidual, "u_size"), w, h);
+            PbrHeightBakeParamsUbo.BindSize(paramsUbo, w, h);
         });
 
         float[] gpu = rTex.ReadPixels();
@@ -74,6 +76,8 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         using var helper = CreateHelperOrSkip();
 
         int progRestrict = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_restrict.fsh");
+        PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(progRestrict);
+        using var paramsUbo = new ObjectParamsUbo("Tests.PbrPoissonMultigridVCycle.Params");
 
         const int fineW = 8;
         const int fineH = 8;
@@ -89,8 +93,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         {
             fineTex.Bind(0);
             GL.Uniform1(Uniform(progRestrict, "u_fine"), 0);
-            GL.Uniform2(Uniform(progRestrict, "u_fineSize"), fineW, fineH);
-            GL.Uniform2(Uniform(progRestrict, "u_coarseSize"), coarseW, coarseH);
+            PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: fineW, fineH: fineH, coarseW: coarseW, coarseH: coarseH, sizeW: 0, sizeH: 0);
         });
 
         float[] gpu = coarseTex.ReadPixels();
@@ -115,6 +118,8 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         using var helper = CreateHelperOrSkip();
 
         int progProlongate = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_prolongate_add.fsh");
+        PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(progProlongate);
+        using var paramsUbo = new ObjectParamsUbo("Tests.PbrPoissonMultigridVCycle.Params");
 
         const int fineW = 8;
         const int fineH = 8;
@@ -134,8 +139,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             coarseTex.Bind(1);
             GL.Uniform1(Uniform(progProlongate, "u_fineH"), 0);
             GL.Uniform1(Uniform(progProlongate, "u_coarseE"), 1);
-            GL.Uniform2(Uniform(progProlongate, "u_fineSize"), fineW, fineH);
-            GL.Uniform2(Uniform(progProlongate, "u_coarseSize"), coarseW, coarseH);
+            PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: fineW, fineH: fineH, coarseW: coarseW, coarseH: coarseH, sizeW: 0, sizeH: 0);
         });
 
         float[] gpu = outTex.ReadPixels();
@@ -171,6 +175,13 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         int progRestrict = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_restrict.fsh");
         int progProlongate = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_prolongate_add.fsh");
 
+        PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(progJacobi);
+        PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(progResidual);
+        PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(progRestrict);
+        PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(progProlongate);
+
+        using var paramsUbo = new ObjectParamsUbo("Tests.PbrPoissonMultigridVCycle.Params");
+
         int w = rhs.Width;
         int h = rhs.Height;
         int cw = Math.Max(1, w / 2);
@@ -196,10 +207,10 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         float rms0 = Rms(rhs.Data);
 
         // Pre-smooth (Jacobi on fine)
-        DynamicTexture2D hFine = RunJacobiIterationsFrom(progJacobi, bFine, start: h0, scratch: h1, iterations: 8);
+        DynamicTexture2D hFine = RunJacobiIterationsFrom(paramsUbo, progJacobi, bFine, start: h0, scratch: h1, iterations: 8);
 
         // Residual r = b - A*h
-        ComputeResidual(progResidual, bFine, hFine, resFine);
+        ComputeResidual(paramsUbo, progResidual, bFine, hFine, resFine);
         float rms1 = Rms(resFine.ReadPixels());
 
         // Restrict residual to coarse rhs.
@@ -207,12 +218,11 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         {
             resFine.Bind(0);
             GL.Uniform1(Uniform(progRestrict, "u_fine"), 0);
-            GL.Uniform2(Uniform(progRestrict, "u_fineSize"), w, h);
-            GL.Uniform2(Uniform(progRestrict, "u_coarseSize"), cw, ch);
+            PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: w, fineH: h, coarseW: cw, coarseH: ch, sizeW: 0, sizeH: 0);
         });
 
         // Solve coarse error approximately: A*e = bCoarse
-        DynamicTexture2D eCoarse = RunJacobiIterationsFrom(progJacobi, bCoarse, start: e0, scratch: e1, iterations: 40);
+        DynamicTexture2D eCoarse = RunJacobiIterationsFrom(paramsUbo, progJacobi, bCoarse, start: e0, scratch: e1, iterations: 40);
 
         // Prolongate + add correction: h = h + P(e)
         // Prolongate into the other fine texture.
@@ -223,12 +233,12 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             eCoarse.Bind(1);
             GL.Uniform1(Uniform(progProlongate, "u_fineH"), 0);
             GL.Uniform1(Uniform(progProlongate, "u_coarseE"), 1);
-            GL.Uniform2(Uniform(progProlongate, "u_fineSize"), w, h);
-            GL.Uniform2(Uniform(progProlongate, "u_coarseSize"), cw, ch);
+            PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: w, fineH: h, coarseW: cw, coarseH: ch, sizeW: 0, sizeH: 0);
         });
 
         // Post-smooth.
         DynamicTexture2D hPost = RunJacobiIterationsFrom(
+            paramsUbo,
             progJacobi,
             bFine,
             start: hCorrected,
@@ -236,7 +246,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             iterations: 8);
 
         // Final residual
-        ComputeResidual(progResidual, bFine, hPost, resFine);
+        ComputeResidual(paramsUbo, progResidual, bFine, hPost, resFine);
         float rms2 = Rms(resFine.ReadPixels());
 
         Assert.True(IsFinite(rms0) && IsFinite(rms1) && IsFinite(rms2), $"Non-finite residuals for '{name}'");
@@ -260,6 +270,13 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         int progResidual = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_residual.fsh");
         int progRestrict = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_restrict.fsh");
         int progProlongate = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_prolongate_add.fsh");
+
+        PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(progJacobi);
+        PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(progResidual);
+        PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(progRestrict);
+        PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(progProlongate);
+
+        using var paramsUbo = new ObjectParamsUbo("Tests.PbrPoissonMultigridVCycle.Params");
 
         int w = rhs.Width;
         int h = rhs.Height;
@@ -297,10 +314,10 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         float rms0 = Rms(rhs.Data);
 
         // Pre-smooth on fine.
-        DynamicTexture2D hFine = RunJacobiIterationsFrom(progJacobi, bFine, start: h0, scratch: h1, iterations: 8);
+        DynamicTexture2D hFine = RunJacobiIterationsFrom(paramsUbo, progJacobi, bFine, start: h0, scratch: h1, iterations: 8);
 
         // Residual on fine.
-        ComputeResidual(progResidual, bFine, hFine, resFine);
+        ComputeResidual(paramsUbo, progResidual, bFine, hFine, resFine);
         float rmsPre = Rms(resFine.ReadPixels());
 
         // Compute a 2-level V-cycle result for comparison.
@@ -317,12 +334,11 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             {
                 resFine.Bind(0);
                 GL.Uniform1(Uniform(progRestrict, "u_fine"), 0);
-                GL.Uniform2(Uniform(progRestrict, "u_fineSize"), w, h);
-                GL.Uniform2(Uniform(progRestrict, "u_coarseSize"), mw, mh);
+                PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: w, fineH: h, coarseW: mw, coarseH: mh, sizeW: 0, sizeH: 0);
             });
 
             // Coarse solve.
-            DynamicTexture2D eCoarse2 = RunJacobiIterationsFrom(progJacobi, bCoarse2, start: eC0, scratch: eC1, iterations: 60);
+            DynamicTexture2D eCoarse2 = RunJacobiIterationsFrom(paramsUbo, progJacobi, bCoarse2, start: eC0, scratch: eC1, iterations: 60);
 
             // Prolongate into the opposite fine buffer.
             DynamicTexture2D hFineCorrected2 = ReferenceEquals(hFine, h0) ? h1 : h0;
@@ -332,12 +348,12 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
                 eCoarse2.Bind(1);
                 GL.Uniform1(Uniform(progProlongate, "u_fineH"), 0);
                 GL.Uniform1(Uniform(progProlongate, "u_coarseE"), 1);
-                GL.Uniform2(Uniform(progProlongate, "u_fineSize"), w, h);
-                GL.Uniform2(Uniform(progProlongate, "u_coarseSize"), mw, mh);
+                PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: w, fineH: h, coarseW: mw, coarseH: mh, sizeW: 0, sizeH: 0);
             });
 
             // Post-smooth fine.
             DynamicTexture2D hPost2 = RunJacobiIterationsFrom(
+                paramsUbo,
                 progJacobi,
                 bFine,
                 start: hFineCorrected2,
@@ -345,7 +361,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
                 iterations: 8);
 
             // Residual.
-            ComputeResidual(progResidual, bFine, hPost2, resFine);
+            ComputeResidual(paramsUbo, progResidual, bFine, hPost2, resFine);
             rms2LevelFinal = Rms(resFine.ReadPixels());
         }
 
@@ -354,28 +370,26 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         {
             resFine.Bind(0);
             GL.Uniform1(Uniform(progRestrict, "u_fine"), 0);
-            GL.Uniform2(Uniform(progRestrict, "u_fineSize"), w, h);
-            GL.Uniform2(Uniform(progRestrict, "u_coarseSize"), mw, mh);
+            PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: w, fineH: h, coarseW: mw, coarseH: mh, sizeW: 0, sizeH: 0);
         });
 
         // --- Mid-level solve (one V-cycle inside) ---
         // Pre-smooth on mid.
-        DynamicTexture2D eMid = RunJacobiIterationsFrom(progJacobi, bMid, start: eMid0, scratch: eMid1, iterations: 6);
+        DynamicTexture2D eMid = RunJacobiIterationsFrom(paramsUbo, progJacobi, bMid, start: eMid0, scratch: eMid1, iterations: 6);
 
         // Residual on mid.
-        ComputeResidual(progResidual, bMid, eMid, resMid);
+        ComputeResidual(paramsUbo, progResidual, bMid, eMid, resMid);
 
         // Restrict residual -> coarse rhs.
         RenderTo(bCoarse, progRestrict, () =>
         {
             resMid.Bind(0);
             GL.Uniform1(Uniform(progRestrict, "u_fine"), 0);
-            GL.Uniform2(Uniform(progRestrict, "u_fineSize"), mw, mh);
-            GL.Uniform2(Uniform(progRestrict, "u_coarseSize"), cw, ch);
+            PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: mw, fineH: mh, coarseW: cw, coarseH: ch, sizeW: 0, sizeH: 0);
         });
 
         // Coarse solve (more iterations).
-        DynamicTexture2D eCoarse = RunJacobiIterationsFrom(progJacobi, bCoarse, start: eCoarse0, scratch: eCoarse1, iterations: 80);
+        DynamicTexture2D eCoarse = RunJacobiIterationsFrom(paramsUbo, progJacobi, bCoarse, start: eCoarse0, scratch: eCoarse1, iterations: 80);
 
         // Prolongate coarse correction into mid.
         DynamicTexture2D eMidCorrected = ReferenceEquals(eMid, eMid0) ? eMid1 : eMid0;
@@ -385,12 +399,12 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             eCoarse.Bind(1);
             GL.Uniform1(Uniform(progProlongate, "u_fineH"), 0);
             GL.Uniform1(Uniform(progProlongate, "u_coarseE"), 1);
-            GL.Uniform2(Uniform(progProlongate, "u_fineSize"), mw, mh);
-            GL.Uniform2(Uniform(progProlongate, "u_coarseSize"), cw, ch);
+            PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: mw, fineH: mh, coarseW: cw, coarseH: ch, sizeW: 0, sizeH: 0);
         });
 
         // Post-smooth mid.
         DynamicTexture2D eMidPost = RunJacobiIterationsFrom(
+            paramsUbo,
             progJacobi,
             bMid,
             start: eMidCorrected,
@@ -405,12 +419,12 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             eMidPost.Bind(1);
             GL.Uniform1(Uniform(progProlongate, "u_fineH"), 0);
             GL.Uniform1(Uniform(progProlongate, "u_coarseE"), 1);
-            GL.Uniform2(Uniform(progProlongate, "u_fineSize"), w, h);
-            GL.Uniform2(Uniform(progProlongate, "u_coarseSize"), mw, mh);
+            PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: w, fineH: h, coarseW: mw, coarseH: mh, sizeW: 0, sizeH: 0);
         });
 
         // Post-smooth fine.
         DynamicTexture2D hPost = RunJacobiIterationsFrom(
+            paramsUbo,
             progJacobi,
             bFine,
             start: hFineCorrected,
@@ -418,7 +432,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             iterations: 8);
 
         // Final residual.
-        ComputeResidual(progResidual, bFine, hPost, resFine);
+        ComputeResidual(paramsUbo, progResidual, bFine, hPost, resFine);
         float rmsFinal = Rms(resFine.ReadPixels());
 
         Assert.True(IsFinite(rms0) && IsFinite(rmsPre) && IsFinite(rmsFinal), $"Non-finite residuals for '{name}'");
@@ -499,7 +513,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         GpuFramebuffer.Unbind();
     }
 
-    private DynamicTexture2D RunJacobiIterationsFrom(int progJacobi, DynamicTexture2D b, DynamicTexture2D start, DynamicTexture2D scratch, int iterations)
+    private DynamicTexture2D RunJacobiIterationsFrom(ObjectParamsUbo paramsUbo, int progJacobi, DynamicTexture2D b, DynamicTexture2D start, DynamicTexture2D scratch, int iterations)
     {
         DynamicTexture2D src = start;
         DynamicTexture2D dst = scratch;
@@ -512,7 +526,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
                 b.Bind(1);
                 GL.Uniform1(Uniform(progJacobi, "u_h"), 0);
                 GL.Uniform1(Uniform(progJacobi, "u_b"), 1);
-                GL.Uniform2(Uniform(progJacobi, "u_size"), dst.Width, dst.Height);
+                PbrHeightBakeParamsUbo.BindSize(paramsUbo, dst.Width, dst.Height);
             });
 
             (src, dst) = (dst, src);
@@ -521,7 +535,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         return src;
     }
 
-    private void ComputeResidual(int progResidual, DynamicTexture2D b, DynamicTexture2D h, DynamicTexture2D outResidual)
+    private void ComputeResidual(ObjectParamsUbo paramsUbo, int progResidual, DynamicTexture2D b, DynamicTexture2D h, DynamicTexture2D outResidual)
     {
         RenderTo(outResidual, progResidual, () =>
         {
@@ -529,7 +543,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             b.Bind(1);
             GL.Uniform1(Uniform(progResidual, "u_h"), 0);
             GL.Uniform1(Uniform(progResidual, "u_b"), 1);
-            GL.Uniform2(Uniform(progResidual, "u_size"), outResidual.Width, outResidual.Height);
+            PbrHeightBakeParamsUbo.BindSize(paramsUbo, outResidual.Width, outResidual.Height);
         });
     }
 

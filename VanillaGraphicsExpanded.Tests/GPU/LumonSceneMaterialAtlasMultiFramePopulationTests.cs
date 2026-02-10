@@ -9,6 +9,7 @@ using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.Tests.GPU.Shaders;
 
 using Xunit;
 
@@ -26,12 +27,11 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var markComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages.csh", debugName: "Tests.MaterialAtlasPopulation.Mark");
-        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages.csh", debugName: "Tests.MaterialAtlasPopulation.Compact");
+        using var markShader = new LumonSceneFeedbackMarkPagesShader(helper, debugName: "Tests.MaterialAtlasPopulation.Mark");
+        using var compactShader = new LumonSceneFeedbackCompactPagesShader(helper, debugName: "Tests.MaterialAtlasPopulation.Compact");
         using var captureComputeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel.csh", debugName: "Tests.MaterialAtlasPopulation.Capture");
-        int markProgram = markComputeProgram.ProgramId;
-        int compactProgram = compactComputeProgram.ProgramId;
         int captureProgram = captureComputeProgram.ProgramId;
+        using var captureParamsUbo = new ObjectParamsUbo("Tests.MaterialAtlasPopulation.CaptureParams");
 
         const int tileSize = 8;
         const int tilesPerAxis = 16; // 16x16 = 256 pages
@@ -141,12 +141,12 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         for (uint frameStamp = 1; frameStamp <= maxFrames && virtualToPhysical.Count < desiredPages; frameStamp++)
         {
             // Pass A: mark pages.
-            GL.UseProgram(markProgram);
             markCounters.BindBase(bindingIndex: 0);
-            BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
-            BindSampler2DUint(markProgram, "vge_chunkSlotGenerationTex", genTex.TextureId, unit: 1);
-            SetUniform1ui(markProgram, "vge_frameStamp", frameStamp);
-            GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
+            markShader.Use();
+            markShader.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
+            markShader.BindChunkSlotGenerationTex(genTex.TextureId);
+            markShader.FrameStamp = frameStamp;
+            markShader.BindPageUsageStampImage(usageStamp.TextureId, access: TextureAccess.ReadWrite);
             GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
@@ -155,15 +155,15 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
             ResetAtomicCounter(pageRequestCounter, counterIndex: 0);
 
             // Pass B: compact stamps -> bounded request list.
-            GL.UseProgram(compactProgram);
             pageRequestCounter.BindBase(bindingIndex: 0);
             pageRequests.BindBase(bindingIndex: 0);
-            BindSampler2DArrayUint(compactProgram, "vge_pageUsageStamp", usageStamp.TextureId, unit: 0);
-            BindSampler2DArrayUint(compactProgram, "vge_pageTableMip0", pageTableMip0.TextureId, unit: 1);
-            SetUniform1ui(compactProgram, "vge_maxRequests", (uint)desiredPages);
-            SetUniform1ui(compactProgram, "vge_frameStamp", frameStamp);
-            SetUniform1ui(compactProgram, "vge_scanOffset", 0u);
-            SetUniform1ui(compactProgram, "vge_compactMode", 1u);
+            compactShader.Use();
+            compactShader.BindPageUsageStamp(usageStamp.TextureId);
+            compactShader.BindPageTableMip0(pageTableMip0.TextureId);
+            compactShader.MaxRequests = (uint)desiredPages;
+            compactShader.FrameStamp = frameStamp;
+            compactShader.ScanOffset = 0u;
+            compactShader.CompactMode = 1u;
             GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
@@ -207,13 +207,19 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
             BindSampler3D(unit: 2, occL0.TextureId);
             BindSampler2D(unit: 3, materialPalette.TextureId);
 
-            SetUniform1ui(captureProgram, "vge_tileSizeTexels", (uint)tileSize);
-            SetUniform1ui(captureProgram, "vge_tilesPerAxis", (uint)tilesPerAxis);
-            SetUniform1ui(captureProgram, "vge_tilesPerAtlas", (uint)tilesPerAtlas);
-            SetUniform1ui(captureProgram, "vge_borderTexels", 0u);
-            SetUniform3i(captureProgram, "vge_occOriginMinCell0", 0, 0, 0);
-            SetUniform3i(captureProgram, "vge_occRing0", 0, 0, 0);
-            SetUniform1i(captureProgram, "vge_occResolution", occRes);
+            LumonSceneCaptureVoxelParamsUbo.Bind(
+                captureParamsUbo,
+                tileSizeTexels: (uint)tileSize,
+                tilesPerAxis: (uint)tilesPerAxis,
+                tilesPerAtlas: (uint)tilesPerAtlas,
+                borderTexels: 0u,
+                occOriginMinCell0X: 0,
+                occOriginMinCell0Y: 0,
+                occOriginMinCell0Z: 0,
+                occRing0X: 0,
+                occRing0Y: 0,
+                occRing0Z: 0,
+                occResolution: occRes);
 
             int gx = (tileSize + 7) / 8;
             int gy = (tileSize + 7) / 8;
@@ -250,10 +256,8 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var markComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages.csh", debugName: "Tests.MaterialAtlasPopulation2.Mark");
-        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages.csh", debugName: "Tests.MaterialAtlasPopulation2.Compact");
-        int markProgram = markComputeProgram.ProgramId;
-        int compactProgram = compactComputeProgram.ProgramId;
+        using var markShader = new LumonSceneFeedbackMarkPagesShader(helper, debugName: "Tests.MaterialAtlasPopulation2.Mark");
+        using var compactShader = new LumonSceneFeedbackCompactPagesShader(helper, debugName: "Tests.MaterialAtlasPopulation2.Compact");
 
         const int chunksVisible = 100;
         const int pagesPerChunk = 16;
@@ -306,26 +310,26 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         using var pageRequestCounter = CreateAtomicCounterBuffer(counterCount: 1);
         using var markCounters = CreateAtomicCounterBuffer(counterCount: 3);
 
-        GL.UseProgram(markProgram);
         markCounters.BindBase(bindingIndex: 0);
-        BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
-        BindSampler2DUint(markProgram, "vge_chunkSlotGenerationTex", genTex.TextureId, unit: 1);
-        SetUniform1ui(markProgram, "vge_frameStamp", 1u);
-        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
+        markShader.Use();
+        markShader.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
+        markShader.BindChunkSlotGenerationTex(genTex.TextureId);
+        markShader.FrameStamp = 1u;
+        markShader.BindPageUsageStampImage(usageStamp.TextureId, access: TextureAccess.ReadWrite);
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("MaterialAtlas mark pass dispatch");
 
-        GL.UseProgram(compactProgram);
         pageRequestCounter.BindBase(bindingIndex: 0);
         pageRequests.BindBase(bindingIndex: 0);
-        BindSampler2DArrayUint(compactProgram, "vge_pageUsageStamp", usageStamp.TextureId, unit: 0);
-        BindSampler2DArrayUint(compactProgram, "vge_pageTableMip0", pageTableMip0.TextureId, unit: 1);
-        SetUniform1ui(compactProgram, "vge_maxRequests", (uint)totalPixels);
-        SetUniform1ui(compactProgram, "vge_frameStamp", 1u);
-        SetUniform1ui(compactProgram, "vge_scanOffset", 0u);
-        SetUniform1ui(compactProgram, "vge_compactMode", 1u);
+        compactShader.Use();
+        compactShader.BindPageUsageStamp(usageStamp.TextureId);
+        compactShader.BindPageTableMip0(pageTableMip0.TextureId);
+        compactShader.MaxRequests = (uint)totalPixels;
+        compactShader.FrameStamp = 1u;
+        compactShader.ScanOffset = 0u;
+        compactShader.CompactMode = 1u;
         GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 

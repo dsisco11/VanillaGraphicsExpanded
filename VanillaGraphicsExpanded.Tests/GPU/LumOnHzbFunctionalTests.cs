@@ -55,6 +55,9 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         TestFramework.RenderQuad(copyProg);
 
         // Downsample mip0->mip1 and mip1->mip2
+        using var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.HzbDownsample.ParamsUBO");
+        UniformBlockBindingUtil.EnsureBlockBound(downProg, LumOnHzbDownsampleParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
+        var cpuParams = new LumOnHzbDownsampleParamsUbo();
         for (int dstMip = 1; dstMip <= 2; dstMip++)
         {
             int srcMip = dstMip - 1;
@@ -68,7 +71,8 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
             GL.UseProgram(downProg);
             hzb.Bind(0);
             GL.Uniform1(GL.GetUniformLocation(downProg, "hzbDepth"), 0);
-            GL.Uniform1(GL.GetUniformLocation(downProg, "srcMip"), srcMip);
+            cpuParams.SrcMip = srcMip;
+            objectParamsUbo.UploadAndBind(cpuParams.Bytes);
 
             TestFramework.RenderQuad(downProg);
         }

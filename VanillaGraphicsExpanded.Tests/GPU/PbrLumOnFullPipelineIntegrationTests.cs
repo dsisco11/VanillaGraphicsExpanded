@@ -1,9 +1,14 @@
 using System;
 using System.Linq;
 using System.Collections.Generic;
+using System.Numerics;
 
 using OpenTK.Graphics.OpenGL;
 
+using PbrDirectLightingParamsUboCpu = VanillaGraphicsExpanded.PBR.PbrDirectLightingParamsUbo;
+using PbrCompositeParamsUboCpu = VanillaGraphicsExpanded.PBR.PbrCompositeParamsUbo;
+
+using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -121,6 +126,10 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             upsampleProg = CompileShader("lumon_upsample.vsh", "lumon_upsample.fsh");
             pbrCompositeProg = PbrShaderPrograms.CompilePbrCompositeProgram(ShaderHelper);
 
+            using var lumOnProbeParamsUbo = new ObjectParamsUbo("Tests.PbrLumOn.Integration.LumOnProbeParamsUBO");
+            using var lumOnUpsampleParamsUbo = new ObjectParamsUbo("Tests.PbrLumOn.Integration.LumOnUpsampleParamsUBO");
+            using var pbrCompositeParamsUbo = new ObjectParamsUbo("Tests.PbrLumOn.Integration.PbrComposite.ParamsUBO");
+
             // -----------------------------------------------------------------
             // Stage: PBR Direct Lighting (MRT)
             // -----------------------------------------------------------------
@@ -155,6 +164,35 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             SetFloat(pbrDirectProg, "shadowZExtendNear", 0f);
             SetFloat(pbrDirectProg, "shadowZExtendFar", 0f);
             SetFloat(pbrDirectProg, "dropShadowIntensity", 0f);
+
+            // Phase 23: UBO-backed direct lighting params (VgePbrDirectLightingParamsUBO @ object binding).
+            // The shader now aliases former uniform names to this UBO; without binding it, outputs will be black.
+            using var pbrDirectParamsUbo = new ObjectParamsUbo("Tests.PbrLumOn.Integration.PbrDirect.ParamsUBO");
+            UniformBlockBindingUtil.EnsureBlockBound(pbrDirectProg, PbrDirectLightingParamsUboCpu.BlockName, GpuBindingRegistry.Ubo.Object);
+
+            var cpuDirectParams = new PbrDirectLightingParamsUboCpu();
+            using (cpuDirectParams.BeginBatchUpdate())
+            {
+                cpuDirectParams.InvProjectionMatrix = invProj;
+                cpuDirectParams.InvModelViewMatrix = identity;
+
+                // Shadows are wired but effectively disabled for this test.
+                cpuDirectParams.ToShadowMapSpaceMatrixNear = identity;
+                cpuDirectParams.ToShadowMapSpaceMatrixFar = identity;
+                cpuDirectParams.ZPlanesAndShadowRanges = (zNear: ZNear, zFar: ZFar, shadowRangeNear: 0f, shadowRangeFar: 0f);
+                cpuDirectParams.ShadowExtendAndDrop = (shadowZExtendNear: 0f, shadowZExtendFar: 0f, dropShadowIntensity: 0f);
+
+                cpuDirectParams.CameraOriginFloor = Vector3.Zero;
+                cpuDirectParams.CameraOriginFrac = Vector3.Zero;
+
+                cpuDirectParams.LightDirection = new Vector3(0f, 0f, 1f);
+                cpuDirectParams.RgbaLightIn = new Vector3(0.35f, 0.55f, 0.75f);
+                cpuDirectParams.RgbaAmbientIn = Vector3.Zero;
+
+                cpuDirectParams.SetPointLights(0, positions3: null, colors3: null);
+            }
+
+            pbrDirectParamsUbo.UploadAndBind(cpuDirectParams.Bytes);
 
             primaryScene.Bind(0);
             primaryDepth.Bind(1);
@@ -308,6 +346,9 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             SetFloat(anchorProg, "zNear", ZNear);
             SetFloat(anchorProg, "zFar", ZFar);
             SetFloat(anchorProg, "depthDiscontinuityThreshold", 0.1f);
+
+            // Phase 23: UBO-backed probe params.
+            UpdateAndBindLumOnProbeParamsUbo(anchorProg, lumOnProbeParamsUbo, ConfigureDefaultLumOnProbeParams);
             GL.UseProgram(0);
 
             primaryDepth.Bind(0);
@@ -383,6 +424,9 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 sunPosition: new Vintagestory.API.MathTools.Vec3f(0f, 1f, 0f),
                 sunColor: new Vintagestory.API.MathTools.Vec3f(0.2f, 0.2f, 0.2f),
                 ambientColor: new Vintagestory.API.MathTools.Vec3f(0.1f, 0.1f, 0.1f));
+
+            // Phase 23: UBO-backed probe params (indirectTint/intensity etc).
+            UpdateAndBindLumOnProbeParamsUbo(traceProg, lumOnProbeParamsUbo, ConfigureDefaultLumOnProbeParams);
             GL.UseProgram(0);
 
             targets.ProbeAnchor[0].Bind(0);
@@ -458,6 +502,9 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 pmjCycleLength: 1,
                 enableVelocityReprojection: 1,
                 velocityRejectThreshold: 0.01f);
+
+            // Phase 23: UBO-backed probe params (temporalAlpha/hitDistanceRejectThreshold).
+            UpdateAndBindLumOnProbeParamsUbo(temporalProg, lumOnProbeParamsUbo, ConfigureDefaultLumOnProbeParams);
             GL.UseProgram(0);
 
             targets.AtlasTrace[0].Bind(0);
@@ -496,6 +543,9 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
             // Phase 23: UBO-backed frame state (probeGridSize).
             UpdateAndBindLumOnFrameUbo(filterProg);
+
+            // Phase 23: UBO-backed probe params (filterRadius/hitDistanceSigma).
+            UpdateAndBindLumOnProbeParamsUbo(filterProg, lumOnProbeParamsUbo, ConfigureDefaultLumOnProbeParams);
             GL.UseProgram(0);
 
             targets.AtlasTemporal[0].Bind(0);
@@ -545,6 +595,9 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 invProjectionMatrix: invProj,
                 viewMatrix: identity,
                 probeSpacing: ProbeSpacing);
+
+            // Phase 23: UBO-backed probe params (intensity/indirectTint/leakThreshold/sampleStride).
+            UpdateAndBindLumOnProbeParamsUbo(gatherProg, lumOnProbeParamsUbo, ConfigureDefaultLumOnProbeParams);
             GL.UseProgram(0);
 
             targets.AtlasFiltered[0].Bind(0);
@@ -592,6 +645,9 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
             // Phase 23: UBO-backed frame state.
             UpdateAndBindLumOnFrameUbo(upsampleProg);
+
+            // Phase 23: UBO-backed upsample params (depth/normal/spatial sigmas, hole-fill thresholds).
+            UpdateAndBindLumOnUpsampleParamsUbo(upsampleProg, lumOnUpsampleParamsUbo, ConfigureDefaultLumOnUpsampleParams);
             GL.UseProgram(0);
 
             targets.IndirectHalf[0].Bind(0);
@@ -615,6 +671,21 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Full composite (indirect from pipeline)
             SetupPbrCompositeUniforms(pbrCompositeProg, invProj, identity, lumOnEnabled: 1);
+
+            // Phase 23: UBO-backed composite params (VgePbrCompositeParamsUBO @ object binding).
+            // This carries indirectTint/indirectIntensity and view/projection matrices.
+            UniformBlockBindingUtil.EnsureBlockBound(pbrCompositeProg, PbrCompositeParamsUboCpu.BlockName, GpuBindingRegistry.Ubo.Object);
+            var cpuCompositeParams = new PbrCompositeParamsUboCpu();
+            using (cpuCompositeParams.BeginBatchUpdate())
+            {
+                cpuCompositeParams.InvProjectionMatrix = invProj;
+                cpuCompositeParams.ViewMatrix = identity;
+                cpuCompositeParams.RgbaFogIn = Vector4.Zero;
+                cpuCompositeParams.FogParams = (fogDensity: 0f, fogMin: 0f);
+                cpuCompositeParams.IndirectTintAndIntensity = (tint: Vector3.One, intensity: 1.0f);
+                cpuCompositeParams.AOStrengths = (diffuse: 1.0f, specular: 1.0f);
+            }
+            pbrCompositeParamsUbo.UploadAndBind(cpuCompositeParams.Bytes);
 
             targets.DirectLightingMrt[0].Bind(0);
             targets.DirectLightingMrt[1].Bind(1);
@@ -1017,6 +1088,54 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         {
             GL.UniformMatrix4(loc, 1, false, matrix);
         }
+    }
+
+    private static void UpdateAndBindLumOnProbeParamsUbo(int programId, ObjectParamsUbo objectParamsUbo, Action<LumOnProbeParamsUbo> configure)
+    {
+        UniformBlockBindingUtil.EnsureBlockBound(programId, LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
+
+        var cpu = new LumOnProbeParamsUbo();
+        using (cpu.BeginBatchUpdate())
+        {
+            configure(cpu);
+        }
+
+        objectParamsUbo.UploadAndBind(cpu.Bytes);
+    }
+
+    private static void ConfigureDefaultLumOnProbeParams(LumOnProbeParamsUbo cpu)
+    {
+        cpu.IndirectTint = Vector3.One;
+        cpu.Intensity = 1.0f;
+        cpu.TemporalAlpha = 0.9f;
+        cpu.HitDistanceRejectThreshold = 0.3f;
+        cpu.HitDistanceSigma = 1.0f;
+        cpu.LeakThreshold = 0.5f;
+        cpu.FilterRadius = 1;
+        cpu.SampleStride = 1;
+        cpu.DepthDiscontinuityThreshold = 0.1f;
+    }
+
+    private static void UpdateAndBindLumOnUpsampleParamsUbo(int programId, ObjectParamsUbo objectParamsUbo, Action<LumOnUpsampleParamsUbo> configure)
+    {
+        UniformBlockBindingUtil.EnsureBlockBound(programId, LumOnUpsampleParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
+
+        var cpu = new LumOnUpsampleParamsUbo();
+        using (cpu.BeginBatchUpdate())
+        {
+            configure(cpu);
+        }
+
+        objectParamsUbo.UploadAndBind(cpu.Bytes);
+    }
+
+    private static void ConfigureDefaultLumOnUpsampleParams(LumOnUpsampleParamsUbo cpu)
+    {
+        cpu.UpsampleDepthSigma = 0.1f;
+        cpu.UpsampleNormalSigma = 16.0f;
+        cpu.UpsampleSpatialSigma = 1.0f;
+        cpu.HoleFillMinConfidence = 0.05f;
+        cpu.HoleFillRadius = 2;
     }
 
     private static void SetupPbrCompositeUniforms(int programId, float[] invProjection, float[] viewMatrix, int lumOnEnabled)

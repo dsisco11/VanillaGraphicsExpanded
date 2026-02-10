@@ -1,5 +1,6 @@
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -52,7 +53,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
     /// <summary>
     /// Sets up common uniforms for the gather shader.
     /// </summary>
-    private void SetupGatherUniforms(
+    private ObjectParamsUbo SetupGatherUniforms(
         int programId,
         float[] invProjection,
         float[] view,
@@ -60,41 +61,9 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         (float r, float g, float b) indirectTint = default,
         int sampleStride = 1)
     {
+        var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.ProbeGather.ParamsUBO");
+
         GL.UseProgram(programId);
-
-        // Matrix uniforms
-        var invProjLoc = GL.GetUniformLocation(programId, "invProjectionMatrix");
-        var viewLoc = GL.GetUniformLocation(programId, "viewMatrix");
-        GL.UniformMatrix4(invProjLoc, 1, false, invProjection);
-        GL.UniformMatrix4(viewLoc, 1, false, view);
-
-        // Probe grid uniforms
-        var spacingLoc = GL.GetUniformLocation(programId, "probeSpacing");
-        var gridSizeLoc = GL.GetUniformLocation(programId, "probeGridSize");
-        var screenSizeLoc = GL.GetUniformLocation(programId, "screenSize");
-        var halfResSizeLoc = GL.GetUniformLocation(programId, "halfResSize");
-        GL.Uniform1(spacingLoc, ProbeSpacing);
-        GL.Uniform2(gridSizeLoc, (float)ProbeGridWidth, (float)ProbeGridHeight);
-        GL.Uniform2(screenSizeLoc, (float)ScreenWidth, (float)ScreenHeight);
-        GL.Uniform2(halfResSizeLoc, (float)HalfResWidth, (float)HalfResHeight);
-
-        // Z-planes
-        var zNearLoc = GL.GetUniformLocation(programId, "zNear");
-        var zFarLoc = GL.GetUniformLocation(programId, "zFar");
-        GL.Uniform1(zNearLoc, ZNear);
-        GL.Uniform1(zFarLoc, ZFar);
-
-        // Quality parameters
-        var intensityLoc = GL.GetUniformLocation(programId, "intensity");
-        var tintLoc = GL.GetUniformLocation(programId, "indirectTint");
-        var leakLoc = GL.GetUniformLocation(programId, "leakThreshold");
-        var strideLoc = GL.GetUniformLocation(programId, "sampleStride");
-        
-        GL.Uniform1(intensityLoc, intensity);
-        var tint = indirectTint == default ? (1.0f, 1.0f, 1.0f) : indirectTint;
-        GL.Uniform3(tintLoc, tint.Item1, tint.Item2, tint.Item3);
-        GL.Uniform1(leakLoc, 0.5f);
-        GL.Uniform1(strideLoc, sampleStride);
 
         // Texture sampler uniforms
         var atlasLoc = GL.GetUniformLocation(programId, "octahedralAtlas");
@@ -115,7 +84,21 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             viewMatrix: view,
             probeSpacing: ProbeSpacing);
 
+        // Phase 23: UBO-backed probe parameters.
+        UniformBlockBindingUtil.EnsureBlockBound(programId, LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
+        var cpuParams = new LumOnProbeParamsUbo();
+        using (cpuParams.BeginBatchUpdate())
+        {
+            cpuParams.Intensity = intensity;
+            var tint = indirectTint == default ? (1.0f, 1.0f, 1.0f) : indirectTint;
+            cpuParams.IndirectTint = new Vector3(tint.Item1, tint.Item2, tint.Item3);
+            cpuParams.LeakThreshold = 0.5f;
+            cpuParams.SampleStride = sampleStride;
+        }
+        objectParamsUbo.UploadAndBind(cpuParams.Bytes);
+
         GL.UseProgram(0);
+        return objectParamsUbo;
     }
 
     /// <summary>
@@ -300,7 +283,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
-        SetupGatherUniforms(programId, invProjection, viewMatrix, intensity: 1.0f);
+        using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix, intensity: 1.0f);
 
         // Bind inputs
         atlasTex.Bind(0);
@@ -401,7 +384,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
-        SetupGatherUniforms(programId, invProjection, viewMatrix);
+        using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
 
         atlasTex.Bind(0);
         anchorPosTex.Bind(1);
@@ -513,7 +496,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
-        SetupGatherUniforms(programId, invProjection, viewMatrix);
+        using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
 
         atlasTex.Bind(0);
         anchorPosTex.Bind(1);
@@ -625,7 +608,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
-        SetupGatherUniforms(programId, invProjection, viewMatrix);
+        using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
 
         atlasTex.Bind(0);
         anchorPosTex.Bind(1);
@@ -700,7 +683,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
-        SetupGatherUniforms(programId, invProjection, viewMatrix, intensity: 1.0f, indirectTint: (1f, 1f, 1f));
+        using var objectParamsUboBaseline = SetupGatherUniforms(programId, invProjection, viewMatrix, intensity: 1.0f, indirectTint: (1f, 1f, 1f));
 
         atlasTex.Bind(0);
         anchorPosTex.Bind(1);
@@ -716,7 +699,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             HalfResWidth, HalfResHeight,
             PixelInternalFormat.Rgba16f);
 
-        SetupGatherUniforms(programId, invProjection, viewMatrix, intensity: 1.0f, indirectTint: tint);
+        using var objectParamsUboTint = SetupGatherUniforms(programId, invProjection, viewMatrix, intensity: 1.0f, indirectTint: tint);
 
         // Re-bind textures after uniform setup
         atlasTex.Bind(0);
@@ -814,7 +797,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         // Use realistic matrices for consistency (though sky pixels early-out before depth reconstruction)
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var viewMatrix = LumOnTestInputFactory.CreateIdentityView();
-        SetupGatherUniforms(programId, invProjection, viewMatrix);
+        using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
 
         atlasTex.Bind(0);
         anchorPosTex.Bind(1);
@@ -882,7 +865,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         var programId = CompileGatherShader();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var viewMatrix = LumOnTestInputFactory.CreateIdentityView();
-        SetupGatherUniforms(programId, invProjection, viewMatrix);
+        using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
 
         atlasTex.Bind(0);
         anchorPosTex.Bind(1);
@@ -951,7 +934,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileGatherShader();
-            SetupGatherUniforms(programId, invProjection, viewMatrix);
+            using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
 
             atlasTex.Bind(0);
             anchorPosTex.Bind(1);
@@ -982,7 +965,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileGatherShader();
-            SetupGatherUniforms(programId, invProjection, viewMatrix);
+            using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
 
             atlasTex.Bind(0);
             anchorPosTex.Bind(1);
@@ -1049,7 +1032,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileGatherShader();
-            SetupGatherUniforms(programId, invProjection, viewMatrix, sampleStride: 1);
+            using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix, sampleStride: 1);
 
             atlasTex.Bind(0);
             anchorPosTex.Bind(1);
@@ -1078,7 +1061,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileGatherShader();
-            SetupGatherUniforms(programId, invProjection, viewMatrix, sampleStride: 2);
+            using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix, sampleStride: 2);
 
             atlasTex.Bind(0);
             anchorPosTex.Bind(1);
@@ -1142,7 +1125,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
-        SetupGatherUniforms(programId, invProjection, viewMatrix);
+        using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
 
         atlasTex.Bind(0);
         anchorPosTex.Bind(1);

@@ -9,6 +9,7 @@ using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.Tests.GPU.Shaders;
 
 using Xunit;
 
@@ -26,12 +27,11 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var markComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages.csh", debugName: "Tests.LumonSceneRuntimeCaptureWiring.Mark");
-        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages.csh", debugName: "Tests.LumonSceneRuntimeCaptureWiring.Compact");
+        using var markShader = new LumonSceneFeedbackMarkPagesShader(helper, debugName: "Tests.LumonSceneRuntimeCaptureWiring.Mark");
+        using var compactShader = new LumonSceneFeedbackCompactPagesShader(helper, debugName: "Tests.LumonSceneRuntimeCaptureWiring.Compact");
         using var captureComputeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel.csh", debugName: "Tests.LumonSceneRuntimeCaptureWiring.Capture");
-        int markProgram = markComputeProgram.ProgramId;
-        int compactProgram = compactComputeProgram.ProgramId;
         int captureProgram = captureComputeProgram.ProgramId;
+        using var captureParamsUbo = new ObjectParamsUbo("Tests.LumonSceneRuntimeCaptureWiring.CaptureParams");
 
         // Use patchIds 1..6 which correspond to +/-X,+/-Y,+/-Z normals in the capture shader.
         // Keep patchId == virtualPageIndex for v1/v2, so the compacted request's Flags field still works as patchId.
@@ -86,27 +86,27 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         using var markCounters = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 3);
 
         // Pass A: mark.
-        GL.UseProgram(markProgram);
         markCounters.BindBase(bindingIndex: 0);
-        BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
-        BindSampler2DUint(markProgram, "vge_chunkSlotGenerationTex", genTex.TextureId, unit: 1);
-        SetUniform(markProgram, "vge_frameStamp", 1u);
-        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
+        markShader.Use();
+        markShader.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
+        markShader.BindChunkSlotGenerationTex(genTex.TextureId);
+        markShader.FrameStamp = 1u;
+        markShader.BindPageUsageStampImage(usageStamp.TextureId, access: TextureAccess.ReadWrite);
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("RuntimeCaptureWiring mark pass dispatch");
 
         // Pass B: compact.
-        GL.UseProgram(compactProgram);
         pageRequestCounter.BindBase(bindingIndex: 0);
         pageRequests.BindBase(bindingIndex: 0);
-        BindSampler2DArrayUint(compactProgram, "vge_pageUsageStamp", usageStamp.TextureId, unit: 0);
-        BindSampler2DArrayUint(compactProgram, "vge_pageTableMip0", pageTableMip0.TextureId, unit: 1);
-        SetUniform(compactProgram, "vge_maxRequests", (uint)desiredPages);
-        SetUniform(compactProgram, "vge_frameStamp", 1u);
-        SetUniform(compactProgram, "vge_scanOffset", 0u);
-        SetUniform(compactProgram, "vge_compactMode", 1u);
+        compactShader.Use();
+        compactShader.BindPageUsageStamp(usageStamp.TextureId);
+        compactShader.BindPageTableMip0(pageTableMip0.TextureId);
+        compactShader.MaxRequests = (uint)desiredPages;
+        compactShader.FrameStamp = 1u;
+        compactShader.ScanOffset = 0u;
+        compactShader.CompactMode = 1u;
         GL.DispatchCompute((16384 * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
@@ -205,13 +205,19 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         BindSampler3D(unit: 2, occL0.TextureId);
         BindSampler2D(unit: 3, materialPalette.TextureId);
 
-        SetUniform(captureProgram, "vge_tileSizeTexels", (uint)tileSize);
-        SetUniform(captureProgram, "vge_tilesPerAxis", (uint)tilesPerAxis);
-        SetUniform(captureProgram, "vge_tilesPerAtlas", (uint)tilesPerAtlas);
-        _ = TrySetUniform(captureProgram, "vge_borderTexels", 0u);
-        SetUniform3i(captureProgram, "vge_occOriginMinCell0", 0, 0, 0);
-        SetUniform3i(captureProgram, "vge_occRing0", 0, 0, 0);
-        SetUniform1i(captureProgram, "vge_occResolution", occRes);
+        LumonSceneCaptureVoxelParamsUbo.Bind(
+            captureParamsUbo,
+            tileSizeTexels: (uint)tileSize,
+            tilesPerAxis: (uint)tilesPerAxis,
+            tilesPerAtlas: (uint)tilesPerAtlas,
+            borderTexels: 0u,
+            occOriginMinCell0X: 0,
+            occOriginMinCell0Y: 0,
+            occOriginMinCell0Z: 0,
+            occRing0X: 0,
+            occRing0Y: 0,
+            occRing0Z: 0,
+            occResolution: occRes);
 
         int gxCap = (tileSize + 7) / 8;
         int gyCap = (tileSize + 7) / 8;

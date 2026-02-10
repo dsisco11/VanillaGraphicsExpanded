@@ -3,6 +3,8 @@ using System.IO;
 
 using OpenTK.Graphics.OpenGL;
 
+using HeightBakeParamsUboCpu = VanillaGraphicsExpanded.PBR.Materials.PbrHeightBakeParamsUbo;
+
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -72,29 +74,28 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
         heightTex.Bind(0);
 
+        using var objectParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{programId}");
+
+        // Ensure the pack shader does not take the alpha-cutoff early-out path.
+        using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
+        albedoAtlas.Bind(1);
+
         int locHeight = GL.GetUniformLocation(programId, "u_height");
-        int locSolverSize = GL.GetUniformLocation(programId, "u_solverSize");
-        int locTileSize = GL.GetUniformLocation(programId, "u_tileSize");
-        int locViewportOrigin = GL.GetUniformLocation(programId, "u_viewportOrigin");
-        int locNormalStrength = GL.GetUniformLocation(programId, "u_normalStrength");
-        int locNormalScale = GL.GetUniformLocation(programId, "u_normalScale");
-        int locDepthScale = GL.GetUniformLocation(programId, "u_depthScale");
+        int locAlbedoAtlas = GL.GetUniformLocation(programId, "u_albedoAtlas");
 
         Assert.True(locHeight >= 0, "u_height uniform missing");
-        Assert.True(locSolverSize >= 0, "u_solverSize uniform missing");
-        Assert.True(locTileSize >= 0, "u_tileSize uniform missing");
-        Assert.True(locViewportOrigin >= 0, "u_viewportOrigin uniform missing");
-        Assert.True(locNormalStrength >= 0, "u_normalStrength uniform missing");
-        Assert.True(locNormalScale >= 0, "u_normalScale uniform missing");
-        Assert.True(locDepthScale >= 0, "u_depthScale uniform missing");
+        Assert.True(locAlbedoAtlas >= 0, "u_albedoAtlas uniform missing");
 
         GL.Uniform1(locHeight, 0);
-        GL.Uniform2(locSolverSize, w, h);
-        GL.Uniform2(locTileSize, w, h);
-        GL.Uniform2(locViewportOrigin, 0, 0);
-        GL.Uniform1(locNormalStrength, 0f);
-        GL.Uniform1(locNormalScale, 1f);
-        GL.Uniform1(locDepthScale, 1f);
+        GL.Uniform1(locAlbedoAtlas, 1);
+
+        BindHeightBakeParams(objectParamsUbo, programId, (cpu) =>
+        {
+            cpu.SolverSize = (width: w, height: h);
+            cpu.TileSize = (width: w, height: h);
+            cpu.ViewportOrigin = (x: 0, y: 0);
+            cpu.PackParams = (normalStrength: 0f, normalScale: 1f, depthScale: 1f, eps: 0f);
+        });
 
         RenderFullscreenQuad();
 
@@ -247,21 +248,23 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GL.UseProgram(programId);
         heightTex.Bind(0);
 
+        using var objectParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{programId}");
+        using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
+        albedoAtlas.Bind(1);
+
         int locHeight = GL.GetUniformLocation(programId, "u_height");
-        int locSolverSize = GL.GetUniformLocation(programId, "u_solverSize");
-        int locTileSize = GL.GetUniformLocation(programId, "u_tileSize");
-        int locViewportOrigin = GL.GetUniformLocation(programId, "u_viewportOrigin");
-        int locNormalStrength = GL.GetUniformLocation(programId, "u_normalStrength");
-        int locNormalScale = GL.GetUniformLocation(programId, "u_normalScale");
-        int locDepthScale = GL.GetUniformLocation(programId, "u_depthScale");
+        int locAlbedoAtlas = GL.GetUniformLocation(programId, "u_albedoAtlas");
 
         GL.Uniform1(locHeight, 0);
-        GL.Uniform2(locSolverSize, w, h);
-        GL.Uniform2(locTileSize, w, h);
-        GL.Uniform2(locViewportOrigin, 0, 0);
-        GL.Uniform1(locNormalStrength, normalStrength);
-        GL.Uniform1(locNormalScale, normalScale);
-        GL.Uniform1(locDepthScale, depthScale);
+        GL.Uniform1(locAlbedoAtlas, 1);
+
+        BindHeightBakeParams(objectParamsUbo, programId, (cpu) =>
+        {
+            cpu.SolverSize = (width: w, height: h);
+            cpu.TileSize = (width: w, height: h);
+            cpu.ViewportOrigin = (x: 0, y: 0);
+            cpu.PackParams = (normalStrength: normalStrength, normalScale: normalScale, depthScale: depthScale, eps: 0f);
+        });
 
         RenderFullscreenQuad();
 
@@ -301,21 +304,23 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GL.UseProgram(programId);
         heightTex.Bind(0);
 
+        using var objectParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{programId}");
+        using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
+        albedoAtlas.Bind(1);
+
         int locHeight = GL.GetUniformLocation(programId, "u_height");
-        int locSolverSize = GL.GetUniformLocation(programId, "u_solverSize");
-        int locTileSize = GL.GetUniformLocation(programId, "u_tileSize");
-        int locViewportOrigin = GL.GetUniformLocation(programId, "u_viewportOrigin");
-        int locNormalStrength = GL.GetUniformLocation(programId, "u_normalStrength");
-        int locNormalScale = GL.GetUniformLocation(programId, "u_normalScale");
-        int locDepthScale = GL.GetUniformLocation(programId, "u_depthScale");
+        int locAlbedoAtlas = GL.GetUniformLocation(programId, "u_albedoAtlas");
 
         GL.Uniform1(locHeight, 0);
-        GL.Uniform2(locSolverSize, w, h);
-        GL.Uniform2(locTileSize, w, h);
-        GL.Uniform2(locViewportOrigin, 0, 0);
-        GL.Uniform1(locNormalStrength, normalStrength);
-        GL.Uniform1(locNormalScale, normalScale);
-        GL.Uniform1(locDepthScale, depthScale);
+        GL.Uniform1(locAlbedoAtlas, 1);
+
+        BindHeightBakeParams(objectParamsUbo, programId, (cpu) =>
+        {
+            cpu.SolverSize = (width: w, height: h);
+            cpu.TileSize = (width: w, height: h);
+            cpu.ViewportOrigin = (x: 0, y: 0);
+            cpu.PackParams = (normalStrength: normalStrength, normalScale: normalScale, depthScale: depthScale, eps: 0f);
+        });
 
         RenderFullscreenQuad();
 
@@ -382,30 +387,19 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GL.UseProgram(normalizeProgram.ProgramId);
         hTex.Bind(0);
 
+        using var normalizeParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.NormalizeParams.{normalizeProgram.ProgramId}");
+
         int locH = GL.GetUniformLocation(normalizeProgram.ProgramId, "u_h");
-        int locSize = GL.GetUniformLocation(normalizeProgram.ProgramId, "u_size");
-        int locMean = GL.GetUniformLocation(normalizeProgram.ProgramId, "u_mean");
-        int locInvNeg = GL.GetUniformLocation(normalizeProgram.ProgramId, "u_invNeg");
-        int locInvPos = GL.GetUniformLocation(normalizeProgram.ProgramId, "u_invPos");
-        int locStrength = GL.GetUniformLocation(normalizeProgram.ProgramId, "u_heightStrength");
-        int locGamma = GL.GetUniformLocation(normalizeProgram.ProgramId, "u_gamma");
 
         Assert.True(locH >= 0);
-        Assert.True(locSize >= 0);
-        Assert.True(locMean >= 0);
-        Assert.True(locInvNeg >= 0);
-        Assert.True(locInvPos >= 0);
-        Assert.True(locStrength >= 0);
-        Assert.True(locGamma >= 0);
-
         GL.Uniform1(locH, 0);
-        GL.Uniform2(locSize, w, h);
-        GL.Uniform1(locMean, 0f);
-        // For this unit test we don't need asymmetric normalization; just ensure non-zero scaling.
-        GL.Uniform1(locInvNeg, 1.0f);
-        GL.Uniform1(locInvPos, 1.0f);
-        GL.Uniform1(locStrength, 1.0f);
-        GL.Uniform1(locGamma, 1.0f);
+
+        BindHeightBakeParams(normalizeParamsUbo, normalizeProgram.ProgramId, (cpu) =>
+        {
+            cpu.CommonSize = (width: w, height: h);
+            cpu.NormalizeParams = (mean: 0f, invNeg: 1.0f, invPos: 1.0f, heightStrength: 1.0f);
+            cpu.NormalizeGamma = 1.0f;
+        });
 
         RenderFullscreenQuad();
         GL.UseProgram(0);
@@ -420,30 +414,29 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
         GL.UseProgram(packProgram.ProgramId);
 
+        using var packParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{packProgram.ProgramId}");
+
         hnTex.Bind(0);
+
+        using var albedoAtlas2 = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
+        albedoAtlas2.Bind(1);
+
         int locHeight = GL.GetUniformLocation(packProgram.ProgramId, "u_height");
-        int locSolverSize = GL.GetUniformLocation(packProgram.ProgramId, "u_solverSize");
-        int locTileSize = GL.GetUniformLocation(packProgram.ProgramId, "u_tileSize");
-        int locViewportOrigin = GL.GetUniformLocation(packProgram.ProgramId, "u_viewportOrigin");
-        int locNormalScale = GL.GetUniformLocation(packProgram.ProgramId, "u_normalScale");
-        int locDepthScale = GL.GetUniformLocation(packProgram.ProgramId, "u_depthScale");
-        int locNormalStrength2 = GL.GetUniformLocation(packProgram.ProgramId, "u_normalStrength");
+        int locAlbedoAtlas2Loc = GL.GetUniformLocation(packProgram.ProgramId, "u_albedoAtlas");
 
         Assert.True(locHeight >= 0);
-        Assert.True(locSolverSize >= 0);
-        Assert.True(locTileSize >= 0);
-        Assert.True(locViewportOrigin >= 0);
-        Assert.True(locNormalStrength2 >= 0);
-        Assert.True(locNormalScale >= 0);
-        Assert.True(locDepthScale >= 0);
+        Assert.True(locAlbedoAtlas2Loc >= 0);
 
         GL.Uniform1(locHeight, 0);
-        GL.Uniform2(locSolverSize, w, h);
-        GL.Uniform2(locTileSize, w, h);
-        GL.Uniform2(locViewportOrigin, 0, 0);
-        GL.Uniform1(locNormalStrength2, 0f);
-        GL.Uniform1(locNormalScale, 1f);
-        GL.Uniform1(locDepthScale, 1f);
+        GL.Uniform1(locAlbedoAtlas2Loc, 1);
+
+        BindHeightBakeParams(packParamsUbo, packProgram.ProgramId, (cpu) =>
+        {
+            cpu.SolverSize = (width: w, height: h);
+            cpu.TileSize = (width: w, height: h);
+            cpu.ViewportOrigin = (x: 0, y: 0);
+            cpu.PackParams = (normalStrength: 0f, normalScale: 1f, depthScale: 1f, eps: 0f);
+        });
 
         RenderFullscreenQuad();
 
@@ -525,23 +518,26 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
         heightTex.Bind(0);
 
+        using var objectParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{programId}");
+        using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
+        albedoAtlas.Bind(1);
+
         int locHeight = GL.GetUniformLocation(programId, "u_height");
-        int locSolverSize = GL.GetUniformLocation(programId, "u_solverSize");
-        int locTileSize = GL.GetUniformLocation(programId, "u_tileSize");
-        int locViewportOrigin = GL.GetUniformLocation(programId, "u_viewportOrigin");
-        int locNormalStrength = GL.GetUniformLocation(programId, "u_normalStrength");
+        int locAlbedoAtlasLoc = GL.GetUniformLocation(programId, "u_albedoAtlas");
 
         Assert.True(locHeight >= 0);
-        Assert.True(locSolverSize >= 0);
-        Assert.True(locTileSize >= 0);
-        Assert.True(locViewportOrigin >= 0);
-        Assert.True(locNormalStrength >= 0);
+        Assert.True(locAlbedoAtlasLoc >= 0);
 
         GL.Uniform1(locHeight, 0);
-        GL.Uniform2(locSolverSize, w, h);
-        GL.Uniform2(locTileSize, w, h);
-        GL.Uniform2(locViewportOrigin, 0, 0);
-        GL.Uniform1(locNormalStrength, 0f);
+        GL.Uniform1(locAlbedoAtlasLoc, 1);
+
+        BindHeightBakeParams(objectParamsUbo, programId, (cpu) =>
+        {
+            cpu.SolverSize = (width: w, height: h);
+            cpu.TileSize = (width: w, height: h);
+            cpu.ViewportOrigin = (x: 0, y: 0);
+            cpu.PackParams = (normalStrength: 0f, normalScale: 1f, depthScale: 1f, eps: 0f);
+        });
 
         RenderFullscreenQuad();
 
@@ -562,5 +558,32 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         }
 
         Assert.True(ones < (w * h * 0.98), $"Alpha appears solid white under blending; ones={ones}/{w*h}");
+    }
+
+    private static void BindHeightBakeParams(ObjectParamsUbo paramsUbo, int programId, Action<HeightBakeParamsUboCpu> configure)
+    {
+        PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(programId);
+
+        var cpu = new HeightBakeParamsUboCpu();
+        using (cpu.BeginBatchUpdate())
+        {
+            configure(cpu);
+        }
+
+        paramsUbo.UploadAndBind(cpu.Bytes);
+    }
+
+    private static DynamicTexture2D CreateSolidAlbedoAtlas(int w, int h, float alpha)
+    {
+        float[] rgba = new float[w * h * 4];
+        for (int i = 0; i < rgba.Length; i += 4)
+        {
+            rgba[i + 0] = 1f;
+            rgba[i + 1] = 1f;
+            rgba[i + 2] = 1f;
+            rgba[i + 3] = alpha;
+        }
+
+        return DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.Rgba8, rgba, TextureFilterMode.Nearest, debugName: "Tests.Pbr.NormalDepthBake.AlbedoAtlas");
     }
 }

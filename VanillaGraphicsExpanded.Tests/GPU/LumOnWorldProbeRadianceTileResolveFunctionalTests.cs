@@ -2,7 +2,9 @@ using System;
 
 using OpenTK.Graphics.OpenGL;
 
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 using Xunit;
 
@@ -72,7 +74,14 @@ public sealed class LumOnWorldProbeRadianceTileResolveFunctionalTests : LumOnSha
             GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, stride, 2 * sizeof(float));
 
             GL.UseProgram(programId);
-            GL.Uniform2(GL.GetUniformLocation(programId, "atlasSize"), (float)width, (float)height);
+
+            using var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.WorldProbeResolve.ParamsUBO");
+            UniformBlockBindingUtil.EnsureBlockBound(programId, LumOnWorldProbeResolveParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
+            var cpuParams = new LumOnWorldProbeResolveParamsUbo
+            {
+                AtlasSize = new System.Numerics.Vector2(width, height)
+            };
+            objectParamsUbo.UploadAndBind(cpuParams.Bytes);
 
             GL.DrawArrays(PrimitiveType.Points, 0, 1);
 

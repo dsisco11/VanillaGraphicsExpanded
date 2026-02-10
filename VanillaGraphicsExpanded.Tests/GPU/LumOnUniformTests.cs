@@ -18,6 +18,34 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GPU")]
 public class LumOnUniformTests : IDisposable
 {
+    // Many legacy uniform names are now macro aliases over UBO members.
+    // The old name will never appear in GL reflection; instead, the backing UBO member must be active.
+    private static readonly IReadOnlyDictionary<string, string[]> MacroBackedCriticals =
+        new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            // lumon_upsample_params_ubo.glsl
+            ["holeFillRadius"] = ["upsampleInts0"],
+            ["holeFillMinConfidence"] = ["upsampleFloats0"],
+
+            // lumon_probe_params_ubo.glsl
+            ["indirectTint"] = ["indirectTint_intensity", "compositeTint_intensity"],
+            ["intensity"] = ["indirectTint_intensity"],
+            ["temporalAlpha"] = ["probeFloats0", "temporalFloats0"],
+            ["hitDistanceRejectThreshold"] = ["probeFloats0"],
+            ["hitDistanceSigma"] = ["probeFloats0"],
+            ["filterRadius"] = ["probeInts0"],
+            ["sampleStride"] = ["probeInts0"],
+            ["depthDiscontinuityThreshold"] = ["anchorFloats0"],
+
+            // lumon_combine_params_ubo.glsl (and debug params for debug shader)
+            ["indirectIntensity"] = ["indirectTint_intensity", "compositeTint_intensity"],
+            ["diffuseAOStrength"] = ["aoStrengths"],
+            ["specularAOStrength"] = ["aoStrengths"],
+
+            // lumon_debug_params_ubo.glsl
+            ["debugMode"] = ["debugInts0"],
+        };
+
     // Phase 23: many previously standalone uniforms are now provided via LumOnFrameUBO.
     private static readonly HashSet<string> FrameUboBackedNames = new(StringComparer.Ordinal)
     {
@@ -195,9 +223,29 @@ public class LumOnUniformTests : IDisposable
 
         int location = _helper.GetUniformLocation(linkResult.ProgramId, uniformName);
 
-        if (location >= 0)
+        // Many parameters have moved from standalone uniforms to UBO members.
+        // For these, GL.GetUniformLocation(name) will be -1, but the variable should still
+        // show up as an active uniform with a qualified name like "blockInstance.member".
+        if (location >= 0 || IsActiveUniformOrUboMember(linkResult.ProgramId, uniformName))
         {
             return;
+        }
+
+        // Legacy uniform macro aliases (e.g. "holeFillRadius") map to UBO members.
+        // Validate the actual backing UBO uniform(s) instead of the macro name.
+        if (MacroBackedCriticals.TryGetValue(uniformName, out var backingUniforms))
+        {
+            foreach (var backingName in backingUniforms)
+            {
+                if (IsActiveUniformOrUboMember(linkResult.ProgramId, backingName))
+                {
+                    return;
+                }
+            }
+
+            Assert.Fail(
+                $"Critical value '{uniformName}' is a macro alias backed by UBO uniforms [{string.Join(", ", backingUniforms)}], " +
+                $"but none were reported active by OpenGL for {vertexShader}/{fragmentShader}.");
         }
 
         // Phase 23: Many previously-critical uniforms are now provided via UBOs instead of glUniform*.
@@ -231,6 +279,51 @@ public class LumOnUniformTests : IDisposable
         Assert.True(location >= 0,
             $"Critical uniform '{uniformName}' not found in {vertexShader}/{fragmentShader}. " +
             $"Location: {location}. This uniform is required for the shader to work correctly.");
+    }
+
+    private static bool IsActiveUniformOrUboMember(int programId, string uniformName)
+    {
+        GL.GetProgram(programId, GetProgramParameterName.ActiveUniforms, out int activeUniformCount);
+        if (activeUniformCount <= 0)
+        {
+            return false;
+        }
+
+        static string Normalize(string name)
+        {
+            // Drivers often append "[0]" for arrays; treat that as the base uniform name.
+            return name.EndsWith("[0]", StringComparison.Ordinal) ? name[..^3] : name;
+        }
+
+        string expected = Normalize(uniformName);
+        bool expectedIsQualified = expected.Contains('.', StringComparison.Ordinal);
+        string suffix = "." + expected;
+
+        for (int i = 0; i < activeUniformCount; i++)
+        {
+            GL.GetActiveUniform(programId, i, bufSize: 1024, out _, out _, out _, out string activeName);
+
+            string actual = Normalize(activeName);
+
+            if (string.Equals(actual, expected, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            // Unqualified lookups ("member") can match a qualified UBO uniform ("block.member").
+            if (!expectedIsQualified && actual.EndsWith(suffix, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            // Qualified lookups ("block.member") may appear with additional qualification on some drivers.
+            if (expectedIsQualified && actual.EndsWith(expected, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool TryGetMigratedDefineName(string uniformName, out string defineName)

@@ -1,6 +1,8 @@
 using System;
+using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -59,7 +61,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
     /// <summary>
     /// Sets up common uniforms for the debug shader.
     /// </summary>
-    private void SetupDebugUniforms(
+    private ObjectParamsUbo SetupDebugUniforms(
         int programId,
         int debugMode,
         float[] invProjection,
@@ -69,41 +71,9 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         float depthRejectThreshold = 0.1f,
         float normalRejectThreshold = 0.9f)
     {
+        var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.Debug.ParamsUBO");
+
         GL.UseProgram(programId);
-
-        // Debug mode
-        var modeLoc = GL.GetUniformLocation(programId, "debugMode");
-        GL.Uniform1(modeLoc, debugMode);
-
-        // Size uniforms
-        var screenSizeLoc = GL.GetUniformLocation(programId, "screenSize");
-        var gridSizeLoc = GL.GetUniformLocation(programId, "probeGridSize");
-        var spacingLoc = GL.GetUniformLocation(programId, "probeSpacing");
-        GL.Uniform2(screenSizeLoc, (float)ScreenWidth, (float)ScreenHeight);
-        GL.Uniform2(gridSizeLoc, (float)ProbeGridWidth, (float)ProbeGridHeight);
-        GL.Uniform1(spacingLoc, ProbeSpacing);
-
-        // Z-planes
-        var zNearLoc = GL.GetUniformLocation(programId, "zNear");
-        var zFarLoc = GL.GetUniformLocation(programId, "zFar");
-        GL.Uniform1(zNearLoc, ZNear);
-        GL.Uniform1(zFarLoc, ZFar);
-
-        // Matrix uniforms
-        var invProjLoc = GL.GetUniformLocation(programId, "invProjectionMatrix");
-        var invViewLoc = GL.GetUniformLocation(programId, "invViewMatrix");
-        var prevViewProjLoc = GL.GetUniformLocation(programId, "prevViewProjMatrix");
-        GL.UniformMatrix4(invProjLoc, 1, false, invProjection);
-        GL.UniformMatrix4(invViewLoc, 1, false, invView);
-        GL.UniformMatrix4(prevViewProjLoc, 1, false, prevViewProj);
-
-        // Temporal parameters
-        var alphaLoc = GL.GetUniformLocation(programId, "temporalAlpha");
-        var depthThreshLoc = GL.GetUniformLocation(programId, "depthRejectThreshold");
-        var normalThreshLoc = GL.GetUniformLocation(programId, "normalRejectThreshold");
-        GL.Uniform1(alphaLoc, temporalAlpha);
-        GL.Uniform1(depthThreshLoc, depthRejectThreshold);
-        GL.Uniform1(normalThreshLoc, normalRejectThreshold);
 
         // Texture sampler uniforms
         var depthLoc = GL.GetUniformLocation(programId, "primaryDepth");
@@ -131,7 +101,26 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             invViewMatrix: invView,
             prevViewProjMatrix: prevViewProj);
 
+        // Phase 23: UBO-backed debug parameters.
+        UniformBlockBindingUtil.EnsureBlockBound(programId, LumOnDebugParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
+        var cpuParams = new LumOnDebugParamsUbo();
+        using (cpuParams.BeginBatchUpdate())
+        {
+            cpuParams.DebugMode = debugMode;
+            cpuParams.TemporalAlpha = temporalAlpha;
+            cpuParams.DepthRejectThreshold = depthRejectThreshold;
+            cpuParams.NormalRejectThreshold = normalRejectThreshold;
+
+            // Keep radiance overlay consistent across modes.
+            cpuParams.IndirectTint = new Vector3(1f, 1f, 1f);
+            cpuParams.IndirectIntensity = 1f;
+            cpuParams.DiffuseAOStrength = 1f;
+            cpuParams.SpecularAOStrength = 1f;
+        }
+        objectParamsUbo.UploadAndBind(cpuParams.Bytes);
+
         GL.UseProgram(0);
+        return objectParamsUbo;
     }
 
     /// <summary>
@@ -335,7 +324,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: 99, identity, identity, identity);
+        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: 99, identity, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -416,7 +405,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_GRID, identity, identity, identity);
+        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_GRID, identity, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -503,7 +492,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var programId = CompileDebugShader();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_DEPTH, invProjection, identity, identity);
+        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_DEPTH, invProjection, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -595,7 +584,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: (int)MODE_RADIANCE_OVERLAY, identity, identity, identity);
+        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_RADIANCE_OVERLAY, identity, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -666,7 +655,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var programId = CompileDebugShader();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_DEPTH, invProjection, identity, identity);
+        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_DEPTH, invProjection, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -746,7 +735,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_NORMAL, identity, identity, identity);
+        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_NORMAL, identity, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -815,7 +804,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: (int)MODE_SH_COEFFICIENTS, identity, identity, identity);
+        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_SH_COEFFICIENTS, identity, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -891,7 +880,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_DEPTH, identity, identity, identity);
+        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_DEPTH, identity, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -971,7 +960,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_NORMAL, identity, identity, identity);
+        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_NORMAL, identity, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -1045,7 +1034,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: (int)MODE_TEMPORAL_WEIGHT, identity, identity, identity);
+        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_TEMPORAL_WEIGHT, identity, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -1119,7 +1108,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: (int)MODE_TEMPORAL_REJECTION, identity, identity, identity);
+        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_TEMPORAL_REJECTION, identity, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);
@@ -1193,7 +1182,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: (int)MODE_INTERPOLATION_WEIGHTS, identity, identity, identity);
+        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_INTERPOLATION_WEIGHTS, identity, identity, identity);
 
         depthTex.Bind(0);
         normalTex.Bind(1);

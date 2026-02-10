@@ -1,6 +1,9 @@
 using System;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.LumOn.Shaders;
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -93,28 +96,32 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
         meta[idx + 1] = FlagsToFloat(flags);
     }
 
-    private void SetupUniforms(int programId, int filterRadius, float hitDistanceSigma)
+    private ObjectParamsUbo SetupUniforms(int programId, int filterRadius, float hitDistanceSigma)
     {
+        var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.ProbeFilter.ParamsUBO");
+
         GL.UseProgram(programId);
 
-        var gridSizeLoc = GL.GetUniformLocation(programId, "probeGridSize");
-        GL.Uniform2(gridSizeLoc, (float)ProbeGridWidth, (float)ProbeGridHeight);
+        // Phase 23: UBO-backed frame state (probeGridSize).
+        UpdateAndBindLumOnFrameUbo(programId);
 
-        var radiusLoc = GL.GetUniformLocation(programId, "filterRadius");
-        GL.Uniform1(radiusLoc, filterRadius);
-
-        var sigmaLoc = GL.GetUniformLocation(programId, "hitDistanceSigma");
-        GL.Uniform1(sigmaLoc, hitDistanceSigma);
+        // Phase 23: UBO-backed probe parameters.
+        UniformBlockBindingUtil.EnsureBlockBound(programId, LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
+        var cpuParams = new LumOnProbeParamsUbo();
+        using (cpuParams.BeginBatchUpdate())
+        {
+            cpuParams.FilterRadius = filterRadius;
+            cpuParams.HitDistanceSigma = hitDistanceSigma;
+        }
+        objectParamsUbo.UploadAndBind(cpuParams.Bytes);
 
         // Samplers
         GL.Uniform1(GL.GetUniformLocation(programId, "octahedralAtlas"), 0);
         GL.Uniform1(GL.GetUniformLocation(programId, "probeAtlasMeta"), 1);
         GL.Uniform1(GL.GetUniformLocation(programId, "probeAnchorPosition"), 2);
 
-        // Phase 23: UBO-backed frame state (probeGridSize).
-        UpdateAndBindLumOnFrameUbo(programId);
-
         GL.UseProgram(0);
+        return objectParamsUbo;
     }
 
     private static (float r, float g, float b, float a) ReadAtlasTexel(float[] rgba, int x, int y)
@@ -147,7 +154,7 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rg32f);
 
         int programId = CompileProbeAtlasFilterShader();
-        SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 1.0f);
+        using var objectParamsUbo = SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 1.0f);
 
         atlasTex.Bind(0);
         metaTex.Bind(1);
@@ -196,7 +203,7 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
 
         int programId = CompileProbeAtlasFilterShader();
         // Large sigma so hit distance does not reject; this isolates confidence weighting.
-        SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 1000.0f);
+        using var objectParamsUbo = SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 1000.0f);
 
         atlasTex.Bind(0);
         metaTex.Bind(1);
@@ -248,7 +255,7 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
                 PixelInternalFormat.Rg32f);
 
             int programId = CompileProbeAtlasFilterShader();
-            SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 1000.0f);
+            using var objectParamsUbo = SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 1000.0f);
 
             atlasTex.Bind(0);
             metaTex.Bind(1);
@@ -283,7 +290,7 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
 
             int programId = CompileProbeAtlasFilterShader();
             // Small sigma => strong edge stop on large hit-distance delta.
-            SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 0.05f);
+            using var objectParamsUbo = SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 0.05f);
 
             atlasTex.Bind(0);
             metaTex.Bind(1);

@@ -3,6 +3,7 @@ using System.Reflection;
 
 using OpenTK.Graphics.OpenGL;
 
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -87,6 +88,7 @@ public sealed class VgeShaderProgramUniformArrayIntegrationTests
         try
         {
             GL.UseProgram(programId);
+            GlStateCache.Current.NotifyProgramBound(programId);
 
             var prog = new TestVgeProgram();
             prog.SetProgramIdForTest(programId);

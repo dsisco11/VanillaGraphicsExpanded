@@ -62,6 +62,9 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         int programId = progResult.ProgramId;
         Assert.True(programId > 0);
 
+            PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(programId);
+        using var paramsUbo = new ObjectParamsUbo("Tests.PbrPoissonJacobiConvergence.JacobiParams");
+
         using var hTex = DynamicTexture2D.CreateWithData(input.Width, input.Height, PixelInternalFormat.R32f, input.H, TextureFilterMode.Nearest);
         using var bTex = DynamicTexture2D.CreateWithData(input.Width, input.Height, PixelInternalFormat.R32f, input.B, TextureFilterMode.Nearest);
         using var outTex = DynamicTexture2D.Create(input.Width, input.Height, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
@@ -80,11 +83,12 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
 
             GL.UseProgram(programId);
 
+            PbrHeightBakeParamsUbo.BindSize(paramsUbo, input.Width, input.Height);
+
             hTex.Bind(0);
             bTex.Bind(1);
             GL.Uniform1(Uniform(programId, "u_h"), 0);
             GL.Uniform1(Uniform(programId, "u_b"), 1);
-            GL.Uniform2(Uniform(programId, "u_size"), input.Width, input.Height);
 
             GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
 
@@ -134,6 +138,10 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         int programId = progResult.ProgramId;
         Assert.True(programId > 0);
 
+        PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(programId);
+
+        using var paramsUbo = new ObjectParamsUbo("Tests.PbrPoissonJacobiConvergence.JacobiParamsSolve");
+
         // Keep this reasonably fast; Jacobi is slow but we only need to see clear reduction.
         const int iterations = 800;
 
@@ -146,6 +154,8 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
 
         int vao = GL.GenVertexArray();
         GL.BindVertexArray(vao);
+
+        PbrHeightBakeParamsUbo.BindSize(paramsUbo, rhs.Width, rhs.Height);
 
         // Jacobi ping-pong
         for (int i = 0; i < iterations; i++)
@@ -168,7 +178,6 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
 
             GL.Uniform1(Uniform(programId, "u_h"), 0);
             GL.Uniform1(Uniform(programId, "u_b"), 1);
-            GL.Uniform2(Uniform(programId, "u_size"), rhs.Width, rhs.Height);
 
             GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
 
