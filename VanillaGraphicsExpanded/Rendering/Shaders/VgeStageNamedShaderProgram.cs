@@ -1,7 +1,4 @@
 using System;
-using System.Collections.Generic;
-
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
 
@@ -15,8 +12,6 @@ internal class VgeStageNamedShaderProgram : GpuProgram
     private readonly string vertexStageShaderName;
     private readonly string fragmentStageShaderName;
     private readonly string geometryStageShaderName;
-
-    private readonly Dictionary<string, int> uniformLocationCache = new(StringComparer.Ordinal);
 
     protected override string VertexStageShaderName => vertexStageShaderName;
 
@@ -44,65 +39,4 @@ internal class VgeStageNamedShaderProgram : GpuProgram
         this.geometryStageShaderName = geometryStageShaderName ?? passName;
     }
 
-    public void RegisterUniformBlockBindingContract(string blockName, int bindingIndex, bool required = true)
-        => RegisterUniformBlockBinding(blockName, bindingIndex, required);
-
-    private int GetUniformLocationCached(string uniformName)
-    {
-        if (uniformLocationCache.TryGetValue(uniformName, out int loc))
-        {
-            return loc;
-        }
-
-        loc = GL.GetUniformLocation(ProgramId, uniformName);
-        uniformLocationCache[uniformName] = loc;
-        return loc;
-    }
-
-    public void Uniform2i(string uniformName, int x, int y)
-    {
-        int loc = GetUniformLocationCached(uniformName);
-        if (loc >= 0)
-        {
-            GL.Uniform2(loc, x, y);
-        }
-    }
-
-    public void Uniform4i(string uniformName, int x, int y, int z, int w)
-    {
-        int loc = GetUniformLocationCached(uniformName);
-        if (loc >= 0)
-        {
-            GL.Uniform4(loc, x, y, z, w);
-        }
-    }
-
-    public void Uniform2f(string uniformName, float x, float y)
-    {
-        int loc = GetUniformLocationCached(uniformName);
-        if (loc >= 0)
-        {
-            GL.Uniform2(loc, x, y);
-        }
-    }
-
-    public void Uniform3f(string uniformName, float x, float y, float z)
-    {
-        int loc = GetUniformLocationCached(uniformName);
-        if (loc >= 0)
-        {
-            GL.Uniform3(loc, x, y, z);
-        }
-    }
-
-    public void Uniform1fv(string uniformName, float[] values)
-    {
-        ArgumentNullException.ThrowIfNull(values);
-
-        int loc = GetUniformLocationCached(uniformName);
-        if (loc >= 0)
-        {
-            GL.Uniform1(loc, values.Length, values);
-        }
-    }
 }

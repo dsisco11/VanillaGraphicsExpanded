@@ -1,5 +1,4 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Threading;
 
@@ -511,96 +510,6 @@ public abstract class GpuProgram : ShaderProgram
     #endregion
 
 
-    #region Uniform Arrays
-
-    /// <summary>
-    /// Attempts to set a <c>vec3</c> uniform array element (e.g. <c>name[i]</c>) without relying on
-    /// driver- and optimizer-sensitive per-element uniform naming.
-    /// 
-    /// This uses the OpenGL rule that array elements for basic types occupy consecutive locations,
-    /// so <c>location(name[0]) + i</c> addresses <c>name[i]</c>.
-    /// 
-    /// The program must be bound via <see cref="ShaderProgram.Use"/> before calling.
-    /// Returns false if the base array uniform is not present/active in the linked program.
-    /// </summary>
-    protected bool TryUniformArrayElement(string uniformName, int index, Vec3f value)
-    {
-        if (index < 0) throw new ArgumentOutOfRangeException(nameof(index));
-        ArgumentException.ThrowIfNullOrWhiteSpace(uniformName);
-
-        if (!EnsureProgramIsBound(operationKey: $"uniformarrayelement:{uniformName}"))
-        {
-            return false;
-        }
-
-        int loc0 = GetUniformLocationOrArray0(uniformName);
-        if (loc0 < 0)
-        {
-            return false;
-        }
-
-        try
-        {
-            GL.Uniform3(loc0 + index, value.X, value.Y, value.Z);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            log?.Warning($"[VGE][{ShaderName}] Failed to set vec3 array element '{uniformName}[{index}]': {ex.Message}");
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Attempts to set a <c>vec3</c> uniform array starting at element 0.
-    /// The program must be bound via <see cref="ShaderProgram.Use"/> before calling.
-    /// Returns false if the uniform is not present/active in the linked program.
-    /// </summary>
-    protected bool TryUniformArray(string uniformName, ReadOnlySpan<Vec3f> values)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(uniformName);
-
-        if (values.Length == 0)
-        {
-            return true;
-        }
-
-        if (!EnsureProgramIsBound(operationKey: $"uniformarray:{uniformName}"))
-        {
-            return false;
-        }
-
-        int loc0 = GetUniformLocationOrArray0(uniformName);
-        if (loc0 < 0)
-        {
-            return false;
-        }
-
-        int floatCount = values.Length * 3;
-        float[] buffer = ArrayPool<float>.Shared.Rent(floatCount);
-        try
-        {
-            int j = 0;
-            foreach (var v in values)
-            {
-                buffer[j++] = v.X;
-                buffer[j++] = v.Y;
-                buffer[j++] = v.Z;
-            }
-
-            GL.Uniform3(loc0, values.Length, buffer);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            log?.Warning($"[VGE][{ShaderName}] Failed to set vec3 array '{uniformName}': {ex.Message}");
-            return false;
-        }
-        finally
-        {
-            ArrayPool<float>.Shared.Return(buffer);
-        }
-    }
 
     /// <summary>
     /// Returns the cached uniform location for <paramref name="uniformName"/>.
@@ -636,8 +545,6 @@ public abstract class GpuProgram : ShaderProgram
         uniformLocationCache[uniformName] = loc;
         return loc;
     }
-
-    #endregion
 
     #region Compilation
 

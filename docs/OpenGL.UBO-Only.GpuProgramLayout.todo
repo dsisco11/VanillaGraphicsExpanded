@@ -112,7 +112,7 @@ References:
   ✔ Split update cadence:
     - Frame/View UBO: once per frame
     - Object/Material UBO: per draw/dispatch (ideally bind-range)
-  ✔ Confirm correctness across shader recompiles and feature toggles.
+  ✔ Confirm correctness across shader recompiles and feature toggles.fix: do not drop 
 
 ☐ Phase 8 — Validation, Tooling, and Cleanup
   Exit artifacts: regression risk is managed; old uniform paths removed.
@@ -123,6 +123,6 @@ References:
     - How to add a new shader: create layout subclass + UBO schema
     - Binding registry reference
     - Rules: “no standalone non-opaque uniforms”
-  ☐ Remove deprecated uniform-setting helpers once migration is complete.
+    ✔ Remove deprecated uniform-setting helpers once migration is complete.
   ☐ Optional: investigate bindless textures as a separate phase (capability gated).
 ```
