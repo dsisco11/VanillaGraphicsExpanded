@@ -221,6 +221,12 @@ public sealed class GBufferManager : IDisposable
         if (hasLoggedBlendState) return;
         hasLoggedBlendState = true;
 
+        string preExistingErrors = GlDebug.GetErrorsString("GBuffer blend verification before queries");
+        if (preExistingErrors.Length != 0)
+        {
+            capi.Logger.Warning($"[VGE] {preExistingErrors}");
+        }
+
         // Check if blend is enabled/disabled for each buffer
         bool blend4Enabled = GL.IsEnabled(IndexedEnableCap.Blend, NormalSlotId);
         bool blend5Enabled = GL.IsEnabled(IndexedEnableCap.Blend, MaterialSlotId);
