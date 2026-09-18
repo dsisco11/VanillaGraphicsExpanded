@@ -20,6 +20,8 @@ public class LumOnProbeSh9GatherShaderProgram : GpuProgram
 {
     private LumOnProbeParamsUbo? paramsUbo;
 
+    protected override GpuProgramLayout CreateLayout() => new LumOnProbeSh9GatherProgramLayout();
+
     public LumOnProbeSh9GatherShaderProgram()
     {
         RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);

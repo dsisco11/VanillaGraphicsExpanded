@@ -583,7 +583,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         fbo.Clear();
 
         capi.Render.GlToggleBlend(false);
-        shader.Use();
+        if (!shader.TryUse())
+        {
+            return;
+        }
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
         shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
@@ -1030,7 +1033,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         fbo.Clear();
 
         capi.Render.GlToggleBlend(false);
-        shader.Use();
+        if (!shader.TryUse())
+        {
+            return;
+        }
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
         shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
