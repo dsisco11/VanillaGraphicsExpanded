@@ -17,6 +17,10 @@ public sealed class LumOnProbeAtlasPisMaskShaderProgram : GpuProgram
     public LumOnProbeAtlasPisMaskShaderProgram()
     {
         RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);
+        ProgramLayout.RegisterSamplerUnit("probeAnchorPosition", 0, required: true);
+        ProgramLayout.RegisterSamplerUnit("probeAnchorNormal", 1, required: true);
+        ProgramLayout.RegisterSamplerUnit("octahedralHistory", 2, required: true);
+        ProgramLayout.RegisterSamplerUnit("probeAtlasMetaHistory", 3, required: true);
     }
 
     protected override string VertexStageShaderName => "lumon_probe_atlas_trace";

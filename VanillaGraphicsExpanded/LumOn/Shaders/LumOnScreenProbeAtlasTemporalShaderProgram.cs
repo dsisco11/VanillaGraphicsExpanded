@@ -26,6 +26,14 @@ public class LumOnScreenProbeAtlasTemporalShaderProgram : GpuProgram
     {
         RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);
         RegisterUniformBlockBinding(LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
+        ProgramLayout.RegisterSamplerUnit("octahedralCurrent", 0, required: true);
+        ProgramLayout.RegisterSamplerUnit("octahedralHistory", 1, required: true);
+        ProgramLayout.RegisterSamplerUnit("probeAnchorPosition", 2, required: true);
+        ProgramLayout.RegisterSamplerUnit("probeAtlasMetaCurrent", 3, required: true);
+        ProgramLayout.RegisterSamplerUnit("probeAtlasMetaHistory", 4, required: true);
+        ProgramLayout.RegisterSamplerUnit("velocityTex", 5, required: true);
+        ProgramLayout.RegisterSamplerUnit("pmjJitter", 6, required: true);
+        ProgramLayout.RegisterSamplerUnit("probeTraceMask", 7, required: false);
     }
 
     private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();

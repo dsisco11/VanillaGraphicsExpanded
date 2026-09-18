@@ -12,6 +12,11 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public sealed class LumOnHzbCopyShaderProgram : GpuProgram
 {
+    public LumOnHzbCopyShaderProgram()
+    {
+        ProgramLayout.RegisterSamplerUnit("primaryDepth", 0, required: true);
+    }
+
     public static void Register(ICoreClientAPI api)
     {
         var instance = new LumOnHzbCopyShaderProgram

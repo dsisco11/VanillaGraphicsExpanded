@@ -32,6 +32,9 @@ public class LumOnProbeAnchorShaderProgram : GpuProgram
     {
         RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);
         RegisterUniformBlockBinding(LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
+        ProgramLayout.RegisterSamplerUnit("primaryDepth", 0, required: true);
+        ProgramLayout.RegisterSamplerUnit("gBufferNormal", 1, required: true);
+        ProgramLayout.RegisterSamplerUnit("pmjJitter", 2, required: true);
     }
 
     private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();

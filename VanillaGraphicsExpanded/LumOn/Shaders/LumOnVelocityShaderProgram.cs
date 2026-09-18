@@ -16,6 +16,7 @@ public class LumOnVelocityShaderProgram : GpuProgram
     public LumOnVelocityShaderProgram()
     {
         RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);
+        ProgramLayout.RegisterSamplerUnit("primaryDepth", 0, required: true);
     }
 
     #region Static
