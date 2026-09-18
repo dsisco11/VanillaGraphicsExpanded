@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
-using System.Threading;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -27,8 +26,6 @@ internal sealed class ConfigModSystem : ModSystem
     private ICoreAPI? api;
     private readonly object configLibMappingLock = new();
     private Dictionary<string, string>? configLibMappingKeyToCodePath;
-    private int configLibHasPendingChanges;
-    
     /// <summary>
     /// The mod configuration. Loaded on startup.
     /// </summary>
@@ -98,42 +95,19 @@ internal sealed class ConfigModSystem : ModSystem
 
         // api.Logger.Debug("[VGE] ConfigLib event: {0}. data={1}", eventName, SafeAttributeDump(data));
 
-        bool isSaved = string.Equals(eventName, string.Format(ConfigSavedEvent, Constants.ModId), StringComparison.OrdinalIgnoreCase);
-        bool isReload = string.Equals(eventName, ConfigReloadEvent, StringComparison.OrdinalIgnoreCase);
-
         var mappingKeyToCodePath = GetConfigLibMappingKeyToCodePath(api);
         int applied = ApplyConfigLibSettingsToModConfig(Config, data, mappingKeyToCodePath, out string? applySummary);
         if (applied > 0)
         {
-            Interlocked.Exchange(ref configLibHasPendingChanges, 1);
-
             Config.Sanitize();
             api.Logger.Debug("[VGE] Applied {0} ConfigLib setting update(s) ({1}).", applied, applySummary ?? "n/a");
             api.Logger.Debug("[VGE] Config (after ConfigLib apply): {0}", SafeDebugJson(Config));
             LiveConfigReload.NotifyAll(api);
         }
 
-        if (isSaved || isReload)
-        {
-            // ConfigLib emits multiple events; only persist our mod config when we actually applied any setting changes.
-            // Otherwise we risk overwriting the file/UI state with stale values.
-            if (Interlocked.Exchange(ref configLibHasPendingChanges, 0) != 0)
-            {
-                Config.Sanitize();
-                PersistConfigAndNotifyReloadRequired(api, source: "ConfigLib");
-            }
-        }
-    }
-
-    internal static void PersistConfigAndNotifyReloadRequired(ICoreAPI api, string source)
-    {
-        api.Logger.Debug("[VGE] Persisting config after update via {0}: {1}", source, SafeDebugJson(Config));
-        api.StoreModConfig(Config, Constants.ConfigFileName);
-
-        api.Logger.Notification(
-            "[VanillaExpanded] Configuration updated via {0}. Some changes apply immediately; others apply after re-entering the world (and may require a restart).",
-            source
-        );
+        // ConfigLib owns VanillaGraphicsExpanded.json when it loads this asset definition.
+        // Do not call StoreModConfig here: a second writer races ConfigLib's save/reload and
+        // can overwrite the value that ConfigLib just persisted.
     }
 
     public override void Dispose()

@@ -26,6 +26,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     private bool? lastEnablePom;
     private bool? lastEnableNormalMaps;
     private float? lastNormalMapScale;
+    private bool pendingShaderReload;
+    private bool shaderReloadQueued;
+    private bool memoryShaderRegistrationQueued;
 
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
@@ -82,13 +85,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         // ShaderRegistry.getProgramByName() may attempt to create/load programs on demand if missing,
         // which can lead to engine-side NREs when stage instances are null.
         LoadShaders(api);
-        api.Event.ReloadShader += () =>
-        {
-            // Clear cached uniform locations before shader recompile.
-            TerrainMaterialParamsTextureBindingHook.ClearUniformCache();
-            TerrainLumonSceneChunkSlotUniformBindingHook.ClearUniformCache();
-            return LoadShaders(api);
-        };
+        api.Event.ReloadShader += OnReloadShader;
+        api.Event.LevelFinalize += OnLevelFinalize;
 
         ConfigModSystem.Config.Sanitize();
 
@@ -133,22 +131,68 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
         if (!shaderReloadNeeded) return;
 
+        capi.Logger.Notification(
+            "[VGE] Compile-time shader settings changed (POM={0}, NormalMaps={1}, NormalMapScale={2}). Re-enter the world or restart to apply.",
+            enablePom,
+            enableNormalMaps,
+            normalMapScale);
+
+        pendingShaderReload = true;
+        TryReloadShadersInWorld();
+    }
+
+    private void OnLevelFinalize()
+    {
+        TryReloadShadersInWorld();
+    }
+
+    private bool OnReloadShader()
+    {
+        if (capi is null)
+        {
+            return true;
+        }
+
+        TerrainMaterialParamsTextureBindingHook.ClearUniformCache();
+        TerrainLumonSceneChunkSlotUniformBindingHook.ClearUniformCache();
+        if (!memoryShaderRegistrationQueued)
+        {
+            memoryShaderRegistrationQueued = true;
+            capi.Event.EnqueueMainThreadTask(
+                () =>
+                {
+                    memoryShaderRegistrationQueued = false;
+                    LoadShaders(capi);
+                },
+                "vge-register-memory-shaders-after-reload");
+        }
+
+        return true;
+    }
+
+    private void TryReloadShadersInWorld()
+    {
+        if (!pendingShaderReload || capi?.World?.Player is null || shaderReloadQueued)
+        {
+            return;
+        }
+
+        shaderReloadQueued = true;
         capi.Event.EnqueueMainThreadTask(
             () =>
             {
+                shaderReloadQueued = false;
+                if (capi.World?.Player is null)
+                {
+                    return;
+                }
+
+                pendingShaderReload = false;
                 TerrainMaterialParamsTextureBindingHook.ClearUniformCache();
+                TerrainLumonSceneChunkSlotUniformBindingHook.ClearUniformCache();
 
                 bool ok = capi.Shader.ReloadShaders();
-
-                // Ensure all VGE memory programs are registered again after the global reload.
-                LoadShaders(capi);
-
-                capi.Logger.Notification(
-                    "[VGE] Shaders reloaded due to config change (POM={0}, NormalMaps={1}, NormalMapScale={2}). ok={3}",
-                    enablePom,
-                    enableNormalMaps,
-                    normalMapScale,
-                    ok);
+                capi.Logger.Notification("[VGE] Shaders reloaded after live compile-time config change. ok={0}", ok);
             },
             "vge-reload-shaders-on-config-change");
     }
@@ -158,6 +202,12 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         base.Dispose();
         try
         {
+            if (capi is not null)
+            {
+                capi.Event.ReloadShader -= OnReloadShader;
+                capi.Event.LevelFinalize -= OnLevelFinalize;
+            }
+
             VgeDebugViewerManager.Dispose();
 
             // Unregister GPU debug label renderers
