@@ -186,6 +186,10 @@
   "config-material-atlas-async-max-cpu-jobs": "Material Atlas Async Max CPU Jobs/Frame",
   "config-material-atlas-async-max-cpu-jobs-tooltip": "Maximum number of worker CPU jobs dispatched per frame for material atlas work.",
 
+  "config-enable-normal-maps": "Enable Normal Maps",
+  "config-enable-normal-maps-tooltip": "Enable baked normal-map detail in terrain shading.",
+  "config-normal-map-scale": "Normal Map Strength",
+  "config-normal-map-scale-tooltip": "Scales the strength of baked normal-map detail. Zero disables the visible effect.",
   "config-normal-depth-atlas-async-max-uploads": "Normal/Height Async Max Jobs/Frame",
   "config-normal-depth-atlas-async-max-uploads-tooltip": "Maximum number of normal/height jobs executed per frame (cached uploads, bakes, overrides).",
 

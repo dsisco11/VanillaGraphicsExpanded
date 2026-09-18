@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "file": "VanillaGraphicsExpanded.configlib.json",
+  "version": 2,
+  "file": "VanillaGraphicsExpanded.json",
   "settings": {
     "boolean": {
       "ENABLED": {
@@ -82,6 +82,14 @@
         "comment": "vanillagraphicsexpanded:config-material-atlas-async-enabled-tooltip",
         "default": true,
         "weight": 20.0
+      },
+      "ENABLE_NORMAL_MAPS": {
+        "code": "MaterialAtlas.EnableNormalMaps",
+        "name": "MaterialAtlas.EnableNormalMaps",
+        "ingui": "vanillagraphicsexpanded:config-enable-normal-maps",
+        "comment": "vanillagraphicsexpanded:config-enable-normal-maps-tooltip",
+        "default": true,
+        "weight": 20.1
       },
       "ENABLE_MATERIAL_ATLAS_DISK_CACHE": {
         "code": "MaterialAtlas.EnableCaching",
@@ -469,6 +477,15 @@
         "default": 1.5,
         "weight": 20.5,
         "range": { "min": 0.1, "max": 8.0, "step": 0.1 }
+      },
+      "NORMAL_MAP_SCALE": {
+        "code": "MaterialAtlas.NormalMapScale",
+        "name": "MaterialAtlas.NormalMapScale",
+        "ingui": "vanillagraphicsexpanded:config-normal-map-scale",
+        "comment": "vanillagraphicsexpanded:config-normal-map-scale-tooltip",
+        "default": 1.0,
+        "weight": 20.6,
+        "range": { "min": 0.0, "max": 4.0, "step": 0.05 }
       },
       "PARALLAX_SCALE": {
         "code": "MaterialAtlas.ParallaxScale",

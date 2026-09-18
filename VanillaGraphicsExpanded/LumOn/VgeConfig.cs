@@ -212,6 +212,13 @@ public class VgeConfig
         public bool EnableNormalMaps { get; set; } = true;
 
         /// <summary>
+        /// Strength of the baked normal-map contribution applied to terrain shading.
+        /// Zero uses the geometric normal; one uses the baked normal at full strength.
+        /// </summary>
+        [JsonProperty]
+        public float NormalMapScale { get; set; } = 1.0f;
+
+        /// <summary>
         /// Enables the material atlas disk cache.
         /// When enabled, material params and normal+depth tiles can be loaded from and persisted to disk
         /// so subsequent sessions can skip expensive work.
@@ -323,6 +330,8 @@ public class VgeConfig
             AsyncBudgetMs = Math.Clamp(AsyncBudgetMs, 0.0f, 100.0f);
             AsyncMaxUploadsPerFrame = Math.Clamp(AsyncMaxUploadsPerFrame, 0, 512);
             AsyncMaxJobsPerFrame = Math.Clamp(AsyncMaxJobsPerFrame, 0, 512);
+
+            NormalMapScale = Math.Clamp(NormalMapScale, 0.0f, 4.0f);
 
             ParallaxScale = Math.Clamp(ParallaxScale, 0.0f, 0.25f);
             ParallaxMinSteps = Math.Clamp(ParallaxMinSteps, 1, 128);

@@ -1,6 +1,14 @@
 #ifndef VGE_NORMALDEPTH_GLSL
 #define VGE_NORMALDEPTH_GLSL
 
+#ifndef VGE_PBR_ENABLE_NORMAL_MAPS
+    #define VGE_PBR_ENABLE_NORMAL_MAPS 1
+#endif
+
+#ifndef VGE_PBR_NORMAL_MAP_SCALE
+    #define VGE_PBR_NORMAL_MAP_SCALE 1.0
+#endif
+
 // Requires: `uniform sampler2D vge_normalDepthTex;`
 // Encoding: RGBA16F = (normalXYZ_01, height01)
 // Notes:
@@ -156,7 +164,12 @@ vec4 VgeComputePackedWorldNormal01Height01_WithTbn(
     const float VGE_NORMALMAP_FADE_END = 24.0;
     float vge_dist = length(worldPosWs);
     float vge_normalMapWeight = 1.0 - smoothstep(VGE_NORMALMAP_FADE_START, VGE_NORMALMAP_FADE_END, vge_dist);
-    vec3 nWs = normalize(mix(nGeom, nWsMap, vge_normalMapWeight));
+    float normalMapStrength = clamp(float(VGE_PBR_NORMAL_MAP_SCALE), 0.0, 4.0);
+    float normalMapBlend = clamp(vge_normalMapWeight * normalMapStrength, 0.0, 1.0);
+#if !VGE_PBR_ENABLE_NORMAL_MAPS
+    normalMapBlend = 0.0;
+#endif
+    vec3 nWs = normalize(mix(nGeom, nWsMap, normalMapBlend));
 
     // Keep the result in the same hemisphere as the geometric normal, but do it continuously
     // (hard flips can produce visible slice lines when dot() crosses 0 due to tiny sampling changes).

@@ -52,6 +52,8 @@ public static class VgeShaderDefines
     public const string LumOnEmissiveBoost = "LUMON_EMISSIVE_BOOST";
 
     public const string PbrEnablePom = "VGE_PBR_ENABLE_POM";
+    public const string PbrEnableNormalMaps = "VGE_PBR_ENABLE_NORMAL_MAPS";
+    public const string PbrNormalMapScale = "VGE_PBR_NORMAL_MAP_SCALE";
     public const string PbrPomScale = "VGE_PBR_POM_SCALE";
     public const string PbrPomMinSteps = "VGE_PBR_POM_MIN_STEPS";
     public const string PbrPomMaxSteps = "VGE_PBR_POM_MAX_STEPS";

@@ -276,6 +276,7 @@ flat in uint vge_faceId;
             if (PatchedChunkShaders.Contains(sourceName))
             {
                 InjectPomDefines(tree);
+                InjectNormalMapDefines(tree);
 
                 // Find main function and insert @import before it
                 var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
@@ -345,6 +346,23 @@ flat in uint vge_faceId;
             .InsertAfter(versionQuery, defineBlock)
             .Commit();
     }
+
+            private static void InjectNormalMapDefines(SyntaxTree tree)
+            {
+            var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
+            var cfg = ConfigModSystem.Config.MaterialAtlas;
+            string scale = cfg.NormalMapScale.ToString("0.0####", CultureInfo.InvariantCulture);
+            string defineBlock = $@"
+
+        // VGE: normal-map settings
+        #define {VgeShaderDefines.PbrEnableNormalMaps} {(cfg.EnableNormalMaps ? 1 : 0)}
+        #define {VgeShaderDefines.PbrNormalMapScale} {scale}
+        ";
+
+            tree.CreateEditor()
+                .InsertAfter(versionQuery, defineBlock)
+                .Commit();
+            }
 
     /// <summary>
     /// Attempts to apply patches to the given SyntaxTree based on the shader name.
