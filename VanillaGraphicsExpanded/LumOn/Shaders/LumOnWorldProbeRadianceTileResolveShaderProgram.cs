@@ -2,6 +2,8 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.LumOn.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -11,6 +13,15 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public sealed class LumOnWorldProbeRadianceTileResolveShaderProgram : GpuProgram
 {
+    private LumOnWorldProbeResolveParamsUbo? paramsUbo;
+
+    public LumOnWorldProbeRadianceTileResolveShaderProgram()
+    {
+        RegisterUniformBlockBinding(LumOnWorldProbeResolveParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
+    }
+
+    private LumOnWorldProbeResolveParamsUbo Params => paramsUbo ??= new LumOnWorldProbeResolveParamsUbo();
+
     #region Static
 
     public static void Register(ICoreClientAPI api)
@@ -28,5 +39,12 @@ public sealed class LumOnWorldProbeRadianceTileResolveShaderProgram : GpuProgram
 
     #endregion
 
-    public Vec2f AtlasSize { set => Uniform("atlasSize", value); }
+    public Vec2f AtlasSize
+    {
+        set
+        {
+            Params.AtlasSize = value;
+            Params.BindTo(this, LumOnWorldProbeResolveParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 }

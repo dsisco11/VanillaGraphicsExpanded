@@ -1,6 +1,8 @@
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 
+using VanillaGraphicsExpanded.Rendering;
+
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
 
 /// <summary>
@@ -8,6 +10,13 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 /// </summary>
 public sealed class VgeDebugLinesShaderProgram : GpuProgram
 {
+    private readonly VgeDebugLinesParamsUbo paramsUbo = new();
+
+    public VgeDebugLinesShaderProgram()
+    {
+        RegisterUniformBlockBinding(VgeDebugLinesParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
+    }
+
     public static void Register(ICoreClientAPI api)
     {
         var instance = new VgeDebugLinesShaderProgram
@@ -21,6 +30,21 @@ public sealed class VgeDebugLinesShaderProgram : GpuProgram
         api.Shader.RegisterMemoryShaderProgram("vge_debug_lines", instance);
     }
 
-    public float[] ModelViewProjectionMatrix { set => UniformMatrix("modelViewProjectionMatrix", value); }
-    public Vec3f WorldOffset { set => Uniform("worldOffset", value); }
+    public float[] ModelViewProjectionMatrix
+    {
+        set
+        {
+            paramsUbo.ModelViewProjectionMatrix = value;
+            paramsUbo.BindTo(this, VgeDebugLinesParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
+
+    public Vec3f WorldOffset
+    {
+        set
+        {
+            paramsUbo.WorldOffset = value;
+            paramsUbo.BindTo(this, VgeDebugLinesParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 }
