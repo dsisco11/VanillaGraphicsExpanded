@@ -3,6 +3,7 @@ using Vintagestory.Client.NoObf;
 
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.LumOn.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
@@ -12,6 +13,15 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public sealed class LumOnHzbDownsampleShaderProgram : GpuProgram
 {
+    private LumOnHzbDownsampleParamsUbo? paramsUbo;
+
+    public LumOnHzbDownsampleShaderProgram()
+    {
+        RegisterUniformBlockBinding(LumOnHzbDownsampleParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
+    }
+
+    private LumOnHzbDownsampleParamsUbo Params => paramsUbo ??= new LumOnHzbDownsampleParamsUbo();
+
     public static void Register(ICoreClientAPI api)
     {
         var instance = new LumOnHzbDownsampleShaderProgram
@@ -33,5 +43,12 @@ public sealed class LumOnHzbDownsampleShaderProgram : GpuProgram
     /// <summary>
     /// Source mip level to read from.
     /// </summary>
-    public int SrcMip { set => Uniform("srcMip", value); }
+    public int SrcMip
+    {
+        set
+        {
+            Params.SrcMip = value;
+            Params.BindTo(this, LumOnHzbDownsampleParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
 }
