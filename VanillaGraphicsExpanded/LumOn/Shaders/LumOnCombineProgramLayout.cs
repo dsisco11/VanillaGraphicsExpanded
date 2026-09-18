@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.LumOn.Shaders;
 
 internal sealed class LumOnCombineProgramLayout : GpuProgramLayout
 {
-    public const string FrameBlockName = "LumOnFrameUBO";
+    public const string FrameBlockName = LumOnUniformBuffers.FrameBlockName;
 
     public LumOnCombineParamsUbo Params { get; } = new();
 

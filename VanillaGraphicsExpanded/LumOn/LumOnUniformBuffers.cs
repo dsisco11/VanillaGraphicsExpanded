@@ -14,6 +14,9 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 internal sealed class LumOnUniformBuffers : IDisposable
 {
+    public const string FrameBlockName = "LumOnFrameUBO";
+    public const string WorldProbeBlockName = "LumOnWorldProbeUBO";
+
     public const int FrameBinding = GpuBindingRegistry.Ubo.Frame;
     public const int WorldProbeBinding = GpuBindingRegistry.Ubo.WorldProbe;
 

@@ -14,8 +14,8 @@ internal sealed class LumOnDebugProgramLayout : GpuProgramLayout
 
     public LumOnDebugProgramLayout()
     {
-        RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
-        RegisterUniformBlockBinding("LumOnWorldProbeUBO", LumOnUniformBuffers.WorldProbeBinding, required: false);
+        RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);
+        RegisterUniformBlockBinding(LumOnUniformBuffers.WorldProbeBlockName, LumOnUniformBuffers.WorldProbeBinding, required: false);
         RegisterUniformBlockBinding(LumOnTerrainBridgeUboState.BlockName, LumOnTerrainBridgeUboState.Binding, required: false);
         RegisterUniformBlockBinding(LumOnDebugParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
 

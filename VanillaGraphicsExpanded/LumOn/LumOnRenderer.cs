@@ -543,8 +543,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.SetDefine(VgeShaderDefines.LumOnEmissiveBoost, Math.Max(0.0f, config.LumOn.EmissiveGiBoost).ToString("0.0####", CultureInfo.InvariantCulture));
 
         shader.Use();
-        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
-        shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
+        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
+        shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
         shader.PrimaryDepth = primaryFb.DepthTextureId;
 
@@ -581,8 +581,8 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
-        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
-        shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
+        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
+        shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
         // Bind G-buffer textures
         shader.PrimaryDepth = primaryFb.DepthTextureId;
@@ -646,7 +646,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         }
 
         shader.Use();
-        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
+        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
 
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
         shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex!;
@@ -749,8 +749,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         }
 
         shader.Use();
-        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
-        shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
+        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
+        shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
         // Bind probe anchor textures
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
@@ -907,8 +907,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         }
 
         shader.Use();
-        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
-        shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
+        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
+        shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
         // Bind trace output (fresh traced texels + history copies for non-traced)
         var traceTex = bufferManager.ScreenProbeAtlasTraceTex;
@@ -995,8 +995,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
 
         shader.Use();
-        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
-        shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
+        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
+        shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
         shader.ScreenProbeAtlas = inputAtlas;
         shader.ScreenProbeAtlasMeta = inputMeta;
         shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
@@ -1028,8 +1028,8 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
-        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
-        shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
+        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
+        shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
         shader.ProbeSh0 = bufferManager.ProbeSh9Tex0;
         shader.ProbeSh1 = bufferManager.ProbeSh9Tex1!;
@@ -1079,8 +1079,8 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
-        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
-        shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
+        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
+        shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
         // Bind screen-probe atlas radiance
         shader.ScreenProbeAtlas = probeAtlas;
@@ -1168,8 +1168,8 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         capi.Render.GlToggleBlend(false);
         shader.Use();
-        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
-        shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
+        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
+        shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
         shader.ScreenProbeAtlas = inputAtlas;
         shader.ScreenProbeAtlasMeta = inputMeta;
@@ -1219,8 +1219,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         }
 
         shader.Use();
-        shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
-        shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
+        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
+        shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
         // Bind half-res indirect diffuse
         shader.IndirectHalf = bufferManager.IndirectHalfTex!;

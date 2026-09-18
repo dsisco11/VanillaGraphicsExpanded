@@ -20,7 +20,7 @@ public class LumOnScreenProbeAtlasFilterShaderProgram : GpuProgram
 
     public LumOnScreenProbeAtlasFilterShaderProgram()
     {
-        RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
+        RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);
         RegisterUniformBlockBinding(LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
     }
 

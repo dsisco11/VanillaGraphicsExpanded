@@ -16,7 +16,7 @@ public sealed class LumOnProbeAtlasPisMaskShaderProgram : GpuProgram
 {
     public LumOnProbeAtlasPisMaskShaderProgram()
     {
-        RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
+        RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);
     }
 
     protected override string VertexStageShaderName => "lumon_probe_atlas_trace";

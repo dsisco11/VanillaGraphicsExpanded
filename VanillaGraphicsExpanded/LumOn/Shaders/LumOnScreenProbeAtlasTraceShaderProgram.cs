@@ -23,8 +23,8 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
 
     public LumOnScreenProbeAtlasTraceShaderProgram()
     {
-        RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
-        RegisterUniformBlockBinding("LumOnWorldProbeUBO", LumOnUniformBuffers.WorldProbeBinding, required: false);
+        RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);
+        RegisterUniformBlockBinding(LumOnUniformBuffers.WorldProbeBlockName, LumOnUniformBuffers.WorldProbeBinding, required: false);
         RegisterUniformBlockBinding(LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
     }
 

@@ -15,7 +15,7 @@ public class LumOnScreenProbeAtlasProjectSHShaderProgram : GpuProgram
 {
     public LumOnScreenProbeAtlasProjectSHShaderProgram()
     {
-        RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
+        RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);
     }
 
     #region Static

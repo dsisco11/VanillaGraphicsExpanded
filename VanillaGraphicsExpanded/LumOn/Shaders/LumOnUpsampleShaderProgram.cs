@@ -20,7 +20,7 @@ public class LumOnUpsampleShaderProgram : GpuProgram
 
     public LumOnUpsampleShaderProgram()
     {
-        RegisterUniformBlockBinding("LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, required: true);
+        RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);
         RegisterUniformBlockBinding(LumOnUpsampleParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
     }
 

@@ -796,11 +796,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
             shader.Use();
             shaderUsed = true;
-            shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
+            shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
             var worldProbeUbo = uniformBuffers.WorldProbeUboOrNull;
             if (worldProbeUbo is not null)
             {
-                shader.TryBindUniformBlock("LumOnWorldProbeUBO", worldProbeUbo);
+                shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, worldProbeUbo);
             }
 
             var terrainBridgeUbo = LumOnTerrainBridgeUboState.UboOrNull;
@@ -2048,8 +2048,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     originMinCorner: default,
                     ringOffset: default);
 
-                shader.TryBindUniformBlock("LumOnFrameUBO", uniformBuffers.FrameUbo);
-                shader.TryBindUniformBlock("LumOnWorldProbeUBO", uniformBuffers.WorldProbeUbo);
+                        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
+                        shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
                 clipmapProbeOrbsVao.Bind();
 
