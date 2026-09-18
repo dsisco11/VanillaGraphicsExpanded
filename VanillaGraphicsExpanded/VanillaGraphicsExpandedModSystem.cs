@@ -24,6 +24,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     private HarmonyLib.Harmony? harmony;
 
     private bool? lastEnablePom;
+    private bool? lastEnableNormalMaps;
+    private float? lastNormalMapScale;
 
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
@@ -92,6 +94,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
         // Track config values that require shader recompilation when changed.
         lastEnablePom = ConfigModSystem.Config.MaterialAtlas.EnableParallaxOcclusionMapping;
+        lastEnableNormalMaps = ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps;
+        lastNormalMapScale = ConfigModSystem.Config.MaterialAtlas.NormalMapScale;
 
         // Register built-in debug views for the unified debug viewer.
         VgeBuiltInDebugViews.RegisterAll(api, gBufferManager);
@@ -108,10 +112,24 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         if (capi is null) return;
 
         bool enablePom = ConfigModSystem.Config.MaterialAtlas.EnableParallaxOcclusionMapping;
+        bool enableNormalMaps = ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps;
+        float normalMapScale = ConfigModSystem.Config.MaterialAtlas.NormalMapScale;
 
         bool shaderReloadNeeded = lastEnablePom.HasValue && lastEnablePom.Value != enablePom;
+        shaderReloadNeeded |= lastEnableNormalMaps.HasValue && lastEnableNormalMaps.Value != enableNormalMaps;
+        shaderReloadNeeded |= lastNormalMapScale.HasValue && Math.Abs(lastNormalMapScale.Value - normalMapScale) > 0.0001f;
 
         lastEnablePom = enablePom;
+        lastEnableNormalMaps = enableNormalMaps;
+        lastNormalMapScale = normalMapScale;
+
+        capi.Logger.Debug(
+            "[VGE] Live config reloaded: LumOn={0}, POM={1}, NormalMaps={2}, NormalMapScale={3}; shaderReload={4}",
+            ConfigModSystem.Config.LumOn.Enabled,
+            enablePom,
+            enableNormalMaps,
+            normalMapScale,
+            shaderReloadNeeded);
 
         if (!shaderReloadNeeded) return;
 
@@ -126,8 +144,10 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
                 LoadShaders(capi);
 
                 capi.Logger.Notification(
-                    "[VGE] Shaders reloaded due to config change (POM={0}). ok={1}",
+                    "[VGE] Shaders reloaded due to config change (POM={0}, NormalMaps={1}, NormalMapScale={2}). ok={3}",
                     enablePom,
+                    enableNormalMaps,
+                    normalMapScale,
                     ok);
             },
             "vge-reload-shaders-on-config-change");

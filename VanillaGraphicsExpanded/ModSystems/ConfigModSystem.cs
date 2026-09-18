@@ -198,7 +198,7 @@ internal sealed class ConfigModSystem : ModSystem
         try
         {
             JsonConvert.PopulateObject(
-                patch.ToString(Formatting.None),
+                patch.ToString(),
                 config,
                 new JsonSerializerSettings
                 {
@@ -424,10 +424,12 @@ internal sealed class ConfigModSystem : ModSystem
         update = default;
 
         string? mappingKey = TryGetString(tree, "MappingKey")
+            ?? TryGetString(tree, "Setting")
             ?? TryGetString(tree, "Code")
             ?? TryGetString(tree, "Key");
 
         string? value = TryGetString(tree, "Value")
+            ?? TryGetString(tree, "value")
             ?? TryGetString(tree, "NewValue");
 
         if (string.IsNullOrWhiteSpace(mappingKey) || value is null)
