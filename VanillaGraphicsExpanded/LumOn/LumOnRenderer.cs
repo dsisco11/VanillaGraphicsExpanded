@@ -542,7 +542,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Ensure we emit a float literal (e.g., 2.0) to keep GLSL typing happy.
         shader.SetDefine(VgeShaderDefines.LumOnEmissiveBoost, Math.Max(0.0f, config.LumOn.EmissiveGiBoost).ToString("0.0####", CultureInfo.InvariantCulture));
 
-        shader.Use();
+        if (!shader.TryUse())
+        {
+            return;
+        }
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
         shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 

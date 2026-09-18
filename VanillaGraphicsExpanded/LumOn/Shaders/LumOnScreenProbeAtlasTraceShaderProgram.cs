@@ -21,6 +21,8 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
 {
     private LumOnProbeParamsUbo? paramsUbo;
 
+    protected override GpuProgramLayout CreateLayout() => new LumOnScreenProbeAtlasTraceProgramLayout();
+
     public LumOnScreenProbeAtlasTraceShaderProgram()
     {
         RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);

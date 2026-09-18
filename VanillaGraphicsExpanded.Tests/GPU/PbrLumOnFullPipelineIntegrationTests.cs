@@ -387,8 +387,8 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             SetSampler(traceProg, "primaryDepth", 2);
             SetSampler(traceProg, "directDiffuse", 3);
             SetSampler(traceProg, "emissive", 4);
-            SetSampler(traceProg, "hzbDepth", 5);
-            SetSampler(traceProg, "octahedralHistory", 6);
+            SetSampler(traceProg, "octahedralHistory", 5);
+            SetSampler(traceProg, "hzbDepth", 6);
             SetSampler(traceProg, "probeAtlasMetaHistory", 7);
 
 
@@ -434,8 +434,8 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             primaryDepth.Bind(2);
             targets.DirectLightingMrt[0].Bind(3);
             targets.DirectLightingMrt[2].Bind(4);
-            targets.Hzb.Texture.Bind(5);
-            historyRadiance.Bind(6);
+            historyRadiance.Bind(5);
+            targets.Hzb.Texture.Bind(6);
             historyMeta.Bind(7);
 
             AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "probeAnchorPosition", 0, targets.ProbeAnchor[0]);
@@ -443,8 +443,8 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "primaryDepth", 2, primaryDepth);
             AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "directDiffuse", 3, targets.DirectLightingMrt[0]);
             AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "emissive", 4, targets.DirectLightingMrt[2]);
-            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "hzbDepth", 5, targets.Hzb.Texture);
-            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "octahedralHistory", 6, historyRadiance);
+            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "octahedralHistory", 5, historyRadiance);
+            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "hzbDepth", 6, targets.Hzb.Texture);
             AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "probeAtlasMetaHistory", 7, historyMeta);
 
             AssertGBufferFboAttachments("Stage: Atlas Trace", targets.AtlasTrace);
