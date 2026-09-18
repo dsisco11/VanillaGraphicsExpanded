@@ -14,7 +14,7 @@ internal sealed class LumonSceneChunkSlotInfoGpuBuffer : IDisposable
 
     private GpuShaderStorageBuffer? ssbo;
 
-    public LumonSceneField Field => field;
+    public LumonSceneField Field => @field;
     public int CapacityEntries => capacityEntries;
     public GpuShaderStorageBuffer Ssbo => ssbo ?? throw new InvalidOperationException("GPU resources not created.");
 

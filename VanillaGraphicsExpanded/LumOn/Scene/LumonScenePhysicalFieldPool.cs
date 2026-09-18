@@ -10,7 +10,7 @@ internal sealed class LumonScenePhysicalFieldPool : IDisposable
     private LumonScenePhysicalPagePool? pagePool;
     private LumonScenePhysicalAtlasGpuResources? gpuResources;
 
-    public LumonSceneField Field => field;
+    public LumonSceneField Field => @field;
     public LumonScenePhysicalPoolPlan Plan => plan;
     public LumonScenePhysicalPagePool PagePool => pagePool ?? throw new InvalidOperationException("Pool not configured.");
     public LumonScenePhysicalAtlasGpuResources? GpuResources => gpuResources;

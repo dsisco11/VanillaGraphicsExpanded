@@ -18,7 +18,7 @@ internal sealed class LumonScenePageTableGpuResources : IDisposable
 
     private Texture3D? pageTableMip0;
 
-    public LumonSceneField Field => field;
+    public LumonSceneField Field => @field;
     public int ChunkSlotCount => chunkSlotCount;
 
     public Texture3D PageTableMip0 => pageTableMip0 ?? throw new InvalidOperationException("GPU resources not created.");

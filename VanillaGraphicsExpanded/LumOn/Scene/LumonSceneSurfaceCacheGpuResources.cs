@@ -56,7 +56,7 @@ internal sealed class LumonSceneFieldGpuResources : IDisposable
     private LumonSceneWorkQueueGpu<LumonSceneCaptureWorkGpu>? captureWork;
     private LumonSceneWorkQueueGpu<LumonSceneRelightWorkGpu>? relightWork;
 
-    public LumonSceneField Field => field;
+    public LumonSceneField Field => @field;
 
     public LumonScenePageTableGpuResources PageTable => pageTable ?? throw new InvalidOperationException("Not configured.");
     public LumonScenePatchMetadataGpuBuffer PatchMetadata => patchMetadata ?? throw new InvalidOperationException("Not configured.");
