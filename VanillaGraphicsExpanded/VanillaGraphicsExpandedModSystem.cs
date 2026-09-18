@@ -29,6 +29,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     private bool pendingShaderReload;
     private bool shaderReloadQueued;
     private bool memoryShaderRegistrationQueued;
+    private bool liveShaderReloadReady;
 
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
@@ -87,6 +88,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         LoadShaders(api);
         api.Event.ReloadShader += OnReloadShader;
         api.Event.LevelFinalize += OnLevelFinalize;
+        api.Event.LeaveWorld += OnLeaveWorld;
 
         ConfigModSystem.Config.Sanitize();
 
@@ -121,6 +123,14 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         lastEnableNormalMaps = enableNormalMaps;
         lastNormalMapScale = normalMapScale;
 
+        if (!liveShaderReloadReady)
+        {
+            // ConfigLib emits initial setting-loaded events during startup. They establish
+            // the current config but must not trigger a global shader reload while the
+            // engine is still constructing/loading its GUI shaders.
+            return;
+        }
+
         capi.Logger.Debug(
             "[VGE] Live config reloaded: LumOn={0}, POM={1}, NormalMaps={2}, NormalMapScale={3}; shaderReload={4}",
             ConfigModSystem.Config.LumOn.Enabled,
@@ -143,7 +153,15 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
     private void OnLevelFinalize()
     {
+        liveShaderReloadReady = true;
         TryReloadShadersInWorld();
+    }
+
+    private void OnLeaveWorld()
+    {
+        liveShaderReloadReady = false;
+        pendingShaderReload = false;
+        shaderReloadQueued = false;
     }
 
     private bool OnReloadShader()
@@ -206,6 +224,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
             {
                 capi.Event.ReloadShader -= OnReloadShader;
                 capi.Event.LevelFinalize -= OnLevelFinalize;
+                capi.Event.LeaveWorld -= OnLeaveWorld;
             }
 
             VgeDebugViewerManager.Dispose();
