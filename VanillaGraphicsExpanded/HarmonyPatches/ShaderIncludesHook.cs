@@ -1,11 +1,15 @@
 using HarmonyLib;
 
+using System;
 using System.Collections.Generic;
 using System.Text;
 
 using TinyTokenizer.Ast;
 
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.Rendering.Shaders;
+
+using OpenTK.Graphics.OpenGL;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -105,14 +109,65 @@ public static class ShaderIncludesHook
 
     private static void ProcessShaderProgram(in IShaderProgram shaderProgram)
     {
-        // Process vertex shader
-        ProcessShader(shaderProgram.VertexShader, $"{shaderProgram.PassName}.vsh", preProcess: true, inlineImports: true, postProcess: true);
-        // Process fragment shader
-        ProcessShader(shaderProgram.FragmentShader, $"{shaderProgram.PassName}.fsh", preProcess: true, inlineImports: true, postProcess: true);
-        // Process geometry shader, if present
+        var candidates = new List<(IShader Shader, string Source)>();
+
+        if (!TryProcessShader(shaderProgram.VertexShader, $"{shaderProgram.PassName}.vsh", preProcess: true, inlineImports: true, postProcess: true, out string? vertexSource))
+        {
+            return;
+        }
+        if (vertexSource is not null)
+        {
+            candidates.Add((shaderProgram.VertexShader, vertexSource));
+        }
+
+        if (!TryProcessShader(shaderProgram.FragmentShader, $"{shaderProgram.PassName}.fsh", preProcess: true, inlineImports: true, postProcess: true, out string? fragmentSource))
+        {
+            return;
+        }
+        if (fragmentSource is not null)
+        {
+            candidates.Add((shaderProgram.FragmentShader, fragmentSource));
+        }
+
         if (shaderProgram.GeometryShader is not null)
         {
-            ProcessShader(shaderProgram.GeometryShader, $"{shaderProgram.PassName}.gsh", preProcess: true, inlineImports: true, postProcess: true);
+            if (!TryProcessShader(shaderProgram.GeometryShader, $"{shaderProgram.PassName}.gsh", preProcess: true, inlineImports: true, postProcess: true, out string? geometrySource))
+            {
+                return;
+            }
+            if (geometrySource is not null)
+            {
+                candidates.Add((shaderProgram.GeometryShader, geometrySource));
+            }
+        }
+
+        foreach (var candidate in candidates)
+        {
+            ShaderType shaderType = candidate.Shader switch
+            {
+                var s when s == shaderProgram.VertexShader => ShaderType.VertexShader,
+                var s when s == shaderProgram.FragmentShader => ShaderType.FragmentShader,
+                var s when s == shaderProgram.GeometryShader => ShaderType.GeometryShader,
+                _ => throw new InvalidOperationException("Unknown shader stage")
+            };
+            string stageExtension = shaderType switch
+            {
+                ShaderType.VertexShader => "vsh",
+                ShaderType.FragmentShader => "fsh",
+                ShaderType.GeometryShader => "gsh",
+                _ => throw new InvalidOperationException("Unknown shader stage")
+            };
+
+            if (!GlslCompileDiagnostics.TryCompileStage(shaderType, candidate.Source, out string infoLog))
+            {
+                _logger?.Error($"[VGE] Skipping shader patches for '{shaderProgram.PassName}': {stageExtension} candidate failed validation. {infoLog}");
+                return;
+            }
+        }
+
+        foreach (var candidate in candidates)
+        {
+            candidate.Shader.Code = candidate.Source;
         }
     }
 
@@ -122,13 +177,21 @@ public static class ShaderIncludesHook
     /// 2. Import inlining
     /// 3. Post-processing (after imports)
     /// </summary>
-    private static void ProcessShader(in IShader shader, string shaderName, bool preProcess, bool inlineImports, bool postProcess)
+    private static bool TryProcessShader(
+        in IShader shader,
+        string shaderName,
+        bool preProcess,
+        bool inlineImports,
+        bool postProcess,
+        out string? candidateSource)
     {
+        candidateSource = null;
+
         // Create SyntaxTree without processing imports yet
         var tree = ShaderImportsSystem.Instance.CreateSyntaxTree(shader.Code, shaderName);
         if (tree is null)
         {
-            return;
+            return true;
         }
 
         bool hasChanges = false;
@@ -155,8 +218,10 @@ public static class ShaderIncludesHook
         if (hasChanges)
         {
             // Build, strip non-ASCII (GLSL compliance), and write back to shader
-            shader.Code = SourceCodeImportsProcessor.StripNonAscii(tree.ToText());
+            candidateSource = SourceCodeImportsProcessor.StripNonAscii(tree.ToText());
         }
+
+        return true;
     }
 
     /// <summary>

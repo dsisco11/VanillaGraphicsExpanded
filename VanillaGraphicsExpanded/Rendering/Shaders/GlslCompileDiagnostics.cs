@@ -111,6 +111,28 @@ internal static class GlslCompileDiagnostics
         }
     }
 
+    public static bool TryCompileStage(ShaderType shaderType, string source, out string infoLog)
+    {
+        int shader = 0;
+        try
+        {
+            shader = CompileShader(shaderType, source ?? string.Empty, out infoLog, out bool success);
+            return success;
+        }
+        catch (Exception ex)
+        {
+            infoLog = $"[VGE] Exception while compiling {shaderType} shader for diagnostics: {ex}";
+            return false;
+        }
+        finally
+        {
+            if (shader != 0)
+            {
+                try { GL.DeleteShader(shader); } catch { /* ignore */ }
+            }
+        }
+    }
+
     private static int CompileShader(ShaderType type, string source, out string infoLog, out bool success)
     {
         int shader = 0;
