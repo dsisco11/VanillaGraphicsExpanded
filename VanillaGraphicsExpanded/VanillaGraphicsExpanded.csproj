@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <OutputPath>bin\$(Configuration)\Mods\mod</OutputPath>
     <Nullable>enable</Nullable>
@@ -99,9 +99,7 @@
     <ProjectReference Include="..\SpirvBuild\VanillaGraphicsExpanded.SpirvBuild.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
-  <Target Name="CopySpirvArtifactsToOutputAssets"
-          Condition="'$(EnableSpirv)' == 'true' Or '$(EnableSpirv)' == 'True'"
-          AfterTargets="Build">
+  <Target Name="CopySpirvArtifactsToOutputAssets" Condition="'$(EnableSpirv)' == 'true' Or '$(EnableSpirv)' == 'True'" AfterTargets="Build">
     <ItemGroup>
       <_SpirvFiles Include="$(SpirvArtifactsDir)\**\*.spv" />
       <_SpirvOutDirs Include="@(_SpirvFiles->'$(TargetDir)assets\%(RecursiveDir)')" />
@@ -109,10 +107,7 @@
 
     <MakeDir Directories="@(_SpirvOutDirs)" />
 
-    <Copy
-      SourceFiles="@(_SpirvFiles)"
-      DestinationFiles="@(_SpirvFiles->'$(TargetDir)assets\%(RecursiveDir)%(Filename)%(Extension)')"
-      SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_SpirvFiles)" DestinationFiles="@(_SpirvFiles->'$(TargetDir)assets\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>
