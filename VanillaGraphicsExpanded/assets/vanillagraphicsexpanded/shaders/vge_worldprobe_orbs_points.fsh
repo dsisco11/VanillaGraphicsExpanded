@@ -9,12 +9,6 @@ uniform sampler2D worldProbeDebugState0;
 
 out vec4 outColor;
 
-vec3 tonemap(vec3 hdr)
-{
-    hdr = max(hdr, vec3(0.0));
-    return hdr / (hdr + vec3(1.0));
-}
-
 void main(void)
 {
     // Orb impostor in point sprite space.
@@ -84,7 +78,7 @@ void main(void)
     float F0 = 0.04;
     float fresnel = F0 + (1.0 - F0) * pow(1.0 - NoV, 5.0);
 
-    vec3 col = tonemap(refl) * (0.25 + 0.75 * fresnel);
+    vec3 col = refl * (0.25 + 0.75 * fresnel);
 
     // Slight level tint + minimum visibility.
     col = max(col, vec3(0.04));
