@@ -1258,7 +1258,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             (float)(frozenCameraPosWorld.Y - camPosWorldNow.Y),
             (float)(frozenCameraPosWorld.Z - camPosWorldNow.Z));
 
-        UpdateCurrentViewProjMatrixNoTranslate();
+        UpdateCurrentViewProjMatrix();
 
         int vertexCount = BuildClipmapBoundsVertices(
             baseSpacing: frozenBaseSpacing,
@@ -1351,8 +1351,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        // Vertices are rebuilt every frame in camera-relative space (world - renderCameraOrigin).
-        UpdateCurrentViewProjMatrixNoTranslate();
+        // Match the engine's high-precision rendering convention: vertices are
+        // world - CameraPos, then transformed by the full CameraMatrixOriginf.
+        UpdateCurrentViewProjMatrix();
 
         using var cpuScope = Profiler.BeginScope("Debug.WorldProbeClipmapBoundsLive", "Render");
         using (GlGpuProfiler.Instance.Scope("Debug.WorldProbeClipmapBoundsLive"))
@@ -1504,7 +1505,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         int stride = Marshal.SizeOf<LineVertex>();
         clipmapQueuedTraceRaysVbo.UploadData(clipmapQueuedTraceRayVertices, clipmapQueuedTraceRayVertexCount * stride);
 
-        UpdateCurrentViewProjMatrixNoTranslate();
+        UpdateCurrentViewProjMatrix();
 
         bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
         bool prevBlend = GL.IsEnabled(EnableCap.Blend);
@@ -1970,8 +1971,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        // Vertices are rebuilt every frame in camera-relative space (world - renderCameraOrigin).
-        UpdateCurrentViewProjMatrixNoTranslate();
+        // Match the engine's high-precision rendering convention: vertices are
+        // world - CameraPos, then transformed by the full CameraMatrixOriginf.
+        UpdateCurrentViewProjMatrix();
         MatrixHelper.Invert(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
         MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invViewMatrix);
         UpdateAndBindFrameUbo(config.LumOn);
@@ -2120,12 +2122,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     private bool TryGetRenderCameraWorldOrigin(out Vec3d originWorld)
     {
-        // IMPORTANT:
-        // `IRenderAPI.CameraMatrixOrigin` / `CameraMatrixOriginf` are 4x4 matrices (double/float[16]),
-        // not a world-space origin vector. Using indices [0..2] will read a basis vector and will
-        // change with camera rotation (causing "swimming").
-        //
-        // For stable world-space debug rendering we want the camera world position used by the player.
+        // CameraMatrixOriginf is relative to the render camera. Rebase debug geometry with
+        // CameraPos so it shares the same head-bob transform as the world it overlays.
         var player = capi.World?.Player;
         if (player?.Entity is not null)
         {
