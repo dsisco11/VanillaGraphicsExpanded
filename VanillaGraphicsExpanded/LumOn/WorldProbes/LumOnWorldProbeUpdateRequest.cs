@@ -6,4 +6,5 @@ internal readonly record struct LumOnWorldProbeUpdateRequest(
     int Level,
     Vec3i LocalIndex,
     Vec3i StorageIndex,
-    int StorageLinearIndex);
+    int StorageLinearIndex,
+    float ImportanceFactor = 1f);

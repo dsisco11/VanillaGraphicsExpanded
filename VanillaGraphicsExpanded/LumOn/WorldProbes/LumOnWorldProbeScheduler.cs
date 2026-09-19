@@ -91,6 +91,23 @@ internal sealed class LumOnWorldProbeScheduler
 
     public int ProbesPerLevel => probesPerLevel;
 
+    public bool SetImportanceFactor(int level, int storageLinearIndex, float importanceFactor)
+    {
+        if ((uint)level >= (uint)levels.Length
+            || (uint)storageLinearIndex >= (uint)probesPerLevel
+            || !float.IsFinite(importanceFactor)
+            || importanceFactor <= 0f)
+        {
+            return false;
+        }
+
+        lock (levelLocks[level])
+        {
+            levels[level].SetImportanceFactor(storageLinearIndex, importanceFactor);
+        }
+        return true;
+    }
+
     public bool TryCopyLifecycleStates(int level, LumOnWorldProbeLifecycleState[] destination)
     {
         if ((uint)level >= (uint)levels.Length)
@@ -328,6 +345,7 @@ internal sealed class LumOnWorldProbeScheduler
         private readonly LumOnWorldProbeLifecycleState[] lifecycle;
         private readonly int[] lastUpdatedFrame;
         private readonly int[] retryAfterFrame;
+        private readonly float[] importanceFactors;
         private readonly bool[] dirtyAfterInFlight;
         private readonly bool[] disableAfterInFlight;
 
@@ -348,6 +366,8 @@ internal sealed class LumOnWorldProbeScheduler
             lifecycle = new LumOnWorldProbeLifecycleState[probesPerLevel];
             lastUpdatedFrame = new int[probesPerLevel];
             retryAfterFrame = new int[probesPerLevel];
+            importanceFactors = new float[probesPerLevel];
+            Array.Fill(importanceFactors, 1f);
             dirtyAfterInFlight = new bool[probesPerLevel];
             disableAfterInFlight = new bool[probesPerLevel];
             queuedAtFrame = new int[probesPerLevel];
@@ -362,12 +382,18 @@ internal sealed class LumOnWorldProbeScheduler
             Array.Fill(lifecycle, LumOnWorldProbeLifecycleState.Uninitialized);
             Array.Fill(lastUpdatedFrame, 0);
             Array.Fill(retryAfterFrame, 0);
+            Array.Fill(importanceFactors, 1f);
             Array.Fill(dirtyAfterInFlight, false);
             Array.Fill(disableAfterInFlight, false);
             Array.Fill(queuedAtFrame, 0);
             anchor = null;
             originMinCorner = null;
             ringOffset = new Vec3i(0, 0, 0);
+        }
+
+        public void SetImportanceFactor(int storageLinearIndex, float importanceFactor)
+        {
+            importanceFactors[storageLinearIndex] = importanceFactor;
         }
 
         public void Disable(int storageLinearIndex)
@@ -541,11 +567,11 @@ internal sealed class LumOnWorldProbeScheduler
             Vec3d origin = originMinCorner!;
 
             // Promote valid probes to stale if their age exceeds the per-level threshold.
-            int staleAfter = GetStaleAfterFrames(spacing);
             for (int i = 0; i < lifecycle.Length; i++)
             {
                 if (lifecycle[i] != LumOnWorldProbeLifecycleState.Valid) continue;
                 int age = frameIndex - lastUpdatedFrame[i];
+                int staleAfter = GetStaleAfterFrames(spacing, importanceFactors[i]);
                 if (age >= staleAfter)
                 {
                     lifecycle[i] = LumOnWorldProbeLifecycleState.Stale;
@@ -638,7 +664,8 @@ internal sealed class LumOnWorldProbeScheduler
                     Level: level,
                     LocalIndex: c.LocalIndex,
                     StorageIndex: c.StorageIndex,
-                    StorageLinearIndex: c.StorageLinearIndex));
+                    StorageLinearIndex: c.StorageLinearIndex,
+                    ImportanceFactor: importanceFactors[c.StorageLinearIndex]));
 
                 taken++;
             }
@@ -723,12 +750,12 @@ internal sealed class LumOnWorldProbeScheduler
             }
         }
 
-        private int GetStaleAfterFrames(double spacing)
+        private int GetStaleAfterFrames(double spacing, float importanceFactor)
         {
             // Coarser levels update less frequently.
             // Using spacing ratio is stable and avoids needing explicit config for staleness.
             double ratio = Math.Max(1.0, spacing);
-            double scaled = DefaultStaleAfterFramesL0 * ratio;
+            double scaled = DefaultStaleAfterFramesL0 * ratio / importanceFactor;
             return (int)Math.Clamp(scaled, 60.0, 60_000.0);
         }
 

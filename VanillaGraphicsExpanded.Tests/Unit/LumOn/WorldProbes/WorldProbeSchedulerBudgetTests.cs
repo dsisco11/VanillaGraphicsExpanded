@@ -118,6 +118,38 @@ public sealed class WorldProbeSchedulerBudgetTests
         Assert.Equal(LumOnWorldProbeLifecycleState.Valid, lifecycle[req.StorageLinearIndex]);
     }
 
+    [Fact]
+    public void BuildUpdateList_RefreshesHigherImportanceProbeMoreOften()
+    {
+        var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution: 1);
+        scheduler.UpdateOrigins(new Vec3d(0, 0, 0), baseSpacing: 1.0);
+
+        LumOnWorldProbeUpdateRequest initial = Assert.Single(scheduler.BuildUpdateList(
+            frameIndex: 0,
+            cameraPos: new Vec3d(0, 0, 0),
+            baseSpacing: 1.0,
+            perLevelProbeBudgets: [1],
+            traceMaxProbesPerFrame: 1,
+            uploadBudgetBytesPerFrame: 1_000_000,
+            atlasTexelsPerUpdate: 32));
+
+        Assert.Equal(1f, initial.ImportanceFactor);
+        Assert.True(scheduler.TryClaim(initial, frameIndex: 0));
+        scheduler.Complete(initial, frameIndex: 0, success: true);
+        Assert.True(scheduler.SetImportanceFactor(initial.Level, initial.StorageLinearIndex, importanceFactor: 2f));
+
+        LumOnWorldProbeUpdateRequest refresh = Assert.Single(scheduler.BuildUpdateList(
+            frameIndex: 300,
+            cameraPos: new Vec3d(0, 0, 0),
+            baseSpacing: 1.0,
+            perLevelProbeBudgets: [1],
+            traceMaxProbesPerFrame: 1,
+            uploadBudgetBytesPerFrame: 1_000_000,
+            atlasTexelsPerUpdate: 32));
+
+        Assert.Equal(2f, refresh.ImportanceFactor);
+    }
+
     private static int GetEstimatedUploadBytesPerProbe(int atlasTexelsPerUpdate)
     {
         const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Static;
