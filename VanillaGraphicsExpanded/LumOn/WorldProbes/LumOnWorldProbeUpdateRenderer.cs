@@ -24,8 +24,6 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 	private const double RenderOrderValue = 0.9999;
 	private const int RenderRangeValue = 1;
 	private const int MaximumSunLightLevel = 32;
-	private const float DirectSunlightImportanceFactor = 1f;
-	private const float IndirectSunlightImportanceFactor = 2f;
 
 	private readonly ICoreClientAPI capi;
 	private readonly VgeConfig config;
@@ -207,13 +205,19 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 					(int)Math.Floor(probePosWorld.Y),
 					(int)Math.Floor(probePosWorld.Z),
 					EnumLightLevelType.OnlySunLight);
-				// Boost importance for probes which are not in direct sunlight.
+				int rainMapHeight = mainThreadAccessor.GetRainMapHeightAt(
+					(int)Math.Floor(probePosWorld.X),
+					(int)Math.Floor(probePosWorld.Z));
 				scheduler.SetImportanceFactor(
 					req.Level,
 					req.StorageLinearIndex,
-					sunlight == MaximumSunLightLevel
-						? DirectSunlightImportanceFactor
-						: IndirectSunlightImportanceFactor);
+					LumOnWorldProbeImportance.GetFactor(
+						sunlight,
+						MaximumSunLightLevel,
+						req.LocalIndex.Y,
+						probePosWorld.Y,
+						spacing,
+						rainMapHeight));
 
 				LumOnWorldProbeCenterOccupancy occupancy = LumOnWorldProbeSolidBlockCheck.ClassifyProbeCenter(mainThreadAccessor, probePosWorld);
 				SetUnavailableProbeSlot(req, occupancy == LumOnWorldProbeCenterOccupancy.Unavailable);
