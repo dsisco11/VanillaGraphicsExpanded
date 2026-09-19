@@ -13,6 +13,10 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes;
 /// </summary>
 internal sealed class LumOnWorldProbeScheduler
 {
+    public readonly record struct ProbeCenterValidation(
+        LumOnWorldProbeUpdateRequest Request,
+        LumOnWorldProbeCenterOccupancy Occupancy);
+
     #region Constants
 
     private const int DefaultStaleAfterFramesL0 = 600; // ~10s @ 60fps
@@ -95,11 +99,12 @@ internal sealed class LumOnWorldProbeScheduler
     public void ValidateProbeCenters(
         double baseSpacing,
         int[] perLevelProbeBudgets,
-        Func<int, Vec3d, bool> isProbeCenterInsideSolidBlock)
+        Func<int, Vec3d, LumOnWorldProbeCenterOccupancy> classifyProbeCenter,
+        List<ProbeCenterValidation>? validationResults = null)
     {
         if (baseSpacing <= 0) throw new ArgumentOutOfRangeException(nameof(baseSpacing));
         ArgumentNullException.ThrowIfNull(perLevelProbeBudgets);
-        ArgumentNullException.ThrowIfNull(isProbeCenterInsideSolidBlock);
+        ArgumentNullException.ThrowIfNull(classifyProbeCenter);
 
         for (int level = 0; level < levels.Length; level++)
         {
@@ -115,7 +120,7 @@ internal sealed class LumOnWorldProbeScheduler
             lock (levelLocks[level])
             {
                 ref LevelState state = ref levels[level];
-                state.ValidateProbeCenters(level, spacing, budget, isProbeCenterInsideSolidBlock);
+                state.ValidateProbeCenters(level, spacing, budget, classifyProbeCenter, validationResults);
             }
         }
     }
@@ -433,7 +438,8 @@ internal sealed class LumOnWorldProbeScheduler
             int level,
             double spacing,
             int budget,
-            Func<int, Vec3d, bool> isProbeCenterInsideSolidBlock)
+            Func<int, Vec3d, LumOnWorldProbeCenterOccupancy> classifyProbeCenter,
+            List<ProbeCenterValidation>? validationResults)
         {
             if (originMinCorner is null || budget <= 0)
             {
@@ -456,7 +462,17 @@ internal sealed class LumOnWorldProbeScheduler
                 int storageLinearIndex = LumOnClipmapTopology.LinearIndex(storageIndex, resolution);
                 Vec3d probeCenter = LumOnClipmapTopology.IndexToProbeCenterWorld(localIndex, origin, spacing);
 
-                if (isProbeCenterInsideSolidBlock(level, probeCenter))
+                LumOnWorldProbeCenterOccupancy occupancy = classifyProbeCenter(level, probeCenter);
+                var request = new LumOnWorldProbeUpdateRequest(
+                    Level: level,
+                    LocalIndex: localIndex,
+                    StorageIndex: storageIndex,
+                    StorageLinearIndex: storageLinearIndex,
+                    ImportanceFactor: importanceFactors[storageLinearIndex]);
+                validationResults?.Add(new ProbeCenterValidation(request, occupancy));
+                if (occupancy is LumOnWorldProbeCenterOccupancy.Unavailable
+                    or LumOnWorldProbeCenterOccupancy.OutsideWorldHeight
+                    or LumOnWorldProbeCenterOccupancy.InsideCollision)
                 {
                     Disable(storageLinearIndex);
                 }

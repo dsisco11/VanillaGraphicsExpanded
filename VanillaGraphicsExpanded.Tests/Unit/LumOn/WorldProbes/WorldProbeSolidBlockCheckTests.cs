@@ -60,6 +60,22 @@ public sealed class WorldProbeSolidBlockCheckTests
     }
 
     [Fact]
+    public void ClassifyProbeCenter_OutsideWorldHeight_IsOutsideWorldHeight()
+    {
+        var blockAccessor = FunctionalBlockAccessorProxy.Create(
+            isChunkLoaded: _ => true,
+            getBlock: _ => TestBlocks.Air,
+            mapSizeY: 256);
+
+        Assert.Equal(
+            LumOnWorldProbeCenterOccupancy.OutsideWorldHeight,
+            LumOnWorldProbeSolidBlockCheck.ClassifyProbeCenter(blockAccessor, new Vector3d(0.5, -0.25, 0.5)));
+        Assert.Equal(
+            LumOnWorldProbeCenterOccupancy.OutsideWorldHeight,
+            LumOnWorldProbeSolidBlockCheck.ClassifyProbeCenter(blockAccessor, new Vector3d(0.5, 256.0, 0.5)));
+    }
+
+    [Fact]
     public void IsProbeCenterInsideSolidBlock_WhenAbovePartialCollision_DoesNotDisable()
     {
         var halfHeight = new CollisionBoxesOverrideBlock
@@ -123,14 +139,18 @@ public sealed class WorldProbeSolidBlockCheckTests
 
         public static IBlockAccessor Create(
             System.Func<(int X, int Y, int Z), bool> isChunkLoaded,
-            System.Func<(int X, int Y, int Z), Block> getBlock)
+            System.Func<(int X, int Y, int Z), Block> getBlock,
+            int mapSizeY = 0)
         {
             object proxy = Create<IBlockAccessor, FunctionalBlockAccessorProxy>();
             var typed = (FunctionalBlockAccessorProxy)proxy;
             typed.isChunkLoaded = isChunkLoaded;
             typed.getBlock = getBlock;
+            typed.mapSizeY = mapSizeY;
             return (IBlockAccessor)proxy;
         }
+
+        private int mapSizeY;
 
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
         {
@@ -153,6 +173,11 @@ public sealed class WorldProbeSolidBlockCheckTests
             }
 
             string name = targetMethod.Name;
+            if (name == "get_" + nameof(IBlockAccessor.MapSizeY))
+            {
+                return mapSizeY;
+            }
+
             if (name == nameof(IBlockAccessor.GetChunkAtBlockPos))
             {
                 var pos = GetPos(args);

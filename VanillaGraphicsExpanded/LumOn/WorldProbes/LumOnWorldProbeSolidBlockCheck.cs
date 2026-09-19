@@ -11,9 +11,14 @@ internal static class LumOnWorldProbeSolidBlockCheck
 {
     public static bool IsProbeCenterInsideSolidBlock(IBlockAccessor blockAccessor, Vector3d probePosWorld)
     {
+        return ClassifyProbeCenter(blockAccessor, probePosWorld) == LumOnWorldProbeCenterOccupancy.InsideCollision;
+    }
+
+    public static LumOnWorldProbeCenterOccupancy ClassifyProbeCenter(IBlockAccessor blockAccessor, Vector3d probePosWorld)
+    {
         if (blockAccessor is null)
         {
-            return false;
+            return LumOnWorldProbeCenterOccupancy.Unavailable;
         }
 
         try
@@ -21,22 +26,30 @@ internal static class LumOnWorldProbeSolidBlockCheck
             var pos = new BlockPos(0);
             pos.Set((int)Math.Floor(probePosWorld.X), (int)Math.Floor(probePosWorld.Y), (int)Math.Floor(probePosWorld.Z));
 
+            // The primary world occupies [0, MapSizeY) in block coordinates.
+            // Outside this range the accessor returns air, which would otherwise trace as open sky.
+            int mapSizeY = blockAccessor.MapSizeY;
+            if (mapSizeY > 0 && (pos.Y < 0 || pos.Y >= mapSizeY))
+            {
+                return LumOnWorldProbeCenterOccupancy.OutsideWorldHeight;
+            }
+
             // Avoid forcing chunk loads; if it's not loaded, don't permanently disable.
             if (blockAccessor.GetChunkAtBlockPos(pos) == null)
             {
-                return false;
+                return LumOnWorldProbeCenterOccupancy.Unavailable;
             }
 
             Block b = blockAccessor.GetMostSolidBlock(pos);
             if (b.Id == 0)
             {
-                return false;
+                return LumOnWorldProbeCenterOccupancy.Empty;
             }
 
             Cuboidf[] boxes = b.GetCollisionBoxes(blockAccessor, pos);
             if (boxes is null || boxes.Length == 0)
             {
-                return false;
+                return LumOnWorldProbeCenterOccupancy.NoCollision;
             }
 
             float lx = (float)(probePosWorld.X - pos.X);
@@ -51,15 +64,15 @@ internal static class LumOnWorldProbeSolidBlockCheck
                     ly >= c.Y1 - eps && ly <= c.Y2 + eps &&
                     lz >= c.Z1 - eps && lz <= c.Z2 + eps)
                 {
-                    return true;
+                    return LumOnWorldProbeCenterOccupancy.InsideCollision;
                 }
             }
 
-            return false;
+            return LumOnWorldProbeCenterOccupancy.OutsideCollision;
         }
         catch (NotImplementedException)
         {
-            return false;
+            return LumOnWorldProbeCenterOccupancy.Unavailable;
         }
     }
 }

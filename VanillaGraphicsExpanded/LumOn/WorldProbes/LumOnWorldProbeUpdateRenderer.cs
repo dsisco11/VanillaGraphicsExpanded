@@ -39,9 +39,12 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 	private IBlockAccessor? traceBlockAccessor;
 
 	private readonly System.Collections.Generic.List<LumOnWorldProbeTraceResult> traceResults = new();
+	private readonly System.Collections.Generic.List<LumOnWorldProbeScheduler.ProbeCenterValidation> validationResults = new();
+	private readonly System.Collections.Generic.List<LumOnWorldProbeUpdateRequest> enqueuedTraceRequests = new();
 
 	// Debug-only CPU->GPU heatmap buffer for world-probe lifecycle visualization.
 	private LumOnWorldProbeLifecycleState[]? lifecycleScratch;
+	private bool[]? unavailableProbeSlots;
 	private ushort[]? debugStateTexels;
 
 	private readonly LumOnWorldProbeClipmapBufferManager.DebugTraceRay[] debugQueuedTraceRaysScratch =
@@ -131,14 +134,27 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 		}
 
 		int[] perLevelBudgets = cfg.PerLevelProbeUpdateBudget ?? Array.Empty<int>();
+		EnsureUnavailableProbeSlots(resources);
+		validationResults.Clear();
 		using (Profiler.BeginScope("LumOn.WorldProbe.ValidateSolidCenters", "LumOn"))
 		{
 			scheduler.ValidateProbeCenters(
 				baseSpacing,
 				perLevelBudgets,
-				(_, probePosWorld) => LumOnWorldProbeSolidBlockCheck.IsProbeCenterInsideSolidBlock(
-					mainThreadAccessor,
-					new VanillaGraphicsExpanded.Numerics.Vector3d(probePosWorld.X, probePosWorld.Y, probePosWorld.Z)));
+				(level, probePosWorld) =>
+				{
+					LumOnWorldProbeCenterOccupancy occupancy = LumOnWorldProbeSolidBlockCheck.ClassifyProbeCenter(
+						mainThreadAccessor,
+						new VanillaGraphicsExpanded.Numerics.Vector3d(probePosWorld.X, probePosWorld.Y, probePosWorld.Z));
+					return occupancy;
+				},
+				validationResults);
+		}
+
+		for (int i = 0; i < validationResults.Count; i++)
+		{
+			var validation = validationResults[i];
+			SetUnavailableProbeSlot(validation.Request, validation.Occupancy == LumOnWorldProbeCenterOccupancy.Unavailable);
 		}
 
 		traceScene ??= new BlockAccessorWorldProbeTraceScene(worldAccessor);
@@ -170,15 +186,7 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 				baseSpacing);
 		}
 
-		if (config.LumOn.DebugMode == LumOnDebugMode.WorldProbeOrbsPoints)
-		{
-			PublishQueuedTraceRaysForDebug(resources, baseSpacing, requests);
-		}
-		else
-		{
-			clipmapBufferManager.ClearDebugTraceRays(frameIndex);
-		}
-
+		enqueuedTraceRequests.Clear();
 		using (Profiler.BeginScope("LumOn.WorldProbe.Trace.Enqueue", "LumOn"))
 		{
 			for (int i = 0; i < requests.Count; i++)
@@ -207,10 +215,12 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 						? DirectSunlightImportanceFactor
 						: IndirectSunlightImportanceFactor);
 
-				if (LumOnWorldProbeSolidBlockCheck.IsProbeCenterInsideSolidBlock(mainThreadAccessor, probePosWorld))
+				LumOnWorldProbeCenterOccupancy occupancy = LumOnWorldProbeSolidBlockCheck.ClassifyProbeCenter(mainThreadAccessor, probePosWorld);
+				SetUnavailableProbeSlot(req, occupancy == LumOnWorldProbeCenterOccupancy.Unavailable);
+				if (IsProbeCenterSuppressed(occupancy))
 				{
-					// Probes whose centers lie inside solid collision should not contribute (likely invalid data).
-					// Probes are re-checked automatically when their ring-buffer slot is re-used on anchor shifts.
+					// Probes with unavailable center chunks wait for ChunkDirty/NewlyLoaded to re-enable them.
+					// Centers inside solid collision cannot contribute and are likewise re-checked on ring reuse.
 					scheduler.Disable(req);
 					continue;
 				}
@@ -231,7 +241,20 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 				{
 					scheduler.Unqueue(req);
 				}
+				else
+				{
+					enqueuedTraceRequests.Add(req);
+				}
 			}
+		}
+
+		if (config.LumOn.DebugMode == LumOnDebugMode.WorldProbeOrbsPoints)
+		{
+			PublishQueuedTraceRaysForDebug(resources, baseSpacing, enqueuedTraceRequests);
+		}
+		else
+		{
+			clipmapBufferManager.ClearDebugTraceRays(frameIndex);
 		}
 
 		using (Profiler.BeginScope("LumOn.WorldProbe.Trace.Drain", "LumOn"))
@@ -317,6 +340,34 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 
 		schedulerAnchorShiftHandler ??= evt => clipmapBufferManager.NotifyAnchorShifted(in evt);
 		scheduler.AnchorShifted += schedulerAnchorShiftHandler;
+	}
+
+	private static bool IsProbeCenterSuppressed(LumOnWorldProbeCenterOccupancy occupancy)
+	{
+		return occupancy is LumOnWorldProbeCenterOccupancy.Unavailable
+			or LumOnWorldProbeCenterOccupancy.OutsideWorldHeight
+			or LumOnWorldProbeCenterOccupancy.InsideCollision;
+	}
+
+	private void EnsureUnavailableProbeSlots(LumOnWorldProbeClipmapGpuResources resources)
+	{
+		int slotCount = resources.Levels * resources.Resolution * resources.Resolution * resources.Resolution;
+		if (unavailableProbeSlots is null || unavailableProbeSlots.Length != slotCount)
+		{
+			unavailableProbeSlots = new bool[slotCount];
+		}
+	}
+
+	private void SetUnavailableProbeSlot(in LumOnWorldProbeUpdateRequest request, bool unavailable)
+	{
+		if (unavailableProbeSlots is null || scheduler is null
+			|| (uint)request.Level >= (uint)scheduler.LevelCount
+			|| (uint)request.StorageLinearIndex >= (uint)scheduler.ProbesPerLevel)
+		{
+			return;
+		}
+
+		unavailableProbeSlots[(request.Level * scheduler.ProbesPerLevel) + request.StorageLinearIndex] = unavailable;
 	}
 
 	private void ApplyPendingWorldProbeDirtyChunks(double baseSpacing)
@@ -585,6 +636,14 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 						r = On;
 						b = On;
 						break;
+				}
+
+				if (unavailableProbeSlots is not null
+					&& unavailableProbeSlots[(level * probesPerLevel) + storageLinear])
+				{
+					r = On;
+					g = On;
+					b = Off;
 				}
 
 				debugStateTexels[dst + 0] = r;

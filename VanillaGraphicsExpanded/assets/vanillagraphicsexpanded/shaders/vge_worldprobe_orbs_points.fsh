@@ -38,10 +38,11 @@ void main(void)
 
     ivec2 ac = ivec2(floor(vAtlasCoord + vec2(0.5)));
 
-    // Debug lifecycle state (uploaded by CPU). Disabled probes receive an opaque
-    // magenta center marker so "no data" is visually distinct from "valid but dark".
+    // Debug lifecycle state (uploaded by CPU). Disabled probes receive a magenta
+    // marker and unavailable probes receive an amber marker.
     vec4 dbg = texelFetch(worldProbeDebugState0, ac, 0);
     bool disabled = (dbg.r > 0.5) && (dbg.b > 0.5) && (dbg.g < 0.5);
+    bool unavailable = (dbg.r > 0.5) && (dbg.g > 0.5) && (dbg.b < 0.5);
 
     // Decode storage index + level from the scalar atlas coordinate.
     int resolution = VGE_LUMON_WORLDPROBE_RESOLUTION;
@@ -89,6 +90,12 @@ void main(void)
         float markerRadius = 0.55;
         float marker = 1.0 - smoothstep(markerRadius * markerRadius * 0.7, markerRadius * markerRadius, r2);
         col = mix(col, vec3(1.0, 0.0, 1.0), marker);
+    }
+    else if (unavailable)
+    {
+        float markerRadius = 0.55;
+        float marker = 1.0 - smoothstep(markerRadius * markerRadius * 0.7, markerRadius * markerRadius, r2);
+        col = mix(col, vec3(1.0, 0.65, 0.0), marker);
     }
 
     outColor = vec4(col, 1.0);
