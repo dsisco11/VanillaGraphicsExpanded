@@ -5,6 +5,7 @@ internal static class LumOnWorldProbeImportance
     public const float DirectSunlightFactor = 1f;
     public const float IndirectSunlightFactor = 2f;
     public const float StackedAboveRainMapFactor = 0.5f;
+    public const float CardinalSolidNeighborBoost = 0.5f;
 
     public static float GetFactor(
         int sunlight,
@@ -24,5 +25,12 @@ internal static class LumOnWorldProbeImportance
         return sunlight == maximumSunlight
             ? DirectSunlightFactor
             : IndirectSunlightFactor;
+    }
+
+    public static float AddCardinalSolidNeighborBoost(float factor, bool hasCardinalSolidNeighbor)
+    {
+        return hasCardinalSolidNeighbor
+            ? factor + CardinalSolidNeighborBoost
+            : factor;
     }
 }

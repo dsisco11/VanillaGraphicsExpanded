@@ -208,17 +208,6 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 				int rainMapHeight = mainThreadAccessor.GetRainMapHeightAt(
 					(int)Math.Floor(probePosWorld.X),
 					(int)Math.Floor(probePosWorld.Z));
-				scheduler.SetImportanceFactor(
-					req.Level,
-					req.StorageLinearIndex,
-					LumOnWorldProbeImportance.GetFactor(
-						sunlight,
-						MaximumSunLightLevel,
-						req.LocalIndex.Y,
-						probePosWorld.Y,
-						spacing,
-						rainMapHeight));
-
 				LumOnWorldProbeCenterOccupancy occupancy = LumOnWorldProbeSolidBlockCheck.ClassifyProbeCenter(mainThreadAccessor, probePosWorld);
 				SetUnavailableProbeSlot(req, occupancy == LumOnWorldProbeCenterOccupancy.Unavailable);
 				if (IsProbeCenterSuppressed(occupancy))
@@ -228,6 +217,20 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 					scheduler.Disable(req);
 					continue;
 				}
+
+				float importanceFactor = LumOnWorldProbeImportance.GetFactor(
+					sunlight,
+					MaximumSunLightLevel,
+					req.LocalIndex.Y,
+					probePosWorld.Y,
+					spacing,
+					rainMapHeight);
+				scheduler.SetImportanceFactor(
+					req.Level,
+					req.StorageLinearIndex,
+					LumOnWorldProbeImportance.AddCardinalSolidNeighborBoost(
+						importanceFactor,
+						HasCardinalSolidNeighbor(mainThreadAccessor, req, resources.Resolution, probePosWorld, spacing)));
 
 				double maxDist = spacing * resources.Resolution;
 				var item = new LumOnWorldProbeTraceWorkItem(
@@ -351,6 +354,29 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 		return occupancy is LumOnWorldProbeCenterOccupancy.Unavailable
 			or LumOnWorldProbeCenterOccupancy.OutsideWorldHeight
 			or LumOnWorldProbeCenterOccupancy.InsideCollision;
+	}
+
+	private static bool HasCardinalSolidNeighbor(
+		IBlockAccessor blockAccessor,
+		in LumOnWorldProbeUpdateRequest request,
+		int resolution,
+		in VanillaGraphicsExpanded.Numerics.Vector3d probePosWorld,
+		double spacing)
+	{
+		Vec3i localIndex = request.LocalIndex;
+		return (localIndex.X > 0 && IsSolidProbeCenter(blockAccessor, probePosWorld.X - spacing, probePosWorld.Y, probePosWorld.Z))
+			|| (localIndex.X < resolution - 1 && IsSolidProbeCenter(blockAccessor, probePosWorld.X + spacing, probePosWorld.Y, probePosWorld.Z))
+			|| (localIndex.Y > 0 && IsSolidProbeCenter(blockAccessor, probePosWorld.X, probePosWorld.Y - spacing, probePosWorld.Z))
+			|| (localIndex.Y < resolution - 1 && IsSolidProbeCenter(blockAccessor, probePosWorld.X, probePosWorld.Y + spacing, probePosWorld.Z))
+			|| (localIndex.Z > 0 && IsSolidProbeCenter(blockAccessor, probePosWorld.X, probePosWorld.Y, probePosWorld.Z - spacing))
+			|| (localIndex.Z < resolution - 1 && IsSolidProbeCenter(blockAccessor, probePosWorld.X, probePosWorld.Y, probePosWorld.Z + spacing));
+	}
+
+	private static bool IsSolidProbeCenter(IBlockAccessor blockAccessor, double x, double y, double z)
+	{
+		return LumOnWorldProbeSolidBlockCheck.ClassifyProbeCenter(
+			blockAccessor,
+			new VanillaGraphicsExpanded.Numerics.Vector3d(x, y, z)) == LumOnWorldProbeCenterOccupancy.InsideCollision;
 	}
 
 	private void EnsureUnavailableProbeSlots(LumOnWorldProbeClipmapGpuResources resources)

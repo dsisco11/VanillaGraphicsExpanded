@@ -47,4 +47,24 @@ public sealed class LumOnWorldProbeImportanceTests
 
         Assert.Equal(LumOnWorldProbeImportance.IndirectSunlightFactor, factor);
     }
+
+    [Fact]
+    public void AddCardinalSolidNeighborBoost_WhenProbeBordersSolidCenter_AddsHalf()
+    {
+        float factor = LumOnWorldProbeImportance.AddCardinalSolidNeighborBoost(
+            LumOnWorldProbeImportance.DirectSunlightFactor,
+            hasCardinalSolidNeighbor: true);
+
+        Assert.Equal(1.5f, factor);
+    }
+
+    [Fact]
+    public void AddCardinalSolidNeighborBoost_WhenProbeHasNoSolidNeighbor_LeavesFactorUnchanged()
+    {
+        float factor = LumOnWorldProbeImportance.AddCardinalSolidNeighborBoost(
+            LumOnWorldProbeImportance.IndirectSunlightFactor,
+            hasCardinalSolidNeighbor: false);
+
+        Assert.Equal(LumOnWorldProbeImportance.IndirectSunlightFactor, factor);
+    }
 }
