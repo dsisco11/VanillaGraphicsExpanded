@@ -16,6 +16,13 @@ namespace VanillaGraphicsExpanded.PBR;
 /// </summary>
 public sealed class DirectLightingBufferManager : IDisposable
 {
+    private static readonly DrawBuffersEnum[] DirectLightingDrawBuffers =
+    [
+        DrawBuffersEnum.ColorAttachment0,
+        DrawBuffersEnum.ColorAttachment1,
+        DrawBuffersEnum.ColorAttachment2
+    ];
+
     #region Static Instance
 
     /// <summary>
@@ -137,6 +144,7 @@ public sealed class DirectLightingBufferManager : IDisposable
         }
 
         directLightingFbo.Bind();
+        GL.DrawBuffers(DirectLightingDrawBuffers.Length, DirectLightingDrawBuffers);
     }
 
     /// <summary>

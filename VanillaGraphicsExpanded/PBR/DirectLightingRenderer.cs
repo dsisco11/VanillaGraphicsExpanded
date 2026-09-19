@@ -138,7 +138,7 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         }
 
         // Bind output MRT FBO
-        bufferManager.DirectLightingFbo?.Bind();
+        bufferManager.BindForRendering();
         GL.Viewport(0, 0, screenW, screenH);
 
         if (resizeDebugFramesRemaining > 0)
@@ -148,7 +148,7 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
             {
                 capi.Logger.Warning($"[VGE] pbr_direct_lighting: DirectLightingFbo incomplete during resize: {status}");
                 capi.Render.GLDepthMask(true);
-                GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
+                GpuFramebuffer.RestoreBinding(prevFbo);
                 GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
                 return;
             }
@@ -221,7 +221,7 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         // Restore state
         capi.Render.GLDepthMask(true);
 
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
+        GpuFramebuffer.RestoreBinding(prevFbo);
         GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
     }
 
