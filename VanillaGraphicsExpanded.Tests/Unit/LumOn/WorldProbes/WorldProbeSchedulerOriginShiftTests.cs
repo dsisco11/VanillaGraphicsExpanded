@@ -248,6 +248,11 @@ public sealed class WorldProbeSchedulerOriginShiftTests
         // For dx=+1, introduced local slab is x=resolution-1, which maps to storage x=0 (because ringOffset.X becomes 1).
         var disabledStorage = new Vec3i(0, 0, 0);
         int disabledLinear = Linear(disabledStorage, resolution);
+        Assert.True(scheduler.UpdateImportanceFlags(
+            level: 0,
+            storageLinearIndex: disabledLinear,
+            setFlags: LumOnWorldProbeImportanceFlags.NearbySolidHit,
+            clearFlags: LumOnWorldProbeImportanceFlags.None));
         scheduler.Disable(new LumOnWorldProbeUpdateRequest(
             Level: 0,
             LocalIndex: new Vec3i(0, 0, 0),
@@ -261,5 +266,7 @@ public sealed class WorldProbeSchedulerOriginShiftTests
         Assert.True(scheduler.TryCopyLifecycleStates(0, states));
 
         Assert.Equal(LumOnWorldProbeLifecycleState.Dirty, states[disabledLinear]);
+        Assert.True(scheduler.TryGetImportanceFlags(0, disabledLinear, out var flags));
+        Assert.Equal(LumOnWorldProbeImportanceFlags.None, flags);
     }
 }

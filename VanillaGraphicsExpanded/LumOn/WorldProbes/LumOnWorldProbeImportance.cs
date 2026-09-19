@@ -6,8 +6,11 @@ internal static class LumOnWorldProbeImportance
     public const float IndirectSunlightFactor = 2f;
     public const float StackedAboveRainMapFactor = 0.5f;
     public const float CardinalSolidNeighborBoost = 0.5f;
+    public const LumOnWorldProbeImportanceFlags DynamicFlags =
+        LumOnWorldProbeImportanceFlags.IndirectSunlight |
+        LumOnWorldProbeImportanceFlags.StackedAboveRainMap;
 
-    public static float GetFactor(
+    public static LumOnWorldProbeImportanceFlags GetDynamicFlags(
         int sunlight,
         int maximumSunlight,
         int localY,
@@ -19,18 +22,27 @@ internal static class LumOnWorldProbeImportance
             && probeY >= rainMapHeight
             && probeY - spacing >= rainMapHeight)
         {
-            return StackedAboveRainMapFactor;
+            return LumOnWorldProbeImportanceFlags.StackedAboveRainMap;
         }
 
         return sunlight == maximumSunlight
-            ? DirectSunlightFactor
-            : IndirectSunlightFactor;
+            ? LumOnWorldProbeImportanceFlags.None
+            : LumOnWorldProbeImportanceFlags.IndirectSunlight;
     }
 
-    public static float AddCardinalSolidNeighborBoost(float factor, bool hasCardinalSolidNeighbor)
+    public static float ComputeFactor(LumOnWorldProbeImportanceFlags flags)
     {
-        return hasCardinalSolidNeighbor
-            ? factor + CardinalSolidNeighborBoost
-            : factor;
+        float factor = (flags & LumOnWorldProbeImportanceFlags.StackedAboveRainMap) != 0
+            ? StackedAboveRainMapFactor
+            : (flags & LumOnWorldProbeImportanceFlags.IndirectSunlight) != 0
+                ? IndirectSunlightFactor
+                : DirectSunlightFactor;
+
+        if ((flags & LumOnWorldProbeImportanceFlags.NearbySolidHit) != 0)
+        {
+            factor += CardinalSolidNeighborBoost;
+        }
+
+        return factor;
     }
 }

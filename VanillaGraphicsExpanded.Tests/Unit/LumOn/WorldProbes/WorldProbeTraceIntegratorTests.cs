@@ -48,6 +48,7 @@ public sealed class WorldProbeTraceIntegratorTests
         }
         Assert.Equal(1f, res.SkyIntensity, 6);
         Assert.Equal(0f, res.MeanLogHitDistance, 6);
+        Assert.Equal(LumOnWorldProbeImportanceFlags.None, res.ImportanceFlags);
     }
 
     [Fact]
@@ -102,7 +103,8 @@ public sealed class WorldProbeTraceIntegratorTests
             EnableDirectionPIS: false,
             DirectionPISExploreFraction: 0.25f,
             DirectionPISExploreCount: -1,
-            DirectionPISWeightEpsilon: 1e-6f);
+            DirectionPISWeightEpsilon: 1e-6f,
+            NearbySolidHitDistance: 4.5d);
 
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
@@ -118,6 +120,7 @@ public sealed class WorldProbeTraceIntegratorTests
         }
         Assert.Equal(0f, res.SkyIntensity, 6);
         Assert.True(res.MeanLogHitDistance > 1.0f);
+        Assert.Equal(LumOnWorldProbeImportanceFlags.NearbySolidHit, res.ImportanceFlags);
     }
 
     [Fact]

@@ -139,7 +139,8 @@ internal sealed class LumOnWorldProbeTraceService : IDisposable
                             ShortRangeAoDirWorld: default,
                             ShortRangeAoConfidence: 0f,
                             Confidence: 0f,
-                            MeanLogHitDistance: 0f);
+                            MeanLogHitDistance: 0f,
+                            ImportanceFlags: LumOnWorldProbeImportanceFlags.None);
                     }
 
                     await results.Writer.WriteAsync(res, cts.Token).ConfigureAwait(false);

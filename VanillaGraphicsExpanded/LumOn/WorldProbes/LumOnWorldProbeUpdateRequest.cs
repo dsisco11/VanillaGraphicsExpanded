@@ -7,4 +7,4 @@ internal readonly record struct LumOnWorldProbeUpdateRequest(
     Vec3i LocalIndex,
     Vec3i StorageIndex,
     int StorageLinearIndex,
-    float ImportanceFactor = 1f);
+    LumOnWorldProbeImportanceFlags ImportanceFlags = LumOnWorldProbeImportanceFlags.None);

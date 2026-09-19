@@ -13,4 +13,5 @@ internal readonly record struct LumOnWorldProbeTraceWorkItem(
     bool EnableDirectionPIS,
     float DirectionPISExploreFraction,
     int DirectionPISExploreCount,
-    float DirectionPISWeightEpsilon);
+    float DirectionPISWeightEpsilon,
+    double NearbySolidHitDistance = 0d);

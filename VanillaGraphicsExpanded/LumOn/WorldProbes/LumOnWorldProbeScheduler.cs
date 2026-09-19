@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Numerics;
-
 using Vintagestory.API.MathTools;
 
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes;
@@ -125,19 +123,51 @@ internal sealed class LumOnWorldProbeScheduler
         }
     }
 
-    public bool SetImportanceFactor(int level, int storageLinearIndex, float importanceFactor)
+    public bool UpdateImportanceFlags(
+        int level,
+        int storageLinearIndex,
+        LumOnWorldProbeImportanceFlags setFlags,
+        LumOnWorldProbeImportanceFlags clearFlags)
     {
         if ((uint)level >= (uint)levels.Length
-            || (uint)storageLinearIndex >= (uint)probesPerLevel
-            || !float.IsFinite(importanceFactor)
-            || importanceFactor <= 0f)
+            || (uint)storageLinearIndex >= (uint)probesPerLevel)
         {
             return false;
         }
 
         lock (levelLocks[level])
         {
-            levels[level].SetImportanceFactor(storageLinearIndex, importanceFactor);
+            levels[level].UpdateImportanceFlags(storageLinearIndex, setFlags, clearFlags);
+        }
+        return true;
+    }
+
+    public bool MergeImportanceFlags(int level, int storageLinearIndex, LumOnWorldProbeImportanceFlags flags)
+    {
+        if ((uint)level >= (uint)levels.Length
+            || (uint)storageLinearIndex >= (uint)probesPerLevel)
+        {
+            return false;
+        }
+
+        lock (levelLocks[level])
+        {
+            return levels[level].MergeImportanceFlags(storageLinearIndex, flags);
+        }
+    }
+
+    public bool TryGetImportanceFlags(int level, int storageLinearIndex, out LumOnWorldProbeImportanceFlags flags)
+    {
+        flags = LumOnWorldProbeImportanceFlags.None;
+        if ((uint)level >= (uint)levels.Length
+            || (uint)storageLinearIndex >= (uint)probesPerLevel)
+        {
+            return false;
+        }
+
+        lock (levelLocks[level])
+        {
+            flags = levels[level].GetImportanceFlags(storageLinearIndex);
         }
         return true;
     }
@@ -379,7 +409,7 @@ internal sealed class LumOnWorldProbeScheduler
         private readonly LumOnWorldProbeLifecycleState[] lifecycle;
         private readonly int[] lastUpdatedFrame;
         private readonly int[] retryAfterFrame;
-        private readonly float[] importanceFactors;
+        private readonly LumOnWorldProbeImportanceFlags[] importanceFlags;
         private readonly bool[] dirtyAfterInFlight;
         private readonly bool[] disableAfterInFlight;
 
@@ -402,8 +432,7 @@ internal sealed class LumOnWorldProbeScheduler
             lifecycle = new LumOnWorldProbeLifecycleState[probesPerLevel];
             lastUpdatedFrame = new int[probesPerLevel];
             retryAfterFrame = new int[probesPerLevel];
-            importanceFactors = new float[probesPerLevel];
-            Array.Fill(importanceFactors, 1f);
+            importanceFlags = new LumOnWorldProbeImportanceFlags[probesPerLevel];
             dirtyAfterInFlight = new bool[probesPerLevel];
             disableAfterInFlight = new bool[probesPerLevel];
             queuedAtFrame = new int[probesPerLevel];
@@ -419,7 +448,7 @@ internal sealed class LumOnWorldProbeScheduler
             Array.Fill(lifecycle, LumOnWorldProbeLifecycleState.Uninitialized);
             Array.Fill(lastUpdatedFrame, 0);
             Array.Fill(retryAfterFrame, 0);
-            Array.Fill(importanceFactors, 1f);
+            Array.Fill(importanceFlags, LumOnWorldProbeImportanceFlags.None);
             Array.Fill(dirtyAfterInFlight, false);
             Array.Fill(disableAfterInFlight, false);
             Array.Fill(queuedAtFrame, 0);
@@ -429,9 +458,29 @@ internal sealed class LumOnWorldProbeScheduler
             ringOffset = new Vec3i(0, 0, 0);
         }
 
-        public void SetImportanceFactor(int storageLinearIndex, float importanceFactor)
+        public void UpdateImportanceFlags(
+            int storageLinearIndex,
+            LumOnWorldProbeImportanceFlags setFlags,
+            LumOnWorldProbeImportanceFlags clearFlags)
         {
-            importanceFactors[storageLinearIndex] = importanceFactor;
+            importanceFlags[storageLinearIndex] = (importanceFlags[storageLinearIndex] & ~clearFlags) | setFlags;
+        }
+
+        public bool MergeImportanceFlags(int storageLinearIndex, LumOnWorldProbeImportanceFlags flags)
+        {
+            if (lifecycle[storageLinearIndex] != LumOnWorldProbeLifecycleState.InFlight
+                || dirtyAfterInFlight[storageLinearIndex])
+            {
+                return false;
+            }
+
+            importanceFlags[storageLinearIndex] |= flags;
+            return true;
+        }
+
+        public LumOnWorldProbeImportanceFlags GetImportanceFlags(int storageLinearIndex)
+        {
+            return importanceFlags[storageLinearIndex];
         }
 
         public void ValidateProbeCenters(
@@ -468,7 +517,7 @@ internal sealed class LumOnWorldProbeScheduler
                     LocalIndex: localIndex,
                     StorageIndex: storageIndex,
                     StorageLinearIndex: storageLinearIndex,
-                    ImportanceFactor: importanceFactors[storageLinearIndex]);
+                    ImportanceFlags: importanceFlags[storageLinearIndex]);
                 validationResults?.Add(new ProbeCenterValidation(request, occupancy));
                 if (occupancy is LumOnWorldProbeCenterOccupancy.Unavailable
                     or LumOnWorldProbeCenterOccupancy.OutsideWorldHeight
@@ -722,7 +771,7 @@ internal sealed class LumOnWorldProbeScheduler
                         int dist2 = (dx * dx) + (dy * dy) + (dz * dz);
 
                         double refreshPriority = s == LumOnWorldProbeLifecycleState.Valid
-                            ? Math.Max(0, frameIndex - lastUpdatedFrame[storageLinear]) * importanceFactors[storageLinear]
+                            ? Math.Max(0, frameIndex - lastUpdatedFrame[storageLinear]) * LumOnWorldProbeImportance.ComputeFactor(importanceFlags[storageLinear])
                             : 0;
                         var cand = new Candidate(statePri, refreshPriority, dist2, localLinear, local, storage, storageLinear);
                         InsertBest(best, ref bestCount, cand);
@@ -742,7 +791,7 @@ internal sealed class LumOnWorldProbeScheduler
                     LocalIndex: c.LocalIndex,
                     StorageIndex: c.StorageIndex,
                     StorageLinearIndex: c.StorageLinearIndex,
-                    ImportanceFactor: importanceFactors[c.StorageLinearIndex]));
+                    ImportanceFlags: importanceFlags[c.StorageLinearIndex]));
 
                 taken++;
             }
@@ -829,55 +878,20 @@ internal sealed class LumOnWorldProbeScheduler
 
         private void PromoteStaleValidProbes(int frameIndex, double spacing)
         {
-            int i = 0;
-            if (Vector.IsHardwareAccelerated)
+            for (int storageLinearIndex = 0; storageLinearIndex < lifecycle.Length; storageLinearIndex++)
             {
-                int vectorWidth = Vector<float>.Count;
-                int vectorEnd = lifecycle.Length - vectorWidth;
-                var frame = new Vector<int>(frameIndex);
-                var minimumStaleAfter = new Vector<float>(60f);
-                var maximumStaleAfter = new Vector<float>(60_000f);
-                var scaledBaseStaleAfter = new Vector<float>((float)(DefaultStaleAfterFramesL0 * Math.Max(1.0, spacing)));
-
-                for (; i <= vectorEnd; i += vectorWidth)
-                {
-                    var ages = Vector.ConvertToSingle(frame - new Vector<int>(lastUpdatedFrame, i));
-                    var importance = new Vector<float>(importanceFactors, i);
-                    var staleAfter = Vector.Min(Vector.Max(scaledBaseStaleAfter / importance, minimumStaleAfter), maximumStaleAfter);
-
-                    // The SIMD calculation is a conservative prefilter. Confirm positive lanes with
-                    // the scalar helper to preserve its double-precision and integer-rounding behavior.
-                    var eligible = Vector.GreaterThanOrEqual(ages + Vector<float>.One, staleAfter);
-                    for (int lane = 0; lane < vectorWidth; lane++)
-                    {
-                        if (eligible[lane] == 0f || lifecycle[i + lane] != LumOnWorldProbeLifecycleState.Valid)
-                        {
-                            continue;
-                        }
-
-                        int storageLinearIndex = i + lane;
-                        int age = frameIndex - lastUpdatedFrame[storageLinearIndex];
-                        int staleAfterExact = GetStaleAfterFrames(spacing, importanceFactors[storageLinearIndex]);
-                        if (age >= staleAfterExact)
-                        {
-                            lifecycle[storageLinearIndex] = LumOnWorldProbeLifecycleState.Stale;
-                        }
-                    }
-                }
-            }
-
-            for (; i < lifecycle.Length; i++)
-            {
-                if (lifecycle[i] != LumOnWorldProbeLifecycleState.Valid)
+                if (lifecycle[storageLinearIndex] != LumOnWorldProbeLifecycleState.Valid)
                 {
                     continue;
                 }
 
-                int age = frameIndex - lastUpdatedFrame[i];
-                int staleAfter = GetStaleAfterFrames(spacing, importanceFactors[i]);
+                int age = frameIndex - lastUpdatedFrame[storageLinearIndex];
+                int staleAfter = GetStaleAfterFrames(
+                    spacing,
+                    LumOnWorldProbeImportance.ComputeFactor(importanceFlags[storageLinearIndex]));
                 if (age >= staleAfter)
                 {
-                    lifecycle[i] = LumOnWorldProbeLifecycleState.Stale;
+                    lifecycle[storageLinearIndex] = LumOnWorldProbeLifecycleState.Stale;
                 }
             }
         }
@@ -906,6 +920,7 @@ internal sealed class LumOnWorldProbeScheduler
             if (ax == resolution || ay == resolution || az == resolution)
             {
                 Array.Fill(lifecycle, LumOnWorldProbeLifecycleState.Dirty);
+                Array.Fill(importanceFlags, LumOnWorldProbeImportanceFlags.None);
                 Array.Fill(retryAfterFrame, 0);
                 Array.Fill(queuedAtFrame, 0);
                 return;
@@ -943,6 +958,8 @@ internal sealed class LumOnWorldProbeScheduler
                     {
                         Vec3i storage = LocalToStorage(new Vec3i(x, y, z));
                         int storageLinear = LumOnClipmapTopology.LinearIndex(storage, resolution);
+
+                        importanceFlags[storageLinear] = LumOnWorldProbeImportanceFlags.None;
 
                         if (lifecycle[storageLinear] != LumOnWorldProbeLifecycleState.InFlight)
                         {

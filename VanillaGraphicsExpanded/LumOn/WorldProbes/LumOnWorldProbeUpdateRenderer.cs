@@ -218,19 +218,18 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 					continue;
 				}
 
-				float importanceFactor = LumOnWorldProbeImportance.GetFactor(
+				LumOnWorldProbeImportanceFlags dynamicImportanceFlags = LumOnWorldProbeImportance.GetDynamicFlags(
 					sunlight,
 					MaximumSunLightLevel,
 					req.LocalIndex.Y,
 					probePosWorld.Y,
 					spacing,
 					rainMapHeight);
-				scheduler.SetImportanceFactor(
+				scheduler.UpdateImportanceFlags(
 					req.Level,
 					req.StorageLinearIndex,
-					LumOnWorldProbeImportance.AddCardinalSolidNeighborBoost(
-						importanceFactor,
-						HasCardinalSolidNeighbor(mainThreadAccessor, req, resources.Resolution, probePosWorld, spacing)));
+					dynamicImportanceFlags,
+					LumOnWorldProbeImportance.DynamicFlags);
 
 				double maxDist = spacing * resources.Resolution;
 				var item = new LumOnWorldProbeTraceWorkItem(
@@ -243,7 +242,8 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 					EnableDirectionPIS: cfg.EnableDirectionPIS,
 					DirectionPISExploreFraction: cfg.DirectionPISExploreFraction,
 					DirectionPISExploreCount: cfg.DirectionPISExploreCount,
-					DirectionPISWeightEpsilon: cfg.DirectionPISWeightEpsilon);
+					DirectionPISWeightEpsilon: cfg.DirectionPISWeightEpsilon,
+					NearbySolidHitDistance: spacing * 0.5d);
 				if (!traceService.TryEnqueue(item))
 				{
 					scheduler.Unqueue(req);
@@ -272,6 +272,10 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 				if (res.Success)
 				{
 					traceResults.Add(res);
+					scheduler.MergeImportanceFlags(
+						res.Request.Level,
+						res.Request.StorageLinearIndex,
+						res.ImportanceFlags);
 					scheduler.Complete(res.Request, frameIndex, success: true);
 				}
 				else
@@ -354,29 +358,6 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 		return occupancy is LumOnWorldProbeCenterOccupancy.Unavailable
 			or LumOnWorldProbeCenterOccupancy.OutsideWorldHeight
 			or LumOnWorldProbeCenterOccupancy.InsideCollision;
-	}
-
-	private static bool HasCardinalSolidNeighbor(
-		IBlockAccessor blockAccessor,
-		in LumOnWorldProbeUpdateRequest request,
-		int resolution,
-		in VanillaGraphicsExpanded.Numerics.Vector3d probePosWorld,
-		double spacing)
-	{
-		Vec3i localIndex = request.LocalIndex;
-		return (localIndex.X > 0 && IsSolidProbeCenter(blockAccessor, probePosWorld.X - spacing, probePosWorld.Y, probePosWorld.Z))
-			|| (localIndex.X < resolution - 1 && IsSolidProbeCenter(blockAccessor, probePosWorld.X + spacing, probePosWorld.Y, probePosWorld.Z))
-			|| (localIndex.Y > 0 && IsSolidProbeCenter(blockAccessor, probePosWorld.X, probePosWorld.Y - spacing, probePosWorld.Z))
-			|| (localIndex.Y < resolution - 1 && IsSolidProbeCenter(blockAccessor, probePosWorld.X, probePosWorld.Y + spacing, probePosWorld.Z))
-			|| (localIndex.Z > 0 && IsSolidProbeCenter(blockAccessor, probePosWorld.X, probePosWorld.Y, probePosWorld.Z - spacing))
-			|| (localIndex.Z < resolution - 1 && IsSolidProbeCenter(blockAccessor, probePosWorld.X, probePosWorld.Y, probePosWorld.Z + spacing));
-	}
-
-	private static bool IsSolidProbeCenter(IBlockAccessor blockAccessor, double x, double y, double z)
-	{
-		return LumOnWorldProbeSolidBlockCheck.ClassifyProbeCenter(
-			blockAccessor,
-			new VanillaGraphicsExpanded.Numerics.Vector3d(x, y, z)) == LumOnWorldProbeCenterOccupancy.InsideCollision;
 	}
 
 	private void EnsureUnavailableProbeSlots(LumOnWorldProbeClipmapGpuResources resources)

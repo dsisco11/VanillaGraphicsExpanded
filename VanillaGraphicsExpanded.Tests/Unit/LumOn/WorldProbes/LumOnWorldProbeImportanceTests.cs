@@ -7,9 +7,9 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.WorldProbes;
 public sealed class LumOnWorldProbeImportanceTests
 {
     [Fact]
-    public void GetFactor_WhenProbeAndImmediateLowerProbeAreAboveRainMap_ReturnsStackedFactor()
+    public void GetDynamicFlags_WhenProbeAndImmediateLowerProbeAreAboveRainMap_ReturnsStackedFlag()
     {
-        float factor = LumOnWorldProbeImportance.GetFactor(
+        LumOnWorldProbeImportanceFlags flags = LumOnWorldProbeImportance.GetDynamicFlags(
             sunlight: 32,
             maximumSunlight: 32,
             localY: 2,
@@ -17,13 +17,14 @@ public sealed class LumOnWorldProbeImportanceTests
             spacing: 4.0,
             rainMapHeight: 12);
 
-        Assert.Equal(LumOnWorldProbeImportance.StackedAboveRainMapFactor, factor);
+        Assert.Equal(LumOnWorldProbeImportanceFlags.StackedAboveRainMap, flags);
+        Assert.Equal(LumOnWorldProbeImportance.StackedAboveRainMapFactor, LumOnWorldProbeImportance.ComputeFactor(flags));
     }
 
     [Fact]
-    public void GetFactor_WhenImmediateLowerProbeIsNotAboveRainMap_UsesSunlightFactor()
+    public void GetDynamicFlags_WhenImmediateLowerProbeIsNotAboveRainMap_UsesSunlightFlags()
     {
-        float factor = LumOnWorldProbeImportance.GetFactor(
+        LumOnWorldProbeImportanceFlags flags = LumOnWorldProbeImportance.GetDynamicFlags(
             sunlight: 32,
             maximumSunlight: 32,
             localY: 1,
@@ -31,13 +32,14 @@ public sealed class LumOnWorldProbeImportanceTests
             spacing: 4.0,
             rainMapHeight: 12);
 
-        Assert.Equal(LumOnWorldProbeImportance.DirectSunlightFactor, factor);
+        Assert.Equal(LumOnWorldProbeImportanceFlags.None, flags);
+        Assert.Equal(LumOnWorldProbeImportance.DirectSunlightFactor, LumOnWorldProbeImportance.ComputeFactor(flags));
     }
 
     [Fact]
-    public void GetFactor_WhenThereIsNoLowerProbeInTheClipmap_UsesSunlightFactor()
+    public void GetDynamicFlags_WhenThereIsNoLowerProbeInTheClipmap_UsesIndirectSunlightFlag()
     {
-        float factor = LumOnWorldProbeImportance.GetFactor(
+        LumOnWorldProbeImportanceFlags flags = LumOnWorldProbeImportance.GetDynamicFlags(
             sunlight: 0,
             maximumSunlight: 32,
             localY: 0,
@@ -45,26 +47,24 @@ public sealed class LumOnWorldProbeImportanceTests
             spacing: 4.0,
             rainMapHeight: 12);
 
-        Assert.Equal(LumOnWorldProbeImportance.IndirectSunlightFactor, factor);
+        Assert.Equal(LumOnWorldProbeImportanceFlags.IndirectSunlight, flags);
+        Assert.Equal(LumOnWorldProbeImportance.IndirectSunlightFactor, LumOnWorldProbeImportance.ComputeFactor(flags));
     }
 
     [Fact]
-    public void AddCardinalSolidNeighborBoost_WhenProbeBordersSolidCenter_AddsHalf()
+    public void ComputeFactor_WhenProbeHasNearbySolidHit_AddsHalf()
     {
-        float factor = LumOnWorldProbeImportance.AddCardinalSolidNeighborBoost(
-            LumOnWorldProbeImportance.DirectSunlightFactor,
-            hasCardinalSolidNeighbor: true);
+        float factor = LumOnWorldProbeImportance.ComputeFactor(LumOnWorldProbeImportanceFlags.NearbySolidHit);
 
         Assert.Equal(1.5f, factor);
     }
 
     [Fact]
-    public void AddCardinalSolidNeighborBoost_WhenProbeHasNoSolidNeighbor_LeavesFactorUnchanged()
+    public void ComputeFactor_WhenIndirectProbeHasNearbySolidHit_ComposesFactors()
     {
-        float factor = LumOnWorldProbeImportance.AddCardinalSolidNeighborBoost(
-            LumOnWorldProbeImportance.IndirectSunlightFactor,
-            hasCardinalSolidNeighbor: false);
+        float factor = LumOnWorldProbeImportance.ComputeFactor(
+            LumOnWorldProbeImportanceFlags.IndirectSunlight | LumOnWorldProbeImportanceFlags.NearbySolidHit);
 
-        Assert.Equal(LumOnWorldProbeImportance.IndirectSunlightFactor, factor);
+        Assert.Equal(2.5f, factor);
     }
 }

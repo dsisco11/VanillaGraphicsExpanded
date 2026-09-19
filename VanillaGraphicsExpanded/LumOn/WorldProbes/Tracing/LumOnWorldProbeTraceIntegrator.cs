@@ -81,6 +81,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
 
         double hitDistSum = 0;
         int hitCount = 0;
+        LumOnWorldProbeImportanceFlags importanceFlags = LumOnWorldProbeImportanceFlags.None;
 
         float missAlpha = -(float)Math.Log(item.MaxTraceDistanceWorld + 1.0);
 
@@ -110,7 +111,8 @@ internal sealed class LumOnWorldProbeTraceIntegrator
                     ShortRangeAoDirWorld: Vector3.UnitY,
                     ShortRangeAoConfidence: 0f,
                     Confidence: 0f,
-                    MeanLogHitDistance: 0f);
+                    MeanLogHitDistance: 0f,
+                    ImportanceFlags: LumOnWorldProbeImportanceFlags.None);
             }
 
             bool hit = outcome == WorldProbeTraceOutcome.Hit;
@@ -121,6 +123,10 @@ internal sealed class LumOnWorldProbeTraceIntegrator
 
             if (hit)
             {
+                if (item.NearbySolidHitDistance > 0d && hitDist <= item.NearbySolidHitDistance)
+                {
+                    importanceFlags |= LumOnWorldProbeImportanceFlags.NearbySolidHit;
+                }
                 Vector3 specularF0 = Vector3.Zero;
                 radianceRgb = EvaluateHitRadiance(scene, item.ProbePosWorld, dir, item.MaxTraceDistanceWorld, hitInfo, cancellationToken, out specularF0);
                 alphaSigned = (float)Math.Log(Math.Max(0.0, hitDist) + 1.0);
@@ -206,7 +212,8 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             ShortRangeAoDirWorld: aoDir,
             ShortRangeAoConfidence: aoConfidence,
             Confidence: confidence,
-            MeanLogHitDistance: meanLogDist);
+            MeanLogHitDistance: meanLogDist,
+            ImportanceFlags: importanceFlags);
     }
 
     private static Vector3 EvaluateHitRadiance(

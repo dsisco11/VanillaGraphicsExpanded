@@ -20,4 +20,5 @@ internal readonly record struct LumOnWorldProbeTraceResult(
     Vector3 ShortRangeAoDirWorld,
     float ShortRangeAoConfidence,
     float Confidence,
-    float MeanLogHitDistance);
+    float MeanLogHitDistance,
+    LumOnWorldProbeImportanceFlags ImportanceFlags);
