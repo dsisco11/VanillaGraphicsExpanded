@@ -168,7 +168,14 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         float confidence = ComputeUnifiedConfidence(aoConfidence, hitCount, sampleCountForConfidence);
 
         float skyIntensity;
-        if (skyIntensityCount > 0)
+        if (unoccludedCount > 0)
+        {
+            // Sky misses are encoded in the atlas as a special value and receive the
+            // dynamic sky tint at gather time. Do not derive their intensity from
+            // unrelated dark wall hits inside the probe's visibility field.
+            skyIntensity = 1f;
+        }
+        else if (skyIntensityCount > 0)
         {
             skyIntensity = Math.Clamp(skyIntensitySum / skyIntensityCount, 0f, 1f);
         }

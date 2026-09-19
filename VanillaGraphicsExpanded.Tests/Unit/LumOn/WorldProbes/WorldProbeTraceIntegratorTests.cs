@@ -121,6 +121,30 @@ public sealed class WorldProbeTraceIntegratorTests
     }
 
     [Fact]
+    public void TraceProbe_WhenDarkWallsSurroundASkyVisibleOpening_PreservesDynamicSkyIntensity()
+    {
+        var integrator = new LumOnWorldProbeTraceIntegrator();
+        var request = new LumOnWorldProbeUpdateRequest(0, new Vec3i(0, 0, 0), new Vec3i(0, 0, 0), 0);
+        var item = new LumOnWorldProbeTraceWorkItem(
+            FrameIndex: 7,
+            Request: request,
+            ProbePosWorld: new Vector3d(0.5, 0.5, 0.5),
+            MaxTraceDistanceWorld: 32,
+            WorldProbeOctahedralTileSize: 16,
+            WorldProbeAtlasTexelsPerUpdate: 256,
+            EnableDirectionPIS: false,
+            DirectionPISExploreFraction: 0.25f,
+            DirectionPISExploreCount: -1,
+            DirectionPISWeightEpsilon: 1e-6f);
+
+        var res = integrator.TraceProbe(new OpeningAmongDarkWallsScene(), item, CancellationToken.None);
+
+        Assert.Contains(res.AtlasSamples, sample => sample.AlphaEncodedDistSigned < 0f);
+        Assert.Contains(res.AtlasSamples, sample => sample.AlphaEncodedDistSigned >= 0f);
+        Assert.Equal(1f, res.SkyIntensity, 6);
+    }
+
+    [Fact]
     public void TraceProbe_WhenAllHitsWithSkylight_ProducesNonZeroRadianceSamples()
     {
         var integrator = new LumOnWorldProbeTraceIntegrator();
@@ -278,6 +302,28 @@ public sealed class WorldProbeTraceIntegratorTests
                 HitFaceNormal: hitFaceNormal,
                 SampleBlockPos: new VectorInt3(0, 0, 0),
                 SampleLightRgbS: sampleLight);
+            return WorldProbeTraceOutcome.Hit;
+        }
+    }
+
+    private sealed class OpeningAmongDarkWallsScene : IWorldProbeTraceScene
+    {
+        public WorldProbeTraceOutcome Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
+        {
+            if (dirWorld.X > 0f)
+            {
+                hit = default;
+                return WorldProbeTraceOutcome.Miss;
+            }
+
+            hit = new LumOnWorldProbeTraceHit(
+                HitDistance: 1d,
+                HitBlockId: 1,
+                HitFace: ProbeHitFace.North,
+                HitBlockPos: default,
+                HitFaceNormal: new VectorInt3(0, 0, -1),
+                SampleBlockPos: default,
+                SampleLightRgbS: Vector4.Zero);
             return WorldProbeTraceOutcome.Hit;
         }
     }
