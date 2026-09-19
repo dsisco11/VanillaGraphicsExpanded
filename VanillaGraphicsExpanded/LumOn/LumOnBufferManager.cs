@@ -111,11 +111,11 @@ public sealed class LumOnBufferManager : IDisposable
     private Rendering.GpuFramebuffer? indirectFullFbo;
 
     // ═══════════════════════════════════════════════════════════════
-    // Captured Scene Buffer (for radiance sampling)
+    // Surface Capture Buffers (for probe hit radiance sampling)
     // ═══════════════════════════════════════════════════════════════
 
-    private DynamicTexture2D? capturedSceneTex;
-    private Rendering.GpuFramebuffer? capturedSceneFbo;
+    private DynamicTexture2D? surfaceAlbedoTex;
+    private Rendering.GpuFramebuffer? surfaceAlbedoFbo;
 
     // ═══════════════════════════════════════════════════════════════
     // Reprojection Velocity Buffer (Phase 14)
@@ -307,18 +307,18 @@ public sealed class LumOnBufferManager : IDisposable
     public DynamicTexture2D? IndirectFullTex => indirectFullTex;
 
     // ═══════════════════════════════════════════════════════════════
-    // Captured Scene Buffer
+    // Surface Capture Buffers
     // ═══════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// FBO for captured scene (used for blitting).
+    /// FBO for the captured surface albedo (used for blitting from the primary attachment).
     /// </summary>
-    public Rendering.GpuFramebuffer? CapturedSceneFbo => capturedSceneFbo;
+    public Rendering.GpuFramebuffer? SurfaceAlbedoFbo => surfaceAlbedoFbo;
 
     /// <summary>
-    /// Texture for captured scene (radiance sampling source).
+    /// Captured surface albedo sampled by screen-probe ray hits.
     /// </summary>
-    public DynamicTexture2D? CapturedSceneTex => capturedSceneTex;
+    public DynamicTexture2D? SurfaceAlbedoTex => surfaceAlbedoTex;
 
     /// <summary>
     /// FBO for velocity output (full resolution).
@@ -462,19 +462,18 @@ public sealed class LumOnBufferManager : IDisposable
     }
 
     /// <summary>
-    /// Captures the current primary framebuffer to the captured scene texture.
-    /// Call this before probe tracing to have the lit scene available for radiance sampling.
+    /// Captures the current primary framebuffer to LumOn's surface albedo texture.
+    /// Call this before probe tracing so surface inputs are frame-consistent.
     /// </summary>
     /// <param name="primaryFboId">The primary framebuffer ID to blit from</param>
     /// <param name="screenWidth">Screen width</param>
     /// <param name="screenHeight">Screen height</param>
-    public void CaptureScene(int primaryFboId, int screenWidth, int screenHeight)
+    public void CaptureSurfaceAlbedo(int primaryFboId, int screenWidth, int screenHeight)
     {
-        if (!isInitialized || capturedSceneFbo == null)
+        if (!isInitialized || surfaceAlbedoFbo == null)
             return;
 
-        // Blit from primary FB to captured scene texture
-        capturedSceneFbo.BlitFromExternal(primaryFboId, screenWidth, screenHeight);
+        surfaceAlbedoFbo.BlitFromExternal(primaryFboId, screenWidth, screenHeight);
     }
 
     #endregion
@@ -581,11 +580,11 @@ public sealed class LumOnBufferManager : IDisposable
         indirectFullFbo = Rendering.GpuFramebuffer.CreateSingle(indirectFullTex, debugName: "IndirectFullFBO");
 
         // ═══════════════════════════════════════════════════════════════
-        // Create Captured Scene Buffer
+        // Create LumOn-owned surface capture buffers.
         // ═══════════════════════════════════════════════════════════════
 
-        capturedSceneTex = DynamicTexture2D.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear, debugName: "CapturedScene");
-        capturedSceneFbo = Rendering.GpuFramebuffer.CreateSingle(capturedSceneTex, debugName: "CapturedSceneFBO");
+        surfaceAlbedoTex = DynamicTexture2D.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear, debugName: "LumOn.SurfaceAlbedo");
+        surfaceAlbedoFbo = Rendering.GpuFramebuffer.CreateSingle(surfaceAlbedoTex, debugName: "LumOn.SurfaceAlbedoFBO");
 
         // ═══════════════════════════════════════════════════════════════
         // Velocity Buffer (Phase 14)
@@ -622,7 +621,7 @@ public sealed class LumOnBufferManager : IDisposable
         probeTraceMaskFbo?.Dispose();
         indirectHalfFbo?.Dispose();
         indirectFullFbo?.Dispose();
-        capturedSceneFbo?.Dispose();
+        surfaceAlbedoFbo?.Dispose();
         velocityFbo?.Dispose();
         screenProbeAtlasTraceFbo?.Dispose();
         screenProbeAtlasCurrentFbo?.Dispose();
@@ -635,7 +634,7 @@ public sealed class LumOnBufferManager : IDisposable
         probeTraceMaskFbo = null;
         indirectHalfFbo = null;
         indirectFullFbo = null;
-        capturedSceneFbo = null;
+        surfaceAlbedoFbo = null;
         velocityFbo = null;
         screenProbeAtlasTraceFbo = null;
         screenProbeAtlasCurrentFbo = null;
@@ -651,7 +650,7 @@ public sealed class LumOnBufferManager : IDisposable
         probePisEnergyTex?.Dispose();
         indirectHalfTex?.Dispose();
         indirectFullTex?.Dispose();
-        capturedSceneTex?.Dispose();
+        surfaceAlbedoTex?.Dispose();
         velocityTex?.Dispose();
         screenProbeAtlasTraceTex?.Dispose();
         screenProbeAtlasCurrentTex?.Dispose();
@@ -678,7 +677,7 @@ public sealed class LumOnBufferManager : IDisposable
         probePisEnergyTex = null;
         indirectHalfTex = null;
         indirectFullTex = null;
-        capturedSceneTex = null;
+        surfaceAlbedoTex = null;
         velocityTex = null;
         screenProbeAtlasTraceTex = null;
         screenProbeAtlasCurrentTex = null;

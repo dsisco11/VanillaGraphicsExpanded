@@ -9,8 +9,8 @@ internal sealed class LumOnScreenProbeAtlasTraceProgramLayout : GpuProgramLayout
         RegisterSamplerUnit("probeAnchorPosition", 0, required: true);
         RegisterSamplerUnit("probeAnchorNormal", 1, required: true);
         RegisterSamplerUnit("primaryDepth", 2, required: true);
-        RegisterSamplerUnit("directDiffuse", 3, required: true);
-        RegisterSamplerUnit("emissive", 4, required: true);
+        RegisterSamplerUnit("surfaceAlbedo", 3, required: true);
+        RegisterSamplerUnit("gBufferMaterial", 4, required: true);
         RegisterSamplerUnit("octahedralHistory", 5, required: true);
         RegisterSamplerUnit("hzbDepth", 6, required: true);
         RegisterSamplerUnit("probeAtlasMetaHistory", 7, required: true);

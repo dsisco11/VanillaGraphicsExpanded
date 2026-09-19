@@ -926,7 +926,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
             // Phase 15 composite debug inputs
             shader.IndirectDiffuseFull = bufferManager?.IndirectFullTex;
-            shader.GBufferAlbedo = bufferManager?.CapturedSceneTex;
+            shader.GBufferAlbedo = bufferManager?.SurfaceAlbedoTex;
             shader.GBufferMaterial = gBufferManager?.MaterialTextureId ?? 0;
 
             // Phase 16 direct lighting debug inputs

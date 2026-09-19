@@ -90,14 +90,14 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
     public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 2, GpuSamplers.NearestClamp); }
 
     /// <summary>
-    /// Direct diffuse lighting (linear, pre-tonemap HDR).
+    /// LumOn-owned captured surface albedo.
     /// </summary>
-    public GpuTexture? DirectDiffuse { set => BindTexture2D("directDiffuse", value, 3); }
+    public GpuTexture? SurfaceAlbedo { set => BindTexture2D("surfaceAlbedo", value, 3); }
 
     /// <summary>
-    /// Emissive radiance (linear, pre-tonemap HDR).
+    /// VGE material properties used to derive emissive radiance at ray hits.
     /// </summary>
-    public GpuTexture? Emissive { set => BindTexture2D("emissive", value, 4); }
+    public int GBufferMaterial { set => BindExternalTexture2D("gBufferMaterial", value, 4, GpuSamplers.NearestClamp); }
 
     /// <summary>
     /// History probe atlas (octahedral-mapped) for temporal preservation.

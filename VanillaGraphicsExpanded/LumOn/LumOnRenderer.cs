@@ -287,10 +287,8 @@ public class LumOnRenderer : IRenderer, IDisposable
             isFirstFrame = false;
         }
 
-        // Capture the current scene for radiance sampling.
-        // IMPORTANT: Capture from VS's primary framebuffer (ColorAttachment0), since that's what the
-        // base game's post processing consumes.
-        bufferManager.CaptureScene(primaryFb.FboId, capi.Render.FrameWidth, capi.Render.FrameHeight);
+        // Capture LumOn-owned surface inputs before ray tracing.
+        bufferManager.CaptureSurfaceAlbedo(primaryFb.FboId, capi.Render.FrameWidth, capi.Render.FrameHeight);
 
         // Update matrices
         UpdateMatrices();
@@ -768,18 +766,9 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Bind scene depth for ray marching
         shader.PrimaryDepth = primaryFb.DepthTextureId;
 
-        // Bind radiance sources for hit sampling.
-        var direct = DirectLightingBufferManager.Instance;
-        if (direct?.IsInitialized == true && direct.DirectDiffuseTex != null && direct.EmissiveTex != null)
-        {
-            shader.DirectDiffuse = direct.DirectDiffuseTex;
-            shader.Emissive = direct.EmissiveTex;
-        }
-        else
-        {
-            shader.DirectDiffuse = bufferManager.CapturedSceneTex!;
-            shader.Emissive = null;
-        }
+        // Bind LumOn-owned albedo plus VGE material properties for hit radiance sampling.
+        shader.SurfaceAlbedo = bufferManager.SurfaceAlbedoTex;
+        shader.GBufferMaterial = gBufferManager?.MaterialTextureId ?? 0;
 
 
         // Bind history for temporal preservation

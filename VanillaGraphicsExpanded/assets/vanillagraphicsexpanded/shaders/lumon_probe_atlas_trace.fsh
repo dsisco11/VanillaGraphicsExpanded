@@ -46,9 +46,9 @@ uniform sampler2D probeTraceMask;
 
 // Scene textures for ray marching
 uniform sampler2D primaryDepth;
-// Radiance sources (linear, pre-tonemap HDR)
-uniform sampler2D directDiffuse;
-uniform sampler2D emissive;
+// LumOn-owned surface inputs for deriving hit radiance.
+uniform sampler2D surfaceAlbedo;
+uniform sampler2D gBufferMaterial;
 
 // Emissive GI scaling (boost emissive as an indirect light source)
 // Wired via VGE's runtime define system (VgeShaderProgram.SetDefine).
@@ -177,9 +177,9 @@ RayHit traceRay(vec3 originVS, vec3 directionVS) {
         if (depthDiff > 0.0 && depthDiff < VGE_LUMON_RAY_THICKNESS) {
             // Hit!
             result.hit = true;
-            vec3 direct = texture(directDiffuse, sampleUV).rgb;
-            vec3 em = texture(emissive, sampleUV).rgb * LUMON_EMISSIVE_BOOST;
-            result.color = direct + em;
+            vec3 albedo = texture(surfaceAlbedo, sampleUV).rgb;
+            float emissiveStrength = max(texture(gBufferMaterial, sampleUV).b, 0.0);
+            result.color = albedo * emissiveStrength * LUMON_EMISSIVE_BOOST;
             result.distance = t;
             return result;
         }
