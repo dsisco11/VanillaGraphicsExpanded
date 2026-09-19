@@ -67,7 +67,7 @@ layout(std140) uniform LumOnFrameUBO
 layout(std140) uniform LumOnWorldProbeUBO
 {
     vec4 worldProbeSkyTint;      // xyz tint, w reserved
-    vec4 worldProbeCameraPosWS;  // xyz camera pos, w reserved
+    vec4 worldProbePlayerOriginWorld; // xyz stable player origin, w reserved
     vec4 worldProbeOriginMinCorner[LUMON_WORLDPROBE_MAX_LEVELS]; // xyz, w reserved
     vec4 worldProbeRingOffset[LUMON_WORLDPROBE_MAX_LEVELS];      // xyz, w reserved
 } lumonWorldProbe;

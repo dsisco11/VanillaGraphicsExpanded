@@ -58,7 +58,7 @@ uniform sampler2D worldProbeDist0;
 uniform sampler2D worldProbeMeta0;
 
 vec3 lumonWorldProbeGetSkyTint() { return lumonWorldProbe.worldProbeSkyTint.xyz; }
-vec3 lumonWorldProbeGetCameraPosWS() { return lumonWorldProbe.worldProbeCameraPosWS.xyz; }
+vec3 lumonWorldProbeGetPlayerOriginWorld() { return lumonWorldProbe.worldProbePlayerOriginWorld.xyz; }
 vec3 lumonWorldProbeGetOriginMinCorner(int level) { return lumonWorldProbe.worldProbeOriginMinCorner[level].xyz; }
 vec3 lumonWorldProbeGetRingOffset(int level) { return lumonWorldProbe.worldProbeRingOffset[level].xyz; }
 
@@ -537,9 +537,9 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleClipmapRadiance(
 		return outS;
 	}
 
-	// Work in camera-relative space for stable float precision.
-	vec3 cameraPosWS = lumonWorldProbeGetCameraPosWS();
-	vec3 worldPosRel = worldPos - cameraPosWS;
+	// Screen-probe reconstruction already yields player-origin-relative positions.
+	// Clipmap origins are published in that same stable space, excluding camera bob.
+	vec3 worldPosRel = worldPos;
 
 	int maxLevel = max(levels - 1, 0);
 	int level = lumonWorldProbeSelectLevelByExtents(worldPosRel, baseSpacing, levels, resolution);
@@ -618,9 +618,9 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
 		return outS;
 	}
 
-	// Work in camera-relative space for stable float precision.
-	vec3 cameraPosWS = lumonWorldProbeGetCameraPosWS();
-	vec3 worldPosRel = worldPos - cameraPosWS;
+	// Screen-probe reconstruction already yields player-origin-relative positions.
+	// Clipmap origins are published in that same stable space, excluding camera bob.
+	vec3 worldPosRel = worldPos;
 
 	int maxLevel = max(levels - 1, 0);
 	int level = lumonWorldProbeSelectLevelByExtents(worldPosRel, baseSpacing, levels, resolution);

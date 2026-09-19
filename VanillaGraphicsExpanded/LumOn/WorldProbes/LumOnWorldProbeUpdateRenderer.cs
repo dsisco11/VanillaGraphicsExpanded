@@ -44,9 +44,6 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 	private readonly LumOnWorldProbeClipmapBufferManager.DebugTraceRay[] debugQueuedTraceRaysScratch =
 		new LumOnWorldProbeClipmapBufferManager.DebugTraceRay[LumOnWorldProbeClipmapBufferManager.MaxDebugTraceRays];
 
-	private readonly float[] modelViewMatrix = new float[16];
-	private readonly float[] invModelViewMatrix = new float[16];
-
 	private bool startupLogged;
 	private int frameIndex;
 
@@ -97,7 +94,7 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 			return;
 		}
 
-		if (!TryGetCameraPositions(out Vec3d camPosWorld, out Vec3d camPosMatrixSpace))
+		if (!TryGetPlayerOriginWorld(out Vec3d playerOriginWorld))
 		{
 			return;
 		}
@@ -109,12 +106,12 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 
 		using (Profiler.BeginScope("LumOn.WorldProbe.Schedule.UpdateOrigins", "LumOn"))
 		{
-			scheduler.UpdateOrigins(camPosWorld, baseSpacing);
+			scheduler.UpdateOrigins(playerOriginWorld, baseSpacing);
 		}
 
 		ApplyPendingWorldProbeDirtyChunks(baseSpacing);
 
-		UpdateRuntimeParams(resources, camPosWorld, camPosMatrixSpace, baseSpacing);
+		UpdateRuntimeParams(resources, playerOriginWorld, baseSpacing);
 
 		// World-space tracing requires the game world to be ready.
 		traceBlockAccessor ??= capi.World?.BlockAccessor;
@@ -142,7 +139,7 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 		{
 			requests = scheduler.BuildUpdateList(
 				frameIndex,
-				camPosWorld,
+				playerOriginWorld,
 				baseSpacing,
 				perLevelBudgets,
 				cfg.TraceMaxProbesPerFrame,
@@ -337,8 +334,7 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 
 	private void UpdateRuntimeParams(
 		LumOnWorldProbeClipmapGpuResources resources,
-		Vec3d camPosWorld,
-		Vec3d camPosMatrixSpace,
+		Vec3d playerOriginWorld,
 		double baseSpacing)
 	{
 		if (scheduler is null)
@@ -358,9 +354,9 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 			if (i < levels && scheduler.TryGetLevelParams(i, out var o, out var r))
 			{
 				originsSpan[i] = new Vector3(
-					(float)(o.X - camPosWorld.X),
-					(float)(o.Y - camPosWorld.Y),
-					(float)(o.Z - camPosWorld.Z));
+					(float)(o.X - playerOriginWorld.X),
+					(float)(o.Y - playerOriginWorld.Y),
+					(float)(o.Z - playerOriginWorld.Z));
 				ringsSpan[i] = new Vector3(r.X, r.Y, r.Z);
 			}
 			else
@@ -371,8 +367,8 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 		}
 
 		clipmapBufferManager.UpdateRuntimeParams(
-			camPosWorld,
-			new Vector3((float)camPosMatrixSpace.X, (float)camPosMatrixSpace.Y, (float)camPosMatrixSpace.Z),
+			playerOriginWorld,
+			new Vector3((float)playerOriginWorld.X, (float)playerOriginWorld.Y, (float)playerOriginWorld.Z),
 			baseSpacingF,
 			levels,
 			resolution,
@@ -380,23 +376,16 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 			ringsSpan);
 	}
 
-	private bool TryGetCameraPositions(out Vec3d cameraPosWorld, out Vec3d cameraPosMatrixSpace)
+	private bool TryGetPlayerOriginWorld(out Vec3d playerOriginWorld)
 	{
 		var player = capi.World?.Player;
 		if (player?.Entity is null)
 		{
-			cameraPosWorld = new Vec3d();
-			cameraPosMatrixSpace = new Vec3d();
+			playerOriginWorld = new Vec3d();
 			return false;
 		}
 
-		cameraPosWorld = player.Entity.CameraPos;
-
-		Array.Copy(capi.Render.CameraMatrixOriginf, modelViewMatrix, 16);
-		Array.Copy(modelViewMatrix, invModelViewMatrix, 16);
-		MatrixHelper.Invert(invModelViewMatrix, invModelViewMatrix);
-
-		cameraPosMatrixSpace = new Vec3d(invModelViewMatrix[12], invModelViewMatrix[13], invModelViewMatrix[14]);
+		playerOriginWorld = new Vec3d(player.Entity.Pos.X, player.Entity.Pos.Y, player.Entity.Pos.Z);
 		return true;
 	}
 

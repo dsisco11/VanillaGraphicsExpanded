@@ -48,8 +48,8 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
     // This enables debug overlays and other passes to bind world-probe uniforms
     // without needing direct access to the scheduler.
     private bool hasRuntimeParams;
-    private Vec3d runtimeCameraPosWorld = new Vec3d();
-    private Vector3 runtimeCameraPosWS;
+    private Vec3d runtimePlayerOriginWorld = new Vec3d();
+    private Vector3 runtimePlayerOriginWS;
     private float runtimeBaseSpacing;
     private int runtimeLevels;
     private int runtimeResolution;
@@ -86,8 +86,8 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
     public event Action<LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent>? AnchorShifted;
 
     public bool TryGetRuntimeParams(
-        out Vec3d cameraPosWorld,
-        out Vector3 cameraPosWS,
+        out Vec3d playerOriginWorld,
+        out Vector3 playerOriginWS,
         out float baseSpacing,
         out int levels,
         out int resolution,
@@ -96,8 +96,8 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
     {
         if (!hasRuntimeParams)
         {
-            cameraPosWorld = new Vec3d();
-            cameraPosWS = default;
+            playerOriginWorld = new Vec3d();
+            playerOriginWS = default;
             baseSpacing = 0;
             levels = 0;
             resolution = 0;
@@ -106,8 +106,8 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
             return false;
         }
 
-        cameraPosWorld = runtimeCameraPosWorld;
-        cameraPosWS = runtimeCameraPosWS;
+        playerOriginWorld = runtimePlayerOriginWorld;
+        playerOriginWS = runtimePlayerOriginWS;
         baseSpacing = runtimeBaseSpacing;
         levels = runtimeLevels;
         resolution = runtimeResolution;
@@ -117,8 +117,8 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
     }
 
     public void UpdateRuntimeParams(
-        Vec3d cameraPosWorld,
-        Vector3 cameraPosWS,
+        Vec3d playerOriginWorld,
+        Vector3 playerOriginWS,
         float baseSpacing,
         int levels,
         int resolution,
@@ -127,8 +127,8 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
     {
         bool wasMissing = !hasRuntimeParams;
 
-        runtimeCameraPosWorld = cameraPosWorld;
-        runtimeCameraPosWS = cameraPosWS;
+        runtimePlayerOriginWorld = playerOriginWorld;
+        runtimePlayerOriginWS = playerOriginWS;
         runtimeBaseSpacing = baseSpacing;
         runtimeLevels = levels;
         runtimeResolution = resolution;

@@ -61,8 +61,27 @@ public class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : LumOnShader
         return data;
     }
 
+    private static float[] CreateRadianceAtlasWithRedFirstProbeTile(int width, int height)
+    {
+        float alphaHitEncoded = (float)Math.Log(1.0 + 1.0);
+        var data = CreateUniformData(width, height, 4, 0f, 0f, 1f, alphaHitEncoded);
+
+        for (int y = 0; y < WorldProbeTileSize; y++)
+        {
+            for (int x = 0; x < WorldProbeTileSize; x++)
+            {
+                int index = (y * width + x) * 4;
+                data[index + 0] = 1f;
+                data[index + 1] = 0f;
+                data[index + 2] = 0f;
+            }
+        }
+
+        return data;
+    }
+
     [Fact]
-    public void TraceMiss_UsesWorldProbeFallback_WhenEnabled()
+    public void TraceMiss_UsesPlayerRelativeCoordinates_ForWorldProbeFallback()
     {
         EnsureShaderTestAvailable();
 
@@ -78,10 +97,9 @@ public class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : LumOnShader
         const int wpRadianceAtlasWidth = (wpResolution * wpResolution) * WorldProbeTileSize;
         const int wpRadianceAtlasHeight = (wpResolution * wpLevels) * WorldProbeTileSize;
 
-        // Fill radiance atlas with a constant red-ish radiance and positive alpha (hit, not sky).
-        // The miss path should pick this instead of the bright green sky fallback.
-        float alphaHitEncoded = (float)Math.Log(1.0 + 1.0); // log(dist+1), dist=1
-        var wpRadianceAtlas = CreateUniformData(wpRadianceAtlasWidth, wpRadianceAtlasHeight, 4, 1.0f, 0f, 0f, alphaHitEncoded);
+        // The first physical probe tile is red; every other tile is blue. The anchor below maps exactly
+        // to this first tile only when the shader uses player-relative surface coordinates directly.
+        var wpRadianceAtlas = CreateRadianceAtlasWithRedFirstProbeTile(wpRadianceAtlasWidth, wpRadianceAtlasHeight);
 
         // vis0.xy = any octUV, vis0.z = skyIntensity, vis0.w = aoConf (not used for radiance fallback).
         var wpVis0 = CreateUniformData(wpScalarAtlasWidth, wpScalarAtlasHeight, 4, 0.5f, 1.0f, 0f, 0f);
@@ -194,8 +212,10 @@ public class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : LumOnShader
             UpdateAndBindLumOnWorldProbeUbo(
                 programId,
                 skyTint: new Vintagestory.API.MathTools.Vec3f(0f, 0f, 0f),
-                cameraPosWS: new System.Numerics.Vector3(0f, 0f, 0f),
-                originMinCorner: [new System.Numerics.Vector3(-1f, -1f, -6f)],
+                // This is the stable absolute player origin, not a render-camera translation.
+                // The old coordinate path subtracted it from the relative anchor and sampled out of bounds.
+                cameraPosWS: new System.Numerics.Vector3(512000f, 3f, 512000f),
+                originMinCorner: [new System.Numerics.Vector3(-0.5f, -0.5f, -5.5f)],
                 ringOffset: [new System.Numerics.Vector3(0f, 0f, 0f)]);
 
             GL.UseProgram(0);
@@ -223,8 +243,8 @@ public class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : LumOnShader
             Assert.True((flags & LUMON_META_WORLDPROBE_FALLBACK) != 0u, "Expected WORLDPROBE_FALLBACK flag on a miss texel");
             Assert.True(conf > 0.9f, $"Expected high confidence from world-probe fallback, got {conf:F3}");
 
-            // World-probe DC radiance is ~1.0; sky fallback is bright green.
-            Assert.True(r > 0.8f && g < 0.2f && b < 0.2f, $"Expected red-ish world-probe radiance, got ({r:F3}, {g:F3}, {b:F3})");
+            // The selected first probe tile is red; the other tiles are blue and sky fallback is green.
+            Assert.True(r > 0.8f && g < 0.2f && b < 0.2f, $"Expected red first-probe radiance, got ({r:F3}, {g:F3}, {b:F3})");
         }
         finally
         {
