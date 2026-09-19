@@ -130,13 +130,23 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 			return;
 		}
 
+		int[] perLevelBudgets = cfg.PerLevelProbeUpdateBudget ?? Array.Empty<int>();
+		using (Profiler.BeginScope("LumOn.WorldProbe.ValidateSolidCenters", "LumOn"))
+		{
+			scheduler.ValidateProbeCenters(
+				baseSpacing,
+				perLevelBudgets,
+				(_, probePosWorld) => LumOnWorldProbeSolidBlockCheck.IsProbeCenterInsideSolidBlock(
+					mainThreadAccessor,
+					new VanillaGraphicsExpanded.Numerics.Vector3d(probePosWorld.X, probePosWorld.Y, probePosWorld.Z)));
+		}
+
 		traceScene ??= new BlockAccessorWorldProbeTraceScene(worldAccessor);
 		traceService ??= new LumOnWorldProbeTraceService(
 			traceScene,
 			maxQueuedWorkItems: 2048,
 			tryClaim: (req, frame) => scheduler.TryClaim(req, frame));
 
-		int[] perLevelBudgets = cfg.PerLevelProbeUpdateBudget ?? Array.Empty<int>();
 		System.Collections.Generic.List<LumOnWorldProbeUpdateRequest> requests;
 		using (Profiler.BeginScope("LumOn.WorldProbe.Schedule.BuildList", "LumOn"))
 		{

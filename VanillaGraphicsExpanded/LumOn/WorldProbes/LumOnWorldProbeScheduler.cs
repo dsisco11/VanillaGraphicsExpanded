@@ -92,6 +92,34 @@ internal sealed class LumOnWorldProbeScheduler
 
     public int ProbesPerLevel => probesPerLevel;
 
+    public void ValidateProbeCenters(
+        double baseSpacing,
+        int[] perLevelProbeBudgets,
+        Func<int, Vec3d, bool> isProbeCenterInsideSolidBlock)
+    {
+        if (baseSpacing <= 0) throw new ArgumentOutOfRangeException(nameof(baseSpacing));
+        ArgumentNullException.ThrowIfNull(perLevelProbeBudgets);
+        ArgumentNullException.ThrowIfNull(isProbeCenterInsideSolidBlock);
+
+        for (int level = 0; level < levels.Length; level++)
+        {
+            int budget = level < perLevelProbeBudgets.Length
+                ? Math.Max(0, perLevelProbeBudgets[level])
+                : 0;
+            if (budget == 0)
+            {
+                continue;
+            }
+
+            double spacing = LumOnClipmapTopology.GetSpacing(baseSpacing, level);
+            lock (levelLocks[level])
+            {
+                ref LevelState state = ref levels[level];
+                state.ValidateProbeCenters(level, spacing, budget, isProbeCenterInsideSolidBlock);
+            }
+        }
+    }
+
     public bool SetImportanceFactor(int level, int storageLinearIndex, float importanceFactor)
     {
         if ((uint)level >= (uint)levels.Length
@@ -352,6 +380,8 @@ internal sealed class LumOnWorldProbeScheduler
 
         private readonly int[] queuedAtFrame;
 
+        private int validationCursor;
+
         private Vec3d? anchor;
         private Vec3d? originMinCorner;
 
@@ -372,6 +402,7 @@ internal sealed class LumOnWorldProbeScheduler
             dirtyAfterInFlight = new bool[probesPerLevel];
             disableAfterInFlight = new bool[probesPerLevel];
             queuedAtFrame = new int[probesPerLevel];
+            validationCursor = 0;
 
             anchor = null;
             originMinCorner = null;
@@ -387,6 +418,7 @@ internal sealed class LumOnWorldProbeScheduler
             Array.Fill(dirtyAfterInFlight, false);
             Array.Fill(disableAfterInFlight, false);
             Array.Fill(queuedAtFrame, 0);
+            validationCursor = 0;
             anchor = null;
             originMinCorner = null;
             ringOffset = new Vec3i(0, 0, 0);
@@ -395,6 +427,40 @@ internal sealed class LumOnWorldProbeScheduler
         public void SetImportanceFactor(int storageLinearIndex, float importanceFactor)
         {
             importanceFactors[storageLinearIndex] = importanceFactor;
+        }
+
+        public void ValidateProbeCenters(
+            int level,
+            double spacing,
+            int budget,
+            Func<int, Vec3d, bool> isProbeCenterInsideSolidBlock)
+        {
+            if (originMinCorner is null || budget <= 0)
+            {
+                return;
+            }
+
+            Vec3d origin = originMinCorner;
+            int checks = Math.Min(budget, probesPerLevel);
+            for (int check = 0; check < checks; check++)
+            {
+                int localLinearIndex = validationCursor;
+                validationCursor = (validationCursor + 1) % probesPerLevel;
+
+                int x = localLinearIndex % resolution;
+                int yz = localLinearIndex / resolution;
+                int y = yz % resolution;
+                int z = yz / resolution;
+                var localIndex = new Vec3i(x, y, z);
+                Vec3i storageIndex = LocalToStorage(localIndex);
+                int storageLinearIndex = LumOnClipmapTopology.LinearIndex(storageIndex, resolution);
+                Vec3d probeCenter = LumOnClipmapTopology.IndexToProbeCenterWorld(localIndex, origin, spacing);
+
+                if (isProbeCenterInsideSolidBlock(level, probeCenter))
+                {
+                    Disable(storageLinearIndex);
+                }
+            }
         }
 
         public void Disable(int storageLinearIndex)

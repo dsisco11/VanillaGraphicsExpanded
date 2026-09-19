@@ -188,6 +188,22 @@ public sealed class WorldProbeSchedulerBudgetTests
         Assert.Equal(2f, refresh.ImportanceFactor);
     }
 
+    [Fact]
+    public void ValidateProbeCenters_DisablesProbeWithoutSchedulingTrace()
+    {
+        var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution: 2);
+        scheduler.UpdateOrigins(new Vec3d(0, 0, 0), baseSpacing: 1.0);
+
+        scheduler.ValidateProbeCenters(
+            baseSpacing: 1.0,
+            perLevelProbeBudgets: [8],
+            isProbeCenterInsideSolidBlock: (_, _) => true);
+
+        var lifecycle = new LumOnWorldProbeLifecycleState[scheduler.ProbesPerLevel];
+        Assert.True(scheduler.TryCopyLifecycleStates(level: 0, lifecycle));
+        Assert.All(lifecycle, state => Assert.Equal(LumOnWorldProbeLifecycleState.Disabled, state));
+    }
+
     private static int GetEstimatedUploadBytesPerProbe(int atlasTexelsPerUpdate)
     {
         const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Static;
