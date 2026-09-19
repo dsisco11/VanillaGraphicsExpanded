@@ -276,26 +276,24 @@ void main(void)
         w11 = bw11 * n11 * (p11.valid >= 0.5 ? 1.0 : 0.0);
         totalWeight = w00 + w10 + w01 + w11;
 
-        if (totalWeight < 0.001) {
-            // alpha encodes weight diagnostics; keep it 0 for totally invalid.
-            outColor = vec4(0.0, 0.0, 0.0, 0.0);
-            return;
-        }
     }
     
     // Screen confidence (raw weight sum, clamped)
     float screenConfidence = clamp(totalWeight, 0.0, 1.0);
 
-    // Normalize weights
-    float invWeight = 1.0 / totalWeight;
-    w00 *= invWeight;
-    w10 *= invWeight;
-    w01 *= invWeight;
-    w11 *= invWeight;
+    vec3 screenIrradiance = vec3(0.0);
+    if (totalWeight >= 0.001)
+    {
+        // Normalize weights and blend irradiance from all probes (screen-space GI).
+        float invWeight = 1.0 / totalWeight;
+        w00 *= invWeight;
+        w10 *= invWeight;
+        w01 *= invWeight;
+        w11 *= invWeight;
 
-    // Blend irradiance from all probes (screen-space GI)
-    vec3 screenIrradiance = irr00 * w00 + irr10 * w10 + irr01 * w01 + irr11 * w11;
-    screenIrradiance = max(screenIrradiance, vec3(0.0));
+        screenIrradiance = irr00 * w00 + irr10 * w10 + irr01 * w01 + irr11 * w11;
+        screenIrradiance = max(screenIrradiance, vec3(0.0));
+    }
 
     vec3 blended = screenIrradiance;
     float outConfidence = screenConfidence;

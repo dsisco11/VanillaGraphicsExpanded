@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Globalization;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Shaders;
@@ -226,6 +228,128 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
     {
         int idx = (y * HalfResWidth + x) * 4;
         return (data[idx], data[idx + 1], data[idx + 2], data[idx + 3]);
+    }
+
+    private static float[] CreateWorldProbeRadianceAtlas(int width, int height, float r, float g, float b)
+    {
+        var data = new float[width * height * 4];
+        float encodedHitDistance = MathF.Log(2.0f);
+        for (int i = 0; i < width * height; i++)
+        {
+            int index = i * 4;
+            data[index] = r;
+            data[index + 1] = g;
+            data[index + 2] = b;
+            data[index + 3] = encodedHitDistance;
+        }
+
+        return data;
+    }
+
+    #endregion
+
+    #region Test: InvalidScreenProbes_UseWorldProbeFallback
+
+    [Fact]
+    public void InvalidScreenProbes_UseWorldProbeFallback()
+    {
+        EnsureShaderTestAvailable();
+
+        const int worldProbeResolution = 2;
+        const int worldProbeLevels = 1;
+        const int worldProbeTileSize = 16;
+        const float worldProbeBaseSpacing = 1000f;
+
+        int worldProbeScalarAtlasWidth = worldProbeResolution * worldProbeResolution;
+        int worldProbeScalarAtlasHeight = worldProbeResolution * worldProbeLevels;
+        int worldProbeRadianceAtlasWidth = worldProbeScalarAtlasWidth * worldProbeTileSize;
+        int worldProbeRadianceAtlasHeight = worldProbeScalarAtlasHeight * worldProbeTileSize;
+
+        const float pixelDepth = 0.5f;
+        CreateTestMatricesForDepth(pixelDepth, out var invProjection, out var viewMatrix, out var probeWorldZ, out _);
+
+        using var screenProbeAtlas = TestFramework.CreateTexture(
+            AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, CreateUniformAtlas(0f, 0f, 0f));
+        using var anchorPos = TestFramework.CreateTexture(
+            ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, CreateProbeAnchors(probeWorldZ, validity: 0f));
+        using var anchorNormal = TestFramework.CreateTexture(
+            ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, CreateProbeNormals(0f, 1f, 0f));
+        using var depth = TestFramework.CreateTexture(
+            ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, CreateDepthBuffer(pixelDepth));
+        using var normal = TestFramework.CreateTexture(
+            ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, CreateNormalBuffer(0f, 1f, 0f));
+
+        using var worldProbeRadiance = TestFramework.CreateTexture(
+            worldProbeRadianceAtlasWidth, worldProbeRadianceAtlasHeight, PixelInternalFormat.Rgba16f,
+            CreateWorldProbeRadianceAtlas(worldProbeRadianceAtlasWidth, worldProbeRadianceAtlasHeight, 1f, 0f, 0f));
+        using var worldProbeVis = TestFramework.CreateTexture(
+            worldProbeScalarAtlasWidth, worldProbeScalarAtlasHeight, PixelInternalFormat.Rgba16f,
+            CreateUniformColorData(worldProbeScalarAtlasWidth, worldProbeScalarAtlasHeight, 0.5f, 1f, 0f, 0f));
+        using var worldProbeMeta = TestFramework.CreateTexture(
+            worldProbeScalarAtlasWidth, worldProbeScalarAtlasHeight, PixelInternalFormat.Rg32f,
+            CreateUniformData(worldProbeScalarAtlasWidth, worldProbeScalarAtlasHeight, 2, 1f, 0f));
+        using var output = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f);
+
+        int programId = 0;
+        try
+        {
+            programId = CompileShaderWithDefines(
+                "lumon_probe_atlas_gather.vsh",
+                "lumon_probe_atlas_gather.fsh",
+                new Dictionary<string, string?>
+                {
+                    ["VGE_LUMON_WORLDPROBE_ENABLED"] = "1",
+                    ["VGE_LUMON_WORLDPROBE_LEVELS"] = worldProbeLevels.ToString(CultureInfo.InvariantCulture),
+                    ["VGE_LUMON_WORLDPROBE_RESOLUTION"] = worldProbeResolution.ToString(CultureInfo.InvariantCulture),
+                    ["VGE_LUMON_WORLDPROBE_BASE_SPACING"] = worldProbeBaseSpacing.ToString("0.0", CultureInfo.InvariantCulture),
+                    ["VGE_LUMON_WORLDPROBE_OCTAHEDRAL_SIZE"] = worldProbeTileSize.ToString(CultureInfo.InvariantCulture),
+                });
+
+            using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
+            UpdateAndBindLumOnWorldProbeUbo(
+                programId,
+                skyTint: new Vintagestory.API.MathTools.Vec3f(0f, 0f, 0f),
+                cameraPosWS: Vector3.Zero,
+                originMinCorner: [new Vector3(-500f, -500f, -500f)],
+                ringOffset: [Vector3.Zero]);
+
+            GL.UseProgram(programId);
+            GL.Uniform1(GL.GetUniformLocation(programId, "worldProbeRadianceAtlas"), 5);
+            GL.Uniform1(GL.GetUniformLocation(programId, "worldProbeVis0"), 8);
+            GL.Uniform1(GL.GetUniformLocation(programId, "worldProbeMeta0"), 9);
+            GL.UseProgram(0);
+
+            screenProbeAtlas.Bind(0);
+            anchorPos.Bind(1);
+            anchorNormal.Bind(2);
+            depth.Bind(3);
+            normal.Bind(4);
+            worldProbeRadiance.Bind(5);
+            worldProbeVis.Bind(8);
+            worldProbeMeta.Bind(9);
+
+            TestFramework.RenderQuadTo(programId, output);
+
+            var (r, g, b, confidence) = ReadPixelHalfRes(output[0].ReadPixels(), 0, 0);
+            Assert.True(r > 0.5f && g < 0.1f && b < 0.1f,
+                $"Expected red world-probe irradiance, got ({r:F3}, {g:F3}, {b:F3})");
+            Assert.True(confidence > 0.9f, $"Expected world-probe confidence, got {confidence:F3}");
+        }
+        finally
+        {
+            if (programId != 0) GL.DeleteProgram(programId);
+        }
+    }
+
+    private static float[] CreateUniformData(int width, int height, int channels, params float[] value)
+    {
+        var data = new float[width * height * channels];
+        for (int i = 0; i < width * height; i++)
+        {
+            Array.Copy(value, 0, data, i * channels, channels);
+        }
+
+        return data;
     }
 
     #endregion
