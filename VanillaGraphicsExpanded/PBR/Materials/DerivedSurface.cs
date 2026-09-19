@@ -7,6 +7,6 @@ internal readonly record struct DerivedSurface(
     Vector3 SpecularF0)
 {
     public static readonly DerivedSurface Default = new(
-        DiffuseAlbedo: new Vector3(0.55f),
+        DiffuseAlbedo: new Vector3(1f, 0f, 1f),
         SpecularF0: new Vector3(0.04f));
 }
