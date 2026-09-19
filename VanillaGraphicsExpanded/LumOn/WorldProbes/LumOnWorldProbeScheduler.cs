@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 
 using Vintagestory.API.MathTools;
 
@@ -566,17 +567,7 @@ internal sealed class LumOnWorldProbeScheduler
 
             Vec3d origin = originMinCorner!;
 
-            // Promote valid probes to stale if their age exceeds the per-level threshold.
-            for (int i = 0; i < lifecycle.Length; i++)
-            {
-                if (lifecycle[i] != LumOnWorldProbeLifecycleState.Valid) continue;
-                int age = frameIndex - lastUpdatedFrame[i];
-                int staleAfter = GetStaleAfterFrames(spacing, importanceFactors[i]);
-                if (age >= staleAfter)
-                {
-                    lifecycle[i] = LumOnWorldProbeLifecycleState.Stale;
-                }
-            }
+            PromoteStaleValidProbes(frameIndex, spacing);
 
             Vec3d localCam = LumOnClipmapTopology.WorldToLocal(cameraPos, origin, spacing);
             Vec3i camIndex = LumOnClipmapTopology.LocalToIndexFloor(localCam);
@@ -750,6 +741,61 @@ internal sealed class LumOnWorldProbeScheduler
                             dirtyAfterInFlight[storageLinear] = true;
                         }
                     }
+                }
+            }
+        }
+
+        private void PromoteStaleValidProbes(int frameIndex, double spacing)
+        {
+            int i = 0;
+            if (Vector.IsHardwareAccelerated)
+            {
+                int vectorWidth = Vector<float>.Count;
+                int vectorEnd = lifecycle.Length - vectorWidth;
+                var frame = new Vector<int>(frameIndex);
+                var minimumStaleAfter = new Vector<float>(60f);
+                var maximumStaleAfter = new Vector<float>(60_000f);
+                var scaledBaseStaleAfter = new Vector<float>((float)(DefaultStaleAfterFramesL0 * Math.Max(1.0, spacing)));
+
+                for (; i <= vectorEnd; i += vectorWidth)
+                {
+                    var ages = Vector.ConvertToSingle(frame - new Vector<int>(lastUpdatedFrame, i));
+                    var importance = new Vector<float>(importanceFactors, i);
+                    var staleAfter = Vector.Min(Vector.Max(scaledBaseStaleAfter / importance, minimumStaleAfter), maximumStaleAfter);
+
+                    // The SIMD calculation is a conservative prefilter. Confirm positive lanes with
+                    // the scalar helper to preserve its double-precision and integer-rounding behavior.
+                    var eligible = Vector.GreaterThanOrEqual(ages + Vector<float>.One, staleAfter);
+                    for (int lane = 0; lane < vectorWidth; lane++)
+                    {
+                        if (eligible[lane] == 0f || lifecycle[i + lane] != LumOnWorldProbeLifecycleState.Valid)
+                        {
+                            continue;
+                        }
+
+                        int storageLinearIndex = i + lane;
+                        int age = frameIndex - lastUpdatedFrame[storageLinearIndex];
+                        int staleAfterExact = GetStaleAfterFrames(spacing, importanceFactors[storageLinearIndex]);
+                        if (age >= staleAfterExact)
+                        {
+                            lifecycle[storageLinearIndex] = LumOnWorldProbeLifecycleState.Stale;
+                        }
+                    }
+                }
+            }
+
+            for (; i < lifecycle.Length; i++)
+            {
+                if (lifecycle[i] != LumOnWorldProbeLifecycleState.Valid)
+                {
+                    continue;
+                }
+
+                int age = frameIndex - lastUpdatedFrame[i];
+                int staleAfter = GetStaleAfterFrames(spacing, importanceFactors[i]);
+                if (age >= staleAfter)
+                {
+                    lifecycle[i] = LumOnWorldProbeLifecycleState.Stale;
                 }
             }
         }
