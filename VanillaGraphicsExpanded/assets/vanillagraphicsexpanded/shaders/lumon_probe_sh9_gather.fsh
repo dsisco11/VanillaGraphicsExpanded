@@ -15,6 +15,7 @@ out vec4 outColor;
 
 @import "./includes/lumon_common.glsl"
 @import "./includes/lumon_sh9.glsl"
+@import "./includes/lumon_worldprobe.glsl"
 
 // Phase 23: shared per-frame state via UBOs.
 @import "./includes/lumon_ubos.glsl"
@@ -119,7 +120,7 @@ void main(void)
     // pixelNormalWS already selected from full-res G-buffer (see helper)
 
     vec2 screenPos = screenUV * screenSize;
-    vec2 probePos = lumonScreenToProbePos(screenPos, float(probeSpacing));
+    vec2 probePos = lumonScreenToProbeAnchorPos(screenPos, float(probeSpacing));
 
     ivec2 probe00 = ivec2(floor(probePos));
     ivec2 probe10 = probe00 + ivec2(1, 0);
@@ -188,6 +189,19 @@ void main(void)
 
     vec3 blended = screenIrradiance;
     float outConfidence = screenConfidence;
+
+#if VGE_LUMON_WORLDPROBE_ENABLED
+    if (totalWeight < 0.001)
+    {
+        vec3 pixelPosWS = (invViewMatrix * vec4(pixelPosVS, 1.0)).xyz;
+        LumOnWorldProbeSample worldProbe = lumonWorldProbeSampleClipmapBound(pixelPosWS, pixelNormalWS);
+        if (worldProbe.confidence > 1e-3)
+        {
+            blended = worldProbe.irradiance;
+            outConfidence = worldProbe.confidence;
+        }
+    }
+#endif
 
     blended *= intensity;
     blended *= indirectTint;

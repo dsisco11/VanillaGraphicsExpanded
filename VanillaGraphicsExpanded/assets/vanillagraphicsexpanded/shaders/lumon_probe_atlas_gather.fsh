@@ -18,6 +18,9 @@ out vec4 outColor;
 // Import common utilities
 @import "./includes/lumon_common.glsl"
 
+// World-probe clipmap fallback for pixels with no usable screen probes.
+@import "./includes/lumon_worldprobe.glsl"
+
 // Import octahedral mapping utilities
 @import "./includes/lumon_octahedral.glsl"
 
@@ -205,7 +208,7 @@ void main(void)
     
     // Calculate which probes surround this pixel
     vec2 screenPos = screenUV * screenSize;
-    vec2 probePos = lumonScreenToProbePos(screenPos, float(probeSpacing));
+    vec2 probePos = lumonScreenToProbeAnchorPos(screenPos, float(probeSpacing));
     
     // Get the four surrounding probe coordinates
     ivec2 probe00 = ivec2(floor(probePos));
@@ -296,6 +299,19 @@ void main(void)
 
     vec3 blended = screenIrradiance;
     float outConfidence = screenConfidence;
+
+#if VGE_LUMON_WORLDPROBE_ENABLED
+    if (totalWeight < 0.001)
+    {
+        vec3 pixelPosWS = (invViewMatrix * vec4(pixelPosVS, 1.0)).xyz;
+        LumOnWorldProbeSample worldProbe = lumonWorldProbeSampleClipmapBound(pixelPosWS, pixelNormalWS);
+        if (worldProbe.confidence > 1e-3)
+        {
+            blended = worldProbe.irradiance;
+            outConfidence = worldProbe.confidence;
+        }
+    }
+#endif
 
     blended *= intensity;
     blended *= indirectTint;

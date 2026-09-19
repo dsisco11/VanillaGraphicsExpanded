@@ -230,26 +230,20 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
     #endregion
 
-    #region Test: CenterPixel_InterpolatesFourProbes
+    #region Test: GatherCoordinates_AlignWithProbeAnchors
 
     /// <summary>
-    /// Tests that a pixel at the center of the probe grid interpolates equally from all four probes.
-    /// 
-    /// DESIRED BEHAVIOR:
-    /// - When a pixel is equidistant from all four surrounding probes
-    /// - And all probes have matching depth and normal
-    /// - The output should be the average of all four probes' radiance
+    /// Tests that half-resolution gather coordinates align with the screen-probe anchors.
     /// 
     /// Setup:
-    /// - 2×2 half-res output (center at (0.5, 0.5) in half-res = (1, 1) in full-res)
-    /// - Probes with RGBW colors at matching depth/normal
-    /// - Pixel depth and normal match all probes
+    /// - 2×2 half-res output and 2×2 probe grid
+    /// - Probes with distinct RGBW colors at matching depth/normal
     /// 
     /// Expected:
-    /// - Center pixel ≈ average(R, G, B, W) = (0.5, 0.5, 0.5)
+    /// - Each output texel is dominated by its corresponding probe.
     /// </summary>
     [Fact]
-    public void CenterPixel_InterpolatesFourProbes()
+    public void GatherCoordinates_AlignWithProbeAnchors()
     {
         EnsureShaderTestAvailable();
 
@@ -296,27 +290,19 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
         var outputData = outputGBuffer[0].ReadPixels();
 
-        // DESIRED: All pixels should have some contribution from probes
-        // The exact blending depends on bilinear weights and hemisphere integration
-        // With RGBW probes and uniform depth/normal, output should be grayish
-        for (int py = 0; py < HalfResHeight; py++)
-        {
-            for (int px = 0; px < HalfResWidth; px++)
-            {
-                var (r, g, b, _) = ReadPixelHalfRes(outputData, px, py);
-                
-                // DESIRED: Non-zero irradiance from probe interpolation
-                float brightness = (r + g + b) / 3.0f;
-                Assert.True(brightness > 0.01f,
-                    $"Pixel ({px},{py}) should have non-zero irradiance, got ({r:F3}, {g:F3}, {b:F3})");
-                
-                // DESIRED: Should have contribution from multiple color channels (not single probe)
-                // With equal weighting, expect roughly equal RGB contribution
-                bool hasMultipleChannels = (r > 0.01f ? 1 : 0) + (g > 0.01f ? 1 : 0) + (b > 0.01f ? 1 : 0) >= 2;
-                Assert.True(hasMultipleChannels,
-                    $"Pixel ({px},{py}) should blend multiple probes, got ({r:F3}, {g:F3}, {b:F3})");
-            }
-        }
+        var topLeft = ReadPixelHalfRes(outputData, 0, 0);
+        var topRight = ReadPixelHalfRes(outputData, 1, 0);
+        var bottomLeft = ReadPixelHalfRes(outputData, 0, 1);
+        var bottomRight = ReadPixelHalfRes(outputData, 1, 1);
+
+        Assert.True(topLeft.r > 0.01f && topLeft.r > topLeft.g && topLeft.r > topLeft.b,
+            $"Top-left should resolve to the red probe, got ({topLeft.r:F3}, {topLeft.g:F3}, {topLeft.b:F3})");
+        Assert.True(topRight.g > 0.01f && topRight.g > topRight.r && topRight.g > topRight.b,
+            $"Top-right should resolve to the green probe, got ({topRight.r:F3}, {topRight.g:F3}, {topRight.b:F3})");
+        Assert.True(bottomLeft.b > 0.01f && bottomLeft.b > bottomLeft.r && bottomLeft.b > bottomLeft.g,
+            $"Bottom-left should resolve to the blue probe, got ({bottomLeft.r:F3}, {bottomLeft.g:F3}, {bottomLeft.b:F3})");
+        Assert.True(bottomRight.r > 0.01f && bottomRight.g > 0.01f && bottomRight.b > 0.01f,
+            $"Bottom-right should resolve to the white probe, got ({bottomRight.r:F3}, {bottomRight.g:F3}, {bottomRight.b:F3})");
 
         GL.DeleteProgram(programId);
     }

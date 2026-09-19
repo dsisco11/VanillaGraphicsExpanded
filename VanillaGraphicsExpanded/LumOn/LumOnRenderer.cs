@@ -1029,6 +1029,29 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (bufferManager.ProbeSh9Tex0 is null || bufferManager.ProbeSh9Tex6 is null)
             return;
 
+        bool hasWorldProbe = TryBindWorldProbeClipmapCommon(
+            out var worldProbeResources,
+            out _,
+            out var worldProbeBaseSpacing,
+            out var worldProbeLevels,
+            out var worldProbeResolution,
+            out _,
+            out _);
+
+        int worldProbeTileSize = config.WorldProbeClipmap.OctahedralTileSize;
+        int worldProbeAtlasTexelsPerUpdate = config.WorldProbeClipmap.AtlasTexelsPerUpdate;
+        if (!shader.EnsureWorldProbeClipmapDefines(
+                enabled: hasWorldProbe,
+                baseSpacing: worldProbeBaseSpacing,
+                levels: worldProbeLevels,
+                resolution: worldProbeResolution,
+                worldProbeOctahedralTileSize: hasWorldProbe ? worldProbeTileSize : 0,
+                worldProbeAtlasTexelsPerUpdate: hasWorldProbe ? worldProbeAtlasTexelsPerUpdate : 0,
+                worldProbeDiffuseStride: hasWorldProbe ? 2 : 0))
+        {
+            return;
+        }
+
         fbo.BindWithViewport();
         fbo.Clear();
 
@@ -1053,6 +1076,10 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         shader.PrimaryDepth = primaryFb.DepthTextureId;
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
+
+        shader.WorldProbeRadianceAtlas = hasWorldProbe ? worldProbeResources.ProbeRadianceAtlas : null;
+        shader.WorldProbeVis0 = hasWorldProbe ? worldProbeResources.ProbeVis0 : null;
+        shader.WorldProbeMeta0 = hasWorldProbe ? worldProbeResources.ProbeMeta0 : null;
 
         shader.Intensity = config.LumOn.Intensity;
         shader.IndirectTint = config.LumOn.IndirectTint;
@@ -1083,6 +1110,29 @@ public class LumOnRenderer : IRenderer, IDisposable
             ?? bufferManager.ScreenProbeAtlasTraceTex;
         if (probeAtlas is null) return;
 
+        bool hasWorldProbe = TryBindWorldProbeClipmapCommon(
+            out var worldProbeResources,
+            out _,
+            out var worldProbeBaseSpacing,
+            out var worldProbeLevels,
+            out var worldProbeResolution,
+            out _,
+            out _);
+
+        int worldProbeTileSize = config.WorldProbeClipmap.OctahedralTileSize;
+        int worldProbeAtlasTexelsPerUpdate = config.WorldProbeClipmap.AtlasTexelsPerUpdate;
+        if (!shader.EnsureWorldProbeClipmapDefines(
+                enabled: hasWorldProbe,
+                baseSpacing: worldProbeBaseSpacing,
+                levels: worldProbeLevels,
+                resolution: worldProbeResolution,
+                worldProbeOctahedralTileSize: hasWorldProbe ? worldProbeTileSize : 0,
+                worldProbeAtlasTexelsPerUpdate: hasWorldProbe ? worldProbeAtlasTexelsPerUpdate : 0,
+                worldProbeDiffuseStride: hasWorldProbe ? 2 : 0))
+        {
+            return;
+        }
+
         fbo.BindWithViewport();
         fbo.Clear();
 
@@ -1101,6 +1151,11 @@ public class LumOnRenderer : IRenderer, IDisposable
         // Bind G-buffer for pixel info
         shader.PrimaryDepth = primaryFb.DepthTextureId;
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
+
+        shader.WorldProbeRadianceAtlas = hasWorldProbe ? worldProbeResources.ProbeRadianceAtlas : null;
+        shader.WorldProbeVis0 = hasWorldProbe ? worldProbeResources.ProbeVis0 : null;
+        shader.WorldProbeMeta0 = hasWorldProbe ? worldProbeResources.ProbeMeta0 : null;
+
         shader.Intensity = config.LumOn.Intensity;
         shader.IndirectTint = config.LumOn.IndirectTint;
 

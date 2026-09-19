@@ -228,6 +228,14 @@ vec2 lumonScreenToProbePos(vec2 screenPos, float probeSpacing) {
 }
 
 /**
+ * Convert a screen-space pixel position to probe-anchor index space.
+ * Probe anchors are located at the center of each screen-space probe cell.
+ */
+vec2 lumonScreenToProbeAnchorPos(vec2 screenPos, float probeSpacing) {
+    return lumonScreenToProbePos(screenPos, probeSpacing) - vec2(0.5);
+}
+
+/**
  * Get the screen UV that a probe samples (center of its cell).
  * @param probeCoord Integer probe grid coordinates
  * @param probeSpacing Pixels between probes
