@@ -6,6 +6,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
+using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Profiling;
@@ -62,6 +63,11 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         if (stage != EnumRenderStage.Opaque || quadMeshRef is null)
+        {
+            return;
+        }
+
+        if (ConfigModSystem.Config.LumOn.Enabled)
         {
             return;
         }

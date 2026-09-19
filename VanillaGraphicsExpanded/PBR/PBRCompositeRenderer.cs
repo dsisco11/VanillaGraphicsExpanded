@@ -72,6 +72,11 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             return;
         }
 
+        if (lumOnConfig?.LumOn.Enabled == true)
+        {
+            return;
+        }
+
         int screenW = capi.Render.FrameWidth;
         int screenH = capi.Render.FrameHeight;
         if (screenW <= 0 || screenH <= 0)
