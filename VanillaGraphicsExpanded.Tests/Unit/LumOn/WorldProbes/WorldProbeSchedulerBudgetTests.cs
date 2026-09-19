@@ -169,8 +169,11 @@ public sealed class WorldProbeSchedulerBudgetTests
             scheduler.Complete(request, frameIndex: 0, success: true);
         }
 
-        LumOnWorldProbeUpdateRequest important = initial[^1];
-        Assert.True(scheduler.SetImportanceFactor(important.Level, important.StorageLinearIndex, importanceFactor: 2f));
+        foreach (LumOnWorldProbeUpdateRequest request in initial)
+        {
+            float importanceFactor = request.LocalIndex.X > 0 ? 2f : 1f;
+            Assert.True(scheduler.SetImportanceFactor(request.Level, request.StorageLinearIndex, importanceFactor));
+        }
 
         LumOnWorldProbeUpdateRequest refresh = Assert.Single(scheduler.BuildUpdateList(
             frameIndex: 1,
@@ -181,7 +184,7 @@ public sealed class WorldProbeSchedulerBudgetTests
             uploadBudgetBytesPerFrame: 1_000_000,
             atlasTexelsPerUpdate: 32));
 
-        Assert.Equal(important.StorageLinearIndex, refresh.StorageLinearIndex);
+        Assert.Equal(1, refresh.LocalIndex.X);
         Assert.Equal(2f, refresh.ImportanceFactor);
     }
 

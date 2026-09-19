@@ -23,6 +23,9 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 {
 	private const double RenderOrderValue = 0.9999;
 	private const int RenderRangeValue = 1;
+	private const int MaximumSunLightLevel = 32;
+	private const float DirectSunlightImportanceFactor = 1f;
+	private const float IndirectSunlightImportanceFactor = 2f;
 
 	private readonly ICoreClientAPI capi;
 	private readonly VgeConfig config;
@@ -180,6 +183,19 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 				double spacing = LumOnClipmapTopology.GetSpacing(baseSpacing, req.Level);
 				Vec3d probePosWorldVs = LumOnClipmapTopology.IndexToProbeCenterWorld(req.LocalIndex, originMinCorner, spacing);
 				var probePosWorld = new VanillaGraphicsExpanded.Numerics.Vector3d(probePosWorldVs.X, probePosWorldVs.Y, probePosWorldVs.Z);
+				// Determine sunlight level at the probe position.
+				int sunlight = mainThreadAccessor.GetLightLevel(
+					(int)Math.Floor(probePosWorld.X),
+					(int)Math.Floor(probePosWorld.Y),
+					(int)Math.Floor(probePosWorld.Z),
+					EnumLightLevelType.OnlySunLight);
+				// Boost importance for probes which are not in direct sunlight.
+				scheduler.SetImportanceFactor(
+					req.Level,
+					req.StorageLinearIndex,
+					sunlight == MaximumSunLightLevel
+						? DirectSunlightImportanceFactor
+						: IndirectSunlightImportanceFactor);
 
 				if (LumOnWorldProbeSolidBlockCheck.IsProbeCenterInsideSolidBlock(mainThreadAccessor, probePosWorld))
 				{
