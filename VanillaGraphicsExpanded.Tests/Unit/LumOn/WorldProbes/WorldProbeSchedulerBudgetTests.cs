@@ -119,7 +119,7 @@ public sealed class WorldProbeSchedulerBudgetTests
     }
 
     [Fact]
-    public void BuildUpdateList_RefreshesHigherImportanceProbeMoreOften()
+    public void BuildUpdateList_ContinuouslyRefreshesValidProbes()
     {
         var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution: 1);
         scheduler.UpdateOrigins(new Vec3d(0, 0, 0), baseSpacing: 1.0);
@@ -136,10 +136,9 @@ public sealed class WorldProbeSchedulerBudgetTests
         Assert.Equal(1f, initial.ImportanceFactor);
         Assert.True(scheduler.TryClaim(initial, frameIndex: 0));
         scheduler.Complete(initial, frameIndex: 0, success: true);
-        Assert.True(scheduler.SetImportanceFactor(initial.Level, initial.StorageLinearIndex, importanceFactor: 2f));
 
         LumOnWorldProbeUpdateRequest refresh = Assert.Single(scheduler.BuildUpdateList(
-            frameIndex: 300,
+            frameIndex: 1,
             cameraPos: new Vec3d(0, 0, 0),
             baseSpacing: 1.0,
             perLevelProbeBudgets: [1],
@@ -147,6 +146,42 @@ public sealed class WorldProbeSchedulerBudgetTests
             uploadBudgetBytesPerFrame: 1_000_000,
             atlasTexelsPerUpdate: 32));
 
+        Assert.Equal(initial.StorageLinearIndex, refresh.StorageLinearIndex);
+    }
+
+    [Fact]
+    public void BuildUpdateList_PrioritizesHigherImportanceValidProbe()
+    {
+        var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution: 2);
+        scheduler.UpdateOrigins(new Vec3d(0, 0, 0), baseSpacing: 1.0);
+
+        List<LumOnWorldProbeUpdateRequest> initial = scheduler.BuildUpdateList(
+            frameIndex: 0,
+            cameraPos: new Vec3d(0, 0, 0),
+            baseSpacing: 1.0,
+            perLevelProbeBudgets: [8],
+            traceMaxProbesPerFrame: 8,
+            uploadBudgetBytesPerFrame: 1_000_000,
+            atlasTexelsPerUpdate: 32);
+
+        foreach (LumOnWorldProbeUpdateRequest request in initial)
+        {
+            scheduler.Complete(request, frameIndex: 0, success: true);
+        }
+
+        LumOnWorldProbeUpdateRequest important = initial[^1];
+        Assert.True(scheduler.SetImportanceFactor(important.Level, important.StorageLinearIndex, importanceFactor: 2f));
+
+        LumOnWorldProbeUpdateRequest refresh = Assert.Single(scheduler.BuildUpdateList(
+            frameIndex: 1,
+            cameraPos: new Vec3d(0, 0, 0),
+            baseSpacing: 1.0,
+            perLevelProbeBudgets: [1],
+            traceMaxProbesPerFrame: 1,
+            uploadBudgetBytesPerFrame: 1_000_000,
+            atlasTexelsPerUpdate: 32));
+
+        Assert.Equal(important.StorageLinearIndex, refresh.StorageLinearIndex);
         Assert.Equal(2f, refresh.ImportanceFactor);
     }
 

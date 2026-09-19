@@ -582,9 +582,10 @@ internal sealed class LumOnWorldProbeScheduler
             Vec3i camIndex = LumOnClipmapTopology.LocalToIndexFloor(localCam);
 
             // Deterministic selection:
-            //  1) state priority (Dirty/Uninitialized, then Stale)
-            //  2) distance to camera index (squared)
-            //  3) linear local index (stable tiebreak)
+            //  1) state priority (Dirty/Uninitialized, then overdue Stale, then Valid refreshes)
+            //  2) Valid refresh age weighted by importance
+            //  3) distance to camera index (squared)
+            //  4) linear local index (stable tiebreak)
             //
             // This is O(N) scan over the level grid; resolution defaults are small enough for Phase 18 bring-up.
             Candidate[] bestArr = new Candidate[budget];
@@ -622,7 +623,6 @@ internal sealed class LumOnWorldProbeScheduler
                         }
 
                         if (s is LumOnWorldProbeLifecycleState.InFlight
-                            or LumOnWorldProbeLifecycleState.Valid
                             or LumOnWorldProbeLifecycleState.Disabled)
                         {
                             continue;
@@ -639,7 +639,8 @@ internal sealed class LumOnWorldProbeScheduler
                             LumOnWorldProbeLifecycleState.Dirty => 0,
                             LumOnWorldProbeLifecycleState.Uninitialized => 0,
                             LumOnWorldProbeLifecycleState.Stale => 1,
-                            _ => 2,
+                            LumOnWorldProbeLifecycleState.Valid => 2,
+                            _ => 3,
                         };
 
                         int dx = x - camIndex.X;
@@ -647,7 +648,10 @@ internal sealed class LumOnWorldProbeScheduler
                         int dz = z - camIndex.Z;
                         int dist2 = (dx * dx) + (dy * dy) + (dz * dz);
 
-                        var cand = new Candidate(statePri, dist2, localLinear, local, storage, storageLinear);
+                        double refreshPriority = s == LumOnWorldProbeLifecycleState.Valid
+                            ? Math.Max(0, frameIndex - lastUpdatedFrame[storageLinear]) * importanceFactors[storageLinear]
+                            : 0;
+                        var cand = new Candidate(statePri, refreshPriority, dist2, localLinear, local, storage, storageLinear);
                         InsertBest(best, ref bestCount, cand);
                     }
                 }
@@ -830,15 +834,17 @@ internal sealed class LumOnWorldProbeScheduler
         private readonly struct Candidate
         {
             public readonly int StatePriority;
+            public readonly double RefreshPriority;
             public readonly int Dist2;
             public readonly int LocalLinearIndex;
             public readonly Vec3i LocalIndex;
             public readonly Vec3i StorageIndex;
             public readonly int StorageLinearIndex;
 
-            public Candidate(int statePriority, int dist2, int localLinearIndex, Vec3i localIndex, Vec3i storageIndex, int storageLinearIndex)
+            public Candidate(int statePriority, double refreshPriority, int dist2, int localLinearIndex, Vec3i localIndex, Vec3i storageIndex, int storageLinearIndex)
             {
                 StatePriority = statePriority;
+                RefreshPriority = refreshPriority;
                 Dist2 = dist2;
                 LocalLinearIndex = localLinearIndex;
                 LocalIndex = localIndex;
@@ -884,6 +890,9 @@ internal sealed class LumOnWorldProbeScheduler
         private static int Compare(in Candidate a, in Candidate b)
         {
             int c = a.StatePriority.CompareTo(b.StatePriority);
+            if (c != 0) return c;
+
+            c = b.RefreshPriority.CompareTo(a.RefreshPriority);
             if (c != 0) return c;
 
             c = a.Dist2.CompareTo(b.Dist2);
