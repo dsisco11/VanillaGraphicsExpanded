@@ -71,5 +71,32 @@ public sealed partial class LumOnLocalTraceFunctionalTests
         Assert.True(hitCount > 32, "The production rays must exercise the plane's hit-lighting path.");
     }
 
+    /// <summary>Normalized byte lighting stays within its quantization bound, including dim cells and endpoints.</summary>
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(0.001f)]
+    [InlineData(0.004f)]
+    [InlineData(0.025f)]
+    [InlineData(0.5f)]
+    [InlineData(1f)]
+    public void CompactLighting_UsesNormalizedEightBitValues(float intensity)
+    {
+        EnsureShaderTestAvailable();
+        var world = new ControlledVoxelWorld { DefaultLight = new Vector4(intensity, 0, 1, 0) };
+        world.AddRoom((-3, -3, -8), (3, 3, -2));
+        using var fixture = new LocalTraceVoxelFixture();
+        fixture.Publish(world);
+        var result = Trace(fixture);
+        float quantized = MathF.Round(intensity * 255) / 255;
+        for (int i = 0; i < result.Radiance.Length; i += 4)
+        {
+            Assert.InRange(result.Radiance[i], quantized - 0.0005f, quantized + 0.0005f);
+            Assert.InRange(Math.Abs(result.Radiance[i] - intensity), 0, 0.5f / 255 + 0.0005f);
+            Assert.Equal(0, result.Radiance[i + 1]);
+            Assert.Equal(1, result.Radiance[i + 2]);
+            Assert.Equal(1, result.Meta[i / 2]);
+        }
+    }
+
     #endregion
 }

@@ -34,7 +34,7 @@ Sources:
 
 Start with L0 block-resolution geometry. Do not treat coarser occupancy as equivalent geometry.
 
-Add a region readiness/generation resource. Each visited cell must belong to a published region at the expected world identity and generation; zero occupancy is empty only after that check.
+Use a region readiness texture with CPU-owned world identities and generations. Each visited cell must belong to a ready slot in the active ring window; the CPU invalidates evicted or dirty owners before consumption and rejects stale uploads. Zero occupancy is not sufficient to establish known air.
 
 Classify snapshot geometry as known empty, supported full opaque cells, or unsupported geometry using actual block geometry/material properties. Partial blocks, decorative non-colliding blocks and transmissive blocks must not silently become full opaque cubes or empty space. Until their representation is supported, return unresolved. Full-block tests alone cannot establish general-scene correctness.
 
@@ -73,7 +73,7 @@ Keep DDA arithmetic local to the integer start cell. Use the existing integer ch
 
 ## Initial outgoing-radiance source
 
-Add a companion L0 RGBA16F light volume containing normalized block-light RGB and sunlight with the same semantics as the CPU world-probe tracer. Publish it with the occupancy region generation. Reuse snapshot/upload infrastructure rather than the relighter's numerical interpretation.
+Use a companion L0 RGBA8 light volume containing normalized block-light RGB and sunlight with the same semantics as the CPU world-probe tracer. Publish it with the occupancy region generation. Reuse snapshot/upload infrastructure rather than the relighter's numerical interpretation.
 
 For a hit, fetch material from the hit cell and light from the outside cell at hitCell + hitNormal. The existing relight helper instead derives material from that outside cell, which may be air; it also multiplies light scalars by 32 and applies distance attenuation. Neither behavior should be copied into the new radiance contract.
 
@@ -139,9 +139,13 @@ Direct irradiance fallback and its debug view bypass this chain and remain Prior
 
 ## Implemented behavior and remaining validation
 
-The production screen-probe trace program enables local tracing after screen misses. A region-aligned companion scene publishes full opaque cells, normalized light and collision-free per-face materials through the existing snapshot stream. Readiness stores world-region identities; the CPU version provider invalidates dirty regions before Opaque consumption and rejects stale completions. Newly exposed local regions are explicitly scheduled. Publication changes conservatively reset both screen-probe histories.
+The production screen-probe trace program enables local tracing after screen misses. A region-aligned companion scene publishes full opaque cells, normalized light and collision-free per-face materials through the existing snapshot stream. The GPU readiness texture stores one unsigned byte per ring slot. World-region identities and versions remain on the CPU, which clears evicted and dirty slots before Opaque consumption and rejects stale or out-of-window completions. Newly exposed local regions are explicitly scheduled. Publication changes conservatively reset both screen-probe histories.
 
-The companion volume rounds L0 resolution up to a whole 32-cell region. Geometry uses R32UI, lighting RGBA16F, readiness RGBA32UI, and paired diffuse/emission texels use RGBA16F. Extra texture units are 10, 13, 14 and 15; the complete trace layout fits units 0 through 15. The local UBO uses the existing material binding slot, independently of texture units. Capture and companion artifact retention are restricted to the local window.
+The companion volume rounds L0 resolution up to a whole 32-cell region. Geometry uses R32UI, lighting RGBA8, readiness R8UI, and paired diffuse/emission texels use RGBA8. Extra texture units are 10, 13, 14 and 15; the complete trace layout fits units 0 through 15. The local UBO uses the existing material binding slot, independently of texture units. Capture and companion artifact retention are restricted to the local window.
+
+The ring uses the recorded integer origin as its anchor. Its physical region offset is positive-modulo(origin / 32, region resolution), derived in the shader rather than supplied as another uniform. Overlapping regions keep their physical slots as the anchor moves. Before the new window is consumed, evicted slots become unready; missing replacement uploads therefore cannot expose old geometry. Readiness is published last, after geometry, lighting and material uploads.
+
+RGBA8 stores linear normalized values with 1/255 increments. This halves lighting/material texture storage relative to RGBA16F; very dim values may round to zero. Material emission remains normalized in storage, with the GI boost applied afterward to produce HDR radiance. CPU snapshot values and float upload staging retain their existing precision; this change reduces GPU storage, not their allocation sizes. R8UI reduces region metadata from 16 bytes to one byte per 32-cubed region.
 
 A supported cell must be a full collision cube with opaque sides and the opaque render pass. Other geometry remains unavailable. An air solid-layer snapshot additionally checks the accessor's most-solid layer. Missing materials preserve opaque occlusion with zero lighting confidence. Palette capacity is 16,384 identities including unavailable identity zero. Emission is stored separately from diffuse albedo, preserving metallic base-color emission.
 

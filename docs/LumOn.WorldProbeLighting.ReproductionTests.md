@@ -149,3 +149,15 @@ A broader selection passed 271 of 274 tests. Both missing-import assertions in T
 Receipts: [local suite](../artifacts/local-trace-final.log), [local TRX](../artifacts/TestResults/local-trace-final.trx), [73-test regression](../artifacts/local-trace-regression.log), [broader run](../artifacts/local-trace-broad-regression.log), and [unchanged-revision baseline](../artifacts/local-trace-head-baseline.log).
 
 These tests establish controlled shader and publication correctness. They do not measure live frame time, main-thread snapshot cost, production update-budget pressure, camera-motion history behavior or real-scene appearance. Unsupported geometry remains unresolved by design. Direct irradiance fallback and the irradiance viewer still require the separate visibility repair.
+
+
+### Compact textures and region-ring ownership
+
+Local lighting and diffuse/emission material textures now use normalized RGBA8. The region texture uses R8UI readiness only; the CPU owns slot identities and versions, and the shader derives wrapping offsets from the integer anchor.
+
+[Ring regressions](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceFunctionalTests.Ring.cs) verify positive/negative single-region moves on each axis, diagonal movement with three regions per axis, and movement beyond the full ring extent. They check exact readiness preservation for overlapping regions, clear newly assigned slots, reject delayed uploads for evicted regions, then exercise shader sampling after replacement publication. A byte-upload control verifies tightly packed 3D rows and restoration of the caller's unpack alignment.
+
+[Lighting controls](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceFunctionalTests.Lighting.cs) test RGBA8 quantization at zero, dim intensities and full intensity. Existing local emission, sealed-room, stale-version, large-coordinate and parallax cases remain applicable. Quantization is intentional: normalized steps are 1/255, while shader output and boosted emission remain HDR.
+
+
+Compact-format validation: **47 local tests and 15 texture/format/upload regressions passed, with zero failures or skips**. The build succeeded. Receipts: [local tests](../artifacts/local-trace-compact-final.log), [local TRX](../artifacts/TestResults/local-trace-compact-final.trx), and [texture regressions](../artifacts/local-trace-compact-textures.log). These checks validate correctness and quantization behavior; no live performance measurement was made.

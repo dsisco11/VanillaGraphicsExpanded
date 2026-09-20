@@ -6,7 +6,7 @@ using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene.LocalTracing;
 
-/// <summary>Bounded region-aligned GPU snapshot with explicit world-region identities and normalized lighting.</summary>
+/// <summary>Bounded region-aligned GPU snapshot with CPU-owned ring slots and normalized lighting.</summary>
 internal sealed class LocalTraceGpuScene : IDisposable
 {
     private readonly (ChunkKey Key, int Version, bool Ready)[] published;
@@ -26,12 +26,12 @@ internal sealed class LocalTraceGpuScene : IDisposable
     {
         Resolution = Math.Max(32, ((requestedResolution + 31) / 32) * 32);
         Geometry = Texture3D.Create(Resolution, Resolution, Resolution, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, debugName: "LumOn.LocalTrace.Geometry");
-        Light = Texture3D.Create(Resolution, Resolution, Resolution, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, debugName: "LumOn.LocalTrace.Light");
-        Regions = Texture3D.Create(RegionResolution, RegionResolution, RegionResolution, PixelInternalFormat.Rgba32ui, TextureFilterMode.Nearest, debugName: "LumOn.LocalTrace.Regions");
+        Light = Texture3D.Create(Resolution, Resolution, Resolution, PixelInternalFormat.Rgba8, TextureFilterMode.Nearest, debugName: "LumOn.LocalTrace.Light");
+        Regions = Texture3D.Create(RegionResolution, RegionResolution, RegionResolution, PixelInternalFormat.R8ui, TextureFilterMode.Nearest, debugName: "LumOn.LocalTrace.Regions");
         Materials = Texture2D.Create(LocalTraceMaterialRegistry.Width, LocalTraceMaterialRegistry.Height,
-            PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, debugName: "LumOn.LocalTrace.Materials");
+            PixelInternalFormat.Rgba8, TextureFilterMode.Nearest, debugName: "LumOn.LocalTrace.Materials");
         published = new (ChunkKey, int, bool)[RegionResolution * RegionResolution * RegionResolution];
-        Regions.UploadDataImmediate(new uint[published.Length * 4], 0, 0, 0, RegionResolution, RegionResolution, RegionResolution);
+        Regions.UploadDataImmediate(new byte[published.Length], 0, 0, 0, RegionResolution, RegionResolution, RegionResolution);
     }
 
     /// <summary>Releases the complete published scene.</summary>
@@ -51,10 +51,13 @@ internal sealed class LocalTraceGpuScene : IDisposable
         for (int i = 0; i < published.Length; i++)
         {
             var region = published[i];
-            if (region.Ready && versions.GetCurrentVersion(region.Key) != region.Version)
+            if (!region.Ready) continue;
+            region.Key.Decode(out int x, out int y, out int z);
+            // World-coordinate modulo keeps overlapping regions in their physical slots.
+            // Evicted owners must be cleared before the new anchor exposes those slots.
+            if (!ContainsRegion(x, y, z) || versions.GetCurrentVersion(region.Key) != region.Version)
             {
-                region.Key.Decode(out int x, out int y, out int z);
-                Regions.UploadDataImmediate(new uint[4], Mod(x), Mod(y), Mod(z), 1, 1, 1);
+                Regions.UploadDataImmediate(new byte[1], Mod(x), Mod(y), Mod(z), 1, 1, 1);
                 published[i] = (region.Key, region.Version, false);
                 Revision++;
             }
@@ -77,7 +80,7 @@ internal sealed class LocalTraceGpuScene : IDisposable
         if (!ContainsRegion(rc.X, rc.Y, rc.Z)) return;
         int sx = Mod(rc.X), sy = Mod(rc.Y), sz = Mod(rc.Z);
         int slot = (sz * RegionResolution + sy) * RegionResolution + sx;
-        Regions.UploadDataImmediate(new uint[4], sx, sy, sz, 1, 1, 1);
+        Regions.UploadDataImmediate(new byte[1], sx, sy, sz, 1, 1, 1);
         published[slot] = (artifact.Key, artifact.Version, false);
         var geometry = new uint[32 * 32 * 32];
         var light = new float[geometry.Length * 4];
@@ -97,7 +100,7 @@ internal sealed class LocalTraceGpuScene : IDisposable
         if (materials.TakeUpload() is { } upload) Materials.UploadDataImmediate(upload);
         GL.MemoryBarrier(MemoryBarrierFlags.TextureUpdateBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
         if (versions.GetCurrentVersion(artifact.Key) != artifact.Version) return;
-        Regions.UploadDataImmediate(new[] { unchecked((uint)rc.X), unchecked((uint)rc.Y), unchecked((uint)rc.Z), 1u }, sx, sy, sz, 1, 1, 1);
+        Regions.UploadDataImmediate(new byte[] { 1 }, sx, sy, sz, 1, 1, 1);
         published[slot] = (artifact.Key, artifact.Version, true);
         Revision++;
     }

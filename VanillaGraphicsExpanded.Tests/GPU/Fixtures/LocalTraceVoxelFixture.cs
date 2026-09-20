@@ -10,13 +10,17 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Publishes reusable controlled voxel arrangements through the production GPU scene owner.</summary>
 internal sealed class LocalTraceVoxelFixture : IDisposable
 {
-    public LocalTraceGpuScene Scene { get; } = new(64);
+    public LocalTraceGpuScene Scene { get; }
     public LumonSceneTraceSceneChunkVersionProvider Versions { get; } = new();
     private readonly LocalTraceMaterialRegistry materials = new();
 
     #region Fixture Lifecycle
     /// <summary>Initializes a known bounded scene centered at the supplied integer world position.</summary>
-    public LocalTraceVoxelFixture(VectorInt3 center = default) => Scene.Prepare(center, Versions);
+    public LocalTraceVoxelFixture(VectorInt3 center = default, int resolution = 64)
+    {
+        Scene = new LocalTraceGpuScene(resolution);
+        Scene.Prepare(center, Versions);
+    }
 
     /// <summary>Releases the production textures owned by this fixture.</summary>
     public void Dispose() => Scene.Dispose();

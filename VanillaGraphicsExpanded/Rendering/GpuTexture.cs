@@ -638,6 +638,37 @@ public abstract class GpuTexture : GpuResource, IDisposable
             data);
     }
 
+    /// <summary>Uploads tightly packed byte data to a 3D region, preserving the caller's unpack alignment.</summary>
+    public virtual void UploadDataImmediate(byte[] data, int x, int y, int z, int regionWidth, int regionHeight, int regionDepth, int mipLevel = 0)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GpuTexture] Attempted to upload data to disposed or invalid texture");
+            return;
+        }
+        ArgumentNullException.ThrowIfNull(data);
+        Ensure3DLike();
+        if (TextureFormatHelper.GetPixelType(internalFormat) != PixelType.UnsignedByte)
+            throw new InvalidOperationException($"Byte upload requires an unsigned-byte texture format, got {internalFormat}.");
+        int expected = checked(regionWidth * regionHeight * regionDepth * GetChannelCount());
+        if (data.Length != expected)
+            throw new ArgumentException($"Expected {expected} tightly packed bytes, got {data.Length}.", nameof(data));
+
+        using var binding = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+        // Single-channel regions need not have four-byte-wide rows.
+        GL.GetInteger(GetPName.UnpackAlignment, out int previousAlignment);
+        GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
+        try
+        {
+            GL.TexSubImage3D(textureTarget, mipLevel, x, y, z, regionWidth, regionHeight, regionDepth,
+                TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.UnsignedByte, data);
+        }
+        finally
+        {
+            GL.PixelStore(PixelStoreParameter.UnpackAlignment, previousAlignment);
+        }
+    }
+
     public virtual void UploadDataImmediate(uint[] data, int x, int y, int z, int regionWidth, int regionHeight, int regionDepth, int mipLevel = 0)
     {
         if (!IsValid)
