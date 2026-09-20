@@ -57,22 +57,71 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private static readonly GlPipelineDesc FullscreenOverlayPso = new(
         defaultMask: default(GlPipelineStateMask)
             .With(GlPipelineStateId.DepthTestEnable)
+            .With(GlPipelineStateId.BlendEnable)
             .With(GlPipelineStateId.CullFaceEnable)
             .With(GlPipelineStateId.ScissorTestEnable)
             .With(GlPipelineStateId.ColorMask),
-        nonDefaultMask: default);
+        nonDefaultMask: default(GlPipelineStateMask)
+            .With(GlPipelineStateId.DepthWriteMask),
+        depthWriteMask: false);
 
     private static readonly GlPipelineDesc ClipmapBoundsLinesPso = new(
         defaultMask: default(GlPipelineStateMask)
+            .With(GlPipelineStateId.BlendEnable)
             .With(GlPipelineStateId.CullFaceEnable)
             .With(GlPipelineStateId.ScissorTestEnable)
             .With(GlPipelineStateId.ColorMask),
         nonDefaultMask: default(GlPipelineStateMask)
             .With(GlPipelineStateId.DepthTestEnable)
             .With(GlPipelineStateId.DepthFunc)
+            .With(GlPipelineStateId.DepthWriteMask)
             .With(GlPipelineStateId.LineWidth),
         depthFunc: DepthFunction.Lequal,
+        depthWriteMask: false,
         lineWidth: 2f);
+
+    private static readonly GlPipelineDesc ClipmapBoundsLivePso = new(
+        defaultMask: default(GlPipelineStateMask)
+            .With(GlPipelineStateId.BlendEnable)
+            .With(GlPipelineStateId.CullFaceEnable)
+            .With(GlPipelineStateId.ScissorTestEnable)
+            .With(GlPipelineStateId.ColorMask),
+        nonDefaultMask: default(GlPipelineStateMask)
+            .With(GlPipelineStateId.DepthTestEnable)
+            .With(GlPipelineStateId.DepthFunc)
+            .With(GlPipelineStateId.DepthWriteMask)
+            .With(GlPipelineStateId.LineWidth),
+        depthFunc: DepthFunction.Lequal,
+        depthWriteMask: false,
+        lineWidth: 2f);
+
+    private static readonly GlPipelineDesc QueuedTraceRaysPso = new(
+        defaultMask: default(GlPipelineStateMask)
+            .With(GlPipelineStateId.BlendEnable)
+            .With(GlPipelineStateId.CullFaceEnable)
+            .With(GlPipelineStateId.ScissorTestEnable)
+            .With(GlPipelineStateId.ColorMask),
+        nonDefaultMask: default(GlPipelineStateMask)
+            .With(GlPipelineStateId.DepthTestEnable)
+            .With(GlPipelineStateId.DepthFunc)
+            .With(GlPipelineStateId.DepthWriteMask)
+            .With(GlPipelineStateId.LineWidth),
+        depthFunc: DepthFunction.Lequal,
+        depthWriteMask: false,
+        lineWidth: 1.5f);
+
+    private static readonly GlPipelineDesc ClosestProbeMarkerPso = new(
+        defaultMask: default(GlPipelineStateMask)
+            .With(GlPipelineStateId.DepthTestEnable)
+            .With(GlPipelineStateId.BlendEnable)
+            .With(GlPipelineStateId.CullFaceEnable)
+            .With(GlPipelineStateId.ScissorTestEnable)
+            .With(GlPipelineStateId.ColorMask),
+        nonDefaultMask: default(GlPipelineStateMask)
+            .With(GlPipelineStateId.DepthWriteMask)
+            .With(GlPipelineStateId.PointSize),
+        depthWriteMask: false,
+        pointSize: 10f);
 
     private static readonly GlPipelineDesc WorldProbeOrbsPointsPso = new(
         defaultMask: default(GlPipelineStateMask)
@@ -772,11 +821,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 activeProgram: shader);
         }
 
-        bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
-        bool prevBlend = GL.IsEnabled(EnableCap.Blend);
-        bool prevDepthMask = GL.GetBoolean(GetPName.DepthWritemask);
         int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-        bool prevScissorTest = GL.IsEnabled(EnableCap.ScissorTest);
+        using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
 
         int[] prevViewport = new int[4];
         int[] prevScissorBox = new int[4];
@@ -805,8 +851,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             GlStateCache.Current.InvalidateAll();
             GlStateCache.Current.Apply(FullscreenOverlayPso);
 
-            capi.Render.GLDepthMask(false);
-            capi.Render.GlToggleBlend(false);
             GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
 
             shader.Use();
@@ -1066,15 +1110,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 shader.Stop();
             }
 
-            if (prevDepthTest) GL.Enable(EnableCap.DepthTest);
-            else GL.Disable(EnableCap.DepthTest);
-
-            capi.Render.GLDepthMask(prevDepthMask);
-            capi.Render.GlToggleBlend(prevBlend);
             GL.ActiveTexture((TextureUnit)prevActiveTexture);
-
-            if (prevScissorTest) GL.Enable(EnableCap.ScissorTest);
-            else GL.Disable(EnableCap.ScissorTest);
 
             try
             {
@@ -1292,19 +1328,14 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         using var cpuScope = Profiler.BeginScope("Debug.WorldProbeClipmapBounds", "Render");
         using (GlGpuProfiler.Instance.Scope("Debug.WorldProbeClipmapBounds"))
         {
-            bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
-            bool prevBlend = GL.IsEnabled(EnableCap.Blend);
-            bool prevDepthMask = GL.GetBoolean(GetPName.DepthWritemask);
             int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-            int prevDepthFunc = GL.GetInteger(GetPName.DepthFunc);
+            using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
 
             bool shaderUsed = false;
             try
             {
                 GlStateCache.Current.InvalidateAll();
                 GlStateCache.Current.Apply(ClipmapBoundsLinesPso);
-                capi.Render.GlToggleBlend(false);
-                capi.Render.GLDepthMask(false);
 
                 shader.Use();
                 shaderUsed = true;
@@ -1327,12 +1358,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     shader.Stop();
                 }
 
-                if (prevDepthTest) GL.Enable(EnableCap.DepthTest);
-                else GL.Disable(EnableCap.DepthTest);
-
-                GL.DepthFunc((DepthFunction)prevDepthFunc);
-                capi.Render.GLDepthMask(prevDepthMask);
-                capi.Render.GlToggleBlend(prevBlend);
                 GL.ActiveTexture((TextureUnit)prevActiveTexture);
 
                 GlStateCache.Current.InvalidateAll();
@@ -1374,24 +1399,14 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         using var cpuScope = Profiler.BeginScope("Debug.WorldProbeClipmapBoundsLive", "Render");
         using (GlGpuProfiler.Instance.Scope("Debug.WorldProbeClipmapBoundsLive"))
         {
-            bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
-            bool prevBlend = GL.IsEnabled(EnableCap.Blend);
-            bool prevDepthMask = GL.GetBoolean(GetPName.DepthWritemask);
             int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-            int prevDepthFunc = GL.GetInteger(GetPName.DepthFunc);
-            float prevPointSize = GL.GetFloat(GetPName.PointSize);
-            int prevBlendSrcRgb = GL.GetInteger(GetPName.BlendSrcRgb);
-            int prevBlendDstRgb = GL.GetInteger(GetPName.BlendDstRgb);
-            int prevBlendSrcAlpha = GL.GetInteger(GetPName.BlendSrcAlpha);
-            int prevBlendDstAlpha = GL.GetInteger(GetPName.BlendDstAlpha);
+            using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
 
             bool shaderUsed = false;
             try
             {
-                GL.Enable(EnableCap.DepthTest);
-                GL.DepthFunc(DepthFunction.Lequal);
-                capi.Render.GlToggleBlend(false);
-                capi.Render.GLDepthMask(false);
+                GlStateCache.Current.InvalidateAll();
+                GlStateCache.Current.Apply(ClipmapBoundsLivePso);
 
                 shader.Use();
                 shaderUsed = true;
@@ -1400,15 +1415,14 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
                 clipmapBoundsVao.Bind();
 
-                GL.LineWidth(2f);
                 GL.DrawArrays(PrimitiveType.Lines, 0, clipmapBoundsCount);
-                GL.LineWidth(1f);
+                GlStateCache.Current.SetLineWidth(1f);
 
                 GL.BindVertexArray(0);
 
                 if (clipmapProbePointsCount > 0 && clipmapProbePointsVao is not null && clipmapProbePointsVao.IsValid)
                 {
-                    GL.PointSize(3.5f);
+                    GlStateCache.Current.SetPointSize(3.5f);
 
                     clipmapProbePointsVao.Bind();
                     GL.DrawArrays(PrimitiveType.Points, 0, clipmapProbePointsCount);
@@ -1420,8 +1434,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     && closestProbeMarkerVao.IsValid)
                 {
                     // Always-visible marker (no depth test) to help locate probe centers even when they're inside solids.
-                    GL.Disable(EnableCap.DepthTest);
-                    GL.PointSize(10.0f);
+                    GlStateCache.Current.Apply(ClosestProbeMarkerPso);
 
                     closestProbeMarkerVao.Bind();
                     GL.DrawArrays(PrimitiveType.Points, 0, 1);
@@ -1435,19 +1448,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     shader.Stop();
                 }
 
-                if (prevDepthTest) GL.Enable(EnableCap.DepthTest);
-                else GL.Disable(EnableCap.DepthTest);
-
-                GL.DepthFunc((DepthFunction)prevDepthFunc);
-                GL.PointSize(prevPointSize);
-                GL.BlendFuncSeparate(
-                    (BlendingFactorSrc)prevBlendSrcRgb,
-                    (BlendingFactorDest)prevBlendDstRgb,
-                    (BlendingFactorSrc)prevBlendSrcAlpha,
-                    (BlendingFactorDest)prevBlendDstAlpha);
-                capi.Render.GLDepthMask(prevDepthMask);
-                capi.Render.GlToggleBlend(prevBlend);
                 GL.ActiveTexture((TextureUnit)prevActiveTexture);
+
+                GlStateCache.Current.InvalidateAll();
             }
         }
 
@@ -1523,19 +1526,14 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         UpdateCurrentViewProjMatrix();
 
-        bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
-        bool prevBlend = GL.IsEnabled(EnableCap.Blend);
-        bool prevDepthMask = GL.GetBoolean(GetPName.DepthWritemask);
         int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-        int prevDepthFunc = GL.GetInteger(GetPName.DepthFunc);
+        using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
 
         bool shaderUsed = false;
         try
         {
-            GL.Enable(EnableCap.DepthTest);
-            GL.DepthFunc(DepthFunction.Lequal);
-            capi.Render.GlToggleBlend(false);
-            capi.Render.GLDepthMask(false);
+            GlStateCache.Current.InvalidateAll();
+            GlStateCache.Current.Apply(QueuedTraceRaysPso);
 
             shader.Use();
             shaderUsed = true;
@@ -1543,22 +1541,17 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             shader.WorldOffset = new Vec3f(0, 0, 0);
 
             clipmapQueuedTraceRaysVao.Bind();
-            GL.LineWidth(1.5f);
             GL.DrawArrays(PrimitiveType.Lines, 0, clipmapQueuedTraceRayVertexCount);
-            GL.LineWidth(1f);
+            GlStateCache.Current.SetLineWidth(1f);
             GL.BindVertexArray(0);
         }
         finally
         {
             if (shaderUsed) shader.Stop();
 
-            if (prevDepthTest) GL.Enable(EnableCap.DepthTest);
-            else GL.Disable(EnableCap.DepthTest);
-
-            GL.DepthFunc((DepthFunction)prevDepthFunc);
-            capi.Render.GLDepthMask(prevDepthMask);
-            capi.Render.GlToggleBlend(prevBlend);
             GL.ActiveTexture((TextureUnit)prevActiveTexture);
+
+            GlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -2579,19 +2572,16 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
-        bool prevBlend = GL.IsEnabled(EnableCap.Blend);
-        bool prevDepthMask = GL.GetBoolean(GetPName.DepthWritemask);
         int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
+        using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
 
         var blitShader = capi.Render.GetEngineShader(EnumShaderProgram.Blit);
         blitShader.Use();
 
         try
         {
-            capi.Render.GLDepthMask(false);
-            GL.Disable(EnableCap.DepthTest);
-            capi.Render.GlToggleBlend(false);
+            GlStateCache.Current.InvalidateAll();
+            GlStateCache.Current.Apply(FullscreenOverlayPso);
 
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, texId);
@@ -2608,12 +2598,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         {
             blitShader.Stop();
 
-            if (prevDepthTest) GL.Enable(EnableCap.DepthTest);
-            else GL.Disable(EnableCap.DepthTest);
-
-            capi.Render.GLDepthMask(prevDepthMask);
-            capi.Render.GlToggleBlend(prevBlend);
             GL.ActiveTexture((TextureUnit)prevActiveTexture);
+            GlStateCache.Current.InvalidateAll();
         }
     }
 

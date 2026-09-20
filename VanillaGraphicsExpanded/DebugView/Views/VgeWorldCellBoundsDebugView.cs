@@ -116,14 +116,30 @@ public static partial class VgeBuiltInDebugViews
 
         private static readonly GlPipelineDesc BoundsLinesPso = new(
             defaultMask: default(GlPipelineStateMask)
+                .With(GlPipelineStateId.BlendEnable)
                 .With(GlPipelineStateId.CullFaceEnable)
                 .With(GlPipelineStateId.ScissorTestEnable)
                 .With(GlPipelineStateId.ColorMask),
             nonDefaultMask: default(GlPipelineStateMask)
                 .With(GlPipelineStateId.DepthTestEnable)
                 .With(GlPipelineStateId.DepthFunc)
+                .With(GlPipelineStateId.DepthWriteMask)
                 .With(GlPipelineStateId.LineWidth),
             depthFunc: DepthFunction.Lequal,
+            depthWriteMask: false,
+            lineWidth: 2f);
+
+        private static readonly GlPipelineDesc BoundsLinesNoDepthPso = new(
+            defaultMask: default(GlPipelineStateMask)
+                .With(GlPipelineStateId.DepthTestEnable)
+                .With(GlPipelineStateId.BlendEnable)
+                .With(GlPipelineStateId.CullFaceEnable)
+                .With(GlPipelineStateId.ScissorTestEnable)
+                .With(GlPipelineStateId.ColorMask),
+            nonDefaultMask: default(GlPipelineStateMask)
+                .With(GlPipelineStateId.DepthWriteMask)
+                .With(GlPipelineStateId.LineWidth),
+            depthWriteMask: false,
             lineWidth: 2f);
 
         private readonly ICoreClientAPI capi;
@@ -246,25 +262,14 @@ public static partial class VgeBuiltInDebugViews
 
             UpdateCurrentViewProjMatrixNoTranslate();
 
-            bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
-            bool prevBlend = GL.IsEnabled(EnableCap.Blend);
-            bool prevDepthMask = GL.GetBoolean(GetPName.DepthWritemask);
             int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-            int prevDepthFunc = GL.GetInteger(GetPName.DepthFunc);
+            using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
 
             bool shaderUsed = false;
             try
             {
                 GlStateCache.Current.InvalidateAll();
-                GlStateCache.Current.Apply(BoundsLinesPso);
-
-                if (!WorldCellBoundsViewState.DepthTest)
-                {
-                    GL.Disable(EnableCap.DepthTest);
-                }
-
-                capi.Render.GlToggleBlend(false);
-                capi.Render.GLDepthMask(false);
+                GlStateCache.Current.Apply(WorldCellBoundsViewState.DepthTest ? BoundsLinesPso : BoundsLinesNoDepthPso);
 
                 shader.Use();
                 shaderUsed = true;
@@ -288,12 +293,6 @@ public static partial class VgeBuiltInDebugViews
                     shader.Stop();
                 }
 
-                if (prevDepthTest) GL.Enable(EnableCap.DepthTest);
-                else GL.Disable(EnableCap.DepthTest);
-
-                GL.DepthFunc((DepthFunction)prevDepthFunc);
-                capi.Render.GLDepthMask(prevDepthMask);
-                capi.Render.GlToggleBlend(prevBlend);
                 GL.ActiveTexture((TextureUnit)prevActiveTexture);
 
                 GlStateCache.Current.InvalidateAll();

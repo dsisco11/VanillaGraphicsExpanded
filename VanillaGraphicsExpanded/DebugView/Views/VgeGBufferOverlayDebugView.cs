@@ -1,5 +1,7 @@
 using System;
 
+using OpenTK.Graphics.OpenGL;
+
 using VanillaGraphicsExpanded.Rendering;
 
 using Vintagestory.API.Client;
@@ -99,6 +101,17 @@ public static partial class VgeBuiltInDebugViews
 
     private sealed class VgeGBufferOverlayRenderer : IRenderer, IDisposable
     {
+        private static readonly GlPipelineDesc OverlayPso = new(
+            defaultMask: default(GlPipelineStateMask)
+                .With(GlPipelineStateId.DepthTestEnable)
+                .With(GlPipelineStateId.BlendEnable)
+                .With(GlPipelineStateId.CullFaceEnable)
+                .With(GlPipelineStateId.ScissorTestEnable)
+                .With(GlPipelineStateId.ColorMask),
+            nonDefaultMask: default(GlPipelineStateMask)
+                .With(GlPipelineStateId.DepthWriteMask),
+            depthWriteMask: false);
+
         private const double RenderOrderValue = 1.0;
         private const int RenderRangeValue = 1;
 
@@ -140,22 +153,19 @@ public static partial class VgeBuiltInDebugViews
                 return;
             }
 
-            bool prevDepthTest = OpenTK.Graphics.OpenGL.GL.IsEnabled(OpenTK.Graphics.OpenGL.EnableCap.DepthTest);
-            bool prevBlend = OpenTK.Graphics.OpenGL.GL.IsEnabled(OpenTK.Graphics.OpenGL.EnableCap.Blend);
-            bool prevDepthMask = OpenTK.Graphics.OpenGL.GL.GetBoolean(OpenTK.Graphics.OpenGL.GetPName.DepthWritemask);
-            int prevActiveTexture = OpenTK.Graphics.OpenGL.GL.GetInteger(OpenTK.Graphics.OpenGL.GetPName.ActiveTexture);
+            int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
+            using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
 
             var blitShader = capi.Render.GetEngineShader(EnumShaderProgram.Blit);
             blitShader.Use();
 
             try
             {
-                capi.Render.GLDepthMask(false);
-                OpenTK.Graphics.OpenGL.GL.Disable(OpenTK.Graphics.OpenGL.EnableCap.DepthTest);
-                capi.Render.GlToggleBlend(false);
+                GlStateCache.Current.InvalidateAll();
+                GlStateCache.Current.Apply(OverlayPso);
 
-                OpenTK.Graphics.OpenGL.GL.ActiveTexture(OpenTK.Graphics.OpenGL.TextureUnit.Texture0);
-                OpenTK.Graphics.OpenGL.GL.BindTexture(OpenTK.Graphics.OpenGL.TextureTarget.Texture2D, textureId);
+                GL.ActiveTexture(TextureUnit.Texture0);
+                GL.BindTexture(TextureTarget.Texture2D, textureId);
                 blitShader.BindTexture2D("scene", textureId, 0);
                 GpuSamplers.NearestClamp.Bind(0);
 
@@ -165,12 +175,8 @@ public static partial class VgeBuiltInDebugViews
             {
                 blitShader.Stop();
 
-                if (prevDepthTest) OpenTK.Graphics.OpenGL.GL.Enable(OpenTK.Graphics.OpenGL.EnableCap.DepthTest);
-                else OpenTK.Graphics.OpenGL.GL.Disable(OpenTK.Graphics.OpenGL.EnableCap.DepthTest);
-
-                capi.Render.GLDepthMask(prevDepthMask);
-                capi.Render.GlToggleBlend(prevBlend);
-                OpenTK.Graphics.OpenGL.GL.ActiveTexture((OpenTK.Graphics.OpenGL.TextureUnit)prevActiveTexture);
+                GL.ActiveTexture((TextureUnit)prevActiveTexture);
+                GlStateCache.Current.InvalidateAll();
             }
         }
 

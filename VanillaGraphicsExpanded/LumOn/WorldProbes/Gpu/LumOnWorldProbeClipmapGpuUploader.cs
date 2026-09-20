@@ -16,6 +16,13 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 
 internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
 {
+    private static readonly GlPipelineDesc ResolvePso = new(
+        defaultMask: default(GlPipelineStateMask)
+            .With(GlPipelineStateId.DepthTestEnable)
+            .With(GlPipelineStateId.BlendEnable)
+            .With(GlPipelineStateId.CullFaceEnable),
+        nonDefaultMask: default);
+
     private readonly ICoreClientAPI capi;
 
     private readonly GpuVao probeVao;
@@ -173,10 +180,9 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         }
 
         using var gpuScope = GlGpuProfiler.Instance.Scope("LumOn.WorldProbe.UploadResolve");
-
-        GL.Disable(EnableCap.Blend);
-        GL.Disable(EnableCap.DepthTest);
-        GL.Disable(EnableCap.CullFace);
+        using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
+        GlStateCache.Current.InvalidateAll();
+        GlStateCache.Current.Apply(ResolvePso);
 
         // Pass 1: tile samples -> radiance atlas
         if (tileProg is not null && !tileProg.LoadError && !tileProg.Disposed && tileVertices.Count > 0)
