@@ -1997,16 +1997,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         using var cpuScope = Profiler.BeginScope("Debug.WorldProbeOrbsPoints", "Render");
         using (GlGpuProfiler.Instance.Scope("Debug.WorldProbeOrbsPoints"))
         {
-            bool prevDepthTest = GL.IsEnabled(EnableCap.DepthTest);
-            bool prevBlend = GL.IsEnabled(EnableCap.Blend);
-            bool prevDepthMask = GL.GetBoolean(GetPName.DepthWritemask);
             int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-            int prevDepthFunc = GL.GetInteger(GetPName.DepthFunc);
-            float prevPointSize = GL.GetFloat(GetPName.PointSize);
-            int prevBlendSrcRgb = GL.GetInteger(GetPName.BlendSrcRgb);
-            int prevBlendDstRgb = GL.GetInteger(GetPName.BlendDstRgb);
-            int prevBlendSrcAlpha = GL.GetInteger(GetPName.BlendSrcAlpha);
-            int prevBlendDstAlpha = GL.GetInteger(GetPName.BlendDstAlpha);
+            using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
 
             bool shaderUsed = false;
             try
@@ -2097,7 +2089,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                         closestProbeMarkerVao.Bind();
                         GL.DrawArrays(PrimitiveType.Points, 0, 1);
                         GL.BindVertexArray(0);
-                        GL.PointSize(prevPointSize);
 
                         markerShader.Stop();
                     }
@@ -2110,18 +2101,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     shader.Stop();
                 }
 
-                if (prevDepthTest) GL.Enable(EnableCap.DepthTest);
-                else GL.Disable(EnableCap.DepthTest);
-
-                GL.DepthFunc((DepthFunction)prevDepthFunc);
-                GL.PointSize(prevPointSize);
-                GL.BlendFuncSeparate(
-                    (BlendingFactorSrc)prevBlendSrcRgb,
-                    (BlendingFactorDest)prevBlendDstRgb,
-                    (BlendingFactorSrc)prevBlendSrcAlpha,
-                    (BlendingFactorDest)prevBlendDstAlpha);
-                capi.Render.GLDepthMask(prevDepthMask);
-                capi.Render.GlToggleBlend(prevBlend);
                 GL.ActiveTexture((TextureUnit)prevActiveTexture);
 
                 GlStateCache.Current.InvalidateAll();
