@@ -11,6 +11,13 @@ struct LumOnWorldProbeGatherFallback
     bool used;
 };
 
+struct LumOnWorldProbeGatherResult
+{
+    vec3 irradiance;
+    float confidence;
+    bool usedWorldProbe;
+};
+
 LumOnWorldProbeGatherFallback lumonGatherWorldProbeFallback(
     vec3 pixelPosWS,
     vec3 pixelNormalWS,
@@ -42,6 +49,44 @@ LumOnWorldProbeGatherFallback lumonSampleWorldProbeGatherCandidate(
     vec3 pixelNormalWS)
 {
     return lumonGatherWorldProbeFallback(pixelPosWS, pixelNormalWS, 0.0);
+}
+
+LumOnWorldProbeGatherResult lumonResolveWorldProbeGather(
+    vec3 screenIrradiance,
+    float screenConfidence,
+    float screenWeight,
+    vec3 pixelPosWS,
+    vec3 pixelNormalWS)
+{
+    LumOnWorldProbeGatherResult result;
+    result.irradiance = screenIrradiance;
+    result.confidence = screenConfidence;
+    result.usedWorldProbe = false;
+
+    LumOnWorldProbeGatherFallback worldProbe = lumonGatherWorldProbeFallback(
+        pixelPosWS,
+        pixelNormalWS,
+        screenWeight);
+    if (worldProbe.used)
+    {
+        result.irradiance = worldProbe.irradiance;
+        result.confidence = worldProbe.confidence;
+        result.usedWorldProbe = true;
+    }
+
+    return result;
+}
+
+bool lumonMatchesWorldProbeGatherResult(
+    vec3 gatheredIrradiance,
+    float gatheredConfidence,
+    vec3 worldProbeIrradiance,
+    float worldProbeConfidence)
+{
+    const float radianceTolerance = 2e-3;
+    const float confidenceTolerance = 2e-3;
+    return abs(gatheredConfidence - worldProbeConfidence) <= confidenceTolerance
+        && all(lessThanEqual(abs(gatheredIrradiance - worldProbeIrradiance), vec3(radianceTolerance)));
 }
 
 #endif

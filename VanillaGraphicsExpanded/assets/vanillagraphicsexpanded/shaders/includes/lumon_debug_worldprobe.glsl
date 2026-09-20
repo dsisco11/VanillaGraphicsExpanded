@@ -11,15 +11,28 @@ vec3 lumonTonemapReinhard(vec3 hdr)
 
 vec3 lumonComputeWorldProbeContributionOnly()
 {
-    float depth = texture(primaryDepth, uv).r;
-    if (lumonIsSky(depth))
+    ivec2 halfCoord = clamp(
+        ivec2(uv * halfResSize),
+        ivec2(0),
+        ivec2(halfResSize) - 1);
+    ivec2 bestFull;
+    float depth;
+    vec3 normalWS;
+    if (!lumonSelectGuidesForHalfResCoord(
+        halfCoord,
+        primaryDepth,
+        gBufferNormal,
+        ivec2(screenSize),
+        bestFull,
+        depth,
+        normalWS))
     {
         return vec3(0.0);
     }
 
-    vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+    vec2 guideUv = (vec2(bestFull) + 0.5) / screenSize;
+    vec3 posVS = lumonReconstructViewPos(guideUv, depth, invProjectionMatrix);
     vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
-    vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
 
     LumOnWorldProbeGatherFallback worldProbe = lumonSampleWorldProbeGatherCandidate(posWS, normalWS);
     if (!worldProbe.used)
@@ -27,8 +40,19 @@ vec3 lumonComputeWorldProbeContributionOnly()
         return vec3(0.0);
     }
 
-    // Match the gather output space (gather pass applies these before writing indirectHalf).
     vec3 worldContrib = worldProbe.irradiance * indirectIntensity * indirectTint;
+
+    // The gather result stores its selected irradiance and confidence, but no source bit.
+    // Match against the shared fallback candidate after its gather-space intensity/tint conversion.
+    vec4 gathered = texelFetch(indirectHalf, halfCoord, 0);
+    if (!lumonMatchesWorldProbeGatherResult(
+        gathered.rgb,
+        gathered.a,
+        worldContrib,
+        worldProbe.confidence))
+    {
+        return vec3(0.0);
+    }
 
     return max(worldContrib, vec3(0.0));
 }

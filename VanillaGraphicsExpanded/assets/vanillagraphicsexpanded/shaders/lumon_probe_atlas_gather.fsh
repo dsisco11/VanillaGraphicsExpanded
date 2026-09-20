@@ -325,21 +325,13 @@ void main(void)
         screenIrradiance = max(screenIrradiance, vec3(0.0));
     }
 
-    vec3 blended = screenIrradiance;
-    float outConfidence = screenConfidence;
-
-    LumOnWorldProbeGatherFallback worldProbeFallback = lumonGatherWorldProbeFallback(
+    LumOnWorldProbeGatherResult gatherResult = lumonResolveWorldProbeGather(
+        screenIrradiance,
+        screenConfidence,
+        totalWeight,
         pixelPosWS,
-        pixelNormalWS,
-        totalWeight);
-    if (worldProbeFallback.used)
-    {
-        blended = worldProbeFallback.irradiance;
-        outConfidence = worldProbeFallback.confidence;
-    }
+        pixelNormalWS);
 
-    blended *= intensity;
-    blended *= indirectTint;
-
-    outColor = vec4(blended, outConfidence);
+    vec3 blended = gatherResult.irradiance * intensity * indirectTint;
+    outColor = vec4(blended, gatherResult.confidence);
 }
