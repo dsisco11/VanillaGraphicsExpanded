@@ -84,7 +84,8 @@ bool lumonWorldProbeDebugNearest(in vec3 worldPosWS, out int outLevel, out ivec2
         return false;
     }
 
-    vec3 worldPosRel = worldPosWS - lumonWorldProbeGetPlayerOriginWorld();
+    // Depth reconstruction already yields player-origin-relative coordinates, matching the clipmap origins.
+    vec3 worldPosRel = worldPosWS;
     int level = lumonWorldProbeSelectLevelByExtents(worldPosRel, baseSpacing, levels, resolution);
     float spacing = lumonWorldProbeSpacing(baseSpacing, level);
 
@@ -155,7 +156,8 @@ vec4 renderWorldProbeIrradianceLevelDebug()
     float baseSpacing = VGE_LUMON_WORLDPROBE_BASE_SPACING;
     if (levels <= 0 || resolution <= 0) return vec4(0.0, 0.0, 0.0, 1.0);
 
-    vec3 posRel = posWS - lumonWorldProbeGetPlayerOriginWorld();
+    // Depth reconstruction already yields player-origin-relative coordinates, matching the clipmap origins.
+    vec3 posRel = posWS;
     int level = lumonWorldProbeSelectLevelByExtents(posRel, baseSpacing, levels, resolution);
     float spacing = lumonWorldProbeSpacing(baseSpacing, level);
 
@@ -396,7 +398,8 @@ vec4 renderWorldProbeCrossLevelBlendDebug()
     float baseSpacing = VGE_LUMON_WORLDPROBE_BASE_SPACING;
     if (levels <= 0 || resolution <= 0) return vec4(0.0, 0.0, 0.0, 1.0);
 
-    vec3 posRel = posWS - lumonWorldProbeGetPlayerOriginWorld();
+    // Depth reconstruction already yields player-origin-relative coordinates, matching the clipmap origins.
+    vec3 posRel = posWS;
     int level = lumonWorldProbeSelectLevelByExtents(posRel, baseSpacing, levels, resolution);
     float spacingL = lumonWorldProbeSpacing(baseSpacing, level);
 

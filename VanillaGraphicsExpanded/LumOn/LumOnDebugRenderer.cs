@@ -983,16 +983,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 shader.WorldProbeMeta0 = worldProbeClipmapBufferManager.Resources.ProbeMeta0;
                 shader.WorldProbeDebugState0 = worldProbeClipmapBufferManager.Resources.ProbeDebugState0;
 
-                // Shaders reconstruct world positions in the engine's camera-matrix world space (invViewMatrix).
-                // Always derive camera position from the *current* inverse view matrix (matches reconstruction in shaders).
-                // Runtime params may be from a different renderer pass / slightly different matrix state.
-                System.Numerics.Vector3 camPosWs = new(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
-
                 if (!hasWorldProbeRuntimeParams || wpOrigins is null || wpRings is null)
                 {
                     uniformBuffers.UpdateWorldProbe(
                         skyTint: capi.Render.AmbientColor,
-                        cameraPosWS: camPosWs,
+                        cameraPosWS: default,
                         originMinCorner: default,
                         ringOffset: default);
                 }
@@ -1000,7 +995,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 {
                     uniformBuffers.UpdateWorldProbe(
                         skyTint: capi.Render.AmbientColor,
-                        cameraPosWS: camPosWs,
+                        cameraPosWS: wpCamPosWS,
                         originMinCorner: wpOrigins,
                         ringOffset: wpRings);
                 }
