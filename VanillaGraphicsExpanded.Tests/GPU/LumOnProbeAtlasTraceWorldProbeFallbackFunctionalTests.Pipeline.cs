@@ -11,7 +11,7 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
 {
     #region Paired Pipeline
     /// <summary>Processes actual trace outputs for two frames with separate history textures.</summary>
-    private void AssertPairedHistoryReachesGather(float[] normalTrace, float[] suppressedTrace, float[] metadata, bool sh9)
+    private void AssertPairedHistoryReachesGather(float[] normalTrace, float[] suppressedTrace, float[] metadata, bool sh9, bool expectLighting = true)
     {
         var programs = new List<int>();
         try
@@ -94,12 +94,17 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
             }
             for (int i = 0; i < gathered[0].Length; i += 4)
             {
-                Assert.True(gathered[0][i] + gathered[0][i + 1] + gathered[0][i + 2] > 0.1f,
-                    $"World trace lighting was lost before {(sh9 ? "SH9" : "atlas")} gather");
+                if (expectLighting)
+                    Assert.True(gathered[0][i] + gathered[0][i + 1] + gathered[0][i + 2] > 0.1f,
+                        $"World trace lighting was lost before {(sh9 ? "SH9" : "atlas")} gather");
+                else
+                    for (int channel = 0; channel < 3; channel++)
+                        Assert.InRange(gathered[0][i + channel], -1e-6f, 1e-6f);
                 Assert.True(gathered[0][i + 3] > 0.1f, "Screen gather must be well above the world-fallback threshold");
                 Assert.Equal(gathered[0][i + 3], gathered[1][i + 3]);
                 for (int channel = 0; channel < 3; channel++) Assert.Equal(0f, gathered[1][i + channel]);
             }
+            AssertGatherLightingEffect(gathered[0], gathered[1], expectLighting);
         }
         finally { foreach (int program in programs) GL.DeleteProgram(program); }
     }
