@@ -145,4 +145,22 @@ public sealed class DebugViewControllerTests
         Assert.True(toggle!.Disposed);
         Assert.False(controller.IsActive("t"));
     }
+
+    [Fact]
+    public void NotifyExclusiveModeChanged_PersistsCurrentLumOnMode()
+    {
+        var registry = new DebugViewRegistry();
+        var controller = new DebugViewController(registry);
+        var context = CreateContext();
+        controller.Initialize(context);
+
+        registry.Register(ExclusiveView("ex", new NoopDisposable()));
+        Assert.True(controller.TryActivate("ex", out _));
+
+        context.Config.LumOn.DebugMode = LumOnDebugMode.WorldProbeContributionOnly;
+        controller.NotifyExclusiveModeChanged();
+
+        Assert.Equal("ex", context.Config.Debug.DebugViews.ActiveExclusiveViewId);
+        Assert.Equal(LumOnDebugMode.WorldProbeContributionOnly, context.Config.Debug.DebugViews.ActiveExclusiveLumOnDebugMode);
+    }
 }

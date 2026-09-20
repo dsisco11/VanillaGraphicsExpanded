@@ -220,6 +220,20 @@ public sealed class DebugViewController : IDisposable
         StateChanged?.Invoke();
     }
 
+    internal void NotifyExclusiveModeChanged()
+    {
+        DebugViewActivationContext? ctx;
+        lock (gate)
+        {
+            ctx = context;
+        }
+
+        if (ctx is not null)
+        {
+            PersistActivationState(ctx);
+        }
+    }
+
     private bool TryActivateExclusiveInternal(DebugViewDefinition definition, DebugViewActivationContext ctx, out string? error)
     {
         error = null;
@@ -473,6 +487,9 @@ public sealed class DebugViewController : IDisposable
         }
 
         ctx.Config.Debug.DebugViews.ActiveExclusiveViewId = exclusive;
+        ctx.Config.Debug.DebugViews.ActiveExclusiveLumOnDebugMode = exclusive is null
+            ? null
+            : ctx.Config.LumOn.DebugMode;
         ctx.Config.Debug.DebugViews.ActiveToggleViewIds = toggles;
         ctx.Config.Debug.DebugViews.Sanitize();
     }

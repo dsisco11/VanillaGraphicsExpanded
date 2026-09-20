@@ -23,6 +23,7 @@ public static partial class VgeBuiltInDebugViews
             description: description,
             registerRenderer: ctx =>
             {
+                viewState.SetSelectedMode(ctx.Config.Debug.DebugViews.ActiveExclusiveLumOnDebugMode ?? ctx.Config.LumOn.DebugMode);
                 LumOnDebugMode mode = viewState.GetSelectedModeOrDefault();
                 ctx.Config.LumOn.DebugMode = mode;
                 return new ActionDisposable(() => ctx.Config.LumOn.DebugMode = LumOnDebugMode.Off);
@@ -164,6 +165,7 @@ public static partial class VgeBuiltInDebugViews
             if (string.Equals(DebugViewController.Instance.ActiveExclusiveViewId, viewId, StringComparison.Ordinal))
             {
                 config.LumOn.DebugMode = mode;
+                DebugViewController.Instance.NotifyExclusiveModeChanged();
             }
         }
 

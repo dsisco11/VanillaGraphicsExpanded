@@ -20,6 +20,8 @@ public static partial class VgeBuiltInDebugViews
             description: "Probe-related debug overlays (screen probes, probe atlas, world probes).",
             registerRenderer: ctx =>
             {
+                ProbesDebugViewState.Instance.RestoreSelectedDebugMode(
+                    ctx.Config.Debug.DebugViews.ActiveExclusiveLumOnDebugMode ?? ctx.Config.LumOn.DebugMode);
                 ctx.Config.LumOn.DebugMode = ProbesDebugViewState.Instance.GetSelectedDebugModeOrDefault();
                 return new ActionDisposable(() => ctx.Config.LumOn.DebugMode = LumOnDebugMode.Off);
             },
@@ -70,6 +72,27 @@ public static partial class VgeBuiltInDebugViews
         public bool GetWorldProbesEnabled() => worldProbes;
 
         public void SetWorldProbesEnabled(bool enabled) => worldProbes = enabled;
+
+        public void RestoreSelectedDebugMode(LumOnDebugMode debugMode)
+        {
+            foreach (ProbeVizMode mode in Enum.GetValues<ProbeVizMode>())
+            {
+                ProbeModeMapping mapping = GetProbeModeMapping(mode);
+                if (mapping.World == debugMode)
+                {
+                    selectedMode = mode;
+                    worldProbes = true;
+                    return;
+                }
+
+                if (mapping.Screen == debugMode)
+                {
+                    selectedMode = mode;
+                    worldProbes = false;
+                    return;
+                }
+            }
+        }
 
         public bool IsWorldToggleVisibleForCurrentMode()
         {
@@ -498,6 +521,7 @@ public static partial class VgeBuiltInDebugViews
             if (string.Equals(DebugViewController.Instance.ActiveExclusiveViewId, viewId, StringComparison.Ordinal))
             {
                 config.LumOn.DebugMode = ProbesDebugViewState.Instance.GetSelectedDebugModeOrDefault();
+                DebugViewController.Instance.NotifyExclusiveModeChanged();
             }
 
             if (prevToggleVisible != nextToggleVisible || lastToggleVisible != nextToggleVisible
@@ -525,6 +549,7 @@ public static partial class VgeBuiltInDebugViews
             if (string.Equals(DebugViewController.Instance.ActiveExclusiveViewId, viewId, StringComparison.Ordinal))
             {
                 config.LumOn.DebugMode = ProbesDebugViewState.Instance.GetSelectedDebugModeOrDefault();
+                DebugViewController.Instance.NotifyExclusiveModeChanged();
             }
 
             try

@@ -48,6 +48,12 @@ public class VgeConfig
             public string? ActiveExclusiveViewId { get; set; }
 
             /// <summary>
+            /// The LumOn mode selected by the active exclusive debug view.
+            /// </summary>
+            [JsonProperty]
+            public LumOnDebugMode? ActiveExclusiveLumOnDebugMode { get; set; }
+
+            /// <summary>
             /// The currently active toggle debug view ids.
             /// </summary>
             [JsonProperty]
@@ -58,6 +64,17 @@ public class VgeConfig
                 ActiveExclusiveViewId = string.IsNullOrWhiteSpace(ActiveExclusiveViewId)
                     ? null
                     : ActiveExclusiveViewId.Trim();
+
+                if (ActiveExclusiveLumOnDebugMode is { } mode
+                    && (!Enum.IsDefined(typeof(LumOnDebugMode), mode) || mode == LumOnDebugMode.Off))
+                {
+                    ActiveExclusiveLumOnDebugMode = null;
+                }
+
+                if (ActiveExclusiveViewId is null)
+                {
+                    ActiveExclusiveLumOnDebugMode = null;
+                }
 
                 if (ActiveToggleViewIds is null || ActiveToggleViewIds.Length == 0)
                 {
