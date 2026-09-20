@@ -17,10 +17,9 @@ ivec3 lumonLocalWrap(ivec3 cell, int size)
 }
 
 /** Distinguishes published empty cells from missing, stale or unsupported geometry. */
-bool lumonLocalRead(ivec3 cell, out uint geometry, out vec4 light)
+bool lumonLocalReadGeometry(ivec3 cell, out uint geometry)
 {
     geometry = 0u;
-    light = vec4(0.0);
     int size = localOriginResolution.w;
     if (size <= 0) return false;
     ivec3 relative = cell - localOriginResolution.xyz;
@@ -32,7 +31,14 @@ bool lumonLocalRead(ivec3 cell, out uint geometry, out vec4 light)
     if (texelFetch(localTraceRegions, regionTexel, 0).r == 0u) return false;
     ivec3 texel = lumonLocalWrap(relative + ringOffset * 32, size);
     geometry = texelFetch(localTraceGeometry, texel, 0).r;
-    light = texelFetch(localTraceLight, texel, 0);
     return (geometry & 3u) == 1u || (geometry & 3u) == 2u;
+}
+/** Reads normalized hit lighting only after geometry publication is established. */
+bool lumonLocalRead(ivec3 cell, out uint geometry, out vec4 light)
+{
+    light = vec4(0.0);
+    if (!lumonLocalReadGeometry(cell, geometry)) return false;
+    light = texelFetch(localTraceLight, lumonLocalWrap(cell, localOriginResolution.w), 0);
+    return true;
 }
 #endif

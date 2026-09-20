@@ -1,7 +1,7 @@
 # LumOn world-probe lighting: architecture, findings, and repair tracking
 
 Date: 2026-09-20  
-Status: Local world tracing implemented; direct irradiance visibility and live validation remain open.
+Status: Local tracing and direct irradiance visibility implemented; live validation remains open.
 Scope: World-probe generation, screen-probe tracing, filtering, projection, gather, and contribution diagnostics.
 
 ## Summary
@@ -125,19 +125,19 @@ Sources: [update renderer](../VanillaGraphicsExpanded/LumOn/WorldProbes/LumOnWor
 
 Repair direction: first measure actual cache radiance. Treat shared scene-lighting integration and a richer bounce model as separately scoped work, unless the reproduction proves this is the immediate limiting factor.
 
-### WP-06: Local tracing implemented; direct irradiance visibility remains limited
+### WP-06: Local tracing and direct irradiance visibility implemented
 
-**Local screen-probe tracing and directional cache handoff implemented. Direct irradiance repair remains open.**
+**Local screen-probe tracing, directional cache handoff and direct irradiance visibility implemented. Live validation remains open.**
 
 Screen misses now traverse a published local voxel scene. A supported opaque hit supplies normalized outside-cell block light, bounded sky bounce and hit-face emission. Only a fully clear local segment permits distant world-cache sampling. Missing data, unsupported geometry, exhausted steps and premature bounds exits remain unresolved.
 
 The cache handoff selects a covered level, uses a sphere radius of sqrt(3) times that level's spacing, and traces twice that radius locally. Each neighbor's lighting direction is reprojected onto its sphere. Cache texels whose recorded distance is inside the radius are excluded because the existing atlas also contains near hits. The new path does not apply binary probe-to-surface rejection. This preserves constant radiance while correcting lookup direction; it does not establish exact visibility of every distant feature.
 
-The direct irradiance fallback and irradiance debug view still use the earlier visibility sampler and retain its known near-wall defect.
+The direct irradiance fallback in both gather modes and the irradiance debug view now trace probe-to-receiver segments through the published local voxel grid. Only a completed clear segment accepts that probe. These consumers no longer use the nearest directional cache depth as a visibility threshold.
 
 The [controlled sealed-room reproduction](LumOn.WorldProbeLighting.ReproductionTests.md) originally confirmed across-wall interpolation: dark interior probes mixed with bright exterior probes to produce 0.125 directional radiance. The visibility repair changes that regression to require zero lighting and neutral gray through both gather modes. Covered but rejected or unpublished neighbors cannot trigger approximate sky fallback. Open-doorway, visible-neighbor and ring-index controls preserve valid lighting. The focused suite passed 71 tests with no failures or skips. Directional depth remains approximate; this does not establish correctness in every live scene.
 
-A subsequent [flat-wall reproduction](LumOn.WorldProbeLighting.ReproductionTests.md#flat-wall-visibility-artifact-reproduction) confirms a limitation of this repair: 6,228 of 16,384 unobstructed near-wall samples are falsely rejected, producing black irradiance patches matching zero confidence. The farther-inset control rejects none. The production debug view uses the shared sampler; it is exposing a visibility defect rather than using an obsolete lighting implementation. This defect is reproduced but not repaired.
+The [flat-wall reproduction](LumOn.WorldProbeLighting.ReproductionTests.md#flat-wall-visibility-artifact-reproduction) originally found 6,228 false rejections among 16,384 unobstructed near-wall samples. The replacement retains the exact-ray ground truth and now requires zero false rejections. Missing, unsupported or out-of-window geometry remains unresolved rather than falling back to approximate visibility.
 
 ## Validation and repair tracker
 
@@ -177,22 +177,28 @@ Automated correctness evidence is recorded in the [reproduction report](LumOn.Wo
 
 Replace hard depth rejection in direct world-probe irradiance sampling. This includes final-gather fallback and the irradiance debug view; changing screen-probe tracing alone does not repair these paths.
 
-- [ ] Evaluate filtered distance moments or a design using locally traced results.
-- [ ] Implement the selected visibility approach in both direct sampling consumers.
-- [ ] Preserve valid lighting while eliminating false near-wall rejection.
+- [x] Evaluate filtered distance moments or a design using locally traced results.
+- [x] Implement the selected visibility approach in both direct sampling consumers.
+- [x] Preserve valid lighting while eliminating false near-wall rejection.
 
 Completion criterion: direct irradiance sampling satisfies both the flat-wall visibility and sealed-room leakage requirements.
+
+**Implemented:** shared local voxel traversal now resolves visibility for the debug viewer and both gather fallbacks. Filtered distance moments were considered but not selected: they summarize angular depths and cannot establish exact segment occlusion. Existing voxel geometry provides a direct test without another distance atlas.
+
+[Implementation contract](LumOn.LocalWorldTracing.IntegrationDesign.md#direct-irradiance-visibility) and [regression evidence](LumOn.WorldProbeLighting.ReproductionTests.md#direct-irradiance-visibility-repair) describe coverage and limits. Live appearance and GPU cost remain unmeasured. Supported visibility is bounded by the local geometry window.
 
 ### Priority 4: Visibility regression validation
 
 Validate both sampling-path replacements against the existing reproductions and additional corner geometry.
 
-- [ ] Preserve zero exterior leakage in the sealed-room reproduction.
-- [ ] Eliminate false near-wall rejection in the flat-wall reproduction.
+- [x] Preserve zero exterior leakage in the sealed-room reproduction.
+- [x] Eliminate false near-wall rejection in the flat-wall reproduction.
 - [ ] Retain doorway, blocked-neighbor, unobstructed-lighting, ring-index and clipmap controls.
-- [ ] Add corner geometry coverage to detect inappropriate visibility acceptance.
+- [x] Add corner geometry coverage to detect inappropriate visibility acceptance.
 
 Completion criterion: both replacements pass the applicable regression cases without trading surface artifacts for light leakage.
+
+Automated cases now cover both replacements, including doorways, blocked neighbors, ring remapping and corners. Cross-level controls for the new direct-visibility path and live validation remain open; legacy clipmap tests do not establish that new-path coverage.
 
 ### Remaining validation and repairs
 

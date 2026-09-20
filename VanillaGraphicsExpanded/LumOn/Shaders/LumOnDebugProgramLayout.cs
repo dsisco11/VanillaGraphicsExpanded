@@ -12,8 +12,11 @@ internal sealed class LumOnDebugProgramLayout : GpuProgramLayout
 {
     public LumOnDebugParamsUbo Params { get; } = new();
 
+    internal LumOnLocalVisibilityBindings LocalVisibility { get; }
+
     public LumOnDebugProgramLayout()
     {
+        LocalVisibility = new LumOnLocalVisibilityBindings(this, 34, 35);
         RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);
         RegisterUniformBlockBinding(LumOnUniformBuffers.WorldProbeBlockName, LumOnUniformBuffers.WorldProbeBinding, required: false);
         RegisterUniformBlockBinding(LumOnTerrainBridgeUboState.BlockName, LumOnTerrainBridgeUboState.Binding, required: false);

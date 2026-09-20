@@ -10,6 +10,7 @@ using Vintagestory.API.Config;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 using VanillaGraphicsExpanded.DebugView;
+using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.LumOn.WorldProbes;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
@@ -1124,6 +1125,12 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
+        if (shader.SetDefine(LumOnLocalVisibilityBindings.EnabledDefine, "1"))
+        {
+            lightingPassesComplete = false;
+            return;
+        }
+
         bool hasWorldProbe = TryBindWorldProbeClipmapCommon(
             out var worldProbeResources,
             out _,
@@ -1158,6 +1165,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
+        shader.LocalVisibility.Bind(shader, localTraceScene);
         shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
         shader.ProbeSh0 = bufferManager.ProbeSh9Tex0;
@@ -1218,6 +1226,12 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
+        if (shader.SetDefine(LumOnLocalVisibilityBindings.EnabledDefine, "1"))
+        {
+            lightingPassesComplete = false;
+            return;
+        }
+
         bool hasWorldProbe = TryBindWorldProbeClipmapCommon(
             out var worldProbeResources,
             out _,
@@ -1253,6 +1267,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         }
         shader.SuppressWorldProbeRadiance = comparisonPass;
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
+        shader.LocalVisibility.Bind(shader, localTraceScene);
         shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
         // Bind screen-probe atlas radiance

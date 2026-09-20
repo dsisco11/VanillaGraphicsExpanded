@@ -6,7 +6,7 @@ Reuse the existing GPU TraceScene occupancy infrastructure for local screen-prob
 
 Initial local-hit lighting will use normalized outside-cell voxel light plus hit-face material data through the existing world-probe lighting approximation. Do not use the current surface-cache irradiance atlas as arbitrary-hit outgoing radiance.
 
-The local tracing implementation now follows this contract. Automated correctness coverage is recorded below; live appearance and performance validation remain open. Direct irradiance sampling remains a separate repair.
+The local tracing implementation now follows this contract. Automated correctness coverage is recorded below; live appearance and performance validation remain open. Direct irradiance sampling now reuses the geometry traversal as described below.
 
 ## Existing resources
 
@@ -124,7 +124,7 @@ Screen-probe ray -> screen-space hit lighting, or local world trace -> opaque lo
 
 Priority 2 must define the cache near-distance contract jointly with local tracing. Current world probes trace from their centers; a spacing-based handoff constant alone does not establish which geometry the cache represents. A bounds exit or insufficient coverage must not shorten the required segment and then claim it was clear.
 
-Direct irradiance fallback and its debug view bypass this chain and remain Priority 3.
+Direct irradiance fallback and its debug view bypass the directional handoff chain. Their separate segment-visibility integration is described below.
 
 ## Implementation gates
 
@@ -154,3 +154,20 @@ Traversal resolves tied boundaries one face at a time to retain the actual adjac
 The distant cache contract uses radius sqrt(3) times selected-level spacing and requires a clear local segment of twice that radius. Neighbor lookups reproject direction onto that sphere; radiance magnitude is unchanged. Existing cache texels with shorter recorded distance are rejected, because they do not represent the distant domain. Missing or near-only cache data remains unresolved. This initial implementation chooses one covered level; it does not introduce a new cross-level blend or rebuild the world atlas as a dedicated far-only cache.
 
 See [local tracing regressions](LumOn.WorldProbeLighting.ReproductionTests.md#local-world-tracing-and-cache-handoff) for executable coverage and receipts. Live camera motion, real asynchronous upload pressure, partial geometry support and representative CPU/GPU performance still require runtime validation. These are not established by a passing small GPU fixture.
+
+
+## Direct irradiance visibility
+
+The selected replacement traces each contributing world-probe center to the reconstructed receiver through published local geometry. It uses the same DDA and readiness contract as local screen-probe tracing, but does not evaluate hit lighting or sample the local light/material textures.
+
+Filtered distance moments were considered. They could soften nearest-depth discontinuities, but a distribution of neighboring distances does not establish whether a particular segment crosses a wall. Using the existing voxel grid avoids that ambiguity for supported geometry and requires no additional distance atlas.
+
+The shared sampler accepts only ClearToLimit. A hit, unsupported cell, missing publication, bounds exit or exhausted budget rejects the corner. A coincident receiver/probe still requires a published empty cell. The receiver endpoint is shortened by 0.0001 world units to avoid classifying the receiving boundary as an intervening wall; there is no spacing-scaled visibility bias. Integer chunk offsets preserve large-world coordinates.
+
+Accepted corners retain the existing interpolation normalization, directional readiness checks, lighting integration and confidence semantics. Visibility no longer depends on the nearest octahedral depth sample. Directional cache samples still require valid distance encodings to supply lighting.
+
+The renderer enables this path in both atlas and SH9 gather programs. Both paired branches bind the same prepared local snapshot. World-probe debug programs prepare and bind the current published scene independently; unrelated debug categories do not request the local visibility path. Geometry-only bindings occupy units 6/7 for atlas gather, 12/13 for SH9 gather, and 34/35 in the existing debug binding namespace. SH9 remains within sixteen active sampler units.
+
+The compile-time legacy path remains for older directional-sampling controls. Production direct consumers explicitly enable local visibility. Missing local resources do not select the old approximate visibility path.
+
+Supported visibility is limited to full opaque voxel geometry inside the published local window. A coarse world-probe neighbor outside that window can be rejected even when its radiance exists. This is conservative unresolved coverage, not proof that the neighbor is physically occluded. Live camera movement, partial geometry, cross-level coverage and GPU traversal cost require further validation.

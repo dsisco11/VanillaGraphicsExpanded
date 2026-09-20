@@ -21,6 +21,8 @@ public class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
 {
     private LumOnProbeParamsUbo? paramsUbo;
 
+    internal LumOnLocalVisibilityBindings LocalVisibility => ((LumOnScreenProbeAtlasGatherProgramLayout)ProgramLayout).LocalVisibility;
+
     protected override GpuProgramLayout CreateLayout() => new LumOnScreenProbeAtlasGatherProgramLayout();
 
     public LumOnScreenProbeAtlasGatherShaderProgram()

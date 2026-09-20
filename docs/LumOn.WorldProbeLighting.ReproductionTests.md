@@ -89,16 +89,16 @@ The grid spans x/y=(-5,5) in front of the z=8 wall, with surface normal -Z. The 
 
 Two cases separate surface proximity from missing lighting:
 
-- A grid 0.01 world units inside the wall characterizes the current defect: both accepted and incorrectly rejected pixels must exist.
+- A grid 0.01 world units inside the wall originally characterized the defect; after the repair, every sample must be accepted.
 - A grid 2 world units inside the wall must retain all samples.
 
 Rejected pixels must be black in the irradiance view and zero in the confidence view. Accepted pixels must retain the source confidence and the expected tone-mapped unit-radiance diffuse integral, pi/(1+pi). Thus the test checks the displayed failure directly, rather than inferring it solely from a CPU copy of the visibility formula.
 
-These are explicit characterization assertions: a passing near-wall case means the defect was reproduced, not fixed. The eventual repair should change it to require zero rejected pixels while preserving the exact-ray ground truth and control case. Production code is unchanged by this reproduction.
+The current tests require zero rejected pixels, retaining the original exact-ray ground truth and inset control. The dense near-wall case also runs through both final-gather modes. The original characterization results below are historical evidence of the repaired failure.
 
 The tests report rejection counts through test output; no image or CSV files are generated.
 
-### Recorded planar-wall results
+### Original planar-wall results
 
 The focused suite passed **73 tests, 0 failures, 0 skipped**, including both new GPU cases:
 
@@ -114,7 +114,7 @@ Validation receipts: [test log](../artifacts/wall-visibility-reproduction.log) a
 
 ## Local world tracing and cache handoff
 
-The screen-probe trace shader now resolves screen misses through local voxel geometry before sampling distant world radiance. The earlier direct irradiance visibility implementation and its flat-wall characterization remain unchanged.
+The screen-probe trace shader now resolves screen misses through local voxel geometry before sampling distant world radiance. The subsequent direct-visibility repair is recorded separately below.
 
 [LocalTraceVoxelFixture](../VanillaGraphicsExpanded.Tests/GPU/Fixtures/LocalTraceVoxelFixture.cs) adapts the shared controlled voxel world into production region artifacts and publishes them through the real GPU scene owner. Scene contents, normalized cell light, hit materials, readiness and versions are independently controllable. The fixture uses real texture uploads and production traversal; it does not mock individual ray results.
 
@@ -148,7 +148,7 @@ A broader selection passed 271 of 274 tests. Both missing-import assertions in T
 
 Receipts: [local suite](../artifacts/local-trace-final.log), [local TRX](../artifacts/TestResults/local-trace-final.trx), [73-test regression](../artifacts/local-trace-regression.log), [broader run](../artifacts/local-trace-broad-regression.log), and [unchanged-revision baseline](../artifacts/local-trace-head-baseline.log).
 
-These tests establish controlled shader and publication correctness. They do not measure live frame time, main-thread snapshot cost, production update-budget pressure, camera-motion history behavior or real-scene appearance. Unsupported geometry remains unresolved by design. Direct irradiance fallback and the irradiance viewer still require the separate visibility repair.
+These tests establish controlled shader and publication correctness. They do not measure live frame time, main-thread snapshot cost, production update-budget pressure, camera-motion history behavior or real-scene appearance. Unsupported geometry remains unresolved by design. Direct irradiance fallback and the irradiance viewer use the subsequent repair described below.
 
 
 ### Compact textures and region-ring ownership
@@ -161,3 +161,30 @@ Local lighting and diffuse/emission material textures now use normalized RGBA8. 
 
 
 Compact-format validation: **47 local tests and 15 texture/format/upload regressions passed, with zero failures or skips**. The build succeeded. Receipts: [local tests](../artifacts/local-trace-compact-final.log), [local TRX](../artifacts/TestResults/local-trace-compact-final.trx), and [texture regressions](../artifacts/local-trace-compact-textures.log). These checks validate correctness and quantization behavior; no live performance measurement was made.
+
+
+## Direct irradiance visibility repair
+
+Direct irradiance now uses local voxel segment tracing instead of nearest directional-depth rejection. The shared [consumer harness](../VanillaGraphicsExpanded.Tests/GPU/Fixtures/DirectWorldProbeVisibilityTestBase.cs) binds the production geometry/readiness textures and runs debug modes 31/32/33, atlas gather, and SH9 gather. Gather cases explicitly invalidate screen probes to exercise world fallback.
+
+[Direct visibility cases](../VanillaGraphicsExpanded.Tests/GPU/LumOnDirectWorldProbeVisibilityTests.cs) require sealed rooms to reject an exterior bright cache, open doorways to restore its lighting, cache-only suppression to preserve selected confidence, and unavailable resources or exhausted budgets to stay dark. Clear geometry remains visible even when the nearest recorded angular depth is deliberately too short.
+
+[Neighborhood controls](../VanillaGraphicsExpanded.Tests/GPU/LumOnDirectWorldProbeVisibilityTests.Neighborhoods.cs) verify that blocked red neighbors do not contaminate visible green neighbors, including ring-remapped storage. Enclosing corners block exterior probes. Positive and negative world offsets of 16,777,216 preserve both closed-wall and open-doorway outcomes.
+
+The dense wall test now requires zero false rejections rather than merely reproducing them. Unit radiance must retain its diffuse integral and source confidence; the debug display must retain pi/(1+pi).
+
+These tests exercise production shaders over controlled full-cube geometry. They do not establish live visual results, runtime traversal cost, arbitrary partial-block support, or visibility beyond the local published window. The original three unrelated broader-suite failures and their unchanged-revision baseline remain recorded above.
+
+
+### Direct visibility validation results
+
+**39 direct-visibility cases and 216 regression cases passed, zero failures or skips.** The regression selection includes local tracing, prior world-probe controls, shader compilation, UBO/layout binding and debug routing. Build succeeded with the same six unrelated warnings.
+
+| Consumer | Wall inset | Exact clear segments | False rejections | Accepted |
+| --- | --- | --- | --- | --- |
+| Irradiance/confidence debug | 0.01 | 16,384 | 0 | 16,384 |
+| Irradiance/confidence debug | 2 | 16,384 | 0 | 16,384 |
+| Atlas gather fallback | 0.01 | 16,384 | 0 | 16,384 |
+| SH9 gather fallback | 0.01 | 16,384 | 0 | 16,384 |
+
+Receipts: [direct visibility tests](../artifacts/direct-visibility-final.log), [direct visibility TRX](../artifacts/TestResults/direct-visibility-final.trx), [regression tests](../artifacts/direct-visibility-regression.log), and [regression TRX](../artifacts/TestResults/direct-visibility-regression.trx).

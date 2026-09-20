@@ -46,8 +46,8 @@ LumonLocalHit lumonTraceLocal(ivec3 startCell, vec3 fraction, vec3 direction, fl
     for (int i = 0; i < 512; i++)
     {
         if (i >= localBudget.x) { result.outcome = LUMON_LOCAL_BUDGET; return result; }
-        uint geometry; vec4 light;
-        if (!lumonLocalRead(result.cell, geometry, light)) return result;
+        uint geometry;
+        if (!lumonLocalReadGeometry(result.cell, geometry)) return result;
         if ((geometry & 3u) == 2u)
         {
             result.outcome = LUMON_LOCAL_HIT;

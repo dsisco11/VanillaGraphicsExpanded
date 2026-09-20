@@ -4,8 +4,11 @@ namespace VanillaGraphicsExpanded.LumOn.Shaders;
 
 internal sealed class LumOnProbeSh9GatherProgramLayout : GpuProgramLayout
 {
+    internal LumOnLocalVisibilityBindings LocalVisibility { get; }
+
     public LumOnProbeSh9GatherProgramLayout()
     {
+        LocalVisibility = new LumOnLocalVisibilityBindings(this, 12, 13);
         RegisterSamplerUnit("probeSh0", 0, required: true);
         RegisterSamplerUnit("probeSh1", 1, required: true);
         RegisterSamplerUnit("probeSh2", 2, required: true);

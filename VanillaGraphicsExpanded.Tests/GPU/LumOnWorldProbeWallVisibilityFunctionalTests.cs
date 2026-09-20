@@ -12,10 +12,10 @@ using Vintagestory.API.MathTools;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Characterizes false visibility rejection on a fully illuminated planar wall using the production debug shader.</summary>
+/// <summary>Verifies visibility without false rejection on a fully illuminated planar wall using the production debug shader.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public sealed class LumOnWorldProbeWallVisibilityFunctionalTests : LumOnShaderFunctionalTestBase
+public sealed class LumOnWorldProbeWallVisibilityFunctionalTests : DirectWorldProbeVisibilityTestBase
 {
     private const int GridSize = 128;
     private readonly ITestOutputHelper output;
@@ -29,11 +29,13 @@ public sealed class LumOnWorldProbeWallVisibilityFunctionalTests : LumOnShaderFu
     #endregion
 
     #region Planar Surface Reproduction
-    /// <summary>Every geometric segment is clear, yet near-wall pixels alternate between accepted and rejected probes.</summary>
+    /// <summary>Every geometric segment is clear, and both near-wall and inset samples must retain irradiance.</summary>
     [Theory]
-    [InlineData(0.01f, true)]
-    [InlineData(2f, false)]
-    public void FlatIlluminatedWall_CharacterizesFalseOcclusion(float inset, bool expectDefect)
+    [InlineData(0.01f, 31)]
+    [InlineData(0.01f, -1)]
+    [InlineData(0.01f, -2)]
+    [InlineData(2f, 31)]
+    public void FlatIlluminatedWall_PreservesAllVisibleSamples(float inset, int consumer)
     {
         EnsureShaderTestAvailable();
         var world = new ControlledVoxelWorld { DefaultLight = new Vector4(1, 1, 1, 0) };
@@ -69,15 +71,20 @@ public sealed class LumOnWorldProbeWallVisibilityFunctionalTests : LumOnShaderFu
             Assert.True(hit.HitDistance > delta.Length(), "The probe-to-sample segment must be unobstructed.");
         }
 
-        var irradiance = RenderWallDiagnostic(atlas, sampleZ, 31);
-        var confidence = RenderWallDiagnostic(atlas, sampleZ, 33);
+        using var local = new LocalTraceVoxelFixture();
+        local.Publish(world);
+        var irradiance = RenderDirectVisibility(atlas, local.Scene, new Vector3(0, 0, sampleZ), new Vector3(-15.5f), 32, consumer, GridSize, 5);
+        var confidence = consumer >= 0
+            ? RenderDirectVisibility(atlas, local.Scene, new Vector3(0, 0, sampleZ), new Vector3(-15.5f), 32, 33, GridSize, 5)
+            : irradiance;
         int rejected = 0;
         int accepted = 0;
-        float expectedToneMapped = MathF.PI / (1 + MathF.PI);
+        float expectedLighting = consumer >= 0 ? MathF.PI / (1 + MathF.PI) : MathF.PI;
         for (int pixel = 0; pixel < GridSize * GridSize; pixel++)
         {
             int i = pixel * 4;
-            if (confidence[i] < 0.001f)
+            float sampleConfidence = confidence[i + (consumer >= 0 ? 0 : 3)];
+            if (sampleConfidence < 0.001f)
             {
                 rejected++;
                 for (int c = 0; c < 3; c++) Assert.Equal(0f, irradiance[i + c]);
@@ -85,62 +92,15 @@ public sealed class LumOnWorldProbeWallVisibilityFunctionalTests : LumOnShaderFu
             else
             {
                 accepted++;
-                Assert.InRange(confidence[i], trace.Confidence - 0.002f, trace.Confidence + 0.002f);
+                Assert.InRange(sampleConfidence, trace.Confidence - 0.002f, trace.Confidence + 0.002f);
                 for (int c = 0; c < 3; c++)
-                    Assert.InRange(irradiance[i + c], expectedToneMapped - 0.003f, expectedToneMapped + 0.003f);
+                    Assert.InRange(irradiance[i + c], expectedLighting - 0.003f, expectedLighting + 0.003f);
             }
         }
-        output.WriteLine($"Wall inset={inset}: {rejected}/{GridSize * GridSize} false rejections, {accepted} accepted; all exact segments clear.");
+        output.WriteLine($"Consumer={consumer}, wall inset={inset}: {rejected}/{GridSize * GridSize} false rejections, {accepted} accepted; all exact segments clear.");
         Assert.True(accepted > 0, "The fixture must retain a lit control region.");
-        // Characterization, not approval of the defect: the eventual repair should replace
-        // this branch with rejected == 0 while retaining the same exact-ray ground truth.
-        if (expectDefect) Assert.True(rejected > 0, "Expected current angular-depth mismatch to reproduce.");
-        else Assert.Equal(0, rejected);
+        Assert.Equal(0, rejected);
     }
     #endregion
 
-    #region Production Diagnostic Rendering
-    /// <summary>Renders the actual irradiance or confidence view over an orthographically reconstructed wall.</summary>
-    private float[] RenderWallDiagnostic(WorldProbeAtlasData atlas, float sampleZ, int mode)
-    {
-        int program = CompileShaderWithDefines("lumon_debug.vsh", "lumon_debug_worldprobe.fsh", new()
-        {
-            ["VGE_LUMON_WORLDPROBE_ENABLED"] = "1",
-            ["VGE_LUMON_WORLDPROBE_LEVELS"] = "1",
-            ["VGE_LUMON_WORLDPROBE_RESOLUTION"] = "1",
-            ["VGE_LUMON_WORLDPROBE_BASE_SPACING"] = "32.0",
-            ["VGE_LUMON_WORLDPROBE_OCTAHEDRAL_SIZE"] = "16",
-            ["VGE_LUMON_WORLDPROBE_DIFFUSE_STRIDE"] = "2"
-        });
-        try
-        {
-            using var radiance = TestFramework.CreateTexture(atlas.Width, atlas.Height, PixelInternalFormat.Rgba16f, atlas.Radiance);
-            using var visibility = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, atlas.Visibility);
-            using var metadata = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rg32f, atlas.Metadata);
-            using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new float[] { 0.5f });
-            using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new float[] { 0.5f, 0.5f, 0, 1 });
-            using var target = TestFramework.CreateTestGBuffer(GridSize, GridSize, PixelInternalFormat.Rgba16f);
-            using var parameters = new ObjectParamsUbo("Tests.WallVisibility.Debug");
-            var cpu = new LumOnDebugParamsUbo { DebugMode = mode };
-            UniformBlockBindingUtil.EnsureBlockBound(program, LumOnDebugParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-            parameters.UploadAndBind(cpu.Bytes);
-            // Column-major inverse projection maps pixel centers to x/y=[-5,5], z=sampleZ.
-            float[] inverse = { 5,0,0,0, 0,5,0,0, 0,0,1,0, 0,0,sampleZ,1 };
-            UpdateAndBindLumOnFrameUbo(program, invProjectionMatrix: inverse, screenWidth: GridSize, screenHeight: GridSize);
-            UpdateAndBindLumOnWorldProbeUbo(program, new Vec3f(), Vector3.Zero,
-                new[] { new Vector3(-15.5f) }, new[] { Vector3.Zero });
-            radiance.Bind(0); visibility.Bind(1); metadata.Bind(2); depth.Bind(3); normal.Bind(4);
-            GL.UseProgram(program);
-            GL.Uniform1(GL.GetUniformLocation(program, "worldProbeRadianceAtlas"), 0);
-            GL.Uniform1(GL.GetUniformLocation(program, "worldProbeVis0"), 1);
-            GL.Uniform1(GL.GetUniformLocation(program, "worldProbeMeta0"), 2);
-            GL.Uniform1(GL.GetUniformLocation(program, "primaryDepth"), 3);
-            GL.Uniform1(GL.GetUniformLocation(program, "gBufferNormal"), 4);
-            GL.UseProgram(0);
-            TestFramework.RenderQuadTo(program, target);
-            return target[0].ReadPixels();
-        }
-        finally { GL.DeleteProgram(program); }
-    }
-    #endregion
 }

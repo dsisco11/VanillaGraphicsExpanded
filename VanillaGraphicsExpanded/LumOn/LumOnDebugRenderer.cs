@@ -6,6 +6,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 using VanillaGraphicsExpanded.DebugView;
+using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.Rendering;
@@ -779,6 +780,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         if (shader is null || shader.LoadError)
             return;
 
+        bool usesLocalVisibility = programKind == LumOnDebugShaderProgramKind.WorldProbe;
+        if (usesLocalVisibility && shader.SetDefine(LumOnLocalVisibilityBindings.EnabledDefine, "1")) return;
+        var localVisibilityScene = usesLocalVisibility
+            ? lumonSceneOccupancyClipmapUpdateRenderer?.PrepareLocalTraceScene() : null;
+
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primaryFb is null)
             return;
@@ -912,6 +918,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
             shader.Use();
             shaderUsed = true;
+            if (usesLocalVisibility) shader.LocalVisibility.Bind(shader, localVisibilityScene);
             shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
             var worldProbeUbo = uniformBuffers.WorldProbeUboOrNull;
             if (worldProbeUbo is not null)
