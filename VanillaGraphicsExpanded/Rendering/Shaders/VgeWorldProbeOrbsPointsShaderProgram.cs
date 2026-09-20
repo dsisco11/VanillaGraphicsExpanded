@@ -87,6 +87,8 @@ public sealed class VgeWorldProbeOrbsPointsShaderProgram : GpuProgram
         }
     }
 
+    public bool ImportanceColorMode { set => Uniform("importanceColorMode", value ? 1 : 0); }
+
     public bool EnsureWorldProbeClipmapDefines(
         bool enabled,
         float baseSpacing,

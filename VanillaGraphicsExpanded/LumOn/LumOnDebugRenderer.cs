@@ -5,6 +5,7 @@ using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
+using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.Rendering;
@@ -81,8 +82,17 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         nonDefaultMask: default(GlPipelineStateMask)
             .With(GlPipelineStateId.DepthTestEnable)
             .With(GlPipelineStateId.DepthFunc)
+            .With(GlPipelineStateId.DepthWriteMask)
+            .With(GlPipelineStateId.BlendEnable)
+            .With(GlPipelineStateId.BlendFunc)
             .With(GlPipelineStateId.PointSize),
         depthFunc: DepthFunction.Lequal,
+        depthWriteMask: true,
+        blendFunc: new GlBlendFunc(
+            BlendingFactorSrc.SrcAlpha,
+            BlendingFactorDest.OneMinusSrcAlpha,
+            BlendingFactorSrc.One,
+            BlendingFactorDest.OneMinusSrcAlpha),
         pointSize: 18f);
 
     private readonly ICoreClientAPI capi;
@@ -604,7 +614,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         // main scene uses for transparency (avoids post-pass camera sway differences).
         if (stage == EnumRenderStage.OIT)
         {
-            if (mode == LumOnDebugMode.WorldProbeOrbsPoints)
+            bool renderWorldProbeOrbs = mode == LumOnDebugMode.WorldProbeOrbsPoints
+                || (mode == LumOnDebugMode.WorldProbeImportance
+                    && !VgeBuiltInDebugViews.ProbesDebugViewState.Instance.GetImportanceSurfaceHeatmapEnabled());
+            if (renderWorldProbeOrbs)
             {
                 EnsureWorldProbeClipmapManagerBound("LumOnDebugRenderer OIT bind");
                 EnsureWorldProbeClipmapDebugBuffers();
@@ -635,7 +648,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (mode == LumOnDebugMode.WorldProbeOrbsPoints)
+        if (mode == LumOnDebugMode.WorldProbeOrbsPoints
+            || (mode == LumOnDebugMode.WorldProbeImportance
+                && !VgeBuiltInDebugViews.ProbesDebugViewState.Instance.GetImportanceSurfaceHeatmapEnabled()))
         {
             return;
         }
@@ -1084,7 +1099,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         if (current is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeOrbsPoints
             || current == LumOnDebugMode.WorldProbeRawConfidences
             || current == LumOnDebugMode.WorldProbeContributionOnly
-            || current == LumOnDebugMode.ScreenSpaceContributionOnly)
+            || current == LumOnDebugMode.ScreenSpaceContributionOnly
+            || current == LumOnDebugMode.WorldProbeImportance)
         {
             worldProbeClipmapDebugDirty = true;
 
@@ -1997,9 +2013,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             {
                 GlStateCache.Current.InvalidateAll();
                 GlStateCache.Current.Apply(WorldProbeOrbsPointsPso);
-                capi.Render.GlToggleBlend(true);
-                GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-                capi.Render.GLDepthMask(true);
+                bool importanceColorMode = config.LumOn.DebugMode == LumOnDebugMode.WorldProbeImportance;
 
                 shader.Use();
                 shaderUsed = true;
@@ -2008,6 +2022,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 shader.WorldOffset = new Vec3f(0, 0, 0);
                 shader.CameraPos = new Vec3f(0, 0, 0);
                 shader.PointSize = 18f;
+                shader.ImportanceColorMode = importanceColorMode;
                 float maxSpacing = clipmapDebugBaseSpacing * (1 << Math.Max(clipmapDebugLevels - 1, 0));
                 float maxSize = maxSpacing * clipmapDebugResolution;
                 shader.FadeNear = maxSize * 0.5f;
@@ -2725,6 +2740,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             or LumOnDebugMode.WorldProbeRawConfidences
             or LumOnDebugMode.WorldProbeContributionOnly
             or LumOnDebugMode.ScreenSpaceContributionOnly
+            or LumOnDebugMode.WorldProbeImportance
             => LumOnDebugShaderProgramKind.WorldProbe,
 
         // Special-cased / not a fullscreen debug shader
@@ -2778,6 +2794,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             || mode is LumOnDebugMode.WorldProbeRawConfidences
                 or LumOnDebugMode.WorldProbeContributionOnly
                 or LumOnDebugMode.ScreenSpaceContributionOnly
+                or LumOnDebugMode.WorldProbeImportance
                 or LumOnDebugMode.ProbeAtlasTemporalRejection
                 or LumOnDebugMode.ProbeAtlasPisTraceMask
                 or LumOnDebugMode.ProbePisEnergy;

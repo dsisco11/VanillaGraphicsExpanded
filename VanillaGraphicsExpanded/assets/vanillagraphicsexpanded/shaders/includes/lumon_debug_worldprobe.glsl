@@ -100,7 +100,7 @@ bool lumonWorldProbeDebugNearest(in vec3 worldPosWS, out int outLevel, out ivec2
         return false;
     }
 
-    vec3 worldPosRel = worldPosWS - lumonWorldProbeGetCameraPosWS();
+    vec3 worldPosRel = worldPosWS - lumonWorldProbeGetPlayerOriginWorld();
     int level = lumonWorldProbeSelectLevelByExtents(worldPosRel, baseSpacing, levels, resolution);
     float spacing = lumonWorldProbeSpacing(baseSpacing, level);
 
@@ -171,7 +171,7 @@ vec4 renderWorldProbeIrradianceLevelDebug()
     float baseSpacing = VGE_LUMON_WORLDPROBE_BASE_SPACING;
     if (levels <= 0 || resolution <= 0) return vec4(0.0, 0.0, 0.0, 1.0);
 
-    vec3 posRel = posWS - lumonWorldProbeGetCameraPosWS();
+    vec3 posRel = posWS - lumonWorldProbeGetPlayerOriginWorld();
     int level = lumonWorldProbeSelectLevelByExtents(posRel, baseSpacing, levels, resolution);
     float spacing = lumonWorldProbeSpacing(baseSpacing, level);
 
@@ -313,6 +313,31 @@ vec4 renderWorldProbeFlagsHeatmapDebug()
     return vec4(color, 1.0);
 }
 
+vec4 renderWorldProbeImportanceDebug()
+{
+    float depth = texture(primaryDepth, uv).r;
+    if (lumonIsSky(depth)) return vec4(0.0, 0.0, 0.0, 1.0);
+
+#if !VGE_LUMON_WORLDPROBE_ENABLED
+    return lumonWorldProbeDebugDisabledColor();
+#endif
+
+    vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+    vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
+
+    int level;
+    ivec2 ac;
+    if (!lumonWorldProbeDebugNearest(posWS, level, ac))
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    // DebugState alpha stores the scheduler importance factor normalized to [0, 1].
+    float importance = clamp(texelFetch(worldProbeDebugState0, ac, 0).a, 0.0, 1.0);
+    vec3 color = mix(vec3(0.05, 0.25, 1.0), vec3(1.0, 0.12, 0.02), importance);
+    return vec4(color, 1.0);
+}
+
 vec4 renderWorldProbeBlendWeightsDebug()
 {
     float depth = texture(primaryDepth, uv).r;
@@ -387,7 +412,7 @@ vec4 renderWorldProbeCrossLevelBlendDebug()
     float baseSpacing = VGE_LUMON_WORLDPROBE_BASE_SPACING;
     if (levels <= 0 || resolution <= 0) return vec4(0.0, 0.0, 0.0, 1.0);
 
-    vec3 posRel = posWS - lumonWorldProbeGetCameraPosWS();
+    vec3 posRel = posWS - lumonWorldProbeGetPlayerOriginWorld();
     int level = lumonWorldProbeSelectLevelByExtents(posRel, baseSpacing, levels, resolution);
     float spacingL = lumonWorldProbeSpacing(baseSpacing, level);
 
@@ -419,6 +444,7 @@ vec4 RenderDebug_WorldProbe(vec2 screenPos)
         case 42: return renderWorldProbeRawConfidencesDebug();
         case 43: return renderWorldProbeContributionOnlyDebug();
         case 44: return renderScreenSpaceContributionOnlyDebug();
+        case 68: return renderWorldProbeImportanceDebug();
         default: return vec4(0.0, 0.0, 0.0, 1.0);
     }
 }

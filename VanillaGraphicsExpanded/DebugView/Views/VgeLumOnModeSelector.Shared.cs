@@ -45,13 +45,13 @@ public static partial class VgeBuiltInDebugViews
                 viewState: viewState,
                 allowedModes: allowedModes));
 
-    private interface ILumOnDebugViewState
+    internal interface ILumOnDebugViewState
     {
         LumOnDebugMode GetSelectedModeOrDefault();
         void SetSelectedMode(LumOnDebugMode mode);
     }
 
-    private abstract class LumOnDebugViewStateBase : ILumOnDebugViewState
+    internal abstract class LumOnDebugViewStateBase : ILumOnDebugViewState
     {
         private readonly LumOnDebugMode defaultMode;
         private LumOnDebugMode selectedMode;
@@ -219,6 +219,7 @@ public static partial class VgeBuiltInDebugViews
             LumOnDebugMode.WorldProbeOrbsPoints => "World-Probe Probes (orbs, GL_POINTS)",
             LumOnDebugMode.PomMetrics => "POM Metrics (heatmap from gBufferNormal.w)",
             LumOnDebugMode.WorldProbeRawConfidences => "World-Probe Raw Confidences",
+            LumOnDebugMode.WorldProbeImportance => "World-Probe Importance (orbs; blue = low, red = high)",
             LumOnDebugMode.WorldProbeContributionOnly => "Contribution Only: world-probe",
             LumOnDebugMode.ScreenSpaceContributionOnly => "Contribution Only: screen-space",
             LumOnDebugMode.LumonScenePageReady => "LumonScene: Page Ready",

@@ -37,12 +37,13 @@ public static partial class VgeBuiltInDebugViews
             },
             createPanel: ctx => new ProbesDebugPanel(viewId: ProbesDebugViewId, ctx.Capi, ctx.Config));
 
-    private sealed class ProbesDebugViewState : LumOnDebugViewStateBase
+    internal sealed class ProbesDebugViewState : LumOnDebugViewStateBase
     {
-        public static readonly ProbesDebugViewState Instance = new();
+        internal static readonly ProbesDebugViewState Instance = new();
 
         private ProbeVizMode selectedMode = ProbeVizMode.ScreenProbeGrid;
         private bool worldProbes;
+        private bool importanceSurfaceHeatmap;
 
         private ProbesDebugViewState() : base(defaultMode: LumOnDebugMode.ProbeGrid)
         {
@@ -72,6 +73,10 @@ public static partial class VgeBuiltInDebugViews
         public bool GetWorldProbesEnabled() => worldProbes;
 
         public void SetWorldProbesEnabled(bool enabled) => worldProbes = enabled;
+
+        public bool GetImportanceSurfaceHeatmapEnabled() => importanceSurfaceHeatmap;
+
+        public void SetImportanceSurfaceHeatmapEnabled(bool enabled) => importanceSurfaceHeatmap = enabled;
 
         public void RestoreSelectedDebugMode(LumOnDebugMode debugMode)
         {
@@ -112,7 +117,7 @@ public static partial class VgeBuiltInDebugViews
         }
     }
 
-    private enum ProbeVizMode
+    internal enum ProbeVizMode
     {
         // Screen probes
         ScreenProbeGrid,
@@ -152,6 +157,7 @@ public static partial class VgeBuiltInDebugViews
         WorldProbeCrossLevelBlend,
         WorldProbeOrbsPoints,
         WorldProbeRawConfidences,
+        WorldProbeImportance,
 
         // Symmetric where applicable (World vs Screen toggle)
         ContributionOnly,
@@ -196,6 +202,7 @@ public static partial class VgeBuiltInDebugViews
         ProbeVizMode.WorldProbeCrossLevelBlend => new(LumOnDebugMode.WorldProbeCrossLevelBlend, null),
         ProbeVizMode.WorldProbeOrbsPoints => new(LumOnDebugMode.WorldProbeOrbsPoints, null),
         ProbeVizMode.WorldProbeRawConfidences => new(LumOnDebugMode.WorldProbeRawConfidences, null),
+        ProbeVizMode.WorldProbeImportance => new(LumOnDebugMode.WorldProbeImportance, null),
 
         // Symmetric pair: screen-space vs world-probe contribution.
         ProbeVizMode.ContributionOnly => new(LumOnDebugMode.ScreenSpaceContributionOnly, LumOnDebugMode.WorldProbeContributionOnly),
@@ -219,6 +226,7 @@ public static partial class VgeBuiltInDebugViews
         private readonly string[] names;
 
         private bool lastToggleVisible;
+        private bool lastImportanceSurfaceHeatmapVisible;
         private bool lastLegendVisible;
 
         private static bool IsLegendVisible(ProbeVizMode mode) => mode switch
@@ -277,6 +285,9 @@ public static partial class VgeBuiltInDebugViews
             bool toggleVisible = ProbesDebugViewState.Instance.IsWorldToggleVisibleForCurrentMode();
             lastToggleVisible = toggleVisible;
 
+            bool importanceSurfaceHeatmapVisible = selectedMode == ProbeVizMode.WorldProbeImportance;
+            lastImportanceSurfaceHeatmapVisible = importanceSurfaceHeatmapVisible;
+
             bool legendVisible = IsLegendVisible(selectedMode);
             lastLegendVisible = legendVisible;
 
@@ -292,6 +303,21 @@ public static partial class VgeBuiltInDebugViews
                 composer
                     .AddStaticText("World probes", fontLabel, labelWorld)
                     .AddInteractiveElement(sw, $"{keyPrefix}-world");
+
+                y += rowH + rowGapY;
+            }
+
+            if (importanceSurfaceHeatmapVisible)
+            {
+                ElementBounds labelHeatmap = ElementBounds.Fixed(0, y, labelW, rowH).WithParent(bounds);
+                ElementBounds ctrlHeatmap = ElementBounds.Fixed(labelW + gap, y, 30, rowH).WithParent(bounds);
+
+                var heatmapSwitch = new GuiElementSwitch(capi, OnImportanceSurfaceHeatmapToggled, ctrlHeatmap, size: 26, padding: 4);
+                heatmapSwitch.SetValue(ProbesDebugViewState.Instance.GetImportanceSurfaceHeatmapEnabled());
+
+                composer
+                    .AddStaticText("Surface heatmap", fontLabel, labelHeatmap)
+                    .AddInteractiveElement(heatmapSwitch, $"{keyPrefix}-importance-heatmap");
 
                 y += rowH + rowGapY;
             }
@@ -373,7 +399,7 @@ public static partial class VgeBuiltInDebugViews
 
         private string ComputeClosestProbeText()
         {
-            if (config.LumOn.DebugMode != LumOnDebugMode.WorldProbeOrbsPoints)
+            if (config.LumOn.DebugMode is not (LumOnDebugMode.WorldProbeOrbsPoints or LumOnDebugMode.WorldProbeImportance))
             {
                 return string.Empty;
             }
@@ -513,9 +539,11 @@ public static partial class VgeBuiltInDebugViews
             }
 
             bool prevToggleVisible = ProbesDebugViewState.Instance.IsWorldToggleVisibleForCurrentMode();
+            bool prevImportanceSurfaceHeatmapVisible = ProbesDebugViewState.Instance.GetSelectedProbeVizModeOrDefault() == ProbeVizMode.WorldProbeImportance;
             bool prevLegendVisible = IsLegendVisible(ProbesDebugViewState.Instance.GetSelectedProbeVizModeOrDefault());
             ProbesDebugViewState.Instance.SetSelectedProbeVizMode(mode);
             bool nextToggleVisible = ProbesDebugViewState.Instance.IsWorldToggleVisibleForCurrentMode();
+            bool nextImportanceSurfaceHeatmapVisible = mode == ProbeVizMode.WorldProbeImportance;
             bool nextLegendVisible = IsLegendVisible(mode);
 
             if (string.Equals(DebugViewController.Instance.ActiveExclusiveViewId, viewId, StringComparison.Ordinal))
@@ -525,9 +553,12 @@ public static partial class VgeBuiltInDebugViews
             }
 
             if (prevToggleVisible != nextToggleVisible || lastToggleVisible != nextToggleVisible
+                || prevImportanceSurfaceHeatmapVisible != nextImportanceSurfaceHeatmapVisible
+                || lastImportanceSurfaceHeatmapVisible != nextImportanceSurfaceHeatmapVisible
                 || prevLegendVisible != nextLegendVisible || lastLegendVisible != nextLegendVisible)
             {
                 lastToggleVisible = nextToggleVisible;
+                lastImportanceSurfaceHeatmapVisible = nextImportanceSurfaceHeatmapVisible;
                 lastLegendVisible = nextLegendVisible;
                 try
                 {
@@ -564,6 +595,11 @@ public static partial class VgeBuiltInDebugViews
             RefreshClosestProbeText();
         }
 
+        private void OnImportanceSurfaceHeatmapToggled(bool on)
+        {
+            ProbesDebugViewState.Instance.SetImportanceSurfaceHeatmapEnabled(on);
+        }
+
         private static string GetProbeVizModeDisplayName(ProbeVizMode mode) => mode switch
         {
             ProbeVizMode.ScreenProbeGrid => "Probe Grid",
@@ -598,6 +634,7 @@ public static partial class VgeBuiltInDebugViews
             ProbeVizMode.WorldProbeBlendWeights => "Blend Weights: screen vs world",
             ProbeVizMode.WorldProbeCrossLevelBlend => "Cross-Level Blend: selected L + weights",
             ProbeVizMode.WorldProbeOrbsPoints => "World-Probe Probes (orbs, GL_POINTS)",
+            ProbeVizMode.WorldProbeImportance => "World-Probe Importance (orbs; blue = low, red = high)",
             ProbeVizMode.WorldProbeRawConfidences => "World-Probe Raw Confidences",
             ProbeVizMode.ContributionOnly => "Contribution Only",
             _ => mode.ToString()

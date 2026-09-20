@@ -293,7 +293,9 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 		}
 
 		LumOnDebugMode debugMode = config.LumOn.DebugMode;
-		if (debugMode == LumOnDebugMode.WorldProbeMetaFlagsHeatmap || debugMode == LumOnDebugMode.WorldProbeOrbsPoints)
+		if (debugMode is LumOnDebugMode.WorldProbeMetaFlagsHeatmap
+			or LumOnDebugMode.WorldProbeOrbsPoints
+			or LumOnDebugMode.WorldProbeImportance)
 		{
 			using var heatmapScope = Profiler.BeginScope("LumOn.WorldProbe.DebugHeatmap", "LumOn");
 			UpdateDebugHeatmap(resources);
@@ -599,6 +601,8 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 
 		const ushort On = ushort.MaxValue;
 		const ushort Off = 0;
+		const float MaxImportanceFactor = LumOnWorldProbeImportance.IndirectSunlightFactor
+			+ LumOnWorldProbeImportance.CardinalSolidNeighborBoost;
 
 		for (int level = 0; level < levels; level++)
 		{
@@ -622,7 +626,12 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 				ushort r = Off;
 				ushort g = Off;
 				ushort b = Off;
-				ushort a = On;
+				scheduler.TryGetImportanceFlags(level, storageLinear, out LumOnWorldProbeImportanceFlags importanceFlags);
+				float importance = LumOnWorldProbeImportance.ComputeFactor(importanceFlags);
+				ushort a = (ushort)Math.Clamp(
+					(int)MathF.Round(importance / MaxImportanceFactor * ushort.MaxValue),
+					0,
+					ushort.MaxValue);
 
 				switch (lifecycleScratch[storageLinear])
 				{

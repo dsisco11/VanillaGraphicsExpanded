@@ -135,4 +135,7 @@ public enum LumOnDebugMode
     // Phase 23.X: TraceScene voxel DDA clipmap debug (append-only)
     // SDF-style grayscale gradient of distance-to-hit along the camera ray.
     TraceSceneDdaDistanceL0 = 67,
+
+    // World-probe scheduler importance factor at the nearest probe (blue = low, red = high).
+    WorldProbeImportance = 68,
 }

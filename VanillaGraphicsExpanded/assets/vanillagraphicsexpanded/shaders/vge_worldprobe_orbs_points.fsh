@@ -6,8 +6,26 @@ in vec4 vColor;
 in vec2 vAtlasCoord;
 
 uniform sampler2D worldProbeDebugState0;
+uniform int importanceColorMode;
 
 out vec4 outColor;
+
+vec4 getImportanceOrbColor(vec4 debugState, bool disabled, bool unavailable)
+{
+    float importance = clamp(debugState.a, 0.0, 1.0);
+    vec3 color = mix(vec3(0.05, 0.25, 1.0), vec3(1.0, 0.12, 0.02), importance);
+
+    if (disabled)
+    {
+        return vec4(1.0, 0.0, 1.0, 1.0);
+    }
+    else if (unavailable)
+    {
+        return vec4(1.0, 0.65, 0.0, 1.0);
+    }
+
+    return vec4(color, 1.0);
+}
 
 void main(void)
 {
@@ -43,6 +61,12 @@ void main(void)
     vec4 dbg = texelFetch(worldProbeDebugState0, ac, 0);
     bool disabled = (dbg.r > 0.5) && (dbg.b > 0.5) && (dbg.g < 0.5);
     bool unavailable = (dbg.r > 0.5) && (dbg.g > 0.5) && (dbg.b < 0.5);
+
+    if (importanceColorMode != 0)
+    {
+        outColor = getImportanceOrbColor(dbg, disabled, unavailable);
+        return;
+    }
 
     // Decode storage index + level from the scalar atlas coordinate.
     int resolution = VGE_LUMON_WORLDPROBE_RESOLUTION;

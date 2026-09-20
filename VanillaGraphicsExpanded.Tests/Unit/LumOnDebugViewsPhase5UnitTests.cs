@@ -16,6 +16,7 @@ public sealed class LumOnDebugViewsPhase5UnitTests
         Assert.Equal(46, (int)LumOnDebugMode.ProbeAtlasGatherInputRadiance);
         Assert.Equal(47, (int)LumOnDebugMode.ProbeAtlasHitDistance);
         Assert.Equal(48, (int)LumOnDebugMode.ProbeAtlasTraceRadiance);
+        Assert.Equal(68, (int)LumOnDebugMode.WorldProbeImportance);
     }
 
     [Fact]
