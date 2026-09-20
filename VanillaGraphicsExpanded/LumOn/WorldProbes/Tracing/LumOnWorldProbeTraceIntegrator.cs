@@ -27,6 +27,15 @@ internal sealed class LumOnWorldProbeTraceIntegrator
 
     private static readonly Vector3[] SkyBounceSampleDirections = BuildSkyBounceSampleDirections();
     private static readonly float SkyBounceNormalizationDenom = ComputeSkyBounceNormalizationDenom();
+    private static readonly Vector3[] CardinalDirections =
+    [
+        Vector3.UnitX,
+        -Vector3.UnitX,
+        Vector3.UnitY,
+        -Vector3.UnitY,
+        Vector3.UnitZ,
+        -Vector3.UnitZ
+    ];
 
     public LumOnWorldProbeTraceResult TraceProbe(IWorldProbeTraceScene scene, in LumOnWorldProbeTraceWorkItem item, CancellationToken cancellationToken)
     {
@@ -83,6 +92,24 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         int hitCount = 0;
         LumOnWorldProbeImportanceFlags importanceFlags = LumOnWorldProbeImportanceFlags.None;
 
+        bool hasNearbySolidHit = (item.Request.ImportanceFlags & LumOnWorldProbeImportanceFlags.NearbySolidHit) != 0;
+        if (item.NearbySolidHitDistance > 0d && !hasNearbySolidHit)
+        {
+            WorldProbeTraceOutcome nearbyOutcome = TraceNearbyCardinalSolid(
+                scene,
+                item,
+                cancellationToken);
+            if (nearbyOutcome == WorldProbeTraceOutcome.Aborted)
+            {
+                return CreateAbortedResult(item);
+            }
+
+            if (nearbyOutcome == WorldProbeTraceOutcome.Hit)
+            {
+                importanceFlags |= LumOnWorldProbeImportanceFlags.NearbySolidHit;
+            }
+        }
+
         float missAlpha = -(float)Math.Log(item.MaxTraceDistanceWorld + 1.0);
 
         int usedSamples = 0;
@@ -101,18 +128,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             var outcome = scene.Trace(item.ProbePosWorld, dir, item.MaxTraceDistanceWorld, cancellationToken, out var hitInfo);
             if (outcome == WorldProbeTraceOutcome.Aborted)
             {
-                return new LumOnWorldProbeTraceResult(
-                    FrameIndex: item.FrameIndex,
-                    Request: item.Request,
-                    Success: false,
-                    FailureReason: WorldProbeTraceFailureReason.Aborted,
-                    AtlasSamples: Array.Empty<LumOnWorldProbeAtlasSample>(),
-                    SkyIntensity: 0f,
-                    ShortRangeAoDirWorld: Vector3.UnitY,
-                    ShortRangeAoConfidence: 0f,
-                    Confidence: 0f,
-                    MeanLogHitDistance: 0f,
-                    ImportanceFlags: LumOnWorldProbeImportanceFlags.None);
+                return CreateAbortedResult(item);
             }
 
             bool hit = outcome == WorldProbeTraceOutcome.Hit;
@@ -215,6 +231,39 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             MeanLogHitDistance: meanLogDist,
             ImportanceFlags: importanceFlags);
     }
+
+    private static WorldProbeTraceOutcome TraceNearbyCardinalSolid(
+        IWorldProbeTraceScene scene,
+        in LumOnWorldProbeTraceWorkItem item,
+        CancellationToken cancellationToken)
+    {
+        long sequence = (long)item.FrameIndex + item.Request.StorageLinearIndex;
+        int directionIndex = (int)(sequence % CardinalDirections.Length);
+        if (directionIndex < 0)
+        {
+            directionIndex += CardinalDirections.Length;
+        }
+
+        return scene.Trace(
+            item.ProbePosWorld,
+            CardinalDirections[directionIndex],
+            item.NearbySolidHitDistance,
+            cancellationToken,
+            out _);
+    }
+
+    private static LumOnWorldProbeTraceResult CreateAbortedResult(in LumOnWorldProbeTraceWorkItem item) => new(
+        FrameIndex: item.FrameIndex,
+        Request: item.Request,
+        Success: false,
+        FailureReason: WorldProbeTraceFailureReason.Aborted,
+        AtlasSamples: Array.Empty<LumOnWorldProbeAtlasSample>(),
+        SkyIntensity: 0f,
+        ShortRangeAoDirWorld: Vector3.UnitY,
+        ShortRangeAoConfidence: 0f,
+        Confidence: 0f,
+        MeanLogHitDistance: 0f,
+        ImportanceFlags: LumOnWorldProbeImportanceFlags.None);
 
     private static Vector3 EvaluateHitRadiance(
         IWorldProbeTraceScene scene,

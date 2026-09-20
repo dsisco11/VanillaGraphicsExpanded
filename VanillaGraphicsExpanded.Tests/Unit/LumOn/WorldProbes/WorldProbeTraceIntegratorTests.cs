@@ -124,6 +124,59 @@ public sealed class WorldProbeTraceIntegratorTests
     }
 
     [Fact]
+    public void TraceProbe_WhenOnlyDownwardCardinalRayHitsNearbySolid_SetsNearbySolidHit()
+    {
+        var integrator = new LumOnWorldProbeTraceIntegrator();
+        var request = new LumOnWorldProbeUpdateRequest(1, new Vec3i(0, 0, 0), new Vec3i(0, 0, 0), 0);
+        var item = new LumOnWorldProbeTraceWorkItem(
+            // Storage index 0 at frame 3 selects the -Y cardinal direction.
+            FrameIndex: 3,
+            Request: request,
+            ProbePosWorld: new Vector3d(0.5, 4.0, 0.5),
+            MaxTraceDistanceWorld: 32,
+            WorldProbeOctahedralTileSize: 16,
+            WorldProbeAtlasTexelsPerUpdate: 1,
+            EnableDirectionPIS: true,
+            DirectionPISExploreFraction: 0f,
+            DirectionPISExploreCount: 0,
+            DirectionPISWeightEpsilon: 1e-6f,
+            NearbySolidHitDistance: 4.0d);
+
+        var res = integrator.TraceProbe(new DownwardOnlyHitScene(hitDistance: 4.0), item, CancellationToken.None);
+
+        Assert.Equal(LumOnWorldProbeImportanceFlags.NearbySolidHit, res.ImportanceFlags);
+    }
+
+    [Fact]
+    public void TraceProbe_WhenNearbySolidHitIsAlreadyKnown_SkipsCardinalProximityTrace()
+    {
+        var integrator = new LumOnWorldProbeTraceIntegrator();
+        var request = new LumOnWorldProbeUpdateRequest(
+            1,
+            new Vec3i(0, 0, 0),
+            new Vec3i(0, 0, 0),
+            0,
+            LumOnWorldProbeImportanceFlags.NearbySolidHit);
+        var item = new LumOnWorldProbeTraceWorkItem(
+            FrameIndex: 3,
+            Request: request,
+            ProbePosWorld: new Vector3d(0.5, 4.0, 0.5),
+            MaxTraceDistanceWorld: 32,
+            WorldProbeOctahedralTileSize: 16,
+            WorldProbeAtlasTexelsPerUpdate: 1,
+            EnableDirectionPIS: false,
+            DirectionPISExploreFraction: 0f,
+            DirectionPISExploreCount: 0,
+            DirectionPISWeightEpsilon: 1e-6f,
+            NearbySolidHitDistance: 4.0d);
+        var scene = new CountingNeverHitScene();
+
+        integrator.TraceProbe(scene, item, CancellationToken.None);
+
+        Assert.Equal(1, scene.TraceCount);
+    }
+
+    [Fact]
     public void TraceProbe_WhenDarkWallsSurroundASkyVisibleOpening_PreservesDynamicSkyIntensity()
     {
         var integrator = new LumOnWorldProbeTraceIntegrator();
@@ -306,6 +359,47 @@ public sealed class WorldProbeTraceIntegratorTests
                 SampleBlockPos: new VectorInt3(0, 0, 0),
                 SampleLightRgbS: sampleLight);
             return WorldProbeTraceOutcome.Hit;
+        }
+    }
+
+    private sealed class DownwardOnlyHitScene : IWorldProbeTraceScene
+    {
+        private readonly double hitDistance;
+
+        public DownwardOnlyHitScene(double hitDistance)
+        {
+            this.hitDistance = hitDistance;
+        }
+
+        public WorldProbeTraceOutcome Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
+        {
+            if (dirWorld.Y >= -0.999f)
+            {
+                hit = default;
+                return WorldProbeTraceOutcome.Miss;
+            }
+
+            hit = new LumOnWorldProbeTraceHit(
+                HitDistance: hitDistance,
+                HitBlockId: 1,
+                HitFace: ProbeHitFace.Up,
+                HitBlockPos: default,
+                HitFaceNormal: new VectorInt3(0, 1, 0),
+                SampleBlockPos: default,
+                SampleLightRgbS: Vector4.Zero);
+            return WorldProbeTraceOutcome.Hit;
+        }
+    }
+
+    private sealed class CountingNeverHitScene : IWorldProbeTraceScene
+    {
+        public int TraceCount { get; private set; }
+
+        public WorldProbeTraceOutcome Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
+        {
+            TraceCount++;
+            hit = default;
+            return WorldProbeTraceOutcome.Miss;
         }
     }
 
