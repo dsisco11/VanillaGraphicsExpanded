@@ -656,10 +656,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         var frameBridge = entity is null
             ? (default(VectorInt3), default(Vector3d))
             : LumOnFrameWorldSpaceBridge.Compute(
-                entity.CameraPos.X,
-                entity.CameraPos.Y,
-                entity.CameraPos.Z,
-                invViewMatrix);
+                entity.Pos.X,
+                entity.Pos.Y,
+                entity.Pos.Z);
 
         int halfW = bufferManager?.HalfResWidth ?? (capi.Render.FrameWidth / 2);
         int halfH = bufferManager?.HalfResHeight ?? (capi.Render.FrameHeight / 2);

@@ -170,4 +170,10 @@ The renderer enables this path in both atlas and SH9 gather programs. Both paire
 
 The compile-time legacy path remains for older directional-sampling controls. Production direct consumers explicitly enable local visibility. Missing local resources do not select the old approximate visibility path.
 
-Supported visibility is limited to full opaque voxel geometry inside the published local window. A coarse world-probe neighbor outside that window can be rejected even when its radiance exists. This is conservative unresolved coverage, not proof that the neighbor is physically occluded. Live camera movement, partial geometry, cross-level coverage and GPU traversal cost require further validation.
+Supported visibility is limited to full opaque voxel geometry inside the published local window. A coarse world-probe neighbor outside that window can be rejected even when its radiance exists. This is conservative unresolved coverage, not proof that the neighbor is physically occluded. Controlled cross-level and camera-motion coverage is recorded in the reproduction report. Live camera movement, partial geometry and GPU traversal cost require further validation.
+
+### Stable player-origin conversion
+
+Both the lighting renderer and debug renderer publish the frame bridge from Entity.Pos, matching the player-relative coordinate convention used for cache origins. The bridge splits that double-precision position into integer chunk coordinates and a bounded remainder. CameraPos and inverse-view translation are not inputs: inverse-view reconstruction has already produced player-relative coordinates, including the camera transform.
+
+This shared conversion applies to screen-probe local tracing, direct irradiance visibility, and reconstructed occupancy debug queries. The repair removes camera-bob-dependent cell shifts without changing cache publication timing or the local-window coverage policy.

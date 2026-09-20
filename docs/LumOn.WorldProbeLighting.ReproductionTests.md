@@ -47,7 +47,7 @@ The doorway test checks fresh tracing only. It does not validate scheduler inval
 | 1 | 0.5, exactly at the interior probe center | 0 |
 | 1 | 0.75, still inside the sealed room | 0 (previously 0.125) |
 
-The final case originally reproduced across-wall interpolation: exterior weight (0.75-0.5)/2 = 0.125 contributed despite the enclosing wall. It now requires zero radiance and neutral gray through both gather modes and the paired diagnostic.
+The final case originally reproduced across-wall interpolation: exterior weight (0.75-0.5)/2 = 0.125 contributed despite the enclosing wall. It now requires zero radiance through both gather modes and black in the paired luminance diagnostic.
 
 [Visibility controls](../VanillaGraphicsExpanded.Tests/GPU/LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests.Visibility.cs) additionally check:
 
@@ -205,3 +205,22 @@ The reusable atlas fixture now supports multiple vertically stacked levels. The 
 The existing regression selection also passed all **216 cases**, zero failures or skips, after the atlas fixture extension. Build succeeded with the same six unrelated warnings.
 
 Receipts: [focused test log](../artifacts/direct-visibility-clipmaps.log), [focused TRX](../artifacts/TestResults/direct-visibility-clipmaps.trx), [regression log](../artifacts/direct-visibility-clipmaps-regression.log), and [regression TRX](../artifacts/TestResults/direct-visibility-clipmaps-regression.trx). Live scene appearance and runtime performance remain unverified.
+
+### Lighting-effect display
+
+The effect view compares linear luminance of normal and world-suppressed lighting. Black indicates zero luminance difference, orange an increase, blue a decrease, and purple unavailable comparison data. The debug panel offers 1x, 10x, 100x and 1000x gain, with 10x as the default. Gain changes only display sensitivity and does not reset the lighting histories.
+
+The GPU controls cover positive, negative, zero, mixed-channel and weak differences, gain amplification, packed-parameter independence, and unavailable comparison output. Equal-luminance color changes are intentionally not represented by this luminance view.
+Validation: 47 focused tests passed with zero failures or skips. Build and seven shader compilations succeeded, with the existing six unrelated warnings. Receipts: [test log](../artifacts/world-probe-effect-colors.log) and [TRX](../artifacts/TestResults/world-probe-effect-colors.trx).
+
+### Camera-bob coordinate regression
+
+The [moving-camera GPU fixture](../VanillaGraphicsExpanded.Tests/GPU/LumOnDirectWorldProbeVisibilityTests.CameraMotion.cs) renders fixed clear and blocked segments beside a voxel boundary. It changes the inverse-view camera height and compensates the view-space receiver, so the world geometry and reconstructed player-relative receiver remain stationary. The harness uses the production CPU bridge to populate the frame UBO.
+
+Nine cases cover irradiance debug, atlas gather and SH9 gather at world offsets zero and plus/minus 16,777,216, with fractional player origins. Each case cycles through zero, positive, negative and restored bob and checks both lighting and occlusion. The old camera-derived bridge failed all nine cases by rejecting clear segments. The [unit controls](../VanillaGraphicsExpanded.Tests/Unit/LumOn/LumOnFrameWorldSpaceBridgeTests.cs) additionally cover negative chunk boundaries and fractional precision beyond the exact-integer range of float.
+
+Before-fix receipts: [log](../artifacts/world-probe-camera-bob-before.log) and [TRX](../artifacts/TestResults/world-probe-camera-bob-before.trx).
+
+After the repair, all **73 focused tests** passed, including the nine previously failing camera-bob cases, the existing direct-visibility controls and signed-origin unit cases. The broader selection passed **222 regression tests**. Both selections had zero failures or skips; build succeeded with the same six unrelated warnings.
+
+After-fix receipts: [focused log](../artifacts/world-probe-camera-bob-after.log), [focused TRX](../artifacts/TestResults/world-probe-camera-bob-after.trx), [regression log](../artifacts/world-probe-camera-bob-regression.log), and [regression TRX](../artifacts/TestResults/world-probe-camera-bob-regression.trx). Live in-game appearance remains unverified.

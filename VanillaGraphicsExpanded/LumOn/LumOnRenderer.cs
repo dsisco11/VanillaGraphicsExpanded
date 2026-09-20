@@ -481,10 +481,9 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         (VectorInt3 ChunkOffset, Vector3d BlockOffsetRemainder) frameBridge = entity is null
             ? (default, default)
             : LumOnFrameWorldSpaceBridge.Compute(
-                entity.CameraPos.X,
-                entity.CameraPos.Y,
-                entity.CameraPos.Z,
-                invModelViewMatrix);
+                entity.Pos.X,
+                entity.Pos.Y,
+                entity.Pos.Z);
 
         uniformBuffers.UpdateFrame(
             invProjectionMatrix: invProjectionMatrix,

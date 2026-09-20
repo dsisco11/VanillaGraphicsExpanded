@@ -1,5 +1,6 @@
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.Scene.LocalTracing;
 using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Numerics;
@@ -22,7 +23,8 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
         Vector3 sampleCenter, Vector3 cacheOrigin, float spacing, int consumer,
         int size = 4, float span = 0.1f, int budget = 256, VectorInt3 worldOffset = default,
         Vector3 ring = default, bool suppress = false,
-        Vector3[]? levelOrigins = null, Vector3[]? levelRings = null)
+        Vector3[]? levelOrigins = null, Vector3[]? levelRings = null,
+        Vector3d? playerOrigin = null, float cameraBob = 0)
     {
         bool debug = consumer >= 0;
         bool sh9 = consumer == -2;
@@ -80,10 +82,20 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
             localBuffer.BindBase(LumOnLocalTraceParamsUbo.Binding);
             UniformBlockBindingUtil.EnsureBlockBound(program, LumOnLocalTraceParamsUbo.BlockName, LumOnLocalTraceParamsUbo.Binding);
 
-            float[] inverse = [span,0,0,0, 0,span,0,0, 0,0,1,0, sampleCenter.X,sampleCenter.Y,sampleCenter.Z,1];
+            // Move the camera while compensating the view-space receiver so the
+            // reconstructed player-relative surface remains stationary.
+            float cameraHeight = playerOrigin.HasValue ? 1.625f : 0;
+            float viewY = cameraHeight + cameraBob;
+            float[] inverseView = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,viewY,0,1];
+            float[] view = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,-viewY,0,1];
+            var origin = playerOrigin ?? new Vector3d(worldOffset.X, worldOffset.Y, worldOffset.Z);
+            var bridge = LumOnFrameWorldSpaceBridge.Compute(origin.X, origin.Y, origin.Z);
+            float[] inverse = [span,0,0,0, 0,span,0,0, 0,0,1,0, sampleCenter.X,sampleCenter.Y-viewY,sampleCenter.Z,1];
             UpdateAndBindLumOnFrameUbo(program, invProjectionMatrix: inverse,
+                invViewMatrix: inverseView, viewMatrix: view,
                 screenWidth: debug ? size : size * 2, screenHeight: debug ? size : size * 2,
-                matrixSpaceWorldChunkCoordOffset: new VectorInt3(worldOffset.X >> 5, worldOffset.Y >> 5, worldOffset.Z >> 5));
+                matrixSpaceWorldChunkCoordOffset: bridge.ChunkOffset,
+                matrixSpaceWorldBlockOffsetRem: bridge.BlockOffsetRemainder);
             UpdateAndBindLumOnWorldProbeUbo(program, new Vec3f(), Vector3.Zero, levelOrigins ?? [cacheOrigin], levelRings ?? [ring]);
             using var parameters = new ObjectParamsUbo("Tests.DirectVisibility.Params");
             if (debug)
