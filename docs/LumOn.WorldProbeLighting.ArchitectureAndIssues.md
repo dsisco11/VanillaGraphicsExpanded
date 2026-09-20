@@ -137,17 +137,19 @@ A subsequent [flat-wall reproduction](LumOn.WorldProbeLighting.ReproductionTests
 
 ## Validation and repair tracker
 
-All checkboxes represent remaining work, not completed validation.
+Unchecked boxes represent remaining work. Checked boxes identify completed design or validation work.
 
 ### Priority 1: GPU geometry and hit-lighting integration design
 
 Define how unresolved screen-probe rays access local voxel geometry and obtain outgoing radiance at a surface hit. Complete this design before implementing the tracing path.
 
-- [ ] Identify reusable GPU geometry and lighting resources.
-- [ ] Identify missing integration and establish ownership of the tracing inputs.
-- [ ] Specify the outgoing-radiance source for local surface hits.
+- [x] Identify reusable GPU geometry and lighting resources.
+- [x] Identify missing integration and establish ownership of the tracing inputs.
+- [x] Specify the outgoing-radiance source for local surface hits.
 
 Completion criterion: a source-backed design identifies the available resources, required additions, and geometry-to-lighting data flow.
+
+**Design complete:** [Local world tracing integration design](LumOn.LocalWorldTracing.IntegrationDesign.md) specifies resource reuse, readiness, trace outcomes, hit lighting, ownership and frame order. Implementation and runtime validation remain open.
 
 ### Priority 2: Local world tracing and radiance-cache handoff
 
