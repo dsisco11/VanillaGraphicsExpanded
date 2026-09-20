@@ -671,9 +671,17 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 EnsureWorldProbeClipmapManagerBound("LumOnDebugRenderer OIT bind");
                 EnsureWorldProbeClipmapDebugBuffers();
                 UpdateWorldProbeClipmapDebugVerticesForCurrentCameraOrigin();
-                RenderWorldProbeClipmapBoundsLive();
-                RenderWorldProbeQueuedTraceRaysLive();
-                RenderWorldProbeOrbsPointsLive();
+
+                int prevOitActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
+                using (GlStateCache.Current.CaptureLegacyFixedFunctionState())
+                {
+                    RenderWorldProbeClipmapBoundsLive();
+                    RenderWorldProbeQueuedTraceRaysLive();
+                    RenderWorldProbeOrbsPointsLive();
+                    GL.ActiveTexture((TextureUnit)prevOitActiveTexture);
+                }
+
+                GlStateCache.Current.InvalidateAll();
             }
 
             return;
@@ -1399,9 +1407,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         using var cpuScope = Profiler.BeginScope("Debug.WorldProbeClipmapBoundsLive", "Render");
         using (GlGpuProfiler.Instance.Scope("Debug.WorldProbeClipmapBoundsLive"))
         {
-            int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-            using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
-
             bool shaderUsed = false;
             try
             {
@@ -1447,10 +1452,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 {
                     shader.Stop();
                 }
-
-                GL.ActiveTexture((TextureUnit)prevActiveTexture);
-
-                GlStateCache.Current.InvalidateAll();
             }
         }
 
@@ -1526,9 +1527,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         UpdateCurrentViewProjMatrix();
 
-        int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-        using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
-
         bool shaderUsed = false;
         try
         {
@@ -1548,10 +1546,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         finally
         {
             if (shaderUsed) shader.Stop();
-
-            GL.ActiveTexture((TextureUnit)prevActiveTexture);
-
-            GlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -1990,9 +1984,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         using var cpuScope = Profiler.BeginScope("Debug.WorldProbeOrbsPoints", "Render");
         using (GlGpuProfiler.Instance.Scope("Debug.WorldProbeOrbsPoints"))
         {
-            int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-            using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
-
             bool shaderUsed = false;
             try
             {
@@ -2070,9 +2061,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     var markerShader = capi.Shader.GetProgramByName("vge_debug_lines") as VgeDebugLinesShaderProgram;
                     if (markerShader is not null && !markerShader.LoadError)
                     {
-                        GL.Disable(EnableCap.DepthTest);
-                        capi.Render.GlToggleBlend(false);
-                        capi.Render.GLDepthMask(false);
+                        GlStateCache.Current.Apply(ClosestProbeMarkerPso);
 
                         markerShader.Use();
                         markerShader.ModelViewProjectionMatrix = currentViewProjMatrix;
@@ -2093,10 +2082,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 {
                     shader.Stop();
                 }
-
-                GL.ActiveTexture((TextureUnit)prevActiveTexture);
-
-                GlStateCache.Current.InvalidateAll();
             }
         }
 
