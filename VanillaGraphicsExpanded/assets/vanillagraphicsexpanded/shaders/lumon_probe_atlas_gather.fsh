@@ -20,6 +20,7 @@ out vec4 outColor;
 
 // World-probe clipmap fallback for pixels with no usable screen probes.
 @import "./includes/lumon_worldprobe.glsl"
+@import "./includes/lumon_worldprobe_gather.glsl"
 
 // Import octahedral mapping utilities
 @import "./includes/lumon_octahedral.glsl"
@@ -327,18 +328,15 @@ void main(void)
     vec3 blended = screenIrradiance;
     float outConfidence = screenConfidence;
 
-#if VGE_LUMON_WORLDPROBE_ENABLED
-    if (totalWeight < 0.001)
+    LumOnWorldProbeGatherFallback worldProbeFallback = lumonGatherWorldProbeFallback(
+        pixelPosWS,
+        pixelNormalWS,
+        totalWeight);
+    if (worldProbeFallback.used)
     {
-        vec3 pixelPosWS = (invViewMatrix * vec4(pixelPosVS, 1.0)).xyz;
-        LumOnWorldProbeSample worldProbe = lumonWorldProbeSampleClipmapBound(pixelPosWS, pixelNormalWS);
-        if (worldProbe.confidence > 1e-3)
-        {
-            blended = worldProbe.irradiance;
-            outConfidence = worldProbe.confidence;
-        }
+        blended = worldProbeFallback.irradiance;
+        outConfidence = worldProbeFallback.confidence;
     }
-#endif
 
     blended *= intensity;
     blended *= indirectTint;

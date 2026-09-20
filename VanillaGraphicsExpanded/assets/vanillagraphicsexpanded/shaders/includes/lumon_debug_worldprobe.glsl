@@ -1,5 +1,7 @@
 // Debug modes 31-39, 42-44: World-probe clipmap debug views (Phase 18)
 
+@import "./lumon_worldprobe_gather.glsl"
+
 // Debug modes 43-44: Contribution split
 vec3 lumonTonemapReinhard(vec3 hdr)
 {
@@ -15,38 +17,20 @@ vec3 lumonComputeWorldProbeContributionOnly()
         return vec3(0.0);
     }
 
-    float sumW = clamp(texture(indirectHalf, uv).a, 0.0, 1.0);
-    if (sumW <= 1e-6)
-    {
-        return vec3(0.0);
-    }
-
-#if !VGE_LUMON_WORLDPROBE_ENABLED
-    return vec3(0.0);
-#else
     vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
     vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
     vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
 
-    LumOnWorldProbeSample wp = lumonWorldProbeSampleClipmapBound(posWS, normalWS);
-    float worldConf = clamp(wp.confidence, 0.0, 1.0);
-
-    // Reconstruct the screen-first blend weights using the stored final confidence (sumW)
-    // and the raw world confidence (worldConf). This matches the derivation used by
-    // renderWorldProbeBlendWeightsDebug().
-    float screenW = (worldConf >= 0.999)
-        ? 0.0
-        : clamp((sumW - worldConf) / max(1.0 - worldConf, 1e-6), 0.0, 1.0);
-    float worldW = worldConf * (1.0 - screenW);
-
-    vec3 worldContrib = wp.irradiance * (worldW / max(sumW, 1e-6));
+    LumOnWorldProbeGatherFallback worldProbe = lumonSampleWorldProbeGatherCandidate(posWS, normalWS);
+    if (!worldProbe.used)
+    {
+        return vec3(0.0);
+    }
 
     // Match the gather output space (gather pass applies these before writing indirectHalf).
-    worldContrib *= indirectIntensity;
-    worldContrib *= indirectTint;
+    vec3 worldContrib = worldProbe.irradiance * indirectIntensity * indirectTint;
 
     return max(worldContrib, vec3(0.0));
-#endif
 }
 
 vec4 renderWorldProbeContributionOnlyDebug()
