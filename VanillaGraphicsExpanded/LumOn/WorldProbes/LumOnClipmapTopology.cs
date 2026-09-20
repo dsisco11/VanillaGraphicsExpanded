@@ -26,6 +26,40 @@ internal static class LumOnClipmapTopology
             Math.Floor(cameraPos.Z / spacing) * spacing);
     }
 
+    /// <summary>
+    /// Keeps an initialized anchor until the camera moves beyond the requested world-space distance on an axis.
+    /// This hysteresis prevents reanchor churn while moving back and forth across nearby grid boundaries.
+    /// </summary>
+    public static Vec3d GetHysteresisAnchor(
+        Vec3d cameraPos,
+        Vec3d currentAnchor,
+        double spacing,
+        double reanchorDistanceWorld)
+    {
+        ArgumentNullException.ThrowIfNull(cameraPos);
+        ArgumentNullException.ThrowIfNull(currentAnchor);
+        if (spacing <= 0) throw new ArgumentOutOfRangeException(nameof(spacing));
+        if (reanchorDistanceWorld <= 0) throw new ArgumentOutOfRangeException(nameof(reanchorDistanceWorld));
+
+        Vec3d snapped = SnapAnchor(cameraPos, spacing);
+
+        return new Vec3d(
+            SelectHysteresisAxis(cameraPos.X, currentAnchor.X, snapped.X, reanchorDistanceWorld),
+            SelectHysteresisAxis(cameraPos.Y, currentAnchor.Y, snapped.Y, reanchorDistanceWorld),
+            SelectHysteresisAxis(cameraPos.Z, currentAnchor.Z, snapped.Z, reanchorDistanceWorld));
+    }
+
+    private static double SelectHysteresisAxis(
+        double cameraCoord,
+        double currentAnchorCoord,
+        double snappedAnchorCoord,
+        double reanchorDistance)
+    {
+        return Math.Abs(cameraCoord - currentAnchorCoord) >= reanchorDistance
+            ? snappedAnchorCoord
+            : currentAnchorCoord;
+    }
+
     public static Vec3d GetOriginMinCorner(Vec3d anchor, double spacing, int resolution)
     {
         ArgumentNullException.ThrowIfNull(anchor);

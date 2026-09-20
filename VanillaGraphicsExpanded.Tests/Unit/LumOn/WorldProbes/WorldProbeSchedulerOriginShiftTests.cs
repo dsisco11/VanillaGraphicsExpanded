@@ -49,7 +49,7 @@ public sealed class WorldProbeSchedulerOriginShiftTests
     }
 
     [Fact]
-    public void UpdateOrigins_ShiftsAcrossBoundary_UpdatesRingOffsetAndOrigin()
+    public void UpdateOrigins_ShiftsAfterTwoWorldVoxels_UpdatesRingOffsetAndOrigin()
     {
         const int resolution = 8;
         var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution);
@@ -87,7 +87,7 @@ public sealed class WorldProbeSchedulerOriginShiftTests
 
         Assert.True(scheduler.TryGetLevelParams(0, out var origin0, out var ring0));
 
-        // Shift by +1 probe cell in X.
+        // Shift by +1 probe cell in X after crossing the grid boundary.
         scheduler.UpdateOrigins(new Vec3d(4.01, 0.0, 0.0), baseSpacing);
 
         Assert.Single(events);
@@ -113,6 +113,56 @@ public sealed class WorldProbeSchedulerOriginShiftTests
         Assert.Equal(ring0, ev.PrevRingOffset);
         Assert.True(scheduler.TryGetLevelParams(0, out _, out var ring1));
         Assert.Equal(ring1, ev.NewRingOffset);
+    }
+
+    [Fact]
+    public void UpdateOrigins_DoesNotOscillateAcrossAdjacentBlockBoundary()
+    {
+        const double baseSpacing = 4.0;
+        var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution: 8);
+        var events = new List<LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent>();
+        scheduler.AnchorShifted += e => events.Add(e);
+
+        scheduler.UpdateOrigins(new Vec3d(0.0, 0.0, 0.0), baseSpacing);
+
+        // Crossing the block boundary at X=4 repeatedly must not reanchor the clipmap.
+        scheduler.UpdateOrigins(new Vec3d(3.99, 0.0, 0.0), baseSpacing);
+        scheduler.UpdateOrigins(new Vec3d(4.01, 0.0, 0.0), baseSpacing);
+        scheduler.UpdateOrigins(new Vec3d(3.99, 0.0, 0.0), baseSpacing);
+        scheduler.UpdateOrigins(new Vec3d(4.01, 0.0, 0.0), baseSpacing);
+
+        Assert.Single(events);
+        Assert.Equal(new Vec3i(1, 0, 0), events[0].DeltaProbes);
+
+        // The fixed two-voxel deadband prevents any subsequent reanchor near the boundary.
+        scheduler.UpdateOrigins(new Vec3d(2.01, 0.0, 0.0), baseSpacing);
+        Assert.Single(events);
+
+        // Moving more than two base-game voxels from the new anchor shifts back once.
+        scheduler.UpdateOrigins(new Vec3d(1.99, 0.0, 0.0), baseSpacing);
+        Assert.Equal(2, events.Count);
+        Assert.Equal(new Vec3i(-1, 0, 0), events[1].DeltaProbes);
+    }
+
+    [Fact]
+    public void UpdateOrigins_UsesTwoBaseVoxelsForEveryClipmapLevel()
+    {
+        const double baseSpacing = 4.0;
+        var scheduler = new LumOnWorldProbeScheduler(levelCount: 2, resolution: 8);
+        var events = new List<LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent>();
+        scheduler.AnchorShifted += e => events.Add(e);
+
+        scheduler.UpdateOrigins(new Vec3d(0.0, 0.0, 0.0), baseSpacing);
+        scheduler.UpdateOrigins(new Vec3d(8.01, 0.0, 0.0), baseSpacing);
+
+        Assert.Contains(events, e => e.Level == 1 && e.DeltaProbes == new Vec3i(1, 0, 0));
+
+        events.Clear();
+
+        // L1 spacing is 8 voxels. Returning by 2.01 voxels must still reanchor.
+        scheduler.UpdateOrigins(new Vec3d(5.99, 0.0, 0.0), baseSpacing);
+
+        Assert.Contains(events, e => e.Level == 1 && e.DeltaProbes == new Vec3i(-1, 0, 0));
     }
 
     [Theory]
@@ -152,13 +202,18 @@ public sealed class WorldProbeSchedulerOriginShiftTests
             }
         }
 
-        // Shift anchor by requested delta (cross spacing boundary). Use a small positive epsilon to stay inside the cell.
-        // This keeps SnapAnchor() deterministic for both positive and negative deltas:
-        //  - dx=-1 => camX = -4 + 0.01 => floor(-0.9975) => -1
-        //  - dx=+1 => camX = +4 + 0.01 => floor(+1.0025) => +1
-        static double Eps(int d) => d == 0 ? 0.0 : 0.01;
+        // Shift anchor by the requested delta after moving beyond the two-voxel deadband.
+        static double HystereticCoordinate(int delta, double spacing) => delta switch
+        {
+            > 0 => (delta * spacing) + 0.01,
+            < 0 => (delta * spacing) + 0.01,
+            _ => 0.0
+        };
         scheduler.UpdateOrigins(
-            new Vec3d(dx * baseSpacing + Eps(dx), dy * baseSpacing + Eps(dy), dz * baseSpacing + Eps(dz)),
+            new Vec3d(
+                HystereticCoordinate(dx, baseSpacing),
+                HystereticCoordinate(dy, baseSpacing),
+                HystereticCoordinate(dz, baseSpacing)),
             baseSpacing);
         Assert.True(scheduler.TryGetLevelParams(0, out _, out var ring1));
 
@@ -259,7 +314,7 @@ public sealed class WorldProbeSchedulerOriginShiftTests
             StorageIndex: disabledStorage,
             StorageLinearIndex: disabledLinear));
 
-        // Shift by +1 probe cell in X (crossing a spacing boundary).
+        // Shift by +1 probe cell in X after crossing the grid boundary.
         scheduler.UpdateOrigins(new Vec3d(baseSpacing + 0.01, 0.0, 0.0), baseSpacing);
 
         var states = new LumOnWorldProbeLifecycleState[scheduler.ProbesPerLevel];

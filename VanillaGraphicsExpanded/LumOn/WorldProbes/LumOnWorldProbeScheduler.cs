@@ -18,6 +18,7 @@ internal sealed class LumOnWorldProbeScheduler
     #region Constants
 
     private const int DefaultStaleAfterFramesL0 = 600; // ~10s @ 60fps
+    private const double ReanchorDistanceWorld = 2.0; // Base-game voxels.
 
     // If a probe trace aborts due to unsafe/placeholder chunk data, back off before retrying.
     // This prevents thrashing while chunks are streaming/unpacking.
@@ -619,12 +620,11 @@ internal sealed class LumOnWorldProbeScheduler
 
         public bool UpdateOrigin(Vec3d cameraPos, double spacing, out AnchorShiftInfo shiftInfo)
         {
-            Vec3d newAnchor = LumOnClipmapTopology.SnapAnchor(cameraPos, spacing);
-
             if (anchor is null)
             {
-                anchor = newAnchor;
-                originMinCorner = LumOnClipmapTopology.GetOriginMinCorner(newAnchor, spacing, resolution);
+                Vec3d initialAnchor = LumOnClipmapTopology.SnapAnchor(cameraPos, spacing);
+                anchor = initialAnchor;
+                originMinCorner = LumOnClipmapTopology.GetOriginMinCorner(initialAnchor, spacing, resolution);
 
                 // First-time init: everything is dirty/uninitialized.
                 Array.Fill(lifecycle, LumOnWorldProbeLifecycleState.Uninitialized);
@@ -633,6 +633,11 @@ internal sealed class LumOnWorldProbeScheduler
             }
 
             Vec3d prevAnchor = anchor!;
+            Vec3d newAnchor = LumOnClipmapTopology.GetHysteresisAnchor(
+                cameraPos,
+                prevAnchor,
+                spacing,
+                ReanchorDistanceWorld);
 
             int dx = (int)Math.Round((newAnchor.X - prevAnchor.X) / spacing);
             int dy = (int)Math.Round((newAnchor.Y - prevAnchor.Y) / spacing);
