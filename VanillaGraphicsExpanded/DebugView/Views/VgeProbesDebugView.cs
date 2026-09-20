@@ -42,7 +42,6 @@ public static partial class VgeBuiltInDebugViews
         internal static readonly ProbesDebugViewState Instance = new();
 
         private ProbeVizMode selectedMode = ProbeVizMode.ScreenProbeGrid;
-        private bool worldProbes;
         private bool importanceSurfaceHeatmap;
 
         private ProbesDebugViewState() : base(defaultMode: LumOnDebugMode.ProbeGrid)
@@ -70,10 +69,6 @@ public static partial class VgeBuiltInDebugViews
             selectedMode = mode;
         }
 
-        public bool GetWorldProbesEnabled() => worldProbes;
-
-        public void SetWorldProbesEnabled(bool enabled) => worldProbes = enabled;
-
         public bool GetImportanceSurfaceHeatmapEnabled() => importanceSurfaceHeatmap;
 
         public void SetImportanceSurfaceHeatmapEnabled(bool enabled) => importanceSurfaceHeatmap = enabled;
@@ -83,37 +78,17 @@ public static partial class VgeBuiltInDebugViews
             foreach (ProbeVizMode mode in Enum.GetValues<ProbeVizMode>())
             {
                 ProbeModeMapping mapping = GetProbeModeMapping(mode);
-                if (mapping.World == debugMode)
+                if (mapping.DebugMode == debugMode)
                 {
                     selectedMode = mode;
-                    worldProbes = true;
-                    return;
-                }
-
-                if (mapping.Screen == debugMode)
-                {
-                    selectedMode = mode;
-                    worldProbes = false;
                     return;
                 }
             }
-        }
-
-        public bool IsWorldToggleVisibleForCurrentMode()
-        {
-            ProbeModeMapping m = GetProbeModeMapping(GetSelectedProbeVizModeOrDefault());
-            return m.World is not null;
         }
 
         public LumOnDebugMode GetSelectedDebugModeOrDefault()
         {
-            ProbeModeMapping m = GetProbeModeMapping(GetSelectedProbeVizModeOrDefault());
-            if (worldProbes && m.World is not null)
-            {
-                return m.World.Value;
-            }
-
-            return m.Screen;
+            return GetProbeModeMapping(GetSelectedProbeVizModeOrDefault()).DebugMode;
         }
     }
 
@@ -127,7 +102,7 @@ public static partial class VgeBuiltInDebugViews
         TemporalRejection,
         ShCoefficients,
         InterpolationWeights,
-        RadianceOverlay,
+        IndirectLightingOutput,
         GatherWeight,
 
         // Probe atlas
@@ -159,55 +134,54 @@ public static partial class VgeBuiltInDebugViews
         WorldProbeRawConfidences,
         WorldProbeImportance,
 
-        // Symmetric where applicable (World vs Screen toggle)
-        ContributionOnly,
+        ScreenProbeContribution,
+        WorldProbeFallbackContribution,
     }
 
-    private readonly record struct ProbeModeMapping(LumOnDebugMode Screen, LumOnDebugMode? World);
+    private readonly record struct ProbeModeMapping(LumOnDebugMode DebugMode);
 
     private static ProbeModeMapping GetProbeModeMapping(ProbeVizMode mode) => mode switch
     {
-        ProbeVizMode.ScreenProbeGrid => new(LumOnDebugMode.ProbeGrid, null),
-        ProbeVizMode.ScreenProbeDepth => new(LumOnDebugMode.ProbeDepth, null),
-        ProbeVizMode.ScreenProbeNormal => new(LumOnDebugMode.ProbeNormal, null),
-        ProbeVizMode.TemporalWeight => new(LumOnDebugMode.TemporalWeight, null),
-        ProbeVizMode.TemporalRejection => new(LumOnDebugMode.TemporalRejection, null),
-        ProbeVizMode.ShCoefficients => new(LumOnDebugMode.ShCoefficients, null),
-        ProbeVizMode.InterpolationWeights => new(LumOnDebugMode.InterpolationWeights, null),
-        ProbeVizMode.RadianceOverlay => new(LumOnDebugMode.RadianceOverlay, null),
-        ProbeVizMode.GatherWeight => new(LumOnDebugMode.GatherWeight, null),
+        ProbeVizMode.ScreenProbeGrid => new(LumOnDebugMode.ProbeGrid),
+        ProbeVizMode.ScreenProbeDepth => new(LumOnDebugMode.ProbeDepth),
+        ProbeVizMode.ScreenProbeNormal => new(LumOnDebugMode.ProbeNormal),
+        ProbeVizMode.TemporalWeight => new(LumOnDebugMode.TemporalWeight),
+        ProbeVizMode.TemporalRejection => new(LumOnDebugMode.TemporalRejection),
+        ProbeVizMode.ShCoefficients => new(LumOnDebugMode.ShCoefficients),
+        ProbeVizMode.InterpolationWeights => new(LumOnDebugMode.InterpolationWeights),
+        ProbeVizMode.IndirectLightingOutput => new(LumOnDebugMode.RadianceOverlay),
+        ProbeVizMode.GatherWeight => new(LumOnDebugMode.GatherWeight),
 
-        ProbeVizMode.ProbeAtlasMetaConfidence => new(LumOnDebugMode.ProbeAtlasMetaConfidence, null),
-        ProbeVizMode.ProbeAtlasTemporalAlpha => new(LumOnDebugMode.ProbeAtlasTemporalAlpha, null),
-        ProbeVizMode.ProbeAtlasTemporalRejection => new(LumOnDebugMode.ProbeAtlasTemporalRejection, null),
-        ProbeVizMode.ProbeAtlasMetaFlags => new(LumOnDebugMode.ProbeAtlasMetaFlags, null),
-        ProbeVizMode.ProbeAtlasTraceRadiance => new(LumOnDebugMode.ProbeAtlasTraceRadiance, null),
-        ProbeVizMode.ProbeAtlasCurrentRadiance => new(LumOnDebugMode.ProbeAtlasCurrentRadiance, null),
-        ProbeVizMode.ProbeAtlasFilteredRadiance => new(LumOnDebugMode.ProbeAtlasFilteredRadiance, null),
-        ProbeVizMode.ProbeAtlasGatherInputRadiance => new(LumOnDebugMode.ProbeAtlasGatherInputRadiance, null),
-        ProbeVizMode.ProbeAtlasHitDistance => new(LumOnDebugMode.ProbeAtlasHitDistance, null),
-        ProbeVizMode.ProbeAtlasFilterDelta => new(LumOnDebugMode.ProbeAtlasFilterDelta, null),
-        ProbeVizMode.ProbeAtlasGatherInputSource => new(LumOnDebugMode.ProbeAtlasGatherInputSource, null),
-        ProbeVizMode.ProbeAtlasPisTraceMask => new(LumOnDebugMode.ProbeAtlasPisTraceMask, null),
-        ProbeVizMode.ProbePisEnergy => new(LumOnDebugMode.ProbePisEnergy, null),
+        ProbeVizMode.ProbeAtlasMetaConfidence => new(LumOnDebugMode.ProbeAtlasMetaConfidence),
+        ProbeVizMode.ProbeAtlasTemporalAlpha => new(LumOnDebugMode.ProbeAtlasTemporalAlpha),
+        ProbeVizMode.ProbeAtlasTemporalRejection => new(LumOnDebugMode.ProbeAtlasTemporalRejection),
+        ProbeVizMode.ProbeAtlasMetaFlags => new(LumOnDebugMode.ProbeAtlasMetaFlags),
+        ProbeVizMode.ProbeAtlasTraceRadiance => new(LumOnDebugMode.ProbeAtlasTraceRadiance),
+        ProbeVizMode.ProbeAtlasCurrentRadiance => new(LumOnDebugMode.ProbeAtlasCurrentRadiance),
+        ProbeVizMode.ProbeAtlasFilteredRadiance => new(LumOnDebugMode.ProbeAtlasFilteredRadiance),
+        ProbeVizMode.ProbeAtlasGatherInputRadiance => new(LumOnDebugMode.ProbeAtlasGatherInputRadiance),
+        ProbeVizMode.ProbeAtlasHitDistance => new(LumOnDebugMode.ProbeAtlasHitDistance),
+        ProbeVizMode.ProbeAtlasFilterDelta => new(LumOnDebugMode.ProbeAtlasFilterDelta),
+        ProbeVizMode.ProbeAtlasGatherInputSource => new(LumOnDebugMode.ProbeAtlasGatherInputSource),
+        ProbeVizMode.ProbeAtlasPisTraceMask => new(LumOnDebugMode.ProbeAtlasPisTraceMask),
+        ProbeVizMode.ProbePisEnergy => new(LumOnDebugMode.ProbePisEnergy),
 
-        ProbeVizMode.WorldProbeIrradianceCombined => new(LumOnDebugMode.WorldProbeIrradianceCombined, null),
-        ProbeVizMode.WorldProbeIrradianceLevel => new(LumOnDebugMode.WorldProbeIrradianceLevel, null),
-        ProbeVizMode.WorldProbeConfidence => new(LumOnDebugMode.WorldProbeConfidence, null),
-        ProbeVizMode.WorldProbeShortRangeAoDirection => new(LumOnDebugMode.WorldProbeShortRangeAoDirection, null),
-        ProbeVizMode.WorldProbeShortRangeAoConfidence => new(LumOnDebugMode.WorldProbeShortRangeAoConfidence, null),
-        ProbeVizMode.WorldProbeHitDistance => new(LumOnDebugMode.WorldProbeHitDistance, null),
-        ProbeVizMode.WorldProbeMetaFlagsHeatmap => new(LumOnDebugMode.WorldProbeMetaFlagsHeatmap, null),
-        ProbeVizMode.WorldProbeBlendWeights => new(LumOnDebugMode.WorldProbeBlendWeights, null),
-        ProbeVizMode.WorldProbeCrossLevelBlend => new(LumOnDebugMode.WorldProbeCrossLevelBlend, null),
-        ProbeVizMode.WorldProbeOrbsPoints => new(LumOnDebugMode.WorldProbeOrbsPoints, null),
-        ProbeVizMode.WorldProbeRawConfidences => new(LumOnDebugMode.WorldProbeRawConfidences, null),
-        ProbeVizMode.WorldProbeImportance => new(LumOnDebugMode.WorldProbeImportance, null),
+        ProbeVizMode.WorldProbeIrradianceCombined => new(LumOnDebugMode.WorldProbeIrradianceCombined),
+        ProbeVizMode.WorldProbeIrradianceLevel => new(LumOnDebugMode.WorldProbeIrradianceLevel),
+        ProbeVizMode.WorldProbeConfidence => new(LumOnDebugMode.WorldProbeConfidence),
+        ProbeVizMode.WorldProbeShortRangeAoDirection => new(LumOnDebugMode.WorldProbeShortRangeAoDirection),
+        ProbeVizMode.WorldProbeShortRangeAoConfidence => new(LumOnDebugMode.WorldProbeShortRangeAoConfidence),
+        ProbeVizMode.WorldProbeHitDistance => new(LumOnDebugMode.WorldProbeHitDistance),
+        ProbeVizMode.WorldProbeMetaFlagsHeatmap => new(LumOnDebugMode.WorldProbeMetaFlagsHeatmap),
+        ProbeVizMode.WorldProbeBlendWeights => new(LumOnDebugMode.WorldProbeBlendWeights),
+        ProbeVizMode.WorldProbeCrossLevelBlend => new(LumOnDebugMode.WorldProbeCrossLevelBlend),
+        ProbeVizMode.WorldProbeOrbsPoints => new(LumOnDebugMode.WorldProbeOrbsPoints),
+        ProbeVizMode.WorldProbeRawConfidences => new(LumOnDebugMode.WorldProbeRawConfidences),
+        ProbeVizMode.WorldProbeImportance => new(LumOnDebugMode.WorldProbeImportance),
+        ProbeVizMode.ScreenProbeContribution => new(LumOnDebugMode.ScreenSpaceContributionOnly),
+        ProbeVizMode.WorldProbeFallbackContribution => new(LumOnDebugMode.WorldProbeContributionOnly),
 
-        // Symmetric pair: screen-space vs world-probe contribution.
-        ProbeVizMode.ContributionOnly => new(LumOnDebugMode.ScreenSpaceContributionOnly, LumOnDebugMode.WorldProbeContributionOnly),
-
-        _ => new(LumOnDebugMode.ProbeGrid, null)
+        _ => new(LumOnDebugMode.ProbeGrid)
     };
 
     private sealed class ProbesDebugPanel : DebugViewPanelBase
@@ -225,7 +199,6 @@ public static partial class VgeBuiltInDebugViews
         private readonly string[] values;
         private readonly string[] names;
 
-        private bool lastToggleVisible;
         private bool lastImportanceSurfaceHeatmapVisible;
         private bool lastLegendVisible;
 
@@ -282,9 +255,6 @@ public static partial class VgeBuiltInDebugViews
                         fontSmall),
                     $"{keyPrefix}-mode");
 
-            bool toggleVisible = ProbesDebugViewState.Instance.IsWorldToggleVisibleForCurrentMode();
-            lastToggleVisible = toggleVisible;
-
             bool importanceSurfaceHeatmapVisible = selectedMode == ProbeVizMode.WorldProbeImportance;
             lastImportanceSurfaceHeatmapVisible = importanceSurfaceHeatmapVisible;
 
@@ -292,20 +262,6 @@ public static partial class VgeBuiltInDebugViews
             lastLegendVisible = legendVisible;
 
             double y = rowH + rowGapY;
-            if (toggleVisible)
-            {
-                ElementBounds labelWorld = ElementBounds.Fixed(0, y, labelW, rowH).WithParent(bounds);
-                ElementBounds ctrlWorld = ElementBounds.Fixed(labelW + gap, y, 30, rowH).WithParent(bounds);
-
-                var sw = new GuiElementSwitch(capi, OnWorldToggled, ctrlWorld, size: 26, padding: 4);
-                sw.SetValue(ProbesDebugViewState.Instance.GetWorldProbesEnabled());
-
-                composer
-                    .AddStaticText("World probes", fontLabel, labelWorld)
-                    .AddInteractiveElement(sw, $"{keyPrefix}-world");
-
-                y += rowH + rowGapY;
-            }
 
             if (importanceSurfaceHeatmapVisible)
             {
@@ -538,11 +494,9 @@ public static partial class VgeBuiltInDebugViews
                 return;
             }
 
-            bool prevToggleVisible = ProbesDebugViewState.Instance.IsWorldToggleVisibleForCurrentMode();
             bool prevImportanceSurfaceHeatmapVisible = ProbesDebugViewState.Instance.GetSelectedProbeVizModeOrDefault() == ProbeVizMode.WorldProbeImportance;
             bool prevLegendVisible = IsLegendVisible(ProbesDebugViewState.Instance.GetSelectedProbeVizModeOrDefault());
             ProbesDebugViewState.Instance.SetSelectedProbeVizMode(mode);
-            bool nextToggleVisible = ProbesDebugViewState.Instance.IsWorldToggleVisibleForCurrentMode();
             bool nextImportanceSurfaceHeatmapVisible = mode == ProbeVizMode.WorldProbeImportance;
             bool nextLegendVisible = IsLegendVisible(mode);
 
@@ -552,12 +506,10 @@ public static partial class VgeBuiltInDebugViews
                 DebugViewController.Instance.NotifyExclusiveModeChanged();
             }
 
-            if (prevToggleVisible != nextToggleVisible || lastToggleVisible != nextToggleVisible
-                || prevImportanceSurfaceHeatmapVisible != nextImportanceSurfaceHeatmapVisible
+            if (prevImportanceSurfaceHeatmapVisible != nextImportanceSurfaceHeatmapVisible
                 || lastImportanceSurfaceHeatmapVisible != nextImportanceSurfaceHeatmapVisible
                 || prevLegendVisible != nextLegendVisible || lastLegendVisible != nextLegendVisible)
             {
-                lastToggleVisible = nextToggleVisible;
                 lastImportanceSurfaceHeatmapVisible = nextImportanceSurfaceHeatmapVisible;
                 lastLegendVisible = nextLegendVisible;
                 try
@@ -568,28 +520,6 @@ public static partial class VgeBuiltInDebugViews
                 {
                     // Ignore UI refresh failures.
                 }
-            }
-
-            RefreshClosestProbeText();
-        }
-
-        private void OnWorldToggled(bool on)
-        {
-            ProbesDebugViewState.Instance.SetWorldProbesEnabled(on);
-
-            if (string.Equals(DebugViewController.Instance.ActiveExclusiveViewId, viewId, StringComparison.Ordinal))
-            {
-                config.LumOn.DebugMode = ProbesDebugViewState.Instance.GetSelectedDebugModeOrDefault();
-                DebugViewController.Instance.NotifyExclusiveModeChanged();
-            }
-
-            try
-            {
-                composer?.ReCompose();
-            }
-            catch
-            {
-                // Ignore UI refresh failures.
             }
 
             RefreshClosestProbeText();
@@ -609,7 +539,7 @@ public static partial class VgeBuiltInDebugViews
             ProbeVizMode.TemporalRejection => "Temporal Rejection",
             ProbeVizMode.ShCoefficients => "SH Coefficients",
             ProbeVizMode.InterpolationWeights => "Interpolation Weights",
-            ProbeVizMode.RadianceOverlay => "Radiance Overlay",
+            ProbeVizMode.IndirectLightingOutput => "Indirect Lighting Output",
             ProbeVizMode.GatherWeight => "Gather Weight (diagnostic)",
             ProbeVizMode.ProbeAtlasMetaConfidence => "Probe-Atlas Meta Confidence",
             ProbeVizMode.ProbeAtlasTemporalAlpha => "Probe-Atlas Temporal Alpha",
@@ -636,7 +566,8 @@ public static partial class VgeBuiltInDebugViews
             ProbeVizMode.WorldProbeOrbsPoints => "World-Probe Probes (orbs, GL_POINTS)",
             ProbeVizMode.WorldProbeImportance => "World-Probe Importance (orbs; blue = low, red = high)",
             ProbeVizMode.WorldProbeRawConfidences => "World-Probe Raw Confidences",
-            ProbeVizMode.ContributionOnly => "Contribution Only",
+            ProbeVizMode.ScreenProbeContribution => "Screen-Probe Contribution",
+            ProbeVizMode.WorldProbeFallbackContribution => "World-Probe Fallback Contribution",
             _ => mode.ToString()
         };
     }
