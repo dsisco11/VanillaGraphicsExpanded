@@ -228,7 +228,8 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
         float velocityRejectThreshold = 0f,
         Vec3f? sunPosition = null,
         Vec3f? sunColor = null,
-        Vec3f? ambientColor = null)
+        Vec3f? ambientColor = null,
+        int screenWidth = ScreenWidth, int screenHeight = ScreenHeight)
     {
         invProjectionMatrix ??= IdentityMat4;
         projectionMatrix ??= IdentityMat4;
@@ -244,10 +245,10 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
             invViewMatrix: invViewMatrix,
             prevViewProjMatrix: prevViewProjMatrix,
             invCurrViewProjMatrix: invCurrViewProjMatrix,
-            screenWidth: ScreenWidth,
-            screenHeight: ScreenHeight,
-            halfResWidth: HalfResWidth,
-            halfResHeight: HalfResHeight,
+            screenWidth: screenWidth,
+            screenHeight: screenHeight,
+            halfResWidth: screenWidth / 2,
+            halfResHeight: screenHeight / 2,
             probeGridWidth: ProbeGridWidth,
             probeGridHeight: ProbeGridHeight,
             zNear: ZNear,

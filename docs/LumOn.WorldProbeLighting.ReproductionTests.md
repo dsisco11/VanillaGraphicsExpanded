@@ -80,3 +80,33 @@ The fixture bypasses asynchronous scheduling, upload budgets, incremental public
 Receipts: [repair build/test log](../artifacts/visibility-repair-final.log) and [repair TRX results](../artifacts/TestResults/visibility-repair-final.trx).
 
 The repaired sealed-room case remains dark through CPU tracing, screen-probe tracing, independent temporal histories, both gathers and the diagnostic shader. Visibility uses nearest directional depths from a 16x16 tile; thin occluders, grazing angles and corners remain approximate. Live-game validation and performance measurement have not been performed.
+
+## Flat-wall visibility artifact reproduction
+
+[Planar-wall GPU tests](../VanillaGraphicsExpanded.Tests/GPU/LumOnWorldProbeWallVisibilityFunctionalTests.cs) render the production world-probe irradiance (31) and confidence (33) debug modes over a 128x128 grid. A fully lit voxel enclosure supplies one complete 16x16 world-probe tile from the real CPU integrator. Every direction hits geometry and stores unit RGB radiance; there are no missing directions, sky misses, mixed probe colors or clipmap transitions.
+
+The grid spans x/y=(-5,5) in front of the z=8 wall, with surface normal -Z. The probe is at (0.5,0.5,0.5). Before rendering, the production voxel tracer checks all 16,384 exact probe-to-sample rays and confirms that enclosing geometry is farther away than each sample point.
+
+Two cases separate surface proximity from missing lighting:
+
+- A grid 0.01 world units inside the wall characterizes the current defect: both accepted and incorrectly rejected pixels must exist.
+- A grid 2 world units inside the wall must retain all samples.
+
+Rejected pixels must be black in the irradiance view and zero in the confidence view. Accepted pixels must retain the source confidence and the expected tone-mapped unit-radiance diffuse integral, pi/(1+pi). Thus the test checks the displayed failure directly, rather than inferring it solely from a CPU copy of the visibility formula.
+
+These are explicit characterization assertions: a passing near-wall case means the defect was reproduced, not fixed. The eventual repair should change it to require zero rejected pixels while preserving the exact-ray ground truth and control case. Production code is unchanged by this reproduction.
+
+The tests report rejection counts through test output; no image or CSV files are generated.
+
+### Recorded planar-wall results
+
+The focused suite passed **73 tests, 0 failures, 0 skipped**, including both new GPU cases:
+
+| Wall inset | Exact unobstructed segments | False GPU rejections | Accepted |
+| --- | --- | --- | --- |
+| 0.01 | 16,384 | 6,228 (38.01%) | 10,156 |
+| 2 | 16,384 | 0 | 16,384 |
+
+Matching irradiance/confidence assertions attribute black pixels to rejection rather than absent source lighting. This is a controlled single-probe reproduction, not an exact reconstruction of a particular live scene.
+
+Validation receipts: [test log](../artifacts/wall-visibility-reproduction.log) and [TRX](../artifacts/TestResults/wall-visibility-reproduction.trx).

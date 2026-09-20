@@ -133,7 +133,7 @@ This affects occlusion, spatial correspondence, and off-screen detail. It is not
 
 The [controlled sealed-room reproduction](LumOn.WorldProbeLighting.ReproductionTests.md) originally confirmed across-wall interpolation: dark interior probes mixed with bright exterior probes to produce 0.125 directional radiance. The visibility repair changes that regression to require zero lighting and neutral gray through both gather modes. Covered but rejected or unpublished neighbors cannot trigger approximate sky fallback. Open-doorway, visible-neighbor and ring-index controls preserve valid lighting. The focused suite passed 71 tests with no failures or skips. Directional depth remains approximate; this does not establish correctness in every live scene.
 
-## Validation and repair tracker
+A subsequent [flat-wall reproduction](LumOn.WorldProbeLighting.ReproductionTests.md#flat-wall-visibility-artifact-reproduction) confirms a limitation of this repair: 6,228 of 16,384 unobstructed near-wall samples are falsely rejected, producing black irradiance patches matching zero confidence. The farther-inset control rejects none. The production debug view uses the shared sampler; it is exposing a visibility defect rather than using an obsolete lighting implementation. This defect is reproduced but not repaired.\n\n## Validation and repair tracker
 
 All checkboxes represent remaining work, not completed validation.
 
