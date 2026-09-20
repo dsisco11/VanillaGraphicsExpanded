@@ -49,6 +49,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private const int ClipmapBoundsVerticesPerLevel = 48; // Outer clip volume + inner probe-center bounds (2 * 12 edges * 2 vertices)
     private const int FrozenMarkerVertices = 36; // camera axes + L0 center + L0 min + L0 max + L0 first/last probe centers (3*2 each)
     private const int MaxProbePointVertices = 300_000; // Safety cap to avoid pathological allocations (e.g., res>64).
+    private const byte OitRevealBinsAttachmentIndex = 0;
+    private const byte OitRevealageAttachmentIndex = 1;
+    private const byte OitAccumulationBin0AttachmentIndex = 3;
+    private const byte OitAccumulationBin1AttachmentIndex = 4;
+    private const byte OitAccumulationBin2AttachmentIndex = 5;
 
     #endregion
 
@@ -127,21 +132,54 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         defaultMask: default(GlPipelineStateMask)
             .With(GlPipelineStateId.CullFaceEnable)
             .With(GlPipelineStateId.ScissorTestEnable)
+            .With(GlPipelineStateId.BlendEnable)
+            .With(GlPipelineStateId.BlendFunc)
             .With(GlPipelineStateId.ColorMask),
         nonDefaultMask: default(GlPipelineStateMask)
             .With(GlPipelineStateId.DepthTestEnable)
             .With(GlPipelineStateId.DepthFunc)
             .With(GlPipelineStateId.DepthWriteMask)
-            .With(GlPipelineStateId.BlendEnable)
-            .With(GlPipelineStateId.BlendFunc)
+            .With(GlPipelineStateId.BlendEnableIndexed)
+            .With(GlPipelineStateId.BlendFuncIndexed)
             .With(GlPipelineStateId.PointSize),
         depthFunc: DepthFunction.Lequal,
         depthWriteMask: true,
-        blendFunc: new GlBlendFunc(
-            BlendingFactorSrc.SrcAlpha,
-            BlendingFactorDest.OneMinusSrcAlpha,
-            BlendingFactorSrc.One,
-            BlendingFactorDest.OneMinusSrcAlpha),
+        blendEnableIndexedAttachments:
+        [
+            OitRevealBinsAttachmentIndex,
+            OitRevealageAttachmentIndex,
+            OitAccumulationBin0AttachmentIndex,
+            OitAccumulationBin1AttachmentIndex,
+            OitAccumulationBin2AttachmentIndex
+        ],
+        blendFuncIndexed:
+        [
+            new GlBlendFuncIndexed(OitRevealBinsAttachmentIndex, new GlBlendFunc(
+                BlendingFactorSrc.Zero,
+                BlendingFactorDest.SrcColor,
+                BlendingFactorSrc.Zero,
+                BlendingFactorDest.SrcAlpha)),
+            new GlBlendFuncIndexed(OitRevealageAttachmentIndex, new GlBlendFunc(
+                BlendingFactorSrc.Zero,
+                BlendingFactorDest.SrcColor,
+                BlendingFactorSrc.Zero,
+                BlendingFactorDest.SrcAlpha)),
+            new GlBlendFuncIndexed(OitAccumulationBin0AttachmentIndex, new GlBlendFunc(
+                BlendingFactorSrc.One,
+                BlendingFactorDest.One,
+                BlendingFactorSrc.One,
+                BlendingFactorDest.One)),
+            new GlBlendFuncIndexed(OitAccumulationBin1AttachmentIndex, new GlBlendFunc(
+                BlendingFactorSrc.One,
+                BlendingFactorDest.One,
+                BlendingFactorSrc.One,
+                BlendingFactorDest.One)),
+            new GlBlendFuncIndexed(OitAccumulationBin2AttachmentIndex, new GlBlendFunc(
+                BlendingFactorSrc.One,
+                BlendingFactorDest.One,
+                BlendingFactorSrc.One,
+                BlendingFactorDest.One))
+        ],
         pointSize: 18f);
 
     private readonly ICoreClientAPI capi;

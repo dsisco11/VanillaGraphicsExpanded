@@ -69,6 +69,7 @@ public class LumOnShaderCompilationTests : IDisposable
         { "lumon_debug_direct.vsh", "lumon_debug_direct.fsh" },
         { "lumon_debug_velocity.vsh", "lumon_debug_velocity.fsh" },
         { "lumon_debug_worldprobe.vsh", "lumon_debug_worldprobe.fsh" },
+        { "vge_worldprobe_orbs_points.vsh", "vge_worldprobe_orbs_points.fsh" },
     };
 
     [Theory]

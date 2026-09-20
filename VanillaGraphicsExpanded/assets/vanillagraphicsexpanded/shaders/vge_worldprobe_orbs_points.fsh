@@ -1,14 +1,13 @@
 #version 330 core
 
 @import "./includes/lumon_worldprobe.glsl"
+@import "./includes/vge_oit.glsl"
 
 in vec4 vColor;
 in vec2 vAtlasCoord;
 
 uniform sampler2D worldProbeDebugState0;
 uniform int importanceColorMode;
-
-out vec4 outColor;
 
 vec4 getImportanceOrbColor(vec4 debugState, bool disabled, bool unavailable)
 {
@@ -64,7 +63,7 @@ void main(void)
 
     if (importanceColorMode != 0)
     {
-        outColor = getImportanceOrbColor(dbg, disabled, unavailable);
+        writeOit(getImportanceOrbColor(dbg, disabled, unavailable));
         return;
     }
 
@@ -122,5 +121,5 @@ void main(void)
         col = mix(col, vec3(1.0, 0.65, 0.0), marker);
     }
 
-    outColor = vec4(col, 1.0);
+    writeOit(vec4(col, 1.0));
 }
