@@ -178,7 +178,7 @@ These tests exercise production shaders over controlled full-cube geometry. They
 
 ### Direct visibility validation results
 
-**39 direct-visibility cases and 216 regression cases passed, zero failures or skips.** The regression selection includes local tracing, prior world-probe controls, shader compilation, UBO/layout binding and debug routing. Build succeeded with the same six unrelated warnings.
+**Initial implementation validation: 39 direct-visibility cases and 216 regression cases passed, zero failures or skips.** The regression selection includes local tracing, prior world-probe controls, shader compilation, UBO/layout binding and debug routing. Build succeeded with the same six unrelated warnings.
 
 | Consumer | Wall inset | Exact clear segments | False rejections | Accepted |
 | --- | --- | --- | --- | --- |
@@ -188,3 +188,20 @@ These tests exercise production shaders over controlled full-cube geometry. They
 | SH9 gather fallback | 0.01 | 16,384 | 0 | 16,384 |
 
 Receipts: [direct visibility tests](../artifacts/direct-visibility-final.log), [direct visibility TRX](../artifacts/TestResults/direct-visibility-final.trx), [regression tests](../artifacts/direct-visibility-regression.log), and [regression TRX](../artifacts/TestResults/direct-visibility-regression.trx).
+
+### Clipmap and local-window regression validation
+
+The reusable atlas fixture now supports multiple vertically stacked levels. The direct-consumer harness accepts per-level origins and ring offsets. Its depth and normal textures now cover the full declared screen size: gather uses integer guide fetches, so the previous 1x1 inputs allowed undefined out-of-range reads. The corrected fixture supersedes the earlier direct-consumer receipts.
+
+[Clipmap controls](../VanillaGraphicsExpanded.Tests/GPU/LumOnDirectWorldProbeVisibilityTests.Clipmaps.cs) add 18 cases across the irradiance viewer and both gather modes:
+
+- Red fine-level and green coarse-level lighting retain the diffuse integral through the fine interior, overlap band, and fine-volume boundary, using different nonzero ring offsets.
+- Walls reject both levels; an occluded coarse level cannot replace visible fine lighting; unavailable fine metadata selects visible coarse lighting.
+- Probe and receiver positions beyond either local-window X boundary remain unresolved, while an inside control remains lit.
+- Moving the geometry window retains overlapping published cells, rejects stale air in a reused slot, rejects newly published solid geometry, and accepts the slot after clear geometry is published.
+
+**57 direct-visibility cases passed, zero failures or skips**, including all prior direct controls and the four dense wall cases. The corrected guide textures retain zero false rejections across all 16,384 samples in each wall case. No production shader changes were needed.
+
+The existing regression selection also passed all **216 cases**, zero failures or skips, after the atlas fixture extension. Build succeeded with the same six unrelated warnings.
+
+Receipts: [focused test log](../artifacts/direct-visibility-clipmaps.log), [focused TRX](../artifacts/TestResults/direct-visibility-clipmaps.trx), [regression log](../artifacts/direct-visibility-clipmaps-regression.log), and [regression TRX](../artifacts/TestResults/direct-visibility-clipmaps-regression.trx). Live scene appearance and runtime performance remain unverified.

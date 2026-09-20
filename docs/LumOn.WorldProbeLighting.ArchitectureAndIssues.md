@@ -193,12 +193,12 @@ Validate both sampling-path replacements against the existing reproductions and 
 
 - [x] Preserve zero exterior leakage in the sealed-room reproduction.
 - [x] Eliminate false near-wall rejection in the flat-wall reproduction.
-- [ ] Retain doorway, blocked-neighbor, unobstructed-lighting, ring-index and clipmap controls.
+- [x] Retain doorway, blocked-neighbor, unobstructed-lighting, ring-index and clipmap controls.
 - [x] Add corner geometry coverage to detect inappropriate visibility acceptance.
 
 Completion criterion: both replacements pass the applicable regression cases without trading surface artifacts for light leakage.
 
-Automated cases now cover both replacements, including doorways, blocked neighbors, ring remapping and corners. Cross-level controls for the new direct-visibility path and live validation remain open; legacy clipmap tests do not establish that new-path coverage.
+Automated cases now cover both replacements, including doorways, blocked neighbors, ring remapping and corners. New direct-visibility controls exercise fine/coarse blending and selection, blocked coarse probes, unavailable fine probes, local-window boundaries, and geometry-ring movement before and after publication. All 57 direct-visibility cases pass with full-resolution guide textures. Live appearance and performance validation remain open.
 
 ### Remaining validation and repairs
 
@@ -217,4 +217,4 @@ Automated cases now cover both replacements, including doorways, blocked neighbo
 
 The [world-fallback GPU tests](../VanillaGraphicsExpanded.Tests/GPU/LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests.cs) now also accept voxel-derived atlas data and verify separate histories, filtering, both gather modes, and signed diagnostic output. The [reproduction report](LumOn.WorldProbeLighting.ReproductionTests.md) records focused validation and its limits. Scheduler behavior, production upload/publication, upsampling, final composition and live-game correctness remain unverified by this fixture.
 
-The immediate priority is to establish the local geometry and hit-lighting integration design, then address the two sampling paths above while preserving both reproduction contracts. The remaining lighting, readiness and live-scene validation items remain separate work.
+The sampling-path replacements and their automated visibility regressions are complete. The next validation is live scene appearance and performance, followed by the remaining end-to-end lighting and readiness investigations above.

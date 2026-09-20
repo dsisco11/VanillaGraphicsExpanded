@@ -7,8 +7,9 @@ internal sealed class WorldProbeAtlasData
 {
     public int Resolution { get; }
     public int TileSize { get; }
+    public int Levels { get; }
     public int ScalarWidth => Resolution * Resolution;
-    public int ScalarHeight => Resolution;
+    public int ScalarHeight => Resolution * Levels;
     public int Width => ScalarWidth * TileSize;
     public int Height => ScalarHeight * TileSize;
     public float[] Radiance { get; }
@@ -16,11 +17,12 @@ internal sealed class WorldProbeAtlasData
     public float[] Metadata { get; }
 
     #region Atlas Construction
-    /// <summary>Allocates a single-level atlas with initially invalid probes.</summary>
-    public WorldProbeAtlasData(int resolution, int tileSize)
+    /// <summary>Allocates a vertically stacked clipmap atlas with initially invalid probes.</summary>
+    public WorldProbeAtlasData(int resolution, int tileSize, int levels = 1)
     {
-        if (resolution < 1 || tileSize < 1) throw new ArgumentOutOfRangeException(nameof(resolution));
+        if (resolution < 1 || tileSize < 1 || levels < 1) throw new ArgumentOutOfRangeException(nameof(resolution));
         Resolution = resolution;
+        Levels = levels;
         TileSize = tileSize;
         Radiance = new float[Width * Height * 4];
         Visibility = new float[ScalarWidth * ScalarHeight * 4];
@@ -33,11 +35,11 @@ internal sealed class WorldProbeAtlasData
         var p = result.Request.StorageIndex;
         if (!result.Success || result.AtlasSamples.Length != TileSize * TileSize)
             throw new ArgumentException("Only successful complete probe tiles may be published.");
-        if (result.Request.Level != 0 || p.X < 0 || p.X >= Resolution || p.Y < 0 || p.Y >= Resolution || p.Z < 0 || p.Z >= Resolution)
+        if (result.Request.Level < 0 || result.Request.Level >= Levels || p.X < 0 || p.X >= Resolution || p.Y < 0 || p.Y >= Resolution || p.Z < 0 || p.Z >= Resolution)
             throw new ArgumentOutOfRangeException(nameof(result));
         var seen = new HashSet<(int, int)>();
         int u = p.X + p.Z * Resolution;
-        int v = p.Y;
+        int v = p.Y + result.Request.Level * Resolution;
         foreach (var sample in result.AtlasSamples)
         {
             if (sample.OctX < 0 || sample.OctX >= TileSize || sample.OctY < 0 || sample.OctY >= TileSize || !seen.Add((sample.OctX, sample.OctY)))

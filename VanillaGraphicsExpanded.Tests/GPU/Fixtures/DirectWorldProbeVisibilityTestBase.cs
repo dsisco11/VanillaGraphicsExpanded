@@ -21,7 +21,8 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
     private protected float[] RenderDirectVisibility(WorldProbeAtlasData atlas, LocalTraceGpuScene? scene,
         Vector3 sampleCenter, Vector3 cacheOrigin, float spacing, int consumer,
         int size = 4, float span = 0.1f, int budget = 256, VectorInt3 worldOffset = default,
-        Vector3 ring = default, bool suppress = false)
+        Vector3 ring = default, bool suppress = false,
+        Vector3[]? levelOrigins = null, Vector3[]? levelRings = null)
     {
         bool debug = consumer >= 0;
         bool sh9 = consumer == -2;
@@ -30,7 +31,7 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
         {
             ["VGE_LUMON_DIRECT_LOCAL_VISIBILITY"] = "1",
             ["VGE_LUMON_WORLDPROBE_ENABLED"] = "1",
-            ["VGE_LUMON_WORLDPROBE_LEVELS"] = "1",
+            ["VGE_LUMON_WORLDPROBE_LEVELS"] = atlas.Levels.ToString(),
             ["VGE_LUMON_WORLDPROBE_RESOLUTION"] = atlas.Resolution.ToString(),
             ["VGE_LUMON_WORLDPROBE_BASE_SPACING"] = spacing.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["VGE_LUMON_WORLDPROBE_OCTAHEDRAL_SIZE"] = atlas.TileSize.ToString(),
@@ -40,8 +41,19 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
         try
         {
             // Match production sampler units, including SH9's sixteen-unit limit.
-            Add("primaryDepth", debug ? 0 : sh9 ? 9 : 3, 1, 1, PixelInternalFormat.R32f, [0.5f]);
-            Add("gBufferNormal", debug ? 1 : sh9 ? 10 : 4, 1, 1, PixelInternalFormat.Rgba16f, [0.5f, 0.5f, 0, 1]);
+            // Gather uses integer full-resolution guide fetches; every addressed texel
+            // must exist rather than relying on undefined out-of-range sampling.
+            int guideSize = debug ? size : size * 2;
+            var depth = new float[guideSize * guideSize];
+            Array.Fill(depth, 0.5f);
+            var normals = new float[depth.Length * 4];
+            for (int i = 0; i < normals.Length; i += 4)
+            {
+                normals[i] = normals[i + 1] = 0.5f;
+                normals[i + 3] = 1;
+            }
+            Add("primaryDepth", debug ? 0 : sh9 ? 9 : 3, guideSize, guideSize, PixelInternalFormat.R32f, depth);
+            Add("gBufferNormal", debug ? 1 : sh9 ? 10 : 4, guideSize, guideSize, PixelInternalFormat.Rgba16f, normals);
             Add("worldProbeRadianceAtlas", debug ? 19 : sh9 ? 11 : 5, atlas.Width, atlas.Height, PixelInternalFormat.Rgba16f, atlas.Radiance);
             Add("worldProbeVis0", debug ? 22 : sh9 ? 14 : 8, atlas.ScalarWidth, atlas.ScalarHeight, PixelInternalFormat.Rgba16f, atlas.Visibility);
             Add("worldProbeMeta0", debug ? 24 : sh9 ? 15 : 9, atlas.ScalarWidth, atlas.ScalarHeight, PixelInternalFormat.Rg32f, atlas.Metadata);
@@ -72,7 +84,7 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
             UpdateAndBindLumOnFrameUbo(program, invProjectionMatrix: inverse,
                 screenWidth: debug ? size : size * 2, screenHeight: debug ? size : size * 2,
                 matrixSpaceWorldChunkCoordOffset: new VectorInt3(worldOffset.X >> 5, worldOffset.Y >> 5, worldOffset.Z >> 5));
-            UpdateAndBindLumOnWorldProbeUbo(program, new Vec3f(), Vector3.Zero, [cacheOrigin], [ring]);
+            UpdateAndBindLumOnWorldProbeUbo(program, new Vec3f(), Vector3.Zero, levelOrigins ?? [cacheOrigin], levelRings ?? [ring]);
             using var parameters = new ObjectParamsUbo("Tests.DirectVisibility.Params");
             if (debug)
             {
