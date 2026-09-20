@@ -24,6 +24,7 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 	private const double RenderOrderValue = 0.9999;
 	private const int RenderRangeValue = 1;
 	private const int MaximumSunLightLevel = 32;
+	private const double DebugTraceRayLengthInProbeSpacings = 0.5;
 
 	private readonly ICoreClientAPI capi;
 	private readonly VgeConfig config;
@@ -553,10 +554,11 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 			{
 				int idx = texelIndices[r];
 				var d = dirs[idx];
+				double rayLength = spacing * DebugTraceRayLengthInProbeSpacings;
 				var end = new Vec3d(
-					probeCenter.X + d.X * (spacing * resources.Resolution),
-					probeCenter.Y + d.Y * (spacing * resources.Resolution),
-					probeCenter.Z + d.Z * (spacing * resources.Resolution));
+					probeCenter.X + d.X * rayLength,
+					probeCenter.Y + d.Y * rayLength,
+					probeCenter.Z + d.Z * rayLength);
 
 				float a = 1f - (r / Math.Max(1f, take - 1f)) * 0.6f;
 				rays[written++] = new LumOnWorldProbeClipmapBufferManager.DebugTraceRay(
