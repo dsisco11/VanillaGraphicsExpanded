@@ -133,9 +133,56 @@ This affects occlusion, spatial correspondence, and off-screen detail. It is not
 
 The [controlled sealed-room reproduction](LumOn.WorldProbeLighting.ReproductionTests.md) originally confirmed across-wall interpolation: dark interior probes mixed with bright exterior probes to produce 0.125 directional radiance. The visibility repair changes that regression to require zero lighting and neutral gray through both gather modes. Covered but rejected or unpublished neighbors cannot trigger approximate sky fallback. Open-doorway, visible-neighbor and ring-index controls preserve valid lighting. The focused suite passed 71 tests with no failures or skips. Directional depth remains approximate; this does not establish correctness in every live scene.
 
-A subsequent [flat-wall reproduction](LumOn.WorldProbeLighting.ReproductionTests.md#flat-wall-visibility-artifact-reproduction) confirms a limitation of this repair: 6,228 of 16,384 unobstructed near-wall samples are falsely rejected, producing black irradiance patches matching zero confidence. The farther-inset control rejects none. The production debug view uses the shared sampler; it is exposing a visibility defect rather than using an obsolete lighting implementation. This defect is reproduced but not repaired.\n\n## Validation and repair tracker
+A subsequent [flat-wall reproduction](LumOn.WorldProbeLighting.ReproductionTests.md#flat-wall-visibility-artifact-reproduction) confirms a limitation of this repair: 6,228 of 16,384 unobstructed near-wall samples are falsely rejected, producing black irradiance patches matching zero confidence. The farther-inset control rejects none. The production debug view uses the shared sampler; it is exposing a visibility defect rather than using an obsolete lighting implementation. This defect is reproduced but not repaired.
+
+## Validation and repair tracker
 
 All checkboxes represent remaining work, not completed validation.
+
+### Priority 1: GPU geometry and hit-lighting integration design
+
+Define how unresolved screen-probe rays access local voxel geometry and obtain outgoing radiance at a surface hit. Complete this design before implementing the tracing path.
+
+- [ ] Identify reusable GPU geometry and lighting resources.
+- [ ] Identify missing integration and establish ownership of the tracing inputs.
+- [ ] Specify the outgoing-radiance source for local surface hits.
+
+Completion criterion: a source-backed design identifies the available resources, required additions, and geometry-to-lighting data flow.
+
+### Priority 2: Local world tracing and radiance-cache handoff
+
+Continue screen-space misses through local world geometry. Nearby opaque surfaces must resolve lighting and stop the ray before distant cached lighting is accepted.
+
+- [ ] Implement local world tracing for unresolved screen-probe rays.
+- [ ] Resolve local hits using the lighting source established by Priority 1.
+- [ ] Sample the world radiance cache only after the local segment is clear.
+- [ ] Base the handoff distance on cache spacing and coverage, and apply lighting-direction parallax correction.
+- [ ] Remove binary probe-to-surface rejection from this path only after the replacement preserves sealed-room occlusion.
+
+Completion criterion: local hits block exterior cache lighting, while unobstructed rays retain valid cached lighting.
+
+### Priority 3: Direct world-probe irradiance visibility
+
+Replace hard depth rejection in direct world-probe irradiance sampling. This includes final-gather fallback and the irradiance debug view; changing screen-probe tracing alone does not repair these paths.
+
+- [ ] Evaluate filtered distance moments or a design using locally traced results.
+- [ ] Implement the selected visibility approach in both direct sampling consumers.
+- [ ] Preserve valid lighting while eliminating false near-wall rejection.
+
+Completion criterion: direct irradiance sampling satisfies both the flat-wall visibility and sealed-room leakage requirements.
+
+### Priority 4: Visibility regression validation
+
+Validate both sampling-path replacements against the existing reproductions and additional corner geometry.
+
+- [ ] Preserve zero exterior leakage in the sealed-room reproduction.
+- [ ] Eliminate false near-wall rejection in the flat-wall reproduction.
+- [ ] Retain doorway, blocked-neighbor, unobstructed-lighting, ring-index and clipmap controls.
+- [ ] Add corner geometry coverage to detect inappropriate visibility acceptance.
+
+Completion criterion: both replacements pass the applicable regression cases without trading surface artifacts for light leakage.
+
+### Remaining validation and repairs
 
 - [ ] Reproduce the reported symptom and record active gather mode, world-cache settings, camera position, and cache warm-up state.
 - [ ] Determine whether the claim of zero contribution comes from final lighting, the contribution debug view, or both.
@@ -148,8 +195,8 @@ All checkboxes represent remaining work, not completed validation.
 - [ ] Exercise upload-budget exhaustion and unavailable tile-program handling without losing pending radiance or publishing misleading validity.
 - [ ] Correct accepted-hit radiance and validate material/exposure consistency.
 - [ ] Correct angular confidence weighting and readiness/publication contracts where the reproduction confirms impact.
-- [ ] Decide separately whether local world tracing, parallax correction, and shared scene-lighting integration are required next.
+- [ ] Assess further shared scene-lighting integration beyond the local-hit radiance source established by the priority design work.
 
 The [world-fallback GPU tests](../VanillaGraphicsExpanded.Tests/GPU/LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests.cs) now also accept voxel-derived atlas data and verify separate histories, filtering, both gather modes, and signed diagnostic output. The [reproduction report](LumOn.WorldProbeLighting.ReproductionTests.md) records focused validation and its limits. Scheduler behavior, production upload/publication, upsampling, final composition and live-game correctness remain unverified by this fixture.
 
-The first decision point is whether known world radiance survives the existing pipeline. If it does, prioritize diagnostic attribution, screen-hit lighting, and cache content/readiness rather than replacing gather architecture.
+The immediate priority is to establish the local geometry and hit-lighting integration design, then address the two sampling paths above while preserving both reproduction contracts. The remaining lighting, readiness and live-scene validation items remain separate work.
