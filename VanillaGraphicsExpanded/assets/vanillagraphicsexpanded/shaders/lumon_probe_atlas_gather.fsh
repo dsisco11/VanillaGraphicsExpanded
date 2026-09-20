@@ -147,6 +147,28 @@ vec3 integrateHemisphere(ivec2 probeCoord, vec3 normalWS, float pixelDepthVS,
     return (totalWeight > 0.001) ? irradiance / totalWeight : vec3(0.0);
 }
 
+float computeProbeToPixelVisibility(ivec2 probeCoord, vec3 probePosWS, vec3 pixelPosWS)
+{
+    vec3 probeToPixel = pixelPosWS - probePosWS;
+    float probeToPixelDistance = length(probeToPixel);
+    if (probeToPixelDistance <= 1e-4)
+    {
+        return 1.0;
+    }
+
+    vec2 octUV = lumonDirectionToOctahedralUV(probeToPixel / probeToPixelDistance);
+    ivec2 octTexel = clamp(
+        ivec2(octUV * float(LUMON_OCTAHEDRAL_SIZE)),
+        ivec2(0),
+        ivec2(LUMON_OCTAHEDRAL_SIZE - 1));
+    ivec2 atlasCoord = probeCoord * LUMON_OCTAHEDRAL_SIZE + octTexel;
+    float hitDistance = lumonDecodeHitDistance(texelFetch(octahedralAtlas, atlasCoord, 0).a);
+
+    // The probe can contribute only when the ray cache reaches the shaded point.
+    // leakThreshold is a world-space tolerance for atlas quantization and ray-march thickness.
+    return hitDistance + max(leakThreshold, 0.0) >= probeToPixelDistance ? 1.0 : 0.0;
+}
+
 // ============================================================================
 // Probe Weight Calculation
 // ============================================================================
@@ -253,11 +275,18 @@ void main(void)
     if (p01.valid < 0.5) avgDist01 = 999.0;
     if (p11.valid < 0.5) avgDist11 = 999.0;
     
-    // Compute edge-aware weights
-    float w00 = computeProbeWeight(bw00, pixelDepthVS, p00.depthVS, pixelNormalWS, p00.normalWS, avgDist00, p00.valid);
-    float w10 = computeProbeWeight(bw10, pixelDepthVS, p10.depthVS, pixelNormalWS, p10.normalWS, avgDist10, p10.valid);
-    float w01 = computeProbeWeight(bw01, pixelDepthVS, p01.depthVS, pixelNormalWS, p01.normalWS, avgDist01, p01.valid);
-    float w11 = computeProbeWeight(bw11, pixelDepthVS, p11.depthVS, pixelNormalWS, p11.normalWS, avgDist11, p11.valid);
+    vec3 pixelPosWS = (invViewMatrix * vec4(pixelPosVS, 1.0)).xyz;
+
+    // Compute edge-aware weights. Directional atlas distances reject probes separated
+    // from the shaded point by an occluder, preventing cross-wall light leaks.
+    float w00 = computeProbeWeight(bw00, pixelDepthVS, p00.depthVS, pixelNormalWS, p00.normalWS, avgDist00, p00.valid)
+        * computeProbeToPixelVisibility(probe00, p00.posWS, pixelPosWS);
+    float w10 = computeProbeWeight(bw10, pixelDepthVS, p10.depthVS, pixelNormalWS, p10.normalWS, avgDist10, p10.valid)
+        * computeProbeToPixelVisibility(probe10, p10.posWS, pixelPosWS);
+    float w01 = computeProbeWeight(bw01, pixelDepthVS, p01.depthVS, pixelNormalWS, p01.normalWS, avgDist01, p01.valid)
+        * computeProbeToPixelVisibility(probe01, p01.posWS, pixelPosWS);
+    float w11 = computeProbeWeight(bw11, pixelDepthVS, p11.depthVS, pixelNormalWS, p11.normalWS, avgDist11, p11.valid)
+        * computeProbeToPixelVisibility(probe11, p11.posWS, pixelPosWS);
     
     float totalWeight = w00 + w10 + w01 + w11;
     
@@ -270,10 +299,10 @@ void main(void)
         float n01 = pow(max(dot(pixelNormalWS, p01.normalWS), 0.0), 4.0);
         float n11 = pow(max(dot(pixelNormalWS, p11.normalWS), 0.0), 4.0);
 
-        w00 = bw00 * n00 * (p00.valid >= 0.5 ? 1.0 : 0.0);
-        w10 = bw10 * n10 * (p10.valid >= 0.5 ? 1.0 : 0.0);
-        w01 = bw01 * n01 * (p01.valid >= 0.5 ? 1.0 : 0.0);
-        w11 = bw11 * n11 * (p11.valid >= 0.5 ? 1.0 : 0.0);
+        w00 = bw00 * n00 * (p00.valid >= 0.5 ? 1.0 : 0.0) * computeProbeToPixelVisibility(probe00, p00.posWS, pixelPosWS);
+        w10 = bw10 * n10 * (p10.valid >= 0.5 ? 1.0 : 0.0) * computeProbeToPixelVisibility(probe10, p10.posWS, pixelPosWS);
+        w01 = bw01 * n01 * (p01.valid >= 0.5 ? 1.0 : 0.0) * computeProbeToPixelVisibility(probe01, p01.posWS, pixelPosWS);
+        w11 = bw11 * n11 * (p11.valid >= 0.5 ? 1.0 : 0.0) * computeProbeToPixelVisibility(probe11, p11.posWS, pixelPosWS);
         totalWeight = w00 + w10 + w01 + w11;
 
     }

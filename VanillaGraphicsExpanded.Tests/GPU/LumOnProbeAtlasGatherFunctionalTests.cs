@@ -1456,5 +1456,55 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         Assert.True(permissiveBrightness >= 0, "Permissive threshold should produce valid output");
     }
 
+    [Fact]
+    public void DirectionalOcclusion_RejectsProbeAcrossWall()
+    {
+        EnsureShaderTestAvailable();
+
+        const float pixelDepth = 0.5f;
+        CreateTestMatricesForDepth(pixelDepth, out var invProjection, out var viewMatrix,
+            out var probeWorldZ, out _);
+
+        // All four probes are well away from the shaded pixels but otherwise valid.
+        // Their directional cache reports an immediate occluder in every direction.
+        var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1.0f);
+        for (int probeIndex = 0; probeIndex < ProbeGridWidth * ProbeGridHeight; probeIndex++)
+        {
+            int offset = probeIndex * 4;
+            anchorPosData[offset] = 10.0f;
+            anchorPosData[offset + 1] = 10.0f;
+        }
+
+        using var atlasTex = TestFramework.CreateTexture(
+            AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, CreateUniformAtlas(1f, 1f, 1f, hitDist: 0f));
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, CreateProbeNormals(0f, 1f, 0f));
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, CreateDepthBuffer(pixelDepth));
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, CreateNormalBuffer(0f, 1f, 0f));
+        using var output = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f);
+
+        int programId = CompileGatherShader();
+        try
+        {
+            using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
+            atlasTex.Bind(0);
+            anchorPosTex.Bind(1);
+            anchorNormalTex.Bind(2);
+            depthTex.Bind(3);
+            normalTex.Bind(4);
+
+            TestFramework.RenderQuadTo(programId, output);
+
+            var (r, g, b, confidence) = ReadPixelHalfRes(output[0].ReadPixels(), 0, 0);
+            Assert.True(r < 1e-3f && g < 1e-3f && b < 1e-3f,
+                $"Occluded probes must not leak radiance, got ({r:F3}, {g:F3}, {b:F3})");
+            Assert.True(confidence < 1e-3f, $"Expected zero screen-probe confidence, got {confidence:F3}");
+        }
+        finally
+        {
+            GL.DeleteProgram(programId);
+        }
+    }
+
     #endregion
 }
