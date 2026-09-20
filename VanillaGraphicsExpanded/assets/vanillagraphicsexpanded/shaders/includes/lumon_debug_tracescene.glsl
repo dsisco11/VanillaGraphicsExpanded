@@ -5,7 +5,7 @@
 
 @import "./lumon_common.glsl"
 @import "./lumonscene_trace_scene_occupancy.glsl"
-@import "./vge_worldspace_bridge.glsl"
+@import "./lumon_frame_worldspace_bridge.glsl"
 
 // Packed payload layout (R32UI):
 // - bits  0..5  : blockLightLevel (0..63; gameplay currently clamps to 0..32)
@@ -48,8 +48,7 @@ vec4 RenderDebug_TraceScene(vec2 screenPos)
     }
 
     vec3 viewPos = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
-    // Note: `invViewMatrix` produces the engine's render "matrix space" positions.
-    // Convert to absolute world cell coords via `vge_worldspace_bridge.glsl` before sampling the occupancy clipmap.
+    // Convert render matrix-space positions to absolute world cells via LumOnFrameUBO.
     vec3 worldPosRel = (invViewMatrix * vec4(viewPos, 1.0)).xyz;
 
     // Depth reconstruction lands on the visible surface (often on a voxel face boundary), so floor(worldPos)
@@ -86,7 +85,7 @@ vec4 RenderDebug_TraceScene(vec2 screenPos)
         occPosRel = worldPosRel - stepN * 0.51;
     }
 
-    ivec3 worldCell = VgeMatrixSpacePosToWorldCell(occPosRel);
+    ivec3 worldCell = LumonFrameMatrixSpacePosToWorldCell(occPosRel);
 
     bool inBounds = VgeOccInBoundsL0(worldCell, vge_traceOccOriginMinCell0, vge_traceOccResolution);
     uint payloadPacked = VgeSampleOccL0(vge_traceOccL0, worldCell, vge_traceOccOriginMinCell0, vge_traceOccRing0, vge_traceOccResolution);
@@ -142,7 +141,7 @@ vec4 RenderDebug_TraceScene(vec2 screenPos)
         vec3 rayDirRel = normalize((invViewMatrix * vec4(viewDir, 0.0)).xyz);
 
         // Convert ray origin to absolute world block coords (cell grid is in absolute world space).
-        vec3 rayOrigin = VgeMatrixSpacePosToWorldPosAbs(camPosRel);
+        vec3 rayOrigin = LumonFrameMatrixSpacePosToWorldPosAbs(camPosRel);
         vec3 rayDir = rayDirRel;
 
         // Clip to the clipmap AABB in world block units.

@@ -651,6 +651,15 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             sunColF = new Vec3f(sunCol.R, sunCol.G, sunCol.B);
         }
 
+        var entity = capi.World?.Player?.Entity;
+        var frameBridge = entity is null
+            ? (default(VectorInt3), default(Vector3d))
+            : LumOnFrameWorldSpaceBridge.Compute(
+                entity.CameraPos.X,
+                entity.CameraPos.Y,
+                entity.CameraPos.Z,
+                invViewMatrix);
+
         int halfW = bufferManager?.HalfResWidth ?? (capi.Render.FrameWidth / 2);
         int halfH = bufferManager?.HalfResHeight ?? (capi.Render.FrameHeight / 2);
 
@@ -685,7 +694,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             velocityRejectThreshold: lum.VelocityRejectThreshold,
             sunPosition: sunPosF,
             sunColor: sunColF,
-            ambientColor: capi.Render.AmbientColor);
+            ambientColor: capi.Render.AmbientColor,
+            matrixSpaceWorldChunkCoordOffset: frameBridge.Item1,
+            matrixSpaceWorldBlockOffsetRem: frameBridge.Item2);
     }
 
     #endregion

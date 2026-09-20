@@ -58,6 +58,10 @@ layout(std140) uniform LumOnFrameUBO
     vec4 sunPosition;   // xyz, w reserved
     vec4 sunColor;      // xyz, w reserved
     vec4 ambientColor;  // xyz, w reserved
+
+    // Matrix-space to absolute-world bridge for LumOn fullscreen passes.
+    ivec4 matrixSpaceWorldChunkCoordOffset;
+    vec4 matrixSpaceWorldBlockOffsetRem;
 } lumonFrame;
 
 // ---------------------------------------------------------------------------
@@ -112,5 +116,8 @@ layout(std140) uniform LumOnWorldProbeUBO
 #define sunPosition (lumonFrame.sunPosition.xyz)
 #define sunColor    (lumonFrame.sunColor.xyz)
 #define ambientColor (lumonFrame.ambientColor.xyz)
+
+#define matrixSpaceWorldChunkCoordOffset (lumonFrame.matrixSpaceWorldChunkCoordOffset.xyz)
+#define matrixSpaceWorldBlockOffsetRem (lumonFrame.matrixSpaceWorldBlockOffsetRem.xyz)
 
 #endif // LUMON_UBOS_GLSL

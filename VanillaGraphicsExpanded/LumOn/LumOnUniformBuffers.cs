@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 
 using Vintagestory.API.MathTools;
 
+using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.LumOn;
@@ -22,7 +23,7 @@ internal sealed class LumOnUniformBuffers : IDisposable
 
     private const int WorldProbeMaxLevels = 8;
 
-    private const int FrameUboSizeBytes = 512;
+    private const int FrameUboSizeBytes = 544;
     private const int WorldProbeUboSizeBytes = 288;
 
     private readonly byte[] frameBytes = new byte[FrameUboSizeBytes];
@@ -82,7 +83,9 @@ internal sealed class LumOnUniformBuffers : IDisposable
         float velocityRejectThreshold,
         Vec3f sunPosition,
         Vec3f sunColor,
-        Vec3f ambientColor)
+        Vec3f ambientColor,
+        VectorInt3 matrixSpaceWorldChunkCoordOffset,
+        Vector3d matrixSpaceWorldBlockOffsetRem)
     {
         EnsureCreated();
 
@@ -113,6 +116,8 @@ internal sealed class LumOnUniformBuffers : IDisposable
         WriteVec4(frameBytes, offset, sunPosition.X, sunPosition.Y, sunPosition.Z, 0f); offset += 16;
         WriteVec4(frameBytes, offset, sunColor.X, sunColor.Y, sunColor.Z, 0f); offset += 16;
         WriteVec4(frameBytes, offset, ambientColor.X, ambientColor.Y, ambientColor.Z, 0f); offset += 16;
+        WriteIvec4(frameBytes, offset, matrixSpaceWorldChunkCoordOffset.X, matrixSpaceWorldChunkCoordOffset.Y, matrixSpaceWorldChunkCoordOffset.Z, 0); offset += 16;
+        WriteVec4(frameBytes, offset, (float)matrixSpaceWorldBlockOffsetRem.X, (float)matrixSpaceWorldBlockOffsetRem.Y, (float)matrixSpaceWorldBlockOffsetRem.Z, 0f); offset += 16;
 
         if (offset != FrameUboSizeBytes)
         {

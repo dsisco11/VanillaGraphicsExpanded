@@ -14,6 +14,7 @@ using VanillaGraphicsExpanded.LumOn.WorldProbes;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 using VanillaGraphicsExpanded.ModSystems;
+using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
@@ -463,6 +464,15 @@ public class LumOnRenderer : IRenderer, IDisposable
             sunColF = new Vec3f(sunCol.R, sunCol.G, sunCol.B);
         }
 
+        var entity = capi.World?.Player?.Entity;
+        (VectorInt3 ChunkOffset, Vector3d BlockOffsetRemainder) frameBridge = entity is null
+            ? (default, default)
+            : LumOnFrameWorldSpaceBridge.Compute(
+                entity.CameraPos.X,
+                entity.CameraPos.Y,
+                entity.CameraPos.Z,
+                invModelViewMatrix);
+
         uniformBuffers.UpdateFrame(
             invProjectionMatrix: invProjectionMatrix,
             projectionMatrix: capi.Render.CurrentProjectionMatrix,
@@ -488,7 +498,9 @@ public class LumOnRenderer : IRenderer, IDisposable
             velocityRejectThreshold: config.LumOn.VelocityRejectThreshold,
             sunPosition: sunPosF,
             sunColor: sunColF,
-            ambientColor: capi.Render.AmbientColor);
+            ambientColor: capi.Render.AmbientColor,
+            matrixSpaceWorldChunkCoordOffset: frameBridge.Item1,
+            matrixSpaceWorldBlockOffsetRem: frameBridge.Item2);
     }
 
     private void UpdateAndBindWorldProbeUbo()

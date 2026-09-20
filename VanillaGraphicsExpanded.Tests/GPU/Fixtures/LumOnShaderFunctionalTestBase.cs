@@ -3,6 +3,7 @@ using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.MathTools;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.Shaders;
+using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Noise;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -261,7 +262,9 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
             velocityRejectThreshold: velocityRejectThreshold,
             sunPosition: sunPosition ?? new Vec3f(0f, 0f, 0f),
             sunColor: sunColor ?? new Vec3f(0f, 0f, 0f),
-            ambientColor: ambientColor ?? new Vec3f(0f, 0f, 0f));
+            ambientColor: ambientColor ?? new Vec3f(0f, 0f, 0f),
+            matrixSpaceWorldChunkCoordOffset: default(VectorInt3),
+            matrixSpaceWorldBlockOffsetRem: default(Vector3d));
 
         BindLumOnUboIfPresent(programId, "LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, LumOnUbos.FrameUbo);
     }
