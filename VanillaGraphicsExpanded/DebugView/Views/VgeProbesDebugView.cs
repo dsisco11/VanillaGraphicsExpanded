@@ -134,8 +134,8 @@ public static partial class VgeBuiltInDebugViews
         WorldProbeRawConfidences,
         WorldProbeImportance,
 
-        ScreenProbeContribution,
-        WorldProbeFallbackContribution,
+        WorldProbeSuppressedLighting,
+        WorldProbeLightingEffect,
     }
 
     private readonly record struct ProbeModeMapping(LumOnDebugMode DebugMode);
@@ -178,8 +178,8 @@ public static partial class VgeBuiltInDebugViews
         ProbeVizMode.WorldProbeOrbsPoints => new(LumOnDebugMode.WorldProbeOrbsPoints),
         ProbeVizMode.WorldProbeRawConfidences => new(LumOnDebugMode.WorldProbeRawConfidences),
         ProbeVizMode.WorldProbeImportance => new(LumOnDebugMode.WorldProbeImportance),
-        ProbeVizMode.ScreenProbeContribution => new(LumOnDebugMode.ScreenSpaceContributionOnly),
-        ProbeVizMode.WorldProbeFallbackContribution => new(LumOnDebugMode.WorldProbeContributionOnly),
+        ProbeVizMode.WorldProbeSuppressedLighting => new(LumOnDebugMode.WorldProbeSuppressedLighting),
+        ProbeVizMode.WorldProbeLightingEffect => new(LumOnDebugMode.WorldProbeLightingEffect),
 
         _ => new(LumOnDebugMode.ProbeGrid)
     };
@@ -205,6 +205,8 @@ public static partial class VgeBuiltInDebugViews
         private static bool IsLegendVisible(ProbeVizMode mode) => mode switch
         {
             ProbeVizMode.ProbeAtlasTemporalRejection => true,
+            ProbeVizMode.WorldProbeLightingEffect => true,
+            ProbeVizMode.WorldProbeSuppressedLighting => true,
             _ => false
         };
 
@@ -305,6 +307,16 @@ public static partial class VgeBuiltInDebugViews
                     Line("#cc33cc", "Low history confidence") +
                     Line("#800080", "No valid history") +
                     Line("#0066ff", "Velocity invalid (fell back)");
+
+                if (selectedMode is ProbeVizMode.WorldProbeLightingEffect or ProbeVizMode.WorldProbeSuppressedLighting)
+                {
+                    vtml = "<b>World-probe lighting comparison</b><br/>"
+                        + "Effect = normal minus zeroed-world lighting.<br/>"
+                        + "RGB above gray: increase. Below: decrease.<br/>"
+                        + "Gray: no effect. Purple: not ready.<br/>"
+                        + "Zeroed view shows comparison lighting.<br/>"
+                        + "Histories restart on activation; allow them to settle.";
+                }
 
                 ElementBounds legendBounds = ElementBounds.Fixed(0, y, boundsW, rowH * 7).WithParent(bounds);
                 composer.AddRichtext(vtml, fontSmall, legendBounds, $"{keyPrefix}-{ProbeAtlasTemporalRejectionLegendKey}");
@@ -494,7 +506,8 @@ public static partial class VgeBuiltInDebugViews
                 return;
             }
 
-            bool prevImportanceSurfaceHeatmapVisible = ProbesDebugViewState.Instance.GetSelectedProbeVizModeOrDefault() == ProbeVizMode.WorldProbeImportance;
+            ProbeVizMode previousMode = ProbesDebugViewState.Instance.GetSelectedProbeVizModeOrDefault();
+            bool prevImportanceSurfaceHeatmapVisible = previousMode == ProbeVizMode.WorldProbeImportance;
             bool prevLegendVisible = IsLegendVisible(ProbesDebugViewState.Instance.GetSelectedProbeVizModeOrDefault());
             ProbesDebugViewState.Instance.SetSelectedProbeVizMode(mode);
             bool nextImportanceSurfaceHeatmapVisible = mode == ProbeVizMode.WorldProbeImportance;
@@ -508,7 +521,8 @@ public static partial class VgeBuiltInDebugViews
 
             if (prevImportanceSurfaceHeatmapVisible != nextImportanceSurfaceHeatmapVisible
                 || lastImportanceSurfaceHeatmapVisible != nextImportanceSurfaceHeatmapVisible
-                || prevLegendVisible != nextLegendVisible || lastLegendVisible != nextLegendVisible)
+                || prevLegendVisible != nextLegendVisible || lastLegendVisible != nextLegendVisible
+                || (previousMode != mode && nextLegendVisible))
             {
                 lastImportanceSurfaceHeatmapVisible = nextImportanceSurfaceHeatmapVisible;
                 lastLegendVisible = nextLegendVisible;
@@ -566,8 +580,8 @@ public static partial class VgeBuiltInDebugViews
             ProbeVizMode.WorldProbeOrbsPoints => "World-Probe Probes (orbs, GL_POINTS)",
             ProbeVizMode.WorldProbeImportance => "World-Probe Importance (orbs; blue = low, red = high)",
             ProbeVizMode.WorldProbeRawConfidences => "World-Probe Raw Confidences",
-            ProbeVizMode.ScreenProbeContribution => "Screen-Probe Contribution",
-            ProbeVizMode.WorldProbeFallbackContribution => "World-Probe Fallback Contribution",
+            ProbeVizMode.WorldProbeSuppressedLighting => "Lighting With World Radiance Zeroed",
+            ProbeVizMode.WorldProbeLightingEffect => "World-Probe Lighting Effect",
             _ => mode.ToString()
         };
     }

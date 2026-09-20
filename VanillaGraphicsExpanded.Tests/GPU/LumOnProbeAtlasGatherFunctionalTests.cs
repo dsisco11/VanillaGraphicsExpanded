@@ -250,8 +250,13 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
     #region Test: InvalidScreenProbes_UseWorldProbeFallback
 
-    [Fact]
-    public void InvalidScreenProbes_UseWorldProbeFallback()
+    /// <summary>Both gather modes preserve selected sample confidence when world radiance is suppressed.</summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void WorldProbeSuppression_PreservesFallbackSelection(bool sh9, bool validScreenProbes)
     {
         EnsureShaderTestAvailable();
 
@@ -269,9 +274,9 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         CreateTestMatricesForDepth(pixelDepth, out var invProjection, out var viewMatrix, out var probeWorldZ, out _);
 
         using var screenProbeAtlas = TestFramework.CreateTexture(
-            AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, CreateUniformAtlas(0f, 0f, 0f));
+            AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, CreateUniformAtlas(1f, 1f, 1f));
         using var anchorPos = TestFramework.CreateTexture(
-            ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, CreateProbeAnchors(probeWorldZ, validity: 0f));
+            ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, CreateProbeAnchors(probeWorldZ, validity: validScreenProbes ? 1f : 0f));
         using var anchorNormal = TestFramework.CreateTexture(
             ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, CreateProbeNormals(0f, 1f, 0f));
         using var depth = TestFramework.CreateTexture(
@@ -294,8 +299,8 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         try
         {
             programId = CompileShaderWithDefines(
-                "lumon_probe_atlas_gather.vsh",
-                "lumon_probe_atlas_gather.fsh",
+                sh9 ? "lumon_probe_sh9_gather.vsh" : "lumon_probe_atlas_gather.vsh",
+                sh9 ? "lumon_probe_sh9_gather.fsh" : "lumon_probe_atlas_gather.fsh",
                 new Dictionary<string, string?>
                 {
                     ["VGE_LUMON_WORLDPROBE_ENABLED"] = "1",
@@ -331,9 +336,27 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             TestFramework.RenderQuadTo(programId, output);
 
             var (r, g, b, confidence) = ReadPixelHalfRes(output[0].ReadPixels(), 0, 0);
-            Assert.True(r > 0.5f && g < 0.1f && b < 0.1f,
-                $"Expected red world-probe irradiance, got ({r:F3}, {g:F3}, {b:F3})");
-            Assert.True(confidence > 0.9f, $"Expected world-probe confidence, got {confidence:F3}");
+            Assert.True(r + g + b > 0.5f, "Expected positive accepted lighting");
+            Assert.True(confidence > (validScreenProbes ? 0.5f : 0.9f), $"Expected confident selected lighting, got {confidence:F3}");
+            if (!validScreenProbes)
+                Assert.True(r > 0.5f && g < 0.1f && b < 0.1f, "Expected red world fallback");
+            var reference = output[0].ReadPixels();
+
+            // Keep every gather setting equal while zeroing only accepted world fallback lighting.
+            var suppressedParams = new LumOnProbeParamsUbo
+            {
+                Intensity = 1f, IndirectTint = Vector3.One, LeakThreshold = 0.5f,
+                SampleStride = 1, SuppressWorldProbeRadiance = true
+            };
+            objectParamsUbo.UploadAndBind(suppressedParams.Bytes);
+            TestFramework.RenderQuadTo(programId, output);
+            var suppressed = output[0].ReadPixels();
+            for (int i = 0; i < reference.Length; i += 4)
+            {
+                Assert.Equal(reference[i + 3], suppressed[i + 3]);
+                for (int channel = 0; channel < 3; channel++)
+                    Assert.Equal(validScreenProbes ? reference[i + channel] : 0f, suppressed[i + channel]);
+            }
         }
         finally
         {

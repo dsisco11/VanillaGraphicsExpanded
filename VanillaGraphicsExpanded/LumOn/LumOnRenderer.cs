@@ -32,7 +32,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// 4. Gather Pass - interpolate probes to pixels
 /// 5. Upsample Pass - bilateral upsample to full resolution
 /// </summary>
-public class LumOnRenderer : IRenderer, IDisposable
+public partial class LumOnRenderer : IRenderer, IDisposable
 {
     #region Constants
 
@@ -48,7 +48,8 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     private readonly ICoreClientAPI capi;
     private readonly VgeConfig config;
-    private readonly LumOnBufferManager bufferManager;
+    private readonly LumOnBufferManager primaryBuffers;
+    private LumOnBufferManager bufferManager => comparisonPass ? comparisonBuffers! : primaryBuffers;
     private readonly GBufferManager? gBufferManager;
 
     private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager;
@@ -118,7 +119,7 @@ public class LumOnRenderer : IRenderer, IDisposable
     {
         this.capi = capi;
         this.config = config;
-        this.bufferManager = bufferManager;
+        primaryBuffers = bufferManager;
         this.gBufferManager = gBufferManager;
         this.worldProbeClipmapBufferManager = worldProbeClipmapBufferManager;
 
@@ -161,6 +162,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     private void OnLeaveWorld()
     {
+        ReleaseWorldProbeComparison();
         isFirstFrame = true;
         bufferManager?.ClearHistory();
 
@@ -207,6 +209,9 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
+        primaryBuffers.WorldProbeSuppressedLighting = null;
+        if (!WorldProbeComparisonRequested)
+            ReleaseWorldProbeComparison();
         pmjJitter.EnsureCreated();
         TryRenderFrame(deltaTime, stage);
 
@@ -249,6 +254,9 @@ public class LumOnRenderer : IRenderer, IDisposable
             return false;
         }
 
+        PrepareWorldProbeComparison();
+        lightingPassesComplete = true;
+
         // Update debug timing from resolved GPU profiler samples (avoid stalls)
         UpdateGpuTimingCountersFromProfiler();
 
@@ -285,6 +293,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         if (isFirstFrame)
         {
             bufferManager.ClearHistory();
+            comparisonBuffers?.ClearHistory();
             isFirstFrame = false;
         }
 
@@ -370,6 +379,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         {
             RenderUpsamplePass(primaryFb);
         }
+
+        RenderWorldProbeComparison(primaryFb);
 
         // Pass 6 (combine) is handled by PBRCompositeRenderer.
 
@@ -535,11 +546,17 @@ public class LumOnRenderer : IRenderer, IDisposable
     private void RenderVelocityPass(FrameBufferRef primaryFb)
     {
         if (bufferManager.VelocityFbo is null)
+        {
+            lightingPassesComplete = false;
             return;
+        }
 
         var shader = capi.Shader.GetProgramByName("lumon_velocity") as LumOnVelocityShaderProgram;
         if (shader is null || shader.LoadError)
+        {
+            lightingPassesComplete = false;
             return;
+        }
 
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
@@ -554,6 +571,7 @@ public class LumOnRenderer : IRenderer, IDisposable
 
         if (!shader.TryUse())
         {
+            lightingPassesComplete = false;
             return;
         }
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
@@ -582,12 +600,19 @@ public class LumOnRenderer : IRenderer, IDisposable
     {
         var shader = capi.Shader.GetProgramByName("lumon_probe_anchor") as LumOnProbeAnchorShaderProgram;
         if (shader is null || shader.LoadError)
+        {
+            lightingPassesComplete = false;
             return;
+        }
 
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
         var fbo = bufferManager.ProbeAnchorFbo;
-        if (fbo is null) return;
+        if (fbo is null)
+        {
+            lightingPassesComplete = false;
+            return;
+        }
 
         fbo.BindWithViewport();
         fbo.Clear();
@@ -595,6 +620,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
         if (!shader.TryUse())
         {
+            lightingPassesComplete = false;
             return;
         }
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
@@ -637,7 +663,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
         var fbo = bufferManager.ProbeTraceMaskFbo;
-        if (fbo is null || bufferManager.ProbeTraceMaskTex is null)
+        if (fbo is null || primaryBuffers.ProbeTraceMaskTex is null)
             return;
 
         // Render to probe-resolution mask.
@@ -664,8 +690,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.Use();
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
 
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
-        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex!;
+        shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
+        shader.ProbeAnchorNormal = primaryBuffers.ProbeAnchorNormalTex!;
         shader.ScreenProbeAtlasHistory = bufferManager.ScreenProbeAtlasHistoryTex;
         shader.ScreenProbeAtlasMetaHistory = bufferManager.ScreenProbeAtlasMetaHistoryTex;
 
@@ -682,12 +708,19 @@ public class LumOnRenderer : IRenderer, IDisposable
     {
         var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_trace") as LumOnScreenProbeAtlasTraceShaderProgram;
         if (shader is null || shader.LoadError)
+        {
+            lightingPassesComplete = false;
             return;
+        }
 
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
         var fbo = bufferManager.ScreenProbeAtlasTraceFbo;
-        if (fbo is null) return;
+        if (fbo is null)
+        {
+            lightingPassesComplete = false;
+            return;
+        }
 
         // Render at atlas resolution (probeCountX * 8, probeCountY * 8)
         fbo.BindWithViewport();
@@ -716,12 +749,13 @@ public class LumOnRenderer : IRenderer, IDisposable
             forceUniformMask: config.LumOn.ForceUniformMask,
             forceBatchSlicing: config.LumOn.ForceBatchSlicing))
         {
+            lightingPassesComplete = false;
             return;
         }
 
-        if (bufferManager.HzbDepthTex != null)
+        if (primaryBuffers.HzbDepthTex != null)
         {
-            shader.HzbCoarseMip = Math.Clamp(config.LumOn.HzbCoarseMip, 0, Math.Max(0, bufferManager.HzbDepthTex.MipLevels - 1));
+            shader.HzbCoarseMip = Math.Clamp(config.LumOn.HzbCoarseMip, 0, Math.Max(0, primaryBuffers.HzbDepthTex.MipLevels - 1));
         }
 
         // World-probe clipmap uses compile-time defines. They must be configured before Use().
@@ -749,37 +783,47 @@ public class LumOnRenderer : IRenderer, IDisposable
                 wpAtlasTexelsPerUpdate,
                 worldProbeDiffuseStride))
             {
+                lightingPassesComplete = false;
                 return;
             }
         }
         else
         {
-            shader.EnsureWorldProbeClipmapDefines(
+            if (!shader.EnsureWorldProbeClipmapDefines(
                 enabled: false,
                 baseSpacing: 0,
                 levels: 0,
                 resolution: 0,
                 worldProbeOctahedralTileSize: 0,
                 worldProbeAtlasTexelsPerUpdate: 0,
-                worldProbeDiffuseStride: 0);
+                worldProbeDiffuseStride: 0))
+            {
+                lightingPassesComplete = false;
+                return;
+            }
         }
 
-        shader.Use();
+        if (!shader.TryUse())
+        {
+            lightingPassesComplete = false;
+            return;
+        }
+        shader.SuppressWorldProbeRadiance = comparisonPass;
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
         shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
         // Bind probe anchor textures
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
-        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex!;
+        shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
+        shader.ProbeAnchorNormal = primaryBuffers.ProbeAnchorNormalTex!;
 
         // Phase 10: bind probe-resolution trace mask (when PIS is enabled, shader will prefer it).
-        shader.ProbeTraceMask = bufferManager.ProbeTraceMaskTex;
+        shader.ProbeTraceMask = primaryBuffers.ProbeTraceMaskTex;
 
         // Bind scene depth for ray marching
         shader.PrimaryDepth = primaryFb.DepthTextureId;
 
         // Bind LumOn-owned albedo plus VGE material properties for hit radiance sampling.
-        shader.SurfaceAlbedo = bufferManager.SurfaceAlbedoTex;
+        shader.SurfaceAlbedo = primaryBuffers.SurfaceAlbedoTex;
         shader.GBufferMaterial = gBufferManager?.MaterialTextureId ?? 0;
 
 
@@ -788,9 +832,9 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ScreenProbeAtlasMetaHistory = bufferManager.ScreenProbeAtlasMetaHistoryTex!;
 
         // HZB depth pyramid (always on)
-        if (bufferManager.HzbDepthTex != null)
+        if (primaryBuffers.HzbDepthTex != null)
         {
-            shader.HzbDepth = bufferManager.HzbDepthTex;
+            shader.HzbDepth = primaryBuffers.HzbDepthTex;
         }
 
         if (hasWorldProbe)
@@ -819,17 +863,23 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     private void BuildHzb(FrameBufferRef primaryFb)
     {
-        if (bufferManager.HzbDepthTex is null || bufferManager.HzbFbo is null || !bufferManager.HzbFbo.IsValid)
+        if (primaryBuffers.HzbDepthTex is null || bufferManager.HzbFbo is null || !bufferManager.HzbFbo.IsValid)
+        {
+            lightingPassesComplete = false;
             return;
+        }
 
         var copy = capi.Shader.GetProgramByName("lumon_hzb_copy") as LumOnHzbCopyShaderProgram;
         var down = capi.Shader.GetProgramByName("lumon_hzb_downsample") as LumOnHzbDownsampleShaderProgram;
         if (copy is null || down is null || copy.LoadError || down.LoadError)
+        {
+            lightingPassesComplete = false;
             return;
+        }
 
         int previousFbo = Rendering.GpuFramebuffer.SaveBinding();
 
-        var hzb = bufferManager.HzbDepthTex;
+        var hzb = primaryBuffers.HzbDepthTex;
         var fbo = bufferManager.HzbFbo!;
 
         capi.Render.GlToggleBlend(false);
@@ -883,12 +933,19 @@ public class LumOnRenderer : IRenderer, IDisposable
     {
         var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_temporal") as LumOnScreenProbeAtlasTemporalShaderProgram;
         if (shader is null || shader.LoadError)
+        {
+            lightingPassesComplete = false;
             return;
+        }
 
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
         var fbo = bufferManager.ScreenProbeAtlasCurrentFbo;
-        if (fbo is null) return;
+        if (fbo is null)
+        {
+            lightingPassesComplete = false;
+            return;
+        }
 
         // Render to current octahedral atlas (which will become history after swap)
         fbo.BindWithViewport();
@@ -910,10 +967,15 @@ public class LumOnRenderer : IRenderer, IDisposable
             forceUniformMask: config.LumOn.ForceUniformMask,
             forceBatchSlicing: config.LumOn.ForceBatchSlicing))
         {
+            lightingPassesComplete = false;
             return;
         }
 
-        shader.Use();
+        if (!shader.TryUse())
+        {
+            lightingPassesComplete = false;
+            return;
+        }
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
         shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
@@ -932,7 +994,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         }
 
         // Bind probe anchors for validity check
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
+        shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
 
         // Bind meta trace output (pass-through for now)
         shader.ScreenProbeAtlasMetaCurrent = bufferManager.ScreenProbeAtlasMetaTraceTex!;
@@ -941,10 +1003,10 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ScreenProbeAtlasMetaHistory = bufferManager.ScreenProbeAtlasMetaHistoryTex!;
 
         // Phase 10: bind probe-resolution trace mask (when PIS is enabled, shader will prefer it).
-        shader.ProbeTraceMask = bufferManager.ProbeTraceMaskTex;
+        shader.ProbeTraceMask = primaryBuffers.ProbeTraceMaskTex;
 
         // Phase 14: bind velocity buffer so temporal can reproject history.
-        shader.VelocityTex = bufferManager.VelocityTex;
+        shader.VelocityTex = primaryBuffers.VelocityTex;
 
         // Reconstruct the same jittered probe UV as the probe-anchor pass.
         shader.PmjJitter = pmjJitter;
@@ -981,12 +1043,19 @@ public class LumOnRenderer : IRenderer, IDisposable
     {
         var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_project_sh9") as LumOnScreenProbeAtlasProjectSh9ShaderProgram;
         if (shader is null || shader.LoadError)
+        {
+            lightingPassesComplete = false;
             return;
+        }
 
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
         var outFbo = bufferManager.ProbeSh9Fbo;
-        if (outFbo is null) return;
+        if (outFbo is null)
+        {
+            lightingPassesComplete = false;
+            return;
+        }
 
         var inputAtlas = bufferManager.ScreenProbeAtlasFilteredTex
             ?? bufferManager.ScreenProbeAtlasCurrentTex
@@ -995,18 +1064,26 @@ public class LumOnRenderer : IRenderer, IDisposable
             ?? bufferManager.ScreenProbeAtlasMetaCurrentTex
             ?? bufferManager.ScreenProbeAtlasMetaTraceTex;
 
-        if (inputAtlas is null || inputMeta is null) return;
+        if (inputAtlas is null || inputMeta is null)
+        {
+            lightingPassesComplete = false;
+            return;
+        }
 
         outFbo.BindWithViewport();
         outFbo.Clear();
         capi.Render.GlToggleBlend(false);
 
-        shader.Use();
+        if (!shader.TryUse())
+        {
+            lightingPassesComplete = false;
+            return;
+        }
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
         shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
         shader.ScreenProbeAtlas = inputAtlas;
         shader.ScreenProbeAtlasMeta = inputMeta;
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
+        shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
 
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
@@ -1020,15 +1097,25 @@ public class LumOnRenderer : IRenderer, IDisposable
     {
         var shader = capi.Shader.GetProgramByName("lumon_probe_sh9_gather") as LumOnProbeSh9GatherShaderProgram;
         if (shader is null || shader.LoadError)
+        {
+            lightingPassesComplete = false;
             return;
+        }
 
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
         var fbo = bufferManager.IndirectHalfFbo;
-        if (fbo is null) return;
+        if (fbo is null)
+        {
+            lightingPassesComplete = false;
+            return;
+        }
 
         if (bufferManager.ProbeSh9Tex0 is null || bufferManager.ProbeSh9Tex6 is null)
+        {
+            lightingPassesComplete = false;
             return;
+        }
 
         bool hasWorldProbe = TryBindWorldProbeClipmapCommon(
             out var worldProbeResources,
@@ -1050,6 +1137,7 @@ public class LumOnRenderer : IRenderer, IDisposable
                 worldProbeAtlasTexelsPerUpdate: hasWorldProbe ? worldProbeAtlasTexelsPerUpdate : 0,
                 worldProbeDiffuseStride: hasWorldProbe ? 2 : 0))
         {
+            lightingPassesComplete = false;
             return;
         }
 
@@ -1059,6 +1147,7 @@ public class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
         if (!shader.TryUse())
         {
+            lightingPassesComplete = false;
             return;
         }
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
@@ -1072,8 +1161,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ProbeSh5 = bufferManager.ProbeSh9Tex5!;
         shader.ProbeSh6 = bufferManager.ProbeSh9Tex6;
 
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
-        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex!;
+        shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
+        shader.ProbeAnchorNormal = primaryBuffers.ProbeAnchorNormalTex!;
 
         shader.PrimaryDepth = primaryFb.DepthTextureId;
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
@@ -1098,18 +1187,29 @@ public class LumOnRenderer : IRenderer, IDisposable
     {
         var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_gather") as LumOnScreenProbeAtlasGatherShaderProgram;
         if (shader is null || shader.LoadError)
+        {
+            lightingPassesComplete = false;
             return;
+        }
 
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
         var fbo = bufferManager.IndirectHalfFbo;
-        if (fbo is null) return;
+        if (fbo is null)
+        {
+            lightingPassesComplete = false;
+            return;
+        }
 
         // Prefer filtered atlas (post-temporal) when available.
         var probeAtlas = bufferManager.ScreenProbeAtlasFilteredTex
             ?? bufferManager.ScreenProbeAtlasCurrentTex
             ?? bufferManager.ScreenProbeAtlasTraceTex;
-        if (probeAtlas is null) return;
+        if (probeAtlas is null)
+        {
+            lightingPassesComplete = false;
+            return;
+        }
 
         bool hasWorldProbe = TryBindWorldProbeClipmapCommon(
             out var worldProbeResources,
@@ -1131,6 +1231,7 @@ public class LumOnRenderer : IRenderer, IDisposable
                 worldProbeAtlasTexelsPerUpdate: hasWorldProbe ? worldProbeAtlasTexelsPerUpdate : 0,
                 worldProbeDiffuseStride: hasWorldProbe ? 2 : 0))
         {
+            lightingPassesComplete = false;
             return;
         }
 
@@ -1138,7 +1239,12 @@ public class LumOnRenderer : IRenderer, IDisposable
         fbo.Clear();
 
         capi.Render.GlToggleBlend(false);
-        shader.Use();
+        if (!shader.TryUse())
+        {
+            lightingPassesComplete = false;
+            return;
+        }
+        shader.SuppressWorldProbeRadiance = comparisonPass;
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
         shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
@@ -1146,8 +1252,8 @@ public class LumOnRenderer : IRenderer, IDisposable
         shader.ScreenProbeAtlas = probeAtlas;
 
         // Bind probe anchors
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
-        shader.ProbeAnchorNormal = bufferManager.ProbeAnchorNormalTex!;
+        shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
+        shader.ProbeAnchorNormal = primaryBuffers.ProbeAnchorNormalTex!;
 
         // Bind G-buffer for pixel info
         shader.PrimaryDepth = primaryFb.DepthTextureId;
@@ -1217,28 +1323,43 @@ public class LumOnRenderer : IRenderer, IDisposable
     {
         var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_filter") as LumOnScreenProbeAtlasFilterShaderProgram;
         if (shader is null || shader.LoadError)
+        {
+            lightingPassesComplete = false;
             return;
+        }
 
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
         var fbo = bufferManager.ScreenProbeAtlasFilteredFbo;
-        if (fbo is null) return;
+        if (fbo is null)
+        {
+            lightingPassesComplete = false;
+            return;
+        }
 
         // Filter the stabilized atlas for this frame (prefer temporal output, fallback to trace)
         var inputAtlas = bufferManager.ScreenProbeAtlasCurrentTex ?? bufferManager.ScreenProbeAtlasTraceTex;
         var inputMeta = bufferManager.ScreenProbeAtlasMetaCurrentTex ?? bufferManager.ScreenProbeAtlasMetaTraceTex;
-        if (inputAtlas is null || inputMeta is null) return;
+        if (inputAtlas is null || inputMeta is null)
+        {
+            lightingPassesComplete = false;
+            return;
+        }
 
         fbo.BindWithViewport();
 
         capi.Render.GlToggleBlend(false);
-        shader.Use();
+        if (!shader.TryUse())
+        {
+            lightingPassesComplete = false;
+            return;
+        }
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
         shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
         shader.ScreenProbeAtlas = inputAtlas;
         shader.ScreenProbeAtlasMeta = inputMeta;
-        shader.ProbeAnchorPosition = bufferManager.ProbeAnchorPositionTex!;
+        shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
 
         // Minimal initial settings: 3x3 within-tile filter with moderate edge stopping.
         shader.FilterRadius = 1;
@@ -1257,13 +1378,21 @@ public class LumOnRenderer : IRenderer, IDisposable
     {
         var shader = capi.Shader.GetProgramByName("lumon_upsample") as LumOnUpsampleShaderProgram;
         if (shader is null || shader.LoadError)
+        {
+            lightingPassesComplete = false;
             return;
+        }
 
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
         // Preferred path: write to full-res indirect buffer for the final composite.
         // This keeps the primary scene untouched until PBRCompositeRenderer merges everything.
         var fullResFbo = bufferManager.IndirectFullFbo;
+        if (comparisonPass && fullResFbo is null)
+        {
+            lightingPassesComplete = false;
+            return;
+        }
         if (fullResFbo is not null)
         {
             fullResFbo.BindWithViewport();
@@ -1283,7 +1412,11 @@ public class LumOnRenderer : IRenderer, IDisposable
             capi.Render.GlToggleBlend(true, EnumBlendMode.Glow);
         }
 
-        shader.Use();
+        if (!shader.TryUse())
+        {
+            lightingPassesComplete = false;
+            return;
+        }
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
         shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
@@ -1363,6 +1496,8 @@ public class LumOnRenderer : IRenderer, IDisposable
 
     public void Dispose()
     {
+        comparisonBuffers?.Dispose();
+        primaryBuffers.WorldProbeSuppressedLighting = null;
         pmjJitter.Dispose();
         uniformBuffers.Dispose();
         // Unregister world events

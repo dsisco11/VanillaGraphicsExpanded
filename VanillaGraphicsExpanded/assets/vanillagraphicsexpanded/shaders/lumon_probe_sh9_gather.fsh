@@ -196,6 +196,11 @@ void main(void)
         pixelPosWS,
         pixelNormalWS);
 
+    // Suppress only a selected world replacement; do not activate the sky or screen fallback.
+    if (suppressWorldProbeRadiance && gatherResult.usedWorldProbe)
+    {
+        gatherResult.irradiance = vec3(0.0);
+    }
     vec3 blended = gatherResult.irradiance * intensity * indirectTint;
     outColor = vec4(blended, gatherResult.confidence);
 }

@@ -82,9 +82,10 @@ public enum LumOnDebugMode
     // R = reconstructed screen confidence (screenW), G = raw world-probe confidence, B = final confidence (sumW)
     WorldProbeRawConfidences = 42,
 
-    // Contribution split (screen vs world-probe)
-    WorldProbeContributionOnly = 43,
-    ScreenSpaceContributionOnly = 44,
+    /// <summary>Signed effect of world radiance across paired lighting executions.</summary>
+    WorldProbeLightingEffect = 43,
+    /// <summary>Comparison lighting with accepted world radiance zeroed, preserving fallback decisions.</summary>
+    WorldProbeSuppressedLighting = 44,
 
     // Additional probe-atlas debug views (append-only)
     ProbeAtlasCurrentRadiance = 45,

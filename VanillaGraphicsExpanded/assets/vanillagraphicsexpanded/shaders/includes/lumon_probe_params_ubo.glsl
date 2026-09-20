@@ -18,7 +18,7 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgeLumOnProbeParamsUBO
     // filterRadius.x, sampleStride.y, reserved.zw
     ivec4 probeInts0;
 
-    // depthDiscontinuityThreshold.x, reserved.yzw
+    // depthDiscontinuityThreshold.x, suppressWorldProbeRadiance.y, reserved.zw
     vec4 anchorFloats0;
 } vgeLumOnProbeParams;
 
@@ -33,6 +33,8 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgeLumOnProbeParamsUBO
 
 #define filterRadius (vgeLumOnProbeParams.probeInts0.x)
 #define sampleStride (vgeLumOnProbeParams.probeInts0.y)
+
+#define suppressWorldProbeRadiance (vgeLumOnProbeParams.anchorFloats0.y > 0.5)
 
 #define depthDiscontinuityThreshold (vgeLumOnProbeParams.anchorFloats0.x)
 

@@ -30,7 +30,7 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgeLumOnDebugParamsUBO
     // indirectTint.xyz, indirectIntensity.w
     vec4 compositeTint_intensity;
 
-    // diffuseAOStrength.x, specularAOStrength.y, reserved.zw
+    // diffuseAOStrength.x, specularAOStrength.y, worldProbeComparisonReady.z, reserved.w
     vec4 aoStrengths;
 } vgeLumOnDebugParams;
 
@@ -58,6 +58,7 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgeLumOnDebugParamsUBO
 // Composite parameters
 #define indirectIntensity (vgeLumOnDebugParams.compositeTint_intensity.w)
 #define indirectTint (vgeLumOnDebugParams.compositeTint_intensity.xyz)
+#define worldProbeComparisonReady (vgeLumOnDebugParams.aoStrengths.z > 0.5)
 #define diffuseAOStrength (vgeLumOnDebugParams.aoStrengths.x)
 #define specularAOStrength (vgeLumOnDebugParams.aoStrengths.y)
 

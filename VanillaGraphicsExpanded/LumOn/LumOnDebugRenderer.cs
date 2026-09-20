@@ -1037,6 +1037,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
             // Phase 15 composite debug inputs
             shader.IndirectDiffuseFull = bufferManager?.IndirectFullTex;
+            shader.WorldProbeSuppressedLighting = bufferManager?.WorldProbeSuppressedLighting;
             shader.GBufferAlbedo = bufferManager?.SurfaceAlbedoTex;
             shader.GBufferMaterial = gBufferManager?.MaterialTextureId ?? 0;
 
@@ -1186,8 +1187,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     {
         if (current is >= LumOnDebugMode.WorldProbeIrradianceCombined and <= LumOnDebugMode.WorldProbeOrbsPoints
             || current == LumOnDebugMode.WorldProbeRawConfidences
-            || current == LumOnDebugMode.WorldProbeContributionOnly
-            || current == LumOnDebugMode.ScreenSpaceContributionOnly
+            || current == LumOnDebugMode.WorldProbeLightingEffect
+            || current == LumOnDebugMode.WorldProbeSuppressedLighting
             || current == LumOnDebugMode.WorldProbeImportance)
         {
             worldProbeClipmapDebugDirty = true;
@@ -2732,8 +2733,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             or LumOnDebugMode.WorldProbeBlendWeights
             or LumOnDebugMode.WorldProbeCrossLevelBlend
             or LumOnDebugMode.WorldProbeRawConfidences
-            or LumOnDebugMode.WorldProbeContributionOnly
-            or LumOnDebugMode.ScreenSpaceContributionOnly
+            or LumOnDebugMode.WorldProbeLightingEffect
+            or LumOnDebugMode.WorldProbeSuppressedLighting
             or LumOnDebugMode.WorldProbeImportance
             => LumOnDebugShaderProgramKind.WorldProbe,
 
@@ -2786,8 +2787,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 or LumOnDebugMode.LumonScenePageTableOccupancy)
             || (mode is >= LumOnDebugMode.TraceSceneBoundsL0 and <= LumOnDebugMode.LumOnScenesOverview)
             || mode is LumOnDebugMode.WorldProbeRawConfidences
-                or LumOnDebugMode.WorldProbeContributionOnly
-                or LumOnDebugMode.ScreenSpaceContributionOnly
+                or LumOnDebugMode.WorldProbeLightingEffect
+                or LumOnDebugMode.WorldProbeSuppressedLighting
                 or LumOnDebugMode.WorldProbeImportance
                 or LumOnDebugMode.ProbeAtlasTemporalRejection
                 or LumOnDebugMode.ProbeAtlasPisTraceMask

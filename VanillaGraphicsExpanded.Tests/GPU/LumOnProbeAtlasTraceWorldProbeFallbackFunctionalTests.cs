@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.LumOn.Shaders;
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using Xunit;
@@ -10,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : LumOnShaderFunctionalTestBase
+public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : LumOnShaderFunctionalTestBase
 {
     private const uint LUMON_META_WORLDPROBE_FALLBACK = 1u << 5;
 
@@ -220,6 +222,10 @@ public class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : LumOnShader
 
             GL.UseProgram(0);
 
+            using var probeParamsBuffer = new ObjectParamsUbo("Tests.WorldProbeComparison.Params");
+            var probeParams = new LumOnProbeParamsUbo();
+            UniformBlockBindingUtil.EnsureBlockBound(programId, LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
+            probeParamsBuffer.UploadAndBind(probeParams.Bytes);
             TestFramework.RenderQuadTo(programId, output);
 
             var radianceOut = output[0].ReadPixels();
@@ -245,6 +251,26 @@ public class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : LumOnShader
 
             // The selected first probe tile is red; the other tiles are blue and sky fallback is green.
             Assert.True(r > 0.8f && g < 0.2f && b < 0.2f, $"Expected red first-probe radiance, got ({r:F3}, {g:F3}, {b:F3})");
+
+            // Suppressing accepted world radiance must preserve visibility and validity, rather
+            // than taking the bright green sky fallback or changing the ray's hit distance.
+            probeParams.SuppressWorldProbeRadiance = true;
+            probeParamsBuffer.UploadAndBind(probeParams.Bytes);
+            TestFramework.RenderQuadTo(programId, output);
+            var suppressedRadiance = output[0].ReadPixels();
+            var suppressedMeta = output[1].ReadPixels();
+            Assert.Equal(metaOut, suppressedMeta);
+            for (int i = 0; i < radianceOut.Length; i += 4)
+            {
+                Assert.Equal(0f, suppressedRadiance[i]);
+                Assert.Equal(0f, suppressedRadiance[i + 1]);
+                Assert.Equal(0f, suppressedRadiance[i + 2]);
+                Assert.Equal(radianceOut[i + 3], suppressedRadiance[i + 3]);
+            }
+            foreach (bool sh9 in new[] { false, true })
+            {
+                AssertPairedHistoryReachesGather(radianceOut, suppressedRadiance, metaOut, sh9);
+            }
         }
         finally
         {

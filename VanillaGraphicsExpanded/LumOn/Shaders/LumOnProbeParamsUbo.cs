@@ -147,8 +147,21 @@ public sealed class LumOnProbeParamsUbo : CpuUniformBuffer
         get => UboPacking.ReadFloat(DataReadOnly, OffsetAnchorFloats0 + 0);
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetAnchorFloats0, value, 0f, 0f, 0f);
+            UboPacking.WriteVec4(DataWritable, OffsetAnchorFloats0, value, SuppressWorldProbeRadiance ? 1f : 0f, 0f, 0f);
             MarkDirty(OffsetAnchorFloats0, 16);
         }
     }
+    /// <summary>
+    /// Zeros accepted world radiance without changing sample validity or fallback selection.
+    /// </summary>
+    public bool SuppressWorldProbeRadiance
+    {
+        get => UboPacking.ReadFloat(DataReadOnly, OffsetAnchorFloats0 + 4) != 0f;
+        set
+        {
+            UboPacking.WriteVec4(DataWritable, OffsetAnchorFloats0, DepthDiscontinuityThreshold, value ? 1f : 0f, 0f, 0f);
+            MarkDirty(OffsetAnchorFloats0, 16);
+        }
+    }
+
 }

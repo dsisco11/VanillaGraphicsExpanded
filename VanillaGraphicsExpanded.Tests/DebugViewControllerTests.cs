@@ -157,10 +157,10 @@ public sealed class DebugViewControllerTests
         registry.Register(ExclusiveView("ex", new NoopDisposable()));
         Assert.True(controller.TryActivate("ex", out _));
 
-        context.Config.LumOn.DebugMode = LumOnDebugMode.WorldProbeContributionOnly;
+        context.Config.LumOn.DebugMode = LumOnDebugMode.WorldProbeLightingEffect;
         controller.NotifyExclusiveModeChanged();
 
         Assert.Equal("ex", context.Config.Debug.DebugViews.ActiveExclusiveViewId);
-        Assert.Equal(LumOnDebugMode.WorldProbeContributionOnly, context.Config.Debug.DebugViews.ActiveExclusiveLumOnDebugMode);
+        Assert.Equal(LumOnDebugMode.WorldProbeLightingEffect, context.Config.Debug.DebugViews.ActiveExclusiveLumOnDebugMode);
     }
 }

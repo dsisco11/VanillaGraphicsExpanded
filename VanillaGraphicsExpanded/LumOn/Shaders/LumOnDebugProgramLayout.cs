@@ -44,6 +44,7 @@ internal sealed class LumOnDebugProgramLayout : GpuProgramLayout
 
         RegisterSamplerUnit("worldProbeRadianceAtlas", 19, required: false);
         RegisterSamplerUnit("vge_traceOccL0", 20, required: false);
+        RegisterSamplerUnit("worldProbeSuppressedLighting", 21, required: false);
         RegisterSamplerUnit("worldProbeVis0", 22, required: false);
         RegisterSamplerUnit("worldProbeDist0", 23, required: false);
         RegisterSamplerUnit("worldProbeMeta0", 24, required: false);

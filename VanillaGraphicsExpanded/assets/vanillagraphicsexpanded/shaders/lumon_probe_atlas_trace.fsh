@@ -282,7 +282,8 @@ void main(void)
         LumOnWorldProbeRadianceSample wp = lumonWorldProbeSampleClipmapRadianceBound(probePosWS, rayDirWS);
         if (wp.confidence > 1e-3)
         {
-            radiance = wp.radiance;
+            // Keep confidence, flags, and ray distance identical in the paired diagnostic.
+            radiance = suppressWorldProbeRadiance ? vec3(0.0) : wp.radiance;
             usedWorldProbeFallback = true;
             worldProbeFallbackConfidence = wp.confidence;
         }

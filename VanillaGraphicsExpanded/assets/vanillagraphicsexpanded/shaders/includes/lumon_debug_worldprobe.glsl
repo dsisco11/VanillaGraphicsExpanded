@@ -1,84 +1,30 @@
 // Debug modes 31-39, 42-44: World-probe clipmap debug views (Phase 18)
 
-@import "./lumon_worldprobe_gather.glsl"
-
-// Debug modes 43-44: Contribution split
+// Debug modes 43-44: Paired lighting comparison
+/** Maps nonnegative comparison lighting into the display range. */
 vec3 lumonTonemapReinhard(vec3 hdr)
 {
     hdr = max(hdr, vec3(0.0));
     return hdr / (hdr + vec3(1.0));
 }
 
-vec3 lumonComputeWorldProbeContributionOnly()
+/** Shows the signed RGB effect after both branches have completed linear-light upsampling. */
+vec4 renderWorldProbeLightingEffectDebug()
 {
-    ivec2 halfCoord = clamp(
-        ivec2(uv * halfResSize),
-        ivec2(0),
-        ivec2(halfResSize) - 1);
-    ivec2 bestFull;
-    float depth;
-    vec3 normalWS;
-    if (!lumonSelectGuidesForHalfResCoord(
-        halfCoord,
-        primaryDepth,
-        gBufferNormal,
-        ivec2(screenSize),
-        bestFull,
-        depth,
-        normalWS))
-    {
-        return vec3(0.0);
-    }
-
-    vec2 guideUv = (vec2(bestFull) + 0.5) / screenSize;
-    vec3 posVS = lumonReconstructViewPos(guideUv, depth, invProjectionMatrix);
-    vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
-
-    LumOnWorldProbeGatherFallback worldProbe = lumonSampleWorldProbeGatherCandidate(posWS, normalWS);
-    if (!worldProbe.used)
-    {
-        return vec3(0.0);
-    }
-
-    vec3 worldContrib = worldProbe.irradiance * indirectIntensity * indirectTint;
-
-    // The gather result stores its selected irradiance and confidence, but no source bit.
-    // Match against the shared fallback candidate after its gather-space intensity/tint conversion.
-    vec4 gathered = texelFetch(indirectHalf, halfCoord, 0);
-    if (!lumonMatchesWorldProbeGatherResult(
-        gathered.rgb,
-        gathered.a,
-        worldContrib,
-        worldProbe.confidence))
-    {
-        return vec3(0.0);
-    }
-
-    return max(worldContrib, vec3(0.0));
+    // A missing paired output is shown explicitly, rather than mistaken for zero effect.
+    if (!worldProbeComparisonReady)
+        return vec4(0.5, 0.0, 0.5, 1.0);
+    vec3 delta = texture(indirectDiffuseFull, uv).rgb - texture(worldProbeSuppressedLighting, uv).rgb;
+    // Each channel maps negative to below neutral gray and positive to above it.
+    return vec4(vec3(0.5) + 0.5 * delta / (vec3(1.0) + abs(delta)), 1.0);
 }
 
-vec4 renderWorldProbeContributionOnlyDebug()
+/** Shows the counterfactual lighting, retaining sky fallbacks and all sample metadata. */
+vec4 renderWorldProbeSuppressedLightingDebug()
 {
-    vec3 worldContrib = lumonComputeWorldProbeContributionOnly();
-    return vec4(lumonTonemapReinhard(worldContrib), 1.0);
-}
-
-vec4 renderScreenSpaceContributionOnlyDebug()
-{
-    float depth = texture(primaryDepth, uv).r;
-    if (lumonIsSky(depth))
-    {
-        return vec4(0.0, 0.0, 0.0, 1.0);
-    }
-
-    // indirectHalf.rgb contains the *blended* (screen+world) irradiance in gather output space.
-    vec3 blended = texture(indirectHalf, uv).rgb;
-
-    // Derive screen portion as blended - worldContribution.
-    vec3 worldContrib = lumonComputeWorldProbeContributionOnly();
-    vec3 screenContrib = max(blended - worldContrib, vec3(0.0));
-
-    return vec4(lumonTonemapReinhard(screenContrib), 1.0);
+    if (!worldProbeComparisonReady)
+        return vec4(0.5, 0.0, 0.5, 1.0);
+    return vec4(lumonTonemapReinhard(texture(worldProbeSuppressedLighting, uv).rgb), 1.0);
 }
 
 vec4 lumonWorldProbeDebugDisabledColor()
@@ -453,8 +399,8 @@ vec4 RenderDebug_WorldProbe(vec2 screenPos)
         case 38: return renderWorldProbeBlendWeightsDebug();
         case 39: return renderWorldProbeCrossLevelBlendDebug();
         case 42: return renderWorldProbeRawConfidencesDebug();
-        case 43: return renderWorldProbeContributionOnlyDebug();
-        case 44: return renderScreenSpaceContributionOnlyDebug();
+        case 43: return renderWorldProbeLightingEffectDebug();
+        case 44: return renderWorldProbeSuppressedLightingDebug();
         case 68: return renderWorldProbeImportanceDebug();
         default: return vec4(0.0, 0.0, 0.0, 1.0);
     }

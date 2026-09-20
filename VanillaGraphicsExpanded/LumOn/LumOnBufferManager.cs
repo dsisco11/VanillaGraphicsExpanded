@@ -364,6 +364,12 @@ public sealed class LumOnBufferManager : IDisposable
     /// </summary>
     public bool IsInitialized => isInitialized;
 
+    /// <summary>Monotonic version of storage allocation and history invalidation.</summary>
+    internal int HistoryRevision { get; private set; }
+
+    /// <summary>Borrowed comparison output, published only after a complete paired frame.</summary>
+    internal GpuTexture? WorldProbeSuppressedLighting { get; set; }
+
     #endregion
 
     #region Constructor
@@ -389,6 +395,8 @@ public sealed class LumOnBufferManager : IDisposable
     {
         if (forceRecreateOnNextEnsure || !isInitialized || screenWidth != lastScreenWidth || screenHeight != lastScreenHeight)
         {
+            HistoryRevision++;
+            WorldProbeSuppressedLighting = null;
             CreateBuffers(screenWidth, screenHeight);
             lastScreenWidth = screenWidth;
             lastScreenHeight = screenHeight;
@@ -425,6 +433,8 @@ public sealed class LumOnBufferManager : IDisposable
     /// </summary>
     public void ClearHistory()
     {
+        HistoryRevision++;
+        WorldProbeSuppressedLighting = null;
         if (!isInitialized)
             return;
 
@@ -707,6 +717,7 @@ public sealed class LumOnBufferManager : IDisposable
 
     public void Dispose()
     {
+        WorldProbeSuppressedLighting = null;
         DeleteBuffers();
     }
 

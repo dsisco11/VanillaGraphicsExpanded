@@ -167,9 +167,18 @@ public class LumOnDebugShaderProgram : GpuProgram
     /// </summary>
     public GpuTexture? ProbePisEnergy { set => Layout.BindTexture2D(ProgramId, "probePisEnergy", value?.TextureId ?? 0, LayoutWarn); }
 
-    /// <summary>
-    /// Full-resolution indirect diffuse (upsampled) used by composite debug views.
-    /// </summary>
+    /// <summary>Paired full-resolution output with accepted world radiance zeroed.</summary>
+    public GpuTexture? WorldProbeSuppressedLighting
+    {
+        set
+        {
+            Layout.BindTexture2D(ProgramId, "worldProbeSuppressedLighting", value?.TextureId ?? 0, LayoutWarn);
+            Params.WorldProbeComparisonReady = value is not null;
+            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
+
+    /// <summary>Full-resolution indirect diffuse used by composite debug views.</summary>
     public GpuTexture? IndirectDiffuseFull { set => Layout.BindTexture2D(ProgramId, "indirectDiffuseFull", value?.TextureId ?? 0, LayoutWarn); }
 
     /// <summary>

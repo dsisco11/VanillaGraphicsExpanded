@@ -10,7 +10,7 @@ public sealed class LumOnDebugViewsPhase5UnitTests
     public void LumOnDebugMode_ProbeAtlasPhase3Modes_AreAppendOnlyAndStable()
     {
         // Guard against accidental renumbering (append-only contract).
-        Assert.Equal(44, (int)LumOnDebugMode.ScreenSpaceContributionOnly);
+        Assert.Equal(44, (int)LumOnDebugMode.WorldProbeSuppressedLighting);
 
         Assert.Equal(45, (int)LumOnDebugMode.ProbeAtlasCurrentRadiance);
         Assert.Equal(46, (int)LumOnDebugMode.ProbeAtlasGatherInputRadiance);

@@ -19,6 +19,7 @@ uniform sampler2D probeAnchorNormal;
 uniform sampler2D radianceTexture0;
 uniform sampler2D radianceTexture1;     // Second SH texture for full unpacking
 uniform sampler2D indirectHalf;
+uniform sampler2D worldProbeSuppressedLighting;
 
 // Temporal textures
 uniform sampler2D historyMeta;          // linearized depth, normal, accumCount

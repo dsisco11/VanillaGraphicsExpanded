@@ -44,13 +44,6 @@ LumOnWorldProbeGatherFallback lumonGatherWorldProbeFallback(
     return result;
 }
 
-LumOnWorldProbeGatherFallback lumonSampleWorldProbeGatherCandidate(
-    vec3 pixelPosWS,
-    vec3 pixelNormalWS)
-{
-    return lumonGatherWorldProbeFallback(pixelPosWS, pixelNormalWS, 0.0);
-}
-
 LumOnWorldProbeGatherResult lumonResolveWorldProbeGather(
     vec3 screenIrradiance,
     float screenConfidence,
@@ -75,18 +68,6 @@ LumOnWorldProbeGatherResult lumonResolveWorldProbeGather(
     }
 
     return result;
-}
-
-bool lumonMatchesWorldProbeGatherResult(
-    vec3 gatheredIrradiance,
-    float gatheredConfidence,
-    vec3 worldProbeIrradiance,
-    float worldProbeConfidence)
-{
-    const float radianceTolerance = 2e-3;
-    const float confidenceTolerance = 2e-3;
-    return abs(gatheredConfidence - worldProbeConfidence) <= confidenceTolerance
-        && all(lessThanEqual(abs(gatheredIrradiance - worldProbeIrradiance), vec3(radianceTolerance)));
 }
 
 #endif

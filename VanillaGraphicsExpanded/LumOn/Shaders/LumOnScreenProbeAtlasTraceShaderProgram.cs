@@ -32,6 +32,22 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
 
     private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();
 
+    #region Diagnostic Controls
+
+    /// <summary>
+    /// Zeros accepted world radiance while preserving all metadata and sampling decisions.
+    /// </summary>
+    public bool SuppressWorldProbeRadiance
+    {
+        set
+        {
+            Params.SuppressWorldProbeRadiance = value;
+            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
+
+    #endregion
+
     #region Static
 
     public static void Register(ICoreClientAPI api)
