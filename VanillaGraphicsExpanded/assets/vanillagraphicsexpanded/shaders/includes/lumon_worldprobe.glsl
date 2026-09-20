@@ -70,12 +70,14 @@ struct LumOnWorldProbeSample
 {
 	vec3 irradiance;
 	float confidence;
+	bool cacheAvailable; // Covered but rejected/unfinished samples must not imply open sky.
 };
 
 struct LumOnWorldProbeRadianceSample
 {
 	vec3 radiance;
 	float confidence;
+	bool cacheAvailable; // Covered but rejected/unfinished samples must not imply open sky.
 };
 
 float lumonWorldProbeSpacing(float baseSpacing, int level)
@@ -196,7 +198,12 @@ float lumonWorldProbeDecodeHitDistanceSigned(float alphaSigned)
 	return exp(abs(alphaSigned)) - 1.0;
 }
 
+@import "./lumon_worldprobe_visibility.glsl"
+
+/** Accumulates only spatially visible corners and records cache coverage separately from usable weight. */
 void lumonWorldProbeAccumulateCornerScalars(
+	sampler2D probeRadianceAtlas, vec3 worldPosRel, vec3 originMinCorner, float spacing,
+	inout bool cacheAvailable,
 	sampler2D probeVis0,
 	sampler2D probeMeta0,
 	ivec3 localIdx,
@@ -218,6 +225,14 @@ void lumonWorldProbeAccumulateCornerScalars(
 	float conf = clamp(meta.x, 0.0, 1.0);
 
 	outW = wt * conf;
+    if (outW > 0.0)
+    {
+        cacheAvailable = true;
+        // Local indices locate geometry; ring-wrapped indices only locate texture storage.
+        vec3 center = originMinCorner + (vec3(localIdx) + 0.5) * spacing;
+        if (!lumonWorldProbeCanReachSample(probeRadianceAtlas, outStorage, level, resolution, center, worldPosRel, spacing))
+            outW = 0.0;
+    }
 	metaConfAccum += outW;
 	if (outW <= 0.0)
 	{
@@ -246,6 +261,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 	LumOnWorldProbeSample s;
 	s.irradiance = vec3(0.0);
 	s.confidence = 0.0;
+	s.cacheAvailable = false;
 
 	// Probe centers are at cell-centers:
 	//   probe(i) center = originMinCorner + (i + 0.5) * spacing
@@ -292,14 +308,14 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 	ivec3 cornerStorage[8];
 	float cornerW[8];
 
-	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i0.x, i0.y, i0.z), ring, resolution, level, w000, cornerStorage[0], cornerW[0], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i1.x, i0.y, i0.z), ring, resolution, level, w100, cornerStorage[1], cornerW[1], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i0.x, i1.y, i0.z), ring, resolution, level, w010, cornerStorage[2], cornerW[2], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i1.x, i1.y, i0.z), ring, resolution, level, w110, cornerStorage[3], cornerW[3], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i0.x, i0.y, i1.z), ring, resolution, level, w001, cornerStorage[4], cornerW[4], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i1.x, i0.y, i1.z), ring, resolution, level, w101, cornerStorage[5], cornerW[5], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i0.x, i1.y, i1.z), ring, resolution, level, w011, cornerStorage[6], cornerW[6], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i1.x, i1.y, i1.z), ring, resolution, level, w111, cornerStorage[7], cornerW[7], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i0.z), ring, resolution, level, w000, cornerStorage[0], cornerW[0], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i0.z), ring, resolution, level, w100, cornerStorage[1], cornerW[1], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i0.z), ring, resolution, level, w010, cornerStorage[2], cornerW[2], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i0.z), ring, resolution, level, w110, cornerStorage[3], cornerW[3], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i1.z), ring, resolution, level, w001, cornerStorage[4], cornerW[4], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i1.z), ring, resolution, level, w101, cornerStorage[5], cornerW[5], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i1.z), ring, resolution, level, w011, cornerStorage[6], cornerW[6], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i1.z), ring, resolution, level, w111, cornerStorage[7], cornerW[7], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
 
 	if (metaConfAccum <= 1e-6)
 	{
@@ -333,6 +349,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 	vec3 sumBlock = vec3(0.0);
 	float sumSkyVis = 0.0;
 	float sumCos = 0.0;
+	float readyCos = 0.0;
 
 	for (int oy = 0; oy < LUMON_WORLDPROBE_OCTAHEDRAL_SIZE_I; oy += stride)
 	{
@@ -348,6 +365,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 
 			vec3 blockDirAccum = vec3(0.0);
 			float skyVisAccum = 0.0;
+			float directionalWeight = 0.0;
 
 			for (int c = 0; c < 8; c++)
 			{
@@ -361,6 +379,8 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 					resolution,
 					octTexel);
 
+				if (t.a == 0.0 || isnan(t.a) || isinf(t.a)) continue;
+				directionalWeight += w;
 				if (lumonWorldProbeIsSkyVisible(t.a))
 				{
 					skyVisAccum += w;
@@ -371,8 +391,10 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 				}
 			}
 
-			sumBlock += (blockDirAccum * invW) * cw;
-			sumSkyVis += (skyVisAccum * invW) * cw;
+			float directionalInvW = directionalWeight > 1e-6 ? 1.0 / directionalWeight : 0.0;
+			readyCos += cw * clamp(directionalWeight * invW, 0.0, 1.0);
+			sumBlock += (blockDirAccum * directionalInvW) * cw;
+			sumSkyVis += (skyVisAccum * directionalInvW) * cw;
 		}
 	}
 
@@ -390,7 +412,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 
 	// ShortRangeAO is a leak-reduction factor applied to irradiance only; it should not 
 	// tank confidence, otherwise world-probes get blended out in enclosed spaces.
-	float conf = clamp(metaConfAccum, 0.0, 1.0);
+	float conf = clamp(metaConfAccum, 0.0, 1.0) * (sumCos > 1e-6 ? readyCos / sumCos : 0.0);
 
 	s.irradiance = irradiance;
 	s.confidence = conf;
@@ -412,6 +434,7 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleLevelTrilinearRadiance(
 	LumOnWorldProbeRadianceSample s;
 	s.radiance = vec3(0.0);
 	s.confidence = 0.0;
+	s.cacheAvailable = false;
 
 	// Probe centers are at cell-centers (see lumonWorldProbeSampleLevelTrilinear).
 	vec3 localCell = (worldPosRel - originMinCorner) / max(spacing, 1e-6);
@@ -456,14 +479,14 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleLevelTrilinearRadiance(
 	ivec3 cornerStorage[8];
 	float cornerW[8];
 
-	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i0.x, i0.y, i0.z), ring, resolution, level, w000, cornerStorage[0], cornerW[0], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i1.x, i0.y, i0.z), ring, resolution, level, w100, cornerStorage[1], cornerW[1], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i0.x, i1.y, i0.z), ring, resolution, level, w010, cornerStorage[2], cornerW[2], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i1.x, i1.y, i0.z), ring, resolution, level, w110, cornerStorage[3], cornerW[3], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i0.x, i0.y, i1.z), ring, resolution, level, w001, cornerStorage[4], cornerW[4], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i1.x, i0.y, i1.z), ring, resolution, level, w101, cornerStorage[5], cornerW[5], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i0.x, i1.y, i1.z), ring, resolution, level, w011, cornerStorage[6], cornerW[6], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeVis0, probeMeta0, ivec3(i1.x, i1.y, i1.z), ring, resolution, level, w111, cornerStorage[7], cornerW[7], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i0.z), ring, resolution, level, w000, cornerStorage[0], cornerW[0], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i0.z), ring, resolution, level, w100, cornerStorage[1], cornerW[1], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i0.z), ring, resolution, level, w010, cornerStorage[2], cornerW[2], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i0.z), ring, resolution, level, w110, cornerStorage[3], cornerW[3], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i1.z), ring, resolution, level, w001, cornerStorage[4], cornerW[4], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i1.z), ring, resolution, level, w101, cornerStorage[5], cornerW[5], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i1.z), ring, resolution, level, w011, cornerStorage[6], cornerW[6], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i1.z), ring, resolution, level, w111, cornerStorage[7], cornerW[7], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
 
 	if (metaConfAccum <= 1e-6)
 	{
@@ -479,6 +502,7 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleLevelTrilinearRadiance(
 
 	vec3 blockDirAccum = vec3(0.0);
 	float skyVisAccum = 0.0;
+	float directionalWeight = 0.0;
 
 	for (int c = 0; c < 8; c++)
 	{
@@ -492,6 +516,8 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleLevelTrilinearRadiance(
 			resolution,
 			octTexel);
 
+		if (t.a == 0.0 || isnan(t.a) || isinf(t.a)) continue;
+		directionalWeight += w;
 		if (lumonWorldProbeIsSkyVisible(t.a))
 		{
 			skyVisAccum += w;
@@ -505,12 +531,13 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleLevelTrilinearRadiance(
 	float skyIntensity = clamp(skyIntensityAccum, 0.0, 1.0);
 	vec3 skyTint = max(lumonWorldProbeGetSkyTint(), vec3(0.0));
 
-	vec3 radianceBlock = blockDirAccum * invW;
-	float skyVis = skyVisAccum * invW;
+	float directionalInvW = directionalWeight > 1e-6 ? 1.0 / directionalWeight : 0.0;
+	vec3 radianceBlock = blockDirAccum * directionalInvW;
+	float skyVis = skyVisAccum * directionalInvW;
 	vec3 radiance = radianceBlock + skyTint * (skyIntensity * skyVis);
 	radiance = max(radiance, vec3(0.0));
 
-	float conf = clamp(metaConfAccum, 0.0, 1.0);
+	float conf = clamp(directionalWeight, 0.0, 1.0);
 
 	s.radiance = radiance;
 	s.confidence = conf;
@@ -527,6 +554,7 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleClipmapRadiance(
 	LumOnWorldProbeRadianceSample outS;
 	outS.radiance = vec3(0.0);
 	outS.confidence = 0.0;
+	outS.cacheAvailable = false;
 
 	const float baseSpacing = VGE_LUMON_WORLDPROBE_BASE_SPACING;
 	const int levels = VGE_LUMON_WORLDPROBE_LEVELS;
@@ -579,6 +607,9 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleClipmapRadiance(
 
 		float coarseW = max(1.0 - wL, holeW);
 		float fineW = 1.0 - coarseW;
+        if (s2.confidence <= 1e-6) { fineW = 1.0; coarseW = 0.0; }
+        else if (sL.confidence <= 1e-6) { fineW = 0.0; coarseW = 1.0; }
+        outS.cacheAvailable = sL.cacheAvailable || s2.cacheAvailable;
 
 		outS.radiance = sL.radiance * fineW + s2.radiance * coarseW;
 		outS.confidence = sL.confidence * fineW + s2.confidence * coarseW;
@@ -608,6 +639,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
 	LumOnWorldProbeSample outS;
 	outS.irradiance = vec3(0.0);
 	outS.confidence = 0.0;
+	outS.cacheAvailable = false;
 
 	const float baseSpacing = VGE_LUMON_WORLDPROBE_BASE_SPACING;
 	const int levels = VGE_LUMON_WORLDPROBE_LEVELS;
@@ -660,6 +692,9 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
 
 		float coarseW = max(1.0 - wL, holeW);
 		float fineW = 1.0 - coarseW;
+        if (s2.confidence <= 1e-6) { fineW = 1.0; coarseW = 0.0; }
+        else if (sL.confidence <= 1e-6) { fineW = 0.0; coarseW = 1.0; }
+        outS.cacheAvailable = sL.cacheAvailable || s2.cacheAvailable;
 
 		outS.irradiance = sL.irradiance * fineW + s2.irradiance * coarseW;
 		outS.confidence = sL.confidence * fineW + s2.confidence * coarseW;

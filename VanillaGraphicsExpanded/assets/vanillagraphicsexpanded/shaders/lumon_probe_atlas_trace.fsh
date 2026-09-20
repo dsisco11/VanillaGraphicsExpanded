@@ -280,8 +280,9 @@ void main(void)
         // - If unavailable, fall back to the legacy sky approximation.
 #if VGE_LUMON_WORLDPROBE_ENABLED
         LumOnWorldProbeRadianceSample wp = lumonWorldProbeSampleClipmapRadianceBound(probePosWS, rayDirWS);
-        if (wp.confidence > 1e-3)
+        if (wp.confidence > 1e-3 || wp.cacheAvailable)
         {
+            // Covered but occluded or unpublished cache data remains dark, never approximate sky.
             // Keep confidence, flags, and ray distance identical in the paired diagnostic.
             radiance = suppressWorldProbeRadiance ? vec3(0.0) : wp.radiance;
             usedWorldProbeFallback = true;

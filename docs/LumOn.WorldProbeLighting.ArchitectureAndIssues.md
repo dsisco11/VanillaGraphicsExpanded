@@ -123,15 +123,15 @@ Sources: [update renderer](../VanillaGraphicsExpanded/LumOn/WorldProbes/LumOnWor
 
 Repair direction: first measure actual cache radiance. Treat shared scene-lighting integration and a richer bounce model as separately scoped work, unless the reproduction proves this is the immediate limiting factor.
 
-### WP-06: Local tracing and cache interpolation lack spatial correction
+### WP-06: Local tracing and parallax correction remain limited
 
-**Confirmed architectural limitation; longer-term improvement work.**
+**Spatial visibility repair implemented; local tracing and parallax remain separate work.**
 
-LumOn goes directly from a screen miss to directional world-probe interpolation. It has no explicit local world-trace/cache-distance handoff or depth-based parallax correction. Neighboring probes sample the same octahedral direction despite different origins.
+LumOn goes directly from a screen miss to directional world-probe interpolation. The sampler now rejects neighbors whose recorded geometry blocks the probe-to-sample segment and renormalizes visible neighbors. It still has no explicit local world-trace/cache-distance handoff or lighting-direction parallax correction; accepted neighbors sample the same lighting direction despite different origins.
 
 This affects occlusion, spatial correspondence, and off-screen detail. It is not a reason to add world irradiance unconditionally at final gather, and need not block proving basic world-to-screen lighting transport.
 
-A [controlled sealed-room reproduction](LumOn.WorldProbeLighting.ReproductionTests.md) now confirms across-wall interpolation as a concrete leakage mechanism. Interior CPU traces are completely dark. At an interior sample point, bright exterior probe neighbors contribute 0.125 directional radiance through interpolation; that lighting survives both gather modes and appears above neutral gray in the paired diagnostic. Dark-neighbor and exact-interior-probe-center controls remain dark. This does not yet identify the cause in a particular live scene.
+The [controlled sealed-room reproduction](LumOn.WorldProbeLighting.ReproductionTests.md) originally confirmed across-wall interpolation: dark interior probes mixed with bright exterior probes to produce 0.125 directional radiance. The visibility repair changes that regression to require zero lighting and neutral gray through both gather modes. Covered but rejected or unpublished neighbors cannot trigger approximate sky fallback. Open-doorway, visible-neighbor and ring-index controls preserve valid lighting. The focused suite passed 71 tests with no failures or skips. Directional depth remains approximate; this does not establish correctness in every live scene.
 
 ## Validation and repair tracker
 
@@ -150,6 +150,6 @@ All checkboxes represent remaining work, not completed validation.
 - [ ] Correct angular confidence weighting and readiness/publication contracts where the reproduction confirms impact.
 - [ ] Decide separately whether local world tracing, parallax correction, and shared scene-lighting integration are required next.
 
-The [world-fallback GPU tests](../VanillaGraphicsExpanded.Tests/GPU/LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests.cs) now also accept voxel-derived atlas data and verify separate histories, filtering, both gather modes, and signed diagnostic output. The [reproduction report](LumOn.WorldProbeLighting.ReproductionTests.md) records the 42-test focused validation and its limits. Scheduler behavior, production upload/publication, upsampling, final composition and live-game correctness remain unverified by this fixture.
+The [world-fallback GPU tests](../VanillaGraphicsExpanded.Tests/GPU/LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests.cs) now also accept voxel-derived atlas data and verify separate histories, filtering, both gather modes, and signed diagnostic output. The [reproduction report](LumOn.WorldProbeLighting.ReproductionTests.md) records focused validation and its limits. Scheduler behavior, production upload/publication, upsampling, final composition and live-game correctness remain unverified by this fixture.
 
 The first decision point is whether known world radiance survives the existing pipeline. If it does, prioritize diagnostic attribution, screen-hit lighting, and cache content/readiness rather than replacing gather architecture.

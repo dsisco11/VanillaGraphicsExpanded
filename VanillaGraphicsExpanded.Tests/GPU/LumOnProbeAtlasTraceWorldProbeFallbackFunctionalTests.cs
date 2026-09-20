@@ -90,21 +90,22 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
     /// <summary>Runs production tracing and both gather paths over supplied world-probe atlas data.</summary>
     private void RunWorldProbeTraceScenario(
         VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes.WorldProbeAtlasData? tracedAtlas = null,
-        float spacing = 1f, float anchorOffsetX = 0f, float expectedRadiance = -1f)
+        float spacing = 1f, float anchorOffsetX = 0f, float expectedRadiance = -1f,
+        float minimumConfidence = 0.20f, bool runPipeline = true, bool ringShift = false, bool emptyCoarseLevel = false)
     {
         EnsureShaderTestAvailable();
 
         // 1 level, 2x2x2 clipmap => per-probe scalar atlas width=4, height=2
-        const int wpLevels = 1;
+        int wpLevels = emptyCoarseLevel ? 2 : 1;
         const int wpResolution = 2;
         float wpBaseSpacing = spacing;
 
         const int wpScalarAtlasWidth = wpResolution * wpResolution;
-        const int wpScalarAtlasHeight = wpResolution * wpLevels;
+        int wpScalarAtlasHeight = wpResolution * wpLevels;
 
         // Radiance atlas is tile-packed: W = (N*N)*S, H = (N*levels)*S.
         const int wpRadianceAtlasWidth = (wpResolution * wpResolution) * WorldProbeTileSize;
-        const int wpRadianceAtlasHeight = (wpResolution * wpLevels) * WorldProbeTileSize;
+        int wpRadianceAtlasHeight = (wpResolution * wpLevels) * WorldProbeTileSize;
 
         // The first physical probe tile is red; every other tile is blue. The anchor below maps exactly
         // to this first tile only when the shader uses player-relative surface coordinates directly.
@@ -115,6 +116,14 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
 
         // meta0.r = confidence, meta0.g = flags-as-float (ignored here)
         var wpMeta0 = tracedAtlas?.Metadata ?? CreateUniformData(wpScalarAtlasWidth, wpScalarAtlasHeight, 2, 1.0f, 0f);
+
+        if (emptyCoarseLevel && tracedAtlas is not null)
+        {
+            // Append a wholly unavailable coarser level without altering the fine data.
+            Array.Resize(ref wpRadianceAtlas, wpRadianceAtlasWidth * wpRadianceAtlasHeight * 4);
+            Array.Resize(ref wpVis0, wpScalarAtlasWidth * wpScalarAtlasHeight * 4);
+            Array.Resize(ref wpMeta0, wpScalarAtlasWidth * wpScalarAtlasHeight * 2);
+        }
 
         // Probe anchors: all valid, placed in front of camera.
         var anchorPos = CreateUniformData(ProbeGridWidth, ProbeGridHeight, 4, anchorOffsetX, 0f, -5f, 1.0f);
@@ -224,8 +233,8 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
                 // This is the stable absolute player origin, not a render-camera translation.
                 // The old coordinate path subtracted it from the relative anchor and sampled out of bounds.
                 cameraPosWS: new System.Numerics.Vector3(512000f, 3f, 512000f),
-                originMinCorner: [new System.Numerics.Vector3(-spacing * 0.5f, -spacing * 0.5f, -5f - spacing * 0.5f)],
-                ringOffset: [new System.Numerics.Vector3(0f, 0f, 0f)]);
+                originMinCorner: [new System.Numerics.Vector3(-spacing * 0.5f, -spacing * 0.5f, -5f - spacing * 0.5f), new System.Numerics.Vector3(-spacing, -spacing, -5f - spacing)],
+                ringOffset: [new System.Numerics.Vector3(ringShift ? 1f : 0f, 0f, 0f), System.Numerics.Vector3.Zero]);
 
             GL.UseProgram(0);
 
@@ -254,7 +263,7 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
             uint flags = unchecked((uint)BitConverter.SingleToInt32Bits(flagsF));
 
             Assert.True((flags & LUMON_META_WORLDPROBE_FALLBACK) != 0u, "Expected WORLDPROBE_FALLBACK flag on a miss texel");
-            Assert.True(conf >= (tracedAtlas is null ? 0.9f : 0.24f), $"Expected high confidence from world-probe fallback, got {conf:F3}");
+            Assert.True(conf >= (tracedAtlas is null ? 0.9f : minimumConfidence), $"Expected high confidence from world-probe fallback, got {conf:F3}");
 
             // The selected first probe tile is red; the other tiles are blue and sky fallback is green.
             if (tracedAtlas is null)
@@ -266,11 +275,17 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
                 for (int i = 0; i < radianceOut.Length; i += 4)
                 {
                     for (int channel = 0; channel < 3; channel++)
-                        Assert.InRange(radianceOut[i + channel], expectedRadiance - 0.002f, expectedRadiance + 0.002f);
-                    Assert.True(metaOut[i / 2] > 0.24f);
+                        Assert.InRange(radianceOut[i + channel],
+                            expectedRadiance == -2 ? 0f : expectedRadiance - 0.002f,
+                            expectedRadiance == -2 ? 1.002f : expectedRadiance + 0.002f);
+                    Assert.True(metaOut[i / 2] >= minimumConfidence);
+                    if (minimumConfidence == 0) Assert.Equal(0f, metaOut[i / 2]);
                     Assert.True((unchecked((uint)BitConverter.SingleToInt32Bits(metaOut[i / 2 + 1])) & LUMON_META_WORLDPROBE_FALLBACK) != 0);
                 }
             }
+
+            if (expectedRadiance == -2)
+                Assert.Contains(Enumerable.Range(0, radianceOut.Length / 4), pixel => radianceOut[pixel * 4] > 0.001f);
 
             // Suppressing accepted world radiance must preserve visibility and validity, rather
             // than taking the bright green sky fallback or changing the ray's hit distance.
@@ -287,7 +302,7 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
                 Assert.Equal(0f, suppressedRadiance[i + 2]);
                 Assert.Equal(radianceOut[i + 3], suppressedRadiance[i + 3]);
             }
-            foreach (bool sh9 in new[] { false, true })
+            foreach (bool sh9 in runPipeline ? new[] { false, true } : Array.Empty<bool>())
             {
                 AssertPairedHistoryReachesGather(radianceOut, suppressedRadiance, metaOut, sh9, expectedRadiance != 0);
             }

@@ -37,7 +37,7 @@ The positive X wall occupies [1,2). Probe centers at x=0.5 are inside; centers a
 
 The doorway test checks fresh tracing only. It does not validate scheduler invalidation or stale atlas removal.
 
-## GPU coverage and current-defect characterization
+## GPU coverage and visibility regression
 
 [Sealed-room GPU cases](../VanillaGraphicsExpanded.Tests/GPU/LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests.SealedRoom.cs) populate all eight probe tiles from actual CPU trace results, then run forced screen misses through production atlas tracing, two frames of separate temporal histories, filtering, both atlas and SH9 gather, and the signed lighting-effect shader.
 
@@ -45,22 +45,38 @@ The doorway test checks fresh tracing only. It does not validate scheduler inval
 | --- | --- | --- |
 | 0 | 0.75 | 0 |
 | 1 | 0.5, exactly at the interior probe center | 0 |
-| 1 | 0.75, still inside the sealed room | 0.125 |
+| 1 | 0.75, still inside the sealed room | 0 (previously 0.125) |
 
-The last expectation deliberately characterizes an existing defect: the shader interpolates bright exterior probes across the wall. The exterior weight is (0.75−0.5)/2 = 0.125. Both sides have equal positive confidence, all directions are initialized, and there are no sky misses. World-radiance suppression must preserve metadata and eliminate the lighting; the normal branch must remain brighter than neutral gray after gather.
+The final case originally reproduced across-wall interpolation: exterior weight (0.75-0.5)/2 = 0.125 contributed despite the enclosing wall. It now requires zero radiance and neutral gray through both gather modes and the paired diagnostic.
 
-When spatial visibility is repaired, replace the leakage expectation with darkness while retaining the bright exterior and probe-center controls. A passing characterization test is not a claim that leaking through the wall is desirable.
+[Visibility controls](../VanillaGraphicsExpanded.Tests/GPU/LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests.Visibility.cs) additionally check:
+
+- All neighbors blocked, visibility texels uninitialized, or recorded miss range too short: zero lighting, zero confidence, and no approximate sky fallback.
+- Blocked bright neighbors removed while visible neighbors retain full radiance through renormalization.
+- Ring-shifted atlas storage uses the correct physical probe centers.
+- Unobstructed neighbors retain lighting between probe centers.
+- A doorway in actual voxel geometry permits exterior lighting.
+- An unavailable coarse level preserves visible fine lighting and does not turn rejected fine data into sky.
+- Both final-gather modes reject wholly blocked world-probe neighborhoods.
+
+## Implemented repair
+
+The shared sampler tests each contributing probe-to-sample segment using that probe's stored directional hit distance, independently of the lighting direction. Rejected corners contribute neither radiance nor associated scalar metadata; surviving published lighting samples are normalized by their usable weights.
+
+The visibility tolerance scales with probe spacing and is clamped to 0.001-0.05 world units. Negative encodings establish visibility only within their traced range. Zero/nonfinite encodings are unavailable, not open space. Probe-center coincidence avoids normalizing a zero-length direction; the lighting lookup still checks publication.
+
+Cache coverage is separate from usable lighting confidence. A covered but rejected or unfinished neighborhood stays dark with zero usable confidence instead of selecting approximate sky. Completely absent cache coverage retains the existing fallback. An unavailable coarse level cannot erase a usable fine result.
 
 ## Evidence limits
 
 This isolates a mechanism capable of producing above-gray lighting in a sealed interior. It does not establish that this mechanism caused a particular live scene's result.
 
-The fixture bypasses asynchronous scheduling, upload budgets, incremental publication and cache invalidation. It uses one clipmap level with no ring offset. Temporal reprojection is disabled; each branch has two deterministic frames. Gather output is supplied directly to the debug shader at half resolution, so production upsampling, final composition, camera motion and live renderer orchestration are outside this test.
+The fixture bypasses asynchronous scheduling, upload budgets, incremental publication and cache invalidation. The voxel scene uses one clipmap level; additional controls exercise an X ring offset and an unavailable second level. Temporal reprojection is disabled; each branch has two deterministic frames. Gather output is supplied directly to the debug shader at half resolution, so production upsampling, final composition, camera motion and live renderer orchestration are outside this test.
 
 ## Validation
 
-The focused build and suite passed: **42 tests, 0 failures, 0 skipped** (36 CPU and 6 GPU cases). GPU cases executed with a valid OpenGL context. The three voxel-derived GPU cases each exercise both gather modes.
+**71 tests passed, 0 failures, 0 skipped.** Production and test builds succeeded, including seven SPIR-V shader compilations. The GPU controls executed with a valid OpenGL context.
 
-Receipts: [build/test log](../artifacts/sealed-room.log) and [TRX results](../artifacts/TestResults/sealed-room.trx).
+Receipts: [repair build/test log](../artifacts/visibility-repair-final.log) and [repair TRX results](../artifacts/TestResults/visibility-repair-final.trx).
 
-The reproduction confirms that dark CPU-generated interior tiles can yield positive screen-probe radiance through interpolation with bright exterior tiles. The all-dark and interior-center controls remain neutral gray; the across-wall case remains above gray through both gathers and the diagnostic shader. No production lighting behavior was changed.
+The repaired sealed-room case remains dark through CPU tracing, screen-probe tracing, independent temporal histories, both gathers and the diagnostic shader. Visibility uses nearest directional depths from a 16x16 tile; thin occluders, grazing angles and corners remain approximate. Live-game validation and performance measurement have not been performed.

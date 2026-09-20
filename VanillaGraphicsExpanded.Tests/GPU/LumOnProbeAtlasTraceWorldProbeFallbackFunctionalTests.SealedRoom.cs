@@ -7,19 +7,19 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
 {
     #region Controlled Room Reproduction
-    /// <summary>Characterizes the current across-wall interpolation defect alongside dark controls.</summary>
+    /// <summary>Rejects exterior probes across walls alongside dark controls.</summary>
     [Theory]
     [InlineData(0f, 0.25f, 0f)]
     [InlineData(1f, 0f, 0f)]
-    [InlineData(1f, 0.25f, 0.125f)]
-    public void SealedRoom_VoxelDerivedAtlas_CharacterizesExteriorInterpolation(float exteriorLight, float anchorOffset, float expectedRadiance)
+    [InlineData(1f, 0.25f, 0f)]
+    public void SealedRoom_VoxelDerivedAtlas_RejectsExteriorInterpolation(float exteriorLight, float anchorOffset, float expectedRadiance)
     {
         EnsureShaderTestAvailable();
         var world = WorldProbeRoomScenario.Create(exteriorBlockLight: exteriorLight);
         var atlas = new WorldProbeAtlasData(2, WorldProbeRoomScenario.TileSize);
         // The interior centers are x=.5; the exterior centers are x=2.5. A solid
         // wall occupies [1,2). Sampling x=.75 is still indoors but weights outside
-        // probes by (.75-.5)/2 = .125 because current interpolation ignores walls.
+        // probes by (.75-.5)/2 = .125 before the visibility test rejects them.
         for (int z = 0; z < 2; z++)
         for (int y = 0; y < 2; y++)
         for (int x = 0; x < 2; x++)

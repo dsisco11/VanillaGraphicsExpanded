@@ -252,11 +252,13 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
     /// <summary>Both gather modes preserve selected sample confidence when world radiance is suppressed.</summary>
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public void WorldProbeSuppression_PreservesFallbackSelection(bool sh9, bool validScreenProbes)
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, true)]
+    [InlineData(true, false, true)]
+    public void WorldProbeSuppression_PreservesFallbackSelection(bool sh9, bool validScreenProbes, bool blocked)
     {
         EnsureShaderTestAvailable();
 
@@ -315,7 +317,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 programId,
                 skyTint: new Vintagestory.API.MathTools.Vec3f(0f, 0f, 0f),
                 cameraPosWS: Vector3.Zero,
-                originMinCorner: [new Vector3(-500f, -500f, -500f)],
+                originMinCorner: [blocked ? new Vector3(-400f, -400f, -400f) : new Vector3(-500f, -500f, -500f)],
                 ringOffset: [Vector3.Zero]);
 
             GL.UseProgram(programId);
@@ -336,6 +338,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             TestFramework.RenderQuadTo(programId, output);
 
             var (r, g, b, confidence) = ReadPixelHalfRes(output[0].ReadPixels(), 0, 0);
+            if (blocked)
+            {
+                foreach (float value in output[0].ReadPixels()) Assert.Equal(0f, value);
+                return;
+            }
             Assert.True(r + g + b > 0.5f, "Expected positive accepted lighting");
             Assert.True(confidence > (validScreenProbes ? 0.5f : 0.9f), $"Expected confident selected lighting, got {confidence:F3}");
             if (!validScreenProbes)
