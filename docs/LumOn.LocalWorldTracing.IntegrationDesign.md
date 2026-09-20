@@ -6,7 +6,7 @@ Reuse the existing GPU TraceScene occupancy infrastructure for local screen-prob
 
 Initial local-hit lighting will use normalized outside-cell voxel light plus hit-face material data through the existing world-probe lighting approximation. Do not use the current surface-cache irradiance atlas as arbitrary-hit outgoing radiance.
 
-This document completes the integration design only. Implementation, performance and runtime validation remain open. Direct irradiance sampling remains a separate repair.
+The local tracing implementation now follows this contract. Automated correctness coverage is recorded below; live appearance and performance validation remain open. Direct irradiance sampling remains a separate repair.
 
 ## Existing resources
 
@@ -137,4 +137,16 @@ Direct irradiance fallback and its debug view bypass this chain and remain Prior
 - Flat-wall reproduction retained until direct irradiance visibility is repaired.
 - Traversal cost and texture-unit usage measured with representative update budgets.
 
-The resource reuse, missing integration, ownership and initial outgoing-radiance source are specified. These implementation gates remain open; no production rendering behavior changed.
+## Implemented behavior and remaining validation
+
+The production screen-probe trace program enables local tracing after screen misses. A region-aligned companion scene publishes full opaque cells, normalized light and collision-free per-face materials through the existing snapshot stream. Readiness stores world-region identities; the CPU version provider invalidates dirty regions before Opaque consumption and rejects stale completions. Newly exposed local regions are explicitly scheduled. Publication changes conservatively reset both screen-probe histories.
+
+The companion volume rounds L0 resolution up to a whole 32-cell region. Geometry uses R32UI, lighting RGBA16F, readiness RGBA32UI, and paired diffuse/emission texels use RGBA16F. Extra texture units are 10, 13, 14 and 15; the complete trace layout fits units 0 through 15. The local UBO uses the existing material binding slot, independently of texture units. Capture and companion artifact retention are restricted to the local window.
+
+A supported cell must be a full collision cube with opaque sides and the opaque render pass. Other geometry remains unavailable. An air solid-layer snapshot additionally checks the accessor's most-solid layer. Missing materials preserve opaque occlusion with zero lighting confidence. Palette capacity is 16,384 identities including unavailable identity zero. Emission is stored separately from diffuse albedo, preserving metallic base-color emission.
+
+Traversal resolves tied boundaries one face at a time to retain the actual adjacent light cell. The default budget is 256 cells, with a shader hard bound of 512. Bounded sky rays use the same explicit completion outcomes. Initial-cell hits, negative coordinates and integer world offsets are covered by controlled tests.
+
+The distant cache contract uses radius sqrt(3) times selected-level spacing and requires a clear local segment of twice that radius. Neighbor lookups reproject direction onto that sphere; radiance magnitude is unchanged. Existing cache texels with shorter recorded distance are rejected, because they do not represent the distant domain. Missing or near-only cache data remains unresolved. This initial implementation chooses one covered level; it does not introduce a new cross-level blend or rebuild the world atlas as a dedicated far-only cache.
+
+See [local tracing regressions](LumOn.WorldProbeLighting.ReproductionTests.md#local-world-tracing-and-cache-handoff) for executable coverage and receipts. Live camera motion, real asynchronous upload pressure, partial geometry support and representative CPU/GPU performance still require runtime validation. These are not established by a passing small GPU fixture.

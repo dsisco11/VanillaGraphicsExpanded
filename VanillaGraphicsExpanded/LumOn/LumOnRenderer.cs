@@ -254,6 +254,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return false;
         }
 
+        PrepareLocalTraceScene();
         PrepareWorldProbeComparison();
         lightingPassesComplete = true;
 
@@ -731,6 +732,11 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         // Define-backed knobs must be set before Use() so the correct variant is bound.
         shader.SetDefine(VgeShaderDefines.LumOnEmissiveBoost, Math.Max(0.0f, config.LumOn.EmissiveGiBoost).ToString("0.0####", CultureInfo.InvariantCulture));
+        if (!shader.EnsureLocalTraceDefines())
+        {
+            lightingPassesComplete = false;
+            return;
+        }
         shader.TexelsPerFrame = config.LumOn.ProbeAtlasTexelsPerFrame;
         shader.RaySteps = config.LumOn.RaySteps;
         shader.RayMaxDistance = config.LumOn.RayMaxDistance;
@@ -810,6 +816,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         }
         shader.SuppressWorldProbeRadiance = comparisonPass;
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
+        shader.BindLocalScene(localTraceScene);
         shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
         // Bind probe anchor textures

@@ -432,13 +432,13 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         lumOnDebugRenderer?.SetLumonSceneFeedbackUpdateRenderer(lumonSceneFeedbackUpdateRenderer);
 
         if (current.LumOnEnabled
-            && ConfigModSystem.Config.LumOn.LumonScene.Enabled
             && lumonSceneOccupancyClipmapUpdateRenderer is null)
         {
             WorldPartitionSystem worldPartition = clientApi.ModLoader.GetModSystem<WorldPartitionModSystem>().Partition;
             lumonSceneOccupancyClipmapUpdateRenderer = new LumonSceneOccupancyClipmapUpdateRenderer(clientApi, ConfigModSystem.Config, worldPartition);
         }
         lumOnDebugRenderer?.SetLumonSceneOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
+        lumOnRenderer?.SetLocalTraceSceneProvider(lumonSceneOccupancyClipmapUpdateRenderer);
         lumonSceneFeedbackUpdateRenderer?.SetOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
 
         if (current.LumOnEnabled
@@ -557,12 +557,13 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         }
         lumOnDebugRenderer?.SetLumonSceneFeedbackUpdateRenderer(lumonSceneFeedbackUpdateRenderer);
 
-        if (lumonSceneOccupancyClipmapUpdateRenderer is null && ConfigModSystem.Config.LumOn.LumonScene.Enabled)
+        if (lumonSceneOccupancyClipmapUpdateRenderer is null)
         {
             WorldPartitionSystem worldPartition = capi.ModLoader.GetModSystem<WorldPartitionModSystem>().Partition;
             lumonSceneOccupancyClipmapUpdateRenderer = new LumonSceneOccupancyClipmapUpdateRenderer(capi, ConfigModSystem.Config, worldPartition);
         }
         lumOnDebugRenderer?.SetLumonSceneOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
+        lumOnRenderer?.SetLocalTraceSceneProvider(lumonSceneOccupancyClipmapUpdateRenderer);
         lumonSceneFeedbackUpdateRenderer?.SetOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
 
         if (lumOnTerrainBridgeUpdateRenderer is null && ConfigModSystem.Config.LumOn.LumonScene.Enabled)

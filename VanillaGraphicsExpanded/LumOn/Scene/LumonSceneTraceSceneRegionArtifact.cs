@@ -23,7 +23,10 @@ internal sealed class LumonSceneTraceSceneRegionArtifact : IArtifactSizeInfo
     /// </summary>
     public uint[] PayloadWords { get; }
 
-    public long EstimatedBytes => (long)PayloadWords.Length * sizeof(uint);
+    /// <summary>Optional supported geometry and normalized light from live snapshots.</summary>
+    public LocalTracing.LocalTraceSourceCell[]? LocalCells { get; init; }
+
+    public long EstimatedBytes => (long)PayloadWords.Length * sizeof(uint) + (LocalCells?.LongLength ?? 0) * 20;
 
     public LumonSceneTraceSceneRegionArtifact(ChunkKey key, int version, in VectorInt3 regionCoord, uint[] payloadWords)
     {

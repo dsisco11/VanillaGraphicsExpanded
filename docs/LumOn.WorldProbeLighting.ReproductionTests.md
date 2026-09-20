@@ -110,3 +110,42 @@ The focused suite passed **73 tests, 0 failures, 0 skipped**, including both new
 Matching irradiance/confidence assertions attribute black pixels to rejection rather than absent source lighting. This is a controlled single-probe reproduction, not an exact reconstruction of a particular live scene.
 
 Validation receipts: [test log](../artifacts/wall-visibility-reproduction.log) and [TRX](../artifacts/TestResults/wall-visibility-reproduction.trx).
+
+
+## Local world tracing and cache handoff
+
+The screen-probe trace shader now resolves screen misses through local voxel geometry before sampling distant world radiance. The earlier direct irradiance visibility implementation and its flat-wall characterization remain unchanged.
+
+[LocalTraceVoxelFixture](../VanillaGraphicsExpanded.Tests/GPU/Fixtures/LocalTraceVoxelFixture.cs) adapts the shared controlled voxel world into production region artifacts and publishes them through the real GPU scene owner. Scene contents, normalized cell light, hit materials, readiness and versions are independently controllable. The fixture uses real texture uploads and production traversal; it does not mock individual ray results.
+
+The GPU scenarios are separated into [basic tracing](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceFunctionalTests.cs), [geometry](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceFunctionalTests.Geometry.cs), [hit lighting](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceFunctionalTests.Lighting.cs), [publication](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceFunctionalTests.Publication.cs), and [cache sampling](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceFunctionalTests.Cache.cs), with a shared binding harness.
+
+Coverage includes:
+
+- Bright exterior/cache around a dark sealed room: zero lighting with valid local-hit confidence in every traced direction.
+- Nonzero outside-cell block light: preserved local radiance, unaffected by cache-only diagnostic suppression.
+- Open doorway followed by closure: distant lighting appears through the opening and disappears behind the new wall.
+- Initial solid cells, tied voxel boundaries, negative coordinates and world offsets of plus/minus 16,777,216.
+- Unpublished/unsupported geometry, step exhaustion and bounds exit: zero radiance and zero confidence without inferred sky.
+- Missing material: opaque hit retained, lighting unavailable, no cache substitution.
+- Dirty generations, stale async completions and world-region identity after physical slot reuse.
+- Fully visible diffuse sky term of inverse pi; independent emitted radiance with the GI emission boost applied once.
+- Clear local segments retain distant lighting; near cache hits are excluded.
+- Directional parallax changes addressed cache texels while preserving constant incident radiance between eight neighbors.
+- Combined local tracing and importance-selection shader compilation with world caching enabled and disabled.
+
+The sealed-room test caught an implementation defect where advancing all tied DDA axes sampled outside light from a different wall cell. The tracer now resolves tied boundaries one face at a time, preserving the adjacent light-cell relationship.
+
+[Source-cell tests](../VanillaGraphicsExpanded.Tests/Unit/LumOn/Scene/LocalTraceCellCaptureTests.cs) verify supported opaque cubes, unsupported partial/noncolliding/transmissive geometry, most-solid-layer checks and normalized lighting. [Artifact tests](../VanillaGraphicsExpanded.Tests/Unit/LumOn/Scene/LocalTraceRegionArtifactTests.cs) verify independent payload ownership and omission of uncaptured companion data.
+
+### Validation and limits
+
+The local suite passes **30 tests: 22 GPU cases and 8 CPU cases, zero failures or skips**. This includes both combined importance-selection shader variants.
+
+The prior 73-test regression suite passes with no failures or skips, including the existing flat-wall defect characterization. Production/test builds and seven SPIR-V compilations succeed. The explicit local-path shaders execute in the GPU tests; the production runtime enables this variant while older comparison fixtures retain the legacy branch.
+
+A broader selection passed 271 of 274 tests. Both missing-import assertions in TraceSceneDebugShaderCoordSpaceTests and the introduced-slab assertion in WorldProbeSchedulerTests also fail in an isolated export of unchanged revision cd76f8de6365645705c280e6d7da0bdda3890173. They were not changed by this work.
+
+Receipts: [local suite](../artifacts/local-trace-final.log), [local TRX](../artifacts/TestResults/local-trace-final.trx), [73-test regression](../artifacts/local-trace-regression.log), [broader run](../artifacts/local-trace-broad-regression.log), and [unchanged-revision baseline](../artifacts/local-trace-head-baseline.log).
+
+These tests establish controlled shader and publication correctness. They do not measure live frame time, main-thread snapshot cost, production update-budget pressure, camera-motion history behavior or real-scene appearance. Unsupported geometry remains unresolved by design. Direct irradiance fallback and the irradiance viewer still require the separate visibility repair.

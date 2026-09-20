@@ -21,16 +21,23 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSource
 {
     private readonly ICoreClientAPI capi;
+    private readonly LocalTracing.LocalTraceMaterialRegistry? localMaterials;
+    private readonly System.Func<int, int, int, bool>? needsLocalRegion;
     private readonly LumonSceneTraceSceneChunkVersionProvider versionProvider;
     private readonly LumonSceneTraceSceneLightIdRegistry lightIds;
     private readonly LumonSceneTraceSceneMaterialPaletteRegistry materialPalette;
 
+    /// <summary>Uses the existing snapshot stream with optional bounded local-light capture.</summary>
     public LumonSceneTraceSceneChunkSnapshotSource(
         ICoreClientAPI capi,
         LumonSceneTraceSceneChunkVersionProvider versionProvider,
         LumonSceneTraceSceneLightIdRegistry lightIds,
-        LumonSceneTraceSceneMaterialPaletteRegistry materialPalette)
+        LumonSceneTraceSceneMaterialPaletteRegistry materialPalette,
+        LocalTracing.LocalTraceMaterialRegistry? localMaterials = null,
+        System.Func<int, int, int, bool>? needsLocalRegion = null)
     {
+        this.localMaterials = localMaterials;
+        this.needsLocalRegion = needsLocalRegion;
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
         this.versionProvider = versionProvider ?? throw new ArgumentNullException(nameof(versionProvider));
         this.lightIds = lightIds ?? throw new ArgumentNullException(nameof(lightIds));
@@ -237,6 +244,19 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
                                 sunLevel: (byte)Math.Clamp(sunLevel, 0, 32),
                                 lightId: (byte)Math.Clamp(lightId, 0, (int)LumonSceneOccupancyPacking.LightIdMask),
                                 materialPaletteIndex: (ushort)Math.Clamp(materialPaletteIndex, 0, (int)LumonSceneOccupancyPacking.MaterialPaletteIndexMask));
+                        }
+
+                        if (localMaterials is not null && (needsLocalRegion?.Invoke(chunkX, chunkY, chunkZ) ?? true))
+                        {
+                            var localPos = new BlockPos(0);
+                            for (int i = 0; i < len; i++)
+                            {
+                                ct.ThrowIfCancellationRequested();
+                                localPos.Set(baseX + (i & 31), baseY + (i >> 10), baseZ + ((i >> 5) & 31));
+                                var local = LocalTracing.LocalTraceCellCapture.Capture(blockAccessor,
+                                    capi.World.GetBlock(blockIds[i]), localPos, localMaterials);
+                                buf[i] = buf[i] with { LocalTrace = local };
+                            }
                         }
 
                         var snapshot = new PooledChunkSnapshot<LumonSceneTraceSceneSourceCell>(

@@ -17,7 +17,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Ray traces from each probe and stores radiance + hit distance in the probe atlas.
 /// Uses temporal distribution to trace a subset of directions each frame.
 /// </summary>
-public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
+public partial class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
 {
     private LumOnProbeParamsUbo? paramsUbo;
 
@@ -27,6 +27,7 @@ public class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
     {
         RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);
         RegisterUniformBlockBinding(LumOnUniformBuffers.WorldProbeBlockName, LumOnUniformBuffers.WorldProbeBinding, required: false);
+        RegisterUniformBlockBinding(LumOnLocalTraceParamsUbo.BlockName, LumOnLocalTraceParamsUbo.Binding, required: false);
         RegisterUniformBlockBinding(LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
     }
 

@@ -30,6 +30,14 @@ layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFlo
 // World-probe clipmap helpers
 @import "./includes/lumon_worldprobe.glsl"
 
+#ifndef VGE_LUMON_LOCAL_TRACE_ENABLED
+#define VGE_LUMON_LOCAL_TRACE_ENABLED 0
+#endif
+#if VGE_LUMON_LOCAL_TRACE_ENABLED
+@import "./includes/lumon_local_hit_lighting.glsl"
+@import "./includes/lumon_local_cache_handoff.glsl"
+#endif
+
 // Import noise for ray jittering
 @import "./includes/squirrel3.glsl"
 
@@ -267,6 +275,8 @@ void main(void)
     vec3 radiance;
     float hitDistance;
     bool usedWorldProbeFallback = false;
+    bool localUnresolved = false;
+    float localLightingConfidence = 1.0;
     float worldProbeFallbackConfidence = 0.0;
     
     if (hit.hit) {
@@ -274,6 +284,33 @@ void main(void)
         radiance = hit.color * indirectTint;
         hitDistance = hit.distance;
     } else {
+#if VGE_LUMON_LOCAL_TRACE_ENABLED
+        int cacheLevel; float cacheRadius; float localDistance;
+        bool cacheCovered = lumonLocalCacheCoverage(probePosWS, cacheLevel, cacheRadius, localDistance);
+        if (!cacheCovered) localDistance = VGE_LUMON_RAY_MAX_DISTANCE;
+        vec3 matrixOrigin = probePosWS + probeNormalWS * 0.001 + matrixSpaceWorldBlockOffsetRem;
+        ivec3 startCell = ivec3(floor(matrixOrigin)) + matrixSpaceWorldChunkCoordOffset * 32;
+        LumonLocalHit localHit = lumonTraceLocal(startCell, fract(matrixOrigin), rayDirWS, localDistance);
+        radiance = vec3(0.0);
+        if (localHit.outcome == LUMON_LOCAL_HIT)
+        {
+            hit.hit = true;
+            hit.distance = localHit.distance;
+            bool lightReady = lumonShadeLocalHit(localHit, localDistance, LUMON_EMISSIVE_BOOST, radiance);
+            localLightingConfidence = lightReady ? 1.0 : 0.0;
+        }
+        else if (localHit.outcome == LUMON_LOCAL_CLEAR && cacheCovered)
+        {
+            LumOnWorldProbeRadianceSample wp = lumonSampleLocalCache(probePosWS, rayDirWS, cacheLevel, cacheRadius);
+            radiance = suppressWorldProbeRadiance ? vec3(0.0) : wp.radiance;
+            usedWorldProbeFallback = true;
+            worldProbeFallbackConfidence = wp.confidence;
+        }
+        else
+        {
+            localUnresolved = true;
+        }
+#else
         // Miss fallback:
         // - First try world-probes (represents "scene" / off-screen lighting).
         //   This is a directional sample from the world-probe radiance atlas; alpha sign encodes sky visibility.
@@ -294,7 +331,8 @@ void main(void)
             // Sky fallback - use world-space direction for consistent sky color
             radiance = lumonGetSkyColor(rayDirWS, sunPosition, sunColor, ambientColor, VGE_LUMON_SKY_MISS_WEIGHT);
         }
-        hitDistance = VGE_LUMON_RAY_MAX_DISTANCE;
+#endif
+        hitDistance = hit.hit ? hit.distance : VGE_LUMON_RAY_MAX_DISTANCE;
     }
     
     // Encode hit distance for storage
@@ -309,9 +347,14 @@ void main(void)
 
     if (hit.hit) {
         flags |= LUMON_META_HIT;
-        confidence = 1.0;
+        confidence = localLightingConfidence;
     } else {
-        if (usedWorldProbeFallback)
+        if (localUnresolved)
+        {
+            flags |= LUMON_META_EARLY_TERMINATED;
+            confidence = 0.0;
+        }
+        else if (usedWorldProbeFallback)
         {
             flags |= LUMON_META_WORLDPROBE_FALLBACK;
             confidence = worldProbeFallbackConfidence;
@@ -323,7 +366,7 @@ void main(void)
         }
         if (hit.exitedScreen) {
             flags |= LUMON_META_SCREEN_EXIT;
-            if (!usedWorldProbeFallback)
+            if (!usedWorldProbeFallback && !localUnresolved)
             {
                 confidence = 0.05;
             }

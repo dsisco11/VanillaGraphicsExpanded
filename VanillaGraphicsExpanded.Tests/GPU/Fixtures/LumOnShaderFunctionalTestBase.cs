@@ -229,7 +229,8 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
         Vec3f? sunPosition = null,
         Vec3f? sunColor = null,
         Vec3f? ambientColor = null,
-        int screenWidth = ScreenWidth, int screenHeight = ScreenHeight)
+        int screenWidth = ScreenWidth, int screenHeight = ScreenHeight,
+        VectorInt3 matrixSpaceWorldChunkCoordOffset = default, Vector3d matrixSpaceWorldBlockOffsetRem = default)
     {
         invProjectionMatrix ??= IdentityMat4;
         projectionMatrix ??= IdentityMat4;
@@ -264,8 +265,8 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
             sunPosition: sunPosition ?? new Vec3f(0f, 0f, 0f),
             sunColor: sunColor ?? new Vec3f(0f, 0f, 0f),
             ambientColor: ambientColor ?? new Vec3f(0f, 0f, 0f),
-            matrixSpaceWorldChunkCoordOffset: default(VectorInt3),
-            matrixSpaceWorldBlockOffsetRem: default(Vector3d));
+            matrixSpaceWorldChunkCoordOffset: matrixSpaceWorldChunkCoordOffset,
+            matrixSpaceWorldBlockOffsetRem: matrixSpaceWorldBlockOffsetRem);
 
         BindLumOnUboIfPresent(programId, "LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, LumOnUbos.FrameUbo);
     }

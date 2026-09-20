@@ -17,6 +17,9 @@ internal readonly record struct LumonSceneTraceSceneSourceCell
     /// </summary>
     public readonly byte IsSolid;
 
+    /// <summary>Independent normalized local-ray payload; default is unavailable.</summary>
+    public LocalTracing.LocalTraceSourceCell LocalTrace { get; init; }
+
     /// <summary>
     /// Block light intensity in [0..32].
     /// </summary>
@@ -38,7 +41,7 @@ internal readonly record struct LumonSceneTraceSceneSourceCell
     public readonly ushort MaterialPaletteIndex;
 
     /// <summary>
-    /// Optional padding/reserved for future flags (keeps the struct 8 bytes).
+    /// Optional padding/reserved for the legacy occupancy payload.
     /// </summary>
     public readonly ushort Reserved0;
 

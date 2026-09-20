@@ -1,7 +1,7 @@
 # LumOn world-probe lighting: architecture, findings, and repair tracking
 
 Date: 2026-09-20  
-Status: Remaining lighting findings tracked; runtime cause of the original lighting symptom not yet isolated.  
+Status: Local world tracing implemented; direct irradiance visibility and live validation remain open.
 Scope: World-probe generation, screen-probe tracing, filtering, projection, gather, and contribution diagnostics.
 
 ## Summary
@@ -29,11 +29,13 @@ These findings do not establish which mechanism dominates the reported scene. Fi
 ```text
 CPU block-world tracing + simplified lighting
     -> world directional atlas + per-probe metadata
-    -> directional lookup on screen-trace miss
+    -> distant directional lookup after a screen miss and a clear local world segment
     -> screen-probe radiance atlas + metadata
     -> temporal accumulation -> spatial filtering
     -> SH9 projection and gather OR direct atlas gather
     -> upsample -> lighting composition
+
+Local opaque hits instead supply normalized voxel-light radiance and emission.
 
 Separate final-gather recovery:
     collapsed screen-probe interpolation weight
@@ -44,10 +46,10 @@ Separate final-gather recovery:
 | Area | Current implementation | Assessment |
 | --- | --- | --- |
 | Screen-probe representation | Octahedral atlas, temporal/filter passes, SH9 or atlas gather | Main pipeline is present |
-| Cache entry point | World directional lookup on screen miss | Contributes before final gather |
+| Cache entry point | World directional lookup after a clear local segment | Contributes before final gather |
 | Accepted screen-hit lighting | Emissive contribution only | Missing reflected lighting from illuminated non-emissive surfaces |
-| World tracing and cache handoff | Screen miss directly samples world cache | No local world-trace/cache-distance boundary |
-| Cache interpolation | Same-direction interpolation between neighboring probes | No depth-based parallax correction |
+| World tracing and cache handoff | Screen miss traverses published local voxels; opaque hits stop the ray | Explicit clear/unavailable/budget outcomes |
+| Cache interpolation | Spacing-based sphere reprojection of lighting direction; near cache hits excluded | Distant-domain approximation; direct irradiance remains separate |
 | World lighting source | CPU block light plus approximate sky bounce | Separate lighting model |
 | Directional readiness | Whole-probe confidence with sliced atlas updates | Incomplete readiness contract |
 | Final gather | Combined screen-probe lighting plus low-weight world replacement | Additional recovery path |
@@ -95,7 +97,7 @@ Repair direction: separate sample validity, reconstruction reliability, and angu
 
 **Confirmed publication gap; contribution to the reported scene remains unmeasured.**
 
-Source defaults use 16×16 world tiles and 32 texels per update. Whole-probe confidence is published with each partial update, while the sampler does not check readiness of the requested direction. Untouched texels begin at zero and can be interpreted as black data from a confident probe.
+Source defaults use 16×16 world tiles and 32 texels per update. Whole-probe confidence is published with each partial update. The current directional samplers reject zero/nonfinite distance encodings, including untouched texels, but there is still no per-direction generation contract for slot reuse or incremental edits.
 
 Batch selection hashes the frame index and probe identity. Eight updates do not guarantee eight different batches. No bounded complete-tile warm-up follows from the default slicing alone.
 
@@ -123,13 +125,15 @@ Sources: [update renderer](../VanillaGraphicsExpanded/LumOn/WorldProbes/LumOnWor
 
 Repair direction: first measure actual cache radiance. Treat shared scene-lighting integration and a richer bounce model as separately scoped work, unless the reproduction proves this is the immediate limiting factor.
 
-### WP-06: Local tracing and parallax correction remain limited
+### WP-06: Local tracing implemented; direct irradiance visibility remains limited
 
-**Spatial visibility repair implemented; local tracing and parallax remain separate work.**
+**Local screen-probe tracing and directional cache handoff implemented. Direct irradiance repair remains open.**
 
-LumOn goes directly from a screen miss to directional world-probe interpolation. The sampler now rejects neighbors whose recorded geometry blocks the probe-to-sample segment and renormalizes visible neighbors. It still has no explicit local world-trace/cache-distance handoff or lighting-direction parallax correction; accepted neighbors sample the same lighting direction despite different origins.
+Screen misses now traverse a published local voxel scene. A supported opaque hit supplies normalized outside-cell block light, bounded sky bounce and hit-face emission. Only a fully clear local segment permits distant world-cache sampling. Missing data, unsupported geometry, exhausted steps and premature bounds exits remain unresolved.
 
-This affects occlusion, spatial correspondence, and off-screen detail. It is not a reason to add world irradiance unconditionally at final gather, and need not block proving basic world-to-screen lighting transport.
+The cache handoff selects a covered level, uses a sphere radius of sqrt(3) times that level's spacing, and traces twice that radius locally. Each neighbor's lighting direction is reprojected onto its sphere. Cache texels whose recorded distance is inside the radius are excluded because the existing atlas also contains near hits. The new path does not apply binary probe-to-surface rejection. This preserves constant radiance while correcting lookup direction; it does not establish exact visibility of every distant feature.
+
+The direct irradiance fallback and irradiance debug view still use the earlier visibility sampler and retain its known near-wall defect.
 
 The [controlled sealed-room reproduction](LumOn.WorldProbeLighting.ReproductionTests.md) originally confirmed across-wall interpolation: dark interior probes mixed with bright exterior probes to produce 0.125 directional radiance. The visibility repair changes that regression to require zero lighting and neutral gray through both gather modes. Covered but rejected or unpublished neighbors cannot trigger approximate sky fallback. Open-doorway, visible-neighbor and ring-index controls preserve valid lighting. The focused suite passed 71 tests with no failures or skips. Directional depth remains approximate; this does not establish correctness in every live scene.
 
@@ -149,19 +153,25 @@ Define how unresolved screen-probe rays access local voxel geometry and obtain o
 
 Completion criterion: a source-backed design identifies the available resources, required additions, and geometry-to-lighting data flow.
 
-**Design complete:** [Local world tracing integration design](LumOn.LocalWorldTracing.IntegrationDesign.md) specifies resource reuse, readiness, trace outcomes, hit lighting, ownership and frame order. Implementation and runtime validation remain open.
+**Design complete:** [Local world tracing integration design](LumOn.LocalWorldTracing.IntegrationDesign.md) specifies resource reuse, readiness, trace outcomes, hit lighting, ownership and frame order. Priority 2 now implements this design; live runtime and performance validation remain open.
 
 ### Priority 2: Local world tracing and radiance-cache handoff
 
 Continue screen-space misses through local world geometry. Nearby opaque surfaces must resolve lighting and stop the ray before distant cached lighting is accepted.
 
-- [ ] Implement local world tracing for unresolved screen-probe rays.
-- [ ] Resolve local hits using the lighting source established by Priority 1.
-- [ ] Sample the world radiance cache only after the local segment is clear.
-- [ ] Base the handoff distance on cache spacing and coverage, and apply lighting-direction parallax correction.
-- [ ] Remove binary probe-to-surface rejection from this path only after the replacement preserves sealed-room occlusion.
+- [x] Implement local world tracing for unresolved screen-probe rays.
+- [x] Resolve local hits using the lighting source established by Priority 1.
+- [x] Sample the world radiance cache only after the local segment is clear.
+- [x] Base the handoff distance on cache spacing and coverage, and apply lighting-direction parallax correction.
+- [x] Remove binary probe-to-surface rejection from this path only after the replacement preserves sealed-room occlusion.
 
 Completion criterion: local hits block exterior cache lighting, while unobstructed rays retain valid cached lighting.
+
+Implemented in the [local tracing shaders](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_local_trace.glsl) and [published scene owner](../VanillaGraphicsExpanded/LumOn/Scene/LocalTracing/LocalTraceGpuScene.cs). Controlled GPU cases cover sealed interiors, doorway closure, missing data/materials, budget limits, scene generations, stale completions, slot identities, large coordinates, emission, sky lighting and parallax.
+
+- [ ] Validate live scene appearance, snapshot cost and GPU traversal cost under representative update budgets.
+
+Automated correctness evidence is recorded in the [reproduction report](LumOn.WorldProbeLighting.ReproductionTests.md#local-world-tracing-and-cache-handoff). This item does not claim to repair the direct irradiance viewer.
 
 ### Priority 3: Direct world-probe irradiance visibility
 
