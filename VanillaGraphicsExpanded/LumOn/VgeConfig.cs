@@ -1278,6 +1278,9 @@ public class VgeConfig
         [JsonIgnore]
         public LumOnDebugMode DebugMode { get; set; } = LumOnDebugMode.Off;
 
+        /// <summary>Display-only sensitivity for the world-probe signed luminance diagnostic.</summary>
+        public float WorldProbeEffectGain { get; set; } = 10f;
+
         /// <summary>
         /// Debug override: forces the probe-atlas trace mask to be uniform (all directions eligible).
         /// Intended for validating mask consumption paths.

@@ -17,21 +17,37 @@ public sealed class LumOnWorldProbeLightingEffectFunctionalTests : LumOnShaderFu
     #endregion
 
     #region Signed Difference
-    /// <summary>Positive, negative and zero differences must survive the signed debug mapping.</summary>
+    /// <summary>Checks sign colors, zero, mixed RGB luminance, display gain, and unavailable comparison data.</summary>
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void LightingEffect_MapsSignedLinearDifference_AndIndicatesMissingPair(bool ready)
+    [InlineData(2f, 2f, 2f, 1f, true)]
+    [InlineData(-2f, -2f, -2f, 1f, true)]
+    [InlineData(0f, 0f, 0f, 1000f, true)]
+    [InlineData(2f, -2f, 0f, 1f, true)]
+    [InlineData(0.01f, 0.01f, 0.01f, 1f, true)]
+    [InlineData(0.01f, 0.01f, 0.01f, 100f, true)]
+    [InlineData(-0.01f, -0.01f, -0.01f, 100f, true)]
+    [InlineData(2f, 2f, 2f, 100f, false)]
+    public void LightingEffect_MapsSignedLuminance_AndIndicatesMissingPair(
+        float red, float green, float blue, float gain, bool ready)
     {
         EnsureShaderTestAvailable();
         int program = CompileShader("lumon_debug.vsh", "lumon_debug_worldprobe.fsh");
         try
         {
-            using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new float[] { 3, 1, 2, 1 });
-            using var suppressed = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new float[] { 1, 3, 2, 1 });
+            // Split signed differences into nonnegative HDR inputs.
+            float[] positive = [Math.Max(red, 0), Math.Max(green, 0), Math.Max(blue, 0), 1];
+            float[] negative = [Math.Max(-red, 0), Math.Max(-green, 0), Math.Max(-blue, 0), 1];
+            using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, positive);
+            using var suppressed = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, negative);
             using var output = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
             using var objectParams = new ObjectParamsUbo("Tests.WorldProbeLightingEffect");
-            var cpuParams = new LumOnDebugParamsUbo { DebugMode = 43, WorldProbeComparisonReady = ready };
+            // Set gain first to also detect accidental overwrites by the neighboring UBO setters.
+            var cpuParams = new LumOnDebugParamsUbo
+            {
+                DebugMode = 43, WorldProbeEffectGain = gain,
+                WorldProbeComparisonReady = ready, DiffuseAOStrength = 0.5f, SpecularAOStrength = 0.5f
+            };
+            Assert.Equal(gain, cpuParams.WorldProbeEffectGain);
             UniformBlockBindingUtil.EnsureBlockBound(program, LumOnDebugParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
             objectParams.UploadAndBind(cpuParams.Bytes);
             UpdateAndBindLumOnFrameUbo(program);
@@ -43,8 +59,11 @@ public sealed class LumOnWorldProbeLightingEffectFunctionalTests : LumOnShaderFu
             GL.UseProgram(0);
             TestFramework.RenderQuadTo(program, output);
             var pixels = output[0].ReadPixels();
-            // This difference is taken before tone mapping: (+2,-2,0) maps to (5/6,1/6,1/2).
-            float[] expected = ready ? new float[] { 5f / 6f, 1f / 6f, 0.5f } : new float[] { 0.5f, 0f, 0.5f };
+            float luminance = red * 0.2126f + green * 0.7152f + blue * 0.0722f;
+            float magnitude = Math.Abs(luminance) * gain;
+            float brightness = magnitude / (1 + magnitude);
+            float[] expected = !ready ? [0.5f, 0, 0.5f]
+                : luminance >= 0 ? [brightness, brightness * 0.35f, 0] : [0, brightness * 0.35f, brightness];
             for (int i = 0; i < pixels.Length; i += 4)
                 for (int channel = 0; channel < 3; channel++)
                     Assert.InRange(pixels[i + channel], expected[channel] - TestEpsilon, expected[channel] + TestEpsilon);

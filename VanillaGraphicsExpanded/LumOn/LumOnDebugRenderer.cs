@@ -1154,6 +1154,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             shader.IndirectTint = new Vec3f(lum.IndirectTint[0], lum.IndirectTint[1], lum.IndirectTint[2]);
             shader.DiffuseAOStrength = Math.Clamp(lum.DiffuseAOStrength, 0f, 1f);
             shader.SpecularAOStrength = Math.Clamp(lum.SpecularAOStrength, 0f, 1f);
+            shader.WorldProbeEffectGain = float.IsFinite(lum.WorldProbeEffectGain)
+                ? Math.Clamp(lum.WorldProbeEffectGain, 1f, 1000f) : 10f;
 
             // Render fullscreen quad
             using var cpuScope = Profiler.BeginScope("Debug.LumOn", "Render");

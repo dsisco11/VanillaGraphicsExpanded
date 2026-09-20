@@ -227,7 +227,7 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
         set
         {
             var (_, spec, _, _) = UboPacking.ReadVec4(DataReadOnly, OffsetAoStrengths);
-            UboPacking.WriteVec4(DataWritable, OffsetAoStrengths, value, spec, WorldProbeComparisonReady ? 1f : 0f, 0f);
+            UboPacking.WriteVec4(DataWritable, OffsetAoStrengths, value, spec, WorldProbeComparisonReady ? 1f : 0f, WorldProbeEffectGain);
             MarkDirty(OffsetAoStrengths, 16);
         }
     }
@@ -238,7 +238,19 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
         set
         {
             var (diff, _, _, _) = UboPacking.ReadVec4(DataReadOnly, OffsetAoStrengths);
-            UboPacking.WriteVec4(DataWritable, OffsetAoStrengths, diff, value, WorldProbeComparisonReady ? 1f : 0f, 0f);
+            UboPacking.WriteVec4(DataWritable, OffsetAoStrengths, diff, value, WorldProbeComparisonReady ? 1f : 0f, WorldProbeEffectGain);
+            MarkDirty(OffsetAoStrengths, 16);
+        }
+    }
+
+    /// <summary>Display-only amplification of the signed luminance difference.</summary>
+    public float WorldProbeEffectGain
+    {
+        get => UboPacking.ReadFloat(DataReadOnly, OffsetAoStrengths + 12);
+        set
+        {
+            UboPacking.WriteVec4(DataWritable, OffsetAoStrengths, DiffuseAOStrength,
+                SpecularAOStrength, WorldProbeComparisonReady ? 1f : 0f, value);
             MarkDirty(OffsetAoStrengths, 16);
         }
     }
@@ -249,7 +261,7 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
         get => UboPacking.ReadFloat(DataReadOnly, OffsetAoStrengths + 8) != 0f;
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetAoStrengths, DiffuseAOStrength, SpecularAOStrength, value ? 1f : 0f, 0f);
+            UboPacking.WriteVec4(DataWritable, OffsetAoStrengths, DiffuseAOStrength, SpecularAOStrength, value ? 1f : 0f, WorldProbeEffectGain);
             MarkDirty(OffsetAoStrengths, 16);
         }
     }

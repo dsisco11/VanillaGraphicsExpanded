@@ -280,6 +280,18 @@ public static partial class VgeBuiltInDebugViews
                 y += rowH + rowGapY;
             }
 
+            if (selectedMode == ProbeVizMode.WorldProbeLightingEffect)
+            {
+                string[] gains = ["1", "10", "100", "1000"];
+                int gainIndex = Array.IndexOf(gains, config.LumOn.WorldProbeEffectGain.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                composer.AddStaticText("Effect gain", fontLabel, ElementBounds.Fixed(0, y, labelW, rowH).WithParent(bounds))
+                    .AddInteractiveElement(new GuiElementDropDownCycleOnArrow(capi, gains,
+                        ["1x", "10x", "100x", "1000x"], Math.Max(0, gainIndex), OnEffectGainChanged,
+                        ElementBounds.Fixed(labelW + gap, y, controlW, rowH).WithParent(bounds), fontSmall),
+                        $"{keyPrefix}-effect-gain");
+                y += rowH + rowGapY;
+            }
+
             // Extra info for the orb view: show closest probe position in world-space.
             // (This helps diagnose why probes near the ground are disabled.)
             ElementBounds closestBounds = ElementBounds.Fixed(0, y, boundsW, rowH * 2).WithParent(bounds);
@@ -312,13 +324,15 @@ public static partial class VgeBuiltInDebugViews
                 {
                     vtml = "<b>World-probe lighting comparison</b><br/>"
                         + "Effect = normal minus zeroed-world lighting.<br/>"
-                        + "RGB above gray: increase. Below: decrease.<br/>"
-                        + "Gray: no effect. Purple: not ready.<br/>"
+                        + Line("#ff5900", "Orange: increased luminance.")
+                        + Line("#0059ff", "Blue: decreased luminance.")
+                        + "Black: zero luminance change. Purple: not ready.<br/>"
+                        + "Gain amplifies the display only.<br/>"
                         + "Zeroed view shows comparison lighting.<br/>"
                         + "Histories restart on activation; allow them to settle.";
                 }
 
-                ElementBounds legendBounds = ElementBounds.Fixed(0, y, boundsW, rowH * 7).WithParent(bounds);
+                ElementBounds legendBounds = ElementBounds.Fixed(0, y, boundsW, rowH * 9).WithParent(bounds);
                 composer.AddRichtext(vtml, fontSmall, legendBounds, $"{keyPrefix}-{ProbeAtlasTemporalRejectionLegendKey}");
             }
 
@@ -492,6 +506,14 @@ public static partial class VgeBuiltInDebugViews
                 $"Closest world probe:\n" +
                 $"target=({targetWorld.X:0.###},{targetWorld.Y:0.###},{targetWorld.Z:0.###})\n" +
                 $"L{bestLevel} idx=({bestIndex.X},{bestIndex.Y},{bestIndex.Z})  pos=({bestPos.X:0.###},{bestPos.Y:0.###},{bestPos.Z:0.###})  d={dist:0.###}";
+        }
+
+        /// <summary>Changes only visualization gain, preserving the paired lighting histories.</summary>
+        private void OnEffectGainChanged(string code, bool selected)
+        {
+            if (selected && float.TryParse(code, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out float gain))
+                config.LumOn.WorldProbeEffectGain = gain;
         }
 
         private void OnModeChanged(string code, bool selected)

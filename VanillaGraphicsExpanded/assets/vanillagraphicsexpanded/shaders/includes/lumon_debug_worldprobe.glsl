@@ -15,8 +15,13 @@ vec4 renderWorldProbeLightingEffectDebug()
     if (!worldProbeComparisonReady)
         return vec4(0.5, 0.0, 0.5, 1.0);
     vec3 delta = texture(indirectDiffuseFull, uv).rgb - texture(worldProbeSuppressedLighting, uv).rgb;
-    // Each channel maps negative to below neutral gray and positive to above it.
-    return vec4(vec3(0.5) + 0.5 * delta / (vec3(1.0) + abs(delta)), 1.0);
+    // Compare linear luminance before tone mapping. Gain changes only the display,
+    // so weak effects can be inspected without changing either lighting branch.
+    float difference = dot(delta, vec3(0.2126, 0.7152, 0.0722));
+    float magnitude = abs(difference) * max(worldProbeEffectGain, 1.0);
+    float brightness = magnitude / (1.0 + magnitude);
+    vec3 signColor = difference >= 0.0 ? vec3(1.0, 0.35, 0.0) : vec3(0.0, 0.35, 1.0);
+    return vec4(signColor * brightness, 1.0);
 }
 
 /** Shows the counterfactual lighting, retaining sky fallbacks and all sample metadata. */

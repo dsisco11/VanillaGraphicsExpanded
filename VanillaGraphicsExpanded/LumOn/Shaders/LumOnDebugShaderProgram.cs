@@ -169,6 +169,16 @@ public class LumOnDebugShaderProgram : GpuProgram
     /// </summary>
     public GpuTexture? ProbePisEnergy { set => Layout.BindTexture2D(ProgramId, "probePisEnergy", value?.TextureId ?? 0, LayoutWarn); }
 
+    /// <summary>Controls the diagnostic display sensitivity without modifying lighting.</summary>
+    public float WorldProbeEffectGain
+    {
+        set
+        {
+            Params.WorldProbeEffectGain = value;
+            Params.BindTo(this, LumOnDebugParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
+        }
+    }
+
     /// <summary>Paired full-resolution output with accepted world radiance zeroed.</summary>
     public GpuTexture? WorldProbeSuppressedLighting
     {
