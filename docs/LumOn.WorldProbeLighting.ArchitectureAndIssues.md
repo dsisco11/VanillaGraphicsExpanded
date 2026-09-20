@@ -1,7 +1,7 @@
 # LumOn world-probe lighting: architecture, findings, and repair tracking
 
 Date: 2026-09-20  
-Status: WP-01 replacement implemented and GPU-tested; runtime cause of the original lighting symptom not yet isolated.  
+Status: Remaining lighting findings tracked; runtime cause of the original lighting symptom not yet isolated.  
 Scope: World-probe generation, screen-probe tracing, filtering, projection, gather, and contribution diagnostics.
 
 ## Summary
@@ -10,18 +10,16 @@ LumOn uses a screen-probe pipeline with directional radiance storage, temporal a
 
 The current implementation has several limitations that can explain missing or apparently missing lighting:
 
-1. The former world-contribution view omitted lighting carried through screen probes; its replacement now compares paired lighting outputs (WP-01).
-2. Accepted screen hits supply emissive radiance only; ordinary illuminated surfaces return black with full confidence.
-3. SH projection weights angular samples by confidence, favoring screen hits over many world-probe samples.
-4. Whole-probe confidence can be published before all directional texels contain valid radiance.
-5. World-probe lighting uses a separate, simplified CPU lighting model rather than the existing LumonScene surface-cache lighting.
+1. Accepted screen hits supply emissive radiance only; ordinary illuminated surfaces return black with full confidence.
+2. SH projection weights angular samples by confidence, favoring screen hits over many world-probe samples.
+3. Whole-probe confidence can be published before all directional texels contain valid radiance.
+4. World-probe lighting uses a separate, simplified CPU lighting model rather than the existing LumonScene surface-cache lighting.
 
 These findings do not establish which mechanism dominates the reported scene. Fixing the observed problem does not inherently require an architectural rewrite or an unconditional world-light term in final gather.
 
 ## Evidence and limitations
 
 - Findings are based on local source inspection, not a reproduction of the affected scene.
-- The initial analysis was source-only. WP-01 implementation validation is recorded below; it does not establish the cause of the original scene symptom.
 - Configuration values below are source defaults, not verified live settings.
 - Source locations describe the inspected revision and may move as implementation changes.
 - Older architecture documents are historical context. Filtering, confidence metadata, HZB, and world fallback now exist in source.
@@ -62,50 +60,6 @@ Relevant LumOn sources:
 - [Final-gather recovery](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_worldprobe_gather.glsl): `screenWeight < 0.001` gates direct world irradiance replacement.
 
 ## Findings
-
-### WP-01: Replace inferred contribution with a paired lighting-effect diagnostic
-
-**Implemented and validated by focused GPU/unit tests; live-game validation remains open.**
-
-The former world-contribution view compared final gather values with a separately sampled world fallback candidate. It could not identify world lighting carried through screen probes, and coincidental RGB equality could not establish attribution. That view and its equality-matching helpers have been removed.
-
-The replacement **World-Probe Lighting Effect** view compares two executions of the production lighting passes:
-
-- Normal lighting.
-- Lighting with accepted world radiance zeroed at both entry points: screen-trace misses and final-gather world replacements.
-
-The comparison preserves world-probe enablement, confidence, flags, distances, and fallback selection. It does not substitute sky lighting for a valid world sample. Both branches share geometry inputs, velocity, HZB, frame index, and the normal branch's importance-sampling trace mask. Each branch has its own radiance and metadata history, filtering output, SH output, gather target, and upsampled output.
-
-Activation, configuration changes, resize, teleport, and history invalidation reset the pair together. Comparison resources exist only while either comparison view is selected. A skipped lighting pass leaves the diagnostic unavailable and forces a paired reset instead of displaying stale differences.
-
-The displayed difference is computed from full-resolution linear lighting before tone mapping:
-
-    delta = normal - world-radiance-zeroed
-    display = 0.5 + 0.5 * delta / (1 + abs(delta))
-
-The mapping applies independently to RGB channels: neutral gray means zero difference; channels above gray indicate increases and below gray indicate decreases. Purple means the comparison is not ready. Temporal clamping and other nonlinear operations can produce negative differences, so the view retains both signs.
-
-The companion **Lighting With World Radiance Zeroed** view replaces the old inferred screen-contribution view. It displays the comparison output, including any unchanged sky fallback. Neither view claims an additive source decomposition.
-
-Sources:
-
-- [Paired renderer lifecycle](../VanillaGraphicsExpanded/LumOn/LumOnRenderer.WorldProbeComparison.cs).
-- [Production pass orchestration](../VanillaGraphicsExpanded/LumOn/LumOnRenderer.cs).
-- [Diagnostic shader](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_debug_worldprobe.glsl).
-- [Screen trace suppression](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_trace.fsh).
-- [Atlas gather suppression](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_gather.fsh).
-- [SH gather suppression](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_sh9_gather.fsh).
-
-WP-01 verification (2026-09-20):
-
-- Production and test projects built successfully with SPIR-V enabled.
-- 175 distinct focused tests passed, with zero failures or skips.
-- GPU coverage verifies trace suppression preserves metadata and distances without selecting sky fallback; both gather modes preserve screen lighting and confidence while suppressing selected world replacements.
-- A two-frame production-shader regression carries normal and suppressed trace results through separate temporal targets, filtering, and both gather modes. Normal world lighting reaches valid screen-probe gather while suppressed lighting remains zero.
-- Signed positive/negative/zero differences and unavailable-pair display are checked on the GPU.
-- UBO tests verify suppression/readiness fields do not overwrite neighboring parameters.
-- The deterministic paired fixture disables velocity reprojection. Live renderer/UI lifecycle, camera motion, and visual checks remain unverified.
-- Local receipts: [focused suite log](../artifacts/world-probe-comparison-final.log), [routing suite log](../artifacts/world-probe-comparison-routing.log); TRX results are under artifacts/TestResults.
 
 ### WP-02: Non-emissive screen hits return fully confident black
 
@@ -190,7 +144,6 @@ All checkboxes represent remaining work, not completed validation.
 - [ ] Test a directly lit, non-emissive screen hit and compare with the same surface when resolved off screen.
 - [ ] Verify world radiance population, directional readiness, and metadata at startup and during slot reuse.
 - [ ] Exercise upload-budget exhaustion and unavailable tile-program handling without losing pending radiance or publishing misleading validity.
-- [ ] Validate the replacement lighting-effect and world-radiance-zeroed views in the running game, including signed output, readiness, and paired resets.
 - [ ] Correct accepted-hit radiance and validate material/exposure consistency.
 - [ ] Correct angular confidence weighting and readiness/publication contracts where the reproduction confirms impact.
 - [ ] Decide separately whether local world tracing, parallax correction, and shared scene-lighting integration are required next.
