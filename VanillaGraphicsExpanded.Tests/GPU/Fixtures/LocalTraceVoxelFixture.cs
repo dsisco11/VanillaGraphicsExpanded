@@ -30,6 +30,37 @@ internal sealed class LocalTraceVoxelFixture : IDisposable
     /// <summary>Converts controlled cells to source artifacts, retaining world identities and X/Z/Y source ordering.</summary>
     public void Publish(ControlledVoxelWorld world, Vector4? material = null, uint materialIdentity = 1)
     {
+        PublishRegions(position =>
+        {
+            uint geometry = !world.IsLoaded(position) ? 0u : world.GetBlock(position).BlockId == 0 ? 1u : 2u | (materialIdentity << 2);
+            return new LocalTraceSourceCell(geometry, world.GetLight(position));
+        });
+        // Material identity 1 is deliberately independent of the game registry.
+        var value = material ?? new Vector4(1, 1, 1, 0);
+        var data = new float[LocalTraceMaterialRegistry.Width * LocalTraceMaterialRegistry.Height * 4];
+        for (int face = 0; face < 6; face++)
+        {
+            int i = (12 + face * 2) * 4;
+            data[i] = value.X; data[i + 1] = value.Y; data[i + 2] = value.Z; data[i + 3] = 0;
+            data[i + 4] = value.X * value.W; data[i + 5] = value.Y * value.W; data[i + 6] = value.Z * value.W;
+        }
+        Scene.Materials.UploadDataImmediate(data);
+    }
+    /// <summary>Captures live cell classification and material identities through the production resolver.</summary>
+    public void PublishCaptured(ControlledVoxelWorld world)
+    {
+        var accessor = ControlledBlockAccessor.Create(world);
+        var position = new Vintagestory.API.MathTools.BlockPos(0);
+        PublishRegions(cell =>
+        {
+            position.Set(cell.X, cell.Y, cell.Z);
+            return LocalTraceCellCapture.Capture(accessor, world.GetBlock(cell), position, materials);
+        });
+    }
+
+    /// <summary>Publishes complete regions through the same version and GPU readiness contract for both capture paths.</summary>
+    private void PublishRegions(Func<(int X, int Y, int Z), LocalTraceSourceCell> capture)
+    {
         var origin = Scene.Origin;
         for (int rz = 0; rz < Scene.RegionResolution; rz++)
         for (int ry = 0; ry < Scene.RegionResolution; ry++)
@@ -43,22 +74,11 @@ internal sealed class LocalTraceVoxelFixture : IDisposable
             for (int x = 0; x < 32; x++)
             {
                 var position = (coordinate.X * 32 + x, coordinate.Y * 32 + y, coordinate.Z * 32 + z);
-                uint geometry = !world.IsLoaded(position) ? 0u : world.GetBlock(position).BlockId == 0 ? 1u : 2u | (materialIdentity << 2);
-                cells[(y * 32 + z) * 32 + x] = new LocalTraceSourceCell(geometry, world.GetLight(position));
+                cells[(y * 32 + z) * 32 + x] = capture(position);
             }
             Scene.Publish(new LumonSceneTraceSceneRegionArtifact(key, Versions.GetCurrentVersion(key), coordinate, new uint[32768])
                 { LocalCells = cells }, materials, Versions);
         }
-        // Material identity 1 is deliberately independent of the game registry.
-        var value = material ?? new Vector4(1, 1, 1, 0);
-        var data = new float[LocalTraceMaterialRegistry.Width * LocalTraceMaterialRegistry.Height * 4];
-        for (int face = 0; face < 6; face++)
-        {
-            int i = (12 + face * 2) * 4;
-            data[i] = value.X; data[i + 1] = value.Y; data[i + 2] = value.Z; data[i + 3] = 0;
-            data[i + 4] = value.X * value.W; data[i + 5] = value.Y * value.W; data[i + 6] = value.Z * value.W;
-        }
-        Scene.Materials.UploadDataImmediate(data);
     }
     #endregion
 }

@@ -5,14 +5,17 @@ using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
-namespace VanillaGraphicsExpanded.Tests.GPU;
+namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 /// <summary>Production shader bindings shared by the local-trace scenarios.</summary>
-public sealed partial class LumOnLocalTraceFunctionalTests
+public abstract class LocalTraceShaderTestBase : LumOnShaderFunctionalTestBase
 {
+    /// <summary>Uses the shared headless GPU context.</summary>
+    protected LocalTraceShaderTestBase(HeadlessGLFixture fixture) : base(fixture) { }
+
     #region Shader Harness
     /// <summary>Runs the production shader with the production sixteen-unit texture layout.</summary>
-    private (float[] Radiance, float[] Meta) Trace(LocalTraceVoxelFixture fixture, int budget = 256, bool suppress = false, float cacheDistance = 100, float emissionBoost = 1, VanillaGraphicsExpanded.Numerics.VectorInt3 worldOffset = default, int cacheResolution = 1,
+    private protected (float[] Radiance, float[] Meta) Trace(LocalTraceVoxelFixture fixture, int budget = 256, bool suppress = false, float cacheDistance = 100, float emissionBoost = 1, VanillaGraphicsExpanded.Numerics.VectorInt3 worldOffset = default, int cacheResolution = 1,
         bool directionalCache = false, float anchorX = 0, float screenDepth = 1, bool localTracing = true, float screenEmission = 0, bool worldCache = true)
     {
         int program = CompileShaderWithDefines("lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh",
@@ -93,6 +96,6 @@ public sealed partial class LumOnLocalTraceFunctionalTests
     }
 
     /// <summary>Decodes metadata without numeric conversion of the packed flag bits.</summary>
-    private static uint Flags(float value) => unchecked((uint)BitConverter.SingleToInt32Bits(value));
+    protected static uint Flags(float value) => unchecked((uint)BitConverter.SingleToInt32Bits(value));
     #endregion
 }

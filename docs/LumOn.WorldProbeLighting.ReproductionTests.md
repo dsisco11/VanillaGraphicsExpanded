@@ -8,13 +8,13 @@ Separate incorrect world-probe light generation from lighting introduced by spat
 
 The fixtures live in [Tests/Fixtures/WorldProbes](../VanillaGraphicsExpanded.Tests/Fixtures/WorldProbes).
 
-| Fixture | Responsibility |
-| --- | --- |
-| ControlledVoxelWorld | Mutable solid cells, material IDs/collision boxes, independent light values, loaded-cell policy and recorded light queries. Supports room shells, block edits and light regions. |
-| ControlledBlockAccessor | Adapts those cells to the engine accessor interface. Unexpected API calls fail loudly. |
-| LoadedChunkSentinel | Represents loaded chunk presence without simulating chunk internals. |
-| WorldProbeRoomScenario | Builds the reference room and runs complete 16×16 directional traces. |
-| WorldProbeAtlasData | Packs successful, complete trace results into single-level radiance/visibility/confidence arrays. Rejects missing or duplicate directions. |
+| Fixture                 | Responsibility                                                                                                                                                                   |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ControlledVoxelWorld    | Mutable solid cells, material IDs/collision boxes, independent light values, loaded-cell policy and recorded light queries. Supports room shells, block edits and light regions. |
+| ControlledBlockAccessor | Adapts those cells to the engine accessor interface. Unexpected API calls fail loudly.                                                                                           |
+| LoadedChunkSentinel     | Represents loaded chunk presence without simulating chunk internals.                                                                                                             |
+| WorldProbeRoomScenario  | Builds the reference room and runs complete 16×16 directional traces.                                                                                                            |
+| WorldProbeAtlasData     | Packs successful, complete trace results into single-level radiance/visibility/confidence arrays. Rejects missing or duplicate directions.                                       |
 
 New scenarios can construct their own voxel worlds, choose material/collision geometry and light regions, and reuse the same tracer and atlas packer. Ray results are never scripted. The production implementation selects rays, traverses cells and chooses the surface-adjacent light cell.
 
@@ -41,11 +41,11 @@ The doorway test checks fresh tracing only. It does not validate scheduler inval
 
 [Sealed-room GPU cases](../VanillaGraphicsExpanded.Tests/GPU/LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests.SealedRoom.cs) populate all eight probe tiles from actual CPU trace results, then run forced screen misses through production atlas tracing, two frames of separate temporal histories, filtering, both atlas and SH9 gather, and the signed lighting-effect shader.
 
-| Exterior block light | Interior sample X | Expected directional cache radiance |
-| --- | --- | --- |
-| 0 | 0.75 | 0 |
-| 1 | 0.5, exactly at the interior probe center | 0 |
-| 1 | 0.75, still inside the sealed room | 0 (previously 0.125) |
+| Exterior block light | Interior sample X                         | Expected directional cache radiance |
+| -------------------- | ----------------------------------------- | ----------------------------------- |
+| 0                    | 0.75                                      | 0                                   |
+| 1                    | 0.5, exactly at the interior probe center | 0                                   |
+| 1                    | 0.75, still inside the sealed room        | 0 (previously 0.125)                |
 
 The final case originally reproduced across-wall interpolation: exterior weight (0.75-0.5)/2 = 0.125 contributed despite the enclosing wall. It now requires zero radiance through both gather modes and black in the paired luminance diagnostic.
 
@@ -103,14 +103,13 @@ The tests report rejection counts through test output; no image or CSV files are
 The focused suite passed **73 tests, 0 failures, 0 skipped**, including both new GPU cases:
 
 | Wall inset | Exact unobstructed segments | False GPU rejections | Accepted |
-| --- | --- | --- | --- |
-| 0.01 | 16,384 | 6,228 (38.01%) | 10,156 |
-| 2 | 16,384 | 0 | 16,384 |
+| ---------- | --------------------------- | -------------------- | -------- |
+| 0.01       | 16,384                      | 6,228 (38.01%)       | 10,156   |
+| 2          | 16,384                      | 0                    | 16,384   |
 
 Matching irradiance/confidence assertions attribute black pixels to rejection rather than absent source lighting. This is a controlled single-probe reproduction, not an exact reconstruction of a particular live scene.
 
 Validation receipts: [test log](../artifacts/wall-visibility-reproduction.log) and [TRX](../artifacts/TestResults/wall-visibility-reproduction.trx).
-
 
 ## Local world tracing and cache handoff
 
@@ -150,7 +149,6 @@ Receipts: [local suite](../artifacts/local-trace-final.log), [local TRX](../arti
 
 These tests establish controlled shader and publication correctness. They do not measure live frame time, main-thread snapshot cost, production update-budget pressure, camera-motion history behavior or real-scene appearance. Unsupported geometry remains unresolved by design. Direct irradiance fallback and the irradiance viewer use the subsequent repair described below.
 
-
 ### Compact textures and region-ring ownership
 
 Local lighting and diffuse/emission material textures now use normalized RGBA8. The region texture uses R8UI readiness only; the CPU owns slot identities and versions, and the shader derives wrapping offsets from the integer anchor.
@@ -159,9 +157,7 @@ Local lighting and diffuse/emission material textures now use normalized RGBA8. 
 
 [Lighting controls](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceFunctionalTests.Lighting.cs) test RGBA8 quantization at zero, dim intensities and full intensity. Existing local emission, sealed-room, stale-version, large-coordinate and parallax cases remain applicable. Quantization is intentional: normalized steps are 1/255, while shader output and boosted emission remain HDR.
 
-
 Compact-format validation: **47 local tests and 15 texture/format/upload regressions passed, with zero failures or skips**. The build succeeded. Receipts: [local tests](../artifacts/local-trace-compact-final.log), [local TRX](../artifacts/TestResults/local-trace-compact-final.trx), and [texture regressions](../artifacts/local-trace-compact-textures.log). These checks validate correctness and quantization behavior; no live performance measurement was made.
-
 
 ## Direct irradiance visibility repair
 
@@ -175,17 +171,16 @@ The dense wall test now requires zero false rejections rather than merely reprod
 
 These tests exercise production shaders over controlled full-cube geometry. They do not establish live visual results, runtime traversal cost, arbitrary partial-block support, or visibility beyond the local published window. The original three unrelated broader-suite failures and their unchanged-revision baseline remain recorded above.
 
-
 ### Direct visibility validation results
 
 **Initial implementation validation: 39 direct-visibility cases and 216 regression cases passed, zero failures or skips.** The regression selection includes local tracing, prior world-probe controls, shader compilation, UBO/layout binding and debug routing. Build succeeded with the same six unrelated warnings.
 
-| Consumer | Wall inset | Exact clear segments | False rejections | Accepted |
-| --- | --- | --- | --- | --- |
-| Irradiance/confidence debug | 0.01 | 16,384 | 0 | 16,384 |
-| Irradiance/confidence debug | 2 | 16,384 | 0 | 16,384 |
-| Atlas gather fallback | 0.01 | 16,384 | 0 | 16,384 |
-| SH9 gather fallback | 0.01 | 16,384 | 0 | 16,384 |
+| Consumer                    | Wall inset | Exact clear segments | False rejections | Accepted |
+| --------------------------- | ---------- | -------------------- | ---------------- | -------- |
+| Irradiance/confidence debug | 0.01       | 16,384               | 0                | 16,384   |
+| Irradiance/confidence debug | 2          | 16,384               | 0                | 16,384   |
+| Atlas gather fallback       | 0.01       | 16,384               | 0                | 16,384   |
+| SH9 gather fallback         | 0.01       | 16,384               | 0                | 16,384   |
 
 Receipts: [direct visibility tests](../artifacts/direct-visibility-final.log), [direct visibility TRX](../artifacts/TestResults/direct-visibility-final.trx), [regression tests](../artifacts/direct-visibility-regression.log), and [regression TRX](../artifacts/TestResults/direct-visibility-regression.trx).
 
@@ -241,15 +236,15 @@ Live scene appearance and the added traversal cost remain unverified. The WP lig
 
 The Probes panel's **Probe-Atlas Trace Outcome** view displays the latest recorded trace classification for each atlas direction. It reads the raw trace metadata rather than deriving an outcome from temporally filtered radiance. Directions not traced during the current update retain their previous classification.
 
-| Color | Meaning |
-| --- | --- |
-| Red | Hit distance of 0.02 blocks or less; possible self-intersection |
-| Green | Resolved hit with a radiance component above 0.00001 |
-| Yellow | Resolved hit with radiance at or below that threshold |
+| Color   | Meaning                                                                                       |
+| ------- | --------------------------------------------------------------------------------------------- |
+| Red     | Hit distance of 0.02 blocks or less; possible self-intersection                               |
+| Green   | Resolved hit with a radiance component above 0.00001                                          |
+| Yellow  | Resolved hit with radiance at or below that threshold                                         |
 | Magenta | Unavailable lighting or geometry, exhausted traversal budget, or zero-confidence cache sample |
-| Cyan | World-cache sample with positive confidence |
-| Blue | Legacy sky approximation |
-| Black | No recorded outcome |
+| Cyan    | World-cache sample with positive confidence                                                   |
+| Blue    | Legacy sky approximation                                                                      |
+| Black   | No recorded outcome                                                                           |
 
 Near-zero hits take priority over lighting readiness; red alone does not prove self-intersection. Yellow establishes that the trace accepted a dark lighting result, not that the live scene should physically be dark. These outcomes are encoded in existing metadata bits 16 through 18 without changing radiance, confidence, or allocating another atlas. Cache suppression preserves the classification.
 
@@ -257,3 +252,17 @@ For the indoor-black investigation, allow the atlas directions to update while v
 
 Diagnostic validation: **40 focused tests passed**, zero failures or skips. The controls exercise actual near-zero, lit, dark, unavailable, budget-limited, cache and sky traces; all seven display colors; renderer routing and buffer requirements; and outcome preservation through temporal filtering. Build succeeded with six existing warnings. Receipts: [focused log](../artifacts/trace-outcome-diagnostic.log) and [focused TRX](../artifacts/TestResults/trace-outcome-diagnostic.trx). Live in-game colors remain unverified.
 The complete local-tracing selection also passed all **61 tests**, zero failures or skips, including the earlier screen-hit and cache-suppression controls. Receipts: [local regression log](../artifacts/trace-outcome-local-regression.log) and [local regression TRX](../artifacts/TestResults/trace-outcome-local-regression.trx).
+
+### Captured material-readiness reproduction
+
+The live observation motivating this case is mostly magenta trace outcomes, occasional red, and apparently normal world-probe irradiance. The existing synthetic GPU scenes assign material identity 1 directly, so they do not exercise live cell capture's dependency on material-registry readiness.
+
+The new candidate scenario uses a loaded, lit, opaque cube room. It runs production cell capture, material resolution, GPU scene publication, and the actual probe trace shader. Capture before material readiness stores opaque geometry with material identity zero; the local hit shader rejects that identity as unavailable lighting. Updating the material registry alone does not rewrite captured cell identities. A ready-from-start control and recapture of the unchanged room distinguish this dependency from geometry, missing chunks, light values, or traversal limits.
+
+This is a controlled candidate mechanism, not confirmation of the live root cause. Normal startup builds derived material data on the block-texture event; the test does not establish that the affected game session captured its room before that event. It does not reproduce the complete scene scheduler, occasional red hits, or mostly white temporal confidence. No rendering behavior is changed by this reproduction work.
+
+[The reproduction tests](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceMaterialReadinessTests.cs) passed all **5 cases**. In each of the three missing-material variants (surface missing, derived lookup missing, both missing), the same room's real CPU world-probe integrator returns lit samples while every tested local GPU direction reports a geometric hit, zero radiance, zero confidence, and outcome 4. GPU region readiness remains 1. Registry readiness alone leaves the scene revision and results unchanged; recapture restores outcome 2, confidence 1, and approximately 0.251 RGB. Ready-from-start capture passes. The partial-block control remains unavailable by the current geometry-support contract.
+
+Reusable support consists of [production cell publication](../VanillaGraphicsExpanded.Tests/GPU/Fixtures/LocalTraceVoxelFixture.cs), the [shared shader harness](../VanillaGraphicsExpanded.Tests/GPU/Fixtures/LocalTraceShaderTestBase.cs), and a [scoped material-readiness fixture](../VanillaGraphicsExpanded.Tests/Fixtures/WorldProbes/ScopedPbrMaterialFixture.cs). Material data uses the production derived-surface builder; a test-only reflection seam installs its result and restores the original registry state. The collection runs exclusively to protect singleton users. Region scheduling and game event ordering are outside this fixture.
+
+The full local-tracing selection passed **66 tests**, zero failures or skips. Receipts: [reproduction log](../artifacts/local-material-readiness-reproduction.log), [reproduction TRX](../artifacts/TestResults/local-material-readiness-reproduction.trx), [regression log](../artifacts/local-material-readiness-regression.log), and [regression TRX](../artifacts/TestResults/local-material-readiness-regression.trx). These passing characterization tests assert the current failure mechanism and its recovery control; they are not evidence of a production fix.

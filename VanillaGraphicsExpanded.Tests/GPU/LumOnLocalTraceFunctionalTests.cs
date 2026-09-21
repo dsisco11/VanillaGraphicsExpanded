@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Exercises production local geometry, lighting and cache handoff through actual screen-probe rays.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public sealed partial class LumOnLocalTraceFunctionalTests : LumOnShaderFunctionalTestBase
+public sealed partial class LumOnLocalTraceFunctionalTests : LocalTraceShaderTestBase
 {
     /// <summary>Shares the headless GPU context.</summary>
     public LumOnLocalTraceFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
