@@ -6,11 +6,13 @@ Source: [approved proposal](WorldPartition.CoverageAndLifecycle.Proposal.md). Ex
 
 Outcome: independent partition instances can request and safely publish spatial cells.
 
-- [ ] Add registration, world scope, instance/cell identity, configurable cell extents, floor-based coordinates, and source targeting; replace kind-only identity and half-block center assumptions.
-- [ ] Implement required/prefetch/retained coverage, intersecting-cell selection, multi-source union, incremental updates, hysteresis, and explicit capacity shortfalls.
-- [ ] Centralize acknowledged lifecycle transitions, revisions/incarnations, cancellation, retries, publication validation, and world/registration teardown; keep residency separate from content readiness.
-- [ ] Enforce owning-thread transitions, immutable work/completions, render-thread publication, and fair shared/per-partition residency, in-flight, capture, dispatch, and upload limits.
-- [ ] Verify with reusable providers: negative/fractional/large coordinates, multiple instances/sources, boundary oscillation, teleports, delayed/stale completions, dirtying, slot reuse, missing dependencies, teardown, and starvation. Gate: required coverage is correct and obsolete work cannot publish.
+- [x] Add registration, world scope, instance/cell identity, configurable cell extents, floor-based coordinates, and source targeting; replace kind-only identity and half-block center assumptions.
+- [x] Implement required/prefetch/retained coverage, intersecting-cell selection, multi-source union, incremental updates, hysteresis, and explicit capacity shortfalls.
+- [x] Centralize acknowledged lifecycle transitions, revisions/incarnations, cancellation, retries, publication validation, and world/registration teardown; keep residency separate from content readiness.
+- [x] Enforce owning-thread transitions, immutable work/completions, render-thread publication, and fair shared/per-partition residency, in-flight, capture, dispatch, and upload limits.
+- [x] Verify with reusable providers: negative/fractional/large coordinates, multiple instances/sources, boundary oscillation, teleports, delayed/stale completions, dirtying, slot reuse, missing dependencies, teardown, and starvation. Gate: required coverage is correct and obsolete work cannot publish.
+
+Completion evidence: [foundation review and validation](WorldPartition.Foundation.Evidence.md). Independent completion audit passed; 62 tests passed (43 foundation, 19 existing regressions).
 
 ## 2. Local geometry partition
 
@@ -44,4 +46,4 @@ Outcome: a justified spatial-residency migration or explicit deferral, with loca
 - [ ] Preserve importance selection, directional budgets, lighting confidence/history, atlas packing, and the distinction between residency and valid lighting.
 - [ ] Run required builds/regressions through a validation subagent; update architecture/invariants and evidence records. Gate: all mandatory proposal requirements are verified, temporary adapters are removed where replaced, and any conditional probe deferral is documented.
 
-Open decision: final coverage/prefetch margins and resource budgets require the measurements in item 3. No implementation or verification is marked complete by this task list.
+Open decision: final coverage/prefetch margins and resource budgets require the measurements in item 3. Item 1 is complete; subsequent items remain unchecked.

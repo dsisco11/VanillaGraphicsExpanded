@@ -1,6 +1,6 @@
 # WorldPartition coverage and lifecycle proposal
 
-Status: proposed. This document defines changes to our WorldPartition and its consumers; it does not record completed implementation.
+Status: approved. This document defines changes to our WorldPartition and its consumers; it does not record completed implementation.
 
 ## Purpose
 
