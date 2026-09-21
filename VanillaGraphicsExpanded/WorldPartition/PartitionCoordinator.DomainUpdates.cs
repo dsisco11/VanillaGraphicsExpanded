@@ -37,6 +37,28 @@ internal sealed partial class PartitionCoordinator
     #endregion
 
     #region Domain work authorization
+    /// <summary>Returns the maximum feasible upload batch for a domain registration.</summary>
+    public long GetUploadLimit(long instance)
+    { CheckOwner(); return Math.Min(shared.UploadBytes, registrations[instance].Limits.UploadBytes); }
+
+    /// <summary>Uploads a bounded prerequisite under a current lease without marking its cell ready.</summary>
+    public bool TryStageUpdate(PartitionRequest request, long bytes, Action upload)
+    {
+        CheckMutation(); ArgumentNullException.ThrowIfNull(upload);
+        if (bytes <= 0) throw new ArgumentOutOfRangeException(nameof(bytes));
+        if (!IsCurrent(request)) return false;
+        var r = registrations[request.Key.Instance];
+        if (bytes > Math.Min(shared.UploadBytes, r.Limits.UploadBytes)) return false;
+        if (uploadTurn != 0 && uploadTurn != request.RequestId) return false;
+        if (bytes > shared.UploadBytes - uploaded || bytes > r.Limits.UploadBytes - r.Uploaded)
+        { uploadTurn = request.RequestId; return false; }
+        if (uploadTurn == request.RequestId) uploadTurn = 0;
+        pumping = true;
+        try { uploaded += bytes; r.Uploaded += bytes; upload(); }
+        finally { pumping = false; }
+        return true;
+    }
+
     /// <summary>Reserves shared work and residency credit before an existing domain queue starts its worker.</summary>
     public bool TryBeginUpdate(in PartitionCellKey key, out PartitionRequest? request)
     {
@@ -81,12 +103,14 @@ internal sealed partial class PartitionCoordinator
 
     /// <summary>Executes publication only under a current lease and available upload credit, then acknowledges residency.</summary>
     /// <remarks>False with a current lease means budget deferral; retain the completed result and retry later.</remarks>
-    public bool TryPublishUpdate(PartitionRequest request, long bytes, Func<bool> dependenciesValid, Func<bool> publish)
+    public bool TryPublishUpdate(PartitionRequest request, long bytes, Func<bool> dependenciesValid, Func<bool> publish,
+        PartitionContentStatus contentStatus = PartitionContentStatus.Supported)
     {
         CheckMutation();
         ArgumentNullException.ThrowIfNull(dependenciesValid);
         ArgumentNullException.ThrowIfNull(publish);
         if (bytes < 0) throw new ArgumentOutOfRangeException(nameof(bytes));
+        if (contentStatus == PartitionContentStatus.MissingDependencies) throw new ArgumentException("Missing content cannot publish.", nameof(contentStatus));
         if (!IsCurrent(request)) { FinishUpdate(request, false); return false; }
         PartitionRegistration r = registrations[request.Key.Instance];
         PartitionCellState cell = r.Cells[request.Key.Coordinate];
@@ -124,7 +148,7 @@ internal sealed partial class PartitionCoordinator
         if (!success) { FinishUpdate(request, false); return false; }
         workers.Remove(request.RequestId);
         cell.Ready = true;
-        cell.ContentStatus = PartitionContentStatus.Supported;
+        cell.ContentStatus = contentStatus;
         cell.Actual = PartitionResidency.Loaded;
         cell.RetryCount = 0;
         long wait = tick - cell.UnreadySince;

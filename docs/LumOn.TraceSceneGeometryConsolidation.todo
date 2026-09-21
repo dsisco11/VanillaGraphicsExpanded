@@ -13,10 +13,12 @@ Contract and review: [shared geometry contract](LumOn.TraceSceneGeometryContract
 
 ## 2. Shared worker capture and GPU publication
 
-- [ ] Adapt TraceScene to reuse worker-thread bulk capture and coalesced source snapshots; share source versions/invalidation and publish geometry, light, material references and readiness coherently.
-- [ ] Preserve WorldPartition as the residency owner, overlapping ring contents, bounded capture/upload work and stale-completion rejection. Keep old consumer wiring operational until the shared backend is verified.
+- [x] Adapt TraceScene to reuse worker-thread bulk capture and coalesced source snapshots; share source versions/invalidation and publish geometry, light, material references and readiness coherently.
+- [x] Preserve WorldPartition as the residency owner, overlapping ring contents, bounded capture/upload work and stale-completion rejection. Keep old consumer wiring operational until the shared backend is verified.
 
 Gate: controlled tests cover edits, missing chunks, unsupported shapes, movement, teleports and reused slots; no main-thread voxel capture or duplicate reads for the same shared source revision.
+
+Evidence and traceability: [shared backend verification](LumOn.TraceSceneSharedBackendVerification.md). Second review and independent completion audit passed. Final combined validation passed 244 tests including 89 GPU cases; the final cache follow-up passed all 29 shared-backend cases. Production build passed with zero warnings/errors. Existing consumer wiring remains unchanged until item 3.
 
 ## 3. Switch tracing consumers
 

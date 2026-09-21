@@ -711,9 +711,29 @@ public abstract class GpuTexture : GpuResource, IDisposable
             data);
     }
 
-    /// <summary>
-    /// Uploads a full texture immediately (GL call).
-    /// </summary>
+    /// <summary>Uploads native normalized or integer bytes to a complete 2D texture without float staging.</summary>
+    public virtual void UploadDataImmediate(byte[] data)
+        => UploadDataImmediate(data, 0, 0, width, height);
+
+    /// <summary>Uploads native bytes to a bounded 2D region while preserving pixel-store alignment.</summary>
+    public virtual void UploadDataImmediate(byte[] data, int x, int y, int regionWidth, int regionHeight)
+    {
+        if (!IsValid) throw new ObjectDisposedException(nameof(GpuTexture));
+        ArgumentNullException.ThrowIfNull(data);
+        Ensure2DLike();
+        if (TextureFormatHelper.GetPixelType(internalFormat) != PixelType.UnsignedByte)
+            throw new InvalidOperationException("Byte upload requires an unsigned-byte texture format.");
+        if (x < 0 || y < 0 || regionWidth <= 0 || regionHeight <= 0 || x + regionWidth > width || y + regionHeight > height)
+            throw new ArgumentOutOfRangeException(nameof(regionWidth));
+        if (data.Length != checked(regionWidth * regionHeight * GetChannelCount())) throw new ArgumentException("Incorrect byte payload size.", nameof(data));
+        using var binding = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+        GL.GetInteger(GetPName.UnpackAlignment, out int previousAlignment);
+        GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
+        try { GL.TexSubImage2D(textureTarget, 0, x, y, regionWidth, regionHeight, TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.UnsignedByte, data); }
+        finally { GL.PixelStore(PixelStoreParameter.UnpackAlignment, previousAlignment); }
+    }
+
+    /// <summary>Uploads a full texture immediately from floating-point input.</summary>
     public virtual void UploadDataImmediate(float[] data)
     {
         if (!IsValid)
