@@ -1,4 +1,4 @@
-using VanillaGraphicsExpanded.LumOn.WorldCells;
+using VanillaGraphicsExpanded.WorldPartition;
 using VanillaGraphicsExpanded.Numerics;
 
 using Xunit;

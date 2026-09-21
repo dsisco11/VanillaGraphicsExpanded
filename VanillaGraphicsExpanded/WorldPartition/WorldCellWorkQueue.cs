@@ -1,4 +1,4 @@
-namespace VanillaGraphicsExpanded.LumOn.WorldCells;
+namespace VanillaGraphicsExpanded.WorldPartition;
 
 /// <summary>
 /// Identifies a coarse work queue a cell can enqueue itself into.
@@ -14,11 +14,6 @@ internal enum WorldCellWorkQueue : byte
     /// Priority-ordered eligibility queue for far-window work.
     /// </summary>
     EligibleFar = 1,
-
-    /// <summary>
-    /// Queue for state transitions (allocate slot, deactivate, unload, etc.).
-    /// </summary>
-    StateTransition = 2,
 
     /// <summary>
     /// Queue for capture work (page population).

@@ -3,7 +3,7 @@ using System.Reflection;
 
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.Scene;
-using VanillaGraphicsExpanded.LumOn.WorldCells;
+using VanillaGraphicsExpanded.WorldPartition;
 using VanillaGraphicsExpanded.Numerics;
 
 using Vintagestory.API.Client;
@@ -21,7 +21,7 @@ public sealed class LumonSceneOccupancyClipmapUpdateRendererQueueTests
         ICoreClientAPI capi = FunctionalCoreClientApiProxy.Create();
         var cfg = new VgeConfig();
 
-        using var renderer = new LumonSceneOccupancyClipmapUpdateRenderer(capi, cfg, new WorldPartitionSystem());
+        using var renderer = new LumonSceneOccupancyClipmapUpdateRenderer(capi, cfg, new PartitionCoordinator(new(16384, 256, 128, 128, 33554432)));
 
         MethodInfo? updateWindow = typeof(LumonSceneOccupancyClipmapUpdateRenderer)
             .GetMethod("UpdateWindowAndEnqueueNew", BindingFlags.Instance | BindingFlags.NonPublic);

@@ -1,4 +1,4 @@
-namespace VanillaGraphicsExpanded.LumOn.WorldCells;
+namespace VanillaGraphicsExpanded.WorldPartition;
 
 /// <summary>
 /// High-level target lifecycle state for a <see cref="IWorldCell"/>.

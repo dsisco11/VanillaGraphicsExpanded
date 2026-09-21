@@ -1,5 +1,5 @@
 using VanillaGraphicsExpanded.LumOn.Scene;
-using VanillaGraphicsExpanded.LumOn.WorldCells;
+using VanillaGraphicsExpanded.WorldPartition;
 
 using Xunit;
 
@@ -10,7 +10,7 @@ public sealed class LumonSceneRegionSchedulerIntegrationSmokeTests
     [Fact]
     public void ActiveCells_EnqueueCaptureAndRelight_LoadedOnlyDoNot()
     {
-        var scheduler = new LumonSceneRegionScheduler(new WorldPartitionSystem());
+        var scheduler = new LumonSceneRegionScheduler(new PartitionCoordinator(new(16384, 256, 128, 128, 33554432)));
         scheduler.Reset(nowTick: 0);
 
         var activeCell = scheduler.GetOrCreate(WorldCellKind.LumonSceneNear, new LumonSceneChunkCoord(0, 0, 0));

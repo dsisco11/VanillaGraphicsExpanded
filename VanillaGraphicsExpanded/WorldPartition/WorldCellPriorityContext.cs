@@ -2,7 +2,7 @@ using System;
 
 using VanillaGraphicsExpanded.Numerics;
 
-namespace VanillaGraphicsExpanded.LumOn.WorldCells;
+namespace VanillaGraphicsExpanded.WorldPartition;
 
 /// <summary>
 /// Per-frame or per-tick context used to compute a cell priority.

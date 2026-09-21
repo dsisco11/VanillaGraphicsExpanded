@@ -2,13 +2,14 @@ using System;
 using System.Collections.Generic;
 
 using VanillaGraphicsExpanded.Collections;
-using VanillaGraphicsExpanded.LumOn.WorldCells;
+using VanillaGraphicsExpanded.WorldPartition;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene;
 
-internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
+/// <summary>Preserves tracing content priority and retry queues while the shared coordinator owns residency.</summary>
+internal sealed partial class TraceSceneRegionScheduler : IWorldCellWorkSink, IPartitionResidencyBackend
 {
     private const long MinRetryMs = 50;
     private const long MaxBackoffMs = 5000;
@@ -16,7 +17,7 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
     private const long NotSeenLoadedProbeMs = 500;
     private const int NearDequeueBurst = 8;
 
-    private readonly WorldPartitionSystem worldPartition;
+    private readonly PartitionCoordinator worldPartition;
     private readonly Dictionary<ulong, TraceSceneRegionCell> cellsByPacked = new();
 
     private readonly IndexedMaxHeap<ulong> nearEligible = new();
@@ -52,17 +53,18 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
 
     public long NowTick => lastNowTick;
 
-    public TraceSceneRegionScheduler(WorldPartitionSystem worldPartition)
+    #region Domain scheduling API
+    /// <summary>Attaches content scheduling to the shared rendering residency authority.</summary>
+    public TraceSceneRegionScheduler(PartitionCoordinator worldPartition)
     {
         this.worldPartition = worldPartition ?? throw new ArgumentNullException(nameof(worldPartition));
     }
 
+    /// <summary>Retires the registration before discarding domain queues and source-version observations.</summary>
     public void Reset()
     {
-        foreach (TraceSceneRegionCell cell in cellsByPacked.Values)
-        {
-            _ = worldPartition.Remove(cell.Key);
-        }
+        if (instance != 0) worldPartition.Unregister(instance);
+        instance = 0;
 
         cellsByPacked.Clear();
         nearEligible.Clear();
@@ -82,6 +84,7 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
         appliedCount = 0;
     }
 
+    /// <summary>Replaces the source envelope without changing fixed region boundaries.</summary>
     public void SetWindow(in VectorInt3 min, in VectorInt3 max)
     {
         bool changed = !hasWindow || min != windowMin || max != windowMax;
@@ -92,29 +95,34 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
 
         if (changed)
         {
-            TrimCellsToWindow();
+            UpdateCoverage();
         }
     }
 
+    /// <summary>Invalidates current publication authorization and refreshes domain priority for a wanted chunk.</summary>
     public void NotifyChunkDirty(ChunkKey chunkKey, int currentVersion, long nowTick, string? reason = null)
     {
         _ = reason;
 
         lastNowTick = Math.Max(lastNowTick, nowTick);
 
+        if (!Contains(chunkKey)) return;
         TraceSceneRegionCell cell = GetOrCreateCell(chunkKey);
 
         if (currentVersion > cell.CurrentVersion)
         {
             cell.CurrentVersion = currentVersion;
+            worldPartition.Dirty(PartitionKey(chunkKey));
         }
 
         MarkDirty(cell.ChunkKey.Packed);
     }
 
+    /// <summary>Resets dependency polling delay after a source chunk becomes available.</summary>
     public void NotifyChunkSeenLoaded(ChunkKey chunkKey, long nowTick)
     {
         lastNowTick = Math.Max(lastNowTick, nowTick);
+        if (!Contains(chunkKey)) return;
         TraceSceneRegionCell cell = GetOrCreateCell(chunkKey);
         cell.LastSeenLoadedTick = lastNowTick;
 
@@ -123,6 +131,7 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
         {
             cell.MissingStreak = 0;
             cell.NextEligibleTick = 0;
+            worldPartition.Dirty(PartitionKey(chunkKey));
         }
 
         MarkDirty(cell.ChunkKey.Packed);
@@ -259,9 +268,11 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
         return count;
     }
 
-    public void OnRequestIssued(ChunkKey key, int version, long nowTick)
+    /// <summary>Obtains shared residency and work credit before dispatching the selected content update.</summary>
+    public bool OnRequestIssued(ChunkKey key, int version, long nowTick)
     {
         lastNowTick = Math.Max(lastNowTick, nowTick);
+        if (!Contains(key)) return false;
         TraceSceneRegionCell cell = GetOrCreateCell(key);
 
         if (version > cell.CurrentVersion)
@@ -271,26 +282,44 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
 
         if (cell.InFlightVersion != 0)
         {
-            return;
+            return false;
         }
 
+        if (!worldPartition.TryBeginUpdate(PartitionKey(key), out PartitionRequest? request))
+        {
+            MarkDirty(key.Packed);
+            return false;
+        }
+        cell.Request = request;
         cell.InFlightVersion = version;
         cell.LastAttemptTick = lastNowTick;
         InFlightCount++;
 
         RemoveFromHeaps(cell.ChunkKey.Packed);
+        return true;
     }
 
+    /// <summary>Acknowledges a failed domain operation using its immutable request identity.</summary>
     public void OnRequestCompleted(
+        PartitionRequest request,
         ChunkKey key,
         ChunkWorkStatus status,
         int requestedVersion,
         long nowTick,
         ChunkWorkError error = ChunkWorkError.None)
     {
-        lastNowTick = Math.Max(lastNowTick, nowTick);
-        TraceSceneRegionCell cell = GetOrCreateCell(key);
+        if (status == ChunkWorkStatus.Success) throw new ArgumentException("Successful work must pass publication authorization.", nameof(status));
+        worldPartition.FinishUpdate(request, status == ChunkWorkStatus.ChunkUnavailable);
+        if (!cellsByPacked.TryGetValue(key.Packed, out TraceSceneRegionCell? cell) || cell.Request != request) return;
+        cell.Request = null;
+        CompleteDomainUpdate(cell, status, requestedVersion, nowTick, error);
+    }
 
+    /// <summary>Updates domain retry and priority metadata after the coordinator has accepted the outcome.</summary>
+    private void CompleteDomainUpdate(TraceSceneRegionCell cell, ChunkWorkStatus status, int requestedVersion,
+        long nowTick, ChunkWorkError error = ChunkWorkError.None)
+    {
+        lastNowTick = Math.Max(lastNowTick, nowTick);
         if (cell.InFlightVersion != 0)
         {
             cell.InFlightVersion = 0;
@@ -666,26 +695,12 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
             return;
         }
 
-        // Phase 9: desired-state gating (TraceScene maps window membership to Active vs Unloaded).
-        var stateContext = new global::VanillaGraphicsExpanded.LumOn.WorldCells.WorldCellStateTransitionContext(
-            CameraBlockPos: context.CameraBlockPos,
-            AnchorBlockPos: context.AnchorBlockPos,
-            HasAnchor: context.HasAnchor,
-            LoadedWindowMinRegion: context.WindowMinRegion,
-            LoadedWindowMaxRegion: context.WindowMaxRegion,
-            HasLoadedWindow: context.HasWindow,
-            ActiveWindowMinRegion: context.WindowMinRegion,
-            ActiveWindowMaxRegion: context.WindowMaxRegion,
-            HasActiveWindow: context.HasWindow,
-            NowTick: context.NowTick,
-            IsCellLikelyLoaded: context.IsCellLikelyLoaded);
-
-        cell.DesiredState = cell.CalculateDesiredState(in stateContext);
-        if (cell.DesiredState == global::VanillaGraphicsExpanded.LumOn.WorldCells.WorldCellDesiredState.Unloaded)
+        if (!worldPartition.TryGetCell(PartitionKey(cell.ChunkKey), out PartitionCellInfo info))
         {
             cell.DequeueSelf(this);
             return;
         }
+        cell.DesiredState = (WorldCellDesiredState)info.Desired;
 
         // If a region has never been observed loaded, it won't be eligible to request a snapshot.
         // However, relying solely on ChunkDirty can miss initial/quiet chunk loads; use an optional
@@ -748,8 +763,8 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
             return existing;
         }
 
-        WorldCellKey key = WorldCellKey.FromTraceSceneRegion(chunkKey);
-        TraceSceneRegionCell cell = worldPartition.GetOrCreate(key, () => new TraceSceneRegionCell(chunkKey));
+        WorldCellKey key = WorldCellKey.FromTraceSceneRegion(chunkKey.Packed);
+        TraceSceneRegionCell cell = new(chunkKey);
         cellsByPacked[packed] = cell;
         return cell;
     }
@@ -780,62 +795,10 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
 
     // Seeding/scanning logic removed in favor of explicit window-delta enqueueing by the clipmap renderer.
 
-    private void TrimCellsToWindow()
-    {
-        if (!hasWindow)
-        {
-            // Keep in-flight entries, but remove all eligibility.
-            foreach ((ulong packed, TraceSceneRegionCell cell) in cellsByPacked)
-            {
-                if (cell.InFlightVersion == 0)
-                {
-                    RemoveFromHeaps(packed);
-                }
-            }
+    #endregion
 
-            return;
-        }
-
-        List<ulong>? toRemove = null;
-
-        foreach ((ulong packed, TraceSceneRegionCell cell) in cellsByPacked)
-        {
-            if (cell.InFlightVersion != 0)
-            {
-                continue;
-            }
-
-            if (!IsInWindow(cell.RegionCoord))
-            {
-                toRemove ??= new List<ulong>();
-                toRemove.Add(packed);
-            }
-        }
-
-        if (toRemove is null)
-        {
-            return;
-        }
-
-        foreach (ulong packed in toRemove)
-        {
-            RemoveFromHeaps(packed);
-
-            if (cellsByPacked.TryGetValue(packed, out TraceSceneRegionCell? cell) && cell.AppliedVersion != 0)
-            {
-                appliedCount = Math.Max(0, appliedCount - 1);
-            }
-
-            if (cellsByPacked.TryGetValue(packed, out TraceSceneRegionCell? removed))
-            {
-                _ = worldPartition.Remove(removed.Key);
-            }
-
-            cellsByPacked.Remove(packed);
-            dirtySet.Remove(packed);
-        }
-    }
-
+    #region Retry ordering
+    /// <summary>Orders domain millisecond cooldowns independently of coordinator lifecycle retry ticks.</summary>
     private sealed class CooldownMinQueue
     {
         private readonly List<Entry> heap = new();
@@ -932,4 +895,5 @@ internal sealed class TraceSceneRegionScheduler : IWorldCellWorkSink
 
         private readonly record struct Entry(long Tick, ulong PackedKey);
     }
+    #endregion
 }

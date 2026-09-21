@@ -1,44 +1,15 @@
-# WorldCell State Machine (Phase 9) - Allowed Transitions & Invariants
+# WorldPartition residency and scene work invariants
 
-This document captures the generic, reusable invariants for the Phase 9 `WorldCell` desired/actual state model.
+`PartitionCoordinator` is the only owner of scene residency. Consumers retain content queues and GPU storage, and expose observations of coordinator state.
 
-## State Definitions
+- Sources select world-zero, half-open cells. Required cells target Active; explicitly loaded bounds and prefetch target Loaded. Feedback heat adds a required source within the loaded scene envelope.
+- Loaded acknowledges a complete resident representation. Near-scene slot residency does not imply that every material page has valid lighting. Page capture and relight flags remain authoritative for lighting.
+- Active enables domain participation. Capture and relight queues require both desired and acknowledged Active residency, a current slot assignment, and an expired domain cooldown.
+- Tracing work obtains an immutable coordinator request before dispatch. Registration generation, incarnation, revision and request identity are checked before the GPU upload callback runs. Source versions are checked before and after upload.
+- Cancelled workers retain their shared in-flight credit until they acknowledge completion. Late results cannot recreate cells. Dirty notifications invalidate publication authorization immediately on the owning thread.
+- Domain-selected updates share residency, capture, dispatch and upload limits with automatically scheduled providers. A completed result blocked by the current upload budget remains queued; an impossible payload reports a byte shortfall until invalidated or reconfigured.
+- Only the render/owning thread changes residency. Worker acknowledgements and game dirty notifications cross concurrent queues.
+- The slot ring and occupancy textures remain scene backend responsibilities. Their existing movement clearing and page sampling rules are preserved. Coordinator readiness is separate from page lighting validity and from the occupancy consumer's existing content-refresh behavior.
+- Reset unregisters a consumer before a replacement world or configuration can publish. Packed work keys are local to a consumer; shared identities include registration instance and world scope.
 
-- `WorldCellDesiredState`
-  - `Unloaded`: Cell is out of scope; safe to reclaim resources.
-  - `Loaded`: Cell should retain residency/assignment, but should not receive update work.
-  - `Active`: Cell should participate in update scheduling.
-
-- `WorldCellActualState`
-  - A coarse lifecycle state intended for correctness/debug visibility.
-  - Domain-specific substates (e.g., capture/relight readiness) live alongside it.
-
-## Allowed Transitions (Actual)
-
-The generic scheduler should converge `ActualState` toward `DesiredState` without skipping required intermediate steps.
-
-- `Unloaded → Loaded → Active` (activation path)
-- `Active → Loaded → Unloaded` (hysteresis + unload path)
-
-Direct `Active → Unloaded` may be allowed when the system needs to aggressively reclaim resources, but it must be treated as a cancellation path (see below).
-
-## Invariants
-
-- **Eligibility gating**
-  - Only `DesiredState=Active` cells are eligible for update work queues.
-  - `DesiredState=Loaded` implies no update work is issued, but residency may be retained.
-
-- **No illegal skips**
-  - If a system requires intermediate work (e.g., "NeedsCapture" before "Ready"), it must enforce that the intermediate work is scheduled/finished before declaring the cell fully ready.
-
-- **Cancellation is explicit**
-  - If `DesiredState` regresses (e.g., `Active → Loaded` or `Loaded → Unloaded`), in-flight work should be removed/canceled as appropriate.
-  - Cancellation should be idempotent and safe to run multiple times.
-
-- **Cooldown/backoff**
-  - If transition work fails due to resource pressure (allocation failure, budget starvation, missing chunk), the cell should set `NextEligibleTick` and avoid immediately re-queuing the same work.
-  - Cooldown should be bounded and should reset on success.
-
-## Notes
-
-Phase 9.1 (LumonScene-specific) implements these invariants with a dual-window policy and a per-cell cooldown/backoff mechanism.
+The former cell-driven state machine, window hysteresis helper, global kind-keyed registry and scene transition queue have been removed. Coverage, retention and acknowledged state changes now use the shared coordinator.

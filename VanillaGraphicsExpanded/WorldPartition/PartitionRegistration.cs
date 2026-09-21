@@ -12,7 +12,7 @@ internal sealed class PartitionRegistration
     public required PartitionLayout Layout;
     public required PartitionCoveragePolicy Coverage;
     public required PartitionLimits Limits;
-    public required IPartitionProvider Provider;
+    public required IPartitionResidencyBackend Provider;
     public readonly Dictionary<PartitionCoordinate, PartitionCellState> Cells = new();
     public readonly Dictionary<long, PartitionSource> Sources = new();
     public readonly Dictionary<long, PartitionSourceCoverage> SourceCoverage = new();
@@ -28,4 +28,7 @@ internal sealed class PartitionRegistration
     public long PublicationCount;
     public long PublicationWaitTicks;
     public long MaximumPublicationWaitTicks;
+    public bool PendingParticipation;
+    public PartitionCoordinate? WaitingDomainCapture;
+    public long DomainWaitOrder;
 }

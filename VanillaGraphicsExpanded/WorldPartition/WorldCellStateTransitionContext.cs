@@ -1,6 +1,6 @@
 using VanillaGraphicsExpanded.Numerics;
 
-namespace VanillaGraphicsExpanded.LumOn.WorldCells;
+namespace VanillaGraphicsExpanded.WorldPartition;
 
 /// <summary>
 /// Context used to compute desired/actual state transitions for a cell.

@@ -92,6 +92,7 @@ internal sealed class NearFieldGeometryPartitionRenderer : IRenderer, INearField
         if (!config.LumOn.Enabled || capi.World?.Player?.Entity is not { } entity)
         {
             Release();
+            partitions.Pump();
             return;
         }
         var camera = entity.CameraPos;
@@ -105,6 +106,7 @@ internal sealed class NearFieldGeometryPartitionRenderer : IRenderer, INearField
             if (CoverageFailure != lastReportedFailure) capi.Logger.Warning("[VGE] {0}", CoverageFailure);
             lastReportedFailure = CoverageFailure;
             Release();
+            partitions.Pump();
             return;
         }
         CoverageFailure = null;

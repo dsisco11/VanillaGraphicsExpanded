@@ -1,6 +1,6 @@
 using System;
 
-using VanillaGraphicsExpanded.LumOn.WorldCells;
+using VanillaGraphicsExpanded.WorldPartition;
 using VanillaGraphicsExpanded.Numerics;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene;
@@ -27,9 +27,6 @@ internal sealed class LumonSceneRegionCell : WorldCell
         ChunkCoordKey = chunkCoord.ToKey();
         ChunkCoordInt3 = new VectorInt3(chunkCoord.X, chunkCoord.Y, chunkCoord.Z);
 
-        // Chunk spans [base..base+31] in block coords. Center is base+15.5, represented as half-block:
-        // (base * 2) + 31.
-        CenterHalfBlockPos = (ChunkCoordInt3 * (ChunkSizeBlocks * 2)) + ChunkCenterHalfBlocks;
 
         ChunkSlot = uint.MaxValue;
         SlotGeneration = 0;
@@ -95,15 +92,10 @@ internal sealed class LumonSceneRegionCell : WorldCell
         // issuing capture/relight work on a slot that is still settling.
         if (prevGen != 0 && slotGeneration != prevGen && ActualState == WorldCellActualState.Active)
         {
-            ActualState = WorldCellActualState.Loaded;
+
             NextEligibleTick = Math.Max(NextEligibleTick, nowTick + 2);
         }
 
-        // Slot assignment is the minimum requirement for "Loaded".
-        if (ActualState == WorldCellActualState.Unloaded)
-        {
-            ActualState = WorldCellActualState.Loaded;
-        }
     }
 
     public void ClearSlotAssignment(long nowTick)
@@ -111,7 +103,6 @@ internal sealed class LumonSceneRegionCell : WorldCell
         ChunkSlot = uint.MaxValue;
         SlotGeneration = 0;
         LastSeenInSlotTick = nowTick;
-        ActualState = WorldCellActualState.Unloaded;
 
         ResidentPages = 0;
         NeedsCapturePages = 0;
@@ -227,25 +218,6 @@ internal sealed class LumonSceneRegionCell : WorldCell
         sink.Remove(Key, WorldCellWorkQueue.Capture);
         sink.Remove(Key, WorldCellWorkQueue.Relight);
 
-        // Decide whether a lifecycle transition is needed.
-        if (WorldCellStateMachine.TryGetNextAction(DesiredState, ActualState, out WorldCellTransitionAction action))
-        {
-            float transitionPriority = 10000f;
-            if (action == WorldCellTransitionAction.EnsureLoaded || action == WorldCellTransitionAction.EnsureActive)
-            {
-                // Bias closer chunks higher (cheap heuristic).
-                float p = CalculatePriority(in priorityContext);
-                if (!float.IsFinite(p) || p < 0f) p = 0f;
-                transitionPriority += p;
-            }
-
-            sink.Upsert(Key, WorldCellWorkQueue.StateTransition, transitionPriority);
-        }
-        else
-        {
-            sink.Remove(Key, WorldCellWorkQueue.StateTransition);
-        }
-
         // Only actually-active cells participate in update work.
         if (DesiredState != WorldCellDesiredState.Active || ActualState != WorldCellActualState.Active)
         {
@@ -330,50 +302,6 @@ internal sealed class LumonSceneRegionCell : WorldCell
         _ = nowTick;
         allocFailStreak = 0;
         budgetStarveStreak = 0;
-    }
-
-    public override WorldCellDesiredState CalculateDesiredState(in WorldCellStateTransitionContext context)
-    {
-        if (context.HasLoadedWindow)
-        {
-            bool inLoaded = ChunkCoordInt3.X >= context.LoadedWindowMinRegion.X
-                            && ChunkCoordInt3.Y >= context.LoadedWindowMinRegion.Y
-                            && ChunkCoordInt3.Z >= context.LoadedWindowMinRegion.Z
-                            && ChunkCoordInt3.X <= context.LoadedWindowMaxRegion.X
-                            && ChunkCoordInt3.Y <= context.LoadedWindowMaxRegion.Y
-                            && ChunkCoordInt3.Z <= context.LoadedWindowMaxRegion.Z;
-
-            if (!inLoaded)
-            {
-                return WorldCellDesiredState.Unloaded;
-            }
-        }
-
-        if (context.HasActiveWindow)
-        {
-            bool inActive = ChunkCoordInt3.X >= context.ActiveWindowMinRegion.X
-                            && ChunkCoordInt3.Y >= context.ActiveWindowMinRegion.Y
-                            && ChunkCoordInt3.Z >= context.ActiveWindowMinRegion.Z
-                            && ChunkCoordInt3.X <= context.ActiveWindowMaxRegion.X
-                            && ChunkCoordInt3.Y <= context.ActiveWindowMaxRegion.Y
-                            && ChunkCoordInt3.Z <= context.ActiveWindowMaxRegion.Z;
-
-            if (inActive)
-            {
-                return WorldCellDesiredState.Active;
-            }
-
-            // Heat can promote Loaded→Active outside the active window.
-            if (HeatUntilTick > context.NowTick)
-            {
-                return WorldCellDesiredState.Active;
-            }
-
-            return WorldCellDesiredState.Loaded;
-        }
-
-        // If we have no windows, default to Active.
-        return WorldCellDesiredState.Active;
     }
 
     public override float CalculatePriority(in WorldCellPriorityContext context)

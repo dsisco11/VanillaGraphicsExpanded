@@ -1,26 +1,24 @@
 using System;
 
-using VanillaGraphicsExpanded.LumOn.WorldCells;
+using VanillaGraphicsExpanded.WorldPartition;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene;
 
+/// <summary>Tracing content metadata and priority inputs, separate from coordinator-owned residency.</summary>
 internal sealed class TraceSceneRegionCell : WorldCell
 {
     private const int RegionSize = LumonSceneTraceSceneClipmapMath.RegionSize;
     private const int RegionCenterHalfBlocks = RegionSize - 1;
 
     public TraceSceneRegionCell(ChunkKey chunkKey)
-        : base(WorldCellKey.FromTraceSceneRegion(chunkKey))
+        : base(WorldCellKey.FromTraceSceneRegion(chunkKey.Packed))
     {
         ChunkKey = chunkKey;
         chunkKey.Decode(out int x, out int y, out int z);
         RegionCoord = new VectorInt3(x, y, z);
 
-        // Region spans [base..base+31] in block coords. Center is base+15.5, represented as half-block:
-        // (base * 2) + 31.
-        CenterHalfBlockPos = (RegionCoord << (LumonSceneTraceSceneClipmapMath.RegionShift + 1)) + RegionCenterHalfBlocks;
     }
 
     public TraceSceneRegionCell(VectorInt3 regionCoord)
@@ -37,6 +35,9 @@ internal sealed class TraceSceneRegionCell : WorldCell
     public long LastSeenLoadedTick { get; set; }
 
     public int InFlightVersion { get; set; }
+
+    /// <summary>Coordinator authorization for the current domain capture.</summary>
+    public PartitionRequest? Request { get; set; }
 
     public TraceSceneRegionPriorityReason LastPriorityReasons { get; private set; }
 
@@ -73,23 +74,6 @@ internal sealed class TraceSceneRegionCell : WorldCell
     {
         scheduler.Remove(Key, WorldCellWorkQueue.EligibleNear);
         scheduler.Remove(Key, WorldCellWorkQueue.EligibleFar);
-    }
-
-    public override WorldCellDesiredState CalculateDesiredState(in WorldCellStateTransitionContext context)
-    {
-        if (context.HasActiveWindow)
-        {
-            bool inWindow = RegionCoord.X >= context.ActiveWindowMinRegion.X
-                            && RegionCoord.Y >= context.ActiveWindowMinRegion.Y
-                            && RegionCoord.Z >= context.ActiveWindowMinRegion.Z
-                            && RegionCoord.X <= context.ActiveWindowMaxRegion.X
-                            && RegionCoord.Y <= context.ActiveWindowMaxRegion.Y
-                            && RegionCoord.Z <= context.ActiveWindowMaxRegion.Z;
-
-            return inWindow ? WorldCellDesiredState.Active : WorldCellDesiredState.Unloaded;
-        }
-
-        return WorldCellDesiredState.Active;
     }
 
     public override float CalculatePriority(in WorldCellPriorityContext context)

@@ -21,7 +21,7 @@ internal sealed partial class PartitionCoordinator
                 registration.SourceCoverage.TryGetValue(id, out PartitionSourceCoverage old);
                 PartitionSourceCoverage next = default;
                 if (registration.Sources.TryGetValue(id, out PartitionSource? source))
-                    next = new(registration.Layout.Range(source.Required), registration.Layout.Range(source.Required.Expand(registration.Coverage.PrefetchMargin)));
+                    next = new(registration.Layout.Range(source.Required), registration.Layout.Range(source.Loaded ?? source.Required.Expand(registration.Coverage.PrefetchMargin)));
                 ApplyRangeDifference(registration, id, old.Required, next.Required, true, touched);
                 ApplyRangeDifference(registration, id, old.Prefetch, next.Prefetch, false, touched);
                 if (source != null) registration.SourceCoverage[id] = next;
@@ -33,6 +33,7 @@ internal sealed partial class PartitionCoordinator
                 if (cell.RequiredSources.Count > 0 || cell.PrefetchSources.Count > 0)
                 {
                     cell.Desired = cell.RequiredSources.Count > 0 ? PartitionResidency.Active : PartitionResidency.Loaded;
+                    if (cell.Ready && cell.Actual != cell.Desired) registration.PendingParticipation = true;
                     registration.Retained.Remove(coordinate);
                 }
                 else
@@ -50,7 +51,11 @@ internal sealed partial class PartitionCoordinator
             PartitionCellState cell = registration.Cells[coordinate];
             bool retain = cell.Ready && tick - cell.LastRequested <= registration.Coverage.RetentionTicks &&
                 registration.Sources.Values.Any(s => Intersects(registration.Layout.Bounds(coordinate), s.Required.Expand(registration.Coverage.RetentionMargin)));
-            if (retain) cell.Desired = PartitionResidency.Loaded;
+            if (retain)
+            {
+                cell.Desired = PartitionResidency.Loaded;
+                if (cell.Actual != cell.Desired) registration.PendingParticipation = true;
+            }
             else RemoveCell(registration, cell);
         }
     }

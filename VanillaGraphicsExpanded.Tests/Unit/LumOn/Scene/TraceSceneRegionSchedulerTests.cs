@@ -1,5 +1,5 @@
 using VanillaGraphicsExpanded.LumOn.Scene;
-using VanillaGraphicsExpanded.LumOn.WorldCells;
+using VanillaGraphicsExpanded.WorldPartition;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
 
@@ -12,7 +12,7 @@ public sealed class TraceSceneRegionSchedulerTests
     [Fact]
     public void NeverSeenLoaded_CanBecomeEligible_ViaLoadednessProbe()
     {
-        var sched = new TraceSceneRegionScheduler(new WorldPartitionSystem());
+        var sched = new TraceSceneRegionScheduler(new PartitionCoordinator(new(16384, 256, 128, 128, 33554432)));
         sched.SetWindow(min: new VectorInt3(0, 0, 0), max: new VectorInt3(0, 0, 0));
 
         ChunkKey key = ChunkKey.FromChunkCoords(0, 0, 0);
@@ -37,7 +37,7 @@ public sealed class TraceSceneRegionSchedulerTests
     [Fact]
     public void NeverSeenLoaded_IsPeriodicallyRechecked_AndEventuallyScheduled()
     {
-        var sched = new TraceSceneRegionScheduler(new WorldPartitionSystem());
+        var sched = new TraceSceneRegionScheduler(new PartitionCoordinator(new(16384, 256, 128, 128, 33554432)));
         sched.SetWindow(min: new VectorInt3(0, 0, 0), max: new VectorInt3(0, 0, 0));
 
         ChunkKey key = ChunkKey.FromChunkCoords(0, 0, 0);
@@ -74,7 +74,7 @@ public sealed class TraceSceneRegionSchedulerTests
     [Fact]
     public void Dequeue_PrefersNearRegions()
     {
-        var sched = new TraceSceneRegionScheduler(new WorldPartitionSystem());
+        var sched = new TraceSceneRegionScheduler(new PartitionCoordinator(new(16384, 256, 128, 128, 33554432)));
         sched.SetWindow(min: new VectorInt3(0, 0, 0), max: new VectorInt3(16, 0, 0));
 
         // Mark two regions dirty so they get created and prioritized.
@@ -104,7 +104,7 @@ public sealed class TraceSceneRegionSchedulerTests
     [Fact]
     public void InFlightCell_IsNotReturnedAgain()
     {
-        var sched = new TraceSceneRegionScheduler(new WorldPartitionSystem());
+        var sched = new TraceSceneRegionScheduler(new PartitionCoordinator(new(16384, 256, 128, 128, 33554432)));
         sched.SetWindow(min: new VectorInt3(0, 0, 0), max: new VectorInt3(0, 0, 1));
 
         ChunkKey a = ChunkKey.FromChunkCoords(0, 0, 0);
@@ -139,7 +139,7 @@ public sealed class TraceSceneRegionSchedulerTests
     [Fact]
     public void ChunkUnavailable_AppliesCooldown_AndDoesNotBlockOtherWork()
     {
-        var sched = new TraceSceneRegionScheduler(new WorldPartitionSystem());
+        var sched = new TraceSceneRegionScheduler(new PartitionCoordinator(new(16384, 256, 128, 128, 33554432)));
         sched.SetWindow(min: new VectorInt3(0, 0, 0), max: new VectorInt3(0, 0, 1));
 
         ChunkKey missing = ChunkKey.FromChunkCoords(0, 0, 0);
@@ -165,7 +165,7 @@ public sealed class TraceSceneRegionSchedulerTests
         sched.OnRequestIssued(first, version: 1, nowTick: 10);
 
         // Complete as unavailable; should apply a cooldown.
-        sched.OnRequestCompleted(first, ChunkWorkStatus.ChunkUnavailable, requestedVersion: 1, nowTick: 10);
+        sched.OnRequestCompleted(sched.RequestFor(first), first, ChunkWorkStatus.ChunkUnavailable, requestedVersion: 1, nowTick: 10);
 
         // Recompute priorities at the same tick; the other cell should still be schedulable.
         _ = sched.RefreshPriorities(in ctx, budget: 16);
@@ -177,7 +177,7 @@ public sealed class TraceSceneRegionSchedulerTests
     [Fact]
     public void MissingChunk_DoesNotDominate_DequeueResults()
     {
-        var sched = new TraceSceneRegionScheduler(new WorldPartitionSystem());
+        var sched = new TraceSceneRegionScheduler(new PartitionCoordinator(new(16384, 256, 128, 128, 33554432)));
         sched.SetWindow(min: new VectorInt3(0, 0, 0), max: new VectorInt3(0, 0, 1));
 
         ChunkKey missing = ChunkKey.FromChunkCoords(0, 0, 0);
@@ -203,7 +203,7 @@ public sealed class TraceSceneRegionSchedulerTests
         Assert.Equal(missing, first);
 
         sched.OnRequestIssued(first, version: 1, nowTick: 10);
-        sched.OnRequestCompleted(first, ChunkWorkStatus.ChunkUnavailable, requestedVersion: 1, nowTick: 10);
+        sched.OnRequestCompleted(sched.RequestFor(first), first, ChunkWorkStatus.ChunkUnavailable, requestedVersion: 1, nowTick: 10);
 
         // At the same time, the missing chunk is cooled down and should not keep resurfacing.
         _ = sched.RefreshPriorities(in ctx, budget: 32);
@@ -217,7 +217,7 @@ public sealed class TraceSceneRegionSchedulerTests
     [Fact]
     public void SeenLoadedRecently_OverridesCooldown_AndSchedulesPromptly()
     {
-        var sched = new TraceSceneRegionScheduler(new WorldPartitionSystem());
+        var sched = new TraceSceneRegionScheduler(new PartitionCoordinator(new(16384, 256, 128, 128, 33554432)));
         sched.SetWindow(min: new VectorInt3(0, 0, 0), max: new VectorInt3(0, 0, 1));
 
         ChunkKey missing = ChunkKey.FromChunkCoords(0, 0, 0);
@@ -227,7 +227,7 @@ public sealed class TraceSceneRegionSchedulerTests
         sched.NotifyChunkDirty(other, currentVersion: 1, nowTick: 0);
         sched.NotifyChunkSeenLoaded(other, nowTick: 0);
         sched.OnRequestIssued(other, version: 1, nowTick: 0);
-        sched.OnRequestCompleted(other, ChunkWorkStatus.Success, requestedVersion: 1, nowTick: 0);
+        Assert.True(sched.TryPublish(sched.RequestFor(other), 1, 0, () => true, () => true));
 
         // Now mark missing dirty and fail it as unavailable to put it on cooldown.
         sched.NotifyChunkDirty(missing, currentVersion: 1, nowTick: 10);
@@ -247,7 +247,7 @@ public sealed class TraceSceneRegionSchedulerTests
         Assert.Equal(missing, first);
 
         sched.OnRequestIssued(first, version: 1, nowTick: 10);
-        sched.OnRequestCompleted(first, ChunkWorkStatus.ChunkUnavailable, requestedVersion: 1, nowTick: 10);
+        sched.OnRequestCompleted(sched.RequestFor(first), first, ChunkWorkStatus.ChunkUnavailable, requestedVersion: 1, nowTick: 10);
 
         // Chunk arrives soon after; loaded hint should clear cooldown and missing streak.
         sched.NotifyChunkSeenLoaded(missing, nowTick: 20);

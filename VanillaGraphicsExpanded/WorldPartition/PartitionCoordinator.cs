@@ -30,7 +30,7 @@ internal sealed partial class PartitionCoordinator
     #region Registration and source API
     /// <summary>Registers an independent instance; no content-kind identity or half-block center is required.</summary>
     public long Register(string name, string world, PartitionLayout layout, PartitionCoveragePolicy coverage,
-        PartitionLimits limits, IPartitionProvider provider)
+        PartitionLimits limits, IPartitionResidencyBackend provider)
     {
         CheckMutation();
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -80,6 +80,11 @@ internal sealed partial class PartitionCoordinator
     {
         CheckMutation();
         source.Required.Validate();
+        source.Loaded?.Validate();
+        if (source.Loaded is { } loaded && (loaded.Min.X > source.Required.Min.X || loaded.Min.Y > source.Required.Min.Y ||
+            loaded.Min.Z > source.Required.Min.Z || loaded.Max.X < source.Required.Max.X ||
+            loaded.Max.Y < source.Required.Max.Y || loaded.Max.Z < source.Required.Max.Z))
+            throw new ArgumentException("Loaded bounds must contain required bounds.");
         if (!double.IsFinite(source.Priority) || !double.IsFinite(source.Position.X) ||
             !double.IsFinite(source.Position.Y) || !double.IsFinite(source.Position.Z)) throw new ArgumentException("Invalid source.");
         PartitionRegistration registration = registrations[source.Instance];
@@ -133,7 +138,7 @@ internal sealed partial class PartitionCoordinator
         return new(required, cells.Count(c => c.Actual != PartitionResidency.Unloaded), cells.Count(c => c.Ready),
             cells.Count(c => c.Actual != PartitionResidency.Unloaded && !c.Ready),
             cells.Count(c => !c.Ready && c.Request == null), Outstanding(r),
-            cells.Count(c => !c.Ready && c.Snapshot == null && c.Progress != PartitionProgress.BudgetBlocked), cells.Count(c => c.Completion != null || c.Progress == PartitionProgress.BudgetBlocked),
+            cells.Count(c => !c.Ready && c.Snapshot == null && c.Progress != PartitionProgress.BudgetBlocked && c.Progress != PartitionProgress.AwaitingPublication), cells.Count(c => c.Progress == PartitionProgress.AwaitingPublication || c.Progress == PartitionProgress.BudgetBlocked),
             r.Retries, r.StaleCompletions, Math.Max(Math.Max(0, required - r.Limits.ResidentCells),
                 Math.Min(required, Math.Max(0, totalRequired - shared.ResidentCells))), r.CoverageEvaluations, r.CoverageCellVisits,
             cells.Select(c => Math.Max(0, c.RequiredUploadBytes - Math.Min(shared.UploadBytes, r.Limits.UploadBytes))).DefaultIfEmpty().Max());

@@ -1,4 +1,4 @@
-namespace VanillaGraphicsExpanded.LumOn.WorldCells;
+namespace VanillaGraphicsExpanded.WorldPartition;
 
 /// <summary>
 /// Observed current lifecycle state for a <see cref="IWorldCell"/>.

@@ -1,6 +1,6 @@
 using VanillaGraphicsExpanded.Numerics;
 
-namespace VanillaGraphicsExpanded.LumOn.WorldCells;
+namespace VanillaGraphicsExpanded.WorldPartition;
 
 /// <summary>
 /// Base implementation of <see cref="IWorldCell"/> with common scheduling bookkeeping.
@@ -20,7 +20,6 @@ internal abstract class WorldCell : IWorldCell
 
     public WorldCellKind Kind => Key.Kind;
 
-    public VectorInt3 CenterHalfBlockPos { get; protected set; }
 
     public float Priority { get; set; }
 
@@ -42,8 +41,4 @@ internal abstract class WorldCell : IWorldCell
 
     public abstract float CalculatePriority(in WorldCellPriorityContext context);
 
-    public virtual WorldCellDesiredState CalculateDesiredState(in WorldCellStateTransitionContext context)
-    {
-        return WorldCellDesiredState.Active;
-    }
 }

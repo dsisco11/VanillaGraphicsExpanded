@@ -1,7 +1,7 @@
 namespace VanillaGraphicsExpanded.WorldPartition;
 
 /// <summary>Read-only cell observation without provider-owned payloads.</summary>
-internal sealed record PartitionCellInfo(PartitionCellKey Key, long Incarnation, long Revision,
+internal readonly record struct PartitionCellInfo(PartitionCellKey Key, long Incarnation, long Revision,
     PartitionResidency Desired, PartitionResidency Actual, PartitionProgress Progress,
     PartitionContentStatus ContentStatus, bool Ready);
 

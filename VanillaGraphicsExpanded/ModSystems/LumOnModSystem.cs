@@ -5,7 +5,7 @@ using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.LumOn.Scene.NearField;
 using VanillaGraphicsExpanded.LumOn.Diagnostics;
-using VanillaGraphicsExpanded.LumOn.WorldCells;
+using VanillaGraphicsExpanded.WorldPartition;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR;
 
@@ -429,7 +429,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             && lumonSceneFeedbackUpdateRenderer is null
             && gBufferManager is not null)
         {
-            WorldPartitionSystem worldPartition = clientApi.ModLoader.GetModSystem<WorldPartitionModSystem>().Partition;
+            PartitionCoordinator worldPartition = clientApi.ModLoader.GetModSystem<WorldPartitionModSystem>().GetCoordinator();
             lumonSceneFeedbackUpdateRenderer = new LumonSceneFeedbackUpdateRenderer(clientApi, ConfigModSystem.Config, gBufferManager, worldPartition);
         }
         lumOnDebugRenderer?.SetLumonSceneFeedbackUpdateRenderer(lumonSceneFeedbackUpdateRenderer);
@@ -437,7 +437,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         if (current.LumOnEnabled
             && lumonSceneOccupancyClipmapUpdateRenderer is null)
         {
-            WorldPartitionSystem worldPartition = clientApi.ModLoader.GetModSystem<WorldPartitionModSystem>().Partition;
+            PartitionCoordinator worldPartition = clientApi.ModLoader.GetModSystem<WorldPartitionModSystem>().GetCoordinator();
             lumonSceneOccupancyClipmapUpdateRenderer = new LumonSceneOccupancyClipmapUpdateRenderer(clientApi, ConfigModSystem.Config, worldPartition);
         }
         lumOnDebugRenderer?.SetLumonSceneOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
@@ -559,14 +559,14 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
 
         if (lumonSceneFeedbackUpdateRenderer is null && ConfigModSystem.Config.LumOn.LumonScene.Enabled)
         {
-            WorldPartitionSystem worldPartition = capi.ModLoader.GetModSystem<WorldPartitionModSystem>().Partition;
+            PartitionCoordinator worldPartition = capi.ModLoader.GetModSystem<WorldPartitionModSystem>().GetCoordinator();
             lumonSceneFeedbackUpdateRenderer = new LumonSceneFeedbackUpdateRenderer(capi, ConfigModSystem.Config, gBufferManager, worldPartition);
         }
         lumOnDebugRenderer?.SetLumonSceneFeedbackUpdateRenderer(lumonSceneFeedbackUpdateRenderer);
 
         if (lumonSceneOccupancyClipmapUpdateRenderer is null)
         {
-            WorldPartitionSystem worldPartition = capi.ModLoader.GetModSystem<WorldPartitionModSystem>().Partition;
+            PartitionCoordinator worldPartition = capi.ModLoader.GetModSystem<WorldPartitionModSystem>().GetCoordinator();
             lumonSceneOccupancyClipmapUpdateRenderer = new LumonSceneOccupancyClipmapUpdateRenderer(capi, ConfigModSystem.Config, worldPartition);
         }
         lumOnDebugRenderer?.SetLumonSceneOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);

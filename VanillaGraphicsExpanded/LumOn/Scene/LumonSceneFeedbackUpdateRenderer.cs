@@ -5,7 +5,7 @@ using System.Threading;
 using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.LumOn;
-using VanillaGraphicsExpanded.LumOn.WorldCells;
+using VanillaGraphicsExpanded.WorldPartition;
 using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.PBR;
@@ -416,14 +416,14 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     public double RenderOrder => RenderOrderValue;
     public int RenderRange => RenderRangeValue;
 
-    public LumonSceneFeedbackUpdateRenderer(ICoreClientAPI capi, VgeConfig config, GBufferManager gBufferManager, WorldPartitionSystem worldPartition)
+    public LumonSceneFeedbackUpdateRenderer(ICoreClientAPI capi, VgeConfig config, GBufferManager gBufferManager, PartitionCoordinator worldPartition)
     {
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
         this.config = config ?? throw new ArgumentNullException(nameof(config));
         this.gBufferManager = gBufferManager ?? throw new ArgumentNullException(nameof(gBufferManager));
         _ = worldPartition ?? throw new ArgumentNullException(nameof(worldPartition));
 
-        nearRegionScheduler = new LumonSceneRegionScheduler(worldPartition);
+        nearRegionScheduler = new LumonSceneRegionScheduler(worldPartition, RetireNearRegion);
 
         capi.Event.RegisterRenderer(this, EnumRenderStage.Done, "vge_lumonscene_feedback");
         capi.Event.LeaveWorld += OnLeaveWorld;
@@ -644,8 +644,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
     private void UpdateNearRegionScheduler(uint frameStamp)
     {
-        // Best-effort scaffolding: keep the scheduler in sync with the current chunk-slot window.
-        // This does not yet drive allocation or GPU dispatch; it prepares the state for Phase 9.1 wiring.
+        // Refresh domain metadata before the coordinator evaluates slot residency.
         nearRegionScheduler.SetNowTick(unchecked((long)frameStamp));
 
         if (!configured || slotDims == default || slotGenerations.Length == 0 || pageTableMirror.Length == 0)
@@ -734,40 +733,28 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             LumonSceneRegionCell cell = nearRegionScheduler.GetOrCreate(WorldCellKind.LumonSceneNear, in coord);
             keep.Add(cell.Key);
 
-            cell.UpdateSlotAssignment(slot, slotGenerations[slot], unchecked((long)frameStamp));
+            nearRegionScheduler.UpdateSlot(cell, slot, slotGenerations[slot], unchecked((long)frameStamp));
             cell.UpdateBacklogFromSlotStats(pageTableStats.GetSlot(slot));
 
-            cell.DesiredState = cell.CalculateDesiredState(in stateContext);
+
             if (cell.NextEligibleTick > stateContext.NowTick) suppressed++;
 
-
-
-            switch (cell.DesiredState)
-            {
-                case WorldCellDesiredState.Active:
-                    desiredActive++;
-                    active++;
-                    loaded++;
-                    break;
-
-                case WorldCellDesiredState.Loaded:
-                    desiredLoaded++;
-                    loaded++;
-                    break;
-
-                case WorldCellDesiredState.Unloaded:
-                default:
-                    desiredUnloaded++;
-                    break;
-            }
-
-            cell.EnqueueStateAndWork(nearRegionScheduler, in priorityContext);
         }
 
-        // Phase 9.1: drive ActualState toward DesiredState via queued transitions.
-        ProcessNearRegionTransitions(maxTransitions: 64);
-
-        nearRegionScheduler.PruneToKeys(keep);
+        // Acknowledge slot residency before reporting desired versus actual coverage.
+        nearRegionScheduler.UpdateResidency(in stateContext, in priorityContext);
+        foreach (WorldCellKey key in keep)
+        {
+            if (!nearRegionScheduler.TryGetCell(key, out LumonSceneRegionCell cell)) continue;
+            switch (cell.DesiredState)
+            {
+                case WorldCellDesiredState.Active: desiredActive++; break;
+                case WorldCellDesiredState.Loaded: desiredLoaded++; break;
+                default: desiredUnloaded++; break;
+            }
+            if (cell.ActualState == WorldCellActualState.Active) active++;
+            if (cell.ActualState is WorldCellActualState.Active or WorldCellActualState.Loaded) loaded++;
+        }
         lastRegionCells = keep.Count;
         lastRegionActive = active;
         lastRegionLoaded = loaded;
@@ -775,65 +762,6 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         lastRegionDesiredLoaded = desiredLoaded;
         lastRegionDesiredUnloaded = desiredUnloaded;
         lastRegionSuppressed = suppressed;
-    }
-
-    private void ProcessNearRegionTransitions(int maxTransitions)
-    {
-        if (!hasLastNearContexts)
-        {
-            return;
-        }
-
-        long nowTick = lastNearStateContext.NowTick;
-        int budget = Math.Max(0, maxTransitions);
-
-        for (int i = 0; i < budget; i++)
-        {
-            if (!nearRegionScheduler.TryPopTransition(out WorldCellKey key))
-            {
-                break;
-            }
-
-            if (!nearRegionScheduler.TryGetCell(key, out LumonSceneRegionCell cell))
-            {
-                continue;
-            }
-
-            if (cell.NextEligibleTick > nowTick)
-            {
-                cell.EnqueueStateAndWork(nearRegionScheduler, in lastNearPriorityContext);
-                continue;
-            }
-
-            if (!WorldCellStateMachine.TryGetNextAction(cell.DesiredState, cell.ActualState, out WorldCellTransitionAction action))
-            {
-                continue;
-            }
-
-            switch (action)
-            {
-                case WorldCellTransitionAction.EnsureLoaded:
-                    cell.ActualState = cell.HasAssignedSlot ? WorldCellActualState.Loaded : WorldCellActualState.Unloaded;
-                    break;
-
-                case WorldCellTransitionAction.EnsureActive:
-                    cell.ActualState = cell.HasAssignedSlot ? WorldCellActualState.Active : WorldCellActualState.Unloaded;
-                    break;
-
-                case WorldCellTransitionAction.DeactivateToLoaded:
-                    cell.ActualState = cell.HasAssignedSlot ? WorldCellActualState.Loaded : WorldCellActualState.Unloaded;
-                    break;
-
-                case WorldCellTransitionAction.EnsureUnloaded:
-                    cell.ActualState = WorldCellActualState.Unloaded;
-                    break;
-
-                default:
-                    break;
-            }
-
-            cell.EnqueueStateAndWork(nearRegionScheduler, in lastNearPriorityContext);
-        }
     }
 
     private void EnsureConfigured()
@@ -1051,15 +979,19 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
         VectorInt3 newOrigin = ComputeOriginMinChunkForAnchor(anchorChunk);
 
-        // Phase 9.1: Unloaded is outside the Loaded window.
-        // Before we remap slot ownership (ring shift), release residency for chunks that leave the loaded window.
-        // This makes residency release a consequence of the window/state policy, not of slot reassignment.
-        VectorInt3 oldMin = slotOriginMinChunk;
-        VectorInt3 oldMax = oldMin + (slotDims - new VectorInt3(1, 1, 1));
-        VectorInt3 newMin = newOrigin;
-        VectorInt3 newMax = newMin + (slotDims - new VectorInt3(1, 1, 1));
-        ReleaseSlotsForChunksLeavingLoadedWindow(oldMin, oldMax, newMin, newMax);
-
+        // Let the coordinator retire departing identities before the backend recycles their slots.
+        int activeXZ = Math.Max(0, config.LumOn.LumonScene.NearRadiusChunks - 1);
+        int activeY = Math.Max(0, config.LumOn.LumonScene.NearRadiusYChunks - 1);
+        var nextCoverage = lastNearStateContext with
+        {
+            LoadedWindowMinRegion = newOrigin,
+            LoadedWindowMaxRegion = newOrigin + slotDims - new VectorInt3(1, 1, 1),
+            HasLoadedWindow = true,
+            ActiveWindowMinRegion = anchorChunk - new VectorInt3(activeXZ, activeY, activeXZ),
+            ActiveWindowMaxRegion = anchorChunk + new VectorInt3(activeXZ, activeY, activeXZ),
+            HasActiveWindow = true
+        };
+        nearRegionScheduler.UpdateCoverage(nextCoverage);
         VectorInt3 delta = newOrigin - slotOriginMinChunk;
         slotOriginMinChunk = newOrigin;
 
@@ -1075,54 +1007,14 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         LumonSceneChunkSlotUniformState.Update(slotOriginMinChunk, slotDims, slotRing, slotGenerationTex.TextureId);
     }
 
-    private void ReleaseSlotsForChunksLeavingLoadedWindow(VectorInt3 oldMin, VectorInt3 oldMax, VectorInt3 newMin, VectorInt3 newMax)
+    /// <summary>Retires GPU page mappings only after the coordinator relinquishes this logical owner.</summary>
+    private void RetireNearRegion(LumonSceneChunkCoord coordinate)
     {
-        if (!configured || slotOwners.Length == 0)
-        {
-            return;
-        }
-
-        // Old window volume is small (dims are based on NearRadius), so a full scan on anchor changes is OK.
-        for (int y = oldMin.Y; y <= oldMax.Y; y++)
-        {
-            for (int z = oldMin.Z; z <= oldMax.Z; z++)
-            {
-                for (int x = oldMin.X; x <= oldMax.X; x++)
-                {
-                    // If still inside new loaded window, keep.
-                    if (x >= newMin.X && x <= newMax.X
-                        && y >= newMin.Y && y <= newMax.Y
-                        && z >= newMin.Z && z <= newMax.Z)
-                    {
-                        continue;
-                    }
-
-                    var coord = new VectorInt3(x, y, z);
-                    if (!chunkToSlot.TryGetValue(coord, out uint slot))
-                    {
-                        continue;
-                    }
-
-                    if (slot >= (uint)slotOwners.Length)
-                    {
-                        continue;
-                    }
-
-                    // Only release if the slot currently belongs to this chunk coord.
-                    if (slotOwners[slot] != coord)
-                    {
-                        continue;
-                    }
-
-                    // Notify chunk lifecycle (best-effort). This is used to drive eviction/unload safety.
-                    chunkResidency?.OnChunkUnloaded(new LumonSceneChunkCoord(coord.X, coord.Y, coord.Z));
-
-                    ClearSlotResidency(slot);
-                }
-            }
-        }
+        var owner = new VectorInt3(coordinate.X, coordinate.Y, coordinate.Z);
+        chunkResidency?.OnChunkUnloaded(coordinate);
+        if (chunkToSlot.TryGetValue(owner, out uint slot) && slot < (uint)slotOwners.Length && slotOwners[slot] == owner)
+            ClearSlotResidency(slot);
     }
-
     private void OnChunkResidencyPageReleased(LumonScenePageReleasedEvent e)
     {
         // Eviction/unload safety: if a physical page is released, clear any virtual-page mapping that still references it.
@@ -1158,7 +1050,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             WorldCellKey cellKey = WorldCellKey.FromLumonSceneNear(e.Chunk.ToKey());
             if (nearRegionScheduler.TryGetCell(cellKey, out LumonSceneRegionCell cell))
             {
-                cell.ActualState = WorldCellActualState.Unloaded;
+
                 // Cool down a bit to avoid immediate thrash if the pool is under pressure.
                 cell.NextEligibleTick = Math.Max(cell.NextEligibleTick, lastNearStateContext.NowTick + 30);
                 cell.EnqueueStateAndWork(nearRegionScheduler, in lastNearPriorityContext);
@@ -1566,7 +1458,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                         }
 
                         cell.ApplyHeatFromRequests(heatCounts[(int)slot], nowTick);
-                        cell.DesiredState = cell.CalculateDesiredState(in lastNearStateContext);
+
                         cell.EnqueueStateAndWork(nearRegionScheduler, in lastNearPriorityContext);
                     }
                 }
@@ -1577,7 +1469,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
                 }
             }
 
-            // Phase 9.1: scheduler-driven gating.
+            nearRegionScheduler.UpdateResidency(in lastNearStateContext, in lastNearPriorityContext);
             // Accept requests for any cell that is within the Loaded window (Loaded or Active). Unloaded cells are ignored.
             if (toRead > 0 && slotOwners.Length > 0 && slotGenerations.Length == slotOwners.Length)
             {
@@ -2267,7 +2159,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             $"cells:{lastRegionCells} dA:{lastRegionDesiredActive} dL:{lastRegionDesiredLoaded} dU:{lastRegionDesiredUnloaded} supp:{lastRegionSuppressed} " +
             $"act:{lastRegionActive} load:{lastRegionLoaded} winL:{lastLoadedWindowSize} winA:{lastActiveWindowSize} " +
             $"budReq:{lastBudgetMaxRequests} budNew:{lastBudgetMaxNewAllocs} budRel:{lastBudgetMaxRelightPages} " +
-            $"qT:{nearRegionScheduler.TransitionCount} qC:{nearRegionScheduler.CaptureCount} qR:{nearRegionScheduler.RelightCount} " +
+            $"qC:{nearRegionScheduler.CaptureCount} qR:{nearRegionScheduler.RelightCount} " +
             $"wOff:{lastWorldChunkCoordOffset.X},{lastWorldChunkCoordOffset.Y},{lastWorldChunkCoordOffset.Z} " +
             $"wRem:{lastWorldBlockOffsetRem.X:0.##},{lastWorldBlockOffsetRem.Y:0.##},{lastWorldBlockOffsetRem.Z:0.##} " +
             $"res:{residentPages}/{cap} ready:{ready} nc:{needsCap} nr:{needsRel} capQ:{lastCaptureCount} relQ:{lastRelightCount} " +

@@ -1,4 +1,4 @@
-namespace VanillaGraphicsExpanded.LumOn.WorldCells;
+namespace VanillaGraphicsExpanded.WorldPartition;
 
 /// <summary>
 /// No-op <see cref="IWorldCellWorkSink"/> implementation.

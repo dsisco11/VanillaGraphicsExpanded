@@ -1,4 +1,4 @@
-namespace VanillaGraphicsExpanded.LumOn.WorldCells;
+namespace VanillaGraphicsExpanded.WorldPartition;
 
 /// <summary>
 /// Provides a stable surface for <see cref="IWorldCell"/> instances to enqueue themselves into system-owned work queues.

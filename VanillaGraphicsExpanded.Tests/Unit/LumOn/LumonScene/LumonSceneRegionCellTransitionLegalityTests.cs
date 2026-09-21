@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 
 using VanillaGraphicsExpanded.LumOn.Scene;
-using VanillaGraphicsExpanded.LumOn.WorldCells;
+using VanillaGraphicsExpanded.WorldPartition;
 
 using Xunit;
 
@@ -71,6 +71,7 @@ public sealed class LumonSceneRegionCellTransitionLegalityTests
 
         Assert.DoesNotContain(sink.Upserts.Keys, k => k.Queue == WorldCellWorkQueue.Capture);
         Assert.DoesNotContain(sink.Upserts.Keys, k => k.Queue == WorldCellWorkQueue.Relight);
-        Assert.Contains(sink.Upserts.Keys, k => k.Queue == WorldCellWorkQueue.StateTransition);
+        // Domain cells no longer enqueue residency transitions; the coordinator is their only owner.
+        Assert.Empty(sink.Upserts);
     }
 }

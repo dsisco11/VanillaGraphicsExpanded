@@ -24,6 +24,7 @@ internal sealed partial class PartitionCoordinator
         {
             captures = dispatches = 0;
             uploaded = 0;
+            while (finishedDomainWorkers.TryDequeue(out PartitionRequest? finished)) workers.Remove(finished.RequestId);
             foreach (PartitionRegistration r in registrations.Values)
             {
                 r.Captures = r.Dispatches = 0;
@@ -31,7 +32,7 @@ internal sealed partial class PartitionCoordinator
                 UpdateCoverage(r);
             }
             DrainCompletions();
-            PartitionCellState? reservedUpload = registrations.Values.SelectMany(r => r.Cells.Values).FirstOrDefault(c => c.Completion?.Request.RequestId == uploadTurn);
+            PartitionCellState? reservedUpload = registrations.Values.SelectMany(r => r.Cells.Values).FirstOrDefault(c => c.Request?.RequestId == uploadTurn);
             if (reservedUpload == null || (reservedUpload.Desired == PartitionResidency.Loaded &&
                 registrations.Values.Any(r => r.Cells.Values.Any(c => c.Desired == PartitionResidency.Active && !c.Ready)))) uploadTurn = 0;
             // Round-robin at each unit of progress prevents one partition spending a shared frame budget first forever.
@@ -67,7 +68,10 @@ internal sealed partial class PartitionCoordinator
     /// <summary>Finds eligible work, prioritizing required cells while aging requests within a partition.</summary>
     private bool Advance(PartitionRegistration r, PartitionResidency desired)
     {
-        foreach (PartitionCellState cell in r.Cells.Values.Where(c => c.Desired == desired && c.RetryAt <= tick && (!c.Ready || c.Actual != c.Desired)).OrderByDescending(c =>
+        bool automatic = r.Provider is IPartitionProvider;
+        if (!automatic && !r.PendingParticipation) return false;
+        foreach (PartitionCellState cell in r.Cells.Values.Where(c => c.Desired == desired && c.RetryAt <= tick &&
+            (c.Ready ? c.Actual != c.Desired : automatic)).OrderByDescending(c =>
             Priority(r, c) + (tick - c.WaitingSince)).ThenBy(c => c.Incarnation))
         {
             if (cell.RetryAt > tick || cell.RequiredUploadBytes > Math.Min(shared.UploadBytes, r.Limits.UploadBytes)) continue;
@@ -83,6 +87,8 @@ internal sealed partial class PartitionCoordinator
                 r.Retries++;
                 continue;
             }
+            // Domain schedulers select their own capture/relight work; their residency still uses this authority.
+            if (r.Provider is not IPartitionProvider provider) continue;
             if (cell.Completion != null)
             {
                 PartitionCompletion completion = cell.Completion;
@@ -96,7 +102,7 @@ internal sealed partial class PartitionCoordinator
                     continue;
                 }
                 uploadTurn = 0;
-                if (!r.Provider.DependenciesValid(completion.Request, completion.Snapshot))
+                if (!provider.DependenciesValid(completion.Request, completion.Snapshot))
                 {
                     Retry(r, cell);
                     return true;
@@ -104,7 +110,7 @@ internal sealed partial class PartitionCoordinator
                 // The owner cannot be reentered. Recheck external dependencies after upload before exposing readiness.
                 uploaded += completion.UploadBytes;
                 r.Uploaded += completion.UploadBytes;
-                if (!r.Provider.Publish(completion) || !r.Provider.DependenciesValid(completion.Request, completion.Snapshot))
+                if (!provider.Publish(completion) || !provider.DependenciesValid(completion.Request, completion.Snapshot))
                 {
                     r.Provider.Invalidate(cell.Key);
                     Retry(r, cell);
@@ -128,23 +134,25 @@ internal sealed partial class PartitionCoordinator
                 r.Dispatches++;
                 cell.Progress = PartitionProgress.Processing;
                 workers.Add(cell.Request.RequestId, cell.Request);
-                r.Provider.Dispatch(cell.Request, cell.Snapshot, completions.Enqueue);
+                provider.Dispatch(cell.Request, cell.Snapshot, completions.Enqueue);
                 return true;
             }
-            if (cell.Request != null || captures >= shared.Captures || r.Captures >= r.Limits.Captures) continue;
+            if (cell.Request != null || captures >= shared.Captures || r.Captures >= r.Limits.Captures || !HasDomainServiceRoom(r)) continue;
             if (!MakeWorkCapacity(r, cell) || !Reserve(r, cell)) continue;
             cell.WaitingSince = tick;
             captures++;
+            lastAutomaticAdmission = ++admissionSequence;
             r.Captures++;
             cell.Cancellation = new CancellationTokenSource();
             cell.Request = new(r.Generation, cell.Key, cell.Incarnation, cell.Revision, ++nextRequest, cell.Cancellation.Token);
             cell.Progress = PartitionProgress.Capturing;
-            PartitionCapture capture = r.Provider.Capture(cell.Request);
+            PartitionCapture capture = provider.Capture(cell.Request);
             cell.ContentStatus = capture.Status;
             if (capture.Status == PartitionContentStatus.MissingDependencies || capture.Snapshot == null) Retry(r, cell);
             else cell.Snapshot = capture.Snapshot;
             return true;
         }
+        if (!automatic) r.PendingParticipation = r.Cells.Values.Any(c => c.Ready && c.Actual != c.Desired);
         return false;
     }
 

@@ -7,7 +7,7 @@ using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 
-using VanillaGraphicsExpanded.LumOn.WorldCells;
+using VanillaGraphicsExpanded.WorldPartition;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.Rendering;
@@ -59,6 +59,7 @@ internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRender
     private readonly TraceSceneRegionScheduler regionScheduler;
     private readonly Dictionary<ulong, InFlightRegion> inFlightByRegion = new();
     private readonly ConcurrentQueue<InFlightCompletion> completedRegions = new();
+    private readonly ConcurrentQueue<ChunkKey> dirtyRegions = new();
 
     private VectorInt3 currentWindowRegionMin;
     private VectorInt3 currentWindowRegionMax;
@@ -144,7 +145,7 @@ internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRender
         public bool HasAnchor;
     }
 
-    private readonly record struct InFlightRegion(int Version, Task<ChunkWorkResult<LumonSceneTraceSceneRegionArtifact>> Task);
+    private readonly record struct InFlightRegion(int Version, Task<ChunkWorkResult<LumonSceneTraceSceneRegionArtifact>> Task, PartitionRequest Request);
 
     private readonly record struct InFlightCompletion(
         ulong RegionKeyPacked,
@@ -156,7 +157,7 @@ internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRender
         ulong RegionKeyPacked,
         int RequestedVersion);
 
-    public LumonSceneOccupancyClipmapUpdateRenderer(ICoreClientAPI capi, VgeConfig config, WorldPartitionSystem worldPartition)
+    public LumonSceneOccupancyClipmapUpdateRenderer(ICoreClientAPI capi, VgeConfig config, PartitionCoordinator worldPartition)
     {
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
         this.config = config ?? throw new ArgumentNullException(nameof(config));
@@ -251,6 +252,13 @@ internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRender
         {
             ComputeWindowRegionBounds(levelStates[^1], out VectorInt3 regionMin, out VectorInt3 regionMax);
             UpdateWindowAndEnqueueNew(regionMin, regionMax, enqueueAll: !hasWindowRegionBounds || maxLevelMoved);
+        }
+
+        // Game events may arrive off-thread; only the rendering owner touches coordinator state.
+        while (dirtyRegions.TryDequeue(out ChunkKey dirty))
+        {
+            regionScheduler.NotifyChunkDirty(dirty, chunkVersions!.GetCurrentVersion(dirty), traceSceneNowMs);
+            regionScheduler.NotifyChunkSeenLoaded(dirty, traceSceneNowMs);
         }
 
         // Refresh priorities + incrementally seed the window.
@@ -438,11 +446,7 @@ internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRender
         ChunkKey key = ChunkKey.FromChunkCoords(chunkCoord.X, chunkCoord.Y, chunkCoord.Z);
         chunkVersions.MarkDirty(key);
 
-        int currentVersion = chunkVersions.GetCurrentVersion(key);
-        regionScheduler.NotifyChunkDirty(key, currentVersion: currentVersion, nowTick: traceSceneNowMs, reason: reason.ToString());
-
-        // Loadedness hint: ChunkDirty implies the chunk was observed loaded.
-        regionScheduler.NotifyChunkSeenLoaded(key, nowTick: traceSceneNowMs);
+        dirtyRegions.Enqueue(key);
     }
 
     private void RequestRebuildAll()
@@ -537,109 +541,13 @@ internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRender
 
         regionScheduler.SetWindow(currentWindowRegionMin, currentWindowRegionMax);
 
-        // Seed TraceScene region work for newly visible regions. This is the authoritative discovery mechanism:
-        // - When the window moves, enqueue the delta slabs only.
-        // - On first init / coarse re-anchor, enqueue the whole window.
-        //
-        // This avoids hidden "scan order" biases and ensures quiet regions still get an initial upload.
-        if (chunkVersions is not null)
+        // The coordinator owns the selected set; ring movement only refreshes domain content versions.
+        regionScheduler.VisitCoverage(key =>
         {
-            if (!hadPrev || enqueueAll)
-            {
-                EnqueueRegionBox(in currentWindowRegionMin, in currentWindowRegionMax, reason: "WindowInit");
-            }
-            else
-            {
-                EnqueueRegionDelta(in prevMin, in prevMax, in currentWindowRegionMin, in currentWindowRegionMax);
-            }
-        }
+            key.Decode(out int x, out int y, out int z);
+            EnqueueRegion(x, y, z, "WindowRefresh");
+        });
     }
-
-    private void EnqueueRegionBox(in VectorInt3 min, in VectorInt3 max, string reason)
-    {
-        if (chunkVersions is null)
-        {
-            return;
-        }
-
-        for (int x = min.X; x <= max.X; x++)
-        {
-            for (int y = min.Y; y <= max.Y; y++)
-            {
-                for (int z = min.Z; z <= max.Z; z++)
-                {
-                    EnqueueRegion(x, y, z, reason);
-                }
-            }
-        }
-    }
-
-    private void EnqueueRegionDelta(in VectorInt3 prevMin, in VectorInt3 prevMax, in VectorInt3 newMin, in VectorInt3 newMax)
-    {
-        if (chunkVersions is null)
-        {
-            return;
-        }
-
-        int x0 = Math.Max(newMin.X, prevMin.X);
-        int x1 = Math.Min(newMax.X, prevMax.X);
-        int y0 = Math.Max(newMin.Y, prevMin.Y);
-        int y1 = Math.Min(newMax.Y, prevMax.Y);
-        int z0 = Math.Max(newMin.Z, prevMin.Z);
-        int z1 = Math.Min(newMax.Z, prevMax.Z);
-
-        // X slabs (outside overlap)
-        for (int x = newMin.X; x <= newMax.X; x++)
-        {
-            if (x >= x0 && x <= x1) continue;
-            for (int y = newMin.Y; y <= newMax.Y; y++)
-            {
-                for (int z = newMin.Z; z <= newMax.Z; z++)
-                {
-                    EnqueueRegion(x, y, z, reason: "WindowEnterX");
-                }
-            }
-        }
-
-        // If there is no X overlap, we're done (the X slabs covered the entire new box)
-        if (x0 > x1)
-        {
-            return;
-        }
-
-        // Y slabs (within X overlap, outside Y overlap)
-        for (int x = x0; x <= x1; x++)
-        {
-            for (int y = newMin.Y; y <= newMax.Y; y++)
-            {
-                if (y >= y0 && y <= y1) continue;
-                for (int z = newMin.Z; z <= newMax.Z; z++)
-                {
-                    EnqueueRegion(x, y, z, reason: "WindowEnterY");
-                }
-            }
-        }
-
-        // If there is no Y overlap, we're done (X overlap + Y slabs covered remaining new volume)
-        if (y0 > y1)
-        {
-            return;
-        }
-
-        // Z slabs (within X & Y overlap, outside Z overlap)
-        for (int x = x0; x <= x1; x++)
-        {
-            for (int y = y0; y <= y1; y++)
-            {
-                for (int z = newMin.Z; z <= newMax.Z; z++)
-                {
-                    if (z >= z0 && z <= z1) continue;
-                    EnqueueRegion(x, y, z, reason: "WindowEnterZ");
-                }
-            }
-        }
-    }
-
     private void EnqueueRegion(int regionX, int regionY, int regionZ, string reason)
     {
         if (chunkVersions is null)
@@ -682,7 +590,6 @@ internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRender
                     {
                         if (inFlightByRegion.Remove(keys[i], out InFlightRegion inflight))
                         {
-                            regionScheduler.OnRequestCompleted(ck, ChunkWorkStatus.Superseded, requestedVersion: inflight.Version, nowTick: traceSceneNowMs);
                             LumonSceneTraceSceneMetrics.OnRegionCompleted(ChunkWorkStatus.Superseded);
                         }
                     }
@@ -792,13 +699,17 @@ internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRender
                 continue;
             }
 
-            regionScheduler.OnRequestIssued(key, version, nowTick: traceSceneNowMs);
+            if (!regionScheduler.OnRequestIssued(key, version, nowTick: traceSceneNowMs)) break;
+            PartitionRequest request = regionScheduler.RequestFor(key);
 
             var options = new ChunkWorkOptions { Priority = priorityHint };
             Task<ChunkWorkResult<LumonSceneTraceSceneRegionArtifact>> task =
-                chunkProcessing!.RequestAsync(key, version, regionProcessor, options);
+                chunkProcessing!.RequestAsync(key, version, regionProcessor, options, request.Cancellation);
 
-            inFlightByRegion[key.Packed] = new InFlightRegion(version, task);
+            inFlightByRegion[key.Packed] = new InFlightRegion(version, task, request);
+
+            _ = task.ContinueWith(_ => regionScheduler.WorkerCompleted(request), CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
 
             if (task.IsCompleted)
             {
@@ -826,186 +737,72 @@ internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRender
         LumonSceneTraceSceneMetrics.SetIssueSkipMask(issued == 0 && eligibleAtStart > 0 ? 32 : 0);
     }
 
+    /// <summary>Publishes completed domain work only inside coordinator authorization and both upload budgets.</summary>
     private void DispatchCompleted(float dispatchBudgetMs, int maxUploadsPerFrame, int maxRegionsPerFrame)
     {
-        if (resources is null || gpuDispatcher is null || dispatchBudgetMs <= 0f)
-        {
-            return;
-        }
-
+        if (resources is null || gpuDispatcher is null || dispatchBudgetMs <= 0 || levelStates.Length == 0 || !levelStates[0].HasAnchor) return;
         using var cpuScope = Profiler.BeginScope("LumOn.TraceScene.DispatchCompleted", "Render");
-
         long start = Stopwatch.GetTimestamp();
-        long budgetTicks = (long)(dispatchBudgetMs * 0.001f * Stopwatch.Frequency);
-        if (budgetTicks <= 0)
-        {
-            return;
-        }
-
+        long budgetTicks = (long)(dispatchBudgetMs * .001 * Stopwatch.Frequency);
         int budget = Math.Min(Math.Max(0, maxUploadsPerFrame), Math.Max(0, maxRegionsPerFrame));
-        if (budget <= 0 || inFlightByRegion.Count <= 0 || levelStates.Length <= 0 || !levelStates[0].HasAnchor)
+        int levels = Math.Min(8, Math.Min(resources.Levels, levelStates.Length));
+        var origins = new VectorInt3[levels];
+        var rings = new VectorInt3[levels];
+        for (int i = 0; i < levels; i++) { origins[i] = levelStates[i].OriginMinCell; rings[i] = levelStates[i].Ring; }
+        var coordinates = new VectorInt3[1];
+        var payloads = new ReadOnlyMemory<uint>[1];
+        while (budget > 0 && Stopwatch.GetTimestamp() - start <= budgetTicks &&
+            TryDequeueValidCompletion(start, budgetTicks, out InFlightCompletion completion, out InFlightRegion inflight))
         {
-            return;
-        }
-
-        int levels = Math.Clamp(levelStates.Length, 0, Math.Min(8, resources.Levels));
-        if (levels <= 0)
-        {
-            return;
-        }
-
-        int resolution = levelStates[0].Resolution;
-        uint levelMask = levels >= 32 ? uint.MaxValue : (uint)((1 << levels) - 1);
-
-        VectorInt3[] originMin = ArrayPool<VectorInt3>.Shared.Rent(levels);
-        VectorInt3[] ring = ArrayPool<VectorInt3>.Shared.Rent(levels);
-
-        try
-        {
-            for (int i = 0; i < levels; i++)
+            ChunkKey key = new(completion.RegionKeyPacked);
+            if (!regionScheduler.IsCurrent(inflight.Request))
             {
-                originMin[i] = levelStates[i].OriginMinCell;
-                ring[i] = levelStates[i].Ring;
+                inFlightByRegion.Remove(key.Packed);
+                regionScheduler.OnRequestCompleted(inflight.Request, key, ChunkWorkStatus.Superseded, inflight.Version, traceSceneNowMs);
+                continue;
             }
-
-            while (budget > 0 && inFlightByRegion.Count > 0)
+            ChunkWorkResult<LumonSceneTraceSceneRegionArtifact> result;
+            try { result = inflight.Task.GetAwaiter().GetResult(); }
+            catch
             {
-                if (Stopwatch.GetTimestamp() - start > budgetTicks)
-                {
-                    break;
-                }
-
-                int batchCap = Math.Min(budget, 16);
-
-                VectorInt3[] regionCoords = ArrayPool<VectorInt3>.Shared.Rent(batchCap);
-                ReadOnlyMemory<uint>[] payloads = ArrayPool<ReadOnlyMemory<uint>>.Shared.Rent(batchCap);
-                ulong[] regionKeys = ArrayPool<ulong>.Shared.Rent(batchCap);
-                int[] versions = ArrayPool<int>.Shared.Rent(batchCap);
-
-                int count = 0;
-                int completedHandled = 0;
-
-                try
-                {
-                    while (count < batchCap)
-                    {
-                        if (Stopwatch.GetTimestamp() - start > budgetTicks)
-                        {
-                            break;
-                        }
-
-                        if (!TryDequeueValidCompletion(start, budgetTicks, out InFlightCompletion completion, out InFlightRegion inflight))
-                        {
-                            break;
-                        }
-
-                        inFlightByRegion.Remove(completion.RegionKeyPacked);
-                        completedHandled++;
-
-                        ChunkKey ck = new ChunkKey(completion.RegionKeyPacked);
-                        ck.Decode(out int rx, out int ry, out int rz);
-                        var rc = new VectorInt3(rx, ry, rz);
-
-                        try
-                        {
-                            ChunkWorkResult<LumonSceneTraceSceneRegionArtifact> res = inflight.Task.GetAwaiter().GetResult();
-                            if (TryGetDispatchPayload(res, out ReadOnlyMemory<uint> payload))
-                            {
-                                regionCoords[count] = rc;
-                                regionKeys[count] = completion.RegionKeyPacked;
-                                versions[count] = res.RequestedVersion;
-                                payloads[count] = payload;
-                                count++;
-                            }
-                            else
-                            {
-                                regionScheduler.OnRequestCompleted(
-                                    ck,
-                                    status: res.Status,
-                                    requestedVersion: res.RequestedVersion,
-                                    nowTick: traceSceneNowMs,
-                                    error: res.Error);
-                                LumonSceneTraceSceneMetrics.OnRegionCompleted(res.Status);
-                            }
-                        }
-                        catch
-                        {
-                            regionScheduler.OnRequestCompleted(
-                                ck,
-                                status: ChunkWorkStatus.Failed,
-                                requestedVersion: inflight.Version,
-                                nowTick: traceSceneNowMs,
-                                error: ChunkWorkError.Unknown);
-                            LumonSceneTraceSceneMetrics.OnRegionCompleted(ChunkWorkStatus.Failed);
-                        }
-                    }
-
-                    if (count <= 0)
-                    {
-                        // If we consumed some completed work but none produced payloads, keep looping to drain more.
-                        // Otherwise, nothing dispatchable this frame.
-                        if (completedHandled <= 0)
-                        {
-                            return;
-                        }
-
-                        continue;
-                    }
-
-                    int dispatched = gpuDispatcher.UploadAndDispatchBatch(
-                        resources: resources,
-                        regionCoords: regionCoords.AsSpan(0, count),
-                        regionPayloads: payloads.AsSpan(0, count),
-                        levels: levels,
-                        levelMask: levelMask,
-                        originMinCellByLevel: originMin.AsSpan(0, levels),
-                        ringByLevel: ring.AsSpan(0, levels),
-                        resolution: resolution);
-
-                    LumonSceneTraceSceneMetrics.OnUploaded(
-                        regions: dispatched,
-                        bytes: (long)dispatched * LumonSceneTraceSceneRegionUploadGpuResources.RegionCellCount * sizeof(uint));
-                    LumonSceneTraceSceneMetrics.OnDispatched(dispatched);
-
-                    for (int i = 0; i < dispatched; i++)
-                    {
-                        regionScheduler.OnRequestCompleted(
-                            new ChunkKey(regionKeys[i]),
-                            status: ChunkWorkStatus.Success,
-                            requestedVersion: versions[i],
-                            nowTick: traceSceneNowMs);
-                        LumonSceneTraceSceneMetrics.OnRegionCompleted(ChunkWorkStatus.Success);
-                    }
-
-                    // If the GPU budget/dispatcher shorted us, retry the remainder next frame.
-                    for (int i = dispatched; i < count; i++)
-                    {
-                        regionScheduler.OnRequestCompleted(
-                            new ChunkKey(regionKeys[i]),
-                            status: ChunkWorkStatus.Canceled,
-                            requestedVersion: versions[i],
-                            nowTick: traceSceneNowMs);
-                        LumonSceneTraceSceneMetrics.OnRegionCompleted(ChunkWorkStatus.Canceled);
-                    }
-
-                    budget -= dispatched;
-                }
-                finally
-                {
-                    ArrayPool<VectorInt3>.Shared.Return(regionCoords, clearArray: false);
-                    ArrayPool<ReadOnlyMemory<uint>>.Shared.Return(payloads, clearArray: true);
-                    ArrayPool<ulong>.Shared.Return(regionKeys, clearArray: false);
-                    ArrayPool<int>.Shared.Return(versions, clearArray: false);
-                }
+                inFlightByRegion.Remove(key.Packed);
+                regionScheduler.OnRequestCompleted(inflight.Request, key, ChunkWorkStatus.Failed, inflight.Version, traceSceneNowMs, ChunkWorkError.Unknown);
+                continue;
             }
-        }
-        finally
-        {
-            ArrayPool<VectorInt3>.Shared.Return(originMin, clearArray: false);
-            ArrayPool<VectorInt3>.Shared.Return(ring, clearArray: false);
+            if (!TryGetDispatchPayload(result, out ReadOnlyMemory<uint> payload))
+            {
+                inFlightByRegion.Remove(key.Packed);
+                regionScheduler.OnRequestCompleted(inflight.Request, key,
+                    result.Status == ChunkWorkStatus.Success ? ChunkWorkStatus.Failed : result.Status,
+                    result.RequestedVersion, traceSceneNowMs, result.Error);
+                LumonSceneTraceSceneMetrics.OnRegionCompleted(result.Status);
+                continue;
+            }
+            key.Decode(out int x, out int y, out int z);
+            coordinates[0] = new(x, y, z);
+            payloads[0] = payload;
+            long bytes = (long)payload.Length * sizeof(uint);
+            bool published = regionScheduler.TryPublish(inflight.Request, result.RequestedVersion, bytes,
+                () => chunkVersions != null && chunkVersions.GetCurrentVersion(key) == result.RequestedVersion,
+                () => gpuDispatcher.UploadAndDispatchBatch(resources, coordinates, payloads, levels,
+                    (uint)((1 << levels) - 1), origins, rings, levelStates[0].Resolution) == 1);
+            if (!published && regionScheduler.IsCurrent(inflight.Request))
+            {
+                // Shared-budget deferral retains the result and lease; do not recapture or lose its completion.
+                completedRegions.Enqueue(completion);
+                break;
+            }
+            inFlightByRegion.Remove(key.Packed);
+            if (published)
+            {
+                LumonSceneTraceSceneMetrics.OnUploaded(1, bytes);
+                LumonSceneTraceSceneMetrics.OnDispatched(1);
+                LumonSceneTraceSceneMetrics.OnRegionCompleted(ChunkWorkStatus.Success);
+                budget--;
+            }
+            else regionScheduler.OnRequestCompleted(inflight.Request, key, ChunkWorkStatus.Superseded, inflight.Version, traceSceneNowMs);
         }
     }
-
     private bool TryDequeueValidCompletion(
         long startTimestamp,
         long budgetTicks,
@@ -1016,6 +813,7 @@ internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRender
         {
             if (Stopwatch.GetTimestamp() - startTimestamp > budgetTicks)
             {
+                completedRegions.Enqueue(completion);
                 inflight = default;
                 return false;
             }

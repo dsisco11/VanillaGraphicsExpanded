@@ -1,4 +1,4 @@
-using VanillaGraphicsExpanded.LumOn.WorldCells;
+using VanillaGraphicsExpanded.WorldPartition;
 using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
 
 using Xunit;
@@ -12,7 +12,7 @@ public sealed class WorldCellKeyTests
     {
         ChunkKey chunkKey = ChunkKey.FromChunkCoords(1, 2, 3);
 
-        WorldCellKey key = WorldCellKey.FromTraceSceneRegion(chunkKey);
+        WorldCellKey key = WorldCellKey.FromTraceSceneRegion(chunkKey.Packed);
 
         Assert.Equal(WorldCellKind.TraceSceneRegion, key.Kind);
         Assert.Equal(chunkKey.Packed, key.Packed);

@@ -4,21 +4,20 @@ using System.Collections.Generic;
 using System.Text;
 
 using VanillaGraphicsExpanded.Collections;
-using VanillaGraphicsExpanded.LumOn.WorldCells;
+using VanillaGraphicsExpanded.WorldPartition;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene;
 
 /// <summary>
-/// Phase 9.1: minimal LumonScene region scheduler scaffold.
+/// Domain capture and relight queues for coordinator-owned scene residency.
 /// Owns the queues; cells enqueue themselves via <see cref="IWorldCellWorkSink"/>.
 /// </summary>
-internal sealed class LumonSceneRegionScheduler : IWorldCellWorkSink
+internal sealed partial class LumonSceneRegionScheduler : IWorldCellWorkSink, IPartitionResidencyBackend
 {
-    private readonly WorldPartitionSystem worldPartition;
+    private readonly PartitionCoordinator worldPartition;
+    private readonly Action<LumonSceneChunkCoord>? retireSlot;
     private readonly Dictionary<WorldCellKey, LumonSceneRegionCell> cells = new();
 
-    // Cells that need lifecycle transitions (Unloaded↔Loaded↔Active).
-    private readonly IndexedMaxHeap<WorldCellKey> transitions = new();
 
     // Active update work queues (future: may be split further).
     private readonly IndexedMaxHeap<WorldCellKey> capture = new();
@@ -30,15 +29,17 @@ internal sealed class LumonSceneRegionScheduler : IWorldCellWorkSink
 
     public int CellCount => cells.Count;
 
-    public int TransitionCount => transitions.Count;
 
     public int CaptureCount => capture.Count;
 
     public int RelightCount => relight.Count;
 
-    public LumonSceneRegionScheduler(WorldPartitionSystem worldPartition)
+    #region Domain queue API
+    /// <summary>Shares residency authority and forwards acknowledged retirement to the slot backend.</summary>
+    public LumonSceneRegionScheduler(PartitionCoordinator worldPartition, Action<LumonSceneChunkCoord>? retireSlot = null)
     {
         this.worldPartition = worldPartition ?? throw new ArgumentNullException(nameof(worldPartition));
+        this.retireSlot = retireSlot;
     }
 
     public bool TryGetCell(WorldCellKey key, out LumonSceneRegionCell cell)
@@ -72,49 +73,10 @@ internal sealed class LumonSceneRegionScheduler : IWorldCellWorkSink
     {
         this.nowTick = nowTick;
 
-        foreach (LumonSceneRegionCell cell in cells.Values)
-        {
-            _ = worldPartition.Remove(cell.Key);
-        }
-
+        ReleasePartitions();
         cells.Clear();
-        transitions.Clear();
         capture.Clear();
         relight.Clear();
-    }
-
-    public void PruneToKeys(HashSet<WorldCellKey> keep)
-    {
-        if (keep is null) throw new ArgumentNullException(nameof(keep));
-        if (cells.Count <= 0) return;
-
-        List<WorldCellKey>? toRemove = null;
-        foreach (WorldCellKey key in cells.Keys)
-        {
-            if (!keep.Contains(key))
-            {
-                toRemove ??= new List<WorldCellKey>();
-                toRemove.Add(key);
-            }
-        }
-
-        if (toRemove is null)
-        {
-            return;
-        }
-
-        foreach (WorldCellKey key in toRemove)
-        {
-            if (cells.TryGetValue(key, out LumonSceneRegionCell? cell))
-            {
-                _ = worldPartition.Remove(cell.Key);
-            }
-
-            cells.Remove(key);
-            transitions.Remove(key);
-            capture.Remove(key);
-            relight.Remove(key);
-        }
     }
 
     public LumonSceneRegionCell GetOrCreate(WorldCellKind kind, in LumonSceneChunkCoord coord)
@@ -129,13 +91,11 @@ internal sealed class LumonSceneRegionScheduler : IWorldCellWorkSink
             return existing;
         }
 
-        LumonSceneRegionCell created = worldPartition.GetOrCreate(key, () => new LumonSceneRegionCell(kind, in coordCopy));
+        LumonSceneRegionCell created = new(kind, in coordCopy);
         cells.Add(key, created);
         return created;
     }
 
-    public bool TryPopTransition(out WorldCellKey key)
-        => transitions.TryPopMax(out key);
 
     public bool TryPopCapture(out WorldCellKey key)
         => capture.TryPopMax(out key);
@@ -156,10 +116,6 @@ internal sealed class LumonSceneRegionScheduler : IWorldCellWorkSink
     {
         switch (queue)
         {
-            case WorldCellWorkQueue.StateTransition:
-                transitions.Upsert(key, priority);
-                break;
-
             case WorldCellWorkQueue.Capture:
                 capture.Upsert(key, priority);
                 break;
@@ -180,10 +136,6 @@ internal sealed class LumonSceneRegionScheduler : IWorldCellWorkSink
     {
         switch (queue)
         {
-            case WorldCellWorkQueue.StateTransition:
-                transitions.Remove(key);
-                break;
-
             case WorldCellWorkQueue.Capture:
                 capture.Remove(key);
                 break;
@@ -217,18 +169,21 @@ internal sealed class LumonSceneRegionScheduler : IWorldCellWorkSink
         var sb = new StringBuilder(capacity: 2048);
         sb.Append("LS scheduler: ");
         sb.Append("cells=").Append(CellCount)
-            .Append(" qT=").Append(TransitionCount)
+
             .Append(" qC=").Append(CaptureCount)
             .Append(" qR=").Append(RelightCount)
             .Append(" now=").Append(nowTick);
 
-        AppendQueueDump(sb, "T", transitions, topN);
         AppendQueueDump(sb, "C", capture, topN);
         AppendQueueDump(sb, "R", relight, topN);
 
         return sb.ToString();
     }
 
+    #endregion
+
+    #region Queue diagnostics
+    /// <summary>Formats a bounded priority-ordered sample without exposing mutable queue storage.</summary>
     private void AppendQueueDump(StringBuilder sb, string tag, IndexedMaxHeap<WorldCellKey> heap, int topN)
     {
         if (topN <= 0 || heap.Count <= 0)
@@ -285,4 +240,5 @@ internal sealed class LumonSceneRegionScheduler : IWorldCellWorkSink
             ArrayPool<WorldCellKey>.Shared.Return(arr, clearArray: false);
         }
     }
+    #endregion
 }

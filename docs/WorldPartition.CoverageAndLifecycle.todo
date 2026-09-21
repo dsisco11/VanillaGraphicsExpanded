@@ -39,8 +39,10 @@ Completion evidence: [coverage diagnostics and final review](WorldPartition.Cove
 
 Outcome: scene consumers share the coordinator without duplicate lifecycle authority.
 
-- [ ] Adapt `TraceSceneRegionScheduler` and `LumonSceneRegionScheduler`, preserving coverage/priority behavior and domain capture/relight queues; verify each adapter before removing replaced registry, coverage, and transition code.
-- [ ] Move reusable contracts/coordinator from `LumOn/WorldCells` into top-level `WorldPartition`; keep `WorldPartitionModSystem` thin and files responsibility-specific. Gate: scene regressions pass and each partition has exactly one residency owner.
+- [x] Adapt `TraceSceneRegionScheduler` and `LumonSceneRegionScheduler`, preserving coverage/priority behavior and domain capture/relight queues; verify each adapter before removing replaced registry, coverage, and transition code.
+- [x] Move reusable contracts/coordinator from `LumOn/WorldCells` into top-level `WorldPartition`; keep `WorldPartitionModSystem` thin and files responsibility-specific. Gate: scene regressions pass and each partition has exactly one residency owner.
+
+Completion evidence: [scene residency migration and validation](WorldPartition.SceneResidency.Evidence.md). Second review and independent completion audit passed. 341 unique selected cases passed, including 115 GPU cases; the production build is clean. Two unchanged pre-existing shader source assertions are documented separately, and two async GPU cases passed in fresh test hosts.
 
 ## 5. World-probe evaluation and final acceptance
 
@@ -50,4 +52,4 @@ Outcome: a justified spatial-residency migration or explicit deferral, with near
 - [ ] Preserve importance selection, directional budgets, lighting confidence/history, atlas packing, and the distinction between residency and valid lighting.
 - [ ] Run required builds/regressions through a validation subagent; update architecture/invariants and evidence records. Gate: all mandatory proposal requirements are verified, temporary adapters are removed where replaced, and any conditional probe deferral is documented.
 
-Coverage decision: near-field uses a fixed 48-block window with no additional prefetch or retention. Item 3 validates and retains the current scheduling budgets. Items 1 through 3 are complete; item 4 is next.
+Coverage decision: near-field uses a fixed 48-block window with no additional prefetch or retention. Item 3 validates and retains the current scheduling budgets. Items 1 through 4 are complete; item 5 is next.
