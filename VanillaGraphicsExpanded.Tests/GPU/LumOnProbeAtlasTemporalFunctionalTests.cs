@@ -335,8 +335,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         var currentAtlas = CreateClampFriendlyCurrentAtlas(EncodeHitDistance(hitDist));
         var historyAtlas = CreateHistoryAtlas(EncodeHitDistance(hitDist));
 
-        var metaCurrentData = CreateUniformMetaAtlas(1.0f, 0.0f);
-        var metaHistoryData = CreateUniformMetaAtlas(0.2f, 0.0f);
+        var metaCurrentData = CreateUniformMetaAtlas(1.0f, BitConverter.UInt32BitsToSingle(2u << 16));
+        var metaHistoryData = CreateUniformMetaAtlas(0.2f, BitConverter.UInt32BitsToSingle(5u << 16));
 
         using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
         using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
@@ -387,6 +387,12 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         Assert.True(good == total,
             $"Expected all {total} sampled texels to be strongly current-weighted, got {good}");
+
+        // A blended radiance retains the current trace classification; combining encoded
+        // outcomes with bitwise OR would manufacture invalid outcome 7 from 2 and 5.
+        var outputMeta = outputAtlas[1].ReadPixels();
+        for (int i = 1; i < outputMeta.Length; i += 2)
+            Assert.Equal(2u, (BitConverter.SingleToUInt32Bits(outputMeta[i]) >> 16) & 7u);
 
         GL.DeleteProgram(programId);
     }

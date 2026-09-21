@@ -111,6 +111,7 @@ public static partial class VgeBuiltInDebugViews
         ProbeAtlasTemporalRejection,
         ProbeAtlasMetaFlags,
         ProbeAtlasTraceRadiance,
+        ProbeAtlasTraceOutcome,
         ProbeAtlasCurrentRadiance,
         ProbeAtlasFilteredRadiance,
         ProbeAtlasGatherInputRadiance,
@@ -157,6 +158,7 @@ public static partial class VgeBuiltInDebugViews
         ProbeVizMode.ProbeAtlasTemporalRejection => new(LumOnDebugMode.ProbeAtlasTemporalRejection),
         ProbeVizMode.ProbeAtlasMetaFlags => new(LumOnDebugMode.ProbeAtlasMetaFlags),
         ProbeVizMode.ProbeAtlasTraceRadiance => new(LumOnDebugMode.ProbeAtlasTraceRadiance),
+        ProbeVizMode.ProbeAtlasTraceOutcome => new(LumOnDebugMode.ProbeAtlasTraceOutcome),
         ProbeVizMode.ProbeAtlasCurrentRadiance => new(LumOnDebugMode.ProbeAtlasCurrentRadiance),
         ProbeVizMode.ProbeAtlasFilteredRadiance => new(LumOnDebugMode.ProbeAtlasFilteredRadiance),
         ProbeVizMode.ProbeAtlasGatherInputRadiance => new(LumOnDebugMode.ProbeAtlasGatherInputRadiance),
@@ -204,6 +206,7 @@ public static partial class VgeBuiltInDebugViews
 
         private static bool IsLegendVisible(ProbeVizMode mode) => mode switch
         {
+            ProbeVizMode.ProbeAtlasTraceOutcome => true,
             ProbeVizMode.ProbeAtlasTemporalRejection => true,
             ProbeVizMode.WorldProbeLightingEffect => true,
             ProbeVizMode.WorldProbeSuppressedLighting => true,
@@ -330,6 +333,19 @@ public static partial class VgeBuiltInDebugViews
                         + "Gain amplifies the display only.<br/>"
                         + "Zeroed view shows comparison lighting.<br/>"
                         + "Histories restart on activation; allow them to settle.";
+                }
+
+                if (selectedMode == ProbeVizMode.ProbeAtlasTraceOutcome)
+                {
+                    vtml = "<b>Latest trace outcome per direction</b><br/>"
+                        + Line("#ff0000", "Near-zero hit (0.02 blocks or less); possible self-hit")
+                        + Line("#00ff00", "Lit hit")
+                        + Line("#ffff00", "Valid dark hit")
+                        + Line("#ff00ff", "Unavailable lighting/geometry or budget exhausted")
+                        + Line("#00ffff", "World-cache sample")
+                        + Line("#4080ff", "Sky approximation")
+                        + "Black: no recorded outcome. Retained between updates.<br/>"
+                        + "Near-zero takes priority; red alone does not prove self-intersection.";
                 }
 
                 ElementBounds legendBounds = ElementBounds.Fixed(0, y, boundsW, rowH * 9).WithParent(bounds);
@@ -582,6 +598,7 @@ public static partial class VgeBuiltInDebugViews
             ProbeVizMode.ProbeAtlasTemporalRejection => "Probe-Atlas Temporal Rejection",
             ProbeVizMode.ProbeAtlasMetaFlags => "Probe-Atlas Meta Flags",
             ProbeVizMode.ProbeAtlasTraceRadiance => "Probe-Atlas Trace Radiance",
+            ProbeVizMode.ProbeAtlasTraceOutcome => "Probe-Atlas Trace Outcome",
             ProbeVizMode.ProbeAtlasCurrentRadiance => "Probe-Atlas Current Radiance",
             ProbeVizMode.ProbeAtlasFilteredRadiance => "Probe-Atlas Filtered Radiance",
             ProbeVizMode.ProbeAtlasGatherInputRadiance => "Probe-Atlas Gather Input Radiance",

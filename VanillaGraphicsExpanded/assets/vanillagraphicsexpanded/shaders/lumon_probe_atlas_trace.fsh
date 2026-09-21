@@ -279,18 +279,49 @@ void main(void)
     float localLightingConfidence = 1.0;
     float worldProbeFallbackConfidence = 0.0;
     
+#if VGE_LUMON_LOCAL_TRACE_ENABLED
+    int cacheLevel; float cacheRadius; float localDistance;
+    bool cacheCovered = lumonLocalCacheCoverage(probePosWS, cacheLevel, cacheRadius, localDistance);
+    if (!cacheCovered) localDistance = VGE_LUMON_RAY_MAX_DISTANCE;
+    vec3 matrixOrigin = probePosWS + probeNormalWS * 0.001 + matrixSpaceWorldBlockOffsetRem;
+    ivec3 startCell = ivec3(floor(matrixOrigin)) + matrixSpaceWorldChunkCoordOffset * 32;
+    // A screen hit supplies depth, not reflected radiance. Resolve its supported voxel
+    // surface with the same first-hit traversal and lighting source used off screen.
+    // Include the screen thickness and origin-offset difference at the segment end.
+    float geometryDistance = hit.hit
+        ? min(hit.distance + VGE_LUMON_RAY_THICKNESS + 0.01, VGE_LUMON_RAY_MAX_DISTANCE)
+        : localDistance;
+    LumonLocalHit localHit = lumonTraceLocal(startCell, fract(matrixOrigin), rayDirWS, geometryDistance);
+#endif
+
     if (hit.hit) {
-        // Hit radiance (no distance falloff; rayMaxDistance is the only cutoff)
+        // Visible emission is a fallback until a supported local hit is resolved.
         radiance = hit.color * indirectTint;
         hitDistance = hit.distance;
+#if VGE_LUMON_LOCAL_TRACE_ENABLED
+        localLightingConfidence = any(greaterThan(radiance, vec3(0.0))) ? 1.0 : 0.0;
+        if (localHit.outcome == LUMON_LOCAL_HIT)
+        {
+            vec3 localRadiance;
+            if (lumonShadeLocalHit(localHit, localDistance, LUMON_EMISSIVE_BOOST, localRadiance))
+            {
+                // Replace, rather than add to, screen emission: the shared evaluator
+                // already includes emission once. Gather applies the indirect tint.
+                radiance = localRadiance;
+                localLightingConfidence = 1.0;
+            }
+            else
+            {
+                // A known nearer opaque hit still blocks the screen sample when its
+                // material/light data is missing; do not borrow emission through it.
+                radiance = vec3(0.0);
+                localLightingConfidence = 0.0;
+            }
+            hitDistance = localHit.distance;
+        }
+#endif
     } else {
 #if VGE_LUMON_LOCAL_TRACE_ENABLED
-        int cacheLevel; float cacheRadius; float localDistance;
-        bool cacheCovered = lumonLocalCacheCoverage(probePosWS, cacheLevel, cacheRadius, localDistance);
-        if (!cacheCovered) localDistance = VGE_LUMON_RAY_MAX_DISTANCE;
-        vec3 matrixOrigin = probePosWS + probeNormalWS * 0.001 + matrixSpaceWorldBlockOffsetRem;
-        ivec3 startCell = ivec3(floor(matrixOrigin)) + matrixSpaceWorldChunkCoordOffset * 32;
-        LumonLocalHit localHit = lumonTraceLocal(startCell, fract(matrixOrigin), rayDirWS, localDistance);
         radiance = vec3(0.0);
         if (localHit.outcome == LUMON_LOCAL_HIT)
         {
@@ -373,5 +404,8 @@ void main(void)
         }
     }
 
+    // Persist the latest actual trace outcome even while other directions retain history.
+    flags |= lumonTraceOutcome(hit.hit, hitDistance, radiance, confidence, usedWorldProbeFallback)
+        << LUMON_META_OUTCOME_SHIFT;
     outMeta = lumonEncodeMeta(confidence, flags);
 }

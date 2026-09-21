@@ -944,7 +944,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             shader.IndirectHalf = bufferManager?.IndirectHalfTex;
             shader.HistoryMeta = null;
 
-            shader.ProbeAtlasMeta = bufferManager?.ScreenProbeAtlasMetaHistoryTex;
+            // Outcome colors use raw trace metadata, not temporally blended confidence.
+            shader.ProbeAtlasMeta = mode == LumOnDebugMode.ProbeAtlasTraceOutcome
+                ? bufferManager?.ScreenProbeAtlasMetaTraceTex
+                : bufferManager?.ScreenProbeAtlasMetaHistoryTex;
 
             // Probe-atlas debug textures (raw/current/filtered + the actual gather input selection)
             DynamicTexture2D? probeAtlasTrace = bufferManager?.ScreenProbeAtlasTraceTex;
@@ -2695,7 +2698,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             => LumOnDebugShaderProgramKind.Indirect,
 
         // Screen-probe atlas
-        LumOnDebugMode.ProbeAtlasMetaConfidence
+        LumOnDebugMode.ProbeAtlasTraceOutcome
+            or LumOnDebugMode.ProbeAtlasMetaConfidence
             or LumOnDebugMode.ProbeAtlasTemporalAlpha
             or LumOnDebugMode.ProbeAtlasMetaFlags
             or LumOnDebugMode.ProbeAtlasFilteredRadiance
@@ -2800,7 +2804,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 or LumOnDebugMode.WorldProbeImportance
                 or LumOnDebugMode.ProbeAtlasTemporalRejection
                 or LumOnDebugMode.ProbeAtlasPisTraceMask
-                or LumOnDebugMode.ProbePisEnergy;
+                or LumOnDebugMode.ProbePisEnergy
+                or LumOnDebugMode.ProbeAtlasTraceOutcome;
     }
 
     #endregion

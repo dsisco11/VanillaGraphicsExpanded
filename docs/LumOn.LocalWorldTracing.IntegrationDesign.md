@@ -86,7 +86,7 @@ The initial shading model is:
 - Explicit linear per-face emission through an added material field/resource, using the existing GI emission convention once. Do not infer emission from propagated light.
 - Linear HDR output before final gather intensity/tint and display tone mapping.
 
-This remains a voxel-light approximation, not physically complete surface-cache shading or guaranteed parity with visible direct lighting. Source-light spill and WP-02 screen-hit lighting remain separate issues. Establish CPU/GPU parity of block and sky terms and test emission independently.
+This remains a voxel-light approximation, not physically complete surface-cache shading or guaranteed parity with visible direct lighting. Source-light spill remains a separate issue. Supported screen hits now use this same evaluator. Establish CPU/GPU parity of block and sky terms and test emission independently.
 
 When outside-cell lighting or hit material is unavailable, retain the opaque hit with unavailable lighting. Never turn a known wall into a miss.
 
@@ -177,3 +177,11 @@ Supported visibility is limited to full opaque voxel geometry inside the publish
 Both the lighting renderer and debug renderer publish the frame bridge from Entity.Pos, matching the player-relative coordinate convention used for cache origins. The bridge splits that double-precision position into integer chunk coordinates and a bounded remainder. CameraPos and inverse-view translation are not inputs: inverse-view reconstruction has already produced player-relative coordinates, including the camera transform.
 
 This shared conversion applies to screen-probe local tracing, direct irradiance visibility, and reconstructed occupancy debug queries. The repair removes camera-bob-dependent cell shifts without changing cache publication timing or the local-window coverage policy.
+
+### Screen-hit outgoing radiance
+
+Screen hits now resolve their supported opaque surface through the same local scene and evaluator as screen misses. The local segment ends at the screen-ray hit distance plus the configured screen thickness and the small origin-offset difference, capped by the ray maximum. Misses retain their cache-handoff distance. Sky-light visibility uses the same evaluation radius in both cases.
+
+Ready local shading replaces screen emission rather than adding to it, so emission is counted once. Known dark surfaces retain confidence 1. Missing non-emissive lighting has confidence 0; it is not a fully evaluated black sample. Explicit screen emission remains available when no supported local hit is resolved. A known opaque local hit with unavailable material/light data stays dark and unresolved, preventing emission from a different screen hit from passing through it.
+
+This introduces bounded local traversal for screen hits without extra texture units or render targets. It does not enable the separate PBR direct-light renderer or introduce final-lighting feedback. Lighting still follows the existing voxel approximation; unsupported geometry and live GPU cost remain limitations.

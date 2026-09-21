@@ -139,4 +139,6 @@ public enum LumOnDebugMode
 
     // World-probe scheduler importance factor at the nearest probe (blue = low, red = high).
     WorldProbeImportance = 68,
+    /// <summary>Latest sampled trace outcome per screen-probe direction.</summary>
+    ProbeAtlasTraceOutcome = 69,
 }

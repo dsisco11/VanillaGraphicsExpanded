@@ -224,3 +224,36 @@ Before-fix receipts: [log](../artifacts/world-probe-camera-bob-before.log) and [
 After the repair, all **73 focused tests** passed, including the nine previously failing camera-bob cases, the existing direct-visibility controls and signed-origin unit cases. The broader selection passed **222 regression tests**. Both selections had zero failures or skips; build succeeded with the same six unrelated warnings.
 
 After-fix receipts: [focused log](../artifacts/world-probe-camera-bob-after.log), [focused TRX](../artifacts/TestResults/world-probe-camera-bob-after.trx), [regression log](../artifacts/world-probe-camera-bob-regression.log), and [regression TRX](../artifacts/TestResults/world-probe-camera-bob-regression.trx). Live in-game appearance remains unverified.
+
+### Screen-hit versus off-screen lighting
+
+[Screen-hit controls](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceFunctionalTests.ScreenHits.cs) use the reusable local trace harness with a constant screen-depth plane and the same published voxel room. A screen-only control identifies directions that actually hit the screen plane; assertions then compare those directions against the off-screen local result. This prevents a test that accidentally exercises only misses from passing.
+
+Before the repair, two lit-room cases returned zero on screen versus approximately 0.251 and 1.0 off screen. An unavailable-source case incorrectly published confidence 1. All three failed; the genuinely dark control passed. Receipts: [before log](../artifacts/screen-hit-lighting-before.log) and [before TRX](../artifacts/TestResults/screen-hit-lighting-before.trx).
+
+Controls additionally require cache suppression to preserve local lighting and metadata, material emission to be counted once with its GI boost, visible emission to survive an unavailable local scene, and a known opaque hit with missing material to reject borrowed screen emission. These are controlled shader results, not a live performance or visual capture.
+
+After-fix validation: **54 local-tracing tests passed**, zero failures or skips. The final-revision broader selection passed **306 tests**, zero failures, with two existing explicit skips for indirect tint and distance falloff. Build succeeded. Receipts: [local tests](../artifacts/screen-hit-lighting-after.log), [local TRX](../artifacts/TestResults/screen-hit-lighting-after.trx), [regression log](../artifacts/screen-hit-lighting-regression.log), and [regression TRX](../artifacts/TestResults/screen-hit-lighting-regression.trx).
+
+Live scene appearance and the added traversal cost remain unverified. The WP lighting-effect view compares cached world radiance specifically; the repaired local hit lighting remains present in both diagnostic branches.
+
+### Trace-outcome diagnostic
+
+The Probes panel's **Probe-Atlas Trace Outcome** view displays the latest recorded trace classification for each atlas direction. It reads the raw trace metadata rather than deriving an outcome from temporally filtered radiance. Directions not traced during the current update retain their previous classification.
+
+| Color | Meaning |
+| --- | --- |
+| Red | Hit distance of 0.02 blocks or less; possible self-intersection |
+| Green | Resolved hit with a radiance component above 0.00001 |
+| Yellow | Resolved hit with radiance at or below that threshold |
+| Magenta | Unavailable lighting or geometry, exhausted traversal budget, or zero-confidence cache sample |
+| Cyan | World-cache sample with positive confidence |
+| Blue | Legacy sky approximation |
+| Black | No recorded outcome |
+
+Near-zero hits take priority over lighting readiness; red alone does not prove self-intersection. Yellow establishes that the trace accepted a dark lighting result, not that the live scene should physically be dark. These outcomes are encoded in existing metadata bits 16 through 18 without changing radiance, confidence, or allocating another atlas. Cache suppression preserves the classification.
+
+For the indoor-black investigation, allow the atlas directions to update while viewing the affected room, then record the dominant colors. The live cause remains unresolved until this diagnostic is observed in the affected scene.
+
+Diagnostic validation: **40 focused tests passed**, zero failures or skips. The controls exercise actual near-zero, lit, dark, unavailable, budget-limited, cache and sky traces; all seven display colors; renderer routing and buffer requirements; and outcome preservation through temporal filtering. Build succeeded with six existing warnings. Receipts: [focused log](../artifacts/trace-outcome-diagnostic.log) and [focused TRX](../artifacts/TestResults/trace-outcome-diagnostic.trx). Live in-game colors remain unverified.
+The complete local-tracing selection also passed all **61 tests**, zero failures or skips, including the earlier screen-hit and cache-suppression controls. Receipts: [local regression log](../artifacts/trace-outcome-local-regression.log) and [local regression TRX](../artifacts/TestResults/trace-outcome-local-regression.trx).

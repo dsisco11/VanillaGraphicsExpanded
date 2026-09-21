@@ -13,15 +13,15 @@ public sealed partial class LumOnLocalTraceFunctionalTests
     #region Shader Harness
     /// <summary>Runs the production shader with the production sixteen-unit texture layout.</summary>
     private (float[] Radiance, float[] Meta) Trace(LocalTraceVoxelFixture fixture, int budget = 256, bool suppress = false, float cacheDistance = 100, float emissionBoost = 1, VanillaGraphicsExpanded.Numerics.VectorInt3 worldOffset = default, int cacheResolution = 1,
-        bool directionalCache = false, float anchorX = 0)
+        bool directionalCache = false, float anchorX = 0, float screenDepth = 1, bool localTracing = true, float screenEmission = 0, bool worldCache = true)
     {
         int program = CompileShaderWithDefines("lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh",
             new Dictionary<string, string?>
             {
-                ["VGE_LUMON_LOCAL_TRACE_ENABLED"] = "1",
+                ["VGE_LUMON_LOCAL_TRACE_ENABLED"] = localTracing ? "1" : "0",
                 ["LUMON_EMISSIVE_BOOST"] = emissionBoost.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["VGE_LUMON_ATLAS_TEXELS_PER_FRAME"] = "64",
-                ["VGE_LUMON_WORLDPROBE_ENABLED"] = "1",
+                ["VGE_LUMON_WORLDPROBE_ENABLED"] = worldCache ? "1" : "0",
                 ["VGE_LUMON_WORLDPROBE_LEVELS"] = "1",
                 ["VGE_LUMON_WORLDPROBE_RESOLUTION"] = cacheResolution.ToString(),
                 ["VGE_LUMON_WORLDPROBE_BASE_SPACING"] = "8.0",
@@ -34,11 +34,11 @@ public sealed partial class LumOnLocalTraceFunctionalTests
         {
             AddTexture("probeAnchorPosition", 0, 2, 2, PixelInternalFormat.Rgba16f, anchorX, 0, -5, 1);
             AddTexture("probeAnchorNormal", 1, 2, 2, PixelInternalFormat.Rgba16f, 0.5f, 0.5f, 1, 0);
-            AddTexture("primaryDepth", 2, 4, 4, PixelInternalFormat.R32f, 1);
-            AddTexture("surfaceAlbedo", 3, 4, 4, PixelInternalFormat.Rgba16f, 0, 0, 0, 0);
-            AddTexture("gBufferMaterial", 4, 4, 4, PixelInternalFormat.Rgba16f, 0, 0, 0, 0);
+            AddTexture("primaryDepth", 2, 4, 4, PixelInternalFormat.R32f, screenDepth);
+            AddTexture("surfaceAlbedo", 3, 4, 4, PixelInternalFormat.Rgba16f, 1, 1, 1, 1);
+            AddTexture("gBufferMaterial", 4, 4, 4, PixelInternalFormat.Rgba16f, 0, 0, screenEmission, 0);
             AddTexture("octahedralHistory", 5, 16, 16, PixelInternalFormat.Rgba16f, 0, 0, 0, 0);
-            AddTexture("hzbDepth", 6, 4, 4, PixelInternalFormat.R32f, 1);
+            AddTexture("hzbDepth", 6, 4, 4, PixelInternalFormat.R32f, screenDepth);
             AddTexture("probeAtlasMetaHistory", 7, 16, 16, PixelInternalFormat.Rg32f, 0, 0);
             AddTexture("worldProbeRadianceAtlas", 8, 16 * cacheResolution * cacheResolution, 16 * cacheResolution, PixelInternalFormat.Rgba16f, 10, 10, 10, MathF.Log(1 + cacheDistance));
             AddTexture("probeTraceMask", 9, 2, 2, PixelInternalFormat.Rg32f, 0, 0);
@@ -63,7 +63,7 @@ public sealed partial class LumOnLocalTraceFunctionalTests
             localBuffer.BindBase(LumOnLocalTraceParamsUbo.Binding);
             UniformBlockBindingUtil.EnsureBlockBound(program, LumOnLocalTraceParamsUbo.BlockName, LumOnLocalTraceParamsUbo.Binding);
             using var parameters = new ObjectParamsUbo("Tests.LocalTrace.Params");
-            parameters.UploadAndBind(new LumOnProbeParamsUbo { SuppressWorldProbeRadiance = suppress }.Bytes);
+            parameters.UploadAndBind(new LumOnProbeParamsUbo { SuppressWorldProbeRadiance = suppress, IndirectTint = Vector3.One }.Bytes);
             UniformBlockBindingUtil.EnsureBlockBound(program, LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
             using var output = TestFramework.CreateTestGBuffer(16, 16, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rg32f);
             TestFramework.RenderQuadTo(program, output);

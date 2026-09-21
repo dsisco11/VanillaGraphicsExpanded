@@ -1,7 +1,7 @@
 # LumOn world-probe lighting: architecture, findings, and repair tracking
 
 Date: 2026-09-20  
-Status: Local tracing and direct irradiance visibility implemented; live validation remains open.
+Status: Local tracing, direct irradiance visibility and supported screen-hit lighting implemented; live validation remains open.
 Scope: World-probe generation, screen-probe tracing, filtering, projection, gather, and contribution diagnostics.
 
 ## Summary
@@ -10,7 +10,7 @@ LumOn uses a screen-probe pipeline with directional radiance storage, temporal a
 
 The current implementation has several limitations that can explain missing or apparently missing lighting:
 
-1. Accepted screen hits supply emissive radiance only; ordinary illuminated surfaces return black with full confidence.
+1. Supported screen hits now share local voxel hit lighting; outside that supported domain, reflected lighting remains unavailable.
 2. SH projection weights angular samples by confidence, favoring screen hits over many world-probe samples.
 3. Whole-probe confidence can be published before all directional texels contain valid radiance.
 4. World-probe lighting uses a separate, simplified CPU lighting model rather than the existing LumonScene surface-cache lighting.
@@ -47,7 +47,7 @@ Separate final-gather recovery:
 | --- | --- | --- |
 | Screen-probe representation | Octahedral atlas, temporal/filter passes, SH9 or atlas gather | Main pipeline is present |
 | Cache entry point | World directional lookup after a clear local segment | Contributes before final gather |
-| Accepted screen-hit lighting | Emissive contribution only | Missing reflected lighting from illuminated non-emissive surfaces |
+| Accepted screen-hit lighting | Shared local voxel-light shading for supported opaque hits; explicit screen emission fallback | On/off-screen parity covered by controlled tests; live appearance and traversal cost remain open |
 | World tracing and cache handoff | Screen miss traverses published local voxels; opaque hits stop the ray | Explicit clear/unavailable/budget outcomes |
 | Cache interpolation | Spacing-based sphere reprojection of lighting direction; near cache hits excluded | Distant-domain approximation; direct irradiance remains separate |
 | World lighting source | CPU block light plus approximate sky bounce | Separate lighting model |
@@ -63,24 +63,19 @@ Relevant LumOn sources:
 
 ## Findings
 
-### WP-02: Non-emissive screen hits return fully confident black
+### WP-02: Screen-hit outgoing radiance
 
-**Confirmed lighting gap; strongest source-level explanation for view-dependent darkness.**
+**Reproduced and repaired for supported local opaque geometry; live validation remains open.**
 
-The accepted screen-hit expression is:
+Previously, accepted screen hits returned only albedo times emission and received confidence 1. A controlled non-emissive room reproduced zero on-screen radiance versus approximately 0.251 or 1.0 off screen. Unpublished local data also produced confidence 1 for black screen hits.
 
-```glsl
-result.color = albedo * emissiveStrength * LUMON_EMISSIVE_BOOST;
-```
+The trace shader now resolves supported screen-hit segments through the existing local voxel traversal and evaluates the same outgoing-radiance source used off screen: normalized block light, bounded sky bounce and material emission. A screen hit bounds the geometry segment; a miss retains the existing cache-handoff segment. A valid dark local hit stays confidently dark. Unavailable non-emissive lighting stays unresolved. Explicit visible emission remains a fallback when no supported local hit can be resolved; a known opaque hit with missing material/light data cannot borrow emission from the screen sample.
 
-An ordinary directly illuminated non-emissive surface returns zero. The hit bypasses world-cache sampling and receives confidence `1.0`.
+The separate PBR direct-light renderer returns early while LumOn is enabled, so its outputs are not a current-frame source for this path. No new buffer or sampler is introduced, and the shader does not sample final composition or add world lighting behind an accepted opaque hit.
 
-This can produce the sequence: lit geometry becomes visible, a ray becomes a screen hit, and its previously world-derived lighting is replaced by black. Confirming this in the affected scene still requires a capture or controlled regression.
+Sources: [screen tracer](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_trace.fsh), [shared hit-lighting evaluator](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_local_hit_lighting.glsl), [reproduction controls](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceFunctionalTests.ScreenHits.cs).
 
-Sources: [screen tracer](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_trace.fsh), hit evaluation near line 177 and confidence assignment near line 308; [direct-light renderer](../VanillaGraphicsExpanded/PBR/DirectLightingRenderer.cs), render order 9; [LumOn renderer](../VanillaGraphicsExpanded/LumOn/LumOnRenderer.cs), render order 10.
-
-Repair direction: supply appropriate outgoing lit radiance at accepted hits. Existing direct diffuse and emissive outputs are available before LumOn. Verify their units, material factors, exposure, and binding ownership. Do not add world radiance behind an opaque hit merely because the hit is dark, and do not create uncontrolled feedback from final composite lighting.
-
+Limits: this retains the voxel-light approximation and published full-cube geometry requirements. Screen hits now incur bounded local traversal and shading work; live GPU cost remains unmeasured. Local hit lighting is unchanged by world-cache suppression, so a black WP lighting-effect view does not mean this local lighting is absent.
 ### WP-03: SH projection biases angular energy by confidence
 
 **Confirmed weighting behavior; attenuation magnitude is scene-dependent.**
@@ -208,10 +203,11 @@ Automated cases now cover both replacements, including doorways, blocked neighbo
 - [ ] Follow that signal through temporal output, filtering, SH projection, half-resolution gather, and final composition.
 - [ ] Verify world lighting survives a high-confidence final screen-probe gather in both gather modes.
 - [ ] Test a mixed set of dark screen hits and bright world misses to quantify confidence-induced angular bias.
-- [ ] Test a directly lit, non-emissive screen hit and compare with the same surface when resolved off screen.
+- [x] Test a directly lit, non-emissive screen hit and compare with the same surface when resolved off screen using controlled local voxel lighting.
 - [ ] Verify world radiance population, directional readiness, and metadata at startup and during slot reuse.
 - [ ] Exercise upload-budget exhaustion and unavailable tile-program handling without losing pending radiance or publishing misleading validity.
-- [ ] Correct accepted-hit radiance and validate material/exposure consistency.
+- [x] Correct accepted-hit radiance for supported local geometry and validate lighting, emission and readiness consistency.
+- [ ] Validate live material/exposure consistency and screen-hit traversal cost.
 - [ ] Correct angular confidence weighting and readiness/publication contracts where the reproduction confirms impact.
 - [ ] Assess further shared scene-lighting integration beyond the local-hit radiance source established by the priority design work.
 

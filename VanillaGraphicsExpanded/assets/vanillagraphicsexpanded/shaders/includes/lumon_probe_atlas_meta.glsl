@@ -14,6 +14,20 @@ const uint LUMON_META_EARLY_TERMINATED  = 1u << 3;
 const uint LUMON_META_THICKNESS_UNCERT  = 1u << 4;
 const uint LUMON_META_WORLDPROBE_FALLBACK = 1u << 5;
 
+// Diagnostic outcome occupies bits 16..18, separate from hit and temporal flags.
+const uint LUMON_META_OUTCOME_SHIFT = 16u;
+const uint LUMON_META_OUTCOME_MASK = 7u << LUMON_META_OUTCOME_SHIFT;
+
+/** Classifies the actual traced result without modifying confidence or lighting. */
+uint lumonTraceOutcome(bool hit, float distance, vec3 radiance, float confidence, bool worldCache)
+{
+    if (hit && distance <= 0.02) return 1u;
+    if (confidence <= 0.0) return 4u;
+    if (worldCache) return 5u;
+    if (hit) return max(radiance.r, max(radiance.g, radiance.b)) > 1e-5 ? 2u : 3u;
+    return 6u;
+}
+
 // Temporal rejection debug bits (probe-atlas temporal pass).
 // These are appended high bits so downstream stages can ignore them safely.
 const uint LUMON_META_TEMPREJ_HISTORY_INVALID      = 1u << 8;
