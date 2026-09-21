@@ -1,6 +1,6 @@
 # WorldPartition residency and scene work invariants
 
-`PartitionCoordinator` is the only owner of scene residency. Consumers retain content queues and GPU storage, and expose observations of coordinator state.
+`PartitionCoordinator` is the only owner of registered near-field and scene residency. Consumers retain content queues and GPU storage, and expose observations of coordinator state. World-probe coverage remains owned by `LumOnWorldProbeScheduler` under the [decision not to migrate](WorldPartition.WorldProbeEvaluation.Evidence.md); it is not registered with a second lifecycle owner.
 
 - Sources select world-zero, half-open cells. Required cells target Active; explicitly loaded bounds and prefetch target Loaded. Feedback heat adds a required source within the loaded scene envelope.
 - Loaded acknowledges a complete resident representation. Near-scene slot residency does not imply that every material page has valid lighting. Page capture and relight flags remain authoritative for lighting.
@@ -13,3 +13,5 @@
 - Reset unregisters a consumer before a replacement world or configuration can publish. Packed work keys are local to a consumer; shared identities include registration instance and world scope.
 
 The former cell-driven state machine, window hysteresis helper, global kind-keyed registry and scene transition queue have been removed. Coverage, retention and acknowledged state changes now use the shared coordinator.
+
+Probe residency does not establish valid directional lighting. Probe importance, partial directional budgets, confidence/history and atlas packing remain domain-owned. Existing probe requests identify physical slots without incarnation/revision validation; the evaluation records a late-completion limitation after slot reuse. Coordinator stale-publication guarantees must not be attributed to this independently managed consumer.

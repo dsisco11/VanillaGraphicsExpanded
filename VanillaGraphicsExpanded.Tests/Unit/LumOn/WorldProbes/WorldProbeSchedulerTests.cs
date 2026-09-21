@@ -53,20 +53,23 @@ public sealed class WorldProbeSchedulerTests
         Assert.True(list.Count <= 7);
     }
 
+    /// <summary>Crosses the anchor deadband and verifies that a single entering slab receives priority.</summary>
     [Fact]
     public void OriginShift_MarksIntroducedSlabDirty_AndSelectsItFirst()
     {
         const int res = 8;
+        const double spacing = 4.0;
         var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution: res);
 
         Vec3d cam0 = new(0.1, 0, 0);
-        scheduler.UpdateOrigins(cam0, baseSpacing: 1.0);
+        scheduler.UpdateOrigins(cam0, baseSpacing: spacing);
+        Assert.True(scheduler.TryGetLevelParams(0, out var origin0, out var ring0));
 
         // Schedule and complete all probes to make the level fully valid.
         var all = scheduler.BuildUpdateList(
             frameIndex: 0,
             cameraPos: cam0,
-            baseSpacing: 1.0,
+            baseSpacing: spacing,
             perLevelProbeBudgets: [res * res * res],
             traceMaxProbesPerFrame: 100000,
                 uploadBudgetBytesPerFrame: int.MaxValue,
@@ -79,15 +82,18 @@ public sealed class WorldProbeSchedulerTests
             scheduler.Complete(r, frameIndex: 0, success: true);
         }
 
-        // Move camera enough to snap anchor by +1 on X at spacing 1.0.
-        Vec3d cam1 = new(1.1, 0, 0);
-        scheduler.UpdateOrigins(cam1, baseSpacing: 1.0);
+        // Cross the two-world-block deadband while moving exactly one probe cell.
+        Vec3d cam1 = new(spacing + 0.1, 0, 0);
+        scheduler.UpdateOrigins(cam1, baseSpacing: spacing);
+        Assert.True(scheduler.TryGetLevelParams(0, out var origin1, out var ring1));
+        Assert.Equal(origin0.X + spacing, origin1.X);
+        Assert.Equal((ring0.X + 1) % res, ring1.X);
 
         // The newly introduced slab is local X == res-1, size res*res.
         var slab = scheduler.BuildUpdateList(
             frameIndex: 1,
             cameraPos: cam1,
-            baseSpacing: 1.0,
+            baseSpacing: spacing,
             perLevelProbeBudgets: [res * res],
             traceMaxProbesPerFrame: 100000,
                 uploadBudgetBytesPerFrame: int.MaxValue,

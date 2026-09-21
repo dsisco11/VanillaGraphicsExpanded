@@ -149,18 +149,11 @@ Move the reusable coordinator and contracts from `LumOn/WorldCells` into a top-l
 
 ## World-probe clipmaps
 
-Evaluate and then migrate spatial residency only. Model each clipmap level as a partition instance with its own spacing and bounds if doing so eliminates duplicate coverage and lifetime code without increasing per-frame work substantially.
+Decision after evaluation: do not migrate world probes to WorldPartition. This supersedes the original conditional migration proposal. `LumOnWorldProbeScheduler` remains the sole owner of probe coverage, ring movement and lighting scheduling; no partition per level or coordinator cell per probe will be introduced.
 
-A probe partition must use the same world-zero-aligned cell boundaries as every other partition. Probe sampling positions within those cells and atlas ring offsets are consumer details; neither introduces a configurable partition-grid origin. The adapter retains the mapping between logical coordinates and atlas ring slots. Existing probe positions, spacing, and boundary rules must remain consistent with shader interpolation. If a clipmap level cannot map to this fixed grid without changing its sampling lattice, defer its migration rather than adding a partition-origin exception.
+Keep importance selection, directional trace budgets, lighting age/confidence/history and atlas packing in the existing probe system. Residency remains distinct from valid directional lighting. The stale-result publication defect identified during evaluation is a separate corrective task within that system, not a prerequisite for a future partition migration.
 
-Retain domain ownership of:
-
-- Importance and visibility-driven probe selection.
-- Directional trace budgets and partial directional updates.
-- Lighting age, confidence, invalidation, and temporal history.
-- Atlas packing and upload format.
-
-Residency readiness must not be mistaken for valid directional lighting. The adapter must preserve rejection of stale probe work when atlas slots are reassigned. The migration is accepted only if coordinate/ring behavior and lighting-update results remain equivalent and the shared coordinator demonstrably removes duplicated residency machinery. Near-field geometry adoption does not depend on this migration.
+See the [evaluation record](WorldPartition.WorldProbeEvaluation.Evidence.md) for the rationale and test evidence. Near-field geometry and scene residency continue to use WorldPartition independently.
 
 ## Observability
 
@@ -193,6 +186,6 @@ Measure capture duplication, bytes uploaded during movement, frame-thread work, 
 2. Introduce the near-field geometry partition, 16-block publication cells, and matching GPU addressing/readiness changes.
 3. Validate coverage and publication during movement using the geometry viewer and controlled delayed-work tests.
 4. Migrate existing scene residency ownership and remove the replaced code paths.
-5. Evaluate world-probe spatial residency against the equivalence and cost criteria above; migrate only that responsibility if those criteria are met.
+5. Complete the world-probe evaluation and record the decision to retain its existing scheduler outside WorldPartition.
 
 No change in this proposal assumes that all current indoor lighting failures are caused by spatial coverage. Geometry support and lighting evaluation remain independently testable concerns.

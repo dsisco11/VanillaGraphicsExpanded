@@ -23,7 +23,7 @@ Outcome: near-tracing coverage follows its own requirements instead of the occup
 - [x] Generalize `NearFieldGpuScene`, UBOs, shaders, and readiness addressing together; retain overlapping ring cells and coherent geometry/light/material publication. Prefetch must complete GPU residency before activation.
 - [x] Transfer near-field window/publication ownership out of the occupancy renderer, preserving publication revisions and history invalidation. Gate: one lifecycle owner, no stale slot exposure, and existing near-field tests pass.
 
-Completion evidence: [near-field geometry implementation and validation](WorldPartition.NearFieldGeometry.Evidence.md). Second review and independent completion audit passed; 227 tests passed with no failures or skips.
+Current completion evidence: [near-field geometry, publication and final validation](WorldPartition.CoverageDiagnostics.Evidence.md#final-completion-review). This current record supersedes the former missing item 2 evidence link and includes the fixed-window corrections and acceptance verified under item 3.
 
 ## 3. Coverage evidence and diagnostics
 
@@ -46,10 +46,12 @@ Completion evidence: [scene residency migration and validation](WorldPartition.S
 
 ## 5. World-probe evaluation and final acceptance
 
-Outcome: a justified spatial-residency migration or explicit deferral, with near-field geometry independently complete.
+Outcome: evaluation complete; world probes intentionally retain their existing scheduler outside WorldPartition, with near-field geometry independently complete.
 
-- [ ] Evaluate one partition per clipmap level against fixed world-zero boundaries, current probe lattice/ring behavior, stale-work rejection, and per-frame cost. Migrate only if equivalence and removal of duplicate residency code are demonstrated; otherwise document deferral.
-- [ ] Preserve importance selection, directional budgets, lighting confidence/history, atlas packing, and the distinction between residency and valid lighting.
-- [ ] Run required builds/regressions through a validation subagent; update architecture/invariants and evidence records. Gate: all mandatory proposal requirements are verified, temporary adapters are removed where replaced, and any conditional probe deferral is documented.
+- [x] Evaluate one partition per clipmap level against fixed world-zero boundaries, current probe lattice/ring behavior, stale-work rejection, and per-frame cost. Migrate only if equivalence and removal of duplicate residency code are demonstrated; otherwise document deferral.
+- [x] Preserve importance selection, directional budgets, lighting confidence/history, atlas packing, and the distinction between residency and valid lighting.
+- [x] Run required builds/regressions through a validation subagent; update architecture/invariants and evidence records. Gate: all mandatory proposal requirements are verified, temporary adapters are removed where replaced, and any conditional probe deferral is documented.
 
-Coverage decision: near-field uses a fixed 48-block window with no additional prefetch or retention. Item 3 validates and retains the current scheduling budgets. Items 1 through 4 are complete; item 5 is next.
+Completion evidence: [world-probe evaluation and final acceptance](WorldPartition.WorldProbeEvaluation.Evidence.md). The user decided not to migrate world probes after reviewing the evaluation; the fixed-zero mapping is possible, but lifetime/publication equivalence and a justified removal/cost benefit are not demonstrated. Second review and independent final audit passed. 486 unique selected cases passed, including 152 GPU cases; production build is clean. The evidence records exclusions and a separate pre-existing late probe completion defect.
+
+Coverage decision: near-field uses a fixed 48-block window with no additional prefetch or retention. Item 3 validates and retains the current scheduling budgets. Items 1 through 5 are complete, with world-probe migration explicitly excluded.
