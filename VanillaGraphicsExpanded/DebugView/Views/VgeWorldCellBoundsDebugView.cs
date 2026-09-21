@@ -260,7 +260,7 @@ public static partial class VgeBuiltInDebugViews
                 return;
             }
 
-            UpdateCurrentViewProjMatrixNoTranslate();
+            UpdateCurrentViewProjMatrix();
 
             int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
             using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
@@ -299,15 +299,13 @@ public static partial class VgeBuiltInDebugViews
             }
         }
 
-        private void UpdateCurrentViewProjMatrixNoTranslate()
+        /// <summary>Preserves the engine camera adjustment when projecting camera-relative world bounds.</summary>
+        private void UpdateCurrentViewProjMatrix()
         {
             Array.Copy(capi.Render.CurrentProjectionMatrix, tempProjectionMatrix, 16);
             Array.Copy(capi.Render.CameraMatrixOriginf, tempModelViewMatrix, 16);
 
-            tempModelViewMatrix[12] = 0;
-            tempModelViewMatrix[13] = 0;
-            tempModelViewMatrix[14] = 0;
-
+            // Vertices already subtract CameraPos. Keep the full view transform so bounds share terrain's camera bob.
             MatrixHelper.Multiply(tempProjectionMatrix, tempModelViewMatrix, currentViewProjMatrix);
         }
 

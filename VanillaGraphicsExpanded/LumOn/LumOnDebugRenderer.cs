@@ -628,18 +628,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         MatrixHelper.Multiply(tempProjectionMatrix, tempModelViewMatrix, currentViewProjMatrix);
     }
 
-    private void UpdateCurrentViewProjMatrixNoTranslate()
-    {
-        // Bounds vertices are in camera-relative space (originAbs - cameraAbs).
-        // Render with a view matrix that has translation removed so we don't apply camera translation twice.
-        Array.Copy(capi.Render.CurrentProjectionMatrix, tempProjectionMatrix, 16);
-        Array.Copy(capi.Render.CameraMatrixOriginf, tempModelViewMatrix, 16);
-        tempModelViewMatrix[12] = 0;
-        tempModelViewMatrix[13] = 0;
-        tempModelViewMatrix[14] = 0;
-        MatrixHelper.Multiply(tempProjectionMatrix, tempModelViewMatrix, currentViewProjMatrix);
-    }
-
     private void UpdateAndBindFrameUbo(VgeConfig.LumOnSettingsConfig lum)
     {
         MatrixHelper.Invert(currentViewProjMatrix, invCurrViewProjMatrix);
@@ -813,7 +801,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         // Update matrices
         MatrixHelper.Invert(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
         MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invViewMatrix);
-        UpdateCurrentViewProjMatrixNoTranslate();
+        // Temporal debug reprojection must retain the same camera adjustment as the full view matrix.
+        UpdateCurrentViewProjMatrix();
         UpdateAndBindFrameUbo(lum);
 
         // Define-backed toggles must be set before Use() so the correct variant is bound.
