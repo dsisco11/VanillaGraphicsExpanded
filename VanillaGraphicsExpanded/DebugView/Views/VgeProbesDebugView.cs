@@ -357,7 +357,9 @@ public static partial class VgeBuiltInDebugViews
                         + Line("#1ad9ff", "Solid voxel; shading and lines show faces/edges")
                         + Line("#ff7300", "Solid voxel with unresolved material identity")
                         + Line("#ff00ff", "Unsupported or unavailable cell geometry")
-                        + Line("#8000ff", "Unpublished region; traversal stops here")
+                        + Line("#8000ff", "Unpublished 16-block cell; traversal stops here")
+                        + Line("#ffffff", "Publication-cell boundary on an occupied surface")
+                        + Line("#0033cc", "Ray does not intersect the coverage volume")
                         + Line("#1a33cc", "Near-field scene unavailable")
                         + Line("#ffff00", "Debug traversal limit reached")
                         + "Black: no occupied cell before leaving the volume.<br/>"

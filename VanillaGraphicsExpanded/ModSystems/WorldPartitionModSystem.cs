@@ -10,6 +10,7 @@ public sealed class WorldPartitionModSystem : ModSystem
     internal WorldPartitionSystem Partition { get; } = new();
     private PartitionCoordinator? coordinator;
     private long tick;
+    internal bool RecordDiagnostics { get; set; }
 
     /// <summary>Creates the coordinator lazily on the render thread which owns its providers.</summary>
     internal PartitionCoordinator GetCoordinator() => coordinator ??= new(new(16384, 256, 128, 128, 32L * 1024 * 1024));

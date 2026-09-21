@@ -26,6 +26,8 @@ public sealed partial class LumOnNearFieldFunctionalTests
     [InlineData(3, -16, 48)]
     [InlineData(0, 128, 64)]
     [InlineData(0, -128, 64)]
+    [InlineData(0, 128, 48)]
+    [InlineData(0, -128, 48)]
     public void RegionRing_PreservesOverlapAndClearsReassignedSlots(int axis, int distance, int resolution)
     {
         EnsureShaderTestAvailable();

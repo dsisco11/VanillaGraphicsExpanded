@@ -133,8 +133,10 @@ public sealed class NearFieldGeometryPartitionTests
         f.Frame(0); Assert.Single(f.Pending);
         f.Version++; f.Frame(1);
         Assert.True(f.Pending[0].Cancellation.IsCancellationRequested); Assert.Single(f.Pending);
-        f.Complete(0); f.Frame(2); Assert.Equal(2,f.Pending.Count); Assert.Empty(f.Published);
-        f.Complete(1); f.Frame(3); Assert.Equal(8,f.Published.Count);
+        f.Complete(0); f.Frame(2); Assert.Single(f.Pending); Assert.Empty(f.Published);
+        // Missing-source backoff delays the next attempt without releasing worker credit early.
+        f.Frame(3); Assert.Equal(2,f.Pending.Count);
+        f.Complete(1); f.Frame(7); Assert.Equal(8,f.Published.Count);
     }
     /// <summary>Source capture budget is separate from ready snapshot reuse and resets only at frame boundaries.</summary>
     [Fact]

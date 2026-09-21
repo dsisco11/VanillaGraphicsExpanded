@@ -109,7 +109,9 @@ internal sealed partial class PartitionCoordinator
         cell.RequiredUploadBytes = 0;
         cell.Revision++;
         cell.WaitingSince = tick;
+        cell.UnreadySince = tick;
         cell.RetryAt = tick;
+        cell.RetryCount = 0;
     }
 
     /// <summary>Returns immutable observations instead of writable lifecycle objects.</summary>

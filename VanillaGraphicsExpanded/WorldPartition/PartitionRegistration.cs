@@ -25,4 +25,7 @@ internal sealed class PartitionRegistration
     public int Captures;
     public int Dispatches;
     public long Uploaded;
+    public long PublicationCount;
+    public long PublicationWaitTicks;
+    public long MaximumPublicationWaitTicks;
 }

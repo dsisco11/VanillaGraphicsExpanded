@@ -18,6 +18,14 @@ internal sealed class NearFieldWorldSource : INearFieldChunkSource, IDisposable
     private readonly ChunkProcessingService processing;
     private readonly NearFieldChunkCache cache;
     private readonly NearFieldSourceLifetimes lifetimes;
+    private readonly NearFieldChunkSnapshotSource snapshots;
+    public int SourceReads => cache.SourceReads;
+    public long CacheHits => cache.CacheHits;
+    public int InFlight => cache.InFlight;
+    public long ResidentSnapshotBytes => cache.ResidentSnapshotBytes;
+    public long CaptureCount => snapshots.CaptureCount;
+    public double CaptureMilliseconds => snapshots.CaptureMilliseconds;
+    public double PeakCaptureMilliseconds => snapshots.PeakCaptureMilliseconds;
 
     #region Lifetime and dependency updates
     /// <summary>Creates a source generation without sharing occupancy lifetime or configuration.</summary>
@@ -25,9 +33,10 @@ internal sealed class NearFieldWorldSource : INearFieldChunkSource, IDisposable
     {
         this.capi = capi;
         lifetimes = new(versions);
-        var snapshots = new LumonSceneTraceSceneChunkSnapshotSource(capi, versions,
-            new LumonSceneTraceSceneLightIdRegistry(), new LumonSceneTraceSceneMaterialPaletteRegistry(new LumonScenePbrSurfaceLutRegistry()),
-            materials, nearFieldOnly: true);
+        var world = capi.World;
+        var map = ((Vintagestory.Client.NoObf.ClientMain)world).WorldMap;
+        snapshots = new NearFieldChunkSnapshotSource(world.BlockAccessor, world.GetBlock, versions, materials,
+            new NearFieldLightDecoder(map.BlockLightLevels, map.SunLightLevels, map.hueLevels, map.satLevels));
         processing = new ChunkProcessingService(snapshots, versions, new() { WorkerCount = 2 });
         cache = new NearFieldChunkCache(LoadChunk, versions.GetCurrentVersion, IsAvailable);
     }
@@ -62,6 +71,7 @@ internal sealed class NearFieldWorldSource : INearFieldChunkSource, IDisposable
     {
         if (capi.World == null) return lifetimes.Observe(key, null);
         key.Decode(out int x, out int y, out int z);
+        if (y < 0 || (long)y * 32 >= capi.World.MapSizeY) return lifetimes.Observe(key, null);
         var position = new BlockPos(0);
         position.Set(x * 32, y * 32, z * 32);
         IWorldChunk? chunk = capi.World.BlockAccessor.GetChunkAtBlockPos(position);

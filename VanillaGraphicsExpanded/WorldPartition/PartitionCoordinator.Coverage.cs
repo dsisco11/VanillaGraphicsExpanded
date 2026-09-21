@@ -70,7 +70,7 @@ internal sealed partial class PartitionCoordinator
         {
             if (!r.Cells.TryGetValue(coordinate, out PartitionCellState? cell))
             {
-                cell = new PartitionCellState { Key = new(r.Instance, r.World, coordinate), Incarnation = ++nextIncarnation, WaitingSince = tick };
+                cell = new PartitionCellState { Key = new(r.Instance, r.World, coordinate), Incarnation = ++nextIncarnation, WaitingSince = tick, UnreadySince = tick };
                 r.Cells.Add(coordinate, cell);
             }
             (required ? cell.RequiredSources : cell.PrefetchSources).Add(sourceId);

@@ -15,14 +15,8 @@ internal sealed class NearFieldChunkProcessor : IChunkProcessor<NearFieldChunkSn
     {
         ct.ThrowIfCancellationRequested();
         if (snapshot is IChunkSnapshotLease lease) snapshot = lease.InnerSnapshot;
-        if (snapshot is not PooledChunkSnapshot<LumonSceneTraceSceneSourceCell> source || source.Voxels.Length != 32768)
-            throw new ArgumentException("Expected the existing 32-block source snapshot.");
-        var cells = new NearFieldSourceCell[32768];
-        for (int i = 0; i < cells.Length; i++)
-        {
-            ct.ThrowIfCancellationRequested();
-            cells[i] = source.Voxels.Span[i].NearField;
-        }
-        return ValueTask.FromResult(new NearFieldChunkSnapshot(snapshot.Key, snapshot.Version, cells));
+        if (snapshot is not PooledChunkSnapshot<NearFieldSourceCell> source || source.Voxels.Length != 32768)
+            throw new ArgumentException("Expected a near-field 32-block source snapshot.");
+        return ValueTask.FromResult(new NearFieldChunkSnapshot(snapshot.Key, snapshot.Version, source.Voxels.Span));
     }
 }

@@ -53,7 +53,7 @@ internal sealed class NearFieldMaterialRegistry
         }
     }
 
-    /// <summary>Returns an immutable upload copy after materials change, synchronized with main-thread capture.</summary>
+    /// <summary>Returns an immutable upload copy after materials change, synchronized with concurrent capture.</summary>
     public float[]? TakeUpload()
     {
         lock (gate)

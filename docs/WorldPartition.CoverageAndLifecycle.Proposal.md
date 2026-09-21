@@ -79,7 +79,7 @@ Required cells target Active. Prefetched and retained cells target Loaded. Cells
 
 Coverage evaluation selects every cell intersecting the required bounds. It must not select only cells whose centers fall inside those bounds. Enumerate the necessary integer coordinate range and update entering/leaving cells when its bounds change; avoid rescanning every world cell each frame.
 
-For near-field geometry, required bounds must include the supported screen-probe origin domain expanded by the maximum near-field trace reach and the surface-adjacent lighting lookup margin. The cache handoff distance can depend on probe level, so a fixed camera radius alone is insufficient. Origins outside the configured supported domain remain explicitly unresolved; this bounded diagnostic volume cannot cover every distant visible surface.
+For near-field geometry, select the camera cell and its 26 immediate neighbors: a fixed 3-by-3-by-3 window of 16-block cells, totaling 48 blocks per axis. Do not expand this allocation for tracing distance, secondary rays, prefetch, or retention. Exclude cells outside the world vertical domain from loading demand. A ray leaving the known window before its requested segment completes remains unresolved; it does not authorize sky or world-probe cache reuse. Origins outside the window likewise remain unresolved.
 
 Prefetch may incorporate movement direction, but it must preserve required coverage in all directions. Hysteresis may delay retirement; it must never delay requesting a newly required cell. Teleports immediately replace the required set and cancel obsolete requests.
 
@@ -119,7 +119,7 @@ All coordinator state changes occur on one owning thread. Providers receive immu
 
 Use separate limits for resident resources, in-flight work, source capture, processing dispatch, and GPU upload bytes. Keep per-partition caps together with shared limits so one expensive partition cannot starve all others.
 
-Required missing cells receive priority over speculative prefetch. Within required work, allow partition priorities and source distance to contribute, with aging or minimum service guarantees to prevent starvation. Do not conflate a cell's lifecycle urgency with a probe's lighting importance.
+Missing dependencies use exponential retry backoff capped at 64 coordinator updates; explicit dirty notifications reset the delay. Required missing cells receive priority over speculative prefetch. Within required work, allow partition priorities and source distance to contribute, with aging or minimum service guarantees to prevent starvation. Do not conflate a cell's lifecycle urgency with a probe's lighting importance.
 
 Under sustained overload, expose required-versus-ready coverage and pending work explicitly. No generic policy can guarantee instantly ready coverage after a teleport or with insufficient memory. Prefetch and retention reduce ordinary movement gaps; they do not remove these resource constraints.
 
@@ -127,11 +127,11 @@ Under sustained overload, expose required-versus-ready coverage and pending work
 
 Create a near-field geometry partition with an independent layout, coverage configuration, and publication backend. Remove ownership of its window from the occupancy clipmap renderer once this partition becomes authoritative.
 
-Reuse the source chunk snapshot infrastructure and `NearFieldCellCapture`. A 16-block publication cell occupies a subregion of a 32-block source chunk. Coalesce overlapping source capture requests so multiple publication cells do not independently read the same chunk unnecessarily. A chunk change invalidates each dependent publication cell, while processing and uploading remain cell-granular. Source availability and dependency revisions remain explicit.
+Reuse the bounded chunk-processing workers and `NearFieldCellCapture` geometry evaluation. Near-field source capture runs on these workers, using the same world-access pattern as world-probe tracing. Bulk-copy solid, fluid and packed-light layers under their engine read locks, then decode lighting and evaluate geometry off the render thread. Keep GPU publication on the render thread. A 16-block publication cell occupies a subregion of a 32-block source chunk. Coalesce overlapping source capture requests so multiple publication cells do not independently read the same chunk unnecessarily. A chunk change invalidates each dependent publication cell, while processing and uploading remain cell-granular. Source availability and dependency revisions remain explicit.
 
 Generalize `NearFieldGpuScene` from fixed 32-block regions to the partition's publication-cell size and allocated cell window. Update the near-field UBO and shader addressing together: current `>> 5`, multiplication by 32, and readiness texture dimensions encode the old region size. Preserve world-to-ring mapping and integer chunk plus fractional-origin precision.
 
-Use a contiguous camera-following GPU cell window for the initial consumer. Allocate enough cells for the configured required and prefetch bounds; bound retention by physical capacity. Preserve overlapping cells as the window shifts and recycle only departing slots. A ring remains appropriate for this regular bounded layout; an arbitrary sparse page table is not required for the initial migration.
+Use a contiguous camera-following GPU cell window for the initial consumer, with exactly 27 physical slots and no additional prefetch or retained cells. Preserve overlapping cells as the window shifts and recycle only departing slots. A ring remains appropriate for this regular bounded layout; an arbitrary sparse page table is not required for the initial migration.
 
 The general coordinator can represent multiple sources. This initial contiguous GPU backend supports a bounded source envelope; widely separated source requests must receive an explicit capacity/coverage limitation rather than aliasing or silently replacing another source's data.
 
@@ -185,7 +185,7 @@ Required coverage includes:
 
 A controlled movement test must sweep the player through an entire publication-cell interval and assert coverage of the requested domain at every position. With delayed providers it must separately assert immediate desired coverage and eventual ready coverage, proving that the test is not treating requested work as completed work.
 
-Measure capture duplication, bytes uploaded during movement, frame-thread work, resident memory, and readiness latency before choosing final coverage margins. Smaller cells are accepted for their measured granularity and coverage benefits, not assumed to be free.
+Measure capture duplication, bytes uploaded during movement, frame-thread work, worker capture duration, resident memory, and readiness latency when validating the fixed near-field window and choosing scheduling budgets. Smaller cells are accepted for their measured granularity and coverage benefits, not assumed to be free.
 
 ## Delivery order
 

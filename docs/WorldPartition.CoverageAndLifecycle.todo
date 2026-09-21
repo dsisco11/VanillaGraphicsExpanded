@@ -18,7 +18,7 @@ Completion evidence: [foundation review and validation](WorldPartition.Foundatio
 
 Outcome: near-tracing coverage follows its own requirements instead of the occupancy scene's window.
 
-- [x] Register independent 16-block geometry cells; derive required coverage from supported probe origins, maximum near-field trace reach, and adjacent-light margin. Bound prefetch/retention and report unsupported source envelopes.
+- [x] Register independent 16-block geometry cells in the approved fixed 3-by-3-by-3 window. Exclude out-of-world vertical demand, retain no extra prefetch/retention fringe, and leave incomplete ray segments explicitly unresolved.
 - [x] Reuse chunk snapshots and `NearFieldCellCapture`; coalesce 32-block source reads and invalidate dependent subcells on source changes. Keep missing chunks distinct from unsupported geometry.
 - [x] Generalize `NearFieldGpuScene`, UBOs, shaders, and readiness addressing together; retain overlapping ring cells and coherent geometry/light/material publication. Prefetch must complete GPU residency before activation.
 - [x] Transfer near-field window/publication ownership out of the occupancy renderer, preserving publication revisions and history invalidation. Gate: one lifecycle owner, no stale slot exposure, and existing near-field tests pass.
@@ -29,9 +29,11 @@ Completion evidence: [near-field geometry implementation and validation](WorldPa
 
 Outcome: ready coverage and resource limits are observable and validated.
 
-- [ ] Extend World Cell Bounds and Near-Field Geometry for partition/source bounds, desired versus ready coverage, and distinct unpublished/unsupported/out-of-coverage states; expose per-partition backlog, retries, stale completions, and capacity metrics.
-- [ ] Sweep every position through a publication-cell interval; test immediate desired versus eventual ready coverage with delayed providers, movement, teleports, dirty updates, negative/large coordinates, and camera motion.
-- [ ] Compare capture duplication, movement upload bytes, frame-thread work, resident memory, and readiness latency; select final margins from those measurements. Gate: record separate unit/GPU and live-runtime evidence without claiming instantaneous readiness under overload.
+- [x] Extend World Cell Bounds and Near-Field Geometry for partition/source bounds, desired versus ready coverage, and distinct unpublished/unsupported/out-of-coverage states; expose per-partition backlog, retries, stale completions, and capacity metrics.
+- [x] Sweep every position through a publication-cell interval; test immediate desired versus eventual ready coverage with delayed providers, movement, teleports, dirty updates, negative/large coordinates, and camera motion.
+- [x] Compare capture duplication, movement upload bytes, frame-thread work, resident memory, and readiness latency; validate the fixed 48-block window and select scheduling budgets from those measurements. Gate: record separate unit/GPU and live-runtime evidence without claiming instantaneous readiness under overload.
+
+Completion evidence: [coverage diagnostics and final review](WorldPartition.CoverageDiagnostics.Evidence.md#final-completion-review). All 178 focused tests passed, including 80 GPU cases. Runtime-budget tests verify bounded recovery after movement, teleports and edits; the user confirmed live alignment and lag resolution. Fixed 48-block coverage and the existing scheduling budgets are accepted. No additional manual walkthrough is required for this item.
 
 ## 4. Existing scene residency migration
 
@@ -48,4 +50,4 @@ Outcome: a justified spatial-residency migration or explicit deferral, with near
 - [ ] Preserve importance selection, directional budgets, lighting confidence/history, atlas packing, and the distinction between residency and valid lighting.
 - [ ] Run required builds/regressions through a validation subagent; update architecture/invariants and evidence records. Gate: all mandatory proposal requirements are verified, temporary adapters are removed where replaced, and any conditional probe deferral is documented.
 
-Open decision: final coverage/prefetch margins and resource budgets require the measurements in item 3. Items 1 and 2 are complete; subsequent items remain unchecked.
+Coverage decision: near-field uses a fixed 48-block window with no additional prefetch or retention. Item 3 validates and retains the current scheduling budgets. Items 1 through 3 are complete; item 4 is next.

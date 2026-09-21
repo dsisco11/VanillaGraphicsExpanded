@@ -22,6 +22,10 @@ internal sealed class NearFieldGpuScene : IDisposable, INearFieldPublicationBack
     public VectorInt3 Origin { get; private set; }
     public PartitionBounds? SupportedOrigins { get; set; }
     public float MaximumTraceReach { get; set; }
+    public long UploadedBytes { get; private set; }
+    public long PublishedCells { get; private set; }
+    public long TextureStorageBytes => (long)Resolution * Resolution * Resolution * 8 + owners.Length +
+        (long)NearFieldMaterialRegistry.Width * NearFieldMaterialRegistry.Height * 4;
 
     #region Lifetime
     /// <summary>Allocates a bounded ring with independently configurable publication granularity.</summary>
@@ -38,6 +42,7 @@ internal sealed class NearFieldGpuScene : IDisposable, INearFieldPublicationBack
         owners = new PartitionRequest[RegionResolution * RegionResolution * RegionResolution];
         ready = new bool[owners.Length];
         Regions.UploadDataImmediate(new byte[owners.Length], 0, 0, 0, RegionResolution, RegionResolution, RegionResolution);
+        UploadedBytes += owners.Length;
     }
 
     /// <summary>Releases all GPU resources on their render thread.</summary>
@@ -105,10 +110,17 @@ internal sealed class NearFieldGpuScene : IDisposable, INearFieldPublicationBack
         }
         Geometry.UploadDataImmediate(geometry, sx * CellSize, sy * CellSize, sz * CellSize, CellSize, CellSize, CellSize);
         Light.UploadDataImmediate(light, sx * CellSize, sy * CellSize, sz * CellSize, CellSize, CellSize, CellSize);
-        if (materials.TakeUpload() is { } upload) Materials.UploadDataImmediate(upload);
+        UploadedBytes += (long)geometry.Length * sizeof(uint) + (long)light.Length * sizeof(float);
+        if (materials.TakeUpload() is { } upload)
+        {
+            Materials.UploadDataImmediate(upload);
+            UploadedBytes += (long)upload.Length * sizeof(float);
+        }
         GL.MemoryBarrier(MemoryBarrierFlags.TextureUpdateBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
         Regions.UploadDataImmediate(new byte[] { 1 }, sx, sy, sz, 1, 1, 1);
         ready[slot] = true;
+        UploadedBytes++;
+        PublishedCells++;
         Revision++;
         return true;
     }
@@ -129,6 +141,7 @@ internal sealed class NearFieldGpuScene : IDisposable, INearFieldPublicationBack
     private void ClearSlot(in PartitionCoordinate coordinate, int slot)
     {
         Regions.UploadDataImmediate(new byte[1], Mod(coordinate.X), Mod(coordinate.Y), Mod(coordinate.Z), 1, 1, 1);
+        UploadedBytes++;
         if (ready[slot]) Revision++;
         ready[slot] = false;
     }

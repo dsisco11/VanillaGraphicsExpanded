@@ -17,7 +17,9 @@ internal sealed class PartitionCellState
     public bool Reserved;
     public long LastRequested;
     public long WaitingSince;
+    public long UnreadySince;
     public long RetryAt;
+    public int RetryCount;
     public long RequiredUploadBytes;
     public readonly HashSet<long> RequiredSources = new();
     public readonly HashSet<long> PrefetchSources = new();

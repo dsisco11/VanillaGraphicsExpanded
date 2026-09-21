@@ -42,6 +42,8 @@ public sealed partial class LumOnNearFieldFunctionalTests
         Assert.All(ReadReadiness(scene),x=>Assert.Equal(0,x));
         delayed[1].Completion.SetResult(new(default,3,source));
         cache.BeginFrame(new(new(0,0,0),new(2,2,2)));provider.RefreshDependencies(coordinator);coordinator.Pump(3);
+        Assert.All(ReadReadiness(scene),x=>Assert.Equal(0,x));
+        cache.BeginFrame(new(new(0,0,0),new(2,2,2)));provider.RefreshDependencies(coordinator);coordinator.Pump(4);
         Assert.All(ReadReadiness(scene),x=>Assert.Equal(1,x));
         coordinator.Unregister(id);
     }
@@ -72,7 +74,11 @@ public sealed partial class LumOnNearFieldFunctionalTests
         cells[(3 * 16 + 5) * 16 + 7] = new(6, new Vector4(0.2f, 0.4f, 0.6f, 0.8f));
         Assert.True(scene.ClaimCell(request));
         Assert.Equal(new byte[] { 0 }, ReadReadiness(scene));
+        long beforeUpload = scene.UploadedBytes;
         Assert.True(scene.PublishCell(request, cells, new NearFieldMaterialRegistry()));
+        Assert.Equal(4096L * 20 + NearFieldMaterialRegistry.MaximumUploadBytes + 1, scene.UploadedBytes - beforeUpload);
+        Assert.Equal(1, scene.PublishedCells);
+        Assert.Equal(4096L * 8 + 1 + (long)NearFieldMaterialRegistry.Width * NearFieldMaterialRegistry.Height * 4, scene.TextureStorageBytes);
         Assert.Equal(new byte[] { 1 }, ReadReadiness(scene));
         var geometry = new uint[4096];
         var light = new float[4096 * 4];

@@ -63,7 +63,7 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
                 float[] expected = scenario switch
                 {
                     "unsupported" => [1, 0, 1], "unpublished" => [0.5f, 0, 1],
-                    "disabled" => [0.1f, 0.2f, 0.8f], _ => [0, 0, 0]
+                    "disabled" => [0.1f, 0.2f, 0.8f], "outside" => [0, 0.2f, 0.8f], _ => [0, 0, 0]
                 };
                 for (int c = 0; c < 3; c++) Assert.InRange(result[i + c], expected[c] - 0.001f, expected[c] + 0.001f);
             }
@@ -100,6 +100,37 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
     #endregion
 
     #region Entrypoint Parity
+    /// <summary>Camera motion across a publication interval preserves occupied surfaces and world-zero boundary lines.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(16777216)]
+    [InlineData(-16777216)]
+    public void GeometryView_PublicationIntervalCameraSweep(int offset)
+    {
+        EnsureShaderTestAvailable();
+        var world = new ControlledVoxelWorld();
+        var block = new Block { BlockId = 1, CollisionBoxes = Block.DefaultCollisionSelectionBoxes };
+        for (int x = -2; x <= 20; x++)
+        for (int y = -2; y <= 2; y++) world.SetBlock(offset + x, y, -5, block);
+        using var fixture = new NearFieldVoxelFixture(new VectorInt3(offset, 0, 0));
+        fixture.Publish(world);
+        bool sawPublicationBoundary = false;
+        for (int step = 0; step <= 64; step++)
+        {
+            var pixels = RenderGeometry(fixture.Scene, camera: new Vector3(.5f + step * .25f,
+                .5f + .1f * MathF.Sin(step), 0), playerOrigin: new Vector3d(offset, 0, 0));
+            for (int pixel = 0; pixel < pixels.Length; pixel += 4)
+            {
+                Assert.True(pixels[pixel + 2] > .1f, "Published wall disappeared during camera movement.");
+                bool boundary = MathF.Abs(pixels[pixel] - pixels[pixel + 2]) < .001f;
+                sawPublicationBoundary |= boundary;
+                if (boundary) Assert.InRange(pixels[pixel + 1], pixels[pixel] - .001f, pixels[pixel] + .001f);
+                else Assert.InRange(pixels[pixel] / pixels[pixel + 2], .098f, .102f);
+            }
+        }
+        Assert.True(sawPublicationBoundary, "The viewer did not expose the 16-block publication grid.");
+    }
+
     /// <summary>The monolithic debug shader dispatches mode seventy identically to the dedicated family shader.</summary>
     [Fact]
     public void GeometryView_MonolithicEntrypointMatchesDedicatedShader()

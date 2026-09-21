@@ -1,5 +1,5 @@
-#ifndef LUMON_DEBUG_LOCAL_GEOMETRY_GLSL
-#define LUMON_DEBUG_LOCAL_GEOMETRY_GLSL
+#ifndef LUMON_DEBUG_NEAR_FIELD_GEOMETRY_GLSL
+#define LUMON_DEBUG_NEAR_FIELD_GEOMETRY_GLSL
 @import "./lumon_near_field_scene.glsl"
 
 /** Traces camera rays through the uploaded occupancy ring, exposing unavailable cells instead of skipping them. */
@@ -21,7 +21,7 @@ vec4 renderNearFieldGeometryDebug()
     {
         if (abs(direction[axis]) < 1e-8)
         {
-            if (origin[axis] < 0.0 || origin[axis] >= float(size)) return vec4(0.0, 0.0, 0.0, 1.0);
+            if (origin[axis] < 0.0 || origin[axis] >= float(size)) return vec4(0.0, 0.2, 0.8, 1.0);
         }
         else
         {
@@ -31,7 +31,7 @@ vec4 renderNearFieldGeometryDebug()
             leave = min(leave, max(a, b));
         }
     }
-    if (leave <= enter) return vec4(0.0, 0.0, 0.0, 1.0);
+    if (leave <= enter) return vec4(0.0, 0.2, 0.8, 1.0);
     vec3 start = clamp(origin + direction * (enter + 0.0001), vec3(0.0), vec3(float(size) - 0.0001));
     ivec3 cell = ivec3(floor(start));
     ivec3 stepCell = ivec3(sign(direction));
@@ -66,6 +66,11 @@ vec4 renderNearFieldGeometryDebug()
             vec2 edge = min(surface, 1.0 - surface);
             float grid = min(edge.x, edge.y) < 0.025 ? 0.45 : 1.0;
             float shade = face == 1 ? 1.0 : (face == 0 ? 0.75 : 0.55);
+            // White lines mark publication-cell boundaries on occupied surfaces; fine dark lines remain voxel edges.
+            vec3 publication = vec3(lumonNearFieldWrap(worldCell, cellSize)) + fraction;
+            vec2 publicationSurface = face == 0 ? publication.yz : (face == 1 ? publication.xz : publication.xy);
+            vec2 publicationEdge = min(publicationSurface, float(cellSize) - publicationSurface);
+            if (min(publicationEdge.x, publicationEdge.y) < 0.06) return vec4(vec3(shade), 1.0);
             return vec4(color * shade * grid, 1.0);
         }
         float boundary = min(next.x, min(next.y, next.z));

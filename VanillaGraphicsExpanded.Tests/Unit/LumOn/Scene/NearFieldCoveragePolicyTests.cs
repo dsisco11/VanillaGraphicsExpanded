@@ -3,55 +3,67 @@ using VanillaGraphicsExpanded.WorldPartition;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.Scene;
 
-/// <summary>Coverage requirements include supported origins, complete trace reach, and adjacent lighting.</summary>
+/// <summary>Fixed-window coverage remains bounded across movement and world boundaries.</summary>
 public sealed class NearFieldCoveragePolicyTests
 {
     #region Bounded coverage
-    /// <summary>Every fractional offset across a publication cell retains the complete required and prefetched domain.</summary>
+    /// <summary>Every fractional offset retains the camera cell and its 26 immediate neighbors.</summary>
     [Theory]
     [InlineData(0)]
     [InlineData(-16777216)]
     [InlineData(16777216)]
-    public void FullIntervalPreservesTraceEnvelope(double anchor)
+    public void FullIntervalPreservesFixedWindow(double anchor)
     {
-        var policy=new NearFieldCoveragePolicy();
-        const double reach=20;
-        for(int i=0;i<=64;i++)
+        var policy = new NearFieldCoveragePolicy();
+        var layout = new PartitionLayout(new(16, 16, 16));
+        for (int i = 0; i <= 64; i++)
         {
-            var position=new PartitionPoint(anchor+i*.25,anchor-i*.25,anchor+i*.125);
-            Assert.True(policy.TryPlan(position,reach,out var plan));
-            Assert.Equal(0,plan.WindowOrigin.X%16); Assert.Equal(0,plan.WindowOrigin.Y%16);Assert.Equal(0,plan.WindowOrigin.Z%16);
-            double margin=reach+16+1;
-            Assert.Equal(position.X-16-margin,plan.Required.Min.X);
-            Assert.Equal(position.Y+16+margin,plan.Required.Max.Y);
-            Assert.True(plan.WindowOrigin.X<=plan.Required.Min.X-16);
-            Assert.True(plan.WindowOrigin.Y<=plan.Required.Min.Y-16);
-            Assert.True(plan.WindowOrigin.Z<=plan.Required.Min.Z-16);
-            Assert.True(plan.WindowOrigin.X+plan.Resolution>=plan.Required.Max.X+16);
-            Assert.True(plan.WindowOrigin.Y+plan.Resolution>=plan.Required.Max.Y+16);
-            Assert.True(plan.WindowOrigin.Z+plan.Resolution>=plan.Required.Max.Z+16);
+            var position = new PartitionPoint(anchor + i * .25, anchor - i * .25, anchor + i * .125);
+            Assert.True(policy.TryPlan(position, 1000, out var plan));
+            Assert.Equal(48, plan.Resolution);
+            Assert.Equal((Math.Floor(position.X / 16) - 1) * 16, plan.WindowOrigin.X);
+            Assert.Equal((Math.Floor(position.Y / 16) - 1) * 16, plan.WindowOrigin.Y);
+            Assert.Equal((Math.Floor(position.Z / 16) - 1) * 16, plan.WindowOrigin.Z);
+            Assert.Equal(27, layout.Intersecting(plan.Required).Count());
+            Assert.Equal(plan.Origins, plan.Required);
+            Assert.InRange(position.X - plan.WindowOrigin.X, 16, 32);
         }
     }
-    /// <summary>Unsupported reach and GPU coordinate envelopes fail explicitly instead of cropping or wrapping.</summary>
+
+    /// <summary>Invalid positions and distances are rejected without imposing a ray-dependent allocation size.</summary>
     [Fact]
     public void UnsupportedEnvelopeIsRejected()
     {
-        var policy=new NearFieldCoveragePolicy();
-        Assert.False(policy.TryPlan(new(),1000,out _));
-        Assert.False(policy.TryPlan(new(int.MaxValue,0,0),20,out _));
-        Assert.False(policy.TryPlan(new(int.MinValue,0,0),20,out _));
-        Assert.False(policy.TryPlan(new(40_000_000,0,0),20,out _));
-        Assert.False(policy.TryPlan(new(-40_000_000,0,0),20,out _));
-        Assert.False(policy.TryPlan(new(),double.NaN,out _));
-        Assert.False(policy.TryPlan(new(),0,out _));
-        Assert.False(new NearFieldCoveragePolicy(MaximumResolution:32).TryPlan(new(),20,out _));
+        var policy = new NearFieldCoveragePolicy();
+        Assert.True(policy.TryPlan(new(), 1000, out _));
+        Assert.False(policy.TryPlan(new(int.MaxValue, 0, 0), 20, out _));
+        Assert.False(policy.TryPlan(new(int.MinValue, 0, 0), 20, out _));
+        Assert.False(policy.TryPlan(new(40_000_000, 0, 0), 20, out _));
+        Assert.False(policy.TryPlan(new(-40_000_000, 0, 0), 20, out _));
+        Assert.False(policy.TryPlan(new(double.NaN, 0, 0), 20, out _));
+        Assert.False(policy.TryPlan(new(), double.NaN, out _));
+        Assert.False(policy.TryPlan(new(), 0, out _));
     }
-    /// <summary>Largest cache spacing contributes to conservative reach independently from camera radius.</summary>
+
+    /// <summary>Out-of-world vertical neighbors never become retryable loading demand.</summary>
+    [Theory]
+    [InlineData(3, 0, 32)]
+    [InlineData(255, 224, 256)]
+    public void VerticalWorldBoundsClipDemand(double y, double bottom, double top)
+    {
+        Assert.True(new NearFieldCoveragePolicy().TryPlan(new(100, y, 100), 20, out var plan, 256));
+        Assert.Equal(48, plan.Resolution);
+        Assert.Equal(bottom, plan.Required.Min.Y);
+        Assert.Equal(top, plan.Required.Max.Y);
+        Assert.Equal(18, new PartitionLayout(new(16, 16, 16)).Intersecting(plan.Required).Count());
+    }
+
+    /// <summary>Largest cache spacing contributes to traversal distance without changing the window.</summary>
     [Fact]
     public void MaximumReachIncludesEveryProbeLevel()
     {
-        Assert.Equal(2*Math.Sqrt(3)*8*4,NearFieldCoveragePolicy.MaximumTraceReach(20,8,3));
-        Assert.Equal(200,NearFieldCoveragePolicy.MaximumTraceReach(200,8,3));
+        Assert.Equal(2 * Math.Sqrt(3) * 8 * 4, NearFieldCoveragePolicy.MaximumTraceReach(20, 8, 3));
+        Assert.Equal(200, NearFieldCoveragePolicy.MaximumTraceReach(200, 8, 3));
     }
     #endregion
 }

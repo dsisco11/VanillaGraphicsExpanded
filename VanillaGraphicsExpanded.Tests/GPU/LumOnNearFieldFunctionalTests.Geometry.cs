@@ -88,5 +88,18 @@ public sealed partial class LumOnNearFieldFunctionalTests
         AssertUnresolved(Trace(fixture, worldOffset: new VectorInt3(0, 0, 64)));
     }
 
+    /// <summary>The fixed 48-block ring admits complete short segments but never treats an early exit as clear.</summary>
+    [Fact]
+    public void FixedWindowPreservesCompleteSegmentRequirement()
+    {
+        EnsureShaderTestAvailable();
+        using var fixture = new NearFieldVoxelFixture(resolution: 48);
+        fixture.Publish(new ControlledVoxelWorld());
+        var shortSegment = Trace(fixture, cacheSpacing: 2);
+        Assert.True(shortSegment.Radiance[0] > 9);
+        AssertUnresolved(Trace(fixture, cacheSpacing: 32));
+        Assert.Equal(27, fixture.Coordinator.Cells(fixture.Instance).Length);
+    }
+
     #endregion
 }

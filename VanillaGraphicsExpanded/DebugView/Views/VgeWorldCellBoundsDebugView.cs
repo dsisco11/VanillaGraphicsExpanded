@@ -23,7 +23,7 @@ public static partial class VgeBuiltInDebugViews
             id: WorldCellBoundsViewId,
             name: "World Cell Bounds",
             category: CategoryGeometry,
-            description: "Draws LumonScene region-cell (chunk) wireframes. Colors indicate cell lifecycle state.",
+            description: "Draws registered partition cells and source envelopes alongside legacy scene cells. Green: ready; orange: required/unpublished; violet: prefetch/unpublished; magenta: unsupported. White: source requirement; cyan: selected cell envelope.",
             registerRenderer: ctx => new VgeWorldCellBoundsWireframeRenderer(ctx.Capi),
             activationMode: DebugViewActivationMode.Exclusive,
             createPanel: ctx => new WorldCellBoundsPanel(ctx.Capi));
@@ -34,11 +34,16 @@ public static partial class VgeBuiltInDebugViews
         public static bool DepthTest { get; set; } = true;
         public static bool ShowUnloaded { get; set; } = true;
         public static bool ColorByDesiredState { get; set; }
+        public static string DiagnosticsText { get; set; } = "Waiting for partition diagnostics.";
+        public static int SelectedPartition { get; set; }
     }
 
     private sealed class WorldCellBoundsPanel : DebugViewPanelBase
     {
         private readonly ICoreClientAPI capi;
+        private GuiComposer? activeComposer;
+        private string textKey = "";
+        public override bool WantsGameTick => true;
 
         public WorldCellBoundsPanel(ICoreClientAPI capi)
         {
@@ -47,19 +52,23 @@ public static partial class VgeBuiltInDebugViews
 
         public override void Compose(GuiComposer composer, ElementBounds bounds, string keyPrefix)
         {
+            activeComposer = composer;
+            textKey = $"{keyPrefix}-partitions";
             const double rowH = 30;
             const double gapY = 6;
 
             var font = CairoFont.WhiteSmallText();
             double y = 0;
+            int toggleIndex = 0;
 
             void AddToggle(string label, Func<bool> get, Action<bool> set, string suffix)
             {
                 const double labelW = 180;
                 const double gap = 10;
 
-                ElementBounds labelBounds = ElementBounds.Fixed(0, y, labelW, rowH).WithParent(bounds);
-                ElementBounds toggleBounds = ElementBounds.Fixed(labelW + gap, y, 30, rowH).WithParent(bounds);
+                double x = (toggleIndex % 2) * 260;
+                ElementBounds labelBounds = ElementBounds.Fixed(x, y, labelW, rowH).WithParent(bounds);
+                ElementBounds toggleBounds = ElementBounds.Fixed(x + labelW + gap, y, 30, rowH).WithParent(bounds);
 
                 var sw = new GuiElementSwitch(capi, val =>
                 {
@@ -71,12 +80,14 @@ public static partial class VgeBuiltInDebugViews
                     .AddStaticText(label, CairoFont.WhiteDetailText(), labelBounds)
                     .AddInteractiveElement(sw, $"{keyPrefix}-{suffix}");
 
-                y += rowH + gapY;
+                if (++toggleIndex % 2 == 0) y += rowH + gapY;
             }
 
             AddToggle("Depth Test", () => WorldCellBoundsViewState.DepthTest, v => WorldCellBoundsViewState.DepthTest = v, "depth");
             AddToggle("Show Unloaded", () => WorldCellBoundsViewState.ShowUnloaded, v => WorldCellBoundsViewState.ShowUnloaded = v, "unloaded");
             AddToggle("Color By Desired", () => WorldCellBoundsViewState.ColorByDesiredState, v => WorldCellBoundsViewState.ColorByDesiredState = v, "colorDesired");
+            AddToggle("Log measurements", () => capi.ModLoader.GetModSystem<WorldPartitionModSystem>().RecordDiagnostics,
+                v => capi.ModLoader.GetModSystem<WorldPartitionModSystem>().RecordDiagnostics = v, "record");
 
             // Radius dropdown (small discrete choices to keep UI simple)
             string[] values = ["4", "6", "8", "10", "12", "16", "24"];
@@ -103,10 +114,19 @@ public static partial class VgeBuiltInDebugViews
                         dropBounds,
                         font),
                     $"{keyPrefix}-radius");
+            composer.AddSmallButton("Next partition", () => { WorldCellBoundsViewState.SelectedPartition++; return true; },
+                ElementBounds.Fixed(260, y, 220, rowH).WithParent(bounds), EnumButtonStyle.Normal, $"{keyPrefix}-next");
+            y += rowH + gapY;
+            composer.AddDynamicText(WorldCellBoundsViewState.DiagnosticsText, CairoFont.WhiteDetailText(),
+                ElementBounds.Fixed(0, y, bounds.fixedWidth, Math.Max(60, bounds.fixedHeight - y)).WithParent(bounds), textKey);
         }
+
+        /// <summary>Displays detached render-thread observations without querying coordinator state on a GUI tick.</summary>
+        public override void OnGameTick(float dt) =>
+            activeComposer?.GetDynamicText(textKey)?.SetNewText(WorldCellBoundsViewState.DiagnosticsText);
     }
 
-    private sealed class VgeWorldCellBoundsWireframeRenderer : IRenderer, IDisposable
+    private sealed partial class VgeWorldCellBoundsWireframeRenderer : IRenderer, IDisposable
     {
         private const double RenderOrderValue = 12.0;
         private const int RenderRangeValue = 1;
@@ -199,10 +219,6 @@ public static partial class VgeBuiltInDebugViews
             }
 
             int got = lumOnDiagnostics.CopyLumonSceneNearRegionDebugSnapshots(snapshots);
-            if (got <= 0)
-            {
-                return;
-            }
 
             Vec3d camPosWorld = player.Entity.CameraPos;
             int cellSize = LumonSceneTraceSceneClipmapMath.RegionSize;
@@ -215,6 +231,7 @@ public static partial class VgeBuiltInDebugViews
             int radius2 = radius * radius;
 
             int written = 0;
+            AddPartitionDiagnostics(ref written, camPosWorld);
             for (int i = 0; i < got && written + 24 * 2 <= vertices.Length; i++)
             {
                 var snap = snapshots[i];

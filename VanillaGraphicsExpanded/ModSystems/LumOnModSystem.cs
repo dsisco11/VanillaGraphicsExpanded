@@ -25,6 +25,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
     private LumOnBufferManager? lumOnBufferManager;
     private LumOnRenderer? lumOnRenderer;
     private NearFieldGeometryPartitionRenderer? nearFieldGeometryPartitionRenderer;
+    internal NearFieldRuntimeMetrics? NearFieldMetrics => nearFieldGeometryPartitionRenderer?.Metrics;
     private LumOnDebugRenderer? lumOnDebugRenderer;
     private LumonSceneFeedbackUpdateRenderer? lumonSceneFeedbackUpdateRenderer;
     private LumonSceneOccupancyClipmapUpdateRenderer? lumonSceneOccupancyClipmapUpdateRenderer;

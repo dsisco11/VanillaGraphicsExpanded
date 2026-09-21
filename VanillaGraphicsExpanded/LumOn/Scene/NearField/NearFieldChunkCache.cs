@@ -22,6 +22,10 @@ internal sealed class NearFieldChunkCache : INearFieldChunkSource, IDisposable
     private int captures;
     private long frame;
     public int SourceReads { get; private set; }
+    public long CacheHits { get; private set; }
+    public int InFlight => entries.Values.Count(e => !e.Task.IsCompleted) + cancelled.Count;
+    public long ResidentSnapshotBytes => entries.Values.Where(e => e.Task.IsCompletedSuccessfully)
+        .Sum(e => e.Task.Result?.EstimatedBytes ?? 0);
 
     /// <summary>Injects asynchronous capture through the existing executor and source dependency observations.</summary>
     public NearFieldChunkCache(Func<ChunkKey, int, CancellationToken, Task<NearFieldChunkSnapshot?>> load,
@@ -81,6 +85,7 @@ internal sealed class NearFieldChunkCache : INearFieldChunkSource, IDisposable
             else if (entry.Task.IsCompletedSuccessfully && entry.Task.Result is { } result && result.Key == key && result.Version == current)
             {
                 snapshot = result;
+                CacheHits++;
                 return true;
             }
             else if (entry.Frame == frame) return false;

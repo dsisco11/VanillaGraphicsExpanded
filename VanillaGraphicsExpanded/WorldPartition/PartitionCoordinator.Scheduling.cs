@@ -67,7 +67,7 @@ internal sealed partial class PartitionCoordinator
     /// <summary>Finds eligible work, prioritizing required cells while aging requests within a partition.</summary>
     private bool Advance(PartitionRegistration r, PartitionResidency desired)
     {
-        foreach (PartitionCellState cell in r.Cells.Values.Where(c => c.Desired == desired && (!c.Ready || c.Actual != c.Desired)).OrderByDescending(c =>
+        foreach (PartitionCellState cell in r.Cells.Values.Where(c => c.Desired == desired && c.RetryAt <= tick && (!c.Ready || c.Actual != c.Desired)).OrderByDescending(c =>
             Priority(r, c) + (tick - c.WaitingSince)).ThenBy(c => c.Incarnation))
         {
             if (cell.RetryAt > tick || cell.RequiredUploadBytes > Math.Min(shared.UploadBytes, r.Limits.UploadBytes)) continue;
@@ -111,6 +111,11 @@ internal sealed partial class PartitionCoordinator
                     return true;
                 }
                 cell.Ready = true;
+                cell.RetryCount = 0;
+                long wait = tick - cell.UnreadySince;
+                r.PublicationCount++;
+                r.PublicationWaitTicks += wait;
+                r.MaximumPublicationWaitTicks = Math.Max(r.MaximumPublicationWaitTicks, wait);
                 cell.ContentStatus = completion.Status;
                 if (cell.Actual == PartitionResidency.Unloaded) cell.Actual = PartitionResidency.Loaded;
                 Cancel(cell);
@@ -177,6 +182,7 @@ internal sealed partial class PartitionCoordinator
             if (victim.Cell == null) return false;
             // Keep desired coverage intact under pressure, but retire physical residency and old requests.
             if (victim.Cell.Request?.RequestId == uploadTurn) uploadTurn = 0;
+            if (victim.Cell.Ready) victim.Cell.UnreadySince = tick;
             Retire(victim.Registration, victim.Cell);
             victim.Cell.Incarnation = ++nextIncarnation;
         }
@@ -235,7 +241,9 @@ internal sealed partial class PartitionCoordinator
     {
         Cancel(cell);
         cell.Progress = PartitionProgress.Retry;
-        cell.RetryAt = tick + 1;
+        // Bound polling of unavailable dependencies; explicit invalidation wakes work immediately.
+        cell.RetryAt = tick + (1L << Math.Min(cell.RetryCount, 6));
+        cell.RetryCount = Math.Min(cell.RetryCount + 1, 6);
         r.Retries++;
     }
     #endregion

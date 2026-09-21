@@ -1,4 +1,7 @@
 using System;
+using System.Diagnostics;
+using System.Linq;
+using System.Text.Json;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
@@ -23,6 +26,11 @@ internal sealed class NearFieldGeometryPartitionRenderer : IRenderer, INearField
     private long instance;
     private double lastReach;
     private string? lastReportedFailure;
+    private long nextMetricsSample;
+    private long updateCount;
+    private double peakUpdateMilliseconds;
+    private double totalUpdateMilliseconds;
+    public NearFieldRuntimeMetrics? Metrics { get; private set; }
     public string? CoverageFailure { get; private set; }
     public double RenderOrder => 9.9;
     public int RenderRange => 1;
@@ -55,6 +63,10 @@ internal sealed class NearFieldGeometryPartitionRenderer : IRenderer, INearField
         provider = null;
         source?.Dispose(); source = null;
         scene?.Dispose(); scene = null;
+        Metrics = null;
+        updateCount = 0;
+        peakUpdateMilliseconds = 0;
+        totalUpdateMilliseconds = 0;
     }
 
     /// <summary>Creates a fresh immutable material/source generation for this world lifetime.</summary>
@@ -67,7 +79,7 @@ internal sealed class NearFieldGeometryPartitionRenderer : IRenderer, INearField
         provider = new NearFieldGeometryPartition(source, scene, materials);
         int cells = scene.RegionResolution * scene.RegionResolution * scene.RegionResolution;
         instance = partitions.GetCoordinator().Register("Near-field geometry", "primary", new(new(16, 16, 16)),
-            new(coverage.PrefetchMargin, coverage.PrefetchMargin, 2), new(cells, 64, 64, 32, 8L * 1024 * 1024), provider);
+            new(0, 0, 0), new(cells, 64, 64, 32, 8L * 1024 * 1024), provider);
         lastReach = plan.TraceReach;
     }
     #endregion
@@ -76,6 +88,7 @@ internal sealed class NearFieldGeometryPartitionRenderer : IRenderer, INearField
     /// <summary>Updates required coverage from supported origins and trace reach, then publishes budgeted cells.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
+        long started = Stopwatch.GetTimestamp();
         if (!config.LumOn.Enabled || capi.World?.Player?.Entity is not { } entity)
         {
             Release();
@@ -86,7 +99,7 @@ internal sealed class NearFieldGeometryPartitionRenderer : IRenderer, INearField
             config.WorldProbeClipmap.ClipmapBaseSpacing, config.WorldProbeClipmap.LevelsClamped);
         var position = new PartitionPoint(camera.X, camera.Y, camera.Z);
         // This source adapter uses the primary world; never alias another dimension into the same GPU identity.
-        if (entity.Pos.Dimension != 0 || !coverage.TryPlan(position, reach, out NearFieldCoveragePlan plan))
+        if (entity.Pos.Dimension != 0 || !coverage.TryPlan(position, reach, out NearFieldCoveragePlan plan, capi.World.MapSizeY))
         {
             CoverageFailure = "Near-field geometry source domain exceeds the supported dimension or bounded GPU envelope.";
             if (CoverageFailure != lastReportedFailure) capi.Logger.Warning("[VGE] {0}", CoverageFailure);
@@ -110,6 +123,28 @@ internal sealed class NearFieldGeometryPartitionRenderer : IRenderer, INearField
         {
             if (CoverageFailure != null) capi.Logger.Warning("[VGE] {0}", CoverageFailure);
             lastReportedFailure = CoverageFailure;
+        }
+        double elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        peakUpdateMilliseconds = Math.Max(peakUpdateMilliseconds, elapsed);
+        updateCount++;
+        totalUpdateMilliseconds += elapsed;
+        // Sampling and log serialization are excluded from update timing and occur at most once per second.
+        if (Environment.TickCount64 >= nextMetricsSample)
+        {
+            nextMetricsSample = Environment.TickCount64 + 1000;
+            Metrics = new(instance, position, scene.Resolution, coverage.OriginRadius, coverage.PrefetchMargin,
+                source.SourceReads, source.CacheHits, source.InFlight, source.ResidentSnapshotBytes,
+                scene.TextureStorageBytes, scene.UploadedBytes, scene.PublishedCells, elapsed,
+                totalUpdateMilliseconds / updateCount, peakUpdateMilliseconds, updateCount,
+                source.CaptureCount, source.CaptureMilliseconds, source.PeakCaptureMilliseconds);
+            if (partitions.RecordDiagnostics)
+                capi.Logger.Notification("[VGE PartitionMetrics] {0}", JsonSerializer.Serialize(new
+                {
+                    NearField = Metrics,
+                    Partitions = partitions.GetCoordinator().Diagnostics()
+                        .Select(p => new { p.Instance, p.Name, p.Statistics, p.RequiredReady, p.OldestRequiredWaitTicks,
+                            p.PublicationCount, p.MeanPublicationWaitTicks, p.MaximumPublicationWaitTicks })
+                }));
         }
     }
 
