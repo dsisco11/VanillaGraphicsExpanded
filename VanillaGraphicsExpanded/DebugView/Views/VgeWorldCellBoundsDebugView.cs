@@ -163,12 +163,14 @@ public static partial class VgeBuiltInDebugViews
             this.capi = capi;
             lumOnDiagnostics = capi.ModLoader.GetModSystem<LumOnDiagnosticsModSystem>();
 
-            capi.Event.RegisterRenderer(this, EnumRenderStage.AfterBlit, "vge_world_cell_bounds");
+            // World-space lines must use the scene camera state, as the probe wireframes do.
+            // AfterBlit is for screen overlays and can observe post-pass camera sway instead.
+            capi.Event.RegisterRenderer(this, EnumRenderStage.OIT, "vge_world_cell_bounds");
         }
 
         public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
         {
-            if (stage != EnumRenderStage.AfterBlit)
+            if (stage != EnumRenderStage.OIT)
             {
                 return;
             }
@@ -410,7 +412,7 @@ public static partial class VgeBuiltInDebugViews
 
         public void Dispose()
         {
-            capi.Event.UnregisterRenderer(this, EnumRenderStage.AfterBlit);
+            capi.Event.UnregisterRenderer(this, EnumRenderStage.OIT);
 
             vao?.Dispose();
             vbo?.Dispose();
