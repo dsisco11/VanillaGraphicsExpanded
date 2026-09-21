@@ -184,6 +184,7 @@ void main(void)
         case 39:
         case 42:
         case 43:
+        case 70:
         case 44:
             outColor = RenderDebug_WorldProbe(screenPos);
             break;

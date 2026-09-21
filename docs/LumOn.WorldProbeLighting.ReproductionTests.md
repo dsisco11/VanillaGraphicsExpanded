@@ -266,3 +266,21 @@ This is a controlled candidate mechanism, not confirmation of the live root caus
 Reusable support consists of [production cell publication](../VanillaGraphicsExpanded.Tests/GPU/Fixtures/LocalTraceVoxelFixture.cs), the [shared shader harness](../VanillaGraphicsExpanded.Tests/GPU/Fixtures/LocalTraceShaderTestBase.cs), and a [scoped material-readiness fixture](../VanillaGraphicsExpanded.Tests/Fixtures/WorldProbes/ScopedPbrMaterialFixture.cs). Material data uses the production derived-surface builder; a test-only reflection seam installs its result and restores the original registry state. The collection runs exclusively to protect singleton users. Region scheduling and game event ordering are outside this fixture.
 
 The full local-tracing selection passed **66 tests**, zero failures or skips. Receipts: [reproduction log](../artifacts/local-material-readiness-reproduction.log), [reproduction TRX](../artifacts/TestResults/local-material-readiness-reproduction.trx), [regression log](../artifacts/local-material-readiness-regression.log), and [regression TRX](../artifacts/TestResults/local-material-readiness-regression.trx). These passing characterization tests assert the current failure mechanism and its recovery control; they are not evidence of a production fix.
+
+### Local-tracing geometry viewer
+
+Select **Probes → Local-Tracing Geometry** to inspect the actual uploaded local voxel scene. Camera rays traverse the production geometry and region-readiness textures, independently of screen depth, probe radiance, and material lighting. No separate debug voxel upload is created. The first non-air or unavailable cell terminates the ray.
+
+| Color | Meaning |
+| --- | --- |
+| Cyan, with face shading and dark voxel edges | Supported opaque voxel with a nonzero material identity |
+| Orange, with face shading and dark voxel edges | Opaque voxel whose material identity is zero |
+| Magenta | Unsupported or unavailable cell geometry in a published region |
+| Purple | Unpublished region |
+| Blue | Local GPU scene unavailable |
+| Black | Ray misses the volume or leaves it through known air |
+| Yellow | Debug traversal limit reached |
+
+The diagnostic clips rays to the local volume and uses its own 2048-cell traversal limit; it does not visualize the shorter production ray budget. It uses integer world chunks plus fractional camera-relative coordinates, preserving large-world precision and camera translation. Unsupported and unpublished cells stop traversal deliberately so missing data cannot masquerade as empty space. Cyan denotes occupancy and material identity, not verified material lighting readiness.
+
+Validation: **182 focused/regression tests passed**, zero failures or skips; build succeeded with six existing warnings. Twelve new GPU cases cover actual uploaded geometry/readiness, missing material identities, camera movement, origins at plus/minus 16,777,216, fractional-origin equivalence, outside-volume clipping, and dedicated/monolithic shader parity. Existing direct-visibility, shader-compilation, UBO, and UI routing checks also passed. The traversal-limit color and live in-game appearance remain unverified. Receipts: [test log](../artifacts/local-geometry-debug.log) and [TRX](../artifacts/TestResults/local-geometry-debug.trx).

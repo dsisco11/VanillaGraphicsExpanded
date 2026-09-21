@@ -1,3 +1,4 @@
+@import "./lumon_debug_local_geometry.glsl"
 // Debug modes 31-39, 42-44: World-probe clipmap debug views (Phase 18)
 
 // Debug modes 43-44: Paired lighting comparison
@@ -406,6 +407,7 @@ vec4 RenderDebug_WorldProbe(vec2 screenPos)
         case 42: return renderWorldProbeRawConfidencesDebug();
         case 43: return renderWorldProbeLightingEffectDebug();
         case 44: return renderWorldProbeSuppressedLightingDebug();
+        case 70: return renderLocalTraceGeometryDebug();
         case 68: return renderWorldProbeImportanceDebug();
         default: return vec4(0.0, 0.0, 0.0, 1.0);
     }

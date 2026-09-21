@@ -36,5 +36,18 @@ public sealed class LumOnDebugRendererRoutingTests
         Assert.Equal(LumOnDebugShaderProgramKind.ProbeAtlas, (LumOnDebugShaderProgramKind)kind.Invoke(null, [LumOnDebugMode.ProbeAtlasTraceOutcome])!);
         Assert.True((bool)requiresBuffers.Invoke(null, [LumOnDebugMode.ProbeAtlasTraceOutcome])!);
     }
+
+    /// <summary>The local geometry view receives the world-probe family's geometry bindings and requires LumOn targets.</summary>
+    [Fact]
+    public void LocalGeometry_RoutesToWorldProbeAndRequiresLumOnBuffers()
+    {
+        var kind = typeof(LumOnDebugRenderer).GetMethod("GetShaderProgramKind", BindingFlags.NonPublic | BindingFlags.Static);
+        var requiresBuffers = typeof(LumOnDebugRenderer).GetMethod("RequiresLumOnBuffers", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(kind);
+        Assert.NotNull(requiresBuffers);
+        Assert.Equal(70, (int)LumOnDebugMode.LocalTraceGeometry);
+        Assert.Equal(LumOnDebugShaderProgramKind.WorldProbe, (LumOnDebugShaderProgramKind)kind.Invoke(null, [LumOnDebugMode.LocalTraceGeometry])!);
+        Assert.True((bool)requiresBuffers.Invoke(null, [LumOnDebugMode.LocalTraceGeometry])!);
+    }
 }
 

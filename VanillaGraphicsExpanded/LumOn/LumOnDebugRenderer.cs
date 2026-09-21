@@ -2735,7 +2735,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             => LumOnDebugShaderProgramKind.Velocity,
 
         // World probes
-        LumOnDebugMode.WorldProbeIrradianceCombined
+        LumOnDebugMode.LocalTraceGeometry
+            or LumOnDebugMode.WorldProbeIrradianceCombined
             or LumOnDebugMode.WorldProbeIrradianceLevel
             or LumOnDebugMode.WorldProbeConfidence
             or LumOnDebugMode.WorldProbeShortRangeAoDirection
@@ -2805,7 +2806,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 or LumOnDebugMode.ProbeAtlasTemporalRejection
                 or LumOnDebugMode.ProbeAtlasPisTraceMask
                 or LumOnDebugMode.ProbePisEnergy
-                or LumOnDebugMode.ProbeAtlasTraceOutcome;
+                or LumOnDebugMode.ProbeAtlasTraceOutcome
+                or LumOnDebugMode.LocalTraceGeometry;
     }
 
     #endregion
