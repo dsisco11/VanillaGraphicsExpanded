@@ -1,0 +1,33 @@
+# Shared TraceScene geometry tasks
+
+Source: approved consolidation decision in the conversation. Upgrade TraceScene to serve the existing NearField tracing consumers, then remove the separate NearField geometry capture and GPU volumes. Preserve surface-cache capture/relighting, consumer-owned lighting algorithms, and WorldPartition residency ownership. World probes retain their existing scheduler.
+
+## 1. Shared geometry and coverage contract
+
+- [ ] Inventory active geometry, lighting and material consumers; define a shared payload and sampling API covering known air, opaque geometry, unsupported geometry, unpublished/stale cells, material/emission and decoded light.
+- [ ] Define shared coverage and budgets: preserve the required 48-block near-field window and surface-cache tracing needs, share overlapping data, and justify which TraceScene levels are retained. Record formats, memory/upload costs and ownership before implementation.
+
+Gate: every retained consumer has explicit data, coverage and validity requirements; no missing data is interpreted as empty geometry.
+
+## 2. Shared worker capture and GPU publication
+
+- [ ] Adapt TraceScene to reuse worker-thread bulk capture and coalesced source snapshots; share source versions/invalidation and publish geometry, light, material references and readiness coherently.
+- [ ] Preserve WorldPartition as the residency owner, overlapping ring contents, bounded capture/upload work and stale-completion rejection. Keep old consumer wiring operational until the shared backend is verified.
+
+Gate: controlled tests cover edits, missing chunks, unsupported shapes, movement, teleports and reused slots; no main-thread voxel capture or duplicate reads for the same shared source revision.
+
+## 3. Switch tracing consumers
+
+- [ ] Switch screen-probe geometry tracing, hit lighting and world-probe visibility checks to the shared TraceScene resources. Preserve integer/fractional coordinate handling and hit/clear/unavailable/budget-exhausted outcomes.
+- [ ] Adapt surface-cache material capture and relighting to the shared sampling contract. Incomplete traces must not become successful clear segments or automatic sky contributions; preserve existing lighting evaluation for valid samples.
+
+Gate: GPU regressions cover sealed rooms, doorways, missing/unsupported data, exhausted budgets, volume exits, camera motion and large coordinates, plus surface-cache capture/relight behavior.
+
+## 4. Remove duplication and validate
+
+- [ ] Remove replaced NearField capture, storage, publication ownership and obsolete TraceScene companion-payload plumbing. Update bindings, diagnostics and architecture records; retain the NearField Geometry viewer using the shared data.
+- [ ] Run builds and relevant regressions through a validation subagent. Compare source captures, uploads, resident memory and frame-thread work against the pre-change baseline for startup, movement and edits.
+
+Gate: one shared geometry pipeline serves the retained consumers, no obsolete backend remains active, and resource/performance differences are recorded without conflating requested coverage with readiness.
+
+Scope boundary: this work does not implement surface-cache hit-lighting integration into probes, migrate world-probe tracing to the GPU, change world-probe scheduling, or add multibounce lighting. Those remain separate work.
