@@ -18,7 +18,8 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram
     /// <summary>Binds one coherent published scene, or an explicit unavailable scene.</summary>
     internal void BindLocalScene(LocalTraceGpuScene? scene)
     {
-        localTraceParams.Set(scene?.Origin ?? default(VectorInt3), scene?.Resolution ?? 0);
+        localTraceParams.Set(scene?.Origin ?? default(VectorInt3), scene?.Resolution ?? 0, cellSize: scene?.CellSize ?? 16,
+            supportedOrigins: scene?.SupportedOrigins, maximumTraceReach: scene?.MaximumTraceReach ?? 0);
         localTraceParams.BindTo(this, LumOnLocalTraceParamsUbo.BlockName, "LumOn.LocalTrace.Parameters");
         BindTexture3D("localTraceGeometry", scene?.Geometry, 10);
         BindTexture3D("localTraceLight", scene?.Light, 13);

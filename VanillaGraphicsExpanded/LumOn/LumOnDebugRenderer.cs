@@ -191,6 +191,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     private LumonSceneFeedbackUpdateRenderer? lumonSceneFeedbackUpdateRenderer;
     private LumonSceneOccupancyClipmapUpdateRenderer? lumonSceneOccupancyClipmapUpdateRenderer;
+    private VanillaGraphicsExpanded.LumOn.Scene.LocalTracing.ILocalTraceSceneProvider? localTraceProvider;
 
     private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager;
     private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManagerEventSource;
@@ -346,6 +347,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     {
         lumonSceneFeedbackUpdateRenderer = feedback;
     }
+
+    /// <summary>Injects the independent local geometry partition for debug consumers.</summary>
+    internal void SetLocalTraceSceneProvider(VanillaGraphicsExpanded.LumOn.Scene.LocalTracing.ILocalTraceSceneProvider? provider) => localTraceProvider = provider;
 
     internal void SetLumonSceneOccupancyClipmapUpdateRenderer(LumonSceneOccupancyClipmapUpdateRenderer? occupancy)
     {
@@ -782,7 +786,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         bool usesLocalVisibility = programKind == LumOnDebugShaderProgramKind.WorldProbe;
         if (usesLocalVisibility && shader.SetDefine(LumOnLocalVisibilityBindings.EnabledDefine, "1")) return;
         var localVisibilityScene = usesLocalVisibility
-            ? lumonSceneOccupancyClipmapUpdateRenderer?.PrepareLocalTraceScene() : null;
+            ? localTraceProvider?.PrepareLocalTraceScene() : null;
 
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primaryFb is null)

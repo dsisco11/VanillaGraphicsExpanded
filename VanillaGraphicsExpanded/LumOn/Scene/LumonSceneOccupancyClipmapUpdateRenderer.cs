@@ -23,7 +23,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 /// Phase 23.5: Trace scene v1 - occupancy clipmap (region-driven, GPU-built).
 /// Stores packed R32UI payload per cell (block/sun/light/material indirection), written into the clipmap via GL 4.3 compute.
 /// </summary>
-internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDisposable, LocalTracing.ILocalTraceSceneProvider
+internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRenderer, IDisposable
 {
     private const double RenderOrderValue = 0.99975;
     private const int RenderRangeValue = 1;
@@ -201,7 +201,6 @@ internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRender
             return;
         }
 
-        EnsureLocalTraceScene(camX, camY, camZ);
 
         // Scheduler cooldown/backoff operates in milliseconds.
         traceSceneNowMs = capi.World.ElapsedMilliseconds;
@@ -323,7 +322,6 @@ internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRender
         gpuDispatcher?.Dispose();
         gpuDispatcher = null;
 
-        DisposeLocalTraceScene();
         resources?.Dispose();
         resources = null;
     }
@@ -340,7 +338,6 @@ internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRender
         gpuDispatcher?.Dispose();
         gpuDispatcher = null;
 
-        DisposeLocalTraceScene();
         resources?.Dispose();
         resources = null;
 
@@ -391,7 +388,6 @@ internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRender
 
         lastConfigHash = configHash;
 
-        DisposeLocalTraceScene();
         resources?.Dispose();
         resources = null;
 
@@ -426,8 +422,7 @@ internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRender
         chunkProcessing?.Dispose();
         chunkProcessing = null;
         chunkVersions = new LumonSceneTraceSceneChunkVersionProvider();
-        snapshotSource = new LumonSceneTraceSceneChunkSnapshotSource(capi, chunkVersions, lightIds, materialPalette, localMaterials,
-            (x, y, z) => localTraceScene?.ContainsRegion(x, y, z) == true);
+        snapshotSource = new LumonSceneTraceSceneChunkSnapshotSource(capi, chunkVersions, lightIds, materialPalette);
         chunkProcessing = new ChunkProcessingService(snapshotSource, chunkVersions);
 
         gpuDispatcher ??= new LumonSceneTraceSceneClipmapGpuBuildDispatcher(capi);
@@ -453,7 +448,6 @@ internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRender
     private void RequestRebuildAll()
     {
         chunkVersions?.BumpGlobalGeneration();
-        localMaterials.Reset();
 
         regionScheduler.Reset();
         inFlightByRegion.Clear();
@@ -887,7 +881,6 @@ internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRender
                 ReadOnlyMemory<uint>[] payloads = ArrayPool<ReadOnlyMemory<uint>>.Shared.Rent(batchCap);
                 ulong[] regionKeys = ArrayPool<ulong>.Shared.Rent(batchCap);
                 int[] versions = ArrayPool<int>.Shared.Rent(batchCap);
-                var localArtifacts = new LumonSceneTraceSceneRegionArtifact?[batchCap];
 
                 int count = 0;
                 int completedHandled = 0;
@@ -922,7 +915,6 @@ internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRender
                                 regionKeys[count] = completion.RegionKeyPacked;
                                 versions[count] = res.RequestedVersion;
                                 payloads[count] = payload;
-                                localArtifacts[count] = res.Artifact;
                                 count++;
                             }
                             else
@@ -977,8 +969,6 @@ internal sealed partial class LumonSceneOccupancyClipmapUpdateRenderer : IRender
 
                     for (int i = 0; i < dispatched; i++)
                     {
-                        if (localArtifacts[i] is { } localArtifact && chunkVersions is not null)
-                            localTraceScene?.Publish(localArtifact, localMaterials, chunkVersions);
                         regionScheduler.OnRequestCompleted(
                             new ChunkKey(regionKeys[i]),
                             status: ChunkWorkStatus.Success,

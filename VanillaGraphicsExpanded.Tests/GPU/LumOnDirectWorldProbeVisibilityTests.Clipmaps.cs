@@ -148,7 +148,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
         local.Publish(new ControlledVoxelWorld());
         var atlas = CreateUniformCache();
         AssertAt(0.5f, true);
-        local.Scene.Prepare(new VectorInt3(32, 0, 0), local.Versions);
+        local.MoveCenter(new VectorInt3(32, 0, 0));
         AssertAt(0.5f, true);
         AssertAt(32.5f, false);
         // The reused physical slot previously held air; its new owner contains a wall.

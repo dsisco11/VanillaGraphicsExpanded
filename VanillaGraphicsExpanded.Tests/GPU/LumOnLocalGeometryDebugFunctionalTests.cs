@@ -146,7 +146,7 @@ public sealed class LumOnLocalGeometryDebugFunctionalTests : LumOnShaderFunction
             UniformBlockBindingUtil.EnsureBlockBound(program, LumOnDebugParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
             using var localBuffer = GpuUniformBuffer.Create(debugName: "Tests.LocalGeometryDebug.Scene");
             var local = new LumOnLocalTraceParamsUbo();
-            local.Set(scene?.Origin ?? default, scene?.Resolution ?? 0);
+            local.Set(scene?.Origin ?? default, scene?.Resolution ?? 0, cellSize: scene?.CellSize ?? 16);
             localBuffer.UploadOrResize(local.Bytes, growExponentially: false);
             localBuffer.BindBase(LumOnLocalTraceParamsUbo.Binding);
             UniformBlockBindingUtil.EnsureBlockBound(program, LumOnLocalTraceParamsUbo.BlockName, LumOnLocalTraceParamsUbo.Binding);

@@ -3,6 +3,7 @@ using System;
 using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.Scene;
+using VanillaGraphicsExpanded.LumOn.Scene.LocalTracing;
 using VanillaGraphicsExpanded.LumOn.Diagnostics;
 using VanillaGraphicsExpanded.LumOn.WorldCells;
 using VanillaGraphicsExpanded.ModSystems;
@@ -23,6 +24,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
 
     private LumOnBufferManager? lumOnBufferManager;
     private LumOnRenderer? lumOnRenderer;
+    private LocalGeometryPartitionRenderer? localGeometryPartitionRenderer;
     private LumOnDebugRenderer? lumOnDebugRenderer;
     private LumonSceneFeedbackUpdateRenderer? lumonSceneFeedbackUpdateRenderer;
     private LumonSceneOccupancyClipmapUpdateRenderer? lumonSceneOccupancyClipmapUpdateRenderer;
@@ -438,7 +440,9 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             lumonSceneOccupancyClipmapUpdateRenderer = new LumonSceneOccupancyClipmapUpdateRenderer(clientApi, ConfigModSystem.Config, worldPartition);
         }
         lumOnDebugRenderer?.SetLumonSceneOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
-        lumOnRenderer?.SetLocalTraceSceneProvider(lumonSceneOccupancyClipmapUpdateRenderer);
+        localGeometryPartitionRenderer ??= new LocalGeometryPartitionRenderer(clientApi, ConfigModSystem.Config, clientApi.ModLoader.GetModSystem<WorldPartitionModSystem>());
+        lumOnRenderer?.SetLocalTraceSceneProvider(localGeometryPartitionRenderer);
+        lumOnDebugRenderer?.SetLocalTraceSceneProvider(localGeometryPartitionRenderer);
         lumonSceneFeedbackUpdateRenderer?.SetOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
 
         if (current.LumOnEnabled
@@ -486,6 +490,8 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         lumOnTerrainBridgeUpdateRenderer?.Dispose();
         lumOnTerrainBridgeUpdateRenderer = null;
 
+        localGeometryPartitionRenderer?.Dispose();
+        localGeometryPartitionRenderer = null;
         lumOnRenderer?.Dispose();
         lumOnRenderer = null;
 
@@ -563,7 +569,9 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             lumonSceneOccupancyClipmapUpdateRenderer = new LumonSceneOccupancyClipmapUpdateRenderer(capi, ConfigModSystem.Config, worldPartition);
         }
         lumOnDebugRenderer?.SetLumonSceneOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
-        lumOnRenderer?.SetLocalTraceSceneProvider(lumonSceneOccupancyClipmapUpdateRenderer);
+        localGeometryPartitionRenderer ??= new LocalGeometryPartitionRenderer(capi, ConfigModSystem.Config, capi.ModLoader.GetModSystem<WorldPartitionModSystem>());
+        lumOnRenderer?.SetLocalTraceSceneProvider(localGeometryPartitionRenderer);
+        lumOnDebugRenderer?.SetLocalTraceSceneProvider(localGeometryPartitionRenderer);
         lumonSceneFeedbackUpdateRenderer?.SetOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
 
         if (lumOnTerrainBridgeUpdateRenderer is null && ConfigModSystem.Config.LumOn.LumonScene.Enabled)

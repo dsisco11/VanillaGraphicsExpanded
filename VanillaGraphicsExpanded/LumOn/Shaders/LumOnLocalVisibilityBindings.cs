@@ -25,7 +25,8 @@ internal sealed class LumOnLocalVisibilityBindings
     /// <summary>Binds a coherent local snapshot; unavailable geometry never implies visibility.</summary>
     public void Bind(GpuProgram program, LocalTraceGpuScene? scene)
     {
-        parameters.Set(scene?.Origin ?? default, scene?.Resolution ?? 0);
+        parameters.Set(scene?.Origin ?? default, scene?.Resolution ?? 0, cellSize: scene?.CellSize ?? 16,
+            supportedOrigins: scene?.SupportedOrigins, maximumTraceReach: scene?.MaximumTraceReach ?? 0);
         parameters.BindTo(program, LumOnLocalTraceParamsUbo.BlockName, "LumOn.DirectVisibility");
         layout.TryBindSamplerTextureActive(program.ProgramId, "localTraceGeometry", TextureTarget.Texture3D,
             scene?.Geometry.TextureId ?? 0, GpuSamplers.NearestClamp.SamplerId, warn: null);

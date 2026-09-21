@@ -77,7 +77,7 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
             GL.UseProgram(0);
             using var localBuffer = GpuUniformBuffer.Create(debugName: "Tests.DirectVisibility");
             var local = new LumOnLocalTraceParamsUbo();
-            local.Set(scene?.Origin ?? default, scene?.Resolution ?? 0, budget);
+            local.Set(scene?.Origin ?? default, scene?.Resolution ?? 0, budget, scene?.CellSize ?? 16);
             localBuffer.UploadOrResize(local.Bytes, growExponentially: false);
             localBuffer.BindBase(LumOnLocalTraceParamsUbo.Binding);
             UniformBlockBindingUtil.EnsureBlockBound(program, LumOnLocalTraceParamsUbo.BlockName, LumOnLocalTraceParamsUbo.Binding);

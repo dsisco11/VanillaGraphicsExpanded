@@ -21,8 +21,7 @@ public sealed partial class LumOnLocalTraceFunctionalTests
         fixture.Publish(world);
         Assert.True(Trace(fixture).Radiance[0] > 9);
         long revision = fixture.Scene.Revision;
-        fixture.Versions.BumpGlobalGeneration();
-        fixture.Scene.Prepare(default, fixture.Versions);
+        fixture.InvalidateAll();
         Assert.True(fixture.Scene.Revision > revision);
         AssertUnresolved(Trace(fixture));
         fixture.Publish(world);
@@ -36,7 +35,7 @@ public sealed partial class LumOnLocalTraceFunctionalTests
         EnsureShaderTestAvailable();
         using var fixture = new LocalTraceVoxelFixture();
         fixture.Publish(new ControlledVoxelWorld());
-        fixture.Scene.Prepare(new VectorInt3(0, 0, 64), fixture.Versions);
+        fixture.MoveCenter(new VectorInt3(0, 0, 64));
         AssertUnresolved(Trace(fixture, worldOffset: new VectorInt3(0, 0, 64)));
     }
 
@@ -46,14 +45,13 @@ public sealed partial class LumOnLocalTraceFunctionalTests
     {
         EnsureShaderTestAvailable();
         using var fixture = new LocalTraceVoxelFixture();
-        fixture.Versions.BumpGlobalGeneration();
+        fixture.Publish(new ControlledVoxelWorld());
+        var replay = fixture.CaptureCompletionReplay();
+        fixture.InvalidateAll();
         fixture.Publish(new ControlledVoxelWorld());
         long revision = fixture.Scene.Revision;
-        var key = ChunkKey.FromChunkCoords(-1, -1, -1);
-        fixture.Scene.Publish(new VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneRegionArtifact(
-            key, 0, new VectorInt3(-1, -1, -1), new uint[32768])
-            { LocalCells = new VanillaGraphicsExpanded.LumOn.Scene.LocalTracing.LocalTraceSourceCell[32768] },
-            new VanillaGraphicsExpanded.LumOn.Scene.LocalTracing.LocalTraceMaterialRegistry(), fixture.Versions);
+        replay();
+        fixture.Pump();
         Assert.Equal(revision, fixture.Scene.Revision);
         var result = Trace(fixture);
         for (int i = 0; i < result.Radiance.Length; i += 4) Assert.InRange(result.Radiance[i], 9.99f, 10.01f);

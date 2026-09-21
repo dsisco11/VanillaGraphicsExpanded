@@ -291,7 +291,8 @@ void main(void)
     float geometryDistance = hit.hit
         ? min(hit.distance + VGE_LUMON_RAY_THICKNESS + 0.01, VGE_LUMON_RAY_MAX_DISTANCE)
         : localDistance;
-    LumonLocalHit localHit = lumonTraceLocal(startCell, fract(matrixOrigin), rayDirWS, geometryDistance);
+    bool localOriginSupported = lumonLocalOriginSupported(startCell, fract(matrixOrigin), max(geometryDistance, localDistance));
+    LumonLocalHit localHit = lumonTraceLocal(startCell, fract(matrixOrigin), rayDirWS, localOriginSupported ? geometryDistance : 0.0);
 #endif
 
     if (hit.hit) {

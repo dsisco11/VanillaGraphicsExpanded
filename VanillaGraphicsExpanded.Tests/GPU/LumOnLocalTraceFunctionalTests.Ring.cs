@@ -5,7 +5,7 @@ using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
-using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
+using VanillaGraphicsExpanded.WorldPartition;
 using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -16,14 +16,14 @@ public sealed partial class LumOnLocalTraceFunctionalTests
     #region Ring Ownership
     /// <summary>Moving the anchor preserves only overlapping ready regions and rejects evicted async completions.</summary>
     [Theory]
-    [InlineData(0, 32, 64)]
-    [InlineData(0, -32, 64)]
-    [InlineData(1, 32, 64)]
-    [InlineData(1, -32, 64)]
-    [InlineData(2, 32, 64)]
-    [InlineData(2, -32, 64)]
-    [InlineData(3, 32, 96)]
-    [InlineData(3, -32, 96)]
+    [InlineData(0, 16, 64)]
+    [InlineData(0, -16, 64)]
+    [InlineData(1, 16, 64)]
+    [InlineData(1, -16, 64)]
+    [InlineData(2, 16, 64)]
+    [InlineData(2, -16, 64)]
+    [InlineData(3, 16, 48)]
+    [InlineData(3, -16, 48)]
     [InlineData(0, 128, 64)]
     [InlineData(0, -128, 64)]
     public void RegionRing_PreservesOverlapAndClearsReassignedSlots(int axis, int distance, int resolution)
@@ -38,40 +38,44 @@ public sealed partial class LumOnLocalTraceFunctionalTests
         var previousOrigin = fixture.Scene.Origin;
         var center = new VectorInt3(axis == 0 || axis == 3 ? distance : 0,
             axis == 1 || axis == 3 ? distance : 0, axis == 2 || axis == 3 ? distance : 0);
-        fixture.Scene.Prepare(center, fixture.Versions);
+        fixture.MoveCenter(center);
         int size = fixture.Scene.RegionResolution;
         var origin = fixture.Scene.Origin;
         var expected = new byte[size * size * size];
-        for (int z = previousOrigin.Z; z < previousOrigin.Z + resolution; z += 32)
-        for (int y = previousOrigin.Y; y < previousOrigin.Y + resolution; y += 32)
-        for (int x = previousOrigin.X; x < previousOrigin.X + resolution; x += 32)
+        for (int z = previousOrigin.Z; z < previousOrigin.Z + resolution; z += 16)
+        for (int y = previousOrigin.Y; y < previousOrigin.Y + resolution; y += 16)
+        for (int x = previousOrigin.X; x < previousOrigin.X + resolution; x += 16)
         {
             if (x < origin.X || x >= origin.X + resolution ||
                 y < origin.Y || y >= origin.Y + resolution ||
                 z < origin.Z || z >= origin.Z + resolution) continue;
-            int sx = ((x / 32) % size + size) % size;
-            int sy = ((y / 32) % size + size) % size;
-            int sz = ((z / 32) % size + size) % size;
+            int sx = ((x / 16) % size + size) % size;
+            int sy = ((y / 16) % size + size) % size;
+            int sz = ((z / 16) % size + size) % size;
             expected[(sz * size + sy) * size + sx] = 1;
         }
         Assert.Equal(expected, ReadReadiness(fixture.Scene));
 
         // A current-version completion for an evicted region still cannot claim its reused slot.
-        int oldX = distance > 0 ? previousOrigin.X : previousOrigin.X + resolution - 32;
-        int oldY = distance > 0 ? previousOrigin.Y : previousOrigin.Y + resolution - 32;
-        int oldZ = distance > 0 ? previousOrigin.Z : previousOrigin.Z + resolution - 32;
-        var coordinate = new VectorInt3(oldX >> 5, oldY >> 5, oldZ >> 5);
-        var key = ChunkKey.FromChunkCoords(coordinate.X, coordinate.Y, coordinate.Z);
+        int oldX = distance > 0 ? previousOrigin.X : previousOrigin.X + resolution - 16;
+        int oldY = distance > 0 ? previousOrigin.Y : previousOrigin.Y + resolution - 16;
+        int oldZ = distance > 0 ? previousOrigin.Z : previousOrigin.Z + resolution - 16;
+        var coordinate = new PartitionCoordinate(oldX / 16, oldY / 16, oldZ / 16);
+        var key = new PartitionCellKey(fixture.Instance, "test", coordinate);
         long revision = fixture.Scene.Revision;
-        fixture.Scene.Publish(new LumonSceneTraceSceneRegionArtifact(key, fixture.Versions.GetCurrentVersion(key),
-            coordinate, new uint[32768]) { LocalCells = new LocalTraceSourceCell[32768] },
-            new LocalTraceMaterialRegistry(), fixture.Versions);
+        var request = new PartitionRequest(1, key, 1, 1, long.MaxValue, CancellationToken.None);
+        Assert.False(fixture.Scene.ClaimCell(request));
+        Assert.False(fixture.Scene.PublishCell(request, new LocalTraceSourceCell[4096], new LocalTraceMaterialRegistry()));
         Assert.Equal(revision, fixture.Scene.Revision);
         Assert.Equal(expected, ReadReadiness(fixture.Scene));
 
         fixture.Publish(new ControlledVoxelWorld());
         Assert.All(ReadReadiness(fixture.Scene), ready => Assert.Equal(1, ready));
-        var result = Trace(fixture, worldOffset: center);
+        var traceOffset = new VectorInt3((int)Math.Ceiling(center.X / 32d) * 32,
+            (int)Math.Ceiling(center.Y / 32d) * 32,
+            (int)Math.Ceiling(center.Z / 32d) * 32);
+        // Keep the clear segment inside this deliberately small ring; coverage policy is tested separately.
+        var result = Trace(fixture, worldOffset: traceOffset, cacheSpacing: 2);
         for (int i = 0; i < result.Radiance.Length; i += 4)
         {
             Assert.InRange(result.Radiance[i], 9.99f, 10.01f);
@@ -84,7 +88,7 @@ public sealed partial class LumOnLocalTraceFunctionalTests
     public void ReadinessUpload_UsesPackedBytesAndRestoresAlignment()
     {
         EnsureShaderTestAvailable();
-        using var scene = new LocalTraceGpuScene(96);
+        using var scene = new LocalTraceGpuScene(48);
         var data = Enumerable.Range(0, 27).Select(i => (byte)(i % 3)).ToArray();
         GL.GetInteger(GetPName.UnpackAlignment, out int originalAlignment);
         GL.PixelStore(PixelStoreParameter.UnpackAlignment, 8);

@@ -21,6 +21,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSource
 {
     private readonly ICoreClientAPI capi;
+    private readonly bool localOnly;
     private readonly LocalTracing.LocalTraceMaterialRegistry? localMaterials;
     private readonly System.Func<int, int, int, bool>? needsLocalRegion;
     private readonly LumonSceneTraceSceneChunkVersionProvider versionProvider;
@@ -34,8 +35,9 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
         LumonSceneTraceSceneLightIdRegistry lightIds,
         LumonSceneTraceSceneMaterialPaletteRegistry materialPalette,
         LocalTracing.LocalTraceMaterialRegistry? localMaterials = null,
-        System.Func<int, int, int, bool>? needsLocalRegion = null)
+        System.Func<int, int, int, bool>? needsLocalRegion = null, bool localOnly = false)
     {
+        this.localOnly = localOnly;
         this.localMaterials = localMaterials;
         this.needsLocalRegion = needsLocalRegion;
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
@@ -44,6 +46,7 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
         this.materialPalette = materialPalette ?? throw new ArgumentNullException(nameof(materialPalette));
     }
 
+    /// <summary>Marshals a consistent source capture onto the game thread for the requested revision.</summary>
     public ValueTask<IChunkSnapshot?> TryCreateSnapshotAsync(ChunkKey key, int expectedVersion, CancellationToken ct)
     {
         if (ct.IsCancellationRequested)
@@ -55,12 +58,12 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
 
         capi.Event.EnqueueMainThreadTask(() =>
         {
-            LumonSceneTraceSceneMetrics.OnSnapshotRequested();
+            if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotRequested();
 
             if (ct.IsCancellationRequested)
             {
-                LumonSceneTraceSceneMetrics.OnSnapshotFailedCanceled();
-                LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
+                if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotFailedCanceled();
+                if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
                 tcs.TrySetResult(null);
                 return;
             }
@@ -86,9 +89,9 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
                                    ?? blockAccessor.GetChunk(chunkX, chunkY, chunkZ);
                 if (chunk is null || chunk.Disposed)
                 {
-                    LumonSceneTraceSceneMetrics.OnSnapshotFailedChunkMissing();
-                    LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
-                    LumonSceneTraceSceneMetrics.SetLastSnapshotInfo(
+                    if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotFailedChunkMissing();
+                    if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
+                    if (!localOnly) LumonSceneTraceSceneMetrics.SetLastSnapshotInfo(
                         chunkX: chunkX,
                         chunkY: chunkY,
                         chunkZ: chunkZ,
@@ -112,9 +115,9 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
 
                 if (chunk.Disposed)
                 {
-                    LumonSceneTraceSceneMetrics.OnSnapshotFailedChunkMissing();
-                    LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
-                    LumonSceneTraceSceneMetrics.SetLastSnapshotInfo(
+                    if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotFailedChunkMissing();
+                    if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
+                    if (!localOnly) LumonSceneTraceSceneMetrics.SetLastSnapshotInfo(
                         chunkX: chunkX,
                         chunkY: chunkY,
                         chunkZ: chunkZ,
@@ -186,6 +189,7 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
                         {
                             ct.ThrowIfCancellationRequested();
 
+                            if (localOnly) { buf[i] = default; continue; }
                             int blockId = blockIds[i];
                             int blockLevel = lighting.GetBlocklight(i);
                             int sunLevel = lighting.GetSunlight(i);
@@ -268,8 +272,8 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
                             buffer: buf,
                             length: len);
 
-                        LumonSceneTraceSceneMetrics.OnSnapshotSucceeded();
-                        LumonSceneTraceSceneMetrics.SetLastSnapshotInfo(
+                        if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotSucceeded();
+                        if (!localOnly) LumonSceneTraceSceneMetrics.SetLastSnapshotInfo(
                             chunkX: chunkX,
                             chunkY: chunkY,
                             chunkZ: chunkZ,
@@ -302,8 +306,8 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
             }
             catch
             {
-                LumonSceneTraceSceneMetrics.OnSnapshotFailedException();
-                LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
+                if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotFailedException();
+                if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
                 tcs.TrySetResult(null);
             }
         }, "vge-lumon-tracescene-snapshot");

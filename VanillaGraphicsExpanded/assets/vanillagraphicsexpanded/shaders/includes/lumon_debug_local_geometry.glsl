@@ -52,7 +52,8 @@ vec4 renderLocalTraceGeometryDebug()
     {
         if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, ivec3(size)))) return vec4(0.0, 0.0, 0.0, 1.0);
         ivec3 worldCell = localOriginResolution.xyz + cell;
-        ivec3 region = lumonLocalWrap(worldCell >> 5, size / 32);
+        int cellSize = localBudget.y;
+        ivec3 region = lumonLocalWrap(cell / cellSize + localOriginResolution.xyz / cellSize, size / cellSize);
         if (texelFetch(localTraceRegions, region, 0).r == 0u) return vec4(0.5, 0.0, 1.0, 1.0);
         uint geometry = texelFetch(localTraceGeometry, lumonLocalWrap(worldCell, size), 0).r;
         uint state = geometry & 3u;

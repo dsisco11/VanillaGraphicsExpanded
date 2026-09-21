@@ -45,7 +45,7 @@ public sealed class LumOnLocalTraceMaterialReadinessTests : LocalTraceShaderTest
         AssertLighting(Trace(fixture), lit: false, opaque: true);
         long revision = fixture.Scene.Revision;
         material.SetReadiness(true, true);
-        fixture.Scene.Prepare(default, fixture.Versions);
+        fixture.Pump();
         Assert.Equal(revision, fixture.Scene.Revision);
         AssertPublished(fixture.Scene);
         AssertLighting(Trace(fixture), lit: false, opaque: true);

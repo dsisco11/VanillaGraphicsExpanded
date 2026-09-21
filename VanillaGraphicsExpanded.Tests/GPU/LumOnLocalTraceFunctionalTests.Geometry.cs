@@ -26,8 +26,7 @@ public sealed partial class LumOnLocalTraceFunctionalTests
         Assert.Contains(open.Radiance.Where((_, i) => i % 4 == 0), value => value > 9);
         Assert.Contains(open.Radiance.Where((_, i) => i % 4 == 0), value => value == 0);
         world.AddRoom((-3, -3, -8), (3, 3, -2));
-        fixture.Versions.BumpGlobalGeneration();
-        fixture.Scene.Prepare(default, fixture.Versions);
+        fixture.InvalidateAll();
         fixture.Publish(world);
         var closed = Trace(fixture);
         for (int i = 0; i < closed.Radiance.Length; i += 4)

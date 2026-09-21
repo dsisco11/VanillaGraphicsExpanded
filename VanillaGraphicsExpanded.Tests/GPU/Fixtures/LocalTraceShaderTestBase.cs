@@ -16,7 +16,7 @@ public abstract class LocalTraceShaderTestBase : LumOnShaderFunctionalTestBase
     #region Shader Harness
     /// <summary>Runs the production shader with the production sixteen-unit texture layout.</summary>
     private protected (float[] Radiance, float[] Meta) Trace(LocalTraceVoxelFixture fixture, int budget = 256, bool suppress = false, float cacheDistance = 100, float emissionBoost = 1, VanillaGraphicsExpanded.Numerics.VectorInt3 worldOffset = default, int cacheResolution = 1,
-        bool directionalCache = false, float anchorX = 0, float screenDepth = 1, bool localTracing = true, float screenEmission = 0, bool worldCache = true)
+        bool directionalCache = false, float anchorX = 0, float screenDepth = 1, bool localTracing = true, float screenEmission = 0, bool worldCache = true, VanillaGraphicsExpanded.WorldPartition.PartitionBounds? supportedOrigins = null, float maximumTraceReach = 0, float cacheSpacing = 8)
     {
         int program = CompileShaderWithDefines("lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh",
             new Dictionary<string, string?>
@@ -27,7 +27,7 @@ public abstract class LocalTraceShaderTestBase : LumOnShaderFunctionalTestBase
                 ["VGE_LUMON_WORLDPROBE_ENABLED"] = worldCache ? "1" : "0",
                 ["VGE_LUMON_WORLDPROBE_LEVELS"] = "1",
                 ["VGE_LUMON_WORLDPROBE_RESOLUTION"] = cacheResolution.ToString(),
-                ["VGE_LUMON_WORLDPROBE_BASE_SPACING"] = "8.0",
+                ["VGE_LUMON_WORLDPROBE_BASE_SPACING"] = cacheSpacing.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture),
                 ["VGE_LUMON_WORLDPROBE_OCTAHEDRAL_SIZE"] = "16",
                 ["VGE_LUMON_BIND_WORLDPROBE_RADIANCE_ATLAS"] = "1",
                 ["VGE_LUMON_HZB_COARSE_MIP"] = "0"
@@ -58,10 +58,10 @@ public abstract class LocalTraceShaderTestBase : LumOnShaderFunctionalTestBase
             UpdateAndBindLumOnFrameUbo(program, invProjectionMatrix: LumOnTestInputFactory.CreateRealisticInverseProjection(),
                 projectionMatrix: LumOnTestInputFactory.CreateRealisticProjection(),
                 matrixSpaceWorldChunkCoordOffset: new VanillaGraphicsExpanded.Numerics.VectorInt3(worldOffset.X >> 5, worldOffset.Y >> 5, worldOffset.Z >> 5));
-            UpdateAndBindLumOnWorldProbeUbo(program, skyTint: new Vintagestory.API.MathTools.Vec3f(1, 1, 1), cameraPosWS: Vector3.Zero, originMinCorner: [new Vector3(-4 * cacheResolution, -4 * cacheResolution, -5 - 4 * cacheResolution)]);
+            UpdateAndBindLumOnWorldProbeUbo(program, skyTint: new Vintagestory.API.MathTools.Vec3f(1, 1, 1), cameraPosWS: Vector3.Zero, originMinCorner: [new Vector3(-cacheSpacing * .5f * cacheResolution, -cacheSpacing * .5f * cacheResolution, -5 - cacheSpacing * .5f * cacheResolution)]);
             using var localBuffer = GpuUniformBuffer.Create(debugName: "Tests.LocalTrace");
             var local = new LumOnLocalTraceParamsUbo();
-            local.Set(fixture.Scene.Origin, fixture.Scene.Resolution, budget);
+            local.Set(fixture.Scene.Origin, fixture.Scene.Resolution, budget, fixture.Scene.CellSize, supportedOrigins, maximumTraceReach);
             localBuffer.UploadOrResize(local.Bytes, growExponentially: false);
             localBuffer.BindBase(LumOnLocalTraceParamsUbo.Binding);
             UniformBlockBindingUtil.EnsureBlockBound(program, LumOnLocalTraceParamsUbo.BlockName, LumOnLocalTraceParamsUbo.Binding);
