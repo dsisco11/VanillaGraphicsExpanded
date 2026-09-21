@@ -1,0 +1,47 @@
+# WorldPartition coverage and lifecycle tasks
+
+Source: [approved proposal](WorldPartition.CoverageAndLifecycle.Proposal.md). Execute in order; the proposal remains the detailed contract. All grids are anchored at world zero. Preserve consumer-owned lighting algorithms and existing worker/GPU infrastructure.
+
+## 1. Shared partition foundation
+
+Outcome: independent partition instances can request and safely publish spatial cells.
+
+- [ ] Add registration, world scope, instance/cell identity, configurable cell extents, floor-based coordinates, and source targeting; replace kind-only identity and half-block center assumptions.
+- [ ] Implement required/prefetch/retained coverage, intersecting-cell selection, multi-source union, incremental updates, hysteresis, and explicit capacity shortfalls.
+- [ ] Centralize acknowledged lifecycle transitions, revisions/incarnations, cancellation, retries, publication validation, and world/registration teardown; keep residency separate from content readiness.
+- [ ] Enforce owning-thread transitions, immutable work/completions, render-thread publication, and fair shared/per-partition residency, in-flight, capture, dispatch, and upload limits.
+- [ ] Verify with reusable providers: negative/fractional/large coordinates, multiple instances/sources, boundary oscillation, teleports, delayed/stale completions, dirtying, slot reuse, missing dependencies, teardown, and starvation. Gate: required coverage is correct and obsolete work cannot publish.
+
+## 2. Local geometry partition
+
+Outcome: near-tracing coverage follows its own requirements instead of the occupancy scene's window.
+
+- [ ] Register independent 16-block geometry cells; derive required coverage from supported probe origins, maximum local trace reach, and adjacent-light margin. Bound prefetch/retention and report unsupported source envelopes.
+- [ ] Reuse chunk snapshots and `LocalTraceCellCapture`; coalesce 32-block source reads and invalidate dependent subcells on source changes. Keep missing chunks distinct from unsupported geometry.
+- [ ] Generalize `LocalTraceGpuScene`, UBOs, shaders, and readiness addressing together; retain overlapping ring cells and coherent geometry/light/material publication. Prefetch must complete GPU residency before activation.
+- [ ] Transfer local window/publication ownership out of the occupancy renderer, preserving publication revisions and history invalidation. Gate: one lifecycle owner, no stale slot exposure, and existing local-tracing tests pass.
+
+## 3. Coverage evidence and diagnostics
+
+Outcome: ready coverage and resource limits are observable and validated.
+
+- [ ] Extend World Cell Bounds and Local-Tracing Geometry for partition/source bounds, desired versus ready coverage, and distinct unpublished/unsupported/out-of-coverage states; expose per-partition backlog, retries, stale completions, and capacity metrics.
+- [ ] Sweep every position through a publication-cell interval; test immediate desired versus eventual ready coverage with delayed providers, movement, teleports, dirty updates, negative/large coordinates, and camera motion.
+- [ ] Compare capture duplication, movement upload bytes, frame-thread work, resident memory, and readiness latency; select final margins from those measurements. Gate: record separate unit/GPU and live-runtime evidence without claiming instantaneous readiness under overload.
+
+## 4. Existing scene residency migration
+
+Outcome: scene consumers share the coordinator without duplicate lifecycle authority.
+
+- [ ] Adapt `TraceSceneRegionScheduler` and `LumonSceneRegionScheduler`, preserving coverage/priority behavior and domain capture/relight queues; verify each adapter before removing replaced registry, coverage, and transition code.
+- [ ] Move reusable contracts/coordinator from `LumOn/WorldCells` into top-level `WorldPartition`; keep `WorldPartitionModSystem` thin and files responsibility-specific. Gate: scene regressions pass and each partition has exactly one residency owner.
+
+## 5. World-probe evaluation and final acceptance
+
+Outcome: a justified spatial-residency migration or explicit deferral, with local geometry independently complete.
+
+- [ ] Evaluate one partition per clipmap level against fixed world-zero boundaries, current probe lattice/ring behavior, stale-work rejection, and per-frame cost. Migrate only if equivalence and removal of duplicate residency code are demonstrated; otherwise document deferral.
+- [ ] Preserve importance selection, directional budgets, lighting confidence/history, atlas packing, and the distinction between residency and valid lighting.
+- [ ] Run required builds/regressions through a validation subagent; update architecture/invariants and evidence records. Gate: all mandatory proposal requirements are verified, temporary adapters are removed where replaced, and any conditional probe deferral is documented.
+
+Open decision: final coverage/prefetch margins and resource budgets require the measurements in item 3. No implementation or verification is marked complete by this task list.
