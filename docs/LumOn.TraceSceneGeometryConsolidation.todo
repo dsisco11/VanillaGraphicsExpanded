@@ -4,10 +4,12 @@ Source: approved consolidation decision in the conversation. Upgrade TraceScene 
 
 ## 1. Shared geometry and coverage contract
 
-- [ ] Inventory active geometry, lighting and material consumers; define a shared payload and sampling API covering known air, opaque geometry, unsupported geometry, unpublished/stale cells, material/emission and decoded light.
-- [ ] Define shared coverage and budgets: preserve the required 48-block near-field window and surface-cache tracing needs, share overlapping data, and justify which TraceScene levels are retained. Record formats, memory/upload costs and ownership before implementation.
+- [x] Inventory active geometry, lighting and material consumers; define a shared payload and sampling API covering known air, opaque geometry, unsupported geometry, unpublished/stale cells, material/emission and decoded light.
+- [x] Define shared coverage and budgets: preserve the required 48-block near-field window and surface-cache tracing needs, share overlapping data, and justify which TraceScene levels are retained. Record formats, memory/upload costs and ownership before implementation.
 
 Gate: every retained consumer has explicit data, coverage and validity requirements; no missing data is interpreted as empty geometry.
+
+Contract and review: [shared geometry contract](LumOn.TraceSceneGeometryContract.md). Second review and independent completion audit passed. Delegated coverage/cost formula verification passed 333,216 assertions; no runtime implementation or performance result is claimed. Subsequent items implement this contract.
 
 ## 2. Shared worker capture and GPU publication
 
