@@ -18,9 +18,9 @@ internal sealed class LumOnScreenProbeAtlasTraceProgramLayout : GpuProgramLayout
         RegisterSamplerUnit("probeTraceMask", 9, required: true);
         RegisterSamplerUnit("worldProbeVis0", 11, required: false);
         RegisterSamplerUnit("worldProbeMeta0", 12, required: false);
-        RegisterSamplerUnit("localTraceGeometry", 10, required: false);
-        RegisterSamplerUnit("localTraceLight", 13, required: false);
-        RegisterSamplerUnit("localTraceRegions", 14, required: false);
-        RegisterSamplerUnit("localTraceMaterials", 15, required: false);
+        RegisterSamplerUnit("nearFieldGeometry", 10, required: false);
+        RegisterSamplerUnit("nearFieldLight", 13, required: false);
+        RegisterSamplerUnit("nearFieldRegions", 14, required: false);
+        RegisterSamplerUnit("nearFieldMaterials", 15, required: false);
     }
 }

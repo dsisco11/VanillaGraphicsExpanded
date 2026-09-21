@@ -191,7 +191,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     private LumonSceneFeedbackUpdateRenderer? lumonSceneFeedbackUpdateRenderer;
     private LumonSceneOccupancyClipmapUpdateRenderer? lumonSceneOccupancyClipmapUpdateRenderer;
-    private VanillaGraphicsExpanded.LumOn.Scene.LocalTracing.ILocalTraceSceneProvider? localTraceProvider;
+    private VanillaGraphicsExpanded.LumOn.Scene.NearField.INearFieldSceneProvider? nearFieldProvider;
 
     private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager;
     private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManagerEventSource;
@@ -348,8 +348,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         lumonSceneFeedbackUpdateRenderer = feedback;
     }
 
-    /// <summary>Injects the independent local geometry partition for debug consumers.</summary>
-    internal void SetLocalTraceSceneProvider(VanillaGraphicsExpanded.LumOn.Scene.LocalTracing.ILocalTraceSceneProvider? provider) => localTraceProvider = provider;
+    /// <summary>Injects the independent near-field geometry partition for debug consumers.</summary>
+    internal void SetNearFieldSceneProvider(VanillaGraphicsExpanded.LumOn.Scene.NearField.INearFieldSceneProvider? provider) => nearFieldProvider = provider;
 
     internal void SetLumonSceneOccupancyClipmapUpdateRenderer(LumonSceneOccupancyClipmapUpdateRenderer? occupancy)
     {
@@ -783,10 +783,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         if (shader is null || shader.LoadError)
             return;
 
-        bool usesLocalVisibility = programKind == LumOnDebugShaderProgramKind.WorldProbe;
-        if (usesLocalVisibility && shader.SetDefine(LumOnLocalVisibilityBindings.EnabledDefine, "1")) return;
-        var localVisibilityScene = usesLocalVisibility
-            ? localTraceProvider?.PrepareLocalTraceScene() : null;
+        bool usesNearFieldVisibility = programKind == LumOnDebugShaderProgramKind.WorldProbe;
+        if (usesNearFieldVisibility && shader.SetDefine(LumOnNearFieldVisibilityBindings.EnabledDefine, "1")) return;
+        var nearFieldVisibilityScene = usesNearFieldVisibility
+            ? nearFieldProvider?.PrepareNearFieldScene() : null;
 
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primaryFb is null)
@@ -921,7 +921,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
             shader.Use();
             shaderUsed = true;
-            if (usesLocalVisibility) shader.LocalVisibility.Bind(shader, localVisibilityScene);
+            if (usesNearFieldVisibility) shader.NearFieldVisibility.Bind(shader, nearFieldVisibilityScene);
             shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
             var worldProbeUbo = uniformBuffers.WorldProbeUboOrNull;
             if (worldProbeUbo is not null)
@@ -2739,7 +2739,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             => LumOnDebugShaderProgramKind.Velocity,
 
         // World probes
-        LumOnDebugMode.LocalTraceGeometry
+        LumOnDebugMode.NearFieldGeometry
             or LumOnDebugMode.WorldProbeIrradianceCombined
             or LumOnDebugMode.WorldProbeIrradianceLevel
             or LumOnDebugMode.WorldProbeConfidence
@@ -2811,7 +2811,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 or LumOnDebugMode.ProbeAtlasPisTraceMask
                 or LumOnDebugMode.ProbePisEnergy
                 or LumOnDebugMode.ProbeAtlasTraceOutcome
-                or LumOnDebugMode.LocalTraceGeometry;
+                or LumOnDebugMode.NearFieldGeometry;
     }
 
     #endregion

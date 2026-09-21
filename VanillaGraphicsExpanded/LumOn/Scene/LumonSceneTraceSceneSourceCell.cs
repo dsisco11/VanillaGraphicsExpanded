@@ -18,7 +18,7 @@ internal readonly record struct LumonSceneTraceSceneSourceCell
     public readonly byte IsSolid;
 
     /// <summary>Independent normalized local-ray payload; default is unavailable.</summary>
-    public LocalTracing.LocalTraceSourceCell LocalTrace { get; init; }
+    public NearField.NearFieldSourceCell NearField { get; init; }
 
     /// <summary>
     /// Block light intensity in [0..32].

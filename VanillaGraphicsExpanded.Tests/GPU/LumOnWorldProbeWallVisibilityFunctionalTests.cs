@@ -71,7 +71,7 @@ public sealed class LumOnWorldProbeWallVisibilityFunctionalTests : DirectWorldPr
             Assert.True(hit.HitDistance > delta.Length(), "The probe-to-sample segment must be unobstructed.");
         }
 
-        using var local = new LocalTraceVoxelFixture();
+        using var local = new NearFieldVoxelFixture();
         local.Publish(world);
         var irradiance = RenderDirectVisibility(atlas, local.Scene, new Vector3(0, 0, sampleZ), new Vector3(-15.5f), 32, consumer, GridSize, 5);
         var confidence = consumer >= 0

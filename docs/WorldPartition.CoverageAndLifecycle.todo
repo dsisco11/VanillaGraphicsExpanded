@@ -14,22 +14,22 @@ Outcome: independent partition instances can request and safely publish spatial 
 
 Completion evidence: [foundation review and validation](WorldPartition.Foundation.Evidence.md). Independent completion audit passed; 62 tests passed (43 foundation, 19 existing regressions).
 
-## 2. Local geometry partition
+## 2. Near-field geometry partition
 
 Outcome: near-tracing coverage follows its own requirements instead of the occupancy scene's window.
 
-- [x] Register independent 16-block geometry cells; derive required coverage from supported probe origins, maximum local trace reach, and adjacent-light margin. Bound prefetch/retention and report unsupported source envelopes.
-- [x] Reuse chunk snapshots and `LocalTraceCellCapture`; coalesce 32-block source reads and invalidate dependent subcells on source changes. Keep missing chunks distinct from unsupported geometry.
-- [x] Generalize `LocalTraceGpuScene`, UBOs, shaders, and readiness addressing together; retain overlapping ring cells and coherent geometry/light/material publication. Prefetch must complete GPU residency before activation.
-- [x] Transfer local window/publication ownership out of the occupancy renderer, preserving publication revisions and history invalidation. Gate: one lifecycle owner, no stale slot exposure, and existing local-tracing tests pass.
+- [x] Register independent 16-block geometry cells; derive required coverage from supported probe origins, maximum near-field trace reach, and adjacent-light margin. Bound prefetch/retention and report unsupported source envelopes.
+- [x] Reuse chunk snapshots and `NearFieldCellCapture`; coalesce 32-block source reads and invalidate dependent subcells on source changes. Keep missing chunks distinct from unsupported geometry.
+- [x] Generalize `NearFieldGpuScene`, UBOs, shaders, and readiness addressing together; retain overlapping ring cells and coherent geometry/light/material publication. Prefetch must complete GPU residency before activation.
+- [x] Transfer near-field window/publication ownership out of the occupancy renderer, preserving publication revisions and history invalidation. Gate: one lifecycle owner, no stale slot exposure, and existing near-field tests pass.
 
-Completion evidence: [local geometry implementation and validation](WorldPartition.LocalGeometry.Evidence.md). Second review and independent completion audit passed; 227 tests passed with no failures or skips.
+Completion evidence: [near-field geometry implementation and validation](WorldPartition.NearFieldGeometry.Evidence.md). Second review and independent completion audit passed; 227 tests passed with no failures or skips.
 
 ## 3. Coverage evidence and diagnostics
 
 Outcome: ready coverage and resource limits are observable and validated.
 
-- [ ] Extend World Cell Bounds and Local-Tracing Geometry for partition/source bounds, desired versus ready coverage, and distinct unpublished/unsupported/out-of-coverage states; expose per-partition backlog, retries, stale completions, and capacity metrics.
+- [ ] Extend World Cell Bounds and Near-Field Geometry for partition/source bounds, desired versus ready coverage, and distinct unpublished/unsupported/out-of-coverage states; expose per-partition backlog, retries, stale completions, and capacity metrics.
 - [ ] Sweep every position through a publication-cell interval; test immediate desired versus eventual ready coverage with delayed providers, movement, teleports, dirty updates, negative/large coordinates, and camera motion.
 - [ ] Compare capture duplication, movement upload bytes, frame-thread work, resident memory, and readiness latency; select final margins from those measurements. Gate: record separate unit/GPU and live-runtime evidence without claiming instantaneous readiness under overload.
 
@@ -42,7 +42,7 @@ Outcome: scene consumers share the coordinator without duplicate lifecycle autho
 
 ## 5. World-probe evaluation and final acceptance
 
-Outcome: a justified spatial-residency migration or explicit deferral, with local geometry independently complete.
+Outcome: a justified spatial-residency migration or explicit deferral, with near-field geometry independently complete.
 
 - [ ] Evaluate one partition per clipmap level against fixed world-zero boundaries, current probe lattice/ring behavior, stale-work rejection, and per-frame cost. Migrate only if equivalence and removal of duplicate residency code are demonstrated; otherwise document deferral.
 - [ ] Preserve importance selection, directional budgets, lighting confidence/history, atlas packing, and the distinction between residency and valid lighting.

@@ -183,7 +183,7 @@ public static partial class VgeBuiltInDebugViews
             LumOnDebugMode.InterpolationWeights => "Interpolation Weights",
             LumOnDebugMode.RadianceOverlay => "Indirect Lighting Output",
             LumOnDebugMode.GatherWeight => "Gather Weight (diagnostic)",
-            LumOnDebugMode.LocalTraceGeometry => "Local-Tracing Geometry",
+            LumOnDebugMode.NearFieldGeometry => "Near-Field Geometry",
             LumOnDebugMode.ProbeAtlasTraceOutcome => "Probe-Atlas Trace Outcome",
             LumOnDebugMode.ProbeAtlasMetaConfidence => "Probe-Atlas Meta Confidence",
             LumOnDebugMode.ProbeAtlasTemporalAlpha => "Probe-Atlas Temporal Alpha",

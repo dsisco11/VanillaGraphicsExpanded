@@ -21,9 +21,9 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSource
 {
     private readonly ICoreClientAPI capi;
-    private readonly bool localOnly;
-    private readonly LocalTracing.LocalTraceMaterialRegistry? localMaterials;
-    private readonly System.Func<int, int, int, bool>? needsLocalRegion;
+    private readonly bool nearFieldOnly;
+    private readonly NearField.NearFieldMaterialRegistry? nearFieldMaterials;
+    private readonly System.Func<int, int, int, bool>? needsNearFieldRegion;
     private readonly LumonSceneTraceSceneChunkVersionProvider versionProvider;
     private readonly LumonSceneTraceSceneLightIdRegistry lightIds;
     private readonly LumonSceneTraceSceneMaterialPaletteRegistry materialPalette;
@@ -34,12 +34,12 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
         LumonSceneTraceSceneChunkVersionProvider versionProvider,
         LumonSceneTraceSceneLightIdRegistry lightIds,
         LumonSceneTraceSceneMaterialPaletteRegistry materialPalette,
-        LocalTracing.LocalTraceMaterialRegistry? localMaterials = null,
-        System.Func<int, int, int, bool>? needsLocalRegion = null, bool localOnly = false)
+        NearField.NearFieldMaterialRegistry? nearFieldMaterials = null,
+        System.Func<int, int, int, bool>? needsNearFieldRegion = null, bool nearFieldOnly = false)
     {
-        this.localOnly = localOnly;
-        this.localMaterials = localMaterials;
-        this.needsLocalRegion = needsLocalRegion;
+        this.nearFieldOnly = nearFieldOnly;
+        this.nearFieldMaterials = nearFieldMaterials;
+        this.needsNearFieldRegion = needsNearFieldRegion;
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
         this.versionProvider = versionProvider ?? throw new ArgumentNullException(nameof(versionProvider));
         this.lightIds = lightIds ?? throw new ArgumentNullException(nameof(lightIds));
@@ -58,12 +58,12 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
 
         capi.Event.EnqueueMainThreadTask(() =>
         {
-            if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotRequested();
+            if (!nearFieldOnly) LumonSceneTraceSceneMetrics.OnSnapshotRequested();
 
             if (ct.IsCancellationRequested)
             {
-                if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotFailedCanceled();
-                if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
+                if (!nearFieldOnly) LumonSceneTraceSceneMetrics.OnSnapshotFailedCanceled();
+                if (!nearFieldOnly) LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
                 tcs.TrySetResult(null);
                 return;
             }
@@ -89,9 +89,9 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
                                    ?? blockAccessor.GetChunk(chunkX, chunkY, chunkZ);
                 if (chunk is null || chunk.Disposed)
                 {
-                    if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotFailedChunkMissing();
-                    if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
-                    if (!localOnly) LumonSceneTraceSceneMetrics.SetLastSnapshotInfo(
+                    if (!nearFieldOnly) LumonSceneTraceSceneMetrics.OnSnapshotFailedChunkMissing();
+                    if (!nearFieldOnly) LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
+                    if (!nearFieldOnly) LumonSceneTraceSceneMetrics.SetLastSnapshotInfo(
                         chunkX: chunkX,
                         chunkY: chunkY,
                         chunkZ: chunkZ,
@@ -115,9 +115,9 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
 
                 if (chunk.Disposed)
                 {
-                    if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotFailedChunkMissing();
-                    if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
-                    if (!localOnly) LumonSceneTraceSceneMetrics.SetLastSnapshotInfo(
+                    if (!nearFieldOnly) LumonSceneTraceSceneMetrics.OnSnapshotFailedChunkMissing();
+                    if (!nearFieldOnly) LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
+                    if (!nearFieldOnly) LumonSceneTraceSceneMetrics.SetLastSnapshotInfo(
                         chunkX: chunkX,
                         chunkY: chunkY,
                         chunkZ: chunkZ,
@@ -189,7 +189,7 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
                         {
                             ct.ThrowIfCancellationRequested();
 
-                            if (localOnly) { buf[i] = default; continue; }
+                            if (nearFieldOnly) { buf[i] = default; continue; }
                             int blockId = blockIds[i];
                             int blockLevel = lighting.GetBlocklight(i);
                             int sunLevel = lighting.GetSunlight(i);
@@ -250,16 +250,16 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
                                 materialPaletteIndex: (ushort)Math.Clamp(materialPaletteIndex, 0, (int)LumonSceneOccupancyPacking.MaterialPaletteIndexMask));
                         }
 
-                        if (localMaterials is not null && (needsLocalRegion?.Invoke(chunkX, chunkY, chunkZ) ?? true))
+                        if (nearFieldMaterials is not null && (needsNearFieldRegion?.Invoke(chunkX, chunkY, chunkZ) ?? true))
                         {
                             var localPos = new BlockPos(0);
                             for (int i = 0; i < len; i++)
                             {
                                 ct.ThrowIfCancellationRequested();
                                 localPos.Set(baseX + (i & 31), baseY + (i >> 10), baseZ + ((i >> 5) & 31));
-                                var local = LocalTracing.LocalTraceCellCapture.Capture(blockAccessor,
-                                    capi.World.GetBlock(blockIds[i]), localPos, localMaterials);
-                                buf[i] = buf[i] with { LocalTrace = local };
+                                var local = NearField.NearFieldCellCapture.Capture(blockAccessor,
+                                    capi.World.GetBlock(blockIds[i]), localPos, nearFieldMaterials);
+                                buf[i] = buf[i] with { NearField = local };
                             }
                         }
 
@@ -272,8 +272,8 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
                             buffer: buf,
                             length: len);
 
-                        if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotSucceeded();
-                        if (!localOnly) LumonSceneTraceSceneMetrics.SetLastSnapshotInfo(
+                        if (!nearFieldOnly) LumonSceneTraceSceneMetrics.OnSnapshotSucceeded();
+                        if (!nearFieldOnly) LumonSceneTraceSceneMetrics.SetLastSnapshotInfo(
                             chunkX: chunkX,
                             chunkY: chunkY,
                             chunkZ: chunkZ,
@@ -306,8 +306,8 @@ internal sealed class LumonSceneTraceSceneChunkSnapshotSource : IChunkSnapshotSo
             }
             catch
             {
-                if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotFailedException();
-                if (!localOnly) LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
+                if (!nearFieldOnly) LumonSceneTraceSceneMetrics.OnSnapshotFailedException();
+                if (!nearFieldOnly) LumonSceneTraceSceneMetrics.OnSnapshotUnavailable();
                 tcs.TrySetResult(null);
             }
         }, "vge-lumon-tracescene-snapshot");

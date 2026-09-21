@@ -4,11 +4,11 @@ namespace VanillaGraphicsExpanded.LumOn.Shaders;
 
 internal sealed class LumOnScreenProbeAtlasGatherProgramLayout : GpuProgramLayout
 {
-    internal LumOnLocalVisibilityBindings LocalVisibility { get; }
+    internal LumOnNearFieldVisibilityBindings NearFieldVisibility { get; }
 
     public LumOnScreenProbeAtlasGatherProgramLayout()
     {
-        LocalVisibility = new LumOnLocalVisibilityBindings(this, 6, 7);
+        NearFieldVisibility = new LumOnNearFieldVisibilityBindings(this, 6, 7);
         RegisterSamplerUnit("octahedralAtlas", 0, required: true);
         RegisterSamplerUnit("probeAnchorPosition", 1, required: true);
         RegisterSamplerUnit("probeAnchorNormal", 2, required: true);

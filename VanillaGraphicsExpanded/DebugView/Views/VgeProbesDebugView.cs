@@ -111,7 +111,7 @@ public static partial class VgeBuiltInDebugViews
         ProbeAtlasTemporalRejection,
         ProbeAtlasMetaFlags,
         ProbeAtlasTraceRadiance,
-        LocalTraceGeometry,
+        NearFieldGeometry,
         ProbeAtlasTraceOutcome,
         ProbeAtlasCurrentRadiance,
         ProbeAtlasFilteredRadiance,
@@ -159,7 +159,7 @@ public static partial class VgeBuiltInDebugViews
         ProbeVizMode.ProbeAtlasTemporalRejection => new(LumOnDebugMode.ProbeAtlasTemporalRejection),
         ProbeVizMode.ProbeAtlasMetaFlags => new(LumOnDebugMode.ProbeAtlasMetaFlags),
         ProbeVizMode.ProbeAtlasTraceRadiance => new(LumOnDebugMode.ProbeAtlasTraceRadiance),
-        ProbeVizMode.LocalTraceGeometry => new(LumOnDebugMode.LocalTraceGeometry),
+        ProbeVizMode.NearFieldGeometry => new(LumOnDebugMode.NearFieldGeometry),
         ProbeVizMode.ProbeAtlasTraceOutcome => new(LumOnDebugMode.ProbeAtlasTraceOutcome),
         ProbeVizMode.ProbeAtlasCurrentRadiance => new(LumOnDebugMode.ProbeAtlasCurrentRadiance),
         ProbeVizMode.ProbeAtlasFilteredRadiance => new(LumOnDebugMode.ProbeAtlasFilteredRadiance),
@@ -208,7 +208,7 @@ public static partial class VgeBuiltInDebugViews
 
         private static bool IsLegendVisible(ProbeVizMode mode) => mode switch
         {
-            ProbeVizMode.LocalTraceGeometry => true,
+            ProbeVizMode.NearFieldGeometry => true,
             ProbeVizMode.ProbeAtlasTraceOutcome => true,
             ProbeVizMode.ProbeAtlasTemporalRejection => true,
             ProbeVizMode.WorldProbeLightingEffect => true,
@@ -351,14 +351,14 @@ public static partial class VgeBuiltInDebugViews
                         + "Near-zero takes priority; red alone does not prove self-intersection.";
                 }
 
-                if (selectedMode == ProbeVizMode.LocalTraceGeometry)
+                if (selectedMode == ProbeVizMode.NearFieldGeometry)
                 {
-                    vtml = "<b>Uploaded local-tracing voxel scene</b><br/>"
+                    vtml = "<b>Uploaded near-field voxel scene</b><br/>"
                         + Line("#1ad9ff", "Solid voxel; shading and lines show faces/edges")
                         + Line("#ff7300", "Solid voxel with unresolved material identity")
                         + Line("#ff00ff", "Unsupported or unavailable cell geometry")
                         + Line("#8000ff", "Unpublished region; traversal stops here")
-                        + Line("#1a33cc", "Local scene unavailable")
+                        + Line("#1a33cc", "Near-field scene unavailable")
                         + Line("#ffff00", "Debug traversal limit reached")
                         + "Black: no occupied cell before leaving the volume.<br/>"
                         + "Shows the first non-air cell, independent of screen depth.";
@@ -613,7 +613,7 @@ public static partial class VgeBuiltInDebugViews
             ProbeVizMode.ProbeAtlasTemporalRejection => "Probe-Atlas Temporal Rejection",
             ProbeVizMode.ProbeAtlasMetaFlags => "Probe-Atlas Meta Flags",
             ProbeVizMode.ProbeAtlasTraceRadiance => "Probe-Atlas Trace Radiance",
-            ProbeVizMode.LocalTraceGeometry => "Local-Tracing Geometry",
+            ProbeVizMode.NearFieldGeometry => "Near-Field Geometry",
             ProbeVizMode.ProbeAtlasTraceOutcome => "Probe-Atlas Trace Outcome",
             ProbeVizMode.ProbeAtlasCurrentRadiance => "Probe-Atlas Current Radiance",
             ProbeVizMode.ProbeAtlasFilteredRadiance => "Probe-Atlas Filtered Radiance",

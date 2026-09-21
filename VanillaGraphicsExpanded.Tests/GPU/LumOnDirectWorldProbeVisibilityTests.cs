@@ -15,7 +15,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests : DirectWorldPr
     public LumOnDirectWorldProbeVisibilityTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Local Occlusion
-    /// <summary>Exterior cached light enters only through a real doorway in the local geometry.</summary>
+    /// <summary>Exterior cached light enters only through a real doorway in the near-field geometry.</summary>
     [Theory]
     [InlineData(31, false)]
     [InlineData(32, false)]
@@ -33,7 +33,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests : DirectWorldPr
         var world = new ControlledVoxelWorld();
         world.AddRoom((-3, -3, -8), (3, 3, -2));
         if (doorway) world.SetBlock(0, 0, -2, null);
-        using var local = new LocalTraceVoxelFixture();
+        using var local = new NearFieldVoxelFixture();
         local.Publish(world);
         var result = RenderDirectVisibility(CreateUniformCache(), local.Scene,
             new Vector3(0.5f, 0.5f, -5), new Vector3(-7.5f), 16, consumer);
@@ -50,7 +50,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests : DirectWorldPr
         }
     }
 
-    /// <summary>Unknown geometry, exhausted traversal and missing local resources cannot establish visibility.</summary>
+    /// <summary>Unknown geometry, exhausted traversal and missing near-field resources cannot establish visibility.</summary>
     [Theory]
     [InlineData(31, 0)]
     [InlineData(-1, 0)]
@@ -64,14 +64,14 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests : DirectWorldPr
     public void UnresolvedVisibility_RemainsDark(int consumer, int scenario)
     {
         EnsureShaderTestAvailable();
-        using var local = new LocalTraceVoxelFixture();
+        using var local = new NearFieldVoxelFixture();
         if (scenario != 0) local.Publish(new ControlledVoxelWorld());
         var result = RenderDirectVisibility(CreateUniformCache(), scenario == 2 ? null : local.Scene,
             new Vector3(0.5f, 0.5f, -5), new Vector3(-7.5f), 16, consumer, budget: scenario == 1 ? 1 : 256);
         AssertLighting(result, consumer, false);
     }
 
-    /// <summary>Local geometry establishes visibility even when nearest angular depth incorrectly lies in front of the receiver.</summary>
+    /// <summary>Near-field geometry establishes visibility even when nearest angular depth incorrectly lies in front of the receiver.</summary>
     [Theory]
     [InlineData(-1)]
     [InlineData(-2)]
@@ -79,7 +79,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests : DirectWorldPr
     public void ClearGeometry_IgnoresQuantizedVisibilityDepth(int consumer)
     {
         EnsureShaderTestAvailable();
-        using var local = new LocalTraceVoxelFixture();
+        using var local = new NearFieldVoxelFixture();
         local.Publish(new ControlledVoxelWorld());
         var result = RenderDirectVisibility(CreateUniformCache(distance: 0.1f), local.Scene,
             new Vector3(0.5f, 0.5f, -5), new Vector3(-7.5f), 16, consumer);

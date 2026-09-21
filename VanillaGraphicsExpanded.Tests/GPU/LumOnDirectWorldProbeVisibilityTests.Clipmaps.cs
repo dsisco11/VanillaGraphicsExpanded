@@ -7,7 +7,7 @@ using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Exercises direct visibility across cache levels and moving local geometry windows.</summary>
+/// <summary>Exercises direct visibility across cache levels and moving near-field geometry windows.</summary>
 public sealed partial class LumOnDirectWorldProbeVisibilityTests
 {
     #region Clipmap Transitions
@@ -33,7 +33,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
             for (int x = -28; x <= 28; x++)
             for (int y = -28; y <= 28; y++)
                 world.SetBlock(x, y, scenario == 1 ? 0 : 2, new Block { BlockId = 1 });
-        using var local = new LocalTraceVoxelFixture();
+        using var local = new NearFieldVoxelFixture();
         local.Publish(world);
         Vector3[] origins = [new(-12), new(-24)];
         Vector3[] rings = [new(3, 2, 1), new(5, 1, 4)];
@@ -109,7 +109,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
     }
     #endregion
 
-    #region Local Window Lifetime
+    #region Near-Field Window Lifetime
     /// <summary>Known clear segments stop contributing when either endpoint lies beyond published geometry.</summary>
     [Theory]
     [InlineData(31)]
@@ -118,7 +118,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
     public void LocalWindowBoundary_RejectsOutsideProbeAndReceiver(int consumer)
     {
         EnsureShaderTestAvailable();
-        using var local = new LocalTraceVoxelFixture();
+        using var local = new NearFieldVoxelFixture();
         local.Publish(new ControlledVoxelWorld());
         var atlas = CreateUniformCache();
         foreach (int side in new[] { -1, 1 })
@@ -144,7 +144,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
     public void LocalWindowMovement_DoesNotExposeStaleClearGeometry(int consumer)
     {
         EnsureShaderTestAvailable();
-        using var local = new LocalTraceVoxelFixture();
+        using var local = new NearFieldVoxelFixture();
         local.Publish(new ControlledVoxelWorld());
         var atlas = CreateUniformCache();
         AssertAt(0.5f, true);

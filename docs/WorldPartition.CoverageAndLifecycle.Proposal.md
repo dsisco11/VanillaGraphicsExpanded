@@ -6,7 +6,7 @@ Status: approved. This document defines changes to our WorldPartition and its co
 
 Turn the existing WorldPartition cell registry into a shared coordinator for world-aligned spatial partitions. Multiple partition instances will register independent layouts, coverage requirements, and content providers. WorldPartition will determine which cells are required, schedule their lifecycle work, and track whether their contents are actually ready.
 
-The first consumer will be local-tracing voxel geometry. The immediate objective is consistent coverage around tracing origins as the player moves, with incremental capture and GPU publication. Subsequent consumers will reuse the same spatial residency machinery while retaining their domain-specific update algorithms.
+The first consumer will be near-field voxel geometry. The immediate objective is consistent coverage around tracing origins as the player moves, with incremental capture and GPU publication. Subsequent consumers will reuse the same spatial residency machinery while retaining their domain-specific update algorithms.
 
 ## Current code and problem
 
@@ -17,12 +17,12 @@ The current components provide useful foundations but divide ownership across co
 - `IWorldCell`, `WorldCellStateMachine`, and `WorldCellWindowHysteresis` provide state, transition, and retention helpers.
 - `LumonSceneRegionScheduler` manages near-scene cell transitions, capture, and relighting queues.
 - `TraceSceneRegionScheduler` manages tracing-region work, retries, and window membership.
-- `LumonSceneOccupancyClipmapUpdateRenderer.LocalTracing.cs` attaches local geometry publication to the occupancy scene's snapshot stream and derives local volume size from that scene's resolution.
+- `LumonSceneOccupancyClipmapUpdateRenderer.NearField.cs` attaches near-field geometry publication to the occupancy scene's snapshot stream and derives local volume size from that scene's resolution.
 - `LumOnWorldProbeScheduler` separately owns probe-level coverage, ring movement, and lighting-update selection.
 
 `WorldCellKey` currently identifies a cell by a fixed kind and a kind-specific packed value. It cannot independently identify several registered partitions of the same kind. Transition contexts also expose chunk-oriented windows and integer camera positions rather than a general partition layout and source description.
 
-`LocalTraceGpuScene.Prepare` currently snaps its window to 32-block boundaries. With a 64-block volume, player coordinates 0 through 31 select the interval [-32, 32) along that axis. At coordinate 31, only one block remains toward the positive boundary. Crossing coordinate 32 shifts the interval to [0, 64). This is an asymmetric coverage policy, not a reason to abandon world-aligned cells.
+`NearFieldGpuScene.Prepare` currently snaps its window to 32-block boundaries. With a 64-block volume, player coordinates 0 through 31 select the interval [-32, 32) along that axis. At coordinate 31, only one block remains toward the positive boundary. Crossing coordinate 32 shifts the interval to [0, 64). This is an asymmetric coverage policy, not a reason to abandon world-aligned cells.
 
 The new system must keep cell boundaries fixed while selecting enough cells to cover the required area around moving sources. It must distinguish desired coverage from ready coverage: choosing a cell does not make its geometry available.
 
@@ -61,7 +61,7 @@ A logical cell key consists of the partition instance, world scope, and signed i
 
 Map each axis with `cellCoordinate = floor(worldPosition / cellExtent)`, including negative positions, and use half-open cell bounds `[cellCoordinate * cellExtent, (cellCoordinate + 1) * cellExtent)` consistently. The moving coverage window and GPU ring offsets do not change these fixed logical boundaries. Keep grid coordinates as integers and source positions at double precision. Convert to small relative floating-point coordinates only at rendering boundaries. Remove the assumption that every partition's cell center is representable by `CenterHalfBlockPos`.
 
-The first local geometry layout will use 16-block cells. This is independent of the game's 32-block source chunks. The layout contract will also support other cell sizes; changing a registered layout replaces its registration generation and invalidates its old cells rather than reinterpreting existing coordinates.
+The first near-field geometry layout will use 16-block cells. This is independent of the game's 32-block source chunks. The layout contract will also support other cell sizes; changing a registered layout replaces its registration generation and invalidates its old cells rather than reinterpreting existing coordinates.
 
 Registration disposal cancels pending work, prevents further publication, and retires resources on their owning thread. World unload performs the same operation for all registrations in that world scope.
 
@@ -79,7 +79,7 @@ Required cells target Active. Prefetched and retained cells target Loaded. Cells
 
 Coverage evaluation selects every cell intersecting the required bounds. It must not select only cells whose centers fall inside those bounds. Enumerate the necessary integer coordinate range and update entering/leaving cells when its bounds change; avoid rescanning every world cell each frame.
 
-For local geometry, required bounds must include the supported screen-probe origin domain expanded by the maximum local trace reach and the surface-adjacent lighting lookup margin. The cache handoff distance can depend on probe level, so a fixed camera radius alone is insufficient. Origins outside the configured supported domain remain explicitly unresolved; this bounded diagnostic volume cannot cover every distant visible surface.
+For near-field geometry, required bounds must include the supported screen-probe origin domain expanded by the maximum near-field trace reach and the surface-adjacent lighting lookup margin. The cache handoff distance can depend on probe level, so a fixed camera radius alone is insufficient. Origins outside the configured supported domain remain explicitly unresolved; this bounded diagnostic volume cannot cover every distant visible surface.
 
 Prefetch may incorporate movement direction, but it must preserve required coverage in all directions. Hysteresis may delay retirement; it must never delay requesting a newly required cell. Teleports immediately replace the required set and cancel obsolete requests.
 
@@ -89,7 +89,7 @@ A centered 64-block interval can intersect three 32-block cells along an axis, o
 
 Retain the distinction between desired state and actual transition progress. Adapt the existing Loaded/Active state model so providers can acknowledge transitions rather than allowing consumers to independently mutate shared state.
 
-Loaded means the provider's complete resident representation is available. For local geometry, this includes a coherent GPU upload, so prefetch does not defer that upload until the cell becomes required. Active additionally enables the consumer's active participation or update policy; it need not require another upload. Publication readiness is tracked independently from this Loaded/Active distinction. Dirty content and in-flight revisions are also separate from residency: an active cell can require rebuilding without being a new logical cell.
+Loaded means the provider's complete resident representation is available. For near-field geometry, this includes a coherent GPU upload, so prefetch does not defer that upload until the cell becomes required. Active additionally enables the consumer's active participation or update policy; it need not require another upload. Publication readiness is tracked independently from this Loaded/Active distinction. Dirty content and in-flight revisions are also separate from residency: an active cell can require rebuilding without being a new logical cell.
 
 Every request and completion carries:
 
@@ -109,7 +109,7 @@ Publication follows this order:
 5. Acknowledge readiness only after all required resources are coherent for the rendering consumer.
 6. Release superseded resources according to the backend's ownership rules.
 
-For local tracing, geometry, light, material references, and readiness must become usable coherently. A reused GPU slot must not expose its previous owner's data under the new cell identity. Dirty geometry becomes unavailable until its replacement is safely published; the partition must not retain known-stale occlusion merely to conceal a coverage gap.
+For near-field tracing, geometry, light, material references, and readiness must become usable coherently. A reused GPU slot must not expose its previous owner's data under the new cell identity. Dirty geometry becomes unavailable until its replacement is safely published; the partition must not retain known-stale occlusion merely to conceal a coverage gap.
 
 Missing source chunks are a retryable dependency condition, not empty geometry. Unsupported block geometry is a content limitation, not a reason to endlessly retry an otherwise current snapshot. Both conditions remain distinguishable in diagnostics.
 
@@ -123,19 +123,19 @@ Required missing cells receive priority over speculative prefetch. Within requir
 
 Under sustained overload, expose required-versus-ready coverage and pending work explicitly. No generic policy can guarantee instantly ready coverage after a teleport or with insufficient memory. Prefetch and retention reduce ordinary movement gaps; they do not remove these resource constraints.
 
-## Local-tracing geometry migration
+## Near-field geometry migration
 
-Create a local geometry partition with an independent layout, coverage configuration, and publication backend. Remove ownership of its window from the occupancy clipmap renderer once this partition becomes authoritative.
+Create a near-field geometry partition with an independent layout, coverage configuration, and publication backend. Remove ownership of its window from the occupancy clipmap renderer once this partition becomes authoritative.
 
-Reuse the source chunk snapshot infrastructure and `LocalTraceCellCapture`. A 16-block publication cell occupies a subregion of a 32-block source chunk. Coalesce overlapping source capture requests so multiple publication cells do not independently read the same chunk unnecessarily. A chunk change invalidates each dependent publication cell, while processing and uploading remain cell-granular. Source availability and dependency revisions remain explicit.
+Reuse the source chunk snapshot infrastructure and `NearFieldCellCapture`. A 16-block publication cell occupies a subregion of a 32-block source chunk. Coalesce overlapping source capture requests so multiple publication cells do not independently read the same chunk unnecessarily. A chunk change invalidates each dependent publication cell, while processing and uploading remain cell-granular. Source availability and dependency revisions remain explicit.
 
-Generalize `LocalTraceGpuScene` from fixed 32-block regions to the partition's publication-cell size and allocated cell window. Update the local UBO and shader addressing together: current `>> 5`, multiplication by 32, and readiness texture dimensions encode the old region size. Preserve world-to-ring mapping and integer chunk plus fractional-origin precision.
+Generalize `NearFieldGpuScene` from fixed 32-block regions to the partition's publication-cell size and allocated cell window. Update the near-field UBO and shader addressing together: current `>> 5`, multiplication by 32, and readiness texture dimensions encode the old region size. Preserve world-to-ring mapping and integer chunk plus fractional-origin precision.
 
 Use a contiguous camera-following GPU cell window for the initial consumer. Allocate enough cells for the configured required and prefetch bounds; bound retention by physical capacity. Preserve overlapping cells as the window shifts and recycle only departing slots. A ring remains appropriate for this regular bounded layout; an arbitrary sparse page table is not required for the initial migration.
 
 The general coordinator can represent multiple sources. This initial contiguous GPU backend supports a bounded source envelope; widely separated source requests must receive an explicit capacity/coverage limitation rather than aliasing or silently replacing another source's data.
 
-Keep local geometry capture independent of probe lighting refresh. Publication revisions remain visible to consumers, and existing history invalidation behavior must continue to work during migration. This proposal does not independently redesign temporal lighting history.
+Keep near-field geometry capture independent of probe lighting refresh. Publication revisions remain visible to consumers, and existing history invalidation behavior must continue to work during migration. This proposal does not independently redesign temporal lighting history.
 
 ## Existing scene consumers
 
@@ -160,13 +160,13 @@ Retain domain ownership of:
 - Lighting age, confidence, invalidation, and temporal history.
 - Atlas packing and upload format.
 
-Residency readiness must not be mistaken for valid directional lighting. The adapter must preserve rejection of stale probe work when atlas slots are reassigned. The migration is accepted only if coordinate/ring behavior and lighting-update results remain equivalent and the shared coordinator demonstrably removes duplicated residency machinery. Local geometry adoption does not depend on this migration.
+Residency readiness must not be mistaken for valid directional lighting. The adapter must preserve rejection of stale probe work when atlas slots are reassigned. The migration is accepted only if coordinate/ring behavior and lighting-update results remain equivalent and the shared coordinator demonstrably removes duplicated residency machinery. Near-field geometry adoption does not depend on this migration.
 
 ## Observability
 
 Provide per-partition counts for required, resident, ready, dirty, queued, and in-flight cells, plus capture/upload backlog, retries, stale completions, and capacity shortfalls. Expose the source bounds and selected cell bounds together so asymmetric coverage is visible.
 
-Extend World Cell Bounds to identify registered partitions and show desired versus ready coverage. Update Local-Tracing Geometry to visualize the new cell layout using the same GPU resources sampled by tracing. Keep unpublished, unsupported, and out-of-coverage conditions separate. Required coverage that is not ready must be visible rather than reported as an empty successful scene.
+Extend World Cell Bounds to identify registered partitions and show desired versus ready coverage. Update Near-Field Geometry to visualize the new cell layout using the same GPU resources sampled by tracing. Keep unpublished, unsupported, and out-of-coverage conditions separate. Required coverage that is not ready must be visible rather than reported as an empty successful scene.
 
 ## Verification and acceptance
 
@@ -190,7 +190,7 @@ Measure capture duplication, bytes uploaded during movement, frame-thread work, 
 ## Delivery order
 
 1. Add registration, coordinate, coverage, lifecycle, and scheduling contracts around the existing registry, with isolated tests.
-2. Introduce the local geometry partition, 16-block publication cells, and matching GPU addressing/readiness changes.
+2. Introduce the near-field geometry partition, 16-block publication cells, and matching GPU addressing/readiness changes.
 3. Validate coverage and publication during movement using the geometry viewer and controlled delayed-work tests.
 4. Migrate existing scene residency ownership and remove the replaced code paths.
 5. Evaluate world-probe spatial residency against the equivalence and cost criteria above; migrate only that responsibility if those criteria are met.

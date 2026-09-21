@@ -25,7 +25,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
         var world = new ControlledVoxelWorld();
         for (int y = -8; y <= 8; y++)
         for (int z = -8; z <= 8; z++) world.SetBlock(2, y, z, new Block { BlockId = 1 });
-        using var local = new LocalTraceVoxelFixture();
+        using var local = new NearFieldVoxelFixture();
         local.Publish(world);
         var atlas = new WorldProbeAtlasData(2, 16);
         for (int y = 0; y < atlas.Height; y++)
@@ -61,7 +61,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
         EnsureShaderTestAvailable();
         var world = new ControlledVoxelWorld();
         world.AddRoom((-3, -3, -8), (3, 3, -2));
-        using var local = new LocalTraceVoxelFixture();
+        using var local = new NearFieldVoxelFixture();
         local.Publish(world);
         var center = new Vector3(4.5f, 4.5f, 0.5f);
         var result = RenderDirectVisibility(CreateUniformCache(), local.Scene, new Vector3(0.5f, 0.5f, -5),
@@ -82,7 +82,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
         world.AddRoom((offset - 3, -3, -8), (offset + 3, 3, -2));
         if (doorway) world.SetBlock(offset, 0, -2, null);
         var origin = new VectorInt3(offset, 0, 0);
-        using var local = new LocalTraceVoxelFixture(origin);
+        using var local = new NearFieldVoxelFixture(origin);
         local.Publish(world);
         var result = RenderDirectVisibility(CreateUniformCache(), local.Scene, new Vector3(0.5f, 0.5f, -5),
             new Vector3(-7.5f), 16, 31, worldOffset: origin);

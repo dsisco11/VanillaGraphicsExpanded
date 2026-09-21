@@ -20,7 +20,7 @@ public class LumOnProbeSh9GatherShaderProgram : GpuProgram
 {
     private LumOnProbeParamsUbo? paramsUbo;
 
-    internal LumOnLocalVisibilityBindings LocalVisibility => ((LumOnProbeSh9GatherProgramLayout)ProgramLayout).LocalVisibility;
+    internal LumOnNearFieldVisibilityBindings NearFieldVisibility => ((LumOnProbeSh9GatherProgramLayout)ProgramLayout).NearFieldVisibility;
 
     protected override GpuProgramLayout CreateLayout() => new LumOnProbeSh9GatherProgramLayout();
 

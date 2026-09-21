@@ -14,7 +14,7 @@ public sealed class WorldPartitionModSystem : ModSystem
     /// <summary>Creates the coordinator lazily on the render thread which owns its providers.</summary>
     internal PartitionCoordinator GetCoordinator() => coordinator ??= new(new(16384, 256, 128, 128, 32L * 1024 * 1024));
 
-    /// <summary>Services all registered providers once per local geometry render update.</summary>
+    /// <summary>Services all registered providers once per near-field geometry render update.</summary>
     internal void Pump() => GetCoordinator().Pump(++tick);
 
     /// <summary>Spatial rendering partitions only load on clients.</summary>

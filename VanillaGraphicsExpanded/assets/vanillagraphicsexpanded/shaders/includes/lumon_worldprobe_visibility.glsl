@@ -5,10 +5,10 @@
 #define VGE_LUMON_DIRECT_LOCAL_VISIBILITY 0
 #endif
 #if VGE_LUMON_DIRECT_LOCAL_VISIBILITY
-@import "./lumon_local_trace.glsl"
+@import "./lumon_near_field_trace.glsl"
 #endif
 
-/** Checks the probe-to-sample segment independently of lighting direction; direct consumers use published local geometry. */
+/** Checks the probe-to-sample segment independently of lighting direction; direct consumers use published near-field geometry. */
 bool lumonWorldProbeCanReachSample(
     sampler2D radianceAtlas, ivec3 storageIndex, int level, int resolution,
     vec3 probeCenter, vec3 samplePosition, float spacing)
@@ -23,12 +23,12 @@ bool lumonWorldProbeCanReachSample(
     if (distanceToSample <= 1e-6)
     {
         uint geometry;
-        return lumonLocalReadGeometry(cell, geometry) && (geometry & 3u) == 1u;
+        return lumonNearFieldReadGeometry(cell, geometry) && (geometry & 3u) == 1u;
     }
     // Exclude only the receiver endpoint. Do not apply a spacing-scaled depth bias:
     // it could permit a nearby wall between the receiver and the probe.
     float segmentLength = max(distanceToSample - 0.0001, 0.000001);
-    return lumonTraceLocal(cell, fract(origin), delta / distanceToSample, segmentLength).outcome == LUMON_LOCAL_CLEAR;
+    return lumonTraceNearField(cell, fract(origin), delta / distanceToSample, segmentLength).outcome == LUMON_NEAR_FIELD_CLEAR;
 #else
     if (distanceToSample <= 1e-6) return true;
 

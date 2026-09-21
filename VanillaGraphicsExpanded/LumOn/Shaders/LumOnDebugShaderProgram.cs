@@ -20,7 +20,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public class LumOnDebugShaderProgram : GpuProgram
 {
-    internal LumOnLocalVisibilityBindings LocalVisibility => ((LumOnDebugProgramLayout)ProgramLayout).LocalVisibility;
+    internal LumOnNearFieldVisibilityBindings NearFieldVisibility => ((LumOnDebugProgramLayout)ProgramLayout).NearFieldVisibility;
 
     protected override GpuProgramLayout CreateLayout() => new LumOnDebugProgramLayout();
 

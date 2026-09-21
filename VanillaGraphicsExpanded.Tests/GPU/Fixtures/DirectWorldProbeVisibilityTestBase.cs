@@ -1,7 +1,7 @@
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
-using VanillaGraphicsExpanded.LumOn.Scene.LocalTracing;
+using VanillaGraphicsExpanded.LumOn.Scene.NearField;
 using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
@@ -19,7 +19,7 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
 
     #region Direct Consumer Harness
     /// <summary>Renders debug modes, atlas gather (-1), or SH9 gather (-2), forcing invalid screen probes.</summary>
-    private protected float[] RenderDirectVisibility(WorldProbeAtlasData atlas, LocalTraceGpuScene? scene,
+    private protected float[] RenderDirectVisibility(WorldProbeAtlasData atlas, NearFieldGpuScene? scene,
         Vector3 sampleCenter, Vector3 cacheOrigin, float spacing, int consumer,
         int size = 4, float span = 0.1f, int budget = 256, VectorInt3 worldOffset = default,
         Vector3 ring = default, bool suppress = false,
@@ -72,15 +72,15 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
             scene?.Geometry.Bind(geometryUnit);
             scene?.Regions.Bind(readinessUnit);
             GL.UseProgram(program);
-            GL.Uniform1(GL.GetUniformLocation(program, "localTraceGeometry"), geometryUnit);
-            GL.Uniform1(GL.GetUniformLocation(program, "localTraceRegions"), readinessUnit);
+            GL.Uniform1(GL.GetUniformLocation(program, "nearFieldGeometry"), geometryUnit);
+            GL.Uniform1(GL.GetUniformLocation(program, "nearFieldRegions"), readinessUnit);
             GL.UseProgram(0);
             using var localBuffer = GpuUniformBuffer.Create(debugName: "Tests.DirectVisibility");
-            var local = new LumOnLocalTraceParamsUbo();
+            var local = new LumOnNearFieldParamsUbo();
             local.Set(scene?.Origin ?? default, scene?.Resolution ?? 0, budget, scene?.CellSize ?? 16);
             localBuffer.UploadOrResize(local.Bytes, growExponentially: false);
-            localBuffer.BindBase(LumOnLocalTraceParamsUbo.Binding);
-            UniformBlockBindingUtil.EnsureBlockBound(program, LumOnLocalTraceParamsUbo.BlockName, LumOnLocalTraceParamsUbo.Binding);
+            localBuffer.BindBase(LumOnNearFieldParamsUbo.Binding);
+            UniformBlockBindingUtil.EnsureBlockBound(program, LumOnNearFieldParamsUbo.BlockName, LumOnNearFieldParamsUbo.Binding);
 
             // Move the camera while compensating the view-space receiver so the
             // reconstructed player-relative surface remains stationary.

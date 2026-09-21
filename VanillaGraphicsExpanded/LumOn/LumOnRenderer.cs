@@ -255,7 +255,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return false;
         }
 
-        PrepareLocalTraceScene();
+        PrepareNearFieldScene();
         PrepareWorldProbeComparison();
         lightingPassesComplete = true;
 
@@ -732,7 +732,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         // Define-backed knobs must be set before Use() so the correct variant is bound.
         shader.SetDefine(VgeShaderDefines.LumOnEmissiveBoost, Math.Max(0.0f, config.LumOn.EmissiveGiBoost).ToString("0.0####", CultureInfo.InvariantCulture));
-        if (!shader.EnsureLocalTraceDefines())
+        if (!shader.EnsureNearFieldDefines())
         {
             lightingPassesComplete = false;
             return;
@@ -816,7 +816,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         }
         shader.SuppressWorldProbeRadiance = comparisonPass;
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
-        shader.BindLocalScene(localTraceScene);
+        shader.BindNearFieldScene(nearFieldScene);
         shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
         // Bind probe anchor textures
@@ -1124,7 +1124,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (shader.SetDefine(LumOnLocalVisibilityBindings.EnabledDefine, "1"))
+        if (shader.SetDefine(LumOnNearFieldVisibilityBindings.EnabledDefine, "1"))
         {
             lightingPassesComplete = false;
             return;
@@ -1164,7 +1164,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
-        shader.LocalVisibility.Bind(shader, localTraceScene);
+        shader.NearFieldVisibility.Bind(shader, nearFieldScene);
         shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
         shader.ProbeSh0 = bufferManager.ProbeSh9Tex0;
@@ -1225,7 +1225,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (shader.SetDefine(LumOnLocalVisibilityBindings.EnabledDefine, "1"))
+        if (shader.SetDefine(LumOnNearFieldVisibilityBindings.EnabledDefine, "1"))
         {
             lightingPassesComplete = false;
             return;
@@ -1266,7 +1266,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         }
         shader.SuppressWorldProbeRadiance = comparisonPass;
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
-        shader.LocalVisibility.Bind(shader, localTraceScene);
+        shader.NearFieldVisibility.Bind(shader, nearFieldScene);
         shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
         // Bind screen-probe atlas radiance

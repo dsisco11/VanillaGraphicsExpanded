@@ -109,15 +109,15 @@ internal sealed class LumonSceneTraceSceneRegionProcessor : IChunkProcessor<Lumo
             }
 
             // Far occupancy snapshots do not retain companion lighting allocations.
-            LocalTracing.LocalTraceSourceCell[]? local = null;
+            NearField.NearFieldSourceCell[]? local = null;
             for (int i = 0; i < dst.Length; i++)
             {
-                if (src[i].LocalTrace == default) continue;
-                local = new LocalTracing.LocalTraceSourceCell[dst.Length];
-                for (int j = 0; j < local.Length; j++) local[j] = src[j].LocalTrace;
+                if (src[i].NearField == default) continue;
+                local = new NearField.NearFieldSourceCell[dst.Length];
+                for (int j = 0; j < local.Length; j++) local[j] = src[j].NearField;
                 break;
             }
-            return ValueTask.FromResult(new LumonSceneTraceSceneRegionArtifact(snapshot.Key, snapshot.Version, regionCoord, dst) { LocalCells = local });
+            return ValueTask.FromResult(new LumonSceneTraceSceneRegionArtifact(snapshot.Key, snapshot.Version, regionCoord, dst) { NearFieldCells = local });
         }
 
         throw new InvalidOperationException(

@@ -29,7 +29,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
         for (int x = -8; x <= 8; x++)
         for (int z = -8; z <= 8; z++)
             world.SetBlock(offset + x, offset, offset + z, new Block { BlockId = 1 });
-        using var local = new LocalTraceVoxelFixture(new VectorInt3(offset, offset, offset));
+        using var local = new NearFieldVoxelFixture(new VectorInt3(offset, offset, offset));
         local.Publish(world);
         // Keep fractions in double precision until subtracting the stable player origin.
         var playerOrigin = new Vector3d(offset + 0.25, offset + 0.375, offset + 0.625);

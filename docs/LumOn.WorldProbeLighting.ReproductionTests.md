@@ -111,17 +111,17 @@ Matching irradiance/confidence assertions attribute black pixels to rejection ra
 
 Validation receipts: [test log](../artifacts/wall-visibility-reproduction.log) and [TRX](../artifacts/TestResults/wall-visibility-reproduction.trx).
 
-## Local world tracing and cache handoff
+## Near-field tracing and cache handoff
 
 The screen-probe trace shader now resolves screen misses through local voxel geometry before sampling distant world radiance. The subsequent direct-visibility repair is recorded separately below.
 
-[LocalTraceVoxelFixture](../VanillaGraphicsExpanded.Tests/GPU/Fixtures/LocalTraceVoxelFixture.cs) adapts the shared controlled voxel world into production region artifacts and publishes them through the real GPU scene owner. Scene contents, normalized cell light, hit materials, readiness and versions are independently controllable. The fixture uses real texture uploads and production traversal; it does not mock individual ray results.
+[NearFieldVoxelFixture](../VanillaGraphicsExpanded.Tests/GPU/Fixtures/NearFieldVoxelFixture.cs) adapts the shared controlled voxel world into production region artifacts and publishes them through the real GPU scene owner. Scene contents, normalized cell light, hit materials, readiness and versions are independently controllable. The fixture uses real texture uploads and production traversal; it does not mock individual ray results.
 
-The GPU scenarios are separated into [basic tracing](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceFunctionalTests.cs), [geometry](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceFunctionalTests.Geometry.cs), [hit lighting](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceFunctionalTests.Lighting.cs), [publication](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceFunctionalTests.Publication.cs), and [cache sampling](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceFunctionalTests.Cache.cs), with a shared binding harness.
+The GPU scenarios are separated into [basic tracing](../VanillaGraphicsExpanded.Tests/GPU/LumOnNearFieldFunctionalTests.cs), [geometry](../VanillaGraphicsExpanded.Tests/GPU/LumOnNearFieldFunctionalTests.Geometry.cs), [hit lighting](../VanillaGraphicsExpanded.Tests/GPU/LumOnNearFieldFunctionalTests.Lighting.cs), [publication](../VanillaGraphicsExpanded.Tests/GPU/LumOnNearFieldFunctionalTests.Publication.cs), and [cache sampling](../VanillaGraphicsExpanded.Tests/GPU/LumOnNearFieldFunctionalTests.Cache.cs), with a shared binding harness.
 
 Coverage includes:
 
-- Bright exterior/cache around a dark sealed room: zero lighting with valid local-hit confidence in every traced direction.
+- Bright exterior/cache around a dark sealed room: zero lighting with valid near-field hit confidence in every traced direction.
 - Nonzero outside-cell block light: preserved local radiance, unaffected by cache-only diagnostic suppression.
 - Open doorway followed by closure: distant lighting appears through the opening and disappears behind the new wall.
 - Initial solid cells, tied voxel boundaries, negative coordinates and world offsets of plus/minus 16,777,216.
@@ -129,13 +129,13 @@ Coverage includes:
 - Missing material: opaque hit retained, lighting unavailable, no cache substitution.
 - Dirty generations, stale async completions and world-region identity after physical slot reuse.
 - Fully visible diffuse sky term of inverse pi; independent emitted radiance with the GI emission boost applied once.
-- Clear local segments retain distant lighting; near cache hits are excluded.
+- Clear near-field segments retain distant lighting; near cache hits are excluded.
 - Directional parallax changes addressed cache texels while preserving constant incident radiance between eight neighbors.
-- Combined local tracing and importance-selection shader compilation with world caching enabled and disabled.
+- Combined near-field tracing and importance-selection shader compilation with world caching enabled and disabled.
 
 The sealed-room test caught an implementation defect where advancing all tied DDA axes sampled outside light from a different wall cell. The tracer now resolves tied boundaries one face at a time, preserving the adjacent light-cell relationship.
 
-[Source-cell tests](../VanillaGraphicsExpanded.Tests/Unit/LumOn/Scene/LocalTraceCellCaptureTests.cs) verify supported opaque cubes, unsupported partial/noncolliding/transmissive geometry, most-solid-layer checks and normalized lighting. [Artifact tests](../VanillaGraphicsExpanded.Tests/Unit/LumOn/Scene/LocalTraceRegionArtifactTests.cs) verify independent payload ownership and omission of uncaptured companion data.
+[Source-cell tests](../VanillaGraphicsExpanded.Tests/Unit/LumOn/Scene/NearFieldCellCaptureTests.cs) verify supported opaque cubes, unsupported partial/noncolliding/transmissive geometry, most-solid-layer checks and normalized lighting. [Artifact tests](../VanillaGraphicsExpanded.Tests/Unit/LumOn/Scene/NearFieldRegionArtifactTests.cs) verify independent payload ownership and omission of uncaptured companion data.
 
 ### Validation and limits
 
@@ -153,9 +153,9 @@ These tests establish controlled shader and publication correctness. They do not
 
 Local lighting and diffuse/emission material textures now use normalized RGBA8. The region texture uses R8UI readiness only; the CPU owns slot identities and versions, and the shader derives wrapping offsets from the integer anchor.
 
-[Ring regressions](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceFunctionalTests.Ring.cs) verify positive/negative single-region moves on each axis, diagonal movement with three regions per axis, and movement beyond the full ring extent. They check exact readiness preservation for overlapping regions, clear newly assigned slots, reject delayed uploads for evicted regions, then exercise shader sampling after replacement publication. A byte-upload control verifies tightly packed 3D rows and restoration of the caller's unpack alignment.
+[Ring regressions](../VanillaGraphicsExpanded.Tests/GPU/LumOnNearFieldFunctionalTests.Ring.cs) verify positive/negative single-region moves on each axis, diagonal movement with three regions per axis, and movement beyond the full ring extent. They check exact readiness preservation for overlapping regions, clear newly assigned slots, reject delayed uploads for evicted regions, then exercise shader sampling after replacement publication. A byte-upload control verifies tightly packed 3D rows and restoration of the caller's unpack alignment.
 
-[Lighting controls](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceFunctionalTests.Lighting.cs) test RGBA8 quantization at zero, dim intensities and full intensity. Existing local emission, sealed-room, stale-version, large-coordinate and parallax cases remain applicable. Quantization is intentional: normalized steps are 1/255, while shader output and boosted emission remain HDR.
+[Lighting controls](../VanillaGraphicsExpanded.Tests/GPU/LumOnNearFieldFunctionalTests.Lighting.cs) test RGBA8 quantization at zero, dim intensities and full intensity. Existing local emission, sealed-room, stale-version, large-coordinate and parallax cases remain applicable. Quantization is intentional: normalized steps are 1/255, while shader output and boosted emission remain HDR.
 
 Compact-format validation: **47 local tests and 15 texture/format/upload regressions passed, with zero failures or skips**. The build succeeded. Receipts: [local tests](../artifacts/local-trace-compact-final.log), [local TRX](../artifacts/TestResults/local-trace-compact-final.trx), and [texture regressions](../artifacts/local-trace-compact-textures.log). These checks validate correctness and quantization behavior; no live performance measurement was made.
 
@@ -173,7 +173,7 @@ These tests exercise production shaders over controlled full-cube geometry. They
 
 ### Direct visibility validation results
 
-**Initial implementation validation: 39 direct-visibility cases and 216 regression cases passed, zero failures or skips.** The regression selection includes local tracing, prior world-probe controls, shader compilation, UBO/layout binding and debug routing. Build succeeded with the same six unrelated warnings.
+**Initial implementation validation: 39 direct-visibility cases and 216 regression cases passed, zero failures or skips.** The regression selection includes near-field tracing, prior world-probe controls, shader compilation, UBO/layout binding and debug routing. Build succeeded with the same six unrelated warnings.
 
 | Consumer                    | Wall inset | Exact clear segments | False rejections | Accepted |
 | --------------------------- | ---------- | -------------------- | ---------------- | -------- |
@@ -184,7 +184,7 @@ These tests exercise production shaders over controlled full-cube geometry. They
 
 Receipts: [direct visibility tests](../artifacts/direct-visibility-final.log), [direct visibility TRX](../artifacts/TestResults/direct-visibility-final.trx), [regression tests](../artifacts/direct-visibility-regression.log), and [regression TRX](../artifacts/TestResults/direct-visibility-regression.trx).
 
-### Clipmap and local-window regression validation
+### Clipmap and near-field-window regression validation
 
 The reusable atlas fixture now supports multiple vertically stacked levels. The direct-consumer harness accepts per-level origins and ring offsets. Its depth and normal textures now cover the full declared screen size: gather uses integer guide fetches, so the previous 1x1 inputs allowed undefined out-of-range reads. The corrected fixture supersedes the earlier direct-consumer receipts.
 
@@ -192,7 +192,7 @@ The reusable atlas fixture now supports multiple vertically stacked levels. The 
 
 - Red fine-level and green coarse-level lighting retain the diffuse integral through the fine interior, overlap band, and fine-volume boundary, using different nonzero ring offsets.
 - Walls reject both levels; an occluded coarse level cannot replace visible fine lighting; unavailable fine metadata selects visible coarse lighting.
-- Probe and receiver positions beyond either local-window X boundary remain unresolved, while an inside control remains lit.
+- Probe and receiver positions beyond either near-field-window X boundary remain unresolved, while an inside control remains lit.
 - Moving the geometry window retains overlapping published cells, rejects stale air in a reused slot, rejects newly published solid geometry, and accepts the slot after clear geometry is published.
 
 **57 direct-visibility cases passed, zero failures or skips**, including all prior direct controls and the four dense wall cases. The corrected guide textures retain zero false rejections across all 16,384 samples in each wall case. No production shader changes were needed.
@@ -222,15 +222,15 @@ After-fix receipts: [focused log](../artifacts/world-probe-camera-bob-after.log)
 
 ### Screen-hit versus off-screen lighting
 
-[Screen-hit controls](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceFunctionalTests.ScreenHits.cs) use the reusable local trace harness with a constant screen-depth plane and the same published voxel room. A screen-only control identifies directions that actually hit the screen plane; assertions then compare those directions against the off-screen local result. This prevents a test that accidentally exercises only misses from passing.
+[Screen-hit controls](../VanillaGraphicsExpanded.Tests/GPU/LumOnNearFieldFunctionalTests.ScreenHits.cs) use the reusable near-field trace harness with a constant screen-depth plane and the same published voxel room. A screen-only control identifies directions that actually hit the screen plane; assertions then compare those directions against the off-screen local result. This prevents a test that accidentally exercises only misses from passing.
 
 Before the repair, two lit-room cases returned zero on screen versus approximately 0.251 and 1.0 off screen. An unavailable-source case incorrectly published confidence 1. All three failed; the genuinely dark control passed. Receipts: [before log](../artifacts/screen-hit-lighting-before.log) and [before TRX](../artifacts/TestResults/screen-hit-lighting-before.trx).
 
-Controls additionally require cache suppression to preserve local lighting and metadata, material emission to be counted once with its GI boost, visible emission to survive an unavailable local scene, and a known opaque hit with missing material to reject borrowed screen emission. These are controlled shader results, not a live performance or visual capture.
+Controls additionally require cache suppression to preserve local lighting and metadata, material emission to be counted once with its GI boost, visible emission to survive an unavailable near-field scene, and a known opaque hit with missing material to reject borrowed screen emission. These are controlled shader results, not a live performance or visual capture.
 
-After-fix validation: **54 local-tracing tests passed**, zero failures or skips. The final-revision broader selection passed **306 tests**, zero failures, with two existing explicit skips for indirect tint and distance falloff. Build succeeded. Receipts: [local tests](../artifacts/screen-hit-lighting-after.log), [local TRX](../artifacts/TestResults/screen-hit-lighting-after.trx), [regression log](../artifacts/screen-hit-lighting-regression.log), and [regression TRX](../artifacts/TestResults/screen-hit-lighting-regression.trx).
+After-fix validation: **54 near-field tests passed**, zero failures or skips. The final-revision broader selection passed **306 tests**, zero failures, with two existing explicit skips for indirect tint and distance falloff. Build succeeded. Receipts: [local tests](../artifacts/screen-hit-lighting-after.log), [local TRX](../artifacts/TestResults/screen-hit-lighting-after.trx), [regression log](../artifacts/screen-hit-lighting-regression.log), and [regression TRX](../artifacts/TestResults/screen-hit-lighting-regression.trx).
 
-Live scene appearance and the added traversal cost remain unverified. The WP lighting-effect view compares cached world radiance specifically; the repaired local hit lighting remains present in both diagnostic branches.
+Live scene appearance and the added traversal cost remain unverified. The WP lighting-effect view compares cached world radiance specifically; the repaired near-field hit lighting remains present in both diagnostic branches.
 
 ### Trace-outcome diagnostic
 
@@ -251,25 +251,25 @@ Near-zero hits take priority over lighting readiness; red alone does not prove s
 For the indoor-black investigation, allow the atlas directions to update while viewing the affected room, then record the dominant colors. The live cause remains unresolved until this diagnostic is observed in the affected scene.
 
 Diagnostic validation: **40 focused tests passed**, zero failures or skips. The controls exercise actual near-zero, lit, dark, unavailable, budget-limited, cache and sky traces; all seven display colors; renderer routing and buffer requirements; and outcome preservation through temporal filtering. Build succeeded with six existing warnings. Receipts: [focused log](../artifacts/trace-outcome-diagnostic.log) and [focused TRX](../artifacts/TestResults/trace-outcome-diagnostic.trx). Live in-game colors remain unverified.
-The complete local-tracing selection also passed all **61 tests**, zero failures or skips, including the earlier screen-hit and cache-suppression controls. Receipts: [local regression log](../artifacts/trace-outcome-local-regression.log) and [local regression TRX](../artifacts/TestResults/trace-outcome-local-regression.trx).
+The complete near-field selection also passed all **61 tests**, zero failures or skips, including the earlier screen-hit and cache-suppression controls. Receipts: [local regression log](../artifacts/trace-outcome-local-regression.log) and [local regression TRX](../artifacts/TestResults/trace-outcome-local-regression.trx).
 
 ### Captured material-readiness reproduction
 
 The live observation motivating this case is mostly magenta trace outcomes, occasional red, and apparently normal world-probe irradiance. The existing synthetic GPU scenes assign material identity 1 directly, so they do not exercise live cell capture's dependency on material-registry readiness.
 
-The new candidate scenario uses a loaded, lit, opaque cube room. It runs production cell capture, material resolution, GPU scene publication, and the actual probe trace shader. Capture before material readiness stores opaque geometry with material identity zero; the local hit shader rejects that identity as unavailable lighting. Updating the material registry alone does not rewrite captured cell identities. A ready-from-start control and recapture of the unchanged room distinguish this dependency from geometry, missing chunks, light values, or traversal limits.
+The new candidate scenario uses a loaded, lit, opaque cube room. It runs production cell capture, material resolution, GPU scene publication, and the actual probe trace shader. Capture before material readiness stores opaque geometry with material identity zero; the near-field hit shader rejects that identity as unavailable lighting. Updating the material registry alone does not rewrite captured cell identities. A ready-from-start control and recapture of the unchanged room distinguish this dependency from geometry, missing chunks, light values, or traversal limits.
 
 This is a controlled candidate mechanism, not confirmation of the live root cause. Normal startup builds derived material data on the block-texture event; the test does not establish that the affected game session captured its room before that event. It does not reproduce the complete scene scheduler, occasional red hits, or mostly white temporal confidence. No rendering behavior is changed by this reproduction work.
 
-[The reproduction tests](../VanillaGraphicsExpanded.Tests/GPU/LumOnLocalTraceMaterialReadinessTests.cs) passed all **5 cases**. In each of the three missing-material variants (surface missing, derived lookup missing, both missing), the same room's real CPU world-probe integrator returns lit samples while every tested local GPU direction reports a geometric hit, zero radiance, zero confidence, and outcome 4. GPU region readiness remains 1. Registry readiness alone leaves the scene revision and results unchanged; recapture restores outcome 2, confidence 1, and approximately 0.251 RGB. Ready-from-start capture passes. The partial-block control remains unavailable by the current geometry-support contract.
+[The reproduction tests](../VanillaGraphicsExpanded.Tests/GPU/LumOnNearFieldMaterialReadinessTests.cs) passed all **5 cases**. In each of the three missing-material variants (surface missing, derived lookup missing, both missing), the same room's real CPU world-probe integrator returns lit samples while every tested local GPU direction reports a geometric hit, zero radiance, zero confidence, and outcome 4. GPU region readiness remains 1. Registry readiness alone leaves the scene revision and results unchanged; recapture restores outcome 2, confidence 1, and approximately 0.251 RGB. Ready-from-start capture passes. The partial-block control remains unavailable by the current geometry-support contract.
 
-Reusable support consists of [production cell publication](../VanillaGraphicsExpanded.Tests/GPU/Fixtures/LocalTraceVoxelFixture.cs), the [shared shader harness](../VanillaGraphicsExpanded.Tests/GPU/Fixtures/LocalTraceShaderTestBase.cs), and a [scoped material-readiness fixture](../VanillaGraphicsExpanded.Tests/Fixtures/WorldProbes/ScopedPbrMaterialFixture.cs). Material data uses the production derived-surface builder; a test-only reflection seam installs its result and restores the original registry state. The collection runs exclusively to protect singleton users. Region scheduling and game event ordering are outside this fixture.
+Reusable support consists of [production cell publication](../VanillaGraphicsExpanded.Tests/GPU/Fixtures/NearFieldVoxelFixture.cs), the [shared shader harness](../VanillaGraphicsExpanded.Tests/GPU/Fixtures/NearFieldShaderTestBase.cs), and a [scoped material-readiness fixture](../VanillaGraphicsExpanded.Tests/Fixtures/WorldProbes/ScopedPbrMaterialFixture.cs). Material data uses the production derived-surface builder; a test-only reflection seam installs its result and restores the original registry state. The collection runs exclusively to protect singleton users. Region scheduling and game event ordering are outside this fixture.
 
-The full local-tracing selection passed **66 tests**, zero failures or skips. Receipts: [reproduction log](../artifacts/local-material-readiness-reproduction.log), [reproduction TRX](../artifacts/TestResults/local-material-readiness-reproduction.trx), [regression log](../artifacts/local-material-readiness-regression.log), and [regression TRX](../artifacts/TestResults/local-material-readiness-regression.trx). These passing characterization tests assert the current failure mechanism and its recovery control; they are not evidence of a production fix.
+The full near-field selection passed **66 tests**, zero failures or skips. Receipts: [reproduction log](../artifacts/local-material-readiness-reproduction.log), [reproduction TRX](../artifacts/TestResults/local-material-readiness-reproduction.trx), [regression log](../artifacts/local-material-readiness-regression.log), and [regression TRX](../artifacts/TestResults/local-material-readiness-regression.trx). These passing characterization tests assert the current failure mechanism and its recovery control; they are not evidence of a production fix.
 
-### Local-tracing geometry viewer
+### Near-field geometry viewer
 
-Select **Probes → Local-Tracing Geometry** to inspect the actual uploaded local voxel scene. Camera rays traverse the production geometry and region-readiness textures, independently of screen depth, probe radiance, and material lighting. No separate debug voxel upload is created. The first non-air or unavailable cell terminates the ray.
+Select **Probes → Near-Field Geometry** to inspect the actual uploaded local voxel scene. Camera rays traverse the production geometry and region-readiness textures, independently of screen depth, probe radiance, and material lighting. No separate debug voxel upload is created. The first non-air or unavailable cell terminates the ray.
 
 | Color | Meaning |
 | --- | --- |

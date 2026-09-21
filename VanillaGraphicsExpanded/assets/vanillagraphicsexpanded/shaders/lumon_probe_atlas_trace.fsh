@@ -30,12 +30,12 @@ layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFlo
 // World-probe clipmap helpers
 @import "./includes/lumon_worldprobe.glsl"
 
-#ifndef VGE_LUMON_LOCAL_TRACE_ENABLED
-#define VGE_LUMON_LOCAL_TRACE_ENABLED 0
+#ifndef VGE_LUMON_NEAR_FIELD_ENABLED
+#define VGE_LUMON_NEAR_FIELD_ENABLED 0
 #endif
-#if VGE_LUMON_LOCAL_TRACE_ENABLED
-@import "./includes/lumon_local_hit_lighting.glsl"
-@import "./includes/lumon_local_cache_handoff.glsl"
+#if VGE_LUMON_NEAR_FIELD_ENABLED
+@import "./includes/lumon_near_field_hit_lighting.glsl"
+@import "./includes/lumon_near_field_cache_handoff.glsl"
 #endif
 
 // Import noise for ray jittering
@@ -279,10 +279,10 @@ void main(void)
     float localLightingConfidence = 1.0;
     float worldProbeFallbackConfidence = 0.0;
     
-#if VGE_LUMON_LOCAL_TRACE_ENABLED
-    int cacheLevel; float cacheRadius; float localDistance;
-    bool cacheCovered = lumonLocalCacheCoverage(probePosWS, cacheLevel, cacheRadius, localDistance);
-    if (!cacheCovered) localDistance = VGE_LUMON_RAY_MAX_DISTANCE;
+#if VGE_LUMON_NEAR_FIELD_ENABLED
+    int cacheLevel; float cacheRadius; float nearFieldDistance;
+    bool cacheCovered = lumonNearFieldCacheCoverage(probePosWS, cacheLevel, cacheRadius, nearFieldDistance);
+    if (!cacheCovered) nearFieldDistance = VGE_LUMON_RAY_MAX_DISTANCE;
     vec3 matrixOrigin = probePosWS + probeNormalWS * 0.001 + matrixSpaceWorldBlockOffsetRem;
     ivec3 startCell = ivec3(floor(matrixOrigin)) + matrixSpaceWorldChunkCoordOffset * 32;
     // A screen hit supplies depth, not reflected radiance. Resolve its supported voxel
@@ -290,21 +290,21 @@ void main(void)
     // Include the screen thickness and origin-offset difference at the segment end.
     float geometryDistance = hit.hit
         ? min(hit.distance + VGE_LUMON_RAY_THICKNESS + 0.01, VGE_LUMON_RAY_MAX_DISTANCE)
-        : localDistance;
-    bool localOriginSupported = lumonLocalOriginSupported(startCell, fract(matrixOrigin), max(geometryDistance, localDistance));
-    LumonLocalHit localHit = lumonTraceLocal(startCell, fract(matrixOrigin), rayDirWS, localOriginSupported ? geometryDistance : 0.0);
+        : nearFieldDistance;
+    bool nearFieldOriginSupported = lumonNearFieldOriginSupported(startCell, fract(matrixOrigin), max(geometryDistance, nearFieldDistance));
+    LumonNearFieldHit nearFieldHit = lumonTraceNearField(startCell, fract(matrixOrigin), rayDirWS, nearFieldOriginSupported ? geometryDistance : 0.0);
 #endif
 
     if (hit.hit) {
-        // Visible emission is a fallback until a supported local hit is resolved.
+        // Visible emission is a fallback until a supported near-field hit is resolved.
         radiance = hit.color * indirectTint;
         hitDistance = hit.distance;
-#if VGE_LUMON_LOCAL_TRACE_ENABLED
+#if VGE_LUMON_NEAR_FIELD_ENABLED
         localLightingConfidence = any(greaterThan(radiance, vec3(0.0))) ? 1.0 : 0.0;
-        if (localHit.outcome == LUMON_LOCAL_HIT)
+        if (nearFieldHit.outcome == LUMON_NEAR_FIELD_HIT)
         {
             vec3 localRadiance;
-            if (lumonShadeLocalHit(localHit, localDistance, LUMON_EMISSIVE_BOOST, localRadiance))
+            if (lumonShadeNearFieldHit(nearFieldHit, nearFieldDistance, LUMON_EMISSIVE_BOOST, localRadiance))
             {
                 // Replace, rather than add to, screen emission: the shared evaluator
                 // already includes emission once. Gather applies the indirect tint.
@@ -318,20 +318,20 @@ void main(void)
                 radiance = vec3(0.0);
                 localLightingConfidence = 0.0;
             }
-            hitDistance = localHit.distance;
+            hitDistance = nearFieldHit.distance;
         }
 #endif
     } else {
-#if VGE_LUMON_LOCAL_TRACE_ENABLED
+#if VGE_LUMON_NEAR_FIELD_ENABLED
         radiance = vec3(0.0);
-        if (localHit.outcome == LUMON_LOCAL_HIT)
+        if (nearFieldHit.outcome == LUMON_NEAR_FIELD_HIT)
         {
             hit.hit = true;
-            hit.distance = localHit.distance;
-            bool lightReady = lumonShadeLocalHit(localHit, localDistance, LUMON_EMISSIVE_BOOST, radiance);
+            hit.distance = nearFieldHit.distance;
+            bool lightReady = lumonShadeNearFieldHit(nearFieldHit, nearFieldDistance, LUMON_EMISSIVE_BOOST, radiance);
             localLightingConfidence = lightReady ? 1.0 : 0.0;
         }
-        else if (localHit.outcome == LUMON_LOCAL_CLEAR && cacheCovered)
+        else if (nearFieldHit.outcome == LUMON_NEAR_FIELD_CLEAR && cacheCovered)
         {
             LumOnWorldProbeRadianceSample wp = lumonSampleLocalCache(probePosWS, rayDirWS, cacheLevel, cacheRadius);
             radiance = suppressWorldProbeRadiance ? vec3(0.0) : wp.radiance;

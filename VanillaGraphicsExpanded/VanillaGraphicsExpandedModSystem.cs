@@ -1,4 +1,4 @@
-﻿using VanillaGraphicsExpanded.HarmonyPatches;
+using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;

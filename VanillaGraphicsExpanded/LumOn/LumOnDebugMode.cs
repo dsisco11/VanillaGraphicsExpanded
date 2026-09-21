@@ -141,6 +141,6 @@ public enum LumOnDebugMode
     WorldProbeImportance = 68,
     /// <summary>Latest sampled trace outcome per screen-probe direction.</summary>
     ProbeAtlasTraceOutcome = 69,
-    /// <summary>Camera-ray visualization of the uploaded local tracing geometry and region readiness.</summary>
-    LocalTraceGeometry = 70,
+    /// <summary>Camera-ray visualization of the uploaded near-field tracing geometry and region readiness.</summary>
+    NearFieldGeometry = 70,
 }
