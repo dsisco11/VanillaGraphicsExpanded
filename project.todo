@@ -1,10 +1,22 @@
 Issues:
-  ☐ Mod settings not live reloading properly (e.g. changes to Lumon shader settings dont always take effect).
-  ✔ Refactor debug viewer UI. we should have a "Debug View" abstraction that can be registered with the renderer, and a single debug viewer UI that lists all registered debug views.
-      ✔ Debug Views should have a name, category, description, and an `IRenderer` registration delegate, as well as the ability to specify a debug-view-sub-panel (for complex debug views that need more UI).
-      ✔ The main debug viewer UI should allow filtering by category and selecting a debug view to activate.
+  Current:
+    ☐ Create a local-tracing geometry debug view to visualize the near-tracing voxel geometry scene which is uploaded to the GPU.
+    ☐ Refactor near-tracing geometry system to support "directional" voxel types (e.g. partial blocks like stairs & slabs), as well as voxel types which are basically pass-through like campfires.
+    ☐ Implement support for dynamic updates to the near-tracing geometry, allowing changes in the scene to be reflected in the GPU representation without full re-upload.
   
+  Debug View ystem:
+    ☐ Refactor debug view system so that debug view panels can actually have nested categories, allowing for better organization and easier navigation of complex debug information.
+    ☐ Split all of the Probe-view debug modes into nested categories for better organization. e.g. all "Probe-atlas" views should be under the "Probe atlas" category, etc.
+
+  Performance:
+    ☐ Audit each of the LumOn shaders for opportunities to reduce shader code instruction count.
+    ☐ Profile the performance of the near-tracing geometry system to identify bottlenecks and optimize GPU memory usage.
+    ☐ Investigate potential optimizations for memory layout and data transfer patterns to improve overall GPU efficiency.
+
   PBR Shading:
+    ☐ Ensure PBR shader system can operate independently of LumOn and still produce nice lighting.
+        ☐ Ensure PBr shader system is split into two halves, first half does the material properties setup and albedo maps and such, second half does final compositing to produce a direct-lighting result. 
+        when LumOn is enabled, the PBR compositor stage would be disabled, which prevents its lighting from interfering with the LumOn lighting results which become the authoritive lighting representation when enabled.
     ☐ pbr-direct-lighting doesnt include flood-filled block-light.
     ☐ pbr-direct-lighting doesnt include flood-filled sun-light.
     ☐ pbr-direct-lighting doesnt include shadow map.
@@ -12,7 +24,6 @@ Issues:
   WorldProbes:
     ☐ Rename world-probe classes to remove `LumOn` prefix.
     ☐ PBR Matrial system integration for probe tracing (material properties affecting probe radiance).
-    ✔ World probes should use an octahedral atlas instead of spherical harmonics.
 
   LumonScene:
     ☐ Need VirtualPagedAtlas system to manage allocation of "pages" in a large virtual atlas texture for many different systems.
@@ -48,30 +59,6 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
     5. Upsample (optional spatial denoise)
     6. Combine (optional)
 
-✔ Phase 7 - Pass 1 - Probe Anchor Jitter: @done(26-01-17 09:06)
-  Exit artifacts: Probe anchor pass supports jitter (frameIndex plumbing + optional config toggles); probe anchors remain MRT posWS/normalWS.
-
-✔ Phase 8 - Pass 0 (Optional/Recommended) - Depth Pyramid / HZB: @done(26-01-17 09:06)
-  Exit artifacts: Depth pyramid textures exist per frame; screen-probe tracer can consume HZB for traversal/refinement.
-
-✔ Phase 9.0 - Naming/Refactor - Screen-Probe Atlas Terminology: @done(26-01-17 09:05)
-  Exit artifacts: Public-facing names and file/class identifiers use “ScreenProbeAtlas” (or similar) instead of “Octahedral”, while octahedral remains an implementation detail for the mapping math.
-
-✔ Phase 9 - Pass 2 - Screen-Probe Atlas Meta Output: @done(26-01-17 09:05)
-  Exit artifacts: Screen-probe trace outputs radiance/hitdist plus meta (confidence + bitflags); history preservation applies to meta too.
-
-✔ Phase 10 - Pass 3 - Screen-Probe Atlas Temporal Uses Meta: @done(26-01-17 09:05)
-  Exit artifacts: Screen-probe atlas temporal produces meta-aware stabilized atlases suitable for downstream filtering/gather.
-
-✔ Phase 11 - Pass 3.5 - Probe-Space Filter/Denoise (New): @done(26-01-17 09:03)
-  Exit artifacts: Filtered atlas exists (radiance/hitdist/confidence as applicable); renderer can choose raw vs filtered as gather input.
-
-✔ Phase 12 - Pass 4 - Cheaper Gather Options: @done(26-01-17 09:03)
-  Exit artifacts: Gather has a defined “cheap” mode (stride/fewer dirs) and/or a projected-basis path (if implemented) selectable via config.
-
-✔ Phase 13 - Integration, Debug, and Performance: @done(26-01-17 09:03)
-  Exit artifacts: New passes are debuggable and timed; perf baselines documented; optional minimal visual regression hooks exist.
-
 ☐ Phase 14 - Screen-Space Parity/Polish (Remaining Discrepancies):
   Depends on: Phase 9 (confidence), Phase 10 (temporal uses confidence), Phase 11 (probe-space filter).
   Exit artifacts: Screen-space GI is more Lumen-like in stability/robustness (exposure-stable, fewer edge holes, fewer temporal fireflies), with tests/diagnostics.
@@ -92,15 +79,6 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
     - Add optional moments buffer (e.g., first/second moment of radiance) for the probe atlas or for indirectHalf
     - Use it for variance clamp/firefly suppression in temporal and/or post-filter
   ✔ Screen-trace hole filling strategy: @done(26-01-27 00:06)
-
-✔ Phase 15 - BRDF + AO + Short-Range AO Compositing (New): @done(26-01-17 09:03)
-  Goal: Replace the current “simple add” indirect integration with a physically-plausible compositing pass that
-  accounts for roughness/metallic/specular response and supports AO + short-range AO for better contact and sky occlusion.
-
-  Exit artifacts: A dedicated composite stage exists (shader + program + renderer wiring) that:
-    - Computes indirect diffuse/specular using a BRDF approximation (energy-conserving) from G-buffer material inputs
-    - Applies AO and (optionally) short-range AO visibility for ambient/sky contribution
-    - Produces stable, debuggable outputs with tests for correctness and edge cases
 
 ✔ Phase 16 - PBR Direct Lighting Pass System (New): @done(26-01-17 09:03)
   Goal: Create a dedicated, high-quality PBR direct-lighting pass that is independent of LumOn
