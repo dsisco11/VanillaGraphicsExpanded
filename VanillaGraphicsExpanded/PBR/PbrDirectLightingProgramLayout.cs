@@ -12,14 +12,7 @@ internal sealed class PbrDirectLightingProgramLayout : GpuProgramLayout
 
     public PbrDirectLightingProgramLayout()
     {
-        RegisterUniformBlockBinding(PbrDirectLightingParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
-
-        RegisterSamplerUnit("primaryScene", unit: 0, required: true);
-        RegisterSamplerUnit("primaryDepth", unit: 1, required: true);
-        RegisterSamplerUnit("gBufferNormal", unit: 2, required: true);
-        RegisterSamplerUnit("gBufferMaterial", unit: 3, required: true);
-        RegisterSamplerUnit("shadowMapNear", unit: 4, required: true);
-        RegisterSamplerUnit("shadowMapFar", unit: 5, required: true);
+        RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("pbr_direct_lighting"));
     }
 
     public void BindParamsUbo(Rendering.Shaders.GpuProgram program, string debugName)

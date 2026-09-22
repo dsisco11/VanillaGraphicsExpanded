@@ -17,7 +17,8 @@ public sealed class LumOnWorldProbeClipmapResolveShaderProgram : GpuProgram
 
     public LumOnWorldProbeClipmapResolveShaderProgram()
     {
-        RegisterUniformBlockBinding(LumOnWorldProbeResolveParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
+        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_worldprobe_clipmap_resolve"));
+
     }
 
     private LumOnWorldProbeResolveParamsUbo Params => paramsUbo ??= new LumOnWorldProbeResolveParamsUbo();

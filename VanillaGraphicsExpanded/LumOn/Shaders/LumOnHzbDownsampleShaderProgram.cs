@@ -17,8 +17,7 @@ public sealed class LumOnHzbDownsampleShaderProgram : GpuProgram
 
     public LumOnHzbDownsampleShaderProgram()
     {
-        RegisterUniformBlockBinding(LumOnHzbDownsampleParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
-        ProgramLayout.RegisterSamplerUnit("hzbDepth", 0, required: true);
+        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_hzb_downsample"));
     }
 
     private LumOnHzbDownsampleParamsUbo Params => paramsUbo ??= new LumOnHzbDownsampleParamsUbo();

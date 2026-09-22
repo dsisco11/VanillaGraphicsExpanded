@@ -13,17 +13,7 @@ internal sealed class PbrCompositeProgramLayout : GpuProgramLayout
 
     public PbrCompositeProgramLayout()
     {
-        RegisterUniformBlockBinding(PbrCompositeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
-
-        RegisterSamplerUnit("directDiffuse", unit: 0, required: true);
-        RegisterSamplerUnit("directSpecular", unit: 1, required: true);
-        RegisterSamplerUnit("emissive", unit: 2, required: true);
-        RegisterSamplerUnit("indirectDiffuse", unit: 3, required: true);
-
-        RegisterSamplerUnit("gBufferAlbedo", unit: 4, required: true);
-        RegisterSamplerUnit("gBufferMaterial", unit: 5, required: true);
-        RegisterSamplerUnit("primaryDepth", unit: 6, required: true);
-        RegisterSamplerUnit("gBufferNormal", unit: 7, required: true);
+        RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("pbr_composite"));
     }
 
     public void BindParamsUbo(GpuProgram program, string debugName)

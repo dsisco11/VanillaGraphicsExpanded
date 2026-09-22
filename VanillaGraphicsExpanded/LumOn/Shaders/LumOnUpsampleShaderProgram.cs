@@ -20,11 +20,7 @@ public class LumOnUpsampleShaderProgram : GpuProgram
 
     public LumOnUpsampleShaderProgram()
     {
-        RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);
-        RegisterUniformBlockBinding(LumOnUpsampleParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
-        ProgramLayout.RegisterSamplerUnit("indirectHalf", 0, required: true);
-        ProgramLayout.RegisterSamplerUnit("primaryDepth", 1, required: true);
-        ProgramLayout.RegisterSamplerUnit("gBufferNormal", 2, required: true);
+        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_upsample"));
     }
 
     private LumOnUpsampleParamsUbo Params => paramsUbo ??= new LumOnUpsampleParamsUbo();

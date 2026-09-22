@@ -15,9 +15,7 @@ public sealed class VgeWorldProbeOrbsPointsShaderProgram : GpuProgram
 
     public VgeWorldProbeOrbsPointsShaderProgram()
     {
-        RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);
-        RegisterUniformBlockBinding(LumOnUniformBuffers.WorldProbeBlockName, LumOnUniformBuffers.WorldProbeBinding, required: true);
-        RegisterUniformBlockBinding(VgeWorldProbeOrbsPointsParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
+        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("vge_worldprobe_orbs_points"));
     }
 
     public static void Register(ICoreClientAPI api)

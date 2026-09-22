@@ -13,13 +13,10 @@ internal sealed class LumOnNearFieldVisibilityBindings
     private readonly LumOnNearFieldParamsUbo parameters = new();
 
     #region Shader Contract
-    /// <summary>Registers the two geometry samplers and the shared local mapping contract.</summary>
-    public LumOnNearFieldVisibilityBindings(GpuProgramLayout layout, int geometryUnit, int readinessUnit)
+    /// <summary>Uses the owning program layout for the shared geometry sampler slots.</summary>
+    public LumOnNearFieldVisibilityBindings(GpuProgramLayout layout)
     {
         this.layout = layout;
-        layout.RegisterUniformBlockBinding(LumOnNearFieldParamsUbo.BlockName, LumOnNearFieldParamsUbo.Binding, required: false);
-        layout.RegisterSamplerUnit("nearFieldGeometry", geometryUnit, required: false);
-        layout.RegisterSamplerUnit("nearFieldRegions", readinessUnit, required: false);
     }
 
     /// <summary>Binds a coherent local snapshot; unavailable geometry never implies visibility.</summary>

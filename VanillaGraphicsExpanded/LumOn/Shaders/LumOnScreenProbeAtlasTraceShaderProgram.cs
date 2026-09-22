@@ -23,14 +23,6 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
 
     protected override GpuProgramLayout CreateLayout() => new LumOnScreenProbeAtlasTraceProgramLayout();
 
-    public LumOnScreenProbeAtlasTraceShaderProgram()
-    {
-        RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);
-        RegisterUniformBlockBinding(LumOnUniformBuffers.WorldProbeBlockName, LumOnUniformBuffers.WorldProbeBinding, required: false);
-        RegisterUniformBlockBinding(LumOnNearFieldParamsUbo.BlockName, LumOnNearFieldParamsUbo.Binding, required: false);
-        RegisterUniformBlockBinding(LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
-    }
-
     private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();
 
     #region Diagnostic Controls

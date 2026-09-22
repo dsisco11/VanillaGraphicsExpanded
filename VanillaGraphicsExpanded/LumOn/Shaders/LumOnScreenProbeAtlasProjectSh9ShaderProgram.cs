@@ -15,10 +15,7 @@ public class LumOnScreenProbeAtlasProjectSh9ShaderProgram : GpuProgram
 {
     public LumOnScreenProbeAtlasProjectSh9ShaderProgram()
     {
-        RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);
-        ProgramLayout.RegisterSamplerUnit("octahedralAtlas", 0, required: true);
-        ProgramLayout.RegisterSamplerUnit("probeAtlasMeta", 1, required: true);
-        ProgramLayout.RegisterSamplerUnit("probeAnchorPosition", 2, required: true);
+        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_probe_atlas_project_sh9"));
     }
 
     #region Static

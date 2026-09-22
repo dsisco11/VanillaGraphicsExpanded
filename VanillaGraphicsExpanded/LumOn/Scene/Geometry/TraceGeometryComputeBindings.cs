@@ -12,16 +12,6 @@ internal sealed class TraceGeometryComputeBindings : IDisposable
     private readonly GpuUniformBuffer buffer = GpuUniformBuffer.Create(debugName: "LumOn.SharedGeometry.Parameters");
 
     #region Compute binding contract
-    /// <summary>Registers the shared inputs; unused companions may be optimized away by individual consumers.</summary>
-    public static void Register(GpuProgramLayout layout)
-    {
-        layout.RegisterUniformBlockBinding(LumOnNearFieldParamsUbo.BlockName, LumOnNearFieldParamsUbo.Binding);
-        layout.RegisterSamplerUnit("nearFieldGeometry", 8);
-        layout.RegisterSamplerUnit("nearFieldRegions", 9);
-        layout.RegisterSamplerUnit("traceSceneLegacy", 10, required: false);
-        layout.RegisterSamplerUnit("traceSceneFaces", 11);
-    }
-
     /// <summary>Binds a coherent scene and explicit unavailable domains when no generation exists.</summary>
     public void Bind(TraceGeometryGpuScene? scene)
     {

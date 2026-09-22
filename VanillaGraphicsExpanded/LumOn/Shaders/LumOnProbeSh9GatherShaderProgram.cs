@@ -24,12 +24,6 @@ public class LumOnProbeSh9GatherShaderProgram : GpuProgram
 
     protected override GpuProgramLayout CreateLayout() => new LumOnProbeSh9GatherProgramLayout();
 
-    public LumOnProbeSh9GatherShaderProgram()
-    {
-        RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);
-        RegisterUniformBlockBinding(LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
-    }
-
     private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();
 
     #region Diagnostic Controls

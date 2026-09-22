@@ -14,7 +14,8 @@ public sealed class LumOnHzbCopyShaderProgram : GpuProgram
 {
     public LumOnHzbCopyShaderProgram()
     {
-        ProgramLayout.RegisterSamplerUnit("primaryDepth", 0, required: true);
+        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_hzb_copy"));
+
     }
 
     public static void Register(ICoreClientAPI api)

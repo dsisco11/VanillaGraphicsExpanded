@@ -14,6 +14,7 @@ internal sealed class PbrHeightBakeShaderProgram : VgeStageNamedShaderProgram
     public PbrHeightBakeShaderProgram(string passName, string vertexStageName, string fragmentStageName, string domain)
         : base(passName, vertexStageName, fragmentStageName, domain)
     {
-        RegisterUniformBlockBinding(ParamsBlockName, GpuBindingRegistry.Ubo.Object, required: true);
+        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("pbr_heightbake"));
+
     }
 }

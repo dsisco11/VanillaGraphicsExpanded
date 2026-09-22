@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// - Texture units and image units are global GL state; treat them as part of the program contract and always apply them
 ///   deterministically (explicit bindings when available; reflection-based fallback otherwise).
 /// </summary>
-internal static class GpuBindingRegistry
+internal static partial class GpuBindingRegistry
 {
     /// <summary>
     /// UBO (GL_UNIFORM_BUFFER) binding points.
@@ -90,20 +90,4 @@ internal static class GpuBindingRegistry
         }
     }
 
-    /// <summary>
-    /// Throws if a binding index is outside the current context limit.
-    /// This is a helper for development-time assertions.
-    /// </summary>
-    public static void ThrowIfOutOfRangeUbo(int bindingPoint)
-    {
-        if (bindingPoint < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(bindingPoint));
-        }
-
-        if (GpuSupport.MaxUniformBufferBindings > 0 && bindingPoint >= GpuSupport.MaxUniformBufferBindings)
-        {
-            throw new ArgumentOutOfRangeException(nameof(bindingPoint), $"UBO binding point {bindingPoint} exceeds GL_MAX_UNIFORM_BUFFER_BINDINGS={GpuSupport.MaxUniformBufferBindings}.");
-        }
-    }
 }

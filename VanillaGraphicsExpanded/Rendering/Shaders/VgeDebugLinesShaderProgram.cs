@@ -14,7 +14,8 @@ public sealed class VgeDebugLinesShaderProgram : GpuProgram
 
     public VgeDebugLinesShaderProgram()
     {
-        RegisterUniformBlockBinding(VgeDebugLinesParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
+        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("vge_debug_lines"));
+
     }
 
     public static void Register(ICoreClientAPI api)

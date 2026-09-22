@@ -6,21 +6,6 @@ internal sealed class LumOnScreenProbeAtlasTraceProgramLayout : GpuProgramLayout
 {
     public LumOnScreenProbeAtlasTraceProgramLayout()
     {
-        RegisterSamplerUnit("probeAnchorPosition", 0, required: true);
-        RegisterSamplerUnit("probeAnchorNormal", 1, required: true);
-        RegisterSamplerUnit("primaryDepth", 2, required: true);
-        RegisterSamplerUnit("surfaceAlbedo", 3, required: true);
-        RegisterSamplerUnit("gBufferMaterial", 4, required: true);
-        RegisterSamplerUnit("octahedralHistory", 5, required: true);
-        RegisterSamplerUnit("hzbDepth", 6, required: true);
-        RegisterSamplerUnit("probeAtlasMetaHistory", 7, required: true);
-        RegisterSamplerUnit("worldProbeRadianceAtlas", 8, required: false);
-        RegisterSamplerUnit("probeTraceMask", 9, required: true);
-        RegisterSamplerUnit("worldProbeVis0", 11, required: false);
-        RegisterSamplerUnit("worldProbeMeta0", 12, required: false);
-        RegisterSamplerUnit("nearFieldGeometry", 10, required: false);
-        RegisterSamplerUnit("nearFieldLight", 13, required: false);
-        RegisterSamplerUnit("nearFieldRegions", 14, required: false);
-        RegisterSamplerUnit("nearFieldMaterials", 15, required: false);
+        RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_probe_atlas_trace"));
     }
 }

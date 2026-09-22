@@ -25,12 +25,6 @@ public class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
 
     protected override GpuProgramLayout CreateLayout() => new LumOnScreenProbeAtlasGatherProgramLayout();
 
-    public LumOnScreenProbeAtlasGatherShaderProgram()
-    {
-        RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);
-        RegisterUniformBlockBinding(LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
-    }
-
     private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();
 
     /// <summary>

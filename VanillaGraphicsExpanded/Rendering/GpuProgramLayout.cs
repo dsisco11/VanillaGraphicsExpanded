@@ -11,6 +11,17 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// </summary>
 public class GpuProgramLayout
 {
+    #region Shared contract declarations
+    /// <summary>Registers a program's centralized resource slots using the existing runtime binding machinery.</summary>
+    internal void RegisterContract(Contracts.GpuBindingContract contract)
+    {
+        foreach (var (name, value) in contract.UniformBlocks) RegisterUniformBlockBinding(name, value.Slot, value.Required);
+        foreach (var (name, value) in contract.StorageBlocks) RegisterShaderStorageBlockBinding(name, value.Slot, value.Required);
+        foreach (var (name, value) in contract.Samplers) RegisterSamplerUnit(name, value.Slot, value.Required);
+        foreach (var (name, value) in contract.Images) RegisterImageUnit(name, value.Slot, value.Required);
+    }
+    #endregion
+
     #region Types
 
     private readonly record struct BindingSpec(int BindingOrUnit, bool Required);

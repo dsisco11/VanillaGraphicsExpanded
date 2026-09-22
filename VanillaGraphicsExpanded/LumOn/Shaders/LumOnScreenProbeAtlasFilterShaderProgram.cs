@@ -20,11 +20,7 @@ public class LumOnScreenProbeAtlasFilterShaderProgram : GpuProgram
 
     public LumOnScreenProbeAtlasFilterShaderProgram()
     {
-        RegisterUniformBlockBinding(LumOnUniformBuffers.FrameBlockName, LumOnUniformBuffers.FrameBinding, required: true);
-        RegisterUniformBlockBinding(LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
-        ProgramLayout.RegisterSamplerUnit("octahedralAtlas", 0, required: true);
-        ProgramLayout.RegisterSamplerUnit("probeAtlasMeta", 1, required: true);
-        ProgramLayout.RegisterSamplerUnit("probeAnchorPosition", 2, required: true);
+        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_probe_atlas_filter"));
     }
 
     private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();

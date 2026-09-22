@@ -17,7 +17,8 @@ public sealed class LumOnWorldProbeRadianceTileResolveShaderProgram : GpuProgram
 
     public LumOnWorldProbeRadianceTileResolveShaderProgram()
     {
-        RegisterUniformBlockBinding(LumOnWorldProbeResolveParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object, required: true);
+        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_worldprobe_radiance_tile_resolve"));
+
     }
 
     private LumOnWorldProbeResolveParamsUbo Params => paramsUbo ??= new LumOnWorldProbeResolveParamsUbo();
