@@ -22,11 +22,7 @@ public sealed class OptionTests
             [ShaderStage("Contract", ShaderStageKind.Fragment, "example.fsh")]
             [ShaderAcceptGroup("Contract", typeof(Shared), "Lighting")]
             [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(Enabled))]
-            [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(Steps), SpecializationId = 4, When = "active")]
-            [ShaderEquals("enabled", nameof(Enabled), true)]
-            [ShaderNot("disabled", "enabled")]
-            [ShaderAny("either", "enabled", "disabled")]
-            [ShaderAll("active", "enabled", "either")]
+            [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(Steps), SpecializationId = 4, When = "Enabled && (Enabled || !Enabled)")]
             [ShaderFixedDefine("Contract", ShaderStageKind.Fragment, "EXTRA", 7u)]
             internal partial class Shader : Host
             {
@@ -82,5 +78,3 @@ public sealed class OptionTests
     }
     #endregion
 }
-
-

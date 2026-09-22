@@ -7,8 +7,7 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 [ShaderStage("Contract", ShaderStageKind.Vertex, "tests/render_infrastructure.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "tests/render_infrastructure.fsh")]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(Enabled))]
-[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(Steps), SpecializationId = 4, When = "active")]
-[ShaderEquals("active", nameof(Enabled), true)]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(Steps), SpecializationId = 4, When = "Enabled")]
 internal partial class GeneratedAccessorShader : GpuProgram
 {
     [ShaderOption("GENERATED_ENABLED", false, Aliases = new[] { "GENERATED_LEGACY" })]

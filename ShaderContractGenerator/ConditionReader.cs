@@ -1,52 +1,79 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using VanillaGraphicsExpanded.Rendering.Contracts;
-using static ShaderContractGenerator.AttributeValues;
 
 namespace ShaderContractGenerator;
 
-/// <summary>Builds closed structural condition trees from named attribute nodes.</summary>
-internal sealed class ConditionReader(OwnerDeclaration owner)
+/// <summary>Parses restricted authoring expressions into the shared structural condition model.</summary>
+internal sealed class ConditionReader(OwnerDeclaration owner, IReadOnlyList<ShaderOption> structural)
 {
-    #region Condition resolution
-    /// <summary>Resolves a condition and emits the same shared-model construction expression.</summary>
-    public (ShaderCondition Model, string Expression) Read(string name, HashSet<string>? path = null)
+    #region Expression resolution
+    /// <summary>Rejects malformed or partially parsed input before lowering every syntax node.</summary>
+    public (ShaderCondition Model, string Expression) Read(string expression)
     {
-        path ??= new(StringComparer.Ordinal);
-        if (!path.Add(name)) throw new ArgumentException($"Cyclic condition '{name}'.");
-        try
+        var syntax = SyntaxFactory.ParseExpression(expression, consumeFullText: true);
+        if (string.IsNullOrWhiteSpace(expression) || syntax.ContainsDiagnostics)
+            throw new ArgumentException("Malformed condition expression.");
+        var result = Lower(syntax);
+        result.Model.Validate(structural, "condition");
+        return result;
+    }
+
+    /// <summary>Whitelists operators; even unreachable operands are validated rather than executed.</summary>
+    private (ShaderCondition Model, string Expression) Lower(ExpressionSyntax syntax)
+    {
+        switch (syntax)
         {
-            var matches = new[] { "ShaderEquals", "ShaderAll", "ShaderAny", "ShaderNot" }
-                .SelectMany(kind => Attributes(owner.Symbol, kind).Where(a => Text(a, 0) == name).Select(a => (kind, a))).ToArray();
-            if (matches.Length != 1) throw new ArgumentException($"Condition '{name}' is missing or duplicated.");
-            var (kind, attribute) = matches[0];
-            if (kind == "ShaderEquals")
-            {
-                if (!owner.Options.TryGetValue(Text(attribute, 1), out var option)) throw new ArgumentException($"Condition '{name}' references an unknown option.");
-                var value = Argument(attribute, 2);
-                var valueType = option.Shared ? ((INamedTypeSymbol)option.Property.Type).TypeArguments[0] : option.Property.Type;
-                if (!SymbolEqualityComparer.Default.Equals(value.Type, valueType)) throw new ArgumentException($"Condition '{name}' value must match option type '{option.TypeName}'.");
-                var scalar = option.Model.Validate(Scalar(value));
-                ShaderCondition model = option.Model switch
-                {
-                    ShaderOption<bool> key => ShaderCondition.Equal(key, scalar.Bits != 0),
-                    ShaderOption<int> key => ShaderCondition.Equal(key, unchecked((int)scalar.Bits)),
-                    ShaderOption<uint> key => ShaderCondition.Equal(key, scalar.Bits),
-                    _ => throw new ArgumentException($"Condition '{name}' requires a structural scalar.")
-                };
-                return (model, $"ShaderCondition.Equal({option.KeyExpression}, ({option.TypeName}){Literal(value)})");
-            }
-            var names = kind == "ShaderNot" ? new[] { Text(attribute, 1) } : Argument(attribute, 1).Values.Select(v => (string)v.Value!).ToArray();
-            var children = names.Select(child => Read(child, path)).ToArray();
-            var result = kind switch
-            {
-                "ShaderAll" => ShaderCondition.All(children.Select(c => c.Model).ToArray()),
-                "ShaderAny" => ShaderCondition.Any(children.Select(c => c.Model).ToArray()),
-                _ => ShaderCondition.Not(children[0].Model)
-            };
-            return (result, "ShaderCondition." + kind[6..] + "(" + string.Join(", ", children.Select(c => c.Expression)) + ")");
+            case ParenthesizedExpressionSyntax parentheses:
+                return Lower(parentheses.Expression);
+            case IdentifierNameSyntax name:
+                return Equal(Option(name), true);
+            case LiteralExpressionSyntax literal when literal.IsKind(SyntaxKind.TrueLiteralExpression):
+                return (ShaderCondition.All(), "ShaderCondition.All()");
+            case LiteralExpressionSyntax literal when literal.IsKind(SyntaxKind.FalseLiteralExpression):
+                return (ShaderCondition.Any(), "ShaderCondition.Any()");
+            case PrefixUnaryExpressionSyntax unary when unary.IsKind(SyntaxKind.LogicalNotExpression):
+                var child = Lower(unary.Operand);
+                return (ShaderCondition.Not(child.Model), $"ShaderCondition.Not({child.Expression})");
+            case BinaryExpressionSyntax binary when binary.IsKind(SyntaxKind.LogicalAndExpression) || binary.IsKind(SyntaxKind.LogicalOrExpression):
+                var left = Lower(binary.Left);
+                var right = Lower(binary.Right);
+                bool all = binary.IsKind(SyntaxKind.LogicalAndExpression);
+                return (all ? ShaderCondition.All(left.Model, right.Model) : ShaderCondition.Any(left.Model, right.Model),
+                    $"ShaderCondition.{(all ? "All" : "Any")}({left.Expression}, {right.Expression})");
+            case BinaryExpressionSyntax binary when binary.IsKind(SyntaxKind.EqualsExpression):
+                if (binary.Left is not IdentifierNameSyntax property)
+                    throw new ArgumentException("Equality requires an option property on the left and a typed constant on the right.");
+                var option = Option(property);
+                return Equal(option, ConditionConstant.Read(option, binary.Right));
+            default:
+                throw new ArgumentException($"Unsupported condition syntax '{syntax.Kind()}'.");
         }
-        finally { path.Remove(name); }
+    }
+
+    /// <summary>Resolves only local attributed property names, never GLSL names, aliases or generated keys.</summary>
+    private OptionDeclaration Option(IdentifierNameSyntax name) => owner.Options.TryGetValue(name.Identifier.ValueText, out var option)
+        ? option : throw new ArgumentException($"Unknown option property '{name.Identifier.ValueText}'.");
+
+    /// <summary>Validates exact scalar types and domains, then emits the same typed equality at runtime.</summary>
+    private static (ShaderCondition Model, string Expression) Equal(OptionDeclaration option, object value)
+    {
+        ShaderCondition model = (option.Model, value) switch
+        {
+            (ShaderOption<bool> key, bool scalar) => ShaderCondition.Equal(key, scalar),
+            (ShaderOption<int> key, int scalar) => ShaderCondition.Equal(key, scalar),
+            (ShaderOption<uint> key, uint scalar) => ShaderCondition.Equal(key, scalar),
+            _ => throw new ArgumentException($"Condition constant must match structural option type '{option.TypeName}'.")
+        };
+        string literal = value switch
+        {
+            bool boolean => boolean ? "true" : "false",
+            uint number => number.ToString(System.Globalization.CultureInfo.InvariantCulture) + "u",
+            int number => number.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            _ => throw new ArgumentException("Unsupported condition constant.")
+        };
+        return (model, $"ShaderCondition.Equal({option.KeyExpression}, ({option.TypeName}){literal})");
     }
     #endregion
 }
-

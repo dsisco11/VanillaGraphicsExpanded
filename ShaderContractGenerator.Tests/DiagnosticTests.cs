@@ -45,8 +45,7 @@ public sealed class DiagnosticTests
     [Theory]
     [InlineData("[ShaderUse(\"Contract\", ShaderStageKind.Fragment, nameof(Enabled), SpecializationId = -2)]", "invalid specialization")]
     [InlineData("[ShaderUse(\"Contract\", ShaderStageKind.Fragment, nameof(Enabled), SpecializationId = 1, When = \"missing\")]", "missing")]
-    [InlineData("[ShaderEquals(\"active\", nameof(Enabled), true)] [ShaderUse(\"Contract\", ShaderStageKind.Fragment, nameof(Enabled), SpecializationId = 1, When = \"active\")]", "nonstructural")]
-    [InlineData("[ShaderAll(\"cycle\", \"cycle\")] [ShaderUse(\"Contract\", ShaderStageKind.Fragment, nameof(Enabled), SpecializationId = 1, When = \"cycle\")]", "Cyclic")]
+    [InlineData("[ShaderUse(\"Contract\", ShaderStageKind.Fragment, nameof(Enabled), SpecializationId = 1, When = \"Enabled\")]", "nonstructural")]
     public void SpecializationsRejectInvalidMetadata(string use, string expected)
     {
         string source = DeclarationTests.Basic.Replace("[ShaderUse(\"Contract\", ShaderStageKind.Fragment, nameof(Enabled))]", use);
@@ -94,12 +93,6 @@ public sealed class DiagnosticTests
             """;
         AssertDiagnostic(source, "incompatible type");
     }
-    /// <summary>Named conditions cannot hide invalid references when currently unused.</summary>
-    [Fact]
-    public void UnusedInvalidConditionFails()
-    {
-        AssertDiagnostic(DeclarationTests.Basic.Replace("internal static partial class Shader", "[ShaderEquals(\"unused\", \"Missing\", true)] internal static partial class Shader"), "unknown option");
-    }
     /// <summary>Assignments must include the default and complete canonical structural selections.</summary>
     [Theory]
     [InlineData("[ShaderAssignment(\"Contract\", \"ENABLED=1\")]", "omit default")]
@@ -118,4 +111,3 @@ public sealed class DiagnosticTests
     }
     #endregion
 }
-

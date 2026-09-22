@@ -68,8 +68,6 @@ public sealed class ShaderDeclarationGenerator : IIncrementalGenerator
                 foreach (var sameName in owner.Options.Values.GroupBy(o => o.Model.Name))
                     if (sameName.Any(o => o.TypeName != sameName.First().TypeName || !o.Model.Equivalent(sameName.First().Model)))
                         throw new ArgumentException($"Conflicting shared option '{sameName.Key}'.");
-                foreach (string kind in new[] { "ShaderEquals", "ShaderAll", "ShaderAny", "ShaderNot" })
-                    foreach (var condition in Attributes(owner.Symbol, kind)) new ConditionReader(owner).Read(Text(condition, 0));
                 ProgramReader.ReadGroups(owner);
             });
         var reader = new ProgramReader(owners);
@@ -142,7 +140,7 @@ public sealed class ShaderDeclarationGenerator : IIncrementalGenerator
             catch (Exception error) when (error is ArgumentException or InvalidOperationException or KeyNotFoundException or InvalidCastException)
             {
                 failed = true;
-                var location = owner.Symbol.Locations.FirstOrDefault() ?? Location.None;
+                var location = error is ConditionDeclarationException conditionError ? conditionError.Location : owner.Symbol.Locations.FirstOrDefault() ?? Location.None;
                 if (offline && location.SourceTree != null && !originalCompilation.SyntaxTrees.Contains(location.SourceTree))
                     location = Location.Create(location.SourceTree.FilePath, location.SourceSpan, location.GetLineSpan().Span);
                 context.ReportDiagnostic(Diagnostic.Create(InvalidDeclaration, location, owner.Name, error.Message));
@@ -153,13 +151,6 @@ public sealed class ShaderDeclarationGenerator : IIncrementalGenerator
     private static bool IsDeclarationAttribute(AttributeData attribute) => attribute.AttributeClass?.ToDisplayString() is
         Prefix + "ShaderProgramAttribute" or Prefix + "ShaderStageAttribute" or Prefix + "ShaderOptionAttribute" or
         Prefix + "ShaderOptionReferenceAttribute" or Prefix + "ShaderUseAttribute" or Prefix + "ShaderFixedDefineAttribute" or
-        Prefix + "ShaderEqualsAttribute" or Prefix + "ShaderAllAttribute" or Prefix + "ShaderAnyAttribute" or
-        Prefix + "ShaderNotAttribute" or Prefix + "ShaderGroupAttribute" or Prefix + "ShaderAcceptGroupAttribute" or Prefix + "ShaderAssignmentAttribute";
+        Prefix + "ShaderGroupAttribute" or Prefix + "ShaderAcceptGroupAttribute" or Prefix + "ShaderAssignmentAttribute";
     #endregion
 }
-
-
-
-
-
-

@@ -70,21 +70,33 @@ internal sealed class ProgramReader(Dictionary<INamedTypeSymbol, OwnerDeclaratio
         string source = Text(attribute, 2), identity = Text(attribute, "Identity", source)!;
         string layout = Text(attribute, "Layout", source.Contains('.') ? source[..source.LastIndexOf('.')] : source)!;
         string entry = Text(attribute, "EntryPoint", "main")!, binary = Text(attribute, "BinaryAsset", identity)!;
-        var structural = new List<OptionDeclaration>();
+        var uses = Attributes(owner.Symbol, "ShaderUse").Where(a => Text(a, 0) == program && (int)Argument(a, 1).Value! == (int)kind).ToArray();
+        // Gather structural dependencies first so attribute order cannot change condition validity.
+        var structural = uses.Where(a => Named(a, "SpecializationId").Value is not int id || id == -1)
+            .Select(a => owner.Options.TryGetValue(Text(a, 2), out var option) ? option : throw new ArgumentException($"Program '{program}' references unknown option member '{Text(a, 2)}'.")).ToList();
         var constants = new List<(ShaderSpecialization Model, string Expression)>();
-        foreach (var use in Attributes(owner.Symbol, "ShaderUse").Where(a => Text(a, 0) == program && (int)Argument(a, 1).Value! == (int)kind))
+        foreach (var use in uses)
         {
             if (!owner.Options.TryGetValue(Text(use, 2), out var option)) throw new ArgumentException($"Program '{program}' references unknown option member '{Text(use, 2)}'.");
             int id = Named(use, "SpecializationId").Value is int number ? number : -1;
             string? when = Text(use, "When");
             if (id == -1)
             {
-                if (when != null) throw new ArgumentException("Structural uses cannot have availability conditions.");
-                structural.Add(option);
+                if (when != null) throw new ConditionDeclarationException($"Program '{program}', stage '{identity}', expression '{when}': Structural uses cannot have availability conditions.",
+                    use.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None);
             }
             else
             {
-                var condition = when == null ? ((ShaderCondition Model, string Expression)?)null : new ConditionReader(owner).Read(when);
+                (ShaderCondition Model, string Expression)? condition = null;
+                if (when != null)
+                {
+                    try { condition = new ConditionReader(owner, structural.Select(o => o.Model).ToArray()).Read(when); }
+                    catch (ArgumentException error)
+                    {
+                        throw new ConditionDeclarationException($"Program '{program}', stage '{identity}', expression '{when}': {error.Message}",
+                            use.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None, error);
+                    }
+                }
                 constants.Add((new ShaderSpecialization(id, option.Model, condition?.Model),
                     $"new ShaderSpecialization({id}, {option.KeyExpression}, {condition?.Expression ?? "null"})"));
             }
@@ -106,5 +118,3 @@ internal sealed class ProgramReader(Dictionary<INamedTypeSymbol, OwnerDeclaratio
     }
     #endregion
 }
-
-

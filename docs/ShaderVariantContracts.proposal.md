@@ -47,11 +47,11 @@ The offline shader compiler must consume the same generated declarations without
 
 Implement the generator and representative fixtures first (3.1), replace named condition attributes with inline expressions (3.2), then migrate all production and test shaders and remove the superseded partial-file/discovery machinery (3.3). The task list defines each completion gate.
 
-**Implementation status — 2026-09-22:** generator foundation and representative integration are complete and independently audited (3.1). Inline condition authoring is approved and pending in 3.2. Full owner migration and removal of the temporary discovery bridge remain in 3.3; coherent runtime selection/reload changes remain later work.
+**Implementation status — 2026-09-22:** generator foundation and representative integration are complete and independently audited (3.1). Inline condition authoring is complete and independently audited (3.2), with generator/contract tests, the normal shader-enabled build and isolated build validation passing. Full owner migration and removal of the temporary discovery bridge remain in 3.3; coherent runtime selection/reload changes remain later work.
 
 ### Declaration API and build integration
 
-The approved declaration API uses these attributes on a top-level, nongeneric partial shader class. The inline condition change described below is pending implementation in 3.2; the other declarations are implemented:
+The approved declaration API uses these attributes on a top-level, nongeneric partial shader class. The declarations, including inline conditions, are implemented; see the task list for verification status:
 
 - `ShaderProgram(member, identity, variantBudget)` names the generated static contract member; `Scope` defaults to `production`. Repeat it for a program family; the generator also exposes a read-only `Contracts` collection for a multi-program owner.
 - `ShaderStage(programMember, kind, source)` declares each stage. Optional `Identity`, `BinaryAsset`, `EntryPoint`, and `Layout` preserve distinct source/configuration and binding identities. `Layout` selects the existing `GpuBindingContract` factory; its default is the source stem. Each stage retains the fixed `VGE_SPIRV_BUILD=1` profile. `ShaderFixedDefine` declares additional typed fixed values.
@@ -90,7 +90,7 @@ Generated scopes enumerate references directly. Compatible stages are interned b
 
 ### Inline condition expressions
 
-**Approved direction — 2026-09-22:** replace the named `ShaderEquals`, `ShaderAll`, `ShaderAny` and `ShaderNot` attributes introduced by 3.1 with an expression directly in `ShaderUse.When`. The named-node implementation remains the current baseline until 3.2 completes; its earlier validation receipts are not evidence for the replacement.
+**Approved direction — 2026-09-22:** replace the named `ShaderEquals`, `ShaderAll`, `ShaderAny` and `ShaderNot` attributes introduced by 3.1 with an expression directly in `ShaderUse.When`. The named-node attributes and their consumers are removed. New validation receipts for this replacement are tracked separately from the earlier foundation.
 
 For example, the existing importance-sampling exploration condition becomes:
 
@@ -100,13 +100,15 @@ For example, the existing importance-sampling exploration condition becomes:
     When = "ImportanceSampling && !BatchSlicing && !UniformMask")]
 ```
 
-Use the owning class's attributed option property names, including properties referencing shared option keys. A bare property must be Boolean. Allow Boolean literals, negation, conjunction, disjunction, parentheses and equality comparisons with typed constants. Support Boolean and finite integer/enum conditions using the existing typed validation rules. Define exact supported constant forms and equality syntax during implementation. Omitted/null `When` means unconditional availability; empty or whitespace-only expressions should produce a diagnostic rather than silently changing availability.
+Use the owning class's attributed option property names, including properties referencing shared option keys. A bare property must be Boolean. Allow Boolean literals, negation, conjunction, disjunction, parentheses and equality comparisons with typed constants. Support Boolean and finite integer/enum conditions using the existing typed validation rules. Equality is `Property == constant`, with the property on the left. Constants are `true`/`false`, exact `int` or `uint` literals, or a declared member of the property's enum type. Signed integer literals can use unary minus, including `-2147483648`; uint literals use `u`/`U` when required for their type. Decimal, hexadecimal, binary and digit separators follow Roslyn's literal syntax. No widening/coercion, `long`, floating-point constants, casts, option-to-option equality, named non-enum constants, or `!=` are accepted. Use `!(Property == constant)` for inequality. An enum member can be `Mode.High`, `MyNamespace.Mode.High`, or `global::MyNamespace.Mode.High`; using-alias qualifiers are not supported. Constants must belong to the declared domain.
+
+Precedence follows C#: parentheses first, then unary `!`, equality `==`, `&&`, and `||`. For example, `Enabled || Other && !Override` means `Enabled || (Other && (!Override))`. Parentheses group Boolean expressions; equality itself still requires a direct property and constant. Literal `true`/`false` lower to empty `All`/`Any`; every operand is validated even if another operand makes it unreachable. Declaration ordering does not affect structural dependency resolution. Omitted/null `When` means unconditional availability; empty or whitespace-only expressions should produce a diagnostic rather than silently changing availability.
 
 Parse with Roslyn at generation time and explicitly validate the syntax and types before lowering to `ShaderCondition.Equal/All/Any/Not`. Every referenced option must be structural in the consuming stage. Reject malformed input, unknown properties, incompatible/out-of-domain constants, specialization-only dependencies and unsupported operations. Qualified enum constants may be resolved as typed constants; arbitrary property access, method calls, arithmetic and executable expressions are outside this grammar. Do not use dynamic compilation, callbacks, runtime parsing or a second condition evaluator.
 
 Both offline and runtime generation emit the same condition model. Preserve supported configurations, specialization IDs, conditional omission and retained inactive settings; the expression is an authoring change, not a lighting or reload behavior change. Verify world-probe dimensions when enabled, sky fallback when near-field continuation is disabled, and importance-sampling exploration when both overrides are disabled against the inventory.
 
-Names inside strings do not receive ordinary C# rename support. A stale or misspelled name must fail generation with a useful owner/stage/expression diagnostic. Remove the four named-node attributes and their consumers after migrating existing attributed fixtures; handwritten typed condition declarations remain valid until their owners migrate in 3.3. Update XML documentation and examples with the new API.
+Names inside strings do not receive ordinary C# rename support. A stale or misspelled name must fail generation with a useful owner/stage/expression diagnostic. The four named-node attributes and their consumers have been removed and existing attributed fixtures migrated; handwritten typed condition declarations remain valid until their owners migrate in 3.3. Update XML documentation and examples with the new API.
 
 ## Programs and stages
 
