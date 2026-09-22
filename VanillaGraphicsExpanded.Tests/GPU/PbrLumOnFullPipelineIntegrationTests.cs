@@ -280,6 +280,8 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             AssertNoGLError("Stage: HZB Copy");
 
             // Downsample mip0->mip1 and mip1->mip2
+            using var hzbParamsUbo = new ObjectParamsUbo("Tests.PbrLumOn.Integration.Hzb.ParamsUBO");
+            var hzbParams = new Helpers.LumOnHzbDownsampleParamsUbo();
             for (int dstMip = 1; dstMip <= 2; dstMip++)
             {
                 int srcMip = dstMip - 1;
@@ -288,7 +290,9 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 GL.UseProgram(hzbDownProg);
                 targets.Hzb.Texture.Bind(0);
                 SetSampler(hzbDownProg, "hzbDepth", 0);
-                SetInt(hzbDownProg, "srcMip", srcMip);
+                // The source mip belongs to the HZB parameter block, not a standalone uniform.
+                hzbParams.SrcMip = srcMip;
+                hzbParamsUbo.UploadAndBind(hzbParams.Bytes);
 
                 AssertSampler2DBinding($"Stage: HZB Downsample mip{dstMip}", hzbDownProg, "hzbDepth", 0, targets.Hzb.Texture);
                 AssertFboColorAttachment0($"Stage: HZB Downsample mip{dstMip}", expectedTextureId: targets.Hzb.Texture.TextureId, expectedMipLevel: dstMip);
@@ -385,8 +389,8 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             SetSampler(traceProg, "probeAnchorPosition", 0);
             SetSampler(traceProg, "probeAnchorNormal", 1);
             SetSampler(traceProg, "primaryDepth", 2);
-            SetSampler(traceProg, "directDiffuse", 3);
-            SetSampler(traceProg, "emissive", 4);
+            SetSampler(traceProg, "surfaceAlbedo", 3);
+            SetSampler(traceProg, "gBufferMaterial", 4);
             SetSampler(traceProg, "octahedralHistory", 5);
             SetSampler(traceProg, "hzbDepth", 6);
             SetSampler(traceProg, "probeAtlasMetaHistory", 7);
@@ -432,8 +436,8 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             targets.ProbeAnchor[0].Bind(0);
             targets.ProbeAnchor[1].Bind(1);
             primaryDepth.Bind(2);
-            targets.DirectLightingMrt[0].Bind(3);
-            targets.DirectLightingMrt[2].Bind(4);
+            gBufferAlbedo.Bind(3);
+            gBufferMaterial.Bind(4);
             historyRadiance.Bind(5);
             targets.Hzb.Texture.Bind(6);
             historyMeta.Bind(7);
@@ -441,8 +445,8 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "probeAnchorPosition", 0, targets.ProbeAnchor[0]);
             AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "probeAnchorNormal", 1, targets.ProbeAnchor[1]);
             AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "primaryDepth", 2, primaryDepth);
-            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "directDiffuse", 3, targets.DirectLightingMrt[0]);
-            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "emissive", 4, targets.DirectLightingMrt[2]);
+            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "surfaceAlbedo", 3, gBufferAlbedo);
+            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "gBufferMaterial", 4, gBufferMaterial);
             AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "octahedralHistory", 5, historyRadiance);
             AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "hzbDepth", 6, targets.Hzb.Texture);
             AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "probeAtlasMetaHistory", 7, historyMeta);
