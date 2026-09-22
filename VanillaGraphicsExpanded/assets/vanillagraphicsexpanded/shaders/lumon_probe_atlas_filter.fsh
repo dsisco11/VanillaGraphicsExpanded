@@ -89,7 +89,7 @@ void main(void)
             ivec2 neighborTexel = clamp(octTexel + ivec2(dx, dy), ivec2(0), ivec2(LUMON_OCTAHEDRAL_SIZE - 1));
             ivec2 neighborAtlas = atlasOffset + neighborTexel;
 
-            vec4 sample = texelFetch(octahedralAtlas, neighborAtlas, 0);
+            vec4 radianceSample = texelFetch(octahedralAtlas, neighborAtlas, 0);
             vec2 metaSample = texelFetch(probeAtlasMeta, neighborAtlas, 0).xy;
 
             float confS; uint flagsS;
@@ -101,7 +101,7 @@ void main(void)
             bool sampleHit = (flagsS & LUMON_META_HIT) != 0u;
             if (sampleHit != centerHit) continue;
 
-            float sampleHitDist = lumonDecodeHitDistance(sample.a);
+            float sampleHitDist = lumonDecodeHitDistance(radianceSample.a);
 
             float spatialW = gaussian(length(vec2(dx, dy)), spatialSigma);
             float hitW = gaussian(abs(sampleHitDist - centerHitDist), hitDistanceSigma);
@@ -109,7 +109,7 @@ void main(void)
             float wBase = spatialW * hitW;
             float w = wBase * confS;
 
-            accum += sample * w;
+            accum += radianceSample * w;
             totalW += w;
 
             confAccum += confS * wBase;

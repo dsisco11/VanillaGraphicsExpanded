@@ -70,7 +70,7 @@ void main(void)
             ivec2 octTexel = ivec2(tx, ty);
             ivec2 atlasCoord = atlasOffset + octTexel;
 
-            vec4 sample = texelFetch(octahedralAtlas, atlasCoord, 0);
+            vec4 radianceSample = texelFetch(octahedralAtlas, atlasCoord, 0);
             vec2 meta = texelFetch(probeAtlasMeta, atlasCoord, 0).xy;
 
             float conf; uint flags;
@@ -82,7 +82,7 @@ void main(void)
             vec2 octUV = lumonTexelCoordToOctahedralUV(octTexel);
             vec3 dirWS = lumonOctahedralUVToDirection(octUV);
 
-            vec3 radiance = sample.rgb;
+            vec3 radiance = radianceSample.rgb;
             float w = conf;
 
             lumonSH9ProjectAccumulate(c0, c1, c2, c3, c4, c5, c6, c7, c8, dirWS, radiance, w);

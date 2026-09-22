@@ -2,7 +2,7 @@
 
 out vec4 outColor;
 
-@import "./includes/vge_global_defines.glsl"
+@import "vanillagraphicsexpanded:shaders/includes/vge_global_defines.glsl"
 
 void main()
 {

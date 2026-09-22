@@ -210,9 +210,9 @@ void getNeighborhoodMinMax(ivec2 probeCoord, ivec2 octTexel,
                                         ivec2(0), ivec2(LUMON_OCTAHEDRAL_SIZE - 1));
             ivec2 neighborAtlas = atlasOffset + neighborTexel;
             
-            vec4 sample = texelFetch(octahedralCurrent, neighborAtlas, 0);
-            minVal = min(minVal, sample);
-            maxVal = max(maxVal, sample);
+            vec4 radianceSample = texelFetch(octahedralCurrent, neighborAtlas, 0);
+            minVal = min(minVal, radianceSample);
+            maxVal = max(maxVal, radianceSample);
         }
     }
 }

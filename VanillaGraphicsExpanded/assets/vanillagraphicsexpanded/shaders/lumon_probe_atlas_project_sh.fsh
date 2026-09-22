@@ -54,7 +54,7 @@ void main(void)
         ivec2 octTexel = ivec2(i % LUMON_OCTAHEDRAL_SIZE, i / LUMON_OCTAHEDRAL_SIZE);
         ivec2 atlasCoord = atlasOffset + octTexel;
 
-        vec4 sample = texelFetch(octahedralAtlas, atlasCoord, 0);
+        vec4 radianceSample = texelFetch(octahedralAtlas, atlasCoord, 0);
         vec2 meta = texelFetch(probeAtlasMeta, atlasCoord, 0).xy;
 
         float conf; uint flags;
@@ -68,7 +68,7 @@ void main(void)
         vec3 dirWS = lumonOctahedralUVToDirection(octUV);
         vec3 dirVS = normalize(mat3(viewMatrix) * dirWS);
 
-        shProjectRGB(shR, shG, shB, dirVS, sample.rgb, conf);
+        shProjectRGB(shR, shG, shB, dirVS, radianceSample.rgb, conf);
         weightSum += conf;
     }
 
