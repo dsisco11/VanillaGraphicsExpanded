@@ -12,14 +12,9 @@ layout(binding = 0, r16f) writeonly uniform image2DArray vge_depthAtlas;
 layout(binding = 1, rgba8) writeonly uniform image2DArray vge_materialAtlas;
 
 // TraceScene sampling inputs (L0 only in v1).
-layout(binding = 2) uniform usampler3D vge_occL0;
-layout(binding = 3) uniform usampler2D vge_materialPalette; // RGBA32UI (packs 6x 16-bit surfaceIds: faces 0..5)
 
 @import "./includes/lumonscene_capture_voxel_params_ubo.glsl"
 
-#define vge_occOriginMinCell0 (vgeCaptureVoxelParams.occOriginMinCell0.xyz)
-#define vge_occRing0          (vgeCaptureVoxelParams.occRing0.xyz)
-#define vge_occResolution     (vgeCaptureVoxelParams.occInts0.x)
 
 layout(std430, binding = 0) buffer VgeCaptureWork
 {

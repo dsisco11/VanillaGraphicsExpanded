@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 namespace VanillaGraphicsExpanded.Voxels.ChunkProcessing;
 
+/// <summary>Bounded artifact retention; a zero byte budget disables insertion.</summary>
 internal sealed class ArtifactCache
 {
     private readonly object gate = new();
@@ -54,7 +55,7 @@ internal sealed class ArtifactCache
 
     public void Put(ArtifactKey key, object artifact)
     {
-        if (artifact is null)
+        if (artifact is null || budgetBytes == 0)
         {
             return;
         }

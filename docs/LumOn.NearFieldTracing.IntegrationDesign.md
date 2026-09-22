@@ -8,28 +8,11 @@ Initial near-field hit lighting will use normalized outside-cell voxel light plu
 
 The near-field tracing implementation now follows this contract. Automated correctness coverage is recorded below; live appearance and performance validation remain open. Direct irradiance sampling now reuses the geometry traversal as described below.
 
-## Existing resources
+## Current shared resources
 
-| Resource | Reusable capability | Missing contract or limitation |
-| --- | --- | --- |
-| GPU occupancy clipmap | R32UI 3D textures, integer origins, rings, region snapshots and compute upload | Zero represents both dark air and unwritten storage. In-bounds does not establish readiness. |
-| Cell payload | Nonzero material index distinguishes solids from lit air | Live snapshots classify every nonzero block ID as solid. Partial geometry and transmission are not represented. |
-| Relight DDA | Cell stepping and entered-face normals | Steps before checking the starting cell; no distance-limit completion outcome; bounds exit and step exhaustion return false. |
-| Material palette and surface LUT | Per-face material lookup, diffuse RGB and roughness | Masked block IDs can alias palette entries; emission is absent from the surface LUT. |
-| Light payload and LUTs | Existing snapshot infrastructure | Quantized, bounded color IDs; relight units differ from CPU world-probe shading. |
-| Surface cache | Irradiance/material atlases and page tables | Current helper uses placeholder patch-ID-to-page mapping. DDA hits lack the required patch identity. Irradiance is not outgoing radiance. |
-| Screen-probe trace pass | Existing ray invocation, radiance/meta/history output and cache binding | No local occupancy, readiness or arbitrary-hit lighting inputs. |
-| Coordinate bridge | Integer chunk origin and fractional remainder | New traversal must preserve precision instead of converting large absolute positions to float. |
+The [shared geometry contract](LumOn.TraceSceneGeometryContract.md#implemented-ownership-and-diagnostics) records the implemented ownership and formats. NearField is a logical tracing domain, not a second GPU scene. The shared renderer, worker source, coalescing cache, partition and GPU backend live in `LumOn/Scene/Geometry/`. The legacy occupancy clipmaps, region processor and separate NearField provider have been removed.
 
-Sources:
-
-- [Occupancy resources](../VanillaGraphicsExpanded/LumOn/Scene/LumonSceneOccupancyClipmapGpuResources.cs), InitializeDefaults; [packing](../VanillaGraphicsExpanded/LumOn/Scene/LumonSceneOccupancyPacking.cs).
-- [Live snapshots](../VanillaGraphicsExpanded/LumOn/Scene/LumonSceneTraceSceneChunkSnapshotSource.cs), TryCreateSnapshotAsync; [region processor](../VanillaGraphicsExpanded/LumOn/Scene/LumonSceneTraceSceneRegionProcessor.cs).
-- [Occupancy lookup](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumonscene_trace_scene_occupancy.glsl); [relight shader](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumonscene_relight_voxel_dda.csh), TraceDdaL0 and ShadeHitFromOutsideCell.
-- [Palette registry](../VanillaGraphicsExpanded/LumOn/Scene/LumonSceneTraceSceneMaterialPaletteRegistry.cs); [surface LUT](../VanillaGraphicsExpanded/LumOn/Scene/LumonScenePbrSurfaceLutRegistry.cs), WriteSurfaceUnsafe; [light registry](../VanillaGraphicsExpanded/LumOn/Scene/LumonSceneTraceSceneLightIdRegistry.cs).
-- [Surface-cache lookup](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumonscene_surface_cache.glsl), VgeLumonSceneTrySampleIrradiance_NearFieldV1.
-- [Trace layout](../VanillaGraphicsExpanded/LumOn/Shaders/LumOnScreenProbeAtlasTraceProgramLayout.cs); [coordinate bridge](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/vge_worldspace_bridge.glsl).
-
+Geometry classification is explicit and independent of material readiness. One coherent publication contains geometry, normalized outside-cell lighting and the packed lighting word retained for surface relighting. Stable material identities reference shared face, hit-color and surface tables. The shared GLSL API checks logical domain and readiness before ring lookup; unsupported and incomplete traces cannot establish clear visibility. World probes retain their existing CPU integrator and scheduler.
 ## Geometry and publication
 
 Start with L0 block-resolution geometry. Do not treat coarser occupancy as equivalent geometry.
@@ -48,9 +31,9 @@ Publication protocol:
 4. Reject stale asynchronous results by region identity and generation.
 5. Invalidate relevant screen-probe history on geometry changes; a conservative global scene-generation reset is acceptable initially.
 
-The current dispatcher supplies image/texture barriers, but these do not establish semantic freshness. Readiness and invalidation are new work.
+The shared GPU backend supplies texture barriers and publishes readiness last. The partition validates source revisions and lease ownership before publication.
 
-Sources: [occupancy owner](../VanillaGraphicsExpanded/LumOn/Scene/LumonSceneOccupancyClipmapUpdateRenderer.cs), TryGetLevel0RuntimeParams and completion handling; [dispatcher](../VanillaGraphicsExpanded/LumOn/Scene/LumonSceneTraceSceneClipmapGpuBuildDispatcher.cs), UploadAndDispatchBatch.
+Sources: [shared renderer](../VanillaGraphicsExpanded/LumOn/Scene/Geometry/TraceGeometryRenderer.cs), [partition](../VanillaGraphicsExpanded/LumOn/Scene/Geometry/TraceGeometryPartition.cs), and [coherent GPU publication](../VanillaGraphicsExpanded/LumOn/Scene/Geometry/TraceGeometryGpuScene.cs).
 
 ## Trace API and coordinates
 

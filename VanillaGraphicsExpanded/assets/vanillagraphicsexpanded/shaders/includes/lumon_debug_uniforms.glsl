@@ -58,7 +58,6 @@ uniform sampler2DArray vge_lumonSceneIrradianceAtlas;  // RGBA16F (rgb irradianc
 uniform usampler2D vge_lumonSceneSurfaceLut;           // RGBA32UI (rgb albedo 0..255, a roughness 0..255)
 
 // Phase 23: TraceScene occupancy clipmap debug inputs (L0 only in v1).
-uniform usampler3D vge_traceOccL0;            // R32UI packed payload
 
 // Temporal config
 

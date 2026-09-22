@@ -31,7 +31,7 @@ public sealed class TraceSceneDebugShaderCoordSpaceTests
     }
 
     [Fact]
-    public void TraceSceneDebug_UsesTerrainBridgeWorldspaceConversion()
+    public void TraceSceneDebug_UsesSharedFrameWorldspaceConversion()
     {
         string src = ReadRepoFileOrSkip(Path.Combine(
             "VanillaGraphicsExpanded",
@@ -41,12 +41,12 @@ public sealed class TraceSceneDebugShaderCoordSpaceTests
             "includes",
             "lumon_debug_tracescene.glsl"));
 
-        Assert.Contains("@import \"./vge_worldspace_bridge.glsl\"", src, StringComparison.Ordinal);
-        Assert.Contains("VgeMatrixSpacePosToWorldCell", src, StringComparison.Ordinal);
+        Assert.Contains("@import \"./lumon_frame_worldspace_bridge.glsl\"", src, StringComparison.Ordinal);
+        Assert.Contains("LumonFrameMatrixSpacePosToWorldCell", src, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ScenesOverviewDebug_UsesTerrainBridgeWorldspaceConversion()
+    public void ScenesOverviewDebug_UsesSharedFrameWorldspaceConversion()
     {
         string src = ReadRepoFileOrSkip(Path.Combine(
             "VanillaGraphicsExpanded",
@@ -56,23 +56,7 @@ public sealed class TraceSceneDebugShaderCoordSpaceTests
             "includes",
             "lumon_debug_scenes_overview.glsl"));
 
-        Assert.Contains("@import \"./vge_worldspace_bridge.glsl\"", src, StringComparison.Ordinal);
-        Assert.Contains("VgeMatrixSpacePosToWorldCell", src, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void RegionToClipmapCompute_UsesIndex3d_XZ_YLinearOrder()
-    {
-        string src = ReadRepoFileOrSkip(Path.Combine(
-            "VanillaGraphicsExpanded",
-            "assets",
-            "vanillagraphicsexpanded",
-            "shaders",
-            "lumonscene_trace_scene_region_to_clipmap.csh"));
-
-        // Expect: index3d = x | (z << 5) | (y << 10) => linear = (y*32 + z)*32 + x
-        Assert.Contains("(local.y * VGE_REGION_SIZE + local.z) * VGE_REGION_SIZE + local.x", src, StringComparison.Ordinal);
-        Assert.DoesNotContain("(local.z * VGE_REGION_SIZE + local.y) * VGE_REGION_SIZE + local.x", src, StringComparison.Ordinal);
+        Assert.Contains("traceSceneDebugSurfaceCell", src, StringComparison.Ordinal);
     }
 
     [Fact]

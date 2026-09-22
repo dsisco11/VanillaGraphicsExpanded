@@ -18,7 +18,7 @@ Contract and review: [shared geometry contract](LumOn.TraceSceneGeometryContract
 
 Gate: controlled tests cover edits, missing chunks, unsupported shapes, movement, teleports and reused slots; no main-thread voxel capture or duplicate reads for the same shared source revision.
 
-Evidence and traceability: [shared backend verification](LumOn.TraceSceneSharedBackendVerification.md). Second review and independent completion audit passed. Final combined validation passed 244 tests including 89 GPU cases; the final cache follow-up passed all 29 shared-backend cases. Production build passed with zero warnings/errors. Existing consumer wiring remains unchanged until item 3.
+Evidence and traceability: [shared geometry contract](LumOn.TraceSceneGeometryContract.md), ownership and implementation acceptance; backend, publication and source-cache regression receipts summarized here. Second review and independent completion audit passed. Final combined validation passed 244 tests including 89 GPU cases; the final cache follow-up passed all 29 shared-backend cases. Production build passed with zero warnings/errors. Existing consumer wiring remains unchanged until item 3.
 
 ## 3. Switch tracing consumers
 
@@ -36,10 +36,19 @@ Second review found and corrected partial-batch retry starvation, logical-domain
 
 ## 4. Remove duplication and validate
 
-- [ ] Remove replaced NearField capture, storage, publication ownership and obsolete TraceScene companion-payload plumbing. Update bindings, diagnostics and architecture records; retain the NearField Geometry viewer using the shared data.
-- [ ] Run builds and relevant regressions through a validation subagent. Compare source captures, uploads, resident memory and frame-thread work against the pre-change baseline for startup, movement and edits.
+- [x] Remove replaced NearField capture, storage, publication ownership and obsolete TraceScene companion-payload plumbing. Update bindings, diagnostics and architecture records; retain the NearField Geometry viewer using the shared data.
+- [x] Run builds and relevant regressions through a validation subagent. Compare source captures, uploads, resident memory and frame-thread work against the pre-change baseline for startup, movement and edits.
 
 Gate: one shared geometry pipeline serves the retained consumers, no obsolete backend remains active, and resource/performance differences are recorded without conflating requested coverage with readiness.
+
+Traceability for item 4:
+- Backend retirement and diagnostics -> [contract](LumOn.TraceSceneGeometryContract.md#implemented-ownership-and-diagnostics), consumer inventory, payload, coverage and ownership -> one WorldPartition geometry registration and one capture/publication pipeline, retained NearField logical viewer, requested/readiness separation -> removed legacy production backends and migrated GPU fixtures; `TraceGeometryRenderer`, shared debug shaders, World Cell Bounds and profiling counters.
+- Validation and costs -> [contract cost comparison](LumOn.TraceSceneGeometryContract.md#controlled-implementation-cost-comparison), resource ceilings and implementation acceptance -> controlled startup/movement/edit captures, executed upload bytes, actual nominal GL storage, separate source/staging/worker allocations and frame-thread work -> reusable `SharedGeometryCostMeasurementsTests`, `SharedGeometryWorkerCostMeasurementsTests`; baseline `artifacts/geometry-costs/legacy-cost-verified.trx` (2/2) and current `current-cost-asserted.trx` (5/5). Independent expected demand, complete readiness, exact captures and no duplicate key/revision requests are asserted.
+
+Second review corrected fixture material-table generation reuse and removed leftover queue tokens and mapping setters. Shader-specific output cleanup was verified during validation, then removed at the user's request; generic stale-output handling remains part of item 5. Measurement exposed and fixed zero-budget secondary-cache retention; both disabled and bounded-cache regressions pass. The shared allocation increases default texture storage by 9,781,950 bytes; cumulative startup frame-thread allocations remain substantial. Synthetic timings do not establish live-game frame-rate or startup improvements.
+
+Delegated regressions: `artifacts/geometry-cleanup/focused-cpu-compute.trx` passed 129/129 including 28 strict SPIR-V compute cases. `diagnostics-screen.trx` passed all 99 screen/material/compute cases; 24 viewer cases initially failed a missing shader variable and then passed in `diagnostics-fixed.trx` (30/30), alongside six WorldCell contract tests. The additional `bounds-payload.trx` run passed 3/3. Production/test builds passed and the retired scatter source/binary are absent from both output asset trees. The migrated visibility fixture passed 6/6 (`artifacts/geometry-costs/visibility-selected.trx`): doorway edits/movement and camera bob at a large negative origin, each through debug, SH4 and SH9 paths. Graphics still use the existing GLSL path; all-stage SPIR-V conversion belongs to item 5.
+Independent completion audit re-read the task, controlling contract, implementation and final receipts. Both item 4 requirements and the gate are fully satisfied, with no remaining required issue or evidence gap.
 
 ## 5. Extend SPIR-V to all shader stages
 

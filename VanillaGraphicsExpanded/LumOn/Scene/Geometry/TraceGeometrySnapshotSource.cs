@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
-using VanillaGraphicsExpanded.LumOn.Scene.NearField;
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
 using Vintagestory.API.Common;
 using Vintagestory.API.Client;
@@ -19,11 +19,11 @@ internal sealed class TraceGeometrySnapshotSource : IChunkSnapshotSource
     private readonly System.Func<int, Block> blocks;
     private readonly IChunkVersionProvider versions;
     private readonly TraceGeometryMaterials materials;
-    private readonly NearFieldLightDecoder decoder;
+    private readonly TraceGeometryLightDecoder decoder;
 
     /// <summary>Injects engine access and scene-generation tables; no main-thread task dispatch occurs here.</summary>
     public TraceGeometrySnapshotSource(IBlockAccessor accessor, System.Func<int, Block> blocks, IChunkVersionProvider versions,
-        TraceGeometryMaterials materials, NearFieldLightDecoder decoder)
+        TraceGeometryMaterials materials, TraceGeometryLightDecoder decoder)
     { this.accessor = accessor; this.blocks = blocks; this.versions = versions; this.materials = materials; this.decoder = decoder; }
 
     #region Worker capture
@@ -40,7 +40,7 @@ internal sealed class TraceGeometrySnapshotSource : IChunkSnapshotSource
             var origin = new BlockPos(cx * 32, cy * 32, cz * 32);
             var chunk = accessor.GetChunkAtBlockPos(origin);
             if (chunk == null || chunk.Disposed || versions.GetCurrentVersion(key) != expectedVersion) return ValueTask.FromResult<IChunkSnapshot?>(null);
-            NearFieldChunkBulkReader.Copy(chunk, solid.AsSpan(0, 32768), fluid.AsSpan(0, 32768), light.AsSpan(0, 32768), ct);
+            TraceGeometryChunkBulkReader.Copy(chunk, solid.AsSpan(0, 32768), fluid.AsSpan(0, 32768), light.AsSpan(0, 32768), ct);
             var position = new BlockPos(0);
             var decoded = new Dictionary<uint, (uint Normalized, uint Legacy)>();
             var indices = new Dictionary<int, uint>();
@@ -66,10 +66,7 @@ internal sealed class TraceGeometrySnapshotSource : IChunkSnapshotSource
                 {
                     if (!indices.TryGetValue(block.Id, out material)) indices.Add(block.Id, material = materials.Resolve(block));
                     position.Set(cx * 32 + (i & 31), cy * 32 + (i >> 10), cz * 32 + ((i >> 5) & 31));
-                    var boxes = block.GetCollisionBoxes(accessor, position);
-                    kind = block.RenderPass == EnumChunkRenderPass.Opaque && block.AllSidesOpaque && boxes is { Length: 1 } &&
-                        boxes[0].MinX == 0 && boxes[0].MinY == 0 && boxes[0].MinZ == 0 &&
-                        boxes[0].MaxX == 1 && boxes[0].MaxY == 1 && boxes[0].MaxZ == 1 ? 2u : 3u;
+                    kind = TraceGeometryVoxel.Classify(accessor, block, position);
                 }
                 output[i] = new(kind | material << 2, lighting.Legacy | material << 18, lighting.Normalized);
             }

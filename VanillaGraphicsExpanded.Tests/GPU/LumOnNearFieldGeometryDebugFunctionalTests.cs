@@ -1,7 +1,7 @@
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
-using VanillaGraphicsExpanded.LumOn.Scene.NearField;
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
@@ -154,7 +154,7 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
     }
 
     /// <summary>Renders only production geometry/readiness inputs with a narrow camera frustum and precise world origin.</summary>
-    private float[] RenderGeometry(NearFieldGpuScene? scene, Vector3? camera = null, Vector3d? playerOrigin = null, bool monolithic = false)
+    private float[] RenderGeometry(ControlledTraceGpuScene? scene, Vector3? camera = null, Vector3d? playerOrigin = null, bool monolithic = false)
     {
         int program = CompileShaderWithDefines("lumon_debug.vsh", monolithic ? "lumon_debug.fsh" : "lumon_debug_worldprobe.fsh", new()
         {

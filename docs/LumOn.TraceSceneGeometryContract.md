@@ -1,6 +1,6 @@
 # Shared TraceScene geometry contract
 
-This is the implementation contract for [the consolidation task list](LumOn.TraceSceneGeometryConsolidation.todo). It defines the target; it does not claim that the shared backend is implemented. The approved conversation requires one geometry pipeline, the fixed 48-block NearField domain, preserved surface-cache consumers, worker capture, explicit validity and unchanged world-probe scheduling.
+This is the implementation contract for [the consolidation task list](LumOn.TraceSceneGeometryConsolidation.todo). It defines the shared backend contract; the implementation and measured costs are recorded below. The approved conversation requires one geometry pipeline, the fixed 48-block NearField domain, preserved surface-cache consumers, worker capture, explicit validity and unchanged world-probe scheduling.
 
 ## Consumer inventory
 
@@ -18,7 +18,7 @@ Paths below are relative to `VanillaGraphicsExpanded/`. Existing behavior was in
 
 The CPU world-probe integrator continues to read the game world. It does not become a consumer of this GPU storage. Surface-cache sampling into probe hit lighting remains separate work; preserve the current relight producer and preview consumers.
 
-Current bindings confirm that capture, relight and debug sample `OccupancyLevels[0]` only. Higher levels are written by `lumonscene_trace_scene_region_to_clipmap.csh`, but no current sampling consumer reads them. Their representative-point downsampling is not a conservative occupancy hierarchy. Retain L0 only in the shared backend; do not use the old coarsest-level window to select source captures. Deprecate `ClipmapLevels` for this backend with an explicit diagnostic; do not silently retain unconsumed allocations. This does not alter world-probe clipmap levels.
+The pre-consolidation inventory confirmed that capture, relight and debug sampled `OccupancyLevels[0]` only. Higher levels were written by `lumonscene_trace_scene_region_to_clipmap.csh`, but no current sampling consumer reads them. Their representative-point downsampling is not a conservative occupancy hierarchy. Retain L0 only in the shared backend; do not use the old coarsest-level window to select source captures. Deprecate `ClipmapLevels` for this backend with an explicit diagnostic; do not silently retain unconsumed allocations. This does not alter world-probe clipmap levels.
 
 ## Shared payload
 
@@ -94,7 +94,7 @@ WorldPartition owns union residency, revisions, cancellation and authorization. 
 
 Introduce the shared backend behind testable interfaces before switching consumers. Temporary compatibility bindings may exist during switching, but must delegate to one shared owner when active. Remove the old NearField volume/provider and optional TraceScene companion payload after parity is verified. No changes to world-probe scheduling or CPU tracing are part of this contract.
 
-Required subsequent evidence: payload round trips and material readiness; full-offset coverage union including N=16/32/64/128, negative/large coordinates and clipped world height; overlap retention and teleport/dirty/reuse rejection; coherent GPU publication; screen/visibility and capture/relight shader tests; contention fairness and bounded source coalescing; startup/movement/edit cost comparisons. Capture the pre-change baseline before modifying runtime code. No build, gameplay or performance result is asserted by this contract document.
+Required subsequent evidence: payload round trips and material readiness; full-offset coverage union including N=16/32/64/128, negative/large coordinates and clipped world height; overlap retention and teleport/dirty/reuse rejection; coherent GPU publication; screen/visibility and capture/relight shader tests; contention fairness and bounded source coalescing; startup/movement/edit cost comparisons. Capture the pre-change baseline before modifying runtime code. The original contract asserted no build, gameplay or performance result; subsequent implementation evidence is recorded below.
 
 ## Traceability and review
 
@@ -105,3 +105,33 @@ Second review checked the consumer bindings, material tables, current source win
 Delegated formula verification: `artifacts/geometry-contract/Verify-GeometryContract.ps1`, with receipt `artifacts/geometry-contract/verification.txt`, passed 333,216 assertions over 143,360 XYZ offset combinations. It covers NearField-only and N=16/32/64/128, all 16-cubed integer offsets at seven negative/zero/large anchors, ring injectivity/congruence, vertical clipping and 13 byte-count calculations. This verifies the proposed formulas, not production implementation, shader execution or runtime performance.
 
 The independent completion audit read the complete task and contract and checked actual consumer bindings, topology, formats and material/lighting requirements. It found both item 1 requirements and the gate fully satisfied with no remaining blockers or material evidence gaps. Implementation, GPU verification and measured performance remain explicit obligations of items 2–4; no build is required for this documentation-only change.
+
+## Implemented ownership and diagnostics
+
+`LumOn/Scene/Geometry/TraceGeometryRenderer` is the composition root for the shared pipeline. `TraceGeometryWorldSource` submits worker bulk capture to `TraceGeometrySnapshotSource`; `TraceGeometrySourceCache` coalesces chunk revisions. `TraceGeometryPartition` owns one WorldPartition registration for both logical demands and publishes immutable cell payloads through `TraceGeometryGpuScene`. Geometry, both lighting encodings, lookup tables and readiness now have one GPU owner. The separate NearField provider/cache/volume and the old TraceScene region scheduler, companion upload buffers and scatter compute producer are removed.
+
+Screen tracing and direct world-probe visibility use the NearField logical domain. Surface capture and relighting use the surface domain through shared sampling and bindings. Consumer lighting algorithms and CPU world-probe scheduling are unchanged. Shared bulk-reader, light-decoder and source-lifetime helpers live beside their owning geometry subsystem. A zero-byte secondary artifact cache now disables retention; the eight-snapshot source cache remains the intended completed-result owner.
+
+NearField Geometry still traces only its 48-block logical box, even when the physical ring is larger. TraceScene bounds show logical surface coverage; occupancy and payload views distinguish unpublished data (purple), unsupported geometry (red) and out-of-domain samples (blue) from known air (black). The camera-ray TraceScene viewer uses the same bounded traversal. Surface reconstruction uses the integer/fractional frame bridge. Scene Overview uses these same geometry and material reads.
+
+World Cell Bounds reports the shared registration, NearField and surface demand, overlap, actual ready cells, workers, retained source payload, staged cell payload, texture allocation, cumulative uploads and update timing. Requested coverage is never reported as ready data. Timing includes the coordinator pump but excludes metric serialization; it is not total frame cost. Texture bytes are nominal storage, excluding driver allocation overhead. Old TraceScene level configuration is explicitly reported as retired; only the logical L0 resolution controls surface geometry demand. Existing configuration serialization remains compatible.
+
+Traceability: removal and diagnostics -> this document's consumer inventory, payload, coverage and ownership sections -> one backend and explicit logical-domain/readiness semantics -> shared backend/publication regressions, migrated screen/visibility fixtures, shared diagnostic GPU tests and output-asset inspection. Cost comparison -> resource limits and cost model -> startup/movement/edit source reads, actual uploads, nominal texture storage, separate worker/source/staging allocations and frame-thread work -> controlled before/after measurement fixtures and receipts recorded in the task list.
+
+### Controlled implementation-cost comparison
+
+The before/after fixtures exercise startup, a sixteen-block movement and a one-source-chunk edit. The baseline is commit `4a7ce2a` in the isolated comparison worktree, before consumer consolidation; it retains both old owners. Default surface resolution is 128. These are deterministic source/publication measurements with synthetic geometry, not observed gameplay frames. Removing unused coarse levels intentionally reduces demanded coverage; this is not an equal-volume throughput benchmark.
+
+| Scenario | Old source captures | Shared captures | Old uploaded bytes | Shared uploaded bytes |
+| --- | ---: | ---: | ---: | ---: |
+| Startup | 2,056 | 64 | 274,423,862 | 27,265,024 |
+| Move 16 blocks | 2,180 | 16 | 286,620,187 | 3,145,920 |
+| Edit one source chunk | 2 | 1 | 786,764 | 393,240 |
+
+Nominal allocated texture storage, queried from actual GL textures, increases from 28,148,383 to 37,930,333 bytes. The old 131,588-byte staging-buffer allocation is retired. Shared retained source payload is 3,145,728 bytes; old unique cached payload grows from 72,351,744 at startup to 75,628,544 after the edit. Shared staging sampled after updates was zero, which does not imply zero transient allocations; the separate 64-cell payload ceiling remains 3,145,728 bytes. Eight real production worker captures and all sixteen chunk-identity lookups occurred off the submitting thread. Worker allocation, including pool warmup, was 1,598,248 bytes; returned source payload was 3,145,728 bytes.
+
+Equal-coverage NearField-only fixtures retain the same 48-cubed window and 8/4/1 source captures. Upload bytes fall from 5,357,622 / 737,307 / 655,384 to 3,425,334 / 442,395 / 393,240, while textures increase from 1,671,195 to 3,424,927 bytes.
+
+Single-run cumulative frame-thread observations (startup/move/edit) were 40.738/4.259/1.866 ms for old NearField, 997.369/834.966/3.701 ms for old TraceScene, and 119.956/17.515/1.950 ms for shared default geometry. Old components were exercised separately; these numbers cannot establish a combined game-frame speedup. Resource construction and shader compilation are excluded. Old TraceScene main-thread capture accounted for 539.568/538.631/0.572 ms; shared capture is on workers. Shared cumulative frame-thread allocations remain substantial: 87,697,552 / 11,222,904 / 1,532,248 bytes. This is not a claim that frame-thread allocations or gameplay stalls have been eliminated.
+
+Detailed methods, raw measurements and caveats: `artifacts/geometry-costs/comparison.md`, `measurement-method.md`, `legacy-cost-verified.trx` (2/2), and `current-cost-verified.trx` (5/5, including cache regressions). The current reusable fixtures are `SharedGeometryCostMeasurementsTests` and `SharedGeometryWorkerCostMeasurementsTests`. Startup readiness reached all 512 requested shared publication cells; requested coverage and actual ready counts are asserted separately.

@@ -221,7 +221,7 @@ public static partial class VgeBuiltInDebugViews
             int got = lumOnDiagnostics.CopyLumonSceneNearRegionDebugSnapshots(snapshots);
 
             Vec3d camPosWorld = player.Entity.CameraPos;
-            int cellSize = LumonSceneTraceSceneClipmapMath.RegionSize;
+            int cellSize = 32;
 
             int camChunkX = FloorDiv(camPosWorld.X, cellSize);
             int camChunkY = FloorDiv(camPosWorld.Y, cellSize);

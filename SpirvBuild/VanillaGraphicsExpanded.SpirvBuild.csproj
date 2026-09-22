@@ -47,7 +47,7 @@
           AfterTargets="Build">
     <Exec
       WorkingDirectory="$(VgeSolutionRoot)"
-      Command="dotnet run --project &quot;$(SpirvBuildToolProject)&quot; -- --assetsRoot &quot;$(VgeModProjectDir)\assets&quot; --outputRoot &quot;$(SpirvArtifactsDir)&quot; --domain $(SpirvDomain) --targetEnv $(SpirvTargetEnv) $(SpirvWarningsAsErrorsArg) --workingDir &quot;$(VgeSolutionRoot)&quot;" />
+      Command="dotnet run --project &quot;$(SpirvBuildToolProject)&quot; -- --clean --assetsRoot &quot;$(VgeModProjectDir)\assets&quot; --outputRoot &quot;$(SpirvArtifactsDir)&quot; --domain $(SpirvDomain) --targetEnv $(SpirvTargetEnv) $(SpirvWarningsAsErrorsArg) --workingDir &quot;$(VgeSolutionRoot)&quot;" />
   </Target>
 
 </Project>

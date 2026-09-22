@@ -5,14 +5,14 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 
 /// <summary>
 /// Thread-safe mapping from quantized RGB keys to compact light ids (v1: 6-bit id, 0..63),
-/// plus a LUT payload suitable for uploading to <see cref="LumonSceneOccupancyClipmapGpuResources.LightColorLut"/>.
+/// plus a LUT payload suitable for uploading to the shared scene light-color texture.
 /// </summary>
 internal sealed class LumonSceneTraceSceneLightIdRegistry
 {
     private readonly object gate = new();
     private readonly Dictionary<int, byte> lightKeyToId = new();
 
-    private readonly float[] lutData = new float[LumonSceneOccupancyClipmapGpuResources.MaxLightColors * 4];
+    private readonly float[] lutData = new float[64 * 4];
     private bool lutDirty;
 
     public LumonSceneTraceSceneLightIdRegistry()
@@ -27,7 +27,7 @@ internal sealed class LumonSceneTraceSceneLightIdRegistry
             lightKeyToId.Clear();
 
             // id 0: neutral white. Fill all entries to reduce undefined sampling if ids are used before assignment.
-            for (int i = 0; i < LumonSceneOccupancyClipmapGpuResources.MaxLightColors; i++)
+            for (int i = 0; i < 64; i++)
             {
                 int o = i * 4;
                 lutData[o + 0] = 1.0f;
@@ -80,7 +80,7 @@ internal sealed class LumonSceneTraceSceneLightIdRegistry
 
             // Reserve 0 as a fallback. Allocate new ids from 1..63.
             int nextId = lightKeyToId.Count + 1;
-            if (nextId >= LumonSceneOccupancyClipmapGpuResources.MaxLightColors)
+            if (nextId >= 64)
             {
                 return 0;
             }

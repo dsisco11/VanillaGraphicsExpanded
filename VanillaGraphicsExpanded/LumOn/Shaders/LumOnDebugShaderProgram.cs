@@ -273,48 +273,8 @@ public class LumOnDebugShaderProgram : GpuProgram
 
     #endregion
 
-    #region TraceScene (Phase 23)
-
-    public int TraceSceneEnabled
-    {
-        set
-        {
-            Params.TraceSceneEnabled = value;
-            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
-        }
-    }
-
-    public int TraceSceneOccResolution
-    {
-        set
-        {
-            Params.TraceSceneOccResolution = value;
-            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
-        }
-    }
-
-    public VectorInt3 TraceSceneOccOriginMinCell0
-    {
-        set
-        {
-            Params.TraceSceneOccOriginMinCell0 = value;
-            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
-        }
-    }
-
-    public VectorInt3 TraceSceneOccRing0
-    {
-        set
-        {
-            Params.TraceSceneOccRing0 = value;
-            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
-        }
-    }
-
-    // Keep this within typical GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS on older drivers.
-    public GpuTexture? TraceSceneOccL0 { set => Layout.BindTexture3D(ProgramId, "vge_traceOccL0", value?.TextureId ?? 0, LayoutWarn); }
-
-    #endregion
+    /// <summary>Binds the shared packed light payload for geometry diagnostics.</summary>
+    public GpuTexture? TraceSceneLegacy { set => Layout.BindTexture3D(ProgramId, "traceSceneLegacy", value?.TextureId ?? 0, LayoutWarn); }
 
     // Per-frame state (sizes, matrices, zNear/zFar, probe grid params) is provided via LumOnFrameUBO.
 

@@ -1,4 +1,4 @@
-using VanillaGraphicsExpanded.LumOn.Scene.NearField;
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.WorldPartition;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -6,15 +6,15 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Minimal immutable snapshot provider shared by lighting, geometry, and lifecycle GPU scenarios.</summary>
 internal sealed class NearFieldVoxelProvider : IPartitionProvider
 {
-    private readonly NearFieldGpuScene scene;
-    private readonly NearFieldMaterialRegistry materials;
-    public Func<(int X, int Y, int Z), NearFieldSourceCell>? CaptureCell { get; set; }
+    private readonly ControlledTraceGpuScene scene;
+    public TraceGeometryMaterials Materials { get; set; }
+    public Func<(int X, int Y, int Z), ControlledTraceVoxel>? CaptureCell { get; set; }
     private Action<PartitionCompletion>? lastCallback;
     private PartitionCompletion? lastCompletion;
     /// <summary>Copied payload shared read-only between capture, processing, and synchronous upload.</summary>
-    private sealed record Payload(NearFieldSourceCell[] Cells) : IPartitionSnapshot, IPartitionContent;
+    private sealed record Payload(ControlledTraceVoxel[] Cells) : IPartitionSnapshot, IPartitionContent;
     /// <summary>Retains the production GPU backend and material palette.</summary>
-    public NearFieldVoxelProvider(NearFieldGpuScene scene, NearFieldMaterialRegistry materials) { this.scene = scene; this.materials = materials; }
+    public NearFieldVoxelProvider(ControlledTraceGpuScene scene, TraceGeometryMaterials materials) { this.scene = scene; Materials = materials; }
 
     #region Provider operations
     /// <summary>Copies a complete cell in X/Z/Y order and claims its generation before dispatch.</summary>
@@ -22,7 +22,7 @@ internal sealed class NearFieldVoxelProvider : IPartitionProvider
     {
         if (CaptureCell == null || !scene.ClaimCell(request)) return new(PartitionContentStatus.MissingDependencies, null);
         int size = scene.CellSize;
-        var cells = new NearFieldSourceCell[size * size * size];
+        var cells = new ControlledTraceVoxel[size * size * size];
         var c = request.Key.Coordinate;
         for (int y = 0; y < size; y++) for (int z = 0; z < size; z++) for (int x = 0; x < size; x++)
             cells[(y * size + z) * size + x] = CaptureCell((checked((int)c.X * size + x), checked((int)c.Y * size + y), checked((int)c.Z * size + z)));
@@ -38,13 +38,13 @@ internal sealed class NearFieldVoxelProvider : IPartitionProvider
     /// <summary>Snapshot inputs change only through explicit fixture invalidation.</summary>
     public bool DependenciesValid(PartitionRequest request, IPartitionSnapshot snapshot) => true;
     /// <summary>Uses the production coherent geometry, light, material, and readiness upload.</summary>
-    public bool Publish(PartitionCompletion completion) => scene.PublishCell(completion.Request, ((Payload)completion.Content!).Cells, materials);
+    public bool Publish(PartitionCompletion completion) => scene.PublishCell(completion.Request, ((Payload)completion.Content!).Cells, Materials);
     /// <summary>Content already resides on the GPU before activation.</summary>
     public bool SetActive(in PartitionCellKey key, bool active) => true;
     /// <summary>Makes stale content unavailable immediately.</summary>
     public void Invalidate(in PartitionCellKey key) => scene.InvalidateCell(key);
     /// <summary>Releases the backend's logical slot owner.</summary>
-    public void Retire(in PartitionCellKey key) => scene.RetireCell(key);
+    public void Retire(in PartitionCellKey key) => scene.InvalidateCell(key);
     /// <summary>Delivers a duplicate old callback independently from the publication owner.</summary>
     public Action CaptureCompletionReplay()
     {

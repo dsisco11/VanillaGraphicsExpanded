@@ -1,5 +1,7 @@
 # LumOn 23.8 — WorldCell + TraceSceneRegionScheduler (Architecture Plan)
 
+This is a historical scheduler plan. The TraceScene region scheduler has been retired; current geometry residency and publication use the single shared WorldPartition registration described in the [shared geometry contract](LumOn.TraceSceneGeometryContract.md#implemented-ownership-and-diagnostics). Consumer-local surface-cache scheduling remains separate.
+
 ## Motivation
 TraceScene’s current “enqueue region coords into a FIFO queue” approach creates recurring failure modes:
 

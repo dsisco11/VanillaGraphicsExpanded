@@ -1,4 +1,5 @@
 using System;
+using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
 using VanillaGraphicsExpanded.WorldPartition;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene.Geometry;
@@ -11,6 +12,15 @@ internal sealed record TraceGeometryCoverage(PartitionBounds? NearField, Partiti
     private const long WorldLimit = (1L << 20) * 32;
 
     #region Coverage planning
+    /// <summary>Maps signed 16-block publication cells to their containing 32-block source chunk.</summary>
+    public static ChunkKey SourceChunk(in PartitionCoordinate coordinate)
+    {
+        long x = coordinate.X >> 1, y = coordinate.Y >> 1, z = coordinate.Z >> 1;
+        const long limit = 1L << 20;
+        if (x < -limit || x >= limit || y < -limit || y >= limit || z < -limit || z >= limit)
+            throw new ArgumentOutOfRangeException(nameof(coordinate), "Source chunk exceeds its packed coordinate range.");
+        return ChunkKey.FromChunkCoords((int)x, (int)y, (int)z);
+    }
     /// <summary>Preserves the old L0 camera-floor box and the fixed near-field box without expanding either domain.</summary>
     public static TraceGeometryCoverage Plan(in PartitionPoint camera, bool nearField, int? surfaceResolution, int worldHeight)
     {

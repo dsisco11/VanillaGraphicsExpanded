@@ -1,7 +1,7 @@
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
-using VanillaGraphicsExpanded.LumOn.Scene.NearField;
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
@@ -22,7 +22,7 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
 
     #region Direct Consumer Harness
     /// <summary>Renders debug modes, atlas gather (-1), or SH9 gather (-2), forcing invalid screen probes.</summary>
-    private protected float[] RenderDirectVisibility(WorldProbeAtlasData atlas, NearFieldGpuScene? scene,
+    private protected float[] RenderDirectVisibility(WorldProbeAtlasData atlas, ControlledTraceGpuScene? scene,
         Vector3 sampleCenter, Vector3 cacheOrigin, float spacing, int consumer,
         int size = 4, float span = 0.1f, int budget = 256, VectorInt3 worldOffset = default,
         Vector3 ring = default, bool suppress = false,

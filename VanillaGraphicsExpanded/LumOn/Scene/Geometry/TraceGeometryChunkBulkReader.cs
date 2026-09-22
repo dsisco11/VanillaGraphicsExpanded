@@ -3,10 +3,10 @@ using System.Threading;
 using Vintagestory.API.Common;
 using Vintagestory.Common;
 
-namespace VanillaGraphicsExpanded.LumOn.Scene.NearField;
+namespace VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 
 /// <summary>Copies chunk-local block layers and packed lighting while holding each engine layer's read lock.</summary>
-internal static class NearFieldChunkBulkReader
+internal static class TraceGeometryChunkBulkReader
 {
     #region Snapshot capture
     /// <summary>Avoids world-coordinate lookups and per-voxel lock acquisition on engine chunks.</summary>

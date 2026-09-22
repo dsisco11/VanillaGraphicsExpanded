@@ -1,4 +1,6 @@
 using System;
+using System.Diagnostics;
+using System.Linq;
 using System.Text.Json;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Numerics;
@@ -25,6 +27,9 @@ internal sealed class TraceGeometryRenderer : IRenderer, ITraceGeometrySceneProv
     private int? surfaceResolution;
     private string? failure;
     private int reportedLevels = -1;
+    private long nextMetrics, updateCount;
+    private double totalUpdate, peakUpdate;
+    public TraceGeometryRuntimeMetrics? Metrics { get; private set; }
     public TraceGeometryGpuScene? Resources { get; private set; }
     public double RenderOrder => 9.9;
     public int RenderRange => 1;
@@ -46,7 +51,8 @@ internal sealed class TraceGeometryRenderer : IRenderer, ITraceGeometrySceneProv
         if (partition == null) Resources?.Dispose();
         partition?.Dispose(); partition = null;
         source?.Dispose(); source = null;
-        Resources = null; plan = null;
+        Resources = null; plan = null; Metrics = null; TraceGeometryRuntimeMetrics.Current = null;
+        totalUpdate = peakUpdate = 0; updateCount = 0;
     }
 
     /// <summary>Unsubscribes game callbacks and ends the current generation.</summary>
@@ -71,6 +77,7 @@ internal sealed class TraceGeometryRenderer : IRenderer, ITraceGeometrySceneProv
             reportedLevels = trace.ClipmapLevels;
             api.Logger.Notification("[VGE] Shared TraceScene uses L0 only; TraceScene ClipmapLevels={0} is retired.", reportedLevels);
         }
+        long started = Stopwatch.GetTimestamp();
         bool pumped = false;
         try
         {
@@ -99,6 +106,7 @@ internal sealed class TraceGeometryRenderer : IRenderer, ITraceGeometrySceneProv
             failure = ex.Message;
         }
         finally { if (!pumped) partitions.Pump(); }
+        SampleMetrics(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
 
     /// <summary>Rechecks edits and loaded identities immediately before a consumer binds the scene.</summary>
@@ -113,23 +121,26 @@ internal sealed class TraceGeometryRenderer : IRenderer, ITraceGeometrySceneProv
     private void OnChunkDirty(Vec3i c, IWorldChunk chunk, EnumChunkDirtyReason reason) =>
         source?.MarkDirty(ChunkKey.FromChunkCoords(c.X, c.Y, c.Z));
 
-    /// <summary>Reports the surface logical box for temporary existing diagnostic bindings.</summary>
-    public bool TryGetLevel0RuntimeParams(out VectorInt3 origin, out VectorInt3 ring, out int resolution)
-    {
-        origin = ring = default; resolution = 0;
-        if (plan?.Surface is not { } surface || Resources == null) return false;
-        origin = new((int)surface.Min.X, (int)surface.Min.Y, (int)surface.Min.Z);
-        resolution = Resources.Resolution;
-        ring = new((origin.X % resolution + resolution) % resolution, (origin.Y % resolution + resolution) % resolution, (origin.Z % resolution + resolution) % resolution);
-        return true;
-    }
-
     /// <summary>Reports actual shared residency instead of the retired region scheduler.</summary>
     public string DumpTraceSceneSchedulerState(int topN) => JsonSerializer.Serialize(new
-    { SharedGeometry = partition?.Instance, Failure = failure, SourceReads = source?.Cache.SourceReads, Partitions = partitions.GetCoordinator().Diagnostics() });
+    { SharedGeometry = Metrics, Failure = failure, Partitions = partitions.GetCoordinator().Diagnostics() });
 
-    /// <summary>Provides a compact shared-source status for the existing diagnostics command.</summary>
-    public bool TryGetTraceSceneSchedulerTopKLine(int k, out string line)
-    { line = $"Shared geometry: sources={source?.Cache.SourceReads ?? 0}, inFlight={source?.Cache.InFlight ?? 0}"; return Resources != null; }
+    /// <summary>Samples demand separately from residency and keeps diagnostic serialization outside update timing.</summary>
+    private void SampleMetrics(double milliseconds)
+    {
+        if (partition == null || source == null || plan == null || Resources == null) return;
+        totalUpdate += milliseconds; peakUpdate = Math.Max(peakUpdate, milliseconds); updateCount++;
+        if (Environment.TickCount64 < nextMetrics) return;
+        nextMetrics = Environment.TickCount64 + 1000;
+        var layout = new PartitionLayout(new(16, 16, 16));
+        var near = plan.NearField is { } n ? layout.Intersecting(plan.Clip(n)).ToHashSet() : new System.Collections.Generic.HashSet<PartitionCoordinate>();
+        var surface = plan.Surface is { } s ? layout.Intersecting(plan.Clip(s)).ToHashSet() : new System.Collections.Generic.HashSet<PartitionCoordinate>();
+        Metrics = new(partition.Instance, Resources.Resolution, source.Cache.SourceReads, source.Cache.InFlight,
+            source.Cache.SnapshotBytes, partition.StagedPayloadBytes, Resources.TextureBytes, Resources.UploadedBytes,
+            partition.PublishedCells, milliseconds, totalUpdate / updateCount, peakUpdate,
+            near.Count, surface.Count, near.Count(surface.Contains), partitions.GetCoordinator().Statistics(partition.Instance));
+        TraceGeometryRuntimeMetrics.Current = Metrics;
+        if (partitions.RecordDiagnostics) api.Logger.Notification("[VGE PartitionMetrics] {0}", DumpTraceSceneSchedulerState(0));
+    }
     #endregion
 }

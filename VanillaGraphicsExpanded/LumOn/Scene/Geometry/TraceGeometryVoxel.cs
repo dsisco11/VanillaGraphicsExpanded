@@ -1,6 +1,9 @@
 using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Vintagestory.API.Common;
+using Vintagestory.API.Client;
+using Vintagestory.API.MathTools;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 
@@ -11,6 +14,16 @@ internal readonly record struct TraceGeometryVoxel(uint Geometry, uint LegacyLig
     public const int Bytes = 12;
     public uint Kind => Geometry & 3;
     public uint Material => Geometry >> 2;
+
+    /// <summary>Classifies exact opaque cubes independently of material availability; other occupied shapes remain unsupported.</summary>
+    public static uint Classify(IBlockAccessor accessor, Block block, BlockPos position)
+    {
+        if (block.Id == 0) return 1;
+        var boxes = block.GetCollisionBoxes(accessor, position);
+        return block.RenderPass == EnumChunkRenderPass.Opaque && block.AllSidesOpaque && boxes is { Length: 1 } &&
+            boxes[0].MinX == 0 && boxes[0].MinY == 0 && boxes[0].MinZ == 0 &&
+            boxes[0].MaxX == 1 && boxes[0].MaxY == 1 && boxes[0].MaxZ == 1 ? 2u : 3u;
+    }
 
     /// <summary>Quantizes the existing normalized light representation to four unsigned bytes.</summary>
     public static uint PackLight(in Vector4 light) => Byte(light.X) | Byte(light.Y) << 8 | Byte(light.Z) << 16 | Byte(light.W) << 24;

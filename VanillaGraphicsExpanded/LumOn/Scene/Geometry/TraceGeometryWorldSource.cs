@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
-using VanillaGraphicsExpanded.LumOn.Scene.NearField;
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
 using VanillaGraphicsExpanded.WorldPartition;
 using Vintagestory.API.Client;
@@ -15,7 +15,7 @@ internal sealed class TraceGeometryWorldSource : IDisposable
 {
     private readonly ICoreClientAPI api;
     private readonly LumonSceneTraceSceneChunkVersionProvider versions = new();
-    private readonly NearFieldSourceLifetimes lifetimes;
+    private readonly TraceGeometrySourceLifetimes lifetimes;
     private readonly ChunkProcessingService processing;
     private readonly TraceGeometryChunkProcessor processor = new();
     private readonly ConcurrentQueue<ChunkKey> dirty = new();
@@ -26,7 +26,7 @@ internal sealed class TraceGeometryWorldSource : IDisposable
     {
         this.api = api; lifetimes = new(versions);
         var map = ((Vintagestory.Client.NoObf.ClientMain)api.World).WorldMap;
-        var decoder = new NearFieldLightDecoder(map.BlockLightLevels, map.SunLightLevels, map.hueLevels, map.satLevels);
+        var decoder = new TraceGeometryLightDecoder(map.BlockLightLevels, map.SunLightLevels, map.hueLevels, map.satLevels);
         var snapshots = new TraceGeometrySnapshotSource(api.World.BlockAccessor, api.World.GetBlock, versions, materials, decoder);
         processing = new(snapshots, versions, new() { WorkerCount = 2, ArtifactCacheBudgetBytes = 0 });
         Cache = new(Load, versions.GetCurrentVersion, Available);

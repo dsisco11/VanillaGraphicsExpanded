@@ -191,7 +191,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private readonly DirectLightingBufferManager? directLightingBufferManager;
 
     private LumonSceneFeedbackUpdateRenderer? lumonSceneFeedbackUpdateRenderer;
-    private TraceGeometryRenderer? lumonSceneOccupancyClipmapUpdateRenderer;
+    private TraceGeometryRenderer? traceGeometryRenderer;
     private VanillaGraphicsExpanded.LumOn.Scene.Geometry.ITraceGeometrySceneProvider? nearFieldProvider;
 
     private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager;
@@ -352,9 +352,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     /// <summary>Injects the independent near-field geometry partition for debug consumers.</summary>
     internal void SetNearFieldSceneProvider(VanillaGraphicsExpanded.LumOn.Scene.Geometry.ITraceGeometrySceneProvider? provider) => nearFieldProvider = provider;
 
-    internal void SetLumonSceneOccupancyClipmapUpdateRenderer(TraceGeometryRenderer? occupancy)
+    internal void SetTraceGeometryRenderer(TraceGeometryRenderer? occupancy)
     {
-        lumonSceneOccupancyClipmapUpdateRenderer = occupancy;
+        traceGeometryRenderer = occupancy;
     }
 
     private void OnWorldProbeClipmapAnchorShifted(LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent _)
@@ -772,7 +772,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         if (shader is null || shader.LoadError)
             return;
 
-        bool usesNearFieldVisibility = programKind == LumOnDebugShaderProgramKind.WorldProbe;
+        bool usesNearFieldVisibility = programKind == LumOnDebugShaderProgramKind.WorldProbe ||
+            mode is >= LumOnDebugMode.TraceSceneBoundsL0 and <= LumOnDebugMode.LumOnScenesOverview or LumOnDebugMode.TraceSceneDdaDistanceL0;
         if (usesNearFieldVisibility && shader.SetDefine(LumOnNearFieldVisibilityBindings.EnabledDefine, "1")) return;
         var nearFieldVisibilityScene = usesNearFieldVisibility
             ? nearFieldProvider?.PrepareScene() : null;
@@ -1094,9 +1095,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 }
             }
 
-            if (lumonSceneEnabled != 0 && lumonSceneOccupancyClipmapUpdateRenderer is not null)
+            if (lumonSceneEnabled != 0 && traceGeometryRenderer is not null)
             {
-                lumonSceneSurfaceLut = lumonSceneOccupancyClipmapUpdateRenderer.Resources?.Surfaces;
+                lumonSceneSurfaceLut = traceGeometryRenderer.Resources?.Surfaces;
             }
 
             shader.LumonSceneEnabled = lumonSceneEnabled;
@@ -1108,38 +1109,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             shader.LumonSceneTilesPerAxis = tilesPerAxis;
             shader.LumonSceneTilesPerAtlas = tilesPerAtlas;
 
-            // Phase 23 TraceScene debug inputs (L0 only in v1).
-            int traceSceneEnabled = 0;
-            GpuTexture? traceOccL0 = null;
-            VectorInt3 traceOccOriginMinCell0 = default;
-            VectorInt3 traceOccRing0 = default;
-            int traceOccResolution = 0;
-
-            if (mode is LumOnDebugMode.TraceSceneBoundsL0
-                or LumOnDebugMode.TraceSceneOccupancyL0
-                or LumOnDebugMode.TraceScenePayloadL0
-                or LumOnDebugMode.TraceSceneDdaDistanceL0
-                or LumOnDebugMode.LumOnScenesOverview)
-            {
-                if (config.LumOn.Enabled && config.LumOn.LumonScene.Enabled && lumonSceneOccupancyClipmapUpdateRenderer is not null)
-                {
-                    var occRes = lumonSceneOccupancyClipmapUpdateRenderer.Resources;
-                    if (occRes is not null)
-                    {
-                        if (lumonSceneOccupancyClipmapUpdateRenderer.TryGetLevel0RuntimeParams(out traceOccOriginMinCell0, out traceOccRing0, out traceOccResolution))
-                        {
-                            traceSceneEnabled = 1;
-                            traceOccL0 = occRes.Legacy;
-                        }
-                    }
-                }
-            }
-
-            shader.TraceSceneEnabled = traceSceneEnabled;
-            shader.TraceSceneOccL0 = traceOccL0;
-            shader.TraceSceneOccOriginMinCell0 = traceOccOriginMinCell0;
-            shader.TraceSceneOccRing0 = traceOccRing0;
-            shader.TraceSceneOccResolution = traceOccResolution;
+            shader.TraceSceneLegacy = nearFieldVisibilityScene?.Legacy;
 
             shader.DebugMode = (int)mode;
             shader.TemporalAlpha = lum.TemporalAlpha;

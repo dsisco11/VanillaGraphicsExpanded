@@ -1,17 +1,17 @@
 using System.Numerics;
 using Vintagestory.API.MathTools;
 
-namespace VanillaGraphicsExpanded.LumOn.Scene.NearField;
+namespace VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 
 /// <summary>Decodes packed chunk lighting with the same tables and RGB conversion as the engine accessor.</summary>
-internal sealed class NearFieldLightDecoder
+internal sealed class TraceGeometryLightDecoder
 {
     private readonly float[] blockLevels, sunLevels;
     private readonly byte[] hues, saturations;
 
     #region Light conversion
     /// <summary>Retains the engine's light tables so runtime brightness changes remain observable.</summary>
-    public NearFieldLightDecoder(float[] blockLevels, float[] sunLevels, byte[] hues, byte[] saturations)
+    public TraceGeometryLightDecoder(float[] blockLevels, float[] sunLevels, byte[] hues, byte[] saturations)
     {
         this.blockLevels = blockLevels; this.sunLevels = sunLevels;
         this.hues = hues; this.saturations = saturations;

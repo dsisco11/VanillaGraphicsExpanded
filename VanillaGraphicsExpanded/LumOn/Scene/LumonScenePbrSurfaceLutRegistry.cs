@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 
 /// <summary>
 /// Thread-safe mapping from texture keys to compact surface ids, plus a LUT payload suitable for uploading to
-/// <see cref="LumonSceneOccupancyClipmapGpuResources.SurfaceLut"/>.
+/// <see cref="Geometry.TraceGeometryGpuScene.Surfaces"/>.
 /// </summary>
 /// <remarks>
 /// v1 payload:

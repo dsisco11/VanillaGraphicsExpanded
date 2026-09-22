@@ -12,14 +12,8 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgeLumOnDebugParamsUBO
     // x=enabled, y=tileSizeTexels, z=tilesPerAxis, w=tilesPerAtlas
     ivec4 lumonSceneInts0;
 
-    // x=enabled, y=occResolution, z/w reserved
-    ivec4 traceInts0;
-
-    // originMinCell0.xyz
-    ivec4 traceOriginMinCell0;
-
-    // ring0.xyz
-    ivec4 traceRing0;
+    // Reserved padding preserves the existing parameter layout; geometry uses its shared UBO.
+    ivec4 reservedGeometry[3];
 
     // temporalAlpha.x, depthRejectThreshold.y, normalRejectThreshold.z, reserved.w
     vec4 temporalFloats0;
@@ -40,11 +34,7 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgeLumOnDebugParamsUBO
 #define vge_lumonSceneTilesPerAxis (vgeLumOnDebugParams.lumonSceneInts0.z)
 #define vge_lumonSceneTilesPerAtlas (vgeLumOnDebugParams.lumonSceneInts0.w)
 
-// Phase 23: TraceScene occupancy clipmap debug inputs
-#define vge_traceSceneEnabled (vgeLumOnDebugParams.traceInts0.x)
-#define vge_traceOccResolution (vgeLumOnDebugParams.traceInts0.y)
-#define vge_traceOccOriginMinCell0 (vgeLumOnDebugParams.traceOriginMinCell0.xyz)
-#define vge_traceOccRing0 (vgeLumOnDebugParams.traceRing0.xyz)
+
 
 // Temporal config
 #define temporalAlpha (vgeLumOnDebugParams.temporalFloats0.x)

@@ -38,9 +38,10 @@ public static partial class VgeBuiltInDebugViews
                     text.AppendLine($"Wait ticks: oldest {partition.OldestRequiredWaitTicks}; mean {partition.MeanPublicationWaitTicks:F1}; max {partition.MaximumPublicationWaitTicks}");
                 }
                 else text.AppendLine("No registered partitions.");
-                if (capi.ModLoader.GetModSystem<LumOnModSystem>()?.NearFieldMetrics is { } metrics && selected?.Instance == metrics.Instance)
+                if (capi.ModLoader.GetModSystem<LumOnModSystem>()?.GeometryMetrics is { } metrics && selected?.Instance == metrics.Instance)
                 {
-                    text.AppendLine($"Near-field reads {metrics.SourceReads}; reused {metrics.CacheHits}; workers {metrics.SourceInFlight}");
+                    text.AppendLine($"Shared reads {metrics.SourceReads}; workers {metrics.SourceInFlight}");
+                    text.AppendLine($"Demand Near/Surface {metrics.NearRequired}/{metrics.SurfaceRequired}; overlap {metrics.Overlap}; staged {metrics.StagedPayloadBytes} B");
                     text.AppendLine($"Snapshots {metrics.SnapshotBytes / 1048576d:F1} MiB; textures {metrics.TextureBytes / 1048576d:F1} MiB");
                     text.AppendLine($"Uploaded {metrics.UploadedBytes / 1048576d:F1} MiB; published {metrics.PublishedCells}");
                     text.AppendLine($"Update {metrics.LastUpdateMilliseconds:F2} ms; mean {metrics.MeanUpdateMilliseconds:F2}; peak {metrics.PeakUpdateMilliseconds:F2}");

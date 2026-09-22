@@ -12,14 +12,8 @@ layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgeLumOnSceneCaptureVox
     // tileSizeTexels, tilesPerAxis, tilesPerAtlas, borderTexels
     uvec4 atlasLayout;
 
-    // occOriginMinCell0.xyz
-    ivec4 occOriginMinCell0;
-
-    // occRing0.xyz
-    ivec4 occRing0;
-
-    // x = occResolution, yzw reserved
-    ivec4 occInts0;
+    // Reserved to preserve the existing parameter-buffer layout.
+    ivec4 reservedGeometry[3];
 } vgeCaptureVoxelParams;
 
 #endif // LUMONSCENE_CAPTURE_VOXEL_PARAMS_UBO_GLSL

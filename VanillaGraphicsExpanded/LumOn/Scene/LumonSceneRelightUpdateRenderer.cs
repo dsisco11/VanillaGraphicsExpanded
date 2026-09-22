@@ -17,7 +17,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 
 /// <summary>
 /// Phase 22.9: Per-texel relight compute (v1).
-/// Consumes the trace scene (occupancy clipmap) and writes into the surface-cache irradiance atlas with temporal accumulation.
+/// Consumes the shared trace geometry and writes into the surface-cache irradiance atlas with temporal accumulation.
 /// </summary>
 internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
 {
@@ -107,11 +107,14 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (!occupancy.TryGetLevel0RuntimeParams(out VectorInt3 occOriginMinCell0, out VectorInt3 occRing0, out int occResolution))
+        if (occRes.Coverage?.Surface is not { } surfaceDomain)
         {
             return;
         }
 
+        var occOriginMinCell0 = new VectorInt3((int)surfaceDomain.Min.X, (int)surfaceDomain.Min.Y, (int)surfaceDomain.Min.Z);
+        VectorInt3 occRing0 = default;
+        int occResolution = (int)(surfaceDomain.Max.X - surfaceDomain.Min.X);
         lastOccOriginMinCell0 = occOriginMinCell0;
         lastOccRing0 = occRing0;
         lastOccResolution = occResolution;
@@ -279,7 +282,6 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
                 relightVoxelShader.BindLightColorLut(occRes.LightColors.TextureId);
                 relightVoxelShader.BindBlockLevelScalarLut(occRes.BlockLevels.TextureId);
                 relightVoxelShader.BindSunLevelScalarLut(occRes.SunLevels.TextureId);
-                relightVoxelShader.BindMaterialPalette(occRes.Faces.TextureId);
                 relightVoxelShader.BindSurfaceLut(occRes.Surfaces.TextureId);
 
                 relightVoxelShader.BindIrradianceAtlasImage(atlases.IrradianceAtlas, access: TextureAccess.ReadWrite);

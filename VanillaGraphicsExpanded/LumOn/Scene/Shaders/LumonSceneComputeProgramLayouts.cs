@@ -44,8 +44,6 @@ internal static class LumonSceneComputeProgramLayouts
             RegisterUniformBlockBinding("VgeLumOnSceneCaptureVoxelParamsUBO", GpuBindingRegistry.Ubo.Object);
             RegisterImageUnit("vge_depthAtlas", 0);
             RegisterImageUnit("vge_materialAtlas", 1);
-            RegisterSamplerUnit("vge_occL0", 2, required: false);
-            RegisterSamplerUnit("vge_materialPalette", 3, required: false);
             RegisterShaderStorageBlockBinding("VgeCaptureWork", 0);
             RegisterShaderStorageBlockBinding("VgePatchMetadata", 1);
             RegisterShaderStorageBlockBinding("VgeChunkSlotInfo", 2);
@@ -65,20 +63,6 @@ internal static class LumonSceneComputeProgramLayouts
         }
     }
 
-    internal sealed class TraceSceneRegionToClipmap : GpuProgramLayout
-    {
-        public TraceSceneRegionToClipmap()
-        {
-            RegisterUniformBlockBinding("VgeLumOnSceneTraceRegionParamsUBO", GpuBindingRegistry.Ubo.Object);
-            RegisterShaderStorageBlockBinding("VgeRegionPayloadWords", 0);
-            RegisterShaderStorageBlockBinding("VgeRegionUpdates", 1);
-
-            // vge_occLevels is declared as uimage3D vge_occLevels[8] with layout(binding=0).
-            // Register the full array mapping for fallback paths that require uniform assignment.
-            RegisterImageUnitArray("vge_occLevels", firstUnit: 0, count: 8);
-        }
-    }
-
     internal sealed class RelightVoxelDda : GpuProgramLayout
     {
         public RelightVoxelDda()
@@ -88,11 +72,9 @@ internal static class LumonSceneComputeProgramLayouts
 
             RegisterSamplerUnit("vge_depthAtlas", 0);
             RegisterSamplerUnit("vge_materialAtlas", 1);
-            RegisterSamplerUnit("vge_occL0", 2, required: false);
             RegisterSamplerUnit("vge_lightColorLut", 3);
             RegisterSamplerUnit("vge_blockLevelScalarLut", 4);
             RegisterSamplerUnit("vge_sunLevelScalarLut", 5);
-            RegisterSamplerUnit("vge_materialPalette", 6, required: false);
             RegisterSamplerUnit("vge_surfaceLut", 7);
 
             RegisterImageUnit("vge_irradianceAtlas", 0);

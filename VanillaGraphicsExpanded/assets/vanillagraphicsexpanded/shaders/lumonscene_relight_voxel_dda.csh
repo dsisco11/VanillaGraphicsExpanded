@@ -17,11 +17,9 @@ layout(binding = 0) uniform sampler2DArray vge_depthAtlas;    // r16f
 layout(binding = 1) uniform sampler2DArray vge_materialAtlas; // rgba8 (RG oct normal, BA 16-bit surfaceId)
 
 // Trace scene (v1 uses L0 only).
-layout(binding = 2) uniform usampler3D vge_occL0;             // r32ui packed payload
 layout(binding = 3) uniform sampler2D vge_lightColorLut;      // rgba16f
 layout(binding = 4) uniform sampler2D vge_blockLevelScalarLut;// r16f
 layout(binding = 5) uniform sampler2D vge_sunLevelScalarLut;  // r16f
-layout(binding = 6) uniform usampler2D vge_materialPalette;   // rgba32ui (per-face surfaceIds)
 layout(binding = 7) uniform usampler2D vge_surfaceLut;        // rgba32ui (albedo rgb 0..255, roughness 0..255)
 
 // Output atlas (read+write for temporal accumulation).

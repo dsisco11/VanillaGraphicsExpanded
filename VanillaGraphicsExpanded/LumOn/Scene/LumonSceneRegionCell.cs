@@ -319,7 +319,7 @@ internal sealed class LumonSceneRegionCell : WorldCell
         }
 
         VectorInt3 anchorBlock = context.HasAnchor ? context.AnchorBlockPos : context.CameraBlockPos;
-        VectorInt3 anchorChunk = LumonSceneTraceSceneClipmapMath.WorldCellToRegionCoord(anchorBlock);
+        VectorInt3 anchorChunk = new VectorInt3(anchorBlock.X >> 5, anchorBlock.Y >> 5, anchorBlock.Z >> 5);
 
         int dx = ChunkCoordInt3.X - anchorChunk.X;
         int dy = ChunkCoordInt3.Y - anchorChunk.Y;

@@ -18,6 +18,7 @@ internal sealed class VgeProfilingEventSource : EventSource
     public static readonly VgeProfilingEventSource Log = new();
 
     private long nextScopeId;
+    private PollingCounter? sharedGeometryWorkers, sharedGeometryTextureBytes, sharedGeometryUploadedBytes;
 
     private PollingCounter? chunkProcQueueLength;
     private PollingCounter? chunkProcInFlight;
@@ -33,25 +34,8 @@ internal sealed class VgeProfilingEventSource : EventSource
     private IncrementingPollingCounter? chunkProcCacheHitsRate;
     private IncrementingPollingCounter? chunkProcCacheEvictionsRate;
 
-    private PollingCounter? traceSceneQueueLength;
-    private PollingCounter? traceSceneInFlight;
-    private PollingCounter? traceSceneAppliedRegions;
-    private PollingCounter? traceSceneSuppressed;
 
-    private IncrementingPollingCounter? traceSceneCooldownSkipsRate;
-    private IncrementingPollingCounter? traceSceneCompletedSuccessRate;
-    private IncrementingPollingCounter? traceSceneCompletedUnavailableRate;
-    private IncrementingPollingCounter? traceSceneCompletedCanceledRate;
-    private IncrementingPollingCounter? traceSceneCompletedSupersededRate;
-    private IncrementingPollingCounter? traceSceneCompletedFailedRate;
 
-    private IncrementingPollingCounter? traceSceneRegionsUploadedRate;
-    private IncrementingPollingCounter? traceSceneBytesUploadedRate;
-    private IncrementingPollingCounter? traceSceneRegionsDispatchedRate;
-    private IncrementingPollingCounter? traceSceneComputeDispatchRate;
-    private IncrementingPollingCounter? traceSceneRegionRequestsIssuedRate;
-    private IncrementingPollingCounter? traceSceneSnapshotsRequestedRate;
-    private IncrementingPollingCounter? traceSceneSnapshotsUnavailableRate;
 
     private VgeProfilingEventSource() { }
 
@@ -144,116 +128,15 @@ internal sealed class VgeProfilingEventSource : EventSource
             DisplayUnits = "evictions/sec",
         };
 
-        traceSceneQueueLength = new PollingCounter("lumon-tracescene-queue-length", this, () => LumonSceneTraceSceneMetrics.QueueLength)
-        {
-            DisplayName = "LumOn TraceScene Queue Length",
-        };
-
-        traceSceneInFlight = new PollingCounter("lumon-tracescene-inflight", this, () => LumonSceneTraceSceneMetrics.InFlight)
-        {
-            DisplayName = "LumOn TraceScene In-Flight",
-        };
-
-        traceSceneAppliedRegions = new PollingCounter("lumon-tracescene-applied", this, () => LumonSceneTraceSceneMetrics.AppliedRegions)
-        {
-            DisplayName = "LumOn TraceScene Applied Regions",
-        };
-
-        traceSceneSuppressed = new PollingCounter("lumon-tracescene-suppressed", this, () => LumonSceneTraceSceneMetrics.SuppressedCooldown)
-        {
-            DisplayName = "LumOn TraceScene Suppressed (Cooldown)",
-        };
-
-        traceSceneCooldownSkipsRate = new IncrementingPollingCounter(
-            "lumon-tracescene-cooldown-skips", this, () => LumonSceneTraceSceneMetrics.CooldownSkips)
-        {
-            DisplayName = "LumOn TraceScene Cooldown Skips / sec",
-            DisplayUnits = "skips/sec",
-        };
-
-        traceSceneCompletedSuccessRate = new IncrementingPollingCounter(
-            "lumon-tracescene-completed-success", this, () => LumonSceneTraceSceneMetrics.RegionCompleteSuccess)
-        {
-            DisplayName = "LumOn TraceScene Completed / sec (Success)",
-            DisplayUnits = "requests/sec",
-        };
-
-        traceSceneCompletedUnavailableRate = new IncrementingPollingCounter(
-            "lumon-tracescene-completed-unavailable", this, () => LumonSceneTraceSceneMetrics.RegionCompleteChunkUnavailable)
-        {
-            DisplayName = "LumOn TraceScene Completed / sec (ChunkUnavailable)",
-            DisplayUnits = "requests/sec",
-        };
-
-        traceSceneCompletedCanceledRate = new IncrementingPollingCounter(
-            "lumon-tracescene-completed-canceled", this, () => LumonSceneTraceSceneMetrics.RegionCompleteCanceled)
-        {
-            DisplayName = "LumOn TraceScene Completed / sec (Canceled)",
-            DisplayUnits = "requests/sec",
-        };
-
-        traceSceneCompletedSupersededRate = new IncrementingPollingCounter(
-            "lumon-tracescene-completed-superseded", this, () => LumonSceneTraceSceneMetrics.RegionCompleteSuperseded)
-        {
-            DisplayName = "LumOn TraceScene Completed / sec (Superseded)",
-            DisplayUnits = "requests/sec",
-        };
-
-        traceSceneCompletedFailedRate = new IncrementingPollingCounter(
-            "lumon-tracescene-completed-failed", this, () => LumonSceneTraceSceneMetrics.RegionCompleteFailed)
-        {
-            DisplayName = "LumOn TraceScene Completed / sec (Failed)",
-            DisplayUnits = "requests/sec",
-        };
-
-        traceSceneRegionsUploadedRate = new IncrementingPollingCounter(
-            "lumon-tracescene-regions-uploaded", this, () => LumonSceneTraceSceneMetrics.RegionsUploaded)
-        {
-            DisplayName = "LumOn TraceScene Regions Uploaded / sec",
-            DisplayUnits = "regions/sec",
-        };
-
-        traceSceneBytesUploadedRate = new IncrementingPollingCounter(
-            "lumon-tracescene-bytes-uploaded", this, () => LumonSceneTraceSceneMetrics.BytesUploaded)
-        {
-            DisplayName = "LumOn TraceScene Bytes Uploaded / sec",
-            DisplayUnits = "bytes/sec",
-        };
-
-        traceSceneRegionsDispatchedRate = new IncrementingPollingCounter(
-            "lumon-tracescene-regions-dispatched", this, () => LumonSceneTraceSceneMetrics.RegionsDispatched)
-        {
-            DisplayName = "LumOn TraceScene Regions Dispatched / sec",
-            DisplayUnits = "regions/sec",
-        };
-
-        traceSceneComputeDispatchRate = new IncrementingPollingCounter(
-            "lumon-tracescene-dispatches", this, () => LumonSceneTraceSceneMetrics.ComputeDispatchCount)
-        {
-            DisplayName = "LumOn TraceScene Compute Dispatches / sec",
-            DisplayUnits = "dispatches/sec",
-        };
-
-        traceSceneRegionRequestsIssuedRate = new IncrementingPollingCounter(
-            "lumon-tracescene-region-requests", this, () => LumonSceneTraceSceneMetrics.RegionRequestsIssued)
-        {
-            DisplayName = "LumOn TraceScene Region Requests Issued / sec",
-            DisplayUnits = "requests/sec",
-        };
-
-        traceSceneSnapshotsRequestedRate = new IncrementingPollingCounter(
-            "lumon-tracescene-snapshots-requested", this, () => LumonSceneTraceSceneMetrics.SnapshotsRequested)
-        {
-            DisplayName = "LumOn TraceScene Snapshots Requested / sec",
-            DisplayUnits = "requests/sec",
-        };
-
-        traceSceneSnapshotsUnavailableRate = new IncrementingPollingCounter(
-            "lumon-tracescene-snapshots-unavailable", this, () => LumonSceneTraceSceneMetrics.SnapshotsUnavailable)
-        {
-            DisplayName = "LumOn TraceScene Snapshots Unavailable / sec",
-            DisplayUnits = "requests/sec",
-        };
+        sharedGeometryWorkers = new PollingCounter("lumon-shared-geometry-workers", this,
+            () => VanillaGraphicsExpanded.LumOn.Scene.Geometry.TraceGeometryRuntimeMetrics.Current?.SourceInFlight ?? 0)
+        { DisplayName = "Shared geometry workers" };
+        sharedGeometryTextureBytes = new PollingCounter("lumon-shared-geometry-texture-bytes", this,
+            () => VanillaGraphicsExpanded.LumOn.Scene.Geometry.TraceGeometryRuntimeMetrics.Current?.TextureBytes ?? 0)
+        { DisplayName = "Shared geometry texture bytes", DisplayUnits = "bytes" };
+        sharedGeometryUploadedBytes = new PollingCounter("lumon-shared-geometry-uploaded-bytes", this,
+            () => VanillaGraphicsExpanded.LumOn.Scene.Geometry.TraceGeometryRuntimeMetrics.Current?.UploadedBytes ?? 0)
+        { DisplayName = "Shared geometry uploaded bytes (generation)", DisplayUnits = "bytes" };
     }
 
     [NonEvent]

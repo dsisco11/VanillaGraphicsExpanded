@@ -16,9 +16,6 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
 
     // Byte offsets (std140 layout)
     private const int OffsetLumonSceneInts0 = 0;
-    private const int OffsetTraceInts0 = 16;
-    private const int OffsetTraceOriginMinCell0 = 32;
-    private const int OffsetTraceRing0 = 48;
     private const int OffsetTemporalFloats0 = 64;
     private const int OffsetDebugInts0 = 80;
     private const int OffsetCompositeTintIntensity = 96;
@@ -76,59 +73,6 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
 
     #endregion
 
-    #region TraceScene Occupancy Clipmap Debug
-
-    public int TraceSceneEnabled
-    {
-        get => UboPacking.ReadInt32(DataReadOnly, OffsetTraceInts0 + 0);
-        set
-        {
-            var (_, occRes, _, _) = UboPacking.ReadIVec4(DataReadOnly, OffsetTraceInts0);
-            UboPacking.WriteIVec4(DataWritable, OffsetTraceInts0, value, occRes, 0, 0);
-            MarkDirty(OffsetTraceInts0, 16);
-        }
-    }
-
-    public int TraceSceneOccResolution
-    {
-        get => UboPacking.ReadInt32(DataReadOnly, OffsetTraceInts0 + 4);
-        set
-        {
-            var (enabled, _, _, _) = UboPacking.ReadIVec4(DataReadOnly, OffsetTraceInts0);
-            UboPacking.WriteIVec4(DataWritable, OffsetTraceInts0, enabled, value, 0, 0);
-            MarkDirty(OffsetTraceInts0, 16);
-        }
-    }
-
-    public VectorInt3 TraceSceneOccOriginMinCell0
-    {
-        get
-        {
-            var (x, y, z, _) = UboPacking.ReadIVec4(DataReadOnly, OffsetTraceOriginMinCell0);
-            return new VectorInt3(x, y, z);
-        }
-        set
-        {
-            UboPacking.WriteIVec4(DataWritable, OffsetTraceOriginMinCell0, value.X, value.Y, value.Z, 0);
-            MarkDirty(OffsetTraceOriginMinCell0, 16);
-        }
-    }
-
-    public VectorInt3 TraceSceneOccRing0
-    {
-        get
-        {
-            var (x, y, z, _) = UboPacking.ReadIVec4(DataReadOnly, OffsetTraceRing0);
-            return new VectorInt3(x, y, z);
-        }
-        set
-        {
-            UboPacking.WriteIVec4(DataWritable, OffsetTraceRing0, value.X, value.Y, value.Z, 0);
-            MarkDirty(OffsetTraceRing0, 16);
-        }
-    }
-
-    #endregion
 
     #region Temporal Config
 

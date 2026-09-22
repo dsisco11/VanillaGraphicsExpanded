@@ -20,11 +20,9 @@ internal sealed class LumonSceneRelightVoxelDdaComputeShader : IDisposable
 
     private const int DepthAtlasSamplerUnit = 0;
     private const int MaterialAtlasSamplerUnit = 1;
-    private const int OccL0SamplerUnit = 2;
     private const int LightColorLutSamplerUnit = 3;
     private const int BlockLevelScalarLutSamplerUnit = 4;
     private const int SunLevelScalarLutSamplerUnit = 5;
-    private const int MaterialPaletteSamplerUnit = 6;
     private const int SurfaceLutSamplerUnit = 7;
 
     private const int IrradianceAtlasImageUnit = 0; // layout(binding=0, rgba16f)
@@ -139,13 +137,7 @@ internal sealed class LumonSceneRelightVoxelDdaComputeShader : IDisposable
         GpuSamplers.NearestClamp.Bind(unit: MaterialAtlasSamplerUnit);
     }
 
-    public void BindOccL0(int textureId)
-    {
-        GlStateCache.Current.BindTexture(TextureTarget.Texture3D, unit: OccL0SamplerUnit, textureId: textureId);
-        GpuSamplers.NearestClamp.Bind(unit: OccL0SamplerUnit);
-    }
-
-    public void BindLightColorLut(int textureId)
+public void BindLightColorLut(int textureId)
     {
         GlStateCache.Current.BindTexture(TextureTarget.Texture2D, unit: LightColorLutSamplerUnit, textureId: textureId);
         GpuSamplers.NearestClamp.Bind(unit: LightColorLutSamplerUnit);
@@ -163,13 +155,7 @@ internal sealed class LumonSceneRelightVoxelDdaComputeShader : IDisposable
         GpuSamplers.NearestClamp.Bind(unit: SunLevelScalarLutSamplerUnit);
     }
 
-    public void BindMaterialPalette(int textureId)
-    {
-        GlStateCache.Current.BindTexture(TextureTarget.Texture2D, unit: MaterialPaletteSamplerUnit, textureId: textureId);
-        GpuSamplers.NearestClamp.Bind(unit: MaterialPaletteSamplerUnit);
-    }
-
-    public void BindSurfaceLut(int textureId)
+public void BindSurfaceLut(int textureId)
     {
         GlStateCache.Current.BindTexture(TextureTarget.Texture2D, unit: SurfaceLutSamplerUnit, textureId: textureId);
         GpuSamplers.NearestClamp.Bind(unit: SurfaceLutSamplerUnit);

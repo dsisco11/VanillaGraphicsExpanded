@@ -1,4 +1,4 @@
-using VanillaGraphicsExpanded.LumOn.Scene.NearField;
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldPartition;
 using VanillaGraphicsExpanded.WorldPartition;
 
@@ -20,16 +20,16 @@ public sealed class PartitionCoverageSweepTests
         var provider = new PartitionProviderFixture();
         var layout = new PartitionLayout(new(16, 16, 16));
         long id = coordinator.Register("sweep", "test", layout, new(0, 0, 0), limits, provider);
-        var policy = new NearFieldCoveragePolicy();
+
         long tick = 0;
         for (int step = 0; step <= 64; step++)
         {
             // Sweep each axis through a full cell, in opposing directions to expose asymmetric rounding.
             var point = new PartitionPoint(anchor + step * .25, anchor - step * .25, anchor + step * .25);
-            Assert.True(policy.TryPlan(point, 1, out var plan));
-            coordinator.SetSource(new(1, id, "test", point, plan.Required));
+            var plan = TraceGeometryCoverage.Plan(point, true, null, int.MaxValue);
+            coordinator.SetSource(new(1, id, "test", point, plan.NearField!.Value));
             coordinator.Pump(tick++);
-            AssertCoverage(coordinator, id, plan.Required);
+            AssertCoverage(coordinator, id, plan.NearField!.Value);
             var waiting = coordinator.Cells(id).Where(c => !c.Ready).ToArray();
             if (step == 0) Assert.NotEmpty(waiting);
             Assert.All(waiting, c => Assert.DoesNotContain(c.Key, provider.Visible));
@@ -45,10 +45,10 @@ public sealed class PartitionCoverageSweepTests
         Assert.DoesNotContain(dirty, provider.Visible);
         var abandoned = provider.Pending.Select(w => w.Request).ToArray();
         var teleported = new PartitionPoint(anchor + 1024.5, anchor - 1024.5, anchor + 1024.5);
-        Assert.True(policy.TryPlan(teleported, 1, out var destination));
-        coordinator.SetSource(new(1, id, "test", teleported, destination.Required));
+        var destination = TraceGeometryCoverage.Plan(teleported, true, null, int.MaxValue);
+        coordinator.SetSource(new(1, id, "test", teleported, destination.NearField!.Value));
         coordinator.Pump(tick++);
-        AssertCoverage(coordinator, id, destination.Required);
+        AssertCoverage(coordinator, id, destination.NearField!.Value);
         Assert.All(coordinator.Cells(id), c => Assert.False(c.Ready));
         Assert.All(abandoned, r => Assert.True(r.Cancellation.IsCancellationRequested));
         provider.CompleteAll();

@@ -162,7 +162,7 @@ Continue screen-space misses through local world geometry. Nearby opaque surface
 
 Completion criterion: near-field hits block exterior cache lighting, while unobstructed rays retain valid cached lighting.
 
-Implemented in the [near-field tracing shaders](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_near_field_trace.glsl) and [published scene owner](../VanillaGraphicsExpanded/LumOn/Scene/NearField/NearFieldGpuScene.cs). Controlled GPU cases cover sealed interiors, doorway closure, missing data/materials, budget limits, scene generations, stale completions, slot identities, large coordinates, emission, sky lighting and parallax.
+Implemented in the [near-field tracing shaders](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_near_field_trace.glsl) and [published scene owner](../VanillaGraphicsExpanded/LumOn/Scene/Geometry/TraceGeometryGpuScene.cs). Controlled GPU cases cover sealed interiors, doorway closure, missing data/materials, budget limits, scene generations, stale completions, slot identities, large coordinates, emission, sky lighting and parallax.
 
 - [ ] Validate live scene appearance, snapshot cost and GPU traversal cost under representative update budgets.
 

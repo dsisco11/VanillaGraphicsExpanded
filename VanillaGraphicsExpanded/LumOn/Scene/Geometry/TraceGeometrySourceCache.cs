@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using VanillaGraphicsExpanded.LumOn.Scene.NearField;
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
 using VanillaGraphicsExpanded.WorldPartition;
 
@@ -43,7 +43,7 @@ internal sealed class TraceGeometrySourceCache : IDisposable
         IReadOnlySet<PartitionCoordinate>? waiting = null, Func<PartitionCoordinate, Action?>? authorize = null)
     {
         frame++; cancelled.RemoveAll(t => t.IsCompleted);
-        var groups = demand.GroupBy(c => NearFieldGeometryPartition.SourceChunk(c)).ToDictionary(g => g.Key, g => g.ToArray());
+        var groups = demand.GroupBy(c => TraceGeometryCoverage.SourceChunk(c)).ToDictionary(g => g.Key, g => g.ToArray());
         foreach (var key in retries.Keys.Where(key => !groups.ContainsKey(key)).ToArray()) retries.Remove(key);
         foreach (var pair in entries.ToArray())
         {
@@ -99,7 +99,7 @@ internal sealed class TraceGeometrySourceCache : IDisposable
     /// <summary>Checks capture completion without unpinning or allocating a publication payload.</summary>
     public bool HasSnapshot(in PartitionCoordinate coordinate)
     {
-        var key = NearFieldGeometryPartition.SourceChunk(coordinate);
+        var key = TraceGeometryCoverage.SourceChunk(coordinate);
         return entries.TryGetValue(key, out var entry) && entry.Task.IsCompletedSuccessfully && entry.Task.Result != null && IsCurrent(key, entry.Version);
     }
 
@@ -107,7 +107,7 @@ internal sealed class TraceGeometrySourceCache : IDisposable
     public bool TryExtract(in PartitionCoordinate coordinate, out TraceGeometryChunk? chunk, out TraceGeometryCell? cell)
     {
         chunk = null; cell = null;
-        ChunkKey key = NearFieldGeometryPartition.SourceChunk(coordinate);
+        ChunkKey key = TraceGeometryCoverage.SourceChunk(coordinate);
         if (!entries.TryGetValue(key, out var entry) || !entry.Task.IsCompletedSuccessfully || entry.Task.Result == null || !IsCurrent(key, entry.Version)) return false;
         chunk = entry.Task.Result; cell = chunk.Extract(coordinate); entry.Pending.Remove(coordinate); entry.Used = frame;
         return true;

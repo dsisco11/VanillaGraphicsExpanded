@@ -5,7 +5,6 @@ namespace VanillaGraphicsExpanded.WorldPartition;
 /// </summary>
 internal enum WorldCellKind : byte
 {
-    TraceSceneRegion = 0,
     LumonSceneNear = 1,
     LumonSceneFar = 2,
 }

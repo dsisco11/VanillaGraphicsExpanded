@@ -1,5 +1,5 @@
 using System.Numerics;
-using VanillaGraphicsExpanded.LumOn.Scene.NearField;
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
 using VanillaGraphicsExpanded.WorldPartition;
@@ -9,10 +9,10 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Controls voxel input while production partition ownership drives the actual GPU scene.</summary>
 internal sealed class NearFieldVoxelFixture : IDisposable
 {
-    public NearFieldGpuScene Scene { get; }
+    public ControlledTraceGpuScene Scene { get; }
     public PartitionCoordinator Coordinator { get; }
     public long Instance { get; }
-    private readonly NearFieldMaterialRegistry materials = new();
+    private TraceGeometryMaterials materials = new();
     private readonly NearFieldVoxelProvider provider;
     private long tick;
 
@@ -20,7 +20,7 @@ internal sealed class NearFieldVoxelFixture : IDisposable
     /// <summary>Allocates an independent cell window centered on the supplied world position.</summary>
     public NearFieldVoxelFixture(VectorInt3 center = default, int resolution = 64)
     {
-        Scene = new NearFieldGpuScene(resolution);
+        Scene = new ControlledTraceGpuScene(resolution);
         provider = new NearFieldVoxelProvider(Scene, materials);
         var limits = new PartitionLimits(10000, 10000, 10000, 10000, long.MaxValue);
         Coordinator = new PartitionCoordinator(limits);
@@ -70,7 +70,7 @@ internal sealed class NearFieldVoxelFixture : IDisposable
     {
         PublishCells(position => new(!world.IsLoaded(position) ? 0u : world.GetBlock(position).BlockId == 0 ? 1u : 2u | (materialIdentity << 2), world.GetLight(position)));
         var value = material ?? new Vector4(1, 1, 1, 0);
-        var data = new float[NearFieldMaterialRegistry.Width * NearFieldMaterialRegistry.Height * 4];
+        var data = new float[256 * 768 * 4];
         for (int face = 0; face < 6; face++)
         {
             int i = (12 + face * 2) * 4;
@@ -83,17 +83,20 @@ internal sealed class NearFieldVoxelFixture : IDisposable
     /// <summary>Uses production classification and material lookup for controlled game-access data.</summary>
     public void PublishCaptured(ControlledVoxelWorld world)
     {
+        materials = new();
+        provider.Materials = materials;
         var accessor = ControlledBlockAccessor.Create(world);
         var position = new Vintagestory.API.MathTools.BlockPos(0);
         PublishCells(cell =>
         {
             position.Set(cell.X, cell.Y, cell.Z);
-            return NearFieldCellCapture.Capture(accessor, world.GetBlock(cell), position, materials);
+            var block = world.GetBlock(cell);
+            return new(TraceGeometryVoxel.Classify(accessor, block, position) | materials.Resolve(block) << 2, world.GetLight(cell));
         });
     }
 
     /// <summary>Rebuilds current captures through immutable snapshots and acknowledged publication.</summary>
-    private void PublishCells(Func<(int X, int Y, int Z), NearFieldSourceCell> capture)
+    private void PublishCells(Func<(int X, int Y, int Z), ControlledTraceVoxel> capture)
     {
         provider.CaptureCell = capture;
         InvalidateAll();

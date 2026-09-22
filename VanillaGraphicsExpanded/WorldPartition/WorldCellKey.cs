@@ -5,8 +5,6 @@ namespace VanillaGraphicsExpanded.WorldPartition;
 internal readonly record struct WorldCellKey(WorldCellKind Kind, ulong Packed)
 {
     #region Domain tokens
-    /// <summary>Creates a tracing work token from the adapter's packed coordinate.</summary>
-    public static WorldCellKey FromTraceSceneRegion(ulong packedChunkKey) => new(WorldCellKind.TraceSceneRegion, packedChunkKey);
     /// <summary>Creates a near-scene content queue token.</summary>
     public static WorldCellKey FromLumonSceneNear(ulong packedChunkCoordKey) => new(WorldCellKind.LumonSceneNear, packedChunkCoordKey);
     /// <summary>Creates a far-scene content queue token.</summary>

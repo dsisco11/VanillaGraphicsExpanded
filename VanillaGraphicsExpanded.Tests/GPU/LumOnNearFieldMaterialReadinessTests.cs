@@ -1,6 +1,6 @@
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
-using VanillaGraphicsExpanded.LumOn.Scene.NearField;
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
@@ -21,7 +21,7 @@ public sealed class LumOnNearFieldMaterialReadinessTests : NearFieldShaderTestBa
     #endregion
 
     #region Material Lifecycle
-    /// <summary>Ready registry data alone does not update opaque material-zero cells captured earlier; recapture repairs them.</summary>
+    /// <summary>Ready registry data alone does not update previously published material tables; a new generation and recapture repair them.</summary>
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
@@ -32,9 +32,9 @@ public sealed class LumOnNearFieldMaterialReadinessTests : NearFieldShaderTestBa
         using var material = new ScopedPbrMaterialFixture();
         material.SetReadiness(surfaceReady, derivedReady);
         var world = CreateRoom(material.Cube);
-        var captured = NearFieldCellCapture.Capture(ControlledBlockAccessor.Create(world), material.Cube,
-            new BlockPos(-3, 0, -5), new NearFieldMaterialRegistry());
-        Assert.Equal(2u, captured.Geometry);
+        uint captured = TraceGeometryVoxel.Classify(ControlledBlockAccessor.Create(world), material.Cube,
+            new BlockPos(-3, 0, -5));
+        Assert.Equal(2u, captured);
         var worldProbe = WorldProbeRoomScenario.Trace(world, new Vector3d(0, 0, -5));
         Assert.True(worldProbe.Success);
         Assert.All(worldProbe.AtlasSamples, sample => Assert.True(sample.RadianceRgb.Length() > 0.1f));
@@ -50,7 +50,7 @@ public sealed class LumOnNearFieldMaterialReadinessTests : NearFieldShaderTestBa
         AssertPublished(fixture.Scene);
         AssertLighting(Trace(fixture), lit: false, opaque: true);
 
-        // Keep geometry and chunk versions unchanged: only a new production cell capture resolves the material identity.
+        // Keep geometry and chunk versions unchanged: a new material-table generation and cell capture resolve the hit-lighting data.
         fixture.PublishCaptured(world);
         Assert.True(fixture.Scene.Revision > revision);
         AssertPublished(fixture.Scene);
@@ -104,7 +104,7 @@ public sealed class LumOnNearFieldMaterialReadinessTests : NearFieldShaderTestBa
     }
 
     /// <summary>Proves all captured regions remain GPU-ready even when their material identities are unresolved.</summary>
-    private static void AssertPublished(NearFieldGpuScene scene)
+    private static void AssertPublished(ControlledTraceGpuScene scene)
     {
         var readiness = new byte[scene.RegionResolution * scene.RegionResolution * scene.RegionResolution];
         GL.GetInteger(GetPName.PackAlignment, out int previous);

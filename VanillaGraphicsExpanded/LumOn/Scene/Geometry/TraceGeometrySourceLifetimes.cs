@@ -3,16 +3,16 @@ using System.Linq;
 using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
 using VanillaGraphicsExpanded.WorldPartition;
 
-namespace VanillaGraphicsExpanded.LumOn.Scene.NearField;
+namespace VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 
 /// <summary>Invalidates source versions when a loaded chunk instance disappears or is replaced.</summary>
-internal sealed class NearFieldSourceLifetimes
+internal sealed class TraceGeometrySourceLifetimes
 {
     private readonly Dictionary<ChunkKey, object> observed = new();
     private readonly LumonSceneTraceSceneChunkVersionProvider versions;
 
     /// <summary>Uses the same dependency revisions as the chunk processing artifact cache.</summary>
-    public NearFieldSourceLifetimes(LumonSceneTraceSceneChunkVersionProvider versions) => this.versions = versions;
+    public TraceGeometrySourceLifetimes(LumonSceneTraceSceneChunkVersionProvider versions) => this.versions = versions;
 
     /// <summary>Records loaded identity before testing a snapshot's dependency version.</summary>
     public bool Observe(ChunkKey key, object? identity)

@@ -23,6 +23,8 @@ internal sealed class TraceGeometryPartition : IPartitionResidencyBackend, IDisp
     private TraceGeometryTables? stagingTables;
     private int tableOffset;
     public long Instance { get; }
+    public long StagedPayloadBytes => pending.Count * TraceGeometryCell.UploadBytes;
+    public long PublishedCells { get; private set; }
 
     /// <summary>Immutable cell work retained across shared-upload-budget deferrals.</summary>
     private sealed record Pending(PartitionRequest Request, ChunkKey Chunk, int Version, TraceGeometryCell Cell);
@@ -113,7 +115,7 @@ internal sealed class TraceGeometryPartition : IPartitionResidencyBackend, IDisp
                 () => source.IsCurrent(work.Chunk, work.Version),
                 () => backend.Publish(work.Request, work.Cell, tables),
                 work.Cell.Unsupported ? PartitionContentStatus.Unsupported : PartitionContentStatus.Supported);
-            if (success) { pending.Remove(key); published++; }
+            if (success) { pending.Remove(key); published++; PublishedCells++; }
             else if (!coordinator.IsCurrent(work.Request)) pending.Remove(key);
         }
     }

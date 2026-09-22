@@ -19,7 +19,7 @@ public sealed class WorldCellContractTests
     [Fact]
     public void CalculatePriority_DoesNotMutateStoredPriority()
     {
-        var cell = new DummyCell(new WorldCellKey(WorldCellKind.TraceSceneRegion, 1));
+        var cell = new DummyCell(new WorldCellKey(WorldCellKind.LumonSceneNear, 1));
         cell.Priority = 123f;
 
         var ctx = new WorldCellPriorityContext(

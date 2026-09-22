@@ -38,7 +38,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
     private readonly ICoreClientAPI capi;
     private readonly VgeConfig config;
     private readonly GBufferManager gBufferManager;
-    private TraceGeometryRenderer? occupancyClipmap;
+    private TraceGeometryRenderer? traceGeometry;
 
     private readonly LumonScenePhysicalPoolManager physicalPools = new();
     private readonly LumonSceneFieldGpuResources nearGpu = new(LumonSceneField.Near);
@@ -151,9 +151,9 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         return EnsureGeometryHistoryCurrent();
     }
 
-    internal void SetOccupancyClipmapUpdateRenderer(TraceGeometryRenderer? occupancy)
+    internal void SetTraceGeometryRenderer(TraceGeometryRenderer? occupancy)
     {
-        occupancyClipmap = occupancy;
+        traceGeometry = occupancy;
     }
 
     internal bool TryBuildNearRelightWorkFromScheduler(
@@ -1987,28 +1987,14 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             captureVoxelShader.BindDepthAtlasImage(atlases.DepthAtlas, access: TextureAccess.WriteOnly);
             captureVoxelShader.BindMaterialAtlasImage(atlases.MaterialAtlas, access: TextureAccess.WriteOnly);
 
-            // TraceScene sampling inputs (optional; capture will write zeros if missing).
-            int occResolution = 0;
-            VectorInt3 occOriginMinCell0 = default;
-            VectorInt3 occRing0 = default;
-
-            var occRes = occupancyClipmap?.PrepareScene();
-            captureVoxelShader.BindSharedGeometry(occRes);
-            occupancyClipmap?.TryGetLevel0RuntimeParams(out occOriginMinCell0, out occRing0, out occResolution);
+            captureVoxelShader.BindSharedGeometry(traceGeometry?.PrepareScene());
             captureVoxelShader.SetAtlasLayout(
                 tileSizeTexels: (uint)tileSize,
                 tilesPerAxis: (uint)tilesPerAxis,
                 tilesPerAtlas: (uint)tilesPerAtlas,
                 borderTexels: 0u);
 
-            captureVoxelShader.SetOccupancyMapping(
-                originMinCellX: occOriginMinCell0.X,
-                originMinCellY: occOriginMinCell0.Y,
-                originMinCellZ: occOriginMinCell0.Z,
-                ringX: occRing0.X,
-                ringY: occRing0.Y,
-                ringZ: occRing0.Z,
-                resolution: occResolution);
+
 
             int gx = (tileSize + 7) / 8;
             int gy = (tileSize + 7) / 8;

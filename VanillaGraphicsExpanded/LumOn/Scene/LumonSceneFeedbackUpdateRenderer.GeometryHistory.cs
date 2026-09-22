@@ -21,7 +21,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer
     {
         var atlas = physicalPools.Near.GpuResources?.IrradianceAtlas;
         if (!configured || atlas == null) return false;
-        var scene = occupancyClipmap?.PrepareScene();
+        var scene = traceGeometry?.PrepareScene();
         long revision = scene?.InvalidationRevision ?? -1;
         if (ReferenceEquals(historyGeometry, scene) && historyInvalidation == revision && historyAtlas == atlas.TextureId) return true;
         if (resetIrradiance == null && !GpuComputePipeline.TryCreateFromAssets(capi, "lumonscene_reset_irradiance",

@@ -17,15 +17,10 @@ internal sealed class LumonSceneCaptureVoxelComputeShader : IDisposable
     private const int ParamsUboSizeBytes = 64; // uvec4 + ivec4 + ivec4 + ivec4
 
     private const int AtlasLayoutOffsetBytes = 0;
-    private const int OccOriginMinCell0OffsetBytes = 16;
-    private const int OccRing0OffsetBytes = 32;
-    private const int OccInts0OffsetBytes = 48;
 
     private const int DepthAtlasImageUnit = 0;    // layout(binding=0, r16f)
     private const int MaterialAtlasImageUnit = 1; // layout(binding=1, rgba8)
 
-    private const int OccL0SamplerUnit = 2;            // layout(binding=2)
-    private const int MaterialPaletteSamplerUnit = 3;  // layout(binding=3)
 
     private const int CaptureWorkSsboBindingIndex = 0; // layout(std430, binding=0)
     private const int PatchMetaSsboBindingIndex = 1;   // layout(std430, binding=1)
@@ -123,18 +118,6 @@ internal sealed class LumonSceneCaptureVoxelComputeShader : IDisposable
             format: SizedInternalFormat.Rgba8);
     }
 
-    public void BindOccL0(int textureId)
-    {
-        GlStateCache.Current.BindTexture(TextureTarget.Texture3D, unit: OccL0SamplerUnit, textureId: textureId);
-        GpuSamplers.NearestClamp.Bind(unit: OccL0SamplerUnit);
-    }
-
-    public void BindMaterialPalette(int textureId)
-    {
-        GlStateCache.Current.BindTexture(TextureTarget.Texture2D, unit: MaterialPaletteSamplerUnit, textureId: textureId);
-        GpuSamplers.NearestClamp.Bind(unit: MaterialPaletteSamplerUnit);
-    }
-
     public void BindCaptureWorkSsbo(GpuShaderStorageBuffer captureWorkSsbo)
     {
         if (captureWorkSsbo is null) throw new ArgumentNullException(nameof(captureWorkSsbo));
@@ -151,14 +134,6 @@ internal sealed class LumonSceneCaptureVoxelComputeShader : IDisposable
     {
         if (chunkSlotInfoSsbo is null) throw new ArgumentNullException(nameof(chunkSlotInfoSsbo));
         chunkSlotInfoSsbo.BindBase(ChunkSlotInfoSsboBindingIndex);
-    }
-
-    public void SetOccupancyMapping(int originMinCellX, int originMinCellY, int originMinCellZ, int ringX, int ringY, int ringZ, int resolution)
-    {
-        UboPacking.WriteIVec4(paramsBytes, OccOriginMinCell0OffsetBytes, originMinCellX, originMinCellY, originMinCellZ, 0);
-        UboPacking.WriteIVec4(paramsBytes, OccRing0OffsetBytes, ringX, ringY, ringZ, 0);
-        UboPacking.WriteIVec4(paramsBytes, OccInts0OffsetBytes, resolution, 0, 0, 0);
-        ApplyParamsUbo();
     }
 
     public void SetAtlasLayout(uint tileSizeTexels, uint tilesPerAxis, uint tilesPerAtlas, uint borderTexels)

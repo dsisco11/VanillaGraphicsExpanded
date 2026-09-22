@@ -1,12 +1,13 @@
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.LumOn.Scene;
-using VanillaGraphicsExpanded.LumOn.Scene.NearField;
+
 using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
 using VanillaGraphicsExpanded.WorldPartition;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.Scene;
 
 /// <summary>Source instance lifetimes invalidate artifact-cache revisions independently of chunk dirty events.</summary>
-public sealed class NearFieldSourceLifetimesTests
+public sealed class TraceGeometrySourceLifetimesTests
 {
     #region Identity observations
     /// <summary>Initial load, replacement, unload, and reload each advance dependency identity while stable observations do not.</summary>
@@ -14,7 +15,7 @@ public sealed class NearFieldSourceLifetimesTests
     public void ChangedLoadedIdentityAdvancesArtifactVersion()
     {
         var versions=new LumonSceneTraceSceneChunkVersionProvider();
-        var lifetimes=new NearFieldSourceLifetimes(versions);
+        var lifetimes=new TraceGeometrySourceLifetimes(versions);
         var key=ChunkKey.FromChunkCoords(-1,2,3);
         var first=new object();var second=new object();
         Assert.True(lifetimes.Observe(key,first));int initial=versions.GetCurrentVersion(key);
@@ -29,7 +30,7 @@ public sealed class NearFieldSourceLifetimesTests
     public void WindowReentryAdvancesArtifactVersion()
     {
         var versions=new LumonSceneTraceSceneChunkVersionProvider();
-        var lifetimes=new NearFieldSourceLifetimes(versions);
+        var lifetimes=new TraceGeometrySourceLifetimes(versions);
         var key=ChunkKey.FromChunkCoords(0,0,0);var identity=new object();
         lifetimes.Observe(key,identity);int old=versions.GetCurrentVersion(key);
         lifetimes.Retain(new PartitionCellRange(new(0,0,0),new(2,2,2)));

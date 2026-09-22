@@ -1,10 +1,9 @@
-using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using System;
 
 using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.Scene;
-using VanillaGraphicsExpanded.LumOn.Scene.NearField;
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.LumOn.Diagnostics;
 using VanillaGraphicsExpanded.WorldPartition;
 using VanillaGraphicsExpanded.ModSystems;
@@ -26,10 +25,10 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
     private LumOnBufferManager? lumOnBufferManager;
     private LumOnRenderer? lumOnRenderer;
 
-    internal NearFieldRuntimeMetrics? NearFieldMetrics => null;
+    internal TraceGeometryRuntimeMetrics? GeometryMetrics => traceGeometryRenderer?.Metrics;
     private LumOnDebugRenderer? lumOnDebugRenderer;
     private LumonSceneFeedbackUpdateRenderer? lumonSceneFeedbackUpdateRenderer;
-    private TraceGeometryRenderer? lumonSceneOccupancyClipmapUpdateRenderer;
+    private TraceGeometryRenderer? traceGeometryRenderer;
     private LumonSceneRelightUpdateRenderer? lumonSceneRelightUpdateRenderer;
     private LumOnTerrainBridgeUpdateRenderer? lumOnTerrainBridgeUpdateRenderer;
 
@@ -201,12 +200,12 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
                 return "TS scheduler: off";
             }
 
-            if (lumonSceneOccupancyClipmapUpdateRenderer is null)
+            if (traceGeometryRenderer is null)
             {
                 return "TS scheduler: init";
             }
 
-            return lumonSceneOccupancyClipmapUpdateRenderer.DumpTraceSceneSchedulerState(topN);
+            return traceGeometryRenderer.DumpTraceSceneSchedulerState(topN);
         }
         catch
         {
@@ -287,83 +286,20 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
     {
         try
         {
-            if (!ConfigModSystem.Config.LumOn.LumonScene.Enabled)
+            if (!ConfigModSystem.Config.LumOn.Enabled)
             {
-                return "TS: off";
+                return "Shared geometry: off";
             }
 
-            if (lumonSceneOccupancyClipmapUpdateRenderer is null)
+            if (traceGeometryRenderer is null)
             {
                 return "TS: init";
             }
 
-            var traceCfg = ConfigModSystem.Config.LumOn.LumonScene.TraceScene;
-
-            int q = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.QueueLength;
-            int qh = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.QueueHighLength;
-            int ql = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.QueueLowLength;
-            int sup = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SuppressedCooldown;
-            int f = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.InFlight;
-            int a = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.AppliedRegions;
-            long cd = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.CooldownSkips;
-            long r = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionRequestsIssued;
-            int ism = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.IssueSkipMask;
-
-            long cOk = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionCompleteSuccess;
-            long cNo = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionCompleteChunkUnavailable;
-            long cCa = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionCompleteCanceled;
-            long cSu = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionCompleteSuperseded;
-            long cFa = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.RegionCompleteFailed;
-            long sReq = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotsRequested;
-            long sOk = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotsSucceeded;
-            long sNo = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotsUnavailable;
-            long sfC = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotFailCanceled;
-            long sfM = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotFailChunkMissing;
-            long sfU = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotFailUnpack;
-            long sfE = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.SnapshotFailException;
-
-            int na = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotNonAirCells;
-            int sol = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotSolidCells;
-            int cf = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotChunkFound;
-            int bc = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotBulkCloneUsed;
-            int b0 = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotBlockId0;
-            int bC = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotBlockIdCenter;
-            int bL = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotBlockIdLast;
-            int bD = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotDirectBlockIdCenter;
-            int cx = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotChunkX;
-            int cy = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotChunkY;
-            int cz = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotChunkZ;
-            int ev = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotExpectedVersion;
-            int cv = global::VanillaGraphicsExpanded.LumOn.Scene.LumonSceneTraceSceneMetrics.LastSnapshotCurrentVersion;
-
-            string top = string.Empty;
-            try
-            {
-                if (lumonSceneOccupancyClipmapUpdateRenderer.TryGetTraceSceneSchedulerTopKLine(k: 3, out string topLine))
-                {
-                    top = topLine;
-                }
-            }
-            catch
-            {
-                top = string.Empty;
-            }
-
-            string baseLine =
-                $"TS: q:{q}({qh}/{ql}) sup:{sup} f:{f} a:{a} cd:{cd} ism:{ism} comp:{cOk}/{cNo}/{cCa}/{cSu}/{cFa} r:{r} s:{sReq}/{sOk}/{sNo} fail:{sfC}/{sfM}/{sfU}/{sfE} v:{ev}->{cv} c:{cf} bc:{bc} key:{cx},{cy},{cz} b:{b0}/{bC}/{bL} d:{bD} na:{na} sol:{sol}"
-                + $" cfg:if:{traceCfg.ClipmapMaxInFlightRegions} i:{traceCfg.ClipmapIssueBudgetMs:0.###} d:{traceCfg.ClipmapDispatchBudgetMs:0.###} r:{traceCfg.ClipmapRefreshBudgetMs:0.###} up:{traceCfg.ClipmapMaxRegionUploadsPerFrame} dp:{traceCfg.ClipmapMaxRegionsDispatchedPerFrame}";
-
-            if (string.IsNullOrWhiteSpace(top))
-            {
-                return baseLine;
-            }
-
-            return baseLine + " top:" + top;
+            var m = GeometryMetrics;
+            return m == null ? "Shared geometry: unavailable" : $"Shared geometry: required {m.Residency.Required}, ready {m.Residency.Ready}, sources {m.SourceReads}, workers {m.SourceInFlight}, uploaded {m.UploadedBytes / 1048576d:F1} MiB";
         }
-        catch
-        {
-            return "TS: error";
-        }
+        catch { return "Shared geometry: error"; }
     }
 
     internal LumOnBufferManager? GetLumOnBufferManagerOrNull()
@@ -436,27 +372,27 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         lumOnDebugRenderer?.SetLumonSceneFeedbackUpdateRenderer(lumonSceneFeedbackUpdateRenderer);
 
         if (current.LumOnEnabled
-            && lumonSceneOccupancyClipmapUpdateRenderer is null)
+            && traceGeometryRenderer is null)
         {
             PartitionCoordinator worldPartition = clientApi.ModLoader.GetModSystem<WorldPartitionModSystem>().GetCoordinator();
-            lumonSceneOccupancyClipmapUpdateRenderer = new TraceGeometryRenderer(clientApi, ConfigModSystem.Config, clientApi.ModLoader.GetModSystem<WorldPartitionModSystem>());
+            traceGeometryRenderer = new TraceGeometryRenderer(clientApi, ConfigModSystem.Config, clientApi.ModLoader.GetModSystem<WorldPartitionModSystem>());
         }
-        lumOnDebugRenderer?.SetLumonSceneOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
-        lumOnRenderer?.SetNearFieldSceneProvider(lumonSceneOccupancyClipmapUpdateRenderer);
-        lumOnDebugRenderer?.SetNearFieldSceneProvider(lumonSceneOccupancyClipmapUpdateRenderer);
-        lumonSceneFeedbackUpdateRenderer?.SetOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
+        lumOnDebugRenderer?.SetTraceGeometryRenderer(traceGeometryRenderer);
+        lumOnRenderer?.SetNearFieldSceneProvider(traceGeometryRenderer);
+        lumOnDebugRenderer?.SetNearFieldSceneProvider(traceGeometryRenderer);
+        lumonSceneFeedbackUpdateRenderer?.SetTraceGeometryRenderer(traceGeometryRenderer);
 
         if (current.LumOnEnabled
             && ConfigModSystem.Config.LumOn.LumonScene.Enabled
             && lumonSceneRelightUpdateRenderer is null
             && lumonSceneFeedbackUpdateRenderer is not null
-            && lumonSceneOccupancyClipmapUpdateRenderer is not null)
+            && traceGeometryRenderer is not null)
         {
             lumonSceneRelightUpdateRenderer = new LumonSceneRelightUpdateRenderer(
                 clientApi,
                 ConfigModSystem.Config,
                 lumonSceneFeedbackUpdateRenderer,
-                lumonSceneOccupancyClipmapUpdateRenderer);
+                traceGeometryRenderer);
         }
     }
 
@@ -482,8 +418,8 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         lumonSceneFeedbackUpdateRenderer?.Dispose();
         lumonSceneFeedbackUpdateRenderer = null;
 
-        lumonSceneOccupancyClipmapUpdateRenderer?.Dispose();
-        lumonSceneOccupancyClipmapUpdateRenderer = null;
+        traceGeometryRenderer?.Dispose();
+        traceGeometryRenderer = null;
 
         lumonSceneRelightUpdateRenderer?.Dispose();
         lumonSceneRelightUpdateRenderer = null;
@@ -564,15 +500,15 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         }
         lumOnDebugRenderer?.SetLumonSceneFeedbackUpdateRenderer(lumonSceneFeedbackUpdateRenderer);
 
-        if (lumonSceneOccupancyClipmapUpdateRenderer is null)
+        if (traceGeometryRenderer is null)
         {
             PartitionCoordinator worldPartition = capi.ModLoader.GetModSystem<WorldPartitionModSystem>().GetCoordinator();
-            lumonSceneOccupancyClipmapUpdateRenderer = new TraceGeometryRenderer(capi, ConfigModSystem.Config, capi.ModLoader.GetModSystem<WorldPartitionModSystem>());
+            traceGeometryRenderer = new TraceGeometryRenderer(capi, ConfigModSystem.Config, capi.ModLoader.GetModSystem<WorldPartitionModSystem>());
         }
-        lumOnDebugRenderer?.SetLumonSceneOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
-        lumOnRenderer?.SetNearFieldSceneProvider(lumonSceneOccupancyClipmapUpdateRenderer);
-        lumOnDebugRenderer?.SetNearFieldSceneProvider(lumonSceneOccupancyClipmapUpdateRenderer);
-        lumonSceneFeedbackUpdateRenderer?.SetOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
+        lumOnDebugRenderer?.SetTraceGeometryRenderer(traceGeometryRenderer);
+        lumOnRenderer?.SetNearFieldSceneProvider(traceGeometryRenderer);
+        lumOnDebugRenderer?.SetNearFieldSceneProvider(traceGeometryRenderer);
+        lumonSceneFeedbackUpdateRenderer?.SetTraceGeometryRenderer(traceGeometryRenderer);
 
         if (lumOnTerrainBridgeUpdateRenderer is null && ConfigModSystem.Config.LumOn.LumonScene.Enabled)
         {
@@ -582,13 +518,13 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         if (lumonSceneRelightUpdateRenderer is null
             && ConfigModSystem.Config.LumOn.LumonScene.Enabled
             && lumonSceneFeedbackUpdateRenderer is not null
-            && lumonSceneOccupancyClipmapUpdateRenderer is not null)
+            && traceGeometryRenderer is not null)
         {
             lumonSceneRelightUpdateRenderer = new LumonSceneRelightUpdateRenderer(
                 capi,
                 ConfigModSystem.Config,
                 lumonSceneFeedbackUpdateRenderer,
-                lumonSceneOccupancyClipmapUpdateRenderer);
+                traceGeometryRenderer);
         }
 
         capi.Logger.Debug("[VGE] LumOnModSystem ensured ({0})", reason);

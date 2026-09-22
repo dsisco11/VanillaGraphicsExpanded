@@ -10,59 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.Scene;
 /// <summary>Verifies the production scene adapters against shared residency and existing domain eligibility.</summary>
 public sealed class SceneResidencyMigrationTests
 {
-    #region Tracing adapter
-    /// <summary>Overlapping movement preserves the incarnation while departure cancels and removes the old lifetime.</summary>
-    [Theory]
-    [InlineData(-524288)]
-    [InlineData(-1)]
-    [InlineData(524288)]
-    public void TraceMovementRetainsOverlapAndRejectsDepartedUpload(int x)
-    {
-        var coordinator = Coordinator();
-        var scheduler = new TraceSceneRegionScheduler(coordinator);
-        scheduler.SetWindow(new(x, 0, 0), new(x + 2, 0, 0));
-        ChunkKey overlap = ChunkKey.FromChunkCoords(x + 1, 0, 0);
-        ChunkKey departing = ChunkKey.FromChunkCoords(x, 0, 0);
-        scheduler.NotifyChunkDirty(overlap, 1, 1);
-        scheduler.NotifyChunkDirty(departing, 1, 1);
-        Assert.True(scheduler.OnRequestIssued(overlap, 1, 1));
-        Assert.True(scheduler.OnRequestIssued(departing, 1, 1));
-        PartitionRequest keep = scheduler.RequestFor(overlap);
-        PartitionRequest obsolete = scheduler.RequestFor(departing);
-        scheduler.SetWindow(new(x + 1, 0, 0), new(x + 3, 0, 0));
-        Assert.True(scheduler.IsCurrent(keep));
-        Assert.False(scheduler.IsCurrent(obsolete));
-        Assert.False(scheduler.TryPublish(obsolete, 1, 1, () => true, () => throw new Exception("departed upload")));
-        Assert.True(scheduler.TryPublish(keep, 1, 1, () => true, () => true));
-        Assert.Equal(1, scheduler.AppliedCount);
-        Assert.Equal(0, scheduler.InFlightCount);
-    }
-
-    /// <summary>Reset and same-coordinate re-registration cannot accept a previous world's completion.</summary>
-    [Fact]
-    public void TraceResetRejectsOldRegistrationAndKeepsInstancesIndependent()
-    {
-        var coordinator = Coordinator();
-        var a = new TraceSceneRegionScheduler(coordinator);
-        var b = new TraceSceneRegionScheduler(coordinator);
-        a.SetWindow(default, default);
-        b.SetWindow(default, default);
-        ChunkKey key = ChunkKey.FromChunkCoords(0, 0, 0);
-        Assert.True(a.OnRequestIssued(key, 1, 1));
-        Assert.True(b.OnRequestIssued(key, 1, 1));
-        PartitionRequest old = a.RequestFor(key);
-        PartitionRequest other = b.RequestFor(key);
-        Assert.NotEqual(old.Key.Instance, other.Key.Instance);
-        a.Reset();
-        a.SetWindow(default, default);
-        Assert.False(a.TryPublish(old, 1, 0, () => true, () => throw new Exception("old world upload")));
-        Assert.True(b.TryPublish(other, 1, 0, () => true, () => true));
-        Assert.Equal(0, a.AppliedCount);
-        Assert.Equal(1, b.AppliedCount);
-    }
-    #endregion
-
-    #region Near-scene adapter
+#region Near-scene adapter
     /// <summary>A reserved byte upload cannot strand a scene's zero-byte slot acknowledgement.</summary>
     [Fact]
     public void SceneSlotAcknowledgementDoesNotConsumeAnotherUploadTurn()

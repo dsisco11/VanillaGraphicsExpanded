@@ -1,7 +1,8 @@
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using System.Collections.Concurrent;
 using System.Reflection;
 using VanillaGraphicsExpanded.LumOn.Scene;
-using VanillaGraphicsExpanded.LumOn.Scene.NearField;
+
 using Vintagestory.API.Common;
 using Vintagestory.Common;
 
@@ -21,7 +22,7 @@ internal sealed class NearFieldCaptureFixture
     public int ChunkLookups;
     public IWorldChunk Chunk { get; }
     public IBlockAccessor Accessor { get; }
-    public NearFieldLightDecoder Lighting { get; } = new(
+    public TraceGeometryLightDecoder Lighting { get; } = new(
         Enumerable.Range(0, 32).Select(i => i / 31f).ToArray(),
         Enumerable.Range(0, 32).Select(i => i / 31f).ToArray(),
         Enumerable.Range(0, 64).Select(i => (byte)(i * 4)).ToArray(),
@@ -47,11 +48,11 @@ internal sealed class NearFieldCaptureFixture
     }
 
     /// <summary>Creates the production snapshot source with the fixture's palettes and lifecycle controls.</summary>
-    public NearFieldChunkSnapshotSource CreateSource() => new(Accessor, id =>
+    public TraceGeometrySnapshotSource CreateSource() => new(Accessor, id =>
     {
         OnBlock?.Invoke();
         return Blocks[id];
-    }, Versions, new NearFieldMaterialRegistry(), Lighting);
+    }, Versions, new TraceGeometryMaterials(), Lighting);
 
     /// <summary>Records the executing thread and allows deterministic invalidation during capture.</summary>
     private bool Unpack()

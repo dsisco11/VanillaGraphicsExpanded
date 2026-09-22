@@ -5,13 +5,14 @@
 /** Traces camera rays through the uploaded occupancy ring, exposing unavailable cells instead of skipping them. */
 vec4 renderNearFieldGeometryDebug()
 {
-    int size = nearFieldOriginResolution.w;
+    int size = traceNearMax.x - traceNearMin.x;
+    int cellSize = nearFieldBudget.y;
     if (size <= 0) return vec4(0.1, 0.2, 0.8, 1.0);
     // Inverse-view translation is the camera position relative to the player origin.
     // Retain the absolute chunk component as integers; never convert the world origin to float.
     vec3 camera = (invViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz + matrixSpaceWorldBlockOffsetRem;
     ivec3 cameraCell = ivec3(floor(camera)) + matrixSpaceWorldChunkCoordOffset * 32;
-    vec3 origin = vec3(cameraCell - nearFieldOriginResolution.xyz) + fract(camera);
+    vec3 origin = vec3(cameraCell - traceNearMin.xyz) + fract(camera);
     vec3 viewRay = lumonReconstructViewPos(uv, 0.5, invProjectionMatrix);
     vec3 direction = normalize((invViewMatrix * vec4(normalize(viewRay), 0.0)).xyz);
     // Clip to the local volume so observers outside its bounds can still inspect it.
@@ -51,11 +52,11 @@ vec4 renderNearFieldGeometryDebug()
     for (int i = 0; i < 2048; i++)
     {
         if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, ivec3(size)))) return vec4(0.0, 0.0, 0.0, 1.0);
-        ivec3 worldCell = nearFieldOriginResolution.xyz + cell;
-        int cellSize = nearFieldBudget.y;
-        ivec3 region = lumonNearFieldWrap(cell / cellSize + nearFieldOriginResolution.xyz / cellSize, size / cellSize);
-        if (texelFetch(nearFieldRegions, region, 0).r == 0u) return vec4(0.5, 0.0, 1.0, 1.0);
-        uint geometry = texelFetch(nearFieldGeometry, lumonNearFieldWrap(worldCell, size), 0).r;
+        ivec3 worldCell = traceNearMin.xyz + cell;
+        uint geometry;
+        int status = lumonTraceSceneReadGeometry(worldCell, TRACE_SCENE_NEAR, geometry);
+        if (status == TRACE_SCENE_UNPUBLISHED) return vec4(0.5, 0.0, 1.0, 1.0);
+        if (status == TRACE_SCENE_OUTSIDE) return vec4(0.0, 0.2, 0.8, 1.0);
         uint state = geometry & 3u;
         if (state != 1u)
         {

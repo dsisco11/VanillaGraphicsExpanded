@@ -1,6 +1,6 @@
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene;
-using VanillaGraphicsExpanded.LumOn.Scene.NearField;
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
@@ -67,7 +67,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         long revision = fixture.Scene.Revision;
         var request = new PartitionRequest(1, key, 1, 1, long.MaxValue, CancellationToken.None);
         Assert.False(fixture.Scene.ClaimCell(request));
-        Assert.False(fixture.Scene.PublishCell(request, new NearFieldSourceCell[4096], new NearFieldMaterialRegistry()));
+        Assert.False(fixture.Scene.PublishCell(request, new ControlledTraceVoxel[4096], new TraceGeometryMaterials()));
         Assert.Equal(revision, fixture.Scene.Revision);
         Assert.Equal(expected, ReadReadiness(fixture.Scene));
 
@@ -90,7 +90,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
     public void ReadinessUpload_UsesPackedBytesAndRestoresAlignment()
     {
         EnsureShaderTestAvailable();
-        using var scene = new NearFieldGpuScene(48);
+        using var scene = new ControlledTraceGpuScene(48);
         var data = Enumerable.Range(0, 27).Select(i => (byte)(i % 3)).ToArray();
         GL.GetInteger(GetPName.UnpackAlignment, out int originalAlignment);
         GL.PixelStore(PixelStoreParameter.UnpackAlignment, 8);
@@ -105,7 +105,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
     }
 
     /// <summary>Reads tightly packed integer readiness and restores external pixel-pack state.</summary>
-    private static byte[] ReadReadiness(NearFieldGpuScene scene)
+    private static byte[] ReadReadiness(ControlledTraceGpuScene scene)
     {
         var data = new byte[scene.RegionResolution * scene.RegionResolution * scene.RegionResolution];
         using var binding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, scene.Regions.TextureId);
